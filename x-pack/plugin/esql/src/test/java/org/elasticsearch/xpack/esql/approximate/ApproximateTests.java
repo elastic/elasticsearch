@@ -38,6 +38,7 @@ import org.elasticsearch.xpack.esql.parser.QueryParams;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.plan.logical.MvExpand;
 import org.elasticsearch.xpack.esql.plan.logical.Sample;
 import org.elasticsearch.xpack.esql.plan.logical.local.EmptyLocalSupplier;
 import org.elasticsearch.xpack.esql.plan.physical.LocalSourceExec;
@@ -60,7 +61,6 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.withDefaultLimitWarning
 import static org.hamcrest.CoreMatchers.allOf;
 import static org.hamcrest.CoreMatchers.not;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasSize;
 import static org.mockito.Mockito.mock;
 
@@ -80,10 +80,9 @@ public class ApproximateTests extends ESTestCase {
      * The runner always returns a result with one field: the number of rows.
      * <p>
      * The runner is initialized with a total number of rows (returned when
-     * there are no filters in the query), and a number of filtered rows
-     * (returned when there are filters in the query). If there's random
-     * sampling in the query, the returned number of rows is multiplied by
-     * the sampling probability.
+     * there's no WHERE or MV_EXPAND in the query), and a number of stats rows
+     * (returned otherwise). If there's random sampling in the query, the
+     * returned number of rows is multiplied by the sampling probability.
      * <p>
      * The runner also provides the LogicalPlan to PhysicalPlan conversion,
      * but it does not return a realistic PhysicalPlan. When running a
@@ -94,16 +93,16 @@ public class ApproximateTests extends ESTestCase {
      */
     private static class TestRunner implements Function<LogicalPlan, PhysicalPlan>, EsqlSession.PlanRunner {
 
-        private final long totalRows;
-        private final long filteredRows;
+        private final long sourceRows;  // Number of rows in the source data
+        private final long statsRows;  // Number of rows arriving at the STATS command
         private final List<LogicalPlan> invocations;
         private final Map<PhysicalPlan, LogicalPlan> toLogicalPlan = new HashMap<>();
 
         static ActionListener<Result> resultCloser = ActionListener.wrap(result -> result.pages().getFirst().close(), e -> {});
 
-        TestRunner(long totalRows, long filteredRows) {
-            this.totalRows = totalRows;
-            this.filteredRows = filteredRows;
+        TestRunner(long sourceRows, long statsRows) {
+            this.sourceRows = sourceRows;
+            this.statsRows = statsRows;
             this.invocations = new ArrayList<>();
         }
 
@@ -123,8 +122,8 @@ public class ApproximateTests extends ESTestCase {
         public void run(PhysicalPlan physicalPlan, Configuration configuration, FoldContext foldContext, ActionListener<Result> listener) {
             LogicalPlan logicalPlan = toLogicalPlan.get(physicalPlan);
             invocations.add(logicalPlan);
-            List<LogicalPlan> filters = logicalPlan.collect(plan -> plan instanceof Filter);
-            long numResults = filters.isEmpty() ? totalRows : filteredRows;
+            List<LogicalPlan> filtersAndMvExpands = logicalPlan.collect(plan -> plan instanceof Filter || plan instanceof MvExpand);
+            long numResults = filtersAndMvExpands.isEmpty() ? sourceRows : statsRows;
             List<LogicalPlan> samples = logicalPlan.collect(plan -> plan instanceof Sample);
             for (LogicalPlan sample : samples) {
                 numResults = (long) (numResults * (double) ((Literal) ((Sample) sample).probability()).value());
@@ -146,6 +145,25 @@ public class ApproximateTests extends ESTestCase {
         verify("FROM test | LIMIT 1000 | KEEP gender, emp_no | RENAME gender AS whatever | STATS MEDIAN(emp_no)");
         verify("FROM test | EVAL blah=1 | GROK last_name \"%{IP:x}\" | SAMPLE 0.1 | STATS a=COUNT() | LIMIT 100 | SORT a");
         verify("ROW i=[1,2,3] | EVAL x=TO_STRING(i) | DISSECT x \"%{x}\" | STATS i=10*POW(PERCENTILE(i, 0.5), 2) | LIMIT 10");
+    }
+
+    public void testVerify_validQuery_queryProperties() throws Exception {
+        assertThat(
+            verify("FROM test | SORT last_name | RENAME gender AS whatever | EVAL blah=1 | STATS COUNT() BY emp_no"),
+            equalTo(new Approximate.QueryProperties(false, false))
+        );
+        assertThat(
+            verify("FROM test | STATS COUNT() BY emp_no | WHERE emp_no > 10 | LIMIT 3 | MV_EXPAND emp_no"),
+            equalTo(new Approximate.QueryProperties(false, false))
+        );
+        assertThat(
+            verify("FROM test | WHERE emp_no > 10 | STATS COUNT() BY emp_no"),
+            equalTo(new Approximate.QueryProperties(true, false))
+        );
+        assertThat(verify("FROM test | LIMIT 3 | STATS COUNT() BY emp_no"), equalTo(new Approximate.QueryProperties(true, false)));
+        assertThat(verify("FROM test | SAMPLE 0.3 | STATS COUNT() BY emp_no"), equalTo(new Approximate.QueryProperties(true, false)));
+        assertThat(verify("FROM test | MV_EXPAND gender | STATS COUNT() BY emp_no"), equalTo(new Approximate.QueryProperties(false, true)));
+        assertThat(verify("FROM test | MV_EXPAND gender | LIMIT 42 | STATS COUNT()"), equalTo(new Approximate.QueryProperties(true, true)));
     }
 
     public void testVerify_exactlyOneStats() {
@@ -210,92 +228,138 @@ public class ApproximateTests extends ESTestCase {
         TestRunner runner = new TestRunner(1_000_000_000, 1_000_000_000);
         Approximate approximate = createApproximate("FROM test | STATS SUM(emp_no)", runner);
         approximate.approximate(TestRunner.resultCloser);
-        // One pass is needed to get the number of rows, and approximation is executed immediately
-        // after that with the correct sample probability.
-        assertThat(runner.invocations, hasSize(2));
-        assertThat(runner.invocations.get(0), allOf(not(hasFilter("emp_no")), not(hasSample())));
-        assertThat(runner.invocations.get(1), allOf(not(hasFilter("emp_no")), hasSample(1e-4)));
+        // This plan needs three passes:
+        // - one pass to check whether it's an ES stats query (always no for the test runner)
+        // - one pass to get the total number of rows (which determines the sample probability)
+        // - one pass to approximate the query
+        assertThat(runner.invocations, hasSize(3));
+        assertThat(runner.invocations.get(0), allOf(not(hasSample())));
+        assertThat(runner.invocations.get(1), allOf(not(hasSample())));
+        assertThat(runner.invocations.get(2), allOf(hasSample(1e-4)));
     }
 
     public void testCountPlan_smallDataNoFilters() throws Exception {
         TestRunner runner = new TestRunner(1_000, 1_000);
         Approximate approximate = createApproximate("FROM test | STATS SUM(emp_no)", runner);
         approximate.approximate(TestRunner.resultCloser);
-        // One pass is needed to get the number of rows, and the original query is executed
-        // immediately after that without sampling.
-        assertThat(runner.invocations, hasSize(2));
-        assertThat(runner.invocations.get(0), allOf(not(hasFilter("emp_no")), not(hasSample())));
-        assertThat(runner.invocations.get(1), allOf(not(hasFilter("emp_no")), not(hasSample())));
+        // This plan needs three passes:
+        // - one pass to check whether it's an ES stats query (always no for the test runner)
+        // - one pass to get the total number of rows (which is small)
+        // - one pass to execute the original query
+        assertThat(runner.invocations, hasSize(3));
+        assertThat(runner.invocations.get(0), allOf(not(hasSample())));
+        assertThat(runner.invocations.get(1), allOf(not(hasSample())));
+        assertThat(runner.invocations.get(2), allOf(not(hasSample())));
     }
 
     public void testCountPlan_largeDataAfterFiltering() throws Exception {
         TestRunner runner = new TestRunner(1_000_000_000_000L, 1_000_000_000);
         Approximate approximate = createApproximate("FROM test | WHERE emp_no < 1 | STATS SUM(emp_no)", runner);
         approximate.approximate(TestRunner.resultCloser);
-        // One pass is needed to get the number of rows, then a few passes to get a good sample
-        // probability, and finally approximation is executed.
-        assertThat(runner.invocations, hasSize(4));
-        assertThat(runner.invocations.get(0), allOf(not(hasFilter("emp_no")), not(hasSample())));
-        assertThat(runner.invocations.get(1), allOf(hasFilter("emp_no"), hasSample(1e-7)));
-        assertThat(runner.invocations.get(2), allOf(hasFilter("emp_no"), hasSample(1e-4)));
+        // This plan needs five passes:
+        // - one pass to check whether it's an ES stats query (always no for the test runner)
+        // - one pass to get the total number of rows
+        // - two passes to get the number of filtered rows (which determines the sample probability)
+        // - one pass to approximate the query
+        assertThat(runner.invocations, hasSize(5));
+        assertThat(runner.invocations.get(0), allOf(hasFilter("emp_no"), not(hasSample())));
+        assertThat(runner.invocations.get(1), allOf(not(hasFilter("emp_no")), not(hasSample())));
+        assertThat(runner.invocations.get(2), allOf(hasFilter("emp_no"), hasSample(1e-7)));
         assertThat(runner.invocations.get(3), allOf(hasFilter("emp_no"), hasSample(1e-4)));
+        assertThat(runner.invocations.get(4), allOf(hasFilter("emp_no"), hasSample(1e-4)));
     }
 
     public void testCountPlan_smallDataAfterFiltering() throws Exception {
         TestRunner runner = new TestRunner(1_000_000_000_000_000_000L, 100);
         Approximate approximate = createApproximate("FROM test | WHERE emp_no < 1 | STATS SUM(emp_no)", runner);
         approximate.approximate(TestRunner.resultCloser);
-        // One pass is needed to get the number of rows, then a few passes to get a good sample
-        // probability, and finally the original query is executed without sampling.
-        assertThat(runner.invocations, hasSize(5));
-        assertThat(runner.invocations.get(0), allOf(not(hasFilter("emp_no")), not(hasSample())));
-        assertThat(runner.invocations.get(1), allOf(hasFilter("emp_no"), hasSample(1e-13)));
-        assertThat(runner.invocations.get(2), allOf(hasFilter("emp_no"), hasSample(1e-8)));
-        assertThat(runner.invocations.get(3), allOf(hasFilter("emp_no"), hasSample(1e-3)));
-        assertThat(runner.invocations.get(4), allOf(hasFilter("emp_no"), not(hasSample())));
+        // This plan needs five passes:
+        // - one pass to check whether it's an ES stats query (always no for the test runner)
+        // - one pass to get the total number of rows
+        // - three passes to get the number of filtered rows (which is small)
+        // - one pass to execute the original query
+        assertThat(runner.invocations, hasSize(6));
+        assertThat(runner.invocations.get(0), allOf(hasFilter("emp_no"), not(hasSample())));
+        assertThat(runner.invocations.get(1), allOf(not(hasFilter("emp_no")), not(hasSample())));
+        assertThat(runner.invocations.get(2), allOf(hasFilter("emp_no"), hasSample(1e-13)));
+        assertThat(runner.invocations.get(3), allOf(hasFilter("emp_no"), hasSample(1e-8)));
+        assertThat(runner.invocations.get(4), allOf(hasFilter("emp_no"), hasSample(1e-3)));
+        assertThat(runner.invocations.get(5), allOf(hasFilter("emp_no"), not(hasSample())));
     }
 
     public void testCountPlan_smallDataBeforeFiltering() throws Exception {
         TestRunner runner = new TestRunner(1_000, 10);
-        Approximate approximate = createApproximate("FROM test | WHERE emp_no < 1 | STATS SUM(emp_no)", runner);
+        Approximate approximate = createApproximate("FROM test | WHERE gender == \"X\" | STATS SUM(emp_no)", runner);
         approximate.approximate(TestRunner.resultCloser);
-        // One pass is needed to get the number of rows, and the original query is executed
-        // immediately after that without sampling.
-        assertThat(runner.invocations, hasSize(2));
-        assertThat(runner.invocations.get(0), allOf(not(hasFilter("emp_no")), not(hasSample())));
-        assertThat(runner.invocations.get(1), allOf(hasFilter("emp_no"), not(hasSample())));
+        // This plan needs three passes:
+        // - one pass to check whether it's an ES stats query (always no for the test runner)
+        // - one pass to get the total number of rows (which is small)
+        // - one pass to execute the original query
+        assertThat(runner.invocations, hasSize(3));
+        assertThat(runner.invocations.get(0), allOf(hasFilter("gender"), not(hasSample())));
+        assertThat(runner.invocations.get(1), allOf(not(hasFilter("gender")), not(hasSample())));
+        assertThat(runner.invocations.get(2), allOf(hasFilter("gender"), not(hasSample())));
     }
 
-    public void testApproximate_countAllRows() throws Exception {
-        TestRunner runner = new TestRunner(1_000_000_000, 1_000_000_000);
-        Approximate approximate = createApproximate("FROM test | STATS COUNT(*)", runner);
+    public void testCountPlan_smallDataAfterMvExpanding() throws Exception {
+        TestRunner runner = new TestRunner(1_000, 10_000);
+        Approximate approximate = createApproximate("FROM test | MV_EXPAND emp_no | STATS SUM(emp_no)", runner);
         approximate.approximate(TestRunner.resultCloser);
-        assertThat(runner.invocations, hasSize(1));
+        // This plan needs four passes:
+        // - one pass to check whether it's an ES stats query (always no for the test runner)
+        // - one pass to get the total number of rows
+        // - one pass to get the number of expanded rows (which determines the sample probability)
+        // - one pass to execute the original query
+        assertThat(runner.invocations, hasSize(4));
+        assertThat(runner.invocations.get(0), allOf(hasMvExpand("emp_no")));
+        assertThat(runner.invocations.get(1), allOf(not(hasMvExpand("emp_no")), not(hasSample())));
+        assertThat(runner.invocations.get(2), allOf(hasMvExpand("emp_no"), not(hasSample())));
+        assertThat(runner.invocations.get(3), allOf(hasMvExpand("emp_no"), not(hasSample())));
     }
 
-    public void testApproximate_countAllRows_withFiltering() throws Exception {
-        TestRunner runner = new TestRunner(1_000_000_000, 1_000_000_000);
-        Approximate approximate = createApproximate("FROM test | WHERE emp_no > 10 | STATS COUNT(*)", runner);
+    public void testCountPlan_largeDataAfterMvExpanding() throws Exception {
+        TestRunner runner = new TestRunner(1_000, 1_000_000_000);
+        Approximate approximate = createApproximate("FROM test | MV_EXPAND emp_no | STATS SUM(emp_no)", runner);
         approximate.approximate(TestRunner.resultCloser);
-        assertThat(runner.invocations, hasSize(greaterThan(1)));
+        // This plan needs four passes:
+        // - one pass to check whether it's an ES stats query (always no for the test runner)
+        // - one pass to get the total number of rows
+        // - one pass to get the number of expanded rows (which determines the sample probability)
+        // - one pass to approximate the query
+        assertThat(runner.invocations, hasSize(4));
+        assertThat(runner.invocations.get(0), allOf(hasMvExpand("emp_no")));
+        assertThat(runner.invocations.get(1), allOf(not(hasMvExpand("emp_no")), not(hasSample())));
+        assertThat(runner.invocations.get(2), allOf(hasMvExpand("emp_no"), not(hasSample())));
+        assertThat(runner.invocations.get(3), allOf(hasMvExpand("emp_no"), hasSample(1e-4)));
     }
 
-    public void testApproximate_countAllRows_withGrouping() throws Exception {
-        TestRunner runner = new TestRunner(1_000_000_000, 1_000_000_000);
-        Approximate approximate = createApproximate("FROM test | STATS COUNT(*) BY emp_no", runner);
+    public void testCountPlan_largeDataBeforeMvExpanding() throws Exception {
+        TestRunner runner = new TestRunner(1_000_000_000, 1_000_000_000_000L);
+        Approximate approximate = createApproximate("FROM test | MV_EXPAND emp_no | STATS SUM(emp_no)", runner);
         approximate.approximate(TestRunner.resultCloser);
-        assertThat(runner.invocations, hasSize(greaterThan(1)));
+        // This plan needs four passes:
+        // - one pass to check whether it's an ES stats query (always no for the test runner)
+        // - one pass to get the total number of rows
+        // - one pass to sample the number of expanded rows (which determines the sample probability)
+        // - one pass to approximate the query
+        assertThat(runner.invocations, hasSize(4));
+        assertThat(runner.invocations.get(0), allOf(hasMvExpand("emp_no")));
+        assertThat(runner.invocations.get(1), allOf(not(hasMvExpand("emp_no")), not(hasSample())));
+        assertThat(runner.invocations.get(2), allOf(hasMvExpand("emp_no"), hasSample(1e-4)));
+        assertThat(runner.invocations.get(3), allOf(hasMvExpand("emp_no"), hasSample(1e-7)));
     }
 
     public void testApproximatePlan_createsConfidenceInterval_withoutGrouping() throws Exception {
         TestRunner runner = new TestRunner(1_000_000_000, 1_000_000_000);
         Approximate approximate = createApproximate("FROM test | STATS COUNT(), SUM(emp_no)", runner);
         approximate.approximate(TestRunner.resultCloser);
-        // One pass is needed to get the number of rows, and approximation is executed immediately
-        // after that with the correct sample probability.
-        assertThat(runner.invocations, hasSize(2));
+        // This plan needs three passes:
+        // - one pass to check whether it's an ES stats query (always no for the test runner)
+        // - one pass to get the total number of rows (which determines the sample probability)
+        // - one pass to approximate the query
+        assertThat(runner.invocations, hasSize(3));
 
-        LogicalPlan approximatePlan = runner.invocations.get(1);
+        LogicalPlan approximatePlan = runner.invocations.getLast();
         assertThat(approximatePlan, hasSample(1e-4));
         // Counting all rows is exact, so no confidence interval is output.
         assertThat(approximatePlan, not(hasEval("CONFIDENCE_INTERVAL(COUNT())")));
@@ -308,11 +372,13 @@ public class ApproximateTests extends ESTestCase {
         TestRunner runner = new TestRunner(1_000_000_000, 1_000_000_000);
         Approximate approximate = createApproximate("FROM test | STATS COUNT(), SUM(emp_no) BY emp_no", runner);
         approximate.approximate(TestRunner.resultCloser);
-        // One pass is needed to get the number of rows, and approximation is executed immediately
-        // after that with the correct sample probability.
-        assertThat(runner.invocations, hasSize(2));
+        // This plan needs three passes:
+        // - one pass to check whether it's an ES stats query (always no for the test runner)
+        // - one pass to get the total number of rows (which determines the sample probability)
+        // - one pass to approximate the query
+        assertThat(runner.invocations, hasSize(3));
 
-        LogicalPlan approximatePlan = runner.invocations.get(1);
+        LogicalPlan approximatePlan = runner.invocations.getLast();
         assertThat(approximatePlan, hasSample(1e-4));
         assertThat(approximatePlan, hasEval("CONFIDENCE_INTERVAL(COUNT())"));
         assertThat(approximatePlan, hasEval("RELIABLE(COUNT())"));
@@ -327,11 +393,13 @@ public class ApproximateTests extends ESTestCase {
             runner
         );
         approximate.approximate(TestRunner.resultCloser);
-        // One pass is needed to get the number of rows, and approximation is executed immediately
-        // after that with the correct sample probability.
-        assertThat(runner.invocations, hasSize(2));
+        // This plan needs three passes:
+        // - one pass to check whether it's an ES stats query (always no for the test runner)
+        // - one pass to get the total number of rows (which determines the sample probability)
+        // - one pass to approximate the query
+        assertThat(runner.invocations, hasSize(3));
 
-        LogicalPlan approximatePlan = runner.invocations.get(1);
+        LogicalPlan approximatePlan = runner.invocations.getLast();
         assertThat(approximatePlan, hasPlan(Sample.class, s -> Foldables.literalValueOf(s.probability()).equals(1e-4)));
         assertThat(approximatePlan, hasEval("CONFIDENCE_INTERVAL(x)"));
         assertThat(approximatePlan, hasEval("RELIABLE(x)"));
@@ -352,6 +420,10 @@ public class ApproximateTests extends ESTestCase {
             Filter.class,
             filter -> filter.condition().anyMatch(expr -> expr instanceof NamedExpression ne && ne.name().equals(field))
         );
+    }
+
+    private Matcher<? super LogicalPlan> hasMvExpand(String field) {
+        return hasPlan(MvExpand.class, mvExpand -> mvExpand.target().name().equals(field));
     }
 
     private Matcher<? super LogicalPlan> hasEval(String field) {
@@ -386,8 +458,8 @@ public class ApproximateTests extends ESTestCase {
         assertThat(e.getMessage().substring("Found 1 problem\n".length()), matcher);
     }
 
-    private void verify(String query) throws Exception {
-        Approximate.verifyPlan(getLogicalPlan(query));
+    private Approximate.QueryProperties verify(String query) throws Exception {
+        return Approximate.verifyPlan(getLogicalPlan(query));
     }
 
     private Approximate createApproximate(String query, TestRunner runner) throws Exception {

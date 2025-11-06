@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.approximate;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.xpack.esql.VerificationException;
@@ -132,7 +133,7 @@ import java.util.stream.Collectors;
  */
 public class Approximate {
 
-    public record QueryProperties(boolean preservesRows) {}
+    public record QueryProperties(boolean canDecreaseRowCount, boolean canIncreaseRowCount) {}
 
     /**
      * These processing commands are supported.
@@ -168,6 +169,7 @@ public class Approximate {
      */
     private static final Set<Class<? extends LogicalPlan>> ROW_PRESERVING_COMMANDS = Set.of(
         ChangePoint.class,
+        Completion.class,
         Dissect.class,
         Drop.class,
         Enrich.class,
@@ -178,7 +180,25 @@ public class Approximate {
         Keep.class,
         OrderBy.class,
         Project.class,
-        Rename.class
+        RegexExtract.class,
+        Rename.class,
+        Rerank.class
+    );
+
+    /**
+     * These commands never increase the number of all rows, making it easier to predict the number of output rows.
+     */
+    private static final Set<Class<? extends LogicalPlan>> ROW_NON_INCREASING_COMMANDS = Sets.union(
+        Set.of(Filter.class, Limit.class, Sample.class, TopN.class),
+        ROW_PRESERVING_COMMANDS
+    );
+
+    /**
+     * These commands never decrease the number of all rows, making it easier to predict the number of output rows.
+     */
+    private static final Set<Class<? extends LogicalPlan>> ROW_NON_DECREASING_COMMANDS = Sets.union(
+        Set.of(MvExpand.class),
+        ROW_PRESERVING_COMMANDS
     );
 
     /**
@@ -290,7 +310,8 @@ public class Approximate {
         });
 
         Holder<Boolean> encounteredStats = new Holder<>(false);
-        Holder<Boolean> preservesRows = new Holder<>(true);
+        Holder<Boolean> canIncreaseRowCount = new Holder<>(false);
+        Holder<Boolean> canDecreaseRowCount = new Holder<>(false);
 
         logicalPlan.transformUp(plan -> {
             if (encounteredStats.get() == false) {
@@ -312,9 +333,13 @@ public class Approximate {
                         }
                         return aggFn;
                     });
-                } else if (plan instanceof LeafPlan == false && ROW_PRESERVING_COMMANDS.contains(plan.getClass()) == false) {
-                    // Keep track of whether the plan until the STATS preserves all rows.
-                    preservesRows.set(false);
+                } else if (plan instanceof LeafPlan == false) {
+                    if (ROW_NON_DECREASING_COMMANDS.contains(plan.getClass()) == false) {
+                        canDecreaseRowCount.set(true);
+                    }
+                    if (ROW_NON_INCREASING_COMMANDS.contains(plan.getClass()) == false) {
+                        canIncreaseRowCount.set(true);
+                    }
                 }
             } else {
                 // Multiple STATS commands are not supported.
@@ -325,7 +350,7 @@ public class Approximate {
             return plan;
         });
 
-        return new QueryProperties(preservesRows.get());
+        return new QueryProperties(canDecreaseRowCount.get(), canIncreaseRowCount.get());
     }
 
     /**
@@ -348,11 +373,12 @@ public class Approximate {
         return new ActionListener<>() {
             @Override
             public void onResponse(Result result) {
-                boolean esStatsQueryExecuted = result.executionInfo() != null && result.executionInfo().clusterInfo.values()
-                    .stream()
-                    .noneMatch(
-                        cluster -> cluster.getFailures().stream().anyMatch(e -> e.getCause() instanceof UnsupportedOperationException)
-                    );
+                boolean esStatsQueryExecuted = result.executionInfo() != null
+                    && result.executionInfo().clusterInfo.values()
+                        .stream()
+                        .noneMatch(
+                            cluster -> cluster.getFailures().stream().anyMatch(e -> e.getCause() instanceof UnsupportedOperationException)
+                        );
                 if (esStatsQueryExecuted) {
                     logger.debug("not approximating stats query");
                     listener.onResponse(result);
@@ -406,9 +432,15 @@ public class Approximate {
             sourceRowCount = rowCount(countResult);
             logger.debug("sourceCountPlan result: {} rows", sourceRowCount);
             double sampleProbability = sourceRowCount <= SAMPLE_ROW_COUNT ? 1.0 : (double) SAMPLE_ROW_COUNT / sourceRowCount;
-            if (queryProperties.preservesRows) {
+            if (queryProperties.canIncreaseRowCount == false && sampleProbability == 1.0) {
+                // If the query cannot increase the number of rows, and the sample probability is 1.0,
+                // we can directly approximate without sampling.
+                runner.run(toPhysicalPlan.apply(logicalPlan), configuration, foldContext, listener);
+            } else if (queryProperties.canIncreaseRowCount == false && queryProperties.canDecreaseRowCount == false) {
+                // If the query preserves all rows, we can directly approximate with the sample probability.
                 runner.run(toPhysicalPlan.apply(approximatePlan(sampleProbability)), configuration, foldContext, listener);
             } else {
+                // Otherwise, we need to sample the number of rows first to obtain a good sample probability.
                 runner.run(
                     toPhysicalPlan.apply(countPlan(sampleProbability)),
                     configuration,
@@ -585,7 +617,10 @@ public class Approximate {
                     Alias aggAlias = (Alias) aggOrKey;
                     AggregateFunction aggFn = (AggregateFunction) aggAlias.child();
 
-                    if (aggFn.equals(COUNT_ALL_ROWS) && aggregate.groupings().isEmpty() && queryProperties.preservesRows) {
+                    if (aggFn.equals(COUNT_ALL_ROWS)
+                        && aggregate.groupings().isEmpty()
+                        && queryProperties.canDecreaseRowCount == false
+                        && queryProperties.canIncreaseRowCount == false) {
                         // If the query is preserving all rows, and the aggregation function is
                         // counting all rows, we know the exact result without sampling.
                         aggregates.add(aggAlias.replaceChild(Literal.fromLong(Source.EMPTY, sourceRowCount)));
@@ -746,7 +781,9 @@ public class Approximate {
                     default -> throw new IllegalStateException("unexpected data type [" + output.dataType() + "]");
                 };
                 confidenceIntervalsAndReliable.add(
-                    new Alias(Source.EMPTY, "CONFIDENCE_INTERVAL(" + output.name() + ")",
+                    new Alias(
+                        Source.EMPTY,
+                        "CONFIDENCE_INTERVAL(" + output.name() + ")",
                         new MvSlice(Source.EMPTY, confidenceInterval, Literal.integer(Source.EMPTY, 0), Literal.integer(Source.EMPTY, 1))
                     )
                 );
@@ -756,7 +793,12 @@ public class Approximate {
                         "RELIABLE(" + output.name() + ")",
                         new GreaterThanOrEqual(
                             Source.EMPTY,
-                            new MvSlice(Source.EMPTY, confidenceInterval, Literal.integer(Source.EMPTY, 2), Literal.integer(Source.EMPTY, 2)),
+                            new MvSlice(
+                                Source.EMPTY,
+                                confidenceInterval,
+                                Literal.integer(Source.EMPTY, 2),
+                                Literal.integer(Source.EMPTY, 2)
+                            ),
                             Literal.fromDouble(Source.EMPTY, 0.5)
                         )
                     )

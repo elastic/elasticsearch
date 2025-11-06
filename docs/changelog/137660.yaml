@@ -1,5 +1,5 @@
 pr: 137660
-summary: Extract `AbstractGeoIpDownloader` for shared concurrency logic
+summary: Improve concurrency design of `GeoIpDownloader`
 area: Ingest Node
 type: bug
 issues:

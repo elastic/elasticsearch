@@ -377,9 +377,6 @@ tests:
   issue: https://github.com/elastic/elasticsearch/issues/130050
 - class: geoip.GeoIpMultiProjectIT
   issue: https://github.com/elastic/elasticsearch/issues/130073
-- class: org.elasticsearch.search.SearchWithRejectionsIT
-  method: testOpenContextsAfterRejections
-  issue: https://github.com/elastic/elasticsearch/issues/130821
 - class: org.elasticsearch.index.IndexingPressureIT
   method: testWriteCanRejectOnPrimaryBasedOnMaxOperationSize
   issue: https://github.com/elastic/elasticsearch/issues/130281

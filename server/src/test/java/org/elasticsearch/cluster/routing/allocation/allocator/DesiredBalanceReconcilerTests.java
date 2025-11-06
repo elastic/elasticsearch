@@ -1455,6 +1455,7 @@ public class DesiredBalanceReconcilerTests extends ESAllocationTestCase {
         final var clusterSettings = createBuiltInClusterSettings(
             Settings.builder()
                 .put(UndesiredAllocationsTracker.UNDESIRED_ALLOCATION_DURATION_LOG_THRESHOLD_SETTING.getKey(), undesiredAllocationThreshold)
+                .put(UndesiredAllocationsTracker.MAX_UNDESIRED_ALLOCATIONS_TO_TRACK.getKey(), 10)
                 .build()
         );
         final var timeProvider = new AdvancingTimeProvider();

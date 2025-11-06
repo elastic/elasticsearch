@@ -31,7 +31,6 @@ import org.elasticsearch.test.ESTestCase;
 
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
-import java.util.stream.StreamSupport;
 
 public class UndesiredAllocationsTrackerTests extends ESTestCase {
 
@@ -70,9 +69,14 @@ public class UndesiredAllocationsTrackerTests extends ESTestCase {
             RoutingNodes.immutable(stateWithIndexRemoved.globalRoutingTable(), stateWithIndexRemoved.nodes())
         );
         assertEquals((numberOfIndices - 1) * primaryShards, undesiredAllocationsTracker.getUndesiredAllocations().size());
-        undesiredAllocationsTracker.getUndesiredAllocations()
-            .iterator()
-            .forEachRemaining(olc -> assertNotNull(stateWithIndexRemoved.routingTable(ProjectId.DEFAULT).index(olc.key.index())));
+        assertTrue(
+            undesiredAllocationsTracker.getUndesiredAllocations()
+                .values()
+                .stream()
+                .allMatch(
+                    allocation -> stateWithIndexRemoved.routingTable(ProjectId.DEFAULT).index(allocation.shardId().getIndex()) != null
+                )
+        );
     }
 
     public void testNewestRecordsArePurgedWhenLimitIsDecreased() {
@@ -110,8 +114,10 @@ public class UndesiredAllocationsTrackerTests extends ESTestCase {
         // We should purge the most recent entries in #cleanup
         undesiredAllocationsTracker.cleanup(routingNodes);
         assertEquals(reducedMaximum, undesiredAllocationsTracker.getUndesiredAllocations().size());
-        final var remainingShardIds = StreamSupport.stream(undesiredAllocationsTracker.getUndesiredAllocations().spliterator(), false)
-            .map(olc -> olc.key.shardId().id())
+        final var remainingShardIds = undesiredAllocationsTracker.getUndesiredAllocations()
+            .values()
+            .stream()
+            .map(allocation -> allocation.shardId().id())
             .collect(Collectors.toSet());
         assertEquals(IntStream.range(0, reducedMaximum).boxed().collect(Collectors.toSet()), remainingShardIds);
     }
@@ -133,10 +139,41 @@ public class UndesiredAllocationsTrackerTests extends ESTestCase {
 
         // Only the first {maxToTrack} shards should be tracked
         assertEquals(maxToTrack, undesiredAllocationsTracker.getUndesiredAllocations().size());
-        final var trackedShardIds = StreamSupport.stream(undesiredAllocationsTracker.getUndesiredAllocations().spliterator(), false)
-            .map(olc -> olc.key.shardId().id())
+        final var trackedShardIds = undesiredAllocationsTracker.getUndesiredAllocations()
+            .values()
+            .stream()
+            .map(allocation -> allocation.shardId().id())
             .collect(Collectors.toSet());
         assertEquals(IntStream.range(0, maxToTrack).boxed().collect(Collectors.toSet()), trackedShardIds);
+    }
+
+    public void testUndesiredAllocationsAreIdentifiableDespiteMetadataChanges() {
+        final var clusterSettings = ClusterSettings.createBuiltInClusterSettings(
+            Settings.builder().put(UndesiredAllocationsTracker.MAX_UNDESIRED_ALLOCATIONS_TO_TRACK.getKey(), randomIntBetween(1, 10)).build()
+        );
+        final var advancingTimeProvider = new AdvancingTimeProvider();
+        final var undesiredAllocationsTracker = new UndesiredAllocationsTracker(clusterSettings, advancingTimeProvider);
+        final var index = new Index(randomIdentifier(), randomIdentifier());
+
+        ShardRouting shardRouting = createAssignedRouting(index, 0);
+
+        undesiredAllocationsTracker.trackUndesiredAllocation(shardRouting);
+        assertEquals(1, undesiredAllocationsTracker.getUndesiredAllocations().size());
+
+        // move to started
+        shardRouting = shardRouting.moveToStarted(randomNonNegativeLong());
+        undesiredAllocationsTracker.trackUndesiredAllocation(shardRouting);
+        assertEquals(1, undesiredAllocationsTracker.getUndesiredAllocations().size());
+
+        // start a relocation
+        shardRouting = shardRouting.relocate(randomIdentifier(), randomNonNegativeLong());
+        undesiredAllocationsTracker.trackUndesiredAllocation(shardRouting);
+        assertEquals(1, undesiredAllocationsTracker.getUndesiredAllocations().size());
+
+        // cancel that relocation
+        shardRouting = shardRouting.cancelRelocation();
+        undesiredAllocationsTracker.removeTracking(shardRouting);
+        assertEquals(0, undesiredAllocationsTracker.getUndesiredAllocations().size());
     }
 
     private ClusterState removeRandomIndex(ClusterState state) {

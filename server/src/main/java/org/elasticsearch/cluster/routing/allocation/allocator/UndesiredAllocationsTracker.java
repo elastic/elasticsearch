@@ -9,9 +9,6 @@
 
 package org.elasticsearch.cluster.routing.allocation.allocator;
 
-import com.carrotsearch.hppc.ObjectLongHashMap;
-import com.carrotsearch.hppc.ObjectLongMap;
-
 import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
@@ -20,12 +17,13 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.time.TimeProvider;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.core.Tuple;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 
+import java.util.HashMap;
+import java.util.Map;
 import java.util.stream.Collectors;
-import java.util.stream.StreamSupport;
 
 /**
  * Keeps track of a limited number of shards that are currently in undesired allocations. If the
@@ -70,7 +68,7 @@ public class UndesiredAllocationsTracker {
     );
 
     private final TimeProvider timeProvider;
-    private final ObjectLongHashMap<ShardRouting> undesiredAllocations = new ObjectLongHashMap<>();
+    private final Map<String, UndesiredAllocation> undesiredAllocations = new HashMap<>();
     private final FrequencyCappedAction undesiredAllocationDurationLogInterval;
     private volatile TimeValue undesiredAllocationDurationLoggingThreshold;
     private volatile int maxUndesiredAllocationsToTrack;
@@ -94,8 +92,14 @@ public class UndesiredAllocationsTracker {
      */
     public void trackUndesiredAllocation(ShardRouting shardRouting) {
         assert shardRouting.unassigned() == false : "Shouldn't record unassigned shards as undesired allocations";
-        if (undesiredAllocations.size() < maxUndesiredAllocationsToTrack && undesiredAllocations.containsKey(shardRouting) == false) {
-            undesiredAllocations.put(shardRouting, timeProvider.relativeTimeInMillis());
+        if (undesiredAllocations.size() < maxUndesiredAllocationsToTrack) {
+            final var allocationId = shardRouting.allocationId().getId();
+            if (undesiredAllocations.containsKey(allocationId) == false) {
+                undesiredAllocations.put(
+                    allocationId,
+                    new UndesiredAllocation(shardRouting.shardId(), timeProvider.relativeTimeInMillis())
+                );
+            }
         }
     }
 
@@ -103,21 +107,21 @@ public class UndesiredAllocationsTracker {
      * Remove any tracking of the specified allocation (a no-op if the allocation isn't being tracked)
      */
     public void removeTracking(ShardRouting shardRouting) {
-        undesiredAllocations.remove(shardRouting);
+        if (shardRouting.unassigned() == false) {
+            undesiredAllocations.remove(shardRouting.allocationId().getId());
+        } else {
+            assert false : "Shouldn't remove tracking of unassigned shards";
+        }
     }
 
     /**
      * Clear any {@link ShardRouting} that are no longer present in the routing nodes
      */
     public void cleanup(RoutingNodes routingNodes) {
-        undesiredAllocations.removeAll(shardRouting -> {
-            final var allocationId = shardRouting.allocationId();
-            if (allocationId != null) {
-                return routingNodes.getByAllocationId(shardRouting.shardId(), allocationId.getId()) == null;
-            } else {
-                assert false : "Unassigned shards shouldn't be marked as undesired";
-                return true;
-            }
+        undesiredAllocations.entrySet().removeIf(e -> {
+            final var undesiredAllocation = e.getValue();
+            final var allocationId = e.getKey();
+            return routingNodes.getByAllocationId(undesiredAllocation.shardId(), allocationId) == null;
         });
         shrinkIfOversized();
     }
@@ -140,9 +144,9 @@ public class UndesiredAllocationsTracker {
     ) {
         final long currentTimeMillis = timeProvider.relativeTimeInMillis();
         long earliestUndesiredTimestamp = Long.MAX_VALUE;
-        for (var allocation : undesiredAllocations) {
-            if (allocation.value < earliestUndesiredTimestamp) {
-                earliestUndesiredTimestamp = allocation.value;
+        for (var undesiredAllocation : undesiredAllocations.values()) {
+            if (undesiredAllocation.undesiredSince() < earliestUndesiredTimestamp) {
+                earliestUndesiredTimestamp = undesiredAllocation.undesiredSince();
             }
         }
         if (earliestUndesiredTimestamp < currentTimeMillis
@@ -160,15 +164,22 @@ public class UndesiredAllocationsTracker {
     ) {
         final long currentTimeMillis = timeProvider.relativeTimeInMillis();
         final long loggingThresholdTimestamp = currentTimeMillis - undesiredAllocationDurationLoggingThreshold.millis();
-        for (var allocation : undesiredAllocations) {
-            if (allocation.value < loggingThresholdTimestamp) {
-                logUndesiredShardDetails(
-                    allocation.key,
-                    TimeValue.timeValueMillis(currentTimeMillis - allocation.value),
-                    routingNodes,
-                    routingAllocation,
-                    desiredBalance
-                );
+        for (var allocation : undesiredAllocations.entrySet()) {
+            final var undesiredAllocation = allocation.getValue();
+            final var allocationId = allocation.getKey();
+            if (undesiredAllocation.undesiredSince() < loggingThresholdTimestamp) {
+                final var shardRouting = routingNodes.getByAllocationId(undesiredAllocation.shardId(), allocationId);
+                if (shardRouting != null) {
+                    logUndesiredShardDetails(
+                        shardRouting,
+                        TimeValue.timeValueMillis(currentTimeMillis - undesiredAllocation.undesiredSince()),
+                        routingNodes,
+                        routingAllocation,
+                        desiredBalance
+                    );
+                } else {
+                    assert false : undesiredAllocation + " for allocationID " + allocationId + " was not cleaned up";
+                }
             }
         }
     }
@@ -200,19 +211,28 @@ public class UndesiredAllocationsTracker {
      */
     private void shrinkIfOversized() {
         if (undesiredAllocations.size() > maxUndesiredAllocationsToTrack) {
-            final var newestExcessValues = StreamSupport.stream(undesiredAllocations.spliterator(), false)
-                // we need to take a copy from the cursor because the cursors are re-used, so don't work with #sorted
-                .map(cursor -> new Tuple<>(cursor.key, cursor.value))
-                .sorted((a, b) -> Long.compare(b.v2(), a.v2()))
+            final var newestExcessAllocationIds = undesiredAllocations.entrySet()
+                .stream()
+                .sorted((a, b) -> Long.compare(b.getValue().undesiredSince(), a.getValue().undesiredSince()))
                 .limit(undesiredAllocations.size() - maxUndesiredAllocationsToTrack)
-                .map(Tuple::v1)
+                .map(Map.Entry::getKey)
                 .collect(Collectors.toSet());
-            undesiredAllocations.removeAll(newestExcessValues::contains);
+            undesiredAllocations.keySet().removeAll(newestExcessAllocationIds);
         }
     }
 
     // visible for testing
-    ObjectLongMap<ShardRouting> getUndesiredAllocations() {
-        return undesiredAllocations.clone();
+    Map<String, UndesiredAllocation> getUndesiredAllocations() {
+        return Map.copyOf(undesiredAllocations);
     }
+
+    /**
+     * Rather than storing the {@link ShardRouting}, we store a map of allocationId -> {@link UndesiredAllocation}
+     * this is because the allocation ID will persist as long as a shard stays on the same node, but the
+     * {@link ShardRouting} changes for a variety of reasons even when the shard doesn't move.
+     *
+     * @param shardId The shard ID
+     * @param undesiredSince The timestamp when the shard was first observed in an undesired allocation
+     */
+    record UndesiredAllocation(ShardId shardId, long undesiredSince) {}
 }

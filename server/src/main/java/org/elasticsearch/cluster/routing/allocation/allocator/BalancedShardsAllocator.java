@@ -829,11 +829,11 @@ public class BalancedShardsAllocator implements ShardsAllocator {
                 );
                 // A THROTTLE allocation decision can happen when not simulating
                 assert moveDecision.isDecisionTaken() == false
-                    || moveDecision.getAllocationDecision() != AllocationDecision.THROTTLED
                     || allocation.isSimulating() == false
+                    || moveDecision.getAllocationDecision() != AllocationDecision.THROTTLED
                     : "unexpected allocation decision ["
                         + moveDecision.getAllocationDecision()
-                        + "] (simulation="
+                        + "] (isSimulating="
                         + allocation.isSimulating()
                         + ") with "
                         + (shardMoved ? "" : "no ")
@@ -1259,8 +1259,8 @@ public class BalancedShardsAllocator implements ShardsAllocator {
                     // If we see a THROTTLE decision, it's either:
                     // 1. Not simulating
                     // 2. Or, there is shard assigned before this one
-                    assert allocationDecision.getAllocationStatus() != AllocationStatus.DECIDERS_THROTTLED
-                        || allocation.isSimulating() == false
+                    assert allocation.isSimulating() == false
+                        || allocationDecision.getAllocationStatus() != AllocationStatus.DECIDERS_THROTTLED
                         || shardAssignmentChanged
                         : "unexpected THROTTLE decision (simulation="
                             + allocation.isSimulating()

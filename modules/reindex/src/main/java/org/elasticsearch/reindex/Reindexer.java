@@ -69,6 +69,7 @@ import java.io.UncheckedIOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiFunction;
@@ -152,12 +153,25 @@ public class Reindexer {
         if (metrics == null) {
             return listener;
         }
+
+        // add completion metrics
         var withCompletionMetrics = new ActionListener<BulkByScrollResponse>() {
             @Override
             public void onResponse(BulkByScrollResponse bulkByScrollResponse) {
-                if ((bulkByScrollResponse.getBulkFailures() != null && bulkByScrollResponse.getBulkFailures().isEmpty() == false)
-                    || (bulkByScrollResponse.getSearchFailures() != null && bulkByScrollResponse.getSearchFailures().isEmpty() == false)) {
-                    metrics.recordFailure(isRemote);
+                var searchExceptionSample = Optional.ofNullable(bulkByScrollResponse.getSearchFailures())
+                    .stream()
+                    .flatMap(List::stream)
+                    .map(ScrollableHitSource.SearchFailure::getReason)
+                    .findFirst();
+                var bulkExceptionSample = Optional.ofNullable(bulkByScrollResponse.getBulkFailures())
+                    .stream()
+                    .flatMap(List::stream)
+                    .map(BulkItemResponse.Failure::getCause)
+                    .findFirst();
+                if (searchExceptionSample.isPresent() || bulkExceptionSample.isPresent()) {
+                    // record only the first sample error in metric
+                    Throwable e = searchExceptionSample.orElseGet(bulkExceptionSample::get);
+                    metrics.recordFailure(isRemote, e);
                     listener.onResponse(bulkByScrollResponse);
                 } else {
                     metrics.recordSuccess(isRemote);
@@ -167,11 +181,12 @@ public class Reindexer {
 
             @Override
             public void onFailure(Exception e) {
-                metrics.recordFailure(isRemote);
+                metrics.recordFailure(isRemote, e);
                 listener.onFailure(e);
             }
         };
 
+        // add duration metric
         return ActionListener.runAfter(withCompletionMetrics, () -> {
             long elapsedTime = TimeUnit.NANOSECONDS.toSeconds(System.nanoTime() - startTime);
             metrics.recordTookTime(elapsedTime, isRemote);

@@ -9,28 +9,35 @@
 
 package org.elasticsearch.index.reindex;
 
+import org.elasticsearch.ElasticsearchStatusException;
+import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.reindex.BulkIndexByScrollResponseMatcher;
 import org.elasticsearch.reindex.ReindexPlugin;
+import org.elasticsearch.reindex.TransportReindexAction;
+import org.elasticsearch.rest.root.MainRestPlugin;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.telemetry.Measurement;
 import org.elasticsearch.telemetry.TestTelemetryPlugin;
 import org.elasticsearch.test.ESIntegTestCase;
 
+import java.net.InetSocketAddress;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
+import java.util.Map;
 
 import static org.elasticsearch.index.query.QueryBuilders.termQuery;
 import static org.elasticsearch.reindex.DeleteByQueryMetrics.DELETE_BY_QUERY_TIME_HISTOGRAM;
-import static org.elasticsearch.reindex.ReindexMetrics.REINDEX_FAILURE_HISTOGRAM;
-import static org.elasticsearch.reindex.ReindexMetrics.REINDEX_FAILURE_HISTOGRAM_REMOTE;
-import static org.elasticsearch.reindex.ReindexMetrics.REINDEX_SUCCESS_HISTOGRAM;
-import static org.elasticsearch.reindex.ReindexMetrics.REINDEX_SUCCESS_HISTOGRAM_REMOTE;
+import static org.elasticsearch.reindex.ReindexMetrics.ATTRIBUTE_NAME_ERROR_TYPE;
+import static org.elasticsearch.reindex.ReindexMetrics.ATTRIBUTE_NAME_SOURCE;
+import static org.elasticsearch.reindex.ReindexMetrics.ATTRIBUTE_VALUE_SOURCE_LOCAL;
+import static org.elasticsearch.reindex.ReindexMetrics.ATTRIBUTE_VALUE_SOURCE_REMOTE;
+import static org.elasticsearch.reindex.ReindexMetrics.REINDEX_COMPLETION_HISTOGRAM;
 import static org.elasticsearch.reindex.ReindexMetrics.REINDEX_TIME_HISTOGRAM;
-import static org.elasticsearch.reindex.ReindexMetrics.REINDEX_TIME_HISTOGRAM_REMOTE;
 import static org.elasticsearch.reindex.UpdateByQueryMetrics.UPDATE_BY_QUERY_TIME_HISTOGRAM;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.hamcrest.Matchers.equalTo;
@@ -40,7 +47,20 @@ import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 public class ReindexPluginMetricsIT extends ESIntegTestCase {
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Arrays.asList(ReindexPlugin.class, TestTelemetryPlugin.class);
+        return Arrays.asList(ReindexPlugin.class, TestTelemetryPlugin.class, MainRestPlugin.class);
+    }
+
+    @Override
+    protected boolean addMockHttpTransport() {
+        return false;
+    }
+
+    @Override
+    protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
+        return Settings.builder()
+            .put(super.nodeSettings(nodeOrdinal, otherSettings))
+            .put(TransportReindexAction.REMOTE_CLUSTER_WHITELIST.getKey(), "*:*")
+            .build();
     }
 
     protected ReindexRequestBuilder reindex() {
@@ -57,6 +77,62 @@ public class ReindexPluginMetricsIT extends ESIntegTestCase {
 
     public static BulkIndexByScrollResponseMatcher matcher() {
         return new BulkIndexByScrollResponseMatcher();
+    }
+
+    public void testReindexFromRemoteMetrics() throws Exception {
+        final String dataNodeName = internalCluster().startNode();
+
+        InetSocketAddress remoteAddress = randomFrom(cluster().httpAddresses());
+        RemoteInfo remote = new RemoteInfo(
+            "http",
+            remoteAddress.getHostString(),
+            remoteAddress.getPort(),
+            null,
+            new BytesArray("{\"match_all\":{}}"),
+            null,
+            null,
+            Map.of(),
+            RemoteInfo.DEFAULT_SOCKET_TIMEOUT,
+            RemoteInfo.DEFAULT_CONNECT_TIMEOUT
+        );
+
+        final TestTelemetryPlugin testTelemetryPlugin = internalCluster().getInstance(PluginsService.class, dataNodeName)
+            .filterPlugins(TestTelemetryPlugin.class)
+            .findFirst()
+            .orElseThrow();
+
+        var expectedException = assertThrows(
+            "Source index not created yet, should throw not found exception",
+            ElasticsearchStatusException.class,
+            () -> reindex().source("source").setRemoteInfo(remote).destination("dest").get()
+        );
+
+        // assert failure metrics
+        assertBusy(() -> {
+            testTelemetryPlugin.collect();
+            assertThat(testTelemetryPlugin.getLongHistogramMeasurement(REINDEX_TIME_HISTOGRAM).size(), equalTo(1));
+            List<Measurement> completions = testTelemetryPlugin.getLongHistogramMeasurement(REINDEX_COMPLETION_HISTOGRAM);
+            assertThat(completions.size(), equalTo(1));
+            assertThat(completions.getFirst().attributes().get(ATTRIBUTE_NAME_ERROR_TYPE), equalTo(expectedException.status().name()));
+            assertThat(completions.getFirst().attributes().get(ATTRIBUTE_NAME_SOURCE), equalTo(ATTRIBUTE_VALUE_SOURCE_REMOTE));
+        });
+
+        // now create the source index
+        indexRandom(true, prepareIndex("source").setId("1").setSource("foo", "a"));
+        assertHitCount(prepareSearch("source").setSize(0), 1);
+
+        reindex().source("source").setRemoteInfo(remote).destination("dest").get();
+
+        // assert success metrics
+        assertBusy(() -> {
+            testTelemetryPlugin.collect();
+            assertThat(testTelemetryPlugin.getLongHistogramMeasurement(REINDEX_TIME_HISTOGRAM).size(), equalTo(2));
+            List<Measurement> completions = testTelemetryPlugin.getLongHistogramMeasurement(REINDEX_COMPLETION_HISTOGRAM);
+            assertThat(completions.size(), equalTo(2));
+            assertNull(completions.get(1).attributes().get(ATTRIBUTE_NAME_ERROR_TYPE));
+            assertThat(completions.get(1).attributes().get(ATTRIBUTE_NAME_SOURCE), equalTo(ATTRIBUTE_VALUE_SOURCE_REMOTE));
+        });
+
     }
 
     public void testReindexMetrics() throws Exception {
@@ -82,11 +158,7 @@ public class ReindexPluginMetricsIT extends ESIntegTestCase {
         assertBusy(() -> {
             testTelemetryPlugin.collect();
             assertThat(testTelemetryPlugin.getLongHistogramMeasurement(REINDEX_TIME_HISTOGRAM).size(), equalTo(1));
-            assertThat(testTelemetryPlugin.getLongHistogramMeasurement(REINDEX_TIME_HISTOGRAM_REMOTE).size(), equalTo(0));
-            assertThat(testTelemetryPlugin.getLongHistogramMeasurement(REINDEX_SUCCESS_HISTOGRAM).size(), equalTo(1));
-            assertThat(testTelemetryPlugin.getLongHistogramMeasurement(REINDEX_SUCCESS_HISTOGRAM_REMOTE).size(), equalTo(0));
-            assertThat(testTelemetryPlugin.getLongHistogramMeasurement(REINDEX_FAILURE_HISTOGRAM).size(), equalTo(0));
-            assertThat(testTelemetryPlugin.getLongHistogramMeasurement(REINDEX_FAILURE_HISTOGRAM_REMOTE).size(), equalTo(0));
+            assertThat(testTelemetryPlugin.getLongHistogramMeasurement(REINDEX_COMPLETION_HISTOGRAM).size(), equalTo(1));
         });
 
         // Now none of them
@@ -95,11 +167,7 @@ public class ReindexPluginMetricsIT extends ESIntegTestCase {
         assertBusy(() -> {
             testTelemetryPlugin.collect();
             assertThat(testTelemetryPlugin.getLongHistogramMeasurement(REINDEX_TIME_HISTOGRAM).size(), equalTo(2));
-            assertThat(testTelemetryPlugin.getLongHistogramMeasurement(REINDEX_TIME_HISTOGRAM_REMOTE).size(), equalTo(0));
-            assertThat(testTelemetryPlugin.getLongHistogramMeasurement(REINDEX_SUCCESS_HISTOGRAM).size(), equalTo(2));
-            assertThat(testTelemetryPlugin.getLongHistogramMeasurement(REINDEX_SUCCESS_HISTOGRAM_REMOTE).size(), equalTo(0));
-            assertThat(testTelemetryPlugin.getLongHistogramMeasurement(REINDEX_FAILURE_HISTOGRAM).size(), equalTo(0));
-            assertThat(testTelemetryPlugin.getLongHistogramMeasurement(REINDEX_FAILURE_HISTOGRAM_REMOTE).size(), equalTo(0));
+            assertThat(testTelemetryPlugin.getLongHistogramMeasurement(REINDEX_COMPLETION_HISTOGRAM).size(), equalTo(2));
         });
 
         // Now half of them
@@ -107,11 +175,7 @@ public class ReindexPluginMetricsIT extends ESIntegTestCase {
         assertBusy(() -> {
             testTelemetryPlugin.collect();
             assertThat(testTelemetryPlugin.getLongHistogramMeasurement(REINDEX_TIME_HISTOGRAM).size(), equalTo(3));
-            assertThat(testTelemetryPlugin.getLongHistogramMeasurement(REINDEX_TIME_HISTOGRAM_REMOTE).size(), equalTo(0));
-            assertThat(testTelemetryPlugin.getLongHistogramMeasurement(REINDEX_SUCCESS_HISTOGRAM).size(), equalTo(3));
-            assertThat(testTelemetryPlugin.getLongHistogramMeasurement(REINDEX_SUCCESS_HISTOGRAM_REMOTE).size(), equalTo(0));
-            assertThat(testTelemetryPlugin.getLongHistogramMeasurement(REINDEX_FAILURE_HISTOGRAM).size(), equalTo(0));
-            assertThat(testTelemetryPlugin.getLongHistogramMeasurement(REINDEX_FAILURE_HISTOGRAM_REMOTE).size(), equalTo(0));
+            assertThat(testTelemetryPlugin.getLongHistogramMeasurement(REINDEX_COMPLETION_HISTOGRAM).size(), equalTo(3));
         });
 
         // Limit with maxDocs
@@ -119,11 +183,13 @@ public class ReindexPluginMetricsIT extends ESIntegTestCase {
         assertBusy(() -> {
             testTelemetryPlugin.collect();
             assertThat(testTelemetryPlugin.getLongHistogramMeasurement(REINDEX_TIME_HISTOGRAM).size(), equalTo(4));
-            assertThat(testTelemetryPlugin.getLongHistogramMeasurement(REINDEX_TIME_HISTOGRAM_REMOTE).size(), equalTo(0));
-            assertThat(testTelemetryPlugin.getLongHistogramMeasurement(REINDEX_SUCCESS_HISTOGRAM).size(), equalTo(4));
-            assertThat(testTelemetryPlugin.getLongHistogramMeasurement(REINDEX_SUCCESS_HISTOGRAM_REMOTE).size(), equalTo(0));
-            assertThat(testTelemetryPlugin.getLongHistogramMeasurement(REINDEX_FAILURE_HISTOGRAM).size(), equalTo(0));
-            assertThat(testTelemetryPlugin.getLongHistogramMeasurement(REINDEX_FAILURE_HISTOGRAM_REMOTE).size(), equalTo(0));
+            assertThat(testTelemetryPlugin.getLongHistogramMeasurement(REINDEX_COMPLETION_HISTOGRAM).size(), equalTo(4));
+
+            // asset all metric attributes are correct
+            testTelemetryPlugin.getLongHistogramMeasurement(REINDEX_COMPLETION_HISTOGRAM).forEach(m -> {
+                assertNull(m.attributes().get(ATTRIBUTE_NAME_ERROR_TYPE));
+                assertThat(m.attributes().get(ATTRIBUTE_NAME_SOURCE), equalTo(ATTRIBUTE_VALUE_SOURCE_LOCAL));
+            });
         });
     }
 
@@ -144,11 +210,14 @@ public class ReindexPluginMetricsIT extends ESIntegTestCase {
         assertBusy(() -> {
             testTelemetryPlugin.collect();
             assertThat(testTelemetryPlugin.getLongHistogramMeasurement(REINDEX_TIME_HISTOGRAM).size(), equalTo(1));
-            assertThat(testTelemetryPlugin.getLongHistogramMeasurement(REINDEX_TIME_HISTOGRAM_REMOTE).size(), equalTo(0));
-            assertThat(testTelemetryPlugin.getLongHistogramMeasurement(REINDEX_SUCCESS_HISTOGRAM).size(), equalTo(0));
-            assertThat(testTelemetryPlugin.getLongHistogramMeasurement(REINDEX_SUCCESS_HISTOGRAM_REMOTE).size(), equalTo(0));
-            assertThat(testTelemetryPlugin.getLongHistogramMeasurement(REINDEX_FAILURE_HISTOGRAM).size(), equalTo(1));
-            assertThat(testTelemetryPlugin.getLongHistogramMeasurement(REINDEX_FAILURE_HISTOGRAM_REMOTE).size(), equalTo(0));
+            assertThat(testTelemetryPlugin.getLongHistogramMeasurement(REINDEX_COMPLETION_HISTOGRAM).size(), equalTo(1));
+            assertThat(
+                testTelemetryPlugin.getLongHistogramMeasurement(REINDEX_COMPLETION_HISTOGRAM)
+                    .getFirst()
+                    .attributes()
+                    .get(ATTRIBUTE_NAME_ERROR_TYPE),
+                equalTo("org.elasticsearch.index.mapper.DocumentParsingException")
+            );
         });
     }
 

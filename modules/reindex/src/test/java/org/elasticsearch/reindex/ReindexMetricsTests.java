@@ -9,6 +9,8 @@
 
 package org.elasticsearch.reindex;
 
+import org.elasticsearch.ElasticsearchStatusException;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.telemetry.InstrumentType;
 import org.elasticsearch.telemetry.Measurement;
 import org.elasticsearch.telemetry.RecordingMeterRegistry;
@@ -17,12 +19,12 @@ import org.junit.Before;
 
 import java.util.List;
 
-import static org.elasticsearch.reindex.ReindexMetrics.REINDEX_FAILURE_HISTOGRAM;
-import static org.elasticsearch.reindex.ReindexMetrics.REINDEX_FAILURE_HISTOGRAM_REMOTE;
-import static org.elasticsearch.reindex.ReindexMetrics.REINDEX_SUCCESS_HISTOGRAM;
-import static org.elasticsearch.reindex.ReindexMetrics.REINDEX_SUCCESS_HISTOGRAM_REMOTE;
+import static org.elasticsearch.reindex.ReindexMetrics.ATTRIBUTE_NAME_ERROR_TYPE;
+import static org.elasticsearch.reindex.ReindexMetrics.ATTRIBUTE_NAME_SOURCE;
+import static org.elasticsearch.reindex.ReindexMetrics.ATTRIBUTE_VALUE_SOURCE_LOCAL;
+import static org.elasticsearch.reindex.ReindexMetrics.ATTRIBUTE_VALUE_SOURCE_REMOTE;
+import static org.elasticsearch.reindex.ReindexMetrics.REINDEX_COMPLETION_HISTOGRAM;
 import static org.elasticsearch.reindex.ReindexMetrics.REINDEX_TIME_HISTOGRAM;
-import static org.elasticsearch.reindex.ReindexMetrics.REINDEX_TIME_HISTOGRAM_REMOTE;
 
 public class ReindexMetricsTests extends ESTestCase {
 
@@ -44,6 +46,7 @@ public class ReindexMetricsTests extends ESTestCase {
         List<Measurement> measurements = registry.getRecorder().getMeasurements(InstrumentType.LONG_HISTOGRAM, REINDEX_TIME_HISTOGRAM);
         assertEquals(1, measurements.size());
         assertEquals(secondsTaken, measurements.getFirst().getLong());
+        assertEquals(ATTRIBUTE_VALUE_SOURCE_LOCAL, measurements.getFirst().attributes().get(ATTRIBUTE_NAME_SOURCE));
 
         // second metric
         long remoteSecondsTaken = randomLongBetween(1, Long.MAX_VALUE);
@@ -52,52 +55,49 @@ public class ReindexMetricsTests extends ESTestCase {
         measurements = registry.getRecorder().getMeasurements(InstrumentType.LONG_HISTOGRAM, REINDEX_TIME_HISTOGRAM);
         assertEquals(2, measurements.size());
         assertEquals(secondsTaken, measurements.getFirst().getLong());
-        assertEquals(remoteSecondsTaken, measurements.getLast().getLong());
-        List<Measurement> measurementsRemote = registry.getRecorder()
-            .getMeasurements(InstrumentType.LONG_HISTOGRAM, REINDEX_TIME_HISTOGRAM_REMOTE);
-        assertEquals(1, measurementsRemote.size());
-        assertEquals(remoteSecondsTaken, measurementsRemote.getFirst().getLong());
+        assertEquals(ATTRIBUTE_VALUE_SOURCE_LOCAL, measurements.getFirst().attributes().get(ATTRIBUTE_NAME_SOURCE));
+        assertEquals(remoteSecondsTaken, measurements.get(1).getLong());
+        assertEquals(ATTRIBUTE_VALUE_SOURCE_REMOTE, measurements.get(1).attributes().get(ATTRIBUTE_NAME_SOURCE));
     }
 
     public void testRecordSuccess() {
         // first metric
         metrics.recordSuccess(false);
 
-        List<Measurement> measurements = registry.getRecorder().getMeasurements(InstrumentType.LONG_HISTOGRAM, REINDEX_SUCCESS_HISTOGRAM);
+        List<Measurement> measurements = registry.getRecorder()
+            .getMeasurements(InstrumentType.LONG_HISTOGRAM, REINDEX_COMPLETION_HISTOGRAM);
         assertEquals(1, measurements.size());
         assertEquals(1, measurements.getFirst().getLong());
+        assertEquals(ATTRIBUTE_VALUE_SOURCE_LOCAL, measurements.getFirst().attributes().get(ATTRIBUTE_NAME_SOURCE));
+        assertNull(measurements.getFirst().attributes().get(ATTRIBUTE_NAME_ERROR_TYPE));
 
         // second metric
         metrics.recordSuccess(true);
 
-        measurements = registry.getRecorder().getMeasurements(InstrumentType.LONG_HISTOGRAM, REINDEX_SUCCESS_HISTOGRAM);
+        measurements = registry.getRecorder().getMeasurements(InstrumentType.LONG_HISTOGRAM, REINDEX_COMPLETION_HISTOGRAM);
         assertEquals(2, measurements.size());
-        assertEquals(1, measurements.getFirst().getLong());
-        assertEquals(1, measurements.getLast().getLong());
-        List<Measurement> measurementsRemote = registry.getRecorder()
-            .getMeasurements(InstrumentType.LONG_HISTOGRAM, REINDEX_SUCCESS_HISTOGRAM_REMOTE);
-        assertEquals(1, measurementsRemote.size());
-        assertEquals(1, measurements.getFirst().getLong());
+        assertEquals(1, measurements.get(1).getLong());
+        assertEquals(ATTRIBUTE_VALUE_SOURCE_REMOTE, measurements.get(1).attributes().get(ATTRIBUTE_NAME_SOURCE));
+        assertNull(measurements.get(1).attributes().get(ATTRIBUTE_NAME_ERROR_TYPE));
     }
 
     public void testRecordFailure() {
         // first metric
-        metrics.recordFailure(false);
+        metrics.recordFailure(false, new IllegalArgumentException("random failure"));
 
-        List<Measurement> measurements = registry.getRecorder().getMeasurements(InstrumentType.LONG_HISTOGRAM, REINDEX_FAILURE_HISTOGRAM);
+        List<Measurement> measurements = registry.getRecorder()
+            .getMeasurements(InstrumentType.LONG_HISTOGRAM, REINDEX_COMPLETION_HISTOGRAM);
         assertEquals(1, measurements.size());
         assertEquals(1, measurements.getFirst().getLong());
+        assertEquals("java.lang.IllegalArgumentException", measurements.getFirst().attributes().get(ATTRIBUTE_NAME_ERROR_TYPE));
 
         // second metric
-        metrics.recordFailure(true);
+        metrics.recordFailure(true, new ElasticsearchStatusException("another failure", RestStatus.BAD_REQUEST));
 
-        measurements = registry.getRecorder().getMeasurements(InstrumentType.LONG_HISTOGRAM, REINDEX_FAILURE_HISTOGRAM);
+        measurements = registry.getRecorder().getMeasurements(InstrumentType.LONG_HISTOGRAM, REINDEX_COMPLETION_HISTOGRAM);
         assertEquals(2, measurements.size());
         assertEquals(1, measurements.getFirst().getLong());
-        assertEquals(1, measurements.getLast().getLong());
-        List<Measurement> measurementsRemote = registry.getRecorder()
-            .getMeasurements(InstrumentType.LONG_HISTOGRAM, REINDEX_FAILURE_HISTOGRAM_REMOTE);
-        assertEquals(1, measurementsRemote.size());
-        assertEquals(1, measurements.getFirst().getLong());
+        assertEquals(1, measurements.get(1).getLong());
+        assertEquals(RestStatus.BAD_REQUEST.name(), measurements.get(1).attributes().get(ATTRIBUTE_NAME_ERROR_TYPE));
     }
 }

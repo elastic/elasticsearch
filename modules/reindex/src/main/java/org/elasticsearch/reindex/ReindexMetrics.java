@@ -9,72 +9,74 @@
 
 package org.elasticsearch.reindex;
 
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.telemetry.metric.LongHistogram;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
+
+import java.util.HashMap;
+import java.util.Map;
 
 public class ReindexMetrics {
 
     public static final String REINDEX_TIME_HISTOGRAM = "es.reindex.duration.histogram";
-    // metrics for remote reindex should be a subset of the all metrics
-    public static final String REINDEX_TIME_HISTOGRAM_REMOTE = "es.reindex.duration.histogram.remote";
-    public static final String REINDEX_SUCCESS_HISTOGRAM = "es.reindex.completion.success";
-    public static final String REINDEX_SUCCESS_HISTOGRAM_REMOTE = "es.reindex.completion.success.remote";
-    public static final String REINDEX_FAILURE_HISTOGRAM = "es.reindex.completion.failure";
-    public static final String REINDEX_FAILURE_HISTOGRAM_REMOTE = "es.reindex.completion.failure.remote";
+    public static final String REINDEX_COMPLETION_HISTOGRAM = "es.reindex.completion.histogram";
+
+    // refers to https://opentelemetry.io/docs/specs/semconv/registry/attributes/error/#error-type
+    public static final String ATTRIBUTE_NAME_ERROR_TYPE = "error.type";
+
+    public static final String ATTRIBUTE_NAME_SOURCE = "reindex.source";
+    public static final String ATTRIBUTE_VALUE_SOURCE_LOCAL = "local";
+    public static final String ATTRIBUTE_VALUE_SOURCE_REMOTE = "remote";
 
     private final LongHistogram reindexTimeSecsHistogram;
-    private final LongHistogram reindexTimeSecsHistogramRemote;
-    private final LongHistogram reindexSuccessHistogram;
-    private final LongHistogram reindexSuccessHistogramRemote;
-    private final LongHistogram reindexFailureHistogram;
-    private final LongHistogram reindexFailureHistogramRemote;
+    private final LongHistogram reindexCompletionHistogram;
 
     public ReindexMetrics(MeterRegistry meterRegistry) {
         this.reindexTimeSecsHistogram = meterRegistry.registerLongHistogram(REINDEX_TIME_HISTOGRAM, "Time to reindex by search", "seconds");
-        this.reindexTimeSecsHistogramRemote = meterRegistry.registerLongHistogram(
-            REINDEX_TIME_HISTOGRAM_REMOTE,
-            "Time to reindex by search from remote cluster",
-            "seconds"
-        );
-
-        this.reindexSuccessHistogram = meterRegistry.registerLongHistogram(
-            REINDEX_SUCCESS_HISTOGRAM,
-            "Number of successful reindex",
-            "unit"
-        );
-        this.reindexSuccessHistogramRemote = meterRegistry.registerLongHistogram(
-            REINDEX_SUCCESS_HISTOGRAM_REMOTE,
-            "Number of successful reindex from remote cluster",
-            "unit"
-        );
-
-        this.reindexFailureHistogram = meterRegistry.registerLongHistogram(REINDEX_FAILURE_HISTOGRAM, "Number of failed reindex", "unit");
-        this.reindexFailureHistogramRemote = meterRegistry.registerLongHistogram(
-            REINDEX_FAILURE_HISTOGRAM_REMOTE,
-            "Number of failed reindex from remote cluster",
+        this.reindexCompletionHistogram = meterRegistry.registerLongHistogram(
+            REINDEX_COMPLETION_HISTOGRAM,
+            "Number of completed reindex operations",
             "unit"
         );
     }
 
     public long recordTookTime(long tookTime, boolean remote) {
-        reindexTimeSecsHistogram.record(tookTime);
-        if (remote) {
-            reindexTimeSecsHistogramRemote.record(tookTime);
-        }
+        Map<String, Object> attributes = getAttributes(remote);
+
+        reindexTimeSecsHistogram.record(tookTime, attributes);
         return tookTime;
     }
 
     public void recordSuccess(boolean remote) {
-        reindexSuccessHistogram.record(1L);
-        if (remote) {
-            reindexSuccessHistogramRemote.record(1L);
-        }
+        Map<String, Object> attributes = getAttributes(remote);
+        // attribute ATTRIBUTE_ERROR_TYPE being absent indicates success
+        assert attributes.get(ATTRIBUTE_NAME_ERROR_TYPE) == null : "error.type attribute must not be present for successes";
+
+        reindexCompletionHistogram.record(1L, attributes);
     }
 
-    public void recordFailure(boolean remote) {
-        reindexFailureHistogram.record(1L);
-        if (remote) {
-            reindexFailureHistogramRemote.record(1L);
+    public void recordFailure(boolean remote, Throwable e) {
+        Map<String, Object> attributes = getAttributes(remote);
+        // best effort to extract useful error type if possible
+        String errorType;
+        if (e instanceof ElasticsearchStatusException ese) {
+            errorType = ese.status().name();
+        } else {
+            errorType = e.getClass().getTypeName();
         }
+        attributes.put(ATTRIBUTE_NAME_ERROR_TYPE, errorType);
+
+        // attribute ATTRIBUTE_ERROR_TYPE being present indicates failure
+        // https://opentelemetry.io/docs/specs/semconv/general/recording-errors/#recording-errors-on-metrics
+        assert attributes.get(ATTRIBUTE_NAME_ERROR_TYPE) != null : "error.type attribute must be present for failures";
+
+        reindexCompletionHistogram.record(1L, attributes);
+    }
+
+    private Map<String, Object> getAttributes(boolean remote) {
+        Map<String, Object> attributes = new HashMap<>();
+        attributes.put(ATTRIBUTE_NAME_SOURCE, remote ? "remote" : "local");
+
+        return attributes;
     }
 }

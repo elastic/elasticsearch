@@ -73,7 +73,7 @@ public sealed interface ExponentialHistogramBlock extends Block permits Constant
 
         long readLong();
 
-        BytesRef readBytesRef(BytesRef tempBytesRef);
+        BytesRef readBytesRef(BytesRef scratch);
     }
 
 }

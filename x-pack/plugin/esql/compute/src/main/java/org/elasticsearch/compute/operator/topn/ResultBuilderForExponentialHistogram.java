@@ -54,7 +54,7 @@ public class ResultBuilderForExponentialHistogram implements ResultBuilder {
         builder.close();
     }
 
-    private class ReusableTopNEncoderInput implements ExponentialHistogramBlock.SerializedInput {
+    private static final class ReusableTopNEncoderInput implements ExponentialHistogramBlock.SerializedInput {
         BytesRef inputValues;
 
         @Override
@@ -68,8 +68,8 @@ public class ResultBuilderForExponentialHistogram implements ResultBuilder {
         }
 
         @Override
-        public BytesRef readBytesRef(BytesRef tempBytesRef) {
-            return TopNEncoder.DEFAULT_UNSORTABLE.decodeBytesRef(inputValues, tempBytesRef);
+        public BytesRef readBytesRef(BytesRef scratch) {
+            return TopNEncoder.DEFAULT_UNSORTABLE.decodeBytesRef(inputValues, scratch);
         }
     }
 }

@@ -19,6 +19,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.XContentBuilder;
 
@@ -55,14 +56,15 @@ public class ClusterStatsResponse extends BaseNodesResponse<ClusterStatsNodeResp
         AnalysisStats analysisStats,
         VersionStats versionStats,
         ClusterSnapshotStats clusterSnapshotStats,
-        Map<String, RemoteClusterStats> remoteClustersStats
+        Map<String, RemoteClusterStats> remoteClustersStats,
+        boolean skipMRT
     ) {
         super(clusterName, nodes, failures);
         this.clusterUUID = clusterUUID;
         this.timestamp = timestamp;
         nodesStats = new ClusterStatsNodes(nodes);
         indicesStats = new ClusterStatsIndices(nodes, mappingStats, analysisStats, versionStats);
-        ccsMetrics = new CCSTelemetrySnapshot();
+        ccsMetrics = new CCSTelemetrySnapshot().setUseMRT(skipMRT == false);
         esqlMetrics = new CCSTelemetrySnapshot().setUseMRT(false);
         ClusterHealthStatus status = null;
         for (ClusterStatsNodeResponse response : nodes) {

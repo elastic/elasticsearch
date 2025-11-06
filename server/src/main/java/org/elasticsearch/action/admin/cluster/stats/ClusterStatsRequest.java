@@ -28,6 +28,11 @@ public class ClusterStatsRequest extends BaseNodesRequest {
      * Return stripped down stats for remote clusters.
      */
     private boolean remoteStats;
+    /**
+     * Are we dealing with CPS environment?
+     * In CPS, we do not display MRT stats.
+     */
+    private boolean isCPS = false;
 
     /**
      * Get stats from nodes based on the nodes ids specified. If none are passed, stats
@@ -43,13 +48,19 @@ public class ClusterStatsRequest extends BaseNodesRequest {
         this.remoteStats = false;
     }
 
+    public static ClusterStatsRequest newServerlessRequest(String[] nodeIds) {
+        final ClusterStatsRequest request = new ClusterStatsRequest(false, nodeIds);
+        request.isCPS = true;
+        return request;
+    }
+
     @Override
     public Task createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
         return new CancellableTask(id, type, action, "", parentTaskId, headers);
     }
 
     public static ClusterStatsRequest newRemoteClusterStatsRequest() {
-        final var request = new ClusterStatsRequest();
+        final ClusterStatsRequest request = new ClusterStatsRequest();
         request.remoteStats = true;
         return request;
     }
@@ -66,5 +77,9 @@ public class ClusterStatsRequest extends BaseNodesRequest {
      */
     public boolean isRemoteStats() {
         return remoteStats;
+    }
+
+    public boolean isCPS() {
+        return isCPS;
     }
 }

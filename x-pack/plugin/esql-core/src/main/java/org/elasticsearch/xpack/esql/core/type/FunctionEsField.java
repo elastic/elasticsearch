@@ -79,6 +79,6 @@ public class FunctionEsField extends EsField {
          * is a `FunctionEsField` which *looks* pushable without
          * the inexact match.
          */
-        return new Exact(false, "merged with " + functionConfig.name());
+        return new Exact(false, "merged with " + functionConfig.function());
     }
 }

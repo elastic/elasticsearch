@@ -824,16 +824,14 @@ public final class KeywordFieldMapper extends FieldMapper {
         @Override
         public BlockLoader blockLoader(BlockLoaderContext blContext) {
             if (hasDocValues() && (blContext.fieldExtractPreference() != FieldExtractPreference.STORED || isSyntheticSourceEnabled())) {
-                return switch (blContext.blockLoaderFunctionConfig()) {
-                    case null -> new BytesRefsFromOrdsBlockLoader(name());
-                    case BlockLoaderFunctionConfig.Named named -> switch (named.name()) {
-                        case "LENGTH" -> new Utf8CodePointsFromOrdsBlockLoader(named.warnings(), name());
-                        default -> throw new UnsupportedOperationException("unknown fusion config [" + named.name() + "]");
-                    };
-                    default -> throw new UnsupportedOperationException(
-                        "unknown fusion config [" + blContext.blockLoaderFunctionConfig() + "]"
-                    );
-                };
+                BlockLoaderFunctionConfig cfg = blContext.blockLoaderFunctionConfig();
+                if (cfg == null) {
+                    return new BytesRefsFromOrdsBlockLoader(name());
+                }
+                if (cfg.function() == BlockLoaderFunctionConfig.Function.LENGTH) {
+                    return new Utf8CodePointsFromOrdsBlockLoader(((BlockLoaderFunctionConfig.JustWarnings) cfg).warnings(), name());
+                }
+                throw new UnsupportedOperationException("unknown fusion config [" + cfg.function() + "]");
             }
             if (blContext.blockLoaderFunctionConfig() != null) {
                 throw new UnsupportedOperationException("function fusing only supported for doc values");
@@ -863,7 +861,7 @@ public final class KeywordFieldMapper extends FieldMapper {
         @Override
         public boolean supportsBlockLoaderConfig(BlockLoaderFunctionConfig config, FieldExtractPreference preference) {
             if (hasDocValues() && (preference != FieldExtractPreference.STORED || isSyntheticSourceEnabled())) {
-                return config.name().equals("LENGTH");
+                return config.function() == BlockLoaderFunctionConfig.Function.LENGTH;
             }
             return false;
         }

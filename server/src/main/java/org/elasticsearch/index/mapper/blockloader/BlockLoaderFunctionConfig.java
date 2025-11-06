@@ -22,21 +22,16 @@ public interface BlockLoaderFunctionConfig {
     /**
      * Name used in descriptions.
      */
-    String name();
+    Function function();
 
-    record Named(String name, Warnings warnings) implements BlockLoaderFunctionConfig {
-        @Override
-        public int hashCode() {
-            return name.hashCode();
-        }
+    record JustWarnings(Function function, Warnings warnings) implements BlockLoaderFunctionConfig {}
 
-        @Override
-        public boolean equals(Object o) {
-            if (o == null || getClass() != o.getClass()) {
-                return false;
-            }
-            Named named = (Named) o;
-            return name.equals(named.name);
-        }
+    enum Function {
+        LENGTH,
+        V_COSINE,
+        V_DOT_PRODUCT,
+        V_HAMMING,
+        V_L1NORM,
+        V_L2NORM,
     }
 }

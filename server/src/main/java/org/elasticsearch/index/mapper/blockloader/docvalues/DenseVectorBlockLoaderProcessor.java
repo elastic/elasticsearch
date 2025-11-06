@@ -112,7 +112,7 @@ public interface DenseVectorBlockLoaderProcessor<B extends BlockLoader.Builder> 
 
         @Override
         public String name() {
-            return config.similarityFunction().toString();
+            return config.similarityFunction().function().toString();
         }
     }
 }

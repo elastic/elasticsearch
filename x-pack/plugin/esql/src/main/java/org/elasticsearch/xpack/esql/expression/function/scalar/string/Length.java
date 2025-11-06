@@ -101,7 +101,10 @@ public class Length extends UnaryScalarFunction implements BlockLoaderExpression
     public PushedBlockLoaderExpression tryPushToFieldLoading(SearchStats stats) {
         if (field instanceof FieldAttribute f) {
             BlockLoaderWarnings warnings = new BlockLoaderWarnings(DriverContext.WarningsMode.COLLECT, source());
-            return new PushedBlockLoaderExpression(f, new BlockLoaderFunctionConfig.Named("LENGTH", warnings));
+            return new PushedBlockLoaderExpression(
+                f,
+                new BlockLoaderFunctionConfig.JustWarnings(BlockLoaderFunctionConfig.Function.LENGTH, warnings)
+            );
         }
         return null;
     }

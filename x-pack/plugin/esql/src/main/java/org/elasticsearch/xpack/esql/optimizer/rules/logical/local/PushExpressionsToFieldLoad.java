@@ -95,7 +95,7 @@ public class PushExpressionsToFieldLoad extends OptimizerRules.ParameterizedOpti
     ) {
         // Change the similarity function to a reference of a transformation on the field
         FunctionEsField functionEsField = new FunctionEsField(fuse.field().field(), e.dataType(), fuse.config());
-        var name = rawTemporaryName(fuse.field().name(), fuse.config().name(), String.valueOf(fuse.config().hashCode()));
+        var name = rawTemporaryName(fuse.field().name(), fuse.config().function().toString(), String.valueOf(fuse.config().hashCode()));
         // TODO: Check if exists before adding, retrieve the previous one
         var newFunctionAttr = new FieldAttribute(
             fuse.field().source(),

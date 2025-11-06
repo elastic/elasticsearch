@@ -2855,31 +2855,34 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 return BlockLoader.CONSTANT_NULLS;
             }
 
-            BlockLoaderFunctionConfig functionConfig = blContext.blockLoaderFunctionConfig();
+            BlockLoaderFunctionConfig cfg = blContext.blockLoaderFunctionConfig();
             if (indexed) {
-                if (functionConfig == null) {
+                if (cfg == null) {
                     return new DenseVectorBlockLoader<>(
                         name(),
                         dims,
                         this,
                         new DenseVectorBlockLoaderProcessor.DenseVectorLoaderProcessor()
                     );
-                } else if (functionConfig instanceof VectorSimilarityFunctionConfig similarityConfig) {
-                    if (getElementType() == ElementType.BYTE || getElementType() == ElementType.BIT) {
-                        similarityConfig = similarityConfig.forByteVector();
-                    }
-                    return new DenseVectorBlockLoader<>(
-                        name(),
-                        dims,
-                        this,
-                        new DenseVectorBlockLoaderProcessor.DenseVectorSimilarityProcessor(similarityConfig)
-                    );
-                } else {
-                    throw new UnsupportedOperationException("Unknown block loader function config: " + functionConfig.getClass());
                 }
+                return switch (cfg.function()) {
+                    case V_COSINE, V_DOT_PRODUCT, V_HAMMING, V_L1NORM, V_L2NORM -> {
+                        VectorSimilarityFunctionConfig similarityConfig = (VectorSimilarityFunctionConfig) cfg;
+                        if (getElementType() == ElementType.BYTE || getElementType() == ElementType.BIT) {
+                            similarityConfig = similarityConfig.forByteVector();
+                        }
+                        yield new DenseVectorBlockLoader<>(
+                            name(),
+                            dims,
+                            this,
+                            new DenseVectorBlockLoaderProcessor.DenseVectorSimilarityProcessor(similarityConfig)
+                        );
+                    }
+                    default -> throw new UnsupportedOperationException("Unknown block loader function config: " + cfg.function());
+                };
             }
 
-            if (functionConfig != null) {
+            if (cfg != null) {
                 throw new IllegalArgumentException(
                     "Field ["
                         + name()
@@ -2908,7 +2911,10 @@ public class DenseVectorFieldMapper extends FieldMapper {
             }
 
             if (indexed) {
-                return config instanceof VectorSimilarityFunctionConfig;
+                return switch (config.function()) {
+                    case V_COSINE, V_DOT_PRODUCT, V_HAMMING, V_L1NORM, V_L2NORM -> true;
+                    default -> false;
+                };
             }
             return false;
         }
@@ -3387,6 +3393,8 @@ public class DenseVectorFieldMapper extends FieldMapper {
         float calculateSimilarity(float[] leftVector, float[] rightVector);
 
         float calculateSimilarity(byte[] leftVector, byte[] rightVector);
+
+        BlockLoaderFunctionConfig.Function function();
     }
 
     /**
@@ -3416,8 +3424,8 @@ public class DenseVectorFieldMapper extends FieldMapper {
         }
 
         @Override
-        public String name() {
-            return similarityFunction.toString();
+        public Function function() {
+            return similarityFunction.function();
         }
 
         public byte[] vectorAsBytes() {

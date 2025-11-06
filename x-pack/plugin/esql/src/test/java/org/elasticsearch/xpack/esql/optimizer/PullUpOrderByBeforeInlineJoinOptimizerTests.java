@@ -27,6 +27,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.Sample;
 import org.elasticsearch.xpack.esql.plan.logical.TopN;
 import org.elasticsearch.xpack.esql.plan.logical.join.InlineJoin;
+import org.elasticsearch.xpack.esql.plan.logical.join.Join;
 import org.elasticsearch.xpack.esql.plan.logical.join.JoinTypes;
 import org.elasticsearch.xpack.esql.plan.logical.join.StubRelation;
 import org.elasticsearch.xpack.esql.plan.logical.local.EsqlProject;
@@ -900,6 +901,55 @@ public class PullUpOrderByBeforeInlineJoinOptimizerTests extends AbstractLogical
         assertThat(aggFunction.name(), is("cd"));
         assertThat(aggFunction.child().nodeName(), is("Count"));
         var stub = as(agg.child(), StubRelation.class);
+    }
+
+    /**
+     * Project[[abbrev{f}#20, scalerank{f}#22 AS backup_scalerank#5, language_name{f}#29 AS scalerank#13]]
+     * \_Limit[1000[INTEGER],true,false]
+     *   \_Join[LEFT,[scalerank{f}#22],[language_code{f}#28],null]
+     *     |_TopN[[Order[abbrev{f}#20,DESC,FIRST]],1000[INTEGER],false]
+     *     | \_EsRelation[airports][abbrev{f}#20, city{f}#26, city_location{f}#27, coun..]
+     *     \_EsRelation[languages_lookup][LOOKUP][language_code{f}#28, language_name{f}#29]
+     */
+    public void testInlineJoinPrunedAfterSortAndLookupJoin() {
+        var query = """
+            FROM airports
+            | EVAL backup_scalerank = scalerank
+            | RENAME scalerank AS language_code
+            | SORT abbrev DESC
+            | LOOKUP JOIN languages_lookup ON language_code
+            | RENAME language_name as scalerank
+            | DROP language_code
+            | INLINE STATS count=COUNT(*) BY scalerank
+            | KEEP abbrev, *scalerank
+            """;
+        if (releaseBuildForInlineStats(query)) {
+            return;
+        }
+        var plan = planAirports(query);
+
+        var project = as(plan, Project.class);
+        assertThat(Expressions.names(project.projections()), is(List.of("abbrev", "backup_scalerank", "scalerank")));
+
+        var limit = as(project.child(), Limit.class);
+        assertThat(limit.limit().fold(FoldContext.small()), equalTo(1000));
+
+        var join = as(limit.child(), Join.class);
+        assertThat(join.config().type(), is(JoinTypes.LEFT));
+
+        var topN = as(join.left(), TopN.class);
+        assertThat(topN.limit().fold(FoldContext.small()), equalTo(1000));
+        assertThat(topN.order(), hasSize(1));
+        var order = as(topN.order().get(0), Order.class);
+        assertThat(order.direction(), equalTo(Order.OrderDirection.DESC));
+        assertThat(order.nullsPosition(), equalTo(Order.NullsPosition.FIRST));
+        assertThat(Expressions.name(order.child()), is("abbrev"));
+
+        var leftRelation = as(topN.child(), EsRelation.class);
+        assertThat(leftRelation.concreteIndices(), is(Set.of("airports")));
+
+        var rightRelation = as(join.right(), EsRelation.class);
+        assertThat(rightRelation.concreteIndices(), is(Set.of("languages_lookup")));
     }
 
     public void testFailureWhenSortAndSortBreakerBeforeInlineStats() {

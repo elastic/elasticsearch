@@ -4454,11 +4454,12 @@ required_capability: join_lookup_v12
 FROM airports
 | EVAL backup_scalerank = scalerank
 | RENAME scalerank AS language_code
-| SORT abbrev DESC
+// | SORT abbrev DESC // this would work here, but not in a FORK config (GenerativeForkIT), which disables column pruning
 | LOOKUP JOIN languages_lookup ON language_code
 | RENAME language_name as scalerank
 | DROP language_code
 | INLINE STATS count=COUNT(*) BY scalerank
+| SORT abbrev DESC
 | KEEP abbrev, *scalerank
 | LIMIT 5
 ;

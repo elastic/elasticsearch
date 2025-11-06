@@ -338,7 +338,7 @@ public class TDigestFieldMapperTests extends MapperTestCase {
         Exception e = expectThrows(DocumentParsingException.class, () -> mapper.parse(source));
         assertThat(
             e.getCause().getMessage(),
-            containsString(" [centroids] values must be in increasing order, " + "got [2.0] but previous value was [3.0]")
+            containsString(" centroids must be in increasing order, " + "got [2.0] but previous value was [3.0]")
         );
     }
 

@@ -60,11 +60,11 @@ public class CountDistinctOverTime extends TimeSeriesAggregateFunction implement
                 + "same effect as a threshold of 40000. The default value is 3000."
         ) Expression precision
     ) {
-        this(source, field, Literal.TRUE, precision);
+        this(source, field, Literal.TRUE, NO_WINDOW, precision);
     }
 
-    public CountDistinctOverTime(Source source, Expression field, Expression filter, Expression precision) {
-        super(source, field, filter, precision == null ? List.of() : List.of(precision));
+    public CountDistinctOverTime(Source source, Expression field, Expression filter, Expression window, Expression precision) {
+        super(source, field, filter, window, precision == null ? List.of() : List.of(precision));
         this.precision = precision;
     }
 
@@ -80,20 +80,18 @@ public class CountDistinctOverTime extends TimeSeriesAggregateFunction implement
 
     @Override
     public CountDistinctOverTime withFilter(Expression filter) {
-        return new CountDistinctOverTime(source(), field(), filter, precision);
+        return new CountDistinctOverTime(source(), field(), filter, window(), precision);
     }
 
     @Override
     protected NodeInfo<CountDistinctOverTime> info() {
-        return NodeInfo.create(this, CountDistinctOverTime::new, field(), filter(), precision);
+        return NodeInfo.create(this, CountDistinctOverTime::new, field(), filter(), window(), precision);
     }
 
     @Override
     public CountDistinctOverTime replaceChildren(List<Expression> newChildren) {
-        if (newChildren.size() < 3) {
-            return new CountDistinctOverTime(source(), newChildren.get(0), newChildren.get(1), null);
-        }
-        return new CountDistinctOverTime(source(), newChildren.get(0), newChildren.get(1), newChildren.get(2));
+        Expression precision = newChildren.size() > 3 ? newChildren.get(3) : null;
+        return new CountDistinctOverTime(source(), newChildren.get(0), newChildren.get(1), newChildren.get(2), precision);
     }
 
     @Override
@@ -108,6 +106,6 @@ public class CountDistinctOverTime extends TimeSeriesAggregateFunction implement
 
     @Override
     public CountDistinct perTimeSeriesAggregation() {
-        return new CountDistinct(source(), field(), filter(), precision);
+        return new CountDistinct(source(), field(), filter(), window(), precision);
     }
 }

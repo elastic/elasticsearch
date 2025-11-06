@@ -201,12 +201,15 @@ class PromqlExpressionBuilder extends PromqlIdentifierBuilder {
                 if (Double.isFinite(v) == false) {
                     throw new ParsingException(source, "Invalid timestamp [{}]", v);
                 }
-                if (v >= Long.MAX_VALUE || v <= Long.MIN_VALUE) {
+                // Convert to milliseconds (matching Prometheus behavior)
+                double millisDouble = v * 1000.0;
+                if (millisDouble >= Long.MAX_VALUE || millisDouble <= Long.MIN_VALUE) {
                     throw new ParsingException(source, "Timestamp out of bounds [{}]", v);
                 }
-                if (v - (long) v > 0) {
-                    throw new ParsingException(source, "Timestamps must be in seconds precision");
-                }
+
+                // Round to nearest millisecond, supporting sub-millisecond input
+                long millis = Math.round(millisDouble);
+                return Duration.ofMillis(millis);
             }
 
             return Duration.ofSeconds(number.longValue());

@@ -138,7 +138,7 @@ public class PreviewTransformAction extends ActionType<PreviewTransformAction.Re
                     "Cannot send a _preview request with "
                         + TransformField.PREVIEW_AS_INDEX_REQUEST.getPreferredName()
                         + " to an outdated node. Please upgrade the node to 9.3.0+ and try again.",
-                    RestStatus.FORBIDDEN
+                    RestStatus.BAD_REQUEST
                 );
             }
         }

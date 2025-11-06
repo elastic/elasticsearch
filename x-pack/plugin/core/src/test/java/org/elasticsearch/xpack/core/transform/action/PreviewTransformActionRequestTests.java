@@ -102,7 +102,7 @@ public class PreviewTransformActionRequestTests extends AbstractSerializingTrans
                         ElasticsearchStatusException.class,
                         () -> copyWriteable(testInstance, getNamedWriteableRegistry(), instanceReader(), unsupportedVersion)
                     );
-                    assertThat(statusException.status(), equalTo(RestStatus.FORBIDDEN));
+                    assertThat(statusException.status(), equalTo(RestStatus.BAD_REQUEST));
                     assertThat(
                         statusException.getMessage(),
                         equalTo(

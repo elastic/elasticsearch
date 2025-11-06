@@ -24,17 +24,14 @@ public class CCMService {
 
     public void isEnabled(ActionListener<Boolean> listener) {
         // TODO use cache or cluster state to determine if CCM is enabled
-        var ccmModelListener = ActionListener.<CCMModel>wrap(
-            ignored -> listener.onResponse(true),
-            e -> {
-                if (e instanceof ResourceNotFoundException) {
-                    listener.onResponse(false);
-                    return;
-                }
-
-                listener.onFailure(e);
+        var ccmModelListener = ActionListener.<CCMModel>wrap(ignored -> listener.onResponse(true), e -> {
+            if (e instanceof ResourceNotFoundException) {
+                listener.onResponse(false);
+                return;
             }
-        );
+
+            listener.onFailure(e);
+        });
 
         ccmPersistentStorageService.get(ccmModelListener);
     }

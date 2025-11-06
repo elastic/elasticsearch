@@ -37,7 +37,9 @@ public abstract class BaseCCMIT extends ESSingleNodeTestCase {
 
     public interface Provider {
         void store(CCMModel ccmModel, ActionListener<Void> listener);
+
         void get(ActionListener<CCMModel> listener);
+
         void delete(ActionListener<Void> listener);
     }
 
@@ -77,7 +79,8 @@ public abstract class BaseCCMIT extends ESSingleNodeTestCase {
 
         var results = client().prepareSearch(CCMIndex.INDEX_PATTERN)
             .setQuery(QueryBuilders.idsQuery().addIds(CCM_DOC_ID))
-            .execute().actionGet(TimeValue.THIRTY_SECONDS);
+            .execute()
+            .actionGet(TimeValue.THIRTY_SECONDS);
 
         assertThat(results.getHits().getHits().length, is(1));
     }

@@ -11,6 +11,8 @@
 // The range checks are done in ES|QL, resulting in one boolean value (is_expected),
 // because the CSV tests don't support such assertions.
 
+// TODO: add matcher like "BETWEEN(1000,2000)" to make tests stronger.
+
 approximate stats on large data
 required_capability: approximate
 approximate: true

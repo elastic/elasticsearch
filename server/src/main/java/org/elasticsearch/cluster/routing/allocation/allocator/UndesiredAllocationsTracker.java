@@ -114,11 +114,8 @@ public class UndesiredAllocationsTracker {
      * Remove any tracking of the specified allocation (a no-op if the allocation isn't being tracked)
      */
     public void removeTracking(ShardRouting shardRouting) {
-        if (shardRouting.unassigned() == false) {
-            undesiredAllocations.remove(shardRouting.allocationId().getId());
-        } else {
-            assert false : "Shouldn't remove tracking of unassigned shards";
-        }
+        assert shardRouting.unassigned() == false : "Shouldn't remove tracking of unassigned shards";
+        undesiredAllocations.remove(shardRouting.allocationId().getId());
     }
 
     /**

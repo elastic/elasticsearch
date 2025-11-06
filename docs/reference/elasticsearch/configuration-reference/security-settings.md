@@ -1911,7 +1911,15 @@ PKCS#12 files are configured in the same way as Java keystore files:
 
 ## Transport TLS/SSL settings [transport-tls-ssl-settings]
 
-You can configure the following TLS/SSL settings.
+The settings in this section relate to node-to-node transport connections.
+
+By default {{es}} uses mutual TLS (mTLS) to ensure the security of node-to-node transport connections within a cluster. Mutual TLS means that both nodes in a connection must present a valid certificate to the other node when establishing the connection. {{es}} checks that each of these certificates is issued by a certificate authority that the other node trusts for this purpose. The set of certificate authorities trusted for transport connections are defined with settings in the `xpack.security.transport.ssl.*` namespace such as `xpack.security.transport.ssl.certificate_authorities` and `xpack.security.transport.ssl.truststore.path`.
+
+To realize the full benefits of the mTLS security model, obtain your transport certificates from a certificate authority that only issues certificates to {{es}} nodes which are permitted to connect to your cluster. Do not use a public certificate authority, nor an organization-wide private certificate authority, because such certificate authorities issue certificates to entities other than the {{es}} nodes which are permitted to connect to your cluster. Public certificate authorities generally issue certificates which cannot be used as a client certificate in mTLS anyway. The recommended best practice is to use a different private certificate authority for each {{es}} cluster.
+
+The security requirements for transport certificates (as defined by the `xpack.security.transport.ssl.*` settings) are significantly different from the security requirements for HTTP certificates (as defined by the `xpack.security.http.ssl.*` settings). HTTP connections do not generally use mTLS since HTTP has its own authentication mechanisms, so HTTP certificates do not usually need to permit client authentication. It often makes sense to obtain the nodes' HTTP certificates from a public certificate authority, or from an organization-wide private certificate authority.
+
+If your environment has some other way to prevent unauthorized node-to-node connections, you may prefer not to use mTLS for transport connections. In this case, turn mTLS off in this context by setting `xpack.security.transport.ssl.client_authentication: none`. You may still use (non-mutual) TLS to ensure the confidentiality and integrity of node-to-node traffic by setting `xpack.security.transport.ssl.enabled: true`. If you are using non-mutual TLS for transport connections then you may use certificates issued by a public certificate authority, or an organization-wide private certificate authority, for your transport certificates.
 
 `xpack.security.transport.ssl.enabled`
 :   ([Static](docs-content://deploy-manage/stack-settings.md#static-cluster-setting)) Used to enable or disable TLS/SSL on the transport networking layer, which nodes use to communicate with each other. The default is `false`.
@@ -1928,16 +1936,6 @@ You can configure the following TLS/SSL settings.
 
 `xpack.security.transport.ssl.client_authentication`
 :   ([Static](docs-content://deploy-manage/stack-settings.md#static-cluster-setting)) Controls the node's behavior in regard to requesting a certificate when accepting an inbound transport connections from another {{es}} node. Valid values are `required`, `optional`, and `none`. The default is `required` which means that the connecting node must present a valid client certificate during the connection process. May also be set to `optional` which means that a client certificate is requested but the connecting node may choose not to present one, or `none` which means that no client certificate is even requested during the connection process.
-
-    ::::{note}
-    By default {{es}} uses mutual TLS (mTLS) to ensure the security of node-to-node transport connections within a cluster. Mutual TLS means that both nodes in a connection must present a valid certificate to the other node when establishing the connection. {{es}} checks that each of these certificates is issued by a certificate authority that the other node trusts for this purpose. The set of certificate authorities trusted for transport connections are defined with settings in the `xpack.security.transport.ssl.*` namespace such as `xpack.security.transport.ssl.certificate_authorities` and `xpack.security.transport.ssl.truststore.path`.
-
-    To realize the full benefits of the mTLS security model, obtain your transport certificates from a certificate authority that only issues certificates to {{es}} nodes which are permitted to connect to your cluster. Do not use a public certificate authority, nor an organization-wide private certificate authority, because such certificate authorities issue certificates to entities other than the {{es}} nodes which are permitted to connect to your cluster. Public certificate authorities generally issue certificates which cannot be used as a client certificate in mTLS anyway. The recommended best practice is to use a different private certificate authority for each {{es}} cluster.
-
-    The security requirements for transport certificates (as defined by the `xpack.security.transport.ssl.*` settings) are significantly different from the security requirements for HTTP certificates (as defined by the `xpack.security.http.ssl.*` settings). HTTP connections do not generally use mTLS since HTTP has its own authentication mechanisms, so HTTP certificates do not usually need to permit client authentication. It often makes sense to obtain the nodes' HTTP certificates from a public certificate authority, or from an organization-wide private certificate authority.
-
-    If your environment has some other way to prevent unauthorized node-to-node connections, you may prefer not to use mTLS for transport connections. In this case, turn mTLS off in this context by setting `xpack.security.transport.ssl.client_authentication: none`. With this configuration {{es}} can still use (non-mutual) TLS to ensure the confidentiality and integrity of node-to-node traffic. If you are using non-mutual TLS for transport connections then you may use certificates issued by a public certificate authority, or an organization-wide private certificate authority, for your transport certificates.
-    ::::
 
 `xpack.security.transport.ssl.verification_mode`
 :   ([Static](docs-content://deploy-manage/stack-settings.md#static-cluster-setting)) Defines how to verify the certificates presented by another party in the TLS connection:

@@ -836,6 +836,7 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
         private final int topDocsSize;
         private final CountDown countDown;
         private final TransportChannel channel;
+        private final ActionListener<TransportResponse> listener;
         private volatile BottomSortValuesCollector bottomSortCollector;
         private final NamedWriteableRegistry namedWriteableRegistry;
 
@@ -854,6 +855,7 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
             this.task = task;
             this.countDown = new CountDown(queryPhaseResultConsumer.getNumShards());
             this.channel = channel;
+            this.listener = ActionListener.releaseBefore(queryPhaseResultConsumer, new ChannelActionListener<>(channel));
             this.dependencies = dependencies;
             this.namedWriteableRegistry = namedWriteableRegistry;
         }
@@ -866,10 +868,9 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
                 bwcRespond();
                 return;
             }
-            var channelListener = new ChannelActionListener<>(channel);
             RecyclerBytesStreamOutput out = dependencies.transportService.newNetworkBytesStream();
             out.setTransportVersion(channel.getVersion());
-            try (queryPhaseResultConsumer) {
+            try {
                 Exception reductionFailure = queryPhaseResultConsumer.failure.get();
                 if (reductionFailure == null) {
                     writeSuccessfulResponse(out);
@@ -878,11 +879,11 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
                 }
             } catch (IOException e) {
                 releaseAllResultsContexts();
-                channelListener.onFailure(e);
+                listener.onFailure(e);
                 return;
             }
             ActionListener.respondAndRelease(
-                channelListener,
+                listener,
                 new BytesTransportResponse(out.moveToBytesReference(), out.getTransportVersion())
             );
         }
@@ -951,12 +952,11 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
         void bwcRespond() {
             RecyclerBytesStreamOutput out = null;
             boolean success = false;
-            var channelListener = new ChannelActionListener<>(channel);
-            try (queryPhaseResultConsumer) {
+            try {
                 var failure = queryPhaseResultConsumer.failure.get();
                 if (failure != null) {
                     releaseAllResultsContexts();
-                    channelListener.onFailure(failure);
+                    listener.onFailure(failure);
                     return;
                 }
                 final QueryPhaseResultConsumer.MergeResult mergeResult;
@@ -967,7 +967,7 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
                     );
                 } catch (Exception e) {
                     releaseAllResultsContexts();
-                    channelListener.onFailure(e);
+                    listener.onFailure(e);
                     return;
                 }
                 // translate shard indices to those on the coordinator so that it can interpret the merge result without adjustments,
@@ -1000,7 +1000,7 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
                     success = true;
                 } catch (IOException e) {
                     releaseAllResultsContexts();
-                    channelListener.onFailure(e);
+                    listener.onFailure(e);
                     return;
                 }
             } finally {
@@ -1009,7 +1009,7 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
                 }
             }
             ActionListener.respondAndRelease(
-                channelListener,
+                listener,
                 new BytesTransportResponse(out.moveToBytesReference(), out.getTransportVersion())
             );
         }

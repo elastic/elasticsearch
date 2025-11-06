@@ -18,9 +18,11 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Gre
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThan;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.Dissect;
+import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
+import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.Sample;
 import org.elasticsearch.xpack.esql.plan.logical.TopN;
@@ -455,7 +457,7 @@ public class PullUpOrderByBeforeInlineJoinOptimizerTests extends AbstractLogical
         var stub = as(agg.child(), StubRelation.class);
     }
 
-    /**
+    /*
      * Project[[_meta_field{f}#18, emp_no{f}#12, first_name{f}#13, gender{f}#14, hire_date{f}#19, job{f}#20, job.raw{f}#21,
      *      languages{f}#15, last_name{f}#16, long_noidx{f}#22, salary{f}#17, cd{r}#11]]
      * \_TopN[[Order[$$s1$temp_name$23{r}#24,ASC,LAST]],1000[INTEGER],false]
@@ -524,6 +526,251 @@ public class PullUpOrderByBeforeInlineJoinOptimizerTests extends AbstractLogical
     }
 
     /*
+     * Project[[salary{r}#7, emp_no{f}#9]]
+     * \_TopN[[Order[$$salary$temp_name$20{r}#21,ASC,LAST]],1000[INTEGER],false]
+     *   \_InlineJoin[LEFT,[emp_no{f}#9],[emp_no{r}#9]]
+     *     |_EsqlProject[[salary{f}#14, emp_no{f}#9, $$salary$temp_name$20{r}#21]]
+     *     | \_Eval[[salary{f}#14 AS $$salary$temp_name$20#21]]
+     *     |   \_EsRelation[employees][_meta_field{f}#15, emp_no{f}#9, first_name{f}#10, g..]
+     *     \_Aggregate[[emp_no{f}#9],[COUNT(*[KEYWORD],true[BOOLEAN],PT0S[TIME_DURATION]) AS salary#7, emp_no{f}#9]]
+     *       \_StubRelation[[salary{f}#14, emp_no{f}#9]]
+     */
+    public void testShadowingInlineStatsAfterSort() {
+        var query = """
+            FROM employees
+            | KEEP salary, emp_no
+            | SORT salary
+            | INLINE STATS salary = COUNT(*) BY emp_no
+            """;
+        if (releaseBuildForInlineStats(query)) {
+            return;
+        }
+        var plan = optimizedPlan(query);
+
+        var project = as(plan, Project.class);
+        assertThat(Expressions.names(project.projections()), is(List.of("salary", "emp_no")));
+
+        var topN = as(project.child(), TopN.class);
+        assertThat(topN.limit().fold(FoldContext.small()), equalTo(1000));
+        assertThat(topN.order(), hasSize(1));
+        var order = as(topN.order().get(0), Order.class);
+        assertThat(order.direction(), equalTo(Order.OrderDirection.ASC));
+        assertThat(order.nullsPosition(), equalTo(Order.NullsPosition.LAST));
+        assertThat(Expressions.name(order.child()), startsWith("$$salary$temp_name$"));
+
+        var inlineJoin = as(topN.child(), InlineJoin.class);
+        assertThat(inlineJoin.config().type(), is(JoinTypes.LEFT));
+        assertThat(Expressions.names(inlineJoin.config().leftFields()), is(List.of("emp_no")));
+        assertThat(Expressions.names(inlineJoin.config().rightFields()), is(List.of("emp_no")));
+
+        // Left side of the join
+        var leftProject = as(inlineJoin.left(), EsqlProject.class);
+        var leftEval = as(leftProject.child(), Eval.class);
+        assertThat(Expressions.names(leftEval.fields()), contains(startsWith("$$salary$temp_name$")));
+        var relation = as(leftEval.child(), EsRelation.class);
+        assertThat(relation.concreteIndices(), is(Set.of("employees")));
+
+        // Right side of the join
+        var agg = as(inlineJoin.right(), Aggregate.class);
+        assertThat(Expressions.names(agg.groupings()), is(List.of("emp_no")));
+        assertThat(agg.aggregates(), hasSize(2));
+        var aggFunction = as(agg.aggregates().get(0), Alias.class);
+        assertThat(aggFunction.name(), is("salary"));
+        assertThat(aggFunction.child().nodeName(), is("Count"));
+        var stub = as(agg.child(), StubRelation.class);
+    }
+
+    /*
+     * Project[[salary{r}#8, emp_no{f}#10]]
+     * \_TopN[[Order[$$salary$temp_name$21{r}#22,ASC,LAST], Order[emp_no{f}#10,ASC,LAST]],1000[INTEGER],false]
+     *   \_InlineJoin[LEFT,[emp_no{f}#10],[emp_no{r}#10]]
+     *     |_EsqlProject[[salary{f}#15, emp_no{f}#10, $$salary$temp_name$21{r}#22]]
+     *     | \_Eval[[salary{f}#15 AS $$salary$temp_name$21#22]]
+     *     |   \_EsRelation[employees][_meta_field{f}#16, emp_no{f}#10, first_name{f}#11, ..]
+     *     \_Aggregate[[emp_no{f}#10],[COUNT(*[KEYWORD],true[BOOLEAN],PT0S[TIME_DURATION]) AS salary#8, emp_no{f}#10]]
+     *       \_StubRelation[[salary{f}#15, emp_no{f}#10]]
+     */
+    public void testMixedShadowingInlineStatsAfterSort() {
+        var query = """
+            FROM employees
+            | KEEP salary, emp_no
+            | SORT salary, emp_no
+            | INLINE STATS salary = COUNT(*) BY emp_no
+            """;
+        if (releaseBuildForInlineStats(query)) {
+            return;
+        }
+        var plan = optimizedPlan(query);
+
+        var project = as(plan, Project.class);
+        assertThat(Expressions.names(project.projections()), is(List.of("salary", "emp_no")));
+
+        var topN = as(project.child(), TopN.class);
+        assertThat(topN.limit().fold(FoldContext.small()), equalTo(1000));
+        assertThat(topN.order(), hasSize(2));
+
+        var order1 = as(topN.order().get(0), Order.class);
+        assertThat(order1.direction(), equalTo(Order.OrderDirection.ASC));
+        assertThat(order1.nullsPosition(), equalTo(Order.NullsPosition.LAST));
+        assertThat(Expressions.name(order1.child()), startsWith("$$salary$temp_name$"));
+
+        var order2 = as(topN.order().get(1), Order.class);
+        assertThat(order2.direction(), equalTo(Order.OrderDirection.ASC));
+        assertThat(order2.nullsPosition(), equalTo(Order.NullsPosition.LAST));
+        assertThat(Expressions.name(order2.child()), is("emp_no"));
+
+        var inlineJoin = as(topN.child(), InlineJoin.class);
+        assertThat(inlineJoin.config().type(), is(JoinTypes.LEFT));
+        assertThat(Expressions.names(inlineJoin.config().leftFields()), is(List.of("emp_no")));
+        assertThat(Expressions.names(inlineJoin.config().rightFields()), is(List.of("emp_no")));
+
+        // Left side of the join
+        var leftProject = as(inlineJoin.left(), EsqlProject.class);
+        var leftEval = as(leftProject.child(), Eval.class);
+        assertThat(Expressions.names(leftEval.fields()), contains(startsWith("$$salary$temp_name$")));
+        var relation = as(leftEval.child(), EsRelation.class);
+        assertThat(relation.concreteIndices(), is(Set.of("employees")));
+
+        // Right side of the join
+        var agg = as(inlineJoin.right(), Aggregate.class);
+        assertThat(Expressions.names(agg.groupings()), is(List.of("emp_no")));
+        assertThat(agg.aggregates(), hasSize(2));
+        var aggFunction = as(agg.aggregates().get(0), Alias.class);
+        assertThat(aggFunction.name(), is("salary"));
+        assertThat(aggFunction.child().nodeName(), is("Count"));
+        var stub = as(agg.child(), StubRelation.class);
+    }
+
+    /*
+     * Project[[salary{r}#12, emp_no{f}#14]]
+     * \_TopN[[Order[$$salary$temp_name$25{r}#26,ASC,LAST], Order[$$s1$temp_name$27{r}#28,ASC,LAST]],1000[INTEGER],false]
+     *   \_InlineJoin[LEFT,[emp_no{f}#14],[emp_no{r}#14]]
+     *     |_EsqlProject[[salary{f}#19, emp_no{f}#14, $$salary$temp_name$25{r}#26, $$s1$temp_name$27{r}#28]]
+     *     | \_Eval[[salary{f}#19 + 1[INTEGER] AS s1#7, salary{f}#19 AS $$salary$temp_name$25#26, s1{r}#7 AS $$s1$temp_name$27#28]]
+     *     |   \_EsRelation[employees][_meta_field{f}#20, emp_no{f}#14, first_name{f}#15, ..]
+     *     \_Aggregate[[emp_no{f}#14],[COUNT(*[KEYWORD],true[BOOLEAN],PT0S[TIME_DURATION]) AS salary#12, emp_no{f}#14]]
+     *       \_StubRelation[[salary{f}#19, emp_no{f}#14]]
+     */
+    public void testShadowingInlineStatsAfterSortAndDrop() {
+        var query = """
+            FROM employees
+            | KEEP salary, emp_no
+            | EVAL s1 = salary + 1
+            | SORT salary, s1
+            | DROP s1
+            | INLINE STATS salary = COUNT(*) BY emp_no
+            """;
+        if (releaseBuildForInlineStats(query)) {
+            return;
+        }
+        var plan = optimizedPlan(query);
+
+        var project = as(plan, Project.class);
+        assertThat(Expressions.names(project.projections()), is(List.of("salary", "emp_no")));
+
+        var topN = as(project.child(), TopN.class);
+        assertThat(topN.limit().fold(FoldContext.small()), equalTo(1000));
+        assertThat(topN.order(), hasSize(2));
+
+        var order1 = as(topN.order().get(0), Order.class);
+        assertThat(order1.direction(), equalTo(Order.OrderDirection.ASC));
+        assertThat(order1.nullsPosition(), equalTo(Order.NullsPosition.LAST));
+        assertThat(Expressions.name(order1.child()), startsWith("$$salary$temp_name$"));
+
+        var order2 = as(topN.order().get(1), Order.class);
+        assertThat(order2.direction(), equalTo(Order.OrderDirection.ASC));
+        assertThat(order2.nullsPosition(), equalTo(Order.NullsPosition.LAST));
+        assertThat(Expressions.name(order2.child()), startsWith("$$s1$temp_name$"));
+
+        var inlineJoin = as(topN.child(), InlineJoin.class);
+        assertThat(inlineJoin.config().type(), is(JoinTypes.LEFT));
+        assertThat(Expressions.names(inlineJoin.config().leftFields()), is(List.of("emp_no")));
+        assertThat(Expressions.names(inlineJoin.config().rightFields()), is(List.of("emp_no")));
+
+        // Left side of the join
+        var leftProject = as(inlineJoin.left(), EsqlProject.class);
+        var leftEval = as(leftProject.child(), Eval.class);
+        assertThat(
+            Expressions.names(leftEval.fields()),
+            contains(is("s1"), startsWith("$$salary$temp_name$"), startsWith("$$s1$temp_name$"))
+        );
+        var relation = as(leftEval.child(), EsRelation.class);
+        assertThat(relation.concreteIndices(), is(Set.of("employees")));
+
+        // Right side of the join
+        var agg = as(inlineJoin.right(), Aggregate.class);
+        assertThat(Expressions.names(agg.groupings()), is(List.of("emp_no")));
+        assertThat(agg.aggregates(), hasSize(2));
+        var aggFunction = as(agg.aggregates().get(0), Alias.class);
+        assertThat(aggFunction.name(), is("salary"));
+        assertThat(aggFunction.child().nodeName(), is("Count"));
+        var stub = as(agg.child(), StubRelation.class);
+    }
+
+    /**
+     * Project[[emp_idx{r}#9, salary{f}#20, sum{r}#13, languages{f}#18]]
+     * \_TopN[[Order[$$emp_no$temp_name$27{r}#28,ASC,LAST]],1000[INTEGER],false]
+     *   \_InlineJoin[LEFT,[languages{f}#18],[languages{r}#18]]
+     *     |_EsqlProject[[emp_no{f}#15 AS emp_idx#9, salary{f}#20, languages{f}#18, $$emp_no$temp_name$27{r}#28]]
+     *     | \_Eval[[emp_no{f}#15 AS $$emp_no$temp_name$27#28]]
+     *     |   \_EsRelation[employees][_meta_field{f}#21, emp_no{f}#15, first_name{f}#16, ..]
+     *     \_Project[[sum{r}#13, languages{f}#18]]
+     *       \_Eval[[$$COUNT$COUNT(salary)_+>$0{r$}#26 + $$COUNT$COUNT(salary)_+>$0{r$}#26 AS sum#13]]
+     *         \_Aggregate[[languages{f}#18],[COUNT(salary{f}#20,true[BOOLEAN],PT0S[TIME_DURATION]) AS $$COUNT$COUNT(salary)_+>$0#26,
+     *              languages{f}#18]]
+     *           \_StubRelation[[emp_idx{r}#9, salary{f}#20, languages{f}#18]]
+     */
+    public void testInlineStatsWithAggExpressionAfterSortAndRename() {
+        var query = """
+            FROM employees
+            | KEEP emp_no, salary, languages
+            | SORT emp_no
+            | RENAME emp_no AS emp_idx
+            | INLINE STATS sum = COUNT(salary) + COUNT(salary) BY languages
+            """;
+        if (releaseBuildForInlineStats(query)) {
+            return;
+        }
+        var plan = optimizedPlan(query);
+
+        var project = as(plan, Project.class);
+        assertThat(Expressions.names(project.projections()), is(List.of("emp_idx", "salary", "sum", "languages")));
+
+        var topN = as(project.child(), TopN.class);
+        assertThat(topN.limit().fold(FoldContext.small()), equalTo(1000));
+        assertThat(topN.order(), hasSize(1));
+        var order = as(topN.order().get(0), Order.class);
+        assertThat(order.direction(), equalTo(Order.OrderDirection.ASC));
+        assertThat(order.nullsPosition(), equalTo(Order.NullsPosition.LAST));
+        assertThat(Expressions.name(order.child()), startsWith("$$emp_no$temp_name$"));
+
+        var inlineJoin = as(topN.child(), InlineJoin.class);
+        assertThat(inlineJoin.config().type(), is(JoinTypes.LEFT));
+        assertThat(Expressions.names(inlineJoin.config().leftFields()), is(List.of("languages")));
+        assertThat(Expressions.names(inlineJoin.config().rightFields()), is(List.of("languages")));
+
+        // Left side of the join
+        var leftProject = as(inlineJoin.left(), EsqlProject.class);
+        var leftEval = as(leftProject.child(), Eval.class);
+        assertThat(Expressions.names(leftEval.fields()), contains(startsWith("$$emp_no$temp_name$")));
+        var relation = as(leftEval.child(), EsRelation.class);
+        assertThat(relation.concreteIndices(), is(Set.of("employees")));
+
+        // Right side of the join
+        var rightProject = as(inlineJoin.right(), Project.class);
+        assertThat(Expressions.names(rightProject.projections()), is(List.of("sum", "languages")));
+        var rightEval = as(rightProject.child(), Eval.class);
+        assertThat(Expressions.names(rightEval.fields()), is(List.of("sum")));
+        var agg = as(rightEval.child(), Aggregate.class);
+        assertThat(Expressions.names(agg.groupings()), is(List.of("languages")));
+        assertThat(agg.aggregates(), hasSize(2));
+        var aggFunction = as(agg.aggregates().get(0), Alias.class);
+        assertThat(aggFunction.name(), startsWith("$$COUNT$COUNT(salary)_+>$"));
+        assertThat(aggFunction.child().nodeName(), is("Count"));
+        var stub = as(agg.child(), StubRelation.class);
+    }
+
+    /*
      * Limit[1000[INTEGER],false,false]
      * \_Filter[emp_no{f}#16 > 50000[INTEGER]]
      *   \_InlineJoin[LEFT,[],[]]
@@ -548,7 +795,7 @@ public class PullUpOrderByBeforeInlineJoinOptimizerTests extends AbstractLogical
         }
         var plan = optimizedPlan(query);
 
-        var limit = as(plan, org.elasticsearch.xpack.esql.plan.logical.Limit.class);
+        var limit = as(plan, Limit.class);
         assertThat(limit.limit().fold(FoldContext.small()), equalTo(1000));
 
         var filter = as(limit.child(), Filter.class);
@@ -582,6 +829,77 @@ public class PullUpOrderByBeforeInlineJoinOptimizerTests extends AbstractLogical
         assertThat(rightAggFunction.name(), is("cd"));
         assertThat(rightAggFunction.child(), instanceOf(CountDistinct.class));
         var stub = as(rightAgg.child(), StubRelation.class);
+    }
+
+    /*
+     * Project[[emp_no{f}#22, first_name{f}#23, sal{r}#17, id{r}#13, language_code{r}#36, language_name{r}#37, cd{r}#20, languages{f}#25]]
+     * \_TopN[[Order[$$language_name$temp_name$38$temp_name$40{r}#41,ASC,LAST]],1000[INTEGER],false]
+     *   \_InlineJoin[LEFT,[languages{f}#25],[languages{r}#25]]
+     *     |_EsqlProject[[emp_no{f}#22, first_name{f}#23, salary{f}#27 AS sal#17, languages{f}#25, id{r}#13, language_code{r}#36,
+     *          language_name{r}#37, $$language_name$temp_name$38$temp_name$40{r}#41]]
+     *     | \_Eval[[$$language_name$temp_name$38{r$}#39 AS $$language_name$temp_name$38$temp_name$40#41]]
+     *     |   \_Enrich[ANY,languages_idx[KEYWORD],id{r}#13,{"match":{"indices":[],"match_field":"id",
+     *              "enrich_fields":["language_code","language_name"]}},{=languages_idx},[language_code{r}#36, language_name{r}#37]]
+     *     |     \_Eval[[TOSTRING(languages{f}#25) AS id#13, first_name{f}#23 AS $$language_name$temp_name$38#39]]
+     *     |       \_EsRelation[employees][_meta_field{f}#28, emp_no{f}#22, first_name{f}#23, ..]
+     *     \_Aggregate[[languages{f}#25],[COUNT(emp_no{f}#22,true[BOOLEAN],PT0S[TIME_DURATION]) AS cd#20, languages{f}#25]]
+     *       \_StubRelation[[emp_no{f}#22, first_name{f}#23, sal{r}#17, languages{f}#25, id{r}#13, language_code{r}#36,
+     *              language_name{r}#37]]
+     */
+    public void testInlineStatsAfterEnrichAndSort() {
+        var query = """
+            FROM employees
+            | KEEP emp_no, first_name, salary, languages
+            | EVAL language_name = first_name // key in this test is to have a field overwritten by the enrich, and sorting by it before
+            | SORT language_name
+            | EVAL id = languages::KEYWORD
+            | ENRICH languages_idx
+            | RENAME salary AS sal
+            | INLINE STATS cd = COUNT(emp_no) BY languages
+            """;
+        if (releaseBuildForInlineStats(query)) {
+            return;
+        }
+        var plan = optimizedPlan(query);
+
+        var project = as(plan, Project.class);
+        assertThat(
+            Expressions.names(project.projections()),
+            is(List.of("emp_no", "first_name", "sal", "id", "language_code", "language_name", "cd", "languages"))
+        );
+
+        var topN = as(project.child(), TopN.class);
+        assertThat(topN.limit().fold(FoldContext.small()), equalTo(1000));
+        assertThat(topN.order(), hasSize(1));
+        var order = as(topN.order().get(0), Order.class);
+        assertThat(order.direction(), equalTo(Order.OrderDirection.ASC));
+        assertThat(order.nullsPosition(), equalTo(Order.NullsPosition.LAST));
+        assertThat(Expressions.name(order.child()), startsWith("$$language_name$temp_name$"));
+
+        var inlineJoin = as(topN.child(), InlineJoin.class);
+        assertThat(inlineJoin.config().type(), is(JoinTypes.LEFT));
+        assertThat(Expressions.names(inlineJoin.config().leftFields()), is(List.of("languages")));
+        assertThat(Expressions.names(inlineJoin.config().rightFields()), is(List.of("languages")));
+
+        // Left side of the join
+        var leftProject = as(inlineJoin.left(), EsqlProject.class);
+        var leftEval = as(leftProject.child(), Eval.class);
+        assertThat(Expressions.names(leftEval.fields()), contains(startsWith("$$language_name$temp_name$")));
+        var enrich = as(leftEval.child(), Enrich.class);
+        assertThat(Expressions.name(enrich.policyName()), is("languages_idx"));
+        var innerEval = as(enrich.child(), Eval.class);
+        assertThat(Expressions.names(innerEval.fields()), contains(is("id"), startsWith("$$language_name$temp_name$")));
+        var relation = as(innerEval.child(), EsRelation.class);
+        assertThat(relation.concreteIndices(), is(Set.of("employees")));
+
+        // Right side of the join
+        var agg = as(inlineJoin.right(), Aggregate.class);
+        assertThat(Expressions.names(agg.groupings()), is(List.of("languages")));
+        assertThat(agg.aggregates(), hasSize(2));
+        var aggFunction = as(agg.aggregates().get(0), Alias.class);
+        assertThat(aggFunction.name(), is("cd"));
+        assertThat(aggFunction.child().nodeName(), is("Count"));
+        var stub = as(agg.child(), StubRelation.class);
     }
 
     public void testFailureWhenSortAndSortBreakerBeforeInlineStats() {

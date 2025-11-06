@@ -4552,6 +4552,68 @@ emp_no:integer |cd:long        |languages:integer|salary:integer
 10029          |4              |null             |74999
 ;
 
+mixedShadowingInlineStatsAfterSort
+required_capability: inline_stats_preceeded_by_sort
+
+FROM employees
+| KEEP salary, emp_no, first_name
+| SORT salary, emp_no
+| INLINE STATS salary = COUNT(*) BY emp_no
+| LIMIT 5
+;
+
+first_name:keyword|salary:long    |emp_no:integer
+Guoxiang          |1              |10015
+null              |1              |10035
+Valdiodio         |1              |10092
+Florian           |1              |10048
+Ebbe              |1              |10057
+;
+
+inlineStatsWithAggExpressionAfterSortAndRename
+required_capability: inline_stats_preceeded_by_sort
+
+FROM employees
+| KEEP emp_no, salary, languages
+| SORT emp_no
+| RENAME emp_no AS emp_idx
+| INLINE STATS sum = COUNT(salary) + COUNT(salary) BY languages
+| LIMIT 5
+;
+
+emp_idx:integer|salary:integer |sum:long       |languages:integer
+10001          |57305          |38             |2
+10002          |56371          |42             |5
+10003          |61805          |36             |4
+10004          |36174          |42             |5
+10005          |63528          |30             |1
+;
+
+inlineStatsAfterEnrichAndSort
+required_capability: inline_stats_preceeded_by_sort
+required_capability: enrich_load
+
+FROM employees
+| KEEP emp_no, first_name, salary, languages
+| EVAL language_name = first_name // key in this test is to have a field overwritten by the enrich, and sorting by it before
+| SORT language_name
+| EVAL language_code = languages::KEYWORD
+| ENRICH languages_policy
+| RENAME salary AS sal
+| INLINE STATS cd = COUNT(emp_no) BY languages
+| LIMIT 7
+;
+
+emp_no:integer |first_name:keyword|sal:integer    |language_code:keyword | language_name:keyword |cd:long        |languages:integer
+10059          |Alejandro         |44307          |2                     |French                 |19             |2
+10091          |Amabile           |38645          |3                     |Spanish                |17             |3
+10006          |Anneke            |60335          |3                     |Spanish                |17             |3
+10062          |Anoosh            |65030          |3                     |Spanish                |17             |3
+10094          |Arumugam          |66817          |5                     |null                   |21             |5
+10049          |Basil             |37853          |5                     |null                   |21             |5
+10058          |Berhard           |38376          |3                     |Spanish                |17             |3
+;
+
 inlineStatsDoubledAfterSortDropped
 required_capability: inline_stats_preceeded_by_sort
 

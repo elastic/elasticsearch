@@ -71,7 +71,8 @@ public final class PullUpOrderByBeforeInlineJoin extends OptimizerRules.Optimize
         for (var order : orderBy.order()) {
             var orderExpression = order.child();
             var orderAttribute = Expressions.attribute(orderExpression); // TODO: can it be something else than an attribute?
-            if (inlineJoin.inputSet().contains(orderAttribute) == false) { // attribute got dropped or overwritten
+            // attribute got dropped or overwritten before the InlineJoin, or _by_ it
+            if (inlineJoin.inputSet().contains(orderAttribute) == false || inlineJoin.outputSet().contains(orderAttribute) == false) {
                 var orderAlias = new Alias(orderBy.source(), locallyUniqueTemporaryName(orderAttribute.name()), orderExpression);
                 evalAliases.add(orderAlias);
                 orderByAttrMapBuilder.put(orderAttribute, Expressions.attribute(orderAlias));
@@ -96,20 +97,30 @@ public final class PullUpOrderByBeforeInlineJoin extends OptimizerRules.Optimize
     ) {
         var eval = new Eval(orderBy.source(), orderBy.child(), evalAliases);
         var newInlineJoin = inlineJoin.transformUp(OrderBy.class, ob -> ob == orderBy ? eval : ob);
-        var attrsKeySet = attrToTempAliasMap.keySet();
-        newInlineJoin = newInlineJoin.transformUp(Project.class, p -> {
-            List<NamedExpression> newProjections = new ArrayList<>(p.projections().size() + attrsKeySet.size());
-            newProjections.addAll(p.projections());
-            for (var attr : attrsKeySet) {
-                if (p.inputSet().contains(attr) && p.outputSet().contains(attr) == false) {
-                    newProjections.add(attrToTempAliasMap.resolve(attr));
-                }
-            }
-            return p.withProjections(newProjections);
-        });
-        var newOrderBy = orderBy.replaceChild(newInlineJoin);
+        var newOrderBy = orderBy.replaceChild(rewriteMidProjections(newInlineJoin, eval, attrToTempAliasMap));
         newOrderBy = (OrderBy) newOrderBy.transformExpressionsOnly(Attribute.class, a -> attrToTempAliasMap.resolve(a, a));
         return new Project(orderBy.source(), newOrderBy, inlineJoin.output());
+    }
+
+    private static LogicalPlan rewriteMidProjections(LogicalPlan plan, Eval eval, AttributeMap<Attribute> attrToTempAliasMap) {
+        Holder<Boolean> evalVisited = new Holder<>(false);
+        return plan.transformUp(lp -> {
+            if (lp == eval) {
+                evalVisited.set(true);
+            } else if (lp instanceof Project project && evalVisited.get()) {
+                List<NamedExpression> newProjections = new ArrayList<>(project.projections());
+                for (var attrSet : attrToTempAliasMap.entrySet()) {
+                    // check if the Project's input contains either the original attribute, as it might be on a subtree not containing the
+                    // Eval, or the alias attribute itself, as current Project might be a DROP added by other rules (like PushDownEnrich)
+                    if ((project.inputSet().contains(attrSet.getKey()) || project.inputSet().contains(attrSet.getValue()))
+                        && project.projections().contains(attrSet.getValue()) == false) {
+                        newProjections.add(attrSet.getValue());
+                    }
+                }
+                lp = project.withProjections(newProjections);
+            }
+            return lp;
+        });
     }
 
     /**

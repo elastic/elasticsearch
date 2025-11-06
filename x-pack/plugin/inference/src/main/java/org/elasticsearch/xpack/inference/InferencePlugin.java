@@ -138,7 +138,6 @@ import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServic
 import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceSettings;
 import org.elasticsearch.xpack.inference.services.elastic.authorization.ElasticInferenceServiceAuthorizationRequestHandler;
 import org.elasticsearch.xpack.inference.services.elastic.ccm.CCMFeature;
-import org.elasticsearch.xpack.inference.services.elastic.ccm.CCMFeatureFlag;
 import org.elasticsearch.xpack.inference.services.elastic.ccm.CCMIndex;
 import org.elasticsearch.xpack.inference.services.elastic.ccm.CCMPersistentStorageService;
 import org.elasticsearch.xpack.inference.services.elastic.ccm.CCMService;
@@ -169,7 +168,6 @@ import java.util.Map;
 import java.util.Set;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
-import java.util.stream.Stream;
 
 import static java.util.Collections.singletonList;
 import static org.elasticsearch.xpack.inference.action.filter.ShardBulkInferenceActionFilter.INDICES_INFERENCE_BATCH_SIZE;
@@ -510,21 +508,6 @@ public class InferencePlugin extends Plugin
 
     @Override
     public Collection<SystemIndexDescriptor> getSystemIndexDescriptors(Settings settings) {
-        List<SystemIndexDescriptor> ccmIndexDescriptor = CCMFeatureFlag.FEATURE_FLAG.isEnabled()
-            ? List.of(
-                SystemIndexDescriptor.builder()
-                    .setType(SystemIndexDescriptor.Type.INTERNAL_MANAGED)
-                    .setIndexPattern(CCMIndex.INDEX_PATTERN)
-                    .setPrimaryIndex(CCMIndex.INDEX_NAME)
-                    .setDescription("Contains Elastic Inference Service Cloud Connected Mode settings")
-                    .setMappings(CCMIndex.mappings())
-                    .setSettings(CCMIndex.settings())
-                    .setOrigin(ClientHelper.INFERENCE_ORIGIN)
-                    .setNetNew()
-                    .build()
-            )
-            : List.of();
-
         var inferenceIndexV1Descriptor = SystemIndexDescriptor.builder()
             .setType(SystemIndexDescriptor.Type.INTERNAL_MANAGED)
             .setIndexPattern(InferenceIndex.INDEX_PATTERN)
@@ -536,32 +519,39 @@ public class InferencePlugin extends Plugin
             .setOrigin(ClientHelper.INFERENCE_ORIGIN)
             .build();
 
-        return Stream.of(
-            List.of(
-                SystemIndexDescriptor.builder()
-                    .setType(SystemIndexDescriptor.Type.INTERNAL_MANAGED)
-                    .setIndexPattern(InferenceIndex.INDEX_PATTERN)
-                    .setAliasName(InferenceIndex.INDEX_ALIAS)
-                    .setPrimaryIndex(InferenceIndex.INDEX_NAME)
-                    .setDescription("Contains inference service and model configuration")
-                    .setMappings(InferenceIndex.mappings())
-                    .setSettings(getIndexSettings())
-                    .setOrigin(ClientHelper.INFERENCE_ORIGIN)
-                    .setPriorSystemIndexDescriptors(List.of(inferenceIndexV1Descriptor))
-                    .build(),
-                SystemIndexDescriptor.builder()
-                    .setType(SystemIndexDescriptor.Type.INTERNAL_MANAGED)
-                    .setIndexPattern(InferenceSecretsIndex.INDEX_PATTERN)
-                    .setPrimaryIndex(InferenceSecretsIndex.INDEX_NAME)
-                    .setDescription("Contains inference service secrets")
-                    .setMappings(InferenceSecretsIndex.mappings())
-                    .setSettings(getSecretsIndexSettings())
-                    .setOrigin(ClientHelper.INFERENCE_ORIGIN)
-                    .setNetNew()
-                    .build()
-            ),
-            ccmIndexDescriptor
-        ).flatMap(List::stream).toList();
+        return List.of(
+            SystemIndexDescriptor.builder()
+                .setType(SystemIndexDescriptor.Type.INTERNAL_MANAGED)
+                .setIndexPattern(InferenceIndex.INDEX_PATTERN)
+                .setAliasName(InferenceIndex.INDEX_ALIAS)
+                .setPrimaryIndex(InferenceIndex.INDEX_NAME)
+                .setDescription("Contains inference service and model configuration")
+                .setMappings(InferenceIndex.mappings())
+                .setSettings(getIndexSettings())
+                .setOrigin(ClientHelper.INFERENCE_ORIGIN)
+                .setPriorSystemIndexDescriptors(List.of(inferenceIndexV1Descriptor))
+                .build(),
+            SystemIndexDescriptor.builder()
+                .setType(SystemIndexDescriptor.Type.INTERNAL_MANAGED)
+                .setIndexPattern(InferenceSecretsIndex.INDEX_PATTERN)
+                .setPrimaryIndex(InferenceSecretsIndex.INDEX_NAME)
+                .setDescription("Contains inference service secrets")
+                .setMappings(InferenceSecretsIndex.mappings())
+                .setSettings(getSecretsIndexSettings())
+                .setOrigin(ClientHelper.INFERENCE_ORIGIN)
+                .setNetNew()
+                .build(),
+            SystemIndexDescriptor.builder()
+                .setType(SystemIndexDescriptor.Type.INTERNAL_MANAGED)
+                .setIndexPattern(CCMIndex.INDEX_PATTERN)
+                .setPrimaryIndex(CCMIndex.INDEX_NAME)
+                .setDescription("Contains Elastic Inference Service Cloud Connected Mode settings")
+                .setMappings(CCMIndex.mappings())
+                .setSettings(CCMIndex.settings())
+                .setOrigin(ClientHelper.INFERENCE_ORIGIN)
+                .setNetNew()
+                .build()
+        );
     }
 
     // Overridable for tests

@@ -93,7 +93,7 @@ public class ConfidenceInterval extends EsqlScalarFunction {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        Source.EMPTY.writeTo(out);
+        source().writeTo(out);
         out.writeNamedWriteable(bestEstimate);
         out.writeNamedWriteable(estimates);
         out.writeNamedWriteable(trialCount);

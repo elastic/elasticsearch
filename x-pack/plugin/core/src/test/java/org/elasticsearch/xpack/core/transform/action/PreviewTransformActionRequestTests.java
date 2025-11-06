@@ -105,7 +105,10 @@ public class PreviewTransformActionRequestTests extends AbstractSerializingTrans
                     assertThat(statusException.status(), equalTo(RestStatus.FORBIDDEN));
                     assertThat(
                         statusException.getMessage(),
-                        equalTo("_preview with as_index_request set to true only works if all the nodes support it.")
+                        equalTo(
+                            "Cannot send a _preview request with as_index_request to an outdated node. "
+                                + "Please upgrade the node to 9.3.0+ and try again."
+                        )
                     );
                 } else {
                     var deserializedInstance = copyWriteable(

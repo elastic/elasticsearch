@@ -12,7 +12,6 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.core.Tuple;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -216,20 +215,20 @@ public class DateTruncTests extends AbstractConfigurationFunctionTestCase {
             var expectedOffset = timezone.startsWith("+") || timezone.startsWith("-")
                 ? timezone
                 : LocalDateTime.parse(c.expectedDate()).atZone(ZoneId.of(timezone)).getOffset().getId();
-            cases.add(
-                new PeriodTestCaseData(c.period(), c.inputDate() + inputOffset, timezone, c.expectedDate() + expectedOffset)
-            );
+            cases.add(new PeriodTestCaseData(c.period(), c.inputDate() + inputOffset, timezone, c.expectedDate() + expectedOffset));
         }));
 
         // Special cases
-        cases.addAll(List.of(
-            ///
+        cases.addAll(
+            List.of(
+                ///
             /// DST boundaries (e.g. New York: -5 to -4 at 2025-03-09T02:00:00-05, and -4 to -5 at 2025-11-02T02:00:00-04)
             ///
-            // Days
-            new PeriodTestCaseData(Period.ofDays(1), "2025-03-09T06:00:00-04:00", "America/New_York", "2025-03-09T00:00:00-05:00"),
-            new PeriodTestCaseData(Period.ofDays(1), "2025-11-02T05:00:00-05:00", "America/New_York", "2025-11-02T00:00:00-04:00")
-        ));
+                // Days
+                new PeriodTestCaseData(Period.ofDays(1), "2025-03-09T06:00:00-04:00", "America/New_York", "2025-03-09T00:00:00-05:00"),
+                new PeriodTestCaseData(Period.ofDays(1), "2025-11-02T05:00:00-05:00", "America/New_York", "2025-11-02T00:00:00-04:00")
+            )
+        );
         return cases;
     }
 

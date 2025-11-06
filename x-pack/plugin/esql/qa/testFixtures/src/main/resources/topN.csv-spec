@@ -176,6 +176,7 @@ FROM k8s METADATA _tsid
 | SORT events_received ASC
 | LIMIT 5
 | KEEP events_received, @timestamp, cluster, pod
+| SORT cluster, pod, @timestamp
 ;
 
 events_received:long | @timestamp:datetime      | cluster:keyword | pod:keyword

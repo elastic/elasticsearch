@@ -27,7 +27,11 @@ public class PutCCMConfigurationActionRequestTests extends AbstractBWCWireSerial
 
     public void testValidate_BothFieldsSet_ReturnsException() {
         var req = new PutCCMConfigurationAction.Request(
-            new SecureString("key".toCharArray()), Boolean.TRUE, randomTimeValue(), randomTimeValue());
+            new SecureString("key".toCharArray()),
+            Boolean.TRUE,
+            randomTimeValue(),
+            randomTimeValue()
+        );
         var ex = req.validate();
         assertNotNull(ex);
         assertThat(ex.getMessage(), containsString("Only one of [api_key] or [enabled] can be provided but not both"));
@@ -41,8 +45,7 @@ public class PutCCMConfigurationActionRequestTests extends AbstractBWCWireSerial
     }
 
     public void testValidate_ApiKeyEmpty() {
-        var req = new PutCCMConfigurationAction.Request(
-            new SecureString("".toCharArray()), null, randomTimeValue(), randomTimeValue());
+        var req = new PutCCMConfigurationAction.Request(new SecureString("".toCharArray()), null, randomTimeValue(), randomTimeValue());
         var ex = req.validate();
         assertNotNull(ex);
         assertThat(ex.getMessage(), containsString("The [api_key] field cannot be an empty string"));
@@ -50,7 +53,11 @@ public class PutCCMConfigurationActionRequestTests extends AbstractBWCWireSerial
 
     public void testValidate_ApiKeyValid_DoesNotReturnAnException() {
         var req = new PutCCMConfigurationAction.Request(
-            new SecureString("validkey".toCharArray()), null, randomTimeValue(), randomTimeValue());
+            new SecureString("validkey".toCharArray()),
+            null,
+            randomTimeValue(),
+            randomTimeValue()
+        );
         var ex = req.validate();
         assertNull(ex);
     }

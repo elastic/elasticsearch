@@ -122,7 +122,9 @@ public class CCMCrudIT extends ESRestTestCase {
     }
 
     public void testDisableCCM_Succeeds() throws IOException {
-        var response = putCCMConfiguration(PutCCMConfigurationAction.Request.createDisabled(TimeValue.THIRTY_SECONDS, TimeValue.THIRTY_SECONDS));
+        var response = putCCMConfiguration(
+            PutCCMConfigurationAction.Request.createDisabled(TimeValue.THIRTY_SECONDS, TimeValue.THIRTY_SECONDS)
+        );
 
         assertFalse(response.isEnabled());
     }
@@ -154,7 +156,9 @@ public class CCMCrudIT extends ESRestTestCase {
         assertTrue(response.isEnabled());
         assertTrue(getCCMConfiguration().isEnabled());
 
-        response = putCCMConfiguration(PutCCMConfigurationAction.Request.createDisabled(TimeValue.THIRTY_SECONDS, TimeValue.THIRTY_SECONDS));
+        response = putCCMConfiguration(
+            PutCCMConfigurationAction.Request.createDisabled(TimeValue.THIRTY_SECONDS, TimeValue.THIRTY_SECONDS)
+        );
 
         assertFalse(response.isEnabled());
         assertFalse(getCCMConfiguration().isEnabled());

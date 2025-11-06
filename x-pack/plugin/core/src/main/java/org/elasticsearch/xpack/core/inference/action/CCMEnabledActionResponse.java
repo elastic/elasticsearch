@@ -16,7 +16,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import java.io.IOException;
 import java.util.Objects;
 
-public class CCMEnabledActionResponse extends ActionResponse implements ToXContentObject  {
+public class CCMEnabledActionResponse extends ActionResponse implements ToXContentObject {
     public static final String ENABLED_FIELD_NAME = "enabled";
 
     private final boolean enabled;

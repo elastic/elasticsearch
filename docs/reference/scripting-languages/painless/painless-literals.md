@@ -12,7 +12,7 @@ products:
 
 Literals represent fixed values in your code that are directly written into your script. Unlike variables, literals have constant values that cannot be changed during script runtime. The three supported types of literals are: integers, floats, and strings.
 
-## Integers
+## Integers [integer-literals]
 
 Use an integer literal to specify an integer-type value in decimal, octal, or hex notation of a [primitive type](https://www.elastic.co/docs/reference/scripting-languages/painless/painless-types#primitive-types) `int`, `long`, `float`, or `double`. Use the following single-letter designations to specify the primitive type: `l` or `L` for `long`, `f` or `F` for `float`, and `d` or `D` for `double`. If not specified, the type defaults to `int`. Use `0` as a prefix to specify an integer literal as octal, and use `0x` or `0X` as a prefix to specify an integer literal as hex.
 

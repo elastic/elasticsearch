@@ -14,7 +14,7 @@ products:
 Keywords are reserved tokens for built-in language features in Painless. These special words have predefined meanings and cannot be used as [identifiers](/reference/scripting-languages/painless/painless-identifiers.md), such as variable names, function names, or field names. 
 
 :::{important}
-In Painless documentation, "keywords" refers to reserved words in the scripting language itself. They are different from the {{es}} [`keyword`](/reference/elasticsearch/mapping-reference/keyword#keyword-field-type.md) field type, which is used for exact-value searches and aggregations in your data mappings.
+In Painless documentation, "keywords" refers to reserved words in the scripting language itself. They are different from the {{es}} [`keyword`](/reference/elasticsearch/mapping-reference/keyword.md#keyword-field-type) field type, which is used for exact-value searches and aggregations in your data mappings.
 :::
 
 When you write Painless scripts, keywords provide the fundamental building blocks for creating logic, defining data types, and controlling program flow. Since these words have special significance to the Painless compiler, attempting to use them for other purposes will result in compilation errors.

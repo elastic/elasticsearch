@@ -344,7 +344,7 @@ class IndicesAndAliasesResolver {
                     var unprefixed = crossProjectModeDecider.resolvesCrossProject(replaceable)
                         ? RemoteClusterAware.splitIndexName(expr)[1]
                         : expr;
-                    return unprefixed != null ? IndexNameExpressionResolver.splitSelectorExpression(unprefixed).v1() : null;
+                    return IndexNameExpressionResolver.splitSelectorExpression(unprefixed).v1();
                 });
                 if (isAllIndices) {
                     // This parses the single all-indices expression for a second time in this conditional branch, but this is better than

@@ -52,7 +52,6 @@ import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
-import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 @ESIntegTestCase.ClusterScope(minNumDataNodes = 3)
 public class RRFRetrieverBuilderIT extends ESIntegTestCase {
@@ -247,23 +246,23 @@ public class RRFRetrieverBuilderIT extends ESIntegTestCase {
             }
         });
 
-//        int innerFrom = Math.max(from, 0);
-//        int originalFrom = from;
-//        ElasticsearchAssertions.assertResponse(req, resp -> {
-//            assertNull(resp.pointInTimeId());
-//            assertNotNull(resp.getHits().getTotalHits());
-//            assertThat(resp.getHits().getTotalHits().value(), equalTo(6L));
-//            assertThat(resp.getHits().getTotalHits().relation(), equalTo(TotalHits.Relation.EQUAL_TO));
-//            assertThat(resp.getHits().getHits().length, lessThanOrEqualTo(maxExpectedSize));
-//            for (int k = 0; k < Math.min(maxExpectedSize, resp.getHits().getHits().length); k++) {
-//                assertThat(resp.getHits().getAt(k).getId(), equalTo(expectedDocIds.get(k + innerFrom)));
-//            }
-//
-//            if (originalFrom < 0) {
-//                // assertThat(source.from(), equalTo(SearchService.DEFAULT_FROM));
-//                assertThat(resp.getHits().getHits().length, equalTo(maxExpectedSize));
-//            }
-//        });
+        // int innerFrom = Math.max(from, 0);
+        // int originalFrom = from;
+        // ElasticsearchAssertions.assertResponse(req, resp -> {
+        // assertNull(resp.pointInTimeId());
+        // assertNotNull(resp.getHits().getTotalHits());
+        // assertThat(resp.getHits().getTotalHits().value(), equalTo(6L));
+        // assertThat(resp.getHits().getTotalHits().relation(), equalTo(TotalHits.Relation.EQUAL_TO));
+        // assertThat(resp.getHits().getHits().length, lessThanOrEqualTo(maxExpectedSize));
+        // for (int k = 0; k < Math.min(maxExpectedSize, resp.getHits().getHits().length); k++) {
+        // assertThat(resp.getHits().getAt(k).getId(), equalTo(expectedDocIds.get(k + innerFrom)));
+        // }
+        //
+        // if (originalFrom < 0) {
+        // // assertThat(source.from(), equalTo(SearchService.DEFAULT_FROM));
+        // assertThat(resp.getHits().getHits().length, equalTo(maxExpectedSize));
+        // }
+        // });
     }
 
     public void testRRFWithAggs() {

@@ -21,7 +21,7 @@ Before diving into the dispatch process, here a brief definition of the main con
 * **Arity:** The number of parameters the method accepts. In `s.foo(a, b)` the arity is 2  
 * **Dispatch:** The process of determining which method implementation to execute based on the receiver, name, and arity
 
-:::{image} ../../images/painless/painless-method-dispatching.png
+:::{image} images/painless-method-dispatching.png
 :alt: Flowchart showing five steps: s.foo, receiver, name, arity, and execute method
 :width: 250px
 :::

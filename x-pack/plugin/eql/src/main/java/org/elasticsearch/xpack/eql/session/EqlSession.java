@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.eql.session;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.ParentTaskAssigningClient;
 import org.elasticsearch.common.breaker.CircuitBreaker;
@@ -122,11 +123,18 @@ public class EqlSession {
             return;
         }
         Set<String> fieldNames = fieldNames(parsed);
+        IndicesOptions indicesOptions = configuration.indicesOptions();
+
+        //TODO this is for CPS, put it behind a flag
+        indicesOptions = IndicesOptions.builder(indicesOptions)
+            .crossProjectModeOptions(new IndicesOptions.CrossProjectModeOptions(true))
+            .build();
+
         // TODO pass configuration.projectRouting();
         indexResolver.resolveAsMergedMapping(
             indexWildcard,
             fieldNames,
-            configuration.indicesOptions(),
+            indicesOptions,
             configuration.runtimeMappings(),
             map(listener, r -> preAnalyzer.preAnalyze(parsed, r))
         );

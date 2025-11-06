@@ -16,7 +16,10 @@ import java.io.IOException;
 public class GetCCMConfigurationActionRequestTests extends AbstractBWCWireSerializationTestCase<GetCCMConfigurationAction.Request> {
 
     @Override
-    protected GetCCMConfigurationAction.Request mutateInstanceForVersion(GetCCMConfigurationAction.Request instance, TransportVersion version) {
+    protected GetCCMConfigurationAction.Request mutateInstanceForVersion(
+        GetCCMConfigurationAction.Request instance,
+        TransportVersion version
+    ) {
         return instance;
     }
 

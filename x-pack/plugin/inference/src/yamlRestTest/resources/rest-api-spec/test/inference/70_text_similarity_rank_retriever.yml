@@ -1,3 +1,5 @@
+# CLI test runner command:
+# ./gradlew ":x-pack:plugin:inference:yamlRestTest" --tests "org.elasticsearch.xpack.inference.InferenceRestIT.test {p0=inference/70_text_similarity_rank_retriever/*}"
 setup:
   - skip:
       features:
@@ -398,7 +400,7 @@ setup:
               rank_window_size: 10
               inference_id: my-rerank-model
               inference_text: "How often does the moon hide the sun?"
-              field: inference_text_field
+              field: topic
           size: 10
 
   - match: { hits.total.value: 1 }
@@ -477,7 +479,7 @@ setup:
               rank_window_size: 10
               inference_id: my-rerank-model
               inference_text: "How often does the moon hide the sun?"
-              field: inference_text_field
+              field: topic
               min_score: 0
           size: 10
 
@@ -925,7 +927,7 @@ setup:
 "Profile outputs information on chunk rescorer if selected":
 
   - requires:
-      test_runner_features: [contains]
+      test_runner_features: [ contains ]
       cluster_features: "text_similarity_rank_doc_explain_chunks"
       reason: rescore_chunks added explain support in 9.3.0
 

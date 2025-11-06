@@ -137,9 +137,12 @@ public class RankDocsRetrieverBuilder extends RetrieverBuilder {
             searchSourceBuilder.minScore(this.minScore == null ? Float.MIN_VALUE : this.minScore);
         }
 
-        int from = searchSourceBuilder.from() < 0 ? SearchService.DEFAULT_FROM : searchSourceBuilder.from();
-        if (searchSourceBuilder.size() + from > rankDocResults.length) {
-            searchSourceBuilder.size(Math.max(0, rankDocResults.length - from));
+        if (searchSourceBuilder.from() < 0) {
+            searchSourceBuilder.from(SearchService.DEFAULT_FROM);
+        }
+
+        if (searchSourceBuilder.size() + searchSourceBuilder.from() > rankDocResults.length) {
+            searchSourceBuilder.size(Math.max(0, rankDocResults.length - searchSourceBuilder.from()));
         }
     }
 

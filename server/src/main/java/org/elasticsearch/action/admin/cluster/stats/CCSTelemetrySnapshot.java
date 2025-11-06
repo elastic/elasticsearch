@@ -114,6 +114,11 @@ public final class CCSTelemetrySnapshot implements Writeable, ToXContentFragment
         tookMrtFalse = new LongMetricValue();
     }
 
+    public CCSTelemetrySnapshot(boolean useMRT) {
+        this();
+        this.useMRT = useMRT;
+    }
+
     public CCSTelemetrySnapshot(StreamInput in) throws IOException {
         this.totalCount = in.readVLong();
         this.successCount = in.readVLong();

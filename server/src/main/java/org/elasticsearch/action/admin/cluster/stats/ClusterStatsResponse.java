@@ -19,7 +19,6 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.XContentBuilder;
 
@@ -64,8 +63,8 @@ public class ClusterStatsResponse extends BaseNodesResponse<ClusterStatsNodeResp
         this.timestamp = timestamp;
         nodesStats = new ClusterStatsNodes(nodes);
         indicesStats = new ClusterStatsIndices(nodes, mappingStats, analysisStats, versionStats);
-        ccsMetrics = new CCSTelemetrySnapshot().setUseMRT(skipMRT == false);
-        esqlMetrics = new CCSTelemetrySnapshot().setUseMRT(false);
+        ccsMetrics = new CCSTelemetrySnapshot(skipMRT == false);
+        esqlMetrics = new CCSTelemetrySnapshot(false);
         ClusterHealthStatus status = null;
         for (ClusterStatsNodeResponse response : nodes) {
             // only the master node populates the status

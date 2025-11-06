@@ -50,14 +50,10 @@ public class PushStatsToSource extends PhysicalOptimizerRules.ParameterizedOptim
             var tuple = pushableStats(aggregateExec, context);
 
             // for the moment support pushing count just for one field
-            List<EsStatsQueryExec.Stat> stats = tuple.v2();
-            if (stats.size() != 1) {
-                return aggregateExec;
-            }
-
             // TODO: handle case where some aggs cannot be pushed down by breaking the aggs into two sources (regular + stats) + union
             // use the stats since the attributes are larger in size (due to seen)
-            if (tuple.v2().size() == aggregateExec.aggregates().size()) {
+            List<EsStatsQueryExec.Stat> stats = tuple.v2();
+            if (stats.size() == 1 && tuple.v2().size() == aggregateExec.aggregates().size()) {
                 plan = new EsStatsQueryExec(
                     aggregateExec.source(),
                     queryExec.indexPattern(),
@@ -70,6 +66,7 @@ public class PushStatsToSource extends PhysicalOptimizerRules.ParameterizedOptim
         }
 
         // TODO: what is a good place to do something like this?
+        // TODO: this exception ends up in the execution info in the API response; fix that
         if (context.configuration().throwOnNonEsStatsQuery() && plan instanceof EsStatsQueryExec == false) {
             throw new UnsupportedOperationException("not executing query of type [" + plan.getClass().getSimpleName() + "]");
         }

@@ -423,9 +423,6 @@ tests:
 - class: org.elasticsearch.xpack.inference.DefaultEndPointsIT
   method: testMultipleInferencesTriggeringDownloadAndDeploy
   issue: https://github.com/elastic/elasticsearch/issues/117208
-- class: org.elasticsearch.reservedstate.service.ComponentTemplatesFileSettingsIT
-  method: testSettingsApplied
-  issue: https://github.com/elastic/elasticsearch/issues/137258
 - class: org.elasticsearch.xpack.esql.qa.mixed.EsqlClientYamlIT
   method: test {p0=esql/40_tsdb/error on rename timestamp}
   issue: https://github.com/elastic/elasticsearch/issues/137259
@@ -470,6 +467,12 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeMetricsIT
   method: test
   issue: https://github.com/elastic/elasticsearch/issues/137655
+- class: org.elasticsearch.xpack.inference.action.filter.ShardBulkInferenceActionFilterBasicLicenseIT
+  method: testLicenseInvalidForInference {p0=true}
+  issue: https://github.com/elastic/elasticsearch/issues/137690
+- class: org.elasticsearch.xpack.inference.action.filter.ShardBulkInferenceActionFilterBasicLicenseIT
+  method: testLicenseInvalidForInference {p0=false}
+  issue: https://github.com/elastic/elasticsearch/issues/137691
 
 # Examples:
 #

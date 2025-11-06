@@ -26,7 +26,7 @@ LIBCUVS_VERSION_DIR="$LIBCUVS_DIR/$CUVS_VERSION"
 if [[ ! -d "$LIBCUVS_VERSION_DIR" ]]; then
   cd "$LIBCUVS_DIR"
   CUVS_ARCHIVE="libcuvs-$CUVS_VERSION.tar.gz"
-  curl -O "https://storage.googleapis.com/$LIBCUVS_GCS_BUCKET/$CUVS_ARCHIVE"
+  curl -fO "https://storage.googleapis.com/$LIBCUVS_GCS_BUCKET/libcuvs/$CUVS_ARCHIVE"
   tar -xzf "$CUVS_ARCHIVE"
   rm -f "$CUVS_ARCHIVE"
 

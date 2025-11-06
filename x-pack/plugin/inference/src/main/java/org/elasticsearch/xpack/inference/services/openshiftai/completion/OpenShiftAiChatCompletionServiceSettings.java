@@ -75,7 +75,7 @@ public class OpenShiftAiChatCompletionServiceSettings extends OpenShiftAiService
     /**
      * Constructs a new OpenShiftAiChatCompletionServiceSettings.
      *
-     * @param modelId the ID of the model ID
+     * @param modelId the ID of the model
      * @param uri the URI of the service
      * @param rateLimitSettings the rate limit settings for the service
      */
@@ -86,7 +86,7 @@ public class OpenShiftAiChatCompletionServiceSettings extends OpenShiftAiService
     /**
      * Constructs a new OpenShiftAiChatCompletionServiceSettings.
      *
-     * @param modelId the ID of the model ID
+     * @param modelId the ID of the model
      * @param url the URL of the OpenShift AI service
      * @param rateLimitSettings the rate limit settings for the service
      */

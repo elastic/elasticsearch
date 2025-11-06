@@ -25,7 +25,7 @@ import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.RecoverySource.SnapshotRecoverySource;
-import org.elasticsearch.cluster.routing.UnassignedInfo.AllocationStatus;
+import org.elasticsearch.cluster.routing.UnassignedInfo.FailedAllocationStatus;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.routing.allocation.FailedShard;
 import org.elasticsearch.common.UUIDs;
@@ -113,7 +113,7 @@ public class UnassignedInfoTests extends ESAllocationTestCase {
                 System.nanoTime(),
                 System.currentTimeMillis(),
                 false,
-                AllocationStatus.NO_ATTEMPT,
+                FailedAllocationStatus.NO_ATTEMPT,
                 failedNodes,
                 null
             );
@@ -131,7 +131,7 @@ public class UnassignedInfoTests extends ESAllocationTestCase {
                 System.nanoTime(),
                 System.currentTimeMillis(),
                 false,
-                AllocationStatus.NO_ATTEMPT,
+                FailedAllocationStatus.NO_ATTEMPT,
                 Set.of(),
                 lastAssignedNodeId
             );
@@ -795,7 +795,7 @@ public class UnassignedInfoTests extends ESAllocationTestCase {
             baseTime,
             System.currentTimeMillis(),
             randomBoolean(),
-            AllocationStatus.NO_ATTEMPT,
+            FailedAllocationStatus.NO_ATTEMPT,
             Set.of(),
             lastNodeId
         );
@@ -906,12 +906,12 @@ public class UnassignedInfoTests extends ESAllocationTestCase {
     }
 
     public void testAllocationStatusSerialization() throws IOException {
-        for (AllocationStatus allocationStatus : AllocationStatus.values()) {
+        for (FailedAllocationStatus failedAllocationStatus : FailedAllocationStatus.values()) {
             BytesStreamOutput out = new BytesStreamOutput();
-            allocationStatus.writeTo(out);
+            failedAllocationStatus.writeTo(out);
             ByteBufferStreamInput in = new ByteBufferStreamInput(ByteBuffer.wrap(out.bytes().toBytesRef().bytes));
-            AllocationStatus readStatus = AllocationStatus.readFrom(in);
-            assertThat(readStatus, equalTo(allocationStatus));
+            FailedAllocationStatus readStatus = FailedAllocationStatus.readFrom(in);
+            assertThat(readStatus, equalTo(failedAllocationStatus));
         }
     }
 
@@ -943,7 +943,7 @@ public class UnassignedInfoTests extends ESAllocationTestCase {
             System.nanoTime(),
             System.currentTimeMillis(),
             delayedFlag,
-            UnassignedInfo.AllocationStatus.NO_ATTEMPT,
+            FailedAllocationStatus.NO_ATTEMPT,
             reason == UnassignedInfo.Reason.ALLOCATION_FAILED ? Set.of(randomIdentifier()) : Set.of(),
             lastAllocatedNodeId
         );
@@ -972,6 +972,6 @@ public class UnassignedInfoTests extends ESAllocationTestCase {
         if (info.message() != null) {
             assertThat("details", summary, containsString("details[" + info.message() + ']'));
         }
-        assertThat("allocation_status", summary, containsString("allocation_status[" + info.lastAllocationStatus().value() + ']'));
+        assertThat("allocation_status", summary, containsString("allocation_status[" + info.lastFailedAllocationStatus().value() + ']'));
     }
 }

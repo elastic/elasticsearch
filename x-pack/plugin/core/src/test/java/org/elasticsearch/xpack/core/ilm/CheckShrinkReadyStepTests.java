@@ -659,7 +659,7 @@ public class CheckShrinkReadyStepTests extends AbstractStepTestCase<CheckShrinkR
             System.nanoTime(),
             System.currentTimeMillis(),
             delayed,
-            UnassignedInfo.AllocationStatus.NO_ATTEMPT,
+            UnassignedInfo.FailedAllocationStatus.NO_ATTEMPT,
             Set.of(),
             lastAllocatedNodeId
         );

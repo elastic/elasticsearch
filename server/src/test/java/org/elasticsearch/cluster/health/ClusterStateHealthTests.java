@@ -629,7 +629,7 @@ public class ClusterStateHealthTests extends ESTestCase {
                 if (primaryShard.unassignedInfo().failedAllocations() > 0) {
                     return false;
                 }
-                if (primaryShard.unassignedInfo().lastAllocationStatus() == UnassignedInfo.AllocationStatus.DECIDERS_NO) {
+                if (primaryShard.unassignedInfo().lastFailedAllocationStatus() == UnassignedInfo.FailedAllocationStatus.DECIDERS_NO) {
                     return false;
                 }
             }

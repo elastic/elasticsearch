@@ -24,7 +24,7 @@ import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
-import org.elasticsearch.cluster.routing.UnassignedInfo.AllocationStatus;
+import org.elasticsearch.cluster.routing.UnassignedInfo.FailedAllocationStatus;
 import org.elasticsearch.cluster.routing.allocation.AllocateUnassignedDecision;
 import org.elasticsearch.cluster.routing.allocation.AllocationDecision;
 import org.elasticsearch.cluster.routing.allocation.MoveDecision;
@@ -272,7 +272,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
         while (unassignedIterator.hasNext()) {
             final ShardRouting shardRouting = unassignedIterator.next();
             final UnassignedInfo unassignedInfo = shardRouting.unassignedInfo();
-            if (shardRouting.primary() && unassignedInfo.lastAllocationStatus() == AllocationStatus.NO_ATTEMPT) {
+            if (shardRouting.primary() && unassignedInfo.lastFailedAllocationStatus() == FailedAllocationStatus.NO_ATTEMPT) {
                 unassignedIterator.updateUnassigned(
                     new UnassignedInfo(
                         unassignedInfo.reason(),
@@ -282,7 +282,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
                         unassignedInfo.unassignedTimeNanos(),
                         unassignedInfo.unassignedTimeMillis(),
                         unassignedInfo.delayed(),
-                        AllocationStatus.DECIDERS_NO,
+                        FailedAllocationStatus.DECIDERS_NO,
                         unassignedInfo.failedNodeIds(),
                         unassignedInfo.lastAllocatedNodeId()
                     ),
@@ -1266,7 +1266,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
 
                         if (minNode != null) {
                             // throttle decision scenario
-                            assert allocationDecision.getAllocationStatus() == AllocationStatus.DECIDERS_THROTTLED;
+                            assert allocationDecision.getAllocationStatus() == FailedAllocationStatus.DECIDERS_THROTTLED;
                             final long shardSize = getExpectedShardSize(shard, ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE, allocation);
                             minNode.addShard(projectIndex(shard), shard.initialize(minNode.getNodeId(), null, shardSize));
                             // If we see a throttle decision in simulation, there must be other shards that got assigned before it.
@@ -1319,7 +1319,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
             Decision shardLevelDecision = allocation.deciders().canAllocate(shard, allocation);
             if (shardLevelDecision.type() == Type.NO && explain == false) {
                 // NO decision for allocating the shard, irrespective of any particular node, so exit early
-                return AllocateUnassignedDecision.no(AllocationStatus.DECIDERS_NO, null);
+                return AllocateUnassignedDecision.no(FailedAllocationStatus.DECIDERS_NO, null);
             }
 
             /* find an node with minimal weight we can allocate on*/

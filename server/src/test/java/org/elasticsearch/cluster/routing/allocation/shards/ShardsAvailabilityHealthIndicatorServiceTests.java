@@ -466,7 +466,7 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
                                 0,
                                 0,
                                 false,
-                                UnassignedInfo.AllocationStatus.NO_ATTEMPT,
+                                UnassignedInfo.FailedAllocationStatus.NO_ATTEMPT,
                                 Set.of(),
                                 null
                             )
@@ -2633,7 +2633,7 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
                     allocation.unassignedTimeNanos != null ? allocation.unassignedTimeNanos : 0,
                     0,
                     false,
-                    UnassignedInfo.AllocationStatus.DELAYED_ALLOCATION,
+                    UnassignedInfo.FailedAllocationStatus.DELAYED_ALLOCATION,
                     Set.of(),
                     allocation.nodeId
                 )
@@ -2691,7 +2691,7 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
             0,
             0,
             false,
-            UnassignedInfo.AllocationStatus.NO_VALID_SHARD_COPY,
+            UnassignedInfo.FailedAllocationStatus.NO_VALID_SHARD_COPY,
             Collections.emptySet(),
             null
         );
@@ -2706,7 +2706,7 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
             0,
             0,
             false,
-            UnassignedInfo.AllocationStatus.NO_ATTEMPT,
+            UnassignedInfo.FailedAllocationStatus.NO_ATTEMPT,
             Collections.emptySet(),
             null
         );
@@ -2722,7 +2722,10 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
             unassignedTime.nanos(),
             unassignedTime.millis(),
             randomBoolean(),
-            randomValueOtherThan(UnassignedInfo.AllocationStatus.DECIDERS_NO, () -> randomFrom(UnassignedInfo.AllocationStatus.values())),
+            randomValueOtherThan(
+                UnassignedInfo.FailedAllocationStatus.DECIDERS_NO,
+                () -> randomFrom(UnassignedInfo.FailedAllocationStatus.values())
+            ),
             Set.of(),
             reason == UnassignedInfo.Reason.NODE_LEFT ? null : randomAlphaOfLength(20)
         );
@@ -2741,7 +2744,7 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
             unassignedTime.nanos(),
             unassignedTime.millis(),
             false,
-            UnassignedInfo.AllocationStatus.DECIDERS_NO,
+            UnassignedInfo.FailedAllocationStatus.DECIDERS_NO,
             Collections.emptySet(),
             null
         );

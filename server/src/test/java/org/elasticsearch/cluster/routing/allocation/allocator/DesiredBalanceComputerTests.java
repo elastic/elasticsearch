@@ -199,7 +199,7 @@ public class DesiredBalanceComputerTests extends ESAllocationTestCase {
                         .replicaShards()
                         .get(0)
                         .unassignedInfo()
-                        .lastAllocationStatus() == UnassignedInfo.AllocationStatus.DECIDERS_NO ? 1 : 2
+                        .lastFailedAllocationStatus() == UnassignedInfo.FailedAllocationStatus.DECIDERS_NO ? 1 : 2
                 ),
                 new ShardId(index, 1),
                 new ShardAssignment(Set.of("node-0", "node-1"), 2, 0, 0)
@@ -230,7 +230,9 @@ public class DesiredBalanceComputerTests extends ESAllocationTestCase {
                     Set.of("node-0"),
                     2,
                     1,
-                    originalReplicaShard.unassignedInfo().lastAllocationStatus() == UnassignedInfo.AllocationStatus.DECIDERS_NO ? 0 : 1
+                    originalReplicaShard.unassignedInfo().lastFailedAllocationStatus() == UnassignedInfo.FailedAllocationStatus.DECIDERS_NO
+                        ? 0
+                        : 1
                 ),
                 new ShardId(index, 1),
                 new ShardAssignment(Set.of("node-0", "node-1"), 2, 0, 0)
@@ -257,7 +259,7 @@ public class DesiredBalanceComputerTests extends ESAllocationTestCase {
                         0,
                         0,
                         false,
-                        UnassignedInfo.AllocationStatus.NO_ATTEMPT,
+                        UnassignedInfo.FailedAllocationStatus.NO_ATTEMPT,
                         Set.of(),
                         "node-2"
                     ),
@@ -1392,7 +1394,7 @@ public class DesiredBalanceComputerTests extends ESAllocationTestCase {
                     if (shardRouting.primary()) {
                         unassignedIterator.initialize("node-0", null, 0L, allocation.changes());
                     } else {
-                        unassignedIterator.removeAndIgnore(UnassignedInfo.AllocationStatus.NO_ATTEMPT, allocation.changes());
+                        unassignedIterator.removeAndIgnore(UnassignedInfo.FailedAllocationStatus.NO_ATTEMPT, allocation.changes());
                     }
                 }
 
@@ -1914,9 +1916,9 @@ public class DesiredBalanceComputerTests extends ESAllocationTestCase {
                     unassignedInfo.unassignedTimeMillis(),
                     unassignedInfo.delayed(),
                     randomFrom(
-                        UnassignedInfo.AllocationStatus.DECIDERS_NO,
-                        UnassignedInfo.AllocationStatus.NO_ATTEMPT,
-                        UnassignedInfo.AllocationStatus.DECIDERS_THROTTLED
+                        UnassignedInfo.FailedAllocationStatus.DECIDERS_NO,
+                        UnassignedInfo.FailedAllocationStatus.NO_ATTEMPT,
+                        UnassignedInfo.FailedAllocationStatus.DECIDERS_THROTTLED
                     ),
                     unassignedInfo.failedNodeIds(),
                     unassignedInfo.lastAllocatedNodeId()
@@ -1943,7 +1945,7 @@ public class DesiredBalanceComputerTests extends ESAllocationTestCase {
                     } else if (isCorrespondingPrimaryStarted(shardRouting, allocation)) {
                         unassignedIterator.initialize("node-1", null, 0L, allocation.changes());
                     } else {
-                        unassignedIterator.removeAndIgnore(UnassignedInfo.AllocationStatus.NO_ATTEMPT, allocation.changes());
+                        unassignedIterator.removeAndIgnore(UnassignedInfo.FailedAllocationStatus.NO_ATTEMPT, allocation.changes());
                     }
                 }
             }

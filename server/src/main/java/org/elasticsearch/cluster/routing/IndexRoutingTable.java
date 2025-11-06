@@ -581,7 +581,7 @@ public class IndexRoutingTable implements SimpleDiffable<IndexRoutingTable> {
                     unassignedInfo.unassignedTimeNanos(),
                     unassignedInfo.unassignedTimeMillis(),
                     unassignedInfo.delayed(),
-                    unassignedInfo.lastAllocationStatus(),
+                    unassignedInfo.lastFailedAllocationStatus(),
                     unassignedInfo.failedNodeIds(),
                     previousNodes.get(shardCopy)
                 );

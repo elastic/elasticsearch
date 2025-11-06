@@ -969,7 +969,7 @@ public final class RestoreService implements ClusterStateApplier {
         public void unassignedInfoUpdated(ShardRouting unassignedShard, UnassignedInfo newUnassignedInfo) {
             RecoverySource recoverySource = unassignedShard.recoverySource();
             if (recoverySource.getType() == RecoverySource.Type.SNAPSHOT) {
-                if (newUnassignedInfo.lastAllocationStatus() == UnassignedInfo.AllocationStatus.DECIDERS_NO) {
+                if (newUnassignedInfo.lastFailedAllocationStatus() == UnassignedInfo.FailedAllocationStatus.DECIDERS_NO) {
                     String reason = "shard could not be allocated to any of the nodes";
                     changes(recoverySource).put(
                         unassignedShard.shardId(),

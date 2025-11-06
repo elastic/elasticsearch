@@ -229,7 +229,7 @@ public final class ClusterAllocationExplanation implements ChunkedToXContentObje
         if (details != null) {
             builder.field("details", details);
         }
-        builder.field("last_allocation_status", AllocationDecision.fromAllocationStatus(unassignedInfo.lastAllocationStatus()));
+        builder.field("last_allocation_status", AllocationDecision.fromAllocationStatus(unassignedInfo.lastFailedAllocationStatus()));
         builder.endObject();
     }
 }

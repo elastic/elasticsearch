@@ -54,7 +54,7 @@ import static org.elasticsearch.cluster.routing.allocation.ExistingShardsAllocat
  * @param unassignedTimeNanos The timestamp in nanoseconds when the shard became unassigned, based on System.nanoTime().
  *                            Used to calculate the delay for delayed shard allocation.
  *                            ONLY EXPOSED FOR TESTS!
- * @param lastAllocationStatus status for the last allocation attempt for this shard.
+ * @param lastFailedAllocationStatus status for the last allocation attempt for this shard.
  * @param failedNodeIds A set of nodeIds that failed to complete allocations for this shard.
  *                      {@link org.elasticsearch.gateway.ReplicaShardAllocator} uses this bset to avoid repeatedly canceling ongoing
  *                      recoveries for copies on those nodes, although they can perform noop recoveries. This set will be discarded when a
@@ -72,7 +72,7 @@ public record UnassignedInfo(
     long unassignedTimeNanos,
     long unassignedTimeMillis,
     boolean delayed,
-    AllocationStatus lastAllocationStatus,
+    FailedAllocationStatus lastFailedAllocationStatus,
     Set<String> failedNodeIds,
     @Nullable String lastAllocatedNodeId
 ) implements ToXContentFragment, Writeable {
@@ -186,7 +186,7 @@ public record UnassignedInfo(
      * Note, ordering of the enum is important, make sure to add new values
      * at the end and handle version serialization properly.
      */
-    public enum AllocationStatus implements Writeable {
+    public enum FailedAllocationStatus implements Writeable {
         /**
          * The shard was denied allocation to a node because the allocation deciders all returned a NO decision
          */
@@ -215,7 +215,7 @@ public record UnassignedInfo(
 
         private final byte id;
 
-        AllocationStatus(byte id) {
+        FailedAllocationStatus(byte id) {
             this.id = id;
         }
 
@@ -224,7 +224,7 @@ public record UnassignedInfo(
             out.writeByte(id);
         }
 
-        public static AllocationStatus readFrom(StreamInput in) throws IOException {
+        public static FailedAllocationStatus readFrom(StreamInput in) throws IOException {
             byte id = in.readByte();
             return switch (id) {
                 case 0 -> DECIDERS_NO;
@@ -237,7 +237,7 @@ public record UnassignedInfo(
             };
         }
 
-        public static AllocationStatus fromDecision(Decision.Type decision) {
+        public static FailedAllocationStatus fromDecision(Decision.Type decision) {
             Objects.requireNonNull(decision);
             return switch (decision) {
                 case NO -> DECIDERS_NO;
@@ -266,7 +266,7 @@ public record UnassignedInfo(
             System.nanoTime(),
             System.currentTimeMillis(),
             false,
-            AllocationStatus.NO_ATTEMPT,
+            FailedAllocationStatus.NO_ATTEMPT,
             Collections.emptySet(),
             null
         );
@@ -279,13 +279,13 @@ public record UnassignedInfo(
      * @param unassignedTimeNanos             the time to use as the base for any delayed re-assignment calculation
      * @param unassignedTimeMillis            the time of unassignment used to display to in our reporting.
      * @param delayed                         if allocation of this shard is delayed due to INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.
-     * @param lastAllocationStatus            the result of the last allocation attempt for this shard
+     * @param lastFailedAllocationStatus            the result of the last allocation attempt for this shard
      * @param failedNodeIds                   a set of nodeIds that failed to complete allocations for this shard
      * @param lastAllocatedNodeId             the ID of the node this shard was last allocated to
      */
     public UnassignedInfo {
         Objects.requireNonNull(reason);
-        Objects.requireNonNull(lastAllocationStatus);
+        Objects.requireNonNull(lastFailedAllocationStatus);
         failedNodeIds = Set.copyOf(failedNodeIds);
         assert (failedAllocations > 0) == (reason == Reason.ALLOCATION_FAILED)
             : "failedAllocations: " + failedAllocations + " for reason " + reason;
@@ -309,7 +309,7 @@ public record UnassignedInfo(
         var message = in.readOptionalString();
         var failure = in.readException();
         var failedAllocations = in.readVInt();
-        var lastAllocationStatus = AllocationStatus.readFrom(in);
+        var lastAllocationStatus = FailedAllocationStatus.readFrom(in);
         var failedNodeIds = in.readCollectionAsImmutableSet(StreamInput::readString);
         String lastAllocatedNodeId;
         lastAllocatedNodeId = in.readOptionalString();
@@ -343,7 +343,7 @@ public record UnassignedInfo(
         out.writeOptionalString(message);
         out.writeException(failure);
         out.writeVInt(failedAllocations);
-        lastAllocationStatus.writeTo(out);
+        lastFailedAllocationStatus.writeTo(out);
         out.writeStringCollection(failedNodeIds);
         out.writeOptionalString(lastAllocatedNodeId);
     }
@@ -437,7 +437,7 @@ public record UnassignedInfo(
         if (details != null) {
             sb.append(", details[").append(details).append("]");
         }
-        sb.append(", allocation_status[").append(lastAllocationStatus.value()).append("]");
+        sb.append(", allocation_status[").append(lastFailedAllocationStatus.value()).append("]");
         return sb.toString();
     }
 
@@ -465,7 +465,7 @@ public record UnassignedInfo(
         if (details != null) {
             builder.field("details", details);
         }
-        builder.field("allocation_status", lastAllocationStatus.value());
+        builder.field("allocation_status", lastFailedAllocationStatus.value());
         builder.endObject();
         return builder;
     }
@@ -496,7 +496,7 @@ public record UnassignedInfo(
         if (Objects.equals(message, that.message) == false) {
             return false;
         }
-        if (lastAllocationStatus != that.lastAllocationStatus) {
+        if (lastFailedAllocationStatus != that.lastFailedAllocationStatus) {
             return false;
         }
         if (Objects.equals(failure, that.failure) == false) {
@@ -518,7 +518,7 @@ public record UnassignedInfo(
         result = 31 * result + Long.hashCode(unassignedTimeMillis);
         result = 31 * result + (message != null ? message.hashCode() : 0);
         result = 31 * result + (failure != null ? failure.hashCode() : 0);
-        result = 31 * result + lastAllocationStatus.hashCode();
+        result = 31 * result + lastFailedAllocationStatus.hashCode();
         result = 31 * result + failedNodeIds.hashCode();
         result = 31 * result + (lastAllocatedNodeId != null ? lastAllocatedNodeId.hashCode() : 0);
         return result;

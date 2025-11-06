@@ -282,7 +282,7 @@ public class TestShardRouting {
             unassignedTimeNanos,
             unassignedTimeMillis,
             delayed,
-            UnassignedInfo.AllocationStatus.NO_ATTEMPT,
+            UnassignedInfo.FailedAllocationStatus.NO_ATTEMPT,
             Set.of(),
             lastAllocatedNodeId
         );

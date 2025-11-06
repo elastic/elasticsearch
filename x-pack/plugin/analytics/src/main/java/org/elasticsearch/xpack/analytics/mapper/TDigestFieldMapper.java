@@ -97,7 +97,9 @@ public class TDigestFieldMapper extends FieldMapper {
             );
             this.compression = Parameter.intParam("compression", false, m -> toType(m).compression, DEFAULT_COMPRESSION).addValidator(c -> {
                 if (c <= 0 || c > MAXIMUM_COMPRESSION) {
-                    throw new IllegalArgumentException("compression must be a positive integer between 1 and " + MAXIMUM_COMPRESSION);
+                    throw new IllegalArgumentException(
+                        "compression must be a positive integer between 1 and " + MAXIMUM_COMPRESSION + " was [" + c + "]"
+                    );
                 }
             });
         }

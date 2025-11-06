@@ -25,11 +25,11 @@ public class MergeExponentialHistogramAggregator {
     }
 
     public static void combine(ExponentialHistogramStates.SingleState state, ExponentialHistogram value) {
-        state.add(value);
+        state.add(value, true);
     }
 
     public static void combineIntermediate(ExponentialHistogramStates.SingleState state, ExponentialHistogram value) {
-        state.add(value);
+        state.add(value, false);
     }
 
     public static Block evaluateFinal(ExponentialHistogramStates.SingleState state, DriverContext driverContext) {
@@ -41,11 +41,11 @@ public class MergeExponentialHistogramAggregator {
     }
 
     public static void combine(ExponentialHistogramStates.GroupingState current, int groupId, ExponentialHistogram value) {
-        current.add(groupId, value);
+        current.add(groupId, value, true);
     }
 
     public static void combineIntermediate(ExponentialHistogramStates.GroupingState state, int groupId, ExponentialHistogram value) {
-        state.add(groupId, value);
+        state.add(groupId, value, false);
     }
 
     public static Block evaluateFinal(

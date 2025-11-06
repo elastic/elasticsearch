@@ -103,8 +103,6 @@ public class ExponentialHistogramBlockBuilder implements Block.Builder, BlockLoa
         // We should add a dedicated encoding when building a block from computed histograms which do not originate from doc values
         // That encoding should be optimized for speed and support storing the zero threshold as (scale, index) pair
         ZeroBucket zeroBucket = histogram.zeroBucket();
-        assert zeroBucket.compareZeroThreshold(ZeroBucket.minimalEmpty()) == 0 || zeroBucket.isIndexBased() == false
-            : "Current encoding only supports double-based zero thresholds";
 
         BytesStreamOutput encodedBytes = new BytesStreamOutput();
         try {

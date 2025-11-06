@@ -23,7 +23,7 @@ public final class ExponentialHistogramStates {
 
     // We currently use a hardcoded limit for the number of buckets, we might make this configurable / an aggregation parameter later
     // The current default is what's also used by the OpenTelemetry SDKs
-    private static final int MAX_BUCKET_COUNT = 320;
+    public static final int MAX_BUCKET_COUNT = 320;
 
     private record HistoBreaker(CircuitBreaker delegate) implements ExponentialHistogramCircuitBreaker {
         @Override
@@ -48,14 +48,18 @@ public final class ExponentialHistogramStates {
             this.breaker = breaker;
         }
 
-        public void add(ExponentialHistogram histogram) {
+        public void add(ExponentialHistogram histogram, boolean allowUpscale) {
             if (histogram == null) {
                 return;
             }
             if (merger == null) {
                 merger = ExponentialHistogramMerger.create(MAX_BUCKET_COUNT, new HistoBreaker(breaker));
             }
-            merger.add(histogram);
+            if (allowUpscale) {
+                merger.add(histogram);
+            } else {
+                merger.addWithoutUpscaling(histogram);
+            }
         }
 
         @Override
@@ -100,7 +104,7 @@ public final class ExponentialHistogramStates {
             }
         }
 
-        public void add(int groupId, ExponentialHistogram histogram) {
+        public void add(int groupId, ExponentialHistogram histogram, boolean allowUpscale) {
             if (histogram == null) {
                 return;
             }
@@ -110,7 +114,11 @@ public final class ExponentialHistogramStates {
                 state = ExponentialHistogramMerger.create(MAX_BUCKET_COUNT, breaker);
                 states.set(groupId, state);
             }
-            state.add(histogram);
+            if (allowUpscale) {
+                state.add(histogram);
+            } else {
+                state.addWithoutUpscaling(histogram);
+            }
         }
 
         private void ensureCapacity(int groupId) {
@@ -151,5 +159,6 @@ public final class ExponentialHistogramStates {
         public void enableGroupIdTracking(SeenGroupIds seenGroupIds) {
             // noop - we handle the null states inside `toIntermediate` and `evaluateFinal`
         }
+
     }
 }

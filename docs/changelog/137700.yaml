@@ -1,0 +1,5 @@
+pr: 137700
+summary: Add rerank chunking for JinaAI
+area: Machine Learning
+type: enhancement
+issues: []

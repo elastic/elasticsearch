@@ -873,8 +873,8 @@ public class GeoIpDownloaderIT extends AbstractGeoIpIT {
     }
 
     /**
-     * An index setting provider that disables the request cache for the geoip downloader index.
-     * Since .geoip_databases is a system index, we can't configure this setting using the API or index templates.
+     * An index setting provider that disables the request cache for the `.geoip_databases` index.
+     * Since `.geoip_databases` is a system index, we can't configure this setting using the API or index templates.
      */
     public static final class GeoIpIndexSettingProvider implements IndexSettingProvider {
         @Override

@@ -22,7 +22,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Supplier;
 
 /**
- * Abstract base class for GeoIP downloaders that download GeoIP databases.
+ * Abstract thread-safe base class for GeoIP downloaders that download GeoIP databases.
  */
 public abstract class AbstractGeoIpDownloader extends AllocatedPersistentTask {
 
@@ -151,6 +151,7 @@ public abstract class AbstractGeoIpDownloader extends AllocatedPersistentTask {
 
     /**
      * Download, update, and clean up GeoIP databases as required by the GeoIP processors in the cluster.
+     * Guaranteed to not be called concurrently.
      */
     abstract void runDownloader();
 

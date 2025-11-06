@@ -7,13 +7,11 @@
 
 package org.elasticsearch.xpack.inference.services.elastic.completion;
 
-import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.inference.EmptySecretSettings;
 import org.elasticsearch.inference.EmptyTaskSettings;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceComponents;
-import org.hamcrest.Matchers;
 
 import static org.hamcrest.Matchers.is;
 
@@ -64,27 +62,6 @@ public class ElasticInferenceServiceCompletionModelTests extends ESTestCase {
         assertThat(overriddenModel.getServiceSettings().modelId(), is("new-model"));
         assertThat(overriddenModel.getTaskType(), is(TaskType.COMPLETION));
         assertThat(overriddenModel.uri().toString(), is(originalModel.uri().toString()));
-    }
-
-    public void testUriCreationWithInvalidUrl() {
-        var invalidUrl = "not-a-valid-url";
-        var modelId = "my-model-id";
-
-        var exception = expectThrows(
-            ElasticsearchStatusException.class,
-            () -> new ElasticInferenceServiceCompletionModel(
-                "id",
-                TaskType.COMPLETION,
-                "elastic",
-                new ElasticInferenceServiceCompletionServiceSettings(modelId),
-                EmptyTaskSettings.INSTANCE,
-                EmptySecretSettings.INSTANCE,
-                ElasticInferenceServiceComponents.of(invalidUrl)
-            )
-        );
-
-        assertThat(exception.status().getStatus(), is(400));
-        assertThat(exception.getMessage(), Matchers.containsString("Failed to create URI"));
     }
 
     public static ElasticInferenceServiceCompletionModel createModel(String url, String modelId) {

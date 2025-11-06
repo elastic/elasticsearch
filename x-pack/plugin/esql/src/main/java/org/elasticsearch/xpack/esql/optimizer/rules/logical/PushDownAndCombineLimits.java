@@ -92,7 +92,7 @@ public final class PushDownAndCombineLimits extends OptimizerRules.Parameterized
             // We use withLocal = false because if we have a remote join it will be forced into the fragment by the mapper anyway,
             // And the verifier checks that there are no non-synthetic limits before the join.
             // TODO: However, this means that the non-remote join will be always forced on the coordinator. We may want to revisit this.
-            return duplicateLimitAsFirstGrandchild(limit, join.isRemote());
+            return duplicateLimitAsFirstGrandchild(limit, false);
         }
         return limit;
     }

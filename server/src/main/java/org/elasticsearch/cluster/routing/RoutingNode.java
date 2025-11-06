@@ -10,6 +10,7 @@
 package org.elasticsearch.cluster.routing;
 
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.Index;
@@ -213,18 +214,16 @@ public class RoutingNode implements Iterable<ShardRouting> {
         assert invariant();
     }
 
-    private static final ShardRouting[] EMPTY_SHARD_ROUTING_ARRAY = new ShardRouting[0];
-
-    public ShardRouting[] initializing() {
-        return initializingShards.toArray(EMPTY_SHARD_ROUTING_ARRAY);
+    public Iterator<ShardRouting> initializing() {
+        return Iterators.assertReadOnly(initializingShards.iterator());
     }
 
-    public ShardRouting[] relocating() {
-        return relocatingShards.toArray(EMPTY_SHARD_ROUTING_ARRAY);
+    public Iterator<ShardRouting> relocating() {
+        return Iterators.assertReadOnly(relocatingShards.iterator());
     }
 
-    public ShardRouting[] started() {
-        return startedShards.toArray(EMPTY_SHARD_ROUTING_ARRAY);
+    public Iterator<ShardRouting> started() {
+        return Iterators.assertReadOnly(startedShards.iterator());
     }
 
     /**
@@ -312,6 +311,8 @@ public class RoutingNode implements Iterable<ShardRouting> {
         sb.append(" assigned shards])");
         return sb.toString();
     }
+
+    private static final ShardRouting[] EMPTY_SHARD_ROUTING_ARRAY = new ShardRouting[0];
 
     public ShardRouting[] copyShards() {
         return shards.values().toArray(EMPTY_SHARD_ROUTING_ARRAY);

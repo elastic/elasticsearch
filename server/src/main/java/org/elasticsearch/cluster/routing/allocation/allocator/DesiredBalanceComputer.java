@@ -25,6 +25,7 @@ import org.elasticsearch.cluster.routing.allocation.ShardAllocationDecision;
 import org.elasticsearch.cluster.routing.allocation.allocator.DesiredBalanceShardsAllocator.ShardAllocationExplainer;
 import org.elasticsearch.cluster.routing.allocation.command.MoveAllocationCommand;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
+import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.metrics.MeanMetric;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
@@ -38,6 +39,7 @@ import org.elasticsearch.index.shard.ShardId;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
@@ -294,12 +296,13 @@ public class DesiredBalanceComputer {
                     final var rerouteExplanation = command.execute(routingAllocation, false);
                     assert rerouteExplanation.decisions().type() != Decision.Type.NO : "should have thrown for NO decision";
                     if (rerouteExplanation.decisions().type() != Decision.Type.NO) {
-                        final ShardRouting[] initializingShards = routingNodes.node(
+                        final Iterator<ShardRouting> initializingShardsIterator = routingNodes.node(
                             routingAllocation.nodes().resolveNode(command.toNode()).getId()
                         ).initializing();
-                        assert initializingShards.length == 1
-                            : "expect exactly one relocating shard, but got: " + List.of(initializingShards);
-                        final var initializingShard = initializingShards[0];
+                        assert initializingShardsIterator.hasNext();
+                        final var initializingShard = initializingShardsIterator.next();
+                        assert initializingShardsIterator.hasNext() == false
+                            : "expect exactly one relocating shard, but got: " + Iterators.toList(initializingShardsIterator);
                         assert routingAllocation.nodes()
                             .resolveNode(command.fromNode())
                             .getId()
@@ -535,11 +538,11 @@ public class DesiredBalanceComputer {
         // Find all shards that are started in RoutingNodes but have no data on corresponding node in ClusterInfo
         final var startedShards = new ArrayList<ShardRouting>();
         for (var routingNode : routingNodes) {
-            for (var shardRouting : routingNode.started()) {
+            routingNode.started().forEachRemaining(shardRouting -> {
                 if (clusterInfo.hasShardMoved(shardRouting)) {
                     startedShards.add(shardRouting);
                 }
-            }
+            });
         }
         if (startedShards.isEmpty()) {
             return;

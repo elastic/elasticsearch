@@ -108,7 +108,9 @@ public class DiskThresholdDecider extends AllocationDecider {
         // no longer initializing because their recovery failed or was cancelled.
 
         // Where reserved space is unavailable (e.g. stats are out-of-sync) compute a conservative estimate for initialising shards
-        for (ShardRouting routing : node.initializing()) {
+        final var initializingShardsIterator = node.initializing();
+        while (initializingShardsIterator.hasNext()) {
+            final var routing = initializingShardsIterator.next();
             // Space needs to be reserved only when initializing shards that are going to use additional space
             // that is not yet accounted for by `reservedSpace` in case of lengthy recoveries
             if (shouldReserveSpaceForInitializingShard(routing, metadata) && reservedSpace.containsShardId(routing.shardId()) == false) {
@@ -135,7 +137,9 @@ public class DiskThresholdDecider extends AllocationDecider {
         totalSize += sizeOfUnaccountableSearchableSnapshotShards;
 
         if (subtractShardsMovingAway) {
-            for (ShardRouting routing : node.relocating()) {
+            final var relocatingShardsIterator = node.relocating();
+            while (relocatingShardsIterator.hasNext()) {
+                final var routing = relocatingShardsIterator.next();
                 if (dataPath.equals(clusterInfo.getDataPath(routing))) {
                     ProjectMetadata project = metadata.projectFor(routing.index());
                     totalSize -= getExpectedShardSize(

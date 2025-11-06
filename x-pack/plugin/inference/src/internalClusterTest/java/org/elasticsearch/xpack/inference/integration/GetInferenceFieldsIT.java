@@ -434,7 +434,7 @@ public class GetInferenceFieldsIT extends ESIntegTestCase {
         exceptionValidator.accept(exception);
     }
 
-    private static void assertInferenceFieldsMap(
+    static void assertInferenceFieldsMap(
         Map<String, List<InferenceFieldMetadata>> inferenceFieldsMap,
         Map<String, Set<InferenceFieldAndId>> expectedInferenceFields
     ) {
@@ -458,7 +458,7 @@ public class GetInferenceFieldsIT extends ESIntegTestCase {
         }
     }
 
-    private static void assertInferenceResultsMap(
+    static void assertInferenceResultsMap(
         Map<String, InferenceResults> inferenceResultsMap,
         Map<String, Class<? extends InferenceResults>> expectedInferenceResults
     ) {
@@ -490,5 +490,5 @@ public class GetInferenceFieldsIT extends ESIntegTestCase {
             .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
     }
 
-    private record InferenceFieldAndId(String field, String inferenceId) {}
+    record InferenceFieldAndId(String field, String inferenceId) {}
 }

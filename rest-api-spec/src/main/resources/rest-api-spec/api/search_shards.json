@@ -41,7 +41,7 @@
         "description": "Specify the node or shard the operation should be performed on (default: random)"
       },
       "routing": {
-        "type": "string",
+        "type": "list",
         "description": "Specific routing value"
       },
       "local": {

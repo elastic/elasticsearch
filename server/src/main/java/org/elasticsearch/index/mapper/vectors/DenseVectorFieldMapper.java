@@ -242,7 +242,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
         private final Parameter<ElementType> elementType = new Parameter<>("element_type", false, () -> ElementType.FLOAT, (n, c, o) -> {
             ElementType elementType = namesToElementType.get((String) o);
             if (elementType == null
-                || (elementType == ElementType.BFLOAT16 && ES93GenericFlatVectorsFormat.ES93_VECTOR_FORMATS.isEnabled() == false)) {
+                || (elementType == ElementType.BFLOAT16 && ES93GenericFlatVectorsFormat.GENERIC_VECTOR_FORMAT.isEnabled() == false)) {
                 throw new MapperParsingException("invalid element_type [" + o + "]; available types are " + namesToElementType.keySet());
             }
             return elementType;
@@ -2149,7 +2149,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
 
         @Override
         public KnnVectorsFormat getVectorsFormat(ElementType elementType) {
-            if (ES93GenericFlatVectorsFormat.ES93_VECTOR_FORMATS.isEnabled()) {
+            if (ES93GenericFlatVectorsFormat.GENERIC_VECTOR_FORMAT.isEnabled()) {
                 return new ES93HnswVectorsFormat(m, efConstruction, elementType);
             } else {
                 if (elementType == ElementType.BIT) {
@@ -2231,7 +2231,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
         @Override
         KnnVectorsFormat getVectorsFormat(ElementType elementType) {
             assert elementType == ElementType.FLOAT || elementType == ElementType.BFLOAT16;
-            return ES93GenericFlatVectorsFormat.ES93_VECTOR_FORMATS.isEnabled()
+            return ES93GenericFlatVectorsFormat.GENERIC_VECTOR_FORMAT.isEnabled()
                 ? new ES93HnswBinaryQuantizedVectorsFormat(m, efConstruction, elementType, onDiskRescore)
                 : new ES818HnswBinaryQuantizedVectorsFormat(m, efConstruction);
         }
@@ -2299,7 +2299,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
         @Override
         KnnVectorsFormat getVectorsFormat(ElementType elementType) {
             assert elementType == ElementType.FLOAT || elementType == ElementType.BFLOAT16;
-            return ES93GenericFlatVectorsFormat.ES93_VECTOR_FORMATS.isEnabled()
+            return ES93GenericFlatVectorsFormat.GENERIC_VECTOR_FORMAT.isEnabled()
                 ? new ES93BinaryQuantizedVectorsFormat(elementType, false)
                 : new ES818BinaryQuantizedVectorsFormat();
         }

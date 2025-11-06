@@ -25,7 +25,7 @@ import java.util.Map;
 
 public class ES93GenericFlatVectorsFormat extends AbstractFlatVectorsFormat {
 
-    public static final FeatureFlag ES93_VECTOR_FORMATS = new FeatureFlag("es93_vector_formats");
+    public static final FeatureFlag GENERIC_VECTOR_FORMAT = new FeatureFlag("generic_vector_format");
 
     static final String NAME = "ES93GenericFlatVectorsFormat";
     static final String VECTOR_FORMAT_INFO_EXTENSION = "vfi";

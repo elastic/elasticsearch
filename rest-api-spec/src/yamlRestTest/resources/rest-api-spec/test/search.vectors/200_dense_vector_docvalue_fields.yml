@@ -163,7 +163,7 @@ setup:
 ---
 "dense_vector docvalues with bfloat16":
   - requires:
-      cluster_features: [ "mapper.vectors.hnsw_bfloat16_on_disk_rescoring" ]
+      cluster_features: [ "mapper.vectors.generic_vector_format" ]
       reason: Needs bfloat16 support
   - do:
       indices.create:

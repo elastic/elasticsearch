@@ -61,7 +61,7 @@ public class MapperFeatures implements FeatureSpecification {
     );
     static final NodeFeature EXCLUDE_VECTORS_DOCVALUE_BUGFIX = new NodeFeature("mapper.exclude_vectors_docvalue_bugfix");
     static final NodeFeature BASE64_DENSE_VECTORS = new NodeFeature("mapper.base64_dense_vectors");
-    public static final NodeFeature HNSW_BFLOAT16_ON_DISK_RESCORING = new NodeFeature("mapper.vectors.hnsw_bfloat16_on_disk_rescoring");
+    public static final NodeFeature GENERIC_VECTOR_FORMAT = new NodeFeature("mapper.vectors.generic_vector_format");
 
     @Override
     public Set<NodeFeature> getTestFeatures() {
@@ -106,9 +106,9 @@ public class MapperFeatures implements FeatureSpecification {
             EXCLUDE_VECTORS_DOCVALUE_BUGFIX,
             BASE64_DENSE_VECTORS
         );
-        if (ES93GenericFlatVectorsFormat.ES93_VECTOR_FORMATS.isEnabled()) {
+        if (ES93GenericFlatVectorsFormat.GENERIC_VECTOR_FORMAT.isEnabled()) {
             features = new HashSet<>(features);
-            features.add(HNSW_BFLOAT16_ON_DISK_RESCORING);
+            features.add(GENERIC_VECTOR_FORMAT);
         }
         return features;
     }

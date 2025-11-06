@@ -1,5 +1,0 @@
-pr: 135940
-summary: Enable directIO and bfloat16 for bbq and unquantized vector field types
-area: Vector Search
-type: feature
-issues: []

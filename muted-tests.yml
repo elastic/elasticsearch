@@ -603,6 +603,9 @@ tests:
 - class: org.elasticsearch.xpack.ml.integration.RegressionIT
   method: testAliasFields
   issue: https://github.com/elastic/elasticsearch/issues/137377
+- class: org.elasticsearch.upgrades.SearchStatesIT
+  method: testCanMatch
+  issue: https://github.com/elastic/elasticsearch/issues/137687
 
 # Examples:
 #

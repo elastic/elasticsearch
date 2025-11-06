@@ -1,9 +1,8 @@
 loadFiltered
 required_capability: exponential_histogram
 
-FROM exp_histo_sample | WHERE STARTS_WITH(instance, "dummy") | KEEP instance, responseTime
+FROM exp_histo_sample | WHERE STARTS_WITH(instance, "dummy") | SORT instance | KEEP instance, responseTime
 ;
-ignoreOrder:true
 
 instance:keyword          | responseTime:exponential_histogram
 dummy-empty               | "{""scale"":-7,""sum"":0.0}"

@@ -1424,6 +1424,10 @@ public class EsqlCapabilities {
          */
         LOOKUP_JOIN_WITH_FULL_TEXT_FUNCTION,
         /**
+         * Bugfix for lookup join with Full Text Function
+         */
+        LOOKUP_JOIN_WITH_FULL_TEXT_FUNCTION_BUGFIX,
+        /**
          * FORK with remote indices
          */
         ENABLE_FORK_FOR_REMOTE_INDICES(Build.current().isSnapshot()),

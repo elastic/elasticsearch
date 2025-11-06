@@ -278,7 +278,7 @@ public class EsqlQueryResponse extends org.elasticsearch.xpack.core.esql.action.
             content.add(ChunkedToXContentHelper.array("drivers", profile.drivers.iterator(), params));
             content.add(ChunkedToXContentHelper.array("plans", profile.plans.iterator()));
             content.add(ChunkedToXContentHelper.chunk((b, p) -> {
-                b.field("minimumVersion", profile.minimumVersion().id());
+                b.field("minimumTransportVersion", profile.minimumVersion().id());
                 return b;
             }));
             content.add(ChunkedToXContentHelper.endObject());

@@ -105,13 +105,19 @@ Some [field types](/reference/elasticsearch/mapping-reference/field-data-types.m
     * `cartesian_shape`
 
 
-In addition, when [querying multiple indexes](/reference/query-languages/esql/esql-multi-index.md), it’s possible for the same field to be mapped to multiple types. These fields cannot be directly used in queries or returned in results, unless they’re [explicitly converted to a single type](/reference/query-languages/esql/esql-multi-index.md#esql-multi-index-union-types).
+- In addition, when [querying multiple indexes](/reference/query-languages/esql/esql-multi-index.md), it’s possible for the same field to be mapped to multiple types. These fields cannot be directly used in queries or returned in results, unless they’re [explicitly converted to a single type](/reference/query-languages/esql/esql-multi-index.md#esql-multi-index-union-types).
 
-* {applies_to}`stack: preview 9.2.0` `dense_vector` field type is only partially supported on this patch version (fixed in {applies_to}`stack: preview 9.2.1`). The [`KNN` function](elasticsearch://reference/query-languages/esql/functions-operators/dense-vector-functions.md#esql-knn) and the [`TO_DENSE_VECTOR` function](elasticsearch://reference/query-languages/esql/functions-operators/type-conversion-functions.md#esql-to_dense_vector) will work and any field data will be retrieved as part of the results. However, the type will appear as `unsupported` when these functions are not used.
-* {applies_to}`stack: preview 9.2.0` `aggregate_metric_double` field type is only partially supported on this patch version (fixed in {applies_to}`stack: preview 9.2.1`). Using the [`TO_AGGREGATE_METRIC_DOUBLE` function](elasticsearch://reference/query-languages/esql/functions-operators/type-conversion-functions.md#esql-to_aggregate_metric_double) will work and any field data will be retrieved as part of the results. However, the type will appear as `unsupported` if this function is not used.
+#### Partial support in 9.2.0
 
-This means that `FROM test` will not retrieve `dense_vector` or `aggregate_metric_double` data. But, `FROM test WHERE KNN("dense_vector_field", [0, 1, 2, ...])` or `FROM test | EVAL agm_data = TO_AGGREGATE_METRIC_DOUBLE(aggregate_metric_double_field)` will.
+* {applies_to}`stack: preview 9.2.0` The following types are only partially supported on 9.2.0. This is fixed in 9.2.1:
+  * `dense_vector`: The [`KNN` function](/reference/query-languages/esql/functions-operators/dense-vector-functions.md#esql-knn) and the [`TO_DENSE_VECTOR` function](/reference/query-languages/esql/functions-operators/type-conversion-functions.md#esql-to_dense_vector) will work and any field data will be retrieved as part of the results. However, the type will appear as `unsupported` when these functions are not used.
+  * `aggregate_metric_double`: Using the [`TO_AGGREGATE_METRIC_DOUBLE` function](/reference/query-languages/esql/functions-operators/type-conversion-functions.md#esql-to_aggregate_metric_double) will work and any field data will be retrieved as part of the results. However, the type will appear as `unsupported` if this function is not used.
 
+    :::{note}
+    This means that a simple query like `FROM test` will not retrieve `dense_vector` or `aggregate_metric_double` data. However, using the appropriate functions will work:
+    * `FROM test WHERE KNN("dense_vector_field", [0, 1, 2, ...])`
+    * `FROM test | EVAL agm_data = TO_AGGREGATE_METRIC_DOUBLE(aggregate_metric_double_field)`
+    :::
 
 ## _source availability [esql-_source-availability]
 

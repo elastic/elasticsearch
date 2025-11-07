@@ -173,16 +173,16 @@ sortingByTsidMetadataField
 required_capability: metadata_tsid_field
 
 FROM k8s METADATA _tsid
-| SORT events_received ASC
+| SORT events_received DESC NULLS LAST
 | LIMIT 5
 | KEEP events_received, @timestamp, cluster, pod
-| SORT cluster, pod, @timestamp
+| SORT @timestamp 
 ;
 
 events_received:long | @timestamp:datetime      | cluster:keyword | pod:keyword
-0                    | 2024-05-10T00:04:49.000Z | qa              | one
-0                    | 2024-05-10T00:09:58.000Z | qa              | three
-0                    | 2024-05-10T00:07:33.000Z | qa              | two
-0                    | 2024-05-10T00:03:13.000Z | staging         | one
-0                    | 2024-05-10T00:09:34.000Z | staging         | one
+10                   | 2024-05-10T00:01:25.000Z | qa              | one
+[9, 10, 10]          | 2024-05-10T00:09:03.000Z | qa              | one
+[1, 8, 9, 10]        | 2024-05-10T00:09:04.000Z | qa              | one
+[1, 5, 6, 10]        | 2024-05-10T00:17:39.000Z | qa              | one
+10                   | 2024-05-10T00:19:53.000Z | qa              | two
 ;

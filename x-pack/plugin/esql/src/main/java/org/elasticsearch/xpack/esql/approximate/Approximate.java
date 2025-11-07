@@ -245,7 +245,7 @@ public class Approximate {
     /**
      * The number of times (trials) the sampled rows are divided into buckets.
      */
-    private static final int TRIAL_COUNT = 3;
+    private static final int TRIAL_COUNT = 2;
 
     /**
      * The number of buckets to use for computing confidence intervals.
@@ -499,7 +499,7 @@ public class Approximate {
         return listener.delegateFailureAndWrap((countListener, countResult) -> {
             long rowCount = rowCount(countResult);
             logger.debug("countPlan result (p={}): {} rows", sampleProbability, rowCount);
-            double newSampleProbability = sampleProbability * SAMPLE_ROW_COUNT / Math.max(1, rowCount);
+            double newSampleProbability = Math.min(1.0, sampleProbability * SAMPLE_ROW_COUNT / Math.max(1, rowCount));
             if (rowCount <= SAMPLE_ROW_COUNT / 2 && newSampleProbability < 1.0) {
                 runner.run(
                     toPhysicalPlan.apply(countPlan(newSampleProbability)),
@@ -573,7 +573,7 @@ public class Approximate {
      * </pre>
      */
     private LogicalPlan approximatePlan(double sampleProbability) {
-        if (sampleProbability >= 1.0) {
+        if (sampleProbability == 1.0) {
             logger.debug("using original plan (too few rows)");
             return logicalPlan;
         }

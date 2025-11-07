@@ -172,12 +172,42 @@ public class DateTruncTests extends AbstractConfigurationFunctionTestCase {
                 new DurationTestCaseData(Duration.ofHours(3), "2025-10-26T03:00:00+01:00", "Europe/Paris", "2025-10-26T03:00:00+01:00"),
                 new DurationTestCaseData(Duration.ofHours(3), "2025-10-26T04:00:00+01:00", "Europe/Paris", "2025-10-26T03:00:00+01:00"),
                 // Midnight DST (America/Goose_Bay: -3 to -4 at 2010-11-07T00:01:00-03:00)
-                new DurationTestCaseData(Duration.ofMinutes(1), "2010-11-07T00:00:59-03:00", "America/Goose_Bay", "2010-11-07T00:00:00-03:00"),
-                new DurationTestCaseData(Duration.ofMinutes(1), "2010-11-07T00:01:00-04:00", "America/Goose_Bay", "2010-11-07T00:01:00-04:00"),
-                new DurationTestCaseData(Duration.ofMinutes(2), "2010-11-07T00:01:00-04:00", "America/Goose_Bay", "2010-11-07T00:00:00-04:00"),
-                new DurationTestCaseData(Duration.ofMinutes(2), "2010-11-07T00:02:00-04:00", "America/Goose_Bay", "2010-11-07T00:02:00-04:00"),
-                new DurationTestCaseData(Duration.ofMinutes(2), "2010-11-06T23:59:59-04:00", "America/Goose_Bay", "2010-11-06T23:58:00-03:00"),
-                new DurationTestCaseData(Duration.ofMinutes(2), "2010-11-06T20:03:00-03:00", "America/Goose_Bay", "2010-11-06T20:02:00-03:00"),
+                new DurationTestCaseData(
+                    Duration.ofMinutes(1),
+                    "2010-11-07T00:00:59-03:00",
+                    "America/Goose_Bay",
+                    "2010-11-07T00:00:00-03:00"
+                ),
+                new DurationTestCaseData(
+                    Duration.ofMinutes(1),
+                    "2010-11-07T00:01:00-04:00",
+                    "America/Goose_Bay",
+                    "2010-11-07T00:01:00-04:00"
+                ),
+                new DurationTestCaseData(
+                    Duration.ofMinutes(2),
+                    "2010-11-07T00:01:00-04:00",
+                    "America/Goose_Bay",
+                    "2010-11-07T00:00:00-04:00"
+                ),
+                new DurationTestCaseData(
+                    Duration.ofMinutes(2),
+                    "2010-11-07T00:02:00-04:00",
+                    "America/Goose_Bay",
+                    "2010-11-07T00:02:00-04:00"
+                ),
+                new DurationTestCaseData(
+                    Duration.ofMinutes(2),
+                    "2010-11-06T23:01:59-04:00",
+                    "America/Goose_Bay",
+                    "2010-11-07T00:00:00-03:00"
+                ),
+                new DurationTestCaseData(
+                    Duration.ofMinutes(2),
+                    "2010-11-06T20:03:00-03:00",
+                    "America/Goose_Bay",
+                    "2010-11-06T20:02:00-03:00"
+                ),
                 // Bigger intervals
                 new DurationTestCaseData(Duration.ofHours(12), "2025-10-26T02:00:00+02:00", "Europe/Rome", "2025-10-26T00:00:00+02:00"),
                 new DurationTestCaseData(Duration.ofHours(24), "2025-10-26T02:00:00+02:00", "Europe/Rome", "2025-10-26T00:00:00+02:00"),

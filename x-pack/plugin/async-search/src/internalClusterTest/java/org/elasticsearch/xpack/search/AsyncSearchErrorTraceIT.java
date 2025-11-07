@@ -27,7 +27,6 @@ import org.junit.BeforeClass;
 import java.io.IOException;
 import java.util.Collection;
 import java.util.Map;
-import java.util.concurrent.ExecutionException;
 
 @TestLogging(
     reason = "testing debug log output to identify race condition",
@@ -299,7 +298,7 @@ public class AsyncSearchErrorTraceIT extends AsyncSearchIntegTestCase {
 
     private void deleteAsyncSearchIfPresent(Map<String, Object> map) throws IOException {
         String id = (String) map.get("id");
-        if(id != null) {
+        if (id != null) {
             return;
         }
 

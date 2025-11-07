@@ -30,12 +30,12 @@ import org.elasticsearch.common.FrequencyCappedAction;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.time.TimeProvider;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.gateway.PriorityComparator;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.Comparator;
 import java.util.Iterator;
@@ -83,17 +83,16 @@ public class DesiredBalanceReconciler {
     private double undesiredAllocationsLogThreshold;
     private final NodeAllocationOrdering allocationOrdering = new NodeAllocationOrdering();
     private final NodeAllocationOrdering moveOrdering = new NodeAllocationOrdering();
+    private final UndesiredAllocationsTracker undesiredAllocationsTracker;
 
-    public DesiredBalanceReconciler(ClusterSettings clusterSettings, ThreadPool threadPool) {
-        this.undesiredAllocationLogInterval = new FrequencyCappedAction(
-            threadPool.relativeTimeInMillisSupplier(),
-            TimeValue.timeValueMinutes(5)
-        );
+    public DesiredBalanceReconciler(ClusterSettings clusterSettings, TimeProvider timeProvider) {
+        this.undesiredAllocationLogInterval = new FrequencyCappedAction(timeProvider::relativeTimeInMillis, TimeValue.timeValueMinutes(5));
         clusterSettings.initializeAndWatch(UNDESIRED_ALLOCATIONS_LOG_INTERVAL_SETTING, this.undesiredAllocationLogInterval::setMinInterval);
         clusterSettings.initializeAndWatch(
             UNDESIRED_ALLOCATIONS_LOG_THRESHOLD_SETTING,
             value -> this.undesiredAllocationsLogThreshold = value
         );
+        this.undesiredAllocationsTracker = new UndesiredAllocationsTracker(clusterSettings, timeProvider);
     }
 
     /**
@@ -114,6 +113,7 @@ public class DesiredBalanceReconciler {
     public void clear() {
         allocationOrdering.clear();
         moveOrdering.clear();
+        undesiredAllocationsTracker.clear();
     }
 
     /**
@@ -134,6 +134,7 @@ public class DesiredBalanceReconciler {
         }
 
         DesiredBalanceMetrics.AllocationStats run() {
+            undesiredAllocationsTracker.cleanup(routingNodes);
             try (var ignored = allocation.withReconcilingFlag()) {
 
                 logger.debug("Reconciling desired balance for [{}]", desiredBalance.lastConvergedIndex());
@@ -493,35 +494,51 @@ public class DesiredBalanceReconciler {
 
                 if (assignment.nodeIds().contains(shardRouting.currentNodeId())) {
                     // shard is already on a desired node
+                    undesiredAllocationsTracker.removeTracking(shardRouting);
                     continue;
                 }
 
-                if (allocation.deciders().canAllocate(shardRouting, allocation).type() != Decision.Type.YES) {
-                    // cannot allocate anywhere, no point in looking for a target node
-                    continue;
-                }
+                boolean movedUndesiredShard = false;
+                try {
+                    if (allocation.deciders().canAllocate(shardRouting, allocation).type() != Decision.Type.YES) {
+                        // cannot allocate anywhere, no point in looking for a target node
+                        continue;
+                    }
 
-                final var routingNode = routingNodes.node(shardRouting.currentNodeId());
-                final var canRemainDecision = allocation.deciders().canRemain(shardRouting, routingNode, allocation);
-                if (canRemainDecision.type() != Decision.Type.NO && canRemainDecision.type() != Decision.Type.NOT_PREFERRED) {
-                    // If movement is throttled, a future reconciliation round will see a resolution. For now, leave it alone.
-                    // Reconciliation treats canRemain NOT_PREFERRED answers as YES because the DesiredBalance computation already decided
-                    // how to handle the situation.
-                    continue;
-                }
+                    final var routingNode = routingNodes.node(shardRouting.currentNodeId());
+                    final var canRemainDecision = allocation.deciders().canRemain(shardRouting, routingNode, allocation);
+                    if (canRemainDecision.type() != Decision.Type.NO && canRemainDecision.type() != Decision.Type.NOT_PREFERRED) {
+                        // If movement is throttled, a future reconciliation round will see a resolution. For now, leave it alone.
+                        // Reconciliation treats canRemain NOT_PREFERRED answers as YES because the DesiredBalance computation already
+                        // decided how to handle the situation.
+                        continue;
+                    }
 
-                final var moveTarget = findRelocationTarget(shardRouting, assignment.nodeIds());
-                if (moveTarget != null) {
-                    logger.debug("Moving shard {} from {} to {}", shardRouting.shardId(), shardRouting.currentNodeId(), moveTarget.getId());
-                    routingNodes.relocateShard(
-                        shardRouting,
-                        moveTarget.getId(),
-                        allocation.clusterInfo().getShardSize(shardRouting, ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE),
-                        "move",
-                        allocation.changes()
-                    );
-                    iterator.dePrioritizeNode(shardRouting.currentNodeId());
-                    moveOrdering.recordAllocation(shardRouting.currentNodeId());
+                    final var moveTarget = findRelocationTarget(shardRouting, assignment.nodeIds());
+                    if (moveTarget != null) {
+                        logger.debug(
+                            "Moving shard {} from {} to {}",
+                            shardRouting.shardId(),
+                            shardRouting.currentNodeId(),
+                            moveTarget.getId()
+                        );
+                        routingNodes.relocateShard(
+                            shardRouting,
+                            moveTarget.getId(),
+                            allocation.clusterInfo().getShardSize(shardRouting, ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE),
+                            "move",
+                            allocation.changes()
+                        );
+                        iterator.dePrioritizeNode(shardRouting.currentNodeId());
+                        moveOrdering.recordAllocation(shardRouting.currentNodeId());
+                        movedUndesiredShard = true;
+                    }
+                } finally {
+                    if (movedUndesiredShard) {
+                        undesiredAllocationsTracker.removeTracking(shardRouting);
+                    } else {
+                        undesiredAllocationsTracker.trackUndesiredAllocation(shardRouting);
+                    }
                 }
             }
         }
@@ -555,51 +572,63 @@ public class DesiredBalanceReconciler {
 
                 if (assignment.nodeIds().contains(shardRouting.currentNodeId())) {
                     // shard is already on a desired node
+                    undesiredAllocationsTracker.removeTracking(shardRouting);
                     continue;
                 }
 
-                if (allocation.metadata().nodeShutdowns().contains(shardRouting.currentNodeId()) == false) {
-                    // shard is not on a shutting down node, nor is it on a desired node per the previous check.
-                    undesiredAllocationsExcludingShuttingDownNodes++;
-                    undesiredAllocationsExcludingShuttingDownNodesByRole.addTo(shardRouting.role(), 1);
-                }
+                boolean movedUndesiredShard = false;
+                try {
+                    if (allocation.metadata().nodeShutdowns().contains(shardRouting.currentNodeId()) == false) {
+                        // shard is not on a shutting down node, nor is it on a desired node per the previous check.
+                        undesiredAllocationsExcludingShuttingDownNodes++;
+                        undesiredAllocationsExcludingShuttingDownNodesByRole.addTo(shardRouting.role(), 1);
+                    }
 
-                if (allocation.deciders().canRebalance(allocation).type() != Decision.Type.YES) {
-                    // Rebalancing is disabled, we're just here to collect the AllocationStats to return.
-                    continue;
-                }
+                    if (allocation.deciders().canRebalance(allocation).type() != Decision.Type.YES) {
+                        // Rebalancing is disabled, we're just here to collect the AllocationStats to return.
+                        continue;
+                    }
 
-                if (allocation.deciders().canRebalance(shardRouting, allocation).type() != Decision.Type.YES) {
-                    // rebalancing disabled for this shard
-                    continue;
-                }
+                    if (allocation.deciders().canRebalance(shardRouting, allocation).type() != Decision.Type.YES) {
+                        // rebalancing disabled for this shard
+                        continue;
+                    }
 
-                if (allocation.deciders().canAllocate(shardRouting, allocation).type() != Decision.Type.YES) {
-                    // cannot allocate anywhere, no point in looking for a target node
-                    continue;
-                }
+                    if (allocation.deciders().canAllocate(shardRouting, allocation).type() != Decision.Type.YES) {
+                        // cannot allocate anywhere, no point in looking for a target node
+                        continue;
+                    }
 
-                final var rebalanceTarget = findRelocationTarget(shardRouting, assignment.nodeIds(), this::decideCanAllocate);
-                if (rebalanceTarget != null) {
-                    logger.debug(
-                        "Rebalancing shard {} from {} to {}",
-                        shardRouting.shardId(),
-                        shardRouting.currentNodeId(),
-                        rebalanceTarget.getId()
-                    );
+                    final var rebalanceTarget = findRelocationTarget(shardRouting, assignment.nodeIds(), this::decideCanAllocate);
+                    if (rebalanceTarget != null) {
+                        logger.debug(
+                            "Rebalancing shard {} from {} to {}",
+                            shardRouting.shardId(),
+                            shardRouting.currentNodeId(),
+                            rebalanceTarget.getId()
+                        );
 
-                    routingNodes.relocateShard(
-                        shardRouting,
-                        rebalanceTarget.getId(),
-                        allocation.clusterInfo().getShardSize(shardRouting, ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE),
-                        "rebalance",
-                        allocation.changes()
-                    );
-                    iterator.dePrioritizeNode(shardRouting.currentNodeId());
-                    moveOrdering.recordAllocation(shardRouting.currentNodeId());
+                        routingNodes.relocateShard(
+                            shardRouting,
+                            rebalanceTarget.getId(),
+                            allocation.clusterInfo().getShardSize(shardRouting, ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE),
+                            "rebalance",
+                            allocation.changes()
+                        );
+                        iterator.dePrioritizeNode(shardRouting.currentNodeId());
+                        moveOrdering.recordAllocation(shardRouting.currentNodeId());
+                        movedUndesiredShard = true;
+                    }
+                } finally {
+                    if (movedUndesiredShard) {
+                        undesiredAllocationsTracker.removeTracking(shardRouting);
+                    } else {
+                        undesiredAllocationsTracker.trackUndesiredAllocation(shardRouting);
+                    }
                 }
             }
 
+            undesiredAllocationsTracker.maybeLogUndesiredShardsWarning(routingNodes, allocation, desiredBalance);
             maybeLogUndesiredAllocationsWarning(totalAllocations, undesiredAllocationsExcludingShuttingDownNodes, routingNodes.size());
             return new DesiredBalanceMetrics.AllocationStats(
                 unassignedShards,

@@ -171,7 +171,7 @@ public final class KeywordFieldMapper extends FieldMapper {
 
     public static final class Builder extends FieldMapper.DimensionBuilder {
 
-        private final Parameter<Boolean> indexed = Parameter.indexParam(m -> toType(m).indexed, true);
+        private final Parameter<Boolean> indexed;
         private final Parameter<Boolean> hasDocValues = Parameter.docValuesParam(m -> toType(m).hasDocValues, true);
         private final Parameter<Boolean> stored = Parameter.storeParam(m -> toType(m).fieldType.stored(), false);
 
@@ -218,6 +218,7 @@ public final class KeywordFieldMapper extends FieldMapper {
         private final IndexVersion indexCreatedVersion;
         private final boolean enableDocValuesSkipper;
         private final boolean forceDocValuesSkipper;
+        private final boolean indexDisabledByDefault;
         private final SourceKeepMode indexSourceKeepMode;
         private final boolean isWithinMultiField;
 
@@ -232,6 +233,7 @@ public final class KeywordFieldMapper extends FieldMapper {
                 mappingParserContext.getIndexSettings().getIndexSortConfig(),
                 USE_DOC_VALUES_SKIPPER.get(mappingParserContext.getSettings()),
                 false,
+                mappingParserContext.getIndexSettings().isIndexDisabledByDefault(),
                 mappingParserContext.getIndexSettings().sourceKeepMode(),
                 mappingParserContext.isWithinMultiField()
             );
@@ -255,6 +257,7 @@ public final class KeywordFieldMapper extends FieldMapper {
                 null,
                 false,
                 false,
+                false,
                 sourceKeepMode,
                 isWithinMultiField
             );
@@ -270,10 +273,12 @@ public final class KeywordFieldMapper extends FieldMapper {
             IndexSortConfig indexSortConfig,
             boolean enableDocValuesSkipper,
             boolean forceDocValuesSkipper,
+            boolean indexDisabledByDefault,
             SourceKeepMode indexSourceKeepMode,
             boolean isWithinMultiField
         ) {
             super(name);
+            this.indexed = Parameter.indexParam(m -> toType(m).indexed, indexDisabledByDefault == false);
             this.indexAnalyzers = indexAnalyzers;
             this.scriptCompiler = Objects.requireNonNull(scriptCompiler);
             this.indexCreatedVersion = Objects.requireNonNull(indexCreatedVersion);
@@ -313,8 +318,26 @@ public final class KeywordFieldMapper extends FieldMapper {
             this.indexMode = indexMode;
             this.enableDocValuesSkipper = enableDocValuesSkipper;
             this.forceDocValuesSkipper = forceDocValuesSkipper;
+            this.indexDisabledByDefault = indexDisabledByDefault;
             this.indexSourceKeepMode = indexSourceKeepMode;
             this.isWithinMultiField = isWithinMultiField;
+        }
+
+        public Builder(String name, boolean indexDisabledByDefault, IndexVersion indexCreatedVersion) {
+            this(
+                name,
+                null,
+                ScriptCompiler.NONE,
+                Integer.MAX_VALUE,
+                indexCreatedVersion,
+                IndexMode.STANDARD,
+                null,
+                false,
+                false,
+                indexDisabledByDefault,
+                SourceKeepMode.NONE,
+                false
+            );
         }
 
         public Builder(String name, IndexVersion indexCreatedVersion) {
@@ -343,6 +366,7 @@ public final class KeywordFieldMapper extends FieldMapper {
                 null,
                 enableDocValuesSkipper,
                 true,
+                false,
                 SourceKeepMode.NONE,
                 isWithinMultiField
             );
@@ -1141,6 +1165,7 @@ public final class KeywordFieldMapper extends FieldMapper {
     private final IndexSortConfig indexSortConfig;
     private final boolean enableDocValuesSkipper;
     private final boolean forceDocValuesSkipper;
+    private final boolean indexDisabledByDefault;
     private final String offsetsFieldName;
     private final SourceKeepMode indexSourceKeepMode;
 
@@ -1171,6 +1196,7 @@ public final class KeywordFieldMapper extends FieldMapper {
         this.indexSortConfig = builder.indexSortConfig;
         this.enableDocValuesSkipper = builder.enableDocValuesSkipper;
         this.forceDocValuesSkipper = builder.forceDocValuesSkipper;
+        this.indexDisabledByDefault = builder.indexDisabledByDefault;
         this.offsetsFieldName = offsetsFieldName;
         this.indexSourceKeepMode = indexSourceKeepMode;
     }
@@ -1344,6 +1370,7 @@ public final class KeywordFieldMapper extends FieldMapper {
             indexSortConfig,
             enableDocValuesSkipper,
             forceDocValuesSkipper,
+            indexDisabledByDefault,
             indexSourceKeepMode,
             fieldType().isWithinMultiField()
         ).dimension(fieldType().isDimension()).init(this);

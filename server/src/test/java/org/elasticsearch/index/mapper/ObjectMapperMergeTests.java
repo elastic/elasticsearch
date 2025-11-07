@@ -328,7 +328,8 @@ public final class ObjectMapperMergeTests extends ESTestCase {
                 true,
                 IndexVersion.current(),
                 null,
-                null
+                null,
+                false
             )
         ).build(MapperBuilderContext.root(false, false));
 

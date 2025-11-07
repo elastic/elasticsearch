@@ -109,15 +109,17 @@ public class UnsignedLongFieldMapper extends FieldMapper {
         private final IndexVersion indexCreatedVersion;
         private final IndexMode indexMode;
         private final SourceKeepMode indexSourceKeepMode;
+        private final boolean indexDisabledByDefault;
 
         public Builder(
             String name,
             Settings settings,
             IndexVersion indexCreatedVersion,
             IndexMode mode,
-            SourceKeepMode indexSourceKeepMode
+            SourceKeepMode indexSourceKeepMode,
+            boolean indexDisabledByDefault
         ) {
-            this(name, IGNORE_MALFORMED_SETTING.get(settings), indexCreatedVersion, mode, indexSourceKeepMode);
+            this(name, IGNORE_MALFORMED_SETTING.get(settings), indexCreatedVersion, mode, indexSourceKeepMode, indexDisabledByDefault);
         }
 
         public Builder(
@@ -125,7 +127,8 @@ public class UnsignedLongFieldMapper extends FieldMapper {
             boolean ignoreMalformedByDefault,
             IndexVersion indexCreatedVersion,
             IndexMode mode,
-            SourceKeepMode indexSourceKeepMode
+            SourceKeepMode indexSourceKeepMode,
+            boolean indexDisabledByDefault
         ) {
             super(name);
             this.ignoreMalformed = Parameter.explicitBoolParam(
@@ -145,6 +148,10 @@ public class UnsignedLongFieldMapper extends FieldMapper {
             ).acceptsNull();
             this.indexMode = mode;
             this.indexed = Parameter.indexParam(m -> toType(m).indexed, () -> {
+                if (indexDisabledByDefault) {
+                    return false;
+                }
+
                 if (indexMode == IndexMode.TIME_SERIES) {
                     var metricType = getMetric().getValue();
                     return metricType != MetricType.COUNTER && metricType != MetricType.GAUGE;
@@ -176,6 +183,7 @@ public class UnsignedLongFieldMapper extends FieldMapper {
 
             this.indexCreatedVersion = indexCreatedVersion;
             this.indexSourceKeepMode = indexSourceKeepMode;
+            this.indexDisabledByDefault = indexDisabledByDefault;
         }
 
         private String parseNullValueAsString(Object o) {
@@ -262,7 +270,8 @@ public class UnsignedLongFieldMapper extends FieldMapper {
             c.getSettings(),
             c.indexVersionCreated(),
             c.getIndexSettings().getMode(),
-            c.getIndexSettings().sourceKeepMode()
+            c.getIndexSettings().sourceKeepMode(),
+            c.getIndexSettings().isIndexDisabledByDefault()
         )
     );
 
@@ -707,6 +716,7 @@ public class UnsignedLongFieldMapper extends FieldMapper {
     private final IndexMode indexMode;
     private final String offsetsFieldName;
     private final SourceKeepMode indexSourceKeepMode;
+    private final boolean indexDisabledByDefault;
 
     private UnsignedLongFieldMapper(
         String simpleName,
@@ -736,6 +746,7 @@ public class UnsignedLongFieldMapper extends FieldMapper {
         this.indexCreatedVersion = builder.indexCreatedVersion;
         this.offsetsFieldName = offsetsFieldName;
         this.indexSourceKeepMode = builder.indexSourceKeepMode;
+        this.indexDisabledByDefault = builder.indexDisabledByDefault;
     }
 
     @Override
@@ -830,9 +841,14 @@ public class UnsignedLongFieldMapper extends FieldMapper {
 
     @Override
     public FieldMapper.Builder getMergeBuilder() {
-        return new Builder(leafName(), ignoreMalformedByDefault, indexCreatedVersion, indexMode, indexSourceKeepMode).dimension(dimension)
-            .metric(metricType)
-            .init(this);
+        return new Builder(
+            leafName(),
+            ignoreMalformedByDefault,
+            indexCreatedVersion,
+            indexMode,
+            indexSourceKeepMode,
+            indexDisabledByDefault
+        ).dimension(dimension).metric(metricType).init(this);
     }
 
     /**

@@ -85,15 +85,18 @@ public class IndexFieldDataServiceTests extends ESSingleNodeTestCase {
         assertTrue(fd instanceof SortedSetOrdinalsIndexFieldData);
 
         for (MappedFieldType mapper : Arrays.asList(
-            new NumberFieldMapper.Builder("int", BYTE, ScriptCompiler.NONE, false, true, IndexVersion.current(), null, null).build(context)
-                .fieldType(),
-            new NumberFieldMapper.Builder("int", SHORT, ScriptCompiler.NONE, false, true, IndexVersion.current(), null, null).build(context)
-                .fieldType(),
-            new NumberFieldMapper.Builder("int", INTEGER, ScriptCompiler.NONE, false, true, IndexVersion.current(), null, null).build(
+            new NumberFieldMapper.Builder("int", BYTE, ScriptCompiler.NONE, false, true, IndexVersion.current(), null, null, false).build(
                 context
             ).fieldType(),
-            new NumberFieldMapper.Builder("long", LONG, ScriptCompiler.NONE, false, true, IndexVersion.current(), null, null).build(context)
-                .fieldType()
+            new NumberFieldMapper.Builder("int", SHORT, ScriptCompiler.NONE, false, true, IndexVersion.current(), null, null, false).build(
+                context
+            ).fieldType(),
+            new NumberFieldMapper.Builder("int", INTEGER, ScriptCompiler.NONE, false, true, IndexVersion.current(), null, null, false)
+                .build(context)
+                .fieldType(),
+            new NumberFieldMapper.Builder("long", LONG, ScriptCompiler.NONE, false, true, IndexVersion.current(), null, null, false).build(
+                context
+            ).fieldType()
         )) {
             ifdService.clear();
             fd = ifdService.getForField(mapper, FieldDataContext.noRuntimeFields("test"));
@@ -108,7 +111,8 @@ public class IndexFieldDataServiceTests extends ESSingleNodeTestCase {
             true,
             IndexVersion.current(),
             null,
-            null
+            null,
+            false
         ).build(context).fieldType();
         ifdService.clear();
         fd = ifdService.getForField(floatMapper, FieldDataContext.noRuntimeFields("test"));
@@ -122,7 +126,8 @@ public class IndexFieldDataServiceTests extends ESSingleNodeTestCase {
             true,
             IndexVersion.current(),
             null,
-            null
+            null,
+            false
         ).build(context).fieldType();
         ifdService.clear();
         fd = ifdService.getForField(doubleMapper, FieldDataContext.noRuntimeFields("test"));

@@ -105,7 +105,8 @@ public abstract class AbstractFieldDataTestCase extends ESSingleNodeTestCase {
                 true,
                 IndexVersion.current(),
                 null,
-                null
+                null,
+                false
             ).docValues(docValues).build(context).fieldType();
         } else if (type.equals("half_float")) {
             fieldType = new NumberFieldMapper.Builder(
@@ -116,7 +117,8 @@ public abstract class AbstractFieldDataTestCase extends ESSingleNodeTestCase {
                 true,
                 IndexVersion.current(),
                 null,
-                null
+                null,
+                false
             ).docValues(docValues).build(context).fieldType();
         } else if (type.equals("double")) {
             fieldType = new NumberFieldMapper.Builder(
@@ -127,7 +129,8 @@ public abstract class AbstractFieldDataTestCase extends ESSingleNodeTestCase {
                 true,
                 IndexVersion.current(),
                 null,
-                null
+                null,
+                false
             ).docValues(docValues).build(context).fieldType();
         } else if (type.equals("long")) {
             fieldType = new NumberFieldMapper.Builder(
@@ -138,7 +141,8 @@ public abstract class AbstractFieldDataTestCase extends ESSingleNodeTestCase {
                 true,
                 IndexVersion.current(),
                 null,
-                null
+                null,
+                false
             ).docValues(docValues).build(context).fieldType();
         } else if (type.equals("int")) {
             fieldType = new NumberFieldMapper.Builder(
@@ -149,7 +153,8 @@ public abstract class AbstractFieldDataTestCase extends ESSingleNodeTestCase {
                 true,
                 IndexVersion.current(),
                 null,
-                null
+                null,
+                false
             ).docValues(docValues).build(context).fieldType();
         } else if (type.equals("short")) {
             fieldType = new NumberFieldMapper.Builder(
@@ -160,7 +165,8 @@ public abstract class AbstractFieldDataTestCase extends ESSingleNodeTestCase {
                 true,
                 IndexVersion.current(),
                 null,
-                null
+                null,
+                false
             ).docValues(docValues).build(context).fieldType();
         } else if (type.equals("byte")) {
             fieldType = new NumberFieldMapper.Builder(
@@ -171,12 +177,14 @@ public abstract class AbstractFieldDataTestCase extends ESSingleNodeTestCase {
                 true,
                 IndexVersion.current(),
                 null,
-                null
+                null,
+                false
             ).docValues(docValues).build(context).fieldType();
         } else if (type.equals("geo_point")) {
-            fieldType = new GeoPointFieldMapper.Builder(fieldName, ScriptCompiler.NONE, false, IndexVersion.current(), null).docValues(
-                docValues
-            ).build(context).fieldType();
+            fieldType = new GeoPointFieldMapper.Builder(fieldName, ScriptCompiler.NONE, false, IndexVersion.current(), null, false)
+                .docValues(docValues)
+                .build(context)
+                .fieldType();
         } else if (type.equals("binary")) {
             fieldType = new BinaryFieldMapper.Builder(fieldName, SourceFieldMapper.isSynthetic(indexService.getIndexSettings())).docValues(
                 docValues

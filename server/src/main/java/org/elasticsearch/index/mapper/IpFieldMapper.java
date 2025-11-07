@@ -74,7 +74,7 @@ public class IpFieldMapper extends FieldMapper {
 
     public static final class Builder extends FieldMapper.DimensionBuilder {
 
-        private final Parameter<Boolean> indexed = Parameter.indexParam(m -> toType(m).indexed, true);
+        private final Parameter<Boolean> indexed;
         private final Parameter<Boolean> hasDocValues = Parameter.docValuesParam(m -> toType(m).hasDocValues, true);
         private final Parameter<Boolean> stored = Parameter.storeParam(m -> toType(m).stored, false);
 
@@ -95,15 +95,18 @@ public class IpFieldMapper extends FieldMapper {
         private final IndexVersion indexCreatedVersion;
         private final ScriptCompiler scriptCompiler;
         private final SourceKeepMode indexSourceKeepMode;
+        private final boolean indexDisabledByDefault;
 
         public Builder(
             String name,
             ScriptCompiler scriptCompiler,
             boolean ignoreMalformedByDefault,
             IndexVersion indexCreatedVersion,
-            SourceKeepMode indexSourceKeepMode
+            SourceKeepMode indexSourceKeepMode,
+            boolean indexDisabledByDefault
         ) {
             super(name);
+            indexed = Parameter.indexParam(m -> toType(m).indexed, indexDisabledByDefault == false);
             this.scriptCompiler = Objects.requireNonNull(scriptCompiler);
             this.ignoreMalformedByDefault = ignoreMalformedByDefault;
             this.indexCreatedVersion = indexCreatedVersion;
@@ -124,6 +127,7 @@ public class IpFieldMapper extends FieldMapper {
                 }
             });
             this.indexSourceKeepMode = indexSourceKeepMode;
+            this.indexDisabledByDefault = indexDisabledByDefault;
         }
 
         Builder nullValue(String nullValue) {
@@ -234,7 +238,14 @@ public class IpFieldMapper extends FieldMapper {
 
     public static final TypeParser PARSER = createTypeParserWithLegacySupport((n, c) -> {
         boolean ignoreMalformedByDefault = IGNORE_MALFORMED_SETTING.get(c.getSettings());
-        return new Builder(n, c.scriptCompiler(), ignoreMalformedByDefault, c.indexVersionCreated(), c.getIndexSettings().sourceKeepMode());
+        return new Builder(
+            n,
+            c.scriptCompiler(),
+            ignoreMalformedByDefault,
+            c.indexVersionCreated(),
+            c.getIndexSettings().sourceKeepMode(),
+            c.getIndexSettings().isIndexDisabledByDefault()
+        );
     });
 
     public static final class IpFieldType extends SimpleMappedFieldType {
@@ -576,6 +587,7 @@ public class IpFieldMapper extends FieldMapper {
     private final ScriptCompiler scriptCompiler;
     private final SourceKeepMode indexSourceKeepMode;
     private final String offsetsFieldName;
+    private final boolean indexDisabledByDefault;
 
     private IpFieldMapper(
         String simpleName,
@@ -601,6 +613,7 @@ public class IpFieldMapper extends FieldMapper {
         this.storeIgnored = storeIgnored;
         this.indexSourceKeepMode = builder.indexSourceKeepMode;
         this.offsetsFieldName = offsetsFieldName;
+        this.indexDisabledByDefault = builder.indexDisabledByDefault;
     }
 
     @Override
@@ -686,9 +699,14 @@ public class IpFieldMapper extends FieldMapper {
 
     @Override
     public FieldMapper.Builder getMergeBuilder() {
-        return new Builder(leafName(), scriptCompiler, ignoreMalformedByDefault, indexCreatedVersion, indexSourceKeepMode).dimension(
-            dimension
-        ).init(this);
+        return new Builder(
+            leafName(),
+            scriptCompiler,
+            ignoreMalformedByDefault,
+            indexCreatedVersion,
+            indexSourceKeepMode,
+            indexDisabledByDefault
+        ).dimension(dimension).init(this);
     }
 
     @Override

@@ -326,14 +326,14 @@ final class DynamicFieldsBuilder {
         @Override
         public boolean newDynamicStringField(DocumentParserContext context, String name) throws IOException {
             MapperBuilderContext mapperBuilderContext = context.createDynamicMapperBuilderContext();
+            var indexSettings = context.indexSettings();
             if (mapperBuilderContext.parentObjectContainsDimensions()) {
                 return createDynamicField(
-                    new KeywordFieldMapper.Builder(name, context.indexSettings().getIndexVersionCreated()),
+                    new KeywordFieldMapper.Builder(name, indexSettings.isIndexDisabledByDefault(), indexSettings.getIndexVersionCreated()),
                     context,
                     mapperBuilderContext
                 );
             } else {
-                var indexSettings = context.indexSettings();
                 return createDynamicField(
                     new TextFieldMapper.Builder(
                         name,
@@ -343,7 +343,7 @@ final class DynamicFieldsBuilder {
                         SourceFieldMapper.isSynthetic(indexSettings),
                         false
                     ).addMultiField(
-                        new KeywordFieldMapper.Builder("keyword", context.indexSettings().getIndexVersionCreated(), true).ignoreAbove(256)
+                        new KeywordFieldMapper.Builder("keyword", indexSettings.getIndexVersionCreated(), true).ignoreAbove(256)
                     ),
                     context
                 );
@@ -360,7 +360,8 @@ final class DynamicFieldsBuilder {
                     context.indexSettings().getSettings(),
                     context.indexSettings().getIndexVersionCreated(),
                     context.indexSettings().getMode(),
-                    context.indexSettings().sourceKeepMode()
+                    context.indexSettings().sourceKeepMode(),
+                    context.indexSettings().isIndexDisabledByDefault()
                 ),
                 context
             );
@@ -379,7 +380,8 @@ final class DynamicFieldsBuilder {
                     context.indexSettings().getSettings(),
                     context.indexSettings().getIndexVersionCreated(),
                     context.indexSettings().getMode(),
-                    context.indexSettings().sourceKeepMode()
+                    context.indexSettings().sourceKeepMode(),
+                    context.indexSettings().isIndexDisabledByDefault()
                 ),
                 context
             );
@@ -395,7 +397,8 @@ final class DynamicFieldsBuilder {
                     ScriptCompiler.NONE,
                     ignoreMalformed,
                     context.indexSettings().getIndexVersionCreated(),
-                    context.indexSettings().sourceKeepMode()
+                    context.indexSettings().sourceKeepMode(),
+                    context.indexSettings().isIndexDisabledByDefault()
                 ),
                 context
             );

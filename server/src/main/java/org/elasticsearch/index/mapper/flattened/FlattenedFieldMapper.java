@@ -142,7 +142,7 @@ public final class FlattenedFieldMapper extends FieldMapper {
             }
         });
 
-        private final Parameter<Boolean> indexed = Parameter.indexParam(m -> builder(m).indexed.get(), true);
+        private final Parameter<Boolean> indexed;
         private final Parameter<Boolean> hasDocValues = Parameter.docValuesParam(m -> builder(m).hasDocValues.get(), true);
 
         private final Parameter<String> nullValue = Parameter.stringParam("null_value", false, m -> builder(m).nullValue.get(), null)
@@ -156,6 +156,7 @@ public final class FlattenedFieldMapper extends FieldMapper {
         );
         private final int ignoreAboveDefault;
         private final Parameter<Integer> ignoreAbove;
+        private final boolean indexDisabledByDefault;
 
         private final Parameter<String> indexOptions = TextParams.keywordIndexOptions(m -> builder(m).indexOptions.get());
         private final Parameter<SimilarityProvider> similarity = TextParams.similarity(m -> builder(m).similarity.get());
@@ -166,19 +167,7 @@ public final class FlattenedFieldMapper extends FieldMapper {
             m -> builder(m).splitQueriesOnWhitespace.get(),
             false
         );
-        private final Parameter<List<String>> dimensions = dimensionsParam(m -> builder(m).dimensions.get()).addValidator(v -> {
-            if (v.isEmpty() == false && (indexed.getValue() == false || hasDocValues.getValue() == false)) {
-                throw new IllegalArgumentException(
-                    "Field ["
-                        + TIME_SERIES_DIMENSIONS_ARRAY_PARAM
-                        + "] requires that ["
-                        + indexed.name
-                        + "] and ["
-                        + hasDocValues.name
-                        + "] are true"
-                );
-            }
-        });
+        private final Parameter<List<String>> dimensions;
 
         private final Parameter<Map<String, String>> meta = Parameter.metaParam();
 
@@ -194,7 +183,8 @@ public final class FlattenedFieldMapper extends FieldMapper {
                 name,
                 IgnoreAbove.getIgnoreAboveDefaultValue(IndexMode.STANDARD, IndexVersion.current()),
                 IndexMode.STANDARD,
-                IndexVersion.current()
+                IndexVersion.current(),
+                false
             );
         }
 
@@ -203,17 +193,39 @@ public final class FlattenedFieldMapper extends FieldMapper {
                 name,
                 IGNORE_ABOVE_SETTING.get(mappingParserContext.getSettings()),
                 mappingParserContext.getIndexSettings().getMode(),
-                mappingParserContext.indexVersionCreated()
+                mappingParserContext.indexVersionCreated(),
+                mappingParserContext.getIndexSettings().isIndexDisabledByDefault()
             );
         }
 
-        private Builder(String name, int ignoreAboveDefault, IndexMode indexMode, IndexVersion indexCreatedVersion) {
+        private Builder(
+            String name,
+            int ignoreAboveDefault,
+            IndexMode indexMode,
+            IndexVersion indexCreatedVersion,
+            boolean indexDisabledByDefault
+        ) {
             super(name);
+            this.indexed = Parameter.indexParam(m -> builder(m).indexed.get(), indexDisabledByDefault == false);
+            this.dimensions = dimensionsParam(m -> builder(m).dimensions.get()).addValidator(v -> {
+                if (v.isEmpty() == false && (indexed.getValue() == false || hasDocValues.getValue() == false)) {
+                    throw new IllegalArgumentException(
+                        "Field ["
+                            + TIME_SERIES_DIMENSIONS_ARRAY_PARAM
+                            + "] requires that ["
+                            + indexed.name
+                            + "] and ["
+                            + hasDocValues.name
+                            + "] are true"
+                    );
+                }
+            });
             this.ignoreAboveDefault = ignoreAboveDefault;
             this.indexMode = indexMode;
             this.indexCreatedVersion = indexCreatedVersion;
             this.ignoreAbove = Parameter.ignoreAboveParam(m -> builder(m).ignoreAbove.get(), ignoreAboveDefault);
             this.dimensions.precludesParameters(ignoreAbove);
+            this.indexDisabledByDefault = indexDisabledByDefault;
         }
 
         @Override
@@ -850,6 +862,7 @@ public final class FlattenedFieldMapper extends FieldMapper {
 
     private final FlattenedFieldParser fieldParser;
     private final Builder builder;
+    private final boolean indexDisabledByDefault;
 
     private FlattenedFieldMapper(String leafName, MappedFieldType mappedFieldType, BuilderParams builderParams, Builder builder) {
         super(leafName, mappedFieldType, builderParams);
@@ -863,6 +876,7 @@ public final class FlattenedFieldMapper extends FieldMapper {
             builder.ignoreAbove.get(),
             builder.nullValue.get()
         );
+        this.indexDisabledByDefault = builder.indexDisabledByDefault;
     }
 
     @Override
@@ -916,7 +930,8 @@ public final class FlattenedFieldMapper extends FieldMapper {
 
     @Override
     public FieldMapper.Builder getMergeBuilder() {
-        return new Builder(leafName(), builder.ignoreAboveDefault, builder.indexMode, builder.indexCreatedVersion).init(this);
+        return new Builder(leafName(), builder.ignoreAboveDefault, builder.indexMode, builder.indexCreatedVersion, indexDisabledByDefault)
+            .init(this);
     }
 
     @Override

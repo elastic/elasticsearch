@@ -734,6 +734,14 @@ public final class IndexSettings {
         Property.Final
     );
 
+    public static final FeatureFlag INDEX_DISABLED_BY_DEFAULT_FEATURE_FLAG = new FeatureFlag("index_disabled_by_default");
+    public static final Setting<Boolean> INDEX_DISABLED_BY_DEFAULT = Setting.boolSetting(
+        "index.mapping.index_disabled_by_default",
+        false,
+        Property.IndexScope,
+        Property.Final
+    );
+
     /**
      * The {@link IndexMode "mode"} of the index.
      */
@@ -996,6 +1004,7 @@ public final class IndexSettings {
     private final boolean recoverySourceSyntheticEnabled;
     private final boolean useDocValuesSkipper;
     private final boolean useTimeSeriesSyntheticId;
+    private final boolean indexDisabledByDefault;
 
     /**
      * The maximum number of refresh listeners allows on this shard.
@@ -1181,6 +1190,7 @@ public final class IndexSettings {
         recoverySourceSyntheticEnabled = DiscoveryNode.isStateless(nodeSettings) == false
             && scopedSettings.get(RECOVERY_USE_SYNTHETIC_SOURCE_SETTING);
         useDocValuesSkipper = DOC_VALUES_SKIPPER && scopedSettings.get(USE_DOC_VALUES_SKIPPER);
+        indexDisabledByDefault = INDEX_DISABLED_BY_DEFAULT_FEATURE_FLAG.isEnabled() && scopedSettings.get(INDEX_DISABLED_BY_DEFAULT);
         seqNoIndexOptions = scopedSettings.get(SEQ_NO_INDEX_OPTIONS_SETTING);
         final var useSyntheticId = IndexSettings.TSDB_SYNTHETIC_ID_FEATURE_FLAG && scopedSettings.get(USE_SYNTHETIC_ID);
         if (indexMetadata.useTimeSeriesSyntheticId() != useSyntheticId) {
@@ -1941,6 +1951,10 @@ public final class IndexSettings {
      */
     public boolean useTimeSeriesSyntheticId() {
         return useTimeSeriesSyntheticId;
+    }
+
+    public boolean isIndexDisabledByDefault() {
+        return indexDisabledByDefault;
     }
 
     /**

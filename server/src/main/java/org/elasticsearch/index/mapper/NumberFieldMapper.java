@@ -136,6 +136,7 @@ public class NumberFieldMapper extends FieldMapper {
 
         private final IndexMode indexMode;
         private final SourceKeepMode indexSourceKeepMode;
+        private final boolean indexDisabledByDefault;
 
         public Builder(
             String name,
@@ -144,7 +145,8 @@ public class NumberFieldMapper extends FieldMapper {
             Settings settings,
             IndexVersion indexCreatedVersion,
             IndexMode mode,
-            SourceKeepMode indexSourceKeepMode
+            SourceKeepMode indexSourceKeepMode,
+            boolean indexDisabledByDefault
         ) {
             this(
                 name,
@@ -154,12 +156,13 @@ public class NumberFieldMapper extends FieldMapper {
                 COERCE_SETTING.get(settings),
                 indexCreatedVersion,
                 mode,
-                indexSourceKeepMode
+                indexSourceKeepMode,
+                indexDisabledByDefault
             );
         }
 
         public static Builder docValuesOnly(String name, NumberType type, IndexVersion indexCreatedVersion) {
-            Builder builder = new Builder(name, type, ScriptCompiler.NONE, false, false, indexCreatedVersion, null, null);
+            Builder builder = new Builder(name, type, ScriptCompiler.NONE, false, false, indexCreatedVersion, null, null, false);
             builder.indexed.setValue(false);
             builder.dimension.setValue(false);
             return builder;
@@ -173,7 +176,8 @@ public class NumberFieldMapper extends FieldMapper {
             boolean coerceByDefault,
             IndexVersion indexCreatedVersion,
             IndexMode mode,
-            SourceKeepMode indexSourceKeepMode
+            SourceKeepMode indexSourceKeepMode,
+            boolean indexDisabledByDefault
         ) {
             super(name);
             this.type = type;
@@ -198,6 +202,10 @@ public class NumberFieldMapper extends FieldMapper {
             ).acceptsNull();
             this.indexMode = mode;
             this.indexed = Parameter.indexParam(m -> toType(m).indexed, () -> {
+                if (indexDisabledByDefault) {
+                    return false;
+                }
+
                 if (indexMode == IndexMode.TIME_SERIES) {
                     var metricType = getMetric().getValue();
                     return metricType != MetricType.COUNTER && metricType != MetricType.GAUGE;
@@ -231,6 +239,7 @@ public class NumberFieldMapper extends FieldMapper {
             addScriptValidation(script, indexed, hasDocValues);
 
             this.indexSourceKeepMode = indexSourceKeepMode;
+            this.indexDisabledByDefault = indexDisabledByDefault;
         }
 
         Builder nullValue(Number number) {
@@ -1531,7 +1540,8 @@ public class NumberFieldMapper extends FieldMapper {
                     c.getSettings(),
                     c.indexVersionCreated(),
                     c.getIndexSettings().getMode(),
-                    c.getIndexSettings().sourceKeepMode()
+                    c.getIndexSettings().sourceKeepMode(),
+                    c.getIndexSettings().isIndexDisabledByDefault()
                 )
             );
         }
@@ -2184,6 +2194,7 @@ public class NumberFieldMapper extends FieldMapper {
 
     private final IndexMode indexMode;
     private final SourceKeepMode indexSourceKeepMode;
+    private final boolean indexDisabledByDefault;
 
     private NumberFieldMapper(
         String simpleName,
@@ -2214,6 +2225,7 @@ public class NumberFieldMapper extends FieldMapper {
         this.indexMode = builder.indexMode;
         this.offsetsFieldName = offsetsFieldName;
         this.indexSourceKeepMode = builder.indexSourceKeepMode;
+        this.indexDisabledByDefault = builder.indexDisabledByDefault;
     }
 
     boolean coerce() {
@@ -2345,7 +2357,8 @@ public class NumberFieldMapper extends FieldMapper {
             coerceByDefault,
             indexCreatedVersion,
             indexMode,
-            indexSourceKeepMode
+            indexSourceKeepMode,
+            indexDisabledByDefault
         ).dimension(dimension).metric(metricType).allowMultipleValues(allowMultipleValues).init(this);
     }
 

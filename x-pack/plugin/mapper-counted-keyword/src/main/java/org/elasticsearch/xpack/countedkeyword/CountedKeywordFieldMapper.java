@@ -180,7 +180,7 @@ public class CountedKeywordFieldMapper extends FieldMapper {
                     XFieldComparatorSource.Nested nested,
                     boolean reverse
                 ) {
-                    throw new UnsupportedOperationException("can't sort on the [" + CONTENT_TYPE + "] field");
+                    throw new IllegalArgumentException("can't sort on the [" + CONTENT_TYPE + "] field");
                 }
 
                 @Override

@@ -102,12 +102,16 @@ public class IndexResolver {
      * <p>
      * The overall minimum version which is used to determine data type support is passed on to the listener.
      */
-    public void resolveAsMergedMapping(
+    public void resolveIndexPattern(
         String indexPattern,
         Set<String> fieldNames,
         QueryBuilder requestFilter,
         boolean includeAllDimensions,
+        // Used for bwc with 9.2.0, which supports aggregate_metric_double but doesn't provide its version in the field
+        // caps response. We'll just assume the type is supported based on usage in the query to not break compatibility
+        // with 9.2.0.
         boolean useAggregateMetricDoubleWhenNotSupported,
+        // Same as above
         boolean useDenseVectorWhenNotSupported,
         @Nullable TransportVersion minimumVersion,
         ActionListener<Versioned<IndexResolution>> listener

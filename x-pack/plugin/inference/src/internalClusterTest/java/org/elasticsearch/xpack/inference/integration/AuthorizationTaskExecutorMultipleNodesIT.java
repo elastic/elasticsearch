@@ -21,6 +21,7 @@ import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServic
 import org.elasticsearch.xpack.inference.services.elastic.InternalPreconfiguredEndpoints;
 import org.elasticsearch.xpack.inference.services.elastic.authorization.AuthorizationPoller;
 import org.junit.AfterClass;
+import org.junit.Before;
 import org.junit.BeforeClass;
 
 import java.io.IOException;
@@ -44,8 +45,11 @@ import static org.hamcrest.Matchers.not;
  * If the task is running on a node that is shutdown, it should be relocated to another node.
  * If the task is cancelled it should be restarted automatically.
  */
+@ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0)
 public class AuthorizationTaskExecutorMultipleNodesIT extends ESIntegTestCase {
 
+    private static final int NUM_DATA_NODES = 2;
+    private static final int NUM_MASTER_NODES = 2;
     private static final String AUTH_TASK_ACTION = AuthorizationPoller.TASK_NAME + "[c]";
     private static final MockWebServer webServer = new MockWebServer();
     private static String gatewayUrl;
@@ -55,6 +59,16 @@ public class AuthorizationTaskExecutorMultipleNodesIT extends ESIntegTestCase {
         webServer.start();
         gatewayUrl = getUrl(webServer);
         webServer.enqueue(new MockResponse().setResponseCode(200).setBody(EMPTY_AUTH_RESPONSE));
+    }
+
+    @Before
+    public void startNodes() {
+        // Ensure we have multiple master and data nodes so we have somewhere to place the inference indices and so that we can safely
+        // shut down the node that is running the authorization task. If there is only one master and it is running the task,
+        // we'll get an error that we can't shut down the only eligible master node
+        internalCluster().startMasterOnlyNodes(NUM_MASTER_NODES);
+        internalCluster().ensureAtLeastNumDataNodes(NUM_DATA_NODES);
+        ensureStableCluster(NUM_MASTER_NODES + NUM_DATA_NODES);
     }
 
     @AfterClass
@@ -82,12 +96,6 @@ public class AuthorizationTaskExecutorMultipleNodesIT extends ESIntegTestCase {
     }
 
     public void testAuthorizationTaskGetsRelocatedToAnotherNode_WhenTheNodeThatIsRunningItShutsDown() throws Exception {
-        // Ensure we have multiple master and data nodes so we have somewhere to place the inference indices and so that we can safely
-        // shut down the node that is running the authorization task. If there is only one master and it is running the task,
-        // we'll get an error that we can't shut down the only eligible master node
-        internalCluster().startMasterOnlyNodes(2);
-        internalCluster().ensureAtLeastNumDataNodes(2);
-
         var nodeNameMapping = getNodeNames(internalCluster().getNodeNames());
 
         var pollerTask = waitForTask(AUTH_TASK_ACTION, admin());
@@ -125,7 +133,6 @@ public class AuthorizationTaskExecutorMultipleNodesIT extends ESIntegTestCase {
             );
             assertThat(rainbowSprinklesEndpoint.getTaskType(), is(TaskType.CHAT_COMPLETION));
         });
-
     }
 
     private record NodeNameMapping(Map<String, String> nodeNamesMap) {

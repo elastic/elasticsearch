@@ -106,11 +106,7 @@ public class BooleanFieldMapper extends FieldMapper {
 
         private final Parameter<Boolean> dimension;
 
-        public Builder(
-            String name,
-            ScriptCompiler scriptCompiler,
-            IndexSettings indexSettings
-        ) {
+        public Builder(String name, ScriptCompiler scriptCompiler, IndexSettings indexSettings) {
             super(name);
             this.scriptCompiler = Objects.requireNonNull(scriptCompiler);
             this.indexSettings = Objects.requireNonNull(indexSettings);
@@ -207,11 +203,7 @@ public class BooleanFieldMapper extends FieldMapper {
     }
 
     public static final TypeParser PARSER = createTypeParserWithLegacySupport(
-        (n, c) -> new Builder(
-            n,
-            c.scriptCompiler(),
-            c.getIndexSettings()
-        )
+        (n, c) -> new Builder(n, c.scriptCompiler(), c.getIndexSettings())
     );
 
     public static final class BooleanFieldType extends TermBasedFieldType {
@@ -627,9 +619,7 @@ public class BooleanFieldMapper extends FieldMapper {
 
     @Override
     public FieldMapper.Builder getMergeBuilder() {
-        return new Builder(leafName(), scriptCompiler, indexSettings).dimension(
-            fieldType().isDimension()
-        ).init(this);
+        return new Builder(leafName(), scriptCompiler, indexSettings).dimension(fieldType().isDimension()).init(this);
     }
 
     @Override

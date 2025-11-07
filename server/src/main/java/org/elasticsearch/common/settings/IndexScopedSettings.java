@@ -207,6 +207,7 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
                 IgnoredSourceFieldMapper.SKIP_IGNORED_SOURCE_READ_SETTING,
                 IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING,
                 IndexSettings.RECOVERY_USE_SYNTHETIC_SOURCE_SETTING,
+                IndexSettings.TIME_SERIES_ES87TSDB_CODEC_ENABLED_SETTING,
                 InferenceMetadataFieldsMapper.USE_LEGACY_SEMANTIC_TEXT_FORMAT,
 
                 // validate that built-in similarities don't get redefined

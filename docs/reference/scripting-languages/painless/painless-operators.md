@@ -20,6 +20,7 @@ Painless operators use Java-like syntax with {{es}} specific enhancements such a
 
 Painless organizes operators into five functional categories based on their purpose.
 
+Double-click to expand.
 :::{image} images/painless-operator-categories.png
 :alt: Painless operator categories
 :::
@@ -85,13 +86,6 @@ Provide specialized functionality for array creation, element access, and array 
 * [New array](/reference/scripting-languages/painless/painless-operators-array.md#new-array-operator) `new []`: Creates arrays with specified dimensions and sizes
 
 ## Complete operator reference
-
-
-
-
-
-
-
 
 | **Operator** | **Category** | **Symbol(s)** | **Precedence** | **Associativity** |
 | --- | --- | --- | --- | --- |

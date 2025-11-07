@@ -56,13 +56,12 @@ public class FrequencyCappedAction {
         TimeValue minInterval,
         Runnable runnable
     ) {
-        lastTimeExecuted.getAndUpdate(lastTimestamp -> {
-            final long currentTimeMillis = currentTimeMillisSupplier.getAsLong();
-            if (currentTimeMillis - lastTimestamp > minInterval.millis()) {
+        final long lastTimestamp = lastTimeExecuted.get();
+        final long currentTimeMillis = currentTimeMillisSupplier.getAsLong();
+        if (currentTimeMillis - lastTimestamp > minInterval.millis()) {
+            if (lastTimeExecuted.compareAndSet(lastTimestamp, currentTimeMillis)) {
                 runnable.run();
-                return currentTimeMillis;
             }
-            return lastTimestamp;
-        });
+        }
     }
 }

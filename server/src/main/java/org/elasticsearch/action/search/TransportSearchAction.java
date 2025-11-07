@@ -1788,7 +1788,8 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                     timeProvider,
                     task,
                     requireAtLeastOneMatch,
-                    searchService.getCoordinatorRewriteContextProvider(timeProvider::absoluteStartMillis)
+                    searchService.getCoordinatorRewriteContextProvider(timeProvider::absoluteStartMillis),
+                    searchResponseMetrics
                 )
                     .addListener(
                         listener.delegateFailureAndWrap(
@@ -2115,6 +2116,12 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                         // Prefer executing shard requests on nodes that are part of PIT first.
                         if (projectState.cluster().nodes().nodeExists(perNode.getNode())) {
                             targetNodes.add(perNode.getNode());
+                        } else {
+                            logger.debug(
+                                "Node [{}] referenced in PIT context id [{}] no longer exists.",
+                                perNode.getNode(),
+                                perNode.getSearchContextId()
+                            );
                         }
                         ShardSearchContextId shardSearchContextId = perNode.getSearchContextId();
                         if (shardSearchContextId.isRetryable()) {

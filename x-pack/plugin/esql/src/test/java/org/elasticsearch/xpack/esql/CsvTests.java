@@ -686,6 +686,7 @@ public class CsvTests extends ESTestCase {
                 new EsqlExecutionInfo(randomBoolean()),
                 planRunner(bigArrays, physicalOperationProviders),
                 session.optimizedPlan(preOptimized, logicalPlanOptimizer),
+                logicalPlanOptimizer,
                 configuration,
                 foldCtx,
                 minimumVersion,

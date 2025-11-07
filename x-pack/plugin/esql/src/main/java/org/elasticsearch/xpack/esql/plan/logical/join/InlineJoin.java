@@ -199,7 +199,7 @@ public class InlineJoin extends Join {
                 }
                 return lr;
             });
-            plan.setOptimized();
+            // plan.setOptimized();
             tuple = new LogicalPlanTuple(plan, originalSubPlanHolder.get());
         }
         return tuple;

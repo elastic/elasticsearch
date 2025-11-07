@@ -66,6 +66,11 @@ public class OpenShiftAiActionCreatorTests extends ESTestCase {
     private static final String USER_ROLE = "user";
     private static final String FULL_INPUT = "abcd";
     private static final String HALF_OF_INPUT = "ab";
+    private static final Settings NO_RETRY_SETTINGS = buildSettingsWithRetryFields(
+        TimeValue.timeValueMillis(1),
+        TimeValue.timeValueMinutes(1),
+        TimeValue.timeValueSeconds(0)
+    );
     private final MockWebServer webServer = new MockWebServer();
     private ThreadPool threadPool;
     private HttpClientManager clientManager;
@@ -147,12 +152,7 @@ public class OpenShiftAiActionCreatorTests extends ESTestCase {
 
     public void testCreate_OpenShiftAiEmbeddingsModel_FailsFromInvalidResponseFormat() throws IOException {
         // timeout as zero for no retries
-        var settings = buildSettingsWithRetryFields(
-            TimeValue.timeValueMillis(1),
-            TimeValue.timeValueMinutes(1),
-            TimeValue.timeValueSeconds(0)
-        );
-        var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager, settings);
+        var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager, NO_RETRY_SETTINGS);
 
         try (var sender = createSender(senderFactory)) {
             sender.startSynchronously();
@@ -276,12 +276,7 @@ public class OpenShiftAiActionCreatorTests extends ESTestCase {
 
     public void testCreate_OpenShiftAiChatCompletionModel_FailsFromInvalidResponseFormat() throws IOException {
         // timeout as zero for no retries
-        var settings = buildSettingsWithRetryFields(
-            TimeValue.timeValueMillis(1),
-            TimeValue.timeValueMinutes(1),
-            TimeValue.timeValueSeconds(0)
-        );
-        var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager, settings);
+        var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager, NO_RETRY_SETTINGS);
 
         try (var sender = createSender(senderFactory)) {
             sender.startSynchronously();
@@ -590,12 +585,8 @@ public class OpenShiftAiActionCreatorTests extends ESTestCase {
     }
 
     public void testCreate_OpenShiftAiRerankModel() throws IOException {
-        var settings = buildSettingsWithRetryFields(
-            TimeValue.timeValueMillis(1),
-            TimeValue.timeValueMinutes(1),
-            TimeValue.timeValueSeconds(0)
-        );
-        var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager, settings);
+        // timeout as zero for no retries
+        var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager, NO_RETRY_SETTINGS);
 
         List<String> documents = List.of("Luke");
         try (var sender = createSender(senderFactory)) {
@@ -631,7 +622,7 @@ public class OpenShiftAiActionCreatorTests extends ESTestCase {
             var model = OpenShiftAiRerankModelTests.createModel(getUrl(webServer), API_KEY, MODEL_ID);
             var actionCreator = new OpenShiftAiActionCreator(
                 sender,
-                new ServiceComponents(threadPool, mockThrottlerManager(), settings, TruncatorTests.createTruncator())
+                new ServiceComponents(threadPool, mockThrottlerManager(), NO_RETRY_SETTINGS, TruncatorTests.createTruncator())
             );
             var action = actionCreator.create(model, null);
 
@@ -659,12 +650,8 @@ public class OpenShiftAiActionCreatorTests extends ESTestCase {
     }
 
     public void testCreate_OpenShiftAiRerankModel_FailsFromInvalidResponseFormat() throws IOException {
-        var settings = buildSettingsWithRetryFields(
-            TimeValue.timeValueMillis(1),
-            TimeValue.timeValueMinutes(1),
-            TimeValue.timeValueSeconds(0)
-        );
-        var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager, settings);
+        // timeout as zero for no retries
+        var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager, NO_RETRY_SETTINGS);
 
         List<String> documents = List.of("Luke");
         try (var sender = createSender(senderFactory)) {
@@ -700,7 +687,7 @@ public class OpenShiftAiActionCreatorTests extends ESTestCase {
             var model = OpenShiftAiRerankModelTests.createModel(getUrl(webServer), API_KEY, MODEL_ID);
             var actionCreator = new OpenShiftAiActionCreator(
                 sender,
-                new ServiceComponents(threadPool, mockThrottlerManager(), settings, TruncatorTests.createTruncator())
+                new ServiceComponents(threadPool, mockThrottlerManager(), NO_RETRY_SETTINGS, TruncatorTests.createTruncator())
             );
             var action = actionCreator.create(model, null);
 

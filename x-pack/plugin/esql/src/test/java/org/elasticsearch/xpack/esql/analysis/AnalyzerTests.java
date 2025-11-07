@@ -2056,23 +2056,21 @@ public class AnalyzerTests extends ESTestCase {
             line 2:115: argument of [sum(x)] must be [aggregate_metric_double or numeric except unsigned_long or counter types],\
              found value [x] type [unsigned_long]""");
 
-        verifyUnsupported(
-            """
-                row x = to_version("1.2")
-                | stats  avg(x), median(x), median_absolute_deviation(x), percentile(x, 10), sum(x)
-                """,
-            """
-                Found 5 problems
-                line 2:10: argument of [avg(x)] must be [aggregate_metric_double or numeric except unsigned_long or counter types],\
-                 found value [x] type [version]
-                line 2:18: argument of [median(x)] must be [numeric except unsigned_long or counter types],\
-                 found value [x] type [version]
-                line 2:29: argument of [median_absolute_deviation(x)] must be [numeric except unsigned_long or counter types],\
-                 found value [x] type [version]
-                line 2:59: first argument of [percentile(x, 10)] must be [exponential_histogram or numeric except unsigned_long], found value [x] type [version]
-                line 2:78: argument of [sum(x)] must be [aggregate_metric_double or numeric except unsigned_long or counter types],\
-                 found value [x] type [version]"""
-        );
+        verifyUnsupported("""
+            row x = to_version("1.2")
+            | stats  avg(x), median(x), median_absolute_deviation(x), percentile(x, 10), sum(x)
+            """, """
+            Found 5 problems
+            line 2:10: argument of [avg(x)] must be [aggregate_metric_double or numeric except unsigned_long or counter types],\
+             found value [x] type [version]
+            line 2:18: argument of [median(x)] must be [numeric except unsigned_long or counter types],\
+             found value [x] type [version]
+            line 2:29: argument of [median_absolute_deviation(x)] must be [numeric except unsigned_long or counter types],\
+             found value [x] type [version]
+            line 2:59: first argument of [percentile(x, 10)] must be [exponential_histogram or numeric except unsigned_long],\
+             found value [x] type [version]
+            line 2:78: argument of [sum(x)] must be [aggregate_metric_double or numeric except unsigned_long or counter types],\
+             found value [x] type [version]""");
     }
 
     public void testInOnText() {

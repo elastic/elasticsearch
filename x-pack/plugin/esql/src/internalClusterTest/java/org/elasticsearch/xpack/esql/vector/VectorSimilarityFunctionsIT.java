@@ -19,7 +19,6 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.ElementType;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
@@ -42,7 +41,7 @@ import java.util.Set;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.CoreMatchers.containsString;
 
-@TestLogging(value = "org.elasticsearch.xpack.esql:TRACE", reason = "debug")
+//@TestLogging(value = "org.elasticsearch.xpack.esql:TRACE", reason = "debug")
 public class VectorSimilarityFunctionsIT extends AbstractEsqlIntegTestCase {
 
     private List<List<Number>> leftVectors;
@@ -155,21 +154,24 @@ public class VectorSimilarityFunctionsIT extends AbstractEsqlIntegTestCase {
 
     @SuppressWarnings("unchecked")
     public void testSimilarityWithOneDimVector() {
-        final float oneDimFloat = randomFloat();
         var randomVector = randomVector(1);
         var query = String.format(Locale.ROOT, """
-                ROW left_vector = to_dense_vector(%s)
-                | EVAL similarity = %s(left_vector, %f)
-                | KEEP left_vector, similarity
-            """, randomVector, functionName, oneDimFloat);
+                FROM test
+                | EVAL similarity = %s(one_dim_vector, %s)
+                | KEEP one_dim_vector, similarity
+            """, functionName, randomVector);
         try (var resp = run(query)) {
             List<List<Object>> valuesList = EsqlTestUtils.getValuesList(resp);
             valuesList.forEach(values -> {
-                float[] left = new float[] { (float) values.get(0) };
+                List<Number> vecAsList = values.get(0) == null ? null : List.of((Number) values.get(0));
                 Double similarity = (Double) values.get(1);
-                assertNotNull(similarity);
-                float expectedSimilarity = similarityFunction.calculateSimilarity(left, new float[] { oneDimFloat });
-                assertEquals(expectedSimilarity, similarity, 0.0001);
+                if (vecAsList == null || randomVector == null) {
+                    assertNull(similarity);
+                } else {
+                    assertNotNull(similarity);
+                    double expectedSimilarity = calculateSimilarity(similarityFunction, randomVector, vecAsList);
+                    assertEquals(expectedSimilarity, similarity, 0.0001);
+                }
             });
         }
     }
@@ -251,7 +253,11 @@ public class VectorSimilarityFunctionsIT extends AbstractEsqlIntegTestCase {
     }
 
     public void testDifferentDimensions() {
-        var randomVector = randomVector(randomValueOtherThan(numDims, () -> randomIntBetween(32, 64) * 2));
+        // edge case where this might not throw is if all `left_vector` are null, but the chance is (hopefully!) low enough to ignore
+        var randomVector = randomValueOtherThan(
+            null,
+            () -> randomVector(randomValueOtherThan(numDims, () -> randomIntBetween(32, 64) * 2))
+        );
         var query = String.format(Locale.ROOT, """
                 FROM test
                 | EVAL similarity = %s(left_vector, %s)
@@ -309,8 +315,9 @@ public class VectorSimilarityFunctionsIT extends AbstractEsqlIntegTestCase {
         for (int i = 0; i < numDocs; i++) {
             List<Number> leftVector = randomVector();
             List<Number> rightVector = randomVector();
+            List<Number> oneDimVector = randomVector(1);
             docs[i] = prepareIndex("test").setId("" + i)
-                .setSource("id", String.valueOf(i), "left_vector", leftVector, "right_vector", rightVector);
+                .setSource("id", String.valueOf(i), "left_vector", leftVector, "right_vector", rightVector, "one_dim_vector", oneDimVector);
             leftVectors.add(leftVector);
         }
 
@@ -347,6 +354,7 @@ public class VectorSimilarityFunctionsIT extends AbstractEsqlIntegTestCase {
             .endObject();
         createDenseVectorField(mapping, "left_vector");
         createDenseVectorField(mapping, "right_vector");
+        createDenseVectorField(mapping, "one_dim_vector");
         mapping.endObject().endObject();
         Settings.Builder settingsBuilder = Settings.builder()
             .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)

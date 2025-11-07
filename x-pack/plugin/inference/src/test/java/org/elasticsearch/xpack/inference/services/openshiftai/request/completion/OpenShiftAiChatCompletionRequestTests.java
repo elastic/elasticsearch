@@ -20,40 +20,47 @@ import java.util.Map;
 import static org.elasticsearch.xpack.inference.external.http.Utils.entityAsMap;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.sameInstance;
 
 public class OpenShiftAiChatCompletionRequestTests extends ESTestCase {
+
+    private static final String URL = "url";
+    private static final String MODEL_ID = "model";
+    private static final String USER_ROLE = "user";
+    private static final String API_KEY = "secret";
+
     public void testCreateRequest_WithStreaming() throws IOException {
         String input = randomAlphaOfLength(15);
-        var request = createRequest("model", "url", "secret", input, true);
+        var request = createRequest(MODEL_ID, URL, API_KEY, input, true);
         var httpRequest = request.createHttpRequest();
 
         assertThat(httpRequest.httpRequestBase(), instanceOf(HttpPost.class));
         var httpPost = (HttpPost) httpRequest.httpRequestBase();
 
         var requestMap = entityAsMap(httpPost.getEntity().getContent());
-        assertThat(request.getURI().toString(), is("url"));
+        assertThat(request.getURI().toString(), is(URL));
         assertThat(requestMap.get("stream"), is(true));
-        assertThat(requestMap.get("model"), is("model"));
+        assertThat(requestMap.get("model"), is(MODEL_ID));
         assertThat(requestMap.get("n"), is(1));
         assertNull(requestMap.get("stream_options"));
-        assertThat(requestMap.get("messages"), is(List.of(Map.of("role", "user", "content", input))));
-        assertThat(httpPost.getFirstHeader(HttpHeaders.AUTHORIZATION).getValue(), is("Bearer secret"));
+        assertThat(requestMap.get("messages"), is(List.of(Map.of("role", USER_ROLE, "content", input))));
+        assertThat(httpPost.getFirstHeader(HttpHeaders.AUTHORIZATION).getValue(), is("Bearer %s".formatted(API_KEY)));
     }
 
     public void testTruncate_DoesNotReduceInputTextSize() {
         String input = randomAlphaOfLength(5);
-        var request = createRequest("model", "url", "secret", input, true);
-        assertThat(request.truncate(), is(request));
+        var request = createRequest(MODEL_ID, URL, API_KEY, input, true);
+        assertThat(request.truncate(), is(sameInstance(request)));
     }
 
     public void testTruncationInfo_ReturnsNull() {
-        var request = createRequest("model", "url", "secret", randomAlphaOfLength(5), true);
+        var request = createRequest(MODEL_ID, URL, API_KEY, randomAlphaOfLength(5), true);
         assertNull(request.getTruncationInfo());
     }
 
     public static OpenShiftAiChatCompletionRequest createRequest(String modelId, String url, String apiKey, String input, boolean stream) {
         var chatCompletionModel = OpenShiftAiChatCompletionModelTests.createChatCompletionModel(url, apiKey, modelId);
-        return new OpenShiftAiChatCompletionRequest(new UnifiedChatInput(List.of(input), "user", stream), chatCompletionModel);
+        return new OpenShiftAiChatCompletionRequest(new UnifiedChatInput(List.of(input), USER_ROLE, stream), chatCompletionModel);
     }
 
 }

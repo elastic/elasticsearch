@@ -104,7 +104,7 @@ public class SamplingConfigurationTests extends AbstractXContentSerializingTestC
         assertThat(config.rate(), equalTo(0.5));
         assertThat(config.maxSamples(), equalTo(SamplingConfiguration.DEFAULT_MAX_SAMPLES));
         long expectedDefaultMaxSize = Math.max(
-            (long) (SamplingConfiguration.MAX_SIZE_HEAP_PERCENTAGE_LIMIT * JvmInfo.jvmInfo().getConfiguredMaxHeapSize()),
+            (long) (SamplingConfiguration.DEFAULT_MAX_SIZE_HEAP_PERCENTAGE * JvmInfo.jvmInfo().getConfiguredMaxHeapSize()),
             SamplingConfiguration.DEFAULT_MAX_SIZE_FLOOR.getBytes()
         );
         assertThat(config.maxSize(), equalTo(ByteSizeValue.ofBytes(expectedDefaultMaxSize)));
@@ -340,7 +340,7 @@ public class SamplingConfigurationTests extends AbstractXContentSerializingTestC
         SamplingConfiguration config = new SamplingConfiguration(0.5, null, null, null, null);
 
         // Calculate what the heap percentage would give us
-        long heapBasedSize = (long) (SamplingConfiguration.MAX_SIZE_HEAP_PERCENTAGE_LIMIT * JvmInfo.jvmInfo().getConfiguredMaxHeapSize());
+        long heapBasedSize = (long) (SamplingConfiguration.DEFAULT_MAX_SIZE_HEAP_PERCENTAGE * JvmInfo.jvmInfo().getConfiguredMaxHeapSize());
         long minSize = SamplingConfiguration.DEFAULT_MAX_SIZE_FLOOR.getBytes();
 
         // The actual default should be the larger of the two

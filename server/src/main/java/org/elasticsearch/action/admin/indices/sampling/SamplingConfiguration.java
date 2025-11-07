@@ -58,7 +58,8 @@ public record SamplingConfiguration(
 
     // Constants for validation and defaults
     public static final int MAX_SAMPLES_LIMIT = 10_000;
-    public static final double MAX_SIZE_HEAP_PERCENTAGE_LIMIT = 0.01;
+    public static final double DEFAULT_MAX_SIZE_HEAP_PERCENTAGE = 0.01;
+    public static final double MAX_SIZE_HEAP_PERCENTAGE_LIMIT = 0.05;
     public static final ByteSizeValue DEFAULT_MAX_SIZE_FLOOR = ByteSizeValue.ofKb(100);
     public static final long MAX_TIME_TO_LIVE_DAYS = 30;
     public static final int DEFAULT_MAX_SAMPLES = 100;
@@ -72,7 +73,7 @@ public record SamplingConfiguration(
     public static final String INVALID_MAX_SIZE_MAX_MESSAGE = "maxSize must be less than or equal to "
         + (int) (MAX_SIZE_HEAP_PERCENTAGE_LIMIT * 100)
         + "% of heap size ("
-        + calculateDefaultMaxSize().toString()
+        + calculateMaxSizeLimit().toString()
         + ")";
     public static final String INVALID_TIME_TO_LIVE_MIN_MESSAGE = "timeToLive must be greater than 0";
     public static final String INVALID_TIME_TO_LIVE_MAX_MESSAGE = "timeToLive must be less than or equal to "
@@ -157,7 +158,7 @@ public record SamplingConfiguration(
      *
      * @param rate The fraction of documents to sample (must be between 0 and 1)
      * @param maxSamples The maximum number of documents to sample (optional, defaults to {@link #DEFAULT_MAX_SAMPLES})
-     * @param maxSize The maximum total size of sampled documents (optional, defaults to {@link #MAX_SIZE_HEAP_PERCENTAGE_LIMIT} of heap)
+     * @param maxSize The maximum total size of sampled documents (optional, defaults to {@link #DEFAULT_MAX_SIZE_HEAP_PERCENTAGE} of heap)
      * @param timeToLive The duration for which the sampled documents
      *                   should be retained (optional, defaults to {@link #DEFAULT_TIME_TO_LIVE_DAYS} days)
      * @param condition An optional condition script that sampled documents must satisfy (optional, can be null)
@@ -186,8 +187,17 @@ public record SamplingConfiguration(
      * @return The default max size value
      */
     private static ByteSizeValue calculateDefaultMaxSize() {
-        long heapBasedSize = (long) (MAX_SIZE_HEAP_PERCENTAGE_LIMIT * JvmInfo.jvmInfo().getConfiguredMaxHeapSize());
+        long heapBasedSize = (long) (DEFAULT_MAX_SIZE_HEAP_PERCENTAGE * JvmInfo.jvmInfo().getConfiguredMaxHeapSize());
         return ByteSizeValue.ofBytes(Math.max(heapBasedSize, DEFAULT_MAX_SIZE_FLOOR.getBytes()));
+    }
+
+    /**
+     * Calculates the max size limit as a percentage of the configured heap size.
+     *
+     * @return The max size limit value
+     */
+    public static ByteSizeValue calculateMaxSizeLimit() {
+        return ByteSizeValue.ofBytes((long) (MAX_SIZE_HEAP_PERCENTAGE_LIMIT * JvmInfo.jvmInfo().getConfiguredMaxHeapSize()));
     }
 
     // Convenience constructor without creationTime
@@ -282,7 +292,7 @@ public record SamplingConfiguration(
             if (maxSize.compareTo(ByteSizeValue.ZERO) <= 0) {
                 throw new IllegalArgumentException(INVALID_MAX_SIZE_MIN_MESSAGE);
             }
-            ByteSizeValue maxLimit = calculateDefaultMaxSize();
+            ByteSizeValue maxLimit = calculateMaxSizeLimit();
             if (maxSize.compareTo(maxLimit) > 0) {
                 throw new IllegalArgumentException(INVALID_MAX_SIZE_MAX_MESSAGE);
             }

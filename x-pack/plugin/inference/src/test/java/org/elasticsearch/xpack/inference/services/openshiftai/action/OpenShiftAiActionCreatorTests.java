@@ -63,8 +63,9 @@ public class OpenShiftAiActionCreatorTests extends ESTestCase {
     private static final String MODEL_ID = "model";
     private static final String API_KEY = "secret";
     private static final String QUERY = "popular name";
-    private static final String INPUT = "abc";
-    public static final String USER_ROLE = "user";
+    private static final String USER_ROLE = "user";
+    private static final String FULL_INPUT = "abcd";
+    private static final String HALF_OF_INPUT = "ab";
     private final MockWebServer webServer = new MockWebServer();
     private ThreadPool threadPool;
     private HttpClientManager clientManager;
@@ -121,7 +122,7 @@ public class OpenShiftAiActionCreatorTests extends ESTestCase {
 
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
             action.execute(
-                new EmbeddingsInput(List.of(INPUT), InputTypeTests.randomWithNull()),
+                new EmbeddingsInput(List.of(FULL_INPUT), InputTypeTests.randomWithNull()),
                 InferenceAction.Request.DEFAULT_TIMEOUT,
                 listener
             );
@@ -139,7 +140,7 @@ public class OpenShiftAiActionCreatorTests extends ESTestCase {
 
             var requestMap = entityAsMap(webServer.requests().getFirst().getBody());
             assertThat(requestMap.size(), is(2));
-            assertThat(requestMap.get("input"), is(List.of(INPUT)));
+            assertThat(requestMap.get("input"), is(List.of(FULL_INPUT)));
             assertThat(requestMap.get("model"), is(MODEL_ID));
         }
     }
@@ -184,7 +185,7 @@ public class OpenShiftAiActionCreatorTests extends ESTestCase {
 
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
             action.execute(
-                new EmbeddingsInput(List.of(INPUT), InputTypeTests.randomWithNull()),
+                new EmbeddingsInput(List.of(FULL_INPUT), InputTypeTests.randomWithNull()),
                 InferenceAction.Request.DEFAULT_TIMEOUT,
                 listener
             );
@@ -251,7 +252,7 @@ public class OpenShiftAiActionCreatorTests extends ESTestCase {
             var action = actionCreator.create(model);
 
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-            action.execute(new ChatCompletionInput(List.of(INPUT)), InferenceAction.Request.DEFAULT_TIMEOUT, listener);
+            action.execute(new ChatCompletionInput(List.of(FULL_INPUT)), InferenceAction.Request.DEFAULT_TIMEOUT, listener);
 
             var result = listener.actionGet(ESTestCase.TEST_REQUEST_TIMEOUT);
 
@@ -266,7 +267,7 @@ public class OpenShiftAiActionCreatorTests extends ESTestCase {
 
             var requestMap = entityAsMap(webServer.requests().getFirst().getBody());
             assertThat(requestMap.size(), is(4));
-            assertThat(requestMap.get("messages"), is(List.of(Map.of("role", USER_ROLE, "content", INPUT))));
+            assertThat(requestMap.get("messages"), is(List.of(Map.of("role", USER_ROLE, "content", FULL_INPUT))));
             assertThat(requestMap.get("model"), is(MODEL_ID));
             assertThat(requestMap.get("n"), is(1));
             assertThat(requestMap.get("stream"), is(false));
@@ -322,7 +323,7 @@ public class OpenShiftAiActionCreatorTests extends ESTestCase {
             var action = actionCreator.create(model);
 
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-            action.execute(new ChatCompletionInput(List.of(INPUT)), InferenceAction.Request.DEFAULT_TIMEOUT, listener);
+            action.execute(new ChatCompletionInput(List.of(FULL_INPUT)), InferenceAction.Request.DEFAULT_TIMEOUT, listener);
 
             var failureCauseMessage = "Required [choices]";
             var thrownException = expectThrows(
@@ -396,7 +397,7 @@ public class OpenShiftAiActionCreatorTests extends ESTestCase {
 
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
             action.execute(
-                new EmbeddingsInput(List.of("abcd"), InputTypeTests.randomWithNull()),
+                new EmbeddingsInput(List.of(FULL_INPUT), InputTypeTests.randomWithNull()),
                 InferenceAction.Request.DEFAULT_TIMEOUT,
                 listener
             );
@@ -415,7 +416,7 @@ public class OpenShiftAiActionCreatorTests extends ESTestCase {
 
                 var requestMap = entityAsMap(webServer.requests().getFirst().getBody());
                 assertThat(requestMap.size(), is(2));
-                assertThat(requestMap.get("input"), is(List.of("abcd")));
+                assertThat(requestMap.get("input"), is(List.of(FULL_INPUT)));
                 assertThat(requestMap.get("model"), is(MODEL_ID));
             }
             {
@@ -428,7 +429,7 @@ public class OpenShiftAiActionCreatorTests extends ESTestCase {
 
                 var requestMap = entityAsMap(webServer.requests().get(1).getBody());
                 assertThat(requestMap.size(), is(2));
-                assertThat(requestMap.get("input"), is(List.of("ab")));
+                assertThat(requestMap.get("input"), is(List.of(HALF_OF_INPUT)));
                 assertThat(requestMap.get("model"), is(MODEL_ID));
             }
         }
@@ -488,7 +489,7 @@ public class OpenShiftAiActionCreatorTests extends ESTestCase {
 
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
             action.execute(
-                new EmbeddingsInput(List.of("abcd"), InputTypeTests.randomWithNull()),
+                new EmbeddingsInput(List.of(FULL_INPUT), InputTypeTests.randomWithNull()),
                 InferenceAction.Request.DEFAULT_TIMEOUT,
                 listener
             );
@@ -507,7 +508,7 @@ public class OpenShiftAiActionCreatorTests extends ESTestCase {
 
                 var requestMap = entityAsMap(webServer.requests().getFirst().getBody());
                 assertThat(requestMap.size(), is(2));
-                assertThat(requestMap.get("input"), is(List.of("abcd")));
+                assertThat(requestMap.get("input"), is(List.of(FULL_INPUT)));
                 assertThat(requestMap.get("model"), is(MODEL_ID));
             }
             {
@@ -520,7 +521,7 @@ public class OpenShiftAiActionCreatorTests extends ESTestCase {
 
                 var requestMap = entityAsMap(webServer.requests().get(1).getBody());
                 assertThat(requestMap.size(), is(2));
-                assertThat(requestMap.get("input"), is(List.of("ab")));
+                assertThat(requestMap.get("input"), is(List.of(HALF_OF_INPUT)));
                 assertThat(requestMap.get("model"), is(MODEL_ID));
             }
         }

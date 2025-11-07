@@ -213,7 +213,6 @@ public class SearchRequest extends LegacyActionRequest implements IndicesRequest
         }
         final SearchRequest request = new SearchRequest(originalSearchRequest, indices, clusterAlias, absoluteStartMillis, finalReduce);
         request.setParentTask(parentTaskId);
-        request.setProjectRouting(originalSearchRequest.getProjectRouting());
         return request;
     }
 

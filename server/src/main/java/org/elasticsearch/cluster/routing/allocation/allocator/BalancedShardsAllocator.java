@@ -248,7 +248,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
     }
 
     @Override
-    public ShardAllocationDecision decideShardAllocation(final ShardRouting shard, final RoutingAllocation allocation) {
+    public ShardAllocationDecision explainShardAllocation(final ShardRouting shard, final RoutingAllocation allocation) {
         Balancer balancer = new Balancer(
             writeLoadForecaster,
             allocation,
@@ -709,12 +709,18 @@ public class BalancedShardsAllocator implements ShardsAllocator {
                             lowIdx = 0;
                             highIdx = relevantNodes - 1;
 
+                            assert allocation.isSimulating() == false || routingNodes.getRelocatingShardCount() == 1
+                                : "unexpected relocation shard count ["
+                                    + routingNodes.getRelocatingShardCount()
+                                    + "] when balancing index ["
+                                    + index
+                                    + "], isSimulating=["
+                                    + allocation.isSimulating()
+                                    + "], earlyReturn=["
+                                    + completeEarlyOnShardAssignmentChange
+                                    + "]";
+
                             if (routingNodes.getRelocatingShardCount() > 0) {
-                                // ES-12955: Check routingNodes.getRelocatingShardCount() > 0 in case the first relocation is a THROTTLE.
-                                // This should rarely happen since in most cases, we don't throttle unless there is an existing relocation.
-                                // But it can happen in production for frozen indices when the cache is still being prepared. It can also
-                                // happen in tests because we have decider like RandomAllocationDecider that can randomly return THROTTLE
-                                // when there is no existing relocation.
                                 shardBalanced = true;
                             }
                             if (completeEarlyOnShardAssignmentChange && shardBalanced) {
@@ -826,7 +832,21 @@ public class BalancedShardsAllocator implements ShardsAllocator {
                     shardRouting,
                     bestNonPreferredShardMovementsTracker::shardIsBetterThanCurrent
                 );
-                if (moveDecision.isDecisionTaken() && moveDecision.forceMove()) {
+                // A THROTTLE allocation decision can happen when not simulating
+                assert moveDecision.isDecisionTaken() == false
+                    || allocation.isSimulating() == false
+                    || moveDecision.getAllocationDecision() != AllocationDecision.THROTTLED
+                    : "unexpected allocation decision ["
+                        + moveDecision.getAllocationDecision()
+                        + "] (isSimulating="
+                        + allocation.isSimulating()
+                        + ") with "
+                        + (shardMoved ? "" : "no ")
+                        + "prior shard movements when moving shard ["
+                        + shardRouting
+                        + "]";
+
+                if (moveDecision.isDecisionTaken() && moveDecision.cannotRemainAndCanMove()) {
                     // Defer moving of not-preferred until we've moved the NOs
                     if (moveDecision.getCanRemainDecision().type() == Type.NOT_PREFERRED) {
                         bestNonPreferredShardMovementsTracker.putBestMoveDecision(shardRouting, moveDecision);
@@ -850,7 +870,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
                 // invalid, so we must call `decideMove` again. If not, we know we haven't made any moves, and we
                 // can use the cached decision.
                 final var moveDecision = shardMoved ? decideMove(index, shardRouting) : storedShardMovement.moveDecision();
-                if (moveDecision.isDecisionTaken() && moveDecision.forceMove()) {
+                if (moveDecision.isDecisionTaken() && moveDecision.cannotRemainAndCanMove()) {
                     executeMove(shardRouting, index, moveDecision, "move-non-preferred");
                     // Return after a single move so that the change can be simulated before further moves are made.
                     return true;
@@ -903,8 +923,9 @@ public class BalancedShardsAllocator implements ShardsAllocator {
          *   2. If the shard is allowed to remain on its current node, no attempt will be made to move the shard and
          *      {@link MoveDecision#getCanRemainDecision} will have a decision type of YES. All other fields in the object will be null.
          *   3. If the shard is not allowed to remain on its current node, then {@link MoveDecision#getAllocationDecision()} will be
-         *      populated with the decision of moving to another node. If {@link MoveDecision#forceMove()} returns {@code true}, then
-         *      {@link MoveDecision#getTargetNode} will return a non-null value, otherwise the assignedNodeId will be null.
+         *      populated with the decision of moving to another node. If {@link MoveDecision#cannotRemainAndCanMove()} returns
+         *      {@code true}, then {@link MoveDecision#getTargetNode} will return a non-null value, otherwise the assignedNodeId will be
+         *      null.
          *   4. If the method is invoked in explain mode (e.g. from the cluster allocation explain APIs), then
          *      {@link MoveDecision#getNodeDecisions} will have a non-null value.
          *
@@ -931,7 +952,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
             RoutingNode routingNode = sourceNode.getRoutingNode();
             Decision canRemain = allocation.deciders().canRemain(shardRouting, routingNode, allocation);
             if (canRemain.type() != Decision.Type.NO && canRemain.type() != Decision.Type.NOT_PREFERRED) {
-                return MoveDecision.remain(canRemain);
+                return MoveDecision.createRemainYesDecision(canRemain);
             }
 
             // Check predicate to decide whether to assess movement options
@@ -947,7 +968,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
              * allocate on the minimal eligible node.
              */
             final MoveDecision moveDecision = decideMove(sorter, shardRouting, sourceNode, canRemain, this::decideCanAllocate);
-            if (moveDecision.canRemain() == false && moveDecision.forceMove() == false) {
+            if (moveDecision.cannotRemainAndCannotMove()) {
                 final boolean shardsOnReplacedNode = allocation.metadata().nodeShutdowns().contains(shardRouting.currentNodeId(), REPLACE);
                 if (shardsOnReplacedNode) {
                     return decideMove(sorter, shardRouting, sourceNode, canRemain, this::decideCanForceAllocateForVacate);
@@ -1237,6 +1258,21 @@ public class BalancedShardsAllocator implements ShardsAllocator {
                     ShardRouting shard = primary[i];
                     final ProjectIndex index = projectIndex(shard);
                     final AllocateUnassignedDecision allocationDecision = decideAllocateUnassigned(index, shard);
+
+                    assert allocationDecision.isDecisionTaken() : "decision not taken for unassigned shard [" + shard + "]";
+
+                    // If we see a THROTTLE decision, it's either:
+                    // 1. Not simulating
+                    // 2. Or, there is shard assigned before this one
+                    assert allocation.isSimulating() == false
+                        || allocationDecision.getAllocationStatus() != AllocationStatus.DECIDERS_THROTTLED
+                        || shardAssignmentChanged
+                        : "unexpected THROTTLE decision (isSimulating="
+                            + allocation.isSimulating()
+                            + ") with no prior assignment when allocating unassigned shard ["
+                            + shard
+                            + "]";
+
                     final String assignedNodeId = allocationDecision.getTargetNode() != null
                         ? allocationDecision.getTargetNode().getId()
                         : null;
@@ -1273,9 +1309,6 @@ public class BalancedShardsAllocator implements ShardsAllocator {
                             assert allocationDecision.getAllocationStatus() == AllocationStatus.DECIDERS_THROTTLED;
                             final long shardSize = getExpectedShardSize(shard, ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE, allocation);
                             minNode.addShard(projectIndex(shard), shard.initialize(minNode.getNodeId(), null, shardSize));
-                            // If we see a throttle decision in simulation, there must be other shards that got assigned before it.
-                            assert allocation.isSimulating() == false || shardAssignmentChanged
-                                : "shard " + shard + " was throttled but no other shards were assigned";
                         } else {
                             if (logger.isTraceEnabled()) {
                                 logger.trace("No Node found to assign shard [{}]", shard);

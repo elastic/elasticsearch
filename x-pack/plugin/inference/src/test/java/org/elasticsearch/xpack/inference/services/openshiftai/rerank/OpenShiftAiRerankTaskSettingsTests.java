@@ -23,6 +23,7 @@ import java.util.Map;
 
 import static org.elasticsearch.xpack.inference.MatchersUtils.equalToIgnoringWhitespaceInJsonString;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.is;
 
 public class OpenShiftAiRerankTaskSettingsTests extends AbstractBWCWireSerializationTestCase<OpenShiftAiRerankTaskSettings> {
     public static OpenShiftAiRerankTaskSettings createRandom() {
@@ -35,8 +36,8 @@ public class OpenShiftAiRerankTaskSettingsTests extends AbstractBWCWireSerializa
     public void testFromMap_WithValidValues_ReturnsSettings() {
         Map<String, Object> taskMap = Map.of(OpenShiftAiRerankTaskSettings.RETURN_DOCUMENTS, true, OpenShiftAiRerankTaskSettings.TOP_N, 5);
         var settings = OpenShiftAiRerankTaskSettings.fromMap(new HashMap<>(taskMap));
-        assertTrue(settings.getReturnDocuments());
-        assertEquals(5, settings.getTopN().intValue());
+        assertThat(settings.getReturnDocuments(), is(true));
+        assertThat(settings.getTopN().intValue(), is(5));
     }
 
     public void testFromMap_WithNullValues_ReturnsSettingsWithNulls() {

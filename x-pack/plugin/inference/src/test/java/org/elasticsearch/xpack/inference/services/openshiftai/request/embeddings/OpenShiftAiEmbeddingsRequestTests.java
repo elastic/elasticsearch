@@ -87,7 +87,7 @@ public class OpenShiftAiEmbeddingsRequestTests extends ESTestCase {
         assertFalse(request.getTruncationInfo()[0]);
 
         var truncatedRequest = request.truncate();
-        assertTrue(truncatedRequest.getTruncationInfo()[0]);
+        assertThat(truncatedRequest.getTruncationInfo()[0], is(true));
     }
 
     private HttpPost validateRequestUrlAndContentType(HttpRequest request) {

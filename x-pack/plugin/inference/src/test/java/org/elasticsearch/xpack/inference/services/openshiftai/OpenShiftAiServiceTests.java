@@ -42,6 +42,7 @@ import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
+import org.elasticsearch.xpack.core.inference.chunking.ChunkingSettingsBuilder;
 import org.elasticsearch.xpack.core.inference.results.ChunkedInferenceEmbedding;
 import org.elasticsearch.xpack.core.inference.results.DenseEmbeddingFloatResults;
 import org.elasticsearch.xpack.core.inference.results.UnifiedChatCompletionException;
@@ -83,7 +84,6 @@ import static org.elasticsearch.inference.TaskType.TEXT_EMBEDDING;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertToXContentEquivalent;
 import static org.elasticsearch.xcontent.ToXContent.EMPTY_PARAMS;
 import static org.elasticsearch.xpack.core.inference.chunking.ChunkingSettingsTests.createRandomChunkingSettings;
-import static org.elasticsearch.xpack.core.inference.chunking.ChunkingSettingsTests.createRandomChunkingSettingsMap;
 import static org.elasticsearch.xpack.inference.Utils.inferenceUtilityExecutors;
 import static org.elasticsearch.xpack.inference.Utils.mockClusterServiceEmpty;
 import static org.elasticsearch.xpack.inference.external.http.Utils.entityAsMap;
@@ -259,6 +259,7 @@ public class OpenShiftAiServiceTests extends AbstractInferenceServiceTests {
     }
 
     public void testParseRequestConfig_CreatesAnEmbeddingsModelWhenChunkingSettingsProvided() throws IOException {
+        var chunkingSettingsMap = createRandomChunkingSettings();
         try (var service = createService()) {
             ActionListener<Model> modelVerificationActionListener = ActionListener.wrap(model -> {
                 assertThat(model, instanceOf(OpenShiftAiEmbeddingsModel.class));
@@ -266,13 +267,14 @@ public class OpenShiftAiServiceTests extends AbstractInferenceServiceTests {
                 var embeddingsModel = (OpenShiftAiEmbeddingsModel) model;
                 assertThat(embeddingsModel.getServiceSettings().uri().toString(), is(URL));
                 assertThat(embeddingsModel.getConfigurations().getChunkingSettings(), instanceOf(ChunkingSettings.class));
+                assertThat(embeddingsModel.getConfigurations().getChunkingSettings().asMap(), is(chunkingSettingsMap.asMap()));
                 assertThat(embeddingsModel.getSecretSettings().apiKey().toString(), is(API_KEY));
             }, e -> fail("parse request should not fail " + e.getMessage()));
 
             service.parseRequestConfig(
                 INFERENCE_ID,
                 TaskType.TEXT_EMBEDDING,
-                getRequestConfigMap(getServiceSettingsMap(MODEL_ID, URL), createRandomChunkingSettingsMap(), getSecretSettingsMap(API_KEY)),
+                getRequestConfigMap(getServiceSettingsMap(MODEL_ID, URL), chunkingSettingsMap.asMap(), getSecretSettingsMap(API_KEY)),
                 modelVerificationActionListener
             );
         }
@@ -285,7 +287,7 @@ public class OpenShiftAiServiceTests extends AbstractInferenceServiceTests {
 
                 var embeddingsModel = (OpenShiftAiEmbeddingsModel) model;
                 assertThat(embeddingsModel.getServiceSettings().uri().toString(), is(URL));
-                assertThat(embeddingsModel.getConfigurations().getChunkingSettings(), instanceOf(ChunkingSettings.class));
+                assertThat(embeddingsModel.getConfigurations().getChunkingSettings(), is(ChunkingSettingsBuilder.DEFAULT_SETTINGS));
                 assertThat(embeddingsModel.getSecretSettings().apiKey().toString(), is(API_KEY));
             }, e -> fail("parse request should not fail " + e.getMessage()));
 
@@ -451,7 +453,7 @@ public class OpenShiftAiServiceTests extends AbstractInferenceServiceTests {
                     }
                 }), latch::countDown)
             );
-            assertTrue(latch.await(30, TimeUnit.SECONDS));
+            assertThat(latch.await(30, TimeUnit.SECONDS), is(true));
         }
     }
 
@@ -688,11 +690,12 @@ public class OpenShiftAiServiceTests extends AbstractInferenceServiceTests {
                 var floatResult = (ChunkedInferenceEmbedding) results.get(0);
                 assertThat(floatResult.chunks(), hasSize(1));
                 assertThat(floatResult.chunks().get(0).embedding(), Matchers.instanceOf(DenseEmbeddingFloatResults.Embedding.class));
-                assertTrue(
+                assertThat(
                     Arrays.equals(
                         new float[] { 0.0089111328125f, -0.007049560546875f },
                         ((DenseEmbeddingFloatResults.Embedding) floatResult.chunks().get(0).embedding()).values()
-                    )
+                    ),
+                    is(true)
                 );
             }
             {
@@ -700,11 +703,12 @@ public class OpenShiftAiServiceTests extends AbstractInferenceServiceTests {
                 var floatResult = (ChunkedInferenceEmbedding) results.get(1);
                 assertThat(floatResult.chunks(), hasSize(1));
                 assertThat(floatResult.chunks().get(0).embedding(), Matchers.instanceOf(DenseEmbeddingFloatResults.Embedding.class));
-                assertTrue(
+                assertThat(
                     Arrays.equals(
                         new float[] { -0.008544921875f, -0.0230712890625f },
                         ((DenseEmbeddingFloatResults.Embedding) floatResult.chunks().get(0).embedding()).values()
-                    )
+                    ),
+                    is(true)
                 );
             }
 

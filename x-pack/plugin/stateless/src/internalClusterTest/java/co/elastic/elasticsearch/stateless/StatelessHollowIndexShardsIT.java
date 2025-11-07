@@ -21,7 +21,7 @@ import co.elastic.elasticsearch.stateless.cache.StatelessSharedBlobCacheService;
 import co.elastic.elasticsearch.stateless.commits.HollowShardsService;
 import co.elastic.elasticsearch.stateless.commits.StatelessCommitService;
 import co.elastic.elasticsearch.stateless.commits.StatelessCompoundCommit;
-import co.elastic.elasticsearch.stateless.commits.StatelessFileDeletionIT.SnapshotBlockerStatelessPlugin;
+import co.elastic.elasticsearch.stateless.commits.StatelessFileDeletionIT.TestStateless;
 import co.elastic.elasticsearch.stateless.engine.HollowIndexEngine;
 import co.elastic.elasticsearch.stateless.engine.HollowShardsMetrics;
 import co.elastic.elasticsearch.stateless.engine.IndexEngine;
@@ -185,7 +185,7 @@ public class StatelessHollowIndexShardsIT extends AbstractStatelessIntegTestCase
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         var plugins = new ArrayList<>(super.nodePlugins());
         plugins.remove(Stateless.class);
-        plugins.add(SnapshotBlockerStatelessPlugin.class);
+        plugins.add(TestStateless.class);
         plugins.add(DataStreamsPlugin.class);
         plugins.add(CustomIngestTestPlugin.class);
         plugins.add(TestTelemetryPlugin.class);
@@ -716,7 +716,7 @@ public class StatelessHollowIndexShardsIT extends AbstractStatelessIntegTestCase
         // Fail BCC uploads to pause unhollowing (since the necessary flush will keep being retried to be uploaded)
         setNodeRepositoryFailureStrategy(clusterInfo.indexNodeB, false, true, Map.of(OperationPurpose.INDICES, ".*"));
         // Block snapshots
-        Releasable snapshotsBlock = findPlugin(clusterInfo.indexNodeB, SnapshotBlockerStatelessPlugin.class).blockSnapshots();
+        Releasable snapshotsBlock = findPlugin(clusterInfo.indexNodeB, TestStateless.class).blockSnapshots();
 
         // A force merge thread that unhollows (and could, under buggy conditions, lead to deleted blobs for the racing snapshot)
         final var forceMergeThread = new Thread(() -> {
@@ -837,7 +837,7 @@ public class StatelessHollowIndexShardsIT extends AbstractStatelessIntegTestCase
 
         // Block snapshots
         createRepository("test-repo", "fs");
-        Releasable snapshotsBlock = findPlugin(indexNodeA, SnapshotBlockerStatelessPlugin.class).blockSnapshots();
+        Releasable snapshotsBlock = findPlugin(indexNodeA, TestStateless.class).blockSnapshots();
 
         // Start another indexing node for relocations
         startIndexNode(indexNodeSettings);

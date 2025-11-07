@@ -12,7 +12,6 @@ package org.elasticsearch.index.codec.tsdb.es819;
 import org.apache.lucene.codecs.DocValuesProducer;
 import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.MergeState;
-import org.elasticsearch.index.codec.FilterDocValuesProducer;
 import org.elasticsearch.index.codec.perfield.XPerFieldDocValuesFormat;
 
 /**
@@ -47,10 +46,8 @@ class DocValuesConsumerUtil {
                 continue;
             }
             DocValuesProducer docValuesProducer = mergeState.docValuesProducers[i];
-            if (docValuesProducer instanceof FilterDocValuesProducer filterDocValuesProducer) {
-                docValuesProducer = filterDocValuesProducer.getIn();
-            }
-
+            // Don't handle producers that are wrapped as these could alter the values, which makes returned merge stats incorrect.
+            // For example, SourcePruningFilterCodecReader doc values producers will at some point remove values.
             if (docValuesProducer instanceof XPerFieldDocValuesFormat.FieldsReader perFieldReader) {
                 var wrapped = perFieldReader.getDocValuesProducer(fieldInfo);
                 if (wrapped == null) {

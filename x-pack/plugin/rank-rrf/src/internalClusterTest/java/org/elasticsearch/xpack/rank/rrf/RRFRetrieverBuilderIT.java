@@ -226,8 +226,8 @@ public class RRFRetrieverBuilderIT extends ESIntegTestCase {
         ElasticsearchAssertions.assertResponse(req, resp -> {
             assertNull(resp.pointInTimeId());
             assertNotNull(resp.getHits().getTotalHits());
-            assertThat(resp.getHits().getTotalHits().value(), equalTo(6L));
-            assertThat(resp.getHits().getTotalHits().relation(), equalTo(TotalHits.Relation.EQUAL_TO));
+            assertThat(resp.getHits().getTotalHits().value, equalTo(6L));
+            assertThat(resp.getHits().getTotalHits().relation, equalTo(TotalHits.Relation.EQUAL_TO));
 
             int expectedSize = innerFrom + maxExpectedSize > 6 ? 6 - innerFrom : maxExpectedSize;
             assertThat(resp.getHits().getHits().length, equalTo(expectedSize));

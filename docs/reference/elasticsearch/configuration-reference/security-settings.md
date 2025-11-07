@@ -1913,13 +1913,25 @@ PKCS#12 files are configured in the same way as Java keystore files:
 
 The settings in this section relate to node-to-node transport connections.
 
+::::{important}
+Transport connections between {{es}} nodes are security-critical and you must protect them carefully. A malicious actor who can observe or interfere with the raw traffic on a node-to-node transport connection will be able to read or modify the data in your cluster. A malicious actor who can establish a transport connection with a node in your cluster may be able to invoke certain system-internal APIs, some of which may allow them to read or modify the data in your cluster.
+::::
+
 By default {{es}} uses mutual TLS (mTLS) to ensure the security of node-to-node transport connections within a cluster. Mutual TLS means that both nodes in a connection must present a valid certificate to the other node when establishing the connection. Each {{es}} node checks that the certificate presented by the other node is issued by a certificate authority that it trusts for this purpose. The set of certificate authorities that a node trusts to issue certificates for transport connections is defined with settings in the `xpack.security.transport.ssl.*` namespace such as `xpack.security.transport.ssl.certificate_authorities` and `xpack.security.transport.ssl.truststore.path`. Certificates used for mTLS either must have no Extended Key Usage extension, or must have an Extended Key Usage extension that includes the `clientAuth` and `serverAuth` values.
 
 To realize the full benefits of the mTLS security model, obtain your transport certificates from a certificate authority that only issues certificates to {{es}} nodes which are permitted to connect to your cluster. Do not use a public certificate authority, nor an organization-wide private certificate authority, because such certificate authorities issue certificates to entities other than the {{es}} nodes which are permitted to connect to your cluster. Public certificate authorities generally issue certificates with an Extended Key Usage extension that omits the `clientAuth` value and therefore cannot be used for mTLS anyway. The recommended best practice is to use a different private certificate authority for each {{es}} cluster.
 
+::::{warning}
+Anyone who can obtain a certificate from a certificate authority that your {{es}} cluster trusts for mTLS on transport connections will be able to use this certificate to establish a transport connection with a node in your cluster. A malicious actor with such a certificate may be able to use such a transport connection to invoke certain system-internal APIs, some of which may allow them to read or modify the data in your cluster.
+::::
+
 The security requirements for transport certificates (as defined by the `xpack.security.transport.ssl.*` settings) are significantly different from the security requirements for HTTP certificates (as defined by the `xpack.security.http.ssl.*` settings). HTTP connections do not generally use mTLS since HTTP has its own authentication mechanisms, so HTTP certificates do not usually need to include the `clientAuth` value in their Extended Key Usage extension. It often makes sense to obtain the nodes' HTTP certificates from a public certificate authority, or from an organization-wide private certificate authority.
 
 If your environment has some other way to prevent unauthorized node-to-node connections, you may prefer not to use mTLS for transport connections. In this case, turn mTLS off in this context by setting `xpack.security.transport.ssl.client_authentication: none`. You may still use (non-mutual) TLS to ensure the confidentiality and integrity of node-to-node traffic by setting `xpack.security.transport.ssl.enabled: true`. If you are using non-mutual TLS for transport connections then you may use certificates issued by a public certificate authority, or an organization-wide private certificate authority, for your transport certificates.
+
+::::{warning}
+If you turn off mTLS by setting `xpack.security.transport.ssl.client_authentication: none` then anyone with network access to a node in your {{es}} cluster will be able to establish a transport connection with that node. A malicious actor with this access may be able to use such a transport connection to invoke certain system-internal APIs, some of which may allow them to read or modify the data in your cluster. Use mTLS to protect your node-to-node transport connections unless you are absolutely certain that unauthorized network access to these nodes cannot occur.
+::::
 
 `xpack.security.transport.ssl.enabled`
 :   ([Static](docs-content://deploy-manage/stack-settings.md#static-cluster-setting)) Used to enable or disable TLS/SSL on the transport networking layer, which nodes use to communicate with each other. The default is `false`.

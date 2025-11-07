@@ -77,7 +77,7 @@ public class PromqlLogicalPlanOptimizerTests extends AbstractLogicalPlanOptimize
             )
             """);
 
-        System.out.println(plan);
+        logger.info(plan);
     }
 
     public void testExplainPromqlSimple() {
@@ -92,7 +92,7 @@ public class PromqlLogicalPlanOptimizerTests extends AbstractLogicalPlanOptimize
             )
             """);
 
-        System.out.println(plan);
+        logger.info(plan);
     }
 
     public void testAvgAvgOverTimeOutput() {
@@ -105,7 +105,7 @@ public class PromqlLogicalPlanOptimizerTests extends AbstractLogicalPlanOptimize
             | LIMIT 1000
             """);
 
-        System.out.println(plan);
+        logger.info(plan);
     }
 
     public void testTSAvgAvgOverTimeOutput() {
@@ -117,7 +117,7 @@ public class PromqlLogicalPlanOptimizerTests extends AbstractLogicalPlanOptimize
             | LIMIT 1000
             """);
 
-        System.out.println(plan);
+        logger.info(plan);
     }
 
     public void testTSAvgWithoutByDimension() {
@@ -129,7 +129,7 @@ public class PromqlLogicalPlanOptimizerTests extends AbstractLogicalPlanOptimize
             | LIMIT 1000
             """);
 
-        System.out.println(plan);
+        logger.info(plan);
     }
 
     public void testPromqlAvgWithoutByDimension() {
@@ -143,7 +143,7 @@ public class PromqlLogicalPlanOptimizerTests extends AbstractLogicalPlanOptimize
             | LIMIT 1000
             """);
 
-        System.out.println(plan);
+        logger.info(plan);
     }
 
     public void testRangeSelector() {
@@ -155,7 +155,7 @@ public class PromqlLogicalPlanOptimizerTests extends AbstractLogicalPlanOptimize
             | promql step 1h ( max by (pod) (avg_over_time(network.bytes_in[1h])) )
             """);
 
-        System.out.println(plan);
+        logger.info(plan);
     }
 
     public void testRate() {
@@ -170,7 +170,7 @@ public class PromqlLogicalPlanOptimizerTests extends AbstractLogicalPlanOptimize
             """;
 
         var plan = planPromql(testQuery);
-        System.out.println(plan);
+        logger.info(plan);
     }
 
     public void testLabelSelector() {
@@ -190,7 +190,7 @@ public class PromqlLogicalPlanOptimizerTests extends AbstractLogicalPlanOptimize
         assertThat(filters, hasSize(1));
         var filter = (Filter) filters.getFirst();
         assertThat(filter.condition().anyMatch(In.class::isInstance), equalTo(true));
-        System.out.println(plan);
+        logger.info(plan);
     }
 
     public void testLabelSelectorPrefix() {
@@ -211,7 +211,7 @@ public class PromqlLogicalPlanOptimizerTests extends AbstractLogicalPlanOptimize
         var filter = (Filter) filters.getFirst();
         assertThat(filter.condition().anyMatch(StartsWith.class::isInstance), equalTo(true));
         assertThat(filter.condition().anyMatch(NotEquals.class::isInstance), equalTo(false));
-        System.out.println(plan);
+        logger.info(plan);
     }
 
     public void testLabelSelectorProperPrefix() {
@@ -260,7 +260,7 @@ public class PromqlLogicalPlanOptimizerTests extends AbstractLogicalPlanOptimize
             """;
 
         var plan = planPromql(testQuery);
-        System.out.println(plan);
+        logger.info(plan);
     }
 
     public void testGrammar() {
@@ -280,7 +280,7 @@ public class PromqlLogicalPlanOptimizerTests extends AbstractLogicalPlanOptimize
             """;
 
         var plan = planPromql(testQuery);
-        System.out.println(plan);
+        logger.info(plan);
     }
 
     // public void testPromqlArithmetricOperators() {
@@ -307,9 +307,9 @@ public class PromqlLogicalPlanOptimizerTests extends AbstractLogicalPlanOptimize
     protected LogicalPlan planPromql(String query) {
         query = query.replace("$now", '"' + Instant.now().toString() + '"');
         var analyzed = tsAnalyzer.analyze(parser.createStatement(query));
-        System.out.println(analyzed);
+        logger.info(analyzed);
         var optimized = logicalOptimizer.optimize(analyzed);
-        System.out.println(optimized);
+        logger.info(optimized);
         return optimized;
     }
 }

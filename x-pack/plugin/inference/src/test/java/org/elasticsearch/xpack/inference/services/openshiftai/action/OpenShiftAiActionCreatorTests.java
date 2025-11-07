@@ -130,14 +130,14 @@ public class OpenShiftAiActionCreatorTests extends ESTestCase {
 
             assertThat(result.asMap(), is(buildExpectationFloat(List.of(new float[] { 0.0123F, -0.0123F }))));
             assertThat(webServer.requests(), hasSize(1));
-            assertNull(webServer.requests().get(0).getUri().getQuery());
+            assertNull(webServer.requests().getFirst().getUri().getQuery());
             assertThat(
-                webServer.requests().get(0).getHeader(HttpHeaders.CONTENT_TYPE),
+                webServer.requests().getFirst().getHeader(HttpHeaders.CONTENT_TYPE),
                 equalTo(XContentType.JSON.mediaTypeWithoutParameters())
             );
-            assertThat(webServer.requests().get(0).getHeader(HttpHeaders.AUTHORIZATION), equalTo("Bearer %s".formatted(API_KEY)));
+            assertThat(webServer.requests().getFirst().getHeader(HttpHeaders.AUTHORIZATION), equalTo("Bearer %s".formatted(API_KEY)));
 
-            var requestMap = entityAsMap(webServer.requests().get(0).getBody());
+            var requestMap = entityAsMap(webServer.requests().getFirst().getBody());
             assertThat(requestMap.size(), is(2));
             assertThat(requestMap.get("input"), is(List.of(INPUT)));
             assertThat(requestMap.get("model"), is(MODEL_ID));
@@ -206,14 +206,14 @@ public class OpenShiftAiActionCreatorTests extends ESTestCase {
             assertThat(thrownException.getCause().getMessage(), is(failureCauseMessage));
 
             assertThat(webServer.requests(), hasSize(1));
-            assertNull(webServer.requests().get(0).getUri().getQuery());
+            assertNull(webServer.requests().getFirst().getUri().getQuery());
             assertThat(
-                webServer.requests().get(0).getHeader(HttpHeaders.CONTENT_TYPE),
+                webServer.requests().getFirst().getHeader(HttpHeaders.CONTENT_TYPE),
                 equalTo(XContentType.JSON.mediaTypeWithoutParameters())
             );
-            assertThat(webServer.requests().get(0).getHeader(HttpHeaders.AUTHORIZATION), equalTo("Bearer %s".formatted(API_KEY)));
+            assertThat(webServer.requests().getFirst().getHeader(HttpHeaders.AUTHORIZATION), equalTo("Bearer %s".formatted(API_KEY)));
 
-            var requestMap = entityAsMap(webServer.requests().get(0).getBody());
+            var requestMap = entityAsMap(webServer.requests().getFirst().getBody());
             assertThat(requestMap.size(), is(2));
             assertThat(requestMap.get("input"), is(List.of(INPUT)));
             assertThat(requestMap.get("model"), is(MODEL_ID));
@@ -271,13 +271,13 @@ public class OpenShiftAiActionCreatorTests extends ESTestCase {
             assertThat(result.asMap(), is(buildExpectationCompletion(List.of("Hello there, how may I assist you today?"))));
             assertThat(webServer.requests(), hasSize(1));
 
-            var request = webServer.requests().get(0);
+            var request = webServer.requests().getFirst();
 
             assertNull(request.getUri().getQuery());
             assertThat(request.getHeader(HttpHeaders.CONTENT_TYPE), equalTo(XContentType.JSON.mediaTypeWithoutParameters()));
             assertThat(request.getHeader(HttpHeaders.AUTHORIZATION), equalTo("Bearer %s".formatted(API_KEY)));
 
-            var requestMap = entityAsMap(webServer.requests().get(0).getBody());
+            var requestMap = entityAsMap(webServer.requests().getFirst().getBody());
             assertThat(requestMap.size(), is(4));
             assertThat(requestMap.get("messages"), is(List.of(Map.of("role", USER_ROLE, "content", INPUT))));
             assertThat(requestMap.get("model"), is(MODEL_ID));
@@ -354,14 +354,14 @@ public class OpenShiftAiActionCreatorTests extends ESTestCase {
             assertThat(thrownException.getCause().getMessage(), is(failureCauseMessage));
 
             assertThat(webServer.requests(), hasSize(1));
-            assertNull(webServer.requests().get(0).getUri().getQuery());
+            assertNull(webServer.requests().getFirst().getUri().getQuery());
             assertThat(
-                webServer.requests().get(0).getHeader(HttpHeaders.CONTENT_TYPE),
+                webServer.requests().getFirst().getHeader(HttpHeaders.CONTENT_TYPE),
                 equalTo(XContentType.JSON.mediaTypeWithoutParameters())
             );
-            assertThat(webServer.requests().get(0).getHeader(HttpHeaders.AUTHORIZATION), equalTo("Bearer %s".formatted(API_KEY)));
+            assertThat(webServer.requests().getFirst().getHeader(HttpHeaders.AUTHORIZATION), equalTo("Bearer %s".formatted(API_KEY)));
 
-            var requestMap = entityAsMap(webServer.requests().get(0).getBody());
+            var requestMap = entityAsMap(webServer.requests().getFirst().getBody());
             assertThat(requestMap.size(), is(4));
             assertThat(requestMap.get("messages"), is(List.of(Map.of("role", USER_ROLE, "content", INPUT))));
             assertThat(requestMap.get("model"), is(MODEL_ID));
@@ -434,14 +434,14 @@ public class OpenShiftAiActionCreatorTests extends ESTestCase {
             assertThat(result.asMap(), is(buildExpectationFloat(List.of(new float[] { 0.0123F, -0.0123F }))));
             assertThat(webServer.requests(), hasSize(2));
             {
-                assertNull(webServer.requests().get(0).getUri().getQuery());
+                assertNull(webServer.requests().getFirst().getUri().getQuery());
                 assertThat(
-                    webServer.requests().get(0).getHeader(HttpHeaders.CONTENT_TYPE),
+                    webServer.requests().getFirst().getHeader(HttpHeaders.CONTENT_TYPE),
                     equalTo(XContentType.JSON.mediaTypeWithoutParameters())
                 );
-                assertThat(webServer.requests().get(0).getHeader(HttpHeaders.AUTHORIZATION), equalTo("Bearer %s".formatted(API_KEY)));
+                assertThat(webServer.requests().getFirst().getHeader(HttpHeaders.AUTHORIZATION), equalTo("Bearer %s".formatted(API_KEY)));
 
-                var requestMap = entityAsMap(webServer.requests().get(0).getBody());
+                var requestMap = entityAsMap(webServer.requests().getFirst().getBody());
                 assertThat(requestMap.size(), is(2));
                 assertThat(requestMap.get("input"), is(List.of("abcd")));
                 assertThat(requestMap.get("model"), is(MODEL_ID));
@@ -526,14 +526,14 @@ public class OpenShiftAiActionCreatorTests extends ESTestCase {
             assertThat(result.asMap(), is(buildExpectationFloat(List.of(new float[] { 0.0123F, -0.0123F }))));
             assertThat(webServer.requests(), hasSize(2));
             {
-                assertNull(webServer.requests().get(0).getUri().getQuery());
+                assertNull(webServer.requests().getFirst().getUri().getQuery());
                 assertThat(
-                    webServer.requests().get(0).getHeader(HttpHeaders.CONTENT_TYPE),
+                    webServer.requests().getFirst().getHeader(HttpHeaders.CONTENT_TYPE),
                     equalTo(XContentType.JSON.mediaTypeWithoutParameters())
                 );
-                assertThat(webServer.requests().get(0).getHeader(HttpHeaders.AUTHORIZATION), equalTo("Bearer %s".formatted(API_KEY)));
+                assertThat(webServer.requests().getFirst().getHeader(HttpHeaders.AUTHORIZATION), equalTo("Bearer %s".formatted(API_KEY)));
 
-                var requestMap = entityAsMap(webServer.requests().get(0).getBody());
+                var requestMap = entityAsMap(webServer.requests().getFirst().getBody());
                 assertThat(requestMap.size(), is(2));
                 assertThat(requestMap.get("input"), is(List.of("abcd")));
                 assertThat(requestMap.get("model"), is(MODEL_ID));
@@ -602,14 +602,14 @@ public class OpenShiftAiActionCreatorTests extends ESTestCase {
 
             assertThat(result.asMap(), is(buildExpectationFloat(List.of(new float[] { 0.0123F, -0.0123F }))));
             assertThat(webServer.requests(), hasSize(1));
-            assertNull(webServer.requests().get(0).getUri().getQuery());
+            assertNull(webServer.requests().getFirst().getUri().getQuery());
             assertThat(
-                webServer.requests().get(0).getHeader(HttpHeaders.CONTENT_TYPE),
+                webServer.requests().getFirst().getHeader(HttpHeaders.CONTENT_TYPE),
                 equalTo(XContentType.JSON.mediaTypeWithoutParameters())
             );
-            assertThat(webServer.requests().get(0).getHeader(HttpHeaders.AUTHORIZATION), equalTo("Bearer %s".formatted(API_KEY)));
+            assertThat(webServer.requests().getFirst().getHeader(HttpHeaders.AUTHORIZATION), equalTo("Bearer %s".formatted(API_KEY)));
 
-            var requestMap = entityAsMap(webServer.requests().get(0).getBody());
+            var requestMap = entityAsMap(webServer.requests().getFirst().getBody());
             assertThat(requestMap.size(), is(2));
             assertThat(requestMap.get("input"), is(List.of("sup")));
             assertThat(requestMap.get("model"), is(MODEL_ID));
@@ -743,14 +743,14 @@ public class OpenShiftAiActionCreatorTests extends ESTestCase {
 
     private void assertRerankActionCreator(List<String> documents) throws IOException {
         assertThat(webServer.requests(), hasSize(1));
-        assertNull(webServer.requests().get(0).getUri().getQuery());
+        assertNull(webServer.requests().getFirst().getUri().getQuery());
         assertThat(
-            webServer.requests().get(0).getHeader(HttpHeaders.CONTENT_TYPE),
+            webServer.requests().getFirst().getHeader(HttpHeaders.CONTENT_TYPE),
             equalTo(XContentType.JSON.mediaTypeWithoutParameters())
         );
-        assertThat(webServer.requests().get(0).getHeader(HttpHeaders.AUTHORIZATION), equalTo("Bearer %s".formatted(API_KEY)));
+        assertThat(webServer.requests().getFirst().getHeader(HttpHeaders.AUTHORIZATION), equalTo("Bearer %s".formatted(API_KEY)));
 
-        var requestMap = entityAsMap(webServer.requests().get(0).getBody());
+        var requestMap = entityAsMap(webServer.requests().getFirst().getBody());
         assertThat(requestMap.size(), is(5));
         assertThat(requestMap.get("documents"), is(documents));
         assertThat(requestMap.get("model"), is(MODEL_ID));

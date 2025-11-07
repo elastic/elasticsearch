@@ -686,14 +686,14 @@ public class OpenShiftAiServiceTests extends AbstractInferenceServiceTests {
 
             assertThat(results, hasSize(2));
             {
-                assertThat(results.get(0), Matchers.instanceOf(ChunkedInferenceEmbedding.class));
-                var floatResult = (ChunkedInferenceEmbedding) results.get(0);
+                assertThat(results.getFirst(), Matchers.instanceOf(ChunkedInferenceEmbedding.class));
+                var floatResult = (ChunkedInferenceEmbedding) results.getFirst();
                 assertThat(floatResult.chunks(), hasSize(1));
-                assertThat(floatResult.chunks().get(0).embedding(), Matchers.instanceOf(DenseEmbeddingFloatResults.Embedding.class));
+                assertThat(floatResult.chunks().getFirst().embedding(), Matchers.instanceOf(DenseEmbeddingFloatResults.Embedding.class));
                 assertThat(
                     Arrays.equals(
                         new float[] { 0.0089111328125f, -0.007049560546875f },
-                        ((DenseEmbeddingFloatResults.Embedding) floatResult.chunks().get(0).embedding()).values()
+                        ((DenseEmbeddingFloatResults.Embedding) floatResult.chunks().getFirst().embedding()).values()
                     ),
                     is(true)
                 );
@@ -702,25 +702,25 @@ public class OpenShiftAiServiceTests extends AbstractInferenceServiceTests {
                 assertThat(results.get(1), Matchers.instanceOf(ChunkedInferenceEmbedding.class));
                 var floatResult = (ChunkedInferenceEmbedding) results.get(1);
                 assertThat(floatResult.chunks(), hasSize(1));
-                assertThat(floatResult.chunks().get(0).embedding(), Matchers.instanceOf(DenseEmbeddingFloatResults.Embedding.class));
+                assertThat(floatResult.chunks().getFirst().embedding(), Matchers.instanceOf(DenseEmbeddingFloatResults.Embedding.class));
                 assertThat(
                     Arrays.equals(
                         new float[] { -0.008544921875f, -0.0230712890625f },
-                        ((DenseEmbeddingFloatResults.Embedding) floatResult.chunks().get(0).embedding()).values()
+                        ((DenseEmbeddingFloatResults.Embedding) floatResult.chunks().getFirst().embedding()).values()
                     ),
                     is(true)
                 );
             }
 
             assertThat(webServer.requests(), hasSize(1));
-            assertNull(webServer.requests().get(0).getUri().getQuery());
+            assertNull(webServer.requests().getFirst().getUri().getQuery());
             assertThat(
-                webServer.requests().get(0).getHeader(HttpHeaders.CONTENT_TYPE),
+                webServer.requests().getFirst().getHeader(HttpHeaders.CONTENT_TYPE),
                 equalTo(XContentType.JSON.mediaTypeWithoutParameters())
             );
-            assertThat(webServer.requests().get(0).getHeader(HttpHeaders.AUTHORIZATION), equalTo("Bearer secret"));
+            assertThat(webServer.requests().getFirst().getHeader(HttpHeaders.AUTHORIZATION), equalTo("Bearer secret"));
 
-            var requestMap = entityAsMap(webServer.requests().get(0).getBody());
+            var requestMap = entityAsMap(webServer.requests().getFirst().getBody());
             assertThat(requestMap.size(), is(2));
             assertThat(requestMap.get("input"), is(List.of("abc", "def")));
             assertThat(requestMap.get("model"), is(MODEL_ID));

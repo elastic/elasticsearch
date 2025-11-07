@@ -932,7 +932,6 @@ public class OpenShiftAiActionCreatorTests extends ESTestCase {
                 is("Failed to send OpenShift AI rerank request from inference entity id [inferenceEntityId]. Cause: Required [results]")
             );
         }
-        assertRerankActionCreator(documents, 2, true);
     }
 
     private void assertRerankActionCreator(

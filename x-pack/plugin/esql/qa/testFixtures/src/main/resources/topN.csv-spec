@@ -176,13 +176,13 @@ FROM k8s METADATA _tsid
 | SORT events_received DESC NULLS LAST
 | LIMIT 5
 | KEEP events_received, @timestamp, cluster, pod
-| SORT @timestamp 
+| SORT @timestamp DESC, cluster ASC, pod ASC 
 ;
 
 events_received:long | @timestamp:datetime      | cluster:keyword | pod:keyword
-10                   | 2024-05-10T00:01:25.000Z | qa              | one
-[9, 10, 10]          | 2024-05-10T00:09:03.000Z | qa              | one
-[1, 8, 9, 10]        | 2024-05-10T00:09:04.000Z | qa              | one
-[1, 5, 6, 10]        | 2024-05-10T00:17:39.000Z | qa              | one
 10                   | 2024-05-10T00:19:53.000Z | qa              | two
+[1, 5, 6, 10]        | 2024-05-10T00:17:39.000Z | qa              | one
+[1, 8, 9, 10]        | 2024-05-10T00:09:04.000Z | qa              | one
+[9, 10, 10]          | 2024-05-10T00:09:03.000Z | qa              | one
+10                   | 2024-05-10T00:01:25.000Z | qa              | one
 ;

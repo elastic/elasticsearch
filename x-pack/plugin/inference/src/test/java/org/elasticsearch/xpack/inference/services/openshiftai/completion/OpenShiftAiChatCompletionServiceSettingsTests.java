@@ -125,13 +125,13 @@ public class OpenShiftAiChatCompletionServiceSettingsTests extends AbstractBWCWi
         String xContentResult = Strings.toString(builder);
         var expected = XContentHelper.stripWhitespace("""
             {
-                "model_id": "some model",
-                "url": "https://www.elastic.co",
+                "model_id": "%s",
+                "url": "%s",
                 "rate_limit": {
                     "requests_per_minute": 2
                 }
             }
-            """);
+            """.formatted(MODEL_ID, CORRECT_URL));
 
         assertThat(xContentResult, is(expected));
     }
@@ -147,12 +147,12 @@ public class OpenShiftAiChatCompletionServiceSettingsTests extends AbstractBWCWi
         String xContentResult = Strings.toString(builder);
         var expected = XContentHelper.stripWhitespace("""
             {
-                "url": "https://www.elastic.co",
+                "url": "%s",
                 "rate_limit": {
                     "requests_per_minute": 3000
                 }
             }
-            """);
+            """.formatted(CORRECT_URL));
         assertThat(xContentResult, is(expected));
     }
 

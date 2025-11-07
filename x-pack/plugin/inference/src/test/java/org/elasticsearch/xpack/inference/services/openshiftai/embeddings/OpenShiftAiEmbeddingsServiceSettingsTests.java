@@ -38,6 +38,7 @@ import static org.hamcrest.Matchers.is;
 public class OpenShiftAiEmbeddingsServiceSettingsTests extends AbstractWireSerializingTestCase<OpenShiftAiEmbeddingsServiceSettings> {
     private static final String MODEL_ID = "some model";
     private static final String CORRECT_URL = "https://www.elastic.co";
+    private static final String INVALID_URL = "^^^";
     private static final int DIMENSIONS = 384;
     private static final SimilarityMeasure SIMILARITY_MEASURE = SimilarityMeasure.DOT_PRODUCT;
     private static final int MAX_INPUT_TOKENS = 128;
@@ -152,7 +153,7 @@ public class OpenShiftAiEmbeddingsServiceSettingsTests extends AbstractWireSeria
             () -> OpenShiftAiEmbeddingsServiceSettings.fromMap(
                 buildServiceSettingsMap(
                     MODEL_ID,
-                    "^^^",
+                    INVALID_URL,
                     SIMILARITY_MEASURE.toString(),
                     DIMENSIONS,
                     MAX_INPUT_TOKENS,
@@ -162,13 +163,9 @@ public class OpenShiftAiEmbeddingsServiceSettingsTests extends AbstractWireSeria
                 ConfigurationParseContext.PERSISTENT
             )
         );
-        assertThat(
-            thrownException.getMessage(),
-            containsString(
-                "Validation Failed: 1: [service_settings] Invalid url [^^^] received for field [url]. "
-                    + "Error: unable to parse url [^^^]. Reason: Illegal character in path;"
-            )
-        );
+        assertThat(thrownException.getMessage(), containsString("""
+            Validation Failed: 1: [service_settings] Invalid url [%s] received for field [url]. \
+            Error: unable to parse url [%s]. Reason: Illegal character in path;""".formatted(INVALID_URL, INVALID_URL)));
     }
 
     public void testFromMap_NoSimilarity_Success() {
@@ -549,8 +546,8 @@ public class OpenShiftAiEmbeddingsServiceSettingsTests extends AbstractWireSeria
 
         assertThat(xContentResult, CoreMatchers.is(XContentHelper.stripWhitespace("""
             {
-                "model_id": "some model",
-                "url": "https://www.elastic.co",
+                "model_id": "%s",
+                "url": "%s",
                 "rate_limit": {
                     "requests_per_minute": 3
                 },
@@ -559,7 +556,7 @@ public class OpenShiftAiEmbeddingsServiceSettingsTests extends AbstractWireSeria
                 "max_input_tokens": 128,
                 "dimensions_set_by_user": false
             }
-            """)));
+            """.formatted(MODEL_ID, CORRECT_URL))));
     }
 
     public void testStreamInputAndOutput_WritesValuesCorrectly() throws IOException {

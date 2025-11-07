@@ -31,6 +31,8 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 public class OpenShiftAiChatCompletionResponseHandlerTests extends ESTestCase {
+    private static final String URL = "https://api.openshift.ai/v1/chat/completions";
+    private static final String INFERENCE_ID = "id";
     private final OpenShiftAiChatCompletionResponseHandler responseHandler = new OpenShiftAiChatCompletionResponseHandler(
         "chat completions",
         (a, b) -> mock()
@@ -49,11 +51,11 @@ public class OpenShiftAiChatCompletionResponseHandlerTests extends ESTestCase {
             {
               "error" : {
                 "code" : "not_found",
-                "message" : "Resource not found at [https://api.llama.ai/v1/chat/completions] for request from inference entity id [id] \
+                "message" : "Resource not found at [%s] for request from inference entity id [%s] \
             status [404]. Error message: [{\\"detail\\":\\"Not Found\\"}]",
                 "type" : "openshift_ai_error"
               }
-            }""")));
+            }""".formatted(URL, INFERENCE_ID))));
     }
 
     public void testFailBadRequest() throws IOException {
@@ -75,14 +77,14 @@ public class OpenShiftAiChatCompletionResponseHandlerTests extends ESTestCase {
             {
                 "error": {
                     "code": "bad_request",
-                    "message": "Received a bad request status code for request from inference entity id [id] status [400]. Error message: \
+                    "message": "Received a bad request status code for request from inference entity id [%s] status [400]. Error message: \
             [{\\"object\\":\\"error\\",\\"message\\":\\"[{'type': 'missing', 'loc': ('body', 'messages'), 'msg': 'Field required', \
             'input': {'model': 'llama-31-8b-instruct', 'messages': [{'role': 'user', 'content': 'What is deep learning?'}], \
             'max_tokens': 2, 'stream': True}}]\\",\\"type\\":\\"Bad Request\\",\\"param\\":null,\\"code\\":400}]",
                     "type": "openshift_ai_error"
                 }
             }
-            """)));
+            """.formatted(INFERENCE_ID))));
     }
 
     public void testFailValidationWithInvalidJson() throws IOException {
@@ -96,12 +98,12 @@ public class OpenShiftAiChatCompletionResponseHandlerTests extends ESTestCase {
             {
                 "error": {
                     "code": "bad_request",
-                    "message": "Received a server error status code for request from inference entity id [id] status [500]. \
+                    "message": "Received a server error status code for request from inference entity id [%s] status [500]. \
             Error message: [what? this isn't a json\\n]",
                     "type": "openshift_ai_error"
                 }
             }
-            """)));
+            """.formatted(INFERENCE_ID))));
     }
 
     private String invalidResponseJson(String responseJson, int statusCode) throws IOException {
@@ -125,9 +127,9 @@ public class OpenShiftAiChatCompletionResponseHandlerTests extends ESTestCase {
 
     private static Request mockRequest() throws URISyntaxException {
         var request = mock(Request.class);
-        when(request.getInferenceEntityId()).thenReturn("id");
+        when(request.getInferenceEntityId()).thenReturn(INFERENCE_ID);
         when(request.isStreaming()).thenReturn(true);
-        when(request.getURI()).thenReturn(new URI("https://api.llama.ai/v1/chat/completions"));
+        when(request.getURI()).thenReturn(new URI(URL));
         return request;
     }
 

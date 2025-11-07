@@ -60,6 +60,11 @@ import static org.mockito.Mockito.mock;
 
 public class OpenShiftAiActionCreatorTests extends ESTestCase {
 
+    private static final String MODEL_ID = "model";
+    private static final String API_KEY = "secret";
+    private static final String QUERY = "popular name";
+    private static final String INPUT = "abc";
+    public static final String USER_ROLE = "user";
     private final MockWebServer webServer = new MockWebServer();
     private ThreadPool threadPool;
     private HttpClientManager clientManager;
@@ -110,13 +115,13 @@ public class OpenShiftAiActionCreatorTests extends ESTestCase {
                 """;
             webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
 
-            var model = createModel(getUrl(webServer), "secret", "model");
+            var model = createModel(getUrl(webServer), API_KEY, MODEL_ID);
             var actionCreator = new OpenShiftAiActionCreator(sender, createWithEmptySettings(threadPool));
             var action = actionCreator.create(model);
 
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
             action.execute(
-                new EmbeddingsInput(List.of("abc"), InputTypeTests.randomWithNull()),
+                new EmbeddingsInput(List.of(INPUT), InputTypeTests.randomWithNull()),
                 InferenceAction.Request.DEFAULT_TIMEOUT,
                 listener
             );
@@ -130,12 +135,12 @@ public class OpenShiftAiActionCreatorTests extends ESTestCase {
                 webServer.requests().get(0).getHeader(HttpHeaders.CONTENT_TYPE),
                 equalTo(XContentType.JSON.mediaTypeWithoutParameters())
             );
-            assertThat(webServer.requests().get(0).getHeader(HttpHeaders.AUTHORIZATION), equalTo("Bearer secret"));
+            assertThat(webServer.requests().get(0).getHeader(HttpHeaders.AUTHORIZATION), equalTo("Bearer %s".formatted(API_KEY)));
 
             var requestMap = entityAsMap(webServer.requests().get(0).getBody());
             assertThat(requestMap.size(), is(2));
-            assertThat(requestMap.get("input"), is(List.of("abc")));
-            assertThat(requestMap.get("model"), is("model"));
+            assertThat(requestMap.get("input"), is(List.of(INPUT)));
+            assertThat(requestMap.get("model"), is(MODEL_ID));
         }
     }
 
@@ -173,13 +178,13 @@ public class OpenShiftAiActionCreatorTests extends ESTestCase {
                 """;
             webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
 
-            var model = createModel(getUrl(webServer), "secret", "model");
+            var model = createModel(getUrl(webServer), API_KEY, MODEL_ID);
             var actionCreator = new OpenShiftAiActionCreator(sender, createWithEmptySettings(threadPool));
             var action = actionCreator.create(model);
 
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
             action.execute(
-                new EmbeddingsInput(List.of("abc"), InputTypeTests.randomWithNull()),
+                new EmbeddingsInput(List.of(INPUT), InputTypeTests.randomWithNull()),
                 InferenceAction.Request.DEFAULT_TIMEOUT,
                 listener
             );
@@ -206,12 +211,12 @@ public class OpenShiftAiActionCreatorTests extends ESTestCase {
                 webServer.requests().get(0).getHeader(HttpHeaders.CONTENT_TYPE),
                 equalTo(XContentType.JSON.mediaTypeWithoutParameters())
             );
-            assertThat(webServer.requests().get(0).getHeader(HttpHeaders.AUTHORIZATION), equalTo("Bearer secret"));
+            assertThat(webServer.requests().get(0).getHeader(HttpHeaders.AUTHORIZATION), equalTo("Bearer %s".formatted(API_KEY)));
 
             var requestMap = entityAsMap(webServer.requests().get(0).getBody());
             assertThat(requestMap.size(), is(2));
-            assertThat(requestMap.get("input"), is(List.of("abc")));
-            assertThat(requestMap.get("model"), is("model"));
+            assertThat(requestMap.get("input"), is(List.of(INPUT)));
+            assertThat(requestMap.get("model"), is(MODEL_ID));
         }
     }
 
@@ -254,12 +259,12 @@ public class OpenShiftAiActionCreatorTests extends ESTestCase {
 
             webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
 
-            var model = createCompletionModel(getUrl(webServer), "secret", "model");
+            var model = createCompletionModel(getUrl(webServer), API_KEY, MODEL_ID);
             var actionCreator = new OpenShiftAiActionCreator(sender, createWithEmptySettings(threadPool));
             var action = actionCreator.create(model);
 
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-            action.execute(new ChatCompletionInput(List.of("abc")), InferenceAction.Request.DEFAULT_TIMEOUT, listener);
+            action.execute(new ChatCompletionInput(List.of(INPUT)), InferenceAction.Request.DEFAULT_TIMEOUT, listener);
 
             var result = listener.actionGet(ESTestCase.TEST_REQUEST_TIMEOUT);
 
@@ -270,12 +275,12 @@ public class OpenShiftAiActionCreatorTests extends ESTestCase {
 
             assertNull(request.getUri().getQuery());
             assertThat(request.getHeader(HttpHeaders.CONTENT_TYPE), equalTo(XContentType.JSON.mediaTypeWithoutParameters()));
-            assertThat(request.getHeader(HttpHeaders.AUTHORIZATION), equalTo("Bearer secret"));
+            assertThat(request.getHeader(HttpHeaders.AUTHORIZATION), equalTo("Bearer %s".formatted(API_KEY)));
 
             var requestMap = entityAsMap(webServer.requests().get(0).getBody());
             assertThat(requestMap.size(), is(4));
-            assertThat(requestMap.get("messages"), is(List.of(Map.of("role", "user", "content", "abc"))));
-            assertThat(requestMap.get("model"), is("model"));
+            assertThat(requestMap.get("messages"), is(List.of(Map.of("role", USER_ROLE, "content", INPUT))));
+            assertThat(requestMap.get("model"), is(MODEL_ID));
             assertThat(requestMap.get("n"), is(1));
             assertThat(requestMap.get("stream"), is(false));
         }
@@ -325,12 +330,12 @@ public class OpenShiftAiActionCreatorTests extends ESTestCase {
                 """;
             webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
 
-            var model = createCompletionModel(getUrl(webServer), "secret", "model");
+            var model = createCompletionModel(getUrl(webServer), API_KEY, MODEL_ID);
             var actionCreator = new OpenShiftAiActionCreator(sender, createWithEmptySettings(threadPool));
             var action = actionCreator.create(model);
 
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-            action.execute(new ChatCompletionInput(List.of("abc")), InferenceAction.Request.DEFAULT_TIMEOUT, listener);
+            action.execute(new ChatCompletionInput(List.of(INPUT)), InferenceAction.Request.DEFAULT_TIMEOUT, listener);
 
             var failureCauseMessage = "Required [choices]";
             var thrownException = expectThrows(
@@ -354,12 +359,12 @@ public class OpenShiftAiActionCreatorTests extends ESTestCase {
                 webServer.requests().get(0).getHeader(HttpHeaders.CONTENT_TYPE),
                 equalTo(XContentType.JSON.mediaTypeWithoutParameters())
             );
-            assertThat(webServer.requests().get(0).getHeader(HttpHeaders.AUTHORIZATION), equalTo("Bearer secret"));
+            assertThat(webServer.requests().get(0).getHeader(HttpHeaders.AUTHORIZATION), equalTo("Bearer %s".formatted(API_KEY)));
 
             var requestMap = entityAsMap(webServer.requests().get(0).getBody());
             assertThat(requestMap.size(), is(4));
-            assertThat(requestMap.get("messages"), is(List.of(Map.of("role", "user", "content", "abc"))));
-            assertThat(requestMap.get("model"), is("model"));
+            assertThat(requestMap.get("messages"), is(List.of(Map.of("role", USER_ROLE, "content", INPUT))));
+            assertThat(requestMap.get("model"), is(MODEL_ID));
             assertThat(requestMap.get("n"), is(1));
             assertThat(requestMap.get("stream"), is(false));
         }
@@ -413,7 +418,7 @@ public class OpenShiftAiActionCreatorTests extends ESTestCase {
             webServer.enqueue(new MockResponse().setResponseCode(413).setBody(responseJsonContentTooLarge));
             webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
 
-            var model = createModel(getUrl(webServer), "secret", "model");
+            var model = createModel(getUrl(webServer), API_KEY, MODEL_ID);
             var actionCreator = new OpenShiftAiActionCreator(sender, createWithEmptySettings(threadPool));
             var action = actionCreator.create(model);
 
@@ -434,12 +439,12 @@ public class OpenShiftAiActionCreatorTests extends ESTestCase {
                     webServer.requests().get(0).getHeader(HttpHeaders.CONTENT_TYPE),
                     equalTo(XContentType.JSON.mediaTypeWithoutParameters())
                 );
-                assertThat(webServer.requests().get(0).getHeader(HttpHeaders.AUTHORIZATION), equalTo("Bearer secret"));
+                assertThat(webServer.requests().get(0).getHeader(HttpHeaders.AUTHORIZATION), equalTo("Bearer %s".formatted(API_KEY)));
 
                 var requestMap = entityAsMap(webServer.requests().get(0).getBody());
                 assertThat(requestMap.size(), is(2));
                 assertThat(requestMap.get("input"), is(List.of("abcd")));
-                assertThat(requestMap.get("model"), is("model"));
+                assertThat(requestMap.get("model"), is(MODEL_ID));
             }
             {
                 assertNull(webServer.requests().get(1).getUri().getQuery());
@@ -447,12 +452,12 @@ public class OpenShiftAiActionCreatorTests extends ESTestCase {
                     webServer.requests().get(1).getHeader(HttpHeaders.CONTENT_TYPE),
                     equalTo(XContentType.JSON.mediaTypeWithoutParameters())
                 );
-                assertThat(webServer.requests().get(1).getHeader(HttpHeaders.AUTHORIZATION), equalTo("Bearer secret"));
+                assertThat(webServer.requests().get(1).getHeader(HttpHeaders.AUTHORIZATION), equalTo("Bearer %s".formatted(API_KEY)));
 
                 var requestMap = entityAsMap(webServer.requests().get(1).getBody());
                 assertThat(requestMap.size(), is(2));
                 assertThat(requestMap.get("input"), is(List.of("ab")));
-                assertThat(requestMap.get("model"), is("model"));
+                assertThat(requestMap.get("model"), is(MODEL_ID));
             }
         }
     }
@@ -505,7 +510,7 @@ public class OpenShiftAiActionCreatorTests extends ESTestCase {
             webServer.enqueue(new MockResponse().setResponseCode(400).setBody(responseJsonContentTooLarge));
             webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
 
-            var model = createModel(getUrl(webServer), "secret", "model");
+            var model = createModel(getUrl(webServer), API_KEY, MODEL_ID);
             var actionCreator = new OpenShiftAiActionCreator(sender, createWithEmptySettings(threadPool));
             var action = actionCreator.create(model);
 
@@ -526,12 +531,12 @@ public class OpenShiftAiActionCreatorTests extends ESTestCase {
                     webServer.requests().get(0).getHeader(HttpHeaders.CONTENT_TYPE),
                     equalTo(XContentType.JSON.mediaTypeWithoutParameters())
                 );
-                assertThat(webServer.requests().get(0).getHeader(HttpHeaders.AUTHORIZATION), equalTo("Bearer secret"));
+                assertThat(webServer.requests().get(0).getHeader(HttpHeaders.AUTHORIZATION), equalTo("Bearer %s".formatted(API_KEY)));
 
                 var requestMap = entityAsMap(webServer.requests().get(0).getBody());
                 assertThat(requestMap.size(), is(2));
                 assertThat(requestMap.get("input"), is(List.of("abcd")));
-                assertThat(requestMap.get("model"), is("model"));
+                assertThat(requestMap.get("model"), is(MODEL_ID));
             }
             {
                 assertNull(webServer.requests().get(1).getUri().getQuery());
@@ -539,12 +544,12 @@ public class OpenShiftAiActionCreatorTests extends ESTestCase {
                     webServer.requests().get(1).getHeader(HttpHeaders.CONTENT_TYPE),
                     equalTo(XContentType.JSON.mediaTypeWithoutParameters())
                 );
-                assertThat(webServer.requests().get(1).getHeader(HttpHeaders.AUTHORIZATION), equalTo("Bearer secret"));
+                assertThat(webServer.requests().get(1).getHeader(HttpHeaders.AUTHORIZATION), equalTo("Bearer %s".formatted(API_KEY)));
 
                 var requestMap = entityAsMap(webServer.requests().get(1).getBody());
                 assertThat(requestMap.size(), is(2));
                 assertThat(requestMap.get("input"), is(List.of("ab")));
-                assertThat(requestMap.get("model"), is("model"));
+                assertThat(requestMap.get("model"), is(MODEL_ID));
             }
         }
     }
@@ -582,7 +587,7 @@ public class OpenShiftAiActionCreatorTests extends ESTestCase {
             webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
 
             // truncated to 1 token = 3 characters
-            var model = createModel(getUrl(webServer), "secret", "model", 1);
+            var model = createModel(getUrl(webServer), API_KEY, MODEL_ID, 1);
             var actionCreator = new OpenShiftAiActionCreator(sender, createWithEmptySettings(threadPool));
             var action = actionCreator.create(model);
 
@@ -602,12 +607,12 @@ public class OpenShiftAiActionCreatorTests extends ESTestCase {
                 webServer.requests().get(0).getHeader(HttpHeaders.CONTENT_TYPE),
                 equalTo(XContentType.JSON.mediaTypeWithoutParameters())
             );
-            assertThat(webServer.requests().get(0).getHeader(HttpHeaders.AUTHORIZATION), equalTo("Bearer secret"));
+            assertThat(webServer.requests().get(0).getHeader(HttpHeaders.AUTHORIZATION), equalTo("Bearer %s".formatted(API_KEY)));
 
             var requestMap = entityAsMap(webServer.requests().get(0).getBody());
             assertThat(requestMap.size(), is(2));
             assertThat(requestMap.get("input"), is(List.of("sup")));
-            assertThat(requestMap.get("model"), is("model"));
+            assertThat(requestMap.get("model"), is(MODEL_ID));
         }
     }
 
@@ -650,7 +655,7 @@ public class OpenShiftAiActionCreatorTests extends ESTestCase {
                 """;
             webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
 
-            var model = OpenShiftAiRerankModelTests.createModel(getUrl(webServer), "secret", "model");
+            var model = OpenShiftAiRerankModelTests.createModel(getUrl(webServer), API_KEY, MODEL_ID);
             var actionCreator = new OpenShiftAiActionCreator(
                 sender,
                 new ServiceComponents(threadPool, mockThrottlerManager(), settings, TruncatorTests.createTruncator())
@@ -658,11 +663,7 @@ public class OpenShiftAiActionCreatorTests extends ESTestCase {
             var action = actionCreator.create(model, null);
 
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-            action.execute(
-                new QueryAndDocsInputs("popular name", documents, null, null, false),
-                InferenceAction.Request.DEFAULT_TIMEOUT,
-                listener
-            );
+            action.execute(new QueryAndDocsInputs(QUERY, documents, null, null, false), InferenceAction.Request.DEFAULT_TIMEOUT, listener);
 
             var result = listener.actionGet(ESTestCase.TEST_REQUEST_TIMEOUT);
             assertThat(
@@ -723,7 +724,7 @@ public class OpenShiftAiActionCreatorTests extends ESTestCase {
                 """;
             webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
 
-            var model = OpenShiftAiRerankModelTests.createModel(getUrl(webServer), "secret", "model");
+            var model = OpenShiftAiRerankModelTests.createModel(getUrl(webServer), API_KEY, MODEL_ID);
             var actionCreator = new OpenShiftAiActionCreator(
                 sender,
                 new ServiceComponents(threadPool, mockThrottlerManager(), settings, TruncatorTests.createTruncator())
@@ -731,11 +732,7 @@ public class OpenShiftAiActionCreatorTests extends ESTestCase {
             var action = actionCreator.create(model, null);
 
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-            action.execute(
-                new QueryAndDocsInputs("popular name", documents, null, null, false),
-                InferenceAction.Request.DEFAULT_TIMEOUT,
-                listener
-            );
+            action.execute(new QueryAndDocsInputs(QUERY, documents, null, null, false), InferenceAction.Request.DEFAULT_TIMEOUT, listener);
 
             var thrownException = expectThrows(ElasticsearchException.class, () -> listener.actionGet(ESTestCase.TEST_REQUEST_TIMEOUT));
             assertThat(thrownException.getMessage(), is("""
@@ -751,13 +748,13 @@ public class OpenShiftAiActionCreatorTests extends ESTestCase {
             webServer.requests().get(0).getHeader(HttpHeaders.CONTENT_TYPE),
             equalTo(XContentType.JSON.mediaTypeWithoutParameters())
         );
-        assertThat(webServer.requests().get(0).getHeader(HttpHeaders.AUTHORIZATION), equalTo("Bearer secret"));
+        assertThat(webServer.requests().get(0).getHeader(HttpHeaders.AUTHORIZATION), equalTo("Bearer %s".formatted(API_KEY)));
 
         var requestMap = entityAsMap(webServer.requests().get(0).getBody());
         assertThat(requestMap.size(), is(5));
         assertThat(requestMap.get("documents"), is(documents));
-        assertThat(requestMap.get("model"), is("model"));
-        assertThat(requestMap.get("query"), is("popular name"));
+        assertThat(requestMap.get("model"), is(MODEL_ID));
+        assertThat(requestMap.get("query"), is(QUERY));
         assertThat(requestMap.get("top_n"), is(2));
         assertThat(requestMap.get("return_documents"), is(true));
     }

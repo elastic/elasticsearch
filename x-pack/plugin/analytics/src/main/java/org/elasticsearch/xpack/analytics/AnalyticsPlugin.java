@@ -23,6 +23,7 @@ import org.elasticsearch.xpack.analytics.boxplot.InternalBoxplot;
 import org.elasticsearch.xpack.analytics.cumulativecardinality.CumulativeCardinalityPipelineAggregationBuilder;
 import org.elasticsearch.xpack.analytics.cumulativecardinality.InternalSimpleLongValue;
 import org.elasticsearch.xpack.analytics.mapper.HistogramFieldMapper;
+import org.elasticsearch.xpack.analytics.mapper.TDigestFieldMapper;
 import org.elasticsearch.xpack.analytics.movingPercentiles.MovingPercentilesPipelineAggregationBuilder;
 import org.elasticsearch.xpack.analytics.multiterms.InternalMultiTerms;
 import org.elasticsearch.xpack.analytics.multiterms.MultiTermsAggregationBuilder;
@@ -140,6 +141,14 @@ public class AnalyticsPlugin extends Plugin implements SearchPlugin, ActionPlugi
 
     @Override
     public Map<String, Mapper.TypeParser> getMappers() {
+        if (TDigestFieldMapper.TDIGEST_FIELD_MAPPER.isEnabled()) {
+            return Map.of(
+                HistogramFieldMapper.CONTENT_TYPE,
+                HistogramFieldMapper.PARSER,
+                TDigestFieldMapper.CONTENT_TYPE,
+                TDigestFieldMapper.PARSER
+            );
+        }
         return Map.of(HistogramFieldMapper.CONTENT_TYPE, HistogramFieldMapper.PARSER);
     }
 

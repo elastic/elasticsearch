@@ -1640,7 +1640,9 @@ public class DenseVectorFieldMapper extends FieldMapper {
             public DenseVectorIndexOptions parseIndexOptions(String fieldName, Map<String, ?> indexOptionsMap, IndexVersion indexVersion) {
                 Object mNode = indexOptionsMap.remove("m");
                 Object efConstructionNode = indexOptionsMap.remove("ef_construction");
-                Object onDiskRescoreNode = indexOptionsMap.remove("on_disk_rescore");
+                Object onDiskRescoreNode = ES93GenericFlatVectorsFormat.GENERIC_VECTOR_FORMAT.isEnabled()
+                    ? indexOptionsMap.remove("on_disk_rescore")
+                    : false;
 
                 int m = XContentMapValues.nodeIntegerValue(mNode, Lucene99HnswVectorsFormat.DEFAULT_MAX_CONN);
                 int efConstruction = XContentMapValues.nodeIntegerValue(efConstructionNode, Lucene99HnswVectorsFormat.DEFAULT_BEAM_WIDTH);
@@ -1731,7 +1733,9 @@ public class DenseVectorFieldMapper extends FieldMapper {
                     }
                 }
 
-                Object onDiskRescoreNode = indexOptionsMap.remove("on_disk_rescore");
+                Object onDiskRescoreNode = ES93GenericFlatVectorsFormat.GENERIC_VECTOR_FORMAT.isEnabled()
+                    ? indexOptionsMap.remove("on_disk_rescore")
+                    : false;
                 boolean onDiskRescore = XContentMapValues.nodeBooleanValue(onDiskRescoreNode, false);
 
                 MappingParser.checkNoRemainingFields(fieldName, indexOptionsMap);

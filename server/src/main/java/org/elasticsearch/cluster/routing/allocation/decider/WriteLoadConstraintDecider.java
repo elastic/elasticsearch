@@ -77,50 +77,59 @@ public class WriteLoadConstraintDecider extends AllocationDecider {
         var nodeWriteThreadPoolLoadThreshold = writeLoadConstraintSettings.getHighUtilizationThreshold();
         if (nodeWriteThreadPoolStats.averageThreadPoolUtilization() >= nodeWriteThreadPoolLoadThreshold) {
             // The node's write thread pool usage stats already show high utilization above the threshold for accepting new shards.
-            String explain = Strings.format(
-                "Node [%s] with write thread pool utilization [%.2f] already exceeds the high utilization threshold of [%f]. Cannot "
-                    + "allocate shard [%s] to node without risking increased write latencies.",
-                node.nodeId(),
-                nodeWriteThreadPoolStats.averageThreadPoolUtilization(),
-                nodeWriteThreadPoolLoadThreshold,
-                shardRouting.shardId()
-            );
-            if (logger.isDebugEnabled()) {
-                logInterventionMessage.maybeExecute(() -> logger.debug(explain));
+            if (logger.isDebugEnabled() || allocation.debugDecision()) {
+                final String explain = Strings.format(
+                    "Node [%s] with write thread pool utilization [%.2f] already exceeds the high utilization threshold of [%f]. Cannot "
+                        + "allocate shard [%s] to node without risking increased write latencies.",
+                    node.nodeId(),
+                    nodeWriteThreadPoolStats.averageThreadPoolUtilization(),
+                    nodeWriteThreadPoolLoadThreshold,
+                    shardRouting.shardId()
+                );
+                if (logger.isDebugEnabled()) {
+                    logInterventionMessage.maybeExecute(() -> logger.debug(explain));
+                }
+                return Decision.single(Decision.Type.NOT_PREFERRED, NAME, explain);
+            } else {
+                return Decision.NOT_PREFERRED;
             }
-            return Decision.single(Decision.Type.NOT_PREFERRED, NAME, explain);
         }
 
         var newWriteThreadPoolUtilization = calculateShardMovementChange(nodeWriteThreadPoolStats, shardWriteLoad);
         if (newWriteThreadPoolUtilization >= nodeWriteThreadPoolLoadThreshold) {
             // The node's write thread pool usage would be raised above the high utilization threshold with assignment of the new shard.
             // This could lead to a hot spot on this node and is undesirable.
-            String explain = Strings.format(
-                "The high utilization threshold of [%f] would be exceeded on node [%s] with utilization [%.2f] if shard [%s] with "
-                    + "estimated additional utilisation [%.5f] (write load [%.5f] / threads [%d]) were assigned to it. Cannot allocate "
-                    + "shard to node without risking increased write latencies.",
-                nodeWriteThreadPoolLoadThreshold,
-                node.nodeId(),
-                nodeWriteThreadPoolStats.averageThreadPoolUtilization(),
-                shardRouting.shardId(),
-                shardWriteLoad / nodeWriteThreadPoolStats.totalThreadPoolThreads(),
-                shardWriteLoad,
-                nodeWriteThreadPoolStats.totalThreadPoolThreads()
-            );
-            if (logger.isDebugEnabled()) {
-                logInterventionMessage.maybeExecute(() -> logger.debug(explain));
+            if (logger.isDebugEnabled() || allocation.debugDecision()) {
+                final String explain = Strings.format(
+                    "The high utilization threshold of [%f] would be exceeded on node [%s] with utilization [%.2f] if shard [%s] with "
+                        + "estimated additional utilisation [%.5f] (write load [%.5f] / threads [%d]) were assigned to it. Cannot allocate "
+                        + "shard to node without risking increased write latencies.",
+                    nodeWriteThreadPoolLoadThreshold,
+                    node.nodeId(),
+                    nodeWriteThreadPoolStats.averageThreadPoolUtilization(),
+                    shardRouting.shardId(),
+                    shardWriteLoad / nodeWriteThreadPoolStats.totalThreadPoolThreads(),
+                    shardWriteLoad,
+                    nodeWriteThreadPoolStats.totalThreadPoolThreads()
+                );
+                if (logger.isDebugEnabled()) {
+                    logInterventionMessage.maybeExecute(() -> logger.debug(explain));
+                }
+                return Decision.single(Decision.Type.NOT_PREFERRED, NAME, explain);
+            } else {
+                return Decision.NOT_PREFERRED;
             }
-            return Decision.single(Decision.Type.NOT_PREFERRED, NAME, explain);
         }
 
-        String explanation = Strings.format(
+        return allocation.decision(
+            Decision.YES,
+            NAME,
             "Shard [%s] in index [%s] can be assigned to node [%s]. The node's utilization would become [%s]",
             shardRouting.shardId(),
             shardRouting.index(),
             node.nodeId(),
             newWriteThreadPoolUtilization
         );
-        return allocation.decision(Decision.YES, NAME, explanation);
     }
 
     @Override
@@ -142,27 +151,33 @@ public class WriteLoadConstraintDecider extends AllocationDecider {
         var nodeWriteThreadPoolStats = nodeUsageStatsForThreadPools.threadPoolUsageStatsMap().get(ThreadPool.Names.WRITE);
         var nodeWriteThreadPoolQueueLatencyThreshold = writeLoadConstraintSettings.getQueueLatencyThreshold();
         if (nodeWriteThreadPoolStats.maxThreadPoolQueueLatencyMillis() >= nodeWriteThreadPoolQueueLatencyThreshold.millis()) {
-            String explain = Strings.format(
-                "Node [%s] has a queue latency of [%d] millis that exceeds the queue latency threshold of [%s]. This node is hot-spotting. "
-                    + "Current thread pool utilization [%f]. Moving shard(s) away.",
-                node.nodeId(),
-                nodeWriteThreadPoolStats.maxThreadPoolQueueLatencyMillis(),
-                nodeWriteThreadPoolQueueLatencyThreshold.toHumanReadableString(2),
-                nodeWriteThreadPoolStats.averageThreadPoolUtilization()
-            );
-            if (logger.isDebugEnabled()) {
-                logInterventionMessage.maybeExecute(() -> logger.debug(explain));
+            if (logger.isDebugEnabled() || allocation.debugDecision()) {
+                final String explain = Strings.format(
+                    """
+                        Node [%s] has a queue latency of [%d] millis that exceeds the queue latency threshold of [%s]. This node is \
+                        hot-spotting. Current thread pool utilization [%f]. Moving shard(s) away.""",
+                    node.nodeId(),
+                    nodeWriteThreadPoolStats.maxThreadPoolQueueLatencyMillis(),
+                    nodeWriteThreadPoolQueueLatencyThreshold.toHumanReadableString(2),
+                    nodeWriteThreadPoolStats.averageThreadPoolUtilization()
+                );
+                if (logger.isDebugEnabled()) {
+                    logInterventionMessage.maybeExecute(() -> logger.debug(explain));
+                }
+                return Decision.single(Decision.Type.NOT_PREFERRED, NAME, explain);
+            } else {
+                return Decision.NOT_PREFERRED;
             }
-            return Decision.single(Decision.Type.NOT_PREFERRED, NAME, explain);
         }
 
-        String explanation = Strings.format(
+        return allocation.decision(
+            Decision.YES,
+            NAME,
             "Node [%s]'s queue latency of [%d] does not exceed the threshold of [%s]",
             node.nodeId(),
             nodeWriteThreadPoolStats.maxThreadPoolQueueLatencyMillis(),
             nodeWriteThreadPoolQueueLatencyThreshold.toHumanReadableString(2)
         );
-        return allocation.decision(Decision.YES, NAME, explanation);
     }
 
     /**

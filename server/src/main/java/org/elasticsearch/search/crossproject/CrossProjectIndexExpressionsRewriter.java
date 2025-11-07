@@ -35,7 +35,6 @@ public class CrossProjectIndexExpressionsRewriter {
     public static TransportVersion NO_MATCHING_PROJECT_EXCEPTION_VERSION = TransportVersion.fromName("no_matching_project_exception");
 
     private static final Logger logger = LogManager.getLogger(CrossProjectIndexExpressionsRewriter.class);
-    private static final String ORIGIN_PROJECT_KEY = "_origin";
     private static final String[] MATCH_ALL = new String[] { Metadata.ALL };
     private static final String EXCLUSION = "-";
     private static final String DATE_MATH = "<";
@@ -94,10 +93,14 @@ public class CrossProjectIndexExpressionsRewriter {
         @Nullable String originProjectAlias,
         Set<String> allProjectAliases
     ) {
-        assert originProjectAlias != null || allProjectAliases.isEmpty() == false
-            : "either origin project or linked projects must be in project target set";
-
         maybeThrowOnUnsupportedResource(indexExpression);
+
+        // Always 404 when no project is available for index resolution. This is matching error handling behaviour for resolving
+        // projects with qualified index patterns such as "missing-*:index".
+        if (originProjectAlias == null && allProjectAliases.isEmpty()) {
+            // TODO: add project_routing string to the exception message
+            throw new NoMatchingProjectException("no matching project after applying project routing");
+        }
 
         final boolean isQualified = RemoteClusterAware.isRemoteIndexName(indexExpression);
         final IndexRewriteResult rewrittenExpression;
@@ -157,12 +160,12 @@ public class CrossProjectIndexExpressionsRewriter {
         String indexExpression = splitResource[1];
         maybeThrowOnUnsupportedResource(indexExpression);
 
-        if (originProjectAlias != null && ORIGIN_PROJECT_KEY.equals(requestedProjectAlias)) {
+        if (originProjectAlias != null && ProjectRoutingResolver.ORIGIN.equals(requestedProjectAlias)) {
             // handling case where we have a qualified expression like: _origin:indexName
             return new IndexRewriteResult(indexExpression);
         }
 
-        if (originProjectAlias == null && ORIGIN_PROJECT_KEY.equals(requestedProjectAlias)) {
+        if (originProjectAlias == null && ProjectRoutingResolver.ORIGIN.equals(requestedProjectAlias)) {
             // handling case where we have a qualified expression like: _origin:indexName but no _origin project is set
             throw new NoMatchingProjectException(requestedProjectAlias);
         }

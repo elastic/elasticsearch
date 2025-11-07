@@ -13,6 +13,7 @@ import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.test.ESTestCase;
@@ -32,10 +33,12 @@ import org.elasticsearch.xpack.inference.external.http.sender.QueryAndDocsInputs
 import org.elasticsearch.xpack.inference.logging.ThrottlerManager;
 import org.elasticsearch.xpack.inference.services.ServiceComponents;
 import org.elasticsearch.xpack.inference.services.openshiftai.rerank.OpenShiftAiRerankModelTests;
+import org.elasticsearch.xpack.inference.services.openshiftai.rerank.OpenShiftAiRerankTaskSettings;
 import org.junit.After;
 import org.junit.Before;
 
 import java.io.IOException;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -584,7 +587,7 @@ public class OpenShiftAiActionCreatorTests extends ESTestCase {
         }
     }
 
-    public void testCreate_OpenShiftAiRerankModel() throws IOException {
+    public void testCreate_OpenShiftAiRerankModel_WithTaskSettings() throws IOException {
         // timeout as zero for no retries
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager, NO_RETRY_SETTINGS);
 
@@ -646,7 +649,236 @@ public class OpenShiftAiActionCreatorTests extends ESTestCase {
                 )
             );
         }
-        assertRerankActionCreator(documents);
+        assertRerankActionCreator(documents, 2, true);
+    }
+
+    public void testCreate_OpenShiftAiRerankModel_WithOverriddenTaskSettings() throws IOException {
+        // timeout as zero for no retries
+        var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager, NO_RETRY_SETTINGS);
+
+        List<String> documents = List.of("Luke");
+        try (var sender = createSender(senderFactory)) {
+            sender.startSynchronously();
+
+            String responseJson = """
+                {
+                    "id": "rerank-d300256dd02b4c63b8a2bc34dcdad845",
+                    "model": "bge-reranker-v2-m3",
+                    "usage": {
+                        "total_tokens": 10
+                    },
+                    "results": [
+                        {
+                            "index": 0,
+                            "relevance_score": 0.4921875
+                        }
+                    ]
+                }
+                """;
+            webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
+
+            var model = OpenShiftAiRerankModelTests.createModel(getUrl(webServer), API_KEY, MODEL_ID);
+            var actionCreator = new OpenShiftAiActionCreator(
+                sender,
+                new ServiceComponents(threadPool, mockThrottlerManager(), NO_RETRY_SETTINGS, TruncatorTests.createTruncator())
+            );
+            var action = actionCreator.create(
+                model,
+                new HashMap<>(Map.of(OpenShiftAiRerankTaskSettings.RETURN_DOCUMENTS, false, OpenShiftAiRerankTaskSettings.TOP_N, 1))
+            );
+
+            PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
+            action.execute(new QueryAndDocsInputs(QUERY, documents, null, null, false), InferenceAction.Request.DEFAULT_TIMEOUT, listener);
+
+            var result = listener.actionGet(ESTestCase.TEST_REQUEST_TIMEOUT);
+            assertThat(
+                result.asMap(),
+                is(
+                    buildExpectationRerank(
+                        List.of(new RankedDocsResultsTests.RerankExpectation(Map.of("index", 0, "relevance_score", 0.4921875f)))
+                    )
+                )
+            );
+        }
+        assertRerankActionCreator(documents, 1, false);
+    }
+
+    public void testCreate_OpenShiftAiRerankModel_NoTaskSettings() throws IOException {
+        // timeout as zero for no retries
+        var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager, NO_RETRY_SETTINGS);
+
+        List<String> documents = List.of("Luke");
+        try (var sender = createSender(senderFactory)) {
+            sender.startSynchronously();
+
+            String responseJson = """
+                {
+                    "id": "rerank-d300256dd02b4c63b8a2bc34dcdad845",
+                    "model": "bge-reranker-v2-m3",
+                    "usage": {
+                        "total_tokens": 30
+                    },
+                    "results": [
+                        {
+                            "index": 1,
+                            "document": {
+                                "text": "awgawgawgawg"
+                            },
+                            "relevance_score": 0.9921875
+                        },
+                        {
+                            "index": 0,
+                            "document": {
+                                "text": "awdawdawda"
+                            },
+                            "relevance_score": 0.4921875
+                        }
+                    ]
+                }
+                """;
+            webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
+
+            var model = OpenShiftAiRerankModelTests.createModel(getUrl(webServer), API_KEY, MODEL_ID, null, null);
+            var actionCreator = new OpenShiftAiActionCreator(
+                sender,
+                new ServiceComponents(threadPool, mockThrottlerManager(), NO_RETRY_SETTINGS, TruncatorTests.createTruncator())
+            );
+            var action = actionCreator.create(model, null);
+
+            PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
+            action.execute(new QueryAndDocsInputs(QUERY, documents, null, null, false), InferenceAction.Request.DEFAULT_TIMEOUT, listener);
+
+            var result = listener.actionGet(ESTestCase.TEST_REQUEST_TIMEOUT);
+            assertThat(
+                result.asMap(),
+                is(
+                    buildExpectationRerank(
+                        List.of(
+                            new RankedDocsResultsTests.RerankExpectation(
+                                Map.of("text", "awgawgawgawg", "index", 1, "relevance_score", 0.9921875f)
+                            ),
+                            new RankedDocsResultsTests.RerankExpectation(
+                                Map.of("text", "awdawdawda", "index", 0, "relevance_score", 0.4921875f)
+                            )
+                        )
+                    )
+                )
+            );
+        }
+        assertRerankActionCreator(documents, null, null);
+    }
+
+    public void testCreate_OpenShiftAiRerankModel_NoTaskSettings_WithRequestParameters() throws IOException {
+        // timeout as zero for no retries
+        var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager, NO_RETRY_SETTINGS);
+
+        List<String> documents = List.of("Luke");
+        try (var sender = createSender(senderFactory)) {
+            sender.startSynchronously();
+
+            String responseJson = """
+                {
+                    "id": "rerank-d300256dd02b4c63b8a2bc34dcdad845",
+                    "model": "bge-reranker-v2-m3",
+                    "usage": {
+                        "total_tokens": 30
+                    },
+                    "results": [
+                        {
+                            "index": 1,
+                            "document": {
+                                "text": "awgawgawgawg"
+                            },
+                            "relevance_score": 0.9921875
+                        },
+                        {
+                            "index": 0,
+                            "document": {
+                                "text": "awdawdawda"
+                            },
+                            "relevance_score": 0.4921875
+                        }
+                    ]
+                }
+                """;
+            webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
+
+            var model = OpenShiftAiRerankModelTests.createModel(getUrl(webServer), API_KEY, MODEL_ID, null, null);
+            var actionCreator = new OpenShiftAiActionCreator(
+                sender,
+                new ServiceComponents(threadPool, mockThrottlerManager(), NO_RETRY_SETTINGS, TruncatorTests.createTruncator())
+            );
+            var action = actionCreator.create(model, null);
+
+            PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
+            action.execute(new QueryAndDocsInputs(QUERY, documents, true, 2, false), InferenceAction.Request.DEFAULT_TIMEOUT, listener);
+
+            var result = listener.actionGet(ESTestCase.TEST_REQUEST_TIMEOUT);
+            assertThat(
+                result.asMap(),
+                is(
+                    buildExpectationRerank(
+                        List.of(
+                            new RankedDocsResultsTests.RerankExpectation(
+                                Map.of("text", "awgawgawgawg", "index", 1, "relevance_score", 0.9921875f)
+                            ),
+                            new RankedDocsResultsTests.RerankExpectation(
+                                Map.of("text", "awdawdawda", "index", 0, "relevance_score", 0.4921875f)
+                            )
+                        )
+                    )
+                )
+            );
+        }
+        assertRerankActionCreator(documents, 2, true);
+    }
+
+    public void testCreate_OpenShiftAiRerankModel_WithTaskSettings_WithRequestParametersPrioritized() throws IOException {
+        // timeout as zero for no retries
+        var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager, NO_RETRY_SETTINGS);
+
+        List<String> documents = List.of("Luke");
+        try (var sender = createSender(senderFactory)) {
+            sender.startSynchronously();
+
+            String responseJson = """
+                {
+                    "id": "rerank-d300256dd02b4c63b8a2bc34dcdad845",
+                    "model": "bge-reranker-v2-m3",
+                    "usage": {
+                        "total_tokens": 10
+                    },
+                    "results": [
+                        {
+                            "index": 0,
+                            "relevance_score": 0.4921875
+                        }
+                    ]
+                }
+                """;
+            webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
+
+            var model = OpenShiftAiRerankModelTests.createModel(getUrl(webServer), API_KEY, MODEL_ID);
+            var actionCreator = new OpenShiftAiActionCreator(
+                sender,
+                new ServiceComponents(threadPool, mockThrottlerManager(), NO_RETRY_SETTINGS, TruncatorTests.createTruncator())
+            );
+            var action = actionCreator.create(model, null);
+
+            PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
+            action.execute(new QueryAndDocsInputs(QUERY, documents, false, 1, false), InferenceAction.Request.DEFAULT_TIMEOUT, listener);
+
+            var result = listener.actionGet(ESTestCase.TEST_REQUEST_TIMEOUT);
+            assertThat(
+                result.asMap(),
+                is(
+                    buildExpectationRerank(
+                        List.of(new RankedDocsResultsTests.RerankExpectation(Map.of("index", 0, "relevance_score", 0.4921875f)))
+                    )
+                )
+            );
+        }
+        assertRerankActionCreator(documents, 1, false);
     }
 
     public void testCreate_OpenShiftAiRerankModel_FailsFromInvalidResponseFormat() throws IOException {
@@ -698,10 +930,14 @@ public class OpenShiftAiActionCreatorTests extends ESTestCase {
             assertThat(thrownException.getMessage(), is("""
                 Failed to send OpenShift AI rerank request from inference entity id [inferenceEntityId]. Cause: Required [results]"""));
         }
-        assertRerankActionCreator(documents);
+        assertRerankActionCreator(documents, 2, true);
     }
 
-    private void assertRerankActionCreator(List<String> documents) throws IOException {
+    private void assertRerankActionCreator(
+        List<String> documents,
+        @Nullable Integer expectedTopN,
+        @Nullable Boolean expectedReturnDocuments
+    ) throws IOException {
         assertThat(webServer.requests(), hasSize(1));
         assertNull(webServer.requests().getFirst().getUri().getQuery());
         assertThat(
@@ -711,11 +947,18 @@ public class OpenShiftAiActionCreatorTests extends ESTestCase {
         assertThat(webServer.requests().getFirst().getHeader(HttpHeaders.AUTHORIZATION), equalTo("Bearer %s".formatted(API_KEY)));
 
         var requestMap = entityAsMap(webServer.requests().getFirst().getBody());
-        assertThat(requestMap.size(), is(5));
+        int fieldCount = 3;
         assertThat(requestMap.get("documents"), is(documents));
         assertThat(requestMap.get("model"), is(MODEL_ID));
         assertThat(requestMap.get("query"), is(QUERY));
-        assertThat(requestMap.get("top_n"), is(2));
-        assertThat(requestMap.get("return_documents"), is(true));
+        if (expectedTopN != null) {
+            assertThat(requestMap.get("top_n"), is(expectedTopN));
+            fieldCount++;
+        }
+        if (expectedReturnDocuments != null) {
+            assertThat(requestMap.get("return_documents"), is(expectedReturnDocuments));
+            fieldCount++;
+        }
+        assertThat(requestMap.size(), is(fieldCount));
     }
 }

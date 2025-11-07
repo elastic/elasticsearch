@@ -13,7 +13,6 @@ import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.cluster.coordination.Coordinator;
-import org.elasticsearch.common.date.DateUtils;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
@@ -278,11 +277,7 @@ public class SnapshotShutdownProgressTrackerTests extends ESTestCase {
                     "pausing timestamp should be set",
                     SnapshotShutdownProgressTracker.class.getName(),
                     Level.INFO,
-                    "*Finished signalling shard snapshots to pause at ["
-                        + DateUtils.convertMillisToDateTime(timeInMillis)
-                        + "] ["
-                        + timeInMillis
-                        + " millis]*"
+                    "*Finished signalling shard snapshots to pause at [" + new TimeValue(timeInMillis) + "] [" + timeInMillis + " millis]*"
                 )
             );
 

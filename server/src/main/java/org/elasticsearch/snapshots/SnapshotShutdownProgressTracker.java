@@ -13,7 +13,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ResultDeduplicator;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.date.DateUtils;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
@@ -144,9 +143,9 @@ public class SnapshotShutdownProgressTracker {
                 Shard snapshot completion stats since shutdown began: Done [{}]; Failed [{}]; Aborted [{}]; Paused [{}]\
                 """,
             getLocalNodeId.get(),
-            DateUtils.convertMillisToDateTime(shutdownStartMillis),
+            new TimeValue(shutdownStartMillis),
             shutdownStartMillis,
-            DateUtils.convertMillisToDateTime(shutdownFinishedSignallingPausingMillis),
+            new TimeValue(shutdownFinishedSignallingPausingMillis),
             shutdownFinishedSignallingPausingMillis,
             numberOfShardSnapshotsInProgressOnDataNode.get(),
             shardSnapshotRequests.size(),

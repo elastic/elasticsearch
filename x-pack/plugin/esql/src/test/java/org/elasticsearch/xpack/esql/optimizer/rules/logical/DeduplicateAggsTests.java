@@ -62,7 +62,8 @@ public class DeduplicateAggsTests extends AbstractLogicalPlanOptimizerTests {
      * Project[[a{r}#8, b{r}#12, c{r}#15, c{r}#15 AS d#18]]
      * \_Eval[[a{r}#8 + a{r}#8 AS b#12]]
      *   \_Limit[1000[INTEGER],false,false]
-     *     \_Aggregate[[],[COUNT(scalerank{f}#21,true[BOOLEAN],PT0S[TIME_DURATION]) AS a#8, COUNTDISTINCT(scalerank{f}#21,true[BOOLEAN],PT0S[TIME_DURATION],10[INTEGER]) AS c#15]]
+     *     \_Aggregate[[],[COUNT(scalerank{f}#21,true[BOOLEAN],PT0S[TIME_DURATION]) AS a#8,
+     *     COUNTDISTINCT(scalerank{f}#21,true[BOOLEAN],PT0S[TIME_DURATION],10[INTEGER]) AS c#15]]
      *       \_EsRelation[airports][abbrev{f}#19, city{f}#25, city_location{f}#26, coun..]
      * }</pre>
      */

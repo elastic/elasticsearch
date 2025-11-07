@@ -9,8 +9,6 @@
 
 package org.elasticsearch.cluster.routing.allocation.decider;
 
-import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
-
 import org.elasticsearch.cluster.ClusterInfo;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
@@ -130,7 +128,8 @@ public class IndexBalanceAllocationDeciderTests extends ESAllocationTestCase {
         indexMetadata = IndexMetadata.builder(indexName)
             .settings(builder)
             .timestampRange(IndexLongFieldRange.UNKNOWN)
-            .eventIngestedRange(IndexLongFieldRange.UNKNOWN).build();
+            .eventIngestedRange(IndexLongFieldRange.UNKNOWN)
+            .build();
 
         projectBuilder.put(indexMetadata, false);
         IndexRoutingTable.Builder indexRoutingTableBuilder = IndexRoutingTable.builder(indexMetadata.getIndex());
@@ -301,7 +300,6 @@ public class IndexBalanceAllocationDeciderTests extends ESAllocationTestCase {
             );
         }
     }
-
 
     public void testCanAllocateExceedThreshold() {
         setup(true, false, false);

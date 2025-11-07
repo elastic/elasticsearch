@@ -60,7 +60,10 @@ public class MergeTests extends AbstractAggregationTestCase {
             var fieldTypedData = fieldSupplier.get();
             var fieldValues = fieldTypedData.multiRowData();
 
-            ExponentialHistogramMerger merger = ExponentialHistogramMerger.create(MAX_BUCKET_COUNT, ExponentialHistogramCircuitBreaker.noop());
+            ExponentialHistogramMerger merger = ExponentialHistogramMerger.create(
+                MAX_BUCKET_COUNT,
+                ExponentialHistogramCircuitBreaker.noop()
+            );
 
             boolean anyValuesNonNull = false;
 
@@ -128,7 +131,11 @@ public class MergeTests extends AbstractAggregationTestCase {
 
     private static ExponentialHistogram downscaleTo(ExponentialHistogram histogram, int targetScale) {
         assert histogram.scale() >= targetScale;
-        ExponentialHistogramMerger merger = ExponentialHistogramMerger.createWithMaxScale(MAX_BUCKET_COUNT, targetScale,  ExponentialHistogramCircuitBreaker.noop());
+        ExponentialHistogramMerger merger = ExponentialHistogramMerger.createWithMaxScale(
+            MAX_BUCKET_COUNT,
+            targetScale,
+            ExponentialHistogramCircuitBreaker.noop()
+        );
         merger.addWithoutUpscaling(histogram);
         return merger.get();
     }
@@ -139,8 +146,8 @@ public class MergeTests extends AbstractAggregationTestCase {
         // now add a histogram with only the zero-threshold with a count of 1 to trigger merging of overlapping buckets
         merger.add(
             ExponentialHistogram.builder(ExponentialHistogram.MAX_SCALE, ExponentialHistogramCircuitBreaker.noop())
-            .zeroBucket(copyWithNewCount(targetZeroBucket, 1))
-            .build()
+                .zeroBucket(copyWithNewCount(targetZeroBucket, 1))
+                .build()
         );
         // the merger now has the desired zero-threshold, but we need to subtract the fake zero count again
         ExponentialHistogram mergeResult = merger.get();

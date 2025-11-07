@@ -47,7 +47,6 @@ import org.elasticsearch.core.Tuple;
 import org.elasticsearch.exponentialhistogram.ExponentialHistogram;
 import org.elasticsearch.exponentialhistogram.ExponentialHistogramBuilder;
 import org.elasticsearch.exponentialhistogram.ExponentialHistogramCircuitBreaker;
-import org.elasticsearch.exponentialhistogram.ExponentialScaleUtils;
 import org.elasticsearch.exponentialhistogram.ReleasableExponentialHistogram;
 import org.elasticsearch.exponentialhistogram.ZeroBucket;
 import org.elasticsearch.geo.GeometryTestUtils;
@@ -175,7 +174,6 @@ import java.util.zip.ZipEntry;
 import static java.util.Collections.emptyList;
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.unmodifiableMap;
-import static org.elasticsearch.exponentialhistogram.ExponentialHistogram.MAX_SCALE;
 import static org.elasticsearch.test.ESTestCase.assertEquals;
 import static org.elasticsearch.test.ESTestCase.between;
 import static org.elasticsearch.test.ESTestCase.randomAlphaOfLength;
@@ -1050,7 +1048,8 @@ public final class EsqlTestUtils {
     public static ExponentialHistogram randomExponentialHistogram() {
         // TODO(b/133393): allow (index,scale) based zero thresholds as soon as we support them in the block
         // ideally Replace this with the shared random generation in ExponentialHistogramTestUtils
-        int numBuckets = randomIntBetween(4, 300); boolean hasNegativeValues = randomBoolean();
+        int numBuckets = randomIntBetween(4, 300);
+        boolean hasNegativeValues = randomBoolean();
         boolean hasPositiveValues = randomBoolean();
         boolean hasZeroValues = randomBoolean();
         double[] rawValues = IntStream.concat(
@@ -1061,7 +1060,11 @@ public final class EsqlTestUtils {
             hasZeroValues ? IntStream.range(0, randomIntBetween(1, 100)).map(i1 -> 0) : IntStream.empty()
         ).mapToDouble(sign -> sign * (Math.pow(1_000_000, randomDouble()))).toArray();
 
-        ReleasableExponentialHistogram histo = ExponentialHistogram.create(numBuckets, ExponentialHistogramCircuitBreaker.noop(), rawValues);
+        ReleasableExponentialHistogram histo = ExponentialHistogram.create(
+            numBuckets,
+            ExponentialHistogramCircuitBreaker.noop(),
+            rawValues
+        );
         // Setup a proper zeroThreshold based on a random chance
         if (histo.zeroBucket().count() > 0 && randomBoolean()) {
             double smallestNonZeroValue = DoubleStream.of(rawValues).map(Math::abs).filter(val -> val != 0).min().orElse(0.0);

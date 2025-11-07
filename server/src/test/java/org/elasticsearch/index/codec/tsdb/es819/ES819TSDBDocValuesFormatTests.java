@@ -65,7 +65,7 @@ import java.util.Set;
 import java.util.function.Supplier;
 import java.util.stream.IntStream;
 
-import static org.elasticsearch.index.codec.tsdb.es819.ES819TSDBDocValuesFormat.MIN_BLOCK_SIZE_BYTES;
+import static org.elasticsearch.index.codec.tsdb.es819.ES819TSDBDocValuesFormat.BLOCK_BYTES_THRESHOLD;
 import static org.elasticsearch.test.ESTestCase.randomAlphaOfLengthBetween;
 import static org.elasticsearch.test.ESTestCase.randomBoolean;
 import static org.elasticsearch.test.ESTestCase.randomFloat;
@@ -137,15 +137,13 @@ public class ES819TSDBDocValuesFormatTests extends ES87TSDBDocValuesFormatTests 
         var config = getTimeSeriesIndexWriterConfig(hostnameField, timestampField);
         try (var dir = newDirectory(); var iw = new IndexWriter(dir, config)) {
 
-            int maxBlocks = 4;
-            int binaryDataSize = randomIntBetween(0, MIN_BLOCK_SIZE_BYTES * maxBlocks);
-
+            int binaryDataSize = randomIntBetween(0, 4 * BLOCK_BYTES_THRESHOLD);
             List<String> binaryValues = new ArrayList<>();
             int totalSize = 0;
             while (totalSize < binaryDataSize) {
                 if (randomBoolean()) {
                     final String value = testVeryLargeValues
-                        ? randomAlphaOfLengthBetween(MIN_BLOCK_SIZE_BYTES / 2, 2 * MIN_BLOCK_SIZE_BYTES)
+                        ? randomAlphaOfLengthBetween(BLOCK_BYTES_THRESHOLD / 2, 2 * BLOCK_BYTES_THRESHOLD)
                         : randomAlphaOfLengthBetween(0, 50);
                     binaryValues.add(value);
                     totalSize += value.length();
@@ -204,14 +202,12 @@ public class ES819TSDBDocValuesFormatTests extends ES87TSDBDocValuesFormatTests 
         var config = getTimeSeriesIndexWriterConfig(hostnameField, timestampField);
         try (var dir = newDirectory(); var iw = new IndexWriter(dir, config)) {
 
-            int maxBlocks = 4;
-            int binaryDataSize = randomIntBetween(0, MIN_BLOCK_SIZE_BYTES * maxBlocks);
-
+            int binaryDataSize = randomIntBetween(0, 4 * BLOCK_BYTES_THRESHOLD);
             List<String> binaryValues = new ArrayList<>();
             int totalSize = 0;
             while (totalSize < binaryDataSize) {
                 final String value = testVeryLargeValues
-                    ? randomAlphaOfLengthBetween(MIN_BLOCK_SIZE_BYTES / 2, 2 * MIN_BLOCK_SIZE_BYTES)
+                    ? randomAlphaOfLengthBetween(BLOCK_BYTES_THRESHOLD / 2, 2 * BLOCK_BYTES_THRESHOLD)
                     : randomAlphaOfLengthBetween(0, 50);
 
                 binaryValues.add(value);

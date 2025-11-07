@@ -66,7 +66,13 @@ public class ES819TSDBDocValuesFormat extends org.apache.lucene.codecs.DocValues
     static final int TERMS_DICT_REVERSE_INDEX_SIZE = 1 << TERMS_DICT_REVERSE_INDEX_SHIFT;
     static final int TERMS_DICT_REVERSE_INDEX_MASK = TERMS_DICT_REVERSE_INDEX_SIZE - 1;
 
-    public static final int MIN_BLOCK_SIZE_BYTES = 256 * 1024;
+    /**
+     * These thresholds determine the size of a compressed binary block. We build a new block if the uncompressed data in the block
+     * is 128k, or if the number of values is 1024. These values are a tradeoff between the high compression ratio and decompression
+     * speed of large blocks, and the ability to avoid decompressing unneeded values provided by small blocks.
+      */
+    public static final int BLOCK_BYTES_THRESHOLD = 128 * 1024;
+    public static final int BLOCK_COUNT_THRESHOLD = 1024;
 
     // number of documents in an interval
     private static final int DEFAULT_SKIP_INDEX_INTERVAL_SIZE = 4096;

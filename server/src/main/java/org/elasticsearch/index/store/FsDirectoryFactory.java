@@ -302,7 +302,7 @@ public class FsDirectoryFactory implements IndexStorePlugin.DirectoryFactory {
             return extension == LuceneFilesExtensions.TMP && NO_MMAP_FILE_SUFFIXES.stream().anyMatch(name::contains);
         }
 
-        static final List<String> NO_MMAP_FILE_SUFFIXES = List.of("fdt", "disi", "address-data", "block-addresses", "block-doc-ranges");
+        static final Set<String> NO_MMAP_FILE_SUFFIXES = Set.of("fdt", "disi", "address-data", "block-addresses", "block-doc-ranges");
 
         MMapDirectory getDelegate() {
             return delegate;

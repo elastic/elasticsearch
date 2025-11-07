@@ -55,8 +55,9 @@ import java.util.Arrays;
 import java.util.List;
 
 import static org.elasticsearch.index.codec.tsdb.es819.DocValuesConsumerUtil.compatibleWithOptimizedMerge;
+import static org.elasticsearch.index.codec.tsdb.es819.ES819TSDBDocValuesFormat.BLOCK_BYTES_THRESHOLD;
+import static org.elasticsearch.index.codec.tsdb.es819.ES819TSDBDocValuesFormat.BLOCK_COUNT_THRESHOLD;
 import static org.elasticsearch.index.codec.tsdb.es819.ES819TSDBDocValuesFormat.DIRECT_MONOTONIC_BLOCK_SHIFT;
-import static org.elasticsearch.index.codec.tsdb.es819.ES819TSDBDocValuesFormat.MIN_BLOCK_SIZE_BYTES;
 import static org.elasticsearch.index.codec.tsdb.es819.ES819TSDBDocValuesFormat.NUMERIC_BLOCK_SIZE;
 import static org.elasticsearch.index.codec.tsdb.es819.ES819TSDBDocValuesFormat.SKIP_INDEX_LEVEL_SHIFT;
 import static org.elasticsearch.index.codec.tsdb.es819.ES819TSDBDocValuesFormat.SKIP_INDEX_MAX_LEVEL;
@@ -551,8 +552,7 @@ final class ES819TSDBDocValuesConsumer extends XDocValuesConsumer {
             docRanges = ArrayUtil.grow(docRanges, numDocsInCurrentBlock + 1); // need one extra since writing start for next block
             docRanges[numDocsInCurrentBlock] = uncompressedBlockLength;
 
-            int totalUncompressedLength = uncompressedBlockLength + numDocsInCurrentBlock * Integer.BYTES;
-            if (totalUncompressedLength > MIN_BLOCK_SIZE_BYTES) {
+            if (uncompressedBlockLength >= BLOCK_BYTES_THRESHOLD || numDocsInCurrentBlock >= BLOCK_COUNT_THRESHOLD) {
                 flushData();
             }
         }

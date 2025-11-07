@@ -267,7 +267,7 @@ public class IndexBalanceAllocationDeciderTests extends ESAllocationTestCase {
 
         for (RoutingNode routingNode : searchIier) {
             assertDecisionMatches(
-                "Assigning a new primary shard to a search node should succeed",
+                "Assigning a new primary shard to a search tier node should succeed",
                 indexBalanceAllocationDecider.canAllocate(indexTierShardRouting, routingNode, routingAllocation),
                 Decision.Type.YES,
                 "A search node cannot own primary shards. Decider inactive."
@@ -276,7 +276,7 @@ public class IndexBalanceAllocationDeciderTests extends ESAllocationTestCase {
 
         for (RoutingNode routingNode : indexTier) {
             assertDecisionMatches(
-                "Assigning a replica shard to a search node should succeed",
+                "Assigning a replica shard to a index tier node should succeed",
                 indexBalanceAllocationDecider.canAllocate(searchTierShardRouting, routingNode, routingAllocation),
                 Decision.Type.YES,
                 "An index node cannot own search shards. Decider inactive."
@@ -298,7 +298,7 @@ public class IndexBalanceAllocationDeciderTests extends ESAllocationTestCase {
 
         for (RoutingNode routingNode : searchIier) {
             assertDecisionMatches(
-                "Assigning an additional primary shard to an index node has capacity should succeed",
+                "Assigning an additional replica shard to an search node has capacity should succeed",
                 indexBalanceAllocationDecider.canAllocate(searchTierShardRouting, routingNode, routingAllocation),
                 Decision.Type.YES,
                 "Node index shard allocation is under the threshold."

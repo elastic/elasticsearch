@@ -327,11 +327,7 @@ public final class ObjectMapperMergeTests extends ESTestCase {
                 "http.status_code",
                 NumberFieldMapper.NumberType.LONG,
                 ScriptCompiler.NONE,
-                false,
-                true,
-                IndexVersion.current(),
-                null,
-                null
+                defaultIndexSettings()
             )
         ).build(MapperBuilderContext.root(false, false));
 

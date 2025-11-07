@@ -102,14 +102,10 @@ public final class RemoteClusterService extends RemoteClusterAware
          *  the functionality to do it the right way is not yet ready -- replace this code when it's ready.
          */
         this.crossProjectEnabled = settings.getAsBoolean("serverless.cross_project.enabled", false);
-        final var telemetryProvider = transportService == null ? null : transportService.getTelemetryProvider();
-        final var meterRegistry = telemetryProvider == null ? null : telemetryProvider.getMeterRegistry();
-        if (meterRegistry != null) {
-            meterRegistry.registerLongCounter(
-                CONNECTION_ATTEMPT_FAILURES_COUNTER_NAME,
-                "linked project connection attempt failure count",
-                "count"
-            );
+        if (transportService != null) {
+            transportService.getTelemetryProvider()
+                .getMeterRegistry()
+                .registerLongCounter(CONNECTION_ATTEMPT_FAILURES_COUNTER_NAME, "linked project connection attempt failure count", "count");
         }
     }
 

@@ -1771,5 +1771,6 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
                 });
             }
         }
+        assertParseMinimalWarnings();
     }
 }

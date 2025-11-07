@@ -53,7 +53,6 @@ public class SubmitAsyncSearchRequest extends LegacyActionRequest {
         request.setPreFilterShardSize(1);
         request.setBatchedReduceSize(5);
         request.requestCache(true);
-        request.setProjectRouting(source.projectRouting());
     }
 
     public SubmitAsyncSearchRequest(StreamInput in) throws IOException {

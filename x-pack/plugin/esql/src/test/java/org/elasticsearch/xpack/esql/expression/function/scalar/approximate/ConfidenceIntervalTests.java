@@ -30,6 +30,10 @@ import static org.hamcrest.Matchers.nullValue;
 
 public class ConfidenceIntervalTests extends AbstractScalarFunctionTestCase {
 
+    private static final String EVALUATOR_STRING =
+        "ConfidenceIntervalEvaluator[bestEstimateBlock=Attribute[channel=0], estimatesBlock=Attribute[channel=1], "
+            + "trialCountBlock=Attribute[channel=2], bucketCountBlock=Attribute[channel=3], confidenceLevelBlock=Attribute[channel=4]]";
+
     @ParametersFactory
     public static Iterable<Object[]> parameters() {
         List<TestCaseSupplier> suppliers = List.of(
@@ -73,8 +77,7 @@ public class ConfidenceIntervalTests extends AbstractScalarFunctionTestCase {
                         new TestCaseSupplier.TypedData(bucketCount, DataType.INTEGER, "bucketCount"),
                         new TestCaseSupplier.TypedData(confidenceLevel, DataType.DOUBLE, "confidenceLevel")
                     ),
-                    "ConfidenceIntervalEvaluator[bestEstimateBlock=Attribute[channel=0], estimatesBlock=Attribute[channel=1], trialCountBlock="
-                        + "Attribute[channel=2], bucketCountBlock=Attribute[channel=3], confidenceLevelBlock=Attribute[channel=4]]",
+                    EVALUATOR_STRING,
                     DataType.DOUBLE,
                     contains(
                         both(greaterThan(0.0)).and(lessThan(bestEstimate)),
@@ -102,8 +105,7 @@ public class ConfidenceIntervalTests extends AbstractScalarFunctionTestCase {
                     new TestCaseSupplier.TypedData(5, DataType.INTEGER, "bucketCount"),
                     new TestCaseSupplier.TypedData(0.8, DataType.DOUBLE, "confidence_level")
                 ),
-                "ConfidenceIntervalEvaluator[bestEstimateBlock=Attribute[channel=0], estimatesBlock=Attribute[channel=1], trialCountBlock="
-                    + "Attribute[channel=2], bucketCountBlock=Attribute[channel=3], confidenceLevelBlock=Attribute[channel=4]]",
+                EVALUATOR_STRING,
                 DataType.DOUBLE,
                 contains(closeTo(1.8293144967855208, 1e-9), closeTo(2.164428203663303, 1e-9), closeTo(1.0, 1e-9))
             )
@@ -126,8 +128,7 @@ public class ConfidenceIntervalTests extends AbstractScalarFunctionTestCase {
                     new TestCaseSupplier.TypedData(5, DataType.INTEGER, "bucketCount"),
                     new TestCaseSupplier.TypedData(0.8, DataType.DOUBLE, "confidence_level")
                 ),
-                "ConfidenceIntervalEvaluator[bestEstimateBlock=Attribute[channel=0], estimatesBlock=Attribute[channel=1], trialCountBlock="
-                    + "Attribute[channel=2], bucketCountBlock=Attribute[channel=3], confidenceLevelBlock=Attribute[channel=4]]",
+                EVALUATOR_STRING,
                 DataType.DOUBLE,
                 contains(closeTo(1.8443260740876288, 1e-9), closeTo(2.164997868635109, 1e-9), closeTo(0.0, 1e-9))
             )
@@ -150,8 +151,7 @@ public class ConfidenceIntervalTests extends AbstractScalarFunctionTestCase {
                     new TestCaseSupplier.TypedData(5, DataType.INTEGER, "bucketCount"),
                     new TestCaseSupplier.TypedData(0.8, DataType.DOUBLE, "confidence_level")
                 ),
-                "ConfidenceIntervalEvaluator[bestEstimateBlock=Attribute[channel=0], estimatesBlock=Attribute[channel=1], trialCountBlock="
-                    + "Attribute[channel=2], bucketCountBlock=Attribute[channel=3], confidenceLevelBlock=Attribute[channel=4]]",
+                EVALUATOR_STRING,
                 DataType.DOUBLE,
                 contains(closeTo(0.4041519539094244, 1e-9), closeTo(1.6023321533418913, 1e-9), closeTo(0.0, 1e-9))
             )
@@ -174,8 +174,7 @@ public class ConfidenceIntervalTests extends AbstractScalarFunctionTestCase {
                     new TestCaseSupplier.TypedData(5, DataType.INTEGER, "bucketCount"),
                     new TestCaseSupplier.TypedData(0.8, DataType.DOUBLE, "confidence_level")
                 ),
-                "ConfidenceIntervalEvaluator[bestEstimateBlock=Attribute[channel=0], estimatesBlock=Attribute[channel=1], trialCountBlock="
-                    + "Attribute[channel=2], bucketCountBlock=Attribute[channel=3], confidenceLevelBlock=Attribute[channel=4]]",
+                EVALUATOR_STRING,
                 DataType.DOUBLE,
                 nullValue()
             )
@@ -198,8 +197,7 @@ public class ConfidenceIntervalTests extends AbstractScalarFunctionTestCase {
                     new TestCaseSupplier.TypedData(5, DataType.INTEGER, "bucketCount"),
                     new TestCaseSupplier.TypedData(0.8, DataType.DOUBLE, "confidence_level")
                 ),
-                "ConfidenceIntervalEvaluator[bestEstimateBlock=Attribute[channel=0], estimatesBlock=Attribute[channel=1], trialCountBlock="
-                    + "Attribute[channel=2], bucketCountBlock=Attribute[channel=3], confidenceLevelBlock=Attribute[channel=4]]",
+                EVALUATOR_STRING,
                 DataType.DOUBLE,
                 nullValue()
             )

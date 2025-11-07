@@ -690,7 +690,19 @@ public final class IndexSettings {
         false,
         new Setting.Validator<>() {
             @Override
-            public void validate(Boolean value) {}
+            public void validate(Boolean enabled) {
+                if (enabled) {
+                    if (TSDB_SYNTHETIC_ID_FEATURE_FLAG == false) {
+                        throw new IllegalArgumentException(
+                            String.format(
+                                Locale.ROOT,
+                                "The setting [%s] is only permitted when the feature flag is enabled.",
+                                USE_SYNTHETIC_ID.getKey()
+                            )
+                        );
+                    }
+                }
+            }
 
             @Override
             public void validate(Boolean enabled, Map<Setting<?>, Object> settings) {
@@ -983,7 +995,7 @@ public final class IndexSettings {
     private final boolean recoverySourceEnabled;
     private final boolean recoverySourceSyntheticEnabled;
     private final boolean useDocValuesSkipper;
-    private final boolean tsdbSyntheticId;
+    private final boolean useTimeSeriesSyntheticId;
 
     /**
      * The maximum number of refresh listeners allows on this shard.
@@ -1170,8 +1182,28 @@ public final class IndexSettings {
             && scopedSettings.get(RECOVERY_USE_SYNTHETIC_SOURCE_SETTING);
         useDocValuesSkipper = DOC_VALUES_SKIPPER && scopedSettings.get(USE_DOC_VALUES_SKIPPER);
         seqNoIndexOptions = scopedSettings.get(SEQ_NO_INDEX_OPTIONS_SETTING);
-        tsdbSyntheticId = TSDB_SYNTHETIC_ID_FEATURE_FLAG && scopedSettings.get(USE_SYNTHETIC_ID);
-        assert tsdbSyntheticId == false || mode == IndexMode.TIME_SERIES : mode;
+        final var useSyntheticId = IndexSettings.TSDB_SYNTHETIC_ID_FEATURE_FLAG && scopedSettings.get(USE_SYNTHETIC_ID);
+        if (indexMetadata.useTimeSeriesSyntheticId() != useSyntheticId) {
+            assert false;
+            throw new IllegalArgumentException(
+                String.format(
+                    Locale.ROOT,
+                    "The setting [%s] is set to [%s] but index metadata has a different value [%s].",
+                    USE_SYNTHETIC_ID.getKey(),
+                    useSyntheticId,
+                    indexMetadata.useTimeSeriesSyntheticId()
+                )
+            );
+        }
+        if (useSyntheticId) {
+            assert TSDB_SYNTHETIC_ID_FEATURE_FLAG;
+            assert indexMetadata.useTimeSeriesSyntheticId();
+            assert indexMetadata.getIndexMode() == IndexMode.TIME_SERIES : indexMetadata.getIndexMode();
+            assert indexMetadata.getCreationVersion().onOrAfter(IndexVersions.TIME_SERIES_USE_SYNTHETIC_ID);
+            useTimeSeriesSyntheticId = true;
+        } else {
+            useTimeSeriesSyntheticId = false;
+        }
         if (recoverySourceSyntheticEnabled) {
             if (DiscoveryNode.isStateless(settings)) {
                 throw new IllegalArgumentException("synthetic recovery source is only allowed in stateful");
@@ -1907,8 +1939,8 @@ public final class IndexSettings {
     /**
      * @return Whether the index is a time-series index that use synthetic ids.
      */
-    public boolean useTsdbSyntheticId() {
-        return tsdbSyntheticId;
+    public boolean useTimeSeriesSyntheticId() {
+        return useTimeSeriesSyntheticId;
     }
 
     /**

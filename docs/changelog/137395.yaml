@@ -1,0 +1,6 @@
+pr: 137395
+summary: Fix attribute only in full text function not found
+area: ES|QL
+type: bug
+issues:
+ - 137396

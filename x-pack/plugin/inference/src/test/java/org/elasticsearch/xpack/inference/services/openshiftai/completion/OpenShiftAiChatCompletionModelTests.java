@@ -13,8 +13,14 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettings;
 
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.sameInstance;
 
 public class OpenShiftAiChatCompletionModelTests extends ESTestCase {
+
+    private static final String MODEL_ID = "model_name";
+    private static final String API_KEY = "api_key";
+    private static final String URL = "url";
+
     public static OpenShiftAiChatCompletionModel createCompletionModel(String url, String apiKey, String modelName) {
         return createModelWithTaskType(url, apiKey, modelName, TaskType.COMPLETION);
     }
@@ -34,23 +40,30 @@ public class OpenShiftAiChatCompletionModelTests extends ESTestCase {
     }
 
     public void testOverrideWith_UnifiedCompletionRequest_KeepsSameModelId() {
-        var model = createCompletionModel("url", "api_key", "model_name");
-        var overriddenModel = OpenShiftAiChatCompletionModel.of(model, "model_name");
+        var model = createCompletionModel(URL, API_KEY, MODEL_ID);
+        var overriddenModel = OpenShiftAiChatCompletionModel.of(model, MODEL_ID);
 
-        assertThat(overriddenModel.getServiceSettings().modelId(), is("model_name"));
+        assertThat(overriddenModel, is(sameInstance(model)));
     }
 
     public void testOverrideWith_UnifiedCompletionRequest_OverridesExistingModelId() {
-        var model = createCompletionModel("url", "api_key", "model_name");
+        var model = createCompletionModel(URL, API_KEY, MODEL_ID);
         var overriddenModel = OpenShiftAiChatCompletionModel.of(model, "different_model");
 
         assertThat(overriddenModel.getServiceSettings().modelId(), is("different_model"));
     }
 
     public void testOverrideWith_UnifiedCompletionRequest_UsesModelFields_WhenRequestDoesNotOverride() {
-        var model = createCompletionModel("url", "api_key", "model_name");
+        var model = createCompletionModel(URL, API_KEY, MODEL_ID);
         var overriddenModel = OpenShiftAiChatCompletionModel.of(model, null);
 
-        assertThat(overriddenModel.getServiceSettings().modelId(), is("model_name"));
+        assertThat(overriddenModel, is(sameInstance(model)));
+    }
+
+    public void testOverrideWith_UnifiedCompletionRequest_KeepsNullIfNoModelIdProvided() {
+        var model = createCompletionModel(URL, API_KEY, null);
+        var overriddenModel = OpenShiftAiChatCompletionModel.of(model, null);
+
+        assertThat(overriddenModel, is(sameInstance(model)));
     }
 }

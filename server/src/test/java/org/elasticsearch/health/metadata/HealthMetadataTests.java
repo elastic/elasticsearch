@@ -55,11 +55,16 @@ public class HealthMetadataTests extends ESTestCase {
     }
 
     public void testShardLimitsBuilders() {
-        var shardLimits = HealthMetadata.ShardLimits.newBuilder().maxShardsPerNode(100).maxShardsPerNodeFrozen(999).build();
+        var shardLimits = HealthMetadata.ShardLimits.newBuilder()
+            .maxShardsPerNode(100)
+            .maxShardsPerNodeFrozen(999)
+            .shardCapacityUnhealthyThresholdYellow(10)
+            .shardCapacityUnhealthyThresholdRed(5)
+            .build();
 
         // Regular builder
-        assertEquals(shardLimits, new HealthMetadata.ShardLimits(100, 999));
+        assertEquals(shardLimits, new HealthMetadata.ShardLimits(100, 999, 10, 5));
         // Copy-builder
-        assertEquals(HealthMetadata.ShardLimits.newBuilder(shardLimits).build(), new HealthMetadata.ShardLimits(100, 999));
+        assertEquals(HealthMetadata.ShardLimits.newBuilder(shardLimits).build(), new HealthMetadata.ShardLimits(100, 999, 10, 5));
     }
 }

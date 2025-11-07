@@ -21,6 +21,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Set;
 
 import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
 
@@ -68,6 +69,20 @@ public class ExponentialHistogramParser {
 
     public static final FeatureFlag EXPONENTIAL_HISTOGRAM_FEATURE = new FeatureFlag("exponential_histogram");
 
+    private static final Set<String> ROOT_FIELD_NAMES = Set.of(
+        SCALE_FIELD.getPreferredName(),
+        SUM_FIELD.getPreferredName(),
+        MIN_FIELD.getPreferredName(),
+        MAX_FIELD.getPreferredName(),
+        ZERO_FIELD.getPreferredName(),
+        POSITIVE_FIELD.getPreferredName(),
+        NEGATIVE_FIELD.getPreferredName()
+    );
+
+    public static boolean isExponentialHistogramSubFieldName(String subFieldName) {
+        return ROOT_FIELD_NAMES.contains(subFieldName);
+    }
+
     /**
      * Represents a parsed exponential histogram.
      * The values are validated, excepted for {@link #sum()}, {@link #min()} and {@link #max()}.
@@ -98,7 +113,7 @@ public class ExponentialHistogramParser {
 
     /**
      * Parses an XContent object into an exponential histogram.
-     * The parse is expected to point at the next token after {@link XContentParser.Token#START_OBJECT}.
+     * The parser is expected to point at the next token after {@link XContentParser.Token#START_OBJECT}.
      *
      * @param mappedFieldName the name of the field being parsed, used for error messages
      * @param parser the parser to use

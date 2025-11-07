@@ -16,6 +16,7 @@ import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.metadata.InferenceFieldMetadata;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.InferenceResults;
 
@@ -150,16 +151,19 @@ public class GetInferenceFieldsAction extends ActionType<GetInferenceFieldsActio
     }
 
     public static class Response extends ActionResponse {
-        private final Map<String, List<InferenceFieldMetadata>> inferenceFieldsMap;
+        private final Map<String, List<ExtendedInferenceFieldMetadata>> inferenceFieldsMap;
         private final Map<String, InferenceResults> inferenceResultsMap;
 
-        public Response(Map<String, List<InferenceFieldMetadata>> inferenceFieldsMap, Map<String, InferenceResults> inferenceResultsMap) {
+        public Response(
+            Map<String, List<ExtendedInferenceFieldMetadata>> inferenceFieldsMap,
+            Map<String, InferenceResults> inferenceResultsMap
+        ) {
             this.inferenceFieldsMap = inferenceFieldsMap;
             this.inferenceResultsMap = inferenceResultsMap;
         }
 
         public Response(StreamInput in) throws IOException {
-            this.inferenceFieldsMap = in.readImmutableMap(i -> i.readCollectionAsImmutableList(InferenceFieldMetadata::new));
+            this.inferenceFieldsMap = in.readImmutableMap(i -> i.readCollectionAsImmutableList(ExtendedInferenceFieldMetadata::new));
             this.inferenceResultsMap = in.readImmutableMap(i -> i.readNamedWriteable(InferenceResults.class));
         }
 
@@ -169,7 +173,7 @@ public class GetInferenceFieldsAction extends ActionType<GetInferenceFieldsActio
             out.writeMap(inferenceResultsMap, StreamOutput::writeNamedWriteable);
         }
 
-        public Map<String, List<InferenceFieldMetadata>> getInferenceFieldsMap() {
+        public Map<String, List<ExtendedInferenceFieldMetadata>> getInferenceFieldsMap() {
             return Collections.unmodifiableMap(this.inferenceFieldsMap);
         }
 
@@ -189,6 +193,18 @@ public class GetInferenceFieldsAction extends ActionType<GetInferenceFieldsActio
         @Override
         public int hashCode() {
             return Objects.hash(inferenceFieldsMap, inferenceResultsMap);
+        }
+    }
+
+    public record ExtendedInferenceFieldMetadata(InferenceFieldMetadata inferenceFieldMetadata, float weight) implements Writeable {
+        public ExtendedInferenceFieldMetadata(StreamInput in) throws IOException {
+            this(new InferenceFieldMetadata(in), in.readFloat());
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeWriteable(inferenceFieldMetadata);
+            out.writeFloat(weight);
         }
     }
 }

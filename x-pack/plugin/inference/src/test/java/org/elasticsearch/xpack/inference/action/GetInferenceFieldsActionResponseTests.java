@@ -76,10 +76,7 @@ public class GetInferenceFieldsActionResponseTests extends AbstractWireSerializi
     }
 
     private static GetInferenceFieldsAction.ExtendedInferenceFieldMetadata randomeExtendedInferenceFieldMetadata() {
-        return new GetInferenceFieldsAction.ExtendedInferenceFieldMetadata(
-            randomInferenceFieldMetadata(),
-            randomFloat()
-        );
+        return new GetInferenceFieldsAction.ExtendedInferenceFieldMetadata(randomInferenceFieldMetadata(), randomFloat());
     }
 
     private static InferenceFieldMetadata randomInferenceFieldMetadata() {

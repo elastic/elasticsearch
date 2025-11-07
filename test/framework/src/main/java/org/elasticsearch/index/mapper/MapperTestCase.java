@@ -442,9 +442,10 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
         assertParseMaximalWarnings();
     }
 
-    public void testTotalFieldsCount() throws IOException {
+    public final void testTotalFieldsCount() throws IOException {
         MapperService mapperService = createMapperService(fieldMapping(this::minimalMapping));
         assertEquals(1, mapperService.documentMapper().mapping().getRoot().getTotalFieldsCount());
+        assertParseMinimalWarnings();
     }
 
     protected final void assertParseMinimalWarnings() {
@@ -1228,7 +1229,7 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
         return true;
     }
 
-    public void testSupportsParsingObject() throws IOException {
+    public final void testSupportsParsingObject() throws IOException {
         DocumentMapper mapper = createMapperService(fieldMapping(this::minimalMapping)).documentMapper();
         FieldMapper fieldMapper = (FieldMapper) mapper.mappers().getMapper("field");
         if (fieldMapper.supportsParsingObject()) {
@@ -1246,6 +1247,7 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
                 b.endObject();
             })));
         }
+        assertParseMinimalWarnings();
     }
 
     public final void testSyntheticSourceMany() throws IOException {

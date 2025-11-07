@@ -302,7 +302,8 @@ public class DesiredBalanceComputer {
                         assert initializingShardsIterator.hasNext();
                         final var initializingShard = initializingShardsIterator.next();
                         assert initializingShardsIterator.hasNext() == false
-                            : "expect exactly one relocating shard, but got: " + Iterators.toList(initializingShardsIterator);
+                            : "expect exactly one relocating shard, but got: "
+                                + Iterators.toList(Iterators.concat(Iterators.single(initializingShard), initializingShardsIterator));
                         assert routingAllocation.nodes()
                             .resolveNode(command.fromNode())
                             .getId()

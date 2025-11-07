@@ -213,8 +213,6 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
 
     private boolean skipInnerHits = false;
 
-    private String projectRouting;
-
     /**
      * Constructs a new search source builder.
      */
@@ -610,19 +608,6 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
      */
     public TimeValue timeout() {
         return timeout;
-    }
-
-    public String projectRouting() {
-        return projectRouting;
-    }
-
-    public SearchSourceBuilder projectRouting(String projectRouting) {
-        if (this.projectRouting != null) {
-            throw new IllegalArgumentException("project_routing is already set");
-        }
-
-        this.projectRouting = projectRouting;
-        return this;
     }
 
     /**
@@ -1345,6 +1330,26 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
     /**
      * Parse some xContent into this SearchSourceBuilder, overwriting any values specified in the xContent.
      *
+     * @param searchRequest The SearchRequest object that's representing the request we're parsing which shall receive
+     *                      the parsed info.
+     * @param parser The xContent parser.
+     * @param checkTrailingTokens If true throws a parsing exception when extra tokens are found after the main object.
+     * @param searchUsageHolder holder for the search usage statistics
+     * @param clusterSupportsFeature used to check if certain features are available on this cluster
+     */
+    public SearchSourceBuilder parseXContent(
+        SearchRequest searchRequest,
+        XContentParser parser,
+        boolean checkTrailingTokens,
+        SearchUsageHolder searchUsageHolder,
+        Predicate<NodeFeature> clusterSupportsFeature
+    ) throws IOException {
+        return parseXContent(searchRequest, parser, checkTrailingTokens, searchUsageHolder::updateUsage, clusterSupportsFeature);
+    }
+
+    /**
+     * Parse some xContent into this SearchSourceBuilder, overwriting any values specified in the xContent.
+     *
      * @param parser The xContent parser.
      * @param checkTrailingTokens If true throws a parsing exception when extra tokens are found after the main object.
      * @param searchUsageHolder holder for the search usage statistics
@@ -1356,7 +1361,27 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
         SearchUsageHolder searchUsageHolder,
         Predicate<NodeFeature> clusterSupportsFeature
     ) throws IOException {
-        return parseXContent(parser, checkTrailingTokens, searchUsageHolder::updateUsage, clusterSupportsFeature);
+        return parseXContent(null, parser, checkTrailingTokens, searchUsageHolder::updateUsage, clusterSupportsFeature);
+    }
+
+    /**
+     * Parse some xContent into this SearchSourceBuilder, overwriting any values specified in the xContent.
+     * This variant does not record search features usage. Most times the variant that accepts a {@link SearchUsageHolder} and records
+     * usage stats into it is the one to use.
+     *
+     * @param searchRequest The SearchRequest object that's representing the request we're parsing which shall receive
+     *                      the parsed info.
+     * @param parser The xContent parser.
+     * @param checkTrailingTokens If true throws a parsing exception when extra tokens are found after the main object.
+     * @param clusterSupportsFeature used to check if certain features are available on this cluster
+     */
+    public SearchSourceBuilder parseXContent(
+        SearchRequest searchRequest,
+        XContentParser parser,
+        boolean checkTrailingTokens,
+        Predicate<NodeFeature> clusterSupportsFeature
+    ) throws IOException {
+        return parseXContent(searchRequest, parser, checkTrailingTokens, s -> {}, clusterSupportsFeature);
     }
 
     /**
@@ -1373,10 +1398,11 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
         boolean checkTrailingTokens,
         Predicate<NodeFeature> clusterSupportsFeature
     ) throws IOException {
-        return parseXContent(parser, checkTrailingTokens, s -> {}, clusterSupportsFeature);
+        return parseXContent(null, parser, checkTrailingTokens, s -> {}, clusterSupportsFeature);
     }
 
     private SearchSourceBuilder parseXContent(
+        SearchRequest searchRequest,
         XContentParser parser,
         boolean checkTrailingTokens,
         Consumer<SearchUsage> searchUsageConsumer,
@@ -1399,7 +1425,11 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
                 currentFieldName = parser.currentName();
             } else if (token.isValue()) {
                 if (PROJECT_ROUTING.match(currentFieldName, parser.getDeprecationHandler())) {
-                    projectRouting(parser.text());
+                    /*
+                     * If project_routing was specified as a query parameter too, setProjectRouting() will throw
+                     * an error to prevent setting twice or overwriting previously set value.
+                     */
+                    searchRequest.setProjectRouting(parser.text());
                 } else if (FROM_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     from(parser.intValue());
                 } else if (SIZE_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {

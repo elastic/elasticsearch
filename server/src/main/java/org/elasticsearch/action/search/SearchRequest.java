@@ -175,6 +175,10 @@ public class SearchRequest extends LegacyActionRequest implements IndicesRequest
     }
 
     public void setProjectRouting(@Nullable String projectRouting) {
+        if (this.projectRouting != null) {
+            throw new IllegalArgumentException("project_routing is already set to [" + this.projectRouting + "]");
+        }
+
         this.projectRouting = projectRouting;
     }
 

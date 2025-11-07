@@ -27,7 +27,7 @@ public class IndexSettingsOverrideTests extends ESTestCase {
     }
 
     public void testStatelessMinRefreshIntervalOverride() {
-        assumeTrue(
+        assertTrue(
             "This test depends on system property configured in build.gradle",
             Booleans.parseBoolean(
                 System.getProperty(IndexSettings.RefreshIntervalValidator.STATELESS_ALLOW_INDEX_REFRESH_INTERVAL_OVERRIDE, "false")

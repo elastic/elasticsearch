@@ -14,8 +14,6 @@ import org.elasticsearch.common.Rounding;
 import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.logging.LogManager;
-import org.elasticsearch.xpack.esql.common.matchers.DateMillisMatcher;
-import org.elasticsearch.xpack.esql.common.matchers.DateNanosMatcher;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -35,6 +33,8 @@ import java.util.List;
 import java.util.function.LongSupplier;
 import java.util.function.Supplier;
 
+import static org.elasticsearch.test.ReadableMatchers.matchesDateMillis;
+import static org.elasticsearch.test.ReadableMatchers.matchesDateNanos;
 import static org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier.TEST_SOURCE;
 import static org.elasticsearch.xpack.esql.expression.function.scalar.date.DateTruncTests.makeTruncDurationTestCases;
 import static org.elasticsearch.xpack.esql.expression.function.scalar.date.DateTruncTests.makeTruncPeriodTestCases;
@@ -140,7 +140,7 @@ public class TBucketTests extends AbstractConfigurationFunctionTestCase {
                             ),
                             Matchers.startsWith("DateTruncDatetimeEvaluator[fieldVal=Attribute[channel=0], rounding=Rounding["),
                             DataType.DATETIME,
-                            new DateMillisMatcher(data.expectedDate())
+                            matchesDateMillis(data.expectedDate())
                         ).withConfiguration(TEST_SOURCE, configurationForTimezone(data.zoneId()))
                     ),
                     new TestCaseSupplier(
@@ -149,15 +149,11 @@ public class TBucketTests extends AbstractConfigurationFunctionTestCase {
                         () -> new TestCaseSupplier.TestCase(
                             List.of(
                                 new TestCaseSupplier.TypedData(data.period(), DataType.DATE_PERIOD, "interval").forceLiteral(),
-                                new TestCaseSupplier.TypedData(
-                                    DateUtils.toNanoSeconds(data.inputDateAsMillis()),
-                                    DataType.DATE_NANOS,
-                                    "@timestamp"
-                                )
+                                new TestCaseSupplier.TypedData(data.inputDateAsNanos(), DataType.DATE_NANOS, "@timestamp")
                             ),
                             Matchers.startsWith("DateTruncDateNanosEvaluator[fieldVal=Attribute[channel=0], rounding=Rounding["),
                             DataType.DATE_NANOS,
-                            new DateNanosMatcher(data.expectedDate())
+                            matchesDateNanos(data.expectedDate())
                         ).withConfiguration(TEST_SOURCE, configurationForTimezone(data.zoneId()))
                     )
                 )
@@ -177,7 +173,7 @@ public class TBucketTests extends AbstractConfigurationFunctionTestCase {
                             ),
                             Matchers.startsWith("DateTruncDatetimeEvaluator[fieldVal=Attribute[channel=0], rounding=Rounding["),
                             DataType.DATETIME,
-                            new DateMillisMatcher(data.expectedDate())
+                            matchesDateMillis(data.expectedDate())
                         ).withConfiguration(TEST_SOURCE, configurationForTimezone(data.zoneId()))
                     ),
                     new TestCaseSupplier(
@@ -186,15 +182,11 @@ public class TBucketTests extends AbstractConfigurationFunctionTestCase {
                         () -> new TestCaseSupplier.TestCase(
                             List.of(
                                 new TestCaseSupplier.TypedData(data.duration(), DataType.TIME_DURATION, "interval").forceLiteral(),
-                                new TestCaseSupplier.TypedData(
-                                    DateUtils.toNanoSeconds(data.inputDateAsMillis()),
-                                    DataType.DATE_NANOS,
-                                    "@timestamp"
-                                )
+                                new TestCaseSupplier.TypedData(data.inputDateAsNanos(), DataType.DATE_NANOS, "@timestamp")
                             ),
                             Matchers.startsWith("DateTruncDateNanosEvaluator[fieldVal=Attribute[channel=0], rounding=Rounding["),
                             DataType.DATE_NANOS,
-                            new DateNanosMatcher(data.expectedDate())
+                            matchesDateNanos(data.expectedDate())
                         ).withConfiguration(TEST_SOURCE, configurationForTimezone(data.zoneId()))
                     )
                 )

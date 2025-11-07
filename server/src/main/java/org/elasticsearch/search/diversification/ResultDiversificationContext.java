@@ -18,28 +18,26 @@ import java.util.Set;
 
 public abstract class ResultDiversificationContext {
     private final String field;
-    private final int numCandidates;
+    private final int size;
     private final VectorData queryVector;
-    private Map<Integer, VectorData> fieldVectors;
+    private Map<Integer, VectorData> fieldVectors = null;
 
     protected ResultDiversificationContext(
         String field,
-        int numCandidates,
-        @Nullable VectorData queryVector,
-        @Nullable Map<Integer, VectorData> fieldVectors
+        int size,
+        @Nullable VectorData queryVector
     ) {
         this.field = field;
-        this.numCandidates = numCandidates;
+        this.size = size;
         this.queryVector = queryVector;
-        this.fieldVectors = fieldVectors == null ? new HashMap<>() : fieldVectors;
     }
 
     public String getField() {
         return field;
     }
 
-    public int getNumCandidates() {
-        return numCandidates;
+    public int getSize() {
+        return size;
     }
 
     public void setFieldVectors(Map<Integer, VectorData> fieldVectors) {

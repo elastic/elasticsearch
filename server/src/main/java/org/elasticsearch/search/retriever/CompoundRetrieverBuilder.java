@@ -53,6 +53,10 @@ public abstract class CompoundRetrieverBuilder<T extends CompoundRetrieverBuilde
 
     public static final NodeFeature INNER_RETRIEVERS_FILTER_SUPPORT = new NodeFeature("inner_retrievers_filter_support");
 
+    /**
+     * The rank window size, in most cases, will determine the maximum number of top_docs that this
+     * retriever will be able to receive from the inner retrievers.
+     */
     public static final ParseField RANK_WINDOW_SIZE_FIELD = new ParseField("rank_window_size");
 
     public record RetrieverSource(RetrieverBuilder retriever, SearchSourceBuilder source) {

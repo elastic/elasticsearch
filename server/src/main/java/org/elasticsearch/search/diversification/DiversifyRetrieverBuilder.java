@@ -47,6 +47,7 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstr
 public final class DiversifyRetrieverBuilder extends CompoundRetrieverBuilder<DiversifyRetrieverBuilder> {
 
     public static final Float DEFAULT_LAMBDA_VALUE = 0.7f;
+    public static final int DEFAULT_SIZE_VALUE = 10;
 
     public static final NodeFeature RETRIEVER_RESULT_DIVERSIFICATION_MMR_FEATURE = new NodeFeature("retriever.result_diversification_mmr");
 
@@ -56,6 +57,7 @@ public final class DiversifyRetrieverBuilder extends CompoundRetrieverBuilder<Di
     public static final ParseField FIELD_FIELD = new ParseField("field");
     public static final ParseField QUERY_FIELD = new ParseField("query_vector");
     public static final ParseField LAMBDA_FIELD = new ParseField("lambda");
+    public static final ParseField SIZE_FIELD = new ParseField("size");
 
     public static class RankDocWithSearchHit extends RankDoc {
         private final SearchHit hit;
@@ -90,12 +92,14 @@ public final class DiversifyRetrieverBuilder extends CompoundRetrieverBuilder<Di
             }
 
             Float lambda = args[5] == null ? null : (Float) args[5];
+            Integer size = args[6] == null ? null : (Integer) args[6];
 
             return new DiversifyRetrieverBuilder(
                 RetrieverSource.from((RetrieverBuilder) args[0]),
                 diversificationType,
                 diversificationField,
                 rankWindowSize,
+                size,
                 queryVector,
                 lambda
             );
@@ -113,6 +117,7 @@ public final class DiversifyRetrieverBuilder extends CompoundRetrieverBuilder<Di
         PARSER.declareInt(constructorArg(), RANK_WINDOW_SIZE_FIELD);
         PARSER.declareFloatArray(optionalConstructorArg(), QUERY_FIELD);
         PARSER.declareFloat(optionalConstructorArg(), LAMBDA_FIELD);
+        PARSER.declareInt(optionalConstructorArg(), SIZE_FIELD);
         RetrieverBuilder.declareBaseParserFields(PARSER);
     }
 
@@ -120,6 +125,7 @@ public final class DiversifyRetrieverBuilder extends CompoundRetrieverBuilder<Di
     private final String diversificationField;
     private final float[] queryVector;
     private final Float lambda;
+    private final Integer size;
     private ResultDiversificationContext diversificationContext = null;
 
     DiversifyRetrieverBuilder(
@@ -127,6 +133,7 @@ public final class DiversifyRetrieverBuilder extends CompoundRetrieverBuilder<Di
         ResultDiversificationType diversificationType,
         String diversificationField,
         int rankWindowSize,
+        @Nullable Integer size,
         @Nullable float[] queryVector,
         @Nullable Float lambda
     ) {
@@ -135,6 +142,7 @@ public final class DiversifyRetrieverBuilder extends CompoundRetrieverBuilder<Di
         this.diversificationField = diversificationField;
         this.queryVector = queryVector;
         this.lambda = lambda;
+        this.size = size;
 
         if (this.diversificationType == null) {
             throw new IllegalArgumentException(
@@ -148,6 +156,7 @@ public final class DiversifyRetrieverBuilder extends CompoundRetrieverBuilder<Di
         ResultDiversificationType diversificationType,
         String diversificationField,
         int rankWindowSize,
+        @Nullable Integer size,
         @Nullable float[] queryVector,
         @Nullable Float lambda
     ) {
@@ -158,6 +167,7 @@ public final class DiversifyRetrieverBuilder extends CompoundRetrieverBuilder<Di
         this.diversificationField = diversificationField;
         this.queryVector = queryVector;
         this.lambda = lambda;
+        this.size = size;
 
         if (this.diversificationType == null) {
             throw new IllegalArgumentException(
@@ -173,6 +183,7 @@ public final class DiversifyRetrieverBuilder extends CompoundRetrieverBuilder<Di
             diversificationType,
             diversificationField,
             rankWindowSize,
+            size,
             queryVector,
             lambda
         );
@@ -210,14 +221,13 @@ public final class DiversifyRetrieverBuilder extends CompoundRetrieverBuilder<Di
 
     @Override
     protected RetrieverBuilder doRewrite(QueryRewriteContext ctx) {
-
         if (diversificationType.equals(ResultDiversificationType.MMR)) {
+            // field vectors will be filled in during the combine
             diversificationContext = new MMRResultDiversificationContext(
                 diversificationField,
                 lambda == null ? DEFAULT_LAMBDA_VALUE : lambda,
-                rankWindowSize,
-                queryVector == null ? null : new VectorData(queryVector),
-                null
+                size == null ? DEFAULT_SIZE_VALUE : size,
+                queryVector == null ? null : new VectorData(queryVector)
             );
         } else {
             // should not happen
@@ -229,7 +239,8 @@ public final class DiversifyRetrieverBuilder extends CompoundRetrieverBuilder<Di
 
     @Override
     protected SearchSourceBuilder finalizeSourceBuilder(SearchSourceBuilder sourceBuilder) {
-        return super.finalizeSourceBuilder(sourceBuilder).docValueField(diversificationField);
+        SearchSourceBuilder builder = sourceBuilder.from(0);
+        return super.finalizeSourceBuilder(builder).docValueField(diversificationField);
     }
 
     @Override
@@ -323,12 +334,11 @@ public final class DiversifyRetrieverBuilder extends CompoundRetrieverBuilder<Di
                 diversificationType,
                 diversificationContext
             );
-            results = diversification.diversify(results);
+
+            return diversification.diversify(results);
         } catch (IOException e) {
             throw new ElasticsearchStatusException("Result diversification failed", RestStatus.INTERNAL_SERVER_ERROR, e);
         }
-
-        return results;
     }
 
     @Override
@@ -353,6 +363,10 @@ public final class DiversifyRetrieverBuilder extends CompoundRetrieverBuilder<Di
 
         if (lambda != null) {
             builder.field(LAMBDA_FIELD.getPreferredName(), lambda);
+        }
+
+        if (size != null) {
+            builder.field(SIZE_FIELD.getPreferredName(), size);
         }
     }
 

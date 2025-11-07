@@ -22,11 +22,10 @@ public class MMRResultDiversificationContext extends ResultDiversificationContex
     public MMRResultDiversificationContext(
         String field,
         float lambda,
-        int numCandidates,
-        @Nullable VectorData queryVector,
-        @Nullable Map<Integer, VectorData> fieldVectors
+        int size,
+        @Nullable VectorData queryVector
     ) {
-        super(field, numCandidates, queryVector, fieldVectors);
+        super(field, size, queryVector);
         this.lambda = lambda;
     }
 

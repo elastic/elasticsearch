@@ -17,7 +17,6 @@ import org.elasticsearch.search.vectors.VectorData;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -35,7 +34,8 @@ public class MMRResultDiversificationTests extends ESTestCase {
         builder.elementType(DenseVectorFieldMapper.ElementType.FLOAT);
 
         var queryVectorData = new VectorData(new float[] { 0.5f, 0.2f, 0.4f, 0.4f });
-        Map<Integer, VectorData> fieldVectors = Map.of(
+        var diversificationContext = new MMRResultDiversificationContext("dense_vector_field", 0.3f, 3, queryVectorData);
+        diversificationContext.setFieldVectors(Map.of(
             1,
             new VectorData(new float[] { 0.4f, 0.2f, 0.4f, 0.4f }),
             2,
@@ -48,8 +48,7 @@ public class MMRResultDiversificationTests extends ESTestCase {
             new VectorData(new float[] { 0.1f, 0.9f, 0.5f, 0.9f }),
             6,
             new VectorData(new float[] { 0.05f, 0.05f, 0.05f, 0.05f })
-        );
-        var diversificationContext = new MMRResultDiversificationContext("dense_vector_field", 0.3f, 3, queryVectorData, fieldVectors);
+        ));
 
         RankDoc[] docs = new RankDoc[] {
             new RankDoc(1, 2.0f, 1),
@@ -82,7 +81,7 @@ public class MMRResultDiversificationTests extends ESTestCase {
         builder.elementType(DenseVectorFieldMapper.ElementType.FLOAT);
 
         var queryVectorData = new VectorData(new float[] { 0.5f, 0.2f, 0.4f, 0.4f });
-        var diversificationContext = new MMRResultDiversificationContext("dense_vector_field", 0.6f, 10, queryVectorData, new HashMap<>());
+        var diversificationContext = new MMRResultDiversificationContext("dense_vector_field", 0.6f, 10, queryVectorData);
         RankDoc[] emptyDocs = new RankDoc[0];
 
         MMRResultDiversification resultDiversification = new MMRResultDiversification(diversificationContext);

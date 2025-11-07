@@ -18,6 +18,8 @@ import org.elasticsearch.search.vectors.VectorData;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -45,14 +47,8 @@ public class MMRResultDiversification extends ResultDiversification<MMRResultDiv
         List<Integer> selectedDocIds = new ArrayList<>();
 
         // always add the highest scoring doc to the list
-        int highestScoreDocId = -1;
-        float highestScore = Float.MIN_VALUE;
-        for (ScoreDoc doc : docs) {
-            if (doc.score > highestScore) {
-                highestScoreDocId = doc.doc;
-                highestScore = doc.score;
-            }
-        }
+        ScoreDoc highestScoreDoc = Arrays.stream(docs).max(Comparator.comparingDouble(doc -> doc.score)).orElse(docs[0]);
+        int highestScoreDocId = highestScoreDoc.doc;
         selectedDocIds.add(highestScoreDocId);
 
         // test the vector to see if we are using floats or bytes
@@ -63,9 +59,9 @@ public class MMRResultDiversification extends ResultDiversification<MMRResultDiv
         Map<Integer, Float> querySimilarity = getQuerySimilarityForDocs(docs, useFloat, context);
 
         Map<Integer, Map<Integer, Float>> cachedSimilarities = new HashMap<>();
-        int numCandidates = context.getNumCandidates();
+        int topDocsSize = context.getSize();
 
-        for (int x = 0; x < numCandidates && selectedDocIds.size() < numCandidates && selectedDocIds.size() < docs.length; x++) {
+        for (int x = 0; x < topDocsSize && selectedDocIds.size() < topDocsSize && selectedDocIds.size() < docs.length; x++) {
             int thisMaxMMRDocId = -1;
             float thisMaxMMRScore = Float.NEGATIVE_INFINITY;
             for (ScoreDoc doc : docs) {

@@ -38,7 +38,11 @@ setup:
           {"index":{}}
           {"textbody": "second text", "textvector": [0.4, 0.2, 0.3, 0.3], "keywordfield": "test2"}
           {"index":{}}
+          {"textbody": "second text duplicate", "textvector": [0.4, 0.2, 0.3, 0.3], "keywordfield": "test2_dup"}
+          {"index":{}}
           {"textbody": "third text", "textvector": [0.4, 0.1, 0.3, 0.3], "keywordfield": "test3"}
+          {"index":{}}
+          {"textbody": "third text duplicate", "textvector": [0.4, 0.1, 0.3, 0.3], "keywordfield": "test3_dup"}
           {"index":{}}
           {"textbody": "fourth text", "textvector": [0.1, 0.9, 0.5, 0.9], "keywordfield": "test4"}
           {"index":{}}
@@ -66,16 +70,18 @@ teardown:
             knn:
               field: "textvector"
               query_vector: [ 0.5, 0.2, 0.4, 0.4 ]
-              k: 6
-              num_candidates: 6
+              k: 10
+              num_candidates: 10
 
-  - match: { hits.total.value: 6 }
+  - match: { hits.total.value: 8 }
   - match: { hits.hits.0._source.textbody: "second text" }
-  - match: { hits.hits.1._source.textbody: "third text" }
-  - match: { hits.hits.2._source.textbody: "first text" }
-  - match: { hits.hits.3._source.textbody: "sixth text" }
-  - match: { hits.hits.4._source.textbody: "fourth text" }
-  - match: { hits.hits.5._source.textbody: "fifth text" }
+  - match: { hits.hits.1._source.textbody: "second text duplicate" }
+  - match: { hits.hits.2._source.textbody: "third text" }
+  - match: { hits.hits.3._source.textbody: "third text duplicate" }
+  - match: { hits.hits.4._source.textbody: "first text" }
+  - match: { hits.hits.5._source.textbody: "sixth text" }
+  - match: { hits.hits.6._source.textbody: "fourth text" }
+  - match: { hits.hits.7._source.textbody: "fifth text" }
 
   - do:
       search:
@@ -85,19 +91,21 @@ teardown:
             diversify:
               type: "mmr"
               field: "textvector"
-              lambda: 0.7
-              rank_window_size: 3
+              lambda: 0.3
+              rank_window_size: 10
+              size: 3
               retriever:
                 knn:
                   field: "textvector"
-                  query_vector: [ 0.5, 0.2, 0.4, 0.4 ]
-                  k: 6
-                  num_candidates: 6
+                  query_vector: [ 0.5, 0.2, 0.4, 0.4  ]
+                  k: 10
+                  num_candidates: 10
 
-  - match: { hits.total.value: 3 }
+  - match: { hits.total.value: 8 }
+  - length: {hits.hits: 3 }
   - match: { hits.hits.0._source.textbody: "second text" }
   - match: { hits.hits.1._source.textbody: "third text" }
-  - match: { hits.hits.2._source.textbody: "first text" }
+  - match: { hits.hits.2._source.textbody: "sixth text" }
 
   - do:
       search:
@@ -107,20 +115,19 @@ teardown:
             diversify:
               type: "mmr"
               field: "textvector"
-              lambda: 0.9
-              rank_window_size: 3
-              query_vector: [ 0.5, 0.2, 0.4, 0.4 ]
+              lambda: 0.3
+              rank_window_size: 10
+              size: 3
               retriever:
-                knn:
-                  field: "textvector"
-                  query_vector: [ 0.1, 0.2, 0.4, 0.4 ]
-                  k: 6
-                  num_candidates: 6
+                standard:
+                  query:
+                    match_all: { }
 
-  - match: { hits.total.value: 3 }
+  - match: { hits.total.value: 8 }
+  - length: {hits.hits: 3 }
   - match: { hits.hits.0._source.textbody: "first text" }
-  - match: { hits.hits.1._source.textbody: "sixth text" }
-  - match: { hits.hits.2._source.textbody: "fourth text" }
+  - match: { hits.hits.1._source.textbody: "third text" }
+  - match: { hits.hits.2._source.textbody: "sixth text" }
 
 ---
 "Test MMR result diversification required parameters":
@@ -135,6 +142,7 @@ teardown:
               type: "mmr"
               field: "textvector"
               lambda: 0.7
+              size: 3
               retriever:
                 knn:
                   field: "textvector"
@@ -156,7 +164,8 @@ teardown:
               type: "mmr"
               field: "textvector"
               lambda: 0.7
-              rank_window_size: 3
+              rank_window_size: 10
+              size: 3
 
   - match: { status: 400 }
   - match: { error.type: illegal_argument_exception }
@@ -171,7 +180,8 @@ teardown:
             diversify:
               type: "mmr"
               field: "textvector"
-              rank_window_size: 3
+              rank_window_size: 10
+              size: 3
               retriever:
                 knn:
                   field: "textvector"
@@ -193,7 +203,8 @@ teardown:
               type: "mmr"
               field: "textvector"
               lambda: -0.5
-              rank_window_size: 3
+              rank_window_size: 10
+              size: 3
               retriever:
                 knn:
                   field: "textvector"
@@ -215,7 +226,8 @@ teardown:
               type: "mmr"
               field: "textvector"
               lambda: 1.5
-              rank_window_size: 3
+              rank_window_size: 10
+              size: 3
               retriever:
                 knn:
                   field: "textvector"
@@ -240,7 +252,8 @@ teardown:
               type: "mmr"
               field: "unknown_field"
               lambda: 0.7
-              rank_window_size: 3
+              rank_window_size: 10
+              size: 3
               retriever:
                 knn:
                   field: "textvector"
@@ -264,7 +277,8 @@ teardown:
               type: "mmr"
               field: "keywordfield"
               lambda: 0.7
-              rank_window_size: 3
+              rank_window_size: 10
+              size: 3
               retriever:
                 knn:
                   field: "textvector"
@@ -288,7 +302,8 @@ teardown:
               type: "mmr"
               field: "textbody"
               lambda: 0.7
-              rank_window_size: 3
+              rank_window_size: 10
+              size: 3
               retriever:
                 knn:
                   field: "textvector"

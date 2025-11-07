@@ -59,7 +59,7 @@ public class DiversifyRetrieverBuilderTests extends ESTestCase {
         // ensure type is MMR
         IllegalArgumentException ex = assertThrows(
             IllegalArgumentException.class,
-            () -> new DiversifyRetrieverBuilder(getInnerRetriever(), null, "test_field", 10, getRandomQueryVector(), 0.5f)
+            () -> new DiversifyRetrieverBuilder(getInnerRetriever(), null, "test_field", 10, 10, getRandomQueryVector(), 0.5f)
         );
         assertEquals("[diversify] diversification type must be set to [mmr]", ex.getMessage());
 
@@ -68,7 +68,8 @@ public class DiversifyRetrieverBuilderTests extends ESTestCase {
             getInnerRetriever(),
             ResultDiversificationType.MMR,
             "test_field",
-            10,
+            randomIntBetween(1, 20),
+            randomBoolean() ? null : randomIntBetween(1, 20),
             getRandomQueryVector(),
             2.0f
         );
@@ -83,7 +84,8 @@ public class DiversifyRetrieverBuilderTests extends ESTestCase {
             getInnerRetriever(),
             ResultDiversificationType.MMR,
             "test_field",
-            10,
+            randomIntBetween(1, 20),
+            randomBoolean() ? null : randomIntBetween(1, 20),
             getRandomQueryVector(),
             -0.1f
         );
@@ -98,7 +100,8 @@ public class DiversifyRetrieverBuilderTests extends ESTestCase {
             getInnerRetriever(),
             ResultDiversificationType.MMR,
             "test_field",
-            10,
+            randomIntBetween(1, 20),
+            randomBoolean() ? null : randomIntBetween(1, 20),
             getRandomQueryVector(),
             null
         );
@@ -152,6 +155,7 @@ public class DiversifyRetrieverBuilderTests extends ESTestCase {
             getInnerRetriever(),
             ResultDiversificationType.MMR,
             "dense_vector_field",
+            10,
             3,
             new float[] { 0.5f, 0.2f, 0.4f, 0.4f },
             0.3f
@@ -175,6 +179,7 @@ public class DiversifyRetrieverBuilderTests extends ESTestCase {
             getInnerRetriever(),
             ResultDiversificationType.MMR,
             "dense_vector_field",
+            10,
             3,
             new float[] { 0.5f, 0.2f, 0.4f, 0.4f },
             0.3f
@@ -209,6 +214,7 @@ public class DiversifyRetrieverBuilderTests extends ESTestCase {
             getInnerRetriever(),
             ResultDiversificationType.MMR,
             "dense_vector_field",
+            10,
             3,
             new float[] { 0.5f, 0.2f, 0.4f, 0.4f },
             0.3f
@@ -312,12 +318,13 @@ public class DiversifyRetrieverBuilderTests extends ESTestCase {
     private static DiversifyRetrieverBuilder createRandomRetriever(@Nullable String fieldName, @Nullable Integer vectorDimensions) {
         String field = fieldName == null ? "test_field" : fieldName;
         int rankWindowSize = randomIntBetween(1, 20);
+        Integer size = randomBoolean() ? null : randomIntBetween(1, 20);
         float[] queryVector = vectorDimensions == null
             ? randomBoolean() ? getRandomQueryVector() : null
             : getRandomQueryVector(vectorDimensions);
         Float lambda = randomFloatBetween(0.0f, 1.0f, true);
         CompoundRetrieverBuilder.RetrieverSource innerRetriever = getInnerRetriever();
-        return new DiversifyRetrieverBuilder(innerRetriever, ResultDiversificationType.MMR, field, rankWindowSize, queryVector, lambda);
+        return new DiversifyRetrieverBuilder(innerRetriever, ResultDiversificationType.MMR, field, rankWindowSize, size, queryVector, lambda);
     }
 
     private static CompoundRetrieverBuilder.RetrieverSource getInnerRetriever() {

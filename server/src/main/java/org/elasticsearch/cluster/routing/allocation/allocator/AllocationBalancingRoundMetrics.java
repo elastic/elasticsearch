@@ -56,8 +56,11 @@ public class AllocationBalancingRoundMetrics {
             "{shard}"
         );
 
-        this.shardMovesHistogram = meterRegistry.registerLongHistogram(NUMBER_OF_SHARD_MOVES_HISTOGRAM_METRIC_NAME,
-            "Histogram of shard moves", "unit");
+        this.shardMovesHistogram = meterRegistry.registerLongHistogram(
+            NUMBER_OF_SHARD_MOVES_HISTOGRAM_METRIC_NAME,
+            "Histogram of shard moves",
+            "unit"
+        );
         this.shardCountHistogram = meterRegistry.registerLongHistogram(NUMBER_OF_SHARDS_METRIC_NAME, "Current number of shards", "unit");
         this.diskUsageHistogram = meterRegistry.registerDoubleHistogram(DISK_USAGE_BYTES_METRIC_NAME, "Disk usage in bytes", "unit");
         this.writeLoadHistogram = meterRegistry.registerDoubleHistogram(WRITE_LOAD_METRIC_NAME, "Write load", "1.0");

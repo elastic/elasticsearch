@@ -564,8 +564,14 @@ public class AllocationBalancingRoundSummaryServiceTests extends ESTestCase {
         List<Long> measuredShardMoveValues = Measurement.getMeasurementValues(measuredShardMoves, (measurement -> measurement.getLong()));
         assertEquals(measuredShardMoveValues, shardMoves);
 
-        List<Measurement> measuredShardMoveHistogram = metricRecorder.getMeasurements(InstrumentType.LONG_HISTOGRAM, NUMBER_OF_SHARD_MOVES_HISTOGRAM_METRIC_NAME);
-        List<Long> measuredShardMoveHistogramValues = Measurement.getMeasurementValues(measuredShardMoveHistogram, (measurement -> measurement.getLong()));
+        List<Measurement> measuredShardMoveHistogram = metricRecorder.getMeasurements(
+            InstrumentType.LONG_HISTOGRAM,
+            NUMBER_OF_SHARD_MOVES_HISTOGRAM_METRIC_NAME
+        );
+        List<Long> measuredShardMoveHistogramValues = Measurement.getMeasurementValues(
+            measuredShardMoveHistogram,
+            (measurement -> measurement.getLong())
+        );
         assertEquals(measuredShardMoveHistogramValues, shardMoves);
 
         List<Measurement> measuredShardCounts = metricRecorder.getMeasurements(InstrumentType.LONG_HISTOGRAM, NUMBER_OF_SHARDS_METRIC_NAME);

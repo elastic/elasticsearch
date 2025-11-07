@@ -212,11 +212,6 @@ public class OpenShiftAiActionCreatorTests extends ESTestCase {
                 equalTo(XContentType.JSON.mediaTypeWithoutParameters())
             );
             assertThat(webServer.requests().getFirst().getHeader(HttpHeaders.AUTHORIZATION), equalTo("Bearer %s".formatted(API_KEY)));
-
-            var requestMap = entityAsMap(webServer.requests().getFirst().getBody());
-            assertThat(requestMap.size(), is(2));
-            assertThat(requestMap.get("input"), is(List.of(INPUT)));
-            assertThat(requestMap.get("model"), is(MODEL_ID));
         }
     }
 

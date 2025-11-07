@@ -23,6 +23,7 @@ import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.routing.SearchShardRouting;
 import org.elasticsearch.cluster.routing.ShardIterator;
 import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.cluster.routing.SplitShardCountSummary;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
@@ -282,7 +283,15 @@ final class RequestDispatcher {
                 if (indexFilter != null && indexFilter instanceof MatchAllQueryBuilder == false) {
                     var coordinatorRewriteContext = coordinatorRewriteContextProvider.getCoordinatorRewriteContext(shardId.getIndex());
                     if (coordinatorRewriteContext != null) {
-                        var shardRequest = new ShardSearchRequest(shardId, nowInMillis, AliasFilter.EMPTY, clusterAlias);
+                        // SplitShardCountSummary can be safely UNSET here the logic below (queryStillMatchesAfterRewrite)
+                        // is purely a local operation.
+                        var shardRequest = new ShardSearchRequest(
+                            shardId,
+                            nowInMillis,
+                            AliasFilter.EMPTY,
+                            clusterAlias,
+                            SplitShardCountSummary.UNSET
+                        );
                         shardRequest.source(new SearchSourceBuilder().query(indexFilter));
                         try {
                             canMatch = SearchService.queryStillMatchesAfterRewrite(shardRequest, coordinatorRewriteContext);

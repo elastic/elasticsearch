@@ -25,6 +25,7 @@ public class AllocationBalancingRoundMetrics {
     // counters that measure rounds and moves from the last balancing round
     public static final String NUMBER_OF_BALANCING_ROUNDS_METRIC_NAME = "es.allocator.balancing_round.balancing_rounds";
     public static final String NUMBER_OF_SHARD_MOVES_METRIC_NAME = "es.allocator.balancing_round.shard_moves";
+    public static final String NUMBER_OF_SHARD_MOVES_HISTOGRAM_METRIC_NAME = "es.allocator.balancing_round.shard_moves_histogram";
 
     // histograms that measure current utilization
     public static final String NUMBER_OF_SHARDS_METRIC_NAME = "es.allocator.balancing_round.shard_count";
@@ -34,6 +35,7 @@ public class AllocationBalancingRoundMetrics {
 
     private final LongCounter balancingRoundCounter;
     private final LongCounter shardMovesCounter;
+    private final LongHistogram shardMovesHistogram;
 
     private final LongHistogram shardCountHistogram;
     private final DoubleHistogram diskUsageHistogram;
@@ -54,6 +56,8 @@ public class AllocationBalancingRoundMetrics {
             "{shard}"
         );
 
+        this.shardMovesHistogram = meterRegistry.registerLongHistogram(NUMBER_OF_SHARD_MOVES_HISTOGRAM_METRIC_NAME,
+            "Histogram of shard moves", "unit");
         this.shardCountHistogram = meterRegistry.registerLongHistogram(NUMBER_OF_SHARDS_METRIC_NAME, "Current number of shards", "unit");
         this.diskUsageHistogram = meterRegistry.registerDoubleHistogram(DISK_USAGE_BYTES_METRIC_NAME, "Disk usage in bytes", "unit");
         this.writeLoadHistogram = meterRegistry.registerDoubleHistogram(WRITE_LOAD_METRIC_NAME, "Write load", "1.0");
@@ -63,6 +67,7 @@ public class AllocationBalancingRoundMetrics {
     public void addBalancingRoundSummary(BalancingRoundSummary summary) {
         balancingRoundCounter.increment();
         shardMovesCounter.incrementBy(summary.numberOfShardsToMove());
+        shardMovesHistogram.record(summary.numberOfShardsToMove());
 
         for (Map.Entry<String, NodesWeightsChanges> changesEntry : summary.nodeNameToWeightChanges().entrySet()) {
             String nodeName = changesEntry.getKey();

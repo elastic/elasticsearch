@@ -35,6 +35,7 @@ import java.util.function.Function;
 import static org.elasticsearch.cluster.routing.allocation.allocator.AllocationBalancingRoundMetrics.DISK_USAGE_BYTES_METRIC_NAME;
 import static org.elasticsearch.cluster.routing.allocation.allocator.AllocationBalancingRoundMetrics.NUMBER_OF_BALANCING_ROUNDS_METRIC_NAME;
 import static org.elasticsearch.cluster.routing.allocation.allocator.AllocationBalancingRoundMetrics.NUMBER_OF_SHARDS_METRIC_NAME;
+import static org.elasticsearch.cluster.routing.allocation.allocator.AllocationBalancingRoundMetrics.NUMBER_OF_SHARD_MOVES_HISTOGRAM_METRIC_NAME;
 import static org.elasticsearch.cluster.routing.allocation.allocator.AllocationBalancingRoundMetrics.NUMBER_OF_SHARD_MOVES_METRIC_NAME;
 import static org.elasticsearch.cluster.routing.allocation.allocator.AllocationBalancingRoundMetrics.TOTAL_WEIGHT_METRIC_NAME;
 import static org.elasticsearch.cluster.routing.allocation.allocator.AllocationBalancingRoundMetrics.WRITE_LOAD_METRIC_NAME;
@@ -562,6 +563,10 @@ public class AllocationBalancingRoundSummaryServiceTests extends ESTestCase {
         );
         List<Long> measuredShardMoveValues = Measurement.getMeasurementValues(measuredShardMoves, (measurement -> measurement.getLong()));
         assertEquals(measuredShardMoveValues, shardMoves);
+
+        List<Measurement> measuredShardMoveHistogram = metricRecorder.getMeasurements(InstrumentType.LONG_HISTOGRAM, NUMBER_OF_SHARD_MOVES_HISTOGRAM_METRIC_NAME);
+        List<Long> measuredShardMoveHistogramValues = Measurement.getMeasurementValues(measuredShardMoveHistogram, (measurement -> measurement.getLong()));
+        assertEquals(measuredShardMoveHistogramValues, shardMoves);
 
         List<Measurement> measuredShardCounts = metricRecorder.getMeasurements(InstrumentType.LONG_HISTOGRAM, NUMBER_OF_SHARDS_METRIC_NAME);
         var shardCountsByNode = groupMeasurementsByAttribute(measuredShardCounts, (measurement -> measurement.getLong()));

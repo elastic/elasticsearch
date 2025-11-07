@@ -208,15 +208,7 @@ public class RRFRetrieverBuilderIT extends ESIntegTestCase {
         );
         standard1.getPreFilterQueryBuilders().add(QueryBuilders.queryStringQuery("search").defaultField(TEXT_FIELD));
         // this one retrieves docs 2, 3, 6, and 7
-        KnnRetrieverBuilder knnRetrieverBuilder = new KnnRetrieverBuilder(
-            VECTOR_FIELD,
-            new float[] { 2.0f },
-            null,
-            10,
-            100,
-            null,
-            null
-        );
+        KnnRetrieverBuilder knnRetrieverBuilder = new KnnRetrieverBuilder(VECTOR_FIELD, new float[] { 2.0f }, null, 10, 100, null, null);
         source.retriever(
             new RRFRetrieverBuilder(
                 Arrays.asList(

@@ -62,10 +62,10 @@ final class SpatialExtentGroupingState extends AbstractArrayState {
                     minYsBuilder.appendInt(minYs.get(group));
                 } else {
                     // TODO: Should we add Nulls here instead?
-                    minXsBuilder.appendInt(0);
-                    maxXsBuilder.appendInt(0);
-                    maxYsBuilder.appendInt(0);
-                    minYsBuilder.appendInt(0);
+                    minXsBuilder.appendInt(Integer.MAX_VALUE);
+                    maxXsBuilder.appendInt(Integer.MIN_VALUE);
+                    maxYsBuilder.appendInt(Integer.MIN_VALUE);
+                    minYsBuilder.appendInt(Integer.MAX_VALUE);
                 }
             }
             blocks[offset + 0] = minXsBuilder.build();
@@ -159,23 +159,37 @@ final class SpatialExtentGroupingState extends AbstractArrayState {
         try (var builder = driverContext.blockFactory().newBytesRefBlockBuilder(selected.getPositionCount())) {
             for (int i = 0; i < selected.getPositionCount(); i++) {
                 int si = selected.getInt(i);
-                if (hasValue(si)) {
-                    builder.appendBytesRef(
-                        new BytesRef(
-                            WellKnownBinary.toWKB(
-                                new Rectangle(
-                                    pointType.encoder().decodeX(minXs.get(si)),
-                                    pointType.encoder().decodeX(maxXs.get(si)),
-                                    pointType.encoder().decodeY(maxYs.get(si)),
-                                    pointType.encoder().decodeY(minYs.get(si))
-                                ),
-                                ByteOrder.LITTLE_ENDIAN
-                            )
-                        )
-                    );
-                } else {
+                if (hasValue(si) == false) {
                     builder.appendNull();
+                    continue;
                 }
+                int minX = minXs.get(si);
+                int maxX = maxXs.get(si);
+                int maxY = maxYs.get(si);
+                int minY = minYs.get(si);
+
+                boolean hasInfinite = minX == Integer.MAX_VALUE
+                    || maxX == Integer.MIN_VALUE
+                    || minY == Integer.MAX_VALUE
+                    || maxY == Integer.MIN_VALUE;
+                if (hasInfinite) {
+                    builder.appendNull();
+                    continue;
+                }
+
+                BytesRef bytes = new BytesRef(
+                    WellKnownBinary.toWKB(
+                        new Rectangle(
+                            pointType.encoder().decodeX(minX),
+                            pointType.encoder().decodeX(maxX),
+                            pointType.encoder().decodeY(maxY),
+                            pointType.encoder().decodeY(minY)
+                        ),
+                        ByteOrder.LITTLE_ENDIAN
+                    )
+                );
+
+                builder.appendBytesRef(bytes);
             }
             return builder.build();
         }

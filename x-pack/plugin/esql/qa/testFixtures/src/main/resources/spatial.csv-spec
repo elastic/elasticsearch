@@ -2186,7 +2186,7 @@ count:long | key:keyword | extent:cartesian_shape
 8          | Bot         | BBOX (0.0, 3.0, 1.0, 0.0)
 8          | Top         | BBOX (0.0, 3.0, 3.0, 2.0)
 4          | Fou         | BBOX (0.0, 3.0, 3.0, 0.0)
-1          | Mis         | BBOX (0.0, 0.0, 0.0, 0.0)
+1          | Mis         | null
 ;
 
 stExtentCartesianShapesNoDocValues
@@ -2212,7 +2212,7 @@ count:long | key:keyword | extent:cartesian_shape
 8          | Bot         | BBOX (0.0, 3.0, 1.0, 0.0)
 8          | Top         | BBOX (0.0, 3.0, 3.0, 2.0)
 4          | Fou         | BBOX (0.0, 3.0, 3.0, 0.0)
-1          | Mis         | BBOX (0.0, 0.0, 0.0, 0.0)
+1          | Mis         | null
 ;
 
 stExtentManyCartesianShapesGrouped
@@ -3026,4 +3026,18 @@ wkt:keyword                |pt:cartesian_point
 "POINT(7580.93 2272.77)"   |POINT(7580.93 2272.77)
 "POINT(111)"               |null
 // end::to_cartesianpoint-str-parse-error-result[]
+;
+
+stExtentCartesianShapes non-grouping with null shapes
+required_capability: st_extent_agg
+
+# this test ensures that the non-grouping ST_EXTENT_AGG is able to gracefully handle missing cartesian shapes
+
+FROM cartesian_multipolygons
+| STATS extent = ST_EXTENT_AGG(shape), count = COUNT()
+| KEEP count, extent
+;
+
+count:long | extent:cartesian_shape
+21         | BBOX (0.0, 3.0, 3.0, 0.0)
 ;

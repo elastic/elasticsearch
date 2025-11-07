@@ -16,6 +16,7 @@ import org.elasticsearch.inference.ModelSecrets;
 import org.elasticsearch.inference.SecretSettings;
 import org.elasticsearch.inference.TaskSettings;
 import org.elasticsearch.inference.TaskType;
+import org.elasticsearch.inference.UnifiedCompletionRequest;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.inference.external.action.ExecutableAction;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
@@ -26,12 +27,21 @@ import org.elasticsearch.xpack.inference.services.elastic.action.ElasticInferenc
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.util.Map;
+import java.util.Objects;
 
-/**
- * Adapter model for COMPLETION task type that converts simple text inputs into chat messages
- * and uses the chat completion endpoint.
- */
 public class ElasticInferenceServiceCompletionModel extends ElasticInferenceServiceExecutableActionModel {
+
+    public static ElasticInferenceServiceCompletionModel of(
+        ElasticInferenceServiceCompletionModel model,
+        UnifiedCompletionRequest request
+    ) {
+        var originalModelServiceSettings = model.getServiceSettings();
+        var overriddenServiceSettings = new ElasticInferenceServiceCompletionServiceSettings(
+            Objects.requireNonNullElse(request.model(), originalModelServiceSettings.modelId())
+        );
+
+        return new ElasticInferenceServiceCompletionModel(model, overriddenServiceSettings);
+    }
 
     private final URI uri;
 
@@ -57,6 +67,14 @@ public class ElasticInferenceServiceCompletionModel extends ElasticInferenceServ
     }
 
     public ElasticInferenceServiceCompletionModel(
+        ElasticInferenceServiceCompletionModel model,
+        ElasticInferenceServiceCompletionServiceSettings serviceSettings
+    ) {
+        super(model, serviceSettings);
+        this.uri = createUri();
+    }
+
+    public ElasticInferenceServiceCompletionModel(
         String inferenceEntityId,
         TaskType taskType,
         String service,
@@ -74,14 +92,6 @@ public class ElasticInferenceServiceCompletionModel extends ElasticInferenceServ
         this.uri = createUri();
     }
 
-    public ElasticInferenceServiceCompletionModel(
-        ElasticInferenceServiceCompletionModel model,
-        ElasticInferenceServiceCompletionServiceSettings serviceSettings
-    ) {
-        super(model, serviceSettings);
-        this.uri = createUri();
-    }
-
     @Override
     public ElasticInferenceServiceCompletionServiceSettings getServiceSettings() {
         return (ElasticInferenceServiceCompletionServiceSettings) super.getServiceSettings();
@@ -93,7 +103,7 @@ public class ElasticInferenceServiceCompletionModel extends ElasticInferenceServ
 
     private URI createUri() throws ElasticsearchStatusException {
         try {
-            // Use the same chat endpoint as CHAT_COMPLETION
+            // TODO, consider transforming the base URL into a URI for better error handling.
             return new URI(elasticInferenceServiceComponents().elasticInferenceServiceUrl() + "/api/v1/chat");
         } catch (URISyntaxException e) {
             throw new ElasticsearchStatusException(

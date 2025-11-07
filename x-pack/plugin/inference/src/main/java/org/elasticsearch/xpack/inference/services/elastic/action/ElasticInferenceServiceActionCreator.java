@@ -16,6 +16,7 @@ import org.elasticsearch.xpack.inference.external.http.sender.EmbeddingsInput;
 import org.elasticsearch.xpack.inference.external.http.sender.GenericRequestManager;
 import org.elasticsearch.xpack.inference.external.http.sender.QueryAndDocsInputs;
 import org.elasticsearch.xpack.inference.external.http.sender.Sender;
+import org.elasticsearch.xpack.inference.external.http.sender.UnifiedChatInput;
 import org.elasticsearch.xpack.inference.external.response.elastic.ElasticInferenceServiceDenseTextEmbeddingsResponseEntity;
 import org.elasticsearch.xpack.inference.external.response.elastic.ElasticInferenceServiceRerankResponseEntity;
 import org.elasticsearch.xpack.inference.services.ServiceComponents;
@@ -23,9 +24,9 @@ import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServic
 import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceSparseEmbeddingsRequestManager;
 import org.elasticsearch.xpack.inference.services.elastic.completion.ElasticInferenceServiceCompletionModel;
 import org.elasticsearch.xpack.inference.services.elastic.densetextembeddings.ElasticInferenceServiceDenseTextEmbeddingsModel;
-import org.elasticsearch.xpack.inference.services.elastic.request.ElasticInferenceServiceCompletionRequest;
 import org.elasticsearch.xpack.inference.services.elastic.request.ElasticInferenceServiceDenseTextEmbeddingsRequest;
 import org.elasticsearch.xpack.inference.services.elastic.request.ElasticInferenceServiceRerankRequest;
+import org.elasticsearch.xpack.inference.services.elastic.request.ElasticInferenceServiceUnifiedChatCompletionRequest;
 import org.elasticsearch.xpack.inference.services.elastic.rerank.ElasticInferenceServiceRerankModel;
 import org.elasticsearch.xpack.inference.services.elastic.sparseembeddings.ElasticInferenceServiceSparseEmbeddingsModel;
 import org.elasticsearch.xpack.inference.services.openai.response.OpenAiChatCompletionResponseEntity;
@@ -39,6 +40,8 @@ import static org.elasticsearch.xpack.inference.services.elastic.ElasticInferenc
 import static org.elasticsearch.xpack.inference.services.elastic.request.ElasticInferenceServiceRequest.extractRequestMetadataFromThreadContext;
 
 public class ElasticInferenceServiceActionCreator implements ElasticInferenceServiceActionVisitor {
+
+    public static final String USER_ROLE = "user";
 
     static final ResponseHandler DENSE_TEXT_EMBEDDINGS_HANDLER = new ElasticInferenceServiceResponseHandler(
         "elastic dense text embedding",
@@ -127,8 +130,8 @@ public class ElasticInferenceServiceActionCreator implements ElasticInferenceSer
             threadPool,
             model,
             COMPLETION_HANDLER,
-            (chatCompletionInput) -> new ElasticInferenceServiceCompletionRequest(
-                chatCompletionInput.getInputs(),
+            (chatCompletionInput) -> new ElasticInferenceServiceUnifiedChatCompletionRequest(
+                new UnifiedChatInput(chatCompletionInput.getInputs(), USER_ROLE, false),
                 model,
                 traceContext,
                 extractRequestMetadataFromThreadContext(threadPool.getThreadContext())

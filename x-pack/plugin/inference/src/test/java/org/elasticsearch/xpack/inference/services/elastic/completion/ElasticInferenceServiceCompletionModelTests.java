@@ -10,12 +10,43 @@ package org.elasticsearch.xpack.inference.services.elastic.completion;
 import org.elasticsearch.inference.EmptySecretSettings;
 import org.elasticsearch.inference.EmptyTaskSettings;
 import org.elasticsearch.inference.TaskType;
+import org.elasticsearch.inference.UnifiedCompletionRequest;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceComponents;
+
+import java.util.List;
 
 import static org.hamcrest.Matchers.is;
 
 public class ElasticInferenceServiceCompletionModelTests extends ESTestCase {
+
+    public void testOverridingModelId() {
+        var originalModel = new ElasticInferenceServiceCompletionModel(
+            "id",
+            TaskType.COMPLETION,
+            "elastic",
+            new ElasticInferenceServiceCompletionServiceSettings("model_id"),
+            EmptyTaskSettings.INSTANCE,
+            EmptySecretSettings.INSTANCE,
+            ElasticInferenceServiceComponents.of("url")
+        );
+
+        var request = new UnifiedCompletionRequest(
+            List.of(new UnifiedCompletionRequest.Message(new UnifiedCompletionRequest.ContentString("message"), "user", null, null)),
+            "new_model_id",
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+        );
+
+        var overriddenModel = ElasticInferenceServiceCompletionModel.of(originalModel, request);
+
+        assertThat(overriddenModel.getServiceSettings().modelId(), is("new_model_id"));
+        assertThat(overriddenModel.getTaskType(), is(TaskType.COMPLETION));
+    }
 
     public void testUriCreation() {
         var url = "http://eis-gateway.com";

@@ -28,7 +28,7 @@ import org.elasticsearch.xpack.inference.services.elastic.DefaultModelConfig;
 import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceService;
 import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceComponents;
 import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceSettingsTests;
-import org.elasticsearch.xpack.inference.services.elastic.completion.ElasticInferenceServiceChatCompletionModel;
+import org.elasticsearch.xpack.inference.services.elastic.completion.ElasticInferenceServiceCompletionModel;
 import org.elasticsearch.xpack.inference.services.elastic.completion.ElasticInferenceServiceCompletionServiceSettings;
 import org.elasticsearch.xpack.inference.services.elastic.response.ElasticInferenceServiceAuthorizationResponseEntity;
 import org.elasticsearch.xpack.inference.services.elastic.sparseembeddings.ElasticInferenceServiceSparseEmbeddingsModel;
@@ -253,7 +253,7 @@ public class ElasticInferenceServiceAuthorizationHandlerTests extends ESSingleNo
         return Map.of(
             "rainbow-sprinkles",
             new DefaultModelConfig(
-                new ElasticInferenceServiceChatCompletionModel(
+                new ElasticInferenceServiceCompletionModel(
                     defaultEndpointId("rainbow-sprinkles"),
                     TaskType.CHAT_COMPLETION,
                     "test",

@@ -17,7 +17,7 @@ import org.elasticsearch.xpack.inference.external.http.retry.ResponseHandler;
 import org.elasticsearch.xpack.inference.external.http.sender.ExecutableInferenceRequest;
 import org.elasticsearch.xpack.inference.external.http.sender.InferenceInputs;
 import org.elasticsearch.xpack.inference.external.http.sender.UnifiedChatInput;
-import org.elasticsearch.xpack.inference.services.elastic.completion.ElasticInferenceServiceChatCompletionModel;
+import org.elasticsearch.xpack.inference.services.elastic.completion.ElasticInferenceServiceCompletionModel;
 import org.elasticsearch.xpack.inference.services.elastic.request.ElasticInferenceServiceUnifiedChatCompletionRequest;
 import org.elasticsearch.xpack.inference.services.openai.response.OpenAiChatCompletionResponseEntity;
 import org.elasticsearch.xpack.inference.telemetry.TraceContext;
@@ -32,7 +32,7 @@ public class ElasticInferenceServiceUnifiedCompletionRequestManager extends Elas
     private static final ResponseHandler HANDLER = createCompletionHandler();
 
     public static ElasticInferenceServiceUnifiedCompletionRequestManager of(
-        ElasticInferenceServiceChatCompletionModel model,
+        ElasticInferenceServiceCompletionModel model,
         ThreadPool threadPool,
         TraceContext traceContext
     ) {
@@ -43,11 +43,11 @@ public class ElasticInferenceServiceUnifiedCompletionRequestManager extends Elas
         );
     }
 
-    private final ElasticInferenceServiceChatCompletionModel model;
+    private final ElasticInferenceServiceCompletionModel model;
     private final TraceContext traceContext;
 
     private ElasticInferenceServiceUnifiedCompletionRequestManager(
-        ElasticInferenceServiceChatCompletionModel model,
+        ElasticInferenceServiceCompletionModel model,
         ThreadPool threadPool,
         TraceContext traceContext
     ) {

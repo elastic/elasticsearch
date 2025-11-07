@@ -546,8 +546,8 @@ abstract class DataNodeRequestSender {
                     .map(shard -> project.cluster().nodes().get(shard.currentNodeId()))
                     .toList();
             } catch (Exception ignored) {
-                // If the target index is deleted or the target shard is not found, then we skip resolving its new shard routing,
-                // and that shard won't be retried.
+                // If the target index is deleted or the target shard is not found after the query has started,
+                // we skip resolving its new shard routing, and that shard will not be retried.
                 continue;
             }
             nodes.put(shardId, allocatedNodes);

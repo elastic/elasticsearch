@@ -324,7 +324,15 @@ public class DiversifyRetrieverBuilderTests extends ESTestCase {
             : getRandomQueryVector(vectorDimensions);
         Float lambda = randomFloatBetween(0.0f, 1.0f, true);
         CompoundRetrieverBuilder.RetrieverSource innerRetriever = getInnerRetriever();
-        return new DiversifyRetrieverBuilder(innerRetriever, ResultDiversificationType.MMR, field, rankWindowSize, size, queryVector, lambda);
+        return new DiversifyRetrieverBuilder(
+            innerRetriever,
+            ResultDiversificationType.MMR,
+            field,
+            rankWindowSize,
+            size,
+            queryVector,
+            lambda
+        );
     }
 
     private static CompoundRetrieverBuilder.RetrieverSource getInnerRetriever() {

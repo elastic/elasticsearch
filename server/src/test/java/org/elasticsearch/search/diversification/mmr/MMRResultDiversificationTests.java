@@ -35,20 +35,22 @@ public class MMRResultDiversificationTests extends ESTestCase {
 
         var queryVectorData = new VectorData(new float[] { 0.5f, 0.2f, 0.4f, 0.4f });
         var diversificationContext = new MMRResultDiversificationContext("dense_vector_field", 0.3f, 3, queryVectorData);
-        diversificationContext.setFieldVectors(Map.of(
-            1,
-            new VectorData(new float[] { 0.4f, 0.2f, 0.4f, 0.4f }),
-            2,
-            new VectorData(new float[] { 0.4f, 0.2f, 0.3f, 0.3f }),
-            3,
-            new VectorData(new float[] { 0.4f, 0.1f, 0.3f, 0.3f }),
-            4,
-            new VectorData(new float[] { 0.1f, 0.9f, 0.5f, 0.9f }),
-            5,
-            new VectorData(new float[] { 0.1f, 0.9f, 0.5f, 0.9f }),
-            6,
-            new VectorData(new float[] { 0.05f, 0.05f, 0.05f, 0.05f })
-        ));
+        diversificationContext.setFieldVectors(
+            Map.of(
+                1,
+                new VectorData(new float[] { 0.4f, 0.2f, 0.4f, 0.4f }),
+                2,
+                new VectorData(new float[] { 0.4f, 0.2f, 0.3f, 0.3f }),
+                3,
+                new VectorData(new float[] { 0.4f, 0.1f, 0.3f, 0.3f }),
+                4,
+                new VectorData(new float[] { 0.1f, 0.9f, 0.5f, 0.9f }),
+                5,
+                new VectorData(new float[] { 0.1f, 0.9f, 0.5f, 0.9f }),
+                6,
+                new VectorData(new float[] { 0.05f, 0.05f, 0.05f, 0.05f })
+            )
+        );
 
         RankDoc[] docs = new RankDoc[] {
             new RankDoc(1, 2.0f, 1),

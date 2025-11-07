@@ -12,7 +12,6 @@ package org.elasticsearch.search.diversification;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.search.vectors.VectorData;
 
-import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
 
@@ -22,11 +21,7 @@ public abstract class ResultDiversificationContext {
     private final VectorData queryVector;
     private Map<Integer, VectorData> fieldVectors = null;
 
-    protected ResultDiversificationContext(
-        String field,
-        int size,
-        @Nullable VectorData queryVector
-    ) {
+    protected ResultDiversificationContext(String field, int size, @Nullable VectorData queryVector) {
         this.field = field;
         this.size = size;
         this.queryVector = queryVector;

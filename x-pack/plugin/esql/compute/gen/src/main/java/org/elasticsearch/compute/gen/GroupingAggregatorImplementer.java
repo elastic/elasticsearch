@@ -469,7 +469,6 @@ public class GroupingAggregatorImplementer {
             }
             builder.addStatement("int valuesPosition = groupPosition + positionOffset");
 
-            // TBD - affects 2 geo classes
             if (valuesAreVector == false && hasOnlyBlockArguments == false) {
                 for (Argument a : aggParams) {
                     builder.beginControlFlow("if ($L.isNull(valuesPosition))", a.blockName());

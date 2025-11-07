@@ -440,7 +440,6 @@ public class AggregatorImplementer {
                 builder.beginControlFlow("if (mask.getBoolean(p) == false)").addStatement("continue").endControlFlow();
             }
 
-            // TBD - affects 2 geo classes
             for (Argument a : aggParams) {
                 a.addContinueIfPositionHasNoValueBlock(builder);
             }

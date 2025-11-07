@@ -4224,12 +4224,13 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 final long uploadTimeInMillis = threadPool.rawRelativeTimeInMillis() - startMillis;
                 blobStoreSnapshotMetrics.incrementCountersForPartUpload(partBytes, uploadTimeInMillis);
                 logger.trace(
-                    "[{}] Writing [{}] of size [{}b] to [{}] took [{}ms]",
+                    "[{}] Writing [{}] of size [{}b] to [{}] took [{}/{}ms]",
                     metadata.name(),
                     partName,
                     partBytes,
                     shardContainer.path(),
-                    new TimeValue(uploadTimeInMillis)
+                    new TimeValue(uploadTimeInMillis),
+                    uploadTimeInMillis
                 );
             }
             blobStoreSnapshotMetrics.incrementNumberOfBlobsUploaded();

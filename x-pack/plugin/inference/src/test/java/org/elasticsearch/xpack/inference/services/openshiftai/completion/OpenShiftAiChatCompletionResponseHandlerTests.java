@@ -60,8 +60,9 @@ public class OpenShiftAiChatCompletionResponseHandlerTests extends ESTestCase {
         var responseJson = XContentHelper.stripWhitespace("""
             {
                 "object": "error",
-                "message": "[{'type': 'missing', 'loc': ('body', 'messages'), 'msg': 'Field required', 'input': {'model': 'llama-31-8b-ins\
-                truct', '1messages': [{'role': 'user', 'content': 'What is deep learning?'}], 'max_tokens': 2, 'stream': True}}]",
+                "message": "[{'type': 'missing', 'loc': ('body', 'messages'), 'msg': 'Field required', \
+            'input': {'model': 'llama-31-8b-instruct', 'messages': [{'role': 'user', 'content': 'What is deep learning?'}], \
+            'max_tokens': 2, 'stream': True}}]",
                 "type": "Bad Request",
                 "param": null,
                 "code": 400
@@ -74,10 +75,10 @@ public class OpenShiftAiChatCompletionResponseHandlerTests extends ESTestCase {
             {
                 "error": {
                     "code": "bad_request",
-                    "message": "Received a bad request status code for request from inference entity id [id] status [400].\
-             Error message: [{\\"object\\":\\"error\\",\\"message\\":\\"[{'type': 'missing', 'loc': ('body', 'messages'), 'msg': 'Field r\
-            equired', 'input': {'model': 'llama-31-8b-ins    truct', '1messages': [{'role': 'user', 'content': 'What is deep learning?'}]\
-            , 'max_tokens': 2, 'stream': True}}]\\",\\"type\\":\\"Bad Request\\",\\"param\\":null,\\"code\\":400}]",
+                    "message": "Received a bad request status code for request from inference entity id [id] status [400]. Error message: \
+            [{\\"object\\":\\"error\\",\\"message\\":\\"[{'type': 'missing', 'loc': ('body', 'messages'), 'msg': 'Field required', \
+            'input': {'model': 'llama-31-8b-instruct', 'messages': [{'role': 'user', 'content': 'What is deep learning?'}], \
+            'max_tokens': 2, 'stream': True}}]\\",\\"type\\":\\"Bad Request\\",\\"param\\":null,\\"code\\":400}]",
                     "type": "openshift_ai_error"
                 }
             }
@@ -95,8 +96,8 @@ public class OpenShiftAiChatCompletionResponseHandlerTests extends ESTestCase {
             {
                 "error": {
                     "code": "bad_request",
-                    "message": "Received a server error status code for request from inference entity id [id] status [500]. Error message: \
-            [what? this isn't a json\\n]",
+                    "message": "Received a server error status code for request from inference entity id [id] status [500]. \
+            Error message: [what? this isn't a json\\n]",
                     "type": "openshift_ai_error"
                 }
             }

@@ -446,6 +446,9 @@ tests:
 - class: org.elasticsearch.upgrades.SearchStatesIT
   method: testBWCSearchStates
   issue: https://github.com/elastic/elasticsearch/issues/137681
+- class: org.elasticsearch.readiness.ReadinessClusterIT
+  method: testReadinessDuringRestartsNormalOrder
+  issue: https://github.com/elastic/elasticsearch/issues/136955
 
 # Examples:
 #

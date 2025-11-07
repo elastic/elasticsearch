@@ -1424,7 +1424,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();
             } else if (token.isValue()) {
-                if (PROJECT_ROUTING.match(currentFieldName, parser.getDeprecationHandler())) {
+                if (PROJECT_ROUTING.match(currentFieldName, parser.getDeprecationHandler()) && searchRequest != null) {
                     /*
                      * If project_routing was specified as a query parameter too, setProjectRouting() will throw
                      * an error to prevent setting twice or overwriting previously set value.

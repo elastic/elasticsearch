@@ -46,8 +46,8 @@ In both cases, all queries return a constant score of 1.0.
 
 ## Index sorting for improved compression
 The compression provided by `pattern_text` can be significantly improved if the index is sorted by the `template_id` field.
-This sorting is not applied by default, but can be enabled for the `message` field of LogsDB indices (assuming it is of type `pattern_text`) by setting the index setting `index.logsdb.default_sort_on_message_template` to `true`.
-This will cause the index to be sorted by `host.name` (if present), then `message.template_id`, and finally by `@timestamp`.
+
+### Custom sorting
 If the index is not LogsDB or the `pattern_text` field is named something other than `message`, index sorting can still be manually applied as shown in the following example.
 
 ```console
@@ -65,6 +65,32 @@ PUT logs
         "type": "date"
       },
       "notice": {
+        "type": "pattern_text"
+      }
+    }
+  }
+}
+```
+
+### Default sorting for LogsDB {applies_to}`stack: preview 9.3`
+This sorting is not applied by default, but can be enabled for the `message` field of LogsDB indices (assuming it is of type `pattern_text`) by setting the index setting `index.logsdb.default_sort_on_message_template` to `true`.
+This will cause the index to be sorted by `host.name` (if present), then `message.template_id`, and finally by `@timestamp`.
+
+```console
+PUT logs
+{
+  "settings": {
+    "index": {
+      "mode": "logsdb",
+      "logsdb.default_sort_on_message_template": true
+    }
+  },
+  "mappings": {
+    "properties": {
+      "@timestamp": {
+        "type": "date"
+      },
+      "message": {
         "type": "pattern_text"
       }
     }

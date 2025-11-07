@@ -23,6 +23,7 @@ import co.elastic.elasticsearch.stateless.action.NewCommitNotificationRequest;
 import co.elastic.elasticsearch.stateless.action.NewCommitNotificationResponse;
 import co.elastic.elasticsearch.stateless.action.TransportGetVirtualBatchedCompoundCommitChunkAction;
 import co.elastic.elasticsearch.stateless.action.TransportNewCommitNotificationAction;
+import co.elastic.elasticsearch.stateless.cache.SharedBlobCacheWarmingService;
 import co.elastic.elasticsearch.stateless.cache.StatelessSharedBlobCacheService;
 import co.elastic.elasticsearch.stateless.cluster.coordination.StatelessClusterConsistencyService;
 import co.elastic.elasticsearch.stateless.engine.IndexEngine;
@@ -53,6 +54,7 @@ import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.ChannelActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.SubscribableListener;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
 import org.elasticsearch.cluster.block.ClusterBlockException;
@@ -77,6 +79,7 @@ import org.elasticsearch.index.seqno.SeqNoStats;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.recovery.RecoveryClusterStateDelayListeners;
+import org.elasticsearch.node.PluginComponentBinding;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.rest.RestStatus;
@@ -84,6 +87,7 @@ import org.elasticsearch.search.SearchResponseUtils;
 import org.elasticsearch.snapshots.SnapshotInfo;
 import org.elasticsearch.snapshots.SnapshotState;
 import org.elasticsearch.snapshots.mockstore.MockRepository;
+import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.test.MockLog;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.transport.MockTransportService;
@@ -146,14 +150,29 @@ import static org.hamcrest.Matchers.notNullValue;
 public class StatelessFileDeletionIT extends AbstractStatelessIntegTestCase {
 
     /**
-     * A plugin that can block snapshot threads from opening {@link BlobCacheIndexInput} instances
+     * A {@code Stateless} implementation that can block snapshot threads from opening {@link BlobCacheIndexInput} instances and
+     * await on upload and BCC release completion.
      */
-    public static class SnapshotBlockerStatelessPlugin extends Stateless {
+    public static class TestStateless extends Stateless {
 
         public final Semaphore snapshotBlocker = new Semaphore(Integer.MAX_VALUE);
 
-        public SnapshotBlockerStatelessPlugin(Settings settings) {
+        private final AtomicReference<CountDownLatch> uploadAndBccReleaseLatch = new AtomicReference<>();
+
+        public TestStateless(Settings settings) {
             super(settings);
+        }
+
+        @Override
+        public Collection<Object> createComponents(PluginServices services) {
+            final Collection<Object> components = super.createComponents(services);
+            components.add(
+                new PluginComponentBinding<>(
+                    StatelessCommitService.class,
+                    components.stream().filter(c -> c instanceof StatelessCommitService).findFirst().orElseThrow()
+                )
+            );
+            return components;
         }
 
         @Override
@@ -161,30 +180,21 @@ public class StatelessFileDeletionIT extends AbstractStatelessIntegTestCase {
             StatelessSharedBlobCacheService cacheService,
             ShardId shardId
         ) {
-            return new TrackingIndexBlobStoreCacheDirectory(cacheService, shardId, snapshotBlocker);
-        }
+            return new IndexBlobStoreCacheDirectory(cacheService, shardId) {
 
-        private static class TrackingIndexBlobStoreCacheDirectory extends IndexBlobStoreCacheDirectory {
-
-            public final Semaphore blocker;
-
-            TrackingIndexBlobStoreCacheDirectory(StatelessSharedBlobCacheService cacheService, ShardId shardId, Semaphore blocker) {
-                super(cacheService, shardId);
-                this.blocker = blocker;
-            }
-
-            @Override
-            public IndexInput openInput(String name, IOContext context) throws IOException {
-                if (Objects.equals(EsExecutors.executorName(Thread.currentThread()), ThreadPool.Names.SNAPSHOT)) {
-                    safeAcquire(blocker);
-                    try {
-                        return super.openInput(name, context);
-                    } finally {
-                        blocker.release();
+                @Override
+                public IndexInput openInput(String name, IOContext context) throws IOException {
+                    if (Objects.equals(EsExecutors.executorName(Thread.currentThread()), ThreadPool.Names.SNAPSHOT)) {
+                        safeAcquire(snapshotBlocker);
+                        try {
+                            return super.openInput(name, context);
+                        } finally {
+                            snapshotBlocker.release();
+                        }
                     }
+                    return super.openInput(name, context);
                 }
-                return super.openInput(name, context);
-            }
+            };
         }
 
         public Releasable blockSnapshots() {
@@ -200,6 +210,57 @@ public class StatelessFileDeletionIT extends AbstractStatelessIntegTestCase {
             assert snapshotBlocker.availablePermits() == 0;
             snapshotBlocker.release(Integer.MAX_VALUE);
         }
+
+        @Override
+        protected StatelessCommitService createStatelessCommitService(
+            Settings settings,
+            ObjectStoreService objectStoreService,
+            ClusterService clusterService,
+            IndicesService indicesService,
+            Client client,
+            StatelessCommitCleaner commitCleaner,
+            StatelessSharedBlobCacheService cacheService,
+            SharedBlobCacheWarmingService cacheWarmingService,
+            TelemetryProvider telemetryProvider
+        ) {
+            return new StatelessCommitService(
+                settings,
+                objectStoreService,
+                clusterService,
+                indicesService,
+                client,
+                commitCleaner,
+                cacheService,
+                cacheWarmingService,
+                telemetryProvider
+            ) {
+                @Override
+                ActionListener<BatchedCompoundCommit> newUploadTaskListener(
+                    ShardCommitState commitState,
+                    VirtualBatchedCompoundCommit virtualBcc,
+                    ShardCommitState.BlobReference blobReference
+                ) {
+                    return ActionListener.runAfter(super.newUploadTaskListener(commitState, virtualBcc, blobReference), () -> {
+                        var latch = uploadAndBccReleaseLatch.get();
+                        if (latch != null) {
+                            latch.countDown();
+                        }
+                    });
+                }
+            };
+        }
+
+        public Runnable awaiterOnUploadAndBccRelease() {
+            final var latch = new CountDownLatch(1);
+            if (uploadAndBccReleaseLatch.compareAndSet(null, latch)) {
+                return () -> {
+                    safeAwait(latch);
+                    uploadAndBccReleaseLatch.set(null);
+                };
+            } else {
+                throw new IllegalStateException("Awaiter onUploadAndBccRelease already exist");
+            }
+        }
     }
 
     @Override
@@ -211,7 +272,7 @@ public class StatelessFileDeletionIT extends AbstractStatelessIntegTestCase {
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         var plugins = new ArrayList<>(super.nodePlugins());
         plugins.remove(Stateless.class);
-        plugins.add(SnapshotBlockerStatelessPlugin.class);
+        plugins.add(TestStateless.class);
         plugins.add(MockRepository.Plugin.class);
         return plugins;
     }
@@ -274,10 +335,7 @@ public class StatelessFileDeletionIT extends AbstractStatelessIntegTestCase {
             }
         });
 
-        var plugin = internalCluster().getInstance(PluginsService.class, indexNode)
-            .filterPlugins(SnapshotBlockerStatelessPlugin.class)
-            .findFirst()
-            .get();
+        var plugin = internalCluster().getInstance(PluginsService.class, indexNode).filterPlugins(TestStateless.class).findFirst().get();
         try (Releasable ignored = plugin.blockSnapshots()) {
             logger.info("Starting snapshot");
             snapshot.start();
@@ -1300,6 +1358,8 @@ public class StatelessFileDeletionIT extends AbstractStatelessIntegTestCase {
         var indexName = randomIdentifier();
         createIndex(indexName, 1, 1);
 
+        var stateless = internalCluster().getInstance(PluginsService.class, indexNode).filterPlugins(TestStateless.class).findFirst().get();
+
         Queue<Tuple<NewCommitNotificationRequest, CheckedRunnable<Exception>>> pendingNewCommitOnUploadNotifications =
             new LinkedBlockingQueue<>();
         CountDownLatch commitNotifications = new CountDownLatch(2);
@@ -1337,8 +1397,20 @@ public class StatelessFileDeletionIT extends AbstractStatelessIntegTestCase {
             );
         }
 
+        var awaiterOnBccRelease = stateless.awaiterOnUploadAndBccRelease();
+
         // The latest commit in the BCC will be an independent commit
         client().admin().indices().prepareForceMerge(indexName).setMaxNumSegments(1).get();
+
+        // With Hollow shards, commits are first marked as deleted before being actually deleted. The actual deletion will be triggered by
+        // the creation of a new commit.
+        // In the context of this test, force merge will trigger a flush that will perform the BCC upload before marking the commits as
+        // deleted (when releasing their ref). The commits being actually deleted when refresh trigger the creation of the new commit.
+        // Unfortunately, force merge can return before the commit are released, and therefore marked as deleted,
+        // opening the opportunity for a race that can prevent the refresh to actually delete the commits.
+        // To avoid that race we need to ensure that all the commit references held by the VBCC are actually released.
+        awaiterOnBccRelease.run();
+
         // Force a refresh so the index local reader only has a dependency on the latest BCC
         refresh(indexName);
 

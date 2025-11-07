@@ -800,74 +800,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
             commitState::runUploadWhenCommitIsReady,
             virtualBcc,
             TimeValue.timeValueMillis(50),
-            ActionListener.runAfter(copyToTargets(new ActionListener<>() {
-                @Override
-                public void onResponse(BatchedCompoundCommit uploadedBcc) {
-                    try {
-                        // Use the largest translog release file from all CCs to release translog files for cleaning
-                        commitState.markBccUploaded(
-                            uploadedBcc,
-                            virtualBcc.getLastPendingCompoundCommit().getCommitReference().getTranslogReleaseEndFile()
-                        );
-                        commitState.sendNewUploadedCommitNotification(blobReference, uploadedBcc);
-                    } catch (Exception e) {
-                        // TODO: we should assert false here once we fix https://elasticco.atlassian.net/browse/ES-8336
-                        logger.warn(
-                            () -> format(
-                                "%s failed to send new uploaded BCC [%s] notification",
-                                virtualBcc.getShardId(),
-                                virtualBcc.getPrimaryTermAndGeneration().generation()
-                            ),
-                            e
-                        );
-                    }
-                }
-
-                @Override
-                public void onFailure(Exception e) {
-                    assert assertClosedOrRejectionFailure(e);
-                    ShardCommitState.State state = commitState.state;
-                    if (commitState.isClosed()) {
-                        logger.debug(
-                            () -> format(
-                                "%s failed to upload BCC [%s] to object store because shard has invalid state %s",
-                                virtualBcc.getShardId(),
-                                virtualBcc.getPrimaryTermAndGeneration().generation(),
-                                state
-                            ),
-                            e
-                        );
-                    } else if (e instanceof ObjectStoreService.LocalIOException) {
-                        failShard(
-                            commitState.shardId,
-                            virtualBcc.getPrimaryTermAndGeneration().generation(),
-                            (ObjectStoreService.LocalIOException) e
-                        );
-                    } else {
-                        logger.warn(
-                            () -> format(
-                                "%s failed to upload BCC [%s] to object store for unexpected reason",
-                                virtualBcc.getShardId(),
-                                virtualBcc.getPrimaryTermAndGeneration().generation()
-                            ),
-                            e
-                        );
-                    }
-                }
-
-                private boolean assertClosedOrRejectionFailure(final Exception e) {
-                    final var closed = commitState.isClosed();
-                    assert closed
-                        || e instanceof ObjectStoreService.LocalIOException
-                        || e instanceof EsRejectedExecutionException
-                        || e instanceof IndexNotFoundException
-                        || e instanceof ShardNotFoundException : closed + " vs " + e;
-                    return true;
-                }
-            }, commitState, virtualBcc), () -> {
-                IOUtils.closeWhileHandlingException(virtualBcc);
-                blobReference.decRef();
-            })
+            newUploadTaskListener(commitState, virtualBcc, blobReference)
         );
 
         // Update the histograms with the new remote blob store upload info.
@@ -876,6 +809,81 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
         bccAgeHistogram.record(threadPool.relativeTimeInMillis() - virtualBcc.getCreationTimeInMillis());
 
         bccUpload.run();
+    }
+
+    ActionListener<BatchedCompoundCommit> newUploadTaskListener(
+        ShardCommitState commitState,
+        VirtualBatchedCompoundCommit virtualBcc,
+        ShardCommitState.BlobReference blobReference
+    ) {
+        return ActionListener.runAfter(copyToTargets(new ActionListener<>() {
+            @Override
+            public void onResponse(BatchedCompoundCommit uploadedBcc) {
+                try {
+                    // Use the largest translog release file from all CCs to release translog files for cleaning
+                    commitState.markBccUploaded(
+                        uploadedBcc,
+                        virtualBcc.getLastPendingCompoundCommit().getCommitReference().getTranslogReleaseEndFile()
+                    );
+                    commitState.sendNewUploadedCommitNotification(blobReference, uploadedBcc);
+                } catch (Exception e) {
+                    // TODO: we should assert false here once we fix https://elasticco.atlassian.net/browse/ES-8336
+                    logger.warn(
+                        () -> format(
+                            "%s failed to send new uploaded BCC [%s] notification",
+                            virtualBcc.getShardId(),
+                            virtualBcc.getPrimaryTermAndGeneration().generation()
+                        ),
+                        e
+                    );
+                }
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                assert assertClosedOrRejectionFailure(e);
+                ShardCommitState.State state = commitState.state;
+                if (commitState.isClosed()) {
+                    logger.debug(
+                        () -> format(
+                            "%s failed to upload BCC [%s] to object store because shard has invalid state %s",
+                            virtualBcc.getShardId(),
+                            virtualBcc.getPrimaryTermAndGeneration().generation(),
+                            state
+                        ),
+                        e
+                    );
+                } else if (e instanceof ObjectStoreService.LocalIOException) {
+                    failShard(
+                        commitState.shardId,
+                        virtualBcc.getPrimaryTermAndGeneration().generation(),
+                        (ObjectStoreService.LocalIOException) e
+                    );
+                } else {
+                    logger.warn(
+                        () -> format(
+                            "%s failed to upload BCC [%s] to object store for unexpected reason",
+                            virtualBcc.getShardId(),
+                            virtualBcc.getPrimaryTermAndGeneration().generation()
+                        ),
+                        e
+                    );
+                }
+            }
+
+            private boolean assertClosedOrRejectionFailure(final Exception e) {
+                final var closed = commitState.isClosed();
+                assert closed
+                    || e instanceof ObjectStoreService.LocalIOException
+                    || e instanceof EsRejectedExecutionException
+                    || e instanceof IndexNotFoundException
+                    || e instanceof ShardNotFoundException : closed + " vs " + e;
+                return true;
+            }
+        }, commitState, virtualBcc), () -> {
+            IOUtils.closeWhileHandlingException(virtualBcc);
+            blobReference.decRef();
+        });
     }
 
     void failShard(ShardId shardId, long generation, ObjectStoreService.LocalIOException error) {
@@ -2647,7 +2655,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
         /**
          * A ref counted instance representing a (BCC) blob reference to the object store.
          */
-        private class BlobReference extends AbstractRefCounted {
+        final class BlobReference extends AbstractRefCounted {
             private final PrimaryTermAndGeneration primaryTermAndGeneration;
             private final Set<PrimaryTermAndGeneration> includedCommitGenerations;
             private final Set<String> internalFiles;

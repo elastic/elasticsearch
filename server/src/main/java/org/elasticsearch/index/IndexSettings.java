@@ -828,8 +828,8 @@ public final class IndexSettings {
         Property.Final
     );
 
-    public static final Setting<Boolean> USE_TIME_SERIES_DOC_VALUES_CODEC_SETTING = Setting.boolSetting(
-        "index.use_time_series_doc_values_codec",
+    public static final Setting<Boolean> USE_TIME_SERIES_DOC_VALUES_FORMAT_SETTING = Setting.boolSetting(
+        "index.use_time_series_doc_values_format",
         settings -> {
             if (settings == null) {
                 return Boolean.FALSE.toString();
@@ -1010,7 +1010,7 @@ public final class IndexSettings {
     private final boolean recoverySourceSyntheticEnabled;
     private final boolean useDocValuesSkipper;
     private final boolean useTimeSeriesSyntheticId;
-    private final boolean useTimeSeriesDocValuesCodec;
+    private final boolean useTimeSeriesDocValuesFormat;
 
     /**
      * The maximum number of refresh listeners allows on this shard.
@@ -1197,7 +1197,7 @@ public final class IndexSettings {
             && scopedSettings.get(RECOVERY_USE_SYNTHETIC_SOURCE_SETTING);
         useDocValuesSkipper = DOC_VALUES_SKIPPER && scopedSettings.get(USE_DOC_VALUES_SKIPPER);
         seqNoIndexOptions = scopedSettings.get(SEQ_NO_INDEX_OPTIONS_SETTING);
-        useTimeSeriesDocValuesCodec = scopedSettings.get(USE_TIME_SERIES_DOC_VALUES_CODEC_SETTING);
+        useTimeSeriesDocValuesFormat = scopedSettings.get(USE_TIME_SERIES_DOC_VALUES_FORMAT_SETTING);
         final var useSyntheticId = IndexSettings.TSDB_SYNTHETIC_ID_FEATURE_FLAG && scopedSettings.get(USE_SYNTHETIC_ID);
         if (indexMetadata.useTimeSeriesSyntheticId() != useSyntheticId) {
             assert false;
@@ -1959,8 +1959,11 @@ public final class IndexSettings {
         return useTimeSeriesSyntheticId;
     }
 
-    public boolean isUseTimeSeriesDocValuesCodec() {
-        return useTimeSeriesDocValuesCodec;
+    /**
+     * @return Whether the time series doc value format should be used.
+     */
+    public boolean useTimeSeriesDocValuesFormat() {
+        return useTimeSeriesDocValuesFormat;
     }
 
     /**

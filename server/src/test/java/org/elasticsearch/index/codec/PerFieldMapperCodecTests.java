@@ -235,7 +235,7 @@ public class PerFieldMapperCodecTests extends ESTestCase {
     }
 
     private PerFieldFormatSupplier createFormatSupplier(
-        Boolean useTimeSeriesDocValuesCodecSetting,
+        Boolean useTimeSeriesDocValuesFormatSetting,
         Boolean enableES87TSDBCodec,
         IndexMode mode,
         String mapping
@@ -248,8 +248,8 @@ public class PerFieldMapperCodecTests extends ESTestCase {
         if (enableES87TSDBCodec != null) {
             settings.put(IndexSettings.TIME_SERIES_ES87TSDB_CODEC_ENABLED_SETTING.getKey(), enableES87TSDBCodec);
         }
-        if (useTimeSeriesDocValuesCodecSetting != null) {
-            settings.put(IndexSettings.USE_TIME_SERIES_DOC_VALUES_CODEC_SETTING.getKey(), useTimeSeriesDocValuesCodecSetting);
+        if (useTimeSeriesDocValuesFormatSetting != null) {
+            settings.put(IndexSettings.USE_TIME_SERIES_DOC_VALUES_FORMAT_SETTING.getKey(), useTimeSeriesDocValuesFormatSetting);
         }
         MapperService mapperService = MapperTestUtils.newMapperService(xContentRegistry(), createTempDir(), settings.build(), "test");
         mapperService.merge("type", new CompressedXContent(mapping), MapperService.MergeReason.MAPPING_UPDATE);

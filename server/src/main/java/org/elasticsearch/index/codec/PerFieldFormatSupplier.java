@@ -139,7 +139,7 @@ public class PerFieldFormatSupplier {
         }
 
         return mapperService != null
-            && mapperService.getIndexSettings().isUseTimeSeriesDocValuesCodec()
+            && mapperService.getIndexSettings().useTimeSeriesDocValuesFormat()
             && mapperService.getIndexSettings().isES87TSDBCodecEnabled();
     }
 

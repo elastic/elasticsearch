@@ -66,9 +66,9 @@ import java.util.function.Supplier;
 import java.util.stream.IntStream;
 
 import static org.elasticsearch.index.codec.tsdb.es819.ES819TSDBDocValuesFormat.BLOCK_BYTES_THRESHOLD;
+import static org.elasticsearch.index.codec.tsdb.es819.ES819TSDBDocValuesFormat.BLOCK_COUNT_THRESHOLD;
 import static org.elasticsearch.test.ESTestCase.randomAlphaOfLengthBetween;
 import static org.elasticsearch.test.ESTestCase.randomBoolean;
-import static org.elasticsearch.test.ESTestCase.randomFloat;
 import static org.elasticsearch.test.ESTestCase.randomFrom;
 import static org.elasticsearch.test.ESTestCase.randomIntBetween;
 import static org.hamcrest.Matchers.equalTo;
@@ -126,33 +126,76 @@ public class ES819TSDBDocValuesFormatTests extends ES87TSDBDocValuesFormatTests 
         }
     }
 
-    // Test with data large enough to require multiple binary doc value blocks
-    public void testBlockWiseBinarySparse() throws Exception {
+    public void testBlockWiseBinary() throws Exception {
+        boolean sparse = randomBoolean();
+        int numBlocksBound = 10;
+        // Since average size is 25b will hit count threshold rather than size threshold, so use count threshold compute needed docs.
+        int numNonNullValues = randomIntBetween(0, numBlocksBound * BLOCK_COUNT_THRESHOLD);
+
+        List<String> binaryValues = new ArrayList<>();
+        int numNonNull = 0;
+        while (numNonNull < numNonNullValues) {
+            if (sparse && randomBoolean()) {
+                binaryValues.add(null);
+            } else {
+                // Average
+                final String value = randomAlphaOfLengthBetween(0, 50);
+                binaryValues.add(value);
+                numNonNull++;
+            }
+        }
+
+        assertBinaryValues(binaryValues);
+    }
+
+    public void testBlockWiseBinarySmallValues() throws Exception {
+        boolean sparse = randomBoolean();
+        int numBlocksBound = 5;
+        int numNonNullValues = randomIntBetween(0, numBlocksBound * BLOCK_COUNT_THRESHOLD);
+
+        List<String> binaryValues = new ArrayList<>();
+        int numNonNull = 0;
+        while (numNonNull < numNonNullValues) {
+            if (sparse && randomBoolean()) {
+                binaryValues.add(null);
+            } else {
+                final String value = randomAlphaOfLengthBetween(0, 2);
+                binaryValues.add(value);
+                numNonNull++;
+            }
+        }
+
+        assertBinaryValues(binaryValues);
+    }
+
+    public void testBlockWiseBinaryLargeValues() throws Exception {
+        boolean sparse = randomBoolean();
+        int numBlocksBound = 5;
+        int binaryDataSize = randomIntBetween(0, numBlocksBound * BLOCK_BYTES_THRESHOLD);
+        List<String> binaryValues = new ArrayList<>();
+        int totalSize = 0;
+        while (totalSize < binaryDataSize) {
+            if (sparse && randomBoolean()) {
+                binaryValues.add(null);
+            } else {
+                final String value = randomAlphaOfLengthBetween(BLOCK_BYTES_THRESHOLD / 2, 2 * BLOCK_BYTES_THRESHOLD);
+                binaryValues.add(value);
+                totalSize += value.length();
+            }
+        }
+
+        assertBinaryValues(binaryValues);
+    }
+
+    public void assertBinaryValues(List<String> binaryValues) throws Exception {
         String timestampField = "@timestamp";
         String hostnameField = "host.name";
         long baseTimestamp = 1704067200000L;
         String binaryField = "binary_field";
-        boolean testVeryLargeValues = randomFloat() < 0.1;
-
         var config = getTimeSeriesIndexWriterConfig(hostnameField, timestampField);
         try (var dir = newDirectory(); var iw = new IndexWriter(dir, config)) {
 
-            int binaryDataSize = randomIntBetween(0, 4 * BLOCK_BYTES_THRESHOLD);
-            List<String> binaryValues = new ArrayList<>();
-            int totalSize = 0;
-            while (totalSize < binaryDataSize) {
-                if (randomBoolean()) {
-                    final String value = testVeryLargeValues
-                        ? randomAlphaOfLengthBetween(BLOCK_BYTES_THRESHOLD / 2, 2 * BLOCK_BYTES_THRESHOLD)
-                        : randomAlphaOfLengthBetween(0, 50);
-                    binaryValues.add(value);
-                    totalSize += value.length();
-                } else {
-                    binaryValues.add(null);
-                }
-            }
             int numDocs = binaryValues.size();
-
             for (int i = 0; i < numDocs; i++) {
                 var d = new Document();
                 long timestamp = baseTimestamp + (1000L * i);
@@ -186,60 +229,6 @@ public class ES819TSDBDocValuesFormatTests extends ES87TSDBDocValuesFormatTests 
                         assertTrue(binaryDV.advanceExact(i));
                         assertEquals(expected, binaryDV.binaryValue().utf8ToString());
                     }
-                }
-            }
-        }
-    }
-
-    // Test with data large enough to require multiple binary doc value blocks
-    public void testBlockWiseBinaryDense() throws Exception {
-        String timestampField = "@timestamp";
-        String hostnameField = "host.name";
-        long baseTimestamp = 1704067200000L;
-        String binaryField = "binary_field";
-        boolean testVeryLargeValues = randomFloat() < 0.1;
-
-        var config = getTimeSeriesIndexWriterConfig(hostnameField, timestampField);
-        try (var dir = newDirectory(); var iw = new IndexWriter(dir, config)) {
-
-            int binaryDataSize = randomIntBetween(0, 4 * BLOCK_BYTES_THRESHOLD);
-            List<String> binaryValues = new ArrayList<>();
-            int totalSize = 0;
-            while (totalSize < binaryDataSize) {
-                final String value = testVeryLargeValues
-                    ? randomAlphaOfLengthBetween(BLOCK_BYTES_THRESHOLD / 2, 2 * BLOCK_BYTES_THRESHOLD)
-                    : randomAlphaOfLengthBetween(0, 50);
-
-                binaryValues.add(value);
-                totalSize += value.length();
-            }
-            int numDocs = binaryValues.size();
-
-            for (int i = 0; i < numDocs; i++) {
-                var d = new Document();
-                long timestamp = baseTimestamp + (1000L * i);
-                d.add(new SortedDocValuesField(hostnameField, new BytesRef("host-1")));
-                d.add(new SortedNumericDocValuesField(timestampField, timestamp));
-
-                d.add(new BinaryDocValuesField(binaryField, new BytesRef(binaryValues.get(i))));
-
-                iw.addDocument(d);
-                if (i % 100 == 0) {
-                    iw.commit();
-                }
-            }
-            iw.commit();
-            iw.forceMerge(1);
-
-            try (var reader = DirectoryReader.open(iw)) {
-                assertEquals(1, reader.leaves().size());
-                assertEquals(numDocs, reader.maxDoc());
-                var leaf = reader.leaves().get(0).reader();
-                var binaryDV = leaf.getBinaryDocValues(binaryField);
-                assertNotNull(binaryDV);
-                for (int i = 0; i < numDocs; i++) {
-                    assertEquals(i, binaryDV.nextDoc());
-                    assertEquals(binaryValues.removeLast(), binaryDV.binaryValue().utf8ToString());
                 }
             }
         }

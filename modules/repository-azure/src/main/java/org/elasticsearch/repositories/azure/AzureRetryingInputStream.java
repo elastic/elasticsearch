@@ -23,10 +23,6 @@ import java.nio.file.NoSuchFileException;
 
 public class AzureRetryingInputStream extends RetryingInputStream<String> {
 
-    protected AzureRetryingInputStream(AzureBlobStore azureBlobStore, OperationPurpose purpose, String blob) throws IOException {
-        this(azureBlobStore, purpose, blob, 0L, null);
-    }
-
     protected AzureRetryingInputStream(AzureBlobStore azureBlobStore, OperationPurpose purpose, String blob, long position, Long length)
         throws IOException {
         super(

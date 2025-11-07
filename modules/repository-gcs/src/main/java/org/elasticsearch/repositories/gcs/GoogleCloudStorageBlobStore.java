@@ -139,7 +139,7 @@ class GoogleCloudStorageBlobStore implements BlobStore {
         this.casBackoffPolicy = casBackoffPolicy;
     }
 
-    private MeteredStorage client() throws IOException {
+    MeteredStorage client() throws IOException {
         return storageService.client(projectId, clientName, repositoryName, statsCollector);
     }
 
@@ -229,7 +229,7 @@ class GoogleCloudStorageBlobStore implements BlobStore {
      * @return the InputStream used to read the blob's content
      */
     InputStream readBlob(OperationPurpose purpose, String blobName) throws IOException {
-        return new GoogleCloudStorageRetryingInputStream(purpose, client(), BlobId.of(bucketName, blobName));
+        return new GoogleCloudStorageRetryingInputStream(this, purpose, BlobId.of(bucketName, blobName));
     }
 
     /**
@@ -252,8 +252,8 @@ class GoogleCloudStorageBlobStore implements BlobStore {
             return new ByteArrayInputStream(new byte[0]);
         } else {
             return new GoogleCloudStorageRetryingInputStream(
+                this,
                 purpose,
-                client(),
                 BlobId.of(bucketName, blobName),
                 position,
                 Math.addExact(position, length - 1)

@@ -9,8 +9,6 @@ package org.elasticsearch.xpack.inference.services.openshiftai.embeddings;
 
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.ValidationException;
-import org.elasticsearch.common.io.stream.ByteArrayStreamInput;
-import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
@@ -553,27 +551,6 @@ public class OpenShiftAiEmbeddingsServiceSettingsTests extends AbstractWireSeria
                 "dimensions_set_by_user": false
             }
             """.formatted(MODEL_ID, CORRECT_URL))));
-    }
-
-    public void testStreamInputAndOutput_WritesValuesCorrectly() throws IOException {
-        var outputBuffer = new BytesStreamOutput();
-        var settings = new OpenShiftAiEmbeddingsServiceSettings(
-            MODEL_ID,
-            CORRECT_URL,
-            DIMENSIONS,
-            SIMILARITY_MEASURE,
-            MAX_INPUT_TOKENS,
-            new RateLimitSettings(3),
-            false
-        );
-        settings.writeTo(outputBuffer);
-
-        var outputBufferRef = outputBuffer.bytes();
-        var inputBuffer = new ByteArrayStreamInput(outputBufferRef.array());
-
-        var settingsFromBuffer = new OpenShiftAiEmbeddingsServiceSettings(inputBuffer);
-
-        assertEquals(settings, settingsFromBuffer);
     }
 
     @Override

@@ -59,7 +59,6 @@ public class IndexBalanceAllocationDeciderTests extends ESAllocationTestCase {
     private RoutingNode routingIndexNodeTwo;
     private RoutingNode routingSearchNodeOne;
     private RoutingNode routingSearchNodeTwo;
-    private RoutingNode routingMasterNode;
     private RoutingNode routingMachineLearningNode;
 
     private List<DiscoveryNode> allNodes;
@@ -193,7 +192,6 @@ public class IndexBalanceAllocationDeciderTests extends ESAllocationTestCase {
             searchNodeTwo,
             nodeToShardRoutings.get(searchNodeTwo).toArray(new ShardRouting[0])
         );
-        routingMasterNode = RoutingNodesHelper.routingNode(masterNode.getId(), masterNode);
 
         ClusterInfo clusterInfo = ClusterInfo.builder().build();
         routingAllocation = new RoutingAllocation(null, clusterState.getRoutingNodes(), clusterState, clusterInfo, null, System.nanoTime());
@@ -299,7 +297,7 @@ public class IndexBalanceAllocationDeciderTests extends ESAllocationTestCase {
                 + numberOfPrimaryShards
                 + "] shards in index [[IndexBalanceAllocationDeciderIndex]]. Ideally no more than ["
                 + ideal
-                + "] shard would be assigned per node (the index balance skew setting is [0]). This node is already assigned ["
+                + "] shard would be assigned per node (the index balance excess shards setting is [0]). This node is already assigned ["
                 + current
                 + "] shards of the index."
         );
@@ -316,7 +314,7 @@ public class IndexBalanceAllocationDeciderTests extends ESAllocationTestCase {
                 + total
                 + "] shards in index [[IndexBalanceAllocationDeciderIndex]]. Ideally no more than ["
                 + ideal
-                + "] shard would be assigned per node (the index balance skew setting is [0]). This node is already assigned ["
+                + "] shard would be assigned per node (the index balance excess shards setting is [0]). This node is already assigned ["
                 + current
                 + "] shards of the index."
         );

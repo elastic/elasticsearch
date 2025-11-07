@@ -13,6 +13,7 @@ import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
@@ -37,6 +38,7 @@ import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.expression.Order;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Min;
+import org.elasticsearch.xpack.esql.expression.function.fulltext.SingleFieldFullTextFunction;
 import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.Case;
 import org.elasticsearch.xpack.esql.expression.function.scalar.nulls.Coalesce;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.StartsWith;
@@ -108,6 +110,7 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.unboundLogicalOptimizer
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.withDefaultLimitWarning;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.indexResolutions;
 import static org.elasticsearch.xpack.esql.core.tree.Source.EMPTY;
+import static org.elasticsearch.xpack.esql.core.type.DataType.DENSE_VECTOR;
 import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
 import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
 import static org.elasticsearch.xpack.esql.optimizer.rules.logical.OptimizerRules.TransformDirection.DOWN;
@@ -121,7 +124,7 @@ import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.startsWith;
 
-//@TestLogging(value = "org.elasticsearch.xpack.esql:TRACE", reason = "debug")
+@TestLogging(value = "org.elasticsearch.xpack.esql:TRACE", reason = "debug")
 public class LocalLogicalPlanOptimizerTests extends ESTestCase {
 
     private static EsqlParser parser;
@@ -1493,6 +1496,61 @@ public class LocalLogicalPlanOptimizerTests extends ESTestCase {
         assertTrue(esRelation.output().contains(s1FieldAttr));
         assertTrue(esRelation.output().contains(r1FieldAttr));
         assertTrue(esRelation.output().contains(r2CosineFieldAttr));
+    }
+
+    public void testFullTextFunctionOnMissingField() {
+        String functionName = randomFrom("match", "match_phrase");
+        var plan = plan(String.format(Locale.ROOT, """
+            from test
+            | where %s(first_name, "John") or %s(last_name, "Doe")
+            """, functionName, functionName));
+
+        var testStats = statsForMissingField("first_name");
+        var localPlan = localPlan(plan, testStats);
+
+        var project = as(localPlan, Project.class);
+
+        // Introduces an Eval with first_name as null literal
+        var eval = as(project.child(), Eval.class);
+        assertThat(Expressions.names(eval.fields()), contains("first_name"));
+        var firstNameEval = as(Alias.unwrap(eval.fields().get(0)), Literal.class);
+        assertThat(firstNameEval.value(), is(nullValue()));
+        assertThat(firstNameEval.dataType(), is(KEYWORD));
+
+        var limit = as(eval.child(), Limit.class);
+
+        // Filter has a single match on last_name only
+        var filter = as(limit.child(), Filter.class);
+        var fullTextFunction = as(filter.condition(), SingleFieldFullTextFunction.class);
+        assertThat(Expressions.name(fullTextFunction.field()), equalTo("last_name"));
+    }
+
+    public void testKnnOnMissingField() {
+        String query = """
+            from test_all
+            | where knn(dense_vector, [0, 1, 2]) or match(text, "Doe")
+            """;
+
+        LogicalPlan plan = localPlan(plan(query, allTypesAnalyzer), TEST_SEARCH_STATS);
+
+        var testStats = statsForMissingField("dense_vector");
+        var localPlan = localPlan(plan, testStats);
+
+        var project = as(localPlan, Project.class);
+
+        // Introduces an Eval with first_name as null literal
+        var eval = as(project.child(), Eval.class);
+        assertThat(Expressions.names(eval.fields()), contains("dense_vector"));
+        var firstNameEval = as(Alias.unwrap(eval.fields().get(0)), Literal.class);
+        assertThat(firstNameEval.value(), is(nullValue()));
+        assertThat(firstNameEval.dataType(), is(DENSE_VECTOR));
+
+        var limit = as(eval.child(), Limit.class);
+
+        // Filter has a single match on last_name only
+        var filter = as(limit.child(), Filter.class);
+        var fullTextFunction = as(filter.condition(), SingleFieldFullTextFunction.class);
+        assertThat(Expressions.name(fullTextFunction.field()), equalTo("text"));
     }
 
     private IsNotNull isNotNull(Expression field) {

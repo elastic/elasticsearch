@@ -100,8 +100,15 @@ public class GetInferenceFieldsAction extends ActionType<GetInferenceFieldsActio
             if (indices == null) {
                 validationException = addValidationError("indices is null", validationException);
             }
+
             if (fields == null) {
                 validationException = addValidationError("fields is null", validationException);
+            } else {
+                for (var entry : fields.entrySet()) {
+                    if (entry.getValue() == null) {
+                        validationException = addValidationError("weight for field [" + entry.getKey() + "] is null", validationException);
+                    }
+                }
             }
 
             return validationException;

@@ -328,6 +328,14 @@ public class GetInferenceFieldsIT extends ESIntegTestCase {
             ActionRequestValidationException.class,
             e -> validator.accept(e, List.of("indices is null", "fields is null"))
         );
+
+        Map<String, Float> fields = new HashMap<>();
+        fields.put(INFERENCE_FIELD_1, null);
+        assertFailedRequest(
+            new GetInferenceFieldsAction.Request(Set.of(), fields, false, false, null),
+            ActionRequestValidationException.class,
+            e -> validator.accept(e, List.of("weight for field [" + INFERENCE_FIELD_1 + "] is null"))
+        );
     }
 
     private void explicitIndicesAndFieldsTestCase(String query) {

@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.search;
 
+import org.apache.http.HttpEntity;
+import org.apache.http.util.EntityUtils;
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.core.config.Configurator;
 import org.elasticsearch.client.Request;
@@ -16,7 +18,6 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.ErrorTraceHelper;
 import org.elasticsearch.search.SearchService;
-import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.MockLog;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.transport.MockTransportService;
@@ -26,12 +27,13 @@ import org.junit.BeforeClass;
 import java.io.IOException;
 import java.util.Collection;
 import java.util.Map;
+import java.util.concurrent.ExecutionException;
 
 @TestLogging(
     reason = "testing debug log output to identify race condition",
     value = "org.elasticsearch.xpack.search.MutableSearchResponse:DEBUG,org.elasticsearch.xpack.search.AsyncSearchTask:DEBUG"
 )
-public class AsyncSearchErrorTraceIT extends ESIntegTestCase {
+public class AsyncSearchErrorTraceIT extends AsyncSearchIntegTestCase {
 
     @Override
     protected boolean addMockHttpTransport() {
@@ -76,13 +78,19 @@ public class AsyncSearchErrorTraceIT extends ESIntegTestCase {
         createAsyncRequest.addParameter("keep_on_completion", "true");
         createAsyncRequest.addParameter("wait_for_completion_timeout", "0ms");
         Map<String, Object> createAsyncResponseEntity = performRequestAndGetResponseEntity(createAsyncRequest);
-        if (Boolean.TRUE.equals(createAsyncResponseEntity.get("is_running"))) {
-            String asyncExecutionId = (String) createAsyncResponseEntity.get("id");
-            Request getAsyncRequest = new Request("GET", "/_async_search/" + asyncExecutionId);
-            awaitAsyncRequestDoneRunning(getAsyncRequest);
+
+        try {
+            if (Boolean.TRUE.equals(createAsyncResponseEntity.get("is_running"))) {
+                String asyncExecutionId = (String) createAsyncResponseEntity.get("id");
+                Request getAsyncRequest = new Request("GET", "/_async_search/" + asyncExecutionId);
+                awaitAsyncRequestDoneRunning(getAsyncRequest);
+            }
+
+            // check that the stack trace was not sent from the data node to the coordinating node
+            ErrorTraceHelper.assertStackTraceCleared(internalCluster());
+        } finally {
+            deleteAsyncSearchIfPresent(createAsyncResponseEntity);
         }
-        // check that the stack trace was not sent from the data node to the coordinating node
-        ErrorTraceHelper.assertStackTraceCleared(internalCluster());
     }
 
     public void testAsyncSearchFailingQueryErrorTraceTrue() throws Exception {
@@ -103,14 +111,20 @@ public class AsyncSearchErrorTraceIT extends ESIntegTestCase {
         createAsyncRequest.addParameter("keep_on_completion", "true");
         createAsyncRequest.addParameter("wait_for_completion_timeout", "0ms");
         Map<String, Object> createAsyncResponseEntity = performRequestAndGetResponseEntity(createAsyncRequest);
-        if (Boolean.TRUE.equals(createAsyncResponseEntity.get("is_running"))) {
-            String asyncExecutionId = (String) createAsyncResponseEntity.get("id");
-            Request getAsyncRequest = new Request("GET", "/_async_search/" + asyncExecutionId);
-            getAsyncRequest.addParameter("error_trace", "true");
-            awaitAsyncRequestDoneRunning(getAsyncRequest);
+
+        try {
+            if (Boolean.TRUE.equals(createAsyncResponseEntity.get("is_running"))) {
+                String asyncExecutionId = (String) createAsyncResponseEntity.get("id");
+                Request getAsyncRequest = new Request("GET", "/_async_search/" + asyncExecutionId);
+                getAsyncRequest.addParameter("error_trace", "true");
+                awaitAsyncRequestDoneRunning(getAsyncRequest);
+            }
+
+            // check that the stack trace was sent from the data node to the coordinating node
+            ErrorTraceHelper.assertStackTraceObserved(internalCluster());
+        } finally {
+            deleteAsyncSearchIfPresent(createAsyncResponseEntity);
         }
-        // check that the stack trace was sent from the data node to the coordinating node
-        ErrorTraceHelper.assertStackTraceObserved(internalCluster());
     }
 
     public void testAsyncSearchFailingQueryErrorTraceFalse() throws Exception {
@@ -131,14 +145,20 @@ public class AsyncSearchErrorTraceIT extends ESIntegTestCase {
         createAsyncRequest.addParameter("keep_on_completion", "true");
         createAsyncRequest.addParameter("wait_for_completion_timeout", "0ms");
         Map<String, Object> createAsyncResponseEntity = performRequestAndGetResponseEntity(createAsyncRequest);
-        if (Boolean.TRUE.equals(createAsyncResponseEntity.get("is_running"))) {
-            String asyncExecutionId = (String) createAsyncResponseEntity.get("id");
-            Request getAsyncRequest = new Request("GET", "/_async_search/" + asyncExecutionId);
-            getAsyncRequest.addParameter("error_trace", "false");
-            awaitAsyncRequestDoneRunning(getAsyncRequest);
+
+        try {
+            if (Boolean.TRUE.equals(createAsyncResponseEntity.get("is_running"))) {
+                String asyncExecutionId = (String) createAsyncResponseEntity.get("id");
+                Request getAsyncRequest = new Request("GET", "/_async_search/" + asyncExecutionId);
+                getAsyncRequest.addParameter("error_trace", "false");
+                awaitAsyncRequestDoneRunning(getAsyncRequest);
+            }
+
+            // check that the stack trace was not sent from the data node to the coordinating node
+            ErrorTraceHelper.assertStackTraceCleared(internalCluster());
+        } finally {
+            deleteAsyncSearchIfPresent(createAsyncResponseEntity);
         }
-        // check that the stack trace was not sent from the data node to the coordinating node
-        ErrorTraceHelper.assertStackTraceCleared(internalCluster());
     }
 
     public void testDataNodeLogsStackTrace() throws Exception {
@@ -172,19 +192,24 @@ public class AsyncSearchErrorTraceIT extends ESIntegTestCase {
         try (var mockLog = MockLog.capture(SearchService.class)) {
             ErrorTraceHelper.addSeenLoggingExpectations(numShards, mockLog, errorTriggeringIndex);
             Map<String, Object> createAsyncResponseEntity = performRequestAndGetResponseEntity(createAsyncRequest);
-            if (Boolean.TRUE.equals(createAsyncResponseEntity.get("is_running"))) {
-                String asyncExecutionId = (String) createAsyncResponseEntity.get("id");
-                Request getAsyncRequest = new Request("GET", "/_async_search/" + asyncExecutionId);
-                // Use the same value of error_trace as the search request
-                if (errorTraceValue == 0) {
-                    getAsyncRequest.addParameter("error_trace", "true");
-                } else if (errorTraceValue == 1) {
-                    getAsyncRequest.addParameter("error_trace", "false");
-                } // else empty
-                awaitAsyncRequestDoneRunning(getAsyncRequest);
-            }
 
-            mockLog.assertAllExpectationsMatched();
+            try {
+                if (Boolean.TRUE.equals(createAsyncResponseEntity.get("is_running"))) {
+                    String asyncExecutionId = (String) createAsyncResponseEntity.get("id");
+                    Request getAsyncRequest = new Request("GET", "/_async_search/" + asyncExecutionId);
+                    // Use the same value of error_trace as the search request
+                    if (errorTraceValue == 0) {
+                        getAsyncRequest.addParameter("error_trace", "true");
+                    } else if (errorTraceValue == 1) {
+                        getAsyncRequest.addParameter("error_trace", "false");
+                    } // else empty
+                    awaitAsyncRequestDoneRunning(getAsyncRequest);
+                }
+
+                mockLog.assertAllExpectationsMatched();
+            } finally {
+                deleteAsyncSearchIfPresent(createAsyncResponseEntity);
+            }
         }
     }
 
@@ -206,14 +231,20 @@ public class AsyncSearchErrorTraceIT extends ESIntegTestCase {
         createAsyncSearchRequest.addParameter("keep_on_completion", "true");
         createAsyncSearchRequest.addParameter("wait_for_completion_timeout", "0ms");
         Map<String, Object> createAsyncResponseEntity = performRequestAndGetResponseEntity(createAsyncSearchRequest);
-        if (Boolean.TRUE.equals(createAsyncResponseEntity.get("is_running"))) {
-            String asyncExecutionId = (String) createAsyncResponseEntity.get("id");
-            Request getAsyncRequest = new Request("GET", "/_async_search/" + asyncExecutionId);
-            getAsyncRequest.addParameter("error_trace", "true");
-            awaitAsyncRequestDoneRunning(getAsyncRequest);
+
+        try {
+            if (Boolean.TRUE.equals(createAsyncResponseEntity.get("is_running"))) {
+                String asyncExecutionId = (String) createAsyncResponseEntity.get("id");
+                Request getAsyncRequest = new Request("GET", "/_async_search/" + asyncExecutionId);
+                getAsyncRequest.addParameter("error_trace", "true");
+                awaitAsyncRequestDoneRunning(getAsyncRequest);
+            }
+
+            // check that the stack trace was not sent from the data node to the coordinating node
+            ErrorTraceHelper.assertStackTraceCleared(internalCluster());
+        } finally {
+            deleteAsyncSearchIfPresent(createAsyncResponseEntity);
         }
-        // check that the stack trace was not sent from the data node to the coordinating node
-        ErrorTraceHelper.assertStackTraceCleared(internalCluster());
     }
 
     public void testAsyncSearchFailingQueryErrorTraceTrueOnSubmitAndFalseOnGet() throws Exception {
@@ -234,20 +265,56 @@ public class AsyncSearchErrorTraceIT extends ESIntegTestCase {
         createAsyncSearchRequest.addParameter("keep_on_completion", "true");
         createAsyncSearchRequest.addParameter("wait_for_completion_timeout", "0ms");
         Map<String, Object> createAsyncResponseEntity = performRequestAndGetResponseEntity(createAsyncSearchRequest);
-        if (Boolean.TRUE.equals(createAsyncResponseEntity.get("is_running"))) {
-            String asyncExecutionId = (String) createAsyncResponseEntity.get("id");
-            Request getAsyncRequest = new Request("GET", "/_async_search/" + asyncExecutionId);
-            getAsyncRequest.addParameter("error_trace", "false");
-            awaitAsyncRequestDoneRunning(getAsyncRequest);
+        try {
+            if (Boolean.TRUE.equals(createAsyncResponseEntity.get("is_running"))) {
+                String asyncExecutionId = (String) createAsyncResponseEntity.get("id");
+                Request getAsyncRequest = new Request("GET", "/_async_search/" + asyncExecutionId);
+                getAsyncRequest.addParameter("error_trace", "false");
+                awaitAsyncRequestDoneRunning(getAsyncRequest);
+            }
+
+            // check that the stack trace was sent from the data node to the coordinating node
+            ErrorTraceHelper.assertStackTraceObserved(internalCluster());
+        } finally {
+            deleteAsyncSearchIfPresent(createAsyncResponseEntity);
         }
-        // check that the stack trace was sent from the data node to the coordinating node
-        ErrorTraceHelper.assertStackTraceObserved(internalCluster());
     }
 
     private Map<String, Object> performRequestAndGetResponseEntity(Request r) throws IOException {
         Response response = getRestClient().performRequest(r);
-        XContentType entityContentType = XContentType.fromMediaType(response.getEntity().getContentType().getValue());
-        return XContentHelper.convertToMap(entityContentType.xContent(), response.getEntity().getContent(), false);
+
+        HttpEntity entity = response.getEntity();
+        if (entity == null) {
+            return Map.of();
+        }
+
+        try {
+            XContentType entityContentType = XContentType.fromMediaType(entity.getContentType().getValue());
+            return XContentHelper.convertToMap(entityContentType.xContent(), entity.getContent(), false);
+        } finally {
+            // Make sure the connection is released
+            EntityUtils.consumeQuietly(entity);
+        }
+    }
+
+    private void deleteAsyncSearchIfPresent(Map<String, Object> map) throws IOException {
+        String id = (String) map.get("id");
+        if(id != null) {
+            return;
+        }
+
+        // Make sure the .async-search system index is green before deleting it
+        try {
+            ensureGreen(".async-search");
+        } catch (Exception ignore) {
+            // the index may not exist
+        }
+
+        Response response = getRestClient().performRequest(new Request("DELETE", "/_async_search/" + id));
+        HttpEntity entity = response.getEntity();
+        if (entity != null) {
+            EntityUtils.consumeQuietly(entity);
+        }
     }
 
     private void awaitAsyncRequestDoneRunning(Request getAsyncRequest) throws Exception {

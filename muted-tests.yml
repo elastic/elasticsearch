@@ -449,6 +449,9 @@ tests:
 - class: org.elasticsearch.readiness.ReadinessClusterIT
   method: testReadinessDuringRestartsNormalOrder
   issue: https://github.com/elastic/elasticsearch/issues/136955
+- class: org.elasticsearch.upgrades.SearchStatesIT
+  method: testCanMatch
+  issue: https://github.com/elastic/elasticsearch/issues/137687
 
 # Examples:
 #

@@ -50,7 +50,7 @@ public class ElasticInferenceServiceUnifiedChatCompletionRequestTests extends ES
         assertThat(httpPost.getLastHeader(HttpHeaders.CONTENT_TYPE).getValue(), is(XContentType.JSON.mediaType()));
 
         var requestMap = entityAsMap(httpPost.getEntity().getContent());
-        assertThat(requestMap, aMapWithSize(3));
+        assertThat(requestMap, aMapWithSize(4));
         assertThat(requestMap.get("model"), is(modelId));
         assertThat(requestMap.get("n"), is(1));
         assertThat(requestMap.get("stream"), is(false));

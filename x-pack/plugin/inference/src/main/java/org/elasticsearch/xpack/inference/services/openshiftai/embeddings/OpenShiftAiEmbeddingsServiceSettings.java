@@ -137,7 +137,7 @@ public class OpenShiftAiEmbeddingsServiceSettings extends OpenShiftAiServiceSett
         this.dimensions = dimensions;
         this.similarity = similarity;
         this.maxInputTokens = maxInputTokens;
-        this.dimensionsSetByUser = dimensionsSetByUser;
+        this.dimensionsSetByUser = Objects.requireNonNull(dimensionsSetByUser);
     }
 
     /**

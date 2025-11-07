@@ -64,7 +64,7 @@ public abstract class OpenShiftAiServiceSettings extends FilteredXContentObject 
      */
     protected OpenShiftAiServiceSettings(@Nullable String modelId, URI uri, @Nullable RateLimitSettings rateLimitSettings) {
         this.modelId = modelId;
-        this.uri = uri;
+        this.uri = Objects.requireNonNull(uri);
         this.rateLimitSettings = Objects.requireNonNullElse(rateLimitSettings, DEFAULT_RATE_LIMIT_SETTINGS);
     }
 

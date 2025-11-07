@@ -10,7 +10,7 @@ products:
 
 # Operators: Boolean [painless-operators-boolean]
 
-## Boolean Not [boolean-not-operator]
+## Boolean not [boolean-not-operator]
 
 Use the `boolean not operator '!'` to NOT a `boolean` type value where `true` is flipped to `false` and `false` is flipped to `true`.
 
@@ -55,7 +55,7 @@ boolean_not: '!' expression;
 
 
 
-## Greater Than [greater-than-operator]
+## Greater than [greater-than-operator]
 
 Use the `greater than operator '>'` to COMPARE two numeric type values where a resultant `boolean` type value is `true` if the left-hand side value is greater than to the right-hand side value and `false` otherwise.
 
@@ -113,7 +113,7 @@ greater_than: expression '>' expression;
 
 
 
-## Greater Than Or Equal [greater-than-or-equal-operator]
+## Greater than or equal [greater-than-or-equal-operator]
 
 Use the `greater than or equal operator '>='` to COMPARE two numeric type values where a resultant `boolean` type value is `true` if the left-hand side value is greater than or equal to the right-hand side value and `false` otherwise.
 
@@ -171,7 +171,7 @@ greater_than_or_equal: expression '>=' expression;
 
 
 
-## Less Than [less-than-operator]
+## Less than [less-than-operator]
 
 Use the `less than operator '<'` to COMPARE two numeric type values where a resultant `boolean` type value is `true` if the left-hand side value is less than to the right-hand side value and `false` otherwise.
 
@@ -229,7 +229,7 @@ less_than: expression '<' expression;
 
 
 
-## Less Than Or Equal [less-than-or-equal-operator]
+## Less than or equal [less-than-or-equal-operator]
 
 Use the `less than or equal operator '<='` to COMPARE two numeric type values where a resultant `boolean` type value is `true` if the left-hand side value is less than or equal to the right-hand side value and `false` otherwise.
 
@@ -329,7 +329,7 @@ instance_of: ID 'instanceof' TYPE;
 
 
 
-## Equality Equals [equality-equals-operator]
+## Equality equals [equality-equals-operator]
 
 Use the `equality equals operator '=='` to COMPARE two values where a resultant `boolean` type value is `true` if the two values are equal and `false` otherwise. The member method, `equals`, is implicitly called when the values are reference type values where the first value is the target of the call and the second value is the argument. This operation is null-safe where if both values are `null` the resultant `boolean` type value is `true`, and if only one value is `null` the resultant `boolean` type value is `false`. A valid comparison is between `boolean` type values, numeric type values, or reference type values.
 
@@ -446,7 +446,7 @@ equality_equals: expression '==' expression;
 
 
 
-## Equality Not Equals [equality-not-equals-operator]
+## Equality not equals [equality-not-equals-operator]
 
 Use the `equality not equals operator '!='` to COMPARE two values where a resultant `boolean` type value is `true` if the two values are NOT equal and `false` otherwise. The member method, `equals`, is implicitly called when the values are reference type values where the first value is the target of the call and the second value is the argument with the resultant `boolean` type value flipped. This operation is `null-safe` where if both values are `null` the resultant `boolean` type value is `false`, and if only one value is `null` the resultant `boolean` type value is `true`. A valid comparison is between boolean type values, numeric type values, or reference type values.
 
@@ -563,7 +563,7 @@ equality_not_equals: expression '!=' expression;
 
 
 
-## Identity Equals [identity-equals-operator]
+## Identity equals [identity-equals-operator]
 
 Use the `identity equals operator '==='` to COMPARE two values where a resultant `boolean` type value is `true` if the two values are equal and `false` otherwise. A reference type value is equal to another reference type value if both values refer to same instance on the heap or if both values are `null`. A valid comparison is between `boolean` type values, numeric type values, or reference type values.
 
@@ -648,7 +648,7 @@ identity_equals: expression '===' expression;
 
 
 
-## Identity Not Equals [identity-not-equals-operator]
+## Identity not equals [identity-not-equals-operator]
 
 Use the `identity not equals operator '!=='` to COMPARE two values where a resultant `boolean` type value is `true` if the two values are NOT equal and `false` otherwise. A reference type value is not equal to another reference type value if both values refer to different instances on the heap or if one value is `null` and the other is not. A valid comparison is between `boolean` type values, numeric type values, or reference type values.
 
@@ -733,7 +733,7 @@ identity_not_equals: expression '!==' expression;
 
 
 
-## Boolean Xor [boolean-xor-operator]
+## Boolean xor [boolean-xor-operator]
 
 Use the `boolean xor operator '^'` to XOR together two `boolean` type values where if one `boolean` type value is `true` and the other is `false` the resultant `boolean` type value is `true` and `false` otherwise.
 
@@ -783,7 +783,7 @@ boolean_xor: expression '^' expression;
 
 
 
-## Boolean And [boolean-and-operator]
+## Boolean and [boolean-and-operator]
 
 Use the `boolean and operator '&&'` to AND together two `boolean` type values where if both `boolean` type values are `true` the resultant `boolean` type value is `true` and `false` otherwise.
 
@@ -837,7 +837,7 @@ boolean_and: expression '&&' expression;
 
 
 
-## Boolean Or [boolean-or-operator]
+## Boolean or [boolean-or-operator]
 
 Use the `boolean or operator '||'` to OR together two `boolean` type values where if either one of the `boolean` type values is `true` the resultant `boolean` type value is `true` and `false` otherwise.
 

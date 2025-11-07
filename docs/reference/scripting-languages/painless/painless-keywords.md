@@ -44,7 +44,7 @@ if (count > 0) {         // 'if' creates conditional logic
 
 ### Errors
 
-If a keyword is used as an identifier. Painless will generate a compilation error:
+If a keyword is used as an identifier Painless generates a compilation error:
 
 ```
 // These will cause compilation errors

@@ -10,7 +10,7 @@ products:
 
 # Operators: Array [painless-operators-array]
 
-## Array Initialization [array-initialization-operator]
+## Array initialization [array-initialization-operator]
 
 Use the `array initialization operator '[] {}'` to allocate a single-dimensional [array type](/reference/scripting-languages/painless/painless-types.md#array-type) instance to the heap with a set of pre-defined elements. Each value used to initialize an element in the array type instance is cast to the specified element type value upon insertion. The order of specified values is maintained.
 
@@ -56,7 +56,7 @@ expression_list: expression (',' expression);
 
 
 
-## Array Access [array-access-operator]
+## Array access [array-access-operator]
 
 Use the `array access operator '[]'` to store a value to or load a value from an [array type](/reference/scripting-languages/painless/painless-types.md#array-type) value. Each element of an array type value is accessed with an `int` type value to specify the index to store/load. The range of elements within an array that are accessible is `[0, size)` where size is the number of elements specified at the time of allocation. Use a negative `int` type value as an index to access an element in reverse from the end of an array type value within a range of `[-size, -1]`.
 
@@ -123,7 +123,7 @@ brace_access: '[' expression ']'
 
 
 
-## Array Length [array-length-operator]
+## Array length [array-length-operator]
 
 An array type value contains a read-only member field named `length`. The `length` field stores the size of the array as an `int` type value where size is the number of elements specified at the time of allocation. Use the [field access operator](/reference/scripting-languages/painless/painless-operators-reference.md#field-access-operator) to load the field `length` from an array type value.
 
@@ -141,7 +141,7 @@ An array type value contains a read-only member field named `length`. The `lengt
 
 
 
-## New Array [new-array-operator]
+## New array [new-array-operator]
 
 Use the `new array operator 'new []'` to allocate an array type instance to the heap. Specify the element type following the `new` token. Specify each dimension with the `[` and `]` tokens following the element type name. The size of each dimension is specified by an `int` type value in between each set of `[` and `]` tokens.
 

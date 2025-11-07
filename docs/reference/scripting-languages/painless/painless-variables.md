@@ -33,7 +33,7 @@ Before using a variable, you must declare it with the format [type](/reference/s
 
 ### Errors
 
-An error occurs if a variable is used prior to or without declaration.
+* If a variable is used prior to or without declaration.
 
 ### Grammar
 

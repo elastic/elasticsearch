@@ -10,7 +10,7 @@ products:
 
 # Operators: Reference [painless-operators-reference]
 
-## Method Call [method-call-operator]
+## Method call [method-call-operator]
 
 Use the `method call operator '()'` to call a member method on a [reference type](/reference/scripting-languages/painless/painless-types.md#reference-types) value. Implicit [boxing/unboxing](/reference/scripting-languages/painless/painless-casting.md#boxing-unboxing) is evaluated as necessary per argument during the method call. When a method call is made on a target `def` type value, the parameters and return type value are considered to also be of the `def` type and are evaluated at run-time.
 
@@ -52,7 +52,7 @@ arguments: '(' (expression (',' expression)*)? ')';
 
 
 
-## Field Access [field-access-operator]
+## Field access [field-access-operator]
 
 Use the `field access operator '.'` to store a value to or load a value from a [reference type](/reference/scripting-languages/painless/painless-types.md#reference-types) member field.
 
@@ -101,7 +101,7 @@ non-static member fields:
 
 
 
-## Null Safe [null-safe-operator]
+## Null safe [null-safe-operator]
 
 Use the `null safe operator '?.'` instead of the method call operator or field access operator to ensure a reference type value is `non-null` before a method call or field access. A `null` value will be returned if the reference type value is `null`, otherwise the method call or field access is evaluated.
 
@@ -159,7 +159,7 @@ non-static member fields:
 
 
 
-## List Initialization [list-initialization-operator]
+## List initialization [list-initialization-operator]
 
 Use the `list initialization operator '[]'` to allocate an `List` type instance to the heap with a set of pre-defined values. Each value used to initialize the `List` type instance is cast to a `def` type value upon insertion into the `List` type instance using the `add` method. The order of the specified values is maintained.
 
@@ -208,7 +208,7 @@ list_initialization: '[' expression (',' expression)* ']'
 
 
 
-## List Access [list-access-operator]
+## List access [list-access-operator]
 
 Use the `list access operator '[]'` as a shortcut for a `set` method call or `get` method call made on a `List` type value.
 
@@ -275,7 +275,7 @@ list_access: '[' expression ']'
 
 
 
-## Map Initialization [map-initialization-operator]
+## Map initialization [map-initialization-operator]
 
 Use the `map initialization operator '[:]'` to allocate a `Map` type instance to the heap with a set of pre-defined values. Each pair of values used to initialize the `Map` type instance are cast to `def` type values upon insertion into the `Map` type instance using the `put` method.
 
@@ -327,7 +327,7 @@ key_pair: expression ':' expression
 
 
 
-## Map Access [map-access-operator]
+## Map access [map-access-operator]
 
 Use the `map access operator '[]'` as a shortcut for a `put` method call or `get` method call made on a `Map` type value.
 
@@ -381,7 +381,7 @@ map_access: '[' expression ']'
 
 
 
-## New Instance [new-instance-operator]
+## New instance [new-instance-operator]
 
 Use the `new instance operator 'new ()'` to allocate a [reference type](/reference/scripting-languages/painless/painless-types.md#reference-types) instance to the heap and call a specified constructor. Implicit [boxing/unboxing](/reference/scripting-languages/painless/painless-casting.md#boxing-unboxing) is evaluated as necessary per argument during the constructor call.
 
@@ -415,7 +415,7 @@ def e = new HashMap(m);  <3>
 
 
 
-## String Concatenation [string-concatenation-operator]
+## String concatenation [string-concatenation-operator]
 
 Use the `string concatenation operator '+'` to concatenate two values together where at least one of the values is a [`String` type](/reference/scripting-languages/painless/painless-types.md#string-type).
 

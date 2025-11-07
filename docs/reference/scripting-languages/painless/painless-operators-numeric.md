@@ -10,7 +10,7 @@ products:
 
 # Operators: Numeric [painless-operators-numeric]
 
-## Post Increment [post-increment-operator]
+## Post increment [post-increment-operator]
 
 Use the `post increment operator '++'` to INCREASE the value of a numeric type variable/field by `1`. An extra implicit cast is necessary to return the promoted numeric type value to the original numeric type value of the variable/field for the following types: `byte`, `short`, and `char`. If a variable/field is read as part of an expression the value is loaded prior to the increment.
 
@@ -67,7 +67,7 @@ post_increment: ( variable | field ) '++';
 
 
 
-## Post Decrement [post-decrement-operator]
+## Post decrement [post-decrement-operator]
 
 Use the `post decrement operator '--'` to DECREASE the value of a numeric type variable/field by `1`. An extra implicit cast is necessary to return the promoted numeric type value to the original numeric type value of the variable/field for the following types: `byte`, `short`, and `char`. If a variable/field is read as part of an expression the value is loaded prior to the decrement.
 
@@ -124,7 +124,7 @@ post_decrement: ( variable | field ) '--';
 
 
 
-## Pre Increment [pre-increment-operator]
+## Pre increment [pre-increment-operator]
 
 Use the `pre increment operator '++'` to INCREASE the value of a numeric type variable/field by `1`. An extra implicit cast is necessary to return the promoted numeric type value to the original numeric type value of the variable/field for the following types: `byte`, `short`, and `char`. If a variable/field is read as part of an expression the value is loaded after the increment.
 
@@ -181,7 +181,7 @@ pre_increment: '++' ( variable | field );
 
 
 
-## Pre Decrement [pre-decrement-operator]
+## Pre decrement [pre-decrement-operator]
 
 Use the `pre decrement operator '--'` to DECREASE the value of a numeric type variable/field by `1`. An extra implicit cast is necessary to return the promoted numeric type value to the original numeric type value of the variable/field for the following types: `byte`, `short`, and `char`. If a variable/field is read as part of an expression the value is loaded after the decrement.
 
@@ -238,7 +238,7 @@ pre_decrement: '--' ( variable | field );
 
 
 
-## Unary Positive [unary-positive-operator]
+## Unary positive [unary-positive-operator]
 
 Use the `unary positive operator '+'` to the preserve the IDENTITY of a numeric type value.
 
@@ -276,7 +276,7 @@ unary_positive: '+' expression;
 
 
 
-## Unary Negative [unary-negative-operator]
+## Unary negative [unary-negative-operator]
 
 Use the `unary negative operator '-'` to NEGATE a numeric type value.
 
@@ -314,7 +314,7 @@ unary_negative: '-' expression;
 
 
 
-## Bitwise Not [bitwise-not-operator]
+## Bitwise not [bitwise-not-operator]
 
 Use the `bitwise not operator '~'` to NOT each bit in an integer type value where a `1-bit` is flipped to a resultant `0-bit` and a `0-bit` is flipped to a resultant `1-bit`.
 
@@ -633,7 +633,7 @@ subtraction: expression '-' expression;
 
 
 
-## Left Shift [left-shift-operator]
+## Left shift [left-shift-operator]
 
 Use the `left shift operator '<<'` to SHIFT lower order bits to higher order bits in a left-hand side integer type value by the distance specified in a right-hand side integer type value.
 
@@ -685,7 +685,7 @@ The left-hand side integer type value is promoted as specified in the table belo
 
 
 
-## Right Shift [right-shift-operator]
+## Right shift [right-shift-operator]
 
 Use the `right shift operator '>>'` to SHIFT higher order bits to lower order bits in a left-hand side integer type value by the distance specified in a right-hand side integer type value. The highest order bit of the left-hand side integer type value is preserved.
 
@@ -737,7 +737,7 @@ The left-hand side integer type value is promoted as specified in the table belo
 
 
 
-## Unsigned Right Shift [unsigned-right-shift-operator]
+## Unsigned right shift [unsigned-right-shift-operator]
 
 Use the `unsigned right shift operator '>>>'` to SHIFT higher order bits to lower order bits in a left-hand side integer type value by the distance specified in a right-hand side type integer value. The highest order bit of the left-hand side integer type value is **not** preserved.
 
@@ -789,7 +789,7 @@ The left-hand side integer type value is promoted as specified in the table belo
 
 
 
-## Bitwise And [bitwise-and-operator]
+## Bitwise and [bitwise-and-operator]
 
 Use the `bitwise and operator '&'` to AND together each bit within two integer type values where if both bits at the same index are `1` the resultant bit is `1` and `0` otherwise.
 
@@ -847,7 +847,7 @@ bitwise_and: expression '&' expression;
 
 
 
-## Bitwise Xor [bitwise-xor-operator]
+## Bitwise xor [bitwise-xor-operator]
 
 Use the `bitwise xor operator '^'` to XOR together each bit within two integer type values where if one bit is a `1` and the other bit is a `0` at the same index the resultant bit is `1` otherwise the resultant bit is `0`.
 
@@ -907,7 +907,7 @@ bitwise_xor: expression '^' expression;
 
 
 
-## Bitwise Or [bitwise-or-operator]
+## Bitwise or [bitwise-or-operator]
 
 Use the `bitwise or operator '|'` to OR together each bit within two integer type values where if at least one bit is a `1` at the same index the resultant bit is `1` otherwise the resultant bit is `0`.
 

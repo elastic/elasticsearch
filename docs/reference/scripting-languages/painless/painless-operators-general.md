@@ -34,7 +34,7 @@ precedence: '(' expression ')';
 
 
 
-## Function Call [function-call-operator]
+## Function call [function-call-operator]
 
 Use the `function call operator ()` to call an existing function. A [function call](/reference/scripting-languages/painless/painless-functions.md) is defined within a script.
 
@@ -174,7 +174,7 @@ non-static member fields:
 
 
 
-## Compound Assignment [compound-assignment-operator]
+## Compound assignment [compound-assignment-operator]
 
 Use the `compound assignment operator '$='` as a shortcut for an assignment where a binary operation would occur between the variable/field as the left-hand side expression and a separate right-hand side expression.
 

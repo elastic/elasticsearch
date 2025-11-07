@@ -298,6 +298,7 @@ public final class DateFieldMapper extends FieldMapper {
             IndexSettings indexSettings
         ) {
             super(name);
+            this.indexDisabledByDefault = indexSettings.isIndexDisabledByDefault();
             this.index = Parameter.indexParam(m -> toType(m).indexed, indexDisabledByDefault == false);
             this.resolution = resolution;
             this.indexCreatedVersion = indexSettings.getIndexVersionCreated();
@@ -331,7 +332,6 @@ public final class DateFieldMapper extends FieldMapper {
         public Builder ignoreMalformed(boolean ignoreMalformed) {
             this.ignoreMalformed.setValue(ignoreMalformed);
             return this;
-            this.indexDisabledByDefault = indexDisabledByDefault;
         }
 
         DateFormatter buildFormatter() {

@@ -334,7 +334,6 @@ final class DynamicFieldsBuilder {
                     mapperBuilderContext
                 );
             } else {
-                var indexSettings = context.indexSettings();
                 return createDynamicField(
                     new TextFieldMapper.Builder(
                         name,

@@ -335,7 +335,8 @@ public final class KeywordFieldMapper extends FieldMapper {
                 false,
                 false,
                 indexDisabledByDefault,
-                SourceKeepMode.NONE
+                SourceKeepMode.NONE,
+                false
             );
         }
 

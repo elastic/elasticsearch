@@ -102,7 +102,7 @@ public abstract class ReplicationRequest<Request extends ReplicationRequest<Requ
             this.reshardSplitShardCountSummary = reshardSplitShardCountSummary;
         } else {
             if (in.getTransportVersion().supports(INDEX_RESHARD_SHARDCOUNT_SMALL)) {
-                this.reshardSplitShardCountSummary = SplitShardCountSummary.fromInt(in.readVInt());
+                this.reshardSplitShardCountSummary = new SplitShardCountSummary(in);
             } else if (in.getTransportVersion().supports(INDEX_RESHARD_SHARDCOUNT_SUMMARY)) {
                 this.reshardSplitShardCountSummary = SplitShardCountSummary.fromInt(in.readInt());
             } else {

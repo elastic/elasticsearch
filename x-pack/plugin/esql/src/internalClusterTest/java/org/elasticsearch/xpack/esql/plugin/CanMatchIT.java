@@ -78,7 +78,7 @@ public class CanMatchIT extends AbstractEsqlIntegTestCase {
                     ComputeService.DATA_ACTION_NAME,
                     (handler, request, channel, task) -> {
                         DataNodeRequest dataNodeRequest = (DataNodeRequest) request;
-                        for (ShardId shardId : dataNodeRequest.shardIds()) {
+                        for (ShardId shardId : dataNodeRequest.shards()) {
                             queriedIndices.add(shardId.getIndexName());
                         }
                         handler.messageReceived(request, channel, task);
@@ -395,7 +395,7 @@ public class CanMatchIT extends AbstractEsqlIntegTestCase {
                 ComputeService.DATA_ACTION_NAME,
                 (handler, request, channel, task) -> {
                     DataNodeRequest dataNodeRequest = (DataNodeRequest) request;
-                    for (ShardId shardId : dataNodeRequest.shardIds()) {
+                    for (ShardId shardId : dataNodeRequest.shards()) {
                         queriedIndices.add(shardId.getIndexName());
                     }
                     handler.messageReceived(request, channel, task);

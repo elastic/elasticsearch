@@ -11,9 +11,11 @@ package org.elasticsearch.action.search;
 
 import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsGroup;
 import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.cluster.routing.SplitShardCountSummary;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.index.IndexReshardService;
 import org.elasticsearch.index.shard.ShardId;
 
 import java.io.IOException;
@@ -29,9 +31,15 @@ public class SearchShardsGroup implements Writeable {
     private final ShardId shardId;
     private final List<String> allocatedNodes;
     private final boolean skipped;
+    private final SplitShardCountSummary reshardSplitShardCountSummary;
     private final transient boolean preFiltered;
 
-    public SearchShardsGroup(ShardId shardId, List<String> allocatedNodes, boolean skipped) {
+    public SearchShardsGroup(
+        ShardId shardId,
+        List<String> allocatedNodes,
+        boolean skipped,
+        SplitShardCountSummary reshardSplitShardCountSummary
+    ) {
         this.shardId = shardId;
         this.allocatedNodes = allocatedNodes;
         this.skipped = skipped;
@@ -52,6 +60,9 @@ public class SearchShardsGroup implements Writeable {
         this.shardId = new ShardId(in);
         this.allocatedNodes = in.readStringCollectionAsList();
         this.skipped = in.readBoolean();
+        this.reshardSplitShardCountSummary = in.getTransportVersion().supports(IndexReshardService.RESHARDING_SHARD_SUMMARY_IN_ESQL)
+            ? SplitShardCountSummary.fromInt(in.readVInt())
+            : SplitShardCountSummary.UNSET;
         this.preFiltered = true;
     }
 
@@ -64,6 +75,9 @@ public class SearchShardsGroup implements Writeable {
         shardId.writeTo(out);
         out.writeStringCollection(allocatedNodes);
         out.writeBoolean(skipped);
+        if (out.getTransportVersion().supports(IndexReshardService.RESHARDING_SHARD_SUMMARY_IN_ESQL)) {
+            out.writeVInt(reshardSplitShardCountSummary.asInt());
+        }
     }
 
     public ShardId shardId() {
@@ -90,6 +104,10 @@ public class SearchShardsGroup implements Writeable {
      */
     public List<String> allocatedNodes() {
         return allocatedNodes;
+    }
+
+    public SplitShardCountSummary reshardSplitShardCountSummary() {
+        return reshardSplitShardCountSummary;
     }
 
     @Override

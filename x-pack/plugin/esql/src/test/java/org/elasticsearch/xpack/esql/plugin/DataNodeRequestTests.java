@@ -44,14 +44,14 @@ public class DataNodeRequestTests extends ESTestCase {
             randomBoolean()
         );
 
-        assertThat(request.shardIds(), equalTo(shardIds));
+        assertThat(request.shards(), equalTo(shardIds));
 
         request.indices(generateRandomStringArray(10, 10, false, false));
 
-        assertThat(request.shardIds(), equalTo(shardIds));
+        assertThat(request.shards(), equalTo(shardIds));
 
         request.indices(NO_INDEX_PLACEHOLDER);
 
-        assertThat(request.shardIds(), empty());
+        assertThat(request.shards(), empty());
     }
 }

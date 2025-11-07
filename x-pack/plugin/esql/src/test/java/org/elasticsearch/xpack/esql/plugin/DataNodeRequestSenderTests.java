@@ -669,11 +669,11 @@ public class DataNodeRequestSenderTests extends ComputeTestCase {
             @Override
             protected void sendRequest(
                 DiscoveryNode node,
-                List<ShardId> shardIds,
+                List<DataNodeRequest.Shard> shards,
                 Map<Index, AliasFilter> aliasFilters,
                 NodeListener listener
             ) {
-                sender.sendRequestToOneNode(node, shardIds, aliasFilters, listener);
+                sender.sendRequestToOneNode(node, shards, aliasFilters, listener);
             }
         }.startComputeOnDataNodes(Set.of(randomAlphaOfLength(10)), () -> {}, future);
         return future;
@@ -684,6 +684,11 @@ public class DataNodeRequestSenderTests extends ComputeTestCase {
     }
 
     interface Sender {
-        void sendRequestToOneNode(DiscoveryNode node, List<ShardId> shardIds, Map<Index, AliasFilter> aliasFilters, NodeListener listener);
+        void sendRequestToOneNode(
+            DiscoveryNode node,
+            List<DataNodeRequest.Shard> shards,
+            Map<Index, AliasFilter> aliasFilters,
+            NodeListener listener
+        );
     }
 }

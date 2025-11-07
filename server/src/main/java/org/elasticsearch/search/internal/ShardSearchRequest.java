@@ -200,7 +200,13 @@ public class ShardSearchRequest extends AbstractTransportRequest implements Indi
     }
 
     // Used by ESQL and field_caps API
-    public ShardSearchRequest(ShardId shardId, long nowInMillis, AliasFilter aliasFilter, String clusterAlias) {
+    public ShardSearchRequest(
+        ShardId shardId,
+        long nowInMillis,
+        AliasFilter aliasFilter,
+        String clusterAlias,
+        SplitShardCountSummary reshardSplitShardCountSummary
+    ) {
         this(
             OriginalIndices.NONE,
             shardId,
@@ -220,10 +226,7 @@ public class ShardSearchRequest extends AbstractTransportRequest implements Indi
             SequenceNumbers.UNASSIGNED_SEQ_NO,
             SearchService.NO_TIMEOUT,
             false,
-            // This parameter is specific to the resharding feature.
-            // TODO
-            // It is currently only supported in _search API and is stubbed here as a result.
-            SplitShardCountSummary.UNSET
+            reshardSplitShardCountSummary
         );
     }
 
@@ -363,7 +366,7 @@ public class ShardSearchRequest extends AbstractTransportRequest implements Indi
             forceSyntheticSource = false;
         }
         if (in.getTransportVersion().supports(SHARD_SEARCH_REQUEST_RESHARD_SHARD_COUNT_SUMMARY)) {
-            reshardSplitShardCountSummary = SplitShardCountSummary.fromInt(in.readVInt());
+            reshardSplitShardCountSummary = new SplitShardCountSummary(in);
         } else {
             reshardSplitShardCountSummary = SplitShardCountSummary.UNSET;
         }
@@ -429,7 +432,7 @@ public class ShardSearchRequest extends AbstractTransportRequest implements Indi
             }
         }
         if (out.getTransportVersion().supports(SHARD_SEARCH_REQUEST_RESHARD_SHARD_COUNT_SUMMARY)) {
-            out.writeVInt(reshardSplitShardCountSummary.asInt());
+            reshardSplitShardCountSummary.writeTo(out);
         }
     }
 

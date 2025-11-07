@@ -215,7 +215,6 @@ public class RRFRetrieverBuilderIT extends ESIntegTestCase {
             10,
             100,
             null,
-            null,
             null
         );
         source.retriever(

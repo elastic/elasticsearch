@@ -13,6 +13,7 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.XContentParseException;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.ml.AbstractBWCWireSerializationTestCase;
@@ -20,57 +21,28 @@ import org.elasticsearch.xpack.core.ml.AbstractBWCWireSerializationTestCase;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 
+import static org.elasticsearch.xpack.core.inference.action.PutCCMConfigurationAction.API_KEY_FIELD_ERROR;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
 
 public class PutCCMConfigurationActionRequestTests extends AbstractBWCWireSerializationTestCase<PutCCMConfigurationAction.Request> {
 
-    public void testValidate_BothFieldsNull_ReturnsException() {
-        var req = new PutCCMConfigurationAction.Request(null, null, randomTimeValue(), randomTimeValue());
+    public void testValidate_ApiKeyNull_ReturnsException() {
+        var req = new PutCCMConfigurationAction.Request(null, randomTimeValue(), randomTimeValue());
         var ex = req.validate();
         assertNotNull(ex);
-        assertThat(ex.getMessage(), containsString("At least one of [api_key] or [enabled] must be provided"));
-    }
-
-    public void testValidate_BothFieldsSet_ReturnsException() {
-        var req = new PutCCMConfigurationAction.Request(
-            new SecureString("key".toCharArray()),
-            Boolean.TRUE,
-            randomTimeValue(),
-            randomTimeValue()
-        );
-        var ex = req.validate();
-        assertNotNull(ex);
-        assertThat(ex.getMessage(), containsString("Only one of [api_key] or [enabled] can be provided but not both"));
-    }
-
-    public void testValidate_EnabledTrue_ReturnsException() {
-        var req = new PutCCMConfigurationAction.Request(null, Boolean.TRUE, randomTimeValue(), randomTimeValue());
-        var ex = req.validate();
-        assertNotNull(ex);
-        assertThat(ex.getMessage(), containsString("The [enabled] field must be set to [false] when disabling CCM"));
+        assertThat(ex.getMessage(), containsString(API_KEY_FIELD_ERROR));
     }
 
     public void testValidate_ApiKeyEmpty() {
-        var req = new PutCCMConfigurationAction.Request(new SecureString("".toCharArray()), null, randomTimeValue(), randomTimeValue());
+        var req = new PutCCMConfigurationAction.Request(new SecureString("".toCharArray()), randomTimeValue(), randomTimeValue());
         var ex = req.validate();
         assertNotNull(ex);
-        assertThat(ex.getMessage(), containsString("The [api_key] field cannot be an empty string"));
+        assertThat(ex.getMessage(), containsString(API_KEY_FIELD_ERROR));
     }
 
     public void testValidate_ApiKeyValid_DoesNotReturnAnException() {
-        var req = new PutCCMConfigurationAction.Request(
-            new SecureString("validkey".toCharArray()),
-            null,
-            randomTimeValue(),
-            randomTimeValue()
-        );
-        var ex = req.validate();
-        assertNull(ex);
-    }
-
-    public void testValidate_EnabledFalse_DoesNotReturnAnException() {
-        var req = new PutCCMConfigurationAction.Request(null, Boolean.FALSE, randomTimeValue(), randomTimeValue());
+        var req = new PutCCMConfigurationAction.Request(new SecureString("validkey".toCharArray()), randomTimeValue(), randomTimeValue());
         var ex = req.validate();
         assertNull(ex);
     }
@@ -89,59 +61,26 @@ public class PutCCMConfigurationActionRequestTests extends AbstractBWCWireSerial
         ) {
             var request = PutCCMConfigurationAction.Request.parseRequest(TimeValue.THIRTY_SECONDS, TimeValue.ZERO, parser);
             assertThat(request.getApiKey(), is(testKey));
-            assertNull(request.getEnabledField());
         }
     }
 
-    public void testParse_SuccessfullyParsesEnabledRequest() throws IOException {
-        var requestJson = """
-            {
-                "enabled": false
-            }
-            """;
-        try (
-            var parser = XContentFactory.xContent(XContentType.JSON)
-                .createParser(XContentParserConfiguration.EMPTY, requestJson.getBytes(StandardCharsets.UTF_8))
-        ) {
-            var request = PutCCMConfigurationAction.Request.parseRequest(TimeValue.THIRTY_SECONDS, TimeValue.ZERO, parser);
-            assertNull(request.getApiKey());
-            assertFalse(request.getEnabledField());
-        }
-    }
-
-    public void testParse_BothFieldsSet_ReturnsException() throws IOException {
+    public void testParse_UnknowField_ReturnsException() throws IOException {
         var requestJson = """
             {
                 "api_key": "test_key",
-                "enabled": true
+                "some_extra_field": true
             }
             """;
         try (
             var parser = XContentFactory.xContent(XContentType.JSON)
                 .createParser(XContentParserConfiguration.EMPTY, requestJson.getBytes(StandardCharsets.UTF_8))
         ) {
-            var request = PutCCMConfigurationAction.Request.parseRequest(TimeValue.THIRTY_SECONDS, TimeValue.ZERO, parser);
-            var ex = request.validate();
+            var ex = expectThrows(
+                XContentParseException.class,
+                () -> PutCCMConfigurationAction.Request.parseRequest(TimeValue.THIRTY_SECONDS, TimeValue.ZERO, parser)
+            );
             assertNotNull(ex);
-            assertThat(ex.getMessage(), containsString("Only one of [api_key] or [enabled] can be provided but not both"));
-        }
-    }
-
-    public void testParse_BothFieldsSetWithEnabledFalse_ReturnsException() throws IOException {
-        var requestJson = """
-            {
-                "api_key": "test_key",
-                "enabled": false
-            }
-            """;
-        try (
-            var parser = XContentFactory.xContent(XContentType.JSON)
-                .createParser(XContentParserConfiguration.EMPTY, requestJson.getBytes(StandardCharsets.UTF_8))
-        ) {
-            var request = PutCCMConfigurationAction.Request.parseRequest(TimeValue.THIRTY_SECONDS, TimeValue.ZERO, parser);
-            var ex = request.validate();
-            assertNotNull(ex);
-            assertThat(ex.getMessage(), containsString("Only one of [api_key] or [enabled] can be provided but not both"));
+            assertThat(ex.getMessage(), containsString("unknown field [some_extra_field]"));
         }
     }
 
@@ -154,7 +93,7 @@ public class PutCCMConfigurationActionRequestTests extends AbstractBWCWireSerial
             var request = PutCCMConfigurationAction.Request.parseRequest(TimeValue.THIRTY_SECONDS, TimeValue.ZERO, parser);
             var ex = request.validate();
             assertNotNull(ex);
-            assertThat(ex.getMessage(), containsString("At least one of [api_key] or [enabled] must be provided"));
+            assertThat(ex.getMessage(), containsString(API_KEY_FIELD_ERROR));
         }
     }
 
@@ -171,7 +110,7 @@ public class PutCCMConfigurationActionRequestTests extends AbstractBWCWireSerial
             var request = PutCCMConfigurationAction.Request.parseRequest(TimeValue.THIRTY_SECONDS, TimeValue.ZERO, parser);
             var ex = request.validate();
             assertNotNull(ex);
-            assertThat(ex.getMessage(), containsString("The [api_key] field cannot be an empty string"));
+            assertThat(ex.getMessage(), containsString(API_KEY_FIELD_ERROR));
         }
     }
 
@@ -192,7 +131,6 @@ public class PutCCMConfigurationActionRequestTests extends AbstractBWCWireSerial
     protected PutCCMConfigurationAction.Request createTestInstance() {
         return new PutCCMConfigurationAction.Request(
             new SecureString(randomAlphaOfLength(10).toCharArray()),
-            randomOptionalBoolean(),
             randomTimeValue(),
             randomTimeValue()
         );
@@ -201,21 +139,10 @@ public class PutCCMConfigurationActionRequestTests extends AbstractBWCWireSerial
     @Override
     protected PutCCMConfigurationAction.Request mutateInstance(PutCCMConfigurationAction.Request instance) throws IOException {
         var apiKey = instance.getApiKey();
-        var enabled = instance.getEnabledField();
         var masterNodeTimeout = instance.masterNodeTimeout();
         var ackTimeout = instance.ackTimeout();
 
-        return switch (randomIntBetween(0, 2)) {
-            case 0 -> {
-                var newApiKey = apiKey == null ? new SecureString(randomAlphaOfLength(12).toCharArray()) : null;
-                yield new PutCCMConfigurationAction.Request(newApiKey, enabled, masterNodeTimeout, ackTimeout);
-            }
-            case 1 -> {
-                var newEnabled = (enabled == null) ? randomBoolean() : null;
-                yield new PutCCMConfigurationAction.Request(apiKey, newEnabled, masterNodeTimeout, ackTimeout);
-            }
-            case 2 -> new PutCCMConfigurationAction.Request(null, null, masterNodeTimeout, ackTimeout);
-            default -> throw new IllegalStateException("Unexpected value");
-        };
+        var newApiKey = apiKey == null ? new SecureString(randomAlphaOfLength(12).toCharArray()) : null;
+        return new PutCCMConfigurationAction.Request(newApiKey, masterNodeTimeout, ackTimeout);
     }
 }

@@ -24,7 +24,7 @@ import static org.elasticsearch.xpack.inference.services.elastic.ccm.CCMFeature.
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
 
-public class CCMCrudForbiddenIT extends CCMBaseIT {
+public class CCMCrudForbiddenIT extends CCMRestBaseIT {
 
     @ClassRule
     public static ElasticsearchCluster cluster = ElasticsearchCluster.local()
@@ -47,13 +47,7 @@ public class CCMCrudForbiddenIT extends CCMBaseIT {
     }
 
     public void testRequestToEnableCCM_ReturnsForbidden() {
-        var request = PutCCMConfigurationAction.Request.createEnabled(
-            new SecureString("key".toCharArray()),
-            TimeValue.THIRTY_SECONDS,
-            TimeValue.THIRTY_SECONDS
-        );
-
-        var exception = expectThrows(ResponseException.class, () -> putCCMConfiguration(request));
+        var exception = expectThrows(ResponseException.class, () -> putCCMConfiguration(ENABLE_CCM_REQUEST));
         assertForbidden(exception);
     }
 
@@ -63,14 +57,19 @@ public class CCMCrudForbiddenIT extends CCMBaseIT {
     }
 
     public void testEnableCCM_WithNullApiKey_NullEnabled_ReturnsForbidden() {
-        var request = new PutCCMConfigurationAction.Request(null, null, TimeValue.THIRTY_SECONDS, TimeValue.THIRTY_SECONDS);
+        var request = new PutCCMConfigurationAction.Request(null, TimeValue.THIRTY_SECONDS, TimeValue.THIRTY_SECONDS);
 
         var exception = expectThrows(ResponseException.class, () -> putCCMConfiguration(request));
         assertForbidden(exception);
     }
 
     public void testGetCCMConfiguration_ReturnsForbidden() {
-        var exception = expectThrows(ResponseException.class, CCMBaseIT::getCCMConfiguration);
+        var exception = expectThrows(ResponseException.class, CCMRestBaseIT::getCCMConfiguration);
+        assertForbidden(exception);
+    }
+
+    public void testDeleteCCMConfiguration_ReturnsForbidden() {
+        var exception = expectThrows(ResponseException.class, CCMRestBaseIT::deleteCCMConfiguration);
         assertForbidden(exception);
     }
 }

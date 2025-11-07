@@ -29,7 +29,7 @@ import static org.elasticsearch.xpack.inference.rest.Paths.INFERENCE_CCM_PATH;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
 
-public class CCMCrudIT extends CCMBaseIT {
+public class CCMCrudIT extends CCMRestBaseIT {
 
     @ClassRule
     public static ElasticsearchCluster cluster = ElasticsearchCluster.local()
@@ -54,38 +54,22 @@ public class CCMCrudIT extends CCMBaseIT {
     @After
     public void cleanup() throws IOException {
         // Disable CCM after each test to ensure a clean state
-        putCCMConfiguration(PutCCMConfigurationAction.Request.createDisabled(TimeValue.THIRTY_SECONDS, TimeValue.THIRTY_SECONDS));
+        deleteCCMConfiguration();
     }
 
     public void testEnablesCCM_Succeeds() throws IOException {
-        var response = putCCMConfiguration(
-            PutCCMConfigurationAction.Request.createEnabled(
-                new SecureString("key".toCharArray()),
-                TimeValue.THIRTY_SECONDS,
-                TimeValue.THIRTY_SECONDS
-            )
-        );
+        var response = putCCMConfiguration(ENABLE_CCM_REQUEST);
 
         assertTrue(response.isEnabled());
     }
 
     public void testEnablesCCMTwice_Succeeds() throws IOException {
-        var response = putCCMConfiguration(
-            PutCCMConfigurationAction.Request.createEnabled(
-                new SecureString("key".toCharArray()),
-                TimeValue.THIRTY_SECONDS,
-                TimeValue.THIRTY_SECONDS
-            )
-        );
+        var response = putCCMConfiguration(ENABLE_CCM_REQUEST);
 
         assertTrue(response.isEnabled());
 
         response = putCCMConfiguration(
-            PutCCMConfigurationAction.Request.createEnabled(
-                new SecureString("other_key".toCharArray()),
-                TimeValue.THIRTY_SECONDS,
-                TimeValue.THIRTY_SECONDS
-            )
+            PutCCMConfigurationAction.Request.createEnabled("other_key", TimeValue.THIRTY_SECONDS, TimeValue.THIRTY_SECONDS)
         );
 
         assertTrue(response.isEnabled());
@@ -105,11 +89,11 @@ public class CCMCrudIT extends CCMBaseIT {
         assertThat(exception.getResponse().getStatusLine().getStatusCode(), is(RestStatus.BAD_REQUEST.getStatus()));
     }
 
-    public void testEnableCCM_WithNullApiKey_NullEnabled_ThrowsException() {
-        var request = new PutCCMConfigurationAction.Request(null, null, TimeValue.THIRTY_SECONDS, TimeValue.THIRTY_SECONDS);
+    public void testEnableCCM_WithNullApiKey_ThrowsException() {
+        var request = new PutCCMConfigurationAction.Request(null, TimeValue.THIRTY_SECONDS, TimeValue.THIRTY_SECONDS);
 
         var exception = expectThrows(IOException.class, () -> putCCMConfiguration(request));
-        assertThat(exception.getMessage(), containsString("At least one of [api_key] or [enabled] must be provided"));
+        assertThat(exception.getMessage(), containsString("The [api_key] field cannot be an empty string or null"));
     }
 
     public void testEnableCCM_WithoutBody_ThrowsException() {
@@ -119,18 +103,8 @@ public class CCMCrudIT extends CCMBaseIT {
         assertThat(exception.getMessage(), containsString("The body must be specified"));
     }
 
-    public void testDisableCCM_WithEnabledTrue_ThrowsException() {
-        var request = new PutCCMConfigurationAction.Request(null, true, TimeValue.THIRTY_SECONDS, TimeValue.THIRTY_SECONDS);
-
-        var exception = expectThrows(IOException.class, () -> putCCMConfiguration(request));
-        assertThat(exception.getMessage(), containsString("The [enabled] field must be set to [false] when disabling CCM"));
-    }
-
     public void testDisableCCM_Succeeds() throws IOException {
-        var response = putCCMConfiguration(
-            PutCCMConfigurationAction.Request.createDisabled(TimeValue.THIRTY_SECONDS, TimeValue.THIRTY_SECONDS)
-        );
-
+        var response = deleteCCMConfiguration();
         assertFalse(response.isEnabled());
     }
 
@@ -139,20 +113,12 @@ public class CCMCrudIT extends CCMBaseIT {
     }
 
     public void testEnablesCCM_ThenDisable() throws IOException {
-        var response = putCCMConfiguration(
-            PutCCMConfigurationAction.Request.createEnabled(
-                new SecureString("key".toCharArray()),
-                TimeValue.THIRTY_SECONDS,
-                TimeValue.THIRTY_SECONDS
-            )
-        );
+        var response = putCCMConfiguration(ENABLE_CCM_REQUEST);
 
         assertTrue(response.isEnabled());
         assertTrue(getCCMConfiguration().isEnabled());
 
-        response = putCCMConfiguration(
-            PutCCMConfigurationAction.Request.createDisabled(TimeValue.THIRTY_SECONDS, TimeValue.THIRTY_SECONDS)
-        );
+        response = deleteCCMConfiguration();
 
         assertFalse(response.isEnabled());
         assertFalse(getCCMConfiguration().isEnabled());

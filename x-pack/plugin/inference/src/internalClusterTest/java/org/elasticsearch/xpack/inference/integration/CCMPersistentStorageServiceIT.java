@@ -14,7 +14,7 @@ import org.junit.Before;
 
 import java.util.concurrent.atomic.AtomicReference;
 
-public class CCMPersistentStorageServiceIT extends BaseCCMIT {
+public class CCMPersistentStorageServiceIT extends CCMSingleNodeIT {
     private static final AtomicReference<CCMPersistentStorageService> ccmPersistentStorageService = new AtomicReference<>();
 
     public CCMPersistentStorageServiceIT() {

@@ -21,17 +21,16 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.inference.action.CCMEnabledActionResponse;
-import org.elasticsearch.xpack.core.inference.action.PutCCMConfigurationAction;
+import org.elasticsearch.xpack.core.inference.action.DeleteCCMConfigurationAction;
 import org.elasticsearch.xpack.inference.services.elastic.ccm.CCMFeature;
-import org.elasticsearch.xpack.inference.services.elastic.ccm.CCMModel;
 import org.elasticsearch.xpack.inference.services.elastic.ccm.CCMService;
 
 import java.util.Objects;
 
 import static org.elasticsearch.xpack.inference.services.elastic.ccm.CCMFeature.CCM_FORBIDDEN_EXCEPTION;
 
-public class TransportPutCCMConfigurationAction extends TransportMasterNodeAction<
-    PutCCMConfigurationAction.Request,
+public class TransportDeleteCCMConfigurationAction extends TransportMasterNodeAction<
+    DeleteCCMConfigurationAction.Request,
     CCMEnabledActionResponse> {
 
     private final CCMFeature ccmFeature;
@@ -39,7 +38,7 @@ public class TransportPutCCMConfigurationAction extends TransportMasterNodeActio
     private final ProjectResolver projectResolver;
 
     @Inject
-    public TransportPutCCMConfigurationAction(
+    public TransportDeleteCCMConfigurationAction(
         TransportService transportService,
         ClusterService clusterService,
         ThreadPool threadPool,
@@ -49,12 +48,12 @@ public class TransportPutCCMConfigurationAction extends TransportMasterNodeActio
         CCMFeature ccmFeature
     ) {
         super(
-            PutCCMConfigurationAction.NAME,
+            DeleteCCMConfigurationAction.NAME,
             transportService,
             clusterService,
             threadPool,
             actionFilters,
-            PutCCMConfigurationAction.Request::new,
+            DeleteCCMConfigurationAction.Request::new,
             CCMEnabledActionResponse::new,
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
@@ -66,7 +65,7 @@ public class TransportPutCCMConfigurationAction extends TransportMasterNodeActio
     @Override
     protected void masterOperation(
         Task task,
-        PutCCMConfigurationAction.Request request,
+        DeleteCCMConfigurationAction.Request request,
         ClusterState state,
         ActionListener<CCMEnabledActionResponse> listener
     ) {
@@ -75,15 +74,15 @@ public class TransportPutCCMConfigurationAction extends TransportMasterNodeActio
             return;
         }
 
-        var enabledListener = listener.<Void>delegateFailureIgnoreResponseAndWrap(
-            delegate -> delegate.onResponse(new CCMEnabledActionResponse(true))
+        var disabledListener = listener.<Void>delegateFailureIgnoreResponseAndWrap(
+            delegate -> delegate.onResponse(new CCMEnabledActionResponse(false))
         );
 
-        ccmService.storeConfiguration(new CCMModel(request.getApiKey()), enabledListener);
+        ccmService.disableCCM(disabledListener);
     }
 
     @Override
-    protected ClusterBlockException checkBlock(PutCCMConfigurationAction.Request request, ClusterState state) {
+    protected ClusterBlockException checkBlock(DeleteCCMConfigurationAction.Request request, ClusterState state) {
         return state.blocks().globalBlockedException(projectResolver.getProjectId(), ClusterBlockLevel.METADATA_WRITE);
     }
 }

@@ -16,7 +16,7 @@ import org.junit.Before;
 
 import java.util.concurrent.atomic.AtomicReference;
 
-public class CCMServiceIT extends BaseCCMIT {
+public class CCMServiceIT extends CCMSingleNodeIT {
     private static final AtomicReference<CCMService> ccmService = new AtomicReference<>();
 
     public CCMServiceIT() {

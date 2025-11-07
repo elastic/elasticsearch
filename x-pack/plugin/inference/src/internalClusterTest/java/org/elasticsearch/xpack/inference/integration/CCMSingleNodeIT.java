@@ -31,7 +31,7 @@ import static org.elasticsearch.xpack.inference.services.elastic.ccm.CCMPersiste
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
 
-public abstract class BaseCCMIT extends ESSingleNodeTestCase {
+public abstract class CCMSingleNodeIT extends ESSingleNodeTestCase {
 
     private final Provider provider;
 
@@ -43,7 +43,7 @@ public abstract class BaseCCMIT extends ESSingleNodeTestCase {
         void delete(ActionListener<Void> listener);
     }
 
-    public BaseCCMIT(Provider provider) {
+    public CCMSingleNodeIT(Provider provider) {
         this.provider = Objects.requireNonNull(provider);
     }
 

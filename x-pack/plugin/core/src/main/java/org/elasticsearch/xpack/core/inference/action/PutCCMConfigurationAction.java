@@ -30,6 +30,7 @@ public class PutCCMConfigurationAction extends ActionType<CCMEnabledActionRespon
 
     public static final PutCCMConfigurationAction INSTANCE = new PutCCMConfigurationAction();
     public static final String NAME = "cluster:admin/xpack/inference/ccm/put";
+    static final String API_KEY_FIELD_ERROR = "The [api_key] field cannot be an empty string or null";
 
     public PutCCMConfigurationAction() {
         super(NAME);
@@ -41,7 +42,6 @@ public class PutCCMConfigurationAction extends ActionType<CCMEnabledActionRespon
 
         static {
             PARSER.declareString(Request.Builder::setApiKey, new ParseField("api_key"));
-            PARSER.declareBoolean(Request.Builder::setEnabled, new ParseField("enabled"));
         }
 
         public static Request parseRequest(TimeValue masterNodeTimeout, TimeValue ackTimeout, XContentParser parser) throws IOException {
@@ -49,57 +49,30 @@ public class PutCCMConfigurationAction extends ActionType<CCMEnabledActionRespon
             return builder.build(masterNodeTimeout, ackTimeout);
         }
 
-        public static Request createEnabled(SecureString apiKey, TimeValue masterNodeTimeout, TimeValue ackTimeout) {
-            return new Request(Objects.requireNonNull(apiKey), null, masterNodeTimeout, ackTimeout);
-        }
-
-        public static Request createDisabled(TimeValue masterNodeTimeout, TimeValue ackTimeout) {
-            return new Request(null, Boolean.FALSE, masterNodeTimeout, ackTimeout);
+        public static Request createEnabled(String apiKey, TimeValue masterNodeTimeout, TimeValue ackTimeout) {
+            return new Request(new SecureString(Objects.requireNonNull(apiKey).toCharArray()), masterNodeTimeout, ackTimeout);
         }
 
         private final SecureString apiKey;
-        private final Boolean enabled;
 
-        public Request(SecureString apiKey, Boolean enabled, TimeValue masterNodeTimeout, TimeValue ackTimeout) {
+        public Request(SecureString apiKey, TimeValue masterNodeTimeout, TimeValue ackTimeout) {
             super(masterNodeTimeout, ackTimeout);
             this.apiKey = apiKey;
-            this.enabled = enabled;
         }
 
         public Request(StreamInput in) throws IOException {
             super(in);
-            apiKey = in.readOptionalSecureString();
-            enabled = in.readOptionalBoolean();
+            apiKey = in.readSecureString();
         }
 
         public SecureString getApiKey() {
             return apiKey;
         }
 
-        public Boolean getEnabledField() {
-            return enabled;
-        }
-
         @Override
         public ActionRequestValidationException validate() {
-            if (apiKey == null && enabled == null) {
-                return addValidationError("At least one of [api_key] or [enabled] must be provided", null);
-            }
-
-            if (apiKey != null && enabled != null) {
-                return addValidationError("Only one of [api_key] or [enabled] can be provided but not both", null);
-            }
-
-            if (enabled != null && enabled) {
-                return addValidationError(
-                    "The [enabled] field must be set to [false] when disabling CCM, "
-                        + "otherwise omit it and provide the [api_key] field instead",
-                    null
-                );
-            }
-
-            if (apiKey != null && Strings.isEmpty(apiKey.toString())) {
-                return addValidationError("The [api_key] field cannot be an empty string", null);
+            if (apiKey == null || Strings.isNullOrEmpty(apiKey.toString())) {
+                return addValidationError(API_KEY_FIELD_ERROR, null);
             }
 
             return null;
@@ -108,20 +81,19 @@ public class PutCCMConfigurationAction extends ActionType<CCMEnabledActionRespon
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
-            out.writeOptionalSecureString(apiKey);
-            out.writeOptionalBoolean(enabled);
+            out.writeSecureString(apiKey);
         }
 
         @Override
         public boolean equals(Object o) {
             if (o == null || getClass() != o.getClass()) return false;
             Request request = (Request) o;
-            return Objects.equals(apiKey, request.apiKey) && Objects.equals(enabled, request.enabled);
+            return Objects.equals(apiKey, request.apiKey);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(apiKey, enabled);
+            return Objects.hash(apiKey);
         }
 
         @Override
@@ -131,16 +103,12 @@ public class PutCCMConfigurationAction extends ActionType<CCMEnabledActionRespon
                 builder.field("api_key", apiKey.toString());
             }
 
-            if (enabled != null) {
-                builder.field("enabled", enabled);
-            }
             builder.endObject();
             return builder;
         }
 
         public static class Builder {
             private SecureString apiKey;
-            private Boolean enabled;
 
             private Builder() {}
 
@@ -154,13 +122,8 @@ public class PutCCMConfigurationAction extends ActionType<CCMEnabledActionRespon
                 return this;
             }
 
-            public Builder setEnabled(Boolean enabled) {
-                this.enabled = enabled;
-                return this;
-            }
-
             public Request build(TimeValue masterNodeTimeout, TimeValue ackTimeout) {
-                return new Request(apiKey, enabled, masterNodeTimeout, ackTimeout);
+                return new Request(apiKey, masterNodeTimeout, ackTimeout);
             }
         }
     }

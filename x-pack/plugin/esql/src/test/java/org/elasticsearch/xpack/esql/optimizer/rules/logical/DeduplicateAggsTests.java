@@ -156,7 +156,6 @@ public class DeduplicateAggsTests extends AbstractLogicalPlanOptimizerTests {
         assertEquals(2, as(mul.right(), Literal.class).value());
         assertEquals("2* MAX(a)", twoMax.name());
 
-
         var aggregates = as(as(eval.child(), Limit.class).child(), Aggregate.class).aggregates();
         assertThat(aggregates, hasSize(1));
         var agg = as(aggregates.getFirst(), Alias.class);

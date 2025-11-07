@@ -438,10 +438,6 @@ tests:
 - class: org.elasticsearch.xpack.ilm.CCRIndexLifecycleIT
   method: testCcrAndIlmWithRollover {targetCluster=FOLLOWER}
   issue: https://github.com/elastic/elasticsearch/issues/137528
-- class: org.elasticsearch.xpack.esql.vector.VectorSimilarityFunctionsIT
-  method: testSimilarityWithOneDimVector {functionName=v_cosine
-    similarityFunction=org.elasticsearch.xpack.esql.expression.function.vector.CosineSimilarity$1@6f152006 elementType=byte}
-  issue: https://github.com/elastic/elasticsearch/issues/137552
 - class: org.elasticsearch.xpack.ilm.CCRIndexLifecycleIT
   method: testTsdbLeaderIndexRolloverAndSyncAfterWaitUntilEndTime {targetCluster=FOLLOWER}
   issue: https://github.com/elastic/elasticsearch/issues/137565

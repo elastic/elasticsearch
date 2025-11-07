@@ -1738,14 +1738,23 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
             MapperService mapperService = createMapperService(fieldMapping(this::minimalMapping));
             MappedFieldType ft = mapperService.fieldType("field");
             expectThrows(IllegalArgumentException.class, () -> {
-                ft.fielddataBuilder(new FieldDataContext("", mapperService.getIndexSettings(), () -> null, Set::of, MappedFieldType.FielddataOperation.SEARCH))
-                    .build(null, null)
-                    .sortField(IndexVersion.current(), null, MultiValueMode.MIN, null, false);
+                ft.fielddataBuilder(
+                    new FieldDataContext(
+                        "",
+                        mapperService.getIndexSettings(),
+                        () -> null,
+                        Set::of,
+                        MappedFieldType.FielddataOperation.SEARCH
+                    )
+                ).build(null, null).sortField(IndexVersion.current(), null, MultiValueMode.MIN, null, false);
             });
-        }
-        else {
+        } else {
             for (SortShortcutSupport sortShortcutSupport : tests) {
-                MapperService mapperService = createMapperService(sortShortcutSupport.indexVersion(), sortShortcutSupport.settings, () -> true);
+                MapperService mapperService = createMapperService(
+                    sortShortcutSupport.indexVersion(),
+                    sortShortcutSupport.settings,
+                    () -> true
+                );
                 merge(mapperService, fieldMapping(sortShortcutSupport.mappings));
                 withLuceneIndex(mapperService, iw -> {
                     iw.addDocument(
@@ -1757,8 +1766,8 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
                     IndexSearcher searcher = newSearcher(reader);
                     MappedFieldType ft = mapperService.fieldType("field");
                     SortField sortField = ft.fielddataBuilder(new FieldDataContext("", mapperService.getIndexSettings(), () -> {
-                            throw new UnsupportedOperationException();
-                        }, Set::of, MappedFieldType.FielddataOperation.SEARCH))
+                        throw new UnsupportedOperationException();
+                    }, Set::of, MappedFieldType.FielddataOperation.SEARCH))
                         .build(null, null)
                         .sortField(getVersion(), null, MultiValueMode.MIN, null, false);
                     var comparator = sortField.getComparator(10, Pruning.GREATER_THAN_OR_EQUAL_TO);

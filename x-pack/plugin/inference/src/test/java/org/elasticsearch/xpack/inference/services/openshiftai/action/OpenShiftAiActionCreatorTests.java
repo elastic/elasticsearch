@@ -927,8 +927,10 @@ public class OpenShiftAiActionCreatorTests extends ESTestCase {
             action.execute(new QueryAndDocsInputs(QUERY, documents, null, null, false), InferenceAction.Request.DEFAULT_TIMEOUT, listener);
 
             var thrownException = expectThrows(ElasticsearchException.class, () -> listener.actionGet(ESTestCase.TEST_REQUEST_TIMEOUT));
-            assertThat(thrownException.getMessage(), is("""
-                Failed to send OpenShift AI rerank request from inference entity id [inferenceEntityId]. Cause: Required [results]"""));
+            assertThat(
+                thrownException.getMessage(),
+                is("Failed to send OpenShift AI rerank request from inference entity id [inferenceEntityId]. Cause: Required [results]")
+            );
         }
         assertRerankActionCreator(documents, 2, true);
     }

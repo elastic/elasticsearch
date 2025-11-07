@@ -42,8 +42,6 @@ class S3RetryingInputStream extends RetryingInputStream<String> {
 
     private static final Logger logger = LogManager.getLogger(S3RetryingInputStream.class);
 
-    static final int MAX_SUPPRESSED_EXCEPTIONS = 10;
-
     S3RetryingInputStream(OperationPurpose purpose, S3BlobStore blobStore, String blobKey) throws IOException {
         this(purpose, blobStore, blobKey, 0, Long.MAX_VALUE - 1);
     }

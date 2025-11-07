@@ -28,7 +28,7 @@ public abstract class RetryingInputStream<V> extends InputStream {
 
     private static final Logger logger = LogManager.getLogger(RetryingInputStream.class);
 
-    static final int MAX_SUPPRESSED_EXCEPTIONS = 10;
+    public static final int MAX_SUPPRESSED_EXCEPTIONS = 10;
 
     private final BlobStoreServices<V> blobStoreServices;
     private final OperationPurpose purpose;

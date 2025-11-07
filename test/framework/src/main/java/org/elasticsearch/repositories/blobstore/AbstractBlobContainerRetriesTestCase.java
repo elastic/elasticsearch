@@ -17,6 +17,7 @@ import org.apache.http.HttpStatus;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.OperationPurpose;
+import org.elasticsearch.common.blobstore.RetryingInputStream;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -27,6 +28,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.mocksocket.MockHttpServer;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.fixture.HttpHeaderParser;
+import org.hamcrest.Matcher;
 import org.junit.After;
 import org.junit.Before;
 
@@ -44,10 +46,10 @@ import java.util.concurrent.atomic.AtomicLong;
 
 import static org.elasticsearch.repositories.blobstore.BlobStoreTestUtil.randomPurpose;
 import static org.elasticsearch.test.NeverMatcher.never;
+import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.either;
-import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.lessThan;
@@ -291,16 +293,20 @@ public abstract class AbstractBlobContainerRetriesTestCase extends ESTestCase {
         assertThat(exception.getSuppressed().length, getMaxRetriesMatcher(maxRetries));
     }
 
-    protected org.hamcrest.Matcher<Integer> getMaxRetriesMatcher(int maxRetries) {
-        return equalTo(maxRetries);
+    protected Matcher<Integer> getMaxRetriesMatcher(int maxRetries) {
+        // some attempts make meaningful progress and do not count towards the max retry limit
+        return allOf(greaterThanOrEqualTo(maxRetries), lessThanOrEqualTo(RetryingInputStream.MAX_SUPPRESSED_EXCEPTIONS));
     }
 
     protected OperationPurpose randomRetryingPurpose() {
-        return randomPurpose();
+        return randomValueOtherThan(OperationPurpose.REPOSITORY_ANALYSIS, BlobStoreTestUtil::randomPurpose);
     }
 
     protected OperationPurpose randomFiniteRetryingPurpose() {
-        return randomPurpose();
+        return randomValueOtherThanMany(
+            purpose -> purpose == OperationPurpose.REPOSITORY_ANALYSIS || purpose == OperationPurpose.INDICES,
+            BlobStoreTestUtil::randomPurpose
+        );
     }
 
     public void testReadBlobWithNoHttpResponse() {

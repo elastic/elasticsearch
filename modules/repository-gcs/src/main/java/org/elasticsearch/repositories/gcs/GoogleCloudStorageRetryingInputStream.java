@@ -53,7 +53,7 @@ class GoogleCloudStorageRetryingInputStream extends RetryingInputStream<Long> {
                 blobStore,
                 purpose,
                 blobId,
-                blobStore.client().getOptions().getRetrySettings().getMaxAttempts()
+                blobStore.client().getOptions().getRetrySettings().getMaxAttempts() - 1
             ),
             purpose,
             start,

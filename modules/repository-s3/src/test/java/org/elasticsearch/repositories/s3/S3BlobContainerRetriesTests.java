@@ -51,7 +51,6 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.repositories.RepositoriesMetrics;
 import org.elasticsearch.repositories.blobstore.AbstractBlobContainerRetriesTestCase;
-import org.elasticsearch.repositories.blobstore.BlobStoreTestUtil;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.telemetry.InstrumentType;
 import org.elasticsearch.telemetry.Measurement;
@@ -60,7 +59,6 @@ import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.MockLog;
 import org.elasticsearch.watcher.ResourceWatcherService;
-import org.hamcrest.Matcher;
 import org.junit.After;
 import org.junit.Before;
 import org.mockito.Mockito;
@@ -102,19 +100,16 @@ import static org.elasticsearch.repositories.s3.S3ClientSettings.MAX_CONNECTIONS
 import static org.elasticsearch.repositories.s3.S3ClientSettings.MAX_RETRIES_SETTING;
 import static org.elasticsearch.repositories.s3.S3ClientSettings.READ_TIMEOUT_SETTING;
 import static org.elasticsearch.repositories.s3.S3ClientSettingsTests.DEFAULT_REGION_UNAVAILABLE;
-import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
-import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThan;
-import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 /**
  * This class tests how a {@link S3BlobContainer} and its underlying AWS S3 client are retrying requests when reading or writing blobs.
@@ -1358,25 +1353,6 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
 
     private static void assertBase16MD5Digest(String input, String expectedDigestString) {
         assertEquals(expectedDigestString, getBase16MD5Digest(new BytesArray(input)));
-    }
-
-    @Override
-    protected Matcher<Integer> getMaxRetriesMatcher(int maxRetries) {
-        // some attempts make meaningful progress and do not count towards the max retry limit
-        return allOf(greaterThanOrEqualTo(maxRetries), lessThanOrEqualTo(S3RetryingInputStream.MAX_SUPPRESSED_EXCEPTIONS));
-    }
-
-    @Override
-    protected OperationPurpose randomRetryingPurpose() {
-        return randomValueOtherThan(OperationPurpose.REPOSITORY_ANALYSIS, BlobStoreTestUtil::randomPurpose);
-    }
-
-    @Override
-    protected OperationPurpose randomFiniteRetryingPurpose() {
-        return randomValueOtherThanMany(
-            purpose -> purpose == OperationPurpose.REPOSITORY_ANALYSIS || purpose == OperationPurpose.INDICES,
-            BlobStoreTestUtil::randomPurpose
-        );
     }
 
     private void assertMetricsForOpeningStream() {

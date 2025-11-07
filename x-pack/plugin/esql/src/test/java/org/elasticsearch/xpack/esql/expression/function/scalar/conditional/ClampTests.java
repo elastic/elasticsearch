@@ -19,12 +19,14 @@ import org.elasticsearch.xpack.esql.expression.function.AbstractScalarFunctionTe
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 import org.elasticsearch.xpack.esql.expression.function.scalar.Clamp;
 import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlScalarFunction;
+import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 import org.hamcrest.Matchers;
 
 import java.util.List;
-import java.util.Locale;
+import java.util.Set;
 import java.util.function.Function;
 import java.util.function.Supplier;
+import java.util.stream.Collectors;
 
 public class ClampTests extends AbstractScalarFunctionTestCase {
     public ClampTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
@@ -74,35 +76,46 @@ public class ClampTests extends AbstractScalarFunctionTestCase {
             if (dt.v1() == DataType.UNSIGNED_LONG) return dt.v2().longValue(); // we will use long to represent unsigned long
             throw new IllegalArgumentException("Unsupported data type: " + dt);
         };
-        // function to make first letter uppercase
-        Function<String, String> capitalize = s -> s.substring(0, 1).toUpperCase(Locale.ROOT) + s.substring(1);
-        for (DataType numericType : DataType.types().stream().filter(DataType::isNumeric).toList()) {
-            if (numericType == DataType.HALF_FLOAT
-                || numericType == DataType.SCALED_FLOAT
-                || numericType == DataType.SHORT
-                || numericType == DataType.BYTE
-                // || numericType == DataType.UNSIGNED_LONG // TODO: shouldnt unsigned long be supported? it was giving trouble...
-                || numericType == DataType.FLOAT) { // TODO: shouldnt float be supported?
+        final Set<DataType> disallowedTypes = Set.of(
+            DataType.HALF_FLOAT,
+            DataType.SCALED_FLOAT,
+            DataType.SHORT,
+            DataType.BYTE,
+            DataType.FLOAT
+        );
+        var allNumericTypes = DataType.types().stream().filter(DataType::isNumeric).toList();
+        for (Tuple<DataType, DataType> numericTypes : allNumericTypes.stream()
+            .flatMap(nt1 -> allNumericTypes.stream().map(nt2 -> Tuple.tuple(nt1, nt2)))
+            .collect(Collectors.toSet())) {
+            var nt1 = numericTypes.v1();
+            var nt2 = numericTypes.v2();
+            if (disallowedTypes.contains(nt1) || disallowedTypes.contains(nt2)) {
                 continue;
             }
+            var tmpLargerDt = nt1.estimatedSize() > nt2.estimatedSize() ? nt1 : nt2;
+            if (nt2.estimatedSize() == nt1.estimatedSize()) {
+                tmpLargerDt = nt1.isRationalNumber() ? nt1 : nt2;
+            }
+            final var largerDt = tmpLargerDt;
+            final var largerDtName = PlannerUtils.toElementType(largerDt).pascalCaseName();
             suppliers.add(
                 new TestCaseSupplier(
                     "(a, b, c)",
-                    List.of(numericType, numericType, numericType),
+                    List.of(nt1, nt2, nt2),
                     () -> new TestCaseSupplier.TestCase(
                         List.of(
-                            new TestCaseSupplier.TypedData(numberValue.apply(Tuple.tuple(numericType, 1)), numericType, "a"),
-                            new TestCaseSupplier.TypedData(numberValue.apply(Tuple.tuple(numericType, 2)), numericType, "b"),
-                            new TestCaseSupplier.TypedData(numberValue.apply(Tuple.tuple(numericType, 3)), numericType, "c")
+                            new TestCaseSupplier.TypedData(numberValue.apply(Tuple.tuple(nt1, 1)), nt1, "a"),
+                            new TestCaseSupplier.TypedData(numberValue.apply(Tuple.tuple(nt2, 2)), nt2, "b"),
+                            new TestCaseSupplier.TypedData(numberValue.apply(Tuple.tuple(nt2, 2)), nt2, "c")
                         ),
-                        String.format(
-                            Locale.ROOT,
-                            "ClampMax%sEvaluator[field=ClampMin%sEvaluator[field=Attribute[channel=0], min=Attribute[channel=1]], "
-                                + "max=Attribute[channel=2]]",
-                            numericType == DataType.UNSIGNED_LONG ? "Long" : capitalize.apply(numericType.esType()),
-                            numericType == DataType.UNSIGNED_LONG ? "Long" : capitalize.apply(numericType.esType())
+                        Matchers.stringContainsInOrder(
+                            "ClampMax",
+                            largerDtName,
+                            "Evaluator[field=ClampMin",
+                            largerDtName,
+                            "Evaluator[field="
                         ),
-                        numericType,
+                        largerDt,
                         Matchers.allOf(
                             Matchers.notNullValue(),
                             Matchers.not(Matchers.notANumber()),

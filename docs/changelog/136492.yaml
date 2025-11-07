@@ -1,5 +1,0 @@
-pr: 136492
-summary: Make `ResolveUnionTypes` rule stateless
-area: ES|QL
-type: bug
-issues: []

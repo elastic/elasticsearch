@@ -107,9 +107,11 @@ public class TransportGetInferenceFieldsAction extends HandledTransportAction<
             ProjectState projectState = projectResolver.getProjectState(clusterService.state());
             String[] concreteLocalIndices = indexNameExpressionResolver.concreteIndexNames(projectState.metadata(), localIndices);
 
-            Map<String, List<InferenceFieldMetadata>> inferenceFieldsMap = new HashMap<>(concreteLocalIndices.length);
+            Map<String, List<GetInferenceFieldsAction.ExtendedInferenceFieldMetadata>> inferenceFieldsMap = new HashMap<>(
+                concreteLocalIndices.length
+            );
             Arrays.stream(concreteLocalIndices).forEach(index -> {
-                List<InferenceFieldMetadata> inferenceFieldMetadataList = getInferenceFieldMetadata(
+                List<GetInferenceFieldsAction.ExtendedInferenceFieldMetadata> inferenceFieldMetadataList = getInferenceFieldMetadata(
                     index,
                     fields,
                     resolveWildcards,
@@ -122,7 +124,7 @@ public class TransportGetInferenceFieldsAction extends HandledTransportAction<
                 Set<String> inferenceIds = inferenceFieldsMap.values()
                     .stream()
                     .flatMap(List::stream)
-                    .map(InferenceFieldMetadata::getSearchInferenceId)
+                    .map(eifm -> eifm.inferenceFieldMetadata().getSearchInferenceId())
                     .collect(Collectors.toSet());
 
                 getInferenceResults(query, inferenceIds, inferenceFieldsMap, listener);
@@ -134,7 +136,8 @@ public class TransportGetInferenceFieldsAction extends HandledTransportAction<
         }
     }
 
-    private List<InferenceFieldMetadata> getInferenceFieldMetadata(
+    // TODO: Don't hard-code field weights
+    private List<GetInferenceFieldsAction.ExtendedInferenceFieldMetadata> getInferenceFieldMetadata(
         String index,
         Set<String> fields,
         boolean resolveWildcards,
@@ -146,20 +149,27 @@ public class TransportGetInferenceFieldsAction extends HandledTransportAction<
         }
 
         Map<String, InferenceFieldMetadata> inferenceFieldsMap = indexMetadata.getInferenceFields();
-        List<InferenceFieldMetadata> inferenceFieldMetadataList = new ArrayList<>();
+        List<GetInferenceFieldsAction.ExtendedInferenceFieldMetadata> inferenceFieldMetadataList = new ArrayList<>();
         Set<String> effectiveFields = fields.isEmpty() && useDefaultFields ? getDefaultFields(indexMetadata.getSettings()) : fields;
         for (String field : effectiveFields) {
             if (inferenceFieldsMap.containsKey(field)) {
                 // No wildcards in field name
-                inferenceFieldMetadataList.add(inferenceFieldsMap.get(field));
+                inferenceFieldMetadataList.add(
+                    new GetInferenceFieldsAction.ExtendedInferenceFieldMetadata(inferenceFieldsMap.get(field), 1.0f)
+                );
             } else if (resolveWildcards) {
                 if (Regex.isMatchAllPattern(field)) {
-                    inferenceFieldMetadataList.addAll(inferenceFieldsMap.values());
+                    inferenceFieldsMap.values().forEach(ifm -> {
+                        GetInferenceFieldsAction.ExtendedInferenceFieldMetadata eifm =
+                            new GetInferenceFieldsAction.ExtendedInferenceFieldMetadata(ifm, 1.0f);
+                        inferenceFieldMetadataList.add(eifm);
+                    });
                 } else if (Regex.isSimpleMatchPattern(field)) {
-                    inferenceFieldsMap.values()
-                        .stream()
-                        .filter(ifm -> Regex.simpleMatch(field, ifm.getName()))
-                        .forEach(inferenceFieldMetadataList::add);
+                    inferenceFieldsMap.values().stream().filter(ifm -> Regex.simpleMatch(field, ifm.getName())).forEach(ifm -> {
+                        GetInferenceFieldsAction.ExtendedInferenceFieldMetadata eifm =
+                            new GetInferenceFieldsAction.ExtendedInferenceFieldMetadata(ifm, 1.0f);
+                        inferenceFieldMetadataList.add(eifm);
+                    });
                 }
             }
         }
@@ -170,7 +180,7 @@ public class TransportGetInferenceFieldsAction extends HandledTransportAction<
     private void getInferenceResults(
         String query,
         Set<String> inferenceIds,
-        Map<String, List<InferenceFieldMetadata>> inferenceFieldsMap,
+        Map<String, List<GetInferenceFieldsAction.ExtendedInferenceFieldMetadata>> inferenceFieldsMap,
         ActionListener<GetInferenceFieldsAction.Response> listener
     ) {
         if (inferenceIds.isEmpty()) {

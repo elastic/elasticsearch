@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.xpack.esql.index;
 
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -17,10 +16,9 @@ import java.io.IOException;
 import java.util.Map;
 import java.util.Set;
 
-import static java.util.stream.Collectors.toMap;
-
 public record EsIndex(
     String name,
+    /** Map of field names to {@link EsField} instances representing that field */
     Map<String, EsField> mapping,
     Map<String, IndexMode> indexNameWithModes,
     /** Fields mapped only in some (but *not* all) indices. Since this is only used by the analyzer, it is not serialized. */
@@ -47,15 +45,7 @@ public record EsIndex(
     public static EsIndex readFrom(StreamInput in) throws IOException {
         String name = in.readString();
         Map<String, EsField> mapping = in.readImmutableMap(StreamInput::readString, EsField::readFrom);
-        Map<String, IndexMode> indexNameWithModes;
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
-            indexNameWithModes = in.readMap(IndexMode::readFrom);
-        } else {
-            @SuppressWarnings("unchecked")
-            Set<String> indices = (Set<String>) in.readGenericValue();
-            assert indices != null;
-            indexNameWithModes = indices.stream().collect(toMap(e -> e, e -> IndexMode.STANDARD));
-        }
+        Map<String, IndexMode> indexNameWithModes = in.readMap(IndexMode::readFrom);
         // partially unmapped fields shouldn't pass the coordinator node anyway, since they are only used by the Analyzer.
         return new EsIndex(name, mapping, indexNameWithModes, Set.of());
     }
@@ -64,11 +54,7 @@ public record EsIndex(
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(name());
         out.writeMap(mapping(), (o, x) -> x.writeTo(out));
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
-            out.writeMap(indexNameWithModes, (o, v) -> IndexMode.writeTo(v, out));
-        } else {
-            out.writeGenericValue(indexNameWithModes.keySet());
-        }
+        out.writeMap(indexNameWithModes, (o, v) -> IndexMode.writeTo(v, out));
         // partially unmapped fields shouldn't pass the coordinator node anyway, since they are only used by the Analyzer.
     }
 

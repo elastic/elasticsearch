@@ -77,7 +77,7 @@ public record ReindexDataStreamTaskParams(
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.REINDEX_DATA_STREAMS;
+        return TransportVersions.V_8_18_0;
     }
 
     @Override

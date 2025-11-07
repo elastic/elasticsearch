@@ -40,6 +40,10 @@ gradlePlugin {
       id = 'elasticsearch.build-complete'
       implementationClass = 'org.elasticsearch.gradle.internal.ElasticsearchBuildCompletePlugin'
     }
+    componentMetadataRules {
+      id = 'elasticsearch.component-metadata-rules'
+      implementationClass = 'org.elasticsearch.gradle.internal.dependencies.rules.ComponentMetadataRulesPlugin'
+    }
     distro {
       id = 'elasticsearch.distro'
       implementationClass = 'org.elasticsearch.gradle.internal.distribution.ElasticsearchDistributionPlugin'
@@ -220,13 +224,13 @@ gradlePlugin {
       id = 'elasticsearch.internal-yaml-rest-test'
       implementationClass = 'org.elasticsearch.gradle.internal.test.rest.InternalYamlRestTestPlugin'
     }
-    transportVersionManagementPlugin {
-      id = 'elasticsearch.transport-version-management'
-      implementationClass = 'org.elasticsearch.gradle.internal.transport.TransportVersionManagementPlugin'
+    transportVersionReferencesPlugin {
+      id = 'elasticsearch.transport-version-references'
+      implementationClass = 'org.elasticsearch.gradle.internal.transport.TransportVersionReferencesPlugin'
     }
-    globalTransportVersionManagementPlugin {
-      id = 'elasticsearch.global-transport-version-management'
-      implementationClass = 'org.elasticsearch.gradle.internal.transport.GlobalTransportVersionManagementPlugin'
+    transportVersionResourcesPlugin {
+      id = 'elasticsearch.transport-version-resources'
+      implementationClass = 'org.elasticsearch.gradle.internal.transport.TransportVersionResourcesPlugin'
     }
   }
 }
@@ -281,6 +285,9 @@ dependencies {
     testImplementation buildLibs.asm
     integTestImplementation buildLibs.asm
     api(buildLibs.snakeyaml)
+    api("org.slf4j:slf4j-api:2.0.6") {
+      because("Align with what we use in production")
+    }
   }
   // Forcefully downgrade the jackson platform as used in production
   api enforcedPlatform(buildLibs.jackson.platform)

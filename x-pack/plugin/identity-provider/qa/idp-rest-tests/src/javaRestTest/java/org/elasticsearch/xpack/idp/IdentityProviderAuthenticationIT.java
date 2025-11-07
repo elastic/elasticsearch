@@ -17,6 +17,7 @@ import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.XmlUtils;
 import org.elasticsearch.xcontent.ObjectPath;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.json.JsonXContent;
@@ -41,7 +42,6 @@ import javax.xml.parsers.DocumentBuilder;
 import javax.xml.parsers.DocumentBuilderFactory;
 import javax.xml.xpath.XPath;
 import javax.xml.xpath.XPathConstants;
-import javax.xml.xpath.XPathFactory;
 
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
@@ -163,14 +163,13 @@ public class IdentityProviderAuthenticationIT extends IdpRestTestCase {
         final String samlResponse = generateSamlResponseWithAttributes(SP_ENTITY_ID, SP_ACS, null, attributesMap);
 
         // Parse XML directly from samlResponse (it's not base64 encoded at this point)
-        DocumentBuilderFactory factory = DocumentBuilderFactory.newInstance();
+        DocumentBuilderFactory factory = XmlUtils.getHardenedBuilderFactory();
         factory.setNamespaceAware(true); // Required for XPath
         DocumentBuilder builder = factory.newDocumentBuilder();
         Document document = builder.parse(new InputSource(new StringReader(samlResponse)));
 
         // Create XPath evaluator
-        XPathFactory xPathFactory = XPathFactory.newInstance();
-        XPath xpath = xPathFactory.newXPath();
+        XPath xpath = XmlUtils.getHardenedXPath();
 
         // Validate SAML Response structure
         Element responseElement = (Element) xpath.evaluate("//*[local-name()='Response']", document, XPathConstants.NODE);

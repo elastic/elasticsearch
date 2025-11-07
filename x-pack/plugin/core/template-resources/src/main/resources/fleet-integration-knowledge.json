@@ -1,0 +1,33 @@
+{
+  "settings": {
+    "auto_expand_replicas": "0-1",
+    "index.hidden": true
+  },
+  "mappings": {
+    "_doc": {
+      "dynamic": false,
+      "_meta": {
+        "version": "${fleet.version}",
+        "managed_index_mappings_version": ${fleet.managed.index.version},
+        "description": "Integration package knowledge base content storage"
+      },
+      "properties": {
+        "filename": {
+          "type": "keyword"
+        },
+        "content": {
+          "type": "semantic_text"
+        },
+        "version": {
+          "type": "version"
+        },
+        "package_name": {
+          "type": "keyword"
+        },
+        "installed_at": {
+          "type": "date"
+        }
+      }
+    }
+  }
+}

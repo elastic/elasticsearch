@@ -1,27 +1,30 @@
 {
-  "_internal.delete_desired_nodes":{
-    "documentation":{
-      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/delete-desired-nodes.html",
-      "description": "Deletes the desired nodes. Designed for indirect use by ECE/ESS and ECK. Direct use is not supported."
+  "_internal.delete_desired_nodes": {
+    "documentation": {
+      "url": null,
+      "description": "Designed for indirect use by ECE/ESS and ECK, direct use is not supported."
     },
-    "stability":"experimental",
-    "visibility":"private",
-    "headers":{
-      "accept": [ "application/json"]
+    "stability": "experimental",
+    "visibility": "private",
+    "headers": {
+      "accept": [
+        "application/json"
+      ]
     },
-    "url":{
-      "paths":[
+    "url": {
+      "paths": [
         {
-          "path":"/_internal/desired_nodes",
-          "methods":[
+          "path": "/_internal/desired_nodes",
+          "methods": [
             "DELETE"
           ]
         }
       ]
     },
-    "params":{
+    "params": {
       "master_timeout": {
         "type": "time",
+        "default": "30s",
         "description": "Timeout for connection to master node"
       },
       "timeout": {

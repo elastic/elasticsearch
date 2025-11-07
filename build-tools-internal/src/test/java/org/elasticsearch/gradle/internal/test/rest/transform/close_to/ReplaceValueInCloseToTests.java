@@ -9,12 +9,11 @@
 
 package org.elasticsearch.gradle.internal.test.rest.transform.close_to;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.NumericNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
-import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
 
 import org.elasticsearch.gradle.internal.test.rest.transform.AssertObjectNodes;
+import org.elasticsearch.gradle.internal.test.rest.transform.SerializableJsonNode;
 import org.elasticsearch.gradle.internal.test.rest.transform.TransformTests;
 import org.junit.Test;
 
@@ -22,9 +21,6 @@ import java.util.Collections;
 import java.util.List;
 
 public class ReplaceValueInCloseToTests extends TransformTests {
-
-    private static final YAMLFactory YAML_FACTORY = new YAMLFactory();
-    private static final ObjectMapper MAPPER = new ObjectMapper(YAML_FACTORY);
 
     @Test
     public void testReplaceValue() throws Exception {
@@ -34,7 +30,7 @@ public class ReplaceValueInCloseToTests extends TransformTests {
         String test_transformed = "/rest/transform/close_to/close_to_replace_transformed_value.yml";
         List<ObjectNode> expectedTransformation = getTests(test_transformed);
 
-        NumericNode replacementNode = MAPPER.convertValue(99.99, NumericNode.class);
+        var replacementNode = SerializableJsonNode.of(99.99, NumericNode.class);
 
         List<ObjectNode> transformedTests = transformTests(
             tests,

@@ -99,8 +99,7 @@ public class IpFieldTypeTests extends FieldTypeTestCase {
 
         MappedFieldType unsearchable = new IpFieldMapper.IpFieldType(
             "field",
-            false,
-            false,
+            IndexType.NONE,
             false,
             null,
             null,
@@ -334,8 +333,7 @@ public class IpFieldTypeTests extends FieldTypeTestCase {
 
         MappedFieldType unsearchable = new IpFieldMapper.IpFieldType(
             "field",
-            false,
-            false,
+            IndexType.NONE,
             false,
             null,
             null,

@@ -91,7 +91,7 @@ public class SingletonOrdinalsBuilderTests extends ComputeTestCase {
                             }
                         };
                         var columnAtATimeReader = blockLoader.columnAtATimeReader(ctx);
-                        try (BlockLoader.Block block = columnAtATimeReader.read(blockFactory, docs, start)) {
+                        try (BlockLoader.Block block = columnAtATimeReader.read(blockFactory, docs, start, false)) {
                             BytesRefBlock result = (BytesRefBlock) block;
                             BytesRef scratch = new BytesRef();
                             for (int i = 0; i < result.getPositionCount(); i++) {
@@ -150,7 +150,9 @@ public class SingletonOrdinalsBuilderTests extends ComputeTestCase {
             try (IndexReader reader = indexWriter.getReader()) {
                 for (LeafReaderContext ctx : reader.leaves()) {
                     SortedDocValues docValues = ctx.reader().getSortedDocValues("f");
-                    try (SingletonOrdinalsBuilder builder = new SingletonOrdinalsBuilder(factory, docValues, ctx.reader().numDocs())) {
+                    try (
+                        SingletonOrdinalsBuilder builder = new SingletonOrdinalsBuilder(factory, docValues, ctx.reader().numDocs(), false);
+                    ) {
                         for (int i = 0; i < ctx.reader().maxDoc(); i++) {
                             if (ctx.reader().getLiveDocs() == null || ctx.reader().getLiveDocs().get(i)) {
                                 assertThat(docValues.advanceExact(i), equalTo(true));
@@ -185,12 +187,12 @@ public class SingletonOrdinalsBuilderTests extends ComputeTestCase {
                     int batchSize = between(40, 100);
                     int ord = random().nextInt(numOrds);
                     try (
-                        var b1 = new SingletonOrdinalsBuilder(factory, ctx.reader().getSortedDocValues("f"), batchSize);
-                        var b2 = new SingletonOrdinalsBuilder(factory, ctx.reader().getSortedDocValues("f"), batchSize)
+                        var b1 = new SingletonOrdinalsBuilder(factory, ctx.reader().getSortedDocValues("f"), batchSize, randomBoolean());
+                        var b2 = new SingletonOrdinalsBuilder(factory, ctx.reader().getSortedDocValues("f"), batchSize, randomBoolean())
                     ) {
                         for (int i = 0; i < batchSize; i++) {
-                            b1.appendOrd(ord);
-                            b2.appendOrd(ord);
+                            appendOrd(b1, ord);
+                            appendOrd(b2, ord);
                         }
                         try (BytesRefBlock block1 = b1.build(); BytesRefBlock block2 = b2.buildRegularBlock()) {
                             assertThat(block1, equalTo(block2));
@@ -199,6 +201,20 @@ public class SingletonOrdinalsBuilderTests extends ComputeTestCase {
                     }
                 }
             }
+        }
+    }
+
+    private void appendOrd(SingletonOrdinalsBuilder builder, int ord) {
+        if (randomBoolean()) {
+            builder.appendOrd(ord);
+        } else if (randomBoolean()) {
+            int prefix = between(0, 2);
+            int suffix = between(0, 2);
+            int[] ords = new int[prefix + 1 + suffix];
+            ords[prefix] = ord;
+            builder.appendOrds(ords, prefix, 1, ord, ord);
+        } else {
+            builder.appendOrds(ord, 1);
         }
     }
 
@@ -239,7 +255,7 @@ public class SingletonOrdinalsBuilderTests extends ComputeTestCase {
                             }
                         };
                         var columnAtATimeReader = blockLoader.columnAtATimeReader(ctx);
-                        try (BlockLoader.Block block = columnAtATimeReader.read(blockFactory, docs, start)) {
+                        try (BlockLoader.Block block = columnAtATimeReader.read(blockFactory, docs, start, false)) {
                             BytesRefBlock result = (BytesRefBlock) block;
                             assertNotNull(result.asVector());
                             boolean enclosedInSingleRange = false;

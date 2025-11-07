@@ -66,10 +66,8 @@ public class GetDataStreamActionTests extends ESTestCase {
             assertThat(lifecycleResult.get("retention_determined_by"), equalTo("max_global_retention"));
             Map<String, Map<String, Object>> settingsMap = (Map<String, Map<String, Object>>) resultMap.get("settings");
             assertThat(Settings.builder().loadFromMap(settingsMap).build(), equalTo(dataStreamInfo.getDataStream().getSettings()));
-            if (DataStream.LOGS_STREAM_FEATURE_FLAG) {
-                Map<String, Object> mappingsMap = (Map<String, Object>) resultMap.get("mappings");
-                assertThat(new CompressedXContent(mappingsMap), equalTo(dataStreamInfo.getDataStream().getMappings()));
-            }
+            Map<String, Object> mappingsMap = (Map<String, Object>) resultMap.get("mappings");
+            assertThat(new CompressedXContent(mappingsMap), equalTo(dataStreamInfo.getDataStream().getMappings()));
         }
     }
 
@@ -109,7 +107,7 @@ public class GetDataStreamActionTests extends ESTestCase {
 
     private static DataStream newDataStreamInstance(boolean isSystem, TimeValue retention) {
         List<Index> indices = List.of(new Index(randomAlphaOfLength(10), randomAlphaOfLength(10)));
-        DataStreamLifecycle lifecycle = DataStreamLifecycle.createDataLifecycle(true, retention, null);
+        DataStreamLifecycle lifecycle = DataStreamLifecycle.createDataLifecycle(true, retention, null, null);
         Settings settings = randomSettings();
         CompressedXContent mappings = randomMappings();
         return DataStream.builder(randomAlphaOfLength(50), indices)

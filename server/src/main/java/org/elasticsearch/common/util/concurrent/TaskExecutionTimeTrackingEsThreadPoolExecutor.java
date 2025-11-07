@@ -39,7 +39,8 @@ import static org.elasticsearch.threadpool.ThreadPool.THREAD_POOL_METRIC_NAME_UT
  * An extension to thread pool executor, which tracks statistics for the task execution time.
  */
 public final class TaskExecutionTimeTrackingEsThreadPoolExecutor extends EsThreadPoolExecutor {
-    public static final int QUEUE_LATENCY_HISTOGRAM_BUCKETS = 18;
+    // 20 buckets means the upper bound on the largest bound bucket will be 2^18 ms (~= 4 minutes 20 seconds)
+    public static final int QUEUE_LATENCY_HISTOGRAM_BUCKETS = 20;
     private static final int[] LATENCY_PERCENTILES_TO_REPORT = { 50, 90, 99 };
 
     private final Function<Runnable, WrappedRunnable> runnableWrapper;
@@ -151,7 +152,8 @@ public final class TaskExecutionTimeTrackingEsThreadPoolExecutor extends EsThrea
      * Returns the max queue latency seen since the last time that this method was called. Every call will reset the max seen back to zero.
      * Latencies are only observed as tasks are taken off of the queue. This means that tasks in the queue will not contribute to the max
      * latency until they are unqueued and handed to a thread to execute. To see the latency of tasks still in the queue, use
-     * {@link #peekMaxQueueLatencyInQueue}. If there have been no tasks in the queue since the last call, then zero latency is returned.
+     * {@link #peekMaxQueueLatencyInQueueMillis}. If there have been no tasks in the queue since the last call, then zero latency is
+     * returned.
      */
     public long getMaxQueueLatencyMillisSinceLastPollAndReset() {
         if (trackMaxQueueLatency == false) {
@@ -164,23 +166,29 @@ public final class TaskExecutionTimeTrackingEsThreadPoolExecutor extends EsThrea
      * Returns the queue latency of the next task to be executed that is still in the task queue. Essentially peeks at the front of the
      * queue and calculates how long it has been there. Returns zero if there is no queue.
      */
-    public long peekMaxQueueLatencyInQueue() {
+    public long peekMaxQueueLatencyInQueueMillis() {
         if (trackMaxQueueLatency == false) {
             return 0;
         }
+
         var queue = getQueue();
-        if (queue.isEmpty()) {
+        assert queue instanceof LinkedTransferQueue || queue instanceof SizeBlockingQueue
+            : "Not the type of queue expected: " + queue.getClass();
+        var linkedTransferOrSizeBlockingQueue = queue instanceof LinkedTransferQueue
+            ? (LinkedTransferQueue) queue
+            : (SizeBlockingQueue) queue;
+
+        var task = linkedTransferOrSizeBlockingQueue.peek();
+        if (task == null) {
+            // There's nothing in the queue right now.
             return 0;
         }
-        assert queue instanceof LinkedTransferQueue : "Not the type of queue expected: " + queue.getClass();
-        var linkedTransferQueue = (LinkedTransferQueue) queue;
 
-        var task = linkedTransferQueue.peek();
         assert task instanceof WrappedRunnable : "Not the type of task expected: " + task.getClass();
         var wrappedTask = ((WrappedRunnable) task).unwrap();
         assert wrappedTask instanceof TimedRunnable : "Not the type of task expected: " + task.getClass();
         var timedTask = (TimedRunnable) wrappedTask;
-        return timedTask.getTimeSinceCreationNanos();
+        return TimeUnit.NANOSECONDS.toMillis(timedTask.getTimeSinceCreationNanos());
     }
 
     /**

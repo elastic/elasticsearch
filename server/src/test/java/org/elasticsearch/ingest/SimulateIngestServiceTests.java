@@ -9,6 +9,7 @@
 
 package org.elasticsearch.ingest;
 
+import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.action.bulk.FailureStoreMetrics;
 import org.elasticsearch.action.bulk.SimulateBulkRequest;
 import org.elasticsearch.client.internal.Client;
@@ -34,6 +35,7 @@ import java.util.Map;
 import static org.elasticsearch.test.LambdaMatchers.transformedMatch;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -118,6 +120,32 @@ public class SimulateIngestServiceTests extends ESTestCase {
         }
     }
 
+    public void testRethrowingOfElasticParseExceptionFromProcessors() {
+        final PipelineConfiguration pipelineConfiguration = new PipelineConfiguration("pipeline1", new BytesArray("""
+            {"processors": []}"""), XContentType.JSON);
+        final IngestMetadata ingestMetadata = new IngestMetadata(Map.of("pipeline1", pipelineConfiguration));
+        final Processor.Factory factoryThatThrowsElasticParseException = (factory, tag, description, config, projectId) -> {
+            throw new ElasticsearchParseException("exception to be caught");
+        };
+        final Map<String, Processor.Factory> processors = Map.of("parse_exception_processor", factoryThatThrowsElasticParseException);
+        final var projectId = randomProjectIdOrDefault();
+        IngestService ingestService = createWithProcessors(projectId, processors);
+        ingestService.innerUpdatePipelines(projectId, ingestMetadata);
+        SimulateBulkRequest simulateBulkRequest = new SimulateBulkRequest(
+            newHashMap("pipeline1", newHashMap("processors", List.of(Map.of("parse_exception_processor", new HashMap<>(0))))),
+            Map.of(),
+            Map.of(),
+            Map.of(),
+            null
+        );
+
+        final ElasticsearchParseException ex = assertThrows(
+            ElasticsearchParseException.class,
+            () -> new SimulateIngestService(ingestService, simulateBulkRequest)
+        );
+        assertThat(ex.getMessage(), is("exception to be caught"));
+    }
+
     private static IngestService createWithProcessors(ProjectId projectId, Map<String, Processor.Factory> processors) {
         Client client = mock(Client.class);
         ThreadPool threadPool = mock(ThreadPool.class);
@@ -145,7 +173,8 @@ public class SimulateIngestServiceTests extends ESTestCase {
                 public boolean clusterHasFeature(ClusterState state, NodeFeature feature) {
                     return DataStream.DATA_STREAM_FAILURE_STORE_FEATURE.equals(feature);
                 }
-            }
+            },
+            mock(SamplingService.class)
         );
     }
 }

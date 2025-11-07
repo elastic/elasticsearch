@@ -43,7 +43,6 @@ import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasSize;
-import static org.hamcrest.Matchers.is;
 
 public class UnsignedLongFieldMapperTests extends WholeNumberFieldMapperTests {
 
@@ -352,7 +351,7 @@ public class UnsignedLongFieldMapperTests extends WholeNumberFieldMapperTests {
         }));
         var ft = (UnsignedLongFieldMapper.UnsignedLongFieldType) mapperService.fieldType("field");
         assertThat(ft.getMetricType(), equalTo(randomMetricType));
-        assertThat(ft.isIndexed(), is(false));
+        assertTrue(ft.indexType().hasOnlyDocValues());
     }
 
     @Override
@@ -432,7 +431,6 @@ public class UnsignedLongFieldMapperTests extends WholeNumberFieldMapperTests {
         if (randomBoolean()) {
             return randomDouble();
         }
-        assumeFalse("https://github.com/elastic/elasticsearch/issues/70585", true);
         return randomDoubleBetween(0L, Long.MAX_VALUE, true);
     }
 
@@ -519,7 +517,12 @@ public class UnsignedLongFieldMapperTests extends WholeNumberFieldMapperTests {
     }
 
     @Override
-    protected boolean supportsBulkBlockReading() {
+    protected boolean supportsBulkLongBlockReading() {
         return true;
+    }
+
+    @Override
+    protected List<SortShortcutSupport> getSortShortcutSupport() {
+        return List.of(new SortShortcutSupport(this::minimalMapping, this::writeField, true));
     }
 }

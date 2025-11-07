@@ -13,6 +13,7 @@ import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.test.RetryRule;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.local.distribution.DistributionType;
 import org.elasticsearch.test.rest.ESRestTestCase;
@@ -33,7 +34,7 @@ public class BaseMockEISAuthServerTest extends ESRestTestCase {
 
     private static ElasticsearchCluster cluster = ElasticsearchCluster.local()
         .distribution(DistributionType.DEFAULT)
-        .setting("xpack.license.self_generated.type", "trial")
+        .setting("xpack.license.self_generated.type", "basic")
         .setting("xpack.security.enabled", "true")
         // Adding both settings unless one feature flag is disabled in a particular environment
         .setting("xpack.inference.elastic.url", mockEISServer::getUrl)
@@ -54,7 +55,7 @@ public class BaseMockEISAuthServerTest extends ESRestTestCase {
 
     // The reason we're retrying is there's a race condition between the node retrieving the
     // authorization response and running the test. Retrieving the authorization should be very fast since
-    // we're hosting a local mock server but it's possible it could respond slower. So in the even of a test failure
+    // we're hosting a local mock server but it's possible it could respond slower. So in the event of a test failure
     // we'll automatically retry after waiting a second.
     // Note: @Rule is executed for each test
     @Rule

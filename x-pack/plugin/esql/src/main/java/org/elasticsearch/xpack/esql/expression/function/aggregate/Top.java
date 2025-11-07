@@ -7,10 +7,8 @@
 
 package org.elasticsearch.xpack.esql.expression.function.aggregate;
 
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.compute.aggregation.AggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.TopBooleanAggregatorFunctionSupplier;
@@ -27,12 +25,13 @@ import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.expression.Foldables;
+import org.elasticsearch.xpack.esql.expression.Foldables.TypeResolutionValidator;
 import org.elasticsearch.xpack.esql.expression.SurrogateExpression;
 import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionType;
-import org.elasticsearch.xpack.esql.expression.function.FunctionUtils;
-import org.elasticsearch.xpack.esql.expression.function.FunctionUtils.TypeResolutionValidator;
+import org.elasticsearch.xpack.esql.expression.function.OptionalArgument;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.planner.ToAggregator;
@@ -49,10 +48,15 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.Param
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isNotNull;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isString;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
-import static org.elasticsearch.xpack.esql.expression.function.FunctionUtils.TypeResolutionValidator.forPostOptimizationValidation;
-import static org.elasticsearch.xpack.esql.expression.function.FunctionUtils.TypeResolutionValidator.forPreOptimizationValidation;
+import static org.elasticsearch.xpack.esql.expression.Foldables.TypeResolutionValidator.forPostOptimizationValidation;
+import static org.elasticsearch.xpack.esql.expression.Foldables.TypeResolutionValidator.forPreOptimizationValidation;
 
-public class Top extends AggregateFunction implements ToAggregator, SurrogateExpression, PostOptimizationVerificationAware {
+public class Top extends AggregateFunction
+    implements
+        OptionalArgument,
+        ToAggregator,
+        SurrogateExpression,
+        PostOptimizationVerificationAware {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Top", Top::new);
 
     private static final String ORDER_ASC = "ASC";
@@ -73,40 +77,32 @@ public class Top extends AggregateFunction implements ToAggregator, SurrogateExp
         ) Expression field,
         @Param(name = "limit", type = { "integer" }, description = "The maximum number of values to collect.") Expression limit,
         @Param(
+            optional = true,
             name = "order",
             type = { "keyword" },
-            description = "The order to calculate the top values. Either `asc` or `desc`."
+            description = "The order to calculate the top values. Either `asc` or `desc`, and defaults to `asc` if omitted."
         ) Expression order
     ) {
-        this(source, field, Literal.TRUE, limit, order);
+        this(source, field, Literal.TRUE, NO_WINDOW, limit, order == null ? Literal.keyword(source, ORDER_ASC) : order);
     }
 
-    public Top(Source source, Expression field, Expression filter, Expression limit, Expression order) {
-        super(source, field, filter, asList(limit, order));
+    public Top(Source source, Expression field, Expression filter, Expression window, Expression limit, Expression order) {
+        super(source, field, filter, window, asList(limit, order));
     }
 
     private Top(StreamInput in) throws IOException {
         super(
             Source.readFrom((PlanStreamInput) in),
             in.readNamedWriteable(Expression.class),
-            in.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0) ? in.readNamedWriteable(Expression.class) : Literal.TRUE,
-            in.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)
-                ? in.readNamedWriteableCollectionAsList(Expression.class)
-                : asList(in.readNamedWriteable(Expression.class), in.readNamedWriteable(Expression.class))
+            in.readNamedWriteable(Expression.class),
+            readWindow(in),
+            in.readNamedWriteableCollectionAsList(Expression.class)
         );
     }
 
     @Override
-    protected void deprecatedWriteParams(StreamOutput out) throws IOException {
-        List<? extends Expression> params = parameters();
-        assert params.size() == 2;
-        out.writeNamedWriteable(params.get(0));
-        out.writeNamedWriteable(params.get(1));
-    }
-
-    @Override
     public Top withFilter(Expression filter) {
-        return new Top(source(), field(), filter, limitField(), orderField());
+        return new Top(source(), field(), filter, window(), limitField(), orderField());
     }
 
     @Override
@@ -123,7 +119,7 @@ public class Top extends AggregateFunction implements ToAggregator, SurrogateExp
     }
 
     private Integer limitValue() {
-        return FunctionUtils.limitValue(limitField(), sourceText());
+        return Foldables.limitValue(limitField(), sourceText());
     }
 
     private boolean orderValue() {
@@ -181,7 +177,7 @@ public class Top extends AggregateFunction implements ToAggregator, SurrogateExp
      * During postOptimizationVerification folding is already done, so we also verify that it is definitively a literal
      */
     private TypeResolution resolveTypeLimit() {
-        return FunctionUtils.resolveTypeLimit(limitField(), sourceText(), forPreOptimizationValidation(limitField()));
+        return Foldables.resolveTypeLimit(limitField(), sourceText(), forPreOptimizationValidation(limitField()));
     }
 
     /**
@@ -238,7 +234,7 @@ public class Top extends AggregateFunction implements ToAggregator, SurrogateExp
     }
 
     private void postOptimizationVerificationLimit(Failures failures) {
-        FunctionUtils.resolveTypeLimit(limitField(), sourceText(), forPostOptimizationValidation(limitField(), failures));
+        Foldables.resolveTypeLimit(limitField(), sourceText(), forPostOptimizationValidation(limitField(), failures));
     }
 
     private void postOptimizationVerificationOrder(Failures failures) {
@@ -252,12 +248,12 @@ public class Top extends AggregateFunction implements ToAggregator, SurrogateExp
 
     @Override
     protected NodeInfo<Top> info() {
-        return NodeInfo.create(this, Top::new, field(), filter(), limitField(), orderField());
+        return NodeInfo.create(this, Top::new, field(), filter(), window(), limitField(), orderField());
     }
 
     @Override
     public Top replaceChildren(List<Expression> newChildren) {
-        return new Top(source(), newChildren.get(0), newChildren.get(1), newChildren.get(2), newChildren.get(3));
+        return new Top(source(), newChildren.get(0), newChildren.get(1), newChildren.get(2), newChildren.get(3), newChildren.get(4));
     }
 
     @Override
@@ -289,9 +285,9 @@ public class Top extends AggregateFunction implements ToAggregator, SurrogateExp
         var s = source();
         if (orderField() instanceof Literal && limitField() instanceof Literal && limitValue() == 1) {
             if (orderValue()) {
-                return new Min(s, field());
+                return new Min(s, field(), filter(), window());
             } else {
-                return new Max(s, field());
+                return new Max(s, field(), filter(), window());
             }
         }
         return null;

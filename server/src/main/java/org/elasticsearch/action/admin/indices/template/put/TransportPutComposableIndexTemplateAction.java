@@ -28,6 +28,7 @@ import org.elasticsearch.cluster.metadata.MetadataIndexTemplateService;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ReservedStateMetadata;
 import org.elasticsearch.cluster.project.ProjectResolver;
+import org.elasticsearch.cluster.project.ProjectStateRegistry;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -87,7 +88,10 @@ public class TransportPutComposableIndexTemplateAction extends AcknowledgedTrans
     ) {
         ProjectId projectId = projectResolver.getProjectId();
         verifyIfUsingReservedComponentTemplates(request, state.metadata().reservedStateMetadata().values());
-        verifyIfUsingReservedComponentTemplates(request, state.metadata().getProject(projectId).reservedStateMetadata().values());
+        verifyIfUsingReservedComponentTemplates(
+            request,
+            ProjectStateRegistry.get(state).reservedStateMetadata(projectResolver.getProjectId()).values()
+        );
         ComposableIndexTemplate indexTemplate = request.indexTemplate();
         indexTemplateService.putIndexTemplateV2(
             request.cause(),
@@ -138,10 +142,10 @@ public class TransportPutComposableIndexTemplateAction extends AcknowledgedTrans
         super.validateForReservedState(request, state);
 
         validateForReservedState(
-            projectResolver.getProjectMetadata(state).reservedStateMetadata().values(),
+            ProjectStateRegistry.get(state).reservedStateMetadata(projectResolver.getProjectId()).values(),
             reservedStateHandlerName().get(),
             modifiedKeys(request),
-            request.toString()
+            request::toString
         );
     }
 

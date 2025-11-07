@@ -7,8 +7,14 @@
 
 package org.elasticsearch.compute.aggregation;
 
+// begin generated imports
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.operator.DriverContext;
+import org.elasticsearch.compute.operator.BreakingBytesRefBuilder;
+import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.core.Releasables;
+// end generated imports
 
 /**
  * Aggregator state for a single {@code long} and a single {@code long}.

@@ -48,7 +48,6 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.hasToString;
 import static org.hamcrest.Matchers.instanceOf;
-import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
@@ -166,7 +165,7 @@ public class GeoPointFieldMapperTests extends MapperTestCase {
         }));
         var ft = (GeoPointFieldMapper.GeoPointFieldType) mapperService.fieldType("field");
         assertThat(ft.getMetricType(), equalTo(positionMetricType));
-        assertThat(ft.isIndexed(), is(false));
+        assertTrue(ft.indexType().hasOnlyDocValues());
     }
 
     public void testMetricAndDocvalues() {
@@ -360,7 +359,7 @@ public class GeoPointFieldMapperTests extends MapperTestCase {
         DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> b.field("type", "geo_point").field("index", false)));
         Mapper fieldMapper = mapper.mappers().getMapper("field");
         assertThat(fieldMapper, instanceOf(GeoPointFieldMapper.class));
-        assertThat(((GeoPointFieldMapper) fieldMapper).fieldType().isIndexed(), equalTo(false));
+        assertTrue(((GeoPointFieldMapper) fieldMapper).fieldType().indexType().hasOnlyDocValues());
         assertThat(((GeoPointFieldMapper) fieldMapper).fieldType().isSearchable(), equalTo(true));
     }
 
@@ -574,7 +573,6 @@ public class GeoPointFieldMapperTests extends MapperTestCase {
 
     protected void assertSearchable(MappedFieldType fieldType) {
         // always searchable even if it uses TextSearchInfo.NONE
-        assertTrue(fieldType.isIndexed());
         assertTrue(fieldType.isSearchable());
     }
 
@@ -749,5 +747,10 @@ public class GeoPointFieldMapperTests extends MapperTestCase {
     @Override
     protected IngestScriptSupport ingestScriptSupport() {
         throw new AssumptionViolatedException("not supported");
+    }
+
+    @Override
+    protected List<SortShortcutSupport> getSortShortcutSupport() {
+        return List.of();
     }
 }

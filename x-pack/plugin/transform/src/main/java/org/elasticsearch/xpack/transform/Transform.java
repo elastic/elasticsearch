@@ -21,6 +21,7 @@ import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -185,8 +186,8 @@ public class Transform extends Plugin implements SystemIndexPlugin, PersistentTa
     }
 
     @Override
-    public void prepareForIndicesMigration(ClusterService clusterService, Client client, ActionListener<Map<String, Object>> listener) {
-        if (TransformMetadata.upgradeMode(clusterService.state())) {
+    public void prepareForIndicesMigration(ProjectMetadata project, Client client, ActionListener<Map<String, Object>> listener) {
+        if (TransformMetadata.upgradeMode(project)) {
             // Transform is already in upgrade mode, so nothing will write to the Transform system indices during their upgrade
             listener.onResponse(Map.of("already_in_upgrade_mode", true));
             return;
@@ -196,18 +197,13 @@ public class Transform extends Plugin implements SystemIndexPlugin, PersistentTa
         var originClient = new OriginSettingClient(client, TRANSFORM_ORIGIN);
         originClient.execute(
             SetTransformUpgradeModeAction.INSTANCE,
-            new SetUpgradeModeActionRequest(true),
+            new SetUpgradeModeActionRequest(HARD_CODED_TRANSFORM_MASTER_NODE_TIMEOUT, HARD_CODED_TRANSFORM_MASTER_NODE_TIMEOUT, true),
             listener.delegateFailureAndWrap((l, r) -> l.onResponse(Map.of("already_in_upgrade_mode", false)))
         );
     }
 
     @Override
-    public void indicesMigrationComplete(
-        Map<String, Object> preUpgradeMetadata,
-        ClusterService clusterService,
-        Client client,
-        ActionListener<Boolean> listener
-    ) {
+    public void indicesMigrationComplete(Map<String, Object> preUpgradeMetadata, Client client, ActionListener<Boolean> listener) {
         var wasAlreadyInUpgradeMode = (boolean) preUpgradeMetadata.getOrDefault("already_in_upgrade_mode", false);
         if (wasAlreadyInUpgradeMode) {
             // Transform was already in upgrade mode before system indices upgrade started - we shouldn't disable it
@@ -218,7 +214,7 @@ public class Transform extends Plugin implements SystemIndexPlugin, PersistentTa
         var originClient = new OriginSettingClient(client, TRANSFORM_ORIGIN);
         originClient.execute(
             SetTransformUpgradeModeAction.INSTANCE,
-            new SetUpgradeModeActionRequest(false),
+            new SetUpgradeModeActionRequest(HARD_CODED_TRANSFORM_MASTER_NODE_TIMEOUT, HARD_CODED_TRANSFORM_MASTER_NODE_TIMEOUT, false),
             listener.delegateFailureAndWrap((l, r) -> l.onResponse(r.isAcknowledged()))
         );
     }
@@ -307,7 +303,7 @@ public class Transform extends Plugin implements SystemIndexPlugin, PersistentTa
         TransformCheckpointService checkpointService = new TransformCheckpointService(
             clock,
             settings,
-            clusterService,
+            services.linkedProjectConfigService(),
             configManager,
             auditor
         );
@@ -443,6 +439,7 @@ public class Transform extends Plugin implements SystemIndexPlugin, PersistentTa
         ClusterService clusterService,
         ProjectResolver projectResolver,
         Client unwrappedClient,
+        TimeValue masterNodeTimeout,
         ActionListener<ResetFeatureStateResponse.ResetFeatureStateStatus> finalListener
     ) {
         OriginSettingClient client = new OriginSettingClient(unwrappedClient, TRANSFORM_ORIGIN);
@@ -453,7 +450,7 @@ public class Transform extends Plugin implements SystemIndexPlugin, PersistentTa
             }
             client.execute(
                 SetResetModeAction.INSTANCE,
-                SetResetModeActionRequest.disabled(true),
+                SetResetModeActionRequest.disabled(masterNodeTimeout, true),
                 ActionListener.wrap(resetSuccess -> finalListener.onResponse(success), resetFailure -> {
                     logger.error("failed to disable reset mode after otherwise successful transform reset", resetFailure);
                     finalListener.onFailure(
@@ -468,7 +465,7 @@ public class Transform extends Plugin implements SystemIndexPlugin, PersistentTa
         },
             failure -> client.execute(
                 SetResetModeAction.INSTANCE,
-                SetResetModeActionRequest.disabled(false),
+                SetResetModeActionRequest.disabled(masterNodeTimeout, false),
                 ActionListener.wrap(resetSuccess -> finalListener.onFailure(failure), resetFailure -> {
                     logger.error(TransformMessages.getMessage(FAILED_TO_UNSET_RESET_MODE, "a failed feature reset"), resetFailure);
                     Exception ex = new ElasticsearchException(
@@ -483,7 +480,7 @@ public class Transform extends Plugin implements SystemIndexPlugin, PersistentTa
 
         ActionListener<ListTasksResponse> afterWaitingForTasks = ActionListener.wrap(listTasksResponse -> {
             listTasksResponse.rethrowFailures("Waiting for transform indexing tasks");
-            SystemIndexPlugin.super.cleanUpFeature(clusterService, projectResolver, client, unsetResetModeListener);
+            SystemIndexPlugin.super.cleanUpFeature(clusterService, projectResolver, client, masterNodeTimeout, unsetResetModeListener);
         }, unsetResetModeListener::onFailure);
 
         ActionListener<StopTransformAction.Response> afterForceStoppingTransforms = ActionListener.wrap(stopTransformsResponse -> {
@@ -552,7 +549,7 @@ public class Transform extends Plugin implements SystemIndexPlugin, PersistentTa
             client.execute(StopTransformAction.INSTANCE, stopTransformsRequest, afterStoppingTransforms);
         }, finalListener::onFailure);
 
-        client.execute(SetResetModeAction.INSTANCE, SetResetModeActionRequest.enabled(), afterResetModeSet);
+        client.execute(SetResetModeAction.INSTANCE, SetResetModeActionRequest.enabled(masterNodeTimeout), afterResetModeSet);
     }
 
     @Override

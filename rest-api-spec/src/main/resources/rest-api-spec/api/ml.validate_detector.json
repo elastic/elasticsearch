@@ -1,29 +1,32 @@
 {
-  "ml.validate_detector":{
-    "documentation":{
-      "url":"https://www.elastic.co/guide/en/machine-learning/current/ml-jobs.html",
-      "description":"Validates an anomaly detection detector."
+  "ml.validate_detector": {
+    "documentation": {
+      "url": null,
+      "description": "Validate an anomaly detection job"
     },
-    "stability":"stable",
-    "visibility":"private",
-    "headers":{
-      "accept": [ "application/json"],
-      "content_type": ["application/json"]
+    "stability": "stable",
+    "visibility": "private",
+    "headers": {
+      "accept": [
+        "application/json"
+      ],
+      "content_type": [
+        "application/json"
+      ]
     },
-    "url":{
-      "paths":[
+    "url": {
+      "paths": [
         {
-          "path":"/_ml/anomaly_detectors/_validate/detector",
-          "methods":[
+          "path": "/_ml/anomaly_detectors/_validate/detector",
+          "methods": [
             "POST"
           ]
         }
       ]
     },
-    "params":{},
-    "body":{
-      "description":"The detector",
-      "required":true
+    "body": {
+      "description": "The detector",
+      "required": true
     }
   }
 }

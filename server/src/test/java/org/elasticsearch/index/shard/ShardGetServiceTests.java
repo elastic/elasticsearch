@@ -24,9 +24,12 @@ import org.elasticsearch.index.engine.LiveVersionMapTestUtils;
 import org.elasticsearch.index.engine.TranslogOperationAsserter;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.index.get.GetResult;
+import org.elasticsearch.index.get.ShardGetService;
+import org.elasticsearch.index.mapper.InferenceMetadataFieldsMapper;
 import org.elasticsearch.index.mapper.RoutingFieldMapper;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
+import org.elasticsearch.search.lookup.SourceFilter;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
@@ -36,7 +39,6 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.function.LongSupplier;
 
-import static org.elasticsearch.index.IndexSettings.SYNTHETIC_VECTORS;
 import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_PRIMARY_TERM;
 import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
 import static org.hamcrest.Matchers.equalTo;
@@ -44,7 +46,7 @@ import static org.hamcrest.Matchers.equalTo;
 public class ShardGetServiceTests extends IndexShardTestCase {
 
     private GetResult getForUpdate(IndexShard indexShard, String id, long ifSeqNo, long ifPrimaryTerm) throws IOException {
-        return indexShard.getService().getForUpdate(id, ifSeqNo, ifPrimaryTerm, new String[] { RoutingFieldMapper.NAME });
+        return indexShard.getService().getForUpdate(id, ifSeqNo, ifPrimaryTerm, FetchSourceContext.FETCH_ALL_SOURCE);
     }
 
     public void testGetForUpdate() throws IOException {
@@ -138,11 +140,19 @@ public class ShardGetServiceTests extends IndexShardTestCase {
                 "foo": "foo"
             }
             """, Arrays.toString(vector));
-        runGetFromTranslogWithOptions(docToIndex, "\"enabled\": true", null, docToIndex, "\"text\"", "foo", "\"dense_vector\"", false);
+        runGetFromTranslogWithOptions(
+            docToIndex,
+            "\"enabled\": true",
+            Settings.builder().put(IndexSettings.INDEX_MAPPING_EXCLUDE_SOURCE_VECTORS_SETTING.getKey(), false).build(),
+            docToIndex,
+            "\"text\"",
+            "foo",
+            "\"dense_vector\"",
+            false
+        );
     }
 
     public void testGetFromTranslogWithSyntheticVector() throws IOException {
-        assumeTrue("feature flag must be enabled for synthetic vectors", SYNTHETIC_VECTORS);
         float[] vector = new float[2048];
         for (int i = 0; i < vector.length; i++) {
             vector[i] = randomByte();
@@ -156,7 +166,7 @@ public class ShardGetServiceTests extends IndexShardTestCase {
         runGetFromTranslogWithOptions(
             docToIndex,
             "\"enabled\": true",
-            Settings.builder().put(IndexSettings.INDEX_MAPPING_SOURCE_SYNTHETIC_VECTORS_SETTING.getKey(), true).build(),
+            Settings.builder().put(IndexSettings.INDEX_MAPPING_EXCLUDE_SOURCE_VECTORS_SETTING.getKey(), true).build(),
             docToIndex,
             "\"text\"",
             "foo",
@@ -404,6 +414,16 @@ public class ShardGetServiceTests extends IndexShardTestCase {
         closeShards(primary);
     }
 
+    public void testShouldExcludeInferenceFieldsFromSource() {
+        for (int i = 0; i < 100; i++) {
+            ExcludeInferenceFieldsTestScenario scenario = new ExcludeInferenceFieldsTestScenario();
+            assertThat(
+                ShardGetService.shouldExcludeInferenceFieldsFromSource(scenario.fetchSourceContext),
+                equalTo(scenario.shouldExcludeInferenceFields())
+            );
+        }
+    }
+
     Translog.Index toIndexOp(String source) throws IOException {
         XContentParser parser = createParser(XContentType.JSON.xContent(), source);
         XContentBuilder builder = XContentFactory.jsonBuilder();
@@ -417,5 +437,75 @@ public class ShardGetServiceTests extends IndexShardTestCase {
             null,
             IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP
         );
+    }
+
+    private static class ExcludeInferenceFieldsTestScenario {
+        private final FetchSourceContext fetchSourceContext;
+
+        private ExcludeInferenceFieldsTestScenario() {
+            this.fetchSourceContext = generateRandomFetchSourceContext();
+        }
+
+        private boolean shouldExcludeInferenceFields() {
+            if (fetchSourceContext != null) {
+                if (fetchSourceContext.fetchSource() == false) {
+                    return true;
+                }
+
+                SourceFilter filter = fetchSourceContext.filter();
+                if (filter != null) {
+                    if (Arrays.asList(filter.getExcludes()).contains(InferenceMetadataFieldsMapper.NAME)) {
+                        return true;
+                    } else if (filter.getIncludes().length > 0) {
+                        return Arrays.asList(filter.getIncludes()).contains(InferenceMetadataFieldsMapper.NAME) == false;
+                    }
+                }
+
+                Boolean excludeInferenceFieldsExplicit = fetchSourceContext.excludeInferenceFields();
+                if (excludeInferenceFieldsExplicit != null) {
+                    return excludeInferenceFieldsExplicit;
+                }
+            }
+
+            return true;
+        }
+
+        private static FetchSourceContext generateRandomFetchSourceContext() {
+            FetchSourceContext fetchSourceContext = switch (randomIntBetween(0, 4)) {
+                case 0 -> FetchSourceContext.FETCH_SOURCE;
+                case 1 -> FetchSourceContext.FETCH_ALL_SOURCE;
+                case 2 -> FetchSourceContext.FETCH_ALL_SOURCE_EXCLUDE_INFERENCE_FIELDS;
+                case 3 -> FetchSourceContext.DO_NOT_FETCH_SOURCE;
+                case 4 -> null;
+                default -> throw new IllegalStateException("Unhandled randomized case");
+            };
+
+            if (fetchSourceContext != null && fetchSourceContext.fetchSource()) {
+                String[] includes = null;
+                String[] excludes = null;
+                if (randomBoolean()) {
+                    // Randomly include a non-existent field to test explicit inclusion handling
+                    String field = randomBoolean() ? InferenceMetadataFieldsMapper.NAME : randomIdentifier();
+                    includes = new String[] { field };
+                }
+                if (randomBoolean()) {
+                    // Randomly exclude a non-existent field to test implicit inclusion handling
+                    String field = randomBoolean() ? InferenceMetadataFieldsMapper.NAME : randomIdentifier();
+                    excludes = new String[] { field };
+                }
+
+                if (includes != null || excludes != null) {
+                    fetchSourceContext = FetchSourceContext.of(
+                        fetchSourceContext.fetchSource(),
+                        fetchSourceContext.excludeVectors(),
+                        fetchSourceContext.excludeInferenceFields(),
+                        includes,
+                        excludes
+                    );
+                }
+            }
+
+            return fetchSourceContext;
+        }
     }
 }

@@ -17,10 +17,12 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.cluster.routing.SplitShardCountSummary;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.rest.action.search.SearchResponseMetrics;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.internal.AliasFilter;
@@ -52,6 +54,7 @@ import static org.elasticsearch.common.util.concurrent.ConcurrentCollections.new
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.mockito.Mockito.mock;
 
 public class SearchAsyncActionTests extends ESTestCase {
 
@@ -111,7 +114,8 @@ public class SearchAsyncActionTests extends ESTestCase {
             null,
             new ArraySearchPhaseResults<>(shardsIter.size()),
             request.getMaxConcurrentShardRequests(),
-            SearchResponse.Clusters.EMPTY
+            SearchResponse.Clusters.EMPTY,
+            mock(SearchResponseMetrics.class)
         ) {
 
             @Override
@@ -218,7 +222,8 @@ public class SearchAsyncActionTests extends ESTestCase {
                 null,
                 results,
                 request.getMaxConcurrentShardRequests(),
-                SearchResponse.Clusters.EMPTY
+                SearchResponse.Clusters.EMPTY,
+                mock(SearchResponseMetrics.class)
             ) {
 
                 @Override
@@ -334,7 +339,8 @@ public class SearchAsyncActionTests extends ESTestCase {
                 null,
                 results,
                 request.getMaxConcurrentShardRequests(),
-                SearchResponse.Clusters.EMPTY
+                SearchResponse.Clusters.EMPTY,
+                mock(SearchResponseMetrics.class)
             ) {
 
                 @Override
@@ -464,7 +470,8 @@ public class SearchAsyncActionTests extends ESTestCase {
                 null,
                 new ArraySearchPhaseResults<>(shardsIter.size()),
                 request.getMaxConcurrentShardRequests(),
-                SearchResponse.Clusters.EMPTY
+                SearchResponse.Clusters.EMPTY,
+                mock(SearchResponseMetrics.class)
             ) {
                 @Override
                 protected void executePhaseOnShard(
@@ -572,7 +579,8 @@ public class SearchAsyncActionTests extends ESTestCase {
                 null,
                 results,
                 request.getMaxConcurrentShardRequests(),
-                SearchResponse.Clusters.EMPTY
+                SearchResponse.Clusters.EMPTY,
+                mock(SearchResponseMetrics.class)
             ) {
 
                 @Override
@@ -640,7 +648,8 @@ public class SearchAsyncActionTests extends ESTestCase {
                 null,
                 new ShardId(index, 0),
                 Collections.emptyList(),
-                originalIndices
+                originalIndices,
+                SplitShardCountSummary.UNSET
             );
             // Skip all the shards
             searchShardIterator.skip(true);
@@ -670,7 +679,8 @@ public class SearchAsyncActionTests extends ESTestCase {
             null,
             new ArraySearchPhaseResults<>(searchShardIterators.size()),
             request.getMaxConcurrentShardRequests(),
-            SearchResponse.Clusters.EMPTY
+            SearchResponse.Clusters.EMPTY,
+            mock(SearchResponseMetrics.class)
         ) {
 
             @Override
@@ -760,7 +770,7 @@ public class SearchAsyncActionTests extends ESTestCase {
             }
             Collections.shuffle(started, random());
             started.addAll(initializing);
-            list.add(new SearchShardIterator(null, new ShardId(index, i), started, originalIndices));
+            list.add(new SearchShardIterator(null, new ShardId(index, i), started, originalIndices, SplitShardCountSummary.UNSET));
         }
         return list;
     }

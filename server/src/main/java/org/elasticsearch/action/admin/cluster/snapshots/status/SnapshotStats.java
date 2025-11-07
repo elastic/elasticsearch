@@ -9,6 +9,7 @@
 
 package org.elasticsearch.action.admin.cluster.snapshots.status;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -21,9 +22,11 @@ import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 
-import static org.elasticsearch.TransportVersions.SNAPSHOT_INDEX_SHARD_STATUS_MISSING_STATS;
-
 public class SnapshotStats implements Writeable, ToXContentObject {
+
+    private static final TransportVersion SNAPSHOT_INDEX_SHARD_STATUS_MISSING_STATS = TransportVersion.fromName(
+        "snapshot_index_shard_status_missing_stats"
+    );
 
     private long startTime;
     private long time;
@@ -38,7 +41,7 @@ public class SnapshotStats implements Writeable, ToXContentObject {
 
     SnapshotStats(StreamInput in) throws IOException {
         // We use a boolean to indicate if the stats are present (true) or missing (false), to skip writing all the values if missing.
-        if (in.getTransportVersion().onOrAfter(SNAPSHOT_INDEX_SHARD_STATUS_MISSING_STATS) && in.readBoolean() == false) {
+        if (in.getTransportVersion().supports(SNAPSHOT_INDEX_SHARD_STATUS_MISSING_STATS) && in.readBoolean() == false) {
             startTime = 0L;
             time = 0L;
             incrementalFileCount = -1;
@@ -156,7 +159,7 @@ public class SnapshotStats implements Writeable, ToXContentObject {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        if (out.getTransportVersion().onOrAfter(SNAPSHOT_INDEX_SHARD_STATUS_MISSING_STATS)) {
+        if (out.getTransportVersion().supports(SNAPSHOT_INDEX_SHARD_STATUS_MISSING_STATS)) {
             // We use a boolean to indicate if the stats are present (true) or missing (false), to skip writing all the values if missing.
             if (isMissingStats()) {
                 out.writeBoolean(false);

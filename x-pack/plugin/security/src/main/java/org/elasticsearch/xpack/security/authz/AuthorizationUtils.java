@@ -12,7 +12,6 @@ import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationField;
-import org.elasticsearch.xpack.core.security.authz.AuthorizationServiceField;
 import org.elasticsearch.xpack.core.security.support.Automatons;
 import org.elasticsearch.xpack.core.security.user.InternalUsers;
 
@@ -51,6 +50,7 @@ import static org.elasticsearch.xpack.core.ClientHelper.SECURITY_PROFILE_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.STACK_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.TRANSFORM_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.WATCHER_ORIGIN;
+import static org.elasticsearch.xpack.core.security.authz.AuthorizationServiceField.ORIGINATING_ACTION_VALUE;
 
 public final class AuthorizationUtils {
 
@@ -89,7 +89,7 @@ public final class AuthorizationUtils {
         // we have a internal action being executed by a user other than the system user, lets verify that there is a
         // originating action that is not a internal action. We verify that there must be a originating action as an
         // internal action should never be called by user code from a client
-        final String originatingAction = threadContext.getTransient(AuthorizationServiceField.ORIGINATING_ACTION_KEY);
+        final String originatingAction = ORIGINATING_ACTION_VALUE.get(threadContext);
         if (originatingAction != null && isInternalAction(originatingAction) == false) {
             return true;
         }

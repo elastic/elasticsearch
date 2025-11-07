@@ -13,6 +13,7 @@ import org.apache.lucene.codecs.Codec;
 import org.apache.lucene.codecs.DocValuesFormat;
 import org.apache.lucene.codecs.DocValuesProducer;
 import org.apache.lucene.document.Document;
+import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.document.SortedDocValuesField;
 import org.apache.lucene.document.SortedNumericDocValuesField;
@@ -21,10 +22,14 @@ import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
+import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.LogByteSizeMergePolicy;
 import org.apache.lucene.index.MultiDocValues;
 import org.apache.lucene.index.NoMergePolicy;
+import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.index.SegmentReader;
+import org.apache.lucene.index.SortedDocValues;
+import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.SortedNumericSortField;
@@ -33,7 +38,7 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.index.codec.Elasticsearch816Codec;
-import org.elasticsearch.index.codec.Elasticsearch900Lucene101Codec;
+import org.elasticsearch.index.codec.Elasticsearch92Lucene103Codec;
 import org.elasticsearch.index.codec.perfield.XPerFieldDocValuesFormat;
 import org.elasticsearch.index.codec.tsdb.ES87TSDBDocValuesFormatTests.TestES87TSDBDocValuesFormat;
 import org.elasticsearch.index.codec.tsdb.es819.ES819TSDBDocValuesFormat;
@@ -45,6 +50,10 @@ import java.lang.reflect.Field;
 import java.util.Arrays;
 import java.util.Locale;
 import java.util.Map;
+import java.util.function.IntSupplier;
+
+import static org.elasticsearch.index.codec.tsdb.es819.ES819TSDBDocValuesFormatTests.TestES819TSDBDocValuesFormatVersion0;
+import static org.hamcrest.Matchers.equalTo;
 
 public class TsdbDocValueBwcTests extends ESTestCase {
 
@@ -52,6 +61,13 @@ public class TsdbDocValueBwcTests extends ESTestCase {
         var oldCodec = TestUtil.alwaysDocValuesFormat(new TestES87TSDBDocValuesFormat());
         var newCodec = TestUtil.alwaysDocValuesFormat(new ES819TSDBDocValuesFormat());
         testMixedIndex(oldCodec, newCodec);
+    }
+
+    // TODO update Current to Version1 once version is incremented
+    public void testMixedIndexDocValueVersion0ToCurrent() throws Exception {
+        var oldCodec = TestUtil.alwaysDocValuesFormat(new TestES819TSDBDocValuesFormatVersion0());
+        var newCodec = TestUtil.alwaysDocValuesFormat(new ES819TSDBDocValuesFormat());
+        testMixedIndex(oldCodec, newCodec, this::assertVersion819, this::assertVersion819);
     }
 
     public void testMixedIndex816To900Lucene101() throws Exception {
@@ -64,7 +80,7 @@ public class TsdbDocValueBwcTests extends ESTestCase {
                 return docValuesFormat;
             }
         };
-        var newCodec = new Elasticsearch900Lucene101Codec() {
+        var newCodec = new Elasticsearch92Lucene103Codec() {
 
             final DocValuesFormat docValuesFormat = new ES819TSDBDocValuesFormat();
 
@@ -76,8 +92,37 @@ public class TsdbDocValueBwcTests extends ESTestCase {
         testMixedIndex(oldCodec, newCodec);
     }
 
+    void assertFieldInfoDocValuesFormat(DirectoryReader reader, String expectedSuffix, String expectedFormat) throws IOException,
+        NoSuchFieldException, IllegalAccessException {
+        // Assert per field format field info attributes:
+        // (XPerFieldDocValuesFormat must produce the same attributes as PerFieldDocValuesFormat for BWC.
+        // Otherwise, doc values fields may disappear)
+        for (var leaf : reader.leaves()) {
+            for (var fieldInfo : leaf.reader().getFieldInfos()) {
+                assertThat(fieldInfo.attributes(), Matchers.aMapWithSize(2));
+                assertThat(fieldInfo.attributes(), Matchers.hasEntry("PerFieldDocValuesFormat.suffix", expectedSuffix));
+                assertThat(fieldInfo.attributes(), Matchers.hasEntry("PerFieldDocValuesFormat.format", expectedFormat));
+            }
+        }
+    }
+
+    void assertVersion87(DirectoryReader reader) throws IOException, NoSuchFieldException, IllegalAccessException {
+        assert87DocValuesFormatVersion(reader);
+        assertFieldInfoDocValuesFormat(reader, "0", "ES87TSDB");
+    }
+
+    void assertVersion819(DirectoryReader reader) throws IOException, NoSuchFieldException, ClassNotFoundException, IllegalAccessException {
+        assert819DocValuesFormatVersion(reader);
+        assertFieldInfoDocValuesFormat(reader, "0", "ES819TSDB");
+    }
+
     void testMixedIndex(Codec oldCodec, Codec newCodec) throws IOException, NoSuchFieldException, IllegalAccessException,
         ClassNotFoundException {
+        testMixedIndex(oldCodec, newCodec, this::assertVersion87, this::assertVersion819);
+    }
+
+    void testMixedIndex(Codec oldCodec, Codec newCodec, VersionAssert assertOldVersion, VersionAssert assertNewVersion) throws IOException,
+        NoSuchFieldException, IllegalAccessException, ClassNotFoundException {
         String timestampField = "@timestamp";
         String hostnameField = "host.name";
         long baseTimestamp = 1704067200000L;
@@ -128,17 +173,7 @@ public class TsdbDocValueBwcTests extends ESTestCase {
             }
             // Check documents before force merge:
             try (var reader = DirectoryReader.open(dir)) {
-                assertOldDocValuesFormatVersion(reader);
-                // Assert per field format field info attributes:
-                // (XPerFieldDocValuesFormat must produce the same attributes as PerFieldDocValuesFormat for BWC.
-                // Otherwise, doc values fields may disappear)
-                for (var leaf : reader.leaves()) {
-                    for (var fieldInfo : leaf.reader().getFieldInfos()) {
-                        assertThat(fieldInfo.attributes(), Matchers.aMapWithSize(2));
-                        assertThat(fieldInfo.attributes(), Matchers.hasEntry("PerFieldDocValuesFormat.suffix", "0"));
-                        assertThat(fieldInfo.attributes(), Matchers.hasEntry("PerFieldDocValuesFormat.format", "ES87TSDB"));
-                    }
-                }
+                assertOldVersion.run(reader);
 
                 var hostNameDV = MultiDocValues.getSortedValues(reader, hostnameField);
                 assertNotNull(hostNameDV);
@@ -197,17 +232,9 @@ public class TsdbDocValueBwcTests extends ESTestCase {
                 try (var reader = DirectoryReader.open(iw)) {
                     assertEquals(1, reader.leaves().size());
                     assertEquals(numDocs, reader.maxDoc());
-                    assertNewDocValuesFormatVersion(reader);
-                    var leaf = reader.leaves().get(0).reader();
-                    // Assert per field format field info attributes:
-                    // (XPerFieldDocValuesFormat must produce the same attributes as PerFieldDocValuesFormat for BWC.
-                    // Otherwise, doc values fields may disappear)
-                    for (var fieldInfo : leaf.getFieldInfos()) {
-                        assertThat(fieldInfo.attributes(), Matchers.aMapWithSize(2));
-                        assertThat(fieldInfo.attributes(), Matchers.hasEntry("PerFieldDocValuesFormat.suffix", "0"));
-                        assertThat(fieldInfo.attributes(), Matchers.hasEntry("PerFieldDocValuesFormat.format", "ES819TSDB"));
-                    }
+                    assertNewVersion.run(reader);
 
+                    var leaf = reader.leaves().get(0).reader();
                     var hostNameDV = leaf.getSortedDocValues(hostnameField);
                     assertNotNull(hostNameDV);
                     var timestampDV = DocValues.unwrapSingleton(leaf.getSortedNumericDocValues(timestampField));
@@ -260,6 +287,105 @@ public class TsdbDocValueBwcTests extends ESTestCase {
         }
     }
 
+    public void testEncodeOrdinalRange() throws IOException {
+        try (var dir = newDirectory()) {
+            int iters = between(5, 20);
+            for (int iter = 0; iter < iters; iter++) {
+                var config = new IndexWriterConfig();
+                String hostNameField = "host.name";
+                String hostIdField = "host.id";
+                config.setIndexSort(new Sort(new SortField(hostNameField, SortField.Type.STRING, false)));
+                int thresholdRange = random().nextInt(3);
+                IntSupplier nextOrdinalRangeThreshold = () -> {
+                    if (thresholdRange == 0) {
+                        return between(1, 5);
+                    } else if (thresholdRange == 1) {
+                        return between(5, 20);
+                    } else {
+                        return Integer.MAX_VALUE;
+                    }
+                };
+                config.setCodec(
+                    TestUtil.alwaysDocValuesFormat(
+                        new ES819TSDBDocValuesFormat(
+                            random().nextInt(16, 128),
+                            nextOrdinalRangeThreshold.getAsInt(),
+                            random().nextBoolean()
+                        )
+                    )
+                );
+                try (IndexWriter writer = new IndexWriter(dir, config)) {
+                    int numDocs = between(50, 500);
+                    for (int d = 0; d < numDocs; d++) {
+                        Document doc = new Document();
+                        int hostId = random().nextInt(100);
+                        if (random().nextInt(100) <= 10) {
+                            writer.deleteDocuments(LongPoint.newExactQuery(hostIdField, hostId));
+                        } else {
+                            String hostName = String.format(Locale.ROOT, "host-%02d", hostId);
+                            doc.add(new LongPoint("host.id", hostId));
+                            doc.add(new SortedDocValuesField(hostNameField, new BytesRef(hostName)));
+                            doc.add(new NumericDocValuesField(hostIdField, hostId));
+                            writer.addDocument(doc);
+                        }
+
+                        if (random().nextInt(100) <= 5) {
+                            Document dummy = new Document();
+                            dummy.add(new SortedDocValuesField("dummy", new BytesRef("dummy")));
+                            writer.addDocument(dummy);
+                        }
+                        if (random().nextInt(100) <= 10) {
+                            writer.flush();
+                        }
+                        if (random().nextInt(100) <= 5) {
+                            writer.forceMerge(between(1, 10));
+                        }
+                    }
+                }
+                try (DirectoryReader reader = DirectoryReader.open(dir)) {
+                    for (LeafReaderContext leaf : reader.leaves()) {
+                        // sequential
+                        NumericDocValues hostIdDv = leaf.reader().getNumericDocValues(hostIdField);
+                        SortedDocValues hostNameDv = leaf.reader().getSortedDocValues(hostNameField);
+                        if (hostIdDv == null) {
+                            assertNull(hostNameDv);
+                            continue;
+                        }
+                        {
+                            int docId;
+                            while ((docId = hostIdDv.nextDoc()) != DocIdSetIterator.NO_MORE_DOCS) {
+                                assertTrue(hostNameDv.advanceExact(docId));
+                                String hostName = hostNameDv.lookupOrd(hostNameDv.ordValue()).utf8ToString();
+                                String expectedHostName = String.format(Locale.ROOT, "host-%02d", hostIdDv.longValue());
+                                assertThat(hostName, equalTo(expectedHostName));
+                            }
+                        }
+                        int checkIters = between(1, 20);
+                        int nextDoc = 0;
+                        for (int n = 0; n < checkIters; n++) {
+                            if (nextDoc >= leaf.reader().maxDoc()) {
+                                nextDoc = 0;
+                            }
+                            nextDoc = nextDoc + random().nextInt(leaf.reader().maxDoc() - nextDoc);
+                            if (hostIdDv.docID() == DocIdSetIterator.NO_MORE_DOCS || nextDoc > hostIdDv.docID()) {
+                                hostIdDv = leaf.reader().getNumericDocValues(hostIdField);
+                                hostNameDv = leaf.reader().getSortedDocValues(hostNameField);
+                            }
+                            if (hostIdDv.advanceExact(nextDoc)) {
+                                assertTrue(hostNameDv.advanceExact(nextDoc));
+                                String hostName = hostNameDv.lookupOrd(hostNameDv.ordValue()).utf8ToString();
+                                String expectedHostName = String.format(Locale.ROOT, "host-%02d", hostIdDv.longValue());
+                                assertThat(hostName, equalTo(expectedHostName));
+                            } else {
+                                assertFalse(hostNameDv.advanceExact(nextDoc));
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
     private IndexWriterConfig getTimeSeriesIndexWriterConfig(String hostnameField, String timestampField, Codec codec) {
         var config = new IndexWriterConfig();
         config.setIndexSort(
@@ -278,7 +404,7 @@ public class TsdbDocValueBwcTests extends ESTestCase {
 
     // A hacky way to figure out whether doc values format is written in what version. Need to use reflection, because
     // PerFieldDocValuesFormat hides the doc values formats it wraps.
-    private void assertOldDocValuesFormatVersion(DirectoryReader reader) throws NoSuchFieldException, IllegalAccessException, IOException {
+    private void assert87DocValuesFormatVersion(DirectoryReader reader) throws NoSuchFieldException, IllegalAccessException, IOException {
         if (System.getSecurityManager() != null) {
             // With jvm version 24 entitlements are used and security manager is nog longer used.
             // Making this assertion work with security manager requires granting the entire test codebase privileges to use
@@ -299,7 +425,7 @@ public class TsdbDocValueBwcTests extends ESTestCase {
         }
     }
 
-    private void assertNewDocValuesFormatVersion(DirectoryReader reader) throws NoSuchFieldException, IllegalAccessException, IOException,
+    private void assert819DocValuesFormatVersion(DirectoryReader reader) throws NoSuchFieldException, IllegalAccessException, IOException,
         ClassNotFoundException {
 
         for (var leafReaderContext : reader.leaves()) {
@@ -344,4 +470,7 @@ public class TsdbDocValueBwcTests extends ESTestCase {
         return field;
     }
 
+    interface VersionAssert {
+        void run(DirectoryReader reader) throws IOException, NoSuchFieldException, IllegalAccessException, ClassNotFoundException;
+    }
 }

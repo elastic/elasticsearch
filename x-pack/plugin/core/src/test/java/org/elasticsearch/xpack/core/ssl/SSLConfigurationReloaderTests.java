@@ -66,7 +66,6 @@ import java.security.PrivilegedExceptionAction;
 import java.security.UnrecoverableKeyException;
 import java.security.cert.Certificate;
 import java.security.cert.CertificateException;
-import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
@@ -74,6 +73,7 @@ import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 
@@ -85,6 +85,7 @@ import javax.net.ssl.SSLSocket;
 import static org.elasticsearch.test.TestMatchers.throwableWithMessage;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.sameInstance;
 
 /**
@@ -388,7 +389,7 @@ public class SSLConfigurationReloaderTests extends ESTestCase {
                 latch.countDown();
             }
         };
-        new SSLConfigurationReloader(reloadConsumer, resourceWatcherService, SSLService.getSSLConfigurations(env).values());
+        new SSLConfigurationReloader(reloadConsumer, resourceWatcherService, SSLService.getSSLConfigurations(env, List.of()));
 
         final SSLContext context = sslService.sslContextHolder(config).sslContext();
 
@@ -440,7 +441,7 @@ public class SSLConfigurationReloaderTests extends ESTestCase {
                 latch.countDown();
             }
         };
-        new SSLConfigurationReloader(reloadConsumer, resourceWatcherService, SSLService.getSSLConfigurations(env).values());
+        new SSLConfigurationReloader(reloadConsumer, resourceWatcherService, SSLService.getSSLConfigurations(env, List.of()));
 
         final SSLContext context = sslService.sslContextHolder(config).sslContext();
 
@@ -482,7 +483,7 @@ public class SSLConfigurationReloaderTests extends ESTestCase {
                 latch.countDown();
             }
         };
-        new SSLConfigurationReloader(reloadConsumer, resourceWatcherService, SSLService.getSSLConfigurations(env).values());
+        new SSLConfigurationReloader(reloadConsumer, resourceWatcherService, SSLService.getSSLConfigurations(env, List.of()));
 
         final SSLContext context = sslService.sslContextHolder(config).sslContext();
 
@@ -522,7 +523,7 @@ public class SSLConfigurationReloaderTests extends ESTestCase {
                 latch.countDown();
             }
         };
-        new SSLConfigurationReloader(reloadConsumer, resourceWatcherService, SSLService.getSSLConfigurations(env).values());
+        new SSLConfigurationReloader(reloadConsumer, resourceWatcherService, SSLService.getSSLConfigurations(env, List.of()));
 
         final SSLContext context = sslService.sslContextHolder(config).sslContext();
 
@@ -556,7 +557,7 @@ public class SSLConfigurationReloaderTests extends ESTestCase {
         final ResourceWatcherService mockResourceWatcher = Mockito.mock(ResourceWatcherService.class);
         Mockito.when(mockResourceWatcher.add(Mockito.any(), Mockito.any()))
             .thenThrow(randomBoolean() ? new AccessControlException("access denied in test") : new IOException("file error for testing"));
-        final Collection<SslConfiguration> configurations = SSLService.getSSLConfigurations(env).values();
+        final SSLService.LoadedSslConfigurations configurations = SSLService.getSSLConfigurations(env, List.of());
         try {
             new SSLConfigurationReloader(ignore -> {}, mockResourceWatcher, configurations);
         } catch (Exception e) {
@@ -587,7 +588,7 @@ public class SSLConfigurationReloaderTests extends ESTestCase {
         ).put("path.home", createTempDir()).build();
 
         final Environment env = newEnvironment(settings);
-        final Collection<SslConfiguration> configurations = SSLService.getSSLConfigurations(env).values();
+        final SSLService.LoadedSslConfigurations configurations = SSLService.getSSLConfigurations(env, List.of());
         new SSLConfigurationReloader(ignore -> {}, mockResourceWatcher, configurations);
 
         assertThat(
@@ -630,7 +631,12 @@ public class SSLConfigurationReloaderTests extends ESTestCase {
     ) throws Exception {
         final CyclicBarrier reloadBarrier = new CyclicBarrier(2);
         final SSLService sslService = new SSLService(env);
-        final SslConfiguration config = sslService.getSSLConfiguration("xpack.security.transport.ssl");
+        final SslProfile profile = sslService.profile("xpack.security.transport.ssl");
+        final AtomicBoolean profileReloaded = new AtomicBoolean(false);
+        profile.addReloadListener(p -> {
+            assertThat(p, sameInstance(profile));
+            profileReloaded.set(true);
+        });
         final Consumer<SslConfiguration> reloadConsumer = sslConfiguration -> {
             try {
                 sslService.reloadSSLContext(sslConfiguration);
@@ -642,9 +648,9 @@ public class SSLConfigurationReloaderTests extends ESTestCase {
                 }
             }
         };
-        new SSLConfigurationReloader(reloadConsumer, resourceWatcherService, SSLService.getSSLConfigurations(env).values());
+        new SSLConfigurationReloader(reloadConsumer, resourceWatcherService, SSLService.getSSLConfigurations(env, List.of()));
         // Baseline checks
-        preChecks.accept(sslService.sslContextHolder(config).sslContext());
+        preChecks.accept(sslService.sslContextHolder(profile.configuration()).sslContext());
 
         assertEquals("nothing should have called reload", 0, reloadBarrier.getNumberWaiting());
 
@@ -656,7 +662,8 @@ public class SSLConfigurationReloaderTests extends ESTestCase {
         }
 
         // checks after reload
-        postChecks.accept(sslService.sslContextHolder(config).sslContext());
+        postChecks.accept(sslService.sslContextHolder(profile.configuration()).sslContext());
+        assertThat(profileReloaded.get(), is(true));
     }
 
     private static void atomicMoveIfPossible(Path source, Path target) throws IOException {

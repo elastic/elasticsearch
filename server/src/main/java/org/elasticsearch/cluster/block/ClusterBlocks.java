@@ -9,7 +9,7 @@
 
 package org.elasticsearch.cluster.block;
 
-import org.elasticsearch.TransportVersions;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.cluster.Diffable;
 import org.elasticsearch.cluster.SimpleDiffable;
@@ -44,6 +44,9 @@ public class ClusterBlocks implements Diffable<ClusterBlocks> {
     private static final ClusterBlock[] EMPTY_BLOCKS_ARRAY = new ClusterBlock[0];
 
     public static final ClusterBlocks EMPTY_CLUSTER_BLOCK = new ClusterBlocks(Set.of(), Map.of());
+
+    private static final TransportVersion MULTI_PROJECT = TransportVersion.fromName("multi_project");
+    private static final TransportVersion PROJECT_DELETION_GLOBAL_BLOCK = TransportVersion.fromName("project_deletion_global_block");
 
     private final Set<ClusterBlock> global;
 
@@ -393,7 +396,7 @@ public class ClusterBlocks implements Diffable<ClusterBlocks> {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        if (out.getTransportVersion().onOrAfter(TransportVersions.MULTI_PROJECT)) {
+        if (out.getTransportVersion().supports(MULTI_PROJECT)) {
             writeBlockSet(global, out);
             out.writeMap(projectBlocksMap, (o, projectId) -> projectId.writeTo(o), (o, projectBlocks) -> projectBlocks.writeTo(out));
         } else {
@@ -468,7 +471,7 @@ public class ClusterBlocks implements Diffable<ClusterBlocks> {
          */
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            if (out.getTransportVersion().onOrAfter(TransportVersions.MULTI_PROJECT)) {
+            if (out.getTransportVersion().supports(MULTI_PROJECT)) {
                 out.writeBoolean(true);
                 part.writeTo(out);
             } else {
@@ -489,7 +492,7 @@ public class ClusterBlocks implements Diffable<ClusterBlocks> {
     }
 
     public static ClusterBlocks readFrom(StreamInput in) throws IOException {
-        if (in.getTransportVersion().onOrAfter(TransportVersions.MULTI_PROJECT)) {
+        if (in.getTransportVersion().supports(MULTI_PROJECT)) {
             final Set<ClusterBlock> global = readBlockSet(in);
             final Map<ProjectId, ProjectBlocks> projectBlocksMap = in.readImmutableMap(ProjectId::readFrom, ProjectBlocks::readFrom);
             if (global.isEmpty()
@@ -521,7 +524,7 @@ public class ClusterBlocks implements Diffable<ClusterBlocks> {
 
     public static Diff<ClusterBlocks> readDiffFrom(StreamInput in) throws IOException {
         if (in.readBoolean()) {
-            if (in.getTransportVersion().onOrAfter(TransportVersions.MULTI_PROJECT)) {
+            if (in.getTransportVersion().supports(MULTI_PROJECT)) {
                 return new ClusterBlocksDiff(ClusterBlocks.readFrom(in), false);
             } else {
                 return new ClusterBlocksDiff(ClusterBlocks.readFromSingleProjectNode(in), true);
@@ -567,7 +570,7 @@ public class ClusterBlocks implements Diffable<ClusterBlocks> {
         static ProjectBlocks readFrom(StreamInput in) throws IOException {
             Map<String, Set<ClusterBlock>> indices = in.readImmutableMap(i -> i.readString().intern(), ClusterBlocks::readBlockSet);
             Set<ClusterBlock> projectGlobal;
-            if (in.getTransportVersion().onOrAfter(TransportVersions.PROJECT_DELETION_GLOBAL_BLOCK)) {
+            if (in.getTransportVersion().supports(PROJECT_DELETION_GLOBAL_BLOCK)) {
                 projectGlobal = ClusterBlocks.readBlockSet(in);
             } else {
                 projectGlobal = Set.of();
@@ -578,7 +581,7 @@ public class ClusterBlocks implements Diffable<ClusterBlocks> {
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeMap(indices, (o, s) -> writeBlockSet(s, o));
-            if (out.getTransportVersion().onOrAfter(TransportVersions.PROJECT_DELETION_GLOBAL_BLOCK)) {
+            if (out.getTransportVersion().supports(PROJECT_DELETION_GLOBAL_BLOCK)) {
                 writeBlockSet(projectGlobal, out);
             } else {
                 assert projectGlobal.isEmpty() : "Any MP-enabled cluster must be past TransportVersions.PROJECT_DELETION_GLOBAL_BLOCK";

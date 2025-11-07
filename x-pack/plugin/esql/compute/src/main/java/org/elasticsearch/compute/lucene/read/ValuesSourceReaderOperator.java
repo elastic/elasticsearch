@@ -16,6 +16,7 @@ import org.elasticsearch.compute.data.DocBlock;
 import org.elasticsearch.compute.data.DocVector;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.lucene.IndexedByShardId;
 import org.elasticsearch.compute.lucene.LuceneSourceOperator;
 import org.elasticsearch.compute.operator.AbstractPageMappingToIteratorOperator;
 import org.elasticsearch.compute.operator.DriverContext;
@@ -28,9 +29,10 @@ import org.elasticsearch.search.fetch.StoredFieldsSpec;
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.TreeMap;
+import java.util.function.Function;
 import java.util.function.IntFunction;
-import java.util.function.Supplier;
 
 /**
  * Operator that extracts doc_values from a Lucene index out of pages that have been produced by {@link LuceneSourceOperator}
@@ -43,7 +45,7 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingToIteratorOpe
      * @param shardContexts per-shard loading information
      * @param docChannel the channel containing the shard, leaf/segment and doc id
      */
-    public record Factory(ByteSizeValue jumboSize, List<FieldInfo> fields, List<ShardContext> shardContexts, int docChannel)
+    public record Factory(ByteSizeValue jumboSize, List<FieldInfo> fields, IndexedByShardId<ShardContext> shardContexts, int docChannel)
         implements
             OperatorFactory {
         public Factory {
@@ -81,12 +83,21 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingToIteratorOpe
     /**
      * Configuration for a field to load.
      *
-     * {@code blockLoader} maps shard index to the {@link BlockLoader}s
-     * which load the actual blocks.
+     * @param nullsFiltered if {@code true}, then target docs passed from the source operator are guaranteed to have a value
+     *                      for the field; otherwise, the guarantee is unknown. This enables optimizations for block loaders,
+     *                      treating the field as dense (every document has value) even if it is sparse in the index.
+     *                      For example, "FROM index | WHERE x != null | STATS sum(x)", after filtering out documents
+     *                      without value for field x, all target documents returned from the source operator
+     *                      will have a value for field x whether x is dense or sparse in the index.
+     * @param blockLoader   maps shard index to the {@link BlockLoader}s which load the actual blocks.
      */
-    public record FieldInfo(String name, ElementType type, IntFunction<BlockLoader> blockLoader) {}
+    public record FieldInfo(String name, ElementType type, boolean nullsFiltered, IntFunction<BlockLoader> blockLoader) {}
 
-    public record ShardContext(IndexReader reader, Supplier<SourceLoader> newSourceLoader, double storedFieldsSequentialProportion) {}
+    public record ShardContext(
+        IndexReader reader,
+        Function<Set<String>, SourceLoader> newSourceLoader,
+        double storedFieldsSequentialProportion
+    ) {}
 
     final BlockFactory blockFactory;
     /**
@@ -101,7 +112,7 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingToIteratorOpe
      */
     final long jumboBytes;
     final FieldWork[] fields;
-    final List<ShardContext> shardContexts;
+    final IndexedByShardId<? extends ShardContext> shardContexts;
     private final int docChannel;
 
     private final Map<String, Integer> readersBuilt = new TreeMap<>();
@@ -119,7 +130,7 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingToIteratorOpe
         BlockFactory blockFactory,
         long jumboBytes,
         List<FieldInfo> fields,
-        List<ShardContext> shardContexts,
+        IndexedByShardId<? extends ShardContext> shardContexts,
         int docChannel
     ) {
         if (fields.isEmpty()) {

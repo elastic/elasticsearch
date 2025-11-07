@@ -22,6 +22,7 @@ import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.MetadataIndexTemplateService;
 import org.elasticsearch.cluster.project.ProjectResolver;
+import org.elasticsearch.cluster.project.ProjectStateRegistry;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -95,10 +96,10 @@ public class TransportDeleteComposableIndexTemplateAction extends AcknowledgedTr
         super.validateForReservedState(request, state);
 
         validateForReservedState(
-            projectResolver.getProjectMetadata(state).reservedStateMetadata().values(),
+            ProjectStateRegistry.get(state).reservedStateMetadata(projectResolver.getProjectId()).values(),
             reservedStateHandlerName().get(),
             modifiedKeys(request),
-            request.toString()
+            request::toString
         );
     }
 

@@ -38,9 +38,6 @@ import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.ConstantScoreScorer;
 import org.apache.lucene.search.ConstantScoreWeight;
 import org.apache.lucene.search.IndexSearcher;
-import org.apache.lucene.search.KnnByteVectorQuery;
-import org.apache.lucene.search.KnnFloatVectorQuery;
-import org.apache.lucene.search.PatienceKnnVectorQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.QueryVisitor;
 import org.apache.lucene.search.ScoreDoc;
@@ -52,7 +49,6 @@ import org.apache.lucene.search.TotalHits;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.FSDirectory;
-import org.apache.lucene.store.MMapDirectory;
 import org.apache.lucene.util.BitSet;
 import org.apache.lucene.util.BitSetIterator;
 import org.apache.lucene.util.FixedBitSet;
@@ -107,7 +103,7 @@ class KnnSearcher {
     private final float selectivity;
     private final int topK;
     private final int efSearch;
-    private final int nProbe;
+    private final double visitPercentage;
     private final KnnIndexTester.IndexType indexType;
     private int dim;
     private final VectorSimilarityFunction similarityFunction;
@@ -116,7 +112,7 @@ class KnnSearcher {
     private final int searchThreads;
     private final int numSearchers;
 
-    KnnSearcher(Path indexPath, CmdLineArgs cmdLineArgs, int nProbe) {
+    KnnSearcher(Path indexPath, CmdLineArgs cmdLineArgs, double visitPercentage) {
         this.docPath = cmdLineArgs.docVectors();
         this.indexPath = indexPath;
         this.queryPath = cmdLineArgs.queryVectors();
@@ -131,7 +127,7 @@ class KnnSearcher {
             throw new IllegalArgumentException("numQueryVectors must be > 0");
         }
         this.efSearch = cmdLineArgs.numCandidates();
-        this.nProbe = nProbe;
+        this.visitPercentage = visitPercentage;
         this.indexType = cmdLineArgs.indexType();
         this.searchThreads = cmdLineArgs.searchThreads();
         this.numSearchers = cmdLineArgs.numSearchers();
@@ -178,7 +174,7 @@ class KnnSearcher {
             );
             KnnIndexer.VectorReader targetReader = KnnIndexer.VectorReader.create(input, dim, vectorEncoding, offsetByteSize);
             long startNS;
-            try (MMapDirectory dir = new MMapDirectory(indexPath)) {
+            try (Directory dir = KnnIndexer.getDirectory(indexPath)) {
                 try (DirectoryReader reader = DirectoryReader.open(dir)) {
                     IndexSearcher searcher = searchThreads > 1 ? new IndexSearcher(reader, executorService) : new IndexSearcher(reader);
                     byte[] targetBytes = new byte[dim];
@@ -298,7 +294,7 @@ class KnnSearcher {
         }
         logger.info("checking results");
         int[][] nn = getOrCalculateExactNN(offsetByteSize, filterQuery);
-        finalResults.nProbe = indexType == KnnIndexTester.IndexType.IVF ? nProbe : 0;
+        finalResults.visitPercentage = indexType == KnnIndexTester.IndexType.IVF ? visitPercentage : 0;
         finalResults.avgRecall = checkResults(resultIds, nn, topK);
         finalResults.qps = (1000f * numQueryVectors) / elapsed;
         finalResults.avgLatency = (float) elapsed / numQueryVectors;
@@ -402,14 +398,13 @@ class KnnSearcher {
                 topK,
                 efSearch,
                 filterQuery,
-                DenseVectorFieldMapper.FilterHeuristic.ACORN.getKnnSearchStrategy()
+                DenseVectorFieldMapper.FilterHeuristic.ACORN.getKnnSearchStrategy(),
+                indexType == KnnIndexTester.IndexType.HNSW && earlyTermination
             );
-            if (indexType == KnnIndexTester.IndexType.HNSW && earlyTermination) {
-                knnQuery = PatienceKnnVectorQuery.fromByteQuery((KnnByteVectorQuery) knnQuery);
-            }
         }
         QueryProfiler profiler = new QueryProfiler();
         TopDocs docs = searcher.search(knnQuery, this.topK);
+        assert knnQuery instanceof QueryProfilerProvider : "this knnQuery doesn't support profiling";
         QueryProfilerProvider queryProfilerProvider = (QueryProfilerProvider) knnQuery;
         queryProfilerProvider.profile(profiler);
         return new TopDocs(new TotalHits(profiler.getVectorOpsCount(), docs.totalHits.relation()), docs.scoreDocs);
@@ -424,7 +419,8 @@ class KnnSearcher {
         }
         int efSearch = Math.max(topK, this.efSearch);
         if (indexType == KnnIndexTester.IndexType.IVF) {
-            knnQuery = new IVFKnnFloatVectorQuery(VECTOR_FIELD, vector, topK, efSearch, filterQuery, nProbe);
+            float visitRatio = (float) (visitPercentage / 100);
+            knnQuery = new IVFKnnFloatVectorQuery(VECTOR_FIELD, vector, topK, efSearch, filterQuery, visitRatio);
         } else {
             knnQuery = new ESKnnFloatVectorQuery(
                 VECTOR_FIELD,
@@ -432,11 +428,9 @@ class KnnSearcher {
                 topK,
                 efSearch,
                 filterQuery,
-                DenseVectorFieldMapper.FilterHeuristic.ACORN.getKnnSearchStrategy()
+                DenseVectorFieldMapper.FilterHeuristic.ACORN.getKnnSearchStrategy(),
+                indexType == KnnIndexTester.IndexType.HNSW && earlyTermination
             );
-            if (indexType == KnnIndexTester.IndexType.HNSW && earlyTermination) {
-                knnQuery = PatienceKnnVectorQuery.fromFloatQuery((KnnFloatVectorQuery) knnQuery);
-            }
         }
         if (overSamplingFactor > 1f) {
             // oversample the topK results to get more candidates for the final result
@@ -444,12 +438,10 @@ class KnnSearcher {
         }
         QueryProfiler profiler = new QueryProfiler();
         TopDocs docs = searcher.search(knnQuery, this.topK);
-        if (knnQuery instanceof QueryProfilerProvider queryProfilerProvider) {
-            queryProfilerProvider.profile(profiler);
-            return new TopDocs(new TotalHits(profiler.getVectorOpsCount(), docs.totalHits.relation()), docs.scoreDocs);
-        } else {
-            return docs;
-        }
+        assert knnQuery instanceof QueryProfilerProvider : "this knnQuery doesn't support profiling";
+        QueryProfilerProvider queryProfilerProvider = (QueryProfilerProvider) knnQuery;
+        queryProfilerProvider.profile(profiler);
+        return new TopDocs(new TotalHits(profiler.getVectorOpsCount(), docs.totalHits.relation()), docs.scoreDocs);
     }
 
     private static float checkResults(int[][] results, int[][] nn, int topK) {

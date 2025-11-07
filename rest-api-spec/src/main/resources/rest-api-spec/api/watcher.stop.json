@@ -1,28 +1,31 @@
 {
-  "watcher.stop":{
-    "documentation":{
-      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/watcher-api-stop.html",
-      "description":"Stops Watcher if it is running."
+  "watcher.stop": {
+    "documentation": {
+      "url": "https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-watcher-stop",
+      "description": "Stop the watch service"
     },
-    "stability":"stable",
-    "visibility":"public",
-    "headers":{
-      "accept": [ "application/json"]
+    "stability": "stable",
+    "visibility": "public",
+    "headers": {
+      "accept": [
+        "application/json"
+      ]
     },
-    "url":{
-      "paths":[
+    "url": {
+      "paths": [
         {
-          "path":"/_watcher/_stop",
-          "methods":[
+          "path": "/_watcher/_stop",
+          "methods": [
             "POST"
           ]
         }
       ]
     },
-    "params":{
-      "master_timeout":{
-        "type":"time",
-        "description":"Specify timeout for connection to master"
+    "params": {
+      "master_timeout": {
+        "type": "time",
+        "default": "30s",
+        "description": "Specify timeout for connection to master"
       }
     }
   }

@@ -1,35 +1,39 @@
 {
-  "security.suggest_user_profiles":{
-    "documentation":{
-      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/master/security-api-suggest-user-profile.html",
-      "description":"Get suggestions for user profiles that match specified search criteria."
+  "security.suggest_user_profiles": {
+    "documentation": {
+      "url": "https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-security-suggest-user-profiles",
+      "description": "Suggest a user profile"
     },
-    "stability":"stable",
-    "visibility":"private",
-    "headers":{
-      "accept": [ "application/json"],
-      "content_type": ["application/json"]
+    "stability": "stable",
+    "visibility": "public",
+    "headers": {
+      "accept": [
+        "application/json"
+      ],
+      "content_type": [
+        "application/json"
+      ]
     },
-    "url":{
-      "paths":[
+    "url": {
+      "paths": [
         {
-          "path":"/_security/profile/_suggest",
-          "methods":[
+          "path": "/_security/profile/_suggest",
+          "methods": [
             "GET",
             "POST"
           ]
         }
       ]
     },
-    "params":{
-      "data":{
-        "type":"list",
-        "description":"A comma-separated list of keys for which the corresponding application data are retrieved."
+    "params": {
+      "data": {
+        "type": "list",
+        "description": "A comma-separated list of keys for which the corresponding application data are retrieved."
       }
     },
-    "body":{
-      "description":"The suggestion definition for user profiles",
-      "required":false
+    "body": {
+      "description": "The suggestion definition for user profiles",
+      "required": false
     }
   }
 }

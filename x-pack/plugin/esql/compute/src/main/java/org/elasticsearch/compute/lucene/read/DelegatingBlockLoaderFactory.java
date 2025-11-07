@@ -9,9 +9,18 @@ package org.elasticsearch.compute.lucene.read;
 
 import org.apache.lucene.index.SortedDocValues;
 import org.apache.lucene.index.SortedSetDocValues;
+import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
+import org.elasticsearch.compute.data.BytesRefBlock;
+import org.elasticsearch.compute.data.BytesRefVector;
+import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.ElementType;
+import org.elasticsearch.compute.data.IntVector;
+import org.elasticsearch.compute.data.LongBlock;
+import org.elasticsearch.compute.data.OrdinalBytesRefVector;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.mapper.BlockLoader;
 
 public abstract class DelegatingBlockLoaderFactory implements BlockLoader.BlockFactory {
@@ -19,6 +28,11 @@ public abstract class DelegatingBlockLoaderFactory implements BlockLoader.BlockF
 
     protected DelegatingBlockLoaderFactory(BlockFactory factory) {
         this.factory = factory;
+    }
+
+    @Override
+    public void adjustBreaker(long delta) throws CircuitBreakingException {
+        factory.adjustBreaker(delta);
     }
 
     @Override
@@ -39,6 +53,32 @@ public abstract class DelegatingBlockLoaderFactory implements BlockLoader.BlockF
     @Override
     public BlockLoader.BytesRefBuilder bytesRefs(int expectedCount) {
         return factory.newBytesRefBlockBuilder(expectedCount);
+    }
+
+    @Override
+    public BytesRefBlock constantBytes(BytesRef value, int count) {
+        if (count == 1) {
+            return factory.newConstantBytesRefBlockWith(value, count);
+        }
+        BytesRefVector dict = null;
+        IntVector ordinals = null;
+        boolean success = false;
+        try {
+            dict = factory.newConstantBytesRefVector(value, 1);
+            ordinals = factory.newConstantIntVector(0, count);
+            var result = new OrdinalBytesRefVector(ordinals, dict).asBlock();
+            success = true;
+            return result;
+        } finally {
+            if (success == false) {
+                Releasables.closeExpectNoException(dict, ordinals);
+            }
+        }
+    }
+
+    @Override
+    public BlockLoader.Block constantInt(int value, int count) {
+        return factory.newConstantIntVector(value, count).asBlock();
     }
 
     @Override
@@ -82,13 +122,23 @@ public abstract class DelegatingBlockLoaderFactory implements BlockLoader.BlockF
     }
 
     @Override
+    public BlockLoader.SingletonIntBuilder singletonInts(int expectedCount) {
+        return new SingletonIntBuilder(expectedCount, factory);
+    }
+
+    @Override
+    public BlockLoader.SingletonDoubleBuilder singletonDoubles(int expectedCount) {
+        return new SingletonDoubleBuilder(expectedCount, factory);
+    }
+
+    @Override
     public BlockLoader.Builder nulls(int expectedCount) {
         return ElementType.NULL.newBlockBuilder(expectedCount, factory);
     }
 
     @Override
-    public BlockLoader.SingletonOrdinalsBuilder singletonOrdinalsBuilder(SortedDocValues ordinals, int count) {
-        return new SingletonOrdinalsBuilder(factory, ordinals, count);
+    public BlockLoader.SingletonOrdinalsBuilder singletonOrdinalsBuilder(SortedDocValues ordinals, int count, boolean isDense) {
+        return new SingletonOrdinalsBuilder(factory, ordinals, count, isDense);
     }
 
     @Override
@@ -99,5 +149,29 @@ public abstract class DelegatingBlockLoaderFactory implements BlockLoader.BlockF
     @Override
     public BlockLoader.AggregateMetricDoubleBuilder aggregateMetricDoubleBuilder(int count) {
         return factory.newAggregateMetricDoubleBlockBuilder(count);
+    }
+
+    @Override
+    public BlockLoader.ExponentialHistogramBuilder exponentialHistogramBlockBuilder(int count) {
+        return factory.newExponentialHistogramBlockBuilder(count);
+    }
+
+    @Override
+    public BlockLoader.Block buildExponentialHistogramBlockDirect(
+        BlockLoader.Block minima,
+        BlockLoader.Block maxima,
+        BlockLoader.Block sums,
+        BlockLoader.Block valueCounts,
+        BlockLoader.Block zeroThresholds,
+        BlockLoader.Block encodedHistograms
+    ) {
+        return factory.newExponentialHistogramBlockFromDocValues(
+            (DoubleBlock) minima,
+            (DoubleBlock) maxima,
+            (DoubleBlock) sums,
+            (LongBlock) valueCounts,
+            (DoubleBlock) zeroThresholds,
+            (BytesRefBlock) encodedHistograms
+        );
     }
 }

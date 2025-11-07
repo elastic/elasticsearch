@@ -23,6 +23,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.ChunkInferenceInput;
 import org.elasticsearch.inference.ChunkedInference;
 import org.elasticsearch.inference.ChunkingSettings;
+import org.elasticsearch.inference.InferenceService;
 import org.elasticsearch.inference.InferenceServiceConfiguration;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.InputType;
@@ -31,18 +32,17 @@ import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.inference.TaskType;
-import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.core.inference.results.ChatCompletionResults;
 import org.elasticsearch.xpack.core.inference.results.ChunkedInferenceEmbedding;
-import org.elasticsearch.xpack.core.inference.results.TextEmbeddingFloatResults;
+import org.elasticsearch.xpack.core.inference.results.DenseEmbeddingFloatResults;
 import org.elasticsearch.xpack.inference.Utils;
 import org.elasticsearch.xpack.inference.common.amazon.AwsSecretSettings;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSender;
-import org.elasticsearch.xpack.inference.external.http.sender.Sender;
+import org.elasticsearch.xpack.inference.services.InferenceServiceTestCase;
 import org.elasticsearch.xpack.inference.services.ServiceComponentsTests;
 import org.elasticsearch.xpack.inference.services.amazonbedrock.client.AmazonBedrockMockRequestSender;
 import org.elasticsearch.xpack.inference.services.amazonbedrock.completion.AmazonBedrockChatCompletionModel;
@@ -69,14 +69,15 @@ import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.common.xcontent.XContentHelper.toXContent;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertToXContentEquivalent;
+import static org.elasticsearch.xpack.core.inference.chunking.ChunkingSettingsTests.createRandomChunkingSettings;
+import static org.elasticsearch.xpack.core.inference.chunking.ChunkingSettingsTests.createRandomChunkingSettingsMap;
 import static org.elasticsearch.xpack.core.inference.results.ChatCompletionResultsTests.buildExpectationCompletion;
-import static org.elasticsearch.xpack.core.inference.results.TextEmbeddingFloatResultsTests.buildExpectationFloat;
+import static org.elasticsearch.xpack.core.inference.results.DenseEmbeddingFloatResultsTests.buildExpectationFloat;
 import static org.elasticsearch.xpack.inference.Utils.getInvalidModel;
-import static org.elasticsearch.xpack.inference.Utils.inferenceUtilityPool;
+import static org.elasticsearch.xpack.inference.Utils.inferenceUtilityExecutors;
 import static org.elasticsearch.xpack.inference.Utils.mockClusterServiceEmpty;
-import static org.elasticsearch.xpack.inference.chunking.ChunkingSettingsTests.createRandomChunkingSettings;
-import static org.elasticsearch.xpack.inference.chunking.ChunkingSettingsTests.createRandomChunkingSettingsMap;
 import static org.elasticsearch.xpack.inference.common.amazon.AwsSecretSettingsTests.getAmazonBedrockSecretSettingsMap;
+import static org.elasticsearch.xpack.inference.services.SenderServiceTests.createMockSender;
 import static org.elasticsearch.xpack.inference.services.ServiceComponentsTests.createWithEmptySettings;
 import static org.elasticsearch.xpack.inference.services.amazonbedrock.AmazonBedrockProviderCapabilities.getProviderDefaultSimilarityMeasure;
 import static org.elasticsearch.xpack.inference.services.amazonbedrock.completion.AmazonBedrockChatCompletionServiceSettingsTests.createChatCompletionRequestSettingsMap;
@@ -86,19 +87,20 @@ import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
-public class AmazonBedrockServiceTests extends ESTestCase {
+public class AmazonBedrockServiceTests extends InferenceServiceTestCase {
     private static final TimeValue TIMEOUT = new TimeValue(30, TimeUnit.SECONDS);
     private ThreadPool threadPool;
 
     @Before
     public void init() throws Exception {
-        threadPool = createThreadPool(inferenceUtilityPool());
+        threadPool = createThreadPool(inferenceUtilityExecutors());
     }
 
     @After
@@ -627,9 +629,10 @@ public class AmazonBedrockServiceTests extends ESTestCase {
                 )
             );
 
+            assertThat(thrownException.getMessage(), containsString("Failed to parse stored model [id] for [amazonbedrock] service"));
             assertThat(
                 thrownException.getMessage(),
-                is("Failed to parse stored model [id] for [amazonbedrock] service, please delete and add the service again")
+                containsString("The [amazonbedrock] service does not support task type [sparse_embedding]")
             );
         }
     }
@@ -875,9 +878,10 @@ public class AmazonBedrockServiceTests extends ESTestCase {
                 () -> service.parsePersistedConfig("id", TaskType.SPARSE_EMBEDDING, persistedConfig.config())
             );
 
+            assertThat(thrownException.getMessage(), containsString("Failed to parse stored model [id] for [amazonbedrock] service"));
             assertThat(
                 thrownException.getMessage(),
-                is("Failed to parse stored model [id] for [amazonbedrock] service, please delete and add the service again")
+                containsString("The [amazonbedrock] service does not support task type [sparse_embedding]")
             );
         }
     }
@@ -949,7 +953,7 @@ public class AmazonBedrockServiceTests extends ESTestCase {
     }
 
     public void testInfer_ThrowsErrorWhenModelIsNotAmazonBedrockModel() throws IOException {
-        var sender = mock(Sender.class);
+        var sender = createMockSender();
         var factory = mock(HttpRequestSender.Factory.class);
         when(factory.createSender()).thenReturn(sender);
 
@@ -988,7 +992,7 @@ public class AmazonBedrockServiceTests extends ESTestCase {
             );
 
             verify(factory, times(1)).createSender();
-            verify(sender, times(1)).start();
+            verify(sender, times(1)).startAsynchronously(any());
         }
         verify(sender, times(1)).close();
         verifyNoMoreInteractions(factory);
@@ -996,7 +1000,7 @@ public class AmazonBedrockServiceTests extends ESTestCase {
     }
 
     public void testInfer_SendsRequest_ForTitanEmbeddingsModel() throws IOException {
-        var sender = mock(Sender.class);
+        var sender = createMockSender();
         var factory = mock(HttpRequestSender.Factory.class);
         when(factory.createSender()).thenReturn(sender);
 
@@ -1022,7 +1026,7 @@ public class AmazonBedrockServiceTests extends ESTestCase {
             );
             var requestSender = (AmazonBedrockMockRequestSender) amazonBedrockFactory.createSender()
         ) {
-            var results = new TextEmbeddingFloatResults(List.of(new TextEmbeddingFloatResults.Embedding(new float[] { 0.123F, 0.678F })));
+            var results = new DenseEmbeddingFloatResults(List.of(new DenseEmbeddingFloatResults.Embedding(new float[] { 0.123F, 0.678F })));
             requestSender.enqueue(results);
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
             service.infer(
@@ -1045,7 +1049,7 @@ public class AmazonBedrockServiceTests extends ESTestCase {
     }
 
     public void testInfer_SendsRequest_ForCohereEmbeddingsModel() throws IOException {
-        var sender = mock(Sender.class);
+        var sender = createMockSender();
         var factory = mock(HttpRequestSender.Factory.class);
         when(factory.createSender()).thenReturn(sender);
 
@@ -1063,8 +1067,8 @@ public class AmazonBedrockServiceTests extends ESTestCase {
             )
         ) {
             try (var requestSender = (AmazonBedrockMockRequestSender) amazonBedrockFactory.createSender()) {
-                var results = new TextEmbeddingFloatResults(
-                    List.of(new TextEmbeddingFloatResults.Embedding(new float[] { 0.123F, 0.678F }))
+                var results = new DenseEmbeddingFloatResults(
+                    List.of(new DenseEmbeddingFloatResults.Embedding(new float[] { 0.123F, 0.678F }))
                 );
                 requestSender.enqueue(results);
 
@@ -1098,7 +1102,7 @@ public class AmazonBedrockServiceTests extends ESTestCase {
     }
 
     public void testInfer_SendsRequest_ForChatCompletionModel() throws IOException {
-        var sender = mock(Sender.class);
+        var sender = createMockSender();
         var factory = mock(HttpRequestSender.Factory.class);
         when(factory.createSender()).thenReturn(sender);
 
@@ -1149,7 +1153,7 @@ public class AmazonBedrockServiceTests extends ESTestCase {
     }
 
     public void testUpdateModelWithEmbeddingDetails_InvalidModelProvided() throws IOException {
-        var sender = mock(Sender.class);
+        var sender = createMockSender();
         var factory = mock(HttpRequestSender.Factory.class);
         when(factory.createSender()).thenReturn(sender);
 
@@ -1190,7 +1194,7 @@ public class AmazonBedrockServiceTests extends ESTestCase {
     }
 
     private void testUpdateModelWithEmbeddingDetails_Successful(SimilarityMeasure similarityMeasure) throws IOException {
-        var sender = mock(Sender.class);
+        var sender = createMockSender();
         var factory = mock(HttpRequestSender.Factory.class);
         when(factory.createSender()).thenReturn(sender);
 
@@ -1235,7 +1239,7 @@ public class AmazonBedrockServiceTests extends ESTestCase {
     }
 
     public void testInfer_UnauthorizedResponse() throws IOException {
-        var sender = mock(Sender.class);
+        var sender = createMockSender();
         var factory = mock(HttpRequestSender.Factory.class);
         when(factory.createSender()).thenReturn(sender);
 
@@ -1320,7 +1324,7 @@ public class AmazonBedrockServiceTests extends ESTestCase {
     }
 
     private void testChunkedInfer(AmazonBedrockEmbeddingsModel model) throws IOException {
-        var sender = mock(Sender.class);
+        var sender = createMockSender();
         var factory = mock(HttpRequestSender.Factory.class);
         when(factory.createSender()).thenReturn(sender);
 
@@ -1339,14 +1343,14 @@ public class AmazonBedrockServiceTests extends ESTestCase {
         ) {
             try (var requestSender = (AmazonBedrockMockRequestSender) amazonBedrockFactory.createSender()) {
                 {
-                    var mockResults1 = new TextEmbeddingFloatResults(
-                        List.of(new TextEmbeddingFloatResults.Embedding(new float[] { 0.123F, 0.678F }))
+                    var mockResults1 = new DenseEmbeddingFloatResults(
+                        List.of(new DenseEmbeddingFloatResults.Embedding(new float[] { 0.123F, 0.678F }))
                     );
                     requestSender.enqueue(mockResults1);
                 }
                 {
-                    var mockResults2 = new TextEmbeddingFloatResults(
-                        List.of(new TextEmbeddingFloatResults.Embedding(new float[] { 0.223F, 0.278F }))
+                    var mockResults2 = new DenseEmbeddingFloatResults(
+                        List.of(new DenseEmbeddingFloatResults.Embedding(new float[] { 0.223F, 0.278F }))
                     );
                     requestSender.enqueue(mockResults2);
                 }
@@ -1369,10 +1373,10 @@ public class AmazonBedrockServiceTests extends ESTestCase {
                     var floatResult = (ChunkedInferenceEmbedding) results.get(0);
                     assertThat(floatResult.chunks(), hasSize(1));
                     assertEquals(new ChunkedInference.TextOffset(0, 1), floatResult.chunks().get(0).offset());
-                    assertThat(floatResult.chunks().get(0).embedding(), instanceOf(TextEmbeddingFloatResults.Embedding.class));
+                    assertThat(floatResult.chunks().get(0).embedding(), instanceOf(DenseEmbeddingFloatResults.Embedding.class));
                     assertArrayEquals(
                         new float[] { 0.123F, 0.678F },
-                        ((TextEmbeddingFloatResults.Embedding) floatResult.chunks().get(0).embedding()).values(),
+                        ((DenseEmbeddingFloatResults.Embedding) floatResult.chunks().get(0).embedding()).values(),
                         0.0f
                     );
                 }
@@ -1381,10 +1385,10 @@ public class AmazonBedrockServiceTests extends ESTestCase {
                     var floatResult = (ChunkedInferenceEmbedding) results.get(1);
                     assertThat(floatResult.chunks(), hasSize(1));
                     assertEquals(new ChunkedInference.TextOffset(0, 2), floatResult.chunks().get(0).offset());
-                    assertThat(floatResult.chunks().get(0).embedding(), instanceOf(TextEmbeddingFloatResults.Embedding.class));
+                    assertThat(floatResult.chunks().get(0).embedding(), instanceOf(DenseEmbeddingFloatResults.Embedding.class));
                     assertArrayEquals(
                         new float[] { 0.223F, 0.278F },
-                        ((TextEmbeddingFloatResults.Embedding) floatResult.chunks().get(0).embedding()).values(),
+                        ((DenseEmbeddingFloatResults.Embedding) floatResult.chunks().get(0).embedding()).values(),
                         0.0f
                     );
                 }
@@ -1403,6 +1407,11 @@ public class AmazonBedrockServiceTests extends ESTestCase {
             createWithEmptySettings(threadPool),
             mockClusterServiceEmpty()
         );
+    }
+
+    @Override
+    public InferenceService createInferenceService() {
+        return createAmazonBedrockService();
     }
 
     private Map<String, Object> getRequestConfigMap(

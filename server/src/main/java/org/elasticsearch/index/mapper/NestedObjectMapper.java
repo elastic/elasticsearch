@@ -60,7 +60,7 @@ public class NestedObjectMapper extends ObjectMapper {
             Function<Query, BitSetProducer> bitSetProducer,
             IndexSettings indexSettings
         ) {
-            super(name, Optional.empty());
+            super(name, Defaults.SUBOBJECTS);
             this.indexCreatedVersion = indexCreatedVersion;
             this.bitSetProducer = bitSetProducer;
             this.indexSettings = indexSettings;
@@ -145,7 +145,7 @@ public class NestedObjectMapper extends ObjectMapper {
         @Override
         public Mapper.Builder parse(String name, Map<String, Object> node, MappingParserContext parserContext)
             throws MapperParsingException {
-            if (parseSubobjects(node).isPresent()) {
+            if (parseSubobjects(node).explicit()) {
                 throw new MapperParsingException("Nested type [" + name + "] does not support [subobjects] parameter");
             }
             NestedObjectMapper.Builder builder = new NestedObjectMapper.Builder(
@@ -236,7 +236,7 @@ public class NestedObjectMapper extends ObjectMapper {
         Function<Query, BitSetProducer> bitsetProducer,
         IndexSettings indexSettings
     ) {
-        super(name, fullPath, enabled, Optional.empty(), sourceKeepMode, dynamic, mappers);
+        super(name, fullPath, enabled, Defaults.SUBOBJECTS, sourceKeepMode, dynamic, mappers);
         this.parentTypeFilter = parentTypeFilter;
         this.nestedTypePath = nestedTypePath;
         this.nestedTypeFilter = nestedTypeFilter;
@@ -448,7 +448,12 @@ public class NestedObjectMapper extends ObjectMapper {
             return SourceLoader.SyntheticFieldLoader.NOTHING;
         }
 
-        SourceLoader sourceLoader = new SourceLoader.Synthetic(filter, () -> super.syntheticFieldLoader(filter, mappers, true), NOOP);
+        SourceLoader sourceLoader = new SourceLoader.Synthetic(
+            filter,
+            () -> super.syntheticFieldLoader(filter, mappers, true),
+            NOOP,
+            IgnoredSourceFieldMapper.ignoredSourceFormat(indexSettings.getIndexVersionCreated())
+        );
         // Some synthetic source use cases require using _ignored_source field
         var requiredStoredFields = IgnoredSourceFieldMapper.ensureLoaded(sourceLoader.requiredStoredFields(), indexSettings);
         // force sequential access since nested fields are indexed per block

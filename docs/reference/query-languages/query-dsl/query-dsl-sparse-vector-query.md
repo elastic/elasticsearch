@@ -31,6 +31,7 @@ GET _search
    }
 }
 ```
+% TEST[skip: Requires inference]
 
 
 ## Example request using precomputed vectors [_example_request_using_precomputed_vectors]
@@ -46,6 +47,7 @@ GET _search
    }
 }
 ```
+% TEST[skip: TBD]
 
 
 ## Top level parameters for `sparse_vector` [sparse-vector-field-params]
@@ -109,6 +111,7 @@ GET my-index/_search
    }
 }
 ```
+% TEST[skip: Requires inference]
 
 Multiple `sparse_vector` queries can be combined with each other or other query types. This can be achieved by wrapping them in [boolean query clauses](/reference/query-languages/query-dsl/query-dsl-bool-query.md) and using linear boosting:
 
@@ -149,6 +152,7 @@ GET my-index/_search
   }
 }
 ```
+% TEST[skip: Requires inference]
 
 This can also be achieved using [reciprocal rank fusion (RRF)](/reference/elasticsearch/rest-apis/reciprocal-rank-fusion.md), through an [`rrf` retriever](/reference/elasticsearch/rest-apis/retrievers/rrf-retriever.md) with multiple [`standard` retrievers](/reference/elasticsearch/rest-apis/retrievers/standard-retriever.md).
 
@@ -202,13 +206,65 @@ GET my-index/_search
   }
 }
 ```
+% TEST[skip: Requires inference]
+
+## Example query on a `semantic_text` field
+
+You can also run a `sparse_vector` query directly on a [`semantic_text`](/reference/elasticsearch/mapping-reference/semantic-text.md) field. In this case Elasticsearch automatically uses the inference endpoint configured in the field mapping to expand the query into sparse tokens.
+
+First, create an index with a `semantic_text` field:
+
+```console
+PUT /my-semantic-sparse-index
+{
+  "mappings": {
+    "properties": {
+      "title": { "type": "text" },
+      "content_semantic": {
+        "type": "semantic_text",
+        "inference_id": ".elser-2-elasticsearch"
+      }
+    }
+  }
+}
+```
+% TEST[skip: Requires inference]
+
+Index some example documents:
+
+```console
+POST /my-semantic-sparse-index/_bulk
+{ "index": { "_index": "my-semantic-sparse-index", "_id": "1" } }
+{ "title": "Best surfing spots", "content_semantic": "Hawaii has world-class surfing with warm water and consistent swells." }
+{ "index": { "_index": "my-semantic-sparse-index", "_id": "2" } }
+{ "title": "City breaks", "content_semantic": "Paris offers museums, cafés, and beautiful architecture." }
+{ "index": { "_index": "my-semantic-sparse-index", "_id": "3" } }
+{ "title": "Learning to surf", "content_semantic": "Beginners often start on longboards at gentle beach breaks." }
+```
+% TEST[skip: Requires inference]
+
+Then query with `sparse_vector` against the `semantic_text` field:
+
+```console
+GET my-semantic-sparse-index/_search
+{
+  "size": 3,
+  "query": {
+    "sparse_vector": {
+      "field": "content_semantic",
+      "query": "best places to surf as a beginner" 
+    }
+  }
+}
+```
+% TEST[skip: Requires inference]
 
 
 ## Example ELSER query with pruning configuration and rescore [sparse-vector-query-with-pruning-config-and-rescore-example]
 
 The following is an extension to the above example that adds a pruning configuration to the `sparse_vector` query. The pruning configuration identifies non-significant tokens to prune from the query in order to improve query performance.
 
-Token pruning happens at the shard level. While this should result in the same tokens being labeled as insignificant across shards, this is not guaranteed based on the composition of each shard. Therefore, if you are running `sparse_vector` with a `pruning_config` on a multi-shard index, we strongly recommend adding a [Rescore filtered search results](/reference/elasticsearch/rest-apis/filter-search-results.md#rescore) function with the tokens that were originally pruned from the query. This will help mitigate any shard-level inconsistency with pruned tokens and provide better relevance overall.
+Token pruning happens at the shard level. While this should result in the same tokens being labeled as insignificant across shards, this is not guaranteed based on the composition of each shard. Therefore, if you are running `sparse_vector` with a `pruning_config` on a multi-shard index, we strongly recommend adding a [Rescore filtered search results](/reference/elasticsearch/rest-apis/rescore-search-results.md#rescore) function with the tokens that were originally pruned from the query. This will help mitigate any shard-level inconsistency with pruned tokens and provide better relevance overall.
 
 ```console
 GET my-index/_search
@@ -246,6 +302,7 @@ GET my-index/_search
    }
 }
 ```
+% TEST[skip: Requires inference]
 
 ::::{note}
 When performing [cross-cluster search](docs-content://solutions/search/cross-cluster-search.md), inference is performed on the local cluster.

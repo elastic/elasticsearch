@@ -96,7 +96,11 @@ public class SecurityIndexReaderWrapper implements CheckedFunction<DirectoryRead
                 }
             }
 
-            return permissions.getFieldPermissions().filter(wrappedReader);
+            var searchContext = searchExecutionContextProvider.apply(shardId);
+            var indexVersionCreated = searchContext.indexVersionCreated();
+            Function<String, Boolean> isMapped = searchContext::isFieldMapped;
+
+            return permissions.getFieldPermissions().filter(wrappedReader, indexVersionCreated, isMapped);
         } catch (IOException e) {
             logger.error("Unable to apply field level security");
             throw ExceptionsHelper.convertToElastic(e);
@@ -105,7 +109,7 @@ public class SecurityIndexReaderWrapper implements CheckedFunction<DirectoryRead
 
     protected IndicesAccessControl getIndicesAccessControl() {
         final ThreadContext threadContext = securityContext.getThreadContext();
-        IndicesAccessControl indicesAccessControl = threadContext.getTransient(AuthorizationServiceField.INDICES_PERMISSIONS_KEY);
+        IndicesAccessControl indicesAccessControl = AuthorizationServiceField.INDICES_PERMISSIONS_VALUE.get(threadContext);
         if (indicesAccessControl == null) {
             throw Exceptions.authorizationError("no indices permissions found");
         }

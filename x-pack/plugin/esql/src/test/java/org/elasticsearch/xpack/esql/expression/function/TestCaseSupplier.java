@@ -9,14 +9,21 @@ package org.elasticsearch.xpack.esql.expression.function;
 
 import org.apache.lucene.document.InetAddressPoint;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.time.DateUtils;
+import org.elasticsearch.compute.data.AggregateMetricDoubleBlockBuilder;
 import org.elasticsearch.geo.GeometryTestUtils;
 import org.elasticsearch.geo.ShapeTestUtils;
+import org.elasticsearch.geometry.Point;
+import org.elasticsearch.geometry.utils.Geohash;
+import org.elasticsearch.h3.H3;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
+import org.elasticsearch.search.aggregations.bucket.geogrid.GeoTileUtils;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.ConfigurationTestUtils;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
@@ -29,14 +36,17 @@ import org.elasticsearch.xpack.esql.session.Configuration;
 import org.elasticsearch.xpack.versionfield.Version;
 import org.hamcrest.Matcher;
 
+import java.lang.annotation.Annotation;
 import java.math.BigInteger;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.Period;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.function.BiFunction;
 import java.util.function.BinaryOperator;
 import java.util.function.DoubleFunction;
@@ -47,6 +57,10 @@ import java.util.function.Supplier;
 import java.util.function.UnaryOperator;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.test.ESTestCase.randomDouble;
+import static org.elasticsearch.test.ESTestCase.randomFloatBetween;
+import static org.elasticsearch.test.ESTestCase.randomIntBetween;
+import static org.elasticsearch.test.ESTestCase.randomNonNegativeInt;
 import static org.elasticsearch.xpack.esql.core.util.NumericUtils.UNSIGNED_LONG_MAX;
 import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.CARTESIAN;
 import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.GEO;
@@ -641,6 +655,33 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
     }
 
     /**
+     * Generate positive test cases for a unary function operating on a {@link DataType#DENSE_VECTOR}.
+     */
+    @SuppressWarnings("unchecked")
+    public static void forUnaryDenseVector(
+        List<TestCaseSupplier> suppliers,
+        String expectedEvaluatorToString,
+        DataType expectedType,
+        Function<List<Float>, Object> expectedValue,
+        float lowerBound,
+        float upperBound
+    ) {
+        List<TypedDataSupplier> cases = new ArrayList<>();
+        cases.add(new TypedDataSupplier("<dense vector>", () -> randomDenseVector(lowerBound, upperBound), DataType.DENSE_VECTOR));
+
+        unary(suppliers, expectedEvaluatorToString, cases, expectedType, v -> expectedValue.apply((List<Float>) v), List.of());
+    }
+
+    private static List<Float> randomDenseVector(float lower, float upper) {
+        int dimensions = randomIntBetween(64, 128);
+        List<Float> vector = new ArrayList<>();
+        for (int i = 0; i < dimensions; i++) {
+            vector.add(randomFloatBetween(lower, upper, true));
+        }
+        return vector;
+    }
+
+    /**
      * Generate positive test cases for a unary function operating on an {@link DataType#BOOLEAN}.
      */
     public static void forUnaryBoolean(
@@ -651,6 +692,49 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
         List<String> warnings
     ) {
         unary(suppliers, expectedEvaluatorToString, booleanCases(), expectedType, v -> expectedValue.apply((Boolean) v), warnings);
+    }
+
+    /**
+     * Generate positive test cases for a unary function operating on an {@link DataType#GEOHASH}.
+     */
+    public static void forUnaryGeoGrid(
+        List<TestCaseSupplier> suppliers,
+        String expectedEvaluatorToString,
+        DataType sourceType,
+        DataType expectedType,
+        Function<Object, Object> expectedValue,
+        List<String> warnings
+    ) {
+        if (DataType.isGeoGrid(sourceType)) {
+            unary(suppliers, expectedEvaluatorToString, geoGridCases(sourceType), expectedType, expectedValue, warnings);
+
+        } else if (DataType.isGeoGrid(expectedType)) {
+            if (sourceType == DataType.LONG) {
+                unary(
+                    suppliers,
+                    expectedEvaluatorToString,
+                    geoGridCasesAsLongs(expectedType, ESTestCase::randomBoolean),
+                    expectedType,
+                    expectedValue,
+                    warnings
+                );
+            } else if (sourceType.noText() == DataType.KEYWORD) {
+                unary(
+                    suppliers,
+                    expectedEvaluatorToString,
+                    geoGridCasesAsStrings(expectedType, sourceType, ESTestCase::randomBoolean),
+                    expectedType,
+                    expectedValue,
+                    warnings
+                );
+            } else {
+                throw new IllegalArgumentException(
+                    "Expected gro-grid types, got source [" + sourceType + "], expected [" + expectedType + "]"
+                );
+            }
+        } else {
+            throw new IllegalArgumentException("Expected gro-grid types, got source [" + sourceType + "], expected [" + expectedType + "]");
+        }
     }
 
     /**
@@ -770,6 +854,23 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
         );
     }
 
+    public static void forUnaryAggregateMetricDouble(
+        List<TestCaseSupplier> suppliers,
+        String expectedEvaluatorToString,
+        DataType expectedType,
+        Function<AggregateMetricDoubleBlockBuilder.AggregateMetricDoubleLiteral, Object> expectedValue,
+        List<String> warnings
+    ) {
+        unary(
+            suppliers,
+            expectedEvaluatorToString,
+            aggregateMetricDoubleCases(),
+            expectedType,
+            v -> expectedValue.apply((AggregateMetricDoubleBlockBuilder.AggregateMetricDoubleLiteral) v),
+            warnings
+        );
+    }
+
     private static void unaryNumeric(
         List<TestCaseSupplier> suppliers,
         String expectedEvaluatorToString,
@@ -854,7 +955,7 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
         int lower = Math.max(min, 1);
         int upper = Math.min(max, Integer.MAX_VALUE);
         if (lower < upper) {
-            cases.add(new TypedDataSupplier("<positive int>", () -> ESTestCase.randomIntBetween(lower, upper), DataType.INTEGER));
+            cases.add(new TypedDataSupplier("<positive int>", () -> randomIntBetween(lower, upper), DataType.INTEGER));
         } else if (lower == upper) {
             cases.add(new TypedDataSupplier("<" + lower + " int>", () -> lower, DataType.INTEGER));
         }
@@ -862,7 +963,7 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
         int lower1 = Math.max(min, Integer.MIN_VALUE);
         int upper1 = Math.min(max, -1);
         if (lower1 < upper1) {
-            cases.add(new TypedDataSupplier("<negative int>", () -> ESTestCase.randomIntBetween(lower1, upper1), DataType.INTEGER));
+            cases.add(new TypedDataSupplier("<negative int>", () -> randomIntBetween(lower1, upper1), DataType.INTEGER));
         } else if (lower1 == upper1) {
             cases.add(new TypedDataSupplier("<" + lower1 + " int>", () -> lower1, DataType.INTEGER));
         }
@@ -1176,11 +1277,7 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
             new TypedDataSupplier("<zero date period>", () -> Period.ZERO, DataType.DATE_PERIOD, true),
             new TypedDataSupplier(
                 "<random date period>",
-                () -> Period.of(
-                    ESTestCase.randomIntBetween(yMin, yMax),
-                    ESTestCase.randomIntBetween(mMin, mMax),
-                    ESTestCase.randomIntBetween(dMin, dMax)
-                ),
+                () -> Period.of(randomIntBetween(yMin, yMax), randomIntBetween(mMin, mMax), randomIntBetween(dMin, dMax)),
                 DataType.DATE_PERIOD,
                 true
             )
@@ -1206,6 +1303,10 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
         );
     }
 
+    public static List<TypedDataSupplier> geoGridCases(DataType gridType) {
+        return geoGridCases(gridType, ESTestCase::randomBoolean);
+    }
+
     public static List<TypedDataSupplier> geoPointCases() {
         return geoPointCases(ESTestCase::randomBoolean);
     }
@@ -1220,6 +1321,46 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
 
     public static List<TypedDataSupplier> cartesianShapeCases() {
         return cartesianShapeCases(ESTestCase::randomBoolean);
+    }
+
+    /**
+     * Generate cases for {@link DataType#GEOHASH}.
+     */
+    public static List<TypedDataSupplier> geoGridCases(DataType gridType, Supplier<Boolean> hasAlt) {
+        return geoGridCasesAsType(gridType, gridType, hasAlt);
+    }
+
+    public static List<TypedDataSupplier> geoGridCasesAsLongs(DataType gridType, Supplier<Boolean> hasAlt) {
+        return geoGridCasesAsType(gridType, DataType.LONG, hasAlt);
+    }
+
+    private static List<TypedDataSupplier> geoGridCasesAsType(DataType gridType, DataType sourceType, Supplier<Boolean> hasAlt) {
+        Supplier<Object> gridId = () -> {
+            Point point = GeometryTestUtils.randomPoint(hasAlt.get());
+            return switch (gridType) {
+                case GEOHASH -> Geohash.longEncode(point.getX(), point.getY(), randomIntBetween(1, Geohash.PRECISION));
+                case GEOTILE -> GeoTileUtils.longEncode(point.getX(), point.getY(), randomIntBetween(0, GeoTileUtils.MAX_ZOOM));
+                case GEOHEX -> H3.geoToH3(point.getLat(), point.getLon(), randomIntBetween(0, H3.MAX_H3_RES));
+                default -> throw new IllegalArgumentException("Unsupported grid type: " + gridType);
+            };
+        };
+        return List.of(new TypedDataSupplier("<" + gridType.esType() + ">", gridId, sourceType));
+    }
+
+    public static List<TypedDataSupplier> geoGridCasesAsStrings(DataType gridType, DataType sourceType, Supplier<Boolean> hasAlt) {
+        Supplier<Object> gridId = () -> {
+            Point point = GeometryTestUtils.randomPoint(hasAlt.get());
+            String gridAddress = switch (gridType) {
+                case GEOHASH -> Geohash.stringEncode(point.getX(), point.getY(), randomIntBetween(1, Geohash.PRECISION));
+                case GEOTILE -> GeoTileUtils.stringEncode(
+                    GeoTileUtils.longEncode(point.getX(), point.getY(), randomIntBetween(0, GeoTileUtils.MAX_ZOOM))
+                );
+                case GEOHEX -> H3.geoToH3Address(point.getLat(), point.getLon(), randomIntBetween(0, H3.MAX_H3_RES));
+                default -> throw new IllegalArgumentException("Unsupported grid type: " + gridType);
+            };
+            return new BytesRef(gridAddress);
+        };
+        return List.of(new TypedDataSupplier("<" + gridType.esType() + ">", gridId, sourceType));
     }
 
     /**
@@ -1347,6 +1488,40 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
         );
     }
 
+    /**
+     * Generate cases for {@link DataType#AGGREGATE_METRIC_DOUBLE}.
+     * <p>
+     * For multi-row parameters, see {@link MultiRowTestCaseSupplier#aggregateMetricDoubleCases}.
+     * </p>
+     */
+    public static List<TypedDataSupplier> aggregateMetricDoubleCases() {
+        return List.of(
+            new TypedDataSupplier(
+                "<random aggregate metric double>",
+                () -> new AggregateMetricDoubleBlockBuilder.AggregateMetricDoubleLiteral(
+                    randomDouble(),
+                    randomDouble(),
+                    randomDouble(),
+                    randomNonNegativeInt()
+                ),
+                DataType.AGGREGATE_METRIC_DOUBLE
+            )
+        );
+    }
+
+    /**
+     * Generate cases for {@link DataType#EXPONENTIAL_HISTOGRAM}.
+     */
+    public static List<TypedDataSupplier> exponentialHistogramCases() {
+        return List.of(
+            new TypedDataSupplier(
+                "<random exponential histogram>",
+                EsqlTestUtils::randomExponentialHistogram,
+                DataType.EXPONENTIAL_HISTOGRAM
+            )
+        );
+    }
+
     public static String getCastEvaluator(String original, DataType current, DataType target) {
         if (current == target) {
             return original;
@@ -1409,6 +1584,15 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
             return "CastUnsignedLongToDoubleEvaluator[v=" + original + "]";
         }
         throw new UnsupportedOperationException();
+    }
+
+    public static List<TestCaseSupplier> mapTestCases(
+        Collection<TestCaseSupplier> suppliers,
+        Function<TestCaseSupplier.TestCase, TestCaseSupplier.TestCase> mapper
+    ) {
+        return suppliers.stream()
+            .map(supplier -> new TestCaseSupplier(supplier.name(), supplier.types(), () -> mapper.apply(supplier.get())))
+            .toList();
     }
 
     public static final class TestCase {
@@ -1496,6 +1680,8 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
             Object extra
         ) {
             this(
+                TEST_SOURCE,
+                ConfigurationTestUtils.randomConfiguration(TEST_SOURCE.text(), Map.of()),
                 data,
                 evaluatorToString,
                 expectedType,
@@ -1511,6 +1697,8 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
         }
 
         TestCase(
+            Source source,
+            Configuration configuration,
             List<TypedData> data,
             Matcher<String> evaluatorToString,
             DataType expectedType,
@@ -1523,8 +1711,8 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
             Object extra,
             boolean canBuildEvaluator
         ) {
-            this.source = TEST_SOURCE;
-            this.configuration = TEST_CONFIGURATION;
+            this.source = source;
+            this.configuration = configuration;
             this.data = data;
             this.evaluatorToString = evaluatorToString;
             this.expectedType = expectedType == null ? null : expectedType.noText();
@@ -1621,10 +1809,49 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
         }
 
         /**
+         * Build a new {@link TestCase} with the {@link #TEST_CONFIGURATION}.
+         * <p>
+         *     The source is also set to match the configuration
+         * </p>
+         *
+         * @deprecated Use a custom configuration instead, and test the results.
+         */
+        @Deprecated
+        public TestCase withStaticConfiguration() {
+            return withConfiguration(TEST_SOURCE, TEST_CONFIGURATION);
+        }
+
+        /**
+         * Build a new {@link TestCase} with new {@link #configuration}.
+         * <p>
+         *     As the configuration query should match the source, the source is also updated here.
+         * </p>
+         */
+        public TestCase withConfiguration(Source source, Configuration configuration) {
+            return new TestCase(
+                source,
+                configuration,
+                data,
+                evaluatorToString,
+                expectedType,
+                matcher,
+                expectedWarnings,
+                expectedBuildEvaluatorWarnings,
+                expectedTypeError,
+                foldingExceptionClass,
+                foldingExceptionMessage,
+                extra,
+                canBuildEvaluator
+            );
+        }
+
+        /**
          * Build a new {@link TestCase} with new {@link #data}.
          */
         public TestCase withData(List<TestCaseSupplier.TypedData> data) {
             return new TestCase(
+                source,
+                configuration,
                 data,
                 evaluatorToString,
                 expectedType,
@@ -1644,6 +1871,8 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
          */
         public TestCase withExtra(Object extra) {
             return new TestCase(
+                source,
+                configuration,
                 data,
                 evaluatorToString,
                 expectedType,
@@ -1660,6 +1889,8 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
 
         public TestCase withWarning(String warning) {
             return new TestCase(
+                source,
+                configuration,
                 data,
                 evaluatorToString,
                 expectedType,
@@ -1680,6 +1911,8 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
          */
         public TestCase withBuildEvaluatorWarning(String warning) {
             return new TestCase(
+                source,
+                configuration,
                 data,
                 evaluatorToString,
                 expectedType,
@@ -1705,6 +1938,8 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
 
         public TestCase withFoldingException(Class<? extends Throwable> clazz, String message) {
             return new TestCase(
+                source,
+                configuration,
                 data,
                 evaluatorToString,
                 expectedType,
@@ -1727,6 +1962,8 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
          */
         public TestCase withoutEvaluator() {
             return new TestCase(
+                source,
+                configuration,
                 data,
                 evaluatorToString,
                 expectedType,
@@ -1755,18 +1992,31 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
      * exists because we can't generate random values from the test parameter generation functions, and instead need to return
      * suppliers which generate the random values at test execution time.
      */
-    public record TypedDataSupplier(String name, Supplier<Object> supplier, DataType type, boolean forceLiteral, boolean multiRow) {
-
+    public record TypedDataSupplier(
+        String name,
+        Supplier<Object> supplier,
+        DataType type,
+        boolean forceLiteral,
+        boolean multiRow,
+        List<FunctionAppliesTo> appliesTo
+    ) {
         public TypedDataSupplier(String name, Supplier<Object> supplier, DataType type, boolean forceLiteral) {
-            this(name, supplier, type, forceLiteral, false);
+            this(name, supplier, type, forceLiteral, false, List.of());
         }
 
         public TypedDataSupplier(String name, Supplier<Object> supplier, DataType type) {
-            this(name, supplier, type, false, false);
+            this(name, supplier, type, false, false, List.of());
+        }
+
+        /**
+         * Marks the version of Elasticsearch in which this signature was first supported.
+         */
+        public TypedDataSupplier withAppliesTo(FunctionAppliesTo appliesTo) {
+            return new TypedDataSupplier(name, supplier, type, forceLiteral, multiRow, appendAppliesTo(this.appliesTo, appliesTo));
         }
 
         public TypedData get() {
-            return new TypedData(supplier.get(), type, name, forceLiteral, multiRow);
+            return new TypedData(supplier.get(), type, name, forceLiteral, multiRow, appliesTo);
         }
     }
 
@@ -1783,6 +2033,7 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
         private final boolean forceLiteral;
         private final boolean multiRow;
         private final boolean mapExpression;
+        private final List<FunctionAppliesTo> appliesTo;
 
         /**
          * @param data         value to test against
@@ -1791,7 +2042,14 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
          * @param forceLiteral should this data always be converted to a literal and <strong>never</strong> to a field reference?
          * @param multiRow     if true, data is expected to be a List of values, one per row
          */
-        private TypedData(Object data, DataType type, String name, boolean forceLiteral, boolean multiRow) {
+        private TypedData(
+            Object data,
+            DataType type,
+            String name,
+            boolean forceLiteral,
+            boolean multiRow,
+            List<FunctionAppliesTo> appliesTo
+        ) {
             assert multiRow == false || data instanceof List : "multiRow data must be a List";
             assert multiRow == false || forceLiteral == false : "multiRow data can't be converted to a literal";
 
@@ -1805,6 +2063,7 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
             this.forceLiteral = forceLiteral;
             this.multiRow = multiRow;
             this.mapExpression = data instanceof MapExpression;
+            this.appliesTo = appliesTo;
         }
 
         /**
@@ -1813,7 +2072,7 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
          * @param name a name for the value, used for generating test case names
          */
         public TypedData(Object data, DataType type, String name) {
-            this(data, type, name, false, false);
+            this(data, type, name, false, false, List.of());
         }
 
         /**
@@ -1834,7 +2093,7 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
          * @param name a name for the value, used for generating test case names
          */
         public static TypedData multiRow(List<?> data, DataType type, String name) {
-            return new TypedData(data, type, name, false, true);
+            return new TypedData(data, type, name, false, true, List.of());
         }
 
         /**
@@ -1843,7 +2102,7 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
          * must be constants.
          */
         public TypedData forceLiteral() {
-            return new TypedData(data, type, name, true, multiRow);
+            return new TypedData(data, type, name, true, multiRow, appliesTo);
         }
 
         /**
@@ -1860,13 +2119,24 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
             return multiRow;
         }
 
+        public List<FunctionAppliesTo> appliesTo() {
+            return appliesTo;
+        }
+
         /**
          * Return a {@link TypedData} with the new data.
          *
          * @param data The new data for the {@link TypedData}.
          */
         public TypedData withData(Object data) {
-            return new TypedData(data, type, name, forceLiteral, multiRow);
+            return new TypedData(data, type, name, forceLiteral, multiRow, appliesTo);
+        }
+
+        /**
+         * Marks the version of Elasticsearch in which this signature was first supported.
+         */
+        public TypedData withAppliesTo(FunctionAppliesTo appliesTo) {
+            return new TypedData(data, type, name, forceLiteral, multiRow, appendAppliesTo(this.appliesTo, appliesTo));
         }
 
         @Override
@@ -1976,5 +2246,30 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
         public String name() {
             return name;
         }
+    }
+
+    /**
+     * Builds a version of Elasticsearch for use with {@link TypedDataSupplier#withAppliesTo(FunctionAppliesTo)}.
+     */
+    public static FunctionAppliesTo appliesTo(
+        FunctionAppliesToLifecycle lifeCycle,
+        String version,
+        String description,
+        boolean serverless
+    ) {
+        return new AppliesTo(lifeCycle, version, description, serverless);
+    }
+
+    private record AppliesTo(FunctionAppliesToLifecycle lifeCycle, String version, String description, boolean serverless)
+        implements
+            FunctionAppliesTo {
+        @Override
+        public Class<? extends Annotation> annotationType() {
+            return FunctionAppliesTo.class;
+        }
+    }
+
+    static List<FunctionAppliesTo> appendAppliesTo(List<FunctionAppliesTo> current, FunctionAppliesTo next) {
+        return Iterators.toList(Iterators.concat(current.iterator(), Iterators.single(next)));
     }
 }

@@ -295,7 +295,7 @@ public class Methods {
      * Returns the name of the method used to get {@code valueType} instances
      * from vectors or blocks.
      */
-    static String getMethod(TypeName elementType) {
+    public static String getMethod(TypeName elementType) {
         if (elementType.equals(TypeName.BOOLEAN)) {
             return "getBoolean";
         }
@@ -313,6 +313,9 @@ public class Methods {
         }
         if (elementType.equals(TypeName.FLOAT)) {
             return "getFloat";
+        }
+        if (elementType.equals(Types.EXPONENTIAL_HISTOGRAM)) {
+            return "getExponentialHistogram";
         }
         throw new IllegalArgumentException("unknown get method for [" + elementType + "]");
     }

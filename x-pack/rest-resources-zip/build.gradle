@@ -22,14 +22,16 @@ dependencies {
   freeTests project(path: ':modules:analysis-common', configuration: 'restTests')
   freeTests project(path: ':modules:data-streams', configuration: 'restTests')
   freeTests project(path: ':modules:ingest-geoip', configuration: 'restTests')
+  freeTests project(path: ':modules:streams', configuration: 'restTests')
   compatApis project(path: ':rest-api-spec', configuration: 'restCompatSpecs')
   compatApis project(path: ':x-pack:plugin', configuration: 'restCompatSpecs')
   freeCompatTests project(path: ':rest-api-spec', configuration: 'restCompatTests')
   platinumTests project(path: ':x-pack:plugin', configuration: 'restXpackTests')
+  platinumTests project(path: ':x-pack:plugin:downsample:qa:rest', configuration: 'restXpackTests')
   platinumTests project(path: ':x-pack:plugin:eql:qa:rest', configuration: 'restXpackTests')
   platinumTests project(path: ':x-pack:plugin:ent-search', configuration: 'restXpackTests')
   platinumTests project(path: ':x-pack:plugin:inference', configuration: 'restXpackTests')
-  platinumTests project(path: ':x-pack:plugin:watcher:qa:rest', configuration: 'restXpackTests')
+  platinumTests project(path: ':x-pack:plugin:watcher', configuration: 'restXpackTests')
   platinumCompatTests project(path: ':x-pack:plugin', configuration: 'restCompatTests')
   platinumCompatTests project(path: ':x-pack:plugin:eql:qa:rest', configuration: 'restCompatTests')
 }
@@ -59,6 +61,6 @@ def restResourcesZip = tasks.register('restResourcesZip', Zip) {
   }
 }
 
-artifacts {
-  archives restResourcesZip
+tasks.named('assemble').configure {
+  dependsOn restResourcesZip
 }

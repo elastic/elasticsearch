@@ -8,25 +8,21 @@
 package org.elasticsearch.xpack.esql.execution;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.indices.IndicesExpressionGrouper;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.xpack.esql.action.EsqlExecutionInfo;
 import org.elasticsearch.xpack.esql.action.EsqlQueryRequest;
+import org.elasticsearch.xpack.esql.analysis.AnalyzerSettings;
 import org.elasticsearch.xpack.esql.analysis.PreAnalyzer;
 import org.elasticsearch.xpack.esql.analysis.Verifier;
-import org.elasticsearch.xpack.esql.core.expression.FoldContext;
+import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.enrich.EnrichPolicyResolver;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
-import org.elasticsearch.xpack.esql.optimizer.LogicalOptimizerContext;
-import org.elasticsearch.xpack.esql.optimizer.LogicalPlanOptimizer;
-import org.elasticsearch.xpack.esql.optimizer.LogicalPlanPreOptimizer;
-import org.elasticsearch.xpack.esql.optimizer.LogicalPreOptimizerContext;
+import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.planner.mapper.Mapper;
 import org.elasticsearch.xpack.esql.plugin.TransportActionServices;
 import org.elasticsearch.xpack.esql.querylog.EsqlQueryLog;
-import org.elasticsearch.xpack.esql.session.Configuration;
 import org.elasticsearch.xpack.esql.session.EsqlSession;
 import org.elasticsearch.xpack.esql.session.IndexResolver;
 import org.elasticsearch.xpack.esql.session.Result;
@@ -36,6 +32,7 @@ import org.elasticsearch.xpack.esql.telemetry.PlanTelemetryManager;
 import org.elasticsearch.xpack.esql.telemetry.QueryMetric;
 
 import java.util.List;
+import java.util.function.BiConsumer;
 
 import static org.elasticsearch.action.ActionListener.wrap;
 
@@ -55,15 +52,14 @@ public class PlanExecutor {
         MeterRegistry meterRegistry,
         XPackLicenseState licenseState,
         EsqlQueryLog queryLog,
-        List<Verifier.ExtraCheckers> extraCheckers,
-        Settings settings
+        List<BiConsumer<LogicalPlan, Failures>> extraCheckers
     ) {
         this.indexResolver = indexResolver;
         this.preAnalyzer = new PreAnalyzer();
         this.functionRegistry = new EsqlFunctionRegistry();
         this.mapper = new Mapper();
         this.metrics = new Metrics(functionRegistry);
-        this.verifier = new Verifier(metrics, licenseState, extraCheckers, settings);
+        this.verifier = new Verifier(metrics, licenseState, extraCheckers);
         this.planTelemetryManager = new PlanTelemetryManager(meterRegistry);
         this.queryLog = queryLog;
     }
@@ -71,8 +67,7 @@ public class PlanExecutor {
     public void esql(
         EsqlQueryRequest request,
         String sessionId,
-        Configuration cfg,
-        FoldContext foldContext,
+        AnalyzerSettings analyzerSettings,
         EnrichPolicyResolver enrichPolicyResolver,
         EsqlExecutionInfo executionInfo,
         IndicesExpressionGrouper indicesExpressionGrouper,
@@ -83,13 +78,11 @@ public class PlanExecutor {
         final PlanTelemetry planTelemetry = new PlanTelemetry(functionRegistry);
         final var session = new EsqlSession(
             sessionId,
-            cfg,
+            analyzerSettings,
             indexResolver,
             enrichPolicyResolver,
             preAnalyzer,
-            new LogicalPlanPreOptimizer(new LogicalPreOptimizerContext(foldContext)),
             functionRegistry,
-            new LogicalPlanOptimizer(new LogicalOptimizerContext(cfg, foldContext)),
             mapper,
             verifier,
             planTelemetry,

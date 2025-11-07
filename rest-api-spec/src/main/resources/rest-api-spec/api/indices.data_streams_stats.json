@@ -1,35 +1,51 @@
 {
-  "indices.data_streams_stats":{
-    "documentation":{
-      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/master/data-streams.html",
-      "description":"Provides statistics on operations happening in a data stream."
+  "indices.data_streams_stats": {
+    "documentation": {
+      "url": "https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-indices-data-streams-stats-1",
+      "description": "Get data stream stats"
     },
-    "stability":"stable",
-    "visibility":"public",
-    "headers":{
-      "accept": [ "application/json"]
+    "stability": "stable",
+    "visibility": "public",
+    "headers": {
+      "accept": [
+        "application/json"
+      ]
     },
-    "url":{
-      "paths":[
+    "url": {
+      "paths": [
         {
-          "path":"/_data_stream/_stats",
-          "methods":[
+          "path": "/_data_stream/_stats",
+          "methods": [
             "GET"
           ]
         },
         {
-          "path":"/_data_stream/{name}/_stats",
-          "methods":[
+          "path": "/_data_stream/{name}/_stats",
+          "methods": [
             "GET"
           ],
-          "parts":{
-            "name":{
-              "type":"list",
-              "description":"A comma-separated list of data stream names; use `_all` or empty string to perform the operation on all data streams"
+          "parts": {
+            "name": {
+              "type": "list",
+              "description": "A comma-separated list of data stream names; use `_all` or empty string to perform the operation on all data streams"
             }
           }
         }
       ]
+    },
+    "params": {
+      "expand_wildcards": {
+        "type": "list",
+        "description": "Whether to expand wildcard expressions to concrete data stream names that are open, closed or both.",
+        "default": "open,closed",
+        "options": [
+          "all",
+          "closed",
+          "hidden",
+          "none",
+          "open"
+        ]
+      }
     }
   }
 }

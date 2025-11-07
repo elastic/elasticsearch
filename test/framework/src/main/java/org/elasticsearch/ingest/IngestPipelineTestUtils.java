@@ -29,8 +29,11 @@ import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
+import java.util.function.Consumer;
 
 import static org.elasticsearch.test.ESTestCase.TEST_REQUEST_TIMEOUT;
+import static org.elasticsearch.test.ESTestCase.randomAlphanumericOfLength;
+import static org.elasticsearch.test.ESTestCase.randomFrom;
 import static org.elasticsearch.test.ESTestCase.safeGet;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
@@ -139,5 +142,87 @@ public class IngestPipelineTestUtils {
      */
     public static SimulatePipelineRequest jsonSimulatePipelineRequest(BytesReference jsonBytes) {
         return new SimulatePipelineRequest(ReleasableBytesReference.wrap(jsonBytes), XContentType.JSON);
+    }
+
+    /**
+     * Executes an action against an ingest document using a random access pattern. A synthetic pipeline instance with the provided
+     * access pattern is created and executed against the ingest document, thus updating its internal access pattern.
+     * @param document The document to operate on
+     * @param action A consumer which takes the updated ingest document during execution
+     * @throws Exception Any exception thrown from the provided consumer
+     */
+    public static void doWithRandomAccessPattern(IngestDocument document, Consumer<IngestDocument> action) throws Exception {
+        doWithAccessPattern(randomFrom(IngestPipelineFieldAccessPattern.values()), document, action);
+    }
+
+    /**
+     * Executes an action against an ingest document using a random access pattern. A synthetic pipeline instance with the provided
+     * access pattern is created and executed against the ingest document, thus updating its internal access pattern.
+     * @param accessPattern The access pattern to use when executing the block of code
+     * @param document The document to operate on
+     * @param action A consumer which takes the updated ingest document during execution
+     * @throws Exception Any exception thrown from the provided consumer
+     */
+    public static void doWithAccessPattern(
+        IngestPipelineFieldAccessPattern accessPattern,
+        IngestDocument document,
+        Consumer<IngestDocument> action
+    ) throws Exception {
+        runWithAccessPattern(accessPattern, document, new TestProcessor(action));
+    }
+
+    /**
+     * Executes a processor against an ingest document using a random access pattern. A synthetic pipeline instance with the provided
+     * access pattern is created and executed against the ingest document, thus updating its internal access pattern.
+     * @param document The document to operate on
+     * @param processor A processor which takes the updated ingest document during execution
+     * @return the resulting ingest document instance
+     * @throws Exception Any exception thrown from the provided consumer
+     */
+    public static IngestDocument runWithRandomAccessPattern(IngestDocument document, Processor processor) throws Exception {
+        return runWithAccessPattern(randomFrom(IngestPipelineFieldAccessPattern.values()), document, processor);
+    }
+
+    /**
+     * Executes a processor against an ingest document using the provided access pattern. A synthetic pipeline instance with the provided
+     * access pattern is created and executed against the ingest document, thus updating its internal access pattern.
+     * @param accessPattern The access pattern to use when executing the block of code
+     * @param document The document to operate on
+     * @param processor A processor which takes the updated ingest document during execution
+     * @return the resulting ingest document instance
+     * @throws Exception Any exception thrown from the provided consumer
+     */
+    public static IngestDocument runWithAccessPattern(
+        IngestPipelineFieldAccessPattern accessPattern,
+        IngestDocument document,
+        Processor processor
+    ) throws Exception {
+        IngestDocument[] ingestDocumentHolder = new IngestDocument[1];
+        Exception[] exceptionHolder = new Exception[1];
+        document.executePipeline(
+            new Pipeline(
+                randomAlphanumericOfLength(10),
+                null,
+                null,
+                null,
+                new CompoundProcessor(processor),
+                accessPattern,
+                null,
+                null,
+                null
+            ),
+            (result, ex) -> {
+                ingestDocumentHolder[0] = result;
+                exceptionHolder[0] = ex;
+            }
+        );
+        Exception exception = exceptionHolder[0];
+        if (exception != null) {
+            if (exception instanceof IngestProcessorException ingestProcessorException) {
+                exception = ((Exception) ingestProcessorException.getCause());
+            }
+            throw exception;
+        }
+        return ingestDocumentHolder[0];
     }
 }

@@ -104,7 +104,6 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
     public static final ParseField PER_ALLOCATION_MEMORY_BYTES = new ParseField("per_allocation_memory_bytes");
     public static final ParseField PLATFORM_ARCHITECTURE = new ParseField("platform_architecture");
 
-    public static final TransportVersion VERSION_3RD_PARTY_CONFIG_ADDED = TransportVersions.V_8_0_0;
     public static final TransportVersion VERSION_ALLOCATION_MEMORY_ADDED = TransportVersions.V_8_11_X;
 
     // These parsers follow the pattern that metadata is parsed leniently (to allow for enhancements), whilst config is parsed strictly
@@ -278,13 +277,8 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
         this.defaultFieldMap = in.readBoolean() ? in.readImmutableMap(StreamInput::readString) : null;
 
         this.inferenceConfig = in.readOptionalNamedWriteable(InferenceConfig.class);
-        if (in.getTransportVersion().onOrAfter(VERSION_3RD_PARTY_CONFIG_ADDED)) {
-            this.modelType = in.readOptionalEnum(TrainedModelType.class);
-            this.location = in.readOptionalNamedWriteable(TrainedModelLocation.class);
-        } else {
-            this.modelType = null;
-            this.location = null;
-        }
+        this.modelType = in.readOptionalEnum(TrainedModelType.class);
+        this.location = in.readOptionalNamedWriteable(TrainedModelLocation.class);
         if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_8_0)) {
             modelPackageConfig = in.readOptionalWriteable(ModelPackageConfig::new);
             fullDefinition = in.readOptionalBoolean();
@@ -471,10 +465,8 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
             out.writeBoolean(false);
         }
         out.writeOptionalNamedWriteable(inferenceConfig);
-        if (out.getTransportVersion().onOrAfter(VERSION_3RD_PARTY_CONFIG_ADDED)) {
-            out.writeOptionalEnum(modelType);
-            out.writeOptionalNamedWriteable(location);
-        }
+        out.writeOptionalEnum(modelType);
+        out.writeOptionalNamedWriteable(location);
 
         if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_8_0)) {
             out.writeOptionalWriteable(modelPackageConfig);
@@ -1094,11 +1086,7 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
         }
 
         public static LazyModelDefinition fromStreamInput(StreamInput input) throws IOException {
-            if (input.getTransportVersion().onOrAfter(TransportVersions.V_8_0_0)) {
-                return new LazyModelDefinition(input.readBytesReference(), null);
-            } else {
-                return fromBase64String(input.readString());
-            }
+            return new LazyModelDefinition(input.readBytesReference(), null);
         }
 
         private LazyModelDefinition(LazyModelDefinition definition) {
@@ -1158,11 +1146,7 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_0_0)) {
-                out.writeBytesReference(getCompressedDefinition());
-            } else {
-                out.writeString(getBase64CompressedDefinition());
-            }
+            out.writeBytesReference(getCompressedDefinition());
         }
 
         @Override

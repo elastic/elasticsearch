@@ -6,7 +6,8 @@
  */
 package org.elasticsearch.xpack.esql.core.type;
 
-import org.elasticsearch.TransportVersions;
+import org.elasticsearch.TransportVersion;
+import org.elasticsearch.action.fieldcaps.IndexFieldCapabilities;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -18,23 +19,50 @@ import java.io.IOException;
 import java.util.Map;
 import java.util.Objects;
 
-import static org.elasticsearch.xpack.esql.core.util.PlanStreamInput.readCachedStringWithVersionCheck;
-import static org.elasticsearch.xpack.esql.core.util.PlanStreamOutput.writeCachedStringWithVersionCheck;
-
 /**
  * Information about a field in an ES index.
  */
 public class EsField implements Writeable {
+
+    private static final TransportVersion ESQL_SERIALIZE_TIMESERIES_FIELD_TYPE = TransportVersion.fromName(
+        "esql_serialize_timeseries_field_type"
+    );
 
     /**
      * Fields in a TSDB can be either dimensions or metrics.  This enum provides a way to store, serialize, and operate on those field
      * roles within the ESQL query processing pipeline.
      */
     public enum TimeSeriesFieldType implements Writeable {
-        UNKNOWN(0),
-        NONE(1),
-        METRIC(2),
-        DIMENSION(3);
+        UNKNOWN(0) {
+            @Override
+            public TimeSeriesFieldType merge(TimeSeriesFieldType other) {
+                return other;
+            }
+        },
+        NONE(1) {
+            @Override
+            public TimeSeriesFieldType merge(TimeSeriesFieldType other) {
+                return other;
+            }
+        },
+        METRIC(2) {
+            @Override
+            public TimeSeriesFieldType merge(TimeSeriesFieldType other) {
+                if (other != DIMENSION) {
+                    return METRIC;
+                }
+                throw new IllegalStateException("Time Series Metadata conflict.  Cannot merge [" + other + "] with [METRIC].");
+            }
+        },
+        DIMENSION(3) {
+            @Override
+            public TimeSeriesFieldType merge(TimeSeriesFieldType other) {
+                if (other != METRIC) {
+                    return DIMENSION;
+                }
+                throw new IllegalStateException("Time Series Metadata conflict.  Cannot merge [" + other + "] with [DIMENSION].");
+            }
+        };
 
         private final int id;
 
@@ -57,6 +85,19 @@ public class EsField implements Writeable {
                 default -> throw new IOException("Unexpected value for TimeSeriesFieldType: " + id);
             };
         }
+
+        public static TimeSeriesFieldType fromIndexFieldCapabilities(IndexFieldCapabilities capabilities) {
+            if (capabilities.isDimension()) {
+                assert capabilities.metricType() == null;
+                return DIMENSION;
+            }
+            if (capabilities.metricType() != null) {
+                return METRIC;
+            }
+            return NONE;
+        }
+
+        public abstract TimeSeriesFieldType merge(TimeSeriesFieldType other);
     }
 
     private static Map<String, Reader<? extends EsField>> readers = Map.ofEntries(
@@ -83,12 +124,7 @@ public class EsField implements Writeable {
     private final Map<String, EsField> properties;
     private final String name;
     private final boolean isAlias;
-    // Because the subclasses all reimplement serialization, this needs to be writeable from subclass constructors
     private final TimeSeriesFieldType timeSeriesFieldType;
-
-    public EsField(String name, DataType esDataType, Map<String, EsField> properties, boolean aggregatable) {
-        this(name, esDataType, properties, aggregatable, false, TimeSeriesFieldType.UNKNOWN);
-    }
 
     public EsField(
         String name,
@@ -98,10 +134,6 @@ public class EsField implements Writeable {
         TimeSeriesFieldType timeSeriesFieldType
     ) {
         this(name, esDataType, properties, aggregatable, false, timeSeriesFieldType);
-    }
-
-    public EsField(String name, DataType esDataType, Map<String, EsField> properties, boolean aggregatable, boolean isAlias) {
-        this(name, esDataType, properties, aggregatable, isAlias, TimeSeriesFieldType.UNKNOWN);
     }
 
     public EsField(
@@ -121,28 +153,12 @@ public class EsField implements Writeable {
     }
 
     public EsField(StreamInput in) throws IOException {
-        this.name = readCachedStringWithVersionCheck(in);
-        this.esDataType = readDataType(in);
+        this.name = ((PlanStreamInput) in).readCachedString();
+        this.esDataType = DataType.readFrom(in);
         this.properties = in.readImmutableMap(EsField::readFrom);
         this.aggregatable = in.readBoolean();
         this.isAlias = in.readBoolean();
         this.timeSeriesFieldType = readTimeSeriesFieldType(in);
-    }
-
-    private DataType readDataType(StreamInput in) throws IOException {
-        String name = readCachedStringWithVersionCheck(in);
-        if (in.getTransportVersion().before(TransportVersions.V_8_16_0) && name.equalsIgnoreCase("NESTED")) {
-            /*
-             * The "nested" data type existed in older versions of ESQL but was
-             * entirely used to filter mappings away. Those versions will still
-             * sometimes send it inside EsField when hitting `nested` fields in
-             * indices. But the rest of ESQL will never see that type. Thus, we
-             * translate it here. We translate to UNSUPPORTED because that seems
-             * to work. We've already performed any required filtering.
-             */
-            return DataType.UNSUPPORTED;
-        }
-        return DataType.readFrom(name);
     }
 
     public static <A extends EsField> A readFrom(StreamInput in) throws IOException {
@@ -160,7 +176,7 @@ public class EsField implements Writeable {
      * This needs to be overridden by subclasses for specific serialization
      */
     public void writeContent(StreamOutput out) throws IOException {
-        writeCachedStringWithVersionCheck(out, name);
+        ((PlanStreamOutput) out).writeCachedString(name);
         esDataType.writeTo(out);
         out.writeMap(properties, (o, x) -> x.writeTo(out));
         out.writeBoolean(aggregatable);
@@ -169,13 +185,13 @@ public class EsField implements Writeable {
     }
 
     protected void writeTimeSeriesFieldType(StreamOutput out) throws IOException {
-        if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_SERIALIZE_TIMESERIES_FIELD_TYPE)) {
+        if (out.getTransportVersion().supports(ESQL_SERIALIZE_TIMESERIES_FIELD_TYPE)) {
             this.timeSeriesFieldType.writeTo(out);
         }
     }
 
     protected static TimeSeriesFieldType readTimeSeriesFieldType(StreamInput in) throws IOException {
-        if (in.getTransportVersion().onOrAfter(TransportVersions.ESQL_SERIALIZE_TIMESERIES_FIELD_TYPE)) {
+        if (in.getTransportVersion().supports(ESQL_SERIALIZE_TIMESERIES_FIELD_TYPE)) {
             return TimeSeriesFieldType.readFromStream(in);
         } else {
             return TimeSeriesFieldType.UNKNOWN;
@@ -247,6 +263,10 @@ public class EsField implements Writeable {
         return Exact.EXACT_FIELD;
     }
 
+    public TimeSeriesFieldType getTimeSeriesFieldType() {
+        return timeSeriesFieldType;
+    }
+
     @Override
     public String toString() {
         return name + "@" + esDataType.typeName() + "=" + properties;
@@ -265,12 +285,13 @@ public class EsField implements Writeable {
             && isAlias == field.isAlias
             && esDataType == field.esDataType
             && Objects.equals(name, field.name)
-            && Objects.equals(properties, field.properties);
+            && Objects.equals(properties, field.properties)
+            && Objects.equals(timeSeriesFieldType, field.timeSeriesFieldType);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(esDataType, aggregatable, properties, name, isAlias);
+        return Objects.hash(esDataType, aggregatable, properties, name, isAlias, timeSeriesFieldType);
     }
 
     public static final class Exact {

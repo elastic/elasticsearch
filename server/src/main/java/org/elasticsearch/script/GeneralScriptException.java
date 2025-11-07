@@ -11,6 +11,7 @@ package org.elasticsearch.script;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.rest.RestStatus;
 
 import java.io.IOException;
 
@@ -37,5 +38,9 @@ public class GeneralScriptException extends ElasticsearchException {
 
     public GeneralScriptException(StreamInput in) throws IOException {
         super(in);
+    }
+
+    public RestStatus status() {
+        return RestStatus.BAD_REQUEST;
     }
 }

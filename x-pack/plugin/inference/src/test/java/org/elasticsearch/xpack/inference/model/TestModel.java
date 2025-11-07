@@ -23,6 +23,7 @@ import org.elasticsearch.inference.TaskSettings;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xpack.core.inference.InferenceUtils;
 import org.elasticsearch.xpack.inference.services.ServiceUtils;
 
 import java.io.IOException;
@@ -142,7 +143,9 @@ public class TestModel extends Model {
             String model = ServiceUtils.removeAsType(map, "model", String.class);
 
             if (model == null) {
-                validationException.addValidationError(ServiceUtils.missingSettingErrorMsg("model", ModelConfigurations.SERVICE_SETTINGS));
+                validationException.addValidationError(
+                    InferenceUtils.missingSettingErrorMsg("model", ModelConfigurations.SERVICE_SETTINGS)
+                );
             }
 
             if (validationException.validationErrors().isEmpty() == false) {
@@ -281,7 +284,7 @@ public class TestModel extends Model {
             String apiKey = ServiceUtils.removeAsType(map, "api_key", String.class);
 
             if (apiKey == null) {
-                validationException.addValidationError(ServiceUtils.missingSettingErrorMsg("api_key", ModelSecrets.SECRET_SETTINGS));
+                validationException.addValidationError(InferenceUtils.missingSettingErrorMsg("api_key", ModelSecrets.SECRET_SETTINGS));
             }
 
             if (validationException.validationErrors().isEmpty() == false) {

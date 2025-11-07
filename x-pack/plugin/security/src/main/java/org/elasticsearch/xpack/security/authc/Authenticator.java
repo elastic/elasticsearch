@@ -37,7 +37,7 @@ public interface Authenticator {
     /**
      * Attempt to Extract an {@link AuthenticationToken} from the given {@link Context}.
      * @param context The context object encapsulating current request and other information relevant for authentication.
-     *
+
      * @return An {@link AuthenticationToken} if one can be extracted or null if this Authenticator cannot
      *         extract one.
      */

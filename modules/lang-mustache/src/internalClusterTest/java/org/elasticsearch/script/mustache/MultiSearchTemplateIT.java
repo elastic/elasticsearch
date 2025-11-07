@@ -9,7 +9,7 @@
 
 package org.elasticsearch.script.mustache;
 
-import org.elasticsearch.TransportVersions;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.common.Strings;
@@ -210,7 +210,7 @@ public class MultiSearchTemplateIT extends ESIntegTestCase {
                 "[fail_before_current_version] was released first in version %s, failed compatibility "
                     + "check trying to send it to node with version %s",
                 FailBeforeCurrentVersionQueryBuilder.FUTURE_VERSION.toReleaseVersion(),
-                TransportVersions.MINIMUM_CCS_VERSION.toReleaseVersion()
+                TransportVersion.minimumCCSVersion().toReleaseVersion()
             );
             String actualCause = ex.getCause().getMessage();
             assertEquals(expectedCause, actualCause);

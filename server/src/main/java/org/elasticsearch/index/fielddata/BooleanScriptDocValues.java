@@ -11,7 +11,7 @@ package org.elasticsearch.index.fielddata;
 
 import org.elasticsearch.script.BooleanFieldScript;
 
-public final class BooleanScriptDocValues extends AbstractSortedNumericDocValues {
+public final class BooleanScriptDocValues extends SortedNumericLongValues {
     private final BooleanFieldScript script;
     private int cursor;
 

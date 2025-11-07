@@ -35,11 +35,14 @@ dependencies {
   compileOnly project(':modules:lang-painless:spi')
   compileOnly project(xpackModule('esql-core'))
   compileOnly project(xpackModule('ml'))
+  compileOnly project(path: xpackModule('mapper-aggregate-metric'))
+  compileOnly project(path: xpackModule('downsample'))
   implementation project(xpackModule('kql'))
   implementation project('compute')
   implementation project('compute:ann')
   implementation project(':libs:dissect')
   implementation project(':libs:grok')
+  implementation project(':libs:exponential-histogram')
   api "org.apache.lucene:lucene-spatial3d:${versions.lucene}"
   api project(":libs:h3")
   implementation project('arrow')
@@ -94,6 +97,11 @@ interface Injected {
 }
 
 tasks.named("test").configure {
+  // prevent empty stacktraces on JDK 25 for intrinsic Math.*Exact invocations
+  // https://bugs.openjdk.org/browse/JDK-8367990
+  // https://github.com/elastic/elasticsearch/issues/135009
+  jvmArgs '-XX:-OmitStackTraceInFastThrow'
+
   def injected = project.objects.newInstance(Injected)
   // Define the folder to delete and recreate
   def tempDir = file("build/testrun/test/temp/esql")

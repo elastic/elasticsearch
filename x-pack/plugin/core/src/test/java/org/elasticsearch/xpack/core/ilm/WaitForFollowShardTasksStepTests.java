@@ -71,7 +71,7 @@ public class WaitForFollowShardTasksStepTests extends AbstractStepTestCase<WaitF
         final ToXContentObject[] informationContextHolder = new ToXContentObject[1];
         final Exception[] exceptionHolder = new Exception[1];
         final var state = projectStateFromProject(ProjectMetadata.builder(randomProjectIdOrDefault()).put(indexMetadata, true));
-        createRandomInstance().evaluateCondition(state, indexMetadata.getIndex(), new AsyncWaitStep.Listener() {
+        createRandomInstance().evaluateCondition(state, indexMetadata, new AsyncWaitStep.Listener() {
             @Override
             public void onResponse(boolean conditionMet, ToXContentObject informationContext) {
                 conditionMetHolder[0] = conditionMet;
@@ -106,7 +106,7 @@ public class WaitForFollowShardTasksStepTests extends AbstractStepTestCase<WaitF
         final ToXContentObject[] informationContextHolder = new ToXContentObject[1];
         final Exception[] exceptionHolder = new Exception[1];
         final var state = projectStateFromProject(ProjectMetadata.builder(randomProjectIdOrDefault()).put(indexMetadata, true));
-        createRandomInstance().evaluateCondition(state, indexMetadata.getIndex(), new AsyncWaitStep.Listener() {
+        createRandomInstance().evaluateCondition(state, indexMetadata, new AsyncWaitStep.Listener() {
             @Override
             public void onResponse(boolean conditionMet, ToXContentObject informationContext) {
                 conditionMetHolder[0] = conditionMet;
@@ -140,7 +140,7 @@ public class WaitForFollowShardTasksStepTests extends AbstractStepTestCase<WaitF
         final ToXContentObject[] informationContextHolder = new ToXContentObject[1];
         final Exception[] exceptionHolder = new Exception[1];
         final var state = projectStateFromProject(ProjectMetadata.builder(randomProjectIdOrDefault()).put(indexMetadata, true));
-        createRandomInstance().evaluateCondition(state, indexMetadata.getIndex(), new AsyncWaitStep.Listener() {
+        createRandomInstance().evaluateCondition(state, indexMetadata, new AsyncWaitStep.Listener() {
             @Override
             public void onResponse(boolean conditionMet, ToXContentObject informationContext) {
                 conditionMetHolder[0] = conditionMet;

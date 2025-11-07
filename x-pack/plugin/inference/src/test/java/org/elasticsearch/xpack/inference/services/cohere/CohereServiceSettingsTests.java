@@ -8,12 +8,12 @@
 package org.elasticsearch.xpack.inference.services.cohere;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.SimilarityMeasure;
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
@@ -26,13 +26,17 @@ import org.elasticsearch.xpack.inference.services.settings.RateLimitSettingsTest
 import org.hamcrest.MatcherAssert;
 
 import java.io.IOException;
+import java.net.URI;
 import java.util.HashMap;
 import java.util.Map;
 
+import static org.elasticsearch.xpack.inference.Utils.randomSimilarityMeasure;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
 
 public class CohereServiceSettingsTests extends AbstractBWCWireSerializationTestCase<CohereServiceSettings> {
+
+    private static final TransportVersion ML_INFERENCE_COHERE_API_VERSION = TransportVersion.fromName("ml_inference_cohere_api_version");
 
     public static CohereServiceSettings createRandomWithNonNullUrl() {
         return createRandom(randomAlphaOfLength(15));
@@ -42,8 +46,7 @@ public class CohereServiceSettingsTests extends AbstractBWCWireSerializationTest
      * The created settings can have a url set to null.
      */
     public static CohereServiceSettings createRandom() {
-        var url = randomBoolean() ? randomAlphaOfLength(15) : null;
-        return createRandom(url);
+        return createRandom(randomAlphaOfLengthOrNull(15));
     }
 
     private static CohereServiceSettings createRandom(String url) {
@@ -55,7 +58,7 @@ public class CohereServiceSettingsTests extends AbstractBWCWireSerializationTest
             dims = 1536;
         }
         Integer maxInputTokens = randomBoolean() ? null : randomIntBetween(128, 256);
-        var model = randomBoolean() ? randomAlphaOfLength(15) : null;
+        var model = randomAlphaOfLengthOrNull(15);
 
         return new CohereServiceSettings(
             ServiceUtils.createOptionalUri(url),
@@ -345,7 +348,26 @@ public class CohereServiceSettingsTests extends AbstractBWCWireSerializationTest
 
     @Override
     protected CohereServiceSettings mutateInstance(CohereServiceSettings instance) throws IOException {
-        return randomValueOtherThan(instance, CohereServiceSettingsTests::createRandom);
+        URI uri = instance.uri();
+        var uriString = uri == null ? null : uri.toString();
+        var similarity = instance.similarity();
+        var dimensions = instance.dimensions();
+        var maxInputTokens = instance.maxInputTokens();
+        var modelId = instance.modelId();
+        var rateLimitSettings = instance.rateLimitSettings();
+        var apiVersion = instance.apiVersion();
+        switch (randomInt(6)) {
+            case 0 -> uriString = randomValueOtherThan(uriString, () -> randomAlphaOfLengthOrNull(15));
+            case 1 -> similarity = randomValueOtherThan(similarity, () -> randomFrom(randomSimilarityMeasure(), null));
+            case 2 -> dimensions = randomValueOtherThan(dimensions, ESTestCase::randomNonNegativeIntOrNull);
+            case 3 -> maxInputTokens = randomValueOtherThan(maxInputTokens, () -> randomFrom(randomIntBetween(128, 256), null));
+            case 4 -> modelId = randomValueOtherThan(modelId, () -> randomAlphaOfLengthOrNull(15));
+            case 5 -> rateLimitSettings = randomValueOtherThan(rateLimitSettings, RateLimitSettingsTests::createRandom);
+            case 6 -> apiVersion = randomValueOtherThan(apiVersion, () -> randomFrom(CohereServiceSettings.CohereApiVersion.values()));
+            default -> throw new AssertionError("Illegal randomisation branch");
+        }
+
+        return new CohereServiceSettings(uriString, similarity, dimensions, maxInputTokens, modelId, rateLimitSettings, apiVersion);
     }
 
     public static Map<String, Object> getServiceSettingsMap(@Nullable String url, @Nullable String model) {
@@ -364,8 +386,7 @@ public class CohereServiceSettingsTests extends AbstractBWCWireSerializationTest
 
     @Override
     protected CohereServiceSettings mutateInstanceForVersion(CohereServiceSettings instance, TransportVersion version) {
-        if (version.before(TransportVersions.ML_INFERENCE_COHERE_API_VERSION)
-            && (version.isPatchFrom(TransportVersions.ML_INFERENCE_COHERE_API_VERSION_8_19) == false)) {
+        if (version.supports(ML_INFERENCE_COHERE_API_VERSION) == false) {
             return new CohereServiceSettings(
                 instance.uri(),
                 instance.similarity(),

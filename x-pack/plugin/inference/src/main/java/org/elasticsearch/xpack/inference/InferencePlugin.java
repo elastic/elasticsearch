@@ -27,6 +27,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MetadataFieldMapper;
+import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.inference.InferenceServiceExtension;
 import org.elasticsearch.inference.InferenceServiceRegistry;
@@ -62,6 +63,7 @@ import org.elasticsearch.xpack.core.inference.action.DeleteInferenceEndpointActi
 import org.elasticsearch.xpack.core.inference.action.GetInferenceDiagnosticsAction;
 import org.elasticsearch.xpack.core.inference.action.GetInferenceModelAction;
 import org.elasticsearch.xpack.core.inference.action.GetInferenceServicesAction;
+import org.elasticsearch.xpack.core.inference.action.GetRerankerWindowSizeAction;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.core.inference.action.InferenceActionProxy;
 import org.elasticsearch.xpack.core.inference.action.PutInferenceModelAction;
@@ -72,6 +74,7 @@ import org.elasticsearch.xpack.inference.action.TransportDeleteInferenceEndpoint
 import org.elasticsearch.xpack.inference.action.TransportGetInferenceDiagnosticsAction;
 import org.elasticsearch.xpack.inference.action.TransportGetInferenceModelAction;
 import org.elasticsearch.xpack.inference.action.TransportGetInferenceServicesAction;
+import org.elasticsearch.xpack.inference.action.TransportGetRerankerWindowSizeAction;
 import org.elasticsearch.xpack.inference.action.TransportInferenceAction;
 import org.elasticsearch.xpack.inference.action.TransportInferenceActionProxy;
 import org.elasticsearch.xpack.inference.action.TransportInferenceUsageAction;
@@ -79,20 +82,21 @@ import org.elasticsearch.xpack.inference.action.TransportPutInferenceModelAction
 import org.elasticsearch.xpack.inference.action.TransportUnifiedCompletionInferenceAction;
 import org.elasticsearch.xpack.inference.action.TransportUpdateInferenceModelAction;
 import org.elasticsearch.xpack.inference.action.filter.ShardBulkInferenceActionFilter;
-import org.elasticsearch.xpack.inference.common.InferenceServiceNodeLocalRateLimitCalculator;
-import org.elasticsearch.xpack.inference.common.InferenceServiceRateLimitCalculator;
-import org.elasticsearch.xpack.inference.common.NoopNodeLocalRateLimitCalculator;
 import org.elasticsearch.xpack.inference.common.Truncator;
 import org.elasticsearch.xpack.inference.external.http.HttpClientManager;
 import org.elasticsearch.xpack.inference.external.http.HttpSettings;
 import org.elasticsearch.xpack.inference.external.http.retry.RetrySettings;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSender;
 import org.elasticsearch.xpack.inference.external.http.sender.RequestExecutorServiceSettings;
+import org.elasticsearch.xpack.inference.external.http.sender.Sender;
 import org.elasticsearch.xpack.inference.highlight.SemanticTextHighlighter;
 import org.elasticsearch.xpack.inference.logging.ThrottlerManager;
 import org.elasticsearch.xpack.inference.mapper.OffsetSourceFieldMapper;
 import org.elasticsearch.xpack.inference.mapper.SemanticInferenceMetadataFieldsMapper;
 import org.elasticsearch.xpack.inference.mapper.SemanticTextFieldMapper;
+import org.elasticsearch.xpack.inference.queries.InterceptedInferenceKnnVectorQueryBuilder;
+import org.elasticsearch.xpack.inference.queries.InterceptedInferenceMatchQueryBuilder;
+import org.elasticsearch.xpack.inference.queries.InterceptedInferenceSparseVectorQueryBuilder;
 import org.elasticsearch.xpack.inference.queries.SemanticKnnVectorQueryRewriteInterceptor;
 import org.elasticsearch.xpack.inference.queries.SemanticMatchQueryRewriteInterceptor;
 import org.elasticsearch.xpack.inference.queries.SemanticQueryBuilder;
@@ -102,6 +106,8 @@ import org.elasticsearch.xpack.inference.rank.random.RandomRankRetrieverBuilder;
 import org.elasticsearch.xpack.inference.rank.textsimilarity.TextSimilarityRankBuilder;
 import org.elasticsearch.xpack.inference.rank.textsimilarity.TextSimilarityRankDoc;
 import org.elasticsearch.xpack.inference.rank.textsimilarity.TextSimilarityRankRetrieverBuilder;
+import org.elasticsearch.xpack.inference.registry.ClearInferenceEndpointCacheAction;
+import org.elasticsearch.xpack.inference.registry.InferenceEndpointRegistry;
 import org.elasticsearch.xpack.inference.registry.ModelRegistry;
 import org.elasticsearch.xpack.inference.registry.ModelRegistryMetadata;
 import org.elasticsearch.xpack.inference.rest.RestDeleteInferenceEndpointAction;
@@ -121,12 +127,16 @@ import org.elasticsearch.xpack.inference.services.anthropic.AnthropicService;
 import org.elasticsearch.xpack.inference.services.azureaistudio.AzureAiStudioService;
 import org.elasticsearch.xpack.inference.services.azureopenai.AzureOpenAiService;
 import org.elasticsearch.xpack.inference.services.cohere.CohereService;
+import org.elasticsearch.xpack.inference.services.contextualai.ContextualAiService;
 import org.elasticsearch.xpack.inference.services.custom.CustomService;
 import org.elasticsearch.xpack.inference.services.deepseek.DeepSeekService;
 import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceService;
 import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceComponents;
 import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceSettings;
 import org.elasticsearch.xpack.inference.services.elastic.authorization.ElasticInferenceServiceAuthorizationRequestHandler;
+import org.elasticsearch.xpack.inference.services.elastic.ccm.CCMFeatureFlag;
+import org.elasticsearch.xpack.inference.services.elastic.ccm.CCMIndex;
+import org.elasticsearch.xpack.inference.services.elastic.ccm.CCMStorageService;
 import org.elasticsearch.xpack.inference.services.elasticsearch.ElasticsearchInternalService;
 import org.elasticsearch.xpack.inference.services.googleaistudio.GoogleAiStudioService;
 import org.elasticsearch.xpack.inference.services.googlevertexai.GoogleVertexAiService;
@@ -153,10 +163,10 @@ import java.util.Map;
 import java.util.Set;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
+import java.util.stream.Stream;
 
 import static java.util.Collections.singletonList;
 import static org.elasticsearch.xpack.inference.action.filter.ShardBulkInferenceActionFilter.INDICES_INFERENCE_BATCH_SIZE;
-import static org.elasticsearch.xpack.inference.common.InferenceAPIClusterAwareRateLimitingFeature.INFERENCE_API_CLUSTER_AWARE_RATE_LIMITING_FEATURE_FLAG;
 
 public class InferencePlugin extends Plugin
     implements
@@ -197,10 +207,17 @@ public class InferencePlugin extends Plugin
         License.OperationMode.ENTERPRISE
     );
 
+    public static final LicensedFeature.Momentary EIS_INFERENCE_FEATURE = LicensedFeature.momentary(
+        "inference",
+        "Elastic Inference Service",
+        License.OperationMode.BASIC
+    );
+
     public static final String X_ELASTIC_PRODUCT_USE_CASE_HTTP_HEADER = "X-elastic-product-use-case";
 
     public static final String NAME = "inference";
     public static final String UTILITY_THREAD_POOL_NAME = "inference_utility";
+    public static final String INFERENCE_RESPONSE_THREAD_POOL_NAME = "inference_response";
 
     private static final Logger log = LogManager.getLogger(InferencePlugin.class);
 
@@ -234,7 +251,9 @@ public class InferencePlugin extends Plugin
             new ActionHandler(XPackUsageFeatureAction.INFERENCE, TransportInferenceUsageAction.class),
             new ActionHandler(GetInferenceDiagnosticsAction.INSTANCE, TransportGetInferenceDiagnosticsAction.class),
             new ActionHandler(GetInferenceServicesAction.INSTANCE, TransportGetInferenceServicesAction.class),
-            new ActionHandler(UnifiedCompletionAction.INSTANCE, TransportUnifiedCompletionInferenceAction.class)
+            new ActionHandler(UnifiedCompletionAction.INSTANCE, TransportUnifiedCompletionInferenceAction.class),
+            new ActionHandler(GetRerankerWindowSizeAction.INSTANCE, TransportGetRerankerWindowSizeAction.class),
+            new ActionHandler(ClearInferenceEndpointCacheAction.INSTANCE, ClearInferenceEndpointCacheAction.class)
         );
     }
 
@@ -354,7 +373,6 @@ public class InferencePlugin extends Plugin
         // This must be done after the HttpRequestSenderFactory is created so that the services can get the
         // reference correctly
         var serviceRegistry = new InferenceServiceRegistry(inferenceServices, factoryContext);
-        serviceRegistry.init(services.client());
         for (var service : serviceRegistry.getServices().values()) {
             service.defaultConfigIds().forEach(modelRegistry.get()::addDefaultIds);
         }
@@ -372,20 +390,26 @@ public class InferencePlugin extends Plugin
 
         components.add(serviceRegistry);
         components.add(modelRegistry.get());
-        components.add(httpClientManager);
+        components.add(
+            new TransportGetInferenceDiagnosticsAction.ClientManagers(httpClientManager, elasticInferenceServiceHttpClientManager)
+        );
         components.add(inferenceStatsBinding);
+        components.add(authorizationHandler);
+        components.add(new PluginComponentBinding<>(Sender.class, elasicInferenceServiceFactory.get().createSender()));
+        components.add(
+            new InferenceEndpointRegistry(
+                services.clusterService(),
+                settings,
+                modelRegistry.get(),
+                serviceRegistry,
+                services.projectResolver(),
+                services.featureService()
+            )
+        );
 
-        // Only add InferenceServiceNodeLocalRateLimitCalculator (which is a ClusterStateListener) for cluster aware rate limiting,
-        // if the rate limiting feature flags are enabled, otherwise provide noop implementation
-        InferenceServiceRateLimitCalculator calculator;
-        if (INFERENCE_API_CLUSTER_AWARE_RATE_LIMITING_FEATURE_FLAG) {
-            calculator = new InferenceServiceNodeLocalRateLimitCalculator(services.clusterService(), serviceRegistry);
-        } else {
-            calculator = new NoopNodeLocalRateLimitCalculator();
+        if (CCMFeatureFlag.FEATURE_FLAG.isEnabled()) {
+            components.add(new CCMStorageService(services.client()));
         }
-
-        // Add binding for interface -> implementation
-        components.add(new PluginComponentBinding<>(InferenceServiceRateLimitCalculator.class, calculator));
 
         return components;
     }
@@ -401,6 +425,7 @@ public class InferencePlugin extends Plugin
             context -> new HuggingFaceService(httpFactory.get(), serviceComponents.get(), context),
             context -> new OpenAiService(httpFactory.get(), serviceComponents.get(), context),
             context -> new CohereService(httpFactory.get(), serviceComponents.get(), context),
+            context -> new ContextualAiService(httpFactory.get(), serviceComponents.get(), context),
             context -> new AzureOpenAiService(httpFactory.get(), serviceComponents.get(), context),
             context -> new AzureAiStudioService(httpFactory.get(), serviceComponents.get(), context),
             context -> new GoogleAiStudioService(httpFactory.get(), serviceComponents.get(), context),
@@ -428,6 +453,27 @@ public class InferencePlugin extends Plugin
         entries.add(new NamedWriteableRegistry.Entry(RankDoc.class, TextSimilarityRankDoc.NAME, TextSimilarityRankDoc::new));
         entries.add(new NamedWriteableRegistry.Entry(Metadata.ProjectCustom.class, ModelRegistryMetadata.TYPE, ModelRegistryMetadata::new));
         entries.add(new NamedWriteableRegistry.Entry(NamedDiff.class, ModelRegistryMetadata.TYPE, ModelRegistryMetadata::readDiffFrom));
+        entries.add(
+            new NamedWriteableRegistry.Entry(
+                QueryBuilder.class,
+                InterceptedInferenceMatchQueryBuilder.NAME,
+                InterceptedInferenceMatchQueryBuilder::new
+            )
+        );
+        entries.add(
+            new NamedWriteableRegistry.Entry(
+                QueryBuilder.class,
+                InterceptedInferenceKnnVectorQueryBuilder.NAME,
+                InterceptedInferenceKnnVectorQueryBuilder::new
+            )
+        );
+        entries.add(
+            new NamedWriteableRegistry.Entry(
+                QueryBuilder.class,
+                InterceptedInferenceSparseVectorQueryBuilder.NAME,
+                InterceptedInferenceSparseVectorQueryBuilder::new
+            )
+        );
         return entries;
     }
 
@@ -441,11 +487,32 @@ public class InferencePlugin extends Plugin
                 ModelRegistryMetadata::fromXContent
             )
         );
+        namedXContent.add(
+            new NamedXContentRegistry.Entry(
+                Metadata.ProjectCustom.class,
+                new ParseField(ClearInferenceEndpointCacheAction.InvalidateCacheMetadata.NAME),
+                ClearInferenceEndpointCacheAction.InvalidateCacheMetadata::fromXContent
+            )
+        );
         return namedXContent;
     }
 
     @Override
     public Collection<SystemIndexDescriptor> getSystemIndexDescriptors(Settings settings) {
+        List<SystemIndexDescriptor> ccmIndexDescriptor = CCMFeatureFlag.FEATURE_FLAG.isEnabled()
+            ? List.of(
+                SystemIndexDescriptor.builder()
+                    .setType(SystemIndexDescriptor.Type.INTERNAL_MANAGED)
+                    .setIndexPattern(CCMIndex.INDEX_PATTERN)
+                    .setPrimaryIndex(CCMIndex.INDEX_NAME)
+                    .setDescription("Contains Elastic Inference Service Cloud Connected Mode settings")
+                    .setMappings(CCMIndex.mappings())
+                    .setSettings(CCMIndex.settings())
+                    .setOrigin(ClientHelper.INFERENCE_ORIGIN)
+                    .setNetNew()
+                    .build()
+            )
+            : List.of();
 
         var inferenceIndexV1Descriptor = SystemIndexDescriptor.builder()
             .setType(SystemIndexDescriptor.Type.INTERNAL_MANAGED)
@@ -458,29 +525,32 @@ public class InferencePlugin extends Plugin
             .setOrigin(ClientHelper.INFERENCE_ORIGIN)
             .build();
 
-        return List.of(
-            SystemIndexDescriptor.builder()
-                .setType(SystemIndexDescriptor.Type.INTERNAL_MANAGED)
-                .setIndexPattern(InferenceIndex.INDEX_PATTERN)
-                .setAliasName(InferenceIndex.INDEX_ALIAS)
-                .setPrimaryIndex(InferenceIndex.INDEX_NAME)
-                .setDescription("Contains inference service and model configuration")
-                .setMappings(InferenceIndex.mappings())
-                .setSettings(getIndexSettings())
-                .setOrigin(ClientHelper.INFERENCE_ORIGIN)
-                .setPriorSystemIndexDescriptors(List.of(inferenceIndexV1Descriptor))
-                .build(),
-            SystemIndexDescriptor.builder()
-                .setType(SystemIndexDescriptor.Type.INTERNAL_MANAGED)
-                .setIndexPattern(InferenceSecretsIndex.INDEX_PATTERN)
-                .setPrimaryIndex(InferenceSecretsIndex.INDEX_NAME)
-                .setDescription("Contains inference service secrets")
-                .setMappings(InferenceSecretsIndex.mappings())
-                .setSettings(getSecretsIndexSettings())
-                .setOrigin(ClientHelper.INFERENCE_ORIGIN)
-                .setNetNew()
-                .build()
-        );
+        return Stream.of(
+            List.of(
+                SystemIndexDescriptor.builder()
+                    .setType(SystemIndexDescriptor.Type.INTERNAL_MANAGED)
+                    .setIndexPattern(InferenceIndex.INDEX_PATTERN)
+                    .setAliasName(InferenceIndex.INDEX_ALIAS)
+                    .setPrimaryIndex(InferenceIndex.INDEX_NAME)
+                    .setDescription("Contains inference service and model configuration")
+                    .setMappings(InferenceIndex.mappings())
+                    .setSettings(getIndexSettings())
+                    .setOrigin(ClientHelper.INFERENCE_ORIGIN)
+                    .setPriorSystemIndexDescriptors(List.of(inferenceIndexV1Descriptor))
+                    .build(),
+                SystemIndexDescriptor.builder()
+                    .setType(SystemIndexDescriptor.Type.INTERNAL_MANAGED)
+                    .setIndexPattern(InferenceSecretsIndex.INDEX_PATTERN)
+                    .setPrimaryIndex(InferenceSecretsIndex.INDEX_NAME)
+                    .setDescription("Contains inference service secrets")
+                    .setMappings(InferenceSecretsIndex.mappings())
+                    .setSettings(getSecretsIndexSettings())
+                    .setOrigin(ClientHelper.INFERENCE_ORIGIN)
+                    .setNetNew()
+                    .build()
+            ),
+            ccmIndexDescriptor
+        ).flatMap(List::stream).toList();
     }
 
     // Overridable for tests
@@ -495,10 +565,10 @@ public class InferencePlugin extends Plugin
 
     @Override
     public List<ExecutorBuilder<?>> getExecutorBuilders(Settings settingsToUse) {
-        return List.of(inferenceUtilityExecutor(settings));
+        return List.of(inferenceUtilityExecutor(), inferenceResponseExecutor());
     }
 
-    public static ExecutorBuilder<?> inferenceUtilityExecutor(Settings settings) {
+    private static ExecutorBuilder<?> inferenceUtilityExecutor() {
         return new ScalingExecutorBuilder(
             UTILITY_THREAD_POOL_NAME,
             0,
@@ -506,6 +576,17 @@ public class InferencePlugin extends Plugin
             TimeValue.timeValueMinutes(10),
             false,
             "xpack.inference.utility_thread_pool"
+        );
+    }
+
+    private static ExecutorBuilder<?> inferenceResponseExecutor() {
+        return new ScalingExecutorBuilder(
+            INFERENCE_RESPONSE_THREAD_POOL_NAME,
+            0,
+            10,
+            TimeValue.timeValueMinutes(10),
+            false,
+            "xpack.inference.inference_response_thread_pool"
         );
     }
 
@@ -525,6 +606,7 @@ public class InferencePlugin extends Plugin
         settings.add(SKIP_VALIDATE_AND_START);
         settings.add(INDICES_INFERENCE_BATCH_SIZE);
         settings.add(INFERENCE_QUERY_TIMEOUT);
+        settings.addAll(InferenceEndpointRegistry.getSettingsDefinitions());
         settings.addAll(ElasticInferenceServiceSettings.getSettingsDefinitions());
         return Collections.unmodifiableSet(settings);
     }
@@ -612,7 +694,7 @@ public class InferencePlugin extends Plugin
 
     @Override
     public Collection<RestHeaderDefinition> getRestHeaders() {
-        return Set.of(new RestHeaderDefinition(X_ELASTIC_PRODUCT_USE_CASE_HTTP_HEADER, false));
+        return Set.of(new RestHeaderDefinition(X_ELASTIC_PRODUCT_USE_CASE_HTTP_HEADER, true));
     }
 
     @Override

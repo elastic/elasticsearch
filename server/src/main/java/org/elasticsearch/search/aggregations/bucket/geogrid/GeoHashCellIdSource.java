@@ -8,12 +8,12 @@
  */
 package org.elasticsearch.search.aggregations.bucket.geogrid;
 
-import org.apache.lucene.index.NumericDocValues;
-import org.apache.lucene.index.SortedNumericDocValues;
+import org.apache.lucene.search.LongValues;
 import org.elasticsearch.common.geo.GeoBoundingBox;
 import org.elasticsearch.geometry.utils.Geohash;
 import org.elasticsearch.index.fielddata.GeoPointValues;
 import org.elasticsearch.index.fielddata.MultiGeoPointValues;
+import org.elasticsearch.index.fielddata.SortedNumericLongValues;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 
 import java.util.function.LongConsumer;
@@ -33,7 +33,7 @@ public class GeoHashCellIdSource extends CellIdSource {
     }
 
     @Override
-    protected NumericDocValues unboundedCellSingleValue(GeoPointValues values) {
+    protected LongValues unboundedCellSingleValue(GeoPointValues values) {
         return new CellSingleValue(values, precision()) {
             @Override
             protected boolean advance(org.elasticsearch.common.geo.GeoPoint target) {
@@ -44,7 +44,7 @@ public class GeoHashCellIdSource extends CellIdSource {
     }
 
     @Override
-    protected NumericDocValues boundedCellSingleValue(GeoPointValues values, GeoBoundingBox boundingBox) {
+    protected LongValues boundedCellSingleValue(GeoPointValues values, GeoBoundingBox boundingBox) {
         final GeoHashBoundedPredicate predicate = new GeoHashBoundedPredicate(precision(), boundingBox);
         return new CellSingleValue(values, precision()) {
             @Override
@@ -60,7 +60,7 @@ public class GeoHashCellIdSource extends CellIdSource {
     }
 
     @Override
-    protected SortedNumericDocValues unboundedCellMultiValues(MultiGeoPointValues values) {
+    protected SortedNumericLongValues unboundedCellMultiValues(MultiGeoPointValues values) {
         return new CellMultiValues(values, precision(), circuitBreakerConsumer) {
             @Override
             protected int advanceValue(org.elasticsearch.common.geo.GeoPoint target, int valuesIdx) {
@@ -71,7 +71,7 @@ public class GeoHashCellIdSource extends CellIdSource {
     }
 
     @Override
-    protected SortedNumericDocValues boundedCellMultiValues(MultiGeoPointValues values, GeoBoundingBox boundingBox) {
+    protected SortedNumericLongValues boundedCellMultiValues(MultiGeoPointValues values, GeoBoundingBox boundingBox) {
         final GeoHashBoundedPredicate predicate = new GeoHashBoundedPredicate(precision(), boundingBox);
         return new CellMultiValues(values, precision(), circuitBreakerConsumer) {
             @Override

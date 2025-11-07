@@ -56,11 +56,9 @@ public class ClusterBlockTests extends ESTestCase {
 
     public void testSerializationBwc() throws Exception {
         var out = new BytesStreamOutput();
-        out.setTransportVersion(
-            randomVersionBetween(random(), getFirstVersion(), getPreviousVersion(TransportVersions.NEW_REFRESH_CLUSTER_BLOCK))
-        );
+        out.setTransportVersion(randomVersionBetween(random(), getFirstVersion(), getPreviousVersion(TransportVersions.V_8_18_0)));
 
-        var clusterBlock = randomClusterBlock(TransportVersions.NEW_REFRESH_CLUSTER_BLOCK);
+        var clusterBlock = randomClusterBlock(TransportVersions.V_8_18_0);
         clusterBlock.writeTo(out);
 
         var in = out.bytes().streamInput();
@@ -199,7 +197,7 @@ public class ClusterBlockTests extends ESTestCase {
         final EnumSet<ClusterBlockLevel> levels = ClusterBlock.filterLevels(
             EnumSet.allOf(ClusterBlockLevel.class),
             // Filter out ClusterBlockLevel.REFRESH for versions < TransportVersions.NEW_REFRESH_CLUSTER_BLOCK
-            level -> ClusterBlockLevel.REFRESH.equals(level) == false || version.onOrAfter(TransportVersions.NEW_REFRESH_CLUSTER_BLOCK)
+            level -> ClusterBlockLevel.REFRESH.equals(level) == false || version.supports(TransportVersions.V_8_18_0)
         );
         return new ClusterBlock(
             randomInt(),

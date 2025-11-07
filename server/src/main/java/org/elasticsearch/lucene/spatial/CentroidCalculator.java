@@ -63,7 +63,14 @@ public class CentroidCalculator {
      * @return the sum of all the weighted coordinates summed in the calculator
      */
     public double sumWeight() {
-        return visitor.compSumWeight.value();
+        double sumWeight = visitor.compSumWeight.value();
+        if (sumWeight < 0) {
+            // we can get negative values due to rounding errors in degenerated polygons. The proper fix would be to compute
+            // the centroid using the tessellation algorithm. For the time being we just return 0.
+            return 0d;
+        }
+
+        return sumWeight;
     }
 
     /**

@@ -2,13 +2,16 @@
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/reference/current/rest-apis.html
   - https://www.elastic.co/guide/en/serverless/current/elasticsearch-differences.html
+applies_to:
+  stack: ga
+  serverless: ga
 ---
 
 # REST APIs
 
 Elasticsearch exposes REST APIs that are used by the UI components and can be called directly to configure and access Elasticsearch features.
 
-For API reference information, go to [Elasticsearch API](https://www.elastic.co/docs/api/doc/elasticsearch) and [Elasticsearch Serverless API](https://www.elastic.co/docs/api/doc/elasticsearch-serverless).
+For API reference information, go to [{{es}} API]({{es-apis}}) and [{{es-serverless}} API]({{es-serverless-apis}}).
 
 This section includes:
 
@@ -18,17 +21,6 @@ This section includes:
 - [Examples](/reference/elasticsearch/rest-apis/api-examples.md)
 
 ## API endpoints
-
-### [Autoscaling](https://www.elastic.co/docs/api/doc/elasticsearch/group/endpoint-autoscaling)
-
-The autoscaling APIs enable you to create and manage autoscaling policies and retrieve information about autoscaling capacity. Autoscaling adjusts resources based on demand. A deployment can use autoscaling to scale resources as needed, ensuring sufficient capacity to meet workload requirements.
-
-| API | Description |
-| --- | ----------- |
-| [Get Autoscaling Policy](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-autoscaling-get-autoscaling-policy) | Retrieves a specific autoscaling policy. |
-| [Create or update an autoscaling policy](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-autoscaling-put-autoscaling-policy) | Creates or updates an autoscaling policy. |
-| [Delete Autoscaling Policy](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-autoscaling-delete-autoscaling-policy) | Deletes an existing autoscaling policy. |
-| [Get Autoscaling Capacity](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-autoscaling-get-autoscaling-capacity) | Estimates autoscaling capacity for current cluster state. |
 
 ### [Behavioral analytics](https://www.elastic.co/docs/api/doc/elasticsearch/group/endpoint-analytics)
 
@@ -96,6 +88,8 @@ The cluster APIs enable you to retrieve information about your infrastructure on
 | [Get cluster remote info](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-cluster-remote-info) | Returns information about configured remote clusters for cross-cluster search and replication. |
 | [Update cluster voting config exclusions](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-cluster-post-voting-config-exclusions) | Update the cluster voting config exclusions by node IDs or node names. |
 | [Delete voting config exclusions](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-cluster-delete-voting-config-exclusions) | Clears voting configuration exclusions, allowing previously excluded nodes to participate in master elections. |
+| [Exclude nodes from voting](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-cluster-post-voting-config-exclusions) | Excludes nodes from voting in master elections. |
+| [Clear voting config exclusions](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-cluster-delete-voting-config-exclusions) | Clears voting config exclusions. |
 
 ### [Cluster - Health](https://www.elastic.co/docs/api/doc/elasticsearch/group/endpoint-health_report)
 
@@ -261,7 +255,7 @@ The index APIs enable you to manage individual indices, index settings, aliases,
 | [Shrink index](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-indices-shrink) | Shrinks an existing index into a new index with fewer primary shards. |
 | [Split index](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-indices-split) | Splits an existing index into a new index with more primary shards. |
 | [Clone index](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-indices-clone) | Clones an existing index into a new index. |
-| [Manage index aliases](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-indices-alias) | Manages index aliases. |
+| [Check alias](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-indices-exists-alias) | Manages index aliases. |
 | [Update field mappings](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-indices-put-mapping) | Updates index mappings. |
 | [Get field mappings](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-indices-get-mapping) | Retrieves index mappings. |
 | [Get index settings](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-indices-get-settings) | Retrieves settings for one or more indices. |
@@ -278,10 +272,8 @@ The index APIs enable you to manage individual indices, index settings, aliases,
 | [Flush index](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-indices-flush) | Performs a flush operation on one or more indices. |
 | [Clear index cache](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-indices-clear-cache) | Clears caches associated with one or more indices. |
 | [Force merge index](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-indices-forcemerge) | Merges index segments to reduce their number and improve performance. |
-| [Freeze index](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-indices-freeze) | Freezes an index, making it read-only and minimizing its resource usage. |
-| [Unfreeze index](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-indices-unfreeze) | Unfreezes a frozen index, making it writeable and fully functional. |
 | [Rollover index](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-indices-rollover) | Rolls over an alias to a new index when conditions are met. |
-| [Resolve index](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-indices-resolve) | Resolves expressions to index names, aliases, and data streams. |
+| [Resolve index](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-indices-resolve-index) | Resolves expressions to index names, aliases, and data streams. |
 | [Simulate index template](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-indices-simulate-index-template) | Simulates the application of a composable index template. |
 | [Simulate template](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-indices-simulate-template) | Simulates the application of a legacy index template. |
 | [Get mapping](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-indices-get-mapping) | Retrieves mapping definitions for one or more indices. |
@@ -337,9 +329,6 @@ The ingest APIs enable you to manage tasks and resources related to ingest pipel
 | [Delete pipeline](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-ingest-delete-pipeline) | Deletes an ingest pipeline. |
 | [Simulate pipeline](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-ingest-simulate) | Simulates a document through an ingest pipeline. |
 | [Get built-in grok patterns](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-ingest-processor-grok) | Returns a list of built-in grok patterns. |
-| [Get processor types](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-ingest-processor-types) | Returns a list of available processor types. |
-| [Put pipeline processor](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-ingest-put-processor) | Creates or updates a custom pipeline processor. |
-| [Delete pipeline processor](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-ingest-delete-processor) | Deletes a custom pipeline processor. |
 
 ### [Licensing](https://www.elastic.co/docs/api/doc/elasticsearch/v9/group/endpoint-license)
 
@@ -422,7 +411,7 @@ The machine learning data frame analytics APIs enbale you to perform data frame 
 | API | Description |
 | --- | ----------- |
 | [Create a data frame analytics job](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-ml-put-data-frame-analytics) | Creates a data frame analytics job. |
-| [Get data frame analytics job configuration info](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-ml-get-data-frame-analyticss) | Retrieves configuration and results for analytics jobs. |
+| [Get data frame analytics job configuration info](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-ml-get-data-frame-analytics) | Retrieves configuration and results for analytics jobs. |
 | [Delete a data frame analytics job](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-ml-delete-data-frame-analytics) | Deletes a data frame analytics job. |
 | [Start a data frame analytics job](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-ml-start-data-frame-analytics) | Starts a data frame analytics job. |
 | [Stop data frame analytics jobs](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-ml-stop-data-frame-analytics) | Stops a running data frame analytics job. |
@@ -451,24 +440,15 @@ The migration APIs power {{kib}}'s Upgrade Assistant feature.
 | [Get Feature Upgrade Status](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-migration-get-feature-upgrade-status) | Checks upgrade status of system features. |
 | [Post Feature Upgrade](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-migration-post-feature-upgrade) | Upgrades internal system features after a version upgrade. |
 
-### [Node lifecycle](https://www.elastic.co/docs/api/doc/elasticsearch/v9/group/endpoint-shutdown)
-
-The node lifecycle APIs enable you to prepare nodes for temporary or permanent shutdown, monitor the shutdown status, and enable a previously shut-down node to resume normal operations.
-
-| API | Description |
-| --- | ----------- |
-| [Exclude nodes from voting](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-cluster-post-voting-config-exclusions) | Excludes nodes from voting in master elections. |
-| [Clear voting config exclusions](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-cluster-delete-voting-config-exclusions) | Clears voting config exclusions. |
-
 ### [Query rules](https://www.elastic.co/docs/api/doc/elasticsearch/v9/group/endpoint-query_rules)
 
 Query rules enable you to configure per-query rules that are applied at query time to queries that match the specific rule. Query rules are organized into rulesets, collections of query rules that are matched against incoming queries. Query rules are applied using the rule query. If a query matches one or more rules in the ruleset, the query is re-written to apply the rules before searching. This allows pinning documents for only queries that match a specific term.
 
 | API | Description |
 | --- | ----------- |
-| [Create or update query ruleset](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-query-ruleset-put-query-ruleset) | Creates or updates a query ruleset. |
-| [Get query ruleset](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-query-ruleset-get-query-ruleset) | Retrieves one or more query rulesets. |
-| [Delete query ruleset](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-query-ruleset-delete-query-ruleset) | Deletes a query ruleset. |
+| [Create or update query ruleset](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-query-rules-put-ruleset) | Creates or updates a query ruleset. |
+| [Get query ruleset](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-query-rules-get-ruleset) | Retrieves one or more query rulesets. |
+| [Delete query ruleset](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-query-rules-delete-ruleset) | Deletes a query ruleset. |
 
 ### [Rollup](https://www.elastic.co/docs/api/doc/elasticsearch/v9/group/endpoint-rollup)
 
@@ -491,10 +471,10 @@ Use the script support APIs to get a list of supported script contexts and langu
 
 | API | Description |
 | --- | ----------- |
-| [Add or update stored script](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-script-put-script) | Adds or updates a stored script. |
-| [Get stored script](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-script-get-script) | Retrieves a stored script. |
-| [Delete stored script](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-script-delete-script) | Deletes a stored script. |
-| [Execute Painless script](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-script-painless-execute) | Executes a script using the Painless language. |
+| [Add or update stored script](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-put-script) | Adds or updates a stored script. |
+| [Get stored script](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-get-script) | Retrieves a stored script. |
+| [Delete stored script](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-delete-script) | Deletes a stored script. |
+| [Execute Painless script]https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-scripts-painless-execute) | Executes a script using the Painless language. |
 | [Get script contexts](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-get-script-context) | Returns available script execution contexts. |
 | [Get script languages](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-get-script-languages) | Returns available scripting languages. |
 
@@ -509,7 +489,6 @@ The search APIs enable you to search and aggregate data stored in {{es}} indices
 | [Search template](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-search-template) | Executes a search using a stored or inline template. |
 | [Render search template](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-render-search-template) | Renders a search template with parameters. |
 | [Explain search](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-explain) | Explains how a document scores against a query. |
-| [Validate query](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-validate-query) | Validates a query without executing it. |
 | [Get field capabilities](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-field-caps) | Returns the capabilities of fields across indices. |
 | [Scroll search](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-scroll) | Efficiently retrieves large numbers of results (pagination). |
 | [Clear scroll](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-clear-scroll) | Clears search contexts for scroll requests. |
@@ -608,9 +587,9 @@ The synonyms management APIs provide a convenient way to define and manage synon
 | --- | ----------- |
 | [Get synonym set](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-synonyms-get-synonym) | Retrieves a synonym set by ID. |
 | [Create of update synonym set](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-synonyms-put-synonym) | Creates or updates a synonym set. |
-| [Delete synonym set](https://www.elastic.co/docs/api/doc/elasticsearch/endpoint/synonyms.delete_synonym) | Deletes a synonym set. |
+| [Delete synonym set](https://www.elastic.co/docs/api/doc/elasticsearch/endpoint/operation/operation-synonyms-delete-synonym) | Deletes a synonym set. |
 | [Get synonym rule](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-synonyms-get-synonym-rule) | |
-| [Get synonym sets](https://www.elastic.co/docs/api/doc/elasticsearch/endpoint/synonyms.get_synonyms) | Lists all synonym sets. |
+| [Get synonym sets](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-synonyms-get-synonyms-sets) | Lists all synonym sets. |
 
 ### [Task management](https://www.elastic.co/docs/api/doc/elasticsearch/v9/group/endpoint-tasks)
 

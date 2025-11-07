@@ -11,10 +11,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.internal.Client;
-import org.elasticsearch.cluster.ClusterName;
-import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.Metadata;
-import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.license.XPackLicenseState;
@@ -64,8 +61,6 @@ public class MachineLearningTests extends ESTestCase {
     @SuppressWarnings("unchecked")
     public void testPrePostSystemIndexUpgrade_givenNotInUpgradeMode() throws IOException {
         ThreadPool threadpool = new TestThreadPool("test");
-        ClusterService clusterService = mock(ClusterService.class);
-        when(clusterService.state()).thenReturn(ClusterState.EMPTY_STATE);
         Client client = mock(Client.class);
         when(client.threadPool()).thenReturn(threadpool);
         doAnswer(invocationOnMock -> {
@@ -77,25 +72,24 @@ public class MachineLearningTests extends ESTestCase {
         try (MachineLearning machineLearning = createTrialLicensedMachineLearning(Settings.EMPTY)) {
 
             SetOnce<Map<String, Object>> response = new SetOnce<>();
-            machineLearning.prepareForIndicesMigration(clusterService, client, ActionTestUtils.assertNoFailureListener(response::set));
+            machineLearning.prepareForIndicesMigration(emptyProject(), client, ActionTestUtils.assertNoFailureListener(response::set));
 
             assertThat(response.get(), equalTo(Collections.singletonMap("already_in_upgrade_mode", false)));
             verify(client).execute(
                 same(SetUpgradeModeAction.INSTANCE),
-                eq(new SetUpgradeModeAction.Request(true)),
+                eq(new SetUpgradeModeAction.Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, true)),
                 any(ActionListener.class)
             );
 
             machineLearning.indicesMigrationComplete(
                 response.get(),
-                clusterService,
                 client,
                 ActionTestUtils.assertNoFailureListener(ESTestCase::assertTrue)
             );
 
             verify(client).execute(
                 same(SetUpgradeModeAction.INSTANCE),
-                eq(new SetUpgradeModeAction.Request(false)),
+                eq(new SetUpgradeModeAction.Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, false)),
                 any(ActionListener.class)
             );
         } finally {
@@ -104,25 +98,21 @@ public class MachineLearningTests extends ESTestCase {
     }
 
     public void testPrePostSystemIndexUpgrade_givenAlreadyInUpgradeMode() throws IOException {
-        ClusterService clusterService = mock(ClusterService.class);
-        when(clusterService.state()).thenReturn(
-            ClusterState.builder(ClusterName.DEFAULT)
-                .metadata(Metadata.builder().putCustom(MlMetadata.TYPE, new MlMetadata.Builder().isUpgradeMode(true).build()))
-                .build()
-        );
+        final var project = ProjectMetadata.builder(randomProjectIdOrDefault())
+            .putCustom(MlMetadata.TYPE, new MlMetadata.Builder().isUpgradeMode(true).build())
+            .build();
         Client client = mock(Client.class);
 
         try (MachineLearning machineLearning = createTrialLicensedMachineLearning(Settings.EMPTY)) {
 
             SetOnce<Map<String, Object>> response = new SetOnce<>();
-            machineLearning.prepareForIndicesMigration(clusterService, client, ActionTestUtils.assertNoFailureListener(response::set));
+            machineLearning.prepareForIndicesMigration(project, client, ActionTestUtils.assertNoFailureListener(response::set));
 
             assertThat(response.get(), equalTo(Collections.singletonMap("already_in_upgrade_mode", true)));
             verifyNoMoreInteractions(client);
 
             machineLearning.indicesMigrationComplete(
                 response.get(),
-                clusterService,
                 client,
                 ActionTestUtils.assertNoFailureListener(ESTestCase::assertTrue)
             );

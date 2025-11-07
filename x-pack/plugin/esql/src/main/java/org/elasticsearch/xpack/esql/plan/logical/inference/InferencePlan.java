@@ -13,8 +13,10 @@ import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.plan.GeneratingPlan;
+import org.elasticsearch.xpack.esql.plan.logical.ExecutesOn;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.SortAgnostic;
+import org.elasticsearch.xpack.esql.plan.logical.Streaming;
 import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
 
 import java.io.IOException;
@@ -23,8 +25,10 @@ import java.util.Objects;
 
 public abstract class InferencePlan<PlanType extends InferencePlan<PlanType>> extends UnaryPlan
     implements
+        Streaming,
         SortAgnostic,
-        GeneratingPlan<InferencePlan<PlanType>> {
+        GeneratingPlan<InferencePlan<PlanType>>,
+        ExecutesOn.Coordinator {
 
     public static final String INFERENCE_ID_OPTION_NAME = "inference_id";
     public static final List<String> VALID_INFERENCE_OPTION_NAMES = List.of(INFERENCE_ID_OPTION_NAME);

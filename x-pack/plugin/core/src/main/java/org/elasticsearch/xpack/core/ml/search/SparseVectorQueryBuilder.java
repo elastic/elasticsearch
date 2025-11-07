@@ -59,8 +59,9 @@ public class SparseVectorQueryBuilder extends AbstractQueryBuilder<SparseVectorQ
 
     private static final boolean DEFAULT_PRUNE = false;
 
-    static final TransportVersion SPARSE_VECTOR_FIELD_PRUNING_OPTIONS_8_19 = TransportVersions.SPARSE_VECTOR_FIELD_PRUNING_OPTIONS_8_19;
-    static final TransportVersion SPARSE_VECTOR_FIELD_PRUNING_OPTIONS = TransportVersions.SPARSE_VECTOR_FIELD_PRUNING_OPTIONS;
+    private static final TransportVersion SPARSE_VECTOR_FIELD_PRUNING_OPTIONS = TransportVersion.fromName(
+        "sparse_vector_field_pruning_options"
+    );
 
     private final String fieldName;
     private final List<WeightedToken> queryVectors;
@@ -128,8 +129,7 @@ public class SparseVectorQueryBuilder extends AbstractQueryBuilder<SparseVectorQ
         super(in);
         this.fieldName = in.readString();
 
-        if (in.getTransportVersion().isPatchFrom(SPARSE_VECTOR_FIELD_PRUNING_OPTIONS_8_19)
-            || in.getTransportVersion().onOrAfter(SPARSE_VECTOR_FIELD_PRUNING_OPTIONS)) {
+        if (in.getTransportVersion().supports(SPARSE_VECTOR_FIELD_PRUNING_OPTIONS)) {
             this.shouldPruneTokens = in.readOptionalBoolean();
         } else {
             this.shouldPruneTokens = in.readBoolean();
@@ -184,8 +184,7 @@ public class SparseVectorQueryBuilder extends AbstractQueryBuilder<SparseVectorQ
 
         out.writeString(fieldName);
 
-        if (out.getTransportVersion().isPatchFrom(SPARSE_VECTOR_FIELD_PRUNING_OPTIONS_8_19)
-            || out.getTransportVersion().onOrAfter(SPARSE_VECTOR_FIELD_PRUNING_OPTIONS)) {
+        if (out.getTransportVersion().supports(SPARSE_VECTOR_FIELD_PRUNING_OPTIONS)) {
             out.writeOptionalBoolean(shouldPruneTokens);
         } else {
             out.writeBoolean(shouldPruneTokens);
@@ -272,7 +271,7 @@ public class SparseVectorQueryBuilder extends AbstractQueryBuilder<SparseVectorQ
             throw new IllegalArgumentException("inference_id required to perform vector search on query string");
         }
 
-        // TODO move this to xpack core and use inference APIs
+        // TODO: Move this class to `server` and update to use InferenceAction.Request
         CoordinatedInferenceAction.Request inferRequest = CoordinatedInferenceAction.Request.forTextInput(
             inferenceId,
             List.of(query),

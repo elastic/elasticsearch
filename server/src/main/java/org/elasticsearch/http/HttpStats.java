@@ -15,7 +15,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ChunkedToXContent;
 import org.elasticsearch.xcontent.ToXContent;
-import org.elasticsearch.xcontent.ToXContentFragment;
+import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
@@ -89,8 +89,11 @@ public record HttpStats(long serverOpen, long totalOpen, List<ClientStats> clien
         static final String CLIENT_LOCAL_ADDRESS = "local_address";
         static final String CLIENT_REMOTE_ADDRESS = "remote_address";
         static final String CLIENT_LAST_URI = "last_uri";
+        static final String CLIENT_OPENED_TIME = "opened_time";
         static final String CLIENT_OPENED_TIME_MILLIS = "opened_time_millis";
+        static final String CLIENT_CLOSED_TIME = "closed_time";
         static final String CLIENT_CLOSED_TIME_MILLIS = "closed_time_millis";
+        static final String CLIENT_LAST_REQUEST_TIME = "last_request_time";
         static final String CLIENT_LAST_REQUEST_TIME_MILLIS = "last_request_time_millis";
         static final String CLIENT_REQUEST_COUNT = "request_count";
         static final String CLIENT_REQUEST_SIZE_BYTES = "request_size_bytes";
@@ -136,7 +139,7 @@ public record HttpStats(long serverOpen, long totalOpen, List<ClientStats> clien
         long lastRequestTimeMillis,
         long requestCount,
         long requestSizeBytes
-    ) implements Writeable, ToXContentFragment {
+    ) implements Writeable, ToXContentObject {
 
         public static final long NOT_CLOSED = -1L;
 
@@ -179,11 +182,15 @@ public record HttpStats(long serverOpen, long totalOpen, List<ClientStats> clien
             if (opaqueId != null) {
                 builder.field(Fields.CLIENT_OPAQUE_ID, opaqueId);
             }
-            builder.field(Fields.CLIENT_OPENED_TIME_MILLIS, openedTimeMillis);
+            builder.timestampFieldsFromUnixEpochMillis(Fields.CLIENT_OPENED_TIME_MILLIS, Fields.CLIENT_OPENED_TIME, openedTimeMillis);
             if (closedTimeMillis != NOT_CLOSED) {
-                builder.field(Fields.CLIENT_CLOSED_TIME_MILLIS, closedTimeMillis);
+                builder.timestampFieldsFromUnixEpochMillis(Fields.CLIENT_CLOSED_TIME_MILLIS, Fields.CLIENT_CLOSED_TIME, closedTimeMillis);
             }
-            builder.field(Fields.CLIENT_LAST_REQUEST_TIME_MILLIS, lastRequestTimeMillis);
+            builder.timestampFieldsFromUnixEpochMillis(
+                Fields.CLIENT_LAST_REQUEST_TIME_MILLIS,
+                Fields.CLIENT_LAST_REQUEST_TIME,
+                lastRequestTimeMillis
+            );
             builder.field(Fields.CLIENT_REQUEST_COUNT, requestCount);
             builder.field(Fields.CLIENT_REQUEST_SIZE_BYTES, requestSizeBytes);
             builder.endObject();

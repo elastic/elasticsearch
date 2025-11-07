@@ -1,0 +1,142 @@
+long_by_date
+required_capability: agg_first_last
+// tag::first[]
+FROM k8s
+| STATS first_bytes_in = FIRST(network.bytes_in, @timestamp) BY pod
+| SORT pod ASC
+// end::first[]
+;
+
+// tag::first-result[]
+first_bytes_in:long | pod:keyword
+                278 | one
+                473 | three
+                699 | two
+// end::first-result[]
+;
+
+double_by_date
+required_capability: agg_first_last
+FROM k8s
+| STATS first_network_cost = FIRST(network.cost, @timestamp) BY pod
+| SORT pod ASC
+;
+
+first_network_cost:double | pod:keyword
+                    5.375 | one
+                    1.250 | three
+                    9.375 | two
+;
+
+by_date_nanos
+required_capability: agg_first_last
+FROM date_nanos
+| STATS first_num = FIRST(num, nanos)
+;
+
+  first_num:long
+               0
+;
+
+
+row
+required_capability: agg_first_last
+ROW a = 100, @timestamp = "2025-01-01"::DATETIME
+| STATS FIRST(a, @timestamp)
+;
+
+FIRST(a, @timestamp):integer
+100
+;
+
+double_by_null
+required_capability: agg_first_last
+FROM k8s
+| EVAL @timestamp = @timestamp + null
+| STATS first_network_cost = FIRST(network.cost, @timestamp) BY pod
+| SORT pod ASC
+;
+
+first_network_cost:double | pod:keyword
+                     null | one
+                     null | three
+                     null | two
+;
+
+null_by_timestamp
+required_capability: agg_first_last
+FROM k8s
+| EVAL network.cost = network.cost + null
+| STATS first_network_cost = FIRST(network.cost, @timestamp) BY pod
+| SORT pod ASC
+;
+
+first_network_cost:double | pod:keyword
+                     null | one
+                     null | three
+                     null | two
+;
+
+skips_null
+required_capability: agg_first_last
+ROW v = ["null", "3", "2"]
+| MV_EXPAND v
+| EVAL v = CASE(v == "null", null, v::INTEGER)
+| EVAL @timestamp = CONCAT("2025-08-0", COALESCE(v::KEYWORD, "1"))::DATE
+| STATS FIRST(v, @timestamp)
+;
+
+FIRST(v, @timestamp):integer
+            2
+;
+
+
+first_keywords
+required_capability: agg_first_last_string
+FROM employees
+| STATS
+    first_employee = FIRST(first_name, hire_date)
+; 
+
+first_employee:keyword   
+Sumant 
+;
+
+first_keywords_by_year
+required_capability: agg_first_last_string
+FROM employees
+| EVAL year = date_trunc(1 year, hire_date)
+| STATS
+    first_employee = FIRST(first_name, hire_date) BY year
+| SORT year ASC
+; 
+
+first_employee:keyword | year:datetime
+Sumant                 | 1985-01-01T00:00:00.000Z
+Sanjiv                 | 1986-01-01T00:00:00.000Z
+Claudi                 | 1987-01-01T00:00:00.000Z
+Ramzi                  | 1988-01-01T00:00:00.000Z
+Tzvetan                | 1989-01-01T00:00:00.000Z
+Parviz                 | 1990-01-01T00:00:00.000Z
+Mayuko                 | 1991-01-01T00:00:00.000Z
+Ebbe                   | 1992-01-01T00:00:00.000Z
+Weiyi                  | 1993-01-01T00:00:00.000Z
+Kenroku                | 1994-01-01T00:00:00.000Z
+Kazuhito               | 1995-01-01T00:00:00.000Z
+Sailaja                | 1996-01-01T00:00:00.000Z
+Suzette                | 1997-01-01T00:00:00.000Z
+Lillian                | 1999-01-01T00:00:00.000Z
+;
+
+first_text_by_system
+required_capability: agg_first_last_string
+FROM logs
+| STATS message = FIRST(message, @timestamp) BY system
+| SORT system ASC
+; 
+
+message:keyword                     | system:keyword
+Running cats (cycle 1)              | cron
+Doing java stuff for 192.168.86.038 | java
+Pinging 192.168.86.046              | ping
+;

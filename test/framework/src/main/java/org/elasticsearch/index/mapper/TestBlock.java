@@ -13,6 +13,9 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SortedDocValues;
 import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
+import org.elasticsearch.exponentialhistogram.CompressedExponentialHistogram;
+import org.elasticsearch.index.mapper.blockloader.docvalues.BlockDocValuesReader;
 import org.hamcrest.Matcher;
 
 import java.io.IOException;
@@ -22,6 +25,7 @@ import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 
 import static org.elasticsearch.test.ESTestCase.assertThat;
 import static org.hamcrest.Matchers.equalTo;
@@ -32,6 +36,11 @@ import static org.junit.Assert.assertNull;
 public class TestBlock implements BlockLoader.Block {
     public static BlockLoader.BlockFactory factory() {
         return new BlockLoader.BlockFactory() {
+            @Override
+            public void adjustBreaker(long delta) throws CircuitBreakingException {
+                // Intentionally NOOP
+            }
+
             @Override
             public BlockLoader.BooleanBuilder booleansFromDocValues(int expectedCount) {
                 return booleans(expectedCount);
@@ -56,8 +65,12 @@ public class TestBlock implements BlockLoader.Block {
             @Override
             public BlockLoader.BytesRefBuilder bytesRefsFromDocValues(int expectedCount) {
                 class BytesRefsFromDocValuesBuilder extends TestBlock.Builder implements BlockLoader.BytesRefBuilder {
+
+                    private static final int SINGLE_DOC = 1;
+
                     private BytesRefsFromDocValuesBuilder() {
-                        super(1);
+                        // this is hard coded bc bytesRefsFromDocValues() is currently only used for singe-doc multi-valued fields
+                        super(SINGLE_DOC);
                     }
 
                     @Override
@@ -70,6 +83,7 @@ public class TestBlock implements BlockLoader.Block {
                     public TestBlock build() {
                         TestBlock result = super.build();
                         List<?> r;
+                        // we have a single, multi-valued document, so extract all those values into a list
                         if (result.values.get(0) instanceof List<?> l) {
                             r = l;
                         } else {
@@ -202,12 +216,19 @@ public class TestBlock implements BlockLoader.Block {
             @Override
             public BlockLoader.SingletonLongBuilder singletonLongs(int expectedCount) {
                 final long[] values = new long[expectedCount];
+
                 return new BlockLoader.SingletonLongBuilder() {
 
                     private int count;
+                    private BlockDocValuesReader.ToDouble toDouble = null;
 
                     @Override
                     public BlockLoader.Block build() {
+                        if (toDouble != null) {
+                            return new TestBlock(
+                                Arrays.stream(values).mapToDouble(toDouble::convert).boxed().collect(Collectors.toUnmodifiableList())
+                            );
+                        }
                         return new TestBlock(Arrays.stream(values).boxed().collect(Collectors.toUnmodifiableList()));
                     }
 
@@ -221,6 +242,94 @@ public class TestBlock implements BlockLoader.Block {
                     @Override
                     public BlockLoader.SingletonLongBuilder appendLong(long value) {
                         values[count++] = value;
+                        return this;
+                    }
+
+                    @Override
+                    public BlockLoader.Builder appendNull() {
+                        throw new UnsupportedOperationException();
+                    }
+
+                    @Override
+                    public BlockLoader.Builder beginPositionEntry() {
+                        throw new UnsupportedOperationException();
+                    }
+
+                    @Override
+                    public BlockLoader.Builder endPositionEntry() {
+                        throw new UnsupportedOperationException();
+                    }
+
+                    @Override
+                    public void close() {}
+                };
+            }
+
+            @Override
+            public BlockLoader.SingletonIntBuilder singletonInts(int expectedCount) {
+                final int[] values = new int[expectedCount];
+
+                return new BlockLoader.SingletonIntBuilder() {
+
+                    private int count;
+
+                    @Override
+                    public BlockLoader.Block build() {
+                        return new TestBlock(Arrays.stream(values).boxed().collect(Collectors.toUnmodifiableList()));
+                    }
+
+                    @Override
+                    public BlockLoader.SingletonIntBuilder appendLongs(long[] newValues, int from, int length) {
+                        for (int i = 0; i < length; i++) {
+                            values[count + i] = Math.toIntExact(newValues[from + i]);
+                        }
+                        this.count += length;
+                        return this;
+                    }
+
+                    @Override
+                    public BlockLoader.Builder appendNull() {
+                        throw new UnsupportedOperationException();
+                    }
+
+                    @Override
+                    public BlockLoader.Builder beginPositionEntry() {
+                        throw new UnsupportedOperationException();
+                    }
+
+                    @Override
+                    public BlockLoader.Builder endPositionEntry() {
+                        throw new UnsupportedOperationException();
+                    }
+
+                    @Override
+                    public void close() {}
+                };
+            }
+
+            @Override
+            public BlockLoader.SingletonDoubleBuilder singletonDoubles(int expectedCount) {
+                final double[] values = new double[expectedCount];
+
+                return new BlockLoader.SingletonDoubleBuilder() {
+                    private int count;
+
+                    @Override
+                    public BlockLoader.Block build() {
+                        return new TestBlock(Arrays.stream(values).boxed().collect(Collectors.toUnmodifiableList()));
+                    }
+
+                    @Override
+                    public BlockLoader.SingletonDoubleBuilder appendLongs(
+                        BlockDocValuesReader.ToDouble toDouble,
+                        long[] longValues,
+                        int from,
+                        int length
+                    ) {
+                        for (int i = 0; i < length; i++) {
+                            values[count + i] = toDouble.convert(longValues[from + i]);
+                        }
+                        this.count += length;
                         return this;
                     }
 
@@ -268,7 +377,20 @@ public class TestBlock implements BlockLoader.Block {
             }
 
             @Override
-            public BlockLoader.SingletonOrdinalsBuilder singletonOrdinalsBuilder(SortedDocValues ordinals, int expectedCount) {
+            public BlockLoader.Block constantInt(int value, int count) {
+                BlockLoader.IntBuilder builder = ints(count);
+                for (int i = 0; i < count; i++) {
+                    builder.appendInt(value);
+                }
+                return builder.build();
+            }
+
+            @Override
+            public BlockLoader.SingletonOrdinalsBuilder singletonOrdinalsBuilder(
+                SortedDocValues ordinals,
+                int expectedCount,
+                boolean isDense
+            ) {
                 class SingletonOrdsBuilder extends TestBlock.Builder implements BlockLoader.SingletonOrdinalsBuilder {
                     private SingletonOrdsBuilder() {
                         super(expectedCount);
@@ -277,11 +399,27 @@ public class TestBlock implements BlockLoader.Block {
                     @Override
                     public SingletonOrdsBuilder appendOrd(int value) {
                         try {
-                            add(ordinals.lookupOrd(value));
+                            add(BytesRef.deepCopyOf(ordinals.lookupOrd(value)));
                             return this;
                         } catch (IOException e) {
                             throw new UncheckedIOException(e);
                         }
+                    }
+
+                    @Override
+                    public BlockLoader.SingletonOrdinalsBuilder appendOrds(int[] values, int from, int length, int minOrd, int maxOrd) {
+                        for (int i = from; i < from + length; i++) {
+                            appendOrd(values[i]);
+                        }
+                        return this;
+                    }
+
+                    @Override
+                    public BlockLoader.SingletonOrdinalsBuilder appendOrds(int ord, int length) {
+                        for (int i = 0; i < length; i++) {
+                            appendOrd(ord);
+                        }
+                        return this;
                     }
                 }
                 return new SingletonOrdsBuilder();
@@ -309,6 +447,30 @@ public class TestBlock implements BlockLoader.Block {
 
             public BlockLoader.AggregateMetricDoubleBuilder aggregateMetricDoubleBuilder(int expectedSize) {
                 return new AggregateMetricDoubleBlockBuilder(expectedSize);
+            }
+
+            @Override
+            public BlockLoader.ExponentialHistogramBuilder exponentialHistogramBlockBuilder(int count) {
+                return new ExponentialHistogramBlockBuilder(this, count);
+            }
+
+            @Override
+            public BlockLoader.Block buildExponentialHistogramBlockDirect(
+                BlockLoader.Block minima,
+                BlockLoader.Block maxima,
+                BlockLoader.Block sums,
+                BlockLoader.Block valueCounts,
+                BlockLoader.Block zeroThresholds,
+                BlockLoader.Block encodedHistograms
+            ) {
+                return ExponentialHistogramBlockBuilder.parseHistogramsToBlock(
+                    minima,
+                    maxima,
+                    sums,
+                    valueCounts,
+                    zeroThresholds,
+                    encodedHistograms
+                );
             }
         };
     }
@@ -358,6 +520,11 @@ public class TestBlock implements BlockLoader.Block {
     @Override
     public void close() {
         // TODO assert that we close the test blocks
+    }
+
+    @Override
+    public String toString() {
+        return "TestBlock" + values;
     }
 
     private abstract static class Builder implements BlockLoader.Builder {
@@ -515,6 +682,137 @@ public class TestBlock implements BlockLoader.Block {
         @Override
         public void close() {
 
+        }
+    }
+
+    private static class ExponentialHistogramBlockBuilder implements BlockLoader.ExponentialHistogramBuilder {
+
+        private final BlockLoader.DoubleBuilder minima;
+        private final BlockLoader.DoubleBuilder maxima;
+        private final BlockLoader.DoubleBuilder sums;
+        private final BlockLoader.LongBuilder valueCounts;
+        private final BlockLoader.DoubleBuilder zeroThresholds;
+        private final BlockLoader.BytesRefBuilder encodedHistograms;
+
+        private ExponentialHistogramBlockBuilder(BlockLoader.BlockFactory testFactory, int expectedSize) {
+            minima = testFactory.doubles(expectedSize);
+            maxima = testFactory.doubles(expectedSize);
+            sums = testFactory.doubles(expectedSize);
+            valueCounts = testFactory.longs(expectedSize);
+            zeroThresholds = testFactory.doubles(expectedSize);
+            encodedHistograms = testFactory.bytesRefs(expectedSize);
+        }
+
+        @Override
+        public BlockLoader.Block build() {
+            BlockLoader.Block minimaBlock = minima.build();
+            BlockLoader.Block maximaBlock = maxima.build();
+            BlockLoader.Block sumsBlock = sums.build();
+            BlockLoader.Block valueCountsBlock = valueCounts.build();
+            BlockLoader.Block zeroThresholdsBlock = zeroThresholds.build();
+            BlockLoader.Block encodedHistogramsBlock = encodedHistograms.build();
+            return parseHistogramsToBlock(
+                minimaBlock,
+                maximaBlock,
+                sumsBlock,
+                valueCountsBlock,
+                zeroThresholdsBlock,
+                encodedHistogramsBlock
+            );
+        }
+
+        public static TestBlock parseHistogramsToBlock(
+            BlockLoader.Block minimaBlock,
+            BlockLoader.Block maximaBlock,
+            BlockLoader.Block sumsBlock,
+            BlockLoader.Block valueCountsBlock,
+            BlockLoader.Block zeroThresholdsBlock,
+            BlockLoader.Block encodedHistogramsBlock
+        ) {
+            TestBlock minima = (TestBlock) minimaBlock;
+            TestBlock maxima = (TestBlock) maximaBlock;
+            TestBlock sums = (TestBlock) sumsBlock;
+            TestBlock valueCounts = (TestBlock) valueCountsBlock;
+            TestBlock zeroThresholds = (TestBlock) zeroThresholdsBlock;
+            TestBlock encodedHistograms = (TestBlock) encodedHistogramsBlock;
+            int count = minima.values.size();
+            assert count == maxima.values.size();
+            assert count == sums.values.size();
+            assert count == valueCounts.values.size();
+            assert count == zeroThresholds.values.size();
+            assert count == encodedHistograms.values.size();
+
+            return new TestBlock(IntStream.range(0, count).mapToObj(i -> {
+                if (encodedHistograms.get(i) == null) {
+                    return null;
+                }
+                CompressedExponentialHistogram result = new CompressedExponentialHistogram();
+                try {
+                    Double min = (Double) minima.get(i);
+                    Double max = (Double) maxima.get(i);
+                    result.reset(
+                        (Double) zeroThresholds.get(i),
+                        (Long) valueCounts.get(i),
+                        (Double) sums.get(i),
+                        min == null ? Double.NaN : min,
+                        max == null ? Double.NaN : max,
+                        (BytesRef) encodedHistograms.get(i)
+                    );
+                } catch (IOException e) {
+                    throw new RuntimeException(e);
+                }
+                return (Object) result;
+            }).toList());
+        }
+
+        @Override
+        public BlockLoader.Builder appendNull() {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public BlockLoader.Builder beginPositionEntry() {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public BlockLoader.Builder endPositionEntry() {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public void close() {
+
+        }
+
+        @Override
+        public BlockLoader.DoubleBuilder minima() {
+            return minima;
+        }
+
+        @Override
+        public BlockLoader.DoubleBuilder maxima() {
+            return maxima;
+        }
+
+        @Override
+        public BlockLoader.DoubleBuilder sums() {
+            return sums;
+        }
+
+        @Override
+        public BlockLoader.LongBuilder valueCounts() {
+            return valueCounts;
+        }
+
+        @Override
+        public BlockLoader.DoubleBuilder zeroThresholds() {
+            return zeroThresholds;
+        }
+
+        @Override
+        public BlockLoader.BytesRefBuilder encodedHistograms() {
+            return encodedHistograms;
         }
     }
 }

@@ -20,13 +20,13 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
 import org.elasticsearch.index.fielddata.plain.SortedNumericIndexFieldData;
-import org.elasticsearch.index.mapper.BlockDocValuesReader;
 import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.index.mapper.BlockSourceReader;
 import org.elasticsearch.index.mapper.CompositeSyntheticFieldLoader;
@@ -34,6 +34,8 @@ import org.elasticsearch.index.mapper.DocumentParserContext;
 import org.elasticsearch.index.mapper.FallbackSyntheticSourceBlockLoader;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.IgnoreMalformedStoredValues;
+import org.elasticsearch.index.mapper.IgnoredSourceFieldMapper;
+import org.elasticsearch.index.mapper.IndexType;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
 import org.elasticsearch.index.mapper.MapperParsingException;
@@ -47,6 +49,7 @@ import org.elasticsearch.index.mapper.TextSearchInfo;
 import org.elasticsearch.index.mapper.TimeSeriesParams;
 import org.elasticsearch.index.mapper.TimeSeriesParams.MetricType;
 import org.elasticsearch.index.mapper.ValueFetcher;
+import org.elasticsearch.index.mapper.blockloader.docvalues.LongsBlockLoader;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.support.TimeSeriesValuesSourceType;
@@ -232,9 +235,8 @@ public class UnsignedLongFieldMapper extends FieldMapper {
             }
             UnsignedLongFieldType fieldType = new UnsignedLongFieldType(
                 context.buildFullName(leafName()),
-                indexed.getValue(),
+                IndexType.points(indexed.get(), hasDocValues.get()),
                 stored.getValue(),
-                hasDocValues.getValue(),
                 parsedNullValue(),
                 meta.getValue(),
                 dimension.getValue(),
@@ -283,9 +285,8 @@ public class UnsignedLongFieldMapper extends FieldMapper {
 
         public UnsignedLongFieldType(
             String name,
-            boolean indexed,
+            IndexType indexType,
             boolean isStored,
-            boolean hasDocValues,
             Number nullValueFormatted,
             Map<String, String> meta,
             boolean isDimension,
@@ -293,7 +294,7 @@ public class UnsignedLongFieldMapper extends FieldMapper {
             IndexMode indexMode,
             boolean isSyntheticSource
         ) {
-            super(name, indexed, isStored, hasDocValues, TextSearchInfo.SIMPLE_MATCH_WITHOUT_TERMS, meta);
+            super(name, indexType, isStored, meta);
             this.nullValueFormatted = nullValueFormatted;
             this.isDimension = isDimension;
             this.metricType = metricType;
@@ -302,12 +303,17 @@ public class UnsignedLongFieldMapper extends FieldMapper {
         }
 
         public UnsignedLongFieldType(String name) {
-            this(name, true, false, true, null, Collections.emptyMap(), false, null, null, false);
+            this(name, IndexType.points(true, true), false, null, Collections.emptyMap(), false, null, null, false);
         }
 
         @Override
         public String typeName() {
             return CONTENT_TYPE;
+        }
+
+        @Override
+        public TextSearchInfo getTextSearchInfo() {
+            return TextSearchInfo.SIMPLE_MATCH_WITHOUT_TERMS;
         }
 
         @Override
@@ -386,11 +392,15 @@ public class UnsignedLongFieldMapper extends FieldMapper {
                 return BlockLoader.CONSTANT_NULLS;
             }
             if (hasDocValues() && (blContext.fieldExtractPreference() != FieldExtractPreference.STORED || isSyntheticSource)) {
-                return new BlockDocValuesReader.LongsBlockLoader(name());
+                return new LongsBlockLoader(name());
             }
             // Multi fields don't have fallback synthetic source.
             if (isSyntheticSource && blContext.parentField(name()) == null) {
-                return new FallbackSyntheticSourceBlockLoader(fallbackSyntheticSourceBlockLoaderReader(), name()) {
+                return new FallbackSyntheticSourceBlockLoader(
+                    fallbackSyntheticSourceBlockLoaderReader(),
+                    name(),
+                    IgnoredSourceFieldMapper.ignoredSourceFormat(blContext.indexSettings().getIndexVersionCreated())
+                ) {
                     @Override
                     public Builder builder(BlockFactory factory, int expectedCount) {
                         return factory.longs(expectedCount);
@@ -398,7 +408,8 @@ public class UnsignedLongFieldMapper extends FieldMapper {
                 };
             }
 
-            ValueFetcher valueFetcher = new SourceValueFetcher(blContext.sourcePaths(name()), nullValueFormatted) {
+            var ignoredSourceFormat = blContext.indexSettings().getIgnoredSourceFormat();
+            var valueFetcher = new SourceValueFetcher(blContext.sourcePaths(name()), nullValueFormatted, ignoredSourceFormat) {
                 @Override
                 protected Object parseSourceValue(Object value) {
                     if (value.equals("")) {
@@ -411,8 +422,8 @@ public class UnsignedLongFieldMapper extends FieldMapper {
                     return unsignedToSortableSignedLong(parseUnsignedLong(value));
                 }
             };
-            BlockSourceReader.LeafIteratorLookup lookup = hasDocValues() == false && (isStored() || isIndexed())
-                // We only write the field names field if there aren't doc values or norms
+            BlockSourceReader.LeafIteratorLookup lookup = hasDocValues() == false && isStored()
+                // We only write the field names field if there aren't doc values
                 ? BlockSourceReader.lookupFromFieldNames(blContext.fieldNames(), name())
                 : BlockSourceReader.lookupMatchingAll();
             return new BlockSourceReader.LongsBlockLoader(valueFetcher, lookup);
@@ -497,9 +508,9 @@ public class UnsignedLongFieldMapper extends FieldMapper {
                         (dv, n) -> {
                             throw new UnsupportedOperationException();
                         },
-                        isIndexed()
+                        indexType
                     ).build(cache, breakerService);
-                    return new UnsignedLongIndexFieldData(signedLongValues, UnsignedLongDocValuesField::new, isIndexed());
+                    return new UnsignedLongIndexFieldData(signedLongValues, UnsignedLongDocValuesField::new, indexType);
                 };
             }
 
@@ -510,7 +521,7 @@ public class UnsignedLongFieldMapper extends FieldMapper {
                 return new SourceValueFetcherSortedUnsignedLongIndexFieldData.Builder(
                     name(),
                     valuesSourceType,
-                    sourceValueFetcher(sourcePaths),
+                    sourceValueFetcher(sourcePaths, fieldDataContext.indexSettings()),
                     searchLookup,
                     UnsignedLongDocValuesField::new
                 );
@@ -524,11 +535,14 @@ public class UnsignedLongFieldMapper extends FieldMapper {
             if (format != null) {
                 throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] doesn't support formats.");
             }
-            return sourceValueFetcher(context.isSourceEnabled() ? context.sourcePath(name()) : Collections.emptySet());
+            return sourceValueFetcher(
+                context.isSourceEnabled() ? context.sourcePath(name()) : Collections.emptySet(),
+                context.getIndexSettings()
+            );
         }
 
-        private SourceValueFetcher sourceValueFetcher(Set<String> sourcePaths) {
-            return new SourceValueFetcher(sourcePaths, nullValueFormatted) {
+        private SourceValueFetcher sourceValueFetcher(Set<String> sourcePaths, IndexSettings indexSettings) {
+            return new SourceValueFetcher(sourcePaths, nullValueFormatted, indexSettings.getIgnoredSourceFormat()) {
                 @Override
                 protected Object parseSourceValue(Object value) {
                     if (value.equals("")) {
@@ -560,7 +574,7 @@ public class UnsignedLongFieldMapper extends FieldMapper {
 
         @Override
         public Function<byte[], Number> pointReaderIfPossible() {
-            if (isIndexed()) {
+            if (indexType.hasPoints()) {
                 // convert from the shifted value back to the original value
                 return (value) -> convertUnsignedLongToDouble(LongPoint.decodeDimension(value, 0));
             }

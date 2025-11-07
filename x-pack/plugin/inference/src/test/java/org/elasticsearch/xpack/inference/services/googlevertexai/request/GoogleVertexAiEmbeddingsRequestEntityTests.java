@@ -13,6 +13,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xpack.inference.services.googlevertexai.embeddings.GoogleVertexAiEmbeddingsServiceSettings;
 import org.elasticsearch.xpack.inference.services.googlevertexai.embeddings.GoogleVertexAiEmbeddingsTaskSettings;
 
 import java.io.IOException;
@@ -26,7 +27,8 @@ public class GoogleVertexAiEmbeddingsRequestEntityTests extends ESTestCase {
         var entity = new GoogleVertexAiEmbeddingsRequestEntity(
             List.of("abc"),
             null,
-            new GoogleVertexAiEmbeddingsTaskSettings(true, InputType.CLUSTERING)
+            new GoogleVertexAiEmbeddingsTaskSettings(true, InputType.CLUSTERING),
+            new GoogleVertexAiEmbeddingsServiceSettings("location", "projectId", "modelId", true, null, 10, null, null)
         );
 
         XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
@@ -42,17 +44,19 @@ public class GoogleVertexAiEmbeddingsRequestEntityTests extends ESTestCase {
                     }
                 ],
                 "parameters": {
-                    "autoTruncate": true
+                    "autoTruncate": true,
+                    "outputDimensionality": 10
                 }
             }
             """));
     }
 
-    public void testToXContent_SingleEmbeddingRequest_DoesNotWriteAutoTruncationIfNotDefined() throws IOException {
+    public void testToXContent_SingleEmbeddingRequest_DoesNotWriteUndefinedFields() throws IOException {
         var entity = new GoogleVertexAiEmbeddingsRequestEntity(
             List.of("abc"),
             InputType.INTERNAL_INGEST,
-            new GoogleVertexAiEmbeddingsTaskSettings(null, null)
+            new GoogleVertexAiEmbeddingsTaskSettings(null, null),
+            new GoogleVertexAiEmbeddingsServiceSettings("location", "projectId", "modelId", false, null, null, null, null)
         );
 
         XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
@@ -66,13 +70,45 @@ public class GoogleVertexAiEmbeddingsRequestEntityTests extends ESTestCase {
                         "content": "abc",
                         "task_type": "RETRIEVAL_DOCUMENT"
                     }
-                ]
+                ],
+                "parameters": {
+                }
+            }
+            """));
+    }
+
+    public void testToXContent_SingleEmbeddingRequest_DoesNotWriteUndefinedFields_DimensionsSetByUserFalse() throws IOException {
+        var entity = new GoogleVertexAiEmbeddingsRequestEntity(
+            List.of("abc"),
+            InputType.INTERNAL_INGEST,
+            new GoogleVertexAiEmbeddingsTaskSettings(null, null),
+            new GoogleVertexAiEmbeddingsServiceSettings("location", "projectId", "modelId", false, null, 10, null, null)
+        );
+
+        XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
+        entity.toXContent(builder, null);
+        String xContentResult = Strings.toString(builder);
+
+        assertThat(xContentResult, equalToIgnoringWhitespaceInJsonString("""
+            {
+                "instances": [
+                    {
+                        "content": "abc",
+                        "task_type": "RETRIEVAL_DOCUMENT"
+                    }
+                ],
+                "parameters": {}
             }
             """));
     }
 
     public void testToXContent_SingleEmbeddingRequest_DoesNotWriteInputTypeIfNotDefined() throws IOException {
-        var entity = new GoogleVertexAiEmbeddingsRequestEntity(List.of("abc"), null, new GoogleVertexAiEmbeddingsTaskSettings(false, null));
+        var entity = new GoogleVertexAiEmbeddingsRequestEntity(
+            List.of("abc"),
+            null,
+            new GoogleVertexAiEmbeddingsTaskSettings(false, null),
+            new GoogleVertexAiEmbeddingsServiceSettings("location", "projectId", "modelId", false, null, null, null, null)
+        );
 
         XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
         entity.toXContent(builder, null);
@@ -96,7 +132,8 @@ public class GoogleVertexAiEmbeddingsRequestEntityTests extends ESTestCase {
         var entity = new GoogleVertexAiEmbeddingsRequestEntity(
             List.of("abc", "def"),
             InputType.INTERNAL_SEARCH,
-            new GoogleVertexAiEmbeddingsTaskSettings(true, InputType.CLUSTERING)
+            new GoogleVertexAiEmbeddingsTaskSettings(true, InputType.CLUSTERING),
+            new GoogleVertexAiEmbeddingsServiceSettings("location", "projectId", "modelId", true, null, 10, null, null)
         );
 
         XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
@@ -116,7 +153,8 @@ public class GoogleVertexAiEmbeddingsRequestEntityTests extends ESTestCase {
                     }
                 ],
                 "parameters": {
-                    "autoTruncate": true
+                    "autoTruncate": true,
+                    "outputDimensionality": 10
                 }
             }
             """));
@@ -126,7 +164,8 @@ public class GoogleVertexAiEmbeddingsRequestEntityTests extends ESTestCase {
         var entity = new GoogleVertexAiEmbeddingsRequestEntity(
             List.of("abc", "def"),
             null,
-            new GoogleVertexAiEmbeddingsTaskSettings(true, null)
+            new GoogleVertexAiEmbeddingsTaskSettings(true, null),
+            new GoogleVertexAiEmbeddingsServiceSettings("location", "projectId", "modelId", false, null, null, null, null)
         );
 
         XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
@@ -154,7 +193,8 @@ public class GoogleVertexAiEmbeddingsRequestEntityTests extends ESTestCase {
         var entity = new GoogleVertexAiEmbeddingsRequestEntity(
             List.of("abc", "def"),
             null,
-            new GoogleVertexAiEmbeddingsTaskSettings(null, InputType.CLASSIFICATION)
+            new GoogleVertexAiEmbeddingsTaskSettings(null, InputType.CLASSIFICATION),
+            new GoogleVertexAiEmbeddingsServiceSettings("location", "projectId", "modelId", false, null, null, null, null)
         );
 
         XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
@@ -172,12 +212,14 @@ public class GoogleVertexAiEmbeddingsRequestEntityTests extends ESTestCase {
                         "content": "def",
                         "task_type": "CLASSIFICATION"
                     }
-                ]
+                ],
+                "parameters": {
+                }
             }
             """));
     }
 
     public void testToXContent_ThrowsIfTaskSettingsIsNull() {
-        expectThrows(NullPointerException.class, () -> new GoogleVertexAiEmbeddingsRequestEntity(List.of("abc", "def"), null, null));
+        expectThrows(NullPointerException.class, () -> new GoogleVertexAiEmbeddingsRequestEntity(List.of("abc", "def"), null, null, null));
     }
 }

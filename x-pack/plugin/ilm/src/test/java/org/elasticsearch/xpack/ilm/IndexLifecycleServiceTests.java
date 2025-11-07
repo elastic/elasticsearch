@@ -50,9 +50,9 @@ import org.elasticsearch.xpack.core.ilm.MockAction;
 import org.elasticsearch.xpack.core.ilm.OperationMode;
 import org.elasticsearch.xpack.core.ilm.OperationModeUpdateTask;
 import org.elasticsearch.xpack.core.ilm.Phase;
+import org.elasticsearch.xpack.core.ilm.ResizeIndexStep;
 import org.elasticsearch.xpack.core.ilm.SetSingleNodeAllocateStep;
 import org.elasticsearch.xpack.core.ilm.ShrinkAction;
-import org.elasticsearch.xpack.core.ilm.ShrinkStep;
 import org.elasticsearch.xpack.core.ilm.ShrunkShardsAllocatedStep;
 import org.elasticsearch.xpack.core.ilm.Step;
 import org.junit.After;
@@ -184,7 +184,7 @@ public class IndexLifecycleServiceTests extends ESTestCase {
     }
 
     public void testRequestedStopOnShrink() {
-        Step.StepKey mockShrinkStep = new Step.StepKey(randomAlphaOfLength(4), ShrinkAction.NAME, ShrinkStep.NAME);
+        Step.StepKey mockShrinkStep = new Step.StepKey(randomAlphaOfLength(4), ShrinkAction.NAME, ResizeIndexStep.SHRINK);
         String policyName = randomAlphaOfLengthBetween(1, 20);
         IndexLifecycleRunnerTests.MockClusterStateActionStep mockStep = new IndexLifecycleRunnerTests.MockClusterStateActionStep(
             mockShrinkStep,
@@ -232,7 +232,7 @@ public class IndexLifecycleServiceTests extends ESTestCase {
         action.toSteps(mock(Client.class), "warm", randomStepKey())
             .stream()
             .map(sk -> sk.getKey().name())
-            .filter(name -> name.equals(ShrinkStep.NAME) == false)
+            .filter(name -> name.equals(ResizeIndexStep.SHRINK) == false)
             .forEach(this::verifyCanStopWithStep);
     }
 
@@ -563,7 +563,7 @@ public class IndexLifecycleServiceTests extends ESTestCase {
                             randomFrom(
                                 SetSingleNodeAllocateStep.NAME,
                                 CheckShrinkReadyStep.NAME,
-                                ShrinkStep.NAME,
+                                ResizeIndexStep.SHRINK,
                                 ShrunkShardsAllocatedStep.NAME
                             )
                         )

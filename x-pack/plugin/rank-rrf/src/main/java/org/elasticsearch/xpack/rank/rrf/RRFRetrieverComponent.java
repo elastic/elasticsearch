@@ -88,7 +88,7 @@ public class RRFRetrieverComponent implements ToXContentObject {
                     parser.nextToken();
                     String retrieverType = parser.currentName();
                     retriever = parser.namedObject(RetrieverBuilder.class, retrieverType, context);
-                    context.trackRetrieverUsage(retriever.getName());
+                    context.trackRetrieverUsage(retriever);
                     parser.nextToken();
                 } else if (WEIGHT_FIELD.match(fieldName, parser.getDeprecationHandler())) {
                     if (weight != null) {
@@ -114,7 +114,7 @@ public class RRFRetrieverComponent implements ToXContentObject {
             return new RRFRetrieverComponent(retriever, weight);
         } else {
             RetrieverBuilder retriever = parser.namedObject(RetrieverBuilder.class, firstFieldName, context);
-            context.trackRetrieverUsage(retriever.getName());
+            context.trackRetrieverUsage(retriever);
             if (parser.nextToken() != XContentParser.Token.END_OBJECT) {
                 throw new ParsingException(parser.getTokenLocation(), "unknown field [{}] after retriever", parser.currentName());
             }

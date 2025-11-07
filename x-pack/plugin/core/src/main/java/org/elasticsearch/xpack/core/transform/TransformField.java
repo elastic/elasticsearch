@@ -59,6 +59,7 @@ public final class TransformField {
     public static final ParseField MAX_AGE = new ParseField("max_age");
 
     public static final ParseField ALLOW_NO_MATCH = new ParseField("allow_no_match");
+    public static final ParseField CHECK_FOR_DANGLING_TASKS = new ParseField("check_dangling_tasks");
     /**
      * Fields for checkpointing
      */

@@ -104,6 +104,42 @@
       "params" : [
         {
           "name" : "field",
+          "type" : "geohash",
+          "optional" : false,
+          "description" : ""
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "geohash"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
+          "type" : "geohex",
+          "optional" : false,
+          "description" : ""
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "geohex"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
+          "type" : "geotile",
+          "optional" : false,
+          "description" : ""
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "geotile"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
           "type" : "integer",
           "optional" : false,
           "description" : ""

@@ -10,6 +10,7 @@
 package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.index.LeafReaderContext;
+import org.elasticsearch.index.mapper.blockloader.docvalues.BlockDocValuesReader;
 import org.elasticsearch.script.IpFieldScript;
 
 import java.io.IOException;
@@ -49,7 +50,8 @@ public class IpScriptBlockDocValuesReader extends BlockDocValuesReader {
     }
 
     @Override
-    public BlockLoader.Block read(BlockLoader.BlockFactory factory, BlockLoader.Docs docs, int offset) throws IOException {
+    public BlockLoader.Block read(BlockLoader.BlockFactory factory, BlockLoader.Docs docs, int offset, boolean nullsFiltered)
+        throws IOException {
         // Note that we don't pre-sort our output so we can't use bytesRefsFromDocValues
         try (BlockLoader.BytesRefBuilder builder = factory.bytesRefs(docs.count() - offset)) {
             for (int i = offset; i < docs.count(); i++) {

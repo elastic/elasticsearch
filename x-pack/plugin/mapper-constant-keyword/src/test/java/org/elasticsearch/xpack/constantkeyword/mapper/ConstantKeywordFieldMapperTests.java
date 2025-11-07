@@ -286,7 +286,7 @@ public class ConstantKeywordFieldMapperTests extends MapperTestCase {
                         public int get(int i) {
                             return 0;
                         }
-                    }, 0);
+                    }, 0, false);
                 assertThat(block.get(0), nullValue());
             }
         }
@@ -345,5 +345,10 @@ public class ConstantKeywordFieldMapperTests extends MapperTestCase {
     @Override
     protected boolean addsValueWhenNotSupplied() {
         return true;
+    }
+
+    @Override
+    protected List<SortShortcutSupport> getSortShortcutSupport() {
+        return List.of();
     }
 }

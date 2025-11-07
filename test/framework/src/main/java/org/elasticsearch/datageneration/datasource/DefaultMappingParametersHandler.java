@@ -27,6 +27,8 @@ import java.util.Map;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.test.ESTestCase.randomFrom;
+
 public class DefaultMappingParametersHandler implements DataSourceHandler {
     @Override
     public DataSourceResponse.LeafMappingParametersGenerator handle(DataSourceRequest.LeafMappingParametersGenerator request) {
@@ -44,10 +46,12 @@ public class DefaultMappingParametersHandler implements DataSourceHandler {
             case BOOLEAN -> booleanMapping();
             case DATE -> dateMapping();
             case GEO_POINT -> geoPointMapping();
-            case TEXT -> textMapping(request);
+            case TEXT -> textMapping();
             case IP -> ipMapping();
             case CONSTANT_KEYWORD -> constantKeywordMapping();
             case WILDCARD -> wildcardMapping();
+            case MATCH_ONLY_TEXT -> matchOnlyTextMapping();
+            case PASSTHROUGH -> throw new IllegalArgumentException("Unsupported field type: " + fieldType);
         });
     }
 
@@ -92,12 +96,12 @@ public class DefaultMappingParametersHandler implements DataSourceHandler {
                     .collect(Collectors.toSet());
 
                 if (options.isEmpty() == false) {
-                    mapping.put("copy_to", ESTestCase.randomFrom(options));
+                    mapping.put("copy_to", randomFrom(options));
                 }
             }
 
-            if (ESTestCase.randomDouble() <= 0.2) {
-                mapping.put("ignore_above", ESTestCase.randomIntBetween(1, 100));
+            if (ESTestCase.randomDouble() <= 0.3) {
+                mapping.put("ignore_above", ESTestCase.randomIntBetween(1, 50));
             }
             if (ESTestCase.randomDouble() <= 0.2) {
                 mapping.put("null_value", ESTestCase.randomAlphaOfLengthBetween(0, 10));
@@ -111,7 +115,7 @@ public class DefaultMappingParametersHandler implements DataSourceHandler {
         return () -> {
             var mapping = commonMappingParameters();
 
-            mapping.put("scaling_factor", ESTestCase.randomFrom(10, 1000, 100000, 100.5));
+            mapping.put("scaling_factor", randomFrom(10, 1000, 100000, 100.5));
 
             if (ESTestCase.randomDouble() <= 0.2) {
                 mapping.put("null_value", ESTestCase.randomDouble());
@@ -134,7 +138,7 @@ public class DefaultMappingParametersHandler implements DataSourceHandler {
             var mapping = commonMappingParameters();
 
             if (ESTestCase.randomDouble() <= 0.2) {
-                mapping.put("null_value", ESTestCase.randomFrom(true, false, "true", "false"));
+                mapping.put("null_value", randomFrom(true, false, "true", "false"));
             }
 
             if (ESTestCase.randomBoolean()) {
@@ -196,20 +200,12 @@ public class DefaultMappingParametersHandler implements DataSourceHandler {
         };
     }
 
-    private Supplier<Map<String, Object>> textMapping(DataSourceRequest.LeafMappingParametersGenerator request) {
+    private Supplier<Map<String, Object>> textMapping() {
         return () -> {
             var mapping = new HashMap<String, Object>();
 
             mapping.put("store", ESTestCase.randomBoolean());
             mapping.put("index", ESTestCase.randomBoolean());
-
-            if (ESTestCase.randomDouble() <= 0.1) {
-                var keywordMultiFieldMapping = keywordMapping(request).get();
-                keywordMultiFieldMapping.put("type", "keyword");
-                keywordMultiFieldMapping.remove("copy_to");
-
-                mapping.put("fields", Map.of("kwd", keywordMultiFieldMapping));
-            }
 
             return mapping;
         };
@@ -247,8 +243,8 @@ public class DefaultMappingParametersHandler implements DataSourceHandler {
         return () -> {
             var mapping = new HashMap<String, Object>();
 
-            if (ESTestCase.randomDouble() <= 0.2) {
-                mapping.put("ignore_above", ESTestCase.randomIntBetween(1, 100));
+            if (ESTestCase.randomDouble() <= 0.3) {
+                mapping.put("ignore_above", ESTestCase.randomIntBetween(1, 50));
             }
             if (ESTestCase.randomDouble() <= 0.2) {
                 mapping.put("null_value", ESTestCase.randomAlphaOfLengthBetween(0, 10));
@@ -258,6 +254,10 @@ public class DefaultMappingParametersHandler implements DataSourceHandler {
         };
     }
 
+    private Supplier<Map<String, Object>> matchOnlyTextMapping() {
+        return HashMap::new;
+    }
+
     public static HashMap<String, Object> commonMappingParameters() {
         var map = new HashMap<String, Object>();
         map.put("store", ESTestCase.randomBoolean());
@@ -265,7 +265,7 @@ public class DefaultMappingParametersHandler implements DataSourceHandler {
         map.put("doc_values", ESTestCase.randomBoolean());
 
         if (ESTestCase.randomBoolean()) {
-            map.put(Mapper.SYNTHETIC_SOURCE_KEEP_PARAM, ESTestCase.randomFrom("none", "arrays", "all"));
+            map.put(Mapper.SYNTHETIC_SOURCE_KEEP_PARAM, randomFrom("none", "arrays", "all"));
         }
 
         return map;
@@ -280,7 +280,7 @@ public class DefaultMappingParametersHandler implements DataSourceHandler {
                 var parameters = new HashMap<String, Object>();
 
                 if (ESTestCase.randomBoolean()) {
-                    parameters.put("dynamic", ESTestCase.randomFrom("true", "false", "strict"));
+                    parameters.put("dynamic", randomFrom("true", "false", "strict"));
                 }
                 if (ESTestCase.randomBoolean()) {
                     parameters.put(Mapper.SYNTHETIC_SOURCE_KEEP_PARAM, "all");  // [arrays] doesn't apply to nested objects
@@ -297,11 +297,7 @@ public class DefaultMappingParametersHandler implements DataSourceHandler {
             // TODO enable subobjects: auto
             // It is disabled because it currently does not have auto flattening and that results in asserts being triggered when using
             // copy_to.
-            var subobjects = ESTestCase.randomValueOtherThan(
-                ObjectMapper.Subobjects.AUTO,
-                () -> ESTestCase.randomFrom(ObjectMapper.Subobjects.values())
-            );
-
+            var subobjects = randomFrom(ObjectMapper.Subobjects.values());
             if (request.parentSubobjects() == ObjectMapper.Subobjects.DISABLED || subobjects == ObjectMapper.Subobjects.DISABLED) {
                 // "enabled: false" is not compatible with subobjects: false
                 // changing "dynamic" from parent context is not compatible with subobjects: false
@@ -317,14 +313,14 @@ public class DefaultMappingParametersHandler implements DataSourceHandler {
                 parameters.put("subobjects", subobjects.toString());
             }
             if (ESTestCase.randomBoolean()) {
-                parameters.put("dynamic", ESTestCase.randomFrom("true", "false", "strict", "runtime"));
+                parameters.put("dynamic", randomFrom("true", "false", "strict", "runtime"));
             }
             if (ESTestCase.randomBoolean()) {
-                parameters.put("enabled", ESTestCase.randomFrom("true", "false"));
+                parameters.put("enabled", randomFrom("true", "false"));
             }
 
             if (ESTestCase.randomBoolean()) {
-                var value = request.isRoot() ? ESTestCase.randomFrom("none", "arrays") : ESTestCase.randomFrom("none", "arrays", "all");
+                var value = request.isRoot() ? randomFrom("none", "arrays") : randomFrom("none", "arrays", "all");
                 parameters.put(Mapper.SYNTHETIC_SOURCE_KEEP_PARAM, value);
             }
 

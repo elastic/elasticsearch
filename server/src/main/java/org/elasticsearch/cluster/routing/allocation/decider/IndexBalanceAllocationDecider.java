@@ -107,7 +107,7 @@ public class IndexBalanceAllocationDecider extends AllocationDecider {
         assert totalShards > 0;
 
         final double idealAllocation = Math.ceil((double) totalShards / eligibleNodes.size());
-        final int threshold = (int) Math.ceil(idealAllocation) + indexBalanceConstraintSettings.getLoadSkewTolerance();
+        final int threshold = (totalShards + eligibleNodes.size() - 1 + indexBalanceConstraintSettings.getLoadSkewTolerance()) / eligibleNodes.size();
         final int currentAllocation = node.numberOfOwningShardsForIndex(index);
 
         if (currentAllocation >= threshold) {

@@ -9,11 +9,13 @@ package org.elasticsearch.xpack.inference.action;
 
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.inference.action.GetInferenceFieldsAction;
 
 import java.io.IOException;
+import java.util.Map;
 import java.util.Set;
 
 public class GetInferenceFieldsActionRequestTests extends AbstractWireSerializingTestCase<GetInferenceFieldsAction.Request> {
@@ -26,7 +28,7 @@ public class GetInferenceFieldsActionRequestTests extends AbstractWireSerializin
     protected GetInferenceFieldsAction.Request createTestInstance() {
         return new GetInferenceFieldsAction.Request(
             randomIndentifierSet(),
-            randomIndentifierSet(),
+            randomFields(),
             randomBoolean(),
             randomBoolean(),
             randomQuery(),
@@ -47,7 +49,7 @@ public class GetInferenceFieldsActionRequestTests extends AbstractWireSerializin
             );
             case 1 -> new GetInferenceFieldsAction.Request(
                 instance.getIndices(),
-                randomValueOtherThan(instance.getFields(), GetInferenceFieldsActionRequestTests::randomIndentifierSet),
+                randomValueOtherThan(instance.getFields(), GetInferenceFieldsActionRequestTests::randomFields),
                 instance.resolveWildcards(),
                 instance.useDefaultFields(),
                 instance.getQuery(),
@@ -90,7 +92,11 @@ public class GetInferenceFieldsActionRequestTests extends AbstractWireSerializin
     }
 
     private static Set<String> randomIndentifierSet() {
-        return randomSet(1, 5, ESTestCase::randomIdentifier);
+        return randomSet(0, 5, ESTestCase::randomIdentifier);
+    }
+
+    private static Map<String, Float> randomFields() {
+        return randomMap(0, 5, () -> Tuple.tuple(randomIdentifier(), randomFloat()));
     }
 
     private static String randomQuery() {

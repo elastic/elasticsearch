@@ -35,6 +35,7 @@ import java.util.function.Consumer;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.xpack.inference.integration.GetInferenceFieldsIT.assertInferenceFieldsMap;
 import static org.elasticsearch.xpack.inference.integration.GetInferenceFieldsIT.assertInferenceResultsMap;
+import static org.elasticsearch.xpack.inference.integration.GetInferenceFieldsIT.generateDefaultBoostFieldMap;
 import static org.elasticsearch.xpack.inference.integration.IntegrationTestUtils.createInferenceEndpoint;
 import static org.elasticsearch.xpack.inference.integration.IntegrationTestUtils.generateSemanticTextMapping;
 import static org.hamcrest.Matchers.containsString;
@@ -87,17 +88,17 @@ public class GetInferenceFieldsCrossClusterIT extends AbstractMultiClustersTestC
 
         var concreteIndexRequest = new GetInferenceFieldsAction.Request(
             Set.of(REMOTE_CLUSTER + ":test-index"),
-            Set.of(),
+            Map.of(),
             false,
             false,
             "foo"
         );
         assertFailedRequest.accept(concreteIndexRequest);
 
-        var wildcardIndexRequest = new GetInferenceFieldsAction.Request(Set.of(REMOTE_CLUSTER + ":*"), Set.of(), false, false, "foo");
+        var wildcardIndexRequest = new GetInferenceFieldsAction.Request(Set.of(REMOTE_CLUSTER + ":*"), Map.of(), false, false, "foo");
         assertFailedRequest.accept(wildcardIndexRequest);
 
-        var wildcardClusterAndIndexRequest = new GetInferenceFieldsAction.Request(Set.of("*:*"), Set.of(), false, false, "foo");
+        var wildcardClusterAndIndexRequest = new GetInferenceFieldsAction.Request(Set.of("*:*"), Map.of(), false, false, "foo");
         assertFailedRequest.accept(wildcardClusterAndIndexRequest);
     }
 
@@ -108,7 +109,13 @@ public class GetInferenceFieldsCrossClusterIT extends AbstractMultiClustersTestC
             RemoteClusterService.DisconnectedStrategy.RECONNECT_IF_DISCONNECTED
         );
 
-        var request = new GetInferenceFieldsAction.Request(Set.of(INDEX_NAME), Set.of(INFERENCE_FIELD), false, false, "foo");
+        var request = new GetInferenceFieldsAction.Request(
+            Set.of(INDEX_NAME),
+            generateDefaultBoostFieldMap(Set.of(INFERENCE_FIELD)),
+            false,
+            false,
+            "foo"
+        );
         PlainActionFuture<GetInferenceFieldsAction.Response> future = new PlainActionFuture<>();
         remoteClusterClient.execute(GetInferenceFieldsAction.REMOTE_TYPE, request, future);
 

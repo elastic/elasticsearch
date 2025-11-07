@@ -31,6 +31,8 @@ import org.junit.Before;
 
 import java.io.IOException;
 import java.util.Collection;
+import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -76,12 +78,8 @@ public class GetInferenceFieldsIT extends ESIntegTestCase {
     private static final String INFERENCE_FIELD_3 = "inference-field-3";
     private static final String TEXT_FIELD_1 = "text-field-1";
     private static final String TEXT_FIELD_2 = "text-field-2";
-    private static final Set<String> ALL_FIELDS = Set.of(
-        INFERENCE_FIELD_1,
-        INFERENCE_FIELD_2,
-        INFERENCE_FIELD_3,
-        TEXT_FIELD_1,
-        TEXT_FIELD_2
+    private static final Map<String, Float> ALL_FIELDS = Collections.unmodifiableMap(
+        generateDefaultBoostFieldMap(Set.of(INFERENCE_FIELD_1, INFERENCE_FIELD_2, INFERENCE_FIELD_3, TEXT_FIELD_1, TEXT_FIELD_2))
     );
 
     private static final Set<InferenceFieldWithTestMetadata> INDEX_1_EXPECTED_INFERENCE_FIELDS = Set.of(
@@ -137,7 +135,13 @@ public class GetInferenceFieldsIT extends ESIntegTestCase {
 
     public void testNoInferenceFields() {
         assertSuccessfulRequest(
-            new GetInferenceFieldsAction.Request(ALL_INDICES, Set.of(TEXT_FIELD_1, TEXT_FIELD_2), false, false, "foo"),
+            new GetInferenceFieldsAction.Request(
+                ALL_INDICES,
+                generateDefaultBoostFieldMap(Set.of(TEXT_FIELD_1, TEXT_FIELD_2)),
+                false,
+                false,
+                "foo"
+            ),
             Map.of(INDEX_1, Set.of(), INDEX_2, Set.of()),
             Map.of()
         );
@@ -145,13 +149,19 @@ public class GetInferenceFieldsIT extends ESIntegTestCase {
 
     public void testResolveFieldWildcards() {
         assertSuccessfulRequest(
-            new GetInferenceFieldsAction.Request(ALL_INDICES, Set.of("*"), true, false, "foo"),
+            new GetInferenceFieldsAction.Request(ALL_INDICES, generateDefaultBoostFieldMap(Set.of("*")), true, false, "foo"),
             Map.of(INDEX_1, INDEX_1_EXPECTED_INFERENCE_FIELDS, INDEX_2, INDEX_2_EXPECTED_INFERENCE_FIELDS),
             ALL_EXPECTED_INFERENCE_RESULTS
         );
 
         assertSuccessfulRequest(
-            new GetInferenceFieldsAction.Request(ALL_INDICES, Set.of("*-field-1", "inference-*-3"), true, false, "foo"),
+            new GetInferenceFieldsAction.Request(
+                ALL_INDICES,
+                generateDefaultBoostFieldMap(Set.of("*-field-1", "inference-*-3")),
+                true,
+                false,
+                "foo"
+            ),
             Map.of(
                 INDEX_1,
                 filterExpectedInferenceFieldSet(INDEX_1_EXPECTED_INFERENCE_FIELDS, Set.of(INFERENCE_FIELD_1, INFERENCE_FIELD_3)),
@@ -164,13 +174,13 @@ public class GetInferenceFieldsIT extends ESIntegTestCase {
 
     public void testUseDefaultFields() {
         assertSuccessfulRequest(
-            new GetInferenceFieldsAction.Request(Set.of(INDEX_1), Set.of(), true, true, "foo"),
-            Map.of(INDEX_1, filterExpectedInferenceFieldSet(INDEX_1_EXPECTED_INFERENCE_FIELDS, Set.of(INFERENCE_FIELD_1))),
+            new GetInferenceFieldsAction.Request(Set.of(INDEX_1), Map.of(), true, true, "foo"),
+            Map.of(INDEX_1, Set.of(new InferenceFieldWithTestMetadata(INFERENCE_FIELD_1, SPARSE_EMBEDDING_INFERENCE_ID, 5.0f))),
             filterExpectedInferenceResults(ALL_EXPECTED_INFERENCE_RESULTS, Set.of(SPARSE_EMBEDDING_INFERENCE_ID))
         );
 
         assertSuccessfulRequest(
-            new GetInferenceFieldsAction.Request(Set.of(INDEX_2), Set.of(), true, true, "foo"),
+            new GetInferenceFieldsAction.Request(Set.of(INDEX_2), Map.of(), true, true, "foo"),
             Map.of(INDEX_2, INDEX_2_EXPECTED_INFERENCE_FIELDS),
             ALL_EXPECTED_INFERENCE_RESULTS
         );
@@ -204,13 +214,13 @@ public class GetInferenceFieldsIT extends ESIntegTestCase {
 
     public void testMissingFieldName() {
         assertSuccessfulRequest(
-            new GetInferenceFieldsAction.Request(ALL_INDICES, Set.of("missing-field"), false, false, "foo"),
+            new GetInferenceFieldsAction.Request(ALL_INDICES, generateDefaultBoostFieldMap(Set.of("missing-field")), false, false, "foo"),
             Map.of(INDEX_1, Set.of(), INDEX_2, Set.of()),
             Map.of()
         );
 
         assertSuccessfulRequest(
-            new GetInferenceFieldsAction.Request(ALL_INDICES, Set.of("missing-*"), true, false, "foo"),
+            new GetInferenceFieldsAction.Request(ALL_INDICES, generateDefaultBoostFieldMap(Set.of("missing-*")), true, false, "foo"),
             Map.of(INDEX_1, Set.of(), INDEX_2, Set.of()),
             Map.of()
         );
@@ -292,7 +302,7 @@ public class GetInferenceFieldsIT extends ESIntegTestCase {
 
     public void testNoFields() {
         assertSuccessfulRequest(
-            new GetInferenceFieldsAction.Request(ALL_INDICES, Set.of(), false, false, "foo"),
+            new GetInferenceFieldsAction.Request(ALL_INDICES, Map.of(), false, false, "foo"),
             Map.of(INDEX_1, Set.of(), INDEX_2, Set.of()),
             Map.of()
         );
@@ -304,7 +314,7 @@ public class GetInferenceFieldsIT extends ESIntegTestCase {
         );
 
         assertFailedRequest(
-            new GetInferenceFieldsAction.Request(null, Set.of(), false, false, null),
+            new GetInferenceFieldsAction.Request(null, Map.of(), false, false, null),
             ActionRequestValidationException.class,
             e -> validator.accept(e, List.of("indices is null"))
         );
@@ -332,7 +342,7 @@ public class GetInferenceFieldsIT extends ESIntegTestCase {
             Set.of(SPARSE_EMBEDDING_INFERENCE_ID)
         );
         assertSuccessfulRequest(
-            new GetInferenceFieldsAction.Request(ALL_INDICES, Set.of(INFERENCE_FIELD_3), false, false, query),
+            new GetInferenceFieldsAction.Request(ALL_INDICES, generateDefaultBoostFieldMap(Set.of(INFERENCE_FIELD_3)), false, false, query),
             Map.of(
                 INDEX_1,
                 filterExpectedInferenceFieldSet(INDEX_1_EXPECTED_INFERENCE_FIELDS, Set.of(INFERENCE_FIELD_3)),
@@ -343,13 +353,19 @@ public class GetInferenceFieldsIT extends ESIntegTestCase {
         );
 
         assertSuccessfulRequest(
-            new GetInferenceFieldsAction.Request(Set.of(INDEX_1), Set.of(INFERENCE_FIELD_3), false, false, query),
+            new GetInferenceFieldsAction.Request(
+                Set.of(INDEX_1),
+                generateDefaultBoostFieldMap(Set.of(INFERENCE_FIELD_3)),
+                false,
+                false,
+                query
+            ),
             Map.of(INDEX_1, filterExpectedInferenceFieldSet(INDEX_1_EXPECTED_INFERENCE_FIELDS, Set.of(INFERENCE_FIELD_3))),
             query == null || query.isBlank() ? Map.of() : expectedInferenceResultsSparseOnly
         );
 
         assertSuccessfulRequest(
-            new GetInferenceFieldsAction.Request(ALL_INDICES, Set.of("*"), false, false, query),
+            new GetInferenceFieldsAction.Request(ALL_INDICES, generateDefaultBoostFieldMap(Set.of("*")), false, false, query),
             Map.of(INDEX_1, Set.of(), INDEX_2, Set.of()),
             Map.of()
         );
@@ -471,6 +487,12 @@ public class GetInferenceFieldsIT extends ESIntegTestCase {
             assertThat(expectedInferenceResultsClass, notNullValue());
             assertThat(inferenceResults, instanceOf(expectedInferenceResultsClass));
         }
+    }
+
+    static Map<String, Float> generateDefaultBoostFieldMap(Set<String> fieldList) {
+        Map<String, Float> fieldMap = new HashMap<>();
+        fieldList.forEach(field -> fieldMap.put(field, 1.0f));
+        return fieldMap;
     }
 
     private static Set<InferenceFieldWithTestMetadata> filterExpectedInferenceFieldSet(

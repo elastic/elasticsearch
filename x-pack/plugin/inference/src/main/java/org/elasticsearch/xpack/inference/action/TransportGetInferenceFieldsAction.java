@@ -90,7 +90,7 @@ public class TransportGetInferenceFieldsAction extends HandledTransportAction<
         ActionListener<GetInferenceFieldsAction.Response> listener
     ) {
         final Set<String> indices = request.getIndices();
-        final Set<String> fields = request.getFields();
+        final Map<String, Float> fields = request.getFields();
         final boolean resolveWildcards = request.resolveWildcards();
         final boolean useDefaultFields = request.useDefaultFields();
         final String query = request.getQuery();
@@ -136,10 +136,9 @@ public class TransportGetInferenceFieldsAction extends HandledTransportAction<
         }
     }
 
-    // TODO: Don't hard-code field weights
     private List<GetInferenceFieldsAction.ExtendedInferenceFieldMetadata> getInferenceFieldMetadata(
         String index,
-        Set<String> fields,
+        Map<String, Float> fields,
         boolean resolveWildcards,
         boolean useDefaultFields
     ) {
@@ -149,32 +148,30 @@ public class TransportGetInferenceFieldsAction extends HandledTransportAction<
         }
 
         Map<String, InferenceFieldMetadata> inferenceFieldsMap = indexMetadata.getInferenceFields();
-        List<GetInferenceFieldsAction.ExtendedInferenceFieldMetadata> inferenceFieldMetadataList = new ArrayList<>();
-        Set<String> effectiveFields = fields.isEmpty() && useDefaultFields ? getDefaultFields(indexMetadata.getSettings()) : fields;
-        for (String field : effectiveFields) {
+        Map<String, GetInferenceFieldsAction.ExtendedInferenceFieldMetadata> inferenceFieldMetadataMap = new HashMap<>(
+            inferenceFieldsMap.size()
+        );
+        Map<String, Float> effectiveFields = fields.isEmpty() && useDefaultFields ? getDefaultFields(indexMetadata.getSettings()) : fields;
+        for (var fieldAndWeight : effectiveFields.entrySet()) {
+            String field = fieldAndWeight.getKey();
+            Float weight = fieldAndWeight.getValue();
+
             if (inferenceFieldsMap.containsKey(field)) {
                 // No wildcards in field name
-                inferenceFieldMetadataList.add(
-                    new GetInferenceFieldsAction.ExtendedInferenceFieldMetadata(inferenceFieldsMap.get(field), 1.0f)
-                );
+                addToInferenceFieldMetadataMap(inferenceFieldMetadataMap, inferenceFieldsMap.get(field), weight);
             } else if (resolveWildcards) {
                 if (Regex.isMatchAllPattern(field)) {
-                    inferenceFieldsMap.values().forEach(ifm -> {
-                        GetInferenceFieldsAction.ExtendedInferenceFieldMetadata eifm =
-                            new GetInferenceFieldsAction.ExtendedInferenceFieldMetadata(ifm, 1.0f);
-                        inferenceFieldMetadataList.add(eifm);
-                    });
+                    inferenceFieldsMap.values().forEach(ifm -> addToInferenceFieldMetadataMap(inferenceFieldMetadataMap, ifm, weight));
                 } else if (Regex.isSimpleMatchPattern(field)) {
-                    inferenceFieldsMap.values().stream().filter(ifm -> Regex.simpleMatch(field, ifm.getName())).forEach(ifm -> {
-                        GetInferenceFieldsAction.ExtendedInferenceFieldMetadata eifm =
-                            new GetInferenceFieldsAction.ExtendedInferenceFieldMetadata(ifm, 1.0f);
-                        inferenceFieldMetadataList.add(eifm);
-                    });
+                    inferenceFieldsMap.values()
+                        .stream()
+                        .filter(ifm -> Regex.simpleMatch(field, ifm.getName()))
+                        .forEach(ifm -> addToInferenceFieldMetadataMap(inferenceFieldMetadataMap, ifm, weight));
                 }
             }
         }
 
-        return inferenceFieldMetadataList;
+        return new ArrayList<>(inferenceFieldMetadataMap.values());
     }
 
     private void getInferenceResults(
@@ -225,12 +222,29 @@ public class TransportGetInferenceFieldsAction extends HandledTransportAction<
         );
     }
 
-    private static Set<String> getDefaultFields(Settings settings) {
+    private static void addToInferenceFieldMetadataMap(
+        Map<String, GetInferenceFieldsAction.ExtendedInferenceFieldMetadata> inferenceFieldMetadataMap,
+        InferenceFieldMetadata inferenceFieldMetadata,
+        Float weight
+    ) {
+        inferenceFieldMetadataMap.compute(inferenceFieldMetadata.getName(), (k, v) -> {
+            GetInferenceFieldsAction.ExtendedInferenceFieldMetadata eifm;
+            if (v == null) {
+                eifm = new GetInferenceFieldsAction.ExtendedInferenceFieldMetadata(inferenceFieldMetadata, weight);
+            } else {
+                eifm = new GetInferenceFieldsAction.ExtendedInferenceFieldMetadata(inferenceFieldMetadata, v.weight() * weight);
+            }
+
+            return eifm;
+        });
+    }
+
+    private static Map<String, Float> getDefaultFields(Settings settings) {
         List<String> defaultFieldsWithWeights = settings.getAsList(
             DEFAULT_FIELD_SETTING.getKey(),
             DEFAULT_FIELD_SETTING.getDefault(settings)
         );
-        return QueryParserHelper.parseFieldsAndWeights(defaultFieldsWithWeights).keySet();
+        return QueryParserHelper.parseFieldsAndWeights(defaultFieldsWithWeights);
     }
 
     private static InferenceResults validateAndConvertInferenceResults(

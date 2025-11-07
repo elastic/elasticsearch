@@ -41,7 +41,7 @@ public class GetInferenceFieldsAction extends ActionType<GetInferenceFieldsActio
 
     public static class Request extends ActionRequest {
         private final Set<String> indices;
-        private final Set<String> fields;
+        private final Map<String, Float> fields;
         private final boolean resolveWildcards;
         private final boolean useDefaultFields;
         private final String query;
@@ -49,7 +49,7 @@ public class GetInferenceFieldsAction extends ActionType<GetInferenceFieldsActio
 
         public Request(
             Set<String> indices,
-            Set<String> fields,
+            Map<String, Float> fields,
             boolean resolveWildcards,
             boolean useDefaultFields,
             @Nullable String query
@@ -59,7 +59,7 @@ public class GetInferenceFieldsAction extends ActionType<GetInferenceFieldsActio
 
         public Request(
             Set<String> indices,
-            Set<String> fields,
+            Map<String, Float> fields,
             boolean resolveWildcards,
             boolean useDefaultFields,
             @Nullable String query,
@@ -76,7 +76,7 @@ public class GetInferenceFieldsAction extends ActionType<GetInferenceFieldsActio
         public Request(StreamInput in) throws IOException {
             super(in);
             this.indices = in.readCollectionAsSet(StreamInput::readString);
-            this.fields = in.readCollectionAsSet(StreamInput::readString);
+            this.fields = in.readMap(StreamInput::readFloat);
             this.resolveWildcards = in.readBoolean();
             this.useDefaultFields = in.readBoolean();
             this.query = in.readOptionalString();
@@ -87,7 +87,7 @@ public class GetInferenceFieldsAction extends ActionType<GetInferenceFieldsActio
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             out.writeStringCollection(indices);
-            out.writeStringCollection(fields);
+            out.writeMap(fields, StreamOutput::writeFloat);
             out.writeBoolean(resolveWildcards);
             out.writeBoolean(useDefaultFields);
             out.writeOptionalString(query);
@@ -111,8 +111,8 @@ public class GetInferenceFieldsAction extends ActionType<GetInferenceFieldsActio
             return Collections.unmodifiableSet(indices);
         }
 
-        public Set<String> getFields() {
-            return Collections.unmodifiableSet(fields);
+        public Map<String, Float> getFields() {
+            return Collections.unmodifiableMap(fields);
         }
 
         public boolean resolveWildcards() {

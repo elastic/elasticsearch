@@ -255,9 +255,7 @@ public class KeywordFieldTypeTests extends FieldTypeTestCase {
             .build();
         IndexSettings indexSettings = new IndexSettings(
             indexMetadata,
-            Settings.builder()
-                .put(Mapper.SYNTHETIC_SOURCE_KEEP_INDEX_SETTING.getKey(), randomFrom("arrays", "none").toString())
-                .build()
+            Settings.builder().put(Mapper.SYNTHETIC_SOURCE_KEEP_INDEX_SETTING.getKey(), randomFrom("arrays", "none").toString()).build()
         );
 
         MappedFieldType normalizerMapper = new KeywordFieldMapper.Builder(

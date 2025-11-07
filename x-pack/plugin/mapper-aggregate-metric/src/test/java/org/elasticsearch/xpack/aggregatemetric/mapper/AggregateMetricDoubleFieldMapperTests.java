@@ -621,8 +621,6 @@ public class AggregateMetricDoubleFieldMapperTests extends MapperTestCase {
 
     @Override
     protected List<SortShortcutSupport> getSortShortcutSupport() {
-        return List.of(
-            new SortShortcutSupport(this::minimalMapping, this::writeField, true)
-        );
+        return List.of(new SortShortcutSupport(this::minimalMapping, this::writeField, true));
     }
 }

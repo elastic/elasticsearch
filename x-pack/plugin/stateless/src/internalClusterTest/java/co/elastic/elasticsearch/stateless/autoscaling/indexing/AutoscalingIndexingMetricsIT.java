@@ -700,6 +700,7 @@ public class AutoscalingIndexingMetricsIT extends AbstractStatelessIntegTestCase
             final DiscoveryNode currentMasterNode = internalCluster().getCurrentMasterNodeInstance(ClusterService.class).localNode();
             markNodesForShutdown(List.of(currentMasterNode), List.of(SingleNodeShutdownMetadata.Type.SIGTERM));
             assertBusy(() -> assertThat(internalCluster().getMasterName(), is(not(currentMasterNode.getName()))));
+            awaitMasterNode(); // Wait for a consistent cluster view, allowing IngestMetricsService.nodesIngestLoad to get repopulated.
             getNodesIngestLoad(); // trigger metrics recording
             assertOnlyMasterNodePublishesIngestLoadMetrics();
             deleteShutdownMetadataForNodes(List.of(currentMasterNode));

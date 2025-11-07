@@ -35,12 +35,14 @@ import org.elasticsearch.cluster.routing.allocation.WriteLoadForecaster;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision.Type;
+import org.elasticsearch.common.FrequencyCappedAction;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.gateway.PriorityComparator;
 import org.elasticsearch.index.shard.ShardId;
@@ -55,6 +57,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.BiFunction;
 import java.util.function.Predicate;
 
@@ -113,6 +116,8 @@ public class BalancedShardsAllocator implements ShardsAllocator {
         Property.Dynamic,
         Property.NodeScope
     );
+    private static final AtomicLong INVALID_WEIGHT_FUNCTION_LAST_LOG = new AtomicLong(0);
+    private static final TimeValue MINIMUM_INVALID_WEIGHT_LOG_INTERVAL = TimeValue.timeValueMinutes(5);
 
     private final BalancerSettings balancerSettings;
     private final WriteLoadForecaster writeLoadForecaster;
@@ -489,7 +494,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
             assert currentNode != null : "currently assigned node could not be found";
 
             // balance the shard, if a better node can be found
-            final float currentWeight = sorter.getWeightFunction().calculateNodeWeightWithIndex(this, currentNode, index);
+            final float currentWeight = calculateNodeWeightWithIndex(sorter.getWeightFunction(), this, currentNode, index);
             final AllocationDeciders deciders = allocation.deciders();
             Type rebalanceDecisionType = Type.NO;
             ModelNode targetNode = null;
@@ -505,7 +510,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
                 // this is a comparison of the number of shards on this node to the number of shards
                 // that should be on each node on average (both taking the cluster as a whole into account
                 // as well as shards per index)
-                final float nodeWeight = sorter.getWeightFunction().calculateNodeWeightWithIndex(this, node, index);
+                final float nodeWeight = calculateNodeWeightWithIndex(sorter.getWeightFunction(), this, node, index);
                 // if the node we are examining has a worse (higher) weight than the node the shard is
                 // assigned to, then there is no way moving the shard to the node with the worse weight
                 // can make the balance of the cluster better, so we check for that here
@@ -1336,12 +1341,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
                 }
 
                 // weight of this index currently on the node
-                float currentWeight = weightFunction.calculateNodeWeightWithIndex(this, node, index);
-                if (Double.isFinite(currentWeight) == false) {
-                    assert false : "Weight function is returning invalid weights: " + currentWeight;
-                    // Default weight to largest finite value
-                    currentWeight = Float.MAX_VALUE;
-                }
+                float currentWeight = calculateNodeWeightWithIndex(weightFunction, this, node, index);
                 // moving the shard would not improve the balance, and we are not in explain mode, so short circuit
                 if (currentWeight > minWeight && explain == false) {
                     continue;
@@ -1710,7 +1710,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
         }
 
         public float weight(ModelNode node) {
-            return function.calculateNodeWeightWithIndex(balancer, node, index);
+            return calculateNodeWeightWithIndex(function, balancer, node, index);
         }
 
         public float minWeightDelta() {
@@ -1752,6 +1752,30 @@ public class BalancedShardsAllocator implements ShardsAllocator {
         public WeightFunction getWeightFunction() {
             return function;
         }
+    }
+
+    /**
+     * Defensive layer to prevent weight function errors from causing allocation issues
+     */
+    private static float calculateNodeWeightWithIndex(
+        WeightFunction weightFunction,
+        Balancer balancer,
+        ModelNode modelNode,
+        ProjectIndex index
+    ) {
+        final float currentWeight = weightFunction.calculateNodeWeightWithIndex(balancer, modelNode, index);
+        if (Float.isFinite(currentWeight) == false) {
+            assert false : "Weight function is returning invalid weights: " + currentWeight;
+            FrequencyCappedAction.runIfDue(
+                System::currentTimeMillis,
+                INVALID_WEIGHT_FUNCTION_LAST_LOG,
+                MINIMUM_INVALID_WEIGHT_LOG_INTERVAL,
+                () -> logger.error("Weight function returned invalid weight {}", currentWeight)
+            );
+            // Default weight to largest finite value
+            return Float.MAX_VALUE;
+        }
+        return currentWeight;
     }
 
     record ProjectIndex(ProjectId project, String indexName) {

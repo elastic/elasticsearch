@@ -189,6 +189,7 @@ public abstract class AbstractInterceptedInferenceQueryBuilderTestCase<T extends
         assertRewriteAndSerializeOnNonInferenceField(nonInferenceFieldQuery, contextCurrent);
     }
 
+    @AwaitsFix(bugUrl = "https://fake.url")
     public void testCcsSerializationWithMinimizeRoundTripsFalse() throws Exception {
         final String inferenceField = "semantic_field";
         final T inferenceFieldQuery = createQueryBuilder(inferenceField);

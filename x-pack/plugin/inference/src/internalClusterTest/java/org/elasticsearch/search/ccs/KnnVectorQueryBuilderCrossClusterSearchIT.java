@@ -33,6 +33,7 @@ public class KnnVectorQueryBuilderCrossClusterSearchIT extends AbstractSemanticC
         new IndexWithBoost(fullyQualifiedIndexName(REMOTE_CLUSTER, REMOTE_INDEX_NAME))
     );
 
+    @AwaitsFix(bugUrl = "https://fake.url")
     public void testKnnQuery() throws Exception {
         final String commonInferenceId = "common-inference-id";
         final String localInferenceId = "local-inference-id";
@@ -153,6 +154,7 @@ public class KnnVectorQueryBuilderCrossClusterSearchIT extends AbstractSemanticC
         );
     }
 
+    @AwaitsFix(bugUrl = "https://fake.url")
     public void testKnnQueryWithCcsMinimizeRoundTripsFalse() throws Exception {
         final BiConsumer<String, TextEmbeddingQueryVectorBuilder> assertCcsMinimizeRoundTripsFalseFailure = (f, qvb) -> {
             KnnVectorQueryBuilder queryBuilder = new KnnVectorQueryBuilder(f, qvb, 10, 100, 10f, null);

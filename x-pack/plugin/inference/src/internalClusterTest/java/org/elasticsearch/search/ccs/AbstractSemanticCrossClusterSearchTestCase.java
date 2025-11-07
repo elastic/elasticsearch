@@ -267,7 +267,7 @@ public abstract class AbstractSemanticCrossClusterSearchTestCase extends Abstrac
         return indices.stream().map(IndexWithBoost::index).toArray(String[]::new);
     }
 
-    protected record TestIndexInfo(
+    public record TestIndexInfo(
         String name,
         Map<String, MinimalServiceSettings> inferenceEndpoints,
         Map<String, Object> mappings,
@@ -279,13 +279,13 @@ public abstract class AbstractSemanticCrossClusterSearchTestCase extends Abstrac
         }
     }
 
-    protected record SearchResult(@Nullable String clusterAlias, String index, String id) {}
+    public record SearchResult(@Nullable String clusterAlias, String index, String id) {}
 
-    protected record FailureCause(Class<? extends Throwable> causeClass, String message) {}
+    public record FailureCause(Class<? extends Throwable> causeClass, String message) {}
 
-    protected record ClusterFailure(SearchResponse.Cluster.Status status, Set<FailureCause> failures) {}
+    public record ClusterFailure(SearchResponse.Cluster.Status status, Set<FailureCause> failures) {}
 
-    protected record IndexWithBoost(String index, float boost) {
+    public record IndexWithBoost(String index, float boost) {
         public IndexWithBoost(String index) {
             this(index, 1.0f);
         }

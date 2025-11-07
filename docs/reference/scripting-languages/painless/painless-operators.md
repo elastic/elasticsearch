@@ -10,7 +10,88 @@ products:
 
 # Operators [painless-operators]
 
-An operator is the most basic action that can be taken to evaluate values in a script. An expression is one-to-many consecutive operations. Precedence is the order in which an operator will be evaluated relative to another operator. Associativity is the direction within an expression in which a specific operator is evaluated. The following table lists all available operators:
+Operators are the fundamental building blocks for data manipulation in Painless scripts. They enable calculations, comparisons, logical operations, and data access across all {{es}} scripting [contexts](/reference/scripting-languages/painless/painless-contexts.md).
+
+An **operator** performs a specific action to evaluate values in a script. An **expression** combines one or more operators to produce a result. **Precedence** determines evaluation order when multiple operators are present, while **associativity** controls evaluation direction for operators with equal precedence.
+
+Painless operators use Java-like syntax with {{es}} specific enhancements such as null-safe navigation and specialized data structure access.
+
+## Operator categories
+
+Painless organizes operators into five functional categories based on their purpose.
+
+:::{image} images/painless-operator-categories.png
+:alt: Painless operator categories
+:::
+
+### General operators
+
+Control the fundamental flow and structure of expressions in Painless scripts. These operators manage how expressions are evaluated, values are assigned, and conditional logic is run. 
+
+* [Precedence](/reference/scripting-languages/painless/painless-operators-general.md#precedence-operator) `()`: Controls evaluation order by overriding default precedence rules  
+* [Function Call](/reference/scripting-languages/painless/painless-operators-general.md#function-call-operator) `()`: Executes user-defined functions with arguments   
+* [Cast](/reference/scripting-languages/painless/painless-operators-general.md#cast-operator) `()` : Forces explicit type conversion between compatible types  
+* [Conditional](/reference/scripting-languages/painless/painless-operators-general.md#conditional-operator) `? :` : Provides inline if-else logic for expressions  
+* [Elvis](/reference/scripting-languages/painless/painless-operators-reference.md#elvis-operator) `?:` : Returns first non-null value for null coalescing  
+* [Assignment](/reference/scripting-languages/painless/painless-operators-general.md#assignment-operator) `=` : Stores values in variables or fields  
+* [Compound Assignment](/reference/scripting-languages/painless/painless-operators-general.md#compound-assignment-operator) `$=` : Combines binary operations with assignment (`+=`, `-=`, and so on)
+
+### Numeric operators
+
+Perform mathematical calculations and bit-level manipulations on numeric values. These operators handle arithmetic, bitwise operations, and value modifications essential for numerical computations.
+
+* [Increment](/reference/scripting-languages/painless/painless-operators-numeric.md#post-increment-operator)/[Decrement](/reference/scripting-languages/painless/painless-operators-numeric.md#post-decrement-operator) (`++`. `--`) : Increases or decreases values by one (pre/post variants)  
+* [Unary](/reference/scripting-languages/painless/painless-operators-numeric.md#unary-positive-operator) (`+`, `-`) : preserves or negates numeric values  
+* [Bitwise Not](/reference/scripting-languages/painless/painless-operators-numeric.md#bitwise-not-operator) `~` : inverts all bits in integer values  
+* [Multiplication](/reference/scripting-languages/painless/painless-operators-numeric.md#multiplication-operator)/[Division](/reference/scripting-languages/painless/painless-operators-numeric.md#division-operator)/[Remainder](/reference/scripting-languages/painless/painless-operators-numeric.md#remainder-operator) `*` `/` `%` : Basic arithmetic operations  
+* [Addition](/reference/scripting-languages/painless/painless-operators-numeric.md#addition-operator)/[Subtraction](/reference/scripting-languages/painless/painless-operators-numeric.md#subtraction-operator) `+` `-` : Basic arithmetic operations  
+* [Shift](/reference/scripting-languages/painless/painless-operators-numeric.md#left-shift-operator) (`<<`, `>>`, `>>>`) : Shifts bits left or right within integer values  
+* [Bitwise And](/reference/scripting-languages/painless/painless-operators-numeric.md#bitwise-and-operator) `&` : Performs AND operations on corresponding bits  
+* [Bitwise Xor](/reference/scripting-languages/painless/painless-operators-numeric.md#bitwise-xor-operator) `^` : Performs XOR operations on corresponding bits  
+* [Bitwise Or](/reference/scripting-languages/painless/painless-operators-numeric.md#bitwise-or-operator) `|`: Performs OR operations on corresponding bits
+
+### Boolean operators
+
+Handle logical evaluation, comparisons, and conditional expressions. These operators are fundamental for creating filters, conditional logic, and boolean expressions in scripts
+
+* [Boolean Not](/reference/scripting-languages/painless/painless-operators-boolean.md#boolean-not-operator) `!`:Inverts boolean values (true becomes false)  
+* [Comparison](/reference/scripting-languages/painless/painless-operators-boolean.md#greater-than-operator) `>` `>=` `<` `<=` : Compares numeric values for ordering  
+* [Instanceof](/reference/scripting-languages/painless/painless-operators-boolean.md#instanceof-operator) `instanceof`: Checks if an object is an instance of a specific type  
+* [Equality](/reference/scripting-languages/painless/painless-operators-boolean.md#equality-equals-operator) `==` `!=` : Compares values for equality (calls equals() method)  
+* [Identity](/reference/scripting-languages/painless/painless-operators-boolean.md#identity-equals-operator) `===` `!==` : Compares object references for same instance  
+* [Boolean Xor](/reference/scripting-languages/painless/painless-operators-boolean.md#boolean-xor-operator) `^`: Returns true if exactly one operand is true  
+* [Boolean And](/reference/scripting-languages/painless/painless-operators-boolean.md#boolean-and-operator) `&&`: Returns true only if both operands are true  
+* [Boolean Or](/reference/scripting-languages/painless/painless-operators-boolean.md#boolean-or-operator) `||`: Returns true if at least one operand is true
+
+### Reference Operators
+
+Enable interaction with objects, method calls, and data structure manipulation. These operators are essential for working with documents, collections, and complex data types in {{es}} contexts.
+
+* [Method Call](/reference/scripting-languages/painless/painless-operators-reference.md#method-call-operator) `. ()`: Invokes methods on objects with optional arguments  
+* [Field Access](/reference/scripting-languages/painless/painless-operators-reference.md#field-access-operator) `.`: Accesses object properties and member fields  
+* [Null safe](/reference/scripting-languages/painless/painless-operators-reference.md#null-safe-operator) `?.`: Safely accesses fields/methods without null pointer exceptions  
+* [List/Map Initialization](/reference/scripting-languages/painless/painless-operators-reference.md#list-initialization-operator) `[] [:]`: Creates new List or Map collections with initial values  
+* [List/Map Access](/reference/scripting-languages/painless/painless-operators-reference.md#list-access-operator) `[]`: Retrieves or sets elements in collections by key/index  
+* [New Instance](/reference/scripting-languages/painless/painless-operators-reference.md#new-instance-operator) `new ()`: Creates new object instances with constructor arguments  
+* [String Concatenation](/reference/scripting-languages/painless/painless-operators-reference.md#string-concatenation-operator) `+` : Joins strings and converts other types to strings
+
+### Array Operators
+
+Provide specialized functionality for array creation, element access, and array property retrieval. These operators are essential when working with multi-value fields and array data structures.
+
+* [Array Initialization](/reference/scripting-languages/painless/painless-operators-array.md#array-initialization-operator) `[] {}`\`: Creates arrays with predefined values  
+* [Array Access](/reference/scripting-languages/painless/painless-operators-array.md#array-access-operator) `[]`: Retrieves or sets array elements by index position  
+* [Array Length](/reference/scripting-languages/painless/painless-operators-array.md#array-length-operator) `.`: Returns the number of elements in an array  
+* [New Array](/reference/scripting-languages/painless/painless-operators-array.md#new-array-operator) `new []`: Creates arrays with specified dimensions and sizes
+
+## Complete Operator Reference
+
+
+
+
+
+
+
 
 | **Operator** | **Category** | **Symbol(s)** | **Precedence** | **Associativity** |
 | --- | --- | --- | --- | --- |

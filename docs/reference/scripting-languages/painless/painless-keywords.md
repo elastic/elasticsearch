@@ -48,7 +48,7 @@ If a keyword is used as an identifier. Painless will generate a compilation erro
 
 ```
 // These will cause compilation errors
-int if = 10;        // Cannot use 'if' as variable name
+int if = 10;             // Cannot use 'if' as variable name
 String return = "value"; // Cannot use 'return' as variable name  
 boolean int = false;     // Cannot use 'int' as variable name
 

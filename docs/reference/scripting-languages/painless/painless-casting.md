@@ -10,7 +10,8 @@ products:
 
 # Casting [painless-casting]
 
-A cast converts the value of an original type to the equivalent value of a target type. An implicit cast infers the target type and automatically occurs during certain [operations](/reference/scripting-languages/painless/painless-operators.md). An explicit cast specifies the target type and forcefully occurs as its own operation. Use the `cast operator '()'` to specify an explicit cast.
+A cast converts the value of an original type to the equivalent value of a target type. An implicit cast infers the target type and automatically occurs during certain [operations](/reference/scripting-languages/painless/painless-operators.md). An explicit cast specifies the target type and forcefully occurs as its own operation. Use the `cast operator '()'` to specify an explicit cast. You can also check out the [type casting tutorial](docs-content://explore-analyze/scripting/modules-scripting-type-casting-tutorial.md) for related examples, and for help with troubleshooting refer to "type casting issues" in the Troubleshooting section.
+
 
 Refer to the [cast table](#allowed-casts) for a quick reference on all allowed casts.
 

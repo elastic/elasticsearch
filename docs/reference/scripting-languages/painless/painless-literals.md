@@ -26,21 +26,22 @@ HEX:     '-'? '0' [xX] [0-9a-fA-F]+ [lL]?;
 
 ### Examples
 
-```java
-int i = 0;      <1>
-double d = 0D;  <2>
-long l = 1234L; <3>
-float f = -90f; <4>
-int e = -022;	   <5>
-int x = 0xF2A;  <6>
-```
+* Integer literals
 
-1. `int 0`
-2. `double 0.0`
-3. `long 1234`
-4. `float -90.0`  
-5. `int -18 in octal`
-6. `int 3882 in hex`
+    ```java
+    int i = 0;      <1>
+    double d = 0D;  <2>
+    long l = 1234L; <3>
+    float f = -90f; <4>
+    int e = -022;	  <5>
+    int x = 0xF2A;  <6>
+    ```
+    1. `int 0`
+    2. `double 0.0`
+    3. `long 1234`
+    4. `float -90.0`  
+    5. `int -18 in octal`
+    6. `int 3882 in hex`
 
 ## Floats [float-literals]
 
@@ -55,19 +56,21 @@ EXPONENT: ( [eE] [+\-]? [0-9]+ );
 
 ### Examples
 
-```java
-double b = 0.0;	<1>
-double d = 1E6;	<2>
-double c = 0.977777;	<3>
-double n = -126.34;	<4>
-float f = 89.9F; <5>
-```
+* Floating point literals
 
-1. `double 0.0`
-2. `double 1000000.0` in exponent notation
-3. `double 0.977777`
-4. `double -126.34`
-5. `float 89.9`
+    ```java
+    double b = 0.0;	     <1>
+    double d = 1E6;	     <2>
+    double c = 0.977777; <3>
+    double n = -126.34;	 <4>
+    float f = 89.9F;     <5>
+    ```
+
+    1. `double 0.0`
+    2. `double 1000000.0` in exponent notation
+    3. `double 0.977777`
+    4. `double -126.34`
+    5. `float 89.9`
 
 ## Strings [string-literals]
 
@@ -82,7 +85,7 @@ STRING: ( '"'  ( '\\"'  | '\\\\' | ~[\\"] )*? '"'  )
 
 ### Examples
 
-* String literals using single-quotes.
+* String literals using single-quotes
 
     ```java
     String a = 'single-quoted string literal';
@@ -90,7 +93,7 @@ STRING: ( '"'  ( '\\"'  | '\\\\' | ~[\\"] )*? '"'  )
     String c = 'single-quoted with non-escaped "double-quotes"';
     ```
 
-* String literals using double-quotes.
+* String literals using double-quotes
 
     ```java
     String a = "double-quoted string literal";
@@ -101,3 +104,6 @@ STRING: ( '"'  ( '\\"'  | '\\\\' | ~[\\"] )*? '"'  )
 ## Characters [character-literals]
 
 Character literals are not specified directly in Painless. Instead, use the [cast operator](/reference/scripting-languages/painless/painless-casting.md#string-character-casting) to convert `string` type value into a `char` type value.
+
+For detailed information about character types, casting, and usage, refer to [Character type usage](/reference/scripting-languages/painless/painless-types.md#character-type-usage).
+

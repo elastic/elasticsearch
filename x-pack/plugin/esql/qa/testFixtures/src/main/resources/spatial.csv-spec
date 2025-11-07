@@ -955,9 +955,10 @@ FROM airport_city_boundaries
 | KEEP cardinality, in_city
 ;
 
-cardinality:k  |  in_city:boolean
-"few"          |  false
-"many"         |  true
+cardinality:k | in_city:boolean
+very few      | null
+"few"         | false
+"many"        | true
 ;
 
 cityNotInCityBoundaryBiggest
@@ -2185,6 +2186,7 @@ count:long | key:keyword | extent:cartesian_shape
 8          | Bot         | BBOX (0.0, 3.0, 1.0, 0.0)
 8          | Top         | BBOX (0.0, 3.0, 3.0, 2.0)
 4          | Fou         | BBOX (0.0, 3.0, 3.0, 0.0)
+1          | Mis         | BBOX (0.0, 0.0, 0.0, 0.0)
 ;
 
 stExtentCartesianShapesNoDocValues
@@ -2210,6 +2212,7 @@ count:long | key:keyword | extent:cartesian_shape
 8          | Bot         | BBOX (0.0, 3.0, 1.0, 0.0)
 8          | Top         | BBOX (0.0, 3.0, 3.0, 2.0)
 4          | Fou         | BBOX (0.0, 3.0, 3.0, 0.0)
+1          | Mis         | BBOX (0.0, 0.0, 0.0, 0.0)
 ;
 
 stExtentManyCartesianShapesGrouped

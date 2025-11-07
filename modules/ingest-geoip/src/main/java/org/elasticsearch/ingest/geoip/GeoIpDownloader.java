@@ -292,7 +292,7 @@ public class GeoIpDownloader extends AbstractGeoIpDownloader {
             return;
         }
         // by the time we reach here, the state will never be null
-        assert this.state != null : "this.setState() is null. You need to call setState() before calling runDownloader()";
+        assert this.state != null : "this.state is null. You need to call setState() before calling runDownloader()";
 
         try {
             updateDatabases();

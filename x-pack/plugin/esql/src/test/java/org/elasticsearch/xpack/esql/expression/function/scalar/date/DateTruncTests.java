@@ -48,23 +48,23 @@ public class DateTruncTests extends AbstractConfigurationFunctionTestCase {
     public static Iterable<Object[]> parameters() {
         List<TestCaseSupplier> suppliers = new ArrayList<>();
 
-        makeTruncPeriodTestCases().stream().map(DateTruncTests::ofDatePeriod).forEach(suppliers::addAll);
         makeTruncDurationTestCases().stream().map(DateTruncTests::ofDuration).forEach(suppliers::addAll);
+        makeTruncPeriodTestCases().stream().map(DateTruncTests::ofDatePeriod).forEach(suppliers::addAll);
 
         suppliers.add(randomSecond());
 
         return parameterSuppliersFromTypedDataWithDefaultChecks(true, suppliers);
     }
 
-    public record PeriodTestCaseData(Period period, String inputDate, @Nullable String zoneIdString, String expectedDate) {
+    public record DurationTestCaseData(Duration duration, String inputDate, @Nullable String zoneIdString, String expectedDate) {
         public String testCaseNameForMillis() {
             var zoneIdName = zoneIdString == null ? "random" : zoneIdString;
-            return "period, millis; " + period + ", " + zoneIdName + ", " + inputDate;
+            return "duration, millis; " + duration + ", " + zoneIdName + ", " + inputDate;
         }
 
         public String testCaseNameForNanos() {
             var zoneIdName = zoneIdString == null ? "random" : zoneIdString;
-            return "period, nanos; " + period + ", " + zoneIdName + ", " + inputDate;
+            return "duration, nanos; " + duration + ", " + zoneIdName + ", " + inputDate;
         }
 
         public ZoneId zoneId() {
@@ -82,15 +82,15 @@ public class DateTruncTests extends AbstractConfigurationFunctionTestCase {
         }
     }
 
-    public record DurationTestCaseData(Duration duration, String inputDate, @Nullable String zoneIdString, String expectedDate) {
+    public record PeriodTestCaseData(Period period, String inputDate, @Nullable String zoneIdString, String expectedDate) {
         public String testCaseNameForMillis() {
             var zoneIdName = zoneIdString == null ? "random" : zoneIdString;
-            return "duration, millis; " + duration + ", " + zoneIdName + ", " + inputDate;
+            return "period, millis; " + period + ", " + zoneIdName + ", " + inputDate;
         }
 
         public String testCaseNameForNanos() {
             var zoneIdName = zoneIdString == null ? "random" : zoneIdString;
-            return "duration, nanos; " + duration + ", " + zoneIdName + ", " + inputDate;
+            return "period, nanos; " + period + ", " + zoneIdName + ", " + inputDate;
         }
 
         public ZoneId zoneId() {
@@ -264,37 +264,6 @@ public class DateTruncTests extends AbstractConfigurationFunctionTestCase {
             : LocalDateTime.parse(date).atZone(ZoneId.of(timezone)).getOffset().getId();
     }
 
-    private static List<TestCaseSupplier> ofDatePeriod(PeriodTestCaseData data) {
-        return List.of(
-            new TestCaseSupplier(
-                data.testCaseNameForMillis(),
-                List.of(DataType.DATE_PERIOD, DataType.DATETIME),
-                () -> new TestCaseSupplier.TestCase(
-                    List.of(
-                        new TestCaseSupplier.TypedData(data.period(), DataType.DATE_PERIOD, "interval").forceLiteral(),
-                        new TestCaseSupplier.TypedData(data.inputDateAsMillis(), DataType.DATETIME, "date")
-                    ),
-                    Matchers.startsWith("DateTruncDatetimeEvaluator[fieldVal=Attribute[channel=0], rounding=Rounding["),
-                    DataType.DATETIME,
-                    matchesDateMillis(data.expectedDate())
-                ).withConfiguration(TEST_SOURCE, configurationForTimezone(data.zoneId()))
-            ),
-            new TestCaseSupplier(
-                data.testCaseNameForNanos(),
-                List.of(DataType.DATE_PERIOD, DataType.DATE_NANOS),
-                () -> new TestCaseSupplier.TestCase(
-                    List.of(
-                        new TestCaseSupplier.TypedData(data.period(), DataType.DATE_PERIOD, "interval").forceLiteral(),
-                        new TestCaseSupplier.TypedData(data.inputDateAsNanos(), DataType.DATE_NANOS, "date")
-                    ),
-                    Matchers.startsWith("DateTruncDateNanosEvaluator[fieldVal=Attribute[channel=0], rounding=Rounding["),
-                    DataType.DATE_NANOS,
-                    matchesDateNanos(data.expectedDate())
-                ).withConfiguration(TEST_SOURCE, configurationForTimezone(data.zoneId()))
-            )
-        );
-    }
-
     private static List<TestCaseSupplier> ofDuration(DurationTestCaseData data) {
         return List.of(
             new TestCaseSupplier(
@@ -316,6 +285,37 @@ public class DateTruncTests extends AbstractConfigurationFunctionTestCase {
                 () -> new TestCaseSupplier.TestCase(
                     List.of(
                         new TestCaseSupplier.TypedData(data.duration(), DataType.TIME_DURATION, "interval").forceLiteral(),
+                        new TestCaseSupplier.TypedData(data.inputDateAsNanos(), DataType.DATE_NANOS, "date")
+                    ),
+                    Matchers.startsWith("DateTruncDateNanosEvaluator[fieldVal=Attribute[channel=0], rounding=Rounding["),
+                    DataType.DATE_NANOS,
+                    matchesDateNanos(data.expectedDate())
+                ).withConfiguration(TEST_SOURCE, configurationForTimezone(data.zoneId()))
+            )
+        );
+    }
+
+    private static List<TestCaseSupplier> ofDatePeriod(PeriodTestCaseData data) {
+        return List.of(
+            new TestCaseSupplier(
+                data.testCaseNameForMillis(),
+                List.of(DataType.DATE_PERIOD, DataType.DATETIME),
+                () -> new TestCaseSupplier.TestCase(
+                    List.of(
+                        new TestCaseSupplier.TypedData(data.period(), DataType.DATE_PERIOD, "interval").forceLiteral(),
+                        new TestCaseSupplier.TypedData(data.inputDateAsMillis(), DataType.DATETIME, "date")
+                    ),
+                    Matchers.startsWith("DateTruncDatetimeEvaluator[fieldVal=Attribute[channel=0], rounding=Rounding["),
+                    DataType.DATETIME,
+                    matchesDateMillis(data.expectedDate())
+                ).withConfiguration(TEST_SOURCE, configurationForTimezone(data.zoneId()))
+            ),
+            new TestCaseSupplier(
+                data.testCaseNameForNanos(),
+                List.of(DataType.DATE_PERIOD, DataType.DATE_NANOS),
+                () -> new TestCaseSupplier.TestCase(
+                    List.of(
+                        new TestCaseSupplier.TypedData(data.period(), DataType.DATE_PERIOD, "interval").forceLiteral(),
                         new TestCaseSupplier.TypedData(data.inputDateAsNanos(), DataType.DATE_NANOS, "date")
                     ),
                     Matchers.startsWith("DateTruncDateNanosEvaluator[fieldVal=Attribute[channel=0], rounding=Rounding["),

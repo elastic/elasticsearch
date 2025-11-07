@@ -68,13 +68,27 @@ public class PruneRedundantOrderBy extends OptimizerRules.OptimizerRule<LogicalP
             if (p instanceof OrderBy ob) {
                 result.add(ob);
                 toCheck.add(ob.child());
-            } else
-                // We cannot drop a SORT that precedes a LIMIT, since that would change the results this LIMIT accumulates.
-                if (p instanceof Limit == false) {
-                    toCheck.addAll(p.children());
-                }
+            } else if (isRedundantSortAgnostic(p)) {
+                toCheck.addAll(p.children());
+            }
         }
 
         return result;
+    }
+
+    /**
+     * Returns {@code true} if a first SORT in a pattern like {@code ...| SORT a | COMMAND | SORT b |...} can be dropped. I.e. the plan
+     * can be simplifed to the equivalent of {@code ...| COMMAND | SORT b |...}.
+     * <br>
+     * That means that the execution of COMMAND doesn't depend on the order of the input data.
+     * <br>
+     * It does not mean that the order of the commands can be swapped, though.
+     */
+    protected static boolean isRedundantSortAgnostic(LogicalPlan plan) {
+        return switch (plan) {
+            // We cannot drop a SORT that precedes a LIMIT, since that would change the results this LIMIT accumulates.
+            case Limit l -> false;
+            default -> true;
+        };
     }
 }

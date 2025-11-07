@@ -70,6 +70,7 @@ dependencies {
   testImplementation project(xpackModule('esql:compute:test'))
   testImplementation('net.nextencia:rrdiagram:0.9.4')
   testImplementation('org.webjars.npm:fontsource__roboto-mono:4.5.7')
+  testImplementation "org.reflections:reflections:0.10.2"
 
   internalClusterTestImplementation project(":modules:mapper-extras")
 }

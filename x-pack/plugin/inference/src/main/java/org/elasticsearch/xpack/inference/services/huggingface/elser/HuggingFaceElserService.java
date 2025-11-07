@@ -116,7 +116,7 @@ public class HuggingFaceElserService extends HuggingFaceBaseService {
         // TODO chunking sparse embeddings not implemented
         doInfer(
             model,
-            new EmbeddingsInput(inputs.stream().map(ChunkInferenceInput::input).toList(), inputType),
+            new EmbeddingsInput(() -> inputs.stream().map(ChunkInferenceInput::input).toList(), inputType),
             taskSettings,
             timeout,
             inferListener
@@ -128,7 +128,7 @@ public class HuggingFaceElserService extends HuggingFaceBaseService {
         InferenceServiceResults inferenceResults
     ) {
         if (inferenceResults instanceof DenseEmbeddingFloatResults denseEmbeddingResults) {
-            validateInputSizeAgainstEmbeddings(ChunkInferenceInput.inputs(inputs), denseEmbeddingResults.embeddings().size());
+            validateInputSizeAgainstEmbeddings(ChunkInferenceInput.inputs(inputs).size(), denseEmbeddingResults.embeddings().size());
 
             var results = new ArrayList<ChunkedInference>(inputs.size());
 
@@ -138,7 +138,7 @@ public class HuggingFaceElserService extends HuggingFaceBaseService {
                         List.of(
                             new EmbeddingResults.Chunk(
                                 denseEmbeddingResults.embeddings().get(i),
-                                new ChunkedInference.TextOffset(0, inputs.get(i).input().length())
+                                new ChunkedInference.TextOffset(0, inputs.get(i).input().value().length())
                             )
                         )
                     )

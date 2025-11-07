@@ -81,8 +81,8 @@ public class CohereActionCreator implements CohereActionVisitor {
                 : overriddenModel.getTaskSettings().getInputType();
 
             return switch (overriddenModel.getServiceSettings().getCommonSettings().apiVersion()) {
-                case V1 -> new CohereV1EmbeddingsRequest(inferenceInputs.getInputs(), requestInputType, overriddenModel);
-                case V2 -> new CohereV2EmbeddingsRequest(inferenceInputs.getInputs(), requestInputType, overriddenModel);
+                case V1 -> new CohereV1EmbeddingsRequest(inferenceInputs.getTextInputs(), requestInputType, overriddenModel);
+                case V2 -> new CohereV2EmbeddingsRequest(inferenceInputs.getTextInputs(), requestInputType, overriddenModel);
             };
         };
 

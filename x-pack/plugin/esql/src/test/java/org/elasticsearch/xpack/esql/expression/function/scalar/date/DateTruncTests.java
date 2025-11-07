@@ -112,7 +112,6 @@ public class DateTruncTests extends AbstractConfigurationFunctionTestCase {
 
     public static List<DurationTestCaseData> makeTruncDurationTestCases() {
         List<DurationTestCaseData> cases = new ArrayList<>();
-        String ts = "2023-02-17T10:25:33.38Z";
 
         // Add generic cases for either UTC, fixed timezones and timezones with minutes.
         //
@@ -155,10 +154,10 @@ public class DateTruncTests extends AbstractConfigurationFunctionTestCase {
         cases.addAll(
             List.of(
                 // Timezone agnostic (<=1m intervals, "null" for randomized timezones)
-                new DurationTestCaseData(Duration.ofMillis(100), ts, null, "2023-02-17T10:25:33.30Z"),
-                new DurationTestCaseData(Duration.ofSeconds(1), ts, null, "2023-02-17T10:25:33Z"),
-                new DurationTestCaseData(Duration.ofMinutes(1), ts, null, "2023-02-17T10:25:00Z"),
-                new DurationTestCaseData(Duration.ofSeconds(30), ts, null, "2023-02-17T10:25:30Z"),
+                new DurationTestCaseData(Duration.ofMillis(100), "2023-02-17T10:25:33.38Z", null, "2023-02-17T10:25:33.30Z"),
+                new DurationTestCaseData(Duration.ofSeconds(1), "2023-02-17T10:25:33.38Z", null, "2023-02-17T10:25:33Z"),
+                new DurationTestCaseData(Duration.ofMinutes(1), "2023-02-17T10:25:33.38Z", null, "2023-02-17T10:25:00Z"),
+                new DurationTestCaseData(Duration.ofSeconds(30), "2023-02-17T10:25:33.38Z", null, "2023-02-17T10:25:30Z"),
 
                 // Daylight savings boundaries
                 // - +1 -> +2 at 2025-03-30T02:00:00+01:00
@@ -172,6 +171,13 @@ public class DateTruncTests extends AbstractConfigurationFunctionTestCase {
                 new DurationTestCaseData(Duration.ofHours(3), "2025-10-26T02:00:00+01:00", "Europe/Paris", "2025-10-26T00:00:00+02:00"),
                 new DurationTestCaseData(Duration.ofHours(3), "2025-10-26T03:00:00+01:00", "Europe/Paris", "2025-10-26T03:00:00+01:00"),
                 new DurationTestCaseData(Duration.ofHours(3), "2025-10-26T04:00:00+01:00", "Europe/Paris", "2025-10-26T03:00:00+01:00"),
+                // Midnight DST (America/Goose_Bay: -3 to -4 at 2010-11-07T00:01:00-03:00)
+                new DurationTestCaseData(Duration.ofMinutes(1), "2010-11-07T00:00:59-03:00", "America/Goose_Bay", "2010-11-07T00:00:00-03:00"),
+                new DurationTestCaseData(Duration.ofMinutes(1), "2010-11-07T00:01:00-04:00", "America/Goose_Bay", "2010-11-07T00:01:00-04:00"),
+                new DurationTestCaseData(Duration.ofMinutes(2), "2010-11-07T00:01:00-04:00", "America/Goose_Bay", "2010-11-07T00:00:00-04:00"),
+                new DurationTestCaseData(Duration.ofMinutes(2), "2010-11-07T00:02:00-04:00", "America/Goose_Bay", "2010-11-07T00:02:00-04:00"),
+                new DurationTestCaseData(Duration.ofMinutes(2), "2010-11-06T23:59:59-04:00", "America/Goose_Bay", "2010-11-06T23:58:00-03:00"),
+                new DurationTestCaseData(Duration.ofMinutes(2), "2010-11-06T20:03:00-03:00", "America/Goose_Bay", "2010-11-06T20:02:00-03:00"),
                 // Bigger intervals
                 new DurationTestCaseData(Duration.ofHours(12), "2025-10-26T02:00:00+02:00", "Europe/Rome", "2025-10-26T00:00:00+02:00"),
                 new DurationTestCaseData(Duration.ofHours(24), "2025-10-26T02:00:00+02:00", "Europe/Rome", "2025-10-26T00:00:00+02:00"),
@@ -216,7 +222,7 @@ public class DateTruncTests extends AbstractConfigurationFunctionTestCase {
             new PeriodTestCaseData(Period.ofYears(5), "2021-01-01T00:00:00", "", "2021-01-01T00:00:00"),
             // Negative years
             new PeriodTestCaseData(Period.ofYears(4), "-0004-12-31T23:59:59.99", "", "-0007-01-01T00:00:00"),
-            new PeriodTestCaseData(Period.ofYears(4), "-0003-01-01T00:00:00", "", "-0003-01-01T00:00:00"),
+            new PeriodTestCaseData(Period.ofYears(4), "-0003-01-01T00:00:00", "", "-0003-01-01T00:00:00")
         ).forEach(c -> TEST_TIMEZONES.forEach(timezone -> {
             // Convert the timezone to the offset in each local time.
             // This is required as date strings can't have a zone name as its zone.
@@ -230,7 +236,11 @@ public class DateTruncTests extends AbstractConfigurationFunctionTestCase {
             List.of(
                 // DST boundaries (e.g. New York: -5 to -4 at 2025-03-09T02:00:00-05, and -4 to -5 at 2025-11-02T02:00:00-04)
                 new PeriodTestCaseData(Period.ofDays(1), "2025-03-09T06:00:00-04:00", "America/New_York", "2025-03-09T00:00:00-05:00"),
-                new PeriodTestCaseData(Period.ofDays(1), "2025-11-02T05:00:00-05:00", "America/New_York", "2025-11-02T00:00:00-04:00")
+                new PeriodTestCaseData(Period.ofDays(1), "2025-11-02T05:00:00-05:00", "America/New_York", "2025-11-02T00:00:00-04:00"),
+                // Midnight DST (America/Goose_Bay: -3 to -4 at 2010-11-07T00:01:00-03:00)
+                new PeriodTestCaseData(Period.ofDays(1), "2010-11-07T00:00:59-03:00", "America/Goose_Bay", "2010-11-07T00:00:00-03:00"),
+                new PeriodTestCaseData(Period.ofDays(1), "2010-11-07T00:03:00-04:00", "America/Goose_Bay", "2010-11-07T00:00:00-03:00"),
+                new PeriodTestCaseData(Period.ofDays(1), "2010-11-06T23:01:00-04:00", "America/Goose_Bay", "2010-11-06T00:00:00-03:00")
             )
         );
         return cases;

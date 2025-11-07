@@ -13,6 +13,7 @@ import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.SimilarityMeasure;
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
@@ -31,6 +32,7 @@ import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 
+import static org.elasticsearch.xpack.inference.Utils.randomSimilarityMeasure;
 import static org.elasticsearch.xpack.inference.services.ServiceFields.SIMILARITY;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
@@ -439,7 +441,39 @@ public class AzureAiStudioEmbeddingsServiceSettingsTests extends AbstractBWCWire
 
     @Override
     protected AzureAiStudioEmbeddingsServiceSettings mutateInstance(AzureAiStudioEmbeddingsServiceSettings instance) throws IOException {
-        return randomValueOtherThan(instance, AzureAiStudioEmbeddingsServiceSettingsTests::createRandom);
+        var target = instance.target();
+        var provider = instance.provider();
+        var endpointType = instance.endpointType();
+        var dimensions = instance.dimensions();
+        var dimensionsSetByUser = instance.dimensionsSetByUser();
+        var maxInputTokens = instance.maxInputTokens();
+        var similarity = instance.similarity();
+        var rateLimitSettings = instance.rateLimitSettings();
+        switch (randomInt(7)) {
+            case 0 -> target = randomValueOtherThan(target, () -> randomAlphaOfLength(10));
+            case 1 -> provider = randomValueOtherThan(provider, () -> randomFrom(AzureAiStudioProvider.values()));
+            case 2 -> endpointType = randomValueOtherThan(endpointType, () -> randomFrom(AzureAiStudioEndpointType.values()));
+            case 3 -> dimensions = randomValueOtherThan(dimensions, ESTestCase::randomNonNegativeIntOrNull);
+            case 4 -> dimensionsSetByUser = randomValueOtherThan(dimensionsSetByUser, ESTestCase::randomBoolean);
+            case 5 -> maxInputTokens = randomValueOtherThan(maxInputTokens, ESTestCase::randomNonNegativeIntOrNull);
+            case 6 -> similarity = randomValueOtherThan(
+                similarity,
+                AzureAiStudioEmbeddingsServiceSettingsTests::randomSimilarityMeasureOrNull
+            );
+            case 7 -> rateLimitSettings = randomValueOtherThan(rateLimitSettings, RateLimitSettingsTests::createRandom);
+            default -> throw new AssertionError("Illegal randomisation branch");
+        }
+
+        return new AzureAiStudioEmbeddingsServiceSettings(
+            target,
+            provider,
+            endpointType,
+            dimensions,
+            dimensionsSetByUser,
+            maxInputTokens,
+            similarity,
+            rateLimitSettings
+        );
     }
 
     @Override
@@ -455,11 +489,15 @@ public class AzureAiStudioEmbeddingsServiceSettingsTests extends AbstractBWCWire
             randomAlphaOfLength(10),
             randomFrom(AzureAiStudioProvider.values()),
             randomFrom(AzureAiStudioEndpointType.values()),
-            randomFrom(new Integer[] { null, randomNonNegativeInt() }),
+            randomNonNegativeIntOrNull(),
             randomBoolean(),
-            randomFrom(new Integer[] { null, randomNonNegativeInt() }),
-            randomFrom(new SimilarityMeasure[] { null, randomFrom(SimilarityMeasure.values()) }),
+            randomNonNegativeIntOrNull(),
+            randomSimilarityMeasureOrNull(),
             RateLimitSettingsTests.createRandom()
         );
+    }
+
+    private static SimilarityMeasure randomSimilarityMeasureOrNull() {
+        return randomFrom(new SimilarityMeasure[] { null, randomSimilarityMeasure() });
     }
 }

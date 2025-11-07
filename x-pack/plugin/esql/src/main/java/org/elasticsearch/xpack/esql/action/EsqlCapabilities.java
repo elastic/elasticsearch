@@ -1424,6 +1424,10 @@ public class EsqlCapabilities {
          */
         LOOKUP_JOIN_WITH_FULL_TEXT_FUNCTION,
         /**
+         * Bugfix for lookup join with Full Text Function
+         */
+        LOOKUP_JOIN_WITH_FULL_TEXT_FUNCTION_BUGFIX,
+        /**
          * FORK with remote indices
          */
         ENABLE_FORK_FOR_REMOTE_INDICES(Build.current().isSnapshot()),
@@ -1623,6 +1627,15 @@ public class EsqlCapabilities {
          * Chunk function.
          */
         CHUNK_FUNCTION(Build.current().isSnapshot()),
+
+        /**
+         * Support for vector similarity functtions pushdown
+         */
+        VECTOR_SIMILARITY_FUNCTIONS_PUSHDOWN(Build.current().isSnapshot()),
+
+        FIX_MV_CONSTANT_COMPARISON_FIELD,
+
+        FULL_TEXT_FUNCTIONS_ACCEPT_NULL_FIELD,
 
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.

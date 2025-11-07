@@ -60,19 +60,26 @@ public class GetInferenceFieldsActionResponseTests extends AbstractWireSerializi
         };
     }
 
-    private static Map<String, List<InferenceFieldMetadata>> randomInferenceFieldsMap() {
-        Map<String, List<InferenceFieldMetadata>> map = new HashMap<>();
+    private static Map<String, List<GetInferenceFieldsAction.ExtendedInferenceFieldMetadata>> randomInferenceFieldsMap() {
+        Map<String, List<GetInferenceFieldsAction.ExtendedInferenceFieldMetadata>> map = new HashMap<>();
         int numIndices = randomIntBetween(0, 5);
         for (int i = 0; i < numIndices; i++) {
             String indexName = randomIdentifier();
-            List<InferenceFieldMetadata> fields = new ArrayList<>();
+            List<GetInferenceFieldsAction.ExtendedInferenceFieldMetadata> fields = new ArrayList<>();
             int numFields = randomIntBetween(0, 5);
             for (int j = 0; j < numFields; j++) {
-                fields.add(randomInferenceFieldMetadata());
+                fields.add(randomeExtendedInferenceFieldMetadata());
             }
             map.put(indexName, fields);
         }
         return map;
+    }
+
+    private static GetInferenceFieldsAction.ExtendedInferenceFieldMetadata randomeExtendedInferenceFieldMetadata() {
+        return new GetInferenceFieldsAction.ExtendedInferenceFieldMetadata(
+            randomInferenceFieldMetadata(),
+            randomFloat()
+        );
     }
 
     private static InferenceFieldMetadata randomInferenceFieldMetadata() {

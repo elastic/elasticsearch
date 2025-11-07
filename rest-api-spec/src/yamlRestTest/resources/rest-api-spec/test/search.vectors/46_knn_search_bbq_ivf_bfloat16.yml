@@ -1,10 +1,7 @@
 setup:
   - requires:
-      cluster_features: ["mapper.vectors.hnsw_bfloat16_on_disk_rescoring"]
-      reason: 'bfloat16 needs to be supported'
-  - skip:
-      awaits_fix: https://github.com/elastic/elasticsearch/issues/131109
-      reason:     Feature flag not enabled
+      cluster_features: [ "mapper.vectors.generic_vector_format" ]
+      reason: Needs generic vector support
   - skip:
       features: "headers"
   - do:

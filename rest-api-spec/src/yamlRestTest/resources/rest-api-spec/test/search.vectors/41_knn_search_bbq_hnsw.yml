@@ -340,11 +340,8 @@ setup:
 ---
 "Test index configured rescore vector with on-disk rescoring":
   - requires:
-      cluster_features: ["mapper.vectors.generic_vector_format"]
-      reason: Needs on_disk_rescoring feature
-  - skip:
-      awaits_fix: https://github.com/elastic/elasticsearch/issues/131109
-      reason:     Feature flag not enabled
+      cluster_features: [ "mapper.vectors.generic_vector_format" ]
+      reason: Needs generic vector support
   - skip:
       features: "headers"
   - do:

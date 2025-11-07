@@ -11,7 +11,6 @@ import com.nvidia.cuvs.CagraIndexParams;
 import com.nvidia.cuvs.CuVSIvfPqIndexParams;
 import com.nvidia.cuvs.CuVSIvfPqParams;
 import com.nvidia.cuvs.CuVSIvfPqSearchParams;
-import com.nvidia.cuvs.CuVSMatrix;
 
 /**
  * Factory for creating {@link CuVSIvfPqParams} with automatic parameter calculation
@@ -29,40 +28,49 @@ public class CuVSIvfPqParamsFactory {
 
     /**
      * Creates {@link CuVSIvfPqParams} with automatically calculated parameters based on the
-     * dataset dimensions and distance metric.
+     * dataset dimensions, distance metric, and efConstruction parameter.
      *
      * <p>This method replicates the parameter calculation logic from the C++ function:
      * {@code cuvs::neighbors::graph_build_params::ivf_pq_params(dataset_extents, metric)}
+     *
+     * @param numVectors the number of vectors in the dataset
+     * @param dims the dimensionality of the vectors
+     * @param distanceType the distance metric to use (e.g., L2Expanded, Cosine)
+     * @param efConstruction the efConstruction parameter in an HNSW graph
+     * @return a {@link CuVSIvfPqParams} instance with calculated parameters
+     * @throws IllegalArgumentException if dimensions are invalid
      */
-    public static CuVSIvfPqParams create(CuVSMatrix dataset, CagraIndexParams.CuvsDistanceType distanceType) {
-        if (dataset == null) {
-            throw new IllegalArgumentException("dataset cannot be null");
-        }
-
-        long nRows = dataset.size();
-        long nFeatures = dataset.columns();
+    public static CuVSIvfPqParams create(int numVectors, int dims, CagraIndexParams.CuvsDistanceType distanceType, int efConstruction) {
+        long nRows = numVectors;
+        long nFeatures = dims;
 
         if (nRows <= 0 || nFeatures <= 0) {
             throw new IllegalArgumentException("Dataset dimensions must be positive: rows=" + nRows + ", features=" + nFeatures);
         }
-        return createFromDimensions(nRows, nFeatures, distanceType);
+        return createFromDimensions(nRows, nFeatures, distanceType, efConstruction);
     }
 
     /**
      * Creates {@link CuVSIvfPqParams} with automatically calculated parameters based on dataset
-     * dimensions.
+     * dimensions and construction parameter.
      *
      * <p>This is a convenience method when you have the dataset dimensions but not the dataset
-     * object itself. The calculation logic is identical to {@link #create(CuVSMatrix,
-     * CagraIndexParams.CuvsDistanceType)}.
+     * object itself. The calculation logic is identical to {@link #create(int, int,
+     * CagraIndexParams.CuvsDistanceType, int)}.
      *
      * @param nRows the number of rows (vectors) in the dataset
      * @param nFeatures the number of features (dimensions) per vector
      * @param distanceType the distance metric to use (e.g., L2Expanded, Cosine)
+     * @param efConstruction the construction parameter for parameter calculation
      * @return a {@link CuVSIvfPqParams} instance with calculated parameters
      * @throws IllegalArgumentException if dimensions are invalid
      */
-    public static CuVSIvfPqParams createFromDimensions(long nRows, long nFeatures, CagraIndexParams.CuvsDistanceType distanceType) {
+    public static CuVSIvfPqParams createFromDimensions(
+        long nRows,
+        long nFeatures,
+        CagraIndexParams.CuvsDistanceType distanceType,
+        int efConstruction
+    ) {
         if (nRows <= 0 || nFeatures <= 0) {
             throw new IllegalArgumentException("Dataset dimensions must be positive: rows=" + nRows + ", features=" + nFeatures);
         }
@@ -97,8 +105,8 @@ public class CuVSIvfPqParamsFactory {
         final double minKmeansTrainsetFraction = Math.min(maxKmeansTrainsetFraction, minKmeansTrainsetPoints / nRows);
         double kmeansTrainsetFraction = Math.clamp(1.0 / Math.sqrt(nRows * 1e-5), minKmeansTrainsetFraction, maxKmeansTrainsetFraction);
 
-        // Calculate number of probes based on number of lists
-        int nProbes = Math.round((float) (Math.sqrt(nLists) / 20.0 + 4.0));
+        // Calculate number of probes based on number of lists and efConstruction
+        int nProbes = Math.round((float) (2.0 + Math.sqrt(nLists) / 20.0 + efConstruction / 16.0));
 
         // Build index parameters
         CuVSIvfPqIndexParams indexParams = new CuVSIvfPqIndexParams.Builder().withMetric(distanceType)

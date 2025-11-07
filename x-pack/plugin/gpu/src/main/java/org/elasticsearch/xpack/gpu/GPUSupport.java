@@ -22,6 +22,17 @@ public class GPUSupport {
     // Set the minimum at 7.5GB: 8GB GPUs (which are our targeted minimum) report less than that via the API
     private static final long MIN_DEVICE_MEMORY_IN_BYTES = 8053063680L;
 
+    private static volatile Long cachedTotalGpuMemory;
+
+    /**
+     * Checks whether a GPU meets the minimum requirements for GPU-accelerated indexing.
+     * Checks compute capability and total memory requirements.
+     */
+    private static boolean meetsComputeCapabilityRequirements(int major, int minor) {
+        return major >= GPUInfoProvider.MIN_COMPUTE_CAPABILITY_MAJOR
+            && (major > GPUInfoProvider.MIN_COMPUTE_CAPABILITY_MAJOR || minor >= GPUInfoProvider.MIN_COMPUTE_CAPABILITY_MINOR);
+    }
+
     /** Tells whether the platform supports cuvs. */
     public static boolean isSupported(boolean logError) {
         try {
@@ -35,9 +46,7 @@ public class GPUSupport {
             }
 
             for (var gpu : availableGPUs) {
-                if (gpu.computeCapabilityMajor() < GPUInfoProvider.MIN_COMPUTE_CAPABILITY_MAJOR
-                    || (gpu.computeCapabilityMajor() == GPUInfoProvider.MIN_COMPUTE_CAPABILITY_MAJOR
-                        && gpu.computeCapabilityMinor() < GPUInfoProvider.MIN_COMPUTE_CAPABILITY_MINOR)) {
+                if (meetsComputeCapabilityRequirements(gpu.computeCapabilityMajor(), gpu.computeCapabilityMinor()) == false) {
                     if (logError) {
                         LOG.warn(
                             "GPU [{}] does not have the minimum compute capabilities (required: [{}.{}], found: [{}.{}])",
@@ -115,5 +124,49 @@ public class GPUSupport {
             }
         }
         return null;
+    }
+
+    /**
+     * Returns the total device memory in bytes of the first available compatible GPU.
+     * This is a constant property of the GPU device and is cached after the first call.
+     *
+     * @return total device memory in bytes, or -1 if GPU is not available or supported
+     */
+    public static long getTotalGpuMemory() {
+        if (cachedTotalGpuMemory != null) {
+            return cachedTotalGpuMemory;
+        }
+
+        synchronized (GPUSupport.class) {
+            if (cachedTotalGpuMemory != null) {
+                return cachedTotalGpuMemory;
+            }
+
+            try {
+                var gpuInfoProvider = CuVSProvider.provider().gpuInfoProvider();
+                var availableGPUs = gpuInfoProvider.availableGPUs();
+
+                for (var gpu : availableGPUs) {
+                    boolean hasRequiredCapability = meetsComputeCapabilityRequirements(
+                        gpu.computeCapabilityMajor(),
+                        gpu.computeCapabilityMinor()
+                    );
+                    boolean hasRequiredMemory = gpu.totalDeviceMemoryInBytes() >= MIN_DEVICE_MEMORY_IN_BYTES;
+
+                    if (hasRequiredCapability && hasRequiredMemory) {
+                        cachedTotalGpuMemory = gpu.totalDeviceMemoryInBytes();
+                        return cachedTotalGpuMemory;
+                    }
+                }
+
+                // No suitable GPU found
+                cachedTotalGpuMemory = -1L;
+                return -1L;
+            } catch (Throwable e) {
+                LOG.debug("Unable to query GPU total memory", e);
+                cachedTotalGpuMemory = -1L;
+                return -1L;
+            }
+        }
     }
 }

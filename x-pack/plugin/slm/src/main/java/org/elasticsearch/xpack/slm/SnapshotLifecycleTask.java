@@ -593,7 +593,7 @@ public class SnapshotLifecycleTask implements SchedulerEngine.Listener {
         public void onFailure(Exception e) {
             logger.log(
                 e instanceof NotMasterException ? Level.INFO : Level.ERROR,
-                String.format(
+                format(
                     "failed to record snapshot policy execution status [%s] for snapshot [%s] in policy [%s]",
                     exception.isPresent() ? "failure" : "success",
                     snapshotId.getName(),

@@ -112,6 +112,7 @@ public class ProfileService {
     private static final BackoffPolicy DEFAULT_BACKOFF = BackoffPolicy.exponentialBackoff();
     private static final int DIFFERENTIATOR_UPPER_LIMIT = 9;
     private static final long ACTIVATE_INTERVAL_IN_MS = TimeValue.timeValueSeconds(30).millis();
+    private static final int MAX_PROFILE_SIZE_IN_BYTES = 10_000_000;
 
     private final Settings settings;
     private final Clock clock;
@@ -241,10 +242,57 @@ public class ProfileService {
             return;
         }
 
-        doUpdate(
-            buildUpdateRequest(request.getUid(), builder, request.getRefreshPolicy(), request.getIfPrimaryTerm(), request.getIfSeqNo()),
-            listener.map(updateResponse -> AcknowledgedResponse.TRUE)
-        );
+        getVersionedDocument(request.getUid(), ActionListener.wrap(doc -> {
+            validateProfileSize(doc, request, MAX_PROFILE_SIZE_IN_BYTES);
+
+            doUpdate(
+                buildUpdateRequest(request.getUid(), builder, request.getRefreshPolicy(), request.getIfPrimaryTerm(), request.getIfSeqNo()),
+                listener.map(updateResponse -> AcknowledgedResponse.TRUE)
+            );
+        }, listener::onFailure));
+    }
+
+    static void validateProfileSize(VersionedDocument doc, UpdateProfileDataRequest request, int limit) {
+        if (doc == null) {
+            return;
+        }
+        Map<String, Object> labels = combineMaps(doc.doc.labels(), request.getLabels());
+        Map<String, Object> data = combineMaps(mapFromBytesReference(doc.doc.applicationData()), request.getData());
+        int actualSize = serializationSize(labels) + serializationSize(data);
+        if (actualSize > limit) {
+            throw new ElasticsearchException(
+                "cannot update profile [%s] because the combined profile size of [%s] bytes exceeds the maximum of [%s] bytes".formatted(
+                    request.getUid(),
+                    actualSize,
+                    limit
+                )
+            );
+        }
+    }
+
+    static Map<String, Object> combineMaps(Map<String, Object> src, Map<String, Object> update) {
+        Map<String, Object> result = new HashMap<>(); // ensure mutable outer source map for update below
+        if (src != null) {
+            result.putAll(src);
+        }
+        XContentHelper.update(result, update, false);
+        return result;
+    }
+
+    static Map<String, Object> mapFromBytesReference(BytesReference bytesRef) {
+        if (bytesRef == null || bytesRef.length() == 0) {
+            return new HashMap<>();
+        }
+        return XContentHelper.convertToMap(bytesRef, false, XContentType.JSON).v2();
+    }
+
+    static int serializationSize(Map<String, Object> map) {
+        try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
+            builder.value(map);
+            return BytesReference.bytes(builder).length();
+        } catch (IOException e) {
+            throw new ElasticsearchException("Error occurred computing serialization size", e); // I/O error should never happen here
+        }
     }
 
     public void suggestProfile(SuggestProfilesRequest request, TaskId parentTaskId, ActionListener<SuggestProfilesResponse> listener) {

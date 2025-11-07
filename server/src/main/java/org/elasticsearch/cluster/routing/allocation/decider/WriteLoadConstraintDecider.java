@@ -48,19 +48,19 @@ public class WriteLoadConstraintDecider extends AllocationDecider {
     @Override
     public Decision canAllocate(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
         if (writeLoadConstraintSettings.getWriteLoadConstraintEnabled().disabled()) {
-            return Decision.single(Decision.Type.YES, NAME, "Decider is disabled");
+            return allocation.decision(Decision.YES, NAME, "Decider is disabled");
         }
 
         // Never reject allocation of an unassigned shard
         if (shardRouting.assignedToNode() == false) {
-            return Decision.single(Decision.Type.YES, NAME, "Shard is unassigned. Decider takes no action.");
+            return allocation.decision(Decision.YES, NAME, "Shard is unassigned. Decider takes no action.");
         }
 
         // Check whether the shard being relocated has any write load estimate. If it does not, then this decider has no opinion.
         var allShardWriteLoads = allocation.clusterInfo().getShardWriteLoads();
         var shardWriteLoad = allShardWriteLoads.get(shardRouting.shardId());
         if (shardWriteLoad == null || shardWriteLoad == 0) {
-            return Decision.single(Decision.Type.YES, NAME, "Shard has no estimated write load. Decider takes no action.");
+            return allocation.decision(Decision.YES, NAME, "Shard has no estimated write load. Decider takes no action.");
         }
 
         var allNodeUsageStats = allocation.clusterInfo().getNodeUsageStatsForThreadPools();
@@ -68,7 +68,7 @@ public class WriteLoadConstraintDecider extends AllocationDecider {
         if (nodeUsageStatsForThreadPools == null) {
             // No node-level thread pool usage stats were reported for this node. Let's assume this is OK and that the simulator will handle
             // setting a node-level write load for this node after this shard is assigned.
-            return Decision.single(Decision.Type.YES, NAME, "The node has no write load estimate. Decider takes no action.");
+            return allocation.decision(Decision.YES, NAME, "The node has no write load estimate. Decider takes no action.");
         }
 
         assert nodeUsageStatsForThreadPools.threadPoolUsageStatsMap().isEmpty() == false;
@@ -89,7 +89,7 @@ public class WriteLoadConstraintDecider extends AllocationDecider {
                 if (logger.isDebugEnabled()) {
                     logInterventionMessage.maybeExecute(() -> logger.debug(explain));
                 }
-                return Decision.single(Decision.Type.NOT_PREFERRED, NAME, explain);
+                return allocation.decision(Decision.NOT_PREFERRED, NAME, explain);
             } else {
                 return Decision.NOT_PREFERRED;
             }
@@ -115,7 +115,7 @@ public class WriteLoadConstraintDecider extends AllocationDecider {
                 if (logger.isDebugEnabled()) {
                     logInterventionMessage.maybeExecute(() -> logger.debug(explain));
                 }
-                return Decision.single(Decision.Type.NOT_PREFERRED, NAME, explain);
+                return allocation.decision(Decision.NOT_PREFERRED, NAME, explain);
             } else {
                 return Decision.NOT_PREFERRED;
             }
@@ -135,7 +135,7 @@ public class WriteLoadConstraintDecider extends AllocationDecider {
     @Override
     public Decision canRemain(IndexMetadata indexMetadata, ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
         if (writeLoadConstraintSettings.getWriteLoadConstraintEnabled().notFullyEnabled()) {
-            return Decision.single(Decision.Type.YES, NAME, "canRemain() is not enabled");
+            return allocation.decision(Decision.YES, NAME, "canRemain() is not enabled");
         }
 
         var allNodeUsageStats = allocation.clusterInfo().getNodeUsageStatsForThreadPools();
@@ -143,7 +143,7 @@ public class WriteLoadConstraintDecider extends AllocationDecider {
         if (nodeUsageStatsForThreadPools == null) {
             // No node-level thread pool usage stats were reported for this node. Let's assume this is OK and that the simulator will handle
             // setting a node-level write load for this node after this shard is assigned.
-            return Decision.single(Decision.Type.YES, NAME, "The node has no write load estimate. Decider takes no action.");
+            return allocation.decision(Decision.YES, NAME, "The node has no write load estimate. Decider takes no action.");
         }
 
         assert nodeUsageStatsForThreadPools.threadPoolUsageStatsMap().isEmpty() == false;
@@ -164,7 +164,7 @@ public class WriteLoadConstraintDecider extends AllocationDecider {
                 if (logger.isDebugEnabled()) {
                     logInterventionMessage.maybeExecute(() -> logger.debug(explain));
                 }
-                return Decision.single(Decision.Type.NOT_PREFERRED, NAME, explain);
+                return allocation.decision(Decision.NOT_PREFERRED, NAME, explain);
             } else {
                 return Decision.NOT_PREFERRED;
             }

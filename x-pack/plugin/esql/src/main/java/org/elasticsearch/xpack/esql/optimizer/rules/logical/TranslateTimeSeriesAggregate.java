@@ -19,6 +19,7 @@ import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.CollectionUtils;
 import org.elasticsearch.xpack.esql.core.util.Holder;
+import org.elasticsearch.xpack.esql.expression.function.TimestampAware;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.DimensionValues;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.LastOverTime;
@@ -239,6 +240,11 @@ public final class TranslateTimeSeriesAggregate extends OptimizerRules.Parameter
                     }));
                 }
             }
+        }
+        if (aggregate.child().output().contains(timestamp.get()) == false
+            && timeSeriesAggs.keySet().stream().anyMatch(ts -> ts instanceof TimestampAware)) {
+            // TODO: rephrase
+            throw new IllegalArgumentException("@timestamp field has been modified");
         }
         // time-series aggregates must be grouped by _tsid (and time-bucket) first and re-group by users key
         List<Expression> firstPassGroupings = new ArrayList<>();

@@ -82,6 +82,7 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
         "implicit time-series aggregation function .* doesn't support type .*",
         "INLINE STATS .* can only be used after STATS when used with TS command",
         "cannot group by a metric field .* in a time-series aggregation",
+        "@timestamp field has been modified",
         "Output has changed from \\[.*\\] to \\[.*\\]" // https://github.com/elastic/elasticsearch/issues/134794
     );
 

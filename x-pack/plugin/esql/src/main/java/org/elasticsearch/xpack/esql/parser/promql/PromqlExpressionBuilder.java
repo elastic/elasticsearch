@@ -145,11 +145,7 @@ class PromqlExpressionBuilder extends PromqlIdentifierBuilder {
                 if (plan instanceof LiteralSelector literalSelector) {
                     yield literalSelector.literal().value();
                 }
-                throw new ParsingException(
-                    source(ctx),
-                    "Expected duration or numeric value, got [{}]",
-                    plan.getClass().getSimpleName()
-                );
+                throw new ParsingException(source(ctx), "Expected duration or numeric value, got [{}]", plan.getClass().getSimpleName());
             }
             case Literal l -> l.value();
             case Expression e -> {

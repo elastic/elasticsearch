@@ -27,6 +27,7 @@ import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.core.Nullable;
@@ -45,8 +46,12 @@ import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndexFiel
 import org.elasticsearch.xpack.core.template.IndexTemplateConfig;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Comparator;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.function.Predicate;
@@ -527,6 +532,29 @@ public final class MlIndexAndAlias {
         return version.onOrAfter(IndexVersions.V_8_0_0);
     }
 
+    public static String baseIndexName(String index) {
+        String baseIndexName = MlIndexAndAlias.has6DigitSuffix(index)
+            ? index.substring(0, index.length() - FIRST_INDEX_SIX_DIGIT_SUFFIX.length())
+            : index;
+
+        return baseIndexName;
+    }
+
+    public static String[] indicesMatchingBasename(
+        String baseIndexName,
+        IndexNameExpressionResolver expressionResolver,
+        ClusterState latestState
+    ) {
+
+        String[] matching = expressionResolver.concreteIndexNames(
+            latestState,
+            IndicesOptions.lenientExpandOpenHidden(),
+            baseIndexName + "*"
+        );
+
+        return matching;
+    }
+
     /**
      * Strip any suffix from the index name and find any other indices
      * that match the base name. Then return the latest index from the
@@ -542,15 +570,10 @@ public final class MlIndexAndAlias {
         IndexNameExpressionResolver expressionResolver,
         ClusterState latestState
     ) {
-        String baseIndexName = MlIndexAndAlias.has6DigitSuffix(index)
-            ? index.substring(0, index.length() - FIRST_INDEX_SIX_DIGIT_SUFFIX.length())
-            : index;
 
-        String[] matching = expressionResolver.concreteIndexNames(
-            latestState,
-            IndicesOptions.lenientExpandOpenHidden(),
-            baseIndexName + "*"
-        );
+        String baseIndexName = baseIndexName(index);
+
+        var matching = indicesMatchingBasename(baseIndexName, expressionResolver, latestState);
 
         // We used to assert here if no matching indices could be found. However, when called _before_ a job is created it may be the case
         // that no .ml-anomalies-shared* indices yet exist
@@ -659,7 +682,7 @@ public final class MlIndexAndAlias {
         String oldIndex,
         String newIndex,
         ClusterState clusterState,
-        String[] allStateIndices
+        List<String> allStateIndices
     ) {
         var meta = clusterState.metadata().getProject().index(oldIndex);
         if (meta == null) {
@@ -669,7 +692,9 @@ public final class MlIndexAndAlias {
 
         // Remove the write alias from ALL state indices to handle any inconsistencies where it might exist on more than one.
         aliasRequestBuilder.addAliasAction(
-            IndicesAliasesRequest.AliasActions.remove().indices(allStateIndices).alias(AnomalyDetectorsIndex.jobStateIndexWriteAlias())
+            IndicesAliasesRequest.AliasActions.remove()
+                .indices(allStateIndices.toArray(new String[0]))
+                .alias(AnomalyDetectorsIndex.jobStateIndexWriteAlias())
         );
 
         aliasRequestBuilder.addAliasAction(
@@ -682,6 +707,14 @@ public final class MlIndexAndAlias {
 
         return aliasRequestBuilder;
 
+    }
+
+    private static Optional<String> findEarliestIndexWithAlias(Map<String, List<AliasMetadata>> aliasesMap, AliasMetadata targetAlias) {
+        return aliasesMap.entrySet()
+            .stream()
+            .filter(entry -> entry.getValue().contains(targetAlias))
+            .map(Map.Entry::getKey)
+            .min(INDEX_NAME_COMPARATOR);
     }
 
     /**
@@ -698,31 +731,75 @@ public final class MlIndexAndAlias {
         IndicesAliasesRequestBuilder aliasRequestBuilder,
         String oldIndex,
         String newIndex,
-        ClusterState clusterState
+        ClusterState clusterState,
+        List<String> currentJobResultsIndices
     ) {
         // Multiple jobs can share the same index each job
         // has a read and write alias that needs updating
         // after the rollover
-        var meta = clusterState.metadata().getProject().index(oldIndex);
-        assert meta != null;
-        if (meta == null) {
+        var aliasesMap = clusterState.metadata().getProject().findAllAliases(currentJobResultsIndices.toArray(new String[0]));
+        if (aliasesMap == null) {
             return aliasRequestBuilder;
         }
 
-        for (var alias : meta.getAliases().values()) {
+        // Compile a unique set of all aliases from all the indices.
+        // An alias could appear on multiple indices in an inconsistent state, but its properties (filter, etc.) should be the same.
+        var uniqueAliases = new HashSet<AliasMetadata>();
+        for (var indexAliases : aliasesMap.values()) {
+            uniqueAliases.addAll(indexAliases);
+        }
+
+        // Make sure to include the new index
+        List<String> allJobResultsIndices = new ArrayList<String>(currentJobResultsIndices);
+        allJobResultsIndices.add(newIndex);
+        // String[] allJobResultsIndices = list.toArray(new String[0]);
+
+        for (var alias : uniqueAliases) {
             if (isAnomaliesWriteAlias(alias.alias())) {
+                // Remove the write alias from ALL job results indices to handle any inconsistencies where it might exist on more than one.
+                aliasRequestBuilder.addAliasAction(
+                    IndicesAliasesRequest.AliasActions.remove()
+                        .indices(currentJobResultsIndices.toArray(new String[0]))
+                        .alias(alias.alias())
+                );
+                // Add the write alias to the latest results index
                 aliasRequestBuilder.addAliasAction(
                     IndicesAliasesRequest.AliasActions.add().index(newIndex).alias(alias.alias()).isHidden(true).writeIndex(true)
                 );
-                aliasRequestBuilder.addAliasAction(IndicesAliasesRequest.AliasActions.remove().index(oldIndex).alias(alias.alias()));
+                String jobId = AnomalyDetectorsIndex.jobIdFromAlias(alias.alias());
+                String readAlias = AnomalyDetectorsIndex.jobResultsAliasedName(jobId);
+                // Always take the opportunity to add the read alias on the latest index
+                // as it may have been missing on the old index
+                aliasRequestBuilder.addAliasAction(
+                    IndicesAliasesRequest.AliasActions.add()
+                        .indices(newIndex)
+                        .alias(readAlias)
+                        .isHidden(true)
+                        .filter(QueryBuilders.termQuery(Job.ID.getPreferredName(), jobId))
+                );
             } else if (isAnomaliesReadAlias(alias.alias())) {
+                // Try to generate a list of indices to operate on where the first index in the list is the first one with the current read
+                // alias. This is useful in trying to "heal" missing read aliases, without adding them on every possible index.
+                if (findEarliestIndexWithAlias(aliasesMap, alias).isPresent()) {
+                    String earliestIndexWithAlias = findEarliestIndexWithAlias(aliasesMap, alias).get();
+                    allJobResultsIndices.sort(INDEX_NAME_COMPARATOR);
+                    allJobResultsIndices.removeIf(index -> INDEX_NAME_COMPARATOR.compare(index, earliestIndexWithAlias) < 0);
+                }
+
                 String jobId = AnomalyDetectorsIndex.jobIdFromAlias(alias.alias());
                 aliasRequestBuilder.addAliasAction(
                     IndicesAliasesRequest.AliasActions.add()
-                        .index(newIndex)
+                        .indices(allJobResultsIndices.toArray(new String[0]))
                         .alias(alias.alias())
                         .isHidden(true)
                         .filter(QueryBuilders.termQuery(Job.ID.getPreferredName(), jobId))
+                );
+
+                // Always take the opportunity to add the write alias on the new index
+                // as it may have been missing on the old index
+                String writeAlias = AnomalyDetectorsIndex.resultsWriteAlias(jobId);
+                aliasRequestBuilder.addAliasAction(
+                    IndicesAliasesRequest.AliasActions.add().index(newIndex).alias(writeAlias).isHidden(true).writeIndex(true)
                 );
             }
         }

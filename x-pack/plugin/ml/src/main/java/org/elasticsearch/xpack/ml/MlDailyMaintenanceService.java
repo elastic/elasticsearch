@@ -63,6 +63,8 @@ import java.time.Clock;
 import java.time.ZonedDateTime;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
 import java.util.Random;
@@ -322,7 +324,7 @@ public class MlDailyMaintenanceService implements Releasable {
         );
     }
 
-    private void rollAndUpdateAliases(ClusterState clusterState, String index, String[] allIndices, ActionListener<Boolean> listener) {
+    private void rollAndUpdateAliases(ClusterState clusterState, String index, List<String> allIndices, ActionListener<Boolean> listener) {
         OriginSettingClient originSettingClient = new OriginSettingClient(client, ML_ORIGIN);
 
         Tuple<String, String> newIndexNameAndRolloverAlias = MlIndexAndAlias.createRolloverAliasAndNewIndexName(index);
@@ -361,7 +363,13 @@ public class MlDailyMaintenanceService implements Releasable {
                     allIndices
                 );
             } else {
-                MlIndexAndAlias.addResultsIndexRolloverAliasActions(aliasRequestBuilder, index, newIndexNameResponse, clusterState);
+                MlIndexAndAlias.addResultsIndexRolloverAliasActions(
+                    aliasRequestBuilder,
+                    index,
+                    newIndexNameResponse,
+                    clusterState,
+                    allIndices
+                );
             }
             // On success, the rollover alias may have been moved to the new index, so we attempt to remove it from there.
             // Note that the rollover request is considered "successful" even if it didn't occur due to a condition not being met
@@ -392,7 +400,7 @@ public class MlDailyMaintenanceService implements Releasable {
         return indices;
     }
 
-    private void rolloverIndexSafely(ClusterState clusterState, String index, String[] allIndices, List<Exception> failures) {
+    private void rolloverIndexSafely(ClusterState clusterState, String index, List<String> allIndices, List<Exception> failures) {
         PlainActionFuture<Boolean> updated = new PlainActionFuture<>();
         rollAndUpdateAliases(clusterState, index, allIndices, updated);
         try {
@@ -437,21 +445,40 @@ public class MlDailyMaintenanceService implements Releasable {
 
         List<Exception> failures = new ArrayList<>();
 
+        HashSet<String> baseIndices = new HashSet<>();
+        for (var index : indices) {
+            String baseIndexName = MlIndexAndAlias.baseIndexName(index);
+            baseIndices.add(baseIndexName);
+        }
+
+        HashMap<String, List<String>> baseIndicesMap = new HashMap<>();
+        for (var index : baseIndices) {
+            var matching = MlIndexAndAlias.indicesMatchingBasename(index, expressionResolver, clusterState);
+            baseIndicesMap.put(index, List.of(matching));
+        }
+
         Arrays.stream(indices)
             .filter(index -> MlIndexAndAlias.latestIndexMatchingBaseName(index, expressionResolver, clusterState).equals(index))
-            .forEach(latestIndex -> rolloverIndexSafely(clusterState, latestIndex, indices, failures));
+            .forEach(
+                latestIndex -> rolloverIndexSafely(
+                    clusterState,
+                    latestIndex,
+                    baseIndicesMap.get(MlIndexAndAlias.baseIndexName(latestIndex)),
+                    failures
+                )
+            );
 
         handleRolloverResults(indices, failures, finalListener);
     }
 
     // public for testing
     public void triggerRollResultsIndicesIfNecessaryTask(ActionListener<AcknowledgedResponse> finalListener) {
-        triggerRollIndicesIfNecessaryTask("roll-state-indices", AnomalyDetectorsIndex.jobResultsIndexPattern(), finalListener);
+        triggerRollIndicesIfNecessaryTask("roll-results-indices", AnomalyDetectorsIndex.jobResultsIndexPattern(), finalListener);
     }
 
     // public for testing
     public void triggerRollStateIndicesIfNecessaryTask(ActionListener<AcknowledgedResponse> finalListener) {
-        triggerRollIndicesIfNecessaryTask("roll-results-indices", AnomalyDetectorsIndex.jobStateIndexPattern(), finalListener);
+        triggerRollIndicesIfNecessaryTask("roll-state-indices", AnomalyDetectorsIndex.jobStateIndexPattern(), finalListener);
     }
 
     private void triggerDeleteExpiredDataTask(ActionListener<AcknowledgedResponse> finalListener) {

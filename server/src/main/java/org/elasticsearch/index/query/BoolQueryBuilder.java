@@ -19,6 +19,7 @@ import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.search.Queries;
+import org.elasticsearch.index.query.support.AutoPrefilteringScope;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -26,10 +27,13 @@ import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.function.Consumer;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static org.elasticsearch.common.lucene.search.Queries.fixNegativeQueryIfNeeded;
 
@@ -299,16 +303,17 @@ public class BoolQueryBuilder extends AbstractQueryBuilder<BoolQueryBuilder> {
     @Override
     protected Query doToQuery(SearchExecutionContext context) throws IOException {
         BooleanQuery.Builder booleanQueryBuilder = new BooleanQuery.Builder();
-        addBooleanClauses(context, booleanQueryBuilder, mustClauses, BooleanClause.Occur.MUST);
+        final List<QueryBuilder> prefilters = collectPrefilters();
+        addBooleanClauses(context, booleanQueryBuilder, mustClauses, BooleanClause.Occur.MUST, prefilters);
         try {
             // disable tracking of the @timestamp range for must_not and should clauses
             context.setTrackTimeRangeFilterFrom(false);
-            addBooleanClauses(context, booleanQueryBuilder, mustNotClauses, BooleanClause.Occur.MUST_NOT);
-            addBooleanClauses(context, booleanQueryBuilder, shouldClauses, BooleanClause.Occur.SHOULD);
+            addBooleanClauses(context, booleanQueryBuilder, mustNotClauses, BooleanClause.Occur.MUST_NOT, List.of());
+            addBooleanClauses(context, booleanQueryBuilder, shouldClauses, BooleanClause.Occur.SHOULD, prefilters);
         } finally {
             context.setTrackTimeRangeFilterFrom(true);
         }
-        addBooleanClauses(context, booleanQueryBuilder, filterClauses, BooleanClause.Occur.FILTER);
+        addBooleanClauses(context, booleanQueryBuilder, filterClauses, BooleanClause.Occur.FILTER, List.of());
         BooleanQuery booleanQuery = booleanQueryBuilder.build();
         if (booleanQuery.clauses().isEmpty()) {
             return new MatchAllDocsQuery();
@@ -318,15 +323,25 @@ public class BoolQueryBuilder extends AbstractQueryBuilder<BoolQueryBuilder> {
         return adjustPureNegative ? fixNegativeQueryIfNeeded(query) : query;
     }
 
+    private List<QueryBuilder> collectPrefilters() {
+        return Stream.of(mustClauses, mustNotClauses.stream().map(c -> QueryBuilders.boolQuery().mustNot(c)).toList(), filterClauses)
+            .flatMap(Collection::stream)
+            .collect(Collectors.toList());
+    }
+
     private static void addBooleanClauses(
         SearchExecutionContext context,
         BooleanQuery.Builder booleanQueryBuilder,
         List<QueryBuilder> clauses,
-        Occur occurs
+        Occur occurs,
+        List<QueryBuilder> prefilters
     ) throws IOException {
         for (QueryBuilder query : clauses) {
-            Query luceneQuery = query.toQuery(context);
-            booleanQueryBuilder.add(new BooleanClause(luceneQuery, occurs));
+            try (AutoPrefilteringScope autoPrefilteringScope = context.autoPrefilteringScope()) {
+                autoPrefilteringScope.push(prefilters.stream().filter(c -> c != query).toList());
+                Query luceneQuery = query.toQuery(context);
+                booleanQueryBuilder.add(new BooleanClause(luceneQuery, occurs));
+            }
         }
     }
 

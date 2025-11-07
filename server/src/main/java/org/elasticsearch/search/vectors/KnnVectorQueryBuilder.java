@@ -133,6 +133,7 @@ public class KnnVectorQueryBuilder extends AbstractQueryBuilder<KnnVectorQueryBu
     private final QueryVectorBuilder queryVectorBuilder;
     private final Supplier<float[]> queryVectorSupplier;
     private final RescoreVectorBuilder rescoreVectorBuilder;
+    private boolean isAutoPrefiltering = false;
 
     public KnnVectorQueryBuilder(
         String fieldName,
@@ -579,8 +580,9 @@ public class KnnVectorQueryBuilder extends AbstractQueryBuilder<KnnVectorQueryBu
         }
         DenseVectorFieldType vectorFieldType = (DenseVectorFieldType) fieldType;
 
-        List<Query> filtersInitial = new ArrayList<>(filterQueries.size());
-        for (QueryBuilder query : this.filterQueries) {
+        List<QueryBuilder> allApplicableFilters = getAllApplicableFilters(context);
+        List<Query> filtersInitial = new ArrayList<>(allApplicableFilters.size());
+        for (QueryBuilder query : allApplicableFilters) {
             filtersInitial.add(query.toQuery(context));
         }
         if (context.getAliasFilter() != null) {
@@ -650,6 +652,14 @@ public class KnnVectorQueryBuilder extends AbstractQueryBuilder<KnnVectorQueryBu
         );
     }
 
+    private List<QueryBuilder> getAllApplicableFilters(SearchExecutionContext context) {
+        List<QueryBuilder> applicableFilters = new ArrayList<>(filterQueries);
+        if (isAutoPrefiltering) {
+            applicableFilters.addAll(context.autoPrefilteringScope().getPrefilters());
+        }
+        return applicableFilters;
+    }
+
     private static Query buildFilterQuery(List<Query> filters) {
         BooleanQuery.Builder builder = new BooleanQuery.Builder();
         for (Query f : filters) {
@@ -691,5 +701,10 @@ public class KnnVectorQueryBuilder extends AbstractQueryBuilder<KnnVectorQueryBu
     @Override
     public TransportVersion getMinimalSupportedVersion() {
         return TransportVersions.V_8_0_0;
+    }
+
+    public KnnVectorQueryBuilder enableAutoPrefiltering() {
+        isAutoPrefiltering = true;
+        return this;
     }
 }

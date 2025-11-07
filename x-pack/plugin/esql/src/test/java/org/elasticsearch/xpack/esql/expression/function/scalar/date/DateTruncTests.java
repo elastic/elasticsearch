@@ -108,70 +108,86 @@ public class DateTruncTests extends AbstractConfigurationFunctionTestCase {
         }
     }
 
+    private static final List<String> TEST_TIMEZONES = List.of("Z", "-08:00", "+14:00", "+11:45", "Europe/Madrid", "America/New_York");
+
     public static List<DurationTestCaseData> makeTruncDurationTestCases() {
+        List<DurationTestCaseData> cases = new ArrayList<>();
         String ts = "2023-02-17T10:25:33.38Z";
-        return List.of(
-            ///
-            /// Timezone agnostic (<=1m intervals)
-            ///
-            new DurationTestCaseData(Duration.ofMillis(100), ts, null, "2023-02-17T10:25:33.30Z"),
-            new DurationTestCaseData(Duration.ofSeconds(1), ts, null, "2023-02-17T10:25:33Z"),
-            new DurationTestCaseData(Duration.ofMinutes(1), ts, null, "2023-02-17T10:25:00Z"),
-            new DurationTestCaseData(Duration.ofSeconds(30), ts, null, "2023-02-17T10:25:30Z"),
 
-            ///
-            /// Timezone dependent (>1m intervals)
-            ///
-            new DurationTestCaseData(Duration.ofHours(1), ts, "UTC", "2023-02-17T10:00:00Z"),
-            new DurationTestCaseData(Duration.ofMinutes(15), ts, "UTC", "2023-02-17T10:15:00Z"),
-            new DurationTestCaseData(Duration.ofHours(3), ts, "UTC", "2023-02-17T09:00:00Z"),
-            new DurationTestCaseData(Duration.ofHours(3), ts, "-02:00", "2023-02-17T08:00:00Z"),
-            new DurationTestCaseData(Duration.ofHours(3), "2020-01-01T05:30:00Z", "UTC", "2020-01-01T03:00:00Z"),
-            new DurationTestCaseData(Duration.ofHours(3), "2020-01-01T05:30:00Z", "+01:00", "2020-01-01T05:00:00Z"),
-            new DurationTestCaseData(Duration.ofMinutes(3 * 60), "2020-01-01T05:30:00Z", "+01:00", "2020-01-01T05:00:00Z"),
-            new DurationTestCaseData(Duration.ofHours(6), "2024-03-01T00:30:00Z", "-03", "2024-02-29T21:00:00Z"),
-            new DurationTestCaseData(Duration.ofHours(24), "2024-03-01T00:30:00Z", "-03", "2024-02-29T03:00:00Z"),
-            new DurationTestCaseData(Duration.ofHours(5), "2020-01-01T05:30:00Z", "+01", "2020-01-01T01:00:00Z"),
+        // Add generic cases for either UTC, fixed timezones and timezones with minutes.
+        //
+        // For every unit, we test 2 cases: 1 unit, and multiple units.
+        // Then, for every case, we check 4 boundaries (↑Bucket1, ↓Bucket2, ↑Bucket2, ↓Bucket3) to ensure the exact size of the buckets.
+        Stream.of(
+            // Milliseconds
+            new DurationTestCaseData(Duration.ofMillis(1), "2023-02-17T10:25:33.385", "", "2023-02-17T10:25:33.385"),
+            new DurationTestCaseData(Duration.ofMillis(10), "2023-02-17T10:25:33.385", "", "2023-02-17T10:25:33.38"),
+            new DurationTestCaseData(Duration.ofMillis(100), "2023-02-17T10:25:33.385", "", "2023-02-17T10:25:33.3"),
+            new DurationTestCaseData(Duration.ofMillis(1000), "2023-02-17T10:25:33.385", "", "2023-02-17T10:25:33"),
+            new DurationTestCaseData(Duration.ofMillis(13), "2023-02-17T10:25:33.385", "", "2023-02-17T10:25:33.384"),
+            new DurationTestCaseData(Duration.ofMillis(13), "2023-02-17T10:25:33.399", "", "2023-02-17T10:25:33.397"),
+            // Seconds
+            new DurationTestCaseData(Duration.ofSeconds(1), "2023-02-17T10:25:33.385", "", "2023-02-17T10:25:33"),
+            new DurationTestCaseData(Duration.ofSeconds(10), "2023-02-17T10:25:33.385", "", "2023-02-17T10:25:30"),
+            new DurationTestCaseData(Duration.ofSeconds(60), "2023-02-17T10:25:33.385", "", "2023-02-17T10:25:00"),
+            new DurationTestCaseData(Duration.ofSeconds(300), "2023-02-17T10:25:33.385", "", "2023-02-17T10:25:00"),
+            new DurationTestCaseData(Duration.ofSeconds(3600), "2023-02-17T10:25:33.385", "", "2023-02-17T10:00:00"),
+            // Minutes
+            new DurationTestCaseData(Duration.ofMinutes(1), "2023-02-17T10:25:33.385", "", "2023-02-17T10:25:00"),
+            new DurationTestCaseData(Duration.ofMinutes(5), "2023-02-17T10:25:33.385", "", "2023-02-17T10:25:00"),
+            new DurationTestCaseData(Duration.ofMinutes(60), "2023-02-17T10:25:33.385", "", "2023-02-17T10:00:00"),
+            // Hours
+            new DurationTestCaseData(Duration.ofHours(1), "2023-02-17T10:25:33.385", "", "2023-02-17T10:00:00"),
+            new DurationTestCaseData(Duration.ofHours(3), "2023-02-17T10:25:33.385", "", "2023-02-17T09:00:00"),
+            new DurationTestCaseData(Duration.ofHours(6), "2023-02-17T10:25:33.385", "", "2023-02-17T06:00:00"),
+            new DurationTestCaseData(Duration.ofHours(5), "2023-02-17T09:59:59.999", "", "2023-02-17T05:00:00"),
+            new DurationTestCaseData(Duration.ofHours(5), "2023-02-17T10:25:33.385", "", "2023-02-17T10:00:00"),
+            new DurationTestCaseData(Duration.ofHours(24), "2023-02-17T10:25:33.385", "", "2023-02-17T00:00:00"),
+            new DurationTestCaseData(Duration.ofHours(48), "2023-02-17T10:25:33.385", "", "2023-02-16T00:00:00")
+        ).forEach(c -> TEST_TIMEZONES.forEach(timezone -> {
+            // Convert the timezone to the offset in each local time.
+            // This is required as date strings can't have a zone name as its zone.
+            var inputOffset = timezoneToOffset(timezone, c.inputDate());
+            var expectedOffset = timezoneToOffset(timezone, c.expectedDate());
+            cases.add(new DurationTestCaseData(c.duration(), c.inputDate() + inputOffset, timezone, c.expectedDate() + expectedOffset));
+        }));
 
-            ///
-            /// Daylight savings
-            ///
-            // - +1 -> +2 at 2025-03-30T02:00:00+01:00
-            new DurationTestCaseData(Duration.ofHours(3), "2025-03-30T00:00:00+01:00", "Europe/Paris", "2025-03-30T00:00:00+01:00"),
-            new DurationTestCaseData(Duration.ofHours(3), "2025-03-30T01:00:00+01:00", "Europe/Paris", "2025-03-30T00:00:00+01:00"),
-            new DurationTestCaseData(Duration.ofHours(3), "2025-03-30T03:00:00+02:00", "Europe/Paris", "2025-03-30T03:00:00+02:00"),
-            new DurationTestCaseData(Duration.ofHours(3), "2025-03-30T04:00:00+02:00", "Europe/Paris", "2025-03-30T03:00:00+02:00"),
-            // - +2 -> +1 at 2025-10-26T03:00:00+02:00
-            new DurationTestCaseData(Duration.ofHours(3), "2025-10-26T01:00:00+02:00", "Europe/Paris", "2025-10-26T00:00:00+02:00"),
-            new DurationTestCaseData(Duration.ofHours(3), "2025-10-26T02:00:00+02:00", "Europe/Paris", "2025-10-26T00:00:00+02:00"),
-            new DurationTestCaseData(Duration.ofHours(3), "2025-10-26T02:00:00+01:00", "Europe/Paris", "2025-10-26T00:00:00+02:00"),
-            new DurationTestCaseData(Duration.ofHours(3), "2025-10-26T03:00:00+01:00", "Europe/Paris", "2025-10-26T03:00:00+01:00"),
-            new DurationTestCaseData(Duration.ofHours(3), "2025-10-26T04:00:00+01:00", "Europe/Paris", "2025-10-26T03:00:00+01:00"),
-            // Bigger intervals
-            new DurationTestCaseData(Duration.ofHours(12), "2025-10-26T02:00:00+02:00", "Europe/Rome", "2025-10-26T00:00:00+02:00"),
-            new DurationTestCaseData(Duration.ofHours(24), "2025-10-26T02:00:00+02:00", "Europe/Rome", "2025-10-26T00:00:00+02:00"),
-            new DurationTestCaseData(Duration.ofHours(48), "2025-10-26T02:00:00+02:00", "Europe/Rome", "2025-10-25T00:00:00+02:00"),
+        cases.addAll(
+            List.of(
+                // Timezone agnostic (<=1m intervals, "null" for randomized timezones)
+                new DurationTestCaseData(Duration.ofMillis(100), ts, null, "2023-02-17T10:25:33.30Z"),
+                new DurationTestCaseData(Duration.ofSeconds(1), ts, null, "2023-02-17T10:25:33Z"),
+                new DurationTestCaseData(Duration.ofMinutes(1), ts, null, "2023-02-17T10:25:00Z"),
+                new DurationTestCaseData(Duration.ofSeconds(30), ts, null, "2023-02-17T10:25:30Z"),
 
-            ///
-            /// Partial hours timezones
-            ///
-            new DurationTestCaseData(Duration.ofMinutes(1), "2025-10-26T02:09:09+01:15", "+01:15", "2025-10-26T02:09:00+01:15"),
-            new DurationTestCaseData(Duration.ofMinutes(30), "2025-10-26T02:09:09+01:15", "+01:15", "2025-10-26T02:00:00+01:15"),
-            new DurationTestCaseData(Duration.ofHours(1), "2025-10-26T02:09:09+01:15", "+01:15", "2025-10-26T02:00:00+01:15"),
-            new DurationTestCaseData(Duration.ofHours(3), "2025-10-26T02:09:09+01:15", "+01:15", "2025-10-26T00:00:00+01:15"),
-            new DurationTestCaseData(Duration.ofHours(24), "2025-10-26T02:09:09+01:15", "+01:15", "2025-10-26T00:00:00+01:15")
+                // Daylight savings boundaries
+                // - +1 -> +2 at 2025-03-30T02:00:00+01:00
+                new DurationTestCaseData(Duration.ofHours(3), "2025-03-30T00:00:00+01:00", "Europe/Paris", "2025-03-30T00:00:00+01:00"),
+                new DurationTestCaseData(Duration.ofHours(3), "2025-03-30T01:00:00+01:00", "Europe/Paris", "2025-03-30T00:00:00+01:00"),
+                new DurationTestCaseData(Duration.ofHours(3), "2025-03-30T03:00:00+02:00", "Europe/Paris", "2025-03-30T03:00:00+02:00"),
+                new DurationTestCaseData(Duration.ofHours(3), "2025-03-30T04:00:00+02:00", "Europe/Paris", "2025-03-30T03:00:00+02:00"),
+                // - +2 -> +1 at 2025-10-26T03:00:00+02:00
+                new DurationTestCaseData(Duration.ofHours(3), "2025-10-26T01:00:00+02:00", "Europe/Paris", "2025-10-26T00:00:00+02:00"),
+                new DurationTestCaseData(Duration.ofHours(3), "2025-10-26T02:00:00+02:00", "Europe/Paris", "2025-10-26T00:00:00+02:00"),
+                new DurationTestCaseData(Duration.ofHours(3), "2025-10-26T02:00:00+01:00", "Europe/Paris", "2025-10-26T00:00:00+02:00"),
+                new DurationTestCaseData(Duration.ofHours(3), "2025-10-26T03:00:00+01:00", "Europe/Paris", "2025-10-26T03:00:00+01:00"),
+                new DurationTestCaseData(Duration.ofHours(3), "2025-10-26T04:00:00+01:00", "Europe/Paris", "2025-10-26T03:00:00+01:00"),
+                // Bigger intervals
+                new DurationTestCaseData(Duration.ofHours(12), "2025-10-26T02:00:00+02:00", "Europe/Rome", "2025-10-26T00:00:00+02:00"),
+                new DurationTestCaseData(Duration.ofHours(24), "2025-10-26T02:00:00+02:00", "Europe/Rome", "2025-10-26T00:00:00+02:00"),
+                new DurationTestCaseData(Duration.ofHours(48), "2025-10-26T02:00:00+02:00", "Europe/Rome", "2025-10-25T00:00:00+02:00")
+            )
         );
+        return cases;
     }
 
     public static List<PeriodTestCaseData> makeTruncPeriodTestCases() {
         List<PeriodTestCaseData> cases = new ArrayList<>();
 
         // Add generic cases for either UTC, fixed timezones and timezones with minutes.
-        // Note that we can't do this with variable timezones, as date formats accept only offsets.
         //
         // For every unit, we test 2 cases: 1 unit, and multiple units.
         // Then, for every case, we check 4 boundaries (↑Bucket1, ↓Bucket2, ↑Bucket2, ↓Bucket3) to ensure the exact size of the buckets.
-        final List<String> timezones = List.of("Z", "-08:00", "+04:00", "+11:45", "Europe/Madrid", "America/New_York");
         Stream.of(
             // Days
             new PeriodTestCaseData(Period.ofDays(1), "2023-02-16T23:59:59.99", "", "2023-02-16T00:00:00"),
@@ -223,30 +239,29 @@ public class DateTruncTests extends AbstractConfigurationFunctionTestCase {
             new PeriodTestCaseData(Period.ofYears(4), "-0003-01-01T00:00:00", "", "-0003-01-01T00:00:00"),
             new PeriodTestCaseData(Period.ofYears(4), "-0001-12-31T23:59:59.99", "", "-0003-01-01T00:00:00"),
             new PeriodTestCaseData(Period.ofYears(4), "0001-01-01T00:00:00", "", "0001-01-01T00:00:00")
-        ).forEach(c -> timezones.forEach(timezone -> {
+        ).forEach(c -> TEST_TIMEZONES.forEach(timezone -> {
             // Convert the timezone to the offset in each local time.
             // This is required as date strings can't have a zone name as its zone.
-            var inputOffset = timezone.startsWith("+") || timezone.startsWith("-")
-                ? timezone
-                : LocalDateTime.parse(c.inputDate()).atZone(ZoneId.of(timezone)).getOffset().getId();
-            var expectedOffset = timezone.startsWith("+") || timezone.startsWith("-")
-                ? timezone
-                : LocalDateTime.parse(c.expectedDate()).atZone(ZoneId.of(timezone)).getOffset().getId();
+            var inputOffset = timezoneToOffset(timezone, c.inputDate());
+            var expectedOffset = timezoneToOffset(timezone, c.expectedDate());
             cases.add(new PeriodTestCaseData(c.period(), c.inputDate() + inputOffset, timezone, c.expectedDate() + expectedOffset));
         }));
 
         // Special cases
         cases.addAll(
             List.of(
-                ///
-            /// DST boundaries (e.g. New York: -5 to -4 at 2025-03-09T02:00:00-05, and -4 to -5 at 2025-11-02T02:00:00-04)
-            ///
-                // Days
+                // DST boundaries (e.g. New York: -5 to -4 at 2025-03-09T02:00:00-05, and -4 to -5 at 2025-11-02T02:00:00-04)
                 new PeriodTestCaseData(Period.ofDays(1), "2025-03-09T06:00:00-04:00", "America/New_York", "2025-03-09T00:00:00-05:00"),
                 new PeriodTestCaseData(Period.ofDays(1), "2025-11-02T05:00:00-05:00", "America/New_York", "2025-11-02T00:00:00-04:00")
             )
         );
         return cases;
+    }
+
+    private static String timezoneToOffset(String timezone, String date) {
+        return timezone.startsWith("+") || timezone.startsWith("-")
+            ? timezone
+            : LocalDateTime.parse(date).atZone(ZoneId.of(timezone)).getOffset().getId();
     }
 
     private static List<TestCaseSupplier> ofDatePeriod(PeriodTestCaseData data) {

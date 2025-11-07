@@ -46,6 +46,7 @@ import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
@@ -53,7 +54,7 @@ import java.util.Objects;
 import static org.elasticsearch.search.SearchService.ALLOW_EXPENSIVE_QUERIES;
 import static org.elasticsearch.search.fetch.subphase.InnerHitsContext.intersect;
 
-public class NestedQueryBuilder extends AbstractQueryBuilder<NestedQueryBuilder> {
+public class NestedQueryBuilder extends AbstractQueryBuilder<NestedQueryBuilder> implements PrefilteredQuery<NestedQueryBuilder> {
     public static final String NAME = "nested";
     /**
      * The default value for ignore_unmapped.
@@ -71,6 +72,7 @@ public class NestedQueryBuilder extends AbstractQueryBuilder<NestedQueryBuilder>
     private final QueryBuilder query;
     private InnerHitBuilder innerHitBuilder;
     private boolean ignoreUnmapped = DEFAULT_IGNORE_UNMAPPED;
+    private List<QueryBuilder> prefilters = List.of();
 
     public NestedQueryBuilder(String path, QueryBuilder query, ScoreMode scoreMode) {
         this(path, query, scoreMode, null);
@@ -93,6 +95,9 @@ public class NestedQueryBuilder extends AbstractQueryBuilder<NestedQueryBuilder>
         query = in.readNamedWriteable(QueryBuilder.class);
         innerHitBuilder = in.readOptionalWriteable(InnerHitBuilder::new);
         ignoreUnmapped = in.readBoolean();
+        if (in.getTransportVersion().supports(PrefilteredQuery.QUERY_PREFILTERING)) {
+            prefilters = in.readNamedWriteableCollectionAsList(QueryBuilder.class);
+        }
     }
 
     @Override
@@ -102,6 +107,9 @@ public class NestedQueryBuilder extends AbstractQueryBuilder<NestedQueryBuilder>
         out.writeNamedWriteable(query);
         out.writeOptionalWriteable(innerHitBuilder);
         out.writeBoolean(ignoreUnmapped);
+        if (out.getTransportVersion().supports(PrefilteredQuery.QUERY_PREFILTERING)) {
+            out.writeNamedWriteableCollection(prefilters);
+        }
     }
 
     /**
@@ -258,12 +266,13 @@ public class NestedQueryBuilder extends AbstractQueryBuilder<NestedQueryBuilder>
             && Objects.equals(path, that.path)
             && Objects.equals(scoreMode, that.scoreMode)
             && Objects.equals(innerHitBuilder, that.innerHitBuilder)
-            && Objects.equals(ignoreUnmapped, that.ignoreUnmapped);
+            && Objects.equals(ignoreUnmapped, that.ignoreUnmapped)
+            && Objects.equals(prefilters, that.prefilters);
     }
 
     @Override
     protected int doHashCode() {
-        return Objects.hash(query, path, scoreMode, innerHitBuilder, ignoreUnmapped);
+        return Objects.hash(query, path, scoreMode, innerHitBuilder, ignoreUnmapped, prefilters);
     }
 
     @Override
@@ -329,6 +338,7 @@ public class NestedQueryBuilder extends AbstractQueryBuilder<NestedQueryBuilder>
 
     @Override
     protected QueryBuilder doRewrite(QueryRewriteContext queryRewriteContext) throws IOException {
+        propagatePrefilters();
         QueryBuilder rewrittenQuery = query.rewrite(queryRewriteContext);
         if (rewrittenQuery != query) {
             NestedQueryBuilder nestedQuery = new NestedQueryBuilder(path, rewrittenQuery, scoreMode, innerHitBuilder);
@@ -351,6 +361,22 @@ public class NestedQueryBuilder extends AbstractQueryBuilder<NestedQueryBuilder>
             InnerHitContextBuilder innerHitContextBuilder = new NestedInnerHitContextBuilder(path, query, innerHitBuilder, children);
             innerHits.put(name, innerHitContextBuilder);
         }
+    }
+
+    @Override
+    public NestedQueryBuilder setPrefilters(List<QueryBuilder> prefilters) {
+        this.prefilters = prefilters;
+        return this;
+    }
+
+    @Override
+    public List<QueryBuilder> getPrefilters() {
+        return prefilters;
+    }
+
+    @Override
+    public List<QueryBuilder> getPrefilteringTargetQueries() {
+        return List.of(query);
     }
 
     static class NestedInnerHitContextBuilder extends InnerHitContextBuilder {

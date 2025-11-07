@@ -95,7 +95,8 @@ public class InterceptedInferenceMatchQueryBuilder extends InterceptedInferenceQ
             rewritten = new MatchNoneQueryBuilder();
         } else if (fieldType instanceof SemanticTextFieldMapper.SemanticTextFieldType) {
             rewritten = new SemanticQueryBuilder(getField(), getQuery(), null, inferenceResultsMap).boost(originalQuery.boost())
-                .queryName(originalQuery.queryName());
+                .queryName(originalQuery.queryName())
+                .setPrefilters(originalQuery.getPrefilters());
         } else {
             rewritten = originalQuery;
         }

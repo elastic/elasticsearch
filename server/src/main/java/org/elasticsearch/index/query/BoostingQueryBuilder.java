@@ -20,6 +20,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
@@ -35,7 +36,7 @@ import java.util.Objects;
  * multiplied by the supplied "boost" parameter, so this should be less than 1 to achieve a
  * demoting effect
  */
-public class BoostingQueryBuilder extends AbstractQueryBuilder<BoostingQueryBuilder> {
+public class BoostingQueryBuilder extends AbstractQueryBuilder<BoostingQueryBuilder> implements PrefilteredQuery<BoostingQueryBuilder> {
     public static final String NAME = "boosting";
 
     private static final ParseField POSITIVE_FIELD = new ParseField("positive");
@@ -47,6 +48,8 @@ public class BoostingQueryBuilder extends AbstractQueryBuilder<BoostingQueryBuil
     private final QueryBuilder negativeQuery;
 
     private float negativeBoost = -1;
+
+    private List<QueryBuilder> prefilters = List.of();
 
     /**
      * Create a new {@link BoostingQueryBuilder}
@@ -73,6 +76,9 @@ public class BoostingQueryBuilder extends AbstractQueryBuilder<BoostingQueryBuil
         positiveQuery = in.readNamedWriteable(QueryBuilder.class);
         negativeQuery = in.readNamedWriteable(QueryBuilder.class);
         negativeBoost = in.readFloat();
+        if (in.getTransportVersion().supports(PrefilteredQuery.QUERY_PREFILTERING)) {
+            prefilters = in.readNamedWriteableCollectionAsList(QueryBuilder.class);
+        }
     }
 
     @Override
@@ -80,6 +86,9 @@ public class BoostingQueryBuilder extends AbstractQueryBuilder<BoostingQueryBuil
         out.writeNamedWriteable(positiveQuery);
         out.writeNamedWriteable(negativeQuery);
         out.writeFloat(negativeBoost);
+        if (out.getTransportVersion().supports(PrefilteredQuery.QUERY_PREFILTERING)) {
+            out.writeNamedWriteableCollection(prefilters);
+        }
     }
 
     /**
@@ -197,18 +206,21 @@ public class BoostingQueryBuilder extends AbstractQueryBuilder<BoostingQueryBuil
 
     @Override
     protected int doHashCode() {
-        return Objects.hash(negativeBoost, positiveQuery, negativeQuery);
+        return Objects.hash(negativeBoost, positiveQuery, negativeQuery, prefilters);
     }
 
     @Override
     protected boolean doEquals(BoostingQueryBuilder other) {
         return Objects.equals(negativeBoost, other.negativeBoost)
             && Objects.equals(positiveQuery, other.positiveQuery)
-            && Objects.equals(negativeQuery, other.negativeQuery);
+            && Objects.equals(negativeQuery, other.negativeQuery)
+            && Objects.equals(prefilters, other.prefilters);
     }
 
     @Override
     protected QueryBuilder doRewrite(QueryRewriteContext queryRewriteContext) throws IOException {
+        propagatePrefilters();
+
         QueryBuilder positiveQuery = this.positiveQuery.rewrite(queryRewriteContext);
         if (positiveQuery instanceof MatchNoneQueryBuilder) {
             return positiveQuery;
@@ -232,5 +244,21 @@ public class BoostingQueryBuilder extends AbstractQueryBuilder<BoostingQueryBuil
     @Override
     public TransportVersion getMinimalSupportedVersion() {
         return TransportVersion.zero();
+    }
+
+    @Override
+    public BoostingQueryBuilder setPrefilters(List<QueryBuilder> prefilters) {
+        this.prefilters = prefilters;
+        return this;
+    }
+
+    @Override
+    public List<QueryBuilder> getPrefilters() {
+        return prefilters;
+    }
+
+    @Override
+    public List<QueryBuilder> getPrefilteringTargetQueries() {
+        return List.of(positiveQuery, negativeQuery);
     }
 }

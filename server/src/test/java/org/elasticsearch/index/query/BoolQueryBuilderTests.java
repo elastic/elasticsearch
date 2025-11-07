@@ -14,7 +14,6 @@ import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
-import org.elasticsearch.test.AbstractQueryTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParseException;
@@ -25,9 +24,13 @@ import org.hamcrest.Matchers;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.function.Supplier;
+import java.util.stream.Stream;
 
 import static org.elasticsearch.index.query.QueryBuilders.boolQuery;
 import static org.elasticsearch.index.query.QueryBuilders.termQuery;
@@ -35,9 +38,10 @@ import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.hasItem;
 import static org.hamcrest.CoreMatchers.instanceOf;
+import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 
-public class BoolQueryBuilderTests extends AbstractQueryTestCase<BoolQueryBuilder> {
+public class BoolQueryBuilderTests extends AbstractPrefilteredQueryTestCase<BoolQueryBuilder> {
     @Override
     protected BoolQueryBuilder doCreateTestQueryBuilder() {
         BoolQueryBuilder query = new BoolQueryBuilder();
@@ -505,6 +509,48 @@ public class BoolQueryBuilderTests extends AbstractQueryTestCase<BoolQueryBuilde
                 assertThat(shallowCopy.filter(), hasItem(b));
                 assertThat(orig.filter(), not(hasItem(b)));
             }
+        }
+    }
+
+    public void testGetPrefilters() {
+        BoolQueryBuilder boolQueryBuilder = new BoolQueryBuilder();
+        randomList(5, () -> RandomQueryBuilder.createQuery(random())).forEach(boolQueryBuilder::must);
+        randomList(5, () -> RandomQueryBuilder.createQuery(random())).forEach(boolQueryBuilder::should);
+        randomList(5, () -> RandomQueryBuilder.createQuery(random())).forEach(boolQueryBuilder::filter);
+        randomList(5, () -> RandomQueryBuilder.createQuery(random())).forEach(boolQueryBuilder::mustNot);
+        List<QueryBuilder> topLevelPrefilters = randomList(5, () -> RandomQueryBuilder.createQuery(random()));
+        boolQueryBuilder.setPrefilters(topLevelPrefilters);
+
+        Set<QueryBuilder> expectedPrefilters = new HashSet<>();
+        expectedPrefilters.addAll(boolQueryBuilder.filter());
+        expectedPrefilters.addAll(boolQueryBuilder.mustNot().stream().map(q -> QueryBuilders.boolQuery().mustNot(q)).toList());
+        expectedPrefilters.addAll(topLevelPrefilters);
+
+        Set<QueryBuilder> actualPrefilters = new HashSet<>(boolQueryBuilder.getPrefilters());
+        assertThat(actualPrefilters, equalTo(expectedPrefilters));
+    }
+
+    @Override
+    protected BoolQueryBuilder createQueryBuilderForPrefilteredRewriteTest(Supplier<QueryBuilder> prefilteredQuerySupplier) {
+        BoolQueryBuilder boolQueryBuilder = boolQuery();
+        randomList(5, () -> prefilteredQuerySupplier.get()).forEach(boolQueryBuilder::must);
+        randomList(5, () -> prefilteredQuerySupplier.get()).forEach(boolQueryBuilder::should);
+        randomList(5, () -> prefilteredQuerySupplier.get()).forEach(boolQueryBuilder::filter);
+        randomList(5, () -> prefilteredQuerySupplier.get()).forEach(boolQueryBuilder::mustNot);
+        return boolQueryBuilder;
+    }
+
+    @Override
+    protected void assertRewrittenHasPropagatedPrefilters(QueryBuilder rewritten, List<QueryBuilder> prefilters) {
+        assertThat(rewritten, instanceOf(BoolQueryBuilder.class));
+        BoolQueryBuilder boolQueryBuilder = (BoolQueryBuilder) rewritten;
+        for (QueryBuilder query : Stream.concat(boolQueryBuilder.must().stream(), boolQueryBuilder.should().stream()).toList()) {
+            assertThat(query, instanceOf(PrefilteredQuery.class));
+            assertThat(((PrefilteredQuery) query).getPrefilters(), equalTo(prefilters));
+        }
+        for (QueryBuilder query : Stream.concat(boolQueryBuilder.filter().stream(), boolQueryBuilder.mustNot().stream()).toList()) {
+            assertThat(query, instanceOf(PrefilteredQuery.class));
+            assertThat(((PrefilteredQuery) query).getPrefilters().isEmpty(), is(true));
         }
     }
 }

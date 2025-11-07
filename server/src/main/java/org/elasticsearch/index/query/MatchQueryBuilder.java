@@ -29,13 +29,14 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.Objects;
 
 /**
  * Match query is a query that analyzes the text and constructs a query as the
  * result of the analysis.
  */
-public class MatchQueryBuilder extends AbstractQueryBuilder<MatchQueryBuilder> {
+public class MatchQueryBuilder extends AbstractQueryBuilder<MatchQueryBuilder> implements PrefilteredQuery<MatchQueryBuilder> {
 
     public static final ParseField ZERO_TERMS_QUERY_FIELD = new ParseField("zero_terms_query");
     public static final ParseField LENIENT_FIELD = new ParseField("lenient");
@@ -81,6 +82,8 @@ public class MatchQueryBuilder extends AbstractQueryBuilder<MatchQueryBuilder> {
 
     private boolean autoGenerateSynonymsPhraseQuery = true;
 
+    private List<QueryBuilder> prefilters = List.of();
+
     /**
      * Constructs a new match query.
      */
@@ -118,6 +121,9 @@ public class MatchQueryBuilder extends AbstractQueryBuilder<MatchQueryBuilder> {
             in.readOptionalFloat();
         }
         autoGenerateSynonymsPhraseQuery = in.readBoolean();
+        if (in.getTransportVersion().supports(PrefilteredQuery.QUERY_PREFILTERING)) {
+            prefilters = in.readNamedWriteableCollectionAsList(QueryBuilder.class);
+        }
     }
 
     @Override
@@ -140,6 +146,9 @@ public class MatchQueryBuilder extends AbstractQueryBuilder<MatchQueryBuilder> {
             out.writeOptionalFloat(null);
         }
         out.writeBoolean(autoGenerateSynonymsPhraseQuery);
+        if (out.getTransportVersion().supports(PrefilteredQuery.QUERY_PREFILTERING)) {
+            out.writeNamedWriteableCollection(prefilters);
+        }
     }
 
     /** Returns the field name used in this query. */
@@ -430,7 +439,8 @@ public class MatchQueryBuilder extends AbstractQueryBuilder<MatchQueryBuilder> {
             && Objects.equals(lenient, other.lenient)
             && Objects.equals(fuzzyTranspositions, other.fuzzyTranspositions)
             && Objects.equals(zeroTermsQuery, other.zeroTermsQuery)
-            && Objects.equals(autoGenerateSynonymsPhraseQuery, other.autoGenerateSynonymsPhraseQuery);
+            && Objects.equals(autoGenerateSynonymsPhraseQuery, other.autoGenerateSynonymsPhraseQuery)
+            && Objects.equals(prefilters, other.prefilters);
     }
 
     @Override
@@ -448,7 +458,8 @@ public class MatchQueryBuilder extends AbstractQueryBuilder<MatchQueryBuilder> {
             lenient,
             fuzzyTranspositions,
             zeroTermsQuery,
-            autoGenerateSynonymsPhraseQuery
+            autoGenerateSynonymsPhraseQuery,
+            prefilters
         );
     }
 
@@ -569,5 +580,21 @@ public class MatchQueryBuilder extends AbstractQueryBuilder<MatchQueryBuilder> {
     @Override
     public TransportVersion getMinimalSupportedVersion() {
         return TransportVersion.zero();
+    }
+
+    @Override
+    public MatchQueryBuilder setPrefilters(List<QueryBuilder> prefilters) {
+        this.prefilters = prefilters;
+        return this;
+    }
+
+    @Override
+    public List<QueryBuilder> getPrefilters() {
+        return prefilters;
+    }
+
+    @Override
+    public List<QueryBuilder> getPrefilteringTargetQueries() {
+        return List.of();
     }
 }

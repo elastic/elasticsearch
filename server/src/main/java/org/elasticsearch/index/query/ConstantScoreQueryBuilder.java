@@ -20,6 +20,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
@@ -27,12 +28,17 @@ import java.util.Objects;
  * A query that wraps a filter and simply returns a constant score equal to the
  * query boost for every document in the filter.
  */
-public class ConstantScoreQueryBuilder extends AbstractQueryBuilder<ConstantScoreQueryBuilder> {
+public class ConstantScoreQueryBuilder extends AbstractQueryBuilder<ConstantScoreQueryBuilder>
+    implements
+        PrefilteredQuery<ConstantScoreQueryBuilder> {
+
     public static final String NAME = "constant_score";
 
     private static final ParseField INNER_QUERY_FIELD = new ParseField("filter");
 
     private final QueryBuilder filterBuilder;
+
+    private List<QueryBuilder> prefilters = List.of();
 
     /**
      * A query that wraps another query and simply returns a constant score equal to the
@@ -53,11 +59,17 @@ public class ConstantScoreQueryBuilder extends AbstractQueryBuilder<ConstantScor
     public ConstantScoreQueryBuilder(StreamInput in) throws IOException {
         super(in);
         filterBuilder = in.readNamedWriteable(QueryBuilder.class);
+        if (in.getTransportVersion().supports(PrefilteredQuery.QUERY_PREFILTERING)) {
+            prefilters = in.readNamedWriteableCollectionAsList(QueryBuilder.class);
+        }
     }
 
     @Override
     protected void doWriteTo(StreamOutput out) throws IOException {
         out.writeNamedWriteable(filterBuilder);
+        if (out.getTransportVersion().supports(PrefilteredQuery.QUERY_PREFILTERING)) {
+            out.writeNamedWriteableCollection(prefilters);
+        }
     }
 
     /**
@@ -135,20 +147,23 @@ public class ConstantScoreQueryBuilder extends AbstractQueryBuilder<ConstantScor
 
     @Override
     protected int doHashCode() {
-        return Objects.hash(filterBuilder);
+        return Objects.hash(filterBuilder, prefilters);
     }
 
     @Override
     protected boolean doEquals(ConstantScoreQueryBuilder other) {
-        return Objects.equals(filterBuilder, other.filterBuilder);
+        return Objects.equals(filterBuilder, other.filterBuilder) && Objects.equals(prefilters, other.prefilters);
     }
 
     @Override
     protected QueryBuilder doRewrite(QueryRewriteContext queryRewriteContext) throws IOException {
+        propagatePrefilters();
+
         QueryBuilder rewrite = filterBuilder.rewrite(queryRewriteContext);
         if (rewrite instanceof MatchNoneQueryBuilder) {
             return rewrite; // we won't match anyway
         }
+
         if (rewrite != filterBuilder) {
             return new ConstantScoreQueryBuilder(rewrite);
         }
@@ -163,5 +178,21 @@ public class ConstantScoreQueryBuilder extends AbstractQueryBuilder<ConstantScor
     @Override
     public TransportVersion getMinimalSupportedVersion() {
         return TransportVersion.zero();
+    }
+
+    @Override
+    public ConstantScoreQueryBuilder setPrefilters(List<QueryBuilder> prefilters) {
+        this.prefilters = prefilters;
+        return this;
+    }
+
+    @Override
+    public List<QueryBuilder> getPrefilters() {
+        return prefilters;
+    }
+
+    @Override
+    public List<QueryBuilder> getPrefilteringTargetQueries() {
+        return List.of(filterBuilder);
     }
 }

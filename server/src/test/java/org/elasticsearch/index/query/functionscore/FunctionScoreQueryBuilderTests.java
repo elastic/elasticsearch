@@ -33,9 +33,12 @@ import org.elasticsearch.common.lucene.search.function.WeightFactorFunction;
 import org.elasticsearch.common.unit.DistanceUnit;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
+import org.elasticsearch.index.query.AbstractPrefilteredQueryTestCase;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.MatchNoneQueryBuilder;
+import org.elasticsearch.index.query.PrefilteredQuery;
 import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.RandomQueryBuilder;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.query.TermQueryBuilder;
@@ -47,7 +50,6 @@ import org.elasticsearch.script.MockScriptEngine;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.search.MultiValueMode;
-import org.elasticsearch.test.AbstractQueryTestCase;
 import org.elasticsearch.xcontent.XContentParseException;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
@@ -64,6 +66,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Supplier;
 
 import static java.util.Collections.singletonList;
 import static org.elasticsearch.index.query.QueryBuilders.functionScoreQuery;
@@ -80,7 +83,7 @@ import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.nullValue;
 
-public class FunctionScoreQueryBuilderTests extends AbstractQueryTestCase<FunctionScoreQueryBuilder> {
+public class FunctionScoreQueryBuilderTests extends AbstractPrefilteredQueryTestCase<FunctionScoreQueryBuilder> {
 
     private static final String[] SHUFFLE_PROTECTED_FIELDS = new String[] {
         Script.PARAMS_PARSE_FIELD.getPreferredName(),
@@ -842,6 +845,19 @@ public class FunctionScoreQueryBuilderTests extends AbstractQueryTestCase<Functi
 
     private void expectParsingException(String json, String message) {
         expectParsingException(json, equalTo("failed to parse [function_score] query. " + message));
+    }
+
+    @Override
+    protected FunctionScoreQueryBuilder createQueryBuilderForPrefilteredRewriteTest(Supplier<QueryBuilder> prefilteredQuerySupplier) {
+        return QueryBuilders.functionScoreQuery(prefilteredQuerySupplier.get());
+    }
+
+    @Override
+    protected void assertRewrittenHasPropagatedPrefilters(QueryBuilder rewritten, List<QueryBuilder> prefilters) {
+        assertThat(rewritten, instanceOf(FunctionScoreQueryBuilder.class));
+        FunctionScoreQueryBuilder functionScoreQueryBuilder = (FunctionScoreQueryBuilder) rewritten;
+        assertThat(functionScoreQueryBuilder.query(), instanceOf(PrefilteredQuery.class));
+        assertThat(((PrefilteredQuery) functionScoreQueryBuilder.query()).getPrefilters(), equalTo(prefilters));
     }
 
     /**

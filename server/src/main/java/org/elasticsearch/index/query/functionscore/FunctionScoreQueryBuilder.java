@@ -23,6 +23,7 @@ import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.index.query.InnerHitContextBuilder;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.MatchNoneQueryBuilder;
+import org.elasticsearch.index.query.PrefilteredQuery;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.SearchExecutionContext;
@@ -44,7 +45,10 @@ import java.util.Objects;
  * A query that uses a filters with a script associated with them to compute the
  * score.
  */
-public class FunctionScoreQueryBuilder extends AbstractQueryBuilder<FunctionScoreQueryBuilder> {
+public class FunctionScoreQueryBuilder extends AbstractQueryBuilder<FunctionScoreQueryBuilder>
+    implements
+        PrefilteredQuery<FunctionScoreQueryBuilder> {
+
     public static final String NAME = "function_score";
 
     // For better readability of error message
@@ -73,6 +77,8 @@ public class FunctionScoreQueryBuilder extends AbstractQueryBuilder<FunctionScor
     private Float minScore = null;
 
     private final FilterFunctionBuilder[] filterFunctionBuilders;
+
+    private List<QueryBuilder> prefilters = List.of();
 
     /**
      * Creates a function_score query without functions
@@ -144,6 +150,9 @@ public class FunctionScoreQueryBuilder extends AbstractQueryBuilder<FunctionScor
         minScore = in.readOptionalFloat();
         boostMode = in.readOptionalWriteable(CombineFunction::readFromStream);
         scoreMode = FunctionScoreQuery.ScoreMode.readFromStream(in);
+        if (in.getTransportVersion().supports(PrefilteredQuery.QUERY_PREFILTERING)) {
+            prefilters = in.readNamedWriteableCollectionAsList(QueryBuilder.class);
+        }
     }
 
     @Override
@@ -154,6 +163,9 @@ public class FunctionScoreQueryBuilder extends AbstractQueryBuilder<FunctionScor
         out.writeOptionalFloat(minScore);
         out.writeOptionalWriteable(boostMode);
         scoreMode.writeTo(out);
+        if (out.getTransportVersion().supports(PrefilteredQuery.QUERY_PREFILTERING)) {
+            out.writeNamedWriteableCollection(prefilters);
+        }
     }
 
     /**
@@ -277,7 +289,8 @@ public class FunctionScoreQueryBuilder extends AbstractQueryBuilder<FunctionScor
             && Objects.equals(this.boostMode, other.boostMode)
             && Objects.equals(this.scoreMode, other.scoreMode)
             && Objects.equals(this.minScore, other.minScore)
-            && Objects.equals(this.maxBoost, other.maxBoost);
+            && Objects.equals(this.maxBoost, other.maxBoost)
+            && Objects.equals(this.prefilters, other.prefilters);
     }
 
     @Override
@@ -288,7 +301,8 @@ public class FunctionScoreQueryBuilder extends AbstractQueryBuilder<FunctionScor
             this.boostMode,
             this.scoreMode,
             this.minScore,
-            this.maxBoost
+            this.maxBoost,
+            this.prefilters
         );
     }
 
@@ -320,6 +334,22 @@ public class FunctionScoreQueryBuilder extends AbstractQueryBuilder<FunctionScor
         }
         // in all other cases we create a FunctionScoreQuery with filters
         return new FunctionScoreQuery(query, scoreMode, filterFunctions, boostMode, minScore, maxBoost);
+    }
+
+    @Override
+    public FunctionScoreQueryBuilder setPrefilters(List<QueryBuilder> prefilters) {
+        this.prefilters = prefilters;
+        return this;
+    }
+
+    @Override
+    public List<QueryBuilder> getPrefilters() {
+        return prefilters;
+    }
+
+    @Override
+    public List<QueryBuilder> getPrefilteringTargetQueries() {
+        return List.of(query);
     }
 
     /**
@@ -405,6 +435,8 @@ public class FunctionScoreQueryBuilder extends AbstractQueryBuilder<FunctionScor
 
     @Override
     protected QueryBuilder doRewrite(QueryRewriteContext queryRewriteContext) throws IOException {
+        propagatePrefilters();
+
         QueryBuilder queryBuilder = this.query.rewrite(queryRewriteContext);
         if (queryBuilder instanceof MatchNoneQueryBuilder) {
             return queryBuilder;

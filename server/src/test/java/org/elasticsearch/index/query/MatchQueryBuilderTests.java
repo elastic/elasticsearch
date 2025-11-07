@@ -40,7 +40,6 @@ import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.search.MatchQueryParser;
 import org.elasticsearch.index.search.MatchQueryParser.Type;
-import org.elasticsearch.test.AbstractQueryTestCase;
 import org.hamcrest.Matcher;
 import org.hamcrest.Matchers;
 
@@ -50,6 +49,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.function.Supplier;
 
 import static org.hamcrest.CoreMatchers.either;
 import static org.hamcrest.CoreMatchers.instanceOf;
@@ -57,7 +57,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
 
-public class MatchQueryBuilderTests extends AbstractQueryTestCase<MatchQueryBuilder> {
+public class MatchQueryBuilderTests extends AbstractPrefilteredQueryTestCase<MatchQueryBuilder> {
 
     @Override
     protected MatchQueryBuilder doCreateTestQueryBuilder() {
@@ -531,6 +531,16 @@ public class MatchQueryBuilderTests extends AbstractQueryTestCase<MatchQueryBuil
         expectThrows(IndexSearcher.TooManyClauses.class, () -> query.parse(Type.PHRASE, TEXT_FIELD_NAME, ""));
         query.setAnalyzer(new MockGraphAnalyzer(createGiantGraphMultiTerms()));
         expectThrows(IndexSearcher.TooManyClauses.class, () -> query.parse(Type.PHRASE, TEXT_FIELD_NAME, ""));
+    }
+
+    @Override
+    protected MatchQueryBuilder createQueryBuilderForPrefilteredRewriteTest(Supplier<QueryBuilder> prefilteredQuerySupplier) {
+        return null;
+    }
+
+    @Override
+    protected void assertRewrittenHasPropagatedPrefilters(QueryBuilder rewritten, List<QueryBuilder> prefilters) {
+        // Do nothing, match prefiltering is tested via the inference interceptor
     }
 
     private static class MockGraphAnalyzer extends Analyzer {

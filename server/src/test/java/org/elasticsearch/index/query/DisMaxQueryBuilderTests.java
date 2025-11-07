@@ -15,15 +15,18 @@ import org.apache.lucene.search.DisjunctionMaxQuery;
 import org.apache.lucene.search.PrefixQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.core.Strings;
-import org.elasticsearch.test.AbstractQueryTestCase;
 
 import java.io.IOException;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Supplier;
 
-public class DisMaxQueryBuilderTests extends AbstractQueryTestCase<DisMaxQueryBuilder> {
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.instanceOf;
+
+public class DisMaxQueryBuilderTests extends AbstractPrefilteredQueryTestCase<DisMaxQueryBuilder> {
     /**
      * @return a {@link DisMaxQueryBuilder} with random inner queries
      */
@@ -143,5 +146,20 @@ public class DisMaxQueryBuilderTests extends AbstractQueryTestCase<DisMaxQueryBu
         QueryBuilder rewrittenAgain = rewritten.rewrite(createSearchExecutionContext());
         assertEquals(rewrittenAgain, expected);
         assertEquals(Rewriteable.rewrite(dismax, createSearchExecutionContext()), expected);
+    }
+
+    @Override
+    protected DisMaxQueryBuilder createQueryBuilderForPrefilteredRewriteTest(Supplier<QueryBuilder> prefilteredQuerySupplier) {
+        return QueryBuilders.disMaxQuery().add(prefilteredQuerySupplier.get()).add(prefilteredQuerySupplier.get());
+    }
+
+    @Override
+    protected void assertRewrittenHasPropagatedPrefilters(QueryBuilder rewritten, List<QueryBuilder> prefilters) {
+        assertThat(rewritten, instanceOf(DisMaxQueryBuilder.class));
+        DisMaxQueryBuilder innerQueries = (DisMaxQueryBuilder) rewritten;
+        for (QueryBuilder prefilter : innerQueries.innerQueries()) {
+            assertThat(prefilter, instanceOf(PrefilteredQuery.class));
+            assertThat(((PrefilteredQuery) prefilter).getPrefilters(), equalTo(prefilters));
+        }
     }
 }

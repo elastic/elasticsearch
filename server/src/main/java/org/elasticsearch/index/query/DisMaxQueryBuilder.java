@@ -32,7 +32,7 @@ import java.util.Objects;
  * with the maximum score for that document as produced by any sub-query, plus a tie breaking increment for any
  * additional matching sub-queries.
  */
-public class DisMaxQueryBuilder extends AbstractQueryBuilder<DisMaxQueryBuilder> {
+public class DisMaxQueryBuilder extends AbstractQueryBuilder<DisMaxQueryBuilder> implements PrefilteredQuery<DisMaxQueryBuilder> {
     public static final String NAME = "dis_max";
 
     /** Default multiplication factor for breaking ties in document scores.*/
@@ -42,6 +42,7 @@ public class DisMaxQueryBuilder extends AbstractQueryBuilder<DisMaxQueryBuilder>
     private static final ParseField QUERIES_FIELD = new ParseField("queries");
 
     private final List<QueryBuilder> queries = new ArrayList<>();
+    private List<QueryBuilder> prefilters = List.of();
 
     private float tieBreaker = DEFAULT_TIE_BREAKER;
 
@@ -54,12 +55,18 @@ public class DisMaxQueryBuilder extends AbstractQueryBuilder<DisMaxQueryBuilder>
         super(in);
         queries.addAll(readQueries(in));
         tieBreaker = in.readFloat();
+        if (in.getTransportVersion().supports(PrefilteredQuery.QUERY_PREFILTERING)) {
+            prefilters = readQueries(in);
+        }
     }
 
     @Override
     protected void doWriteTo(StreamOutput out) throws IOException {
         writeQueries(out, queries);
         out.writeFloat(tieBreaker);
+        if (out.getTransportVersion().supports(PrefilteredQuery.QUERY_PREFILTERING)) {
+            out.writeNamedWriteableCollection(prefilters);
+        }
     }
 
     /**
@@ -182,6 +189,8 @@ public class DisMaxQueryBuilder extends AbstractQueryBuilder<DisMaxQueryBuilder>
 
     @Override
     protected QueryBuilder doRewrite(QueryRewriteContext queryRewriteContext) throws IOException {
+        propagatePrefilters();
+
         DisMaxQueryBuilder newBuilder = new DisMaxQueryBuilder();
         boolean changed = false;
         for (QueryBuilder query : queries) {
@@ -203,12 +212,14 @@ public class DisMaxQueryBuilder extends AbstractQueryBuilder<DisMaxQueryBuilder>
 
     @Override
     protected int doHashCode() {
-        return Objects.hash(queries, tieBreaker);
+        return Objects.hash(queries, tieBreaker, prefilters);
     }
 
     @Override
     protected boolean doEquals(DisMaxQueryBuilder other) {
-        return Objects.equals(queries, other.queries) && Objects.equals(tieBreaker, other.tieBreaker);
+        return Objects.equals(queries, other.queries)
+            && Objects.equals(tieBreaker, other.tieBreaker)
+            && Objects.equals(prefilters, other.prefilters);
     }
 
     @Override
@@ -226,5 +237,21 @@ public class DisMaxQueryBuilder extends AbstractQueryBuilder<DisMaxQueryBuilder>
     @Override
     public TransportVersion getMinimalSupportedVersion() {
         return TransportVersion.zero();
+    }
+
+    @Override
+    public DisMaxQueryBuilder setPrefilters(List<QueryBuilder> prefilters) {
+        this.prefilters = prefilters;
+        return this;
+    }
+
+    @Override
+    public List<QueryBuilder> getPrefilters() {
+        return prefilters;
+    }
+
+    @Override
+    public List<QueryBuilder> getPrefilteringTargetQueries() {
+        return queries;
     }
 }

@@ -43,7 +43,9 @@ import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapperTestUtils;
+import org.elasticsearch.index.query.AbstractPrefilteredQueryTestCase;
 import org.elasticsearch.index.query.MatchNoneQueryBuilder;
+import org.elasticsearch.index.query.NestedQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.SearchExecutionContext;
@@ -55,8 +57,8 @@ import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.inference.WeightedToken;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.search.vectors.KnnVectorQueryBuilder;
 import org.elasticsearch.search.vectors.SparseVectorQueryWrapper;
-import org.elasticsearch.test.AbstractQueryTestCase;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.test.client.NoOpClient;
@@ -70,6 +72,7 @@ import org.elasticsearch.xpack.core.inference.results.DenseEmbeddingFloatResults
 import org.elasticsearch.xpack.core.inference.results.SparseEmbeddingResults;
 import org.elasticsearch.xpack.core.ml.inference.results.MlDenseEmbeddingResults;
 import org.elasticsearch.xpack.core.ml.inference.results.TextExpansionResults;
+import org.elasticsearch.xpack.core.ml.search.SparseVectorQueryBuilder;
 import org.elasticsearch.xpack.inference.FakeMlPlugin;
 import org.elasticsearch.xpack.inference.InferencePlugin;
 import org.elasticsearch.xpack.inference.mapper.SemanticTextField;
@@ -100,7 +103,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.notNullValue;
 
-public class SemanticQueryBuilderTests extends AbstractQueryTestCase<SemanticQueryBuilder> {
+public class SemanticQueryBuilderTests extends AbstractPrefilteredQueryTestCase<SemanticQueryBuilder> {
     private static final String SEMANTIC_TEXT_FIELD = "semantic";
     private static final float TOKEN_WEIGHT = 0.5f;
     private static final int QUERY_TOKEN_LENGTH = 4;
@@ -554,6 +557,29 @@ public class SemanticQueryBuilderTests extends AbstractQueryTestCase<SemanticQue
 
         QueryBuilder rewritten = rewriteQuery(builder, queryRewriteContext, searchExecutionContext);
         assertThat(rewritten, instanceOf(MatchNoneQueryBuilder.class));
+    }
+
+    @Override
+    protected SemanticQueryBuilder createQueryBuilderForPrefilteredRewriteTest(Supplier<QueryBuilder> prefilteredQuerySupplier) {
+        return doCreateTestQueryBuilder();
+    }
+
+    @Override
+    protected void assertRewrittenHasPropagatedPrefilters(QueryBuilder rewritten, List<QueryBuilder> prefilters) {
+        assertThat(rewritten, instanceOf(NestedQueryBuilder.class));
+        NestedQueryBuilder nestedQueryBuilder = (NestedQueryBuilder) rewritten;
+        switch (inferenceResultType) {
+            case NONE -> assertThat(nestedQueryBuilder.query(), instanceOf(MatchNoneQueryBuilder.class));
+            case SPARSE_EMBEDDING -> assertThat(nestedQueryBuilder.query(), instanceOf(SparseVectorQueryBuilder.class));
+            case TEXT_EMBEDDING -> assertVectorQueryBuilderWithPrefilters(nestedQueryBuilder.query(), prefilters);
+            default -> fail("Unexpected inference result type [" + inferenceResultType + "]");
+        }
+    }
+
+    private static void assertVectorQueryBuilderWithPrefilters(QueryBuilder queryBuilder, List<QueryBuilder> prefilters) {
+        assertThat(queryBuilder, instanceOf(KnnVectorQueryBuilder.class));
+        KnnVectorQueryBuilder knnVectorQueryBuilder = (KnnVectorQueryBuilder) queryBuilder;
+        assertThat(knnVectorQueryBuilder.filterQueries(), equalTo(prefilters));
     }
 
     private static SourceToParse buildSemanticTextFieldWithInferenceResults(

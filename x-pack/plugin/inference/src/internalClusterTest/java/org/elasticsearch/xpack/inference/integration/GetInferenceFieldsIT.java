@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.inference.integration;
 
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.cluster.metadata.InferenceFieldMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexNotFoundException;
@@ -85,15 +84,15 @@ public class GetInferenceFieldsIT extends ESIntegTestCase {
         TEXT_FIELD_2
     );
 
-    private static final Set<InferenceFieldAndId> INDEX_1_EXPECTED_INFERENCE_FIELDS = Set.of(
-        new InferenceFieldAndId(INFERENCE_FIELD_1, SPARSE_EMBEDDING_INFERENCE_ID),
-        new InferenceFieldAndId(INFERENCE_FIELD_2, TEXT_EMBEDDING_INFERENCE_ID),
-        new InferenceFieldAndId(INFERENCE_FIELD_3, SPARSE_EMBEDDING_INFERENCE_ID)
+    private static final Set<InferenceFieldWithTestMetadata> INDEX_1_EXPECTED_INFERENCE_FIELDS = Set.of(
+        new InferenceFieldWithTestMetadata(INFERENCE_FIELD_1, SPARSE_EMBEDDING_INFERENCE_ID, 1.0f),
+        new InferenceFieldWithTestMetadata(INFERENCE_FIELD_2, TEXT_EMBEDDING_INFERENCE_ID, 1.0f),
+        new InferenceFieldWithTestMetadata(INFERENCE_FIELD_3, SPARSE_EMBEDDING_INFERENCE_ID, 1.0f)
     );
-    private static final Set<InferenceFieldAndId> INDEX_2_EXPECTED_INFERENCE_FIELDS = Set.of(
-        new InferenceFieldAndId(INFERENCE_FIELD_1, TEXT_EMBEDDING_INFERENCE_ID),
-        new InferenceFieldAndId(INFERENCE_FIELD_2, SPARSE_EMBEDDING_INFERENCE_ID),
-        new InferenceFieldAndId(INFERENCE_FIELD_3, SPARSE_EMBEDDING_INFERENCE_ID)
+    private static final Set<InferenceFieldWithTestMetadata> INDEX_2_EXPECTED_INFERENCE_FIELDS = Set.of(
+        new InferenceFieldWithTestMetadata(INFERENCE_FIELD_1, TEXT_EMBEDDING_INFERENCE_ID, 1.0f),
+        new InferenceFieldWithTestMetadata(INFERENCE_FIELD_2, SPARSE_EMBEDDING_INFERENCE_ID, 1.0f),
+        new InferenceFieldWithTestMetadata(INFERENCE_FIELD_3, SPARSE_EMBEDDING_INFERENCE_ID, 1.0f)
     );
 
     private static final Map<String, Class<? extends InferenceResults>> ALL_EXPECTED_INFERENCE_RESULTS = Map.of(
@@ -417,7 +416,7 @@ public class GetInferenceFieldsIT extends ESIntegTestCase {
 
     private static void assertSuccessfulRequest(
         GetInferenceFieldsAction.Request request,
-        Map<String, Set<InferenceFieldAndId>> expectedInferenceFields,
+        Map<String, Set<InferenceFieldWithTestMetadata>> expectedInferenceFields,
         Map<String, Class<? extends InferenceResults>> expectedInferenceResults
     ) {
         var response = executeRequest(request);
@@ -435,24 +434,25 @@ public class GetInferenceFieldsIT extends ESIntegTestCase {
     }
 
     static void assertInferenceFieldsMap(
-        Map<String, List<InferenceFieldMetadata>> inferenceFieldsMap,
-        Map<String, Set<InferenceFieldAndId>> expectedInferenceFields
+        Map<String, List<GetInferenceFieldsAction.ExtendedInferenceFieldMetadata>> inferenceFieldsMap,
+        Map<String, Set<InferenceFieldWithTestMetadata>> expectedInferenceFields
     ) {
         assertThat(inferenceFieldsMap.size(), equalTo(expectedInferenceFields.size()));
         for (var entry : inferenceFieldsMap.entrySet()) {
             String indexName = entry.getKey();
-            List<InferenceFieldMetadata> indexInferenceFields = entry.getValue();
+            List<GetInferenceFieldsAction.ExtendedInferenceFieldMetadata> indexInferenceFields = entry.getValue();
 
-            Set<InferenceFieldAndId> expectedIndexInferenceFields = expectedInferenceFields.get(indexName);
+            Set<InferenceFieldWithTestMetadata> expectedIndexInferenceFields = expectedInferenceFields.get(indexName);
             assertThat(expectedIndexInferenceFields, notNullValue());
 
-            Set<InferenceFieldAndId> remainingExpectedIndexInferenceFields = new HashSet<>(expectedIndexInferenceFields);
-            for (InferenceFieldMetadata indexInferenceField : indexInferenceFields) {
-                InferenceFieldAndId inferenceFieldAndId = new InferenceFieldAndId(
-                    indexInferenceField.getName(),
-                    indexInferenceField.getSearchInferenceId()
+            Set<InferenceFieldWithTestMetadata> remainingExpectedIndexInferenceFields = new HashSet<>(expectedIndexInferenceFields);
+            for (var indexInferenceField : indexInferenceFields) {
+                InferenceFieldWithTestMetadata inferenceFieldWithTestMetadata = new InferenceFieldWithTestMetadata(
+                    indexInferenceField.inferenceFieldMetadata().getName(),
+                    indexInferenceField.inferenceFieldMetadata().getSearchInferenceId(),
+                    indexInferenceField.weight()
                 );
-                assertThat(remainingExpectedIndexInferenceFields.remove(inferenceFieldAndId), is(true));
+                assertThat(remainingExpectedIndexInferenceFields.remove(inferenceFieldWithTestMetadata), is(true));
             }
             assertThat(remainingExpectedIndexInferenceFields, empty());
         }
@@ -473,8 +473,8 @@ public class GetInferenceFieldsIT extends ESIntegTestCase {
         }
     }
 
-    private static Set<InferenceFieldAndId> filterExpectedInferenceFieldSet(
-        Set<InferenceFieldAndId> inferenceFieldSet,
+    private static Set<InferenceFieldWithTestMetadata> filterExpectedInferenceFieldSet(
+        Set<InferenceFieldWithTestMetadata> inferenceFieldSet,
         Set<String> fieldNames
     ) {
         return inferenceFieldSet.stream().filter(i -> fieldNames.contains(i.field())).collect(Collectors.toSet());
@@ -490,5 +490,5 @@ public class GetInferenceFieldsIT extends ESIntegTestCase {
             .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
     }
 
-    record InferenceFieldAndId(String field, String inferenceId) {}
+    record InferenceFieldWithTestMetadata(String field, String inferenceId, float weight) {}
 }

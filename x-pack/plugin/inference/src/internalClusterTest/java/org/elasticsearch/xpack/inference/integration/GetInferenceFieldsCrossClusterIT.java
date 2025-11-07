@@ -115,7 +115,7 @@ public class GetInferenceFieldsCrossClusterIT extends AbstractMultiClustersTestC
         var response = future.actionGet(TEST_REQUEST_TIMEOUT);
         assertInferenceFieldsMap(
             response.getInferenceFieldsMap(),
-            Map.of(INDEX_NAME, Set.of(new GetInferenceFieldsIT.InferenceFieldAndId(INFERENCE_FIELD, INFERENCE_ID)))
+            Map.of(INDEX_NAME, Set.of(new GetInferenceFieldsIT.InferenceFieldWithTestMetadata(INFERENCE_FIELD, INFERENCE_ID, 1.0f)))
         );
         assertInferenceResultsMap(response.getInferenceResultsMap(), Map.of(INFERENCE_ID, TextExpansionResults.class));
     }

@@ -480,9 +480,8 @@ public class ReadOnlyEngine extends Engine {
 
     @Override
     public boolean preForceMergeNoOpCheck(int maxNumSegments, boolean onlyExpungeDeletes) {
-        // If the number of segments we have is less than or equal to maxNumSegments, the force-merge request will be a no-op.
-        // Otherwise, we'll let the forceMerge method take care of throwing an exception.
-        return maxNumSegments >= lastCommittedSegmentInfos.size();
+        // We'll let the forceMerge method take care of throwing an exception if necessary.
+        return false;
     }
 
     @Override

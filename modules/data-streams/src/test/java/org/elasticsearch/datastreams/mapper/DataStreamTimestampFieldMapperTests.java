@@ -127,7 +127,7 @@ public class DataStreamTimestampFieldMapperTests extends MetadataMapperTestCase 
             b.field("doc_values", false);
             b.endObject();
         })));
-        assertThat(e.getMessage(), equalTo("data stream timestamp field [@timestamp] is not searchable"));
+        assertThat(e.getMessage(), equalTo("data stream timestamp field [@timestamp] is not indexed"));
     }
 
     public void testValidateNotAggregatable() {
@@ -137,7 +137,7 @@ public class DataStreamTimestampFieldMapperTests extends MetadataMapperTestCase 
             b.field("doc_values", false);
             b.endObject();
         })));
-        assertThat(e.getMessage(), equalTo("data stream timestamp field [@timestamp] is not aggregatable"));
+        assertThat(e.getMessage(), equalTo("data stream timestamp field [@timestamp] doesn't have doc values"));
     }
 
     public void testValidateNullValue() {
@@ -432,7 +432,7 @@ public class DataStreamTimestampFieldMapperTests extends MetadataMapperTestCase 
         );
         assertEquals(
             ex.getMessage(),
-            "data stream timestamp field [" + DataStreamTimestampFieldMapper.DEFAULT_PATH + "] is not aggregatable"
+            "data stream timestamp field [" + DataStreamTimestampFieldMapper.DEFAULT_PATH + "] doesn't have doc values"
         );
     }
 
@@ -456,7 +456,7 @@ public class DataStreamTimestampFieldMapperTests extends MetadataMapperTestCase 
         );
         assertEquals(
             ex.getMessage(),
-            "data stream timestamp field [" + DataStreamTimestampFieldMapper.DEFAULT_PATH + "] is not aggregatable"
+            "data stream timestamp field [" + DataStreamTimestampFieldMapper.DEFAULT_PATH + "] doesn't have doc values"
         );
     }
 

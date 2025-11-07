@@ -30,6 +30,7 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Consumer;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.xpack.inference.integration.GetInferenceFieldsIT.assertInferenceFieldsMap;
@@ -76,12 +77,28 @@ public class GetInferenceFieldsCrossClusterIT extends AbstractMultiClustersTestC
     }
 
     public void testRemoteIndex() {
-        var request = new GetInferenceFieldsAction.Request(Set.of(REMOTE_CLUSTER + ":test-index"), Set.of(), false, false, "foo");
-        IllegalArgumentException e = assertThrows(
-            IllegalArgumentException.class,
-            () -> client().execute(GetInferenceFieldsAction.INSTANCE, request).actionGet(TEST_REQUEST_TIMEOUT)
+        Consumer<GetInferenceFieldsAction.Request> assertFailedRequest = r -> {
+            IllegalArgumentException e = assertThrows(
+                IllegalArgumentException.class,
+                () -> client().execute(GetInferenceFieldsAction.INSTANCE, r).actionGet(TEST_REQUEST_TIMEOUT)
+            );
+            assertThat(e.getMessage(), containsString("GetInferenceFieldsAction does not support remote indices"));
+        };
+
+        var concreteIndexRequest = new GetInferenceFieldsAction.Request(
+            Set.of(REMOTE_CLUSTER + ":test-index"),
+            Set.of(),
+            false,
+            false,
+            "foo"
         );
-        assertThat(e.getMessage(), containsString("GetInferenceFieldsAction does not support remote indices"));
+        assertFailedRequest.accept(concreteIndexRequest);
+
+        var wildcardIndexRequest = new GetInferenceFieldsAction.Request(Set.of(REMOTE_CLUSTER + ":*"), Set.of(), false, false, "foo");
+        assertFailedRequest.accept(wildcardIndexRequest);
+
+        var wildcardClusterAndIndexRequest = new GetInferenceFieldsAction.Request(Set.of("*:*"), Set.of(), false, false, "foo");
+        assertFailedRequest.accept(wildcardClusterAndIndexRequest);
     }
 
     public void testRemoteClusterAction() {

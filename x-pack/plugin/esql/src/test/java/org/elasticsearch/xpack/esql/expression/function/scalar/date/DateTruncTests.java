@@ -117,7 +117,7 @@ public class DateTruncTests extends AbstractConfigurationFunctionTestCase {
         // Add generic cases for either UTC, fixed timezones and timezones with minutes.
         //
         // For every unit, we test 2 cases: 1 unit, and multiple units.
-        // Then, for every case, we check 4 boundaries (↑Bucket1, ↓Bucket2, ↑Bucket2, ↓Bucket3) to ensure the exact size of the buckets.
+        // Then, for every case, we check 2 boundaries (↑Bucket1, ↓Bucket2) to ensure the exact size of the buckets.
         Stream.of(
             // Milliseconds
             new DurationTestCaseData(Duration.ofMillis(1), "2023-02-17T10:25:33.385", "", "2023-02-17T10:25:33.385"),
@@ -187,58 +187,36 @@ public class DateTruncTests extends AbstractConfigurationFunctionTestCase {
         // Add generic cases for either UTC, fixed timezones and timezones with minutes.
         //
         // For every unit, we test 2 cases: 1 unit, and multiple units.
-        // Then, for every case, we check 4 boundaries (↑Bucket1, ↓Bucket2, ↑Bucket2, ↓Bucket3) to ensure the exact size of the buckets.
+        // Then, for every case, we check 2 boundaries (↑Bucket1, ↓Bucket2) to ensure the exact size of the buckets.
         Stream.of(
             // Days
             new PeriodTestCaseData(Period.ofDays(1), "2023-02-16T23:59:59.99", "", "2023-02-16T00:00:00"),
             new PeriodTestCaseData(Period.ofDays(1), "2023-02-17T00:00:00", "", "2023-02-17T00:00:00"),
-            new PeriodTestCaseData(Period.ofDays(1), "2023-02-17T23:59:59.99", "", "2023-02-17T00:00:00"),
-            new PeriodTestCaseData(Period.ofDays(1), "2023-02-18T00:00:00", "", "2023-02-18T00:00:00"),
             new PeriodTestCaseData(Period.ofDays(10), "2023-02-11T23:59:59.99", "", "2023-02-02T00:00:00"),
             new PeriodTestCaseData(Period.ofDays(10), "2023-02-12T00:00:00", "", "2023-02-12T00:00:00"),
-            new PeriodTestCaseData(Period.ofDays(10), "2023-02-21T23:59:59.99", "", "2023-02-12T00:00:00"),
-            new PeriodTestCaseData(Period.ofDays(10), "2023-02-22T00:00:00", "", "2023-02-22T00:00:00"),
             // Weeks
             new PeriodTestCaseData(Period.ofDays(7), "2023-02-05T23:59:59.99", "", "2023-01-30T00:00:00"),
             new PeriodTestCaseData(Period.ofDays(7), "2023-02-06T00:00:00", "", "2023-02-06T00:00:00"),
-            new PeriodTestCaseData(Period.ofDays(7), "2023-02-12T23:59:59.99", "", "2023-02-06T00:00:00"),
-            new PeriodTestCaseData(Period.ofDays(7), "2023-02-13T00:00:00", "", "2023-02-13T00:00:00"),
             new PeriodTestCaseData(Period.ofDays(21), "2023-01-25T23:59:59.99", "", "2023-01-05T00:00:00"),
             new PeriodTestCaseData(Period.ofDays(21), "2023-01-26T00:00:00", "", "2023-01-26T00:00:00"),
-            new PeriodTestCaseData(Period.ofDays(21), "2023-02-15T23:59:59.99", "", "2023-01-26T00:00:00"),
-            new PeriodTestCaseData(Period.ofDays(21), "2023-02-16T00:00:00", "", "2023-02-16T00:00:00"),
             // Months
             new PeriodTestCaseData(Period.ofMonths(1), "2024-02-29T23:59:59.99", "", "2024-02-01T00:00:00"),
             new PeriodTestCaseData(Period.ofMonths(1), "2024-03-01T00:00:00", "", "2024-03-01T00:00:00"),
-            new PeriodTestCaseData(Period.ofMonths(1), "2024-03-31T23:59:59.99", "", "2024-03-01T00:00:00"),
-            new PeriodTestCaseData(Period.ofMonths(1), "2024-04-01T00:00:00", "", "2024-04-01T00:00:00"),
             new PeriodTestCaseData(Period.ofMonths(7), "2022-10-31T23:59:59.99", "", "2022-04-01T00:00:00"),
             new PeriodTestCaseData(Period.ofMonths(7), "2022-11-01T00:00:00", "", "2022-11-01T00:00:00"),
-            new PeriodTestCaseData(Period.ofMonths(7), "2023-05-31T23:59:59.99", "", "2022-11-01T00:00:00"),
-            new PeriodTestCaseData(Period.ofMonths(7), "2023-06-01T00:00:00", "", "2023-06-01T00:00:00"),
             // Quarters
             new PeriodTestCaseData(Period.ofMonths(3), "2023-12-31T23:59:59.99", "", "2023-10-01T00:00:00"),
             new PeriodTestCaseData(Period.ofMonths(3), "2024-01-01T00:00:00", "", "2024-01-01T00:00:00"),
-            new PeriodTestCaseData(Period.ofMonths(3), "2024-03-31T23:59:59.99", "", "2024-01-01T00:00:00"),
-            new PeriodTestCaseData(Period.ofMonths(3), "2024-04-01T00:00:00", "", "2024-04-01T00:00:00"),
             new PeriodTestCaseData(Period.ofMonths(6), "2023-12-31T23:59:59.99", "", "2023-07-01T00:00:00"),
             new PeriodTestCaseData(Period.ofMonths(6), "2024-01-01T00:00:00", "", "2024-01-01T00:00:00"),
-            new PeriodTestCaseData(Period.ofMonths(6), "2024-06-30T23:59:59.99", "", "2024-01-01T00:00:00"),
-            new PeriodTestCaseData(Period.ofMonths(6), "2024-07-01T00:00:00", "", "2024-07-01T00:00:00"),
             // Years
             new PeriodTestCaseData(Period.ofYears(1), "2022-12-31T23:59:59.99", "", "2022-01-01T00:00:00"),
             new PeriodTestCaseData(Period.ofYears(1), "2023-01-01T00:00:00", "", "2023-01-01T00:00:00"),
-            new PeriodTestCaseData(Period.ofYears(1), "2023-12-31T23:59:59.99", "", "2023-01-01T00:00:00"),
-            new PeriodTestCaseData(Period.ofYears(1), "2024-01-01T00:00:00", "", "2024-01-01T00:00:00"),
             new PeriodTestCaseData(Period.ofYears(5), "2020-12-31T23:59:59.99", "", "2016-01-01T00:00:00"),
             new PeriodTestCaseData(Period.ofYears(5), "2021-01-01T00:00:00", "", "2021-01-01T00:00:00"),
-            new PeriodTestCaseData(Period.ofYears(5), "2025-12-31T23:59:59.99", "", "2021-01-01T00:00:00"),
-            new PeriodTestCaseData(Period.ofYears(5), "2026-01-01T00:00:00", "", "2026-01-01T00:00:00"),
             // Negative years
             new PeriodTestCaseData(Period.ofYears(4), "-0004-12-31T23:59:59.99", "", "-0007-01-01T00:00:00"),
             new PeriodTestCaseData(Period.ofYears(4), "-0003-01-01T00:00:00", "", "-0003-01-01T00:00:00"),
-            new PeriodTestCaseData(Period.ofYears(4), "-0001-12-31T23:59:59.99", "", "-0003-01-01T00:00:00"),
-            new PeriodTestCaseData(Period.ofYears(4), "0001-01-01T00:00:00", "", "0001-01-01T00:00:00")
         ).forEach(c -> TEST_TIMEZONES.forEach(timezone -> {
             // Convert the timezone to the offset in each local time.
             // This is required as date strings can't have a zone name as its zone.

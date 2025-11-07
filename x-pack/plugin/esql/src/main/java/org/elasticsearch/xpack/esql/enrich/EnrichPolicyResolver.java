@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.enrich;
 
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.support.ChannelActionListener;
@@ -41,12 +42,15 @@ import org.elasticsearch.xpack.esql.action.EsqlExecutionInfo;
 import org.elasticsearch.xpack.esql.analysis.EnrichResolution;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
+import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.core.util.StringUtils;
 import org.elasticsearch.xpack.esql.index.EsIndex;
+import org.elasticsearch.xpack.esql.index.IndexResolution;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamOutput;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.session.IndexResolver;
+import org.elasticsearch.xpack.esql.session.Versioned;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -74,6 +78,10 @@ import static org.elasticsearch.xpack.esql.session.EsqlCCSUtils.markClusterWithF
  */
 public class EnrichPolicyResolver {
     private static final String RESOLVE_ACTION_NAME = "cluster:monitor/xpack/enrich/esql/resolve_policy";
+
+    public static final TransportVersion ESQL_USE_MINIMUM_VERSION_FOR_ENRICH_RESOLUTION = TransportVersion.fromName(
+        "esql_use_minimum_version_for_enrich_resolution"
+    );
 
     private final ClusterService clusterService;
     private final IndexResolver indexResolver;
@@ -113,11 +121,18 @@ public class EnrichPolicyResolver {
      *
      * @param enriches           the unresolved policies
      * @param executionInfo      the execution info
+     * @param minimumVersion     the minimum transport version of all clusters involved in the query, used for making the resolved mapping
+     *                           compatible with all possible nodes
      * @param listener           notified with the enrich resolution
      */
-    public void resolvePolicies(List<Enrich> enriches, EsqlExecutionInfo executionInfo, ActionListener<EnrichResolution> listener) {
+    public void resolvePolicies(
+        List<Enrich> enriches,
+        EsqlExecutionInfo executionInfo,
+        TransportVersion minimumVersion,
+        ActionListener<Versioned<EnrichResolution>> listener
+    ) {
         if (enriches.isEmpty()) {
-            listener.onResponse(new EnrichResolution());
+            listener.onResponse(new Versioned<>(new EnrichResolution(), minimumVersion));
             return;
         }
 
@@ -125,6 +140,7 @@ public class EnrichPolicyResolver {
             executionInfo.clusterInfo.isEmpty() ? new HashSet<>() : executionInfo.getRunningClusterAliases().collect(toSet()),
             enriches.stream().map(EnrichPolicyResolver.UnresolvedPolicy::from).toList(),
             executionInfo,
+            minimumVersion,
             listener
         );
     }
@@ -133,15 +149,16 @@ public class EnrichPolicyResolver {
         Set<String> remoteClusters,
         Collection<UnresolvedPolicy> unresolvedPolicies,
         EsqlExecutionInfo executionInfo,
-        ActionListener<EnrichResolution> listener
+        TransportVersion minimumVersion,
+        ActionListener<Versioned<EnrichResolution>> listener
     ) {
         if (unresolvedPolicies.isEmpty()) {
-            listener.onResponse(new EnrichResolution());
+            listener.onResponse(new Versioned<>(new EnrichResolution(), minimumVersion));
             return;
         }
 
         final boolean includeLocal = remoteClusters.isEmpty() || remoteClusters.remove(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY);
-        lookupPolicies(remoteClusters, includeLocal, unresolvedPolicies, executionInfo, listener.map(lookupResponses -> {
+        lookupPolicies(remoteClusters, includeLocal, unresolvedPolicies, executionInfo, minimumVersion, listener.map(lookupResponses -> {
             final EnrichResolution enrichResolution = new EnrichResolution();
             final Map<String, LookupResponse> lookupResponsesToProcess = new HashMap<>();
             for (Map.Entry<String, LookupResponse> entry : lookupResponses.entrySet()) {
@@ -162,6 +179,14 @@ public class EnrichPolicyResolver {
                 }
             }
 
+            // Propagate the minimum version observed during policy resolution back to the planning pipeline.
+            // This is only really required for `ROW | ENRICH` queries, where the main index resolution doesn't
+            // provide the minimum version of the local cluster.
+            TransportVersion updatedMinimumVersion = minimumVersion;
+            for (LookupResponse response : lookupResponsesToProcess.values()) {
+                updatedMinimumVersion = TransportVersion.min(updatedMinimumVersion, response.minimumVersion);
+            }
+
             for (UnresolvedPolicy unresolved : unresolvedPolicies) {
                 Tuple<ResolvedEnrichPolicy, String> resolved = mergeLookupResults(
                     unresolved,
@@ -176,7 +201,7 @@ public class EnrichPolicyResolver {
                     enrichResolution.addError(unresolved.name, unresolved.mode, resolved.v2());
                 }
             }
-            return enrichResolution;
+            return new Versioned<>(enrichResolution, updatedMinimumVersion);
         }));
     }
 
@@ -305,6 +330,7 @@ public class EnrichPolicyResolver {
         boolean includeLocal,
         Collection<UnresolvedPolicy> unresolvedPolicies,
         EsqlExecutionInfo executionInfo,
+        TransportVersion minimumVersion,
         ActionListener<Map<String, LookupResponse>> listener
     ) {
         final Map<String, LookupResponse> lookupResponses = ConcurrentCollections.newConcurrentMap();
@@ -324,7 +350,7 @@ public class EnrichPolicyResolver {
                             transportService.sendRequest(
                                 connection,
                                 RESOLVE_ACTION_NAME,
-                                new LookupRequest(cluster, remotePolicies),
+                                new LookupRequest(cluster, remotePolicies, minimumVersion),
                                 TransportRequestOptions.EMPTY,
                                 new ActionListenerResponseHandler<>(
                                     lookupListener.delegateResponse((l, e) -> failIfSkipUnavailableFalse(e, skipOnFailure, l)),
@@ -350,7 +376,7 @@ public class EnrichPolicyResolver {
                 transportService.sendRequest(
                     transportService.getLocalNode(),
                     RESOLVE_ACTION_NAME,
-                    new LookupRequest(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY, localPolicies),
+                    new LookupRequest(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY, localPolicies, minimumVersion),
                     new ActionListenerResponseHandler<>(
                         refs.acquire(resp -> lookupResponses.put(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY, resp)),
                         LookupResponse::new,
@@ -372,33 +398,51 @@ public class EnrichPolicyResolver {
     private static class LookupRequest extends AbstractTransportRequest {
         private final String clusterAlias;
         private final Collection<String> policyNames;
+        // The minimum version of all clusters involved in executing the ESQL query.
+        final TransportVersion minimumVersion;
 
-        LookupRequest(String clusterAlias, Collection<String> policyNames) {
+        LookupRequest(String clusterAlias, Collection<String> policyNames, TransportVersion minimumVersion) {
             this.clusterAlias = clusterAlias;
             this.policyNames = policyNames;
+            this.minimumVersion = minimumVersion;
         }
 
         LookupRequest(StreamInput in) throws IOException {
             this.clusterAlias = in.readString();
             this.policyNames = in.readStringCollectionAsList();
+            if (in.getTransportVersion().supports(ESQL_USE_MINIMUM_VERSION_FOR_ENRICH_RESOLUTION)) {
+                this.minimumVersion = TransportVersion.readVersion(in);
+            } else {
+                // An older coordinator contacted us. Let's assume an old version, otherwise we might send back
+                // types that it can't deserialize.
+                // (The only version that knows some new types but doesn't send its transport version here is 9.2.0;
+                // these types are dense_vector and aggregate_metric_double, and both don't work with ENRICH in 9.2.0, anyway.)
+                this.minimumVersion = TransportVersion.minimumCompatible();
+            }
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeString(clusterAlias);
             out.writeStringCollection(policyNames);
+            if (out.getTransportVersion().supports(ESQL_USE_MINIMUM_VERSION_FOR_ENRICH_RESOLUTION)) {
+                TransportVersion.writeVersion(minimumVersion, out);
+            }
         }
     }
 
     private static class LookupResponse extends TransportResponse {
         final Map<String, ResolvedEnrichPolicy> policies;
         final Map<String, String> failures;
+        // The minimum transport version observed when running field caps requests to resolve the policies
+        final TransportVersion minimumVersion;
         // does not need to be Writable since this indicates a failure to contact a remote cluster, so only set on querying cluster
         final transient Exception connectionError;
 
-        LookupResponse(Map<String, ResolvedEnrichPolicy> policies, Map<String, String> failures) {
+        LookupResponse(Map<String, ResolvedEnrichPolicy> policies, Map<String, String> failures, TransportVersion minimumVersion) {
             this.policies = policies;
             this.failures = failures;
+            this.minimumVersion = minimumVersion;
             this.connectionError = null;
         }
 
@@ -410,6 +454,7 @@ public class EnrichPolicyResolver {
         LookupResponse(Exception connectionError) {
             this.policies = Collections.emptyMap();
             this.failures = Collections.emptyMap();
+            this.minimumVersion = TransportVersion.current();
             this.connectionError = connectionError;
         }
 
@@ -417,6 +462,19 @@ public class EnrichPolicyResolver {
             PlanStreamInput planIn = new PlanStreamInput(in, in.namedWriteableRegistry(), null);
             this.policies = planIn.readMap(StreamInput::readString, ResolvedEnrichPolicy::new);
             this.failures = planIn.readMap(StreamInput::readString, StreamInput::readString);
+            if (in.getTransportVersion().supports(ESQL_USE_MINIMUM_VERSION_FOR_ENRICH_RESOLUTION)) {
+                this.minimumVersion = TransportVersion.readVersion(in);
+            } else {
+                // A pre-9.2.1 node resolved the enrich policy for us, but doesn't say which version its cluster is on.
+                // We can safely assume this node's current version, even though that's technically wrong.
+                // Assuming a version that's too old can disable aggregate_metric_double and dense_vector
+                // data types in the query, that'd be very bad.
+                // But assuming these types are supported is fine because in 9.2.0,
+                // they're not supported in enrich policies, anyway, due to bugs.
+                // https://github.com/elastic/elasticsearch/issues/127350
+                // https://github.com/elastic/elasticsearch/issues/137699
+                this.minimumVersion = TransportVersion.current();
+            }
             this.connectionError = null;
         }
 
@@ -425,6 +483,9 @@ public class EnrichPolicyResolver {
             PlanStreamOutput pso = new PlanStreamOutput(out, null);
             pso.writeMap(policies, StreamOutput::writeWriteable);
             pso.writeMap(failures, StreamOutput::writeString);
+            if (out.getTransportVersion().supports(ESQL_USE_MINIMUM_VERSION_FOR_ENRICH_RESOLUTION)) {
+                TransportVersion.writeVersion(minimumVersion, out);
+            }
         }
     }
 
@@ -434,12 +495,17 @@ public class EnrichPolicyResolver {
             final Map<String, EnrichPolicy> availablePolicies = availablePolicies();
             final Map<String, String> failures = ConcurrentCollections.newConcurrentMap();
             final Map<String, ResolvedEnrichPolicy> resolvedPolices = ConcurrentCollections.newConcurrentMap();
+            // We use the coordinator's minimum version as base line.
+            final Holder<TransportVersion> minimumVersion = new Holder<>(request.minimumVersion);
             ThreadContext threadContext = threadPool.getThreadContext();
             ActionListener<LookupResponse> listener = ContextPreservingActionListener.wrapPreservingContext(
                 new ChannelActionListener<>(channel),
                 threadContext
             );
-            try (var refs = new RefCountingListener(listener.map(unused -> new LookupResponse(resolvedPolices, failures)))) {
+            try (var refs = new RefCountingListener(listener.map(unused -> {
+                TransportVersion finalMinimumVersion = minimumVersion.get();
+                return new LookupResponse(resolvedPolices, failures, finalMinimumVersion);
+            }))) {
                 for (String policyName : request.policyNames) {
                     EnrichPolicy p = availablePolicies.get(policyName);
                     if (p == null) {
@@ -447,7 +513,7 @@ public class EnrichPolicyResolver {
                     }
                     try (ThreadContext.StoredContext ignored = threadContext.stashWithOrigin(ClientHelper.ENRICH_ORIGIN)) {
                         String indexName = EnrichPolicy.getBaseName(policyName);
-                        indexResolver.resolveAsMergedMapping(
+                        indexResolver.resolveIndexPattern(
                             indexName,
                             IndexResolver.ALL_FIELDS,
                             null,
@@ -455,7 +521,9 @@ public class EnrichPolicyResolver {
                             // Disable aggregate_metric_double and dense_vector until we get version checks in planning
                             false,
                             false,
-                            refs.acquire(indexResult -> {
+                            request.minimumVersion,
+                            refs.acquire(versionedIndexResult -> {
+                                IndexResolution indexResult = versionedIndexResult.inner();
                                 if (indexResult.isValid() && indexResult.get().concreteIndices().size() == 1) {
                                     EsIndex esIndex = indexResult.get();
                                     var concreteIndices = Map.of(request.clusterAlias, Iterables.get(esIndex.concreteIndices(), 0));
@@ -467,6 +535,11 @@ public class EnrichPolicyResolver {
                                         esIndex.mapping()
                                     );
                                     resolvedPolices.put(policyName, resolved);
+                                    synchronized (minimumVersion) {
+                                        minimumVersion.set(
+                                            TransportVersion.min(minimumVersion.get(), versionedIndexResult.minimumVersion())
+                                        );
+                                    }
                                 } else {
                                     failures.put(policyName, indexResult.toString());
                                 }

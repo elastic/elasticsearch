@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.action;
 
 import org.apache.lucene.document.InetAddressPoint;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -1017,7 +1018,8 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
                             DriverSleeps.empty()
                         )
                     ),
-                    List.of(new PlanProfile("test", "elasticsearch", "node-1", "plan tree"))
+                    List.of(new PlanProfile("test", "elasticsearch", "node-1", "plan tree")),
+                    new TransportVersion(1234)
                 ),
                 false,
                 false,
@@ -1080,7 +1082,8 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
                         "node_name" : "node-1",
                         "plan" : "plan tree"
                       }
-                    ]
+                    ],
+                    "minimumVersion" : 1234
                   }
                 }"""));
         }

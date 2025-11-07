@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.telemetry;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.fieldcaps.FieldCapabilities;
@@ -42,6 +43,7 @@ import org.elasticsearch.xpack.esql.querylog.EsqlQueryLog;
 import org.elasticsearch.xpack.esql.session.EsqlSession;
 import org.elasticsearch.xpack.esql.session.IndexResolver;
 import org.elasticsearch.xpack.esql.session.Result;
+import org.elasticsearch.xpack.esql.session.Versioned;
 import org.junit.After;
 import org.junit.Before;
 import org.mockito.stubbing.Answer;
@@ -81,10 +83,11 @@ public class PlanExecutorMetricsTests extends ESTestCase {
         EnrichPolicyResolver enrichResolver = mock(EnrichPolicyResolver.class);
         doAnswer(invocation -> {
             Object[] arguments = invocation.getArguments();
-            ActionListener<EnrichResolution> listener = (ActionListener<EnrichResolution>) arguments[arguments.length - 1];
-            listener.onResponse(new EnrichResolution());
+            ActionListener<Versioned<EnrichResolution>> listener = (ActionListener<Versioned<EnrichResolution>>) arguments[arguments.length
+                - 1];
+            listener.onResponse(new Versioned<>(new EnrichResolution(), TransportVersion.current()));
             return null;
-        }).when(enrichResolver).resolvePolicies(any(), any(), any());
+        }).when(enrichResolver).resolvePolicies(any(), any(), any(), any());
         return enrichResolver;
     }
 
@@ -175,7 +178,7 @@ public class PlanExecutorMetricsTests extends ESTestCase {
             EsqlTestUtils.MOCK_TRANSPORT_ACTION_SERVICES,
             new ActionListener<>() {
                 @Override
-                public void onResponse(Result result) {
+                public void onResponse(Versioned<Result> result) {
                     fail("this shouldn't happen");
                 }
 
@@ -205,7 +208,7 @@ public class PlanExecutorMetricsTests extends ESTestCase {
             EsqlTestUtils.MOCK_TRANSPORT_ACTION_SERVICES,
             new ActionListener<>() {
                 @Override
-                public void onResponse(Result result) {}
+                public void onResponse(Versioned<Result> result) {}
 
                 @Override
                 public void onFailure(Exception e) {

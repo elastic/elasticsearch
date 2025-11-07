@@ -261,7 +261,8 @@ public class ProfileService {
         int actualSize = serializationSize(labels) + serializationSize(data);
         if (actualSize > limit) {
             throw new ElasticsearchException(
-                "cannot update profile [%s] because the combined profile size of [%s] bytes exceeds the maximum of [%s] bytes".formatted(
+                Strings.format(
+                    "cannot update profile [%s] because the combined profile size of [%s] bytes exceeds the maximum of [%s] bytes",
                     request.getUid(),
                     actualSize,
                     limit

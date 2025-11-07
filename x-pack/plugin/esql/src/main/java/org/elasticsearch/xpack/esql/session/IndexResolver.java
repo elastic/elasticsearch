@@ -130,7 +130,7 @@ public class IndexResolver {
                     useDenseVectorWhenNotSupported
                 );
                 LOGGER.debug(
-                    "updated minimum transport version from {} to effective version {} using version {} from field caps response",
+                    "updated minimum transport version from [{}] to effective version [{}] using version [{}] from field caps response",
                     minimumVersion,
                     info.effectiveMinTransportVersion(),
                     response.caps().minTransportVersion()

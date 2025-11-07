@@ -180,8 +180,7 @@ public final class MoveDecision extends AbstractAllocationDecision {
      * If {@link #isDecisionTaken()} returns {@code false}, then invoking this method will throw an {@code IllegalStateException}.
      */
     public boolean cannotRemain() {
-        checkDecisionState();
-        return canRemainDecision.type() != Type.YES;
+        return canRemain() == false;
     }
 
     /**

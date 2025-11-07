@@ -32,13 +32,14 @@ By default, an {{esql}} query returns up to 1,000 rows. You can increase the num
     * You can use `to_datetime` to cast to millisecond dates to use unsupported functions
 
 * `double` (`float`, `half_float`, `scaled_float` are represented as `double`)
+* `dense_vector` {applies_to}`stack: preview 9.2` {applies_to}`serverless: preview`
 * `ip`
 * `keyword` [family](/reference/elasticsearch/mapping-reference/keyword.md) including `keyword`, `constant_keyword`, and `wildcard`
 * `int` (`short` and `byte` are represented as `int`)
 * `long`
 * `null`
 * `text` [family](/reference/elasticsearch/mapping-reference/text.md) including `text`, `semantic_text` and `match_only_text`
-* {applies_to}`stack: preview` {applies_to}`serverless: preview` `unsigned_long`
+* `unsigned_long` {applies_to}`stack: preview` {applies_to}`serverless: preview`
 * `version`
 * Spatial types
 
@@ -46,11 +47,10 @@ By default, an {{esql}} query returns up to 1,000 rows. You can increase the num
     * `geo_shape`
     * `point`
     * `shape`
-* TSDB metrics {preview}`9.2`
-   * `counter` 
-   * `gauge` 
+* TSDB metrics {applies_to}`stack: preview 9.2` {applies_to}`serverless: preview`
+   * `counter`
+   * `gauge`
    * `aggregate_metric_double`
-
 
 
 ### Unsupported types [_unsupported_types]
@@ -59,13 +59,14 @@ By default, an {{esql}} query returns up to 1,000 rows. You can increase the num
 
 ::::{tab-set}
 :::{tab-item} 9.0-9.1
-* TSDB metrics
-   * `counter` 
-   * `gauge` 
+ `dense_vector`
+ metrics
+   * `counter`
+   * `gauge`
    * `aggregate_metric_double`
 :::
 :::{tab-item} 9.2+
-This limitation no longer exists and TSDB metrics are now supported (preview).
+This limitation no longer exists and TSDB metrics and `dense_vector` are now supported (preview).
 :::
 ::::
 * Date/time
@@ -106,9 +107,10 @@ Some [field types](/reference/elasticsearch/mapping-reference/field-data-types.m
 
 In addition, when [querying multiple indexes](/reference/query-languages/esql/esql-multi-index.md), it’s possible for the same field to be mapped to multiple types. These fields cannot be directly used in queries or returned in results, unless they’re [explicitly converted to a single type](/reference/query-languages/esql/esql-multi-index.md#esql-multi-index-union-types).
 
-* `dense_vector` field type is partially supported. [`KNN` function](elasticsearch://reference/query-languages/esql/functions-operators/dense-vector-functions.md#esql-knn) queries will work and any field data will be retrieved as part of the results. However, the type will appear as `unsupported` when the `KNN` function is not used.
+* {applies_to}`stack: 9.2.0` `dense_vector` field type is only partially supported on this patch version (fixed in {applies_to}`stac: 9.2.1`). [`KNN` function](elasticsearch://reference/query-languages/esql/functions-operators/dense-vector-functions.md#esql-knn) queries will work and any field data will be retrieved as part of the results. However, the type will appear as `unsupported` when the `KNN` function is not used.
+* {applies_to}`stack: 9.2.0` `aggregate_metric_double` field type is only partially supported on this patch version (fixed in {applies_to}`stac: 9.2.1`). Using the [`TO_AGGREGATE_METRIC_DOUBLE` function](elasticsearch://reference/query-languages/esql/functions-operators/dense-vector-functions.md#esql-knn) will work and any field data will be retrieved as part of the results. However, the type will appear as `unsupported` if this function is not used.
 
-This means that `FROM test` will not retrieve `dense_vector` data. But, `FROM test WHERE KNN("dense_vector_field", [0, 1, 2, ...])` will retrieve data.
+This means that `FROM test` will not retrieve `dense_vector` or `aggregate_metric_double` data. But, `FROM test WHERE KNN("dense_vector_field", [0, 1, 2, ...])` or `FROM test | EVAL agm_data = TO_AGGREGATE_METRIC_DOUBLE(aggregate_metric_double_field)` will.
 
 
 ## _source availability [esql-_source-availability]

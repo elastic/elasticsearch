@@ -349,9 +349,9 @@ public class OpenShiftAiActionCreatorTests extends ESTestCase {
         try (var sender = createSender(senderFactory)) {
             sender.startSynchronously();
 
-            var contentTooLargeErrorMessage =
-                "This model's maximum context length is 8192 tokens, however you requested 13531 tokens (13531 in your prompt;"
-                    + "0 for the completion). Please reduce your prompt; or completion length.";
+            var contentTooLargeErrorMessage = """
+                This model's maximum context length is 8192 tokens, however you requested 13531 tokens (13531 in your prompt;\
+                0 for the completion). Please reduce your prompt; or completion length.""";
 
             String responseJsonContentTooLarge = Strings.format("""
                     {
@@ -435,15 +435,15 @@ public class OpenShiftAiActionCreatorTests extends ESTestCase {
         }
     }
 
-    public void testExecute_ReturnsSuccessfulResponse_AfterTruncating_From400StatusCode() throws IOException {
+    public void testExecute_ReturnsSuccessfulResponse_AfterTruncating_From400StatusCodeWithContentTooLargeMessage() throws IOException {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
 
         try (var sender = createSender(senderFactory)) {
             sender.startSynchronously();
 
-            var contentTooLargeErrorMessage =
-                "This model's maximum context length is 8192 tokens, however you requested 13531 tokens (13531 in your prompt;"
-                    + "0 for the completion). Please reduce your prompt; or completion length.";
+            var contentTooLargeErrorMessage = """
+                This model's maximum context length is 8192 tokens, however you requested 13531 tokens (13531 in your prompt;\
+                0 for the completion). Please reduce your prompt; or completion length.""";
 
             String responseJsonContentTooLarge = Strings.format("""
                     {

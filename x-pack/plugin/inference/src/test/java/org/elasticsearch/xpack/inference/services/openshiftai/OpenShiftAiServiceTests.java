@@ -165,7 +165,7 @@ public class OpenShiftAiServiceTests extends AbstractInferenceServiceTests {
             case TEXT_EMBEDDING -> assertTextEmbeddingModel(model, modelIncludesSecrets);
             case COMPLETION -> assertCompletionModel(model, modelIncludesSecrets);
             case CHAT_COMPLETION -> assertChatCompletionModel(model, modelIncludesSecrets);
-            default -> fail("unexpected task type [" + taskType + "]");
+            default -> fail("unexpected task type [%s]".formatted(taskType));
         }
     }
 

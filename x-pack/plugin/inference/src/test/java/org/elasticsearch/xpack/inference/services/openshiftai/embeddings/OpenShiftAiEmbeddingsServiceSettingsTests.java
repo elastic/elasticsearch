@@ -214,13 +214,9 @@ public class OpenShiftAiEmbeddingsServiceSettingsTests extends AbstractWireSeria
                 ConfigurationParseContext.PERSISTENT
             )
         );
-        assertThat(
-            thrownException.getMessage(),
-            containsString(
-                "Validation Failed: 1: [service_settings] Invalid value [by_size] received. "
-                    + "[similarity] must be one of [cosine, dot_product, l2_norm];"
-            )
-        );
+        assertThat(thrownException.getMessage(), containsString("""
+            Validation Failed: 1: [service_settings] Invalid value [by_size] received. \
+            [similarity] must be one of [cosine, dot_product, l2_norm];"""));
     }
 
     public void testFromMap_NoDimensions_SetByUserFalse_Persistent_Success() {

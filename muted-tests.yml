@@ -436,18 +436,6 @@ tests:
   method: testTopNSimilarityBetweenConstantVectorAndField {functionName=v_l2_norm
     similarityFunction=org.elasticsearch.xpack.esql.expression.function.vector.L2Norm$1@5b068087 elementType=byte}
   issue: https://github.com/elastic/elasticsearch/issues/137625
-- class: org.elasticsearch.xpack.inference.integration.CCMStorageServiceIT
-  method: testGet_ThrowsResourceNotFoundException_WhenCCMIndexDoesNotExist
-  issue: https://github.com/elastic/elasticsearch/issues/137627
-- class: org.elasticsearch.xpack.inference.integration.CCMStorageServiceIT
-  method: testGet_ThrowsResourceNotFoundException_WhenCCMConfigurationDocumentDoesNotExist
-  issue: https://github.com/elastic/elasticsearch/issues/137628
-- class: org.elasticsearch.xpack.inference.integration.CCMStorageServiceIT
-  method: testGetCCMModel_ThrowsException_WhenStoredModelIsCorrupted
-  issue: https://github.com/elastic/elasticsearch/issues/137629
-- class: org.elasticsearch.xpack.inference.integration.CCMStorageServiceIT
-  method: testStoreAndGetCCMModel
-  issue: https://github.com/elastic/elasticsearch/issues/137630
 - class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeMetricsIT
   method: test
   issue: https://github.com/elastic/elasticsearch/issues/137655

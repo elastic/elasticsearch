@@ -1773,7 +1773,7 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
                     );
                 }, reader -> {
                     IndexSearcher searcher = newSearcher(reader);
-                    MappedFieldType ft = mapperService.fieldType("field");
+                    MappedFieldType ft = mapperService.fieldType(sortShortcutSupport.fieldname);
                     SortField sortField = ft.fielddataBuilder(new FieldDataContext("", mapperService.getIndexSettings(), () -> {
                         throw new UnsupportedOperationException();
                     }, Set::of, MappedFieldType.FielddataOperation.SEARCH))

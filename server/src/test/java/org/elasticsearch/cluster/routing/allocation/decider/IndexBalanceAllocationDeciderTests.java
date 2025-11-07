@@ -78,7 +78,6 @@ public class IndexBalanceAllocationDeciderTests extends ESAllocationTestCase {
         settings = Settings.builder()
             .put("stateless.enabled", "true")
             .put("cluster.routing.allocation.index_balance_decider.enabled", "true")
-            .put("cluster.routing.allocation.index_balance_decider.load_skew_tolerance", 0)
             .build();
 
         numberOfPrimaryShards = randomIntBetween(10, 20);
@@ -250,7 +249,7 @@ public class IndexBalanceAllocationDeciderTests extends ESAllocationTestCase {
                 "Assigning a new primary shard to a search node should succeed",
                 indexBalanceAllocationDecider.canAllocate(primaryIndexShardRouting, routingNode, routingAllocation),
                 Decision.Type.YES,
-                "Decider allows primaries move to search nodes."
+                "A search node cannot own primary shards. Decider inactive."
             );
         }
 
@@ -296,7 +295,7 @@ public class IndexBalanceAllocationDeciderTests extends ESAllocationTestCase {
             "Assigning an additional primary shard to an index node at capacity should fail",
             indexBalanceAllocationDecider.canAllocate(primaryIndexShardRouting, routingIndexNodeOne, routingAllocation),
             Decision.Type.NOT_PREFERRED,
-            "There are [2] eligible nodes in the [primary shards] tier for assignment of ["
+            "There are [2] eligible nodes in the [index] tier for assignment of ["
                 + numberOfPrimaryShards
                 + "] shards in index [[IndexBalanceAllocationDeciderIndex]]. Ideally no more than ["
                 + ideal
@@ -313,7 +312,7 @@ public class IndexBalanceAllocationDeciderTests extends ESAllocationTestCase {
             "Assigning an additional replica shard to an replica node at capacity should fail",
             indexBalanceAllocationDecider.canAllocate(replicaIndexShardRouting, routingSearchNodeOne, routingAllocation),
             Decision.Type.NOT_PREFERRED,
-            "There are [2] eligible nodes in the [replicas] tier for assignment of ["
+            "There are [2] eligible nodes in the [search] tier for assignment of ["
                 + total
                 + "] shards in index [[IndexBalanceAllocationDeciderIndex]]. Ideally no more than ["
                 + ideal

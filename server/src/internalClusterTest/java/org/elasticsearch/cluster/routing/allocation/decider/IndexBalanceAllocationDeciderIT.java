@@ -92,7 +92,6 @@ public class IndexBalanceAllocationDeciderIT extends ESIntegTestCase {
     private TestHarness setUpThreeHealthyDataNodesAndVerifyIndexShardsBalancedDistributed() {
         Settings settings = Settings.builder()
             .put(IndexBalanceConstraintSettings.INDEX_BALANCE_DECIDER_ENABLED_SETTING.getKey(), true)
-            .put(IndexBalanceConstraintSettings.INDEX_BALANCE_DECIDER_LOAD_SKEW_TOLERANCE.getKey(), 0)
             .build();
         internalCluster().startMasterOnlyNode(settings);
 

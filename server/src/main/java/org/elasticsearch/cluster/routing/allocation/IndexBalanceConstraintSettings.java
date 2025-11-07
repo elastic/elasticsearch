@@ -34,8 +34,8 @@ public class IndexBalanceConstraintSettings {
      * i.e. ideal = 4 shards, skew_tolerance = 1
      * maximum tolerated index shards = 4 + 1 = 5.
      */
-    public static final Setting<Integer> INDEX_BALANCE_DECIDER_LOAD_SKEW_TOLERANCE = Setting.intSetting(
-        SETTING_PREFIX + "load_skew_tolerance",
+    public static final Setting<Integer> INDEX_BALANCE_DECIDER_EXCESS_SHARDS = Setting.intSetting(
+        SETTING_PREFIX + "excess_shards",
         0,
         0,
         Setting.Property.Dynamic,
@@ -43,19 +43,19 @@ public class IndexBalanceConstraintSettings {
     );
 
     private volatile boolean deciderEnabled;
-    private volatile int loadSkewTolerance;
+    private volatile int excessShards;
 
     public IndexBalanceConstraintSettings(ClusterSettings clusterSettings) {
         clusterSettings.initializeAndWatch(INDEX_BALANCE_DECIDER_ENABLED_SETTING, enabled -> this.deciderEnabled = enabled);
-        clusterSettings.initializeAndWatch(INDEX_BALANCE_DECIDER_LOAD_SKEW_TOLERANCE, value -> this.loadSkewTolerance = value);
+        clusterSettings.initializeAndWatch(INDEX_BALANCE_DECIDER_EXCESS_SHARDS, value -> this.excessShards = value);
     }
 
     public boolean isDeciderEnabled() {
         return this.deciderEnabled;
     }
 
-    public int getLoadSkewTolerance() {
-        return this.loadSkewTolerance;
+    public int getExcessShards() {
+        return this.excessShards;
     }
 
 }

@@ -250,7 +250,7 @@ public class DiscoveryNodeFilters {
             || (filters.size() > 1 && opType == OpType.AND && NON_ATTRIBUTE_NAMES.containsAll(filters.keySet()));
     }
 
-    public boolean isEmpty() {
+    public boolean hasNoFilters() {
         return filters.isEmpty();
     }
 

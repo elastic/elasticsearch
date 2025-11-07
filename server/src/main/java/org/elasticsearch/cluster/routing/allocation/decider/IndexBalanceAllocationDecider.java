@@ -63,7 +63,7 @@ public class IndexBalanceAllocationDecider extends AllocationDecider {
     public Decision canAllocate(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
         if (indexBalanceConstraintSettings.isDeciderEnabled() == false
             || isStateless == false
-            || clusterExcludeFilters != null && clusterExcludeFilters.isEmpty() == false) {
+            || clusterExcludeFilters != null && clusterExcludeFilters.hasNoFilters() == false) {
             return Decision.single(Decision.Type.YES, NAME, "Decider is disabled.");
         }
 
@@ -82,7 +82,7 @@ public class IndexBalanceAllocationDecider extends AllocationDecider {
         }
 
         if (node.node().getRoles().contains(SEARCH_ROLE) && shardRouting.primary()) {
-            return Decision.single(Decision.Type.YES, NAME, "Decider allows primaries move to search nodes.");
+            return Decision.single(Decision.Type.YES, NAME, "A search node cannot own primary shards. Decider inactive.");
         }
 
         final ProjectId projectId = allocation.getClusterState().metadata().projectFor(index).id();
@@ -94,20 +94,20 @@ public class IndexBalanceAllocationDecider extends AllocationDecider {
             collectEligibleNodes(allocation, eligibleNodes, INDEX_ROLE);
             // Primary shards only.
             totalShards = allocation.getClusterState().routingTable(projectId).index(index).size();
-            nomenclature = "primary shards";
+            nomenclature = "index";
         } else if (node.node().getRoles().contains(SEARCH_ROLE)) {
             collectEligibleNodes(allocation, eligibleNodes, SEARCH_ROLE);
             // Replicas only.
             final IndexMetadata indexMetadata = allocation.getClusterState().metadata().getProject(projectId).index(index);
             totalShards = indexMetadata.getNumberOfShards() * indexMetadata.getNumberOfReplicas();
-            nomenclature = "replicas";
+            nomenclature = "search";
         }
 
         assert eligibleNodes.isEmpty() == false;
         assert totalShards > 0;
 
         final double idealAllocation = Math.ceil((double) totalShards / eligibleNodes.size());
-        final int threshold = (totalShards + eligibleNodes.size() - 1 + indexBalanceConstraintSettings.getLoadSkewTolerance())
+        final int threshold = (totalShards + eligibleNodes.size() - 1 + indexBalanceConstraintSettings.getExcessShards())
             / eligibleNodes.size();
         final int currentAllocation = node.numberOfOwningShardsForIndex(index);
 
@@ -121,7 +121,7 @@ public class IndexBalanceAllocationDecider extends AllocationDecider {
                 totalShards,
                 index,
                 idealAllocation,
-                indexBalanceConstraintSettings.getLoadSkewTolerance(),
+                indexBalanceConstraintSettings.getExcessShards(),
                 currentAllocation
             );
 

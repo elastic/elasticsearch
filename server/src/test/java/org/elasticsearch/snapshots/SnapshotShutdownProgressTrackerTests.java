@@ -16,6 +16,7 @@ import org.elasticsearch.cluster.coordination.Coordinator;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
 import org.elasticsearch.core.TimeValue;
@@ -277,7 +278,9 @@ public class SnapshotShutdownProgressTrackerTests extends ESTestCase {
                     "pausing timestamp should be set",
                     SnapshotShutdownProgressTracker.class.getName(),
                     Level.INFO,
-                    "*Finished signalling shard snapshots to pause at [" + new TimeValue(timeInMillis) + "] [" + timeInMillis + " millis]*"
+                    "*Finished signalling shard snapshots to pause at ["
+                        + DateFormatter.forPattern("strict_date_optional_time").formatMillis(timeInMillis)
+                        + "]*"
                 )
             );
 

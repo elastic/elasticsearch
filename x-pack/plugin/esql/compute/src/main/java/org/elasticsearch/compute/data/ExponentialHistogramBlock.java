@@ -7,6 +7,7 @@
 
 package org.elasticsearch.compute.data;
 
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.exponentialhistogram.ExponentialHistogram;
 
 /**
@@ -27,6 +28,16 @@ public sealed interface ExponentialHistogramBlock extends Block permits Constant
      */
     ExponentialHistogram getExponentialHistogram(int valueIndex, ExponentialHistogramScratch scratch);
 
+    /**
+     * Serializes the exponential histogram at the given index into the provided output, so that it can be read back
+     *  via {@link ExponentialHistogramBlockBuilder#deserializeAndAppend(SerializedInput)}.
+     *
+     * @param valueIndex
+     * @param out
+     * @param scratch
+     */
+    void serializeExponentialHistogram(int valueIndex, SerializedOutput out, BytesRef scratch);
+
     static boolean equals(ExponentialHistogramBlock blockA, ExponentialHistogramBlock blockB) {
         if (blockA == blockB) {
             return true;
@@ -40,6 +51,29 @@ public sealed interface ExponentialHistogramBlock extends Block permits Constant
                 case ExponentialHistogramArrayBlock b -> a.equalsAfterTypeCheck(b);
             };
         };
+    }
+
+    /**
+     * Abstraction to use for writing individual values via {@link #serializeExponentialHistogram(int, SerializedOutput, BytesRef)}.
+     */
+    interface SerializedOutput {
+        void appendDouble(double value);
+
+        void appendLong(long value);
+
+        void appendBytesRef(BytesRef bytesRef);
+    }
+
+    /**
+     * Abstraction to use for reading individual serialized via
+     * {@link ExponentialHistogramBlockBuilder#deserializeAndAppend(SerializedInput)}.
+     */
+    interface SerializedInput {
+        double readDouble();
+
+        long readLong();
+
+        BytesRef readBytesRef(BytesRef scratch);
     }
 
 }

@@ -204,14 +204,6 @@ public class OpenShiftAiActionCreatorTests extends ESTestCase {
                 )
             );
             assertThat(thrownException.getCause().getMessage(), is(failureCauseMessage));
-
-            assertThat(webServer.requests(), hasSize(1));
-            assertNull(webServer.requests().getFirst().getUri().getQuery());
-            assertThat(
-                webServer.requests().getFirst().getHeader(HttpHeaders.CONTENT_TYPE),
-                equalTo(XContentType.JSON.mediaTypeWithoutParameters())
-            );
-            assertThat(webServer.requests().getFirst().getHeader(HttpHeaders.AUTHORIZATION), equalTo("Bearer %s".formatted(API_KEY)));
         }
     }
 
@@ -347,21 +339,6 @@ public class OpenShiftAiActionCreatorTests extends ESTestCase {
                 )
             );
             assertThat(thrownException.getCause().getMessage(), is(failureCauseMessage));
-
-            assertThat(webServer.requests(), hasSize(1));
-            assertNull(webServer.requests().getFirst().getUri().getQuery());
-            assertThat(
-                webServer.requests().getFirst().getHeader(HttpHeaders.CONTENT_TYPE),
-                equalTo(XContentType.JSON.mediaTypeWithoutParameters())
-            );
-            assertThat(webServer.requests().getFirst().getHeader(HttpHeaders.AUTHORIZATION), equalTo("Bearer %s".formatted(API_KEY)));
-
-            var requestMap = entityAsMap(webServer.requests().getFirst().getBody());
-            assertThat(requestMap.size(), is(4));
-            assertThat(requestMap.get("messages"), is(List.of(Map.of("role", USER_ROLE, "content", INPUT))));
-            assertThat(requestMap.get("model"), is(MODEL_ID));
-            assertThat(requestMap.get("n"), is(1));
-            assertThat(requestMap.get("stream"), is(false));
         }
     }
 

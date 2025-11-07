@@ -283,7 +283,7 @@ final class RequestDispatcher {
                 if (indexFilter != null && indexFilter instanceof MatchAllQueryBuilder == false) {
                     var coordinatorRewriteContext = coordinatorRewriteContextProvider.getCoordinatorRewriteContext(shardId.getIndex());
                     if (coordinatorRewriteContext != null) {
-                        // SplitShardCountSummary can be safely UNSET here the logic below (queryStillMatchesAfterRewrite)
+                        // SplitShardCountSummary can be safely UNSET here since the logic below (queryStillMatchesAfterRewrite)
                         // is purely a local operation.
                         var shardRequest = new ShardSearchRequest(
                             shardId,

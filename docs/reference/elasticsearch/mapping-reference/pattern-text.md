@@ -72,7 +72,11 @@ PUT logs
 }
 ```
 
-### Default sorting for LogsDB {applies_to}`stack: preview 9.3`
+### Default sorting for LogsDB
+```{applies_to}
+serverless: preview
+stack: preview 9.3
+```
 This sorting is not applied by default, but can be enabled for the `message` field of LogsDB indices (assuming it is of type `pattern_text`) by setting the index setting `index.logsdb.default_sort_on_message_template` to `true`.
 This will cause the index to be sorted by `host.name` (if present), then `message.template_id`, and finally by `@timestamp`.
 

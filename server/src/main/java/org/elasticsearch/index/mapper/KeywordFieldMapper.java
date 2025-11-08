@@ -1359,7 +1359,6 @@ public final class KeywordFieldMapper extends FieldMapper {
                 // might as well track these on the go as opposed to having to loop through all entries later
                 docValuesByteCount += value.length;
             }
-            ;
         }
 
         /**

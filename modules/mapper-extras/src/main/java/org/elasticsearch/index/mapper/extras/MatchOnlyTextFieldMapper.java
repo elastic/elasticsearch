@@ -14,6 +14,7 @@ import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.document.StoredField;
+import org.apache.lucene.index.BinaryDocValues;
 import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.LeafReaderContext;
@@ -28,10 +29,10 @@ import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.search.PrefixQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
+import org.apache.lucene.store.ByteArrayDataInput;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.IOFunction;
 import org.elasticsearch.common.CheckedIntFunction;
-import org.elasticsearch.common.io.stream.ByteArrayStreamInput;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.text.UTF8DecodingReader;
 import org.elasticsearch.common.unit.Fuzziness;
@@ -39,8 +40,10 @@ import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
+import org.elasticsearch.index.fielddata.AbstractBinaryDocValues;
 import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
+import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.elasticsearch.index.fielddata.SourceValueFetcherSortedBinaryIndexFieldData;
 import org.elasticsearch.index.fielddata.StoredFieldSortedBinaryIndexFieldData;
 import org.elasticsearch.index.fieldvisitor.StoredFieldLoader;
@@ -299,18 +302,11 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
 
             if (parent instanceof KeywordFieldMapper.KeywordFieldType keywordParent
                 && keywordParent.ignoreAbove().valuesPotentiallyIgnored()) {
+                var ifd = searchExecutionContext.getForField(parent, MappedFieldType.FielddataOperation.SEARCH);
                 if (parent.isStored()) {
-                    // if the parent keyword field has ignore_above set, then any ignored values will be stored under a fallback field
-                    return combineFieldFetchers(
-                        storedFieldFetcher(parentFieldName),
-                        binaryDocValuesFieldFetcher(keywordParent.syntheticSourceFallbackFieldName())
-                    );
+                    return combineFieldFetchers(storedFieldFetcher(parentFieldName), docValuesFieldFetcher(ifd));
                 } else if (parent.hasDocValues()) {
-                    var ifd = searchExecutionContext.getForField(parent, MappedFieldType.FielddataOperation.SEARCH);
-                    return combineFieldFetchers(
-                        docValuesFieldFetcher(ifd),
-                        binaryDocValuesFieldFetcher(keywordParent.syntheticSourceFallbackFieldName())
-                    );
+                    return docValuesFieldFetcher(ifd);
                 }
             }
 
@@ -357,57 +353,29 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
             }
         }
 
-        private static IOFunction<LeafReaderContext, CheckedIntFunction<List<Object>, IOException>> docValuesFieldFetcher(
-            IndexFieldData<?> ifd
-        ) {
+        private IOFunction<LeafReaderContext, CheckedIntFunction<List<Object>, IOException>> docValuesFieldFetcher(IndexFieldData<?> ifd) {
             return context -> {
-                var sortedBinaryDocValues = ifd.load(context).getBytesValues();
+                SortedBinaryDocValues indexedValuesDocValues = ifd.load(context).getBytesValues();
+                CustomBinaryDocValues ignoredValuesDocValues = new CustomBinaryDocValues(
+                    DocValues.getBinary(context.reader(), ifd.getFieldName() + TextFamilyFieldType.FALLBACK_FIELD_NAME_SUFFIX)
+                );
+
                 return docId -> {
-                    if (sortedBinaryDocValues.advanceExact(docId)) {
-                        var values = new ArrayList<>(sortedBinaryDocValues.docValueCount());
-                        for (int i = 0; i < sortedBinaryDocValues.docValueCount(); i++) {
-                            values.add(sortedBinaryDocValues.nextValue().utf8ToString());
-                        }
-                        return values;
-                    } else {
-                        return List.of();
-                    }
-                };
-            };
-        }
+                    int indexedValueCount = indexedValuesDocValues.advanceExact(docId) ? indexedValuesDocValues.docValueCount() : 0;
+                    int ignoredValueCount = ignoredValuesDocValues.advanceExact(docId) ? ignoredValuesDocValues.docValueCount() : 0;
+                    var values = new ArrayList<>(indexedValueCount + ignoredValueCount);
 
-        /**
-         * Used exclusively to load ignored values from binary doc values. These values are stored in a separate fallback field in order to
-         * retain the original value and hence be able to support synthetic source.
-         */
-        private static IOFunction<LeafReaderContext, CheckedIntFunction<List<Object>, IOException>> binaryDocValuesFieldFetcher(
-            String fieldName
-        ) {
-            return context -> {
-                var binaryDocValues = DocValues.getBinary(context.reader(), fieldName);
-                return docId -> {
-                    if (binaryDocValues == null || binaryDocValues.advanceExact(docId) == false) {
-                        return List.of();
+                    // extract indexed values from doc values
+                    for (int i = 0; i < indexedValueCount; i++) {
+                        values.add(indexedValuesDocValues.nextValue().utf8ToString());
                     }
 
-                    // see KeywordFieldMapper.MultiValuedBinaryDocValuesField for context on how to decode these binary doc values back into
-                    // strings
-                    BytesRef docValuesBytes = binaryDocValues.binaryValue();
-
-                    try (ByteArrayStreamInput stream = new ByteArrayStreamInput()) {
-                        stream.reset(docValuesBytes.bytes, docValuesBytes.offset, docValuesBytes.length);
-
-                        int docValueCount = stream.readVInt();
-                        var values = new ArrayList<>(docValueCount);
-
-                        for (int i = 0; i < docValueCount; i++) {
-                            // this function already knows how to decode the underlying bytes array, so no need to explicitly call VInt()
-                            BytesRef valueBytes = stream.readBytesRef();
-                            values.add(valueBytes.utf8ToString());
-                        }
-
-                        return values;
+                    // extract ignored values from doc values
+                    for (int i = 0; i < ignoredValueCount; i++) {
+                        values.add(ignoredValuesDocValues.nextValue().utf8ToString());
                     }
+
+                    return values;
                 };
             };
         }
@@ -816,5 +784,53 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
         }
 
         return fieldLoader;
+    }
+
+    private static class CustomBinaryDocValues extends AbstractBinaryDocValues {
+
+        private final BinaryDocValues binaryDocValues;
+
+        private ByteArrayDataInput data;
+        private int docValueCount = 0;
+
+        CustomBinaryDocValues(BinaryDocValues binaryDocValues) {
+            this.binaryDocValues = binaryDocValues;
+        }
+
+        public BytesRef nextValue() {
+            // get the length of the value
+            int length = data.readVInt();
+
+            // read that many bytes from the underlying bytes array
+            // the read will automatically move the offset to the next value
+            byte[] valueBytes = new byte[length];
+            data.readBytes(valueBytes, 0, length);
+
+            return new BytesRef(valueBytes);
+        }
+
+        @Override
+        public BytesRef binaryValue() throws IOException {
+            return binaryDocValues.binaryValue();
+        }
+
+        @Override
+        public boolean advanceExact(int docId) throws IOException {
+            // if document has a value, read underlying bytes
+            if (binaryDocValues.advanceExact(docId)) {
+                BytesRef docValuesBytes = binaryDocValues.binaryValue();
+                data = new ByteArrayDataInput(docValuesBytes.bytes, docValuesBytes.offset, docValuesBytes.length);
+                docValueCount = data.readVInt();
+                return true;
+            }
+
+            // otherwise there is nothing to do
+            docValueCount = 0;
+            return false;
+        }
+
+        public int docValueCount() {
+            return docValueCount;
+        }
     }
 }

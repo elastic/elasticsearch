@@ -18,7 +18,6 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.node.DiscoveryNodeFilters;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
@@ -45,6 +44,9 @@ import java.util.Map;
 
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_CREATION_DATE;
 import static org.elasticsearch.cluster.routing.TestShardRouting.shardRoutingBuilder;
+import static org.elasticsearch.cluster.routing.allocation.decider.FilterAllocationDecider.CLUSTER_ROUTING_EXCLUDE_GROUP_PREFIX;
+import static org.elasticsearch.cluster.routing.allocation.decider.FilterAllocationDecider.CLUSTER_ROUTING_INCLUDE_GROUP_PREFIX;
+import static org.elasticsearch.cluster.routing.allocation.decider.FilterAllocationDecider.CLUSTER_ROUTING_REQUIRE_GROUP_PREFIX;
 import static org.elasticsearch.common.settings.ClusterSettings.createBuiltInClusterSettings;
 
 public class IndexBalanceAllocationDeciderTests extends ESAllocationTestCase {
@@ -81,11 +83,11 @@ public class IndexBalanceAllocationDeciderTests extends ESAllocationTestCase {
         final Map<DiscoveryNode, List<ShardRouting>> nodeToShardRoutings = new HashMap<>();
 
         excessShards = allowExcessShards ? randomIntBetween(1, 5) : 0;
-        settings = Settings.builder()
+
+        Settings.Builder builder = Settings.builder()
             .put("stateless.enabled", "true")
             .put("cluster.routing.allocation.index_balance_decider.enabled", "true")
-            .put("cluster.routing.allocation.index_balance_decider.excess_shards", excessShards)
-            .build();
+            .put("cluster.routing.allocation.index_balance_decider.excess_shards", excessShards);
 
         numberOfPrimaryShards = randomIntBetween(10, 20);
         replicationFactor = 2;
@@ -102,6 +104,18 @@ public class IndexBalanceAllocationDeciderTests extends ESAllocationTestCase {
             .build();
         allNodes = List.of(indexNodeOne, indexNodeTwo, searchNodeOne, searchNodeTwo, masterNode, machineLearningNode);
 
+        if (hasDiscoveryNodeFilters) {
+            String setting = randomFrom(
+                CLUSTER_ROUTING_REQUIRE_GROUP_PREFIX,
+                CLUSTER_ROUTING_INCLUDE_GROUP_PREFIX,
+                CLUSTER_ROUTING_EXCLUDE_GROUP_PREFIX
+            );
+            String attribute = randomFrom("_value", "name");
+            String name = randomFrom(allNodes).getName();
+            String ip = randomFrom("192.168.0.1", "192.168.0.1", "192.168.0.1", "10.17.0.1");
+            builder.put(setting + "." + attribute, attribute.equals("name") ? name : ip);
+        }
+
         DiscoveryNodes.Builder discoveryNodeBuilder = DiscoveryNodes.builder();
         for (DiscoveryNode node : allNodes) {
             discoveryNodeBuilder.add(node);
@@ -112,23 +126,13 @@ public class IndexBalanceAllocationDeciderTests extends ESAllocationTestCase {
 
         final ProjectMetadata.Builder projectBuilder = ProjectMetadata.builder(projectId);
 
-        Settings.Builder builder = indexSettings(IndexVersion.current(), numberOfPrimaryShards, replicationFactor).put(
-            SETTING_CREATION_DATE,
-            System.currentTimeMillis()
-        );
-
-        if (hasDiscoveryNodeFilters) {
-            String setting = randomFrom(
-                IndexMetadata.INDEX_ROUTING_REQUIRE_GROUP_SETTING,
-                IndexMetadata.INDEX_ROUTING_INCLUDE_GROUP_SETTING,
-                IndexMetadata.INDEX_ROUTING_INITIAL_RECOVERY_GROUP_SETTING
-            ).getKey();
-            String attribute = randomFrom(DiscoveryNodeFilters.SINGLE_NODE_NAMES);
-            builder.put(setting + attribute, randomAlphaOfLength(randomIntBetween(2, 3)));
-        }
-
         indexMetadata = IndexMetadata.builder(indexName)
-            .settings(builder)
+            .settings(
+                indexSettings(IndexVersion.current(), numberOfPrimaryShards, replicationFactor).put(
+                    SETTING_CREATION_DATE,
+                    System.currentTimeMillis()
+                ).build()
+            )
             .timestampRange(IndexLongFieldRange.UNKNOWN)
             .eventIngestedRange(IndexLongFieldRange.UNKNOWN)
             .build();
@@ -217,7 +221,7 @@ public class IndexBalanceAllocationDeciderTests extends ESAllocationTestCase {
         routingAllocation = new RoutingAllocation(null, clusterState.getRoutingNodes(), clusterState, clusterInfo, null, System.nanoTime());
         routingAllocation.setDebugMode(RoutingAllocation.DebugMode.ON);
 
-        indexBalanceAllocationDecider = new IndexBalanceAllocationDecider(settings, createBuiltInClusterSettings(settings));
+        indexBalanceAllocationDecider = new IndexBalanceAllocationDecider(builder.build(), createBuiltInClusterSettings(builder.build()));
 
         indexTierShardRouting = TestShardRouting.newShardRouting(
             new ShardId(indexMetadata.getIndex(), 1),

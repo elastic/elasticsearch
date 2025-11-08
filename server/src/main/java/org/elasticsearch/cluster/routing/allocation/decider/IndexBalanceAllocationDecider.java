@@ -30,10 +30,13 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+import static org.elasticsearch.cluster.node.DiscoveryNodeFilters.OpType.AND;
 import static org.elasticsearch.cluster.node.DiscoveryNodeFilters.OpType.OR;
 import static org.elasticsearch.cluster.node.DiscoveryNodeRole.INDEX_ROLE;
 import static org.elasticsearch.cluster.node.DiscoveryNodeRole.SEARCH_ROLE;
 import static org.elasticsearch.cluster.routing.allocation.decider.FilterAllocationDecider.CLUSTER_ROUTING_EXCLUDE_GROUP_SETTING;
+import static org.elasticsearch.cluster.routing.allocation.decider.FilterAllocationDecider.CLUSTER_ROUTING_INCLUDE_GROUP_SETTING;
+import static org.elasticsearch.cluster.routing.allocation.decider.FilterAllocationDecider.CLUSTER_ROUTING_REQUIRE_GROUP_SETTING;
 
 /**
  * For an index of n shards hosted by a cluster of m nodes, a node should not host
@@ -50,20 +53,25 @@ public class IndexBalanceAllocationDecider extends AllocationDecider {
 
     private final IndexBalanceConstraintSettings indexBalanceConstraintSettings;
     private final boolean isStateless;
+
+    private volatile DiscoveryNodeFilters clusterRequireFilters;
+    private volatile DiscoveryNodeFilters clusterIncludeFilters;
     private volatile DiscoveryNodeFilters clusterExcludeFilters;
 
     public IndexBalanceAllocationDecider(Settings settings, ClusterSettings clusterSettings) {
         this.indexBalanceConstraintSettings = new IndexBalanceConstraintSettings(clusterSettings);
+        setClusterRequireFilters(CLUSTER_ROUTING_REQUIRE_GROUP_SETTING.getAsMap(settings));
         setClusterExcludeFilters(CLUSTER_ROUTING_EXCLUDE_GROUP_SETTING.getAsMap(settings));
+        setClusterIncludeFilters(CLUSTER_ROUTING_INCLUDE_GROUP_SETTING.getAsMap(settings));
+        clusterSettings.addAffixMapUpdateConsumer(CLUSTER_ROUTING_REQUIRE_GROUP_SETTING, this::setClusterRequireFilters, (a, b) -> {});
         clusterSettings.addAffixMapUpdateConsumer(CLUSTER_ROUTING_EXCLUDE_GROUP_SETTING, this::setClusterExcludeFilters, (a, b) -> {});
+        clusterSettings.addAffixMapUpdateConsumer(CLUSTER_ROUTING_INCLUDE_GROUP_SETTING, this::setClusterIncludeFilters, (a, b) -> {});
         isStateless = DiscoveryNode.isStateless(settings);
     }
 
     @Override
     public Decision canAllocate(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
-        if (indexBalanceConstraintSettings.isDeciderEnabled() == false
-            || isStateless == false
-            || clusterExcludeFilters != null && clusterExcludeFilters.hasNoFilters() == false) {
+        if (indexBalanceConstraintSettings.isDeciderEnabled() == false || isStateless == false || hasNoFilters() == false) {
             return Decision.single(Decision.Type.YES, NAME, "Decider is disabled.");
         }
 
@@ -141,8 +149,21 @@ public class IndexBalanceAllocationDecider extends AllocationDecider {
         }
     }
 
+    private void setClusterRequireFilters(Map<String, List<String>> filters) {
+        clusterRequireFilters = DiscoveryNodeFilters.trimTier(DiscoveryNodeFilters.buildFromKeyValues(AND, filters));
+    }
+
+    private void setClusterIncludeFilters(Map<String, List<String>> filters) {
+        clusterIncludeFilters = DiscoveryNodeFilters.trimTier(DiscoveryNodeFilters.buildFromKeyValues(OR, filters));
+    }
+
     private void setClusterExcludeFilters(Map<String, List<String>> filters) {
         clusterExcludeFilters = DiscoveryNodeFilters.trimTier(DiscoveryNodeFilters.buildFromKeyValues(OR, filters));
     }
 
+    private boolean hasNoFilters() {
+        return (clusterExcludeFilters == null || clusterExcludeFilters.hasNoFilters())
+            && (clusterIncludeFilters == null || clusterIncludeFilters.hasNoFilters())
+            && (clusterRequireFilters == null || clusterRequireFilters.hasNoFilters());
+    }
 }

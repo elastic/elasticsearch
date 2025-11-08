@@ -18,6 +18,7 @@ import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.xpack.inference.external.http.Utils.entityAsMap;
+import static org.hamcrest.Matchers.aMapWithSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
@@ -45,6 +46,7 @@ public class OpenShiftAiChatCompletionRequestTests extends ESTestCase {
         assertThat(requestMap.get("n"), is(1));
         assertThat(requestMap.get("stream_options"), is(nullValue()));
         assertThat(requestMap.get("messages"), is(List.of(Map.of("role", USER_ROLE, "content", input))));
+        assertThat(requestMap, aMapWithSize(4));
         assertThat(httpPost.getFirstHeader(HttpHeaders.AUTHORIZATION).getValue(), is("Bearer %s".formatted(API_KEY)));
     }
 

@@ -93,6 +93,7 @@ import static org.elasticsearch.xpack.inference.services.llama.embeddings.LlamaE
 import static org.elasticsearch.xpack.inference.services.openshiftai.completion.OpenShiftAiChatCompletionModelTests.createChatCompletionModel;
 import static org.elasticsearch.xpack.inference.services.openshiftai.completion.OpenShiftAiChatCompletionServiceSettingsTests.getServiceSettingsMap;
 import static org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettingsTests.getSecretSettingsMap;
+import static org.hamcrest.Matchers.aMapWithSize;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
@@ -722,7 +723,7 @@ public class OpenShiftAiServiceTests extends AbstractInferenceServiceTests {
             assertThat(webServer.requests().getFirst().getHeader(HttpHeaders.AUTHORIZATION), equalTo("Bearer secret"));
 
             var requestMap = entityAsMap(webServer.requests().getFirst().getBody());
-            assertThat(requestMap.size(), is(2));
+            assertThat(requestMap, aMapWithSize(2));
             assertThat(requestMap.get("input"), is(List.of("abc", "def")));
             assertThat(requestMap.get("model"), is(MODEL_ID));
         }

@@ -56,6 +56,7 @@ import static org.elasticsearch.xpack.inference.logging.ThrottlerManagerTests.mo
 import static org.elasticsearch.xpack.inference.services.ServiceComponentsTests.createWithEmptySettings;
 import static org.elasticsearch.xpack.inference.services.openshiftai.completion.OpenShiftAiChatCompletionModelTests.createCompletionModel;
 import static org.elasticsearch.xpack.inference.services.openshiftai.embeddings.OpenShiftAiEmbeddingsModelTests.createModel;
+import static org.hamcrest.Matchers.aMapWithSize;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
@@ -148,7 +149,7 @@ public class OpenShiftAiActionCreatorTests extends ESTestCase {
             assertThat(webServer.requests().getFirst().getHeader(HttpHeaders.AUTHORIZATION), equalTo("Bearer %s".formatted(API_KEY)));
 
             var requestMap = entityAsMap(webServer.requests().getFirst().getBody());
-            assertThat(requestMap.size(), is(2));
+            assertThat(requestMap, aMapWithSize(2));
             assertThat(requestMap.get("input"), is(List.of(INPUT)));
             assertThat(requestMap.get("model"), is(MODEL_ID));
         }
@@ -270,7 +271,7 @@ public class OpenShiftAiActionCreatorTests extends ESTestCase {
             assertThat(request.getHeader(HttpHeaders.AUTHORIZATION), equalTo("Bearer %s".formatted(API_KEY)));
 
             var requestMap = entityAsMap(webServer.requests().getFirst().getBody());
-            assertThat(requestMap.size(), is(4));
+            assertThat(requestMap, aMapWithSize(4));
             assertThat(requestMap.get("messages"), is(List.of(Map.of("role", USER_ROLE, "content", INPUT))));
             assertThat(requestMap.get("model"), is(MODEL_ID));
             assertThat(requestMap.get("n"), is(1));
@@ -414,7 +415,7 @@ public class OpenShiftAiActionCreatorTests extends ESTestCase {
                 assertThat(webServer.requests().getFirst().getHeader(HttpHeaders.AUTHORIZATION), equalTo("Bearer %s".formatted(API_KEY)));
 
                 var requestMap = entityAsMap(webServer.requests().getFirst().getBody());
-                assertThat(requestMap.size(), is(2));
+                assertThat(requestMap, aMapWithSize(2));
                 assertThat(requestMap.get("input"), is(List.of(INPUT)));
                 assertThat(requestMap.get("model"), is(MODEL_ID));
             }
@@ -427,7 +428,7 @@ public class OpenShiftAiActionCreatorTests extends ESTestCase {
                 assertThat(webServer.requests().get(1).getHeader(HttpHeaders.AUTHORIZATION), equalTo("Bearer %s".formatted(API_KEY)));
 
                 var requestMap = entityAsMap(webServer.requests().get(1).getBody());
-                assertThat(requestMap.size(), is(2));
+                assertThat(requestMap, aMapWithSize(2));
                 assertThat(requestMap.get("input"), is(List.of(INPUT.substring(0, 2))));
                 assertThat(requestMap.get("model"), is(MODEL_ID));
             }
@@ -506,7 +507,7 @@ public class OpenShiftAiActionCreatorTests extends ESTestCase {
                 assertThat(webServer.requests().getFirst().getHeader(HttpHeaders.AUTHORIZATION), equalTo("Bearer %s".formatted(API_KEY)));
 
                 var requestMap = entityAsMap(webServer.requests().getFirst().getBody());
-                assertThat(requestMap.size(), is(2));
+                assertThat(requestMap, aMapWithSize(2));
                 assertThat(requestMap.get("input"), is(List.of(INPUT)));
                 assertThat(requestMap.get("model"), is(MODEL_ID));
             }
@@ -519,7 +520,7 @@ public class OpenShiftAiActionCreatorTests extends ESTestCase {
                 assertThat(webServer.requests().get(1).getHeader(HttpHeaders.AUTHORIZATION), equalTo("Bearer %s".formatted(API_KEY)));
 
                 var requestMap = entityAsMap(webServer.requests().get(1).getBody());
-                assertThat(requestMap.size(), is(2));
+                assertThat(requestMap, aMapWithSize(2));
                 assertThat(requestMap.get("input"), is(List.of(INPUT.substring(0, 2))));
                 assertThat(requestMap.get("model"), is(MODEL_ID));
             }
@@ -582,7 +583,7 @@ public class OpenShiftAiActionCreatorTests extends ESTestCase {
             assertThat(webServer.requests().getFirst().getHeader(HttpHeaders.AUTHORIZATION), equalTo("Bearer %s".formatted(API_KEY)));
 
             var requestMap = entityAsMap(webServer.requests().getFirst().getBody());
-            assertThat(requestMap.size(), is(2));
+            assertThat(requestMap, aMapWithSize(2));
             assertThat(requestMap.get("input"), is(List.of(INPUT_TO_TRUNCATE.substring(0, 3))));
             assertThat(requestMap.get("model"), is(MODEL_ID));
         }
@@ -961,6 +962,6 @@ public class OpenShiftAiActionCreatorTests extends ESTestCase {
             assertThat(requestMap.get("return_documents"), is(expectedReturnDocuments));
             fieldCount++;
         }
-        assertThat(requestMap.size(), is(fieldCount));
+        assertThat(requestMap, aMapWithSize(fieldCount));
     }
 }

@@ -27,9 +27,8 @@ public class OpenShiftAiRerankRequestTests extends ESTestCase {
     private static final String QUERY = "query";
     private static final String MODEL_ID = "modelId";
     private static final Integer TOP_N = 8;
-    private static final Boolean RETURN_TEXT = false;
-
-    private static final String AUTH_HEADER_VALUE = "Bearer secret";
+    private static final Boolean RETURN_DOCUMENTS = false;
+    private static final String API_KEY = "secret";
 
     public void testCreateRequest_WithMinimalFieldsSet() throws IOException {
         testCreateRequest(null, null, null, createRequest(null, null, null));
@@ -40,7 +39,7 @@ public class OpenShiftAiRerankRequestTests extends ESTestCase {
     }
 
     public void testCreateRequest_WithReturnDocuments() throws IOException {
-        testCreateRequest(null, RETURN_TEXT, null, createRequest(null, RETURN_TEXT, null));
+        testCreateRequest(null, RETURN_DOCUMENTS, null, createRequest(null, RETURN_DOCUMENTS, null));
     }
 
     public void testCreateRequest_WithModelId() throws IOException {
@@ -48,42 +47,46 @@ public class OpenShiftAiRerankRequestTests extends ESTestCase {
     }
 
     public void testCreateRequest_AllFields() throws IOException {
-        testCreateRequest(TOP_N, RETURN_TEXT, MODEL_ID, createRequest(TOP_N, RETURN_TEXT, MODEL_ID));
+        testCreateRequest(TOP_N, RETURN_DOCUMENTS, MODEL_ID, createRequest(TOP_N, RETURN_DOCUMENTS, MODEL_ID));
     }
 
     public void testCreateRequest_AllFields_OverridesTaskSettings() throws IOException {
-        testCreateRequest(TOP_N, RETURN_TEXT, MODEL_ID, createRequestWithDifferentTaskSettings(TOP_N, RETURN_TEXT));
+        testCreateRequest(TOP_N, RETURN_DOCUMENTS, MODEL_ID, createRequestWithDifferentTaskSettings(TOP_N, RETURN_DOCUMENTS));
     }
 
     public void testCreateRequest_AllFields_KeepsTaskSettings() throws IOException {
         testCreateRequest(1, true, MODEL_ID, createRequestWithDifferentTaskSettings(null, null));
     }
 
-    private void testCreateRequest(Integer topN, Boolean returnDocuments, String modelId, OpenShiftAiRerankRequest request)
-        throws IOException {
+    private void testCreateRequest(
+        Integer expectedTopN,
+        Boolean expectedReturnDocuments,
+        String expectedModelId,
+        OpenShiftAiRerankRequest request
+    ) throws IOException {
         var httpRequest = request.createHttpRequest();
 
         assertThat(httpRequest.httpRequestBase(), instanceOf(HttpPost.class));
         var httpPost = (HttpPost) httpRequest.httpRequestBase();
 
         assertThat(httpPost.getLastHeader(HttpHeaders.CONTENT_TYPE).getValue(), is(XContentType.JSON.mediaTypeWithoutParameters()));
-        assertThat(httpPost.getLastHeader(HttpHeaders.AUTHORIZATION).getValue(), is(AUTH_HEADER_VALUE));
+        assertThat(httpPost.getLastHeader(HttpHeaders.AUTHORIZATION).getValue(), is("Bearer %s".formatted(API_KEY)));
 
         var requestMap = entityAsMap(httpPost.getEntity().getContent());
 
         assertThat(requestMap.get(INPUT), is(List.of(INPUT)));
         assertThat(requestMap.get(QUERY), is(QUERY));
         int itemsCount = 2;
-        if (topN != null) {
-            assertThat(requestMap.get("top_n"), is(topN));
+        if (expectedTopN != null) {
+            assertThat(requestMap.get("top_n"), is(expectedTopN));
             itemsCount++;
         }
-        if (returnDocuments != null) {
-            assertThat(requestMap.get("return_documents"), is(returnDocuments));
+        if (expectedReturnDocuments != null) {
+            assertThat(requestMap.get("return_documents"), is(expectedReturnDocuments));
             itemsCount++;
         }
-        if (modelId != null) {
-            assertThat(requestMap.get("model"), is(modelId));
+        if (expectedModelId != null) {
+            assertThat(requestMap.get("model"), is(expectedModelId));
             itemsCount++;
         }
         assertThat(requestMap, aMapWithSize(itemsCount));
@@ -94,7 +97,7 @@ public class OpenShiftAiRerankRequestTests extends ESTestCase {
         @Nullable Boolean returnDocuments,
         @Nullable String modelId
     ) {
-        var rerankModel = OpenShiftAiRerankModelTests.createModel(randomAlphaOfLength(10), "secret", modelId, topN, returnDocuments);
+        var rerankModel = OpenShiftAiRerankModelTests.createModel(randomAlphaOfLength(10), API_KEY, modelId, topN, returnDocuments);
         return new OpenShiftAiRerankRequest(QUERY, List.of(INPUT), returnDocuments, topN, rerankModel);
     }
 
@@ -102,7 +105,7 @@ public class OpenShiftAiRerankRequestTests extends ESTestCase {
         @Nullable Integer topN,
         @Nullable Boolean returnDocuments
     ) {
-        var rerankModel = OpenShiftAiRerankModelTests.createModel(randomAlphaOfLength(10), "secret", MODEL_ID, 1, true);
+        var rerankModel = OpenShiftAiRerankModelTests.createModel(randomAlphaOfLength(10), API_KEY, MODEL_ID, 1, true);
         return new OpenShiftAiRerankRequest(QUERY, List.of(INPUT), returnDocuments, topN, rerankModel);
     }
 }

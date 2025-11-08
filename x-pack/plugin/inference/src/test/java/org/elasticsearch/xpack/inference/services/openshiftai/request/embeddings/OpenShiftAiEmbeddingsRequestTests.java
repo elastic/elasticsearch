@@ -27,6 +27,15 @@ import static org.hamcrest.Matchers.nullValue;
 
 public class OpenShiftAiEmbeddingsRequestTests extends ESTestCase {
 
+    private static final String INPUT_FIELD_NAME = "input";
+    private static final String MODEL_FIELD_NAME = "model";
+    private static final String DIMENSIONS_FIELD_NAME = "dimensions";
+
+    private static final String MODEL_VALUE = "some model";
+    private static final String INPUT_VALUE = "ABCD";
+    private static final String URL_VALUE = "some_url";
+    private static final String API_KEY = "some api key";
+
     public void testCreateRequest_NoDimensions_DimensionsSetByUserFalse_Success() throws IOException {
         testCreateRequest_Success(null, false, null);
     }
@@ -49,10 +58,10 @@ public class OpenShiftAiEmbeddingsRequestTests extends ESTestCase {
         var httpPost = validateRequestUrlAndContentType(httpRequest);
 
         var requestMap = entityAsMap(httpPost.getEntity().getContent());
-        assertThat(requestMap.get("input"), is(List.of("ABCD")));
-        assertThat(requestMap.get("model"), is("llama-embed"));
-        assertThat(requestMap.get("dimensions"), is(expectedDimensions));
-        assertThat(httpPost.getFirstHeader(HttpHeaders.AUTHORIZATION).getValue(), is("Bearer apikey"));
+        assertThat(requestMap.get(INPUT_FIELD_NAME), is(List.of(INPUT_VALUE)));
+        assertThat(requestMap.get(MODEL_FIELD_NAME), is(MODEL_VALUE));
+        assertThat(requestMap.get(DIMENSIONS_FIELD_NAME), is(expectedDimensions));
+        assertThat(httpPost.getFirstHeader(HttpHeaders.AUTHORIZATION).getValue(), is("Bearer %s".formatted(API_KEY)));
     }
 
     public void testCreateRequest_NoModel_Success() throws IOException {
@@ -61,10 +70,10 @@ public class OpenShiftAiEmbeddingsRequestTests extends ESTestCase {
         var httpPost = validateRequestUrlAndContentType(httpRequest);
 
         var requestMap = entityAsMap(httpPost.getEntity().getContent());
-        assertThat(requestMap.get("input"), is(List.of("ABCD")));
-        assertThat(requestMap.get("model"), is(nullValue()));
-        assertThat(requestMap.get("dimensions"), is(nullValue()));
-        assertThat(httpPost.getFirstHeader(HttpHeaders.AUTHORIZATION).getValue(), is("Bearer apikey"));
+        assertThat(requestMap.get(INPUT_FIELD_NAME), is(List.of(INPUT_VALUE)));
+        assertThat(requestMap.get(MODEL_FIELD_NAME), is(nullValue()));
+        assertThat(requestMap.get(DIMENSIONS_FIELD_NAME), is(nullValue()));
+        assertThat(httpPost.getFirstHeader(HttpHeaders.AUTHORIZATION).getValue(), is("Bearer %s".formatted(API_KEY)));
 
     }
 
@@ -78,8 +87,8 @@ public class OpenShiftAiEmbeddingsRequestTests extends ESTestCase {
         var httpPost = (HttpPost) httpRequest.httpRequestBase();
         var requestMap = entityAsMap(httpPost.getEntity().getContent());
         assertThat(requestMap, aMapWithSize(2));
-        assertThat(requestMap.get("input"), is(List.of("AB")));
-        assertThat(requestMap.get("model"), is("llama-embed"));
+        assertThat(requestMap.get(INPUT_FIELD_NAME), is(List.of(INPUT_VALUE.substring(0, 2))));
+        assertThat(requestMap.get(MODEL_FIELD_NAME), is(MODEL_VALUE));
 
     }
 
@@ -94,19 +103,19 @@ public class OpenShiftAiEmbeddingsRequestTests extends ESTestCase {
     private HttpPost validateRequestUrlAndContentType(HttpRequest request) {
         assertThat(request.httpRequestBase(), instanceOf(HttpPost.class));
         var httpPost = (HttpPost) request.httpRequestBase();
-        assertThat(httpPost.getURI().toString(), is("url"));
+        assertThat(httpPost.getURI().toString(), is(URL_VALUE));
         assertThat(httpPost.getLastHeader(HttpHeaders.CONTENT_TYPE).getValue(), is(XContentType.JSON.mediaTypeWithoutParameters()));
         return httpPost;
     }
 
     private static OpenShiftAiEmbeddingsRequest createRequest(Integer dimensions, Boolean dimensionsSetByUser) {
-        return createRequest(dimensions, dimensionsSetByUser, "llama-embed");
+        return createRequest(dimensions, dimensionsSetByUser, MODEL_VALUE);
     }
 
     private static OpenShiftAiEmbeddingsRequest createRequest(Integer dimensions, Boolean dimensionsSetByUser, String modelId) {
         var embeddingsModel = OpenShiftAiEmbeddingsModelTests.createModel(
-            "url",
-            "apikey",
+            URL_VALUE,
+            API_KEY,
             modelId,
             dimensions,
             dimensionsSetByUser,
@@ -115,7 +124,7 @@ public class OpenShiftAiEmbeddingsRequestTests extends ESTestCase {
         );
         return new OpenShiftAiEmbeddingsRequest(
             TruncatorTests.createTruncator(),
-            new Truncator.TruncationResult(List.of("ABCD"), new boolean[] { false }),
+            new Truncator.TruncationResult(List.of(INPUT_VALUE), new boolean[] { false }),
             embeddingsModel
         );
     }

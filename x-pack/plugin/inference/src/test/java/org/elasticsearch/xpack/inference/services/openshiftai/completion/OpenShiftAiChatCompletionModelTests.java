@@ -19,7 +19,7 @@ public class OpenShiftAiChatCompletionModelTests extends ESTestCase {
 
     private static final String MODEL_ID = "model_name";
     private static final String API_KEY = "api_key";
-    private static final String URL = "url";
+    private static final String URL = "some_url";
 
     public static OpenShiftAiChatCompletionModel createCompletionModel(String url, String apiKey, String modelName) {
         return createModelWithTaskType(url, apiKey, modelName, TaskType.COMPLETION);

@@ -40,7 +40,6 @@ import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
-import org.elasticsearch.index.fielddata.AbstractBinaryDocValues;
 import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
@@ -302,11 +301,17 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
 
             if (parent instanceof KeywordFieldMapper.KeywordFieldType keywordParent
                 && keywordParent.ignoreAbove().valuesPotentiallyIgnored()) {
-                var ifd = searchExecutionContext.getForField(parent, MappedFieldType.FielddataOperation.SEARCH);
                 if (parent.isStored()) {
-                    return combineFieldFetchers(storedFieldFetcher(parentFieldName), docValuesFieldFetcher(ifd));
+                    return combineFieldFetchers(
+                        storedFieldFetcher(parentFieldName),
+                        ignoredValuesDocValuesFieldFetcher(keywordParent.syntheticSourceFallbackFieldName())
+                    );
                 } else if (parent.hasDocValues()) {
-                    return docValuesFieldFetcher(ifd);
+                    var ifd = searchExecutionContext.getForField(parent, MappedFieldType.FielddataOperation.SEARCH);
+                    return combineFieldFetchers(
+                        docValuesFieldFetcher(ifd),
+                        ignoredValuesDocValuesFieldFetcher(keywordParent.syntheticSourceFallbackFieldName())
+                    );
                 }
             }
 
@@ -356,28 +361,29 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
         private IOFunction<LeafReaderContext, CheckedIntFunction<List<Object>, IOException>> docValuesFieldFetcher(IndexFieldData<?> ifd) {
             return context -> {
                 SortedBinaryDocValues indexedValuesDocValues = ifd.load(context).getBytesValues();
-                CustomBinaryDocValues ignoredValuesDocValues = new CustomBinaryDocValues(
-                    DocValues.getBinary(context.reader(), ifd.getFieldName() + TextFamilyFieldType.FALLBACK_FIELD_NAME_SUFFIX)
-                );
-
-                return docId -> {
-                    int indexedValueCount = indexedValuesDocValues.advanceExact(docId) ? indexedValuesDocValues.docValueCount() : 0;
-                    int ignoredValueCount = ignoredValuesDocValues.advanceExact(docId) ? ignoredValuesDocValues.docValueCount() : 0;
-                    var values = new ArrayList<>(indexedValueCount + ignoredValueCount);
-
-                    // extract indexed values from doc values
-                    for (int i = 0; i < indexedValueCount; i++) {
-                        values.add(indexedValuesDocValues.nextValue().utf8ToString());
-                    }
-
-                    // extract ignored values from doc values
-                    for (int i = 0; i < ignoredValueCount; i++) {
-                        values.add(ignoredValuesDocValues.nextValue().utf8ToString());
-                    }
-
-                    return values;
-                };
+                return docId -> getValuesFromDocValues(indexedValuesDocValues, docId);
             };
+        }
+
+        private IOFunction<LeafReaderContext, CheckedIntFunction<List<Object>, IOException>> ignoredValuesDocValuesFieldFetcher(
+            String fieldName
+        ) {
+            return context -> {
+                CustomBinaryDocValues ignoredValuesDocValues = new CustomBinaryDocValues(DocValues.getBinary(context.reader(), fieldName));
+                return docId -> getValuesFromDocValues(ignoredValuesDocValues, docId);
+            };
+        }
+
+        private List<Object> getValuesFromDocValues(SortedBinaryDocValues docValues, int docId) throws IOException {
+            if (docValues.advanceExact(docId)) {
+                var values = new ArrayList<>(docValues.docValueCount());
+                for (int i = 0; i < docValues.docValueCount(); i++) {
+                    values.add(docValues.nextValue().utf8ToString());
+                }
+                return values;
+            } else {
+                return List.of();
+            }
         }
 
         private static IOFunction<LeafReaderContext, CheckedIntFunction<List<Object>, IOException>> storedFieldFetcher(String... names) {
@@ -787,9 +793,9 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
     }
 
     /**
-     * A wrapper around {@link BinaryDocValues} that exposes some quality of life functions.
+     * A wrapper around {@link BinaryDocValues} that exposes some quality of life functions. Note, these values are not sorted.
      */
-    private static class CustomBinaryDocValues extends AbstractBinaryDocValues {
+    private static class CustomBinaryDocValues extends SortedBinaryDocValues {
 
         private final BinaryDocValues binaryDocValues;
         private final ByteArrayStreamInput stream;
@@ -801,14 +807,10 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
             this.stream = new ByteArrayStreamInput();
         }
 
+        @Override
         public BytesRef nextValue() throws IOException {
             // this function already knows how to decode the underlying bytes array, so no need to explicitly call VInt()
             return stream.readBytesRef();
-        }
-
-        @Override
-        public BytesRef binaryValue() throws IOException {
-            return binaryDocValues.binaryValue();
         }
 
         @Override
@@ -826,6 +828,7 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
             return false;
         }
 
+        @Override
         public int docValueCount() {
             return docValueCount;
         }

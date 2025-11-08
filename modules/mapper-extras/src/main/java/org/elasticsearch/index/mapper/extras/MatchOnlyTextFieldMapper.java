@@ -786,6 +786,10 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
         return fieldLoader;
     }
 
+
+    /**
+     * A wrapper around {@link BinaryDocValues} that exposes some quality of life functions.
+     */
     private static class CustomBinaryDocValues extends AbstractBinaryDocValues {
 
         private final BinaryDocValues binaryDocValues;

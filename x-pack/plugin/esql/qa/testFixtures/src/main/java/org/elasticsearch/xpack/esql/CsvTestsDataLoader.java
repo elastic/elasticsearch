@@ -243,7 +243,6 @@ public class CsvTestsDataLoader {
         Map.entry(MULTI_COLUMN_JOINABLE.indexName, MULTI_COLUMN_JOINABLE),
         Map.entry(MULTI_COLUMN_JOINABLE_LOOKUP.indexName, MULTI_COLUMN_JOINABLE_LOOKUP),
         Map.entry(DATE_RANGES.indexName, DATE_RANGES),
-        Map.entry(MULTI_COLUMN_JOINABLE_LOOKUP.indexName, MULTI_COLUMN_JOINABLE_LOOKUP),
         Map.entry(EXP_HISTO_SAMPLE.indexName, EXP_HISTO_SAMPLE)
     );
 

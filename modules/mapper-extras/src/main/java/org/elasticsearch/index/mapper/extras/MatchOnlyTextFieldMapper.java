@@ -29,10 +29,10 @@ import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.search.PrefixQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
-import org.apache.lucene.store.ByteArrayDataInput;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.IOFunction;
 import org.elasticsearch.common.CheckedIntFunction;
+import org.elasticsearch.common.io.stream.ByteArrayStreamInput;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.text.UTF8DecodingReader;
 import org.elasticsearch.common.unit.Fuzziness;
@@ -786,31 +786,24 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
         return fieldLoader;
     }
 
-
     /**
      * A wrapper around {@link BinaryDocValues} that exposes some quality of life functions.
      */
     private static class CustomBinaryDocValues extends AbstractBinaryDocValues {
 
         private final BinaryDocValues binaryDocValues;
+        private final ByteArrayStreamInput stream;
 
-        private ByteArrayDataInput data;
         private int docValueCount = 0;
 
         CustomBinaryDocValues(BinaryDocValues binaryDocValues) {
             this.binaryDocValues = binaryDocValues;
+            this.stream = new ByteArrayStreamInput();
         }
 
-        public BytesRef nextValue() {
-            // get the length of the value
-            int length = data.readVInt();
-
-            // read that many bytes from the underlying bytes array
-            // the read will automatically move the offset to the next value
-            byte[] valueBytes = new byte[length];
-            data.readBytes(valueBytes, 0, length);
-
-            return new BytesRef(valueBytes);
+        public BytesRef nextValue() throws IOException {
+            // this function already knows how to decode the underlying bytes array, so no need to explicitly call VInt()
+            return stream.readBytesRef();
         }
 
         @Override
@@ -823,8 +816,8 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
             // if document has a value, read underlying bytes
             if (binaryDocValues.advanceExact(docId)) {
                 BytesRef docValuesBytes = binaryDocValues.binaryValue();
-                data = new ByteArrayDataInput(docValuesBytes.bytes, docValuesBytes.offset, docValuesBytes.length);
-                docValueCount = data.readVInt();
+                stream.reset(docValuesBytes.bytes, docValuesBytes.offset, docValuesBytes.length);
+                docValueCount = stream.readVInt();
                 return true;
             }
 

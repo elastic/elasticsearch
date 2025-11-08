@@ -11,8 +11,8 @@ package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.index.BinaryDocValues;
 import org.apache.lucene.index.LeafReader;
-import org.apache.lucene.store.ByteArrayDataInput;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.io.stream.ByteArrayStreamInput;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
@@ -23,11 +23,12 @@ public final class BinaryDocValuesSyntheticFieldLoaderLayer implements Composite
 
     // the binary doc values for a document are all encoded in a single binary array, which this stream knows how to read
     // the doc values in the array take the form of [doc value count][length of value 1][value 1][length of value 2][value 2]...
-    private final ByteArrayDataInput data = new ByteArrayDataInput();
+    private final ByteArrayStreamInput stream;
     private int valueCount;
 
     public BinaryDocValuesSyntheticFieldLoaderLayer(String fieldName) {
         this.fieldName = fieldName;
+        this.stream = new ByteArrayStreamInput();
     }
 
     @Override
@@ -49,8 +50,8 @@ public final class BinaryDocValuesSyntheticFieldLoaderLayer implements Composite
 
             // otherwise, extract the doc values into a stream to later read from
             BytesRef docValuesBytes = docValues.binaryValue();
-            data.reset(docValuesBytes.bytes, docValuesBytes.offset, docValuesBytes.length);
-            valueCount = data.readVInt();
+            stream.reset(docValuesBytes.bytes, docValuesBytes.offset, docValuesBytes.length);
+            valueCount = stream.readVInt();
 
             return hasValue();
         };
@@ -59,16 +60,9 @@ public final class BinaryDocValuesSyntheticFieldLoaderLayer implements Composite
     @Override
     public void write(XContentBuilder b) throws IOException {
         for (int i = 0; i < valueCount; i++) {
-            // read the length of the value
-            int length = data.readVInt();
-
-            // read that many bytes from the input
-            // the read will automatically move the offset to the next value
-            byte[] valueBytes = new byte[length];
-            data.readBytes(valueBytes, 0, length);
-
-            // finally, write those bytes into XContentBuilder
-            b.value(new BytesRef(valueBytes).utf8ToString());
+            // this function already knows how to decode the underlying bytes array, so no need to explicitly call VInt()
+            BytesRef valueBytes = stream.readBytesRef();
+            b.value(valueBytes.utf8ToString());
         }
     }
 

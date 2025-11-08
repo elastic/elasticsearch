@@ -242,7 +242,7 @@ public class CsvTestsDataLoader {
         Map.entry(COLORS_CMYK_LOOKUP.indexName, COLORS_CMYK_LOOKUP),
         Map.entry(MULTI_COLUMN_JOINABLE.indexName, MULTI_COLUMN_JOINABLE),
         Map.entry(MULTI_COLUMN_JOINABLE_LOOKUP.indexName, MULTI_COLUMN_JOINABLE_LOOKUP),
-        Map.entry(DATE_RANGES.indexName, DATE_RANGES)
+        Map.entry(DATE_RANGES.indexName, DATE_RANGES),
         Map.entry(MULTI_COLUMN_JOINABLE_LOOKUP.indexName, MULTI_COLUMN_JOINABLE_LOOKUP),
         Map.entry(EXP_HISTO_SAMPLE.indexName, EXP_HISTO_SAMPLE)
     );

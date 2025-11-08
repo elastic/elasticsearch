@@ -117,12 +117,11 @@ public final class MoveDecision extends AbstractAllocationDecision {
         @Nullable List<NodeAllocationResult> nodeDecisions
     ) {
         assert canRemainDecision != null;
-        assert canRemainDecision.type() != Type.YES : "create decision with MoveDecision#stay instead";
+        assert canRemainDecision.type() != Type.YES : "create decision with MoveDecision#createRemainYesDecision instead";
         if (nodeDecisions == null && moveDecision == AllocationDecision.NO) {
             // the final decision is NO (no node to move the shard to) and we are not in explain mode, return a cached version
             return CACHED_CANNOT_MOVE_DECISION;
         } else {
-            assert ((targetNode == null) == (moveDecision != AllocationDecision.YES));
             return new MoveDecision(targetNode, nodeDecisions, moveDecision, canRemainDecision, null, 0);
         }
     }
@@ -153,7 +152,12 @@ public final class MoveDecision extends AbstractAllocationDecision {
      */
     public boolean cannotRemainAndCanMove() {
         checkDecisionState();
-        return cannotRemain() && canMoveDecision == AllocationDecision.YES;
+        return cannotRemain() && (canMoveDecision == AllocationDecision.YES);
+    }
+
+    public boolean cannotRemainAndNotPreferredMove() {
+        checkDecisionState();
+        return cannotRemain() && canMoveDecision == AllocationDecision.NOT_PREFERRED;
     }
 
     /**
@@ -164,6 +168,11 @@ public final class MoveDecision extends AbstractAllocationDecision {
     public boolean cannotRemainAndCannotMove() {
         checkDecisionState();
         return cannotRemain() && canMoveDecision != AllocationDecision.YES;
+    }
+
+    public boolean canRemainNotPreferred() {
+        checkDecisionState();
+        return canRemainDecision.type() == Type.NOT_PREFERRED;
     }
 
     /**
@@ -248,28 +257,39 @@ public final class MoveDecision extends AbstractAllocationDecision {
             if (canMoveDecision == AllocationDecision.AWAITING_INFO) {
                 return Explanations.Rebalance.AWAITING_INFO;
             }
+            // TODO (ES-13482): clusterRebalanceDecision is set to the result of AllocationDecider#canRebalance, which does not return
+            // NOT_PREFERRED or THROTTLE. This switch statement, and how MoveDecision uses clusterRebalanceDecision, should be
+            // refactored.
             return switch (clusterRebalanceDecision.type()) {
                 case NO -> atLeastOneNodeWithYesDecision()
                     ? Explanations.Rebalance.CANNOT_REBALANCE_CAN_ALLOCATE
                     : Explanations.Rebalance.CANNOT_REBALANCE_CANNOT_ALLOCATE;
+                // TODO (ES-13482): dead code path
                 case THROTTLE -> Explanations.Rebalance.CLUSTER_THROTTLE;
-                case YES, NOT_PREFERRED -> {
+                case YES -> {
                     if (getTargetNode() != null) {
                         yield canMoveDecision == AllocationDecision.THROTTLED
                             ? Explanations.Rebalance.NODE_THROTTLE
                             : Explanations.Rebalance.YES;
                     } else {
-                        yield Explanations.Rebalance.ALREADY_BALANCED;
+                        yield canMoveDecision == AllocationDecision.NOT_PREFERRED
+                            ? Explanations.Rebalance.NOT_PREFERRED
+                            : Explanations.Rebalance.ALREADY_BALANCED;
                     }
                 }
+                // TODO (ES-13482): dead code path
+                case NOT_PREFERRED -> Explanations.Rebalance.NOT_PREFERRED;
             };
         } else {
-            // it was a decision to force move the shard
+            // it was a decision by an allocation decider to move the shard
             assert cannotRemain();
             return switch (canMoveDecision) {
-                case YES -> Explanations.Move.YES;
-                case THROTTLED -> Explanations.Move.THROTTLED;
-                case NO -> Explanations.Move.NO;
+                case YES -> canRemainNotPreferred() ? Explanations.Move.NOT_PREFERRED_TO_YES : Explanations.Move.YES;
+                case NOT_PREFERRED -> canRemainNotPreferred()
+                    ? Explanations.Move.NOT_PREFERRED_TO_NOT_PREFERRED
+                    : Explanations.Move.NOT_PREFERRED;
+                case THROTTLED -> canRemainNotPreferred() ? Explanations.Move.NOT_PREFERRED_TO_THROTTLED : Explanations.Move.THROTTLED;
+                case NO -> canRemainNotPreferred() ? Explanations.Move.NOT_PREFERRED_TO_NO : Explanations.Move.NO;
                 case WORSE_BALANCE, AWAITING_INFO, ALLOCATION_DELAYED, NO_VALID_SHARD_COPY, NO_ATTEMPT -> {
                     assert false : canMoveDecision;
                     yield canMoveDecision.toString();
@@ -306,7 +326,13 @@ public final class MoveDecision extends AbstractAllocationDecision {
                 builder.field("can_rebalance_to_other_node", canMoveDecision);
                 builder.field("rebalance_explanation", getExplanation());
             } else {
-                builder.field("can_move_to_other_node", cannotRemainAndCanMove() ? "yes" : "no");
+                if (cannotRemainAndCanMove()) {
+                    builder.field("can_move_to_other_node", "yes");
+                } else if (cannotRemainAndNotPreferredMove()) {
+                    builder.field("can_move_to_other_node", "not-preferred");
+                } else {
+                    builder.field("can_move_to_other_node", "no");
+                }
                 builder.field("move_explanation", getExplanation());
             }
             return builder;

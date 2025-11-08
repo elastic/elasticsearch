@@ -60,7 +60,15 @@ public enum AllocationDecision implements Writeable {
     /**
      * No attempt was made to allocate the shard
      */
-    NO_ATTEMPT((byte) 7);
+    NO_ATTEMPT((byte) 7),
+
+    /**
+     * It is _not_ preferred to allocate a shard to this node, preference should be given to a YES node.
+     * This can happen when the shard allocation to a node is allowed, but the node resource usage is
+     * already high. Preference can be overridden if a shard's current allocation is no longer allowed
+     * and no other node responded YES to the shard relocation.
+     */
+    NOT_PREFERRED((byte) 8);
 
     private final byte id;
 
@@ -84,6 +92,7 @@ public enum AllocationDecision implements Writeable {
             case 5 -> ALLOCATION_DELAYED;
             case 6 -> NO_VALID_SHARD_COPY;
             case 7 -> NO_ATTEMPT;
+            case 8 -> NOT_PREFERRED;
             default -> throw new IllegalArgumentException("Unknown value [" + id + "]");
         };
     }
@@ -111,8 +120,8 @@ public enum AllocationDecision implements Writeable {
      */
     public static AllocationDecision fromDecisionType(Decision.Type type) {
         return switch (type) {
-            // TODO: should not_preferred have own variant? ES-12729
-            case YES, NOT_PREFERRED -> YES;
+            case YES -> YES;
+            case NOT_PREFERRED -> NOT_PREFERRED;
             case THROTTLE -> THROTTLED;
             case NO -> NO;
         };

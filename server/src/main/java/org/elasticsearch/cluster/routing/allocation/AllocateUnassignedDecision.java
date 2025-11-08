@@ -267,6 +267,7 @@ public class AllocateUnassignedDecision extends AbstractAllocationDecision {
         checkDecisionState();
         return switch (getAllocationDecision()) {
             case YES -> Explanations.Allocation.YES;
+            case NOT_PREFERRED -> Explanations.Allocation.NOT_PREFERRED;
             case THROTTLED -> Explanations.Allocation.THROTTLED;
             case AWAITING_INFO -> Explanations.Allocation.AWAITING_INFO;
             case NO_VALID_SHARD_COPY -> hasNodeWithStaleOrCorruptShard()

@@ -491,7 +491,8 @@ public class BalancedShardsAllocator implements ShardsAllocator {
             // balance the shard, if a better node can be found
             final float currentWeight = sorter.getWeightFunction().calculateNodeWeightWithIndex(this, currentNode, index);
             final AllocationDeciders deciders = allocation.deciders();
-            Type rebalanceDecisionType = Type.NO;
+            // Rebalancing should not relocate a shard to a NO or NOT_PREFERRED node.
+            Type bestRebalanceCanAllocateDecisionType = Type.NOT_PREFERRED;
             ModelNode targetNode = null;
             List<Tuple<ModelNode, Decision>> betterBalanceNodes = new ArrayList<>();
             List<Tuple<ModelNode, Decision>> sameBalanceNodes = new ArrayList<>();
@@ -527,10 +528,11 @@ public class BalancedShardsAllocator implements ShardsAllocator {
                     // if the simulated weight delta with the shard moved away is better than the weight delta
                     // with the shard remaining on the current node, and we are allowed to allocate to the
                     // node in question, then allow the rebalance
-                    if (rebalanceConditionsMet && canAllocate.type().higherThan(rebalanceDecisionType)) {
-                        // rebalance to the node, only will get overwritten if the decision here is to
-                        // THROTTLE and we get a decision with YES on another node
-                        rebalanceDecisionType = canAllocate.type();
+                    if (rebalanceConditionsMet && canAllocate.type().higherThan(bestRebalanceCanAllocateDecisionType)) {
+                        assert canAllocate.type() == Type.YES || canAllocate.type() == Type.THROTTLE : canAllocate;
+                        // Overwrite the best decision since it is better than the last. This means YES decisions will replace
+                        // THROTTLE decisions.
+                        bestRebalanceCanAllocateDecisionType = canAllocate.type();
                         targetNode = node;
                     }
                 }
@@ -584,7 +586,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
                 return MoveDecision.rebalance(
                     canRemain,
                     canRebalance,
-                    AllocationDecision.fromDecisionType(rebalanceDecisionType),
+                    AllocationDecision.fromDecisionType(bestRebalanceCanAllocateDecisionType),
                     targetNode != null ? targetNode.routingNode.node() : null,
                     currentNodeWeightRanking,
                     nodeDecisions
@@ -991,12 +993,16 @@ public class BalancedShardsAllocator implements ShardsAllocator {
                     if (explain) {
                         nodeResults.add(new NodeAllocationResult(currentNode.getRoutingNode().node(), allocationDecision, ++weightRanking));
                     }
-                    // TODO (ES-12633): test that nothing moves when the source is not-preferred and the target is not-preferred.
                     if (allocationDecision.type() == Type.NOT_PREFERRED && remainDecision.type() == Type.NOT_PREFERRED) {
-                        // Relocating a shard from one NOT_PREFERRED node to another would not improve the situation.
+                        // Whether or not a relocation target node can be found, it's important to explain the canAllocate response as
+                        // NOT_PREFERRED, as opposed to NO.
+                        bestDecision = Type.NOT_PREFERRED;
+                        // Relocating a shard from one NOT_PREFERRED node to another NOT_PREFERRED node would not improve the situation.
                         continue;
                     }
                     if (allocationDecision.type().higherThan(bestDecision)) {
+                        assert allocationDecision.type() != Type.THROTTLE
+                            : "DesiredBalance computations run in a simulation mode and should not encounter throttling";
                         bestDecision = allocationDecision.type();
                         if (bestDecision == Type.YES) {
                             targetNode = target;

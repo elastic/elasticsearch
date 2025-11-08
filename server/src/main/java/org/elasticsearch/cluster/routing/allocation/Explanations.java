@@ -16,6 +16,10 @@ public final class Explanations {
         public static final String YES = """
             Elasticsearch can allocate the shard.""";
 
+        public static final String NOT_PREFERRED = """
+            Elasticsearch can allocate the shard, but the assignment is not preferred due to resource usage of the cluster nodes.
+            Assignment will proceed if either the shard is unassigned or cannot remain on its currently assigned node.""";
+
         public static final String THROTTLED = """
             Elasticsearch is currently busy with other activities. It expects to be able to allocate this shard when those activities \
             finish. Please wait.""";
@@ -61,6 +65,11 @@ public final class Explanations {
         public static final String YES = """
             Elasticsearch can rebalance this shard to another node.""";
 
+        public static final String NOT_PREFERRED = """
+            Elasticsearch will not rebalance this shard to another node because all other eligible nodes have high resource usage. The \
+            total cluster balance weights might improve, were the shard relocated, but it would push one resource usage dimension \
+            too high and threaten performance. See the node-by-node explanation to understand what resource usage is high.""";
+
         public static final String ALREADY_BALANCED = """
             This shard is in a well-balanced location and satisfies all allocation rules so it will remain on this node. Elasticsearch \
             cannot improve the cluster balance by moving it to another node. If you expect this shard to be rebalanced to another node, \
@@ -82,7 +91,7 @@ public final class Explanations {
         public static final String CANNOT_REBALANCE_CAN_ALLOCATE = """
             Elasticsearch is allowed to allocate this shard on another node, and there is at least one node to which it could move this \
             shard that would improve the overall cluster balance, but it isn't allowed to rebalance this shard there. If you expect this \
-            shard to be rebalanced to another node, check the cluster-wide rebalancing decisions and address any reasons preventing \
+            shard to be rebalanced to another node, check the cluster-wide rebalancing settings and address any reasons preventing \
             Elasticsearch from rebalancing shards within the cluster, and then find the expected node in the node-by-node explanation and \
             address the reasons which prevent Elasticsearch from moving this shard there.""";
 
@@ -93,10 +102,17 @@ public final class Explanations {
 
     }
 
+    /**
+     * The explanation for a shard relocation when the shard cannot remain on its currently assigned node.
+     */
     public static final class Move {
 
         public static final String YES = """
             This shard may not remain on its current node. Elasticsearch will move it to another node.""";
+
+        public static final String NOT_PREFERRED = """
+            This shard may not remain on its current node. Elasticsearch can only move it to cluster nodes with already significant \
+            resource usage, but will do so anyway.""";
 
         public static final String THROTTLED = """
             This shard may not remain on its current node. Elasticsearch is currently busy with other activities and will move this shard \
@@ -107,6 +123,20 @@ public final class Explanations {
             which you expect this shard to be allocated, find this node in the node-by-node explanation, and address the reasons which \
             prevent Elasticsearch from allocating this shard there.""";
 
+        public static final String NOT_PREFERRED_TO_YES = SHOULD_NOT_REMAIN_PREFIX + ". Elasticsearch will move it to another node.";
+
+        public static final String NOT_PREFERRED_TO_NOT_PREFERRED = SHOULD_NOT_REMAIN_PREFIX
+            + ", but there are no other eligible nodes without already high resource usage";
+
+        public static final String NOT_PREFERRED_TO_NO = SHOULD_NOT_REMAIN_PREFIX
+            + ", but Elasticsearch isn't allowed to move it to "
+            + "another node. Choose a node to which you expect this shard to be allocated, find this node in the node-by-node "
+            + "explanation, and address the reasons which prevent Elasticsearch from allocating this shard there.";
+
+        public static final String NOT_PREFERRED_TO_THROTTLED = SHOULD_NOT_REMAIN_PREFIX
+            + ". Elasticsearch is currently busy with other "
+            + "activities and will move this shard to another node when those activities finish. Please wait.";
     }
 
+    private static final String SHOULD_NOT_REMAIN_PREFIX = "This shard should not remain on its current node due to resource usage";
 }

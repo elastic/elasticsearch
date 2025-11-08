@@ -118,8 +118,10 @@ public sealed interface Decision extends ToXContent, Writeable permits Decision.
     enum Type implements Writeable {
         // ordered by positiveness; order matters for serialization and comparison
         NO,
-        THROTTLE,
         NOT_PREFERRED,
+        // Temporarily throttled is a better choice than choosing a not-preferred node,
+        // but NOT_PREFERRED and THROTTLED are generally not comparable.
+        THROTTLE,
         YES;
 
         private static final TransportVersion ALLOCATION_DECISION_NOT_PREFERRED = TransportVersion.fromName(

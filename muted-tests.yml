@@ -471,6 +471,9 @@ tests:
 - class: org.elasticsearch.upgrades.TextRollingUpgradeIT
   method: testIndexing {upgradedNodes=0}
   issue: https://github.com/elastic/elasticsearch/issues/137794
+- class: org.elasticsearch.upgrades.WildcardRollingUpgradeIT
+  method: testIndexing {upgradedNodes=1}
+  issue: https://github.com/elastic/elasticsearch/issues/137795
 
 # Examples:
 #

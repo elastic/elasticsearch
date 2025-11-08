@@ -111,8 +111,8 @@ public class IndexBalanceAllocationDeciderTests extends ESAllocationTestCase {
                 CLUSTER_ROUTING_EXCLUDE_GROUP_PREFIX
             );
             String attribute = randomFrom("_value", "name");
-            String name = randomFrom(allNodes).getName();
-            String ip = randomFrom("192.168.0.1", "192.168.0.1", "192.168.0.1", "10.17.0.1");
+            String name = randomFrom("indexNodeOne", "indexNodeTwo", "searchNodeOne", "searchNodeTwo");
+            String ip = randomFrom("192.168.0.1", "192.168.0.2", "192.168.7.1", "10.17.0.1");
             builder.put(setting + "." + attribute, attribute.equals("name") ? name : ip);
         }
 

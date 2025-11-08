@@ -480,6 +480,9 @@ tests:
 - class: org.elasticsearch.xpack.inference.integration.CCMPersistentStorageServiceIT
   method: testDelete_DoesNotThrow_WhenTheConfigurationDoesNotExist
   issue: https://github.com/elastic/elasticsearch/issues/137797
+- class: org.elasticsearch.xpack.inference.integration.CCMServiceIT
+  method: testIsEnabled_ReturnsTrue_WhenCCMConfigurationIsPresent
+  issue: https://github.com/elastic/elasticsearch/issues/137798
 
 # Examples:
 #

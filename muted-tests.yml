@@ -458,6 +458,13 @@ tests:
   method: testSimilarityWithOneDimVector {functionName=v_cosine
     similarityFunction=org.elasticsearch.xpack.esql.expression.function.vector.CosineSimilarity$1@70ab2d48 elementType=byte}
   issue: https://github.com/elastic/elasticsearch/issues/137774
+- class: org.elasticsearch.xpack.esql.vector.VectorSimilarityFunctionsIT
+  method: testSimilarityWithOneDimVector {functionName=v_cosine
+    similarityFunction=org.elasticsearch.xpack.esql.expression.function.vector.CosineSimilarity$1@5b068087 elementType=byte}
+  issue: https://github.com/elastic/elasticsearch/issues/137778
+- class: org.elasticsearch.xpack.inference.integration.CCMPersistentStorageServiceIT
+  method: testDelete_RemovesCCMConfiguration
+  issue: https://github.com/elastic/elasticsearch/issues/137786
 
 # Examples:
 #

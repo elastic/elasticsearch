@@ -173,6 +173,7 @@ public class CsvTestsDataLoader {
     private static final TestDataset COLORS = new TestDataset("colors");
     private static final TestDataset DATE_RANGES = new TestDataset("date_ranges");
     private static final TestDataset COLORS_CMYK_LOOKUP = new TestDataset("colors_cmyk").withSetting("lookup-settings.json");
+    private static final TestDataset EXP_HISTO_SAMPLE = new TestDataset("exp_histo_sample");
 
     public static final Map<String, TestDataset> CSV_DATASET_MAP = Map.ofEntries(
         Map.entry(EMPLOYEES.indexName, EMPLOYEES),
@@ -242,6 +243,8 @@ public class CsvTestsDataLoader {
         Map.entry(MULTI_COLUMN_JOINABLE.indexName, MULTI_COLUMN_JOINABLE),
         Map.entry(MULTI_COLUMN_JOINABLE_LOOKUP.indexName, MULTI_COLUMN_JOINABLE_LOOKUP),
         Map.entry(DATE_RANGES.indexName, DATE_RANGES)
+        Map.entry(MULTI_COLUMN_JOINABLE_LOOKUP.indexName, MULTI_COLUMN_JOINABLE_LOOKUP),
+        Map.entry(EXP_HISTO_SAMPLE.indexName, EXP_HISTO_SAMPLE)
     );
 
     private static final EnrichConfig LANGUAGES_ENRICH = new EnrichConfig("languages_policy", "enrich-policy-languages.json");
@@ -333,7 +336,7 @@ public class CsvTestsDataLoader {
         }
 
         try (RestClient client = builder.build()) {
-            loadDataSetIntoEs(client, true, true, false, false, (restClient, indexName, indexMapping, indexSettings) -> {
+            loadDataSetIntoEs(client, true, true, false, false, true, (restClient, indexName, indexMapping, indexSettings) -> {
                 // don't use ESRestTestCase methods here or, if you do, test running the main method before making the change
                 StringBuilder jsonBody = new StringBuilder("{");
                 if (indexSettings != null && indexSettings.isEmpty() == false) {
@@ -356,7 +359,8 @@ public class CsvTestsDataLoader {
         boolean supportsIndexModeLookup,
         boolean supportsSourceFieldMapping,
         boolean inferenceEnabled,
-        boolean requiresTimeSeries
+        boolean requiresTimeSeries,
+        boolean exponentialHistogramFieldSupported
     ) throws IOException {
         Set<TestDataset> testDataSets = new HashSet<>();
 
@@ -364,7 +368,8 @@ public class CsvTestsDataLoader {
             if ((inferenceEnabled || dataset.requiresInferenceEndpoint == false)
                 && (supportsIndexModeLookup || isLookupDataset(dataset) == false)
                 && (supportsSourceFieldMapping || isSourceMappingDataset(dataset) == false)
-                && (requiresTimeSeries == false || isTimeSeries(dataset))) {
+                && (requiresTimeSeries == false || isTimeSeries(dataset))
+                && (exponentialHistogramFieldSupported || containsExponentialHistogramFields(dataset) == false)) {
                 testDataSets.add(dataset);
             }
         }
@@ -388,6 +393,27 @@ public class CsvTestsDataLoader {
         return mappingNode.get("_source") != null;
     }
 
+    private static boolean containsExponentialHistogramFields(TestDataset dataset) throws IOException {
+        if (dataset.mappingFileName() == null) {
+            return false;
+        }
+        String mappingJsonText = readTextFile(getResource("/" + dataset.mappingFileName()));
+        JsonNode mappingNode = new ObjectMapper().readTree(mappingJsonText);
+        JsonNode properties = mappingNode.get("properties");
+        if (properties != null) {
+            for (var fieldWithValue : properties.properties()) {
+                JsonNode fieldProperties = fieldWithValue.getValue();
+                if (fieldProperties != null) {
+                    JsonNode typeNode = fieldProperties.get("type");
+                    if (typeNode != null && typeNode.asText().equals("exponential_histogram")) {
+                        return true;
+                    }
+                }
+            }
+        }
+        return false;
+    }
+
     private static boolean isTimeSeries(TestDataset dataset) throws IOException {
         Settings settings = dataset.readSettingsFile();
         String mode = settings.get("index.mode");
@@ -400,7 +426,7 @@ public class CsvTestsDataLoader {
         boolean supportsSourceFieldMapping,
         boolean inferenceEnabled
     ) throws IOException {
-        loadDataSetIntoEs(client, supportsIndexModeLookup, supportsSourceFieldMapping, inferenceEnabled, false);
+        loadDataSetIntoEs(client, supportsIndexModeLookup, supportsSourceFieldMapping, inferenceEnabled, false, false);
     }
 
     public static void loadDataSetIntoEs(
@@ -408,7 +434,8 @@ public class CsvTestsDataLoader {
         boolean supportsIndexModeLookup,
         boolean supportsSourceFieldMapping,
         boolean inferenceEnabled,
-        boolean timeSeriesOnly
+        boolean timeSeriesOnly,
+        boolean exponentialHistogramFieldSupported
     ) throws IOException {
         loadDataSetIntoEs(
             client,
@@ -416,6 +443,7 @@ public class CsvTestsDataLoader {
             supportsSourceFieldMapping,
             inferenceEnabled,
             timeSeriesOnly,
+            exponentialHistogramFieldSupported,
             (restClient, indexName, indexMapping, indexSettings) -> {
                 ESRestTestCase.createIndex(restClient, indexName, indexSettings, indexMapping, null);
             }
@@ -428,13 +456,20 @@ public class CsvTestsDataLoader {
         boolean supportsSourceFieldMapping,
         boolean inferenceEnabled,
         boolean timeSeriesOnly,
+        boolean exponentialHistogramFieldSupported,
         IndexCreator indexCreator
     ) throws IOException {
         Logger logger = LogManager.getLogger(CsvTestsDataLoader.class);
 
         Set<String> loadedDatasets = new HashSet<>();
         logger.info("Loading test datasets");
-        for (var dataset : availableDatasetsForEs(supportsIndexModeLookup, supportsSourceFieldMapping, inferenceEnabled, timeSeriesOnly)) {
+        for (var dataset : availableDatasetsForEs(
+            supportsIndexModeLookup,
+            supportsSourceFieldMapping,
+            inferenceEnabled,
+            timeSeriesOnly,
+            exponentialHistogramFieldSupported
+        )) {
             load(client, dataset, logger, indexCreator);
             loadedDatasets.add(dataset.indexName);
         }

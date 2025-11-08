@@ -22,8 +22,11 @@ import java.util.HashMap;
 import java.util.Map;
 
 import static org.elasticsearch.xpack.inference.MatchersUtils.equalToIgnoringWhitespaceInJsonString;
+import static org.elasticsearch.xpack.inference.services.openshiftai.rerank.OpenShiftAiRerankModelTests.buildTaskSettingsMap;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.nullValue;
+import static org.hamcrest.Matchers.sameInstance;
 
 public class OpenShiftAiRerankTaskSettingsTests extends AbstractBWCWireSerializationTestCase<OpenShiftAiRerankTaskSettings> {
     public static OpenShiftAiRerankTaskSettings createRandom() {
@@ -34,16 +37,15 @@ public class OpenShiftAiRerankTaskSettingsTests extends AbstractBWCWireSerializa
     }
 
     public void testFromMap_WithValidValues_ReturnsSettings() {
-        Map<String, Object> taskMap = Map.of(OpenShiftAiRerankTaskSettings.RETURN_DOCUMENTS, true, OpenShiftAiRerankTaskSettings.TOP_N, 5);
-        var settings = OpenShiftAiRerankTaskSettings.fromMap(new HashMap<>(taskMap));
+        var settings = OpenShiftAiRerankTaskSettings.fromMap(buildTaskSettingsMap(5, true));
         assertThat(settings.getReturnDocuments(), is(true));
-        assertThat(settings.getTopN().intValue(), is(5));
+        assertThat(settings.getTopN(), is(5));
     }
 
     public void testFromMap_WithNullValues_ReturnsSettingsWithNulls() {
         var settings = OpenShiftAiRerankTaskSettings.fromMap(Map.of());
-        assertNull(settings.getReturnDocuments());
-        assertNull(settings.getTopN());
+        assertThat(settings.getReturnDocuments(), is(nullValue()));
+        assertThat(settings.getTopN(), is(nullValue()));
     }
 
     public void testFromMap_WithInvalidReturnDocuments_ThrowsValidationException() {
@@ -71,43 +73,38 @@ public class OpenShiftAiRerankTaskSettingsTests extends AbstractBWCWireSerializa
     public void testUpdatedTaskSettings_WithEmptyMap_ReturnsSameSettings() {
         var initialSettings = new OpenShiftAiRerankTaskSettings(5, true);
         OpenShiftAiRerankTaskSettings updatedSettings = (OpenShiftAiRerankTaskSettings) initialSettings.updatedTaskSettings(Map.of());
-        assertEquals(initialSettings, updatedSettings);
+        assertThat(initialSettings, is(sameInstance(updatedSettings)));
     }
 
     public void testUpdatedTaskSettings_WithNewReturnDocuments_ReturnsUpdatedSettings() {
         var initialSettings = new OpenShiftAiRerankTaskSettings(5, true);
-        Map<String, Object> newSettings = Map.of(OpenShiftAiRerankTaskSettings.RETURN_DOCUMENTS, false);
-        OpenShiftAiRerankTaskSettings updatedSettings = (OpenShiftAiRerankTaskSettings) initialSettings.updatedTaskSettings(newSettings);
-        assertFalse(updatedSettings.getReturnDocuments());
-        assertEquals(initialSettings.getTopN(), updatedSettings.getTopN());
+        OpenShiftAiRerankTaskSettings updatedSettings = (OpenShiftAiRerankTaskSettings) initialSettings.updatedTaskSettings(
+            buildTaskSettingsMap(null, false)
+        );
+        assertThat(updatedSettings.getReturnDocuments(), is(false));
+        assertThat(initialSettings.getTopN(), is(updatedSettings.getTopN()));
     }
 
     public void testUpdatedTaskSettings_WithNewTopNDocsOnly_ReturnsUpdatedSettings() {
         var initialSettings = new OpenShiftAiRerankTaskSettings(5, true);
-        Map<String, Object> newSettings = Map.of(OpenShiftAiRerankTaskSettings.TOP_N, 7);
-        OpenShiftAiRerankTaskSettings updatedSettings = (OpenShiftAiRerankTaskSettings) initialSettings.updatedTaskSettings(newSettings);
-        assertEquals(7, updatedSettings.getTopN().intValue());
-        assertEquals(initialSettings.getReturnDocuments(), updatedSettings.getReturnDocuments());
+        OpenShiftAiRerankTaskSettings updatedSettings = (OpenShiftAiRerankTaskSettings) initialSettings.updatedTaskSettings(
+            buildTaskSettingsMap(7, null)
+        );
+        assertThat(updatedSettings.getTopN(), is(7));
+        assertThat(updatedSettings.getReturnDocuments(), is(initialSettings.getReturnDocuments()));
     }
 
     public void testUpdatedTaskSettings_WithMultipleNewValues_ReturnsUpdatedSettings() {
         var initialSettings = new OpenShiftAiRerankTaskSettings(5, true);
-        Map<String, Object> newSettings = Map.of(
-            OpenShiftAiRerankTaskSettings.RETURN_DOCUMENTS,
-            false,
-            OpenShiftAiRerankTaskSettings.TOP_N,
-            7
+        OpenShiftAiRerankTaskSettings updatedSettings = (OpenShiftAiRerankTaskSettings) initialSettings.updatedTaskSettings(
+            buildTaskSettingsMap(7, false)
         );
-        OpenShiftAiRerankTaskSettings updatedSettings = (OpenShiftAiRerankTaskSettings) initialSettings.updatedTaskSettings(newSettings);
-        assertFalse(updatedSettings.getReturnDocuments());
-        assertEquals(7, updatedSettings.getTopN().intValue());
+        assertThat(updatedSettings.getReturnDocuments(), is(false));
+        assertThat(updatedSettings.getTopN(), is(7));
     }
 
     public void testToXContent_WritesAllValues() throws IOException {
-        Integer topN = 2;
-        Boolean doReturnDocuments = true;
-
-        testToXContent(topN, doReturnDocuments, """
+        testToXContent(2, true, """
             {
                 "top_n":2,
                 "return_documents":true
@@ -116,19 +113,13 @@ public class OpenShiftAiRerankTaskSettingsTests extends AbstractBWCWireSerializa
     }
 
     public void testToXContent_EmptyValues() throws IOException {
-        Integer topN = null;
-        Boolean doReturnDocuments = null;
-
-        testToXContent(topN, doReturnDocuments, """
+        testToXContent(null, null, """
             {}
             """);
     }
 
     public void testToXContent_OnlyTopN() throws IOException {
-        Integer topN = 2;
-        Boolean doReturnDocuments = null;
-
-        testToXContent(topN, doReturnDocuments, """
+        testToXContent(2, null, """
             {
                 "top_n":2
             }
@@ -136,10 +127,7 @@ public class OpenShiftAiRerankTaskSettingsTests extends AbstractBWCWireSerializa
     }
 
     public void testToXContent_OnlyReturnDocuments() throws IOException {
-        Integer topN = null;
-        Boolean doReturnDocuments = true;
-
-        testToXContent(topN, doReturnDocuments, """
+        testToXContent(null, true, """
             {
                 "return_documents":true
             }

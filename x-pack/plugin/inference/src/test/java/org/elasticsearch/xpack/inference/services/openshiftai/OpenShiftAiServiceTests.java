@@ -98,6 +98,7 @@ import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.isA;
+import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.Mockito.mock;
 
 public class OpenShiftAiServiceTests extends AbstractInferenceServiceTests {
@@ -308,7 +309,7 @@ public class OpenShiftAiServiceTests extends AbstractInferenceServiceTests {
                 var chatCompletionModel = (OpenShiftAiChatCompletionModel) m;
 
                 assertThat(chatCompletionModel.getServiceSettings().uri().toString(), is(URL));
-                assertNull(chatCompletionModel.getServiceSettings().modelId());
+                assertThat(chatCompletionModel.getServiceSettings().modelId(), is(nullValue()));
                 assertThat(chatCompletionModel.getSecretSettings().apiKey().toString(), is(API_KEY));
 
             }, e -> fail("parse request should not fail " + e.getMessage()));
@@ -586,7 +587,7 @@ public class OpenShiftAiServiceTests extends AbstractInferenceServiceTests {
     public void testSupportsStreaming() throws IOException {
         try (var service = new OpenShiftAiService(mock(), createWithEmptySettings(mock()), mockClusterServiceEmpty())) {
             assertThat(service.supportedStreamingTasks(), is(EnumSet.of(TaskType.COMPLETION, TaskType.CHAT_COMPLETION)));
-            assertFalse(service.canStream(TaskType.ANY));
+            assertThat(service.canStream(TaskType.ANY), is(false));
         }
     }
 
@@ -713,7 +714,7 @@ public class OpenShiftAiServiceTests extends AbstractInferenceServiceTests {
             }
 
             assertThat(webServer.requests(), hasSize(1));
-            assertNull(webServer.requests().getFirst().getUri().getQuery());
+            assertThat(webServer.requests().getFirst().getUri().getQuery(), is(nullValue()));
             assertThat(
                 webServer.requests().getFirst().getHeader(HttpHeaders.CONTENT_TYPE),
                 equalTo(XContentType.JSON.mediaTypeWithoutParameters())

@@ -19,6 +19,8 @@ import org.elasticsearch.xpack.inference.external.http.sender.UnifiedChatInput;
 import java.io.IOException;
 import java.util.ArrayList;
 
+import static org.hamcrest.Matchers.is;
+
 public class OpenShiftAiChatCompletionRequestEntityTests extends ESTestCase {
     private static final String ROLE = "user";
 
@@ -93,7 +95,7 @@ public class OpenShiftAiChatCompletionRequestEntityTests extends ESTestCase {
 
         XContentBuilder builder = JsonXContent.contentBuilder();
         entity.toXContent(builder, ToXContent.EMPTY_PARAMS);
-        assertEquals(XContentHelper.stripWhitespace(expectedJson), Strings.toString(builder));
+        assertThat(Strings.toString(builder), is(XContentHelper.stripWhitespace(expectedJson)));
     }
 
 }

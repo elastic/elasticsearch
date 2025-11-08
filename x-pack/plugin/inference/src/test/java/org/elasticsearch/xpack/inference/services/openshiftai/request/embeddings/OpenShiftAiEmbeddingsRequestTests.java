@@ -23,6 +23,7 @@ import static org.elasticsearch.xpack.inference.external.http.Utils.entityAsMap;
 import static org.hamcrest.Matchers.aMapWithSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.nullValue;
 
 public class OpenShiftAiEmbeddingsRequestTests extends ESTestCase {
 
@@ -61,8 +62,8 @@ public class OpenShiftAiEmbeddingsRequestTests extends ESTestCase {
 
         var requestMap = entityAsMap(httpPost.getEntity().getContent());
         assertThat(requestMap.get("input"), is(List.of("ABCD")));
-        assertNull(requestMap.get("model"));
-        assertNull(requestMap.get("dimensions"));
+        assertThat(requestMap.get("model"), is(nullValue()));
+        assertThat(requestMap.get("dimensions"), is(nullValue()));
         assertThat(httpPost.getFirstHeader(HttpHeaders.AUTHORIZATION).getValue(), is("Bearer apikey"));
 
     }
@@ -84,7 +85,7 @@ public class OpenShiftAiEmbeddingsRequestTests extends ESTestCase {
 
     public void testIsTruncated_ReturnsTrue() {
         var request = createRequest(null, false);
-        assertFalse(request.getTruncationInfo()[0]);
+        assertThat(request.getTruncationInfo()[0], is(false));
 
         var truncatedRequest = request.truncate();
         assertThat(truncatedRequest.getTruncationInfo()[0], is(true));

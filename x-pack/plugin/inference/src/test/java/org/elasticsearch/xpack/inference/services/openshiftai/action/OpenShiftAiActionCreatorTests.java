@@ -59,6 +59,7 @@ import static org.elasticsearch.xpack.inference.services.openshiftai.embeddings.
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.Mockito.mock;
 
 public class OpenShiftAiActionCreatorTests extends ESTestCase {
@@ -139,7 +140,7 @@ public class OpenShiftAiActionCreatorTests extends ESTestCase {
 
             assertThat(result.asMap(), is(buildExpectationFloat(List.of(new float[] { 0.0123F, -0.0123F }))));
             assertThat(webServer.requests(), hasSize(1));
-            assertNull(webServer.requests().getFirst().getUri().getQuery());
+            assertThat(webServer.requests().getFirst().getUri().getQuery(), is(nullValue()));
             assertThat(
                 webServer.requests().getFirst().getHeader(HttpHeaders.CONTENT_TYPE),
                 equalTo(XContentType.JSON.mediaTypeWithoutParameters())
@@ -264,7 +265,7 @@ public class OpenShiftAiActionCreatorTests extends ESTestCase {
 
             var request = webServer.requests().getFirst();
 
-            assertNull(request.getUri().getQuery());
+            assertThat(request.getUri().getQuery(), is(nullValue()));
             assertThat(request.getHeader(HttpHeaders.CONTENT_TYPE), equalTo(XContentType.JSON.mediaTypeWithoutParameters()));
             assertThat(request.getHeader(HttpHeaders.AUTHORIZATION), equalTo("Bearer %s".formatted(API_KEY)));
 
@@ -405,7 +406,7 @@ public class OpenShiftAiActionCreatorTests extends ESTestCase {
             assertThat(result.asMap(), is(buildExpectationFloat(List.of(new float[] { 0.0123F, -0.0123F }))));
             assertThat(webServer.requests(), hasSize(2));
             {
-                assertNull(webServer.requests().getFirst().getUri().getQuery());
+                assertThat(webServer.requests().getFirst().getUri().getQuery(), is(nullValue()));
                 assertThat(
                     webServer.requests().getFirst().getHeader(HttpHeaders.CONTENT_TYPE),
                     equalTo(XContentType.JSON.mediaTypeWithoutParameters())
@@ -418,7 +419,7 @@ public class OpenShiftAiActionCreatorTests extends ESTestCase {
                 assertThat(requestMap.get("model"), is(MODEL_ID));
             }
             {
-                assertNull(webServer.requests().get(1).getUri().getQuery());
+                assertThat(webServer.requests().get(1).getUri().getQuery(), is(nullValue()));
                 assertThat(
                     webServer.requests().get(1).getHeader(HttpHeaders.CONTENT_TYPE),
                     equalTo(XContentType.JSON.mediaTypeWithoutParameters())
@@ -497,7 +498,7 @@ public class OpenShiftAiActionCreatorTests extends ESTestCase {
             assertThat(result.asMap(), is(buildExpectationFloat(List.of(new float[] { 0.0123F, -0.0123F }))));
             assertThat(webServer.requests(), hasSize(2));
             {
-                assertNull(webServer.requests().getFirst().getUri().getQuery());
+                assertThat(webServer.requests().getFirst().getUri().getQuery(), is(nullValue()));
                 assertThat(
                     webServer.requests().getFirst().getHeader(HttpHeaders.CONTENT_TYPE),
                     equalTo(XContentType.JSON.mediaTypeWithoutParameters())
@@ -510,7 +511,7 @@ public class OpenShiftAiActionCreatorTests extends ESTestCase {
                 assertThat(requestMap.get("model"), is(MODEL_ID));
             }
             {
-                assertNull(webServer.requests().get(1).getUri().getQuery());
+                assertThat(webServer.requests().get(1).getUri().getQuery(), is(nullValue()));
                 assertThat(
                     webServer.requests().get(1).getHeader(HttpHeaders.CONTENT_TYPE),
                     equalTo(XContentType.JSON.mediaTypeWithoutParameters())
@@ -573,7 +574,7 @@ public class OpenShiftAiActionCreatorTests extends ESTestCase {
 
             assertThat(result.asMap(), is(buildExpectationFloat(List.of(new float[] { 0.0123F, -0.0123F }))));
             assertThat(webServer.requests(), hasSize(1));
-            assertNull(webServer.requests().getFirst().getUri().getQuery());
+            assertThat(webServer.requests().getFirst().getUri().getQuery(), is(nullValue()));
             assertThat(
                 webServer.requests().getFirst().getHeader(HttpHeaders.CONTENT_TYPE),
                 equalTo(XContentType.JSON.mediaTypeWithoutParameters())
@@ -940,7 +941,7 @@ public class OpenShiftAiActionCreatorTests extends ESTestCase {
         @Nullable Boolean expectedReturnDocuments
     ) throws IOException {
         assertThat(webServer.requests(), hasSize(1));
-        assertNull(webServer.requests().getFirst().getUri().getQuery());
+        assertThat(webServer.requests().getFirst().getUri().getQuery(), is(nullValue()));
         assertThat(
             webServer.requests().getFirst().getHeader(HttpHeaders.CONTENT_TYPE),
             equalTo(XContentType.JSON.mediaTypeWithoutParameters())

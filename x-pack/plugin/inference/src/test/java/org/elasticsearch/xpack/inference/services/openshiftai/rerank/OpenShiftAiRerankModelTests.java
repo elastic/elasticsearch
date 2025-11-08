@@ -19,6 +19,7 @@ import java.util.Map;
 import static org.elasticsearch.xpack.inference.services.openshiftai.rerank.OpenShiftAiRerankTaskSettings.RETURN_DOCUMENTS;
 import static org.elasticsearch.xpack.inference.services.openshiftai.rerank.OpenShiftAiRerankTaskSettings.TOP_N;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.sameInstance;
 
 public class OpenShiftAiRerankModelTests extends ESTestCase {
 
@@ -54,9 +55,7 @@ public class OpenShiftAiRerankModelTests extends ESTestCase {
     private static void testOverrideWith_KeepsSameModel(Map<String, Object> taskSettings) {
         var model = createModel("url", "api_key", "model_name", 2, true);
         var overriddenModel = OpenShiftAiRerankModel.of(model, taskSettings);
-
-        assertThat(overriddenModel.getTaskSettings().getTopN(), is(2));
-        assertThat(overriddenModel.getTaskSettings().getReturnDocuments(), is(true));
+        assertThat(overriddenModel, is(sameInstance(model)));
     }
 
     public void testOverrideWith_DifferentParams_OverridesAllTaskSettings() {
@@ -91,7 +90,7 @@ public class OpenShiftAiRerankModelTests extends ESTestCase {
         assertThat(overriddenModel.getTaskSettings().getReturnDocuments(), is(expectedReturnDocuments));
     }
 
-    private static Map<String, Object> buildTaskSettingsMap(@Nullable Integer topN, @Nullable Boolean returnDocuments) {
+    public static Map<String, Object> buildTaskSettingsMap(@Nullable Integer topN, @Nullable Boolean returnDocuments) {
         final var map = new HashMap<String, Object>();
 
         if (returnDocuments != null) {

@@ -35,25 +35,41 @@ public class OpenShiftAiRerankServiceSettingsTests extends AbstractBWCWireSerial
         return new OpenShiftAiRerankServiceSettings(modelId, ServiceUtils.createUri(url), RateLimitSettingsTests.createRandom());
     }
 
-    public void testToXContent_WritesAllValues() throws IOException {
+    public void testToXContent_WritesAllFields() throws IOException {
         var url = "http://www.abc.com";
         var model = "model";
+        var rateLimitSettings = new RateLimitSettings(100);
 
-        var serviceSettings = new OpenShiftAiRerankServiceSettings(model, url, null);
-
-        XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
-        serviceSettings.toXContent(builder, null);
-        String xContentResult = Strings.toString(builder);
-
-        assertThat(xContentResult, equalToIgnoringWhitespaceInJsonString("""
+        assertXContentEquals(new OpenShiftAiRerankServiceSettings(model, url, rateLimitSettings), """
             {
                 "model_id":"model",
+                "url":"http://www.abc.com",
+                "rate_limit": {
+                    "requests_per_minute": 100
+                }
+            }
+            """);
+    }
+
+    public void testToXContent_WritesDefaultRateLimitAndOmitsModelIdIfNotSet() throws IOException {
+        var url = "http://www.abc.com";
+
+        assertXContentEquals(new OpenShiftAiRerankServiceSettings(null, url, null), """
+            {
                 "url":"http://www.abc.com",
                 "rate_limit": {
                     "requests_per_minute": 3000
                 }
             }
-            """));
+            """);
+    }
+
+    private static void assertXContentEquals(OpenShiftAiRerankServiceSettings serviceSettings, String expectedString) throws IOException {
+        XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
+        serviceSettings.toXContent(builder, null);
+        String xContentResult = Strings.toString(builder);
+
+        assertThat(xContentResult, equalToIgnoringWhitespaceInJsonString(expectedString));
     }
 
     @Override

@@ -1712,7 +1712,9 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
     public record SortShortcutSupport(
         IndexVersion indexVersion,
         Settings settings,
-        CheckedConsumer<XContentBuilder, IOException> mappings,
+        String fieldname,
+        CheckedConsumer<XContentBuilder, IOException> fieldMapping,
+        CheckedConsumer<XContentBuilder, IOException> additionalMappings,
         CheckedConsumer<XContentBuilder, IOException> document,
         boolean supportsShortcut
     ) {
@@ -1721,7 +1723,7 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
             CheckedConsumer<XContentBuilder, IOException> document,
             boolean supportsShortcut
         ) {
-            this(IndexVersion.current(), SETTINGS, mappings, document, supportsShortcut);
+            this(IndexVersion.current(), SETTINGS, "field", mappings, b -> {}, document, supportsShortcut);
         }
 
         public SortShortcutSupport(
@@ -1730,7 +1732,7 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
             CheckedConsumer<XContentBuilder, IOException> document,
             boolean supportsShortcut
         ) {
-            this(indexVersion, SETTINGS, mappings, document, supportsShortcut);
+            this(indexVersion, SETTINGS, "field", mappings, b -> {}, document, supportsShortcut);
         }
     }
 
@@ -1757,7 +1759,12 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
                     sortShortcutSupport.settings,
                     () -> true
                 );
-                merge(mapperService, fieldMapping(sortShortcutSupport.mappings));
+                merge(mapperService, mapping(b -> {
+                    b.startObject(sortShortcutSupport.fieldname);
+                    sortShortcutSupport.fieldMapping.accept(b);
+                    b.endObject();
+                    sortShortcutSupport.additionalMappings.accept(b);
+                }));
                 withLuceneIndex(mapperService, iw -> {
                     iw.addDocument(
                         mapperService.documentParser()
@@ -1766,7 +1773,7 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
                     );
                 }, reader -> {
                     IndexSearcher searcher = newSearcher(reader);
-                    MappedFieldType ft = mapperService.fieldType("field");
+                    MappedFieldType ft = mapperService.fieldType(sortShortcutSupport.fieldname);
                     SortField sortField = ft.fielddataBuilder(new FieldDataContext("", mapperService.getIndexSettings(), () -> {
                         throw new UnsupportedOperationException();
                     }, Set::of, MappedFieldType.FielddataOperation.SEARCH))

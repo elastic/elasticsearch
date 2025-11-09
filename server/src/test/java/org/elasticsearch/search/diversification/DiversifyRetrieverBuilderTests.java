@@ -38,6 +38,7 @@ import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.retriever.CompoundRetrieverBuilder;
 import org.elasticsearch.search.retriever.RetrieverBuilder;
 import org.elasticsearch.search.retriever.TestRetrieverBuilder;
+import org.elasticsearch.search.vectors.VectorData;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.transport.RemoteClusterAware;
 import org.junit.Assert;
@@ -157,7 +158,7 @@ public class DiversifyRetrieverBuilderTests extends ESTestCase {
             "dense_vector_field",
             10,
             3,
-            new float[] { 0.5f, 0.2f, 0.4f, 0.4f },
+            new VectorData(new float[] { 0.5f, 0.2f, 0.4f, 0.4f }),
             0.3f
         );
 
@@ -181,7 +182,7 @@ public class DiversifyRetrieverBuilderTests extends ESTestCase {
             "dense_vector_field",
             10,
             3,
-            new float[] { 0.5f, 0.2f, 0.4f, 0.4f },
+            new VectorData(new float[] { 0.5f, 0.2f, 0.4f, 0.4f }),
             0.3f
         );
 
@@ -216,7 +217,7 @@ public class DiversifyRetrieverBuilderTests extends ESTestCase {
             "dense_vector_field",
             10,
             3,
-            new float[] { 0.5f, 0.2f, 0.4f, 0.4f },
+            new VectorData(new float[] { 0.5f, 0.2f, 0.4f, 0.4f }),
             0.3f
         );
 
@@ -319,7 +320,9 @@ public class DiversifyRetrieverBuilderTests extends ESTestCase {
         String field = fieldName == null ? "test_field" : fieldName;
         int rankWindowSize = randomIntBetween(1, 20);
         Integer size = randomBoolean() ? null : randomIntBetween(1, 20);
-        float[] queryVector = vectorDimensions == null
+
+        // TODO - decide using float for byte here!
+        VectorData queryVector = vectorDimensions == null
             ? randomBoolean() ? getRandomQueryVector() : null
             : getRandomQueryVector(vectorDimensions);
         Float lambda = randomFloatBetween(0.0f, 1.0f, true);
@@ -339,17 +342,17 @@ public class DiversifyRetrieverBuilderTests extends ESTestCase {
         return new CompoundRetrieverBuilder.RetrieverSource(TestRetrieverBuilder.createRandomTestRetrieverBuilder(), null);
     }
 
-    private static float[] getRandomQueryVector() {
+    private static VectorData getRandomQueryVector() {
         return getRandomQueryVector(null);
     }
 
-    private static float[] getRandomQueryVector(@Nullable Integer vectorDimensions) {
+    private static VectorData getRandomQueryVector(@Nullable Integer vectorDimensions) {
         int vectorSize = vectorDimensions == null ? randomIntBetween(5, 256) : vectorDimensions;
         float[] queryVector = new float[vectorSize];
         for (int i = 0; i < queryVector.length; i++) {
             queryVector[i] = randomFloatBetween(0.0f, 1.0f, true);
         }
-        return queryVector;
+        return new VectorData(queryVector);
     }
 
     private static ResolvedIndices createMockResolvedIndices(Map<String, List<String>> localIndexDenseVectorFields) {

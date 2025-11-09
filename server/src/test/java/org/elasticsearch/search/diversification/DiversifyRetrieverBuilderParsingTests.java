@@ -15,6 +15,7 @@ import org.elasticsearch.search.retriever.CompoundRetrieverBuilder;
 import org.elasticsearch.search.retriever.RetrieverBuilder;
 import org.elasticsearch.search.retriever.RetrieverParserContext;
 import org.elasticsearch.search.retriever.TestRetrieverBuilder;
+import org.elasticsearch.search.vectors.VectorData;
 import org.elasticsearch.test.AbstractXContentTestCase;
 import org.elasticsearch.usage.SearchUsage;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
@@ -45,7 +46,7 @@ public class DiversifyRetrieverBuilderParsingTests extends AbstractXContentTestC
     protected DiversifyRetrieverBuilder createTestInstance() {
         int rankWindowSize = randomIntBetween(1, 20);
         Integer size = randomBoolean() ? null : randomIntBetween(1, 20);
-        float[] queryVector = randomBoolean() ? getRandomQueryVector() : null;
+        VectorData queryVector = randomBoolean() ? getRandomQueryVector() : null;
         Float lambda = randomBoolean() ? randomFloatBetween(0.0f, 1.0f, true) : null;
         CompoundRetrieverBuilder.RetrieverSource innerRetriever = new CompoundRetrieverBuilder.RetrieverSource(
             TestRetrieverBuilder.createRandomTestRetrieverBuilder(),
@@ -89,11 +90,19 @@ public class DiversifyRetrieverBuilderParsingTests extends AbstractXContentTestC
         return new NamedXContentRegistry(entries);
     }
 
-    private float[] getRandomQueryVector() {
-        float[] queryVector = new float[randomIntBetween(5, 256)];
-        for (int i = 0; i < queryVector.length; i++) {
-            queryVector[i] = randomFloatBetween(0.0f, 1.0f, true);
+    private VectorData getRandomQueryVector() {
+        if (randomBoolean()) {
+            float[] queryVector = new float[randomIntBetween(5, 256)];
+            for (int i = 0; i < queryVector.length; i++) {
+                queryVector[i] = randomFloatBetween(0.0f, 1.0f, true);
+            }
+            return new VectorData(queryVector);
         }
-        return queryVector;
+
+        byte[] queryVector = new byte[randomIntBetween(5, 256)];
+        for (int i = 0; i < queryVector.length; i++) {
+            queryVector[i] = randomByte();
+        }
+        return new VectorData(queryVector);
     }
 }

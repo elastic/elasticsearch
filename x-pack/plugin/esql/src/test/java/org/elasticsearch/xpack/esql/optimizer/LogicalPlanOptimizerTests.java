@@ -1670,11 +1670,11 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
     /**
      * Expected
      * <pre>{@code
-     * EsqlProject[[first_name{r}#17, last_name{f}#10]]
-     * \_Limit[10[INTEGER],true]
-     *   \_MvExpand[first_name{f}#7,first_name{r}#17]
-     *     \_Limit[1[INTEGER],false]
-     *       \_EsRelation[test][_meta_field{f}#12, emp_no{f}#6, first_name{f}#7, ge..]
+     * Project[[first_name{r}#18, last_name{f}#11]]
+     * \_Limit[10[INTEGER],true,false]
+     *   \_MvExpand[first_name{f}#8,first_name{r}#18]
+     *     \_Limit[1[INTEGER],false,false]
+     *       \_EsRelation[test][_meta_field{f}#13, emp_no{f}#7, first_name{f}#8, ge..]
      * }</pre>
      */
     public void testDontPushDownLimitPastMvExpand() {
@@ -1685,7 +1685,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
             | mv_expand first_name
             | limit 10
             """);
-        var project = as(plan, EsqlProject.class);
+        var project = as(plan, Project.class);
         var limit = asLimit(project.child(), 10, true);
         var mvExpand = as(limit.child(), MvExpand.class);
         var limit2 = asLimit(mvExpand.child(), 1, false);

@@ -442,9 +442,10 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
         assertParseMaximalWarnings();
     }
 
-    public void testTotalFieldsCount() throws IOException {
+    public final void testTotalFieldsCount() throws IOException {
         MapperService mapperService = createMapperService(fieldMapping(this::minimalMapping));
         assertEquals(1, mapperService.documentMapper().mapping().getRoot().getTotalFieldsCount());
+        assertParseMinimalWarnings();
     }
 
     protected final void assertParseMinimalWarnings() {
@@ -1228,7 +1229,7 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
         return true;
     }
 
-    public void testSupportsParsingObject() throws IOException {
+    public final void testSupportsParsingObject() throws IOException {
         DocumentMapper mapper = createMapperService(fieldMapping(this::minimalMapping)).documentMapper();
         FieldMapper fieldMapper = (FieldMapper) mapper.mappers().getMapper("field");
         if (fieldMapper.supportsParsingObject()) {
@@ -1246,6 +1247,7 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
                 b.endObject();
             })));
         }
+        assertParseMinimalWarnings();
     }
 
     public final void testSyntheticSourceMany() throws IOException {
@@ -1734,33 +1736,52 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
 
     public final void testSortShortcuts() throws IOException {
         List<SortShortcutSupport> tests = getSortShortcutSupport();
-        assumeTrue("Sort shortcuts not supported", tests != null && tests.isEmpty() == false);
-
-        for (SortShortcutSupport sortShortcutSupport : tests) {
-            MapperService mapperService = createMapperService(sortShortcutSupport.indexVersion(), sortShortcutSupport.settings, () -> true);
-            merge(mapperService, fieldMapping(sortShortcutSupport.mappings));
-            withLuceneIndex(mapperService, iw -> {
-                iw.addDocument(
-                    mapperService.documentParser()
-                        .parseDocument(source(sortShortcutSupport.document()), mapperService.mappingLookup())
-                        .rootDoc()
-                );
-            }, reader -> {
-                IndexSearcher searcher = newSearcher(reader);
-                MappedFieldType ft = mapperService.fieldType("field");
-                SortField sortField = ft.fielddataBuilder(new FieldDataContext("", mapperService.getIndexSettings(), () -> {
-                    throw new UnsupportedOperationException();
-                }, Set::of, MappedFieldType.FielddataOperation.SEARCH))
-                    .build(null, null)
-                    .sortField(getVersion(), null, MultiValueMode.MIN, null, false);
-                var comparator = sortField.getComparator(10, Pruning.GREATER_THAN_OR_EQUAL_TO);
-                var leafComparator = comparator.getLeafComparator(searcher.getLeafContexts().getFirst());
-                if (sortShortcutSupport.supportsShortcut) {
-                    assertNotNull(leafComparator.competitiveIterator());
-                } else {
-                    assertNull(leafComparator.competitiveIterator());
-                }
+        if (tests == null || tests.isEmpty()) {
+            MapperService mapperService = createMapperService(fieldMapping(this::minimalMapping));
+            MappedFieldType ft = mapperService.fieldType("field");
+            expectThrows(IllegalArgumentException.class, () -> {
+                ft.fielddataBuilder(
+                    new FieldDataContext(
+                        "",
+                        mapperService.getIndexSettings(),
+                        () -> null,
+                        Set::of,
+                        MappedFieldType.FielddataOperation.SEARCH
+                    )
+                ).build(null, null).sortField(IndexVersion.current(), null, MultiValueMode.MIN, null, false);
             });
+        } else {
+            for (SortShortcutSupport sortShortcutSupport : tests) {
+                MapperService mapperService = createMapperService(
+                    sortShortcutSupport.indexVersion(),
+                    sortShortcutSupport.settings,
+                    () -> true
+                );
+                merge(mapperService, fieldMapping(sortShortcutSupport.mappings));
+                withLuceneIndex(mapperService, iw -> {
+                    iw.addDocument(
+                        mapperService.documentParser()
+                            .parseDocument(source(sortShortcutSupport.document()), mapperService.mappingLookup())
+                            .rootDoc()
+                    );
+                }, reader -> {
+                    IndexSearcher searcher = newSearcher(reader);
+                    MappedFieldType ft = mapperService.fieldType("field");
+                    SortField sortField = ft.fielddataBuilder(new FieldDataContext("", mapperService.getIndexSettings(), () -> {
+                        throw new UnsupportedOperationException();
+                    }, Set::of, MappedFieldType.FielddataOperation.SEARCH))
+                        .build(null, null)
+                        .sortField(getVersion(), null, MultiValueMode.MIN, null, false);
+                    var comparator = sortField.getComparator(10, Pruning.GREATER_THAN_OR_EQUAL_TO);
+                    var leafComparator = comparator.getLeafComparator(searcher.getLeafContexts().getFirst());
+                    if (sortShortcutSupport.supportsShortcut) {
+                        assertNotNull(leafComparator.competitiveIterator());
+                    } else {
+                        assertNull(leafComparator.competitiveIterator());
+                    }
+                });
+            }
         }
+        assertParseMinimalWarnings();
     }
 }

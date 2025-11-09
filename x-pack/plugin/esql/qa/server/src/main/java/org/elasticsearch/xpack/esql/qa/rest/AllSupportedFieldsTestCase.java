@@ -41,6 +41,7 @@ import java.util.TreeMap;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.common.xcontent.support.XContentMapValues.extractValue;
+import static org.elasticsearch.index.mapper.RangeFieldMapper.ESQL_LONG_RANGES;
 import static org.elasticsearch.test.ListMatcher.matchesList;
 import static org.elasticsearch.test.MapMatcher.assertMap;
 import static org.elasticsearch.test.MapMatcher.matchesMap;
@@ -564,8 +565,11 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
                 yield equalTo(List.of(0.5, 10.0, 5.9999995));
             }
             case DATE_RANGE -> {
-                // DATE_RANGE is unreleased
-                yield nullValue();
+                if (minVersion().supports(RESOLVE_FIELDS_RESPONSE_USED_TV) == false || minVersion().supports((ESQL_LONG_RANGES)) == false) {
+                    yield nullValue();
+                }
+                yield equalTo("1989-01-01T00:00:00.000Z..2024-12-31T23:59:59.999Z");
+
             }
             default -> throw new AssertionError("unsupported field type [" + type + "]");
         };

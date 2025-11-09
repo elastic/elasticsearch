@@ -3149,13 +3149,14 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
      * <pre>{@code
      * Project[[a{r}#13, b{r}#14]]
      * \_Limit[1000[INTEGER],true,false]
-     *   \_MvExpand[$$a$b$0{r}#15,b{r}#14]
-     *     \_Eval[[a{r}#13 AS $$a$b$0#15]]
+     *   \_MvExpand[$$a$b$0$b$0{r}#16,b{r}#14]
+     *     \_Eval[[$$a$b$0{r}#15 AS $$a$b$0$b$0#16]]
      *       \_Limit[1000[INTEGER],true,false]
      *         \_MvExpand[a{r}#6,a{r}#13]
-     *           \_Limit[1000[INTEGER],false,false]
-     *             \_Aggregate[[],[COUNT(*[KEYWORD],true[BOOLEAN]) AS a#6]]
-     *               \_LocalRelation[[a{r}#4],Page{blocks=[IntVectorBlock[vector=ConstantIntVector[positions=1, value=1]]]}]
+     *           \_Eval[[a{r}#6 AS $$a$b$0#15]]
+     *             \_Limit[1000[INTEGER],false,false]
+     *               \_Aggregate[[],[COUNT(*[KEYWORD],true[BOOLEAN],PT0S[TIME_DURATION]) AS a#6]]
+     *                 \_LocalRelation[[a{r}#4],Page{blocks=[IntVectorBlock[vector=ConstantIntVector[positions=1, value=1]]]}]]
      * }</pre>
      */
     public void testPushDownMvExpandPastProject2() {
@@ -3171,7 +3172,8 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         var eval = as(mvExpand.child(), Eval.class);
         limit = asLimit(eval.child(), 1000, true);
         mvExpand = as(limit.child(), MvExpand.class);
-        limit = asLimit(mvExpand.child(), 1000, false);
+        eval = as(mvExpand.child(), Eval.class);
+        limit = asLimit(eval.child(), 1000, false);
         var agg = as(limit.child(), Aggregate.class);
         as(agg.child(), LocalRelation.class);
     }

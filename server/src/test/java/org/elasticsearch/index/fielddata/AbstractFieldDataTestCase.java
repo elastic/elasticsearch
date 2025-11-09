@@ -24,7 +24,6 @@ import org.apache.lucene.store.ByteBuffersDirectory;
 import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexService;
-import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
 import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource.Nested;
 import org.elasticsearch.index.mapper.BinaryFieldMapper;
@@ -146,9 +145,9 @@ public abstract class AbstractFieldDataTestCase extends ESSingleNodeTestCase {
                 defaultIndexSettings()
             ).docValues(docValues).build(context).fieldType();
         } else if (type.equals("geo_point")) {
-            fieldType = new GeoPointFieldMapper.Builder(fieldName, ScriptCompiler.NONE, false, IndexVersion.current(), null).docValues(
-                docValues
-            ).build(context).fieldType();
+            fieldType = new GeoPointFieldMapper.Builder(fieldName, ScriptCompiler.NONE, defaultIndexSettings()).docValues(docValues)
+                .build(context)
+                .fieldType();
         } else if (type.equals("binary")) {
             fieldType = new BinaryFieldMapper.Builder(fieldName, SourceFieldMapper.isSynthetic(indexService.getIndexSettings())).docValues(
                 docValues

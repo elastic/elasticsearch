@@ -25,7 +25,6 @@ import static org.elasticsearch.rest.RestStatus.BAD_REQUEST;
  */
 public class CrossProjectRoutingResolver implements ProjectRoutingResolver {
     private static final String ALIAS = "_alias:";
-    private static final String ORIGIN = "_origin";
     private static final int ALIAS_LENGTH = ALIAS.length();
     private static final String ALIAS_MATCH_ALL = ALIAS + "*";
     private static final String ALIAS_MATCH_ORIGIN = ALIAS + ORIGIN;

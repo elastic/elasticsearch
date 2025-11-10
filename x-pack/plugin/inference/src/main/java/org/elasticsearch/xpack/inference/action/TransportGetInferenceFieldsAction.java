@@ -20,12 +20,9 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.InferenceFieldMetadata;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.regex.Regex;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexNotFoundException;
-import org.elasticsearch.index.search.QueryParserHelper;
 import org.elasticsearch.inference.InferenceResults;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.InputType;
@@ -38,7 +35,6 @@ import org.elasticsearch.xpack.core.inference.action.GetInferenceFieldsAction;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.core.ml.inference.results.ErrorInferenceResults;
 
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
@@ -46,7 +42,6 @@ import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.index.IndexSettings.DEFAULT_FIELD_SETTING;
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
 
@@ -147,31 +142,15 @@ public class TransportGetInferenceFieldsAction extends HandledTransportAction<
             throw new IndexNotFoundException(index);
         }
 
-        Map<String, InferenceFieldMetadata> inferenceFieldsMap = indexMetadata.getInferenceFields();
-        Map<String, GetInferenceFieldsAction.ExtendedInferenceFieldMetadata> inferenceFieldMetadataMap = new HashMap<>(
-            inferenceFieldsMap.size()
+        Map<InferenceFieldMetadata, Float> matchingInferenceFieldMap = indexMetadata.getMatchingInferenceFields(
+            fields,
+            resolveWildcards,
+            useDefaultFields
         );
-        Map<String, Float> effectiveFields = fields.isEmpty() && useDefaultFields ? getDefaultFields(indexMetadata.getSettings()) : fields;
-        for (var fieldAndWeight : effectiveFields.entrySet()) {
-            String field = fieldAndWeight.getKey();
-            Float weight = fieldAndWeight.getValue();
-
-            if (inferenceFieldsMap.containsKey(field)) {
-                // No wildcards in field name
-                addToInferenceFieldMetadataMap(inferenceFieldMetadataMap, inferenceFieldsMap.get(field), weight);
-            } else if (resolveWildcards) {
-                if (Regex.isMatchAllPattern(field)) {
-                    inferenceFieldsMap.values().forEach(ifm -> addToInferenceFieldMetadataMap(inferenceFieldMetadataMap, ifm, weight));
-                } else if (Regex.isSimpleMatchPattern(field)) {
-                    inferenceFieldsMap.values()
-                        .stream()
-                        .filter(ifm -> Regex.simpleMatch(field, ifm.getName()))
-                        .forEach(ifm -> addToInferenceFieldMetadataMap(inferenceFieldMetadataMap, ifm, weight));
-                }
-            }
-        }
-
-        return new ArrayList<>(inferenceFieldMetadataMap.values());
+        return matchingInferenceFieldMap.entrySet()
+            .stream()
+            .map(e -> new GetInferenceFieldsAction.ExtendedInferenceFieldMetadata(e.getKey(), e.getValue()))
+            .toList();
     }
 
     private void getInferenceResults(
@@ -220,31 +199,6 @@ public class TransportGetInferenceFieldsAction extends HandledTransportAction<
                 l.onResponse(Tuple.tuple(inferenceId, inferenceResults));
             }))
         );
-    }
-
-    private static void addToInferenceFieldMetadataMap(
-        Map<String, GetInferenceFieldsAction.ExtendedInferenceFieldMetadata> inferenceFieldMetadataMap,
-        InferenceFieldMetadata inferenceFieldMetadata,
-        Float weight
-    ) {
-        inferenceFieldMetadataMap.compute(inferenceFieldMetadata.getName(), (k, v) -> {
-            GetInferenceFieldsAction.ExtendedInferenceFieldMetadata eifm;
-            if (v == null) {
-                eifm = new GetInferenceFieldsAction.ExtendedInferenceFieldMetadata(inferenceFieldMetadata, weight);
-            } else {
-                eifm = new GetInferenceFieldsAction.ExtendedInferenceFieldMetadata(inferenceFieldMetadata, v.weight() * weight);
-            }
-
-            return eifm;
-        });
-    }
-
-    private static Map<String, Float> getDefaultFields(Settings settings) {
-        List<String> defaultFieldsWithWeights = settings.getAsList(
-            DEFAULT_FIELD_SETTING.getKey(),
-            DEFAULT_FIELD_SETTING.getDefault(settings)
-        );
-        return QueryParserHelper.parseFieldsAndWeights(defaultFieldsWithWeights);
     }
 
     private static InferenceResults validateAndConvertInferenceResults(

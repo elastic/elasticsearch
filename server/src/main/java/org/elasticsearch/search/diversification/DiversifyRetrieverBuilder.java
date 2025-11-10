@@ -42,6 +42,7 @@ import java.util.Map;
 import java.util.Objects;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
+import static org.elasticsearch.search.rank.RankBuilder.DEFAULT_RANK_WINDOW_SIZE;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
@@ -77,10 +78,9 @@ public final class DiversifyRetrieverBuilder extends CompoundRetrieverBuilder<Di
         NAME,
         false,
         args -> {
-
             ResultDiversificationType diversificationType = ResultDiversificationType.fromString((String) args[1]);
             String diversificationField = (String) args[2];
-            int rankWindowSize = (int) args[3];
+            int rankWindowSize = args[3] == null ? DEFAULT_RANK_WINDOW_SIZE : (int) args[3];
 
             VectorData queryVector = args[4] == null ? null : (VectorData) args[4];
             Float lambda = args[5] == null ? null : (Float) args[5];
@@ -106,7 +106,7 @@ public final class DiversifyRetrieverBuilder extends CompoundRetrieverBuilder<Di
         }, RETRIEVER_FIELD);
         PARSER.declareString(constructorArg(), TYPE_FIELD);
         PARSER.declareString(constructorArg(), FIELD_FIELD);
-        PARSER.declareInt(constructorArg(), RANK_WINDOW_SIZE_FIELD);
+        PARSER.declareInt(optionalConstructorArg(), RANK_WINDOW_SIZE_FIELD);
         PARSER.declareField(
             optionalConstructorArg(),
             (p, c) -> VectorData.parseXContent(p),
@@ -140,12 +140,6 @@ public final class DiversifyRetrieverBuilder extends CompoundRetrieverBuilder<Di
         this.queryVector = queryVector;
         this.lambda = lambda;
         this.size = size;
-
-        if (this.diversificationType == null) {
-            throw new IllegalArgumentException(
-                String.format(Locale.ROOT, "[%s] diversification type must be set to [%s]", NAME, ResultDiversificationType.MMR.value)
-            );
-        }
     }
 
     DiversifyRetrieverBuilder(
@@ -165,12 +159,6 @@ public final class DiversifyRetrieverBuilder extends CompoundRetrieverBuilder<Di
         this.queryVector = queryVector;
         this.lambda = lambda;
         this.size = size;
-
-        if (this.diversificationType == null) {
-            throw new IllegalArgumentException(
-                String.format(Locale.ROOT, "[%s] diversification type must be set to [%s]", NAME, ResultDiversificationType.MMR.value)
-            );
-        }
     }
 
     @Override
@@ -201,14 +189,15 @@ public final class DiversifyRetrieverBuilder extends CompoundRetrieverBuilder<Di
     }
 
     private ActionRequestValidationException validateMMRDiversification(ActionRequestValidationException validationException) {
-        // if MMR, ensure we have a lambda between 0.0 and 1.0
+        // ensure we have a lambda between 0.0 and 1.0
         if (lambda == null || lambda < 0.0 || lambda > 1.0) {
             validationException = addValidationError(
                 String.format(
                     Locale.ROOT,
-                    "[%s] MMR result diversification must have a [%s] between 0.0 and 1.0",
+                    "[%s] MMR result diversification must have a [%s] between 0.0 and 1.0. The value provided was %s",
                     getName(),
-                    LAMBDA_FIELD.getPreferredName()
+                    LAMBDA_FIELD.getPreferredName(),
+                    lambda == null ? "null" : lambda.toString()
                 ),
                 validationException
             );
@@ -222,7 +211,7 @@ public final class DiversifyRetrieverBuilder extends CompoundRetrieverBuilder<Di
             // field vectors will be filled in during the combine
             diversificationContext = new MMRResultDiversificationContext(
                 diversificationField,
-                lambda == null ? DEFAULT_LAMBDA_VALUE : lambda,
+                lambda,
                 size == null ? DEFAULT_SIZE_VALUE : size,
                 queryVector
             );

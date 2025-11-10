@@ -9,6 +9,8 @@
 
 package org.elasticsearch.search.diversification;
 
+import java.util.Locale;
+
 public enum ResultDiversificationType {
     MMR("mmr");
 
@@ -25,6 +27,6 @@ public enum ResultDiversificationType {
             }
         }
 
-        throw new IllegalArgumentException("unknown result diversification type [" + value + "]");
+        throw new IllegalArgumentException(String.format(Locale.ROOT, "unknown result diversification type [%s]", value));
     }
 }

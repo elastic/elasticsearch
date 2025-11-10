@@ -32,9 +32,10 @@ The ordering of results returned from the inner retriever is preserved.
     The field must be a `dense_vector` type.
 
 `rank_window_size`
-:   (Required, integer)
+:   (Optional, integer)
 
     The maximum number of top-documents the `diversify` retriever will receive from the inner retriever.
+    Defaults to 10.
 
 `retriever`
 :   (Required, retriever object)
@@ -51,14 +52,14 @@ The ordering of results returned from the inner retriever is preserved.
     Must be either an array of floats or a hex-encoded byte vector.
 
 `lambda`
-:   (Required if `mmr` is used, float)
+:   (Required for `mmr`, float)
 
     A value between 0.0 and 1.0 that controls how similarity is calculated during diversification. Higher values weight comparisons between field values more heavily, lower values weight the query vector more heavily.
 
 `size`
 :   (Optional, only if `mmr` is used, integer)
 
-    The maximum number of top-N results to return.
+    The maximum number of top-N results to return. Defaults to 10.
 
 ## Example
 
@@ -74,7 +75,7 @@ GET my_index/_search
       "type": "mmr",
       "field": "my_dense_vector_field",
       "lambda": 0.7,
-      "rank_window_size": 3
+      "size": 3
       "query_vector": [0.1, 0.2, 0.3],
       "retriever": {
         "standard": {

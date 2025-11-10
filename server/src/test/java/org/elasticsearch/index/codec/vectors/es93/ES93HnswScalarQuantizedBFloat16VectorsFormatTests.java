@@ -14,6 +14,7 @@ import org.apache.lucene.codecs.lucene104.Lucene104ScalarQuantizedVectorsFormat;
 import org.apache.lucene.store.Directory;
 import org.elasticsearch.index.codec.vectors.BFloat16;
 import org.elasticsearch.index.codec.vectors.BaseHnswBFloat16VectorsFormatTestCase;
+import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 
 import java.io.IOException;
 import java.util.concurrent.ExecutorService;
@@ -34,7 +35,7 @@ public class ES93HnswScalarQuantizedBFloat16VectorsFormatTests extends BaseHnswB
             DEFAULT_MAX_CONN,
             DEFAULT_BEAM_WIDTH,
             Lucene104ScalarQuantizedVectorsFormat.ScalarEncoding.SEVEN_BIT,
-            ES93GenericFlatVectorsFormat.ElementType.BFLOAT16,
+            DenseVectorFieldMapper.ElementType.BFLOAT16,
             random().nextBoolean()
         );
     }
@@ -45,7 +46,7 @@ public class ES93HnswScalarQuantizedBFloat16VectorsFormatTests extends BaseHnswB
             maxConn,
             beamWidth,
             Lucene104ScalarQuantizedVectorsFormat.ScalarEncoding.SEVEN_BIT,
-            ES93GenericFlatVectorsFormat.ElementType.BFLOAT16,
+            DenseVectorFieldMapper.ElementType.BFLOAT16,
             random().nextBoolean()
         );
     }
@@ -56,7 +57,7 @@ public class ES93HnswScalarQuantizedBFloat16VectorsFormatTests extends BaseHnswB
             maxConn,
             beamWidth,
             Lucene104ScalarQuantizedVectorsFormat.ScalarEncoding.SEVEN_BIT,
-            ES93GenericFlatVectorsFormat.ElementType.BFLOAT16,
+            DenseVectorFieldMapper.ElementType.BFLOAT16,
             random().nextBoolean(),
             numMergeWorkers,
             service

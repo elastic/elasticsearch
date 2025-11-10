@@ -13,6 +13,7 @@ import org.apache.lucene.codecs.KnnVectorsFormat;
 import org.apache.lucene.codecs.lucene104.Lucene104ScalarQuantizedVectorsFormat;
 import org.apache.lucene.store.Directory;
 import org.elasticsearch.index.codec.vectors.BaseHnswVectorsFormatTestCase;
+import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 
 import java.io.IOException;
 import java.util.concurrent.ExecutorService;
@@ -33,7 +34,7 @@ public class ES93HnswScalarQuantizedVectorsFormatTests extends BaseHnswVectorsFo
             DEFAULT_MAX_CONN,
             DEFAULT_BEAM_WIDTH,
             Lucene104ScalarQuantizedVectorsFormat.ScalarEncoding.SEVEN_BIT,
-            ES93GenericFlatVectorsFormat.ElementType.STANDARD,
+            DenseVectorFieldMapper.ElementType.FLOAT,
             random().nextBoolean()
         );
     }
@@ -44,7 +45,7 @@ public class ES93HnswScalarQuantizedVectorsFormatTests extends BaseHnswVectorsFo
             maxConn,
             beamWidth,
             Lucene104ScalarQuantizedVectorsFormat.ScalarEncoding.SEVEN_BIT,
-            ES93GenericFlatVectorsFormat.ElementType.STANDARD,
+            DenseVectorFieldMapper.ElementType.FLOAT,
             random().nextBoolean()
         );
     }
@@ -55,7 +56,7 @@ public class ES93HnswScalarQuantizedVectorsFormatTests extends BaseHnswVectorsFo
             maxConn,
             beamWidth,
             Lucene104ScalarQuantizedVectorsFormat.ScalarEncoding.SEVEN_BIT,
-            ES93GenericFlatVectorsFormat.ElementType.STANDARD,
+            DenseVectorFieldMapper.ElementType.FLOAT,
             random().nextBoolean(),
             numMergeWorkers,
             service

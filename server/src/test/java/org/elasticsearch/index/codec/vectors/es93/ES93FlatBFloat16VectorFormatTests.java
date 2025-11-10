@@ -24,6 +24,7 @@ import org.apache.lucene.tests.util.TestUtil;
 import org.elasticsearch.common.logging.LogConfigurator;
 import org.elasticsearch.index.codec.vectors.BFloat16;
 import org.elasticsearch.index.codec.vectors.BaseBFloat16KnnVectorsFormatTestCase;
+import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.junit.AssumptionViolatedException;
 
 import java.io.IOException;
@@ -41,7 +42,7 @@ public class ES93FlatBFloat16VectorFormatTests extends BaseBFloat16KnnVectorsFor
 
     @Override
     protected Codec getCodec() {
-        return TestUtil.alwaysKnnVectorsFormat(new ES93FlatVectorFormat(ES93GenericFlatVectorsFormat.ElementType.BFLOAT16));
+        return TestUtil.alwaysKnnVectorsFormat(new ES93FlatVectorFormat(DenseVectorFieldMapper.ElementType.BFLOAT16));
     }
 
     public void testSearchWithVisitedLimit() {

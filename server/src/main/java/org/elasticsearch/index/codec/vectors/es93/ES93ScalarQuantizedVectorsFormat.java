@@ -20,6 +20,7 @@ import org.apache.lucene.codecs.lucene104.Lucene104ScalarQuantizedVectorsReader;
 import org.apache.lucene.codecs.lucene104.Lucene104ScalarQuantizedVectorsWriter;
 import org.apache.lucene.index.SegmentReadState;
 import org.apache.lucene.index.SegmentWriteState;
+import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 
 import java.io.IOException;
 
@@ -37,19 +38,19 @@ public class ES93ScalarQuantizedVectorsFormat extends KnnVectorsFormat {
     private final FlatVectorsFormat rawVectorFormat;
 
     public ES93ScalarQuantizedVectorsFormat() {
-        this(ES93GenericFlatVectorsFormat.ElementType.STANDARD, Lucene104ScalarQuantizedVectorsFormat.ScalarEncoding.SEVEN_BIT);
+        this(DenseVectorFieldMapper.ElementType.FLOAT, Lucene104ScalarQuantizedVectorsFormat.ScalarEncoding.SEVEN_BIT);
     }
 
-    public ES93ScalarQuantizedVectorsFormat(ES93GenericFlatVectorsFormat.ElementType elementType) {
+    public ES93ScalarQuantizedVectorsFormat(DenseVectorFieldMapper.ElementType elementType) {
         this(elementType, Lucene104ScalarQuantizedVectorsFormat.ScalarEncoding.SEVEN_BIT);
     }
 
     public ES93ScalarQuantizedVectorsFormat(
-        ES93GenericFlatVectorsFormat.ElementType elementType,
+        DenseVectorFieldMapper.ElementType elementType,
         Lucene104ScalarQuantizedVectorsFormat.ScalarEncoding encoding
     ) {
         super(NAME);
-        assert elementType != ES93GenericFlatVectorsFormat.ElementType.BIT : "BIT should not be used with scalar quantization";
+        assert elementType != DenseVectorFieldMapper.ElementType.BIT : "BIT should not be used with scalar quantization";
         this.encoding = encoding;
         this.rawVectorFormat = new ES93GenericFlatVectorsFormat(elementType, false);
     }

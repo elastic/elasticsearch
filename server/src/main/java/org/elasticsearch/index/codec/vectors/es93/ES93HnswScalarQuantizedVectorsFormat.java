@@ -22,6 +22,7 @@ import org.apache.lucene.codecs.lucene99.Lucene99HnswVectorsWriter;
 import org.apache.lucene.index.SegmentReadState;
 import org.apache.lucene.index.SegmentWriteState;
 import org.elasticsearch.index.codec.vectors.AbstractHnswVectorsFormat;
+import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 
 import java.io.IOException;
 import java.util.concurrent.ExecutorService;
@@ -40,14 +41,14 @@ public class ES93HnswScalarQuantizedVectorsFormat extends AbstractHnswVectorsFor
     public ES93HnswScalarQuantizedVectorsFormat() {
         super(NAME);
         this.encoding = Lucene104ScalarQuantizedVectorsFormat.ScalarEncoding.SEVEN_BIT;
-        this.rawVectorFormat = new ES93GenericFlatVectorsFormat(ES93GenericFlatVectorsFormat.ElementType.STANDARD, false);
+        this.rawVectorFormat = new ES93GenericFlatVectorsFormat(DenseVectorFieldMapper.ElementType.FLOAT, false);
     }
 
     public ES93HnswScalarQuantizedVectorsFormat(
         int maxConn,
         int beamWidth,
         Lucene104ScalarQuantizedVectorsFormat.ScalarEncoding encoding,
-        ES93GenericFlatVectorsFormat.ElementType elementType,
+        DenseVectorFieldMapper.ElementType elementType,
         boolean useDirectIO
     ) {
         super(NAME, maxConn, beamWidth);
@@ -59,7 +60,7 @@ public class ES93HnswScalarQuantizedVectorsFormat extends AbstractHnswVectorsFor
         int maxConn,
         int beamWidth,
         Lucene104ScalarQuantizedVectorsFormat.ScalarEncoding encoding,
-        ES93GenericFlatVectorsFormat.ElementType elementType,
+        DenseVectorFieldMapper.ElementType elementType,
         boolean useDirectIO,
         int numMergeWorkers,
         ExecutorService mergeExec

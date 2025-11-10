@@ -33,7 +33,7 @@ public class CCMCacheTests extends ESSingleNodeTestCase {
     private static final TimeValue TIMEOUT = new TimeValue(30, TimeUnit.SECONDS);
 
     private CCMCache ccmCache;
-    private CCMStorageService ccmStorageService;
+    private CCMPersistentStorageService ccmPersistentStorageService;
 
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
@@ -43,7 +43,7 @@ public class CCMCacheTests extends ESSingleNodeTestCase {
     @Before
     public void createComponents() {
         ccmCache = node().injector().getInstance(CCMCache.class);
-        ccmStorageService = node().injector().getInstance(CCMStorageService.class);
+        ccmPersistentStorageService = node().injector().getInstance(CCMPersistentStorageService.class);
     }
 
     @Override
@@ -76,7 +76,7 @@ public class CCMCacheTests extends ESSingleNodeTestCase {
             }
             """));
         var listener = new TestPlainActionFuture<Void>();
-        ccmStorageService.store(ccmModel, listener);
+        ccmPersistentStorageService.store(ccmModel, listener);
         listener.actionGet(TIMEOUT);
         return ccmModel;
     }

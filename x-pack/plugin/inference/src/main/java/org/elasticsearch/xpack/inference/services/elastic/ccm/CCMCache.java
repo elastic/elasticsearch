@@ -58,7 +58,7 @@ public class CCMCache {
 
     private static final Logger logger = LogManager.getLogger(CCMCache.class);
     private static final Cache.Stats EMPTY = new Cache.Stats(0, 0, 0);
-    private final CCMPersistentStorageService CCMPersistentStorageService;
+    private final CCMPersistentStorageService ccmPersistentStorageService;
     private final Cache<ProjectId, CCMModelEntry> cache;
     private final ClusterService clusterService;
     private final FeatureService featureService;
@@ -66,14 +66,14 @@ public class CCMCache {
     private final Client client;
 
     public CCMCache(
-        CCMPersistentStorageService CCMPersistentStorageService,
+        CCMPersistentStorageService ccmPersistentStorageService,
         ClusterService clusterService,
         Settings settings,
         FeatureService featureService,
         ProjectResolver projectResolver,
         Client client
     ) {
-        this.CCMPersistentStorageService = CCMPersistentStorageService;
+        this.ccmPersistentStorageService = ccmPersistentStorageService;
         this.cache = CacheBuilder.<ProjectId, CCMModelEntry>builder()
             .setMaximumWeight(INFERENCE_CCM_CACHE_WEIGHT.get(settings))
             .setExpireAfterWrite(INFERENCE_CCM_CACHE_EXPIRY.get(settings))
@@ -90,7 +90,7 @@ public class CCMCache {
         if (cachedEntry != null && cachedEntry.enabled()) {
             listener.onResponse(cachedEntry.ccmModel());
         } else {
-            CCMPersistentStorageService.get(ActionListener.wrap(ccmModel -> {
+            ccmPersistentStorageService.get(ActionListener.wrap(ccmModel -> {
                 enabled(projectId, ccmModel);
                 listener.onResponse(ccmModel);
             }, e -> {
@@ -129,7 +129,7 @@ public class CCMCache {
         if (cachedEntry != null) {
             listener.onResponse(cachedEntry.enabled());
         } else {
-            CCMPersistentStorageService.get(ActionListener.wrap(ccmModel -> {
+            ccmPersistentStorageService.get(ActionListener.wrap(ccmModel -> {
                 enabled(projectId, ccmModel);
                 listener.onResponse(true);
             }, e -> {

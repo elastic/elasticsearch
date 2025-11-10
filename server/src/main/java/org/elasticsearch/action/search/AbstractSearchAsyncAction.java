@@ -45,6 +45,7 @@ import org.elasticsearch.transport.Transport;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -794,7 +795,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
      * Returns search request attributes used to record attributes for search phase timings
      */
     public Map<String, Object> getSearchRequestAttributes() {
-        return searchRequestAttributes;
+        return Collections.unmodifiableMap(searchRequestAttributes);
     }
 
     public final void execute(Runnable command) {

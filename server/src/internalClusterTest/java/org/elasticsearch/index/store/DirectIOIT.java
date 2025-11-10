@@ -73,7 +73,7 @@ public class DirectIOIT extends ESIntegTestCase {
 
     @ParametersFactory
     public static Iterable<Object[]> parameters() {
-        return List.of(new Object[] { "bbq_hnsw" }, new Object[] { "bbq_disk" });
+        return List.<Object[]>of(new Object[] { "bbq_disk" });
     }
 
     public DirectIOIT(String type) {
@@ -113,14 +113,15 @@ public class DirectIOIT extends ESIntegTestCase {
             indexDoc(indexName, Integer.toString(i), "fooVector", IntStream.range(0, 64).mapToDouble(d -> randomFloat()).toArray());
         }
         refresh();
-        assertIndexType(indexName, type); // test assertion to ensure that the correct index type is being used
+        assertBBQIndexType(indexName, type); // test assertion to ensure that the correct index type is being used
         return indexName;
     }
 
-    static void assertIndexType(String indexName, String type) {
+    @SuppressWarnings("unchecked")
+    static void assertBBQIndexType(String indexName, String type) {
         var response = indicesAdmin().prepareGetFieldMappings(indexName).setFields("fooVector").get();
-        var map = (Map<?, ?>) response.fieldMappings(indexName, "fooVector").sourceAsMap().get("fooVector");
-        assertThat(((Map<?, ?>) map.get("index_options")).get("type"), is(equalTo(type)));
+        var map = (Map<String, Object>) response.fieldMappings(indexName, "fooVector").sourceAsMap().get("fooVector");
+        assertThat((String) ((Map<String, Object>) map.get("index_options")).get("type"), is(equalTo(type)));
     }
 
     @TestLogging(value = "org.elasticsearch.index.store.FsDirectoryFactory:DEBUG", reason = "to capture trace logging for direct IO")

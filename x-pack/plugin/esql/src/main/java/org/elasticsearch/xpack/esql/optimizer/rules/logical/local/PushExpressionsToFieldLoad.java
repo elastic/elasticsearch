@@ -11,12 +11,11 @@ import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
-import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.NameId;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.FunctionEsField;
-import org.elasticsearch.xpack.esql.expression.function.vector.VectorSimilarityFunction;
+import org.elasticsearch.xpack.esql.expression.function.blockloader.BlockLoaderExpression;
 import org.elasticsearch.xpack.esql.optimizer.LocalLogicalOptimizerContext;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.OptimizerRules;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
@@ -38,11 +37,9 @@ import static org.elasticsearch.xpack.esql.core.expression.Attribute.rawTemporar
  * the similarity function during value loading, when one side of the function is a literal.
  * It also adds the new field function attribute to the EsRelation output, and adds a projection after it to remove it from the output.
  */
-public class PushDownVectorSimilarityFunctions extends OptimizerRules.ParameterizedOptimizerRule<
-    LogicalPlan,
-    LocalLogicalOptimizerContext> {
+public class PushExpressionsToFieldLoad extends OptimizerRules.ParameterizedOptimizerRule<LogicalPlan, LocalLogicalOptimizerContext> {
 
-    public PushDownVectorSimilarityFunctions() {
+    public PushExpressionsToFieldLoad() {
         super(OptimizerRules.TransformDirection.DOWN);
     }
 
@@ -50,10 +47,21 @@ public class PushDownVectorSimilarityFunctions extends OptimizerRules.Parameteri
     protected LogicalPlan rule(LogicalPlan plan, LocalLogicalOptimizerContext context) {
         if (plan instanceof Eval || plan instanceof Filter || plan instanceof Aggregate) {
             Map<Attribute.IdIgnoringWrapper, Attribute> addedAttrs = new HashMap<>();
-            LogicalPlan transformedPlan = plan.transformExpressionsOnly(
-                VectorSimilarityFunction.class,
-                similarityFunction -> replaceFieldsForFieldTransformations(similarityFunction, addedAttrs, context)
-            );
+            LogicalPlan transformedPlan = plan.transformExpressionsOnly(Expression.class, e -> {
+                if (e instanceof BlockLoaderExpression ble) {
+                    BlockLoaderExpression.PushedBlockLoaderExpression fuse = ble.tryPushToFieldLoading(context.searchStats());
+                    if (fuse != null
+                        && context.searchStats()
+                            .supportsLoaderConfig(
+                                fuse.field().fieldName(),
+                                fuse.config(),
+                                context.configuration().pragmas().fieldExtractPreference()
+                            )) {
+                        return replaceFieldsForFieldTransformations(e, addedAttrs, fuse);
+                    }
+                }
+                return e;
+            });
 
             if (addedAttrs.isEmpty()) {
                 return plan;
@@ -81,57 +89,26 @@ public class PushDownVectorSimilarityFunctions extends OptimizerRules.Parameteri
     }
 
     private static Expression replaceFieldsForFieldTransformations(
-        VectorSimilarityFunction similarityFunction,
+        Expression e,
         Map<Attribute.IdIgnoringWrapper, Attribute> addedAttrs,
-        LocalLogicalOptimizerContext context
+        BlockLoaderExpression.PushedBlockLoaderExpression fuse
     ) {
-        // Only replace if exactly one side is a literal and the other a field attribute
-        if ((similarityFunction.left() instanceof Literal ^ similarityFunction.right() instanceof Literal) == false) {
-            return similarityFunction;
-        }
-
-        Literal literal = (Literal) (similarityFunction.left() instanceof Literal ? similarityFunction.left() : similarityFunction.right());
-        FieldAttribute fieldAttr = null;
-        if (similarityFunction.left() instanceof FieldAttribute fa) {
-            fieldAttr = fa;
-        } else if (similarityFunction.right() instanceof FieldAttribute fa) {
-            fieldAttr = fa;
-        }
-        // We can push down also for doc values, requires handling that case on the field mapper
-        if (fieldAttr == null || context.searchStats().isIndexed(fieldAttr.fieldName()) == false) {
-            return similarityFunction;
-        }
-
-        @SuppressWarnings("unchecked")
-        List<Number> vectorList = (List<Number>) literal.value();
-        float[] vectorArray = new float[vectorList.size()];
-        int arrayHashCode = 0;
-        for (int i = 0; i < vectorList.size(); i++) {
-            vectorArray[i] = vectorList.get(i).floatValue();
-            arrayHashCode = 31 * arrayHashCode + Float.floatToIntBits(vectorArray[i]);
-        }
-
         // Change the similarity function to a reference of a transformation on the field
-        FunctionEsField functionEsField = new FunctionEsField(
-            fieldAttr.field(),
-            similarityFunction.dataType(),
-            similarityFunction.getBlockLoaderFunctionConfig()
-        );
-        var name = rawTemporaryName(fieldAttr.name(), similarityFunction.nodeName(), String.valueOf(arrayHashCode));
+        FunctionEsField functionEsField = new FunctionEsField(fuse.field().field(), e.dataType(), fuse.config());
+        var name = rawTemporaryName(fuse.field().name(), fuse.config().function().toString(), String.valueOf(fuse.config().hashCode()));
         // TODO: Check if exists before adding, retrieve the previous one
         var newFunctionAttr = new FieldAttribute(
-            fieldAttr.source(),
-            fieldAttr.parentName(),
-            fieldAttr.qualifier(),
+            fuse.field().source(),
+            fuse.field().parentName(),
+            fuse.field().qualifier(),
             name,
             functionEsField,
-            fieldAttr.nullable(),
+            fuse.field().nullable(),
             new NameId(),
             true
         );
         Attribute.IdIgnoringWrapper key = newFunctionAttr.ignoreId();
         if (addedAttrs.containsKey(key)) {
-            ;
             return addedAttrs.get(key);
         }
 

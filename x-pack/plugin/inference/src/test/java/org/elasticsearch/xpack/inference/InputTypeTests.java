@@ -64,6 +64,10 @@ public class InputTypeTests extends ESTestCase {
         return randomFrom(InputType.INTERNAL_SEARCH, InputType.INTERNAL_INGEST, InputType.UNSPECIFIED);
     }
 
+    public static InputType randomIngest() {
+        return randomFrom(InputType.INGEST, InputType.INTERNAL_INGEST);
+    }
+
     public void testFromRestString_ValidInputType() {
         for (String internal : List.of("search", "ingest", "classification", "clustering", "unspecified")) {
             assertEquals(InputType.fromRestString(internal), InputType.fromString(internal));
@@ -210,5 +214,9 @@ public class InputTypeTests extends ESTestCase {
                     + "is not null and not empty, received: [1], type: [Integer].;"
             )
         );
+    }
+
+    public void testIsIngest() {
+        assertTrue(InputType.isIngest(randomFrom(InputType.INGEST, InputType.INTERNAL_INGEST)));
     }
 }

@@ -1,0 +1,79 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
+ */
+
+package org.elasticsearch.xpack.inference.services.elastic.ccm;
+
+import org.apache.http.client.methods.HttpRequestBase;
+import org.elasticsearch.ElasticsearchStatusException;
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.SubscribableListener;
+import org.elasticsearch.common.settings.SecureString;
+import org.elasticsearch.rest.RestStatus;
+
+import java.util.Objects;
+import java.util.function.Function;
+
+import static org.elasticsearch.xpack.inference.external.request.RequestUtils.createAuthBearerHeader;
+import static org.elasticsearch.xpack.inference.rest.Paths.INFERENCE_CCM_PATH;
+
+/**
+ * Returns a class to handle modifying the HTTP requests with the appropriate CCM authentication information if CCM is configured.
+ */
+public class CCMAuthenticationApplierFactory {
+
+    public static final NoopApplier NOOP_APPLIER = new NoopApplier();
+
+    private final CCMFeature ccmFeature;
+    private final CCMService ccmService;
+
+    public CCMAuthenticationApplierFactory(CCMFeature ccmFeature, CCMService ccmService) {
+        this.ccmFeature = Objects.requireNonNull(ccmFeature);
+        this.ccmService = Objects.requireNonNull(ccmService);
+    }
+
+    public sealed interface AuthApplier extends Function<HttpRequestBase, HttpRequestBase> permits AuthenticationHeaderApplier,
+        NoopApplier {}
+
+    public void getAuthenticationApplier(ActionListener<AuthApplier> listener) {
+        if (ccmFeature.allowConfiguringCcm() == false) {
+            listener.onResponse(NOOP_APPLIER);
+            return;
+        }
+
+        SubscribableListener.newForked(ccmService::isEnabled).<CCMModel>andThen((ccmModelListener, enabled) -> {
+            if (enabled == false) {
+                listener.onFailure(
+                    new ElasticsearchStatusException(
+                        "Cloud connected mode is not configured, please configure it using PUT {}",
+                        RestStatus.BAD_REQUEST,
+                        INFERENCE_CCM_PATH
+                    )
+                );
+                return;
+            }
+
+            ccmService.getConfiguration(ccmModelListener);
+        }).<AuthApplier>andThenApply(ccmModel -> new AuthenticationHeaderApplier(ccmModel.apiKey())).addListener(listener);
+    }
+
+    public record AuthenticationHeaderApplier(SecureString apiKey) implements AuthApplier {
+
+        @Override
+        public HttpRequestBase apply(HttpRequestBase request) {
+            request.setHeader(createAuthBearerHeader(apiKey));
+            return request;
+        }
+    }
+
+    public record NoopApplier() implements AuthApplier {
+        @Override
+        public HttpRequestBase apply(HttpRequestBase request) {
+            return request;
+        }
+    }
+
+}

@@ -63,6 +63,27 @@ public class AuthorizationTaskExecutorTests extends ESTestCase {
         terminate(threadPool);
     }
 
+    public void testMultipleCallsToInit_OnlyRegistersOnce() {
+        var eisUrl = "abc";
+        var mockClusterService = mock(ClusterService.class);
+        var executor = new AuthorizationTaskExecutor(
+            mockClusterService,
+            persistentTasksService,
+            new AuthorizationPoller.Parameters(
+                createWithEmptySettings(threadPool),
+                mock(ElasticInferenceServiceAuthorizationRequestHandler.class),
+                mock(Sender.class),
+                ElasticInferenceServiceSettingsTests.create(eisUrl, TimeValue.timeValueMillis(1), TimeValue.timeValueMillis(1), true),
+                mock(ModelRegistry.class),
+                mock(Client.class)
+            )
+        );
+        executor.init();
+        executor.init();
+
+        verify(mockClusterService, times(1)).addListener(executor);
+    }
+
     public void testCreatesTask_WhenItDoesNotExistOnClusterStateChange() {
         var eisUrl = "abc";
 

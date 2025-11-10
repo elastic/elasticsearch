@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.inference.services.elastic.request;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.inference.services.elastic.ccm.CCMAuthenticationApplierFactory;
 import org.elasticsearch.xpack.inference.telemetry.TraceContext;
 import org.junit.Before;
 
@@ -31,7 +32,12 @@ public class ElasticInferenceServiceAuthorizationRequestTests extends ESTestCase
 
         ElasticsearchStatusException exception = assertThrows(
             ElasticsearchStatusException.class,
-            () -> new ElasticInferenceServiceAuthorizationRequest(invalidUrl, traceContext, randomElasticInferenceServiceRequestMetadata())
+            () -> new ElasticInferenceServiceAuthorizationRequest(
+                invalidUrl,
+                traceContext,
+                randomElasticInferenceServiceRequestMetadata(),
+                CCMAuthenticationApplierFactory.NOOP_APPLIER
+            )
         );
 
         assertThat(exception.status(), is(RestStatus.BAD_REQUEST));

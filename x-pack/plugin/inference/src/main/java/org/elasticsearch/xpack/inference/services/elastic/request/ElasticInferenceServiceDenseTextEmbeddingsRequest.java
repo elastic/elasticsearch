@@ -17,6 +17,7 @@ import org.elasticsearch.inference.InputType;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.inference.external.request.Request;
 import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceUsageContext;
+import org.elasticsearch.xpack.inference.services.elastic.ccm.CCMAuthenticationApplierFactory;
 import org.elasticsearch.xpack.inference.services.elastic.densetextembeddings.ElasticInferenceServiceDenseTextEmbeddingsModel;
 import org.elasticsearch.xpack.inference.telemetry.TraceContext;
 import org.elasticsearch.xpack.inference.telemetry.TraceContextHandler;
@@ -41,9 +42,10 @@ public class ElasticInferenceServiceDenseTextEmbeddingsRequest extends ElasticIn
         List<String> inputs,
         TraceContext traceContext,
         ElasticInferenceServiceRequestMetadata metadata,
-        InputType inputType
+        InputType inputType,
+        CCMAuthenticationApplierFactory.AuthApplier authApplier
     ) {
-        super(metadata);
+        super(metadata, authApplier);
         this.inputs = inputs;
         this.model = Objects.requireNonNull(model);
         this.uri = model.uri();

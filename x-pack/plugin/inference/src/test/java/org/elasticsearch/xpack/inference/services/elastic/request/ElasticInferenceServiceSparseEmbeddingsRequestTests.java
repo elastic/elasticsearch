@@ -16,6 +16,7 @@ import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.inference.common.Truncator;
 import org.elasticsearch.xpack.inference.common.TruncatorTests;
 import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceSparseEmbeddingsModelTests;
+import org.elasticsearch.xpack.inference.services.elastic.ccm.CCMAuthenticationApplierFactory;
 import org.elasticsearch.xpack.inference.telemetry.TraceContext;
 
 import java.io.IOException;
@@ -110,7 +111,8 @@ public class ElasticInferenceServiceSparseEmbeddingsRequestTests extends ESTestC
                 ElasticInferenceServiceSparseEmbeddingsModelTests.createModel(url, modelId),
                 new TraceContext(randomAlphaOfLength(10), randomAlphaOfLength(10)),
                 new ElasticInferenceServiceRequestMetadata("my-product-origin", "my-product-use-case-from-metadata", "1.2.3"),
-                inputType
+                inputType,
+                CCMAuthenticationApplierFactory.NOOP_APPLIER
             );
 
             var httpRequest = request.createHttpRequest();
@@ -125,6 +127,34 @@ public class ElasticInferenceServiceSparseEmbeddingsRequestTests extends ESTestC
         }
     }
 
+    public void testDecorate_HttpRequest_WithAuthorizationHeader() {
+        var input = "elastic";
+        var modelId = "my-model-id";
+        var url = "http://eis-gateway.com";
+        var secret = "secret";
+
+        for (var inputType : List.of(InputType.INTERNAL_SEARCH, InputType.INTERNAL_INGEST, InputType.UNSPECIFIED)) {
+            var request = new ElasticInferenceServiceSparseEmbeddingsRequest(
+                TruncatorTests.createTruncator(),
+                new Truncator.TruncationResult(List.of(input), new boolean[] { false }),
+                ElasticInferenceServiceSparseEmbeddingsModelTests.createModel(url, modelId),
+                new TraceContext(randomAlphaOfLength(10), randomAlphaOfLength(10)),
+                new ElasticInferenceServiceRequestMetadata("my-product-origin", "my-product-use-case-from-metadata", "1.2.3"),
+                inputType,
+                CCMAuthenticationApplierFactory.NOOP_APPLIER
+            );
+
+            var httpRequest = request.createHttpRequest();
+
+            assertThat(httpRequest.httpRequestBase(), instanceOf(HttpPost.class));
+            var httpPost = (HttpPost) httpRequest.httpRequestBase();
+
+            var headers = httpPost.getHeaders(HttpHeaders.AUTHORIZATION);
+            assertThat(headers.length, is(1));
+            assertThat(headers[0].getValue(), is(secret));
+        }
+    }
+
     public ElasticInferenceServiceSparseEmbeddingsRequest createRequest(String url, String modelId, String input, InputType inputType) {
         var embeddingsModel = ElasticInferenceServiceSparseEmbeddingsModelTests.createModel(url, modelId);
 
@@ -134,7 +164,8 @@ public class ElasticInferenceServiceSparseEmbeddingsRequestTests extends ESTestC
             embeddingsModel,
             new TraceContext(randomAlphaOfLength(10), randomAlphaOfLength(10)),
             randomElasticInferenceServiceRequestMetadata(),
-            inputType
+            inputType,
+            CCMAuthenticationApplierFactory.NOOP_APPLIER
         );
     }
 }

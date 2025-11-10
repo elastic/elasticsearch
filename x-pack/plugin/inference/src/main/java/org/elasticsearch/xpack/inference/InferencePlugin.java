@@ -149,8 +149,10 @@ import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServic
 import org.elasticsearch.xpack.inference.services.elastic.authorization.AuthorizationPoller;
 import org.elasticsearch.xpack.inference.services.elastic.authorization.AuthorizationTaskExecutor;
 import org.elasticsearch.xpack.inference.services.elastic.authorization.ElasticInferenceServiceAuthorizationRequestHandler;
+import org.elasticsearch.xpack.inference.services.elastic.ccm.CCMAuthenticationApplierFactory;
 import org.elasticsearch.xpack.inference.services.elastic.ccm.CCMFeature;
 import org.elasticsearch.xpack.inference.services.elastic.ccm.CCMIndex;
+import org.elasticsearch.xpack.inference.services.elastic.ccm.CCMInformedSettings;
 import org.elasticsearch.xpack.inference.services.elastic.ccm.CCMPersistentStorageService;
 import org.elasticsearch.xpack.inference.services.elastic.ccm.CCMService;
 import org.elasticsearch.xpack.inference.services.elastic.ccm.CCMSettings;
@@ -309,6 +311,9 @@ public class InferencePlugin extends Plugin
     @Override
     public Collection<?> createComponents(PluginServices services) {
         var components = new ArrayList<>();
+        ccmFeature.set(new CCMFeature(settings));
+        components.add(ccmFeature.get());
+
         var throttlerManager = new ThrottlerManager(settings, services.threadPool());
         throttlerManager.init(services.clusterService());
 
@@ -332,7 +337,7 @@ public class InferencePlugin extends Plugin
         var inferenceServices = new ArrayList<>(inferenceServiceExtensions);
         inferenceServices.add(this::getInferenceServiceFactories);
 
-        var inferenceServiceSettings = new ElasticInferenceServiceSettings(settings);
+        var inferenceServiceSettings = new CCMInformedSettings(settings, ccmFeature.get());
         inferenceServiceSettings.init(services.clusterService());
 
         // Create a separate instance of HTTPClientManager with its own SSL configuration (`xpack.inference.elastic.http.ssl.*`).
@@ -351,24 +356,6 @@ public class InferencePlugin extends Plugin
             services.clusterService()
         );
         elasticInferenceServiceFactory.set(elasticInferenceServiceRequestSenderFactory);
-
-        var authorizationHandler = new ElasticInferenceServiceAuthorizationRequestHandler(
-            inferenceServiceSettings.getElasticInferenceServiceUrl(),
-            services.threadPool()
-        );
-
-        var authTaskExecutor = AuthorizationTaskExecutor.create(
-            services.clusterService(),
-            new AuthorizationPoller.Parameters(
-                serviceComponents.get(),
-                authorizationHandler,
-                elasticInferenceServiceFactory.get().createSender(),
-                inferenceServiceSettings,
-                modelRegistry.get(),
-                services.client()
-            )
-        );
-        authorizationTaskExecutorRef.set(authTaskExecutor);
 
         var sageMakerSchemas = new SageMakerSchemas();
         var sageMakerConfigurations = new LazyInitializable<>(new SageMakerConfiguration(sageMakerSchemas));
@@ -430,7 +417,6 @@ public class InferencePlugin extends Plugin
             new TransportGetInferenceDiagnosticsAction.ClientManagers(httpClientManager, elasticInferenceServiceHttpClientManager)
         );
         components.add(inferenceStatsBinding);
-        components.add(authorizationHandler);
         components.add(new PluginComponentBinding<>(Sender.class, elasticInferenceServiceFactory.get().createSender()));
         components.add(
             new InferenceEndpointRegistry(
@@ -443,16 +429,58 @@ public class InferencePlugin extends Plugin
             )
         );
 
-        components.add(authTaskExecutor);
-        components.addAll(createCCMComponents(services));
+        components.addAll(
+            createAuthorizationComponents(
+                services,
+                inferenceServiceSettings,
+                serviceComponents.get(),
+                elasticInferenceServiceFactory.get().createSender(),
+                modelRegistry.get(),
+                ccmFeature.get()
+            )
+        );
 
         return components;
     }
 
-    private Collection<?> createCCMComponents(PluginServices services) {
-        ccmFeature.set(new CCMFeature(settings));
+    private Collection<?> createAuthorizationComponents(
+        PluginServices services,
+        ElasticInferenceServiceSettings inferenceServiceSettings,
+        ServiceComponents serviceComponents,
+        Sender sender,
+        ModelRegistry modelRegistry,
+        CCMFeature ccmFeature
+    ) {
+        var authorizationHandler = new ElasticInferenceServiceAuthorizationRequestHandler(
+            inferenceServiceSettings.getElasticInferenceServiceUrl(),
+            services.threadPool()
+        );
+
+        var authTaskExecutor = AuthorizationTaskExecutor.create(
+            services.clusterService(),
+            new AuthorizationPoller.Parameters(
+                serviceComponents,
+                authorizationHandler,
+                sender,
+                inferenceServiceSettings,
+                modelRegistry,
+                services.client()
+            )
+        );
+        authorizationTaskExecutorRef.set(authTaskExecutor);
+
         var ccmPersistentStorageService = new CCMPersistentStorageService(services.client());
-        return List.of(new CCMService(ccmPersistentStorageService), ccmFeature.get(), ccmPersistentStorageService);
+        var ccmService = new CCMService(ccmPersistentStorageService, authTaskExecutor);
+        authorizationHandler.init(new CCMAuthenticationApplierFactory(ccmFeature, ccmService));
+
+        // If CCM is not allowed in this environment then we can initialize the auth poller task because
+        // authentication with EIS will be through certs that are already configured. If CCM configuration is allowed,
+        // we need to wait for the user to provide an API key before we can start polling EIS
+        if (ccmFeature.allowConfiguringCcm() == false) {
+            authTaskExecutor.init();
+        }
+
+        return List.of(authorizationHandler, authTaskExecutor, ccmService);
     }
 
     @Override

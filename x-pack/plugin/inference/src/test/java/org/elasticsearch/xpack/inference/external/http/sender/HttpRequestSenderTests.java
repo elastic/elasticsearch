@@ -31,6 +31,7 @@ import org.elasticsearch.xpack.inference.external.request.Request;
 import org.elasticsearch.xpack.inference.logging.ThrottlerManager;
 import org.elasticsearch.xpack.inference.services.ServiceComponentsTests;
 import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceResponseHandler;
+import org.elasticsearch.xpack.inference.services.elastic.ccm.CCMAuthenticationApplierFactory;
 import org.elasticsearch.xpack.inference.services.elastic.request.ElasticInferenceServiceAuthorizationRequest;
 import org.elasticsearch.xpack.inference.services.elastic.response.ElasticInferenceServiceAuthorizationResponseEntity;
 import org.elasticsearch.xpack.inference.telemetry.TraceContext;
@@ -317,7 +318,8 @@ public class HttpRequestSenderTests extends ESTestCase {
             var request = new ElasticInferenceServiceAuthorizationRequest(
                 getUrl(webServer),
                 new TraceContext("", ""),
-                randomElasticInferenceServiceRequestMetadata()
+                randomElasticInferenceServiceRequestMetadata(),
+                CCMAuthenticationApplierFactory.NOOP_APPLIER
             );
             var responseHandler = new ElasticInferenceServiceResponseHandler(
                 String.format(Locale.ROOT, "%s sparse embeddings", ELASTIC_INFERENCE_SERVICE_IDENTIFIER),

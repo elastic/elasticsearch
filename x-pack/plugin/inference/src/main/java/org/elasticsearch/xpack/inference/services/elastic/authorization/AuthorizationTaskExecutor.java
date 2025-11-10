@@ -33,6 +33,7 @@ import org.elasticsearch.xcontent.ParseField;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.xpack.inference.InferencePlugin.UTILITY_THREAD_POOL_NAME;
@@ -46,6 +47,7 @@ public class AuthorizationTaskExecutor extends PersistentTasksExecutor<Authoriza
     private final PersistentTasksService persistentTasksService;
     private final AuthorizationPoller.Parameters pollerParameters;
     private final AtomicReference<AuthorizationPoller> currentTask = new AtomicReference<>();
+    private final AtomicBoolean registered = new AtomicBoolean(false);
 
     public static AuthorizationTaskExecutor create(ClusterService clusterService, AuthorizationPoller.Parameters parameters) {
         Objects.requireNonNull(clusterService);
@@ -56,7 +58,6 @@ public class AuthorizationTaskExecutor extends PersistentTasksExecutor<Authoriza
             new PersistentTasksService(clusterService, parameters.serviceComponents().threadPool(), parameters.client()),
             parameters
         );
-        executor.init();
         return executor;
     }
 
@@ -72,11 +73,27 @@ public class AuthorizationTaskExecutor extends PersistentTasksExecutor<Authoriza
         this.pollerParameters = Objects.requireNonNull(pollerParameters);
     }
 
-    // default for testing
-    void init() {
+    public synchronized void init() {
         // If the EIS url is not configured, then we won't be able to interact with the service, so don't start the task.
-        if (Strings.isNullOrEmpty(pollerParameters.elasticInferenceServiceSettings().getElasticInferenceServiceUrl()) == false) {
+        if (registered.get() == false
+            && Strings.isNullOrEmpty(pollerParameters.elasticInferenceServiceSettings().getElasticInferenceServiceUrl()) == false) {
+            registered.set(true);
             clusterService.addListener(this);
+        }
+    }
+
+    public synchronized void shutdown() {
+        if (registered.compareAndSet(true, false)) {
+            clusterService.removeListener(this);
+            abortTask();
+        }
+    }
+
+    private void abortTask() {
+        var task = currentTask.get();
+        if (task != null && task.isCancelled() == false) {
+            task.markAsLocallyAborted("executor shutdown");
+            currentTask.set(null);
         }
     }
 

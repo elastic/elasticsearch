@@ -9,16 +9,18 @@ package org.elasticsearch.xpack.inference.services.elastic.ccm;
 
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.xpack.inference.services.elastic.authorization.AuthorizationTaskExecutor;
 
 import java.util.Objects;
 
 public class CCMService {
 
     private final CCMPersistentStorageService ccmPersistentStorageService;
+    private final AuthorizationTaskExecutor authorizationTaskExecutor;
 
-    public CCMService(CCMPersistentStorageService ccmPersistentStorageService) {
+    public CCMService(CCMPersistentStorageService ccmPersistentStorageService, AuthorizationTaskExecutor authTaskExecutor) {
         this.ccmPersistentStorageService = Objects.requireNonNull(ccmPersistentStorageService);
-        // TODO initialize class to handle storing whether CCM is enabled
+        this.authorizationTaskExecutor = Objects.requireNonNull(authTaskExecutor);
         // TODO initialize the cache for the CCM configuration
     }
 
@@ -39,6 +41,7 @@ public class CCMService {
     public void storeConfiguration(CCMModel model, ActionListener<Void> listener) {
         // TODO invalidate the cache
         ccmPersistentStorageService.store(model, listener);
+        authorizationTaskExecutor.init();
     }
 
     public void getConfiguration(ActionListener<CCMModel> listener) {
@@ -47,7 +50,8 @@ public class CCMService {
     }
 
     public void disableCCM(ActionListener<Void> listener) {
-        // TODO implement invalidating the cache
+        authorizationTaskExecutor.shutdown();
         ccmPersistentStorageService.delete(listener);
+        // TODO implement invalidating the cache
     }
 }

@@ -13,7 +13,6 @@ import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
-import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
@@ -85,8 +84,7 @@ public class TransportPutInferenceModelAction extends TransportMasterNodeAction<
         ModelRegistry modelRegistry,
         InferenceServiceRegistry serviceRegistry,
         Settings settings,
-        ProjectResolver projectResolver,
-        Client client
+        ProjectResolver projectResolver
     ) {
         super(
             PutInferenceModelAction.NAME,
@@ -114,7 +112,7 @@ public class TransportPutInferenceModelAction extends TransportMasterNodeAction<
         ClusterState state,
         ActionListener<PutInferenceModelAction.Response> listener
     ) throws Exception {
-        if (modelRegistry.containsDefaultConfigId(request.getInferenceEntityId())) {
+        if (modelRegistry.containsPreconfiguredInferenceEndpointId(request.getInferenceEntityId())) {
             listener.onFailure(
                 new ElasticsearchStatusException(
                     "[{}] is a reserved inference ID. Cannot create a new inference endpoint with a reserved ID.",

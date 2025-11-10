@@ -76,9 +76,12 @@ public class DateTruncTests extends AbstractConfigurationFunctionTestCase {
         }
 
         public long inputDateAsNanos() {
-            long millis = inputDateAsMillis();
-            assumeTrue("Before epoch dates can't be converted to nanos", millis >= 0);
+            assert canBeConvertedToNanos();
             return DateUtils.toNanoSeconds(inputDateAsMillis());
+        }
+
+        public boolean canBeConvertedToNanos() {
+            return inputDateAsMillis() >= 0;
         }
     }
 
@@ -102,9 +105,12 @@ public class DateTruncTests extends AbstractConfigurationFunctionTestCase {
         }
 
         public long inputDateAsNanos() {
-            long millis = inputDateAsMillis();
-            assumeTrue("Before epoch dates can't be converted to nanos", millis >= 0);
+            assert canBeConvertedToNanos();
             return DateUtils.toNanoSeconds(inputDateAsMillis());
+        }
+
+        public boolean canBeConvertedToNanos() {
+            return inputDateAsMillis() >= 0;
         }
     }
 
@@ -283,7 +289,9 @@ public class DateTruncTests extends AbstractConfigurationFunctionTestCase {
     }
 
     private static List<TestCaseSupplier> ofDuration(DurationTestCaseData data) {
-        return List.of(
+        List<TestCaseSupplier> suppliers = new ArrayList<>();
+
+        suppliers.add(
             new TestCaseSupplier(
                 data.testCaseNameForMillis(),
                 List.of(DataType.TIME_DURATION, DataType.DATETIME),
@@ -296,25 +304,34 @@ public class DateTruncTests extends AbstractConfigurationFunctionTestCase {
                     DataType.DATETIME,
                     matchesDateMillis(data.expectedDate())
                 ).withConfiguration(TEST_SOURCE, configurationForTimezone(data.zoneId()))
-            ),
-            new TestCaseSupplier(
-                data.testCaseNameForNanos(),
-                List.of(DataType.TIME_DURATION, DataType.DATE_NANOS),
-                () -> new TestCaseSupplier.TestCase(
-                    List.of(
-                        new TestCaseSupplier.TypedData(data.duration(), DataType.TIME_DURATION, "interval").forceLiteral(),
-                        new TestCaseSupplier.TypedData(data.inputDateAsNanos(), DataType.DATE_NANOS, "date")
-                    ),
-                    Matchers.startsWith("DateTruncDateNanosEvaluator[fieldVal=Attribute[channel=0], rounding=Rounding["),
-                    DataType.DATE_NANOS,
-                    matchesDateNanos(data.expectedDate())
-                ).withConfiguration(TEST_SOURCE, configurationForTimezone(data.zoneId()))
             )
         );
+
+        if (data.canBeConvertedToNanos()) {
+            suppliers.add(
+                new TestCaseSupplier(
+                    data.testCaseNameForNanos(),
+                    List.of(DataType.TIME_DURATION, DataType.DATE_NANOS),
+                    () -> new TestCaseSupplier.TestCase(
+                        List.of(
+                            new TestCaseSupplier.TypedData(data.duration(), DataType.TIME_DURATION, "interval").forceLiteral(),
+                            new TestCaseSupplier.TypedData(data.inputDateAsNanos(), DataType.DATE_NANOS, "date")
+                        ),
+                        Matchers.startsWith("DateTruncDateNanosEvaluator[fieldVal=Attribute[channel=0], rounding=Rounding["),
+                        DataType.DATE_NANOS,
+                        matchesDateNanos(data.expectedDate())
+                    ).withConfiguration(TEST_SOURCE, configurationForTimezone(data.zoneId()))
+                )
+            );
+        }
+
+        return suppliers;
     }
 
     private static List<TestCaseSupplier> ofDatePeriod(PeriodTestCaseData data) {
-        return List.of(
+        List<TestCaseSupplier> suppliers = new ArrayList<>();
+
+        suppliers.add(
             new TestCaseSupplier(
                 data.testCaseNameForMillis(),
                 List.of(DataType.DATE_PERIOD, DataType.DATETIME),
@@ -327,21 +344,28 @@ public class DateTruncTests extends AbstractConfigurationFunctionTestCase {
                     DataType.DATETIME,
                     matchesDateMillis(data.expectedDate())
                 ).withConfiguration(TEST_SOURCE, configurationForTimezone(data.zoneId()))
-            ),
-            new TestCaseSupplier(
-                data.testCaseNameForNanos(),
-                List.of(DataType.DATE_PERIOD, DataType.DATE_NANOS),
-                () -> new TestCaseSupplier.TestCase(
-                    List.of(
-                        new TestCaseSupplier.TypedData(data.period(), DataType.DATE_PERIOD, "interval").forceLiteral(),
-                        new TestCaseSupplier.TypedData(data.inputDateAsNanos(), DataType.DATE_NANOS, "date")
-                    ),
-                    Matchers.startsWith("DateTruncDateNanosEvaluator[fieldVal=Attribute[channel=0], rounding=Rounding["),
-                    DataType.DATE_NANOS,
-                    matchesDateNanos(data.expectedDate())
-                ).withConfiguration(TEST_SOURCE, configurationForTimezone(data.zoneId()))
             )
         );
+
+        if (data.canBeConvertedToNanos()) {
+            suppliers.add(
+                new TestCaseSupplier(
+                    data.testCaseNameForNanos(),
+                    List.of(DataType.DATE_PERIOD, DataType.DATE_NANOS),
+                    () -> new TestCaseSupplier.TestCase(
+                        List.of(
+                            new TestCaseSupplier.TypedData(data.period(), DataType.DATE_PERIOD, "interval").forceLiteral(),
+                            new TestCaseSupplier.TypedData(data.inputDateAsNanos(), DataType.DATE_NANOS, "date")
+                        ),
+                        Matchers.startsWith("DateTruncDateNanosEvaluator[fieldVal=Attribute[channel=0], rounding=Rounding["),
+                        DataType.DATE_NANOS,
+                        matchesDateNanos(data.expectedDate())
+                    ).withConfiguration(TEST_SOURCE, configurationForTimezone(data.zoneId()))
+                )
+            );
+        }
+
+        return suppliers;
     }
 
     private static TestCaseSupplier randomSecond() {

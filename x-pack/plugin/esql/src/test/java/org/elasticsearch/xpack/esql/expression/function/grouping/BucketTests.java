@@ -142,22 +142,27 @@ public class BucketTests extends AbstractConfigurationFunctionTestCase {
     }
 
     private static void dateTruncCases(List<TestCaseSupplier> suppliers) {
-        makeTruncPeriodTestCases().stream()
-            .map(
-                data -> List.of(
-                    new TestCaseSupplier(
-                        data.testCaseNameForMillis(),
-                        List.of(DataType.DATETIME, DataType.DATE_PERIOD),
-                        () -> new TestCaseSupplier.TestCase(
-                            List.of(
-                                new TestCaseSupplier.TypedData(data.inputDateAsMillis(), DataType.DATETIME, "field"),
-                                new TestCaseSupplier.TypedData(data.period(), DataType.DATE_PERIOD, "interval").forceLiteral()
-                            ),
-                            Matchers.startsWith("DateTruncDatetimeEvaluator[fieldVal=Attribute[channel=0], rounding=Rounding["),
-                            DataType.DATETIME,
-                            matchesDateMillis(data.expectedDate())
-                        ).withConfiguration(TEST_SOURCE, configurationForTimezone(data.zoneId()))
-                    ),
+        makeTruncPeriodTestCases().stream().map(data -> {
+            List<TestCaseSupplier> caseSuppliers = new ArrayList<>();
+
+            caseSuppliers.add(
+                new TestCaseSupplier(
+                    data.testCaseNameForMillis(),
+                    List.of(DataType.DATETIME, DataType.DATE_PERIOD),
+                    () -> new TestCaseSupplier.TestCase(
+                        List.of(
+                            new TestCaseSupplier.TypedData(data.inputDateAsMillis(), DataType.DATETIME, "field"),
+                            new TestCaseSupplier.TypedData(data.period(), DataType.DATE_PERIOD, "interval").forceLiteral()
+                        ),
+                        Matchers.startsWith("DateTruncDatetimeEvaluator[fieldVal=Attribute[channel=0], rounding=Rounding["),
+                        DataType.DATETIME,
+                        matchesDateMillis(data.expectedDate())
+                    ).withConfiguration(TEST_SOURCE, configurationForTimezone(data.zoneId()))
+                )
+            );
+
+            if (data.canBeConvertedToNanos()) {
+                caseSuppliers.add(
                     new TestCaseSupplier(
                         data.testCaseNameForNanos(),
                         List.of(DataType.DATE_NANOS, DataType.DATE_PERIOD),
@@ -171,26 +176,33 @@ public class BucketTests extends AbstractConfigurationFunctionTestCase {
                             matchesDateNanos(data.expectedDate())
                         ).withConfiguration(TEST_SOURCE, configurationForTimezone(data.zoneId()))
                     )
-                )
-            )
-            .forEach(suppliers::addAll);
+                );
+            }
 
-        makeTruncDurationTestCases().stream()
-            .map(
-                data -> List.of(
-                    new TestCaseSupplier(
-                        data.testCaseNameForMillis(),
-                        List.of(DataType.DATETIME, DataType.TIME_DURATION),
-                        () -> new TestCaseSupplier.TestCase(
-                            List.of(
-                                new TestCaseSupplier.TypedData(data.inputDateAsMillis(), DataType.DATETIME, "field"),
-                                new TestCaseSupplier.TypedData(data.duration(), DataType.TIME_DURATION, "interval").forceLiteral()
-                            ),
-                            Matchers.startsWith("DateTruncDatetimeEvaluator[fieldVal=Attribute[channel=0], rounding=Rounding["),
-                            DataType.DATETIME,
-                            matchesDateMillis(data.expectedDate())
-                        ).withConfiguration(TEST_SOURCE, configurationForTimezone(data.zoneId()))
-                    ),
+            return caseSuppliers;
+        }).forEach(suppliers::addAll);
+
+        makeTruncDurationTestCases().stream().map(data -> {
+            List<TestCaseSupplier> caseSuppliers = new ArrayList<>();
+
+            caseSuppliers.add(
+                new TestCaseSupplier(
+                    data.testCaseNameForMillis(),
+                    List.of(DataType.DATETIME, DataType.TIME_DURATION),
+                    () -> new TestCaseSupplier.TestCase(
+                        List.of(
+                            new TestCaseSupplier.TypedData(data.inputDateAsMillis(), DataType.DATETIME, "field"),
+                            new TestCaseSupplier.TypedData(data.duration(), DataType.TIME_DURATION, "interval").forceLiteral()
+                        ),
+                        Matchers.startsWith("DateTruncDatetimeEvaluator[fieldVal=Attribute[channel=0], rounding=Rounding["),
+                        DataType.DATETIME,
+                        matchesDateMillis(data.expectedDate())
+                    ).withConfiguration(TEST_SOURCE, configurationForTimezone(data.zoneId()))
+                )
+            );
+
+            if (data.canBeConvertedToNanos()) {
+                caseSuppliers.add(
                     new TestCaseSupplier(
                         data.testCaseNameForNanos(),
                         List.of(DataType.DATE_NANOS, DataType.TIME_DURATION),
@@ -204,9 +216,11 @@ public class BucketTests extends AbstractConfigurationFunctionTestCase {
                             matchesDateNanos(data.expectedDate())
                         ).withConfiguration(TEST_SOURCE, configurationForTimezone(data.zoneId()))
                     )
-                )
-            )
-            .forEach(suppliers::addAll);
+                );
+            }
+
+            return caseSuppliers;
+        }).forEach(suppliers::addAll);
     }
 
     private static TestCaseSupplier.TypedData dateBound(String name, DataType type, String date) {

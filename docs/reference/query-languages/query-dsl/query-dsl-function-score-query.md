@@ -405,7 +405,7 @@ See [Exponential decay, keyword `exp`](#exp-decay) for graphs demonstrating the 
 
 
 :::{math}
-S(doc) = max \left( \dfrac{s - max(0, | fieldvalue_{doc} - origin| - offset)^2)}{ s }, 0 \right)
+S(doc) = max \left( \dfrac{s - max(0, | fieldvalue_{doc} - origin| - offset)}{ s }, 0 \right)
 :::
 
 where again the parameter `s` is computed to assure that the score takes the value `decay` at distance `scale` from `origin ± offset`

@@ -35,6 +35,7 @@ public class OpenShiftAiChatCompletionServiceSettingsTests extends AbstractBWCWi
 
     private static final String MODEL_VALUE = "some_model";
     private static final String URL_VALUE = "http://www.abc.com";
+    private static final String INVALID_URL_VALUE = "^^^";
     private static final int RATE_LIMIT = 2;
 
     public void testFromMap_AllFields_Success() {
@@ -75,25 +76,54 @@ public class OpenShiftAiChatCompletionServiceSettingsTests extends AbstractBWCWi
     }
 
     public void testFromMap_MissingUrl_ThrowsException() {
+        testFromMap_InvalidUrl(
+            Map.of(
+                ServiceFields.MODEL_ID,
+                MODEL_VALUE,
+                RateLimitSettings.FIELD_NAME,
+                new HashMap<>(Map.of(RateLimitSettings.REQUESTS_PER_MINUTE_FIELD, RATE_LIMIT))
+            ),
+            "Validation Failed: 1: [service_settings] does not contain the required setting [url];"
+        );
+    }
+
+    public void testFromMap_InvalidUrl_ThrowsException() {
+        testFromMap_InvalidUrl(
+            Map.of(
+                ServiceFields.URL,
+                INVALID_URL_VALUE,
+                ServiceFields.MODEL_ID,
+                MODEL_VALUE,
+                RateLimitSettings.FIELD_NAME,
+                new HashMap<>(Map.of(RateLimitSettings.REQUESTS_PER_MINUTE_FIELD, RATE_LIMIT))
+            ),
+            """
+                Validation Failed: 1: [service_settings] Invalid url [^^^] received for field [url]. \
+                Error: unable to parse url [^^^]. Reason: Illegal character in path;"""
+        );
+    }
+
+    public void testFromMap_EmptyUrl_ThrowsException() {
+        testFromMap_InvalidUrl(
+            Map.of(
+                ServiceFields.URL,
+                "",
+                ServiceFields.MODEL_ID,
+                MODEL_VALUE,
+                RateLimitSettings.FIELD_NAME,
+                new HashMap<>(Map.of(RateLimitSettings.REQUESTS_PER_MINUTE_FIELD, RATE_LIMIT))
+            ),
+            "Validation Failed: 1: [service_settings] Invalid value empty string. [url] must be a non-empty string;"
+        );
+    }
+
+    private static void testFromMap_InvalidUrl(Map<String, Object> serviceSettingsMap, String expectedErrorMessage) {
         var thrownException = expectThrows(
             ValidationException.class,
-            () -> OpenShiftAiChatCompletionServiceSettings.fromMap(
-                new HashMap<>(
-                    Map.of(
-                        ServiceFields.MODEL_ID,
-                        MODEL_VALUE,
-                        RateLimitSettings.FIELD_NAME,
-                        new HashMap<>(Map.of(RateLimitSettings.REQUESTS_PER_MINUTE_FIELD, RATE_LIMIT))
-                    )
-                ),
-                ConfigurationParseContext.PERSISTENT
-            )
+            () -> OpenShiftAiChatCompletionServiceSettings.fromMap(new HashMap<>(serviceSettingsMap), ConfigurationParseContext.PERSISTENT)
         );
 
-        assertThat(
-            thrownException.getMessage(),
-            containsString("Validation Failed: 1: [service_settings] does not contain the required setting [url];")
-        );
+        assertThat(thrownException.getMessage(), containsString(expectedErrorMessage));
     }
 
     public void testFromMap_MissingRateLimit_Success() {

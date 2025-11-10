@@ -56,6 +56,9 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstr
  * {@link org.apache.lucene.search.KnnByteVectorQuery}.
  */
 public class KnnVectorQueryBuilder extends AbstractQueryBuilder<KnnVectorQueryBuilder> {
+
+    public static final TransportVersion AUTO_PREFILTERING = TransportVersion.fromName("knn_vector_query_auto_prefiltering");
+
     public static final String NAME = "knn";
     private static final int NUM_CANDS_LIMIT = 10_000;
     private static final float NUM_CANDS_MULTIPLICATIVE_FACTOR = 1.5f;
@@ -121,7 +124,7 @@ public class KnnVectorQueryBuilder extends AbstractQueryBuilder<KnnVectorQueryBu
         return PARSER.apply(parser, null);
     }
 
-    private static final TransportVersion VISIT_PERCENTAGE = TransportVersion.fromName("visit_percentage");
+    public static final TransportVersion VISIT_PERCENTAGE = TransportVersion.fromName("visit_percentage");
 
     private final String fieldName;
     private final VectorData queryVector;
@@ -303,6 +306,9 @@ public class KnnVectorQueryBuilder extends AbstractQueryBuilder<KnnVectorQueryBu
         } else {
             this.rescoreVectorBuilder = null;
         }
+        if (in.getTransportVersion().supports(AUTO_PREFILTERING)) {
+            this.isAutoPrefiltering = in.readBoolean();
+        }
 
         this.queryVectorSupplier = null;
     }
@@ -417,6 +423,9 @@ public class KnnVectorQueryBuilder extends AbstractQueryBuilder<KnnVectorQueryBu
         }
         if (out.getTransportVersion().supports(TransportVersions.V_8_18_0)) {
             out.writeOptionalWriteable(rescoreVectorBuilder);
+        }
+        if (out.getTransportVersion().supports(AUTO_PREFILTERING)) {
+            out.writeBoolean(isAutoPrefiltering);
         }
     }
 
@@ -681,7 +690,8 @@ public class KnnVectorQueryBuilder extends AbstractQueryBuilder<KnnVectorQueryBu
             filterQueries,
             vectorSimilarity,
             queryVectorBuilder,
-            rescoreVectorBuilder
+            rescoreVectorBuilder,
+            isAutoPrefiltering
         );
     }
 
@@ -695,7 +705,8 @@ public class KnnVectorQueryBuilder extends AbstractQueryBuilder<KnnVectorQueryBu
             && Objects.equals(filterQueries, other.filterQueries)
             && Objects.equals(vectorSimilarity, other.vectorSimilarity)
             && Objects.equals(queryVectorBuilder, other.queryVectorBuilder)
-            && Objects.equals(rescoreVectorBuilder, other.rescoreVectorBuilder);
+            && Objects.equals(rescoreVectorBuilder, other.rescoreVectorBuilder)
+            && isAutoPrefiltering == other.isAutoPrefiltering;
     }
 
     @Override
@@ -703,8 +714,8 @@ public class KnnVectorQueryBuilder extends AbstractQueryBuilder<KnnVectorQueryBu
         return TransportVersions.V_8_0_0;
     }
 
-    public KnnVectorQueryBuilder enableAutoPrefiltering() {
-        isAutoPrefiltering = true;
+    public KnnVectorQueryBuilder setAutoPrefiltering(boolean isAutoPrefiltering) {
+        this.isAutoPrefiltering = isAutoPrefiltering;
         return this;
     }
 }

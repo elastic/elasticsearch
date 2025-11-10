@@ -1048,7 +1048,7 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
                         }
 
                         yield new KnnVectorQueryBuilder(inferenceResultsFieldName, inference, k, null, null, null, null)
-                            .enableAutoPrefiltering();
+                            .setAutoPrefiltering(true);
                     }
                     default -> throw new IllegalStateException(
                         "Field ["

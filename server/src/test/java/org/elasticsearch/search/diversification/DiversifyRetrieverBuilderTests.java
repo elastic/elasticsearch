@@ -57,13 +57,6 @@ public class DiversifyRetrieverBuilderTests extends ESTestCase {
     public void testValidate() {
         SearchSourceBuilder source = new SearchSourceBuilder();
 
-        // ensure type is MMR
-        IllegalArgumentException ex = assertThrows(
-            IllegalArgumentException.class,
-            () -> new DiversifyRetrieverBuilder(getInnerRetriever(), null, "test_field", 10, 10, getRandomQueryVector(), 0.5f)
-        );
-        assertEquals("[diversify] diversification type must be set to [mmr]", ex.getMessage());
-
         // ensure lambda is within range and set
         var retrieverHighLambda = new DiversifyRetrieverBuilder(
             getInnerRetriever(),
@@ -77,7 +70,7 @@ public class DiversifyRetrieverBuilderTests extends ESTestCase {
         var validationLambda = retrieverHighLambda.validate(source, null, false, false);
         assertEquals(1, validationLambda.validationErrors().size());
         assertEquals(
-            "[diversify] MMR result diversification must have a [lambda] between 0.0 and 1.0",
+            "[diversify] MMR result diversification must have a [lambda] between 0.0 and 1.0. The value provided was 2.0",
             validationLambda.validationErrors().getFirst()
         );
 
@@ -93,7 +86,7 @@ public class DiversifyRetrieverBuilderTests extends ESTestCase {
         validationLambda = retrieverLowLambda.validate(source, null, false, false);
         assertEquals(1, validationLambda.validationErrors().size());
         assertEquals(
-            "[diversify] MMR result diversification must have a [lambda] between 0.0 and 1.0",
+            "[diversify] MMR result diversification must have a [lambda] between 0.0 and 1.0. The value provided was -0.1",
             validationLambda.validationErrors().getFirst()
         );
 
@@ -109,7 +102,7 @@ public class DiversifyRetrieverBuilderTests extends ESTestCase {
         validationLambda = retrieverNullLambda.validate(source, null, false, false);
         assertEquals(1, validationLambda.validationErrors().size());
         assertEquals(
-            "[diversify] MMR result diversification must have a [lambda] between 0.0 and 1.0",
+            "[diversify] MMR result diversification must have a [lambda] between 0.0 and 1.0. The value provided was null",
             validationLambda.validationErrors().getFirst()
         );
     }

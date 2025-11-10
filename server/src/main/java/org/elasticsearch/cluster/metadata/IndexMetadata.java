@@ -3257,24 +3257,27 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         }
     }
 
-    public static Map<InferenceFieldMetadata, Set<String>> getMatchingInferenceFields(
+    public static Map<InferenceFieldMetadata, Float> getMatchingInferenceFields(
         Map<String, InferenceFieldMetadata> inferenceFieldMetadataMap,
-        Set<String> fields,
+        Map<String, Float> fieldMap,
         boolean resolveWildcards
     ) {
-        Map<InferenceFieldMetadata, Set<String>> matches = new HashMap<>();
-        for (String field : fields) {
+        Map<InferenceFieldMetadata, Float> matches = new HashMap<>();
+        for (var entry : fieldMap.entrySet()) {
+            String field = entry.getKey();
+            Float weight = entry.getValue();
+
             if (inferenceFieldMetadataMap.containsKey(field)) {
                 // No wildcards in field name
-                addToMatchingInferenceFieldsMap(matches, inferenceFieldMetadataMap.get(field), field);
+                addToMatchingInferenceFieldsMap(matches, inferenceFieldMetadataMap.get(field), weight);
             } else if (resolveWildcards) {
                 if (Regex.isMatchAllPattern(field)) {
-                    inferenceFieldMetadataMap.values().forEach(ifm -> addToMatchingInferenceFieldsMap(matches, ifm, field));
+                    inferenceFieldMetadataMap.values().forEach(ifm -> addToMatchingInferenceFieldsMap(matches, ifm, weight));
                 } else if (Regex.isSimpleMatchPattern(field)) {
                     inferenceFieldMetadataMap.values()
                         .stream()
                         .filter(ifm -> Regex.simpleMatch(field, ifm.getName()))
-                        .forEach(ifm -> addToMatchingInferenceFieldsMap(matches, ifm, field));
+                        .forEach(ifm -> addToMatchingInferenceFieldsMap(matches, ifm, weight));
                 }
             }
         }
@@ -3283,11 +3286,10 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
     }
 
     private static void addToMatchingInferenceFieldsMap(
-        Map<InferenceFieldMetadata, Set<String>> matches,
+        Map<InferenceFieldMetadata, Float> matches,
         InferenceFieldMetadata inferenceFieldMetadata,
-        String fieldPattern
+        Float weight
     ) {
-        Set<String> fieldPatternSet = matches.computeIfAbsent(inferenceFieldMetadata, (k) -> new HashSet<>());
-        fieldPatternSet.add(fieldPattern);
+        matches.compute(inferenceFieldMetadata, (k, v) -> v == null ? weight : v * weight);
     }
 }

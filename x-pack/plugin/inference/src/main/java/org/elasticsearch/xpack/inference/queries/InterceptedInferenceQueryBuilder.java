@@ -38,6 +38,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.cluster.metadata.IndexMetadata.getMatchingInferenceFields;
 import static org.elasticsearch.index.IndexSettings.DEFAULT_FIELD_SETTING;
@@ -432,27 +433,14 @@ public abstract class InterceptedInferenceQueryBuilder<T extends AbstractQueryBu
         Map<String, Float> queryFields,
         boolean resolveWildcards
     ) {
-        Map<String, Float> inferenceFieldsToQuery = new HashMap<>();
         Map<String, InferenceFieldMetadata> indexInferenceFields = indexMetadataContext.getMappingLookup().inferenceFields();
-
-        Map<InferenceFieldMetadata, Set<String>> matchingInferenceFields = getMatchingInferenceFields(
+        Map<InferenceFieldMetadata, Float> matchingInferenceFields = getMatchingInferenceFields(
             indexInferenceFields,
-            queryFields.keySet(),
+            queryFields,
             resolveWildcards
         );
-        for (var entry : matchingInferenceFields.entrySet()) {
-            String concreteFieldName = entry.getKey().getName();
-            Set<String> matchingFieldPatterns = entry.getValue();
 
-            float weight = 1.0f;
-            for (String fieldPattern : matchingFieldPatterns) {
-                weight *= queryFields.get(fieldPattern);
-            }
-
-            inferenceFieldsToQuery.put(concreteFieldName, weight);
-        }
-
-        return inferenceFieldsToQuery;
+        return matchingInferenceFields.entrySet().stream().collect(Collectors.toMap(e -> e.getKey().getName(), Map.Entry::getValue));
     }
 
     private static Map<String, Float> getDefaultFields(Settings settings) {

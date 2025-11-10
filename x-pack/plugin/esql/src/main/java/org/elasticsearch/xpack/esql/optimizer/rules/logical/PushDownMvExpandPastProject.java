@@ -32,8 +32,7 @@ public final class PushDownMvExpandPastProject extends OptimizerRules.OptimizerR
             // Example:
             // MvExpand[salary{r}#168,salary{r}#175]
             // \_Project[[$$salary$converted_to$keyword{r$}#178 AS salary#168]]
-            //   \_Limit[1000[INTEGER],false,false]
-            //     \_UnionAll[[salary{r}#174, $$salary$converted_to$keyword{r$}#178]]
+            //   \_UnionAll[[salary{r}#174, $$salary$converted_to$keyword{r$}#178]]
             Set<String> inputNames = pj.inputSet().stream().map(NamedExpression::name).collect(Collectors.toSet());
             if (projections.stream().anyMatch(e -> e instanceof Alias alias && inputNames.contains(alias.toAttribute().name()))) {
                 return mvExpand;
@@ -75,7 +74,7 @@ public final class PushDownMvExpandPastProject extends OptimizerRules.OptimizerR
             AttributeMap<Alias> aliases = aliasBuilder.build();
 
             // Push down the MvExpand past the Project
-            MvExpand pushedDownMvExpand = new MvExpand(mvExpand.source(), pj.child(), mvExpand.target(), mvExpand.expanded());
+            MvExpand pushedDownMvExpand = mvExpand.replaceChild(pj.child());
 
             // Create a new projection at the top based on mvExpand.output(), plugging back in the aliases
             List<NamedExpression> newProjections = new ArrayList<>();

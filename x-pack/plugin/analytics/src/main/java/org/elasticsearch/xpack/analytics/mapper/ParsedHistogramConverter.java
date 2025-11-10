@@ -48,6 +48,11 @@ public class ParsedHistogramConverter {
      * Converts t-digest histograms to exponential histograms, trying to do the inverse
      * of {@link #exponentialToTDigest(ExponentialHistogramParser.ParsedExponentialHistogram)}
      * as accurately as possible.
+     * <br>
+     * On a round-trip conversion from exponential histogram to T-Digest and back,
+     * the bucket centers will be preserved, however the bucket widths are lost.
+     * The conversion algorithm works by generating tiny buckets (scale set to MAX_SCALE)
+     * containing the T-Digest centroids.
      *
      * @param tDigest the t-digest histogram to convert
      * @return the resulting exponential histogram

@@ -28,7 +28,7 @@ public class ElasticInferenceServiceSettings {
     @Deprecated
     static final Setting<String> EIS_GATEWAY_URL = Setting.simpleString("xpack.inference.eis.gateway.url", Setting.Property.NodeScope);
 
-    static final Setting<String> ELASTIC_INFERENCE_SERVICE_URL = Setting.simpleString(
+    public static final Setting<String> ELASTIC_INFERENCE_SERVICE_URL = Setting.simpleString(
         "xpack.inference.elastic.url",
         Setting.Property.NodeScope
     );
@@ -37,7 +37,7 @@ public class ElasticInferenceServiceSettings {
      * This setting is for testing only. It controls whether authorization is only performed once at bootup. If set to true, an
      * authorization request will be made repeatedly on an interval.
      */
-    static final Setting<Boolean> PERIODIC_AUTHORIZATION_ENABLED = Setting.boolSetting(
+    public static final Setting<Boolean> PERIODIC_AUTHORIZATION_ENABLED = Setting.boolSetting(
         "xpack.inference.elastic.periodic_authorization_enabled",
         true,
         Setting.Property.NodeScope

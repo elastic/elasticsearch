@@ -118,7 +118,7 @@ public class OpenShiftAiEmbeddingsRequestTests extends ESTestCase {
             URL_VALUE,
             API_KEY_VALUE,
             modelId,
-            dimensions,
+            null,
             dimensionsSetByUser,
             dimensions,
             null

@@ -18,6 +18,7 @@ import org.elasticsearch.exponentialhistogram.ExponentialHistogramCircuitBreaker
 import java.io.IOException;
 import java.util.List;
 
+import static org.elasticsearch.test.EnumSerializationTestUtils.assertEnumSerialization;
 import static org.hamcrest.CoreMatchers.not;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -109,6 +110,16 @@ public class ExponentialHistogramBlockTests extends ComputeTestCase {
             Releasables.close(componentBlock);
         }
         Releasables.close(block);
+    }
+
+    public void testComponentEnumSerialization() {
+        assertEnumSerialization(
+            ExponentialHistogramBlock.Component.class,
+            ExponentialHistogramBlock.Component.MIN,
+            ExponentialHistogramBlock.Component.MAX,
+            ExponentialHistogramBlock.Component.SUM,
+            ExponentialHistogramBlock.Component.COUNT
+        );
     }
 
     public void testEmptyBlockEquality() {

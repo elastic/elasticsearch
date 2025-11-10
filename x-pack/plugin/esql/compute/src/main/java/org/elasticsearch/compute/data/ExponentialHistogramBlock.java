@@ -18,6 +18,8 @@ public sealed interface ExponentialHistogramBlock extends Block permits Constant
     /**
      * Exponential histograms are composite data types. This enum defines the components
      * that can be directly accessed, potentially avoiding loading the entire histogram from disk.
+     * <br>
+     * This enum can be safely serialized via {@link org.elasticsearch.common.io.stream.StreamOutput#writeEnum(Enum)}.
      */
     enum Component {
         /**

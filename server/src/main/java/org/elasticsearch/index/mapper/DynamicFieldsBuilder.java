@@ -327,11 +327,7 @@ final class DynamicFieldsBuilder {
         public boolean newDynamicStringField(DocumentParserContext context, String name) throws IOException {
             MapperBuilderContext mapperBuilderContext = context.createDynamicMapperBuilderContext();
             if (mapperBuilderContext.parentObjectContainsDimensions()) {
-                return createDynamicField(
-                    new KeywordFieldMapper.Builder(name, context.indexSettings().getIndexVersionCreated()),
-                    context,
-                    mapperBuilderContext
-                );
+                return createDynamicField(new KeywordFieldMapper.Builder(name, context.indexSettings()), context, mapperBuilderContext);
             } else {
                 var indexSettings = context.indexSettings();
                 return createDynamicField(
@@ -342,9 +338,7 @@ final class DynamicFieldsBuilder {
                         context.indexAnalyzers(),
                         SourceFieldMapper.isSynthetic(indexSettings),
                         false
-                    ).addMultiField(
-                        new KeywordFieldMapper.Builder("keyword", context.indexSettings().getIndexVersionCreated(), true).ignoreAbove(256)
-                    ),
+                    ).addMultiField(new KeywordFieldMapper.Builder("keyword", context.indexSettings(), true).ignoreAbove(256)),
                     context
                 );
             }
@@ -353,15 +347,7 @@ final class DynamicFieldsBuilder {
         @Override
         public boolean newDynamicLongField(DocumentParserContext context, String name) throws IOException {
             return createDynamicField(
-                new NumberFieldMapper.Builder(
-                    name,
-                    NumberFieldMapper.NumberType.LONG,
-                    ScriptCompiler.NONE,
-                    context.indexSettings().getSettings(),
-                    context.indexSettings().getIndexVersionCreated(),
-                    context.indexSettings().getMode(),
-                    context.indexSettings().sourceKeepMode()
-                ),
+                new NumberFieldMapper.Builder(name, NumberFieldMapper.NumberType.LONG, ScriptCompiler.NONE, context.indexSettings()),
                 context
             );
         }
@@ -372,33 +358,14 @@ final class DynamicFieldsBuilder {
             // since this is much more space-efficient and should be enough most of
             // the time
             return createDynamicField(
-                new NumberFieldMapper.Builder(
-                    name,
-                    NumberFieldMapper.NumberType.FLOAT,
-                    ScriptCompiler.NONE,
-                    context.indexSettings().getSettings(),
-                    context.indexSettings().getIndexVersionCreated(),
-                    context.indexSettings().getMode(),
-                    context.indexSettings().sourceKeepMode()
-                ),
+                new NumberFieldMapper.Builder(name, NumberFieldMapper.NumberType.FLOAT, ScriptCompiler.NONE, context.indexSettings()),
                 context
             );
         }
 
         @Override
         public boolean newDynamicBooleanField(DocumentParserContext context, String name) throws IOException {
-            Settings settings = context.indexSettings().getSettings();
-            boolean ignoreMalformed = FieldMapper.IGNORE_MALFORMED_SETTING.get(settings);
-            return createDynamicField(
-                new BooleanFieldMapper.Builder(
-                    name,
-                    ScriptCompiler.NONE,
-                    ignoreMalformed,
-                    context.indexSettings().getIndexVersionCreated(),
-                    context.indexSettings().sourceKeepMode()
-                ),
-                context
-            );
+            return createDynamicField(new BooleanFieldMapper.Builder(name, ScriptCompiler.NONE, context.indexSettings()), context);
         }
 
         @Override

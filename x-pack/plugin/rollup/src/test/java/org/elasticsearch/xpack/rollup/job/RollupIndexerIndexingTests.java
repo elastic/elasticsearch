@@ -729,7 +729,7 @@ public class RollupIndexerIndexingTests extends AggregatorTestCase {
 
         if (job.getGroupConfig().getTerms() != null) {
             for (String field : job.getGroupConfig().getTerms().getFields()) {
-                MappedFieldType ft = new KeywordFieldMapper.Builder(field, IndexVersion.current()).build(
+                MappedFieldType ft = new KeywordFieldMapper.Builder(field, defaultIndexSettings()).build(
                     MapperBuilderContext.root(false, false)
                 ).fieldType();
                 fieldTypes.put(ft.name(), ft);

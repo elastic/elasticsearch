@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.esql.analysis.promql;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.analysis.Analyzer;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils;
-import org.junit.Ignore;
 
 import java.util.List;
 
@@ -60,10 +59,11 @@ public class PromqlVerifierTests extends ESTestCase {
         );
     }
 
-    @Ignore
+    @AwaitsFix(
+        bugUrl = "Doesn't parse: line 1:27: Invalid query '1+1'[ArithmeticBinaryContext] given; "
+            + "expected LogicalPlan but found VectorBinaryArithmetic"
+    )
     public void testPromqlArithmetricOperators() {
-        // TODO doesn't parse
-        // line 1:27: Invalid query '1+1'[ArithmeticBinaryContext] given; expected LogicalPlan but found VectorBinaryArithmetic
         assertThat(
             error("TS test | PROMQL step 5m (1+1)", tsdb),
             equalTo("1:27: arithmetic operators are not supported at this time [foo]")
@@ -82,11 +82,11 @@ public class PromqlVerifierTests extends ESTestCase {
         );
     }
 
-    @Ignore
+    @AwaitsFix(
+        bugUrl = "Doesn't parse: line 1:27: Invalid query 'method_code_http_errors_rate5m{code=\"500\"}'"
+            + "[ValueExpressionContext] given; expected Expression but found InstantSelector"
+    )
     public void testPromqlVectorMatching() {
-        // TODO doesn't parse
-        // line 1:27: Invalid query 'method_code_http_errors_rate5m{code="500"}'[ValueExpressionContext] given; expected Expression but
-        // found InstantSelector
         assertThat(
             error(
                 "TS test | PROMQL step 5m (method_code_http_errors_rate5m{code=\"500\"} / ignoring(code) method_http_requests_rate5m)",
@@ -115,10 +115,11 @@ public class PromqlVerifierTests extends ESTestCase {
         );*/
     }
 
-    @Ignore
+    @AwaitsFix(
+        bugUrl = "Doesn't parse: line 1:27: Invalid query 'foo and bar'[LogicalBinaryContext] given; "
+            + "expected Expression but found InstantSelector"
+    )
     public void testLogicalSetBinaryOperators() {
-        // TODO doesn't parse
-        // line 1:27: Invalid query 'foo'[ValueExpressionContext] given; expected Expression but found InstantSelector
         assertThat(error("TS test | PROMQL step 5m (foo and bar)", tsdb), equalTo(""));
         assertThat(error("TS test | PROMQL step 5m (foo or bar)", tsdb), equalTo(""));
         assertThat(error("TS test | PROMQL step 5m (foo unless bar)", tsdb), equalTo(""));

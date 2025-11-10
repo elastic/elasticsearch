@@ -46,6 +46,7 @@ import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.Set;
 
 import static java.util.Collections.emptyList;
 import static org.elasticsearch.xpack.esql.expression.promql.function.FunctionType.ACROSS_SERIES_AGGREGATION;
@@ -97,8 +98,8 @@ public class PromqlLogicalPlanBuilder extends PromqlExpressionBuilder {
         };
     }
 
-    static boolean isInstantVector(LogicalPlan plan) {
-        return isRangeVector(plan) == false;
+    static boolean isScalar(LogicalPlan plan) {
+        return plan instanceof LiteralSelector;
     }
 
     private LogicalPlan wrapLiteral(ParseTree ctx) {
@@ -144,48 +145,82 @@ public class PromqlLogicalPlanBuilder extends PromqlExpressionBuilder {
         Expression series = null;
         List<Expression> labelExpressions = new ArrayList<>();
 
+        boolean identifierId = (id != null);
+
         if (id != null) {
             labels.add(new LabelMatcher(NAME, id, LabelMatcher.Matcher.EQ));
+            // TODO: this can be missing and thus
             series = new UnresolvedAttribute(source(seriesMatcher.identifier()), id);
         }
+
+        boolean nonEmptyMatcher = id != null;
+        Set<String> seenLabelNames = new LinkedHashSet<>();
 
         PromqlBaseParser.LabelsContext labelsCtx = seriesMatcher.labels();
         if (labelsCtx != null) {
             // if no name is specified, check for non-empty matchers
-            boolean nonEmptyMatcher = id != null;
             for (PromqlBaseParser.LabelContext labelCtx : labelsCtx.label()) {
-                if (labelCtx.kind == null) {
-                    throw new ParsingException(source(labelCtx), "No label matcher specified");
-                }
-                String kind = labelCtx.kind.getText();
-                LabelMatcher.Matcher matcher = LabelMatcher.Matcher.from(kind);
-                if (matcher == null) {
-                    throw new ParsingException(source(labelCtx), "Unrecognized label matcher [{}]", kind);
-                }
                 var nameCtx = labelCtx.labelName();
                 String labelName = visitLabelName(nameCtx);
                 if (labelName.contains(":")) {
                     throw new ParsingException(source(nameCtx), "[:] not allowed in label names [{}]", labelName);
                 }
+
+                // shortcut for specifying the name (no matcher operator)
+                if (labelCtx.kind == null) {
+                    if (identifierId) {
+                        throw new ParsingException(source(labelCtx), "Metric name must not be defined twice: [{}] or [{}]", id, labelName);
+                    }
+                    // set id/series from first label-based name
+                    if (id == null) {
+                        id = labelName;
+                        series = new UnresolvedAttribute(source(labelCtx), id);
+                    }
+                    // always add as label matcher
+                    labels.add(new LabelMatcher(NAME, labelName, LabelMatcher.Matcher.EQ));
+                    // add unresolved attribute on first encounter
+                    if (seenLabelNames.add(NAME)) {
+                        labelExpressions.add(new UnresolvedAttribute(source(nameCtx), NAME));
+                    }
+                    nonEmptyMatcher = true;
+
+                    continue;
+                }
+
+                String kind = labelCtx.kind.getText();
+                LabelMatcher.Matcher matcher = LabelMatcher.Matcher.from(kind);
+                if (matcher == null) {
+                    throw new ParsingException(source(labelCtx), "Unrecognized label matcher [{}]", kind);
+                }
+
                 String labelValue = string(labelCtx.STRING());
                 Source valueCtx = source(labelCtx.STRING());
-                // name cannot be defined twice
+                // __name__ with explicit matcher
                 if (NAME.equals(labelName)) {
-                    if (id != null) {
+                    if (identifierId) {
                         throw new ParsingException(source(nameCtx), "Metric name must not be defined twice: [{}] or [{}]", id, labelValue);
                     }
-                    id = labelValue;
-                    series = new UnresolvedAttribute(valueCtx, id);
+                    // set id/series from first label-based name
+                    if (id == null) {
+                        id = labelValue;
+                        series = new UnresolvedAttribute(valueCtx, id);
+                    }
                 }
-                labelExpressions.add(new UnresolvedAttribute(source(nameCtx), labelName));
 
+                // always add label matcher
                 LabelMatcher label = new LabelMatcher(labelName, labelValue, matcher);
-                // require at least one empty non-empty matcher
+                labels.add(label);
+                // add unresolved attribute on first encounter
+                if (seenLabelNames.add(labelName)) {
+                    labelExpressions.add(new UnresolvedAttribute(source(nameCtx), labelName));
+                }
+
+                // require at least one non-empty matcher
                 if (nonEmptyMatcher == false && label.matchesEmpty() == false) {
                     nonEmptyMatcher = true;
                 }
-                labels.add(label);
             }
+
             if (nonEmptyMatcher == false) {
                 throw new ParsingException(source(labelsCtx), "Vector selector must contain at least one non-empty matcher");
             }
@@ -259,8 +294,8 @@ public class PromqlLogicalPlanBuilder extends PromqlExpressionBuilder {
         String opText = ctx.op.getText();
 
         // validate operation against expression types
-        boolean leftIsScalar = le instanceof LiteralSelector;
-        boolean rightIsScalar = re instanceof LiteralSelector;
+        boolean leftIsScalar = isScalar(le);
+        boolean rightIsScalar = isScalar(re);
 
         // comparisons against scalars require bool
         if (bool == false && leftIsScalar && rightIsScalar) {
@@ -316,7 +351,7 @@ public class PromqlLogicalPlanBuilder extends PromqlExpressionBuilder {
         PromqlBaseParser.ModifierContext modifierCtx = ctx.modifier();
         if (modifierCtx != null) {
             // modifiers work only on vectors
-            if (le instanceof InstantSelector == false || re instanceof InstantSelector == false) {
+            if (isRangeVector(le) || isRangeVector(re) || isScalar(le) || isScalar(re)) {
                 throw new ParsingException(source, "Vector matching allowed only between instant vectors");
             }
 

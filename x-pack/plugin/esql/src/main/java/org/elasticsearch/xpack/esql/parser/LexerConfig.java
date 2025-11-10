@@ -49,7 +49,7 @@ public abstract class LexerConfig extends Lexer {
         if (promqlDepth != 0) {
             throw new ParsingException(
                 "Invalid PromQL declaration, missing [{}] [{}] parenthesis",
-                Math.abs(promqlDepth),
+                Math.absExact(promqlDepth),
                 promqlDepth > 0 ? '(' : ')'
             );
         }

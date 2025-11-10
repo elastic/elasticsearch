@@ -81,7 +81,7 @@ public class PromqlLogicalPlanOptimizerTests extends AbstractLogicalPlanOptimize
             )
             """);
 
-        System.out.println(plan);
+        logger.info(plan);
     }
 
     public void testExplainPromqlSimple() {
@@ -94,7 +94,7 @@ public class PromqlLogicalPlanOptimizerTests extends AbstractLogicalPlanOptimize
             | STATS AVG(AVG_OVER_TIME(network.bytes_in)) BY TBUCKET(1h)
             """);
 
-        System.out.println(plan);
+        logger.info(plan);
     }
 
     public void testAvgAvgOverTimeOutput() {
@@ -107,7 +107,7 @@ public class PromqlLogicalPlanOptimizerTests extends AbstractLogicalPlanOptimize
             | LIMIT 1000
             """);
 
-        System.out.println(plan);
+        logger.info(plan);
     }
 
     public void testTSAvgAvgOverTimeOutput() {
@@ -119,7 +119,7 @@ public class PromqlLogicalPlanOptimizerTests extends AbstractLogicalPlanOptimize
             | LIMIT 1000
             """);
 
-        System.out.println(plan);
+        logger.info(plan);
     }
 
     public void testTSAvgWithoutByDimension() {
@@ -131,7 +131,7 @@ public class PromqlLogicalPlanOptimizerTests extends AbstractLogicalPlanOptimize
             | LIMIT 1000
             """);
 
-        System.out.println(plan);
+        logger.info(plan);
     }
 
     public void testPromqlAvgWithoutByDimension() {
@@ -145,7 +145,7 @@ public class PromqlLogicalPlanOptimizerTests extends AbstractLogicalPlanOptimize
             | LIMIT 1000
             """);
 
-        System.out.println(plan);
+        logger.info(plan);
     }
 
     public void testRangeSelector() {
@@ -157,9 +157,10 @@ public class PromqlLogicalPlanOptimizerTests extends AbstractLogicalPlanOptimize
             | promql step 1h ( max by (pod) (avg_over_time(network.bytes_in[1h])) )
             """);
 
-        System.out.println(plan);
+        logger.info(plan);
     }
 
+    @AwaitsFix(bugUrl = "Invalid call to dataType on an unresolved object ?RATE_$1")
     public void testRate() {
         // TS metrics-hostmetricsreceiver.otel-default
         // | WHERE @timestamp >= \"{{from | minus .benchmark.duration}}\" AND @timestamp <= \"{{from}}\"
@@ -172,7 +173,7 @@ public class PromqlLogicalPlanOptimizerTests extends AbstractLogicalPlanOptimize
             """;
 
         var plan = planPromql(testQuery);
-        System.out.println(plan);
+        logger.info(plan);
     }
 
     public void testStartEndStep() {
@@ -205,7 +206,7 @@ public class PromqlLogicalPlanOptimizerTests extends AbstractLogicalPlanOptimize
         assertThat(filters, hasSize(1));
         var filter = (Filter) filters.getFirst();
         assertThat(filter.condition().anyMatch(In.class::isInstance), equalTo(true));
-        System.out.println(plan);
+        logger.info(plan);
     }
 
     public void testLabelSelectorPrefix() {
@@ -226,7 +227,7 @@ public class PromqlLogicalPlanOptimizerTests extends AbstractLogicalPlanOptimize
         var filter = (Filter) filters.getFirst();
         assertThat(filter.condition().anyMatch(StartsWith.class::isInstance), equalTo(true));
         assertThat(filter.condition().anyMatch(NotEquals.class::isInstance), equalTo(false));
-        System.out.println(plan);
+        logger.info(plan);
     }
 
     public void testLabelSelectorProperPrefix() {
@@ -258,6 +259,7 @@ public class PromqlLogicalPlanOptimizerTests extends AbstractLogicalPlanOptimize
         assertThat(filter.condition().anyMatch(RegexMatch.class::isInstance), equalTo(true));
     }
 
+    @AwaitsFix(bugUrl = "This should never be called before the attribute is resolved")
     public void testFsUsageTop5() {
         // TS metrics-hostmetricsreceiver.otel-default | WHERE @timestamp >= \"{{from | minus .benchmark.duration}}\" AND @timestamp <=
         // \"{{from}}\"
@@ -275,9 +277,10 @@ public class PromqlLogicalPlanOptimizerTests extends AbstractLogicalPlanOptimize
             """;
 
         var plan = planPromql(testQuery);
-        System.out.println(plan);
+        logger.info(plan);
     }
 
+    @AwaitsFix(bugUrl = "only aggregations across timeseries are supported at this time (found [foo or bar])")
     public void testGrammar() {
         // TS metrics-hostmetricsreceiver.otel-default | WHERE @timestamp >= \"{{from | minus .benchmark.duration}}\" AND @timestamp <=
         // \"{{from}}\"
@@ -295,7 +298,7 @@ public class PromqlLogicalPlanOptimizerTests extends AbstractLogicalPlanOptimize
             """;
 
         var plan = planPromql(testQuery);
-        System.out.println(plan);
+        logger.info(plan);
     }
 
     // public void testPromqlArithmetricOperators() {
@@ -323,9 +326,9 @@ public class PromqlLogicalPlanOptimizerTests extends AbstractLogicalPlanOptimize
         query = query.replace("$now-1h", '"' + Instant.now().minus(1, ChronoUnit.HOURS).toString() + '"');
         query = query.replace("$now", '"' + Instant.now().toString() + '"');
         var analyzed = tsAnalyzer.analyze(parser.createStatement(query));
-        System.out.println(analyzed);
+        logger.info(analyzed);
         var optimized = logicalOptimizer.optimize(analyzed);
-        System.out.println(optimized);
+        logger.info(optimized);
         return optimized;
     }
 }

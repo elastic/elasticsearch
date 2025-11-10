@@ -197,9 +197,6 @@ tests:
 - class: org.elasticsearch.packaging.test.EnrollmentProcessTests
   method: test20DockerAutoFormCluster
   issue: https://github.com/elastic/elasticsearch/issues/128113
-- class: org.elasticsearch.ingest.geoip.GeoIpDownloaderCliIT
-  method: testInvalidTimestamp
-  issue: https://github.com/elastic/elasticsearch/issues/128284
 - class: org.elasticsearch.packaging.test.TemporaryDirectoryConfigTests
   method: test21AcceptsCustomPathInDocker
   issue: https://github.com/elastic/elasticsearch/issues/128114

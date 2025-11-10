@@ -361,6 +361,12 @@ public class Approximate {
         // them come from Lucene's metadata and are computed fast. Approximation would
         // only slow things down in that case. When the query is not an ES stats query,
         // an exception is thrown and approximation is attempted.
+
+        // TODO: the final listener should do something with the Result's ExecutionInfo.
+        // Right now it contains the error "UnsupportedOperationException" when it's no
+        // ES stats query, which is bad. Furthermore, it contains the runtime of the
+        // last executed query, while it probably should contain the total runtime
+        // aggregated over the multiple queries executed here.
         runner.run(
             toPhysicalPlan.apply(logicalPlan),
             configuration.throwOnNonEsStatsQuery(true),
@@ -434,7 +440,7 @@ public class Approximate {
             double sampleProbability = sourceRowCount <= SAMPLE_ROW_COUNT ? 1.0 : (double) SAMPLE_ROW_COUNT / sourceRowCount;
             if (queryProperties.canIncreaseRowCount == false && sampleProbability == 1.0) {
                 // If the query cannot increase the number of rows, and the sample probability is 1.0,
-                // we can directly approximate without sampling.
+                // we can directly run the original query without sampling.
                 runner.run(toPhysicalPlan.apply(logicalPlan), configuration, foldContext, listener);
             } else if (queryProperties.canIncreaseRowCount == false && queryProperties.canDecreaseRowCount == false) {
                 // If the query preserves all rows, we can directly approximate with the sample probability.

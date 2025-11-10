@@ -63,7 +63,7 @@ public class RestEqlSearchAction extends BaseRestHandler {
             IndicesOptions indicesOptions = IndicesOptions.fromRequest(request, eqlRequest.indicesOptions());
             if (crossProjectEnabled) {
                 indicesOptions = IndicesOptions.builder(indicesOptions)
-                    .crossProjectModeOptions(new IndicesOptions.CrossProjectModeOptions(true))
+                    .crossProjectModeOptions(new IndicesOptions.CrossProjectModeOptions(false))
                     .build();
                 eqlRequest.projectRouting(request.param("project_routing"));
             }

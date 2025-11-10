@@ -123,7 +123,6 @@ setup:
   - match: {hits.hits.0.fields.vector5.0: [1, 111, -13, 15, -128]}
   - match: {hits.hits.0.fields.vector6.0: [-1, 11, 0, 12, 111]}
 
-
   - match: {hits.hits.1._id: "2"}
   - match: {hits.hits.1.fields.name.0: "moose.jpg"}
 
@@ -143,7 +142,6 @@ setup:
   - match: {hits.hits.1.fields.vector4.0: [-1, 50, -1, 1, 120]}
   - match: {hits.hits.1.fields.vector5.0: [1, 111, -13, 15, -128]}
 
-
   - match: {hits.hits.2._id: "3"}
   - match: {hits.hits.2.fields.name.0: "rabbit.jpg"}
 
@@ -161,3 +159,103 @@ setup:
   - close_to: { hits.hits.2.fields.vector2.0.4: { value: -100.0, error: 0.001 } }
 
   - match: {hits.hits.2.fields.vector3.0: [-1, 100, -13, 15, -128]}
+
+---
+"dense_vector docvalues with bfloat16":
+  - requires:
+      cluster_features: [ "mapper.vectors.generic_vector_format" ]
+      reason: Needs generic vector support
+  - do:
+      indices.create:
+        index: test-bfloat16
+        body:
+          mappings:
+            properties:
+              name:
+                type: keyword
+              vector7:
+                type: dense_vector
+                element_type: bfloat16
+                dims: 5
+                index: true
+              vector8:
+                type: dense_vector
+                element_type: bfloat16
+                dims: 5
+                index: false
+
+  - do:
+      index:
+        index: test-bfloat16
+        id: "1"
+        body:
+          name: cow.jpg
+          vector7: [230.0, 300.33, -34.8988, 15.555, -200.0]
+          vector8: [130.0, 115.0, -1.02, 15.555, -100.0]
+  - do:
+      index:
+        index: test-bfloat16
+        id: "2"
+        body:
+          name: moose.jpg
+          vector7: [-0.5, 100.0, -13, 14.8, -156.0]
+  - do:
+      index:
+        index: test-bfloat16
+        id: "3"
+        body:
+          name: rabbit.jpg
+          vector8: [130.0, 115.0, -1.02, 15.555, -100.0]
+
+  - do:
+      indices.refresh: {}
+
+  - do:
+      search:
+        _source: false
+        index: test-bfloat16
+        body:
+          docvalue_fields: [name, vector7, vector8]
+          sort: name
+
+  - match: {hits.hits.0._id: "1"}
+  - match: {hits.hits.0.fields.name.0: "cow.jpg"}
+
+  - length: {hits.hits.0.fields.vector7.0: 5}
+  - length: {hits.hits.0.fields.vector8.0: 5}
+
+  - close_to: { hits.hits.0.fields.vector7.0.0: { value: 230.0, error: 0.1 } }
+  - close_to: { hits.hits.0.fields.vector7.0.1: { value: 300.33, error: 0.1 } }
+  - close_to: { hits.hits.0.fields.vector7.0.2: { value: -34.8988, error: 0.1 } }
+  - close_to: { hits.hits.0.fields.vector7.0.3: { value: 15.555, error: 0.1 } }
+  - close_to: { hits.hits.0.fields.vector7.0.4: { value: -200.0, error: 0.1 } }
+
+  - close_to: { hits.hits.0.fields.vector8.0.0: { value: 130.0, error: 0.1 } }
+  - close_to: { hits.hits.0.fields.vector8.0.1: { value: 115.0, error: 0.1 } }
+  - close_to: { hits.hits.0.fields.vector8.0.2: { value: -1.02, error: 0.1 } }
+  - close_to: { hits.hits.0.fields.vector8.0.3: { value: 15.555, error: 0.1 } }
+  - close_to: { hits.hits.0.fields.vector8.0.4: { value: -100.0, error: 0.1 } }
+
+  - match: {hits.hits.1._id: "2"}
+  - match: {hits.hits.1.fields.name.0: "moose.jpg"}
+
+  - length: {hits.hits.1.fields.vector7.0: 5}
+  - match: {hits.hits.1.fields.vector8: null}
+
+  - close_to: { hits.hits.1.fields.vector7.0.0: { value: -0.5, error: 0.1 } }
+  - close_to: { hits.hits.1.fields.vector7.0.1: { value: 100.0, error: 0.1 } }
+  - close_to: { hits.hits.1.fields.vector7.0.2: { value: -13, error: 0.1 } }
+  - close_to: { hits.hits.1.fields.vector7.0.3: { value: 14.8, error: 0.1 } }
+  - close_to: { hits.hits.1.fields.vector7.0.4: { value: -156.0, error: 0.1 } }
+
+  - match: {hits.hits.2._id: "3"}
+  - match: {hits.hits.2.fields.name.0: "rabbit.jpg"}
+
+  - length: {hits.hits.2.fields.vector8.0: 5}
+  - match: {hits.hits.2.fields.vector7: null}
+
+  - close_to: { hits.hits.2.fields.vector8.0.0: { value: 130.0, error: 0.1 } }
+  - close_to: { hits.hits.2.fields.vector8.0.1: { value: 115.0, error: 0.1 } }
+  - close_to: { hits.hits.2.fields.vector8.0.2: { value: -1.02, error: 0.1 } }
+  - close_to: { hits.hits.2.fields.vector8.0.3: { value: 15.555, error: 0.1 } }
+  - close_to: { hits.hits.2.fields.vector8.0.4: { value: -100.0, error: 0.1 } }

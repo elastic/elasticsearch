@@ -1,5 +1,3 @@
-# To run this test via the command line:
-# ./gradlew ":rest-api-spec:yamlRestTest" --tests org.elasticsearch.test.rest.ClientYamlTestSuiteIT -Dtests.method="test {yaml=search.retrievers/result-diversification/10_mmr_result_diversification_retriever/*}"
 setup:
   - requires:
       cluster_features: [ "retriever.result_diversification_mmr" ]

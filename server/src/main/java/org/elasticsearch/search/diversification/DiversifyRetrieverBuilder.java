@@ -333,7 +333,8 @@ public final class DiversifyRetrieverBuilder extends CompoundRetrieverBuilder<Di
             case byte[] byteArray -> fieldVectors.put(docId, new VectorData(byteArray));
             case Float[] boxedFloatArray -> fieldVectors.put(docId, new VectorData(unboxedFloatArray(boxedFloatArray)));
             case Byte[] boxedByteArray -> fieldVectors.put(docId, new VectorData(unboxedByteArray(boxedByteArray)));
-            default -> {}
+            default -> {
+            }
         }
 
         // CCS search returns a generic Object[] array, so we must
@@ -344,13 +345,13 @@ public final class DiversifyRetrieverBuilder extends CompoundRetrieverBuilder<Di
             }
 
             if (objectArray[0] instanceof Byte) {
-                Byte[] asByteArray = Arrays.stream(objectArray).map(x -> (Byte)x).toArray(Byte[]::new);
+                Byte[] asByteArray = Arrays.stream(objectArray).map(x -> (Byte) x).toArray(Byte[]::new);
                 fieldVectors.put(docId, new VectorData(unboxedByteArray(asByteArray)));
                 return;
             }
 
             if (objectArray[0] instanceof Float) {
-                Float[] asFloatArray = Arrays.stream(objectArray).map(x -> (Float)x).toArray(Float[]::new);
+                Float[] asFloatArray = Arrays.stream(objectArray).map(x -> (Float) x).toArray(Float[]::new);
                 fieldVectors.put(docId, new VectorData(unboxedFloatArray(asFloatArray)));
                 return;
             }

@@ -164,7 +164,7 @@ public class DataNodeRequestSenderTests extends ComputeTestCase {
             assertThat(resp.successfulShards, equalTo(2));
             assertThat(resp.failures, not(empty()));
             assertNotNull(resp.failures.get(0).shard());
-            assertThat(resp.failures.get(0).shard().getShardId(), equalTo(shard3));
+            assertThat(resp.failures.get(0).shard().getShardId(), equalTo(shard3.shardId()));
             assertThat(resp.failures.get(0).reason(), containsString("no shard copies found"));
         }
     }
@@ -552,7 +552,7 @@ public class DataNodeRequestSenderTests extends ComputeTestCase {
         assertThat(response.skippedShards, equalTo(0));
         assertThat(response.failedShards, equalTo(0));
         assertThat(attempt.get(), equalTo(1));
-        assertThat("Must retry only affected shards", resolvedShards, contains(shard2));
+        assertThat("Must retry only affected shards", resolvedShards, contains(shard2.shardId()));
     }
 
     public void testRetryUnassignedShardWithoutPartialResults() {

@@ -142,7 +142,7 @@ public final class GeoIpDownloaderTaskExecutor extends PersistentTasksExecutor<G
             this.eagerDownload = eagerDownload;
             GeoIpDownloader currentDownloader = getCurrentTask();
             if (currentDownloader != null && Objects.equals(eagerDownload, Boolean.TRUE)) {
-                currentDownloader.requestReschedule();
+                currentDownloader.requestRunOnDemand();
             }
         }
     }
@@ -152,7 +152,7 @@ public final class GeoIpDownloaderTaskExecutor extends PersistentTasksExecutor<G
             this.pollInterval = pollInterval;
             GeoIpDownloader currentDownloader = getCurrentTask();
             if (currentDownloader != null) {
-                currentDownloader.requestReschedule();
+                currentDownloader.restartPeriodicRun();
             }
         }
     }
@@ -164,7 +164,7 @@ public final class GeoIpDownloaderTaskExecutor extends PersistentTasksExecutor<G
         downloader.setState(geoIpTaskState);
         currentTask.set(downloader);
         if (ENABLED_SETTING.get(clusterService.state().metadata().settings(), settings)) {
-            downloader.runDownloader();
+            downloader.restartPeriodicRun();
         }
     }
 
@@ -231,7 +231,7 @@ public final class GeoIpDownloaderTaskExecutor extends PersistentTasksExecutor<G
                 logger.trace("Scheduling runDownloader because a geoip processor has been added");
                 GeoIpDownloader currentDownloader = getCurrentTask();
                 if (currentDownloader != null) {
-                    currentDownloader.requestReschedule();
+                    currentDownloader.requestRunOnDemand();
                 }
             } else {
                 atLeastOneGeoipProcessor = newAtLeastOneGeoipProcessor;

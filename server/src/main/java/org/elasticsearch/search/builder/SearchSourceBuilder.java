@@ -1331,7 +1331,9 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
      * Parse some xContent into this SearchSourceBuilder, overwriting any values specified in the xContent.
      *
      * @param searchRequest The SearchRequest object that's representing the request we're parsing which shall receive
-     *                      the parsed info.
+     *                      the parsed info. Currently, this is non-null only if we expect project_routing to appear in
+     *                      the request body, and we allow it to appear because we're in a Cross Project Search
+     *                      environment and require this info.
      * @param parser The xContent parser.
      * @param checkTrailingTokens If true throws a parsing exception when extra tokens are found after the main object.
      * @param searchUsageHolder holder for the search usage statistics
@@ -1370,7 +1372,9 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
      * usage stats into it is the one to use.
      *
      * @param searchRequest The SearchRequest object that's representing the request we're parsing which shall receive
-     *                      the parsed info.
+     *                      the parsed info. Currently, this is non-null only if we expect project_routing to appear in
+     *                      the request body, and we allow it to appear because we're in a Cross Project Search
+     *                      environment and require this info.
      * @param parser The xContent parser.
      * @param checkTrailingTokens If true throws a parsing exception when extra tokens are found after the main object.
      * @param clusterSupportsFeature used to check if certain features are available on this cluster

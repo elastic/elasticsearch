@@ -200,11 +200,18 @@ public class RestSearchAction extends BaseRestHandler {
             searchRequest.source(new SearchSourceBuilder());
         }
         searchRequest.indices(Strings.splitStringByCommaToArray(request.param("index")));
+        /*
+         * We pass this object to the request body parser so that we can extract info such as project_routing.
+         * We only do it if in a Cross Project Environment, though, because outside it, such details are not
+         * expected and valid.
+         */
+        SearchRequest searchRequestForParsing = crossProjectEnabled ? searchRequest : null;
         if (requestContentParser != null) {
             if (searchUsageHolder == null) {
-                searchRequest.source().parseXContent(searchRequest, requestContentParser, true, clusterSupportsFeature);
+                searchRequest.source().parseXContent(searchRequestForParsing, requestContentParser, true, clusterSupportsFeature);
             } else {
-                searchRequest.source().parseXContent(searchRequest, requestContentParser, true, searchUsageHolder, clusterSupportsFeature);
+                searchRequest.source()
+                    .parseXContent(searchRequestForParsing, requestContentParser, true, searchUsageHolder, clusterSupportsFeature);
             }
         }
 

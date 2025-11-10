@@ -235,7 +235,12 @@ public class IndexBalanceAllocationDeciderTests extends ESAllocationTestCase {
         );
 
         for (RoutingNode routingNode : List.of(
-            routingIndexNodeOne, routingIndexNodeTwo, routingSearchNodeOne, routingSearchNodeTwo, routingMachineLearningNode)) {
+            routingIndexNodeOne,
+            routingIndexNodeTwo,
+            routingSearchNodeOne,
+            routingSearchNodeTwo,
+            routingMachineLearningNode
+        )) {
             assertDecisionMatches(
                 "Assigning a new index to a node should succeed",
                 indexBalanceAllocationDecider.canAllocate(newIndexShardRouting, routingNode, routingAllocation),
@@ -286,7 +291,7 @@ public class IndexBalanceAllocationDeciderTests extends ESAllocationTestCase {
     }
 
     public void testCanAllocateExceedThreshold() {
-        setup( false, false);
+        setup(false, false);
 
         int ideal = numberOfPrimaryShards / 2;
         int current = numberOfPrimaryShards / 2;

@@ -631,6 +631,7 @@ public final class IndexSettings {
         Property.ServerlessPublic
     );
 
+    // TODO: deprecate this setting as this was designed as an opt-out and name of the setting is tied actual name of the codec:
     public static final Setting<Boolean> TIME_SERIES_ES87TSDB_CODEC_ENABLED_SETTING = Setting.boolSetting(
         "index.time_series.es87tsdb_codec.enabled",
         true,
@@ -827,6 +828,19 @@ public final class IndexSettings {
         Property.Final
     );
 
+    public static final Setting<Boolean> USE_TIME_SERIES_DOC_VALUES_FORMAT_SETTING = Setting.boolSetting(
+        "index.use_time_series_doc_values_format",
+        settings -> {
+            if (settings == null) {
+                return Boolean.FALSE.toString();
+            }
+            var indexMode = IndexSettings.MODE.get(settings);
+            return Boolean.toString(indexMode.useTimeSeriesDocValuesCodec());
+        },
+        Property.IndexScope,
+        Property.Final
+    );
+
     /**
      * Legacy index setting, kept for 7.x BWC compatibility. This setting has no effect in 8.x. Do not use.
      * TODO: Remove in 9.0
@@ -996,6 +1010,7 @@ public final class IndexSettings {
     private final boolean recoverySourceSyntheticEnabled;
     private final boolean useDocValuesSkipper;
     private final boolean useTimeSeriesSyntheticId;
+    private final boolean useTimeSeriesDocValuesFormat;
 
     /**
      * The maximum number of refresh listeners allows on this shard.
@@ -1182,6 +1197,7 @@ public final class IndexSettings {
             && scopedSettings.get(RECOVERY_USE_SYNTHETIC_SOURCE_SETTING);
         useDocValuesSkipper = DOC_VALUES_SKIPPER && scopedSettings.get(USE_DOC_VALUES_SKIPPER);
         seqNoIndexOptions = scopedSettings.get(SEQ_NO_INDEX_OPTIONS_SETTING);
+        useTimeSeriesDocValuesFormat = scopedSettings.get(USE_TIME_SERIES_DOC_VALUES_FORMAT_SETTING);
         final var useSyntheticId = IndexSettings.TSDB_SYNTHETIC_ID_FEATURE_FLAG && scopedSettings.get(USE_SYNTHETIC_ID);
         if (indexMetadata.useTimeSeriesSyntheticId() != useSyntheticId) {
             assert false;
@@ -1941,6 +1957,13 @@ public final class IndexSettings {
      */
     public boolean useTimeSeriesSyntheticId() {
         return useTimeSeriesSyntheticId;
+    }
+
+    /**
+     * @return Whether the time series doc value format should be used.
+     */
+    public boolean useTimeSeriesDocValuesFormat() {
+        return useTimeSeriesDocValuesFormat;
     }
 
     /**

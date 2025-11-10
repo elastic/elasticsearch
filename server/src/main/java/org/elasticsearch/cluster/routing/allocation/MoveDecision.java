@@ -153,7 +153,7 @@ public final class MoveDecision extends AbstractAllocationDecision {
      */
     public boolean cannotRemainAndCanMove() {
         checkDecisionState();
-        return canRemain() == false && canMoveDecision == AllocationDecision.YES;
+        return cannotRemain() && canMoveDecision == AllocationDecision.YES;
     }
 
     /**
@@ -163,7 +163,7 @@ public final class MoveDecision extends AbstractAllocationDecision {
      */
     public boolean cannotRemainAndCannotMove() {
         checkDecisionState();
-        return canRemain() == false && canMoveDecision != AllocationDecision.YES;
+        return cannotRemain() && canMoveDecision != AllocationDecision.YES;
     }
 
     /**
@@ -173,6 +173,14 @@ public final class MoveDecision extends AbstractAllocationDecision {
     public boolean canRemain() {
         checkDecisionState();
         return canRemainDecision.type() == Type.YES;
+    }
+
+    /**
+     * Returns {@code true} if the shard cannot remain on its current node, returns {@code false} if the shard can remain.
+     * If {@link #isDecisionTaken()} returns {@code false}, then invoking this method will throw an {@code IllegalStateException}.
+     */
+    public boolean cannotRemain() {
+        return canRemain() == false;
     }
 
     /**
@@ -257,7 +265,7 @@ public final class MoveDecision extends AbstractAllocationDecision {
             };
         } else {
             // it was a decision to force move the shard
-            assert canRemain() == false;
+            assert cannotRemain();
             return switch (canMoveDecision) {
                 case YES -> Explanations.Move.YES;
                 case THROTTLED -> Explanations.Move.THROTTLED;
@@ -280,7 +288,7 @@ public final class MoveDecision extends AbstractAllocationDecision {
                 builder.endObject();
             }
             builder.field("can_remain_on_current_node", canRemain() ? "yes" : "no");
-            if (canRemain() == false && canRemainDecision.getDecisions().isEmpty() == false) {
+            if (cannotRemain() && canRemainDecision.getDecisions().isEmpty() == false) {
                 builder.startArray("can_remain_decisions");
                 canRemainDecision.toXContent(builder, params);
                 builder.endArray();

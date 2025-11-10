@@ -371,7 +371,7 @@ The `DECAY_FUNCTION` determines the shape of the decay:
 
 
 :::{math}
-S(doc) = exp \left( - \dfrac{max(0, | fieldvalue_{doc} - origin| - offset)^2)}{ 2\sigma^2 } \right)
+S(doc) = exp \left( - \dfrac{max(0, | fieldvalue_{doc} - origin| - offset)^2}{ 2\sigma^2 } \right)
 :::
 
 where ![sigma](../images/sigma.png "") is computed to assure that the score takes the value `decay` at distance `scale` from `origin ± offset`

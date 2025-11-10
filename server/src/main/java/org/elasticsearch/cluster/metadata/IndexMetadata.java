@@ -50,6 +50,7 @@ import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.search.QueryParserHelper;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.IndexLongFieldRange;
 import org.elasticsearch.index.shard.ShardId;
@@ -88,6 +89,7 @@ import static org.elasticsearch.cluster.node.DiscoveryNodeFilters.OpType.AND;
 import static org.elasticsearch.cluster.node.DiscoveryNodeFilters.OpType.OR;
 import static org.elasticsearch.cluster.node.DiscoveryNodeFilters.validateIpValue;
 import static org.elasticsearch.common.settings.Settings.readSettingsFromStream;
+import static org.elasticsearch.index.IndexSettings.DEFAULT_FIELD_SETTING;
 import static org.elasticsearch.snapshots.SearchableSnapshotsSettings.SEARCHABLE_SNAPSHOT_PARTIAL_SETTING_KEY;
 
 public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragment {
@@ -1354,6 +1356,20 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
 
     public OptionalLong getForecastedShardSizeInBytes() {
         return shardSizeInBytesForecast == null ? OptionalLong.empty() : OptionalLong.of(shardSizeInBytesForecast);
+    }
+
+    public Map<InferenceFieldMetadata, Float> getMatchingInferenceFields(
+        Map<String, Float> fields,
+        boolean resolveWildcards,
+        boolean useDefaultFields
+    ) {
+        Map<String, Float> effectiveFields = fields;
+        if (effectiveFields.isEmpty() && useDefaultFields) {
+            List<String> defaultFields = settings.getAsList(DEFAULT_FIELD_SETTING.getKey(), DEFAULT_FIELD_SETTING.getDefault(settings));
+            effectiveFields = QueryParserHelper.parseFieldsAndWeights(defaultFields);
+        }
+
+        return getMatchingInferenceFields(inferenceFields, effectiveFields, resolveWildcards);
     }
 
     public static final String INDEX_RESIZE_SOURCE_UUID_KEY = "index.resize.source.uuid";

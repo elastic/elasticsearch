@@ -140,7 +140,6 @@ public class StatelessClusterIntegrityStressIT extends AbstractStatelessIntegTes
             + "org.elasticsearch.blobcache.shared.SharedBlobCacheService:warn," // disable logs of "No free regions ..."
             + "co.elastic.elasticsearch.stateless.commits.HollowShardsService:debug,"
             + "co.elastic.elasticsearch.stateless.recovery.TransportStatelessPrimaryRelocationAction:debug,"
-            // https://github.com/elastic/elasticsearch-serverless/issues/4458
             + "org.elasticsearch.index.engine.Engine:trace,"
             + "co.elastic.elasticsearch.stateless.commits.StatelessCommitService:trace,"
             + "org.elasticsearch.action.admin.indices.refresh.TransportUnpromotableShardRefreshAction:trace,"
@@ -714,7 +713,7 @@ public class StatelessClusterIntegrityStressIT extends AbstractStatelessIntegTes
                     if (namedReleasable == NamedReleasable.EMPTY) {
                         return;
                     }
-                    final var masterClusterService = internalCluster().getCurrentMasterNodeInstance(ClusterService.class);
+                    final var masterClusterService = internalCluster().getInstance(ClusterService.class, masterNodeName());
                     final var indicesService = internalCluster().getInstance(IndicesService.class, namedReleasable.name);
                     final List<TrackedIndex> candidateIndices = shuffledList(List.copyOf(indices.values()));
                     for (var trackedIndex : candidateIndices) {

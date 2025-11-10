@@ -143,7 +143,7 @@ public class LastOverTime extends TimeSeriesAggregateFunction implements Optiona
 
     @Override
     public String toString() {
-        return "last_over_time(" + field() + ")";
+        return "last_over_time(" + field() + ", " + timestamp() + ")";
     }
 
     @Override

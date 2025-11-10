@@ -123,7 +123,7 @@ public class Delta extends TimeSeriesAggregateFunction implements OptionalArgume
 
     @Override
     public String toString() {
-        return "delta(" + field() + ")";
+        return "delta(" + field() + ", " + timestamp() + ")";
     }
 
     @Override

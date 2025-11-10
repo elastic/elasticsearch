@@ -141,7 +141,7 @@ public class FirstOverTime extends TimeSeriesAggregateFunction implements Option
 
     @Override
     public String toString() {
-        return "first_over_time(" + field() + ")";
+        return "first_over_time(" + field() + ", " + timestamp() + ")";
     }
 
     @Override

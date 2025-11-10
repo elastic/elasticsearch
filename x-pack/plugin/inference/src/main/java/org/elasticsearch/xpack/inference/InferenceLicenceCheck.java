@@ -13,19 +13,21 @@ import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.xpack.core.XPackField;
 import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceService;
 
-import static org.elasticsearch.xpack.inference.InferencePlugin.EIS_INFERENCE_FEATURE;
 import static org.elasticsearch.xpack.inference.InferencePlugin.INFERENCE_API_FEATURE;
 
 public class InferenceLicenceCheck {
 
     private InferenceLicenceCheck() {}
 
+    /**
+     * Is the Inference service compliant with the current license.
+     * @param serviceName The Inference service name
+     * @param licenseState The current license state
+     * @return True if the licence is sufficient
+     */
     public static boolean isServiceLicenced(String serviceName, XPackLicenseState licenseState) {
-        if (ElasticInferenceService.NAME.equals(serviceName)) {
-            return EIS_INFERENCE_FEATURE.check(licenseState);
-        } else {
-            return INFERENCE_API_FEATURE.check(licenseState);
-        }
+        // EIS is always available.
+        return ElasticInferenceService.NAME.equals(serviceName) || INFERENCE_API_FEATURE.check(licenseState);
     }
 
     public static ElasticsearchSecurityException complianceException(String serviceName) {

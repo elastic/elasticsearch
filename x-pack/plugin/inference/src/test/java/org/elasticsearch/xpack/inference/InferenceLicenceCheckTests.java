@@ -16,18 +16,18 @@ import static org.hamcrest.Matchers.containsString;
 import static org.mockito.Mockito.when;
 
 public class InferenceLicenceCheckTests extends ESTestCase {
-    public void testIsServiceLicenced_WithElasticInferenceService_WhenLicensed() {
+    public void testIsServiceLicenced_WithElasticInferenceService_BasicLicence() {
         var licenseState = MockLicenseState.createMock();
-        when(licenseState.isAllowed(InferencePlugin.EIS_INFERENCE_FEATURE)).thenReturn(true);
+        when(licenseState.isAllowed(InferencePlugin.INFERENCE_API_FEATURE)).thenReturn(false);
 
         assertTrue(InferenceLicenceCheck.isServiceLicenced(ElasticInferenceService.NAME, licenseState));
     }
 
-    public void testIsServiceLicenced_WithElasticInferenceService_WhenNotLicensed() {
+    public void testIsServiceLicenced_WithElasticInferenceService_EntLicensed() {
         var licenseState = MockLicenseState.createMock();
-        when(licenseState.isAllowed(InferencePlugin.EIS_INFERENCE_FEATURE)).thenReturn(false);
+        when(licenseState.isAllowed(InferencePlugin.INFERENCE_API_FEATURE)).thenReturn(true);
 
-        assertFalse(InferenceLicenceCheck.isServiceLicenced(ElasticInferenceService.NAME, licenseState));
+        assertTrue(InferenceLicenceCheck.isServiceLicenced(ElasticInferenceService.NAME, licenseState));
     }
 
     public void testIsServiceLicenced_WithOtherService_WhenLicensed() {
@@ -46,7 +46,6 @@ public class InferenceLicenceCheckTests extends ESTestCase {
 
     public void testIsServiceLicenced_WithMultipleServices() {
         var licenseState = MockLicenseState.createMock();
-        when(licenseState.isAllowed(InferencePlugin.EIS_INFERENCE_FEATURE)).thenReturn(true);
         when(licenseState.isAllowed(InferencePlugin.INFERENCE_API_FEATURE)).thenReturn(false);
 
         // Elastic Inference Service should be licensed

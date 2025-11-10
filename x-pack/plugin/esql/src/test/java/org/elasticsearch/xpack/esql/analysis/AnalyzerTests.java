@@ -4445,7 +4445,7 @@ public class AnalyzerTests extends ESTestCase {
         );
         IndexResolution resolution = IndexResolution.valid(index);
         Analyzer analyzer = analyzer(resolution);
-        String query = "FROM union_index* | KEEP id, foo | MV_EXPAND foo | EVAL foo::keyword";
+        String query = "FROM union_index* | KEEP id, foo | MV_EXPAND id | EVAL id::keyword";
         LogicalPlan plan = analyze(query, analyzer);
     }
 

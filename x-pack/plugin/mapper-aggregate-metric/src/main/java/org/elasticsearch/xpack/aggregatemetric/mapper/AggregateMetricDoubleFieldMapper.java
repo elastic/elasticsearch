@@ -234,14 +234,14 @@ public class AggregateMetricDoubleFieldMapper extends FieldMapper {
                         NumberFieldMapper.NumberType.INTEGER,
                         ScriptCompiler.NONE,
                         indexSettings
-                    ).allowMultipleValues(false);
+                    ).allowMultipleValues(false).ignoreMalformed(false).coerce(false);
                 } else {
                     builder = new NumberFieldMapper.Builder(
                         fieldName,
                         NumberFieldMapper.NumberType.DOUBLE,
                         ScriptCompiler.NONE,
                         indexSettings
-                    ).allowMultipleValues(false);
+                    ).allowMultipleValues(false).ignoreMalformed(false).coerce(true);
                 }
                 NumberFieldMapper fieldMapper = builder.build(context);
                 metricMappers.put(m, fieldMapper);

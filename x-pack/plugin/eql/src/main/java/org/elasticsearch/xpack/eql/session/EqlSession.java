@@ -12,7 +12,6 @@ import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.ParentTaskAssigningClient;
 import org.elasticsearch.common.breaker.CircuitBreaker;
-import org.elasticsearch.search.crossproject.CrossProjectIndexResolutionValidator;
 import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.xpack.eql.analysis.Analyzer;
 import org.elasticsearch.xpack.eql.analysis.AnalyzerContext;
@@ -125,15 +124,14 @@ public class EqlSession {
         }
         Set<String> fieldNames = fieldNames(parsed);
         IndicesOptions indicesOptions = configuration.indicesOptions();
-        if (configuration.crossProjectEnabled()) {
-            indicesOptions = CrossProjectIndexResolutionValidator.indicesOptionsForCrossProjectFanout(indicesOptions);
-        }
         // TODO pass configuration.projectRouting();
         indexResolver.resolveAsMergedMapping(
             indexWildcard,
             fieldNames,
             indicesOptions,
             configuration.runtimeMappings(),
+            configuration.crossProjectEnabled(),
+            configuration.projectRouting(),
             map(listener, r -> preAnalyzer.preAnalyze(parsed, r))
         );
     }

@@ -36,8 +36,8 @@ public class ObjectMapperTests extends MapperServiceTestCase {
 
     public void testDifferentInnerObjectTokenFailure() throws Exception {
         DocumentMapper defaultMapper = createDocumentMapper(mapping(b -> {}));
-        IllegalArgumentException e = expectThrows(
-            IllegalArgumentException.class,
+        DocumentParsingException e = expectThrows(
+            DocumentParsingException.class,
             () -> defaultMapper.parse(new SourceToParse("1", new BytesArray("""
                 {
                      "object": {

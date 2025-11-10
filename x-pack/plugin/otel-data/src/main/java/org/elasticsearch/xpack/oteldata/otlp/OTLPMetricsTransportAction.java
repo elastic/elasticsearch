@@ -172,6 +172,7 @@ public class OTLPMetricsTransportAction extends HandledTransportAction<
         DataPointGroupingContext context,
         ActionListener<MetricsResponse> listener
     ) {
+        // index -> status -> failure group
         Map<String, Map<RestStatus, FailureGroup>> failureGroups = new HashMap<>();
         // If the request is only partially accepted
         // (i.e. when the server accepts only parts of the data and rejects the rest),

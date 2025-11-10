@@ -33,6 +33,7 @@ import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
@@ -3254,5 +3255,39 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         } catch (NumberFormatException e) {
             throw new IllegalArgumentException("unable to parse the index name [" + indexName + "] to extract the counter", e);
         }
+    }
+
+    public static Map<InferenceFieldMetadata, Set<String>> getMatchingInferenceFields(
+        Map<String, InferenceFieldMetadata> inferenceFieldMetadataMap,
+        Set<String> fields,
+        boolean resolveWildcards
+    ) {
+        Map<InferenceFieldMetadata, Set<String>> matches = new HashMap<>();
+        for (String field : fields) {
+            if (inferenceFieldMetadataMap.containsKey(field)) {
+                // No wildcards in field name
+                addToMatchingInferenceFieldsMap(matches, inferenceFieldMetadataMap.get(field), field);
+            } else if (resolveWildcards) {
+                if (Regex.isMatchAllPattern(field)) {
+                    inferenceFieldMetadataMap.values().forEach(ifm -> addToMatchingInferenceFieldsMap(matches, ifm, field));
+                } else if (Regex.isSimpleMatchPattern(field)) {
+                    inferenceFieldMetadataMap.values()
+                        .stream()
+                        .filter(ifm -> Regex.simpleMatch(field, ifm.getName()))
+                        .forEach(ifm -> addToMatchingInferenceFieldsMap(matches, ifm, field));
+                }
+            }
+        }
+
+        return matches;
+    }
+
+    private static void addToMatchingInferenceFieldsMap(
+        Map<InferenceFieldMetadata, Set<String>> matches,
+        InferenceFieldMetadata inferenceFieldMetadata,
+        String fieldPattern
+    ) {
+        Set<String> fieldPatternSet = matches.computeIfAbsent(inferenceFieldMetadata, (k) -> new HashSet<>());
+        fieldPatternSet.add(fieldPattern);
     }
 }

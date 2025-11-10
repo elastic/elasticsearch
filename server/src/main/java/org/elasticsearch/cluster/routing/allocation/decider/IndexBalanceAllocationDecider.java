@@ -81,9 +81,7 @@ public class IndexBalanceAllocationDecider extends AllocationDecider {
         }
 
         assert node.node() != null;
-        if (node.node().getRoles().contains(INDEX_ROLE) == false && node.node().getRoles().contains(SEARCH_ROLE) == false) {
-            return Decision.single(Decision.Type.YES, NAME, "Node has neither index nor search roles.");
-        }
+        assert node.node().getRoles().contains(INDEX_ROLE) || node.node().getRoles().contains(SEARCH_ROLE);
 
         if (node.node().getRoles().contains(INDEX_ROLE) && shardRouting.primary() == false) {
             return Decision.single(Decision.Type.YES, NAME, "An index node cannot own search shards. Decider inactive.");

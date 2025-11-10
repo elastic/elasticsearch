@@ -69,7 +69,6 @@ public class IndexBalanceAllocationDeciderTests extends ESAllocationTestCase {
     private int replicationFactor;
     private ClusterState clusterState;
     private IndexMetadata indexMetadata;
-    private Settings settings;
     private RoutingAllocation routingAllocation;
     private IndexBalanceAllocationDecider indexBalanceAllocationDecider;
     private int excessShards;
@@ -78,7 +77,7 @@ public class IndexBalanceAllocationDeciderTests extends ESAllocationTestCase {
     private List<RoutingNode> indexTier;
     private List<RoutingNode> searchIier;
 
-    private void setup(boolean exceedThreshold, boolean hasDiscoveryNodeFilters, boolean allowExcessShards) {
+    private void setup(boolean hasDiscoveryNodeFilters, boolean allowExcessShards) {
         final String indexName = "IndexBalanceAllocationDeciderIndex";
         final Map<DiscoveryNode, List<ShardRouting>> nodeToShardRoutings = new HashMap<>();
 
@@ -89,10 +88,8 @@ public class IndexBalanceAllocationDeciderTests extends ESAllocationTestCase {
             .put("cluster.routing.allocation.index_balance_decider.enabled", "true")
             .put("cluster.routing.allocation.index_balance_decider.excess_shards", excessShards);
 
-        numberOfPrimaryShards = randomIntBetween(10, 20);
+        numberOfPrimaryShards = randomIntBetween(2, 10) * 2;
         replicationFactor = 2;
-        if (numberOfPrimaryShards % 2 != 0 && exceedThreshold) numberOfPrimaryShards++;
-        if (numberOfPrimaryShards % 2 == 0 && exceedThreshold == false) numberOfPrimaryShards++;
 
         indexNodeOne = DiscoveryNodeUtils.builder("indexNodeOne").roles(Collections.singleton(DiscoveryNodeRole.INDEX_ROLE)).build();
         indexNodeTwo = DiscoveryNodeUtils.builder("indexNodeTwo").roles(Collections.singleton(DiscoveryNodeRole.INDEX_ROLE)).build();
@@ -144,8 +141,7 @@ public class IndexBalanceAllocationDeciderTests extends ESAllocationTestCase {
         Metadata.Builder metadataBuilder = Metadata.builder();
 
         ShardId[] shardIds = new ShardId[numberOfPrimaryShards];
-        int shardCount = exceedThreshold ? numberOfPrimaryShards : numberOfPrimaryShards - 1;
-        for (int i = 0; i < shardCount; i++) {
+        for (int i = 0; i < numberOfPrimaryShards; i++) {
             shardIds[i] = new ShardId(indexMetadata.getIndex(), i);
             IndexShardRoutingTable.Builder indexShardRoutingBuilder = IndexShardRoutingTable.builder(shardIds[i]);
 
@@ -174,22 +170,7 @@ public class IndexBalanceAllocationDeciderTests extends ESAllocationTestCase {
             routingTableBuilder.add(indexRoutingTableBuilder.build());
         }
 
-        if (exceedThreshold == false) {
-            ShardId lastPrimaryShardId = new ShardId(indexMetadata.getIndex(), numberOfPrimaryShards - 1);
-            ShardRouting lastShardRouting = TestShardRouting.newShardRouting(
-                lastPrimaryShardId,
-                masterNode.getId(),
-                null,
-                true,
-                ShardRoutingState.STARTED
-            );
-            IndexShardRoutingTable.Builder indexShardRoutingBuilderMLNode = IndexShardRoutingTable.builder(lastPrimaryShardId);
-            indexShardRoutingBuilderMLNode.addShard(lastShardRouting);
-            indexRoutingTableBuilder.addIndexShard(indexShardRoutingBuilderMLNode);
-            routingTableBuilder.add(indexRoutingTableBuilder.build());
-            routingMachineLearningNode = RoutingNodesHelper.routingNode(machineLearningNode.getId(), machineLearningNode, lastShardRouting);
-        }
-
+        routingMachineLearningNode = RoutingNodesHelper.routingNode(machineLearningNode.getId(), machineLearningNode);
         metadataBuilder.put(projectBuilder).generateClusterUuidIfNeeded();
         state.nodes(discoveryNodeBuilder);
         state.metadata(metadataBuilder);
@@ -243,8 +224,8 @@ public class IndexBalanceAllocationDeciderTests extends ESAllocationTestCase {
         searchIier = List.of(routingSearchNodeOne, routingSearchNodeTwo);
     }
 
-    public void testCanAllocateUnderThreshold() {
-        setup(false, false, randomBoolean());
+    public void testCanAllocateUnderThresholdWithExcessShards() {
+        setup(false, true);
         ShardRouting newIndexShardRouting = TestShardRouting.newShardRouting(
             new ShardId("newIndex", "uuid", 1),
             indexNodeTwo.getId(),
@@ -253,7 +234,8 @@ public class IndexBalanceAllocationDeciderTests extends ESAllocationTestCase {
             ShardRoutingState.STARTED
         );
 
-        for (RoutingNode routingNode : List.of(routingIndexNodeOne, routingIndexNodeTwo, routingSearchNodeOne, routingSearchNodeTwo)) {
+        for (RoutingNode routingNode : List.of(
+            routingIndexNodeOne, routingIndexNodeTwo, routingSearchNodeOne, routingSearchNodeTwo, routingMachineLearningNode)) {
             assertDecisionMatches(
                 "Assigning a new index to a node should succeed",
                 indexBalanceAllocationDecider.canAllocate(newIndexShardRouting, routingNode, routingAllocation),
@@ -261,13 +243,6 @@ public class IndexBalanceAllocationDeciderTests extends ESAllocationTestCase {
                 "Node does not currently host this index."
             );
         }
-
-        assertDecisionMatches(
-            "Assigning a shard to a node that is not index or search node should succeed",
-            indexBalanceAllocationDecider.canAllocate(indexTierShardRouting, routingMachineLearningNode, routingAllocation),
-            Decision.Type.YES,
-            "Node has neither index nor search roles."
-        );
 
         for (RoutingNode routingNode : searchIier) {
             assertDecisionMatches(
@@ -311,7 +286,7 @@ public class IndexBalanceAllocationDeciderTests extends ESAllocationTestCase {
     }
 
     public void testCanAllocateExceedThreshold() {
-        setup(true, false, false);
+        setup( false, false);
 
         int ideal = numberOfPrimaryShards / 2;
         int current = numberOfPrimaryShards / 2;
@@ -348,7 +323,7 @@ public class IndexBalanceAllocationDeciderTests extends ESAllocationTestCase {
     }
 
     public void testCanAllocateHasDiscoveryNodeFilters() {
-        setup(randomBoolean(), true, randomBoolean());
+        setup(true, randomBoolean());
 
         for (RoutingNode routingNode : indexTier) {
             assertDecisionMatches(
@@ -367,11 +342,6 @@ public class IndexBalanceAllocationDeciderTests extends ESAllocationTestCase {
                 "Decider is disabled."
             );
         }
-    }
-
-    public void testCanAllocateWithExcessShards() {
-        setup(randomBoolean(), false, true);
-        verifyCanAllocate();
     }
 
 }

@@ -445,9 +445,6 @@ tests:
 - class: org.elasticsearch.xpack.inference.action.filter.ShardBulkInferenceActionFilterBasicLicenseIT
   method: testLicenseInvalidForInference {p0=false}
   issue: https://github.com/elastic/elasticsearch/issues/137691
-- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIT
-  method: test {csv-spec:exponential_histogram.LoadFiltered}
-  issue: https://github.com/elastic/elasticsearch/issues/137727
 - class: org.elasticsearch.xpack.inference.InferenceRestIT
   method: test {p0=inference/70_text_similarity_rank_retriever/Text similarity reranker with min_score zero includes all docs}
   issue: https://github.com/elastic/elasticsearch/issues/137732
@@ -483,6 +480,10 @@ tests:
 - class: org.elasticsearch.xpack.inference.integration.CCMServiceIT
   method: testIsEnabled_ReturnsTrue_WhenCCMConfigurationIsPresent
   issue: https://github.com/elastic/elasticsearch/issues/137798
+- class: org.elasticsearch.xpack.esql.vector.VectorSimilarityFunctionsIT
+  method: testSimilarityWithOneDimVector {functionName=v_cosine
+    similarityFunction=org.elasticsearch.xpack.esql.expression.function.vector.CosineSimilarity$1@3300f4fd elementType=byte}
+  issue: https://github.com/elastic/elasticsearch/issues/137812
 
 # Examples:
 #

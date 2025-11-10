@@ -197,9 +197,6 @@ tests:
 - class: org.elasticsearch.packaging.test.EnrollmentProcessTests
   method: test20DockerAutoFormCluster
   issue: https://github.com/elastic/elasticsearch/issues/128113
-- class: org.elasticsearch.ingest.geoip.GeoIpDownloaderCliIT
-  method: testInvalidTimestamp
-  issue: https://github.com/elastic/elasticsearch/issues/128284
 - class: org.elasticsearch.packaging.test.TemporaryDirectoryConfigTests
   method: test21AcceptsCustomPathInDocker
   issue: https://github.com/elastic/elasticsearch/issues/128114
@@ -429,9 +426,6 @@ tests:
 - class: org.elasticsearch.xpack.ilm.CCRIndexLifecycleIT
   method: testTsdbLeaderIndexRolloverAndSyncAfterWaitUntilEndTime {targetCluster=FOLLOWER}
   issue: https://github.com/elastic/elasticsearch/issues/137565
-- class: org.elasticsearch.action.IndicesRequestIT
-  method: testIndicesStats
-  issue: https://github.com/elastic/elasticsearch/issues/137594
 - class: org.elasticsearch.xpack.esql.vector.VectorSimilarityFunctionsIT
   method: testTopNSimilarityBetweenConstantVectorAndField {functionName=v_l2_norm
     similarityFunction=org.elasticsearch.xpack.esql.expression.function.vector.L2Norm$1@5b068087 elementType=byte}

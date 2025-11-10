@@ -34,13 +34,7 @@ public abstract class Selector extends UnaryPlan {
     private final Evaluation evaluation;
     protected List<Attribute> output;
 
-    Selector(
-        Source source,
-        Expression series,
-        List<Expression> labels,
-        LabelMatchers labelMatchers,
-        Evaluation evaluation
-    ) {
+    Selector(Source source, Expression series, List<Expression> labels, LabelMatchers labelMatchers, Evaluation evaluation) {
         this(source, PlaceholderRelation.INSTANCE, series, labels, labelMatchers, evaluation);
     }
 

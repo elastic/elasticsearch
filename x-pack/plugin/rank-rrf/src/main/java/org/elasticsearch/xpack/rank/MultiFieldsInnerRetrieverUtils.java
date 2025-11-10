@@ -349,8 +349,4 @@ public class MultiFieldsInnerRetrieverUtils {
         lexicalQueryBuilders.forEach(boolQueryBuilder::should);
         return new StandardRetrieverBuilder(boolQueryBuilder);
     }
-
-    private static void addToInferenceFieldsMap(Map<String, Float> inferenceFields, String field, Float weight) {
-        inferenceFields.compute(field, (k, v) -> v == null ? weight : v * weight);
-    }
 }

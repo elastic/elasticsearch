@@ -106,7 +106,7 @@ public class StringTermsIT extends AbstractTermsTestCase {
         protected Map<String, Function<Map<String, Object>, Object>> pluginScripts() {
             Map<String, Function<Map<String, Object>, Object>> scripts = super.pluginScripts();
 
-            scripts.put("'foo_' + _value", vars -> "foo_" + (String) vars.get("_value"));
+            scripts.put("'foo_' + _value", vars -> "foo_" + vars.get("_value"));
             scripts.put("_value.substring(0,3)", vars -> ((String) vars.get("_value")).substring(0, 3));
 
             scripts.put("doc['" + MULTI_VALUED_FIELD_NAME + "']", vars -> {

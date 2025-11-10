@@ -56,7 +56,6 @@ import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
 import org.elasticsearch.search.aggregations.BucketOrder;
-import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.bucket.SingleBucketAggregation;
 import org.elasticsearch.search.aggregations.bucket.filter.FilterAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.terms.InternalTerms;
@@ -307,7 +306,7 @@ public class NestedAggregatorTests extends AggregatorTestCase {
                 assertEquals(NESTED_AGG, nested.getName());
                 assertEquals(expectedNestedDocs, nested.getDocCount());
 
-                Sum sum = (Sum) ((InternalAggregation) nested).getProperty(SUM_AGG_NAME);
+                Sum sum = (Sum) nested.getProperty(SUM_AGG_NAME);
                 assertEquals(SUM_AGG_NAME, sum.getName());
                 assertEquals(expectedSum, sum.value(), Double.MIN_VALUE);
             }
@@ -778,8 +777,8 @@ public class NestedAggregatorTests extends AggregatorTestCase {
                 assertNotNull(terms);
 
                 for (LongTerms.Bucket bucket : terms.getBuckets()) {
-                    Max max = (Max) bucket.getAggregations().get(MAX_AGG_NAME);
-                    InternalSimpleValue bucketScript = (InternalSimpleValue) bucket.getAggregations().get("bucketscript");
+                    Max max = bucket.getAggregations().get(MAX_AGG_NAME);
+                    InternalSimpleValue bucketScript = bucket.getAggregations().get("bucketscript");
                     assertNotNull(max);
                     assertNotNull(bucketScript);
                     assertEquals(max.value(), -bucketScript.getValue(), Double.MIN_VALUE);

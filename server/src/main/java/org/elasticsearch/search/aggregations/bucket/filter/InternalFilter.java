@@ -12,14 +12,14 @@ package org.elasticsearch.search.aggregations.bucket.filter;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
-import org.elasticsearch.search.aggregations.bucket.InternalSingleBucketAggregation;
+import org.elasticsearch.search.aggregations.bucket.SingleBucketAggregation;
 import org.elasticsearch.search.aggregations.support.SamplingContext;
 
 import java.io.IOException;
 import java.util.Map;
 
-public class InternalFilter extends InternalSingleBucketAggregation {
-    InternalFilter(String name, long docCount, InternalAggregations subAggregations, Map<String, Object> metadata) {
+public class InternalFilter extends SingleBucketAggregation {
+    public InternalFilter(String name, long docCount, InternalAggregations subAggregations, Map<String, Object> metadata) {
         super(name, docCount, subAggregations, metadata);
     }
 
@@ -36,7 +36,7 @@ public class InternalFilter extends InternalSingleBucketAggregation {
     }
 
     @Override
-    protected InternalSingleBucketAggregation newAggregation(String name, long docCount, InternalAggregations subAggregations) {
+    protected SingleBucketAggregation newAggregation(String name, long docCount, InternalAggregations subAggregations) {
         return new InternalFilter(name, docCount, subAggregations, getMetadata());
     }
 

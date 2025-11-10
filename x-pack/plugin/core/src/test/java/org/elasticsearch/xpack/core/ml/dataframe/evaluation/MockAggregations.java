@@ -17,6 +17,7 @@ import org.elasticsearch.search.aggregations.metrics.InternalNumericMetricsAggre
 
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
@@ -68,10 +69,7 @@ public final class MockAggregations {
     }
 
     public static InternalFilter mockFilter(String name, long docCount) {
-        InternalFilter agg = mock(InternalFilter.class);
-        when(agg.getName()).thenReturn(name);
-        when(agg.getDocCount()).thenReturn(docCount);
-        return agg;
+        return new InternalFilter(name, docCount, InternalAggregations.EMPTY, Map.of());
     }
 
     public static InternalNumericMetricsAggregation.SingleValue mockSingleValue(String name, double value) {

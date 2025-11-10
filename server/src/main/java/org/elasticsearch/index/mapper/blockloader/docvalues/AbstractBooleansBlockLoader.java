@@ -16,6 +16,9 @@ import org.apache.lucene.index.SortedNumericDocValues;
 
 import java.io.IOException;
 
+/**
+ * Loads {@code boolean}s from doc values.
+ */
 public abstract class AbstractBooleansBlockLoader extends BlockDocValuesReader.DocValuesBlockLoader {
     protected final String fieldName;
 

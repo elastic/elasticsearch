@@ -39,7 +39,7 @@ public class MvMinLongsFromDocValuesBlockLoader extends AbstractLongsFromDocValu
         return "LongsFromDocValues[" + fieldName + "]";
     }
 
-    public static class MvMaxSorted extends BlockDocValuesReader {
+    private static class MvMaxSorted extends BlockDocValuesReader {
         private final SortedNumericDocValues numericDocValues;
 
         MvMaxSorted(SortedNumericDocValues numericDocValues) {

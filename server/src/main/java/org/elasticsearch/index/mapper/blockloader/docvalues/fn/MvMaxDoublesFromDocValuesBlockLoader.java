@@ -16,7 +16,7 @@ import org.elasticsearch.index.mapper.blockloader.docvalues.BlockDocValuesReader
 
 import java.io.IOException;
 
-import static org.elasticsearch.index.mapper.blockloader.docvalues.fn.MvMaxLongsFromDocValuesBlockLoader.MvMaxSorted.discardAllButLast;
+import static org.elasticsearch.index.mapper.blockloader.docvalues.fn.MvMaxLongsFromDocValuesBlockLoader.discardAllButLast;
 
 /**
  * Loads the MAX {@code double} in each doc.
@@ -41,7 +41,7 @@ public class MvMaxDoublesFromDocValuesBlockLoader extends AbstractDoublesFromDoc
         return "DoublesFromDocValues[" + fieldName + "]";
     }
 
-    public static class MvMaxSorted extends BlockDocValuesReader {
+    private static class MvMaxSorted extends BlockDocValuesReader {
         private final SortedNumericDocValues numericDocValues;
         private final ToDouble toDouble;
 

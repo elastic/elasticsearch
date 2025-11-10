@@ -39,7 +39,7 @@ public class MvMinIntsFromDocValuesBlockLoader extends AbstractIntsFromDocValues
         return "IntsFromDocValues[" + fieldName + "]";
     }
 
-    public static class MvMinSorted extends BlockDocValuesReader {
+    private static class MvMinSorted extends BlockDocValuesReader {
         private final SortedNumericDocValues numericDocValues;
 
         MvMinSorted(SortedNumericDocValues numericDocValues) {

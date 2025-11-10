@@ -39,7 +39,7 @@ public class MvMinDoublesFromDocValuesBlockLoader extends AbstractDoublesFromDoc
         return "DoublesFromDocValues[" + fieldName + "]";
     }
 
-    public static class MvMaxSorted extends BlockDocValuesReader {
+    private static class MvMaxSorted extends BlockDocValuesReader {
         private final SortedNumericDocValues numericDocValues;
         private final ToDouble toDouble;
 

@@ -16,8 +16,11 @@ import org.elasticsearch.index.mapper.blockloader.docvalues.BlockDocValuesReader
 
 import java.io.IOException;
 
-import static org.elasticsearch.index.mapper.blockloader.docvalues.fn.MvMaxLongsFromDocValuesBlockLoader.MvMaxSorted.discardAllButLast;
+import static org.elasticsearch.index.mapper.blockloader.docvalues.fn.MvMaxLongsFromDocValuesBlockLoader.discardAllButLast;
 
+/**
+ * Loads the MAX {@code boolean} in each doc. Think of like {@code ANY}.
+ */
 public class MvMaxBooleansBlockLoader extends AbstractBooleansBlockLoader {
     public MvMaxBooleansBlockLoader(String fieldName) {
         super(fieldName);
@@ -38,7 +41,7 @@ public class MvMaxBooleansBlockLoader extends AbstractBooleansBlockLoader {
         return "BooleansFromDocValues[" + fieldName + "]";
     }
 
-    public static class MvMinSorted extends BlockDocValuesReader {
+    private static class MvMinSorted extends BlockDocValuesReader {
         private final SortedNumericDocValues numericDocValues;
 
         MvMinSorted(SortedNumericDocValues numericDocValues) {

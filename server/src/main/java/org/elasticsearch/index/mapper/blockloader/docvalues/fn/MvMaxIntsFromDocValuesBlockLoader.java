@@ -16,7 +16,7 @@ import org.elasticsearch.index.mapper.blockloader.docvalues.BlockDocValuesReader
 
 import java.io.IOException;
 
-import static org.elasticsearch.index.mapper.blockloader.docvalues.fn.MvMaxLongsFromDocValuesBlockLoader.MvMaxSorted.discardAllButLast;
+import static org.elasticsearch.index.mapper.blockloader.docvalues.fn.MvMaxLongsFromDocValuesBlockLoader.discardAllButLast;
 
 /**
  * Loads the MAX {@code int} in each doc.
@@ -41,7 +41,7 @@ public class MvMaxIntsFromDocValuesBlockLoader extends AbstractIntsFromDocValues
         return "IntsFromDocValues[" + fieldName + "]";
     }
 
-    public static class MvMaxSorted extends BlockDocValuesReader {
+    private static class MvMaxSorted extends BlockDocValuesReader {
         private final SortedNumericDocValues numericDocValues;
 
         MvMaxSorted(SortedNumericDocValues numericDocValues) {

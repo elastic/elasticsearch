@@ -16,6 +16,9 @@ import org.elasticsearch.index.mapper.blockloader.docvalues.BlockDocValuesReader
 
 import java.io.IOException;
 
+/**
+ * Loads the MIN {@code boolean} in each doc. Think of it like {@code ALL}.
+ */
 public class MvMinBooleansBlockLoader extends AbstractBooleansBlockLoader {
     public MvMinBooleansBlockLoader(String fieldName) {
         super(fieldName);
@@ -36,7 +39,7 @@ public class MvMinBooleansBlockLoader extends AbstractBooleansBlockLoader {
         return "BooleansFromDocValues[" + fieldName + "]";
     }
 
-    public static class MvMinSorted extends BlockDocValuesReader {
+    private static class MvMinSorted extends BlockDocValuesReader {
         private final SortedNumericDocValues numericDocValues;
 
         MvMinSorted(SortedNumericDocValues numericDocValues) {

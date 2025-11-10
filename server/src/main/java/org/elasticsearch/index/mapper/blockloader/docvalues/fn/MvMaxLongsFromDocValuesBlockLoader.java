@@ -39,7 +39,7 @@ public class MvMaxLongsFromDocValuesBlockLoader extends AbstractLongsFromDocValu
         return "LongsFromDocValues[" + fieldName + "]";
     }
 
-    public static class MvMaxSorted extends BlockDocValuesReader {
+    private static class MvMaxSorted extends BlockDocValuesReader {
         private final SortedNumericDocValues numericDocValues;
 
         MvMaxSorted(SortedNumericDocValues numericDocValues) {
@@ -76,16 +76,19 @@ public class MvMaxLongsFromDocValuesBlockLoader extends AbstractLongsFromDocValu
             return numericDocValues.docID();
         }
 
-        static void discardAllButLast(SortedNumericDocValues numericDocValues) throws IOException {
-            int count = numericDocValues.docValueCount();
-            for (int i = 0; i < count - 1; i++) {
-                numericDocValues.nextValue();
-            }
-        }
-
         @Override
         public String toString() {
             return "MvMaxLongsFromDocValues.Sorted";
+        }
+    }
+
+    /**
+     * Discard all doc values but the last ones in this position.
+     */
+    static void discardAllButLast(SortedNumericDocValues numericDocValues) throws IOException {
+        int count = numericDocValues.docValueCount();
+        for (int i = 0; i < count - 1; i++) {
+            numericDocValues.nextValue();
         }
     }
 }

@@ -8,23 +8,8 @@
 package org.elasticsearch.xpack.esql.optimizer.rules.logical;
 
 import org.elasticsearch.xpack.esql.optimizer.LogicalOptimizerContext;
-import org.elasticsearch.xpack.esql.plan.logical.Drop;
-import org.elasticsearch.xpack.esql.plan.logical.Eval;
-import org.elasticsearch.xpack.esql.plan.logical.Filter;
-import org.elasticsearch.xpack.esql.plan.logical.Insist;
-import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
-import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
-import org.elasticsearch.xpack.esql.plan.logical.Project;
-import org.elasticsearch.xpack.esql.plan.logical.Rename;
 import org.elasticsearch.xpack.esql.plan.logical.TopN;
-import org.elasticsearch.xpack.esql.plan.logical.inference.Completion;
-
-import java.util.ArrayDeque;
-import java.util.Collections;
-import java.util.Deque;
-import java.util.IdentityHashMap;
-import java.util.Set;
 
 /**
  * Removes redundant TopN operations from the logical plan to improve execution efficiency.
@@ -49,54 +34,20 @@ public class PruneRedundantTopN extends OptimizerRules.ParameterizedOptimizerRul
 
     @Override
     protected LogicalPlan rule(TopN plan, LogicalOptimizerContext ctx) {
-        Set<TopN> redundant = findRedundantTopN(plan, ctx);
-        if (redundant.isEmpty()) {
-            return plan;
-        }
-        return plan.transformDown(TopN.class, topN -> redundant.contains(topN) ? topN.child() : topN);
-    }
-
-    /**
-     * breadth-first recursion to find redundant TopNs in the children tree.
-     * Returns an identity set (we need to compare and prune the exact instances)
-     */
-    private Set<TopN> findRedundantTopN(TopN parentTopN, LogicalOptimizerContext ctx) {
-        Set<TopN> result = Collections.newSetFromMap(new IdentityHashMap<>());
-
-        Deque<LogicalPlan> toCheck = new ArrayDeque<>();
-        toCheck.push(parentTopN.child());
-
-        while (toCheck.isEmpty() == false) {
-            LogicalPlan p = toCheck.pop();
-            if (p instanceof TopN childTopN) {
-                // Check if a child TopN is redundant compared to a parent TopN.
-                // A child TopN is redundant if it matches the parent's sort order and has a greater or equal limit.
-                if (childTopN.order().equals(parentTopN.order())
-                    // Although `PushDownAndCombineLimits` is expected to have propagated the stricter (lower) limit,
-                    // we still compare limit values here to ensure correctness and avoid relying solely on prior optimizations.
-                    // This limit check should always pass, but we validate it explicitly for robustness.
-                    && (int) parentTopN.limit().fold(ctx.foldCtx()) <= (int) childTopN.limit().fold(ctx.foldCtx())) {
-                    result.add(childTopN);
-                    toCheck.push(childTopN.child());
-                }
-            } else if (canRemoveRedundantChildTopN(p)) {
-                for (LogicalPlan child : p.children()) {
-                    toCheck.push(child);
-                }
+        while (plan.child() instanceof TopN childTopN) {
+            // Check if the child TopN is redundant compared to the plan TopN.
+            // A child TopN is redundant if it matches the plan's sort order and has a greater or equal limit.
+            if (childTopN.order().equals(plan.order())
+                // Although `PushDownAndCombineLimits` is expected to have propagated the stricter (lower) limit,
+                // we still compare limit values here to ensure correctness and avoid relying solely on prior optimizations.
+                // This limit check should always pass, but we validate it explicitly for robustness.
+                && (int) plan.limit().fold(ctx.foldCtx()) <= (int) childTopN.limit().fold(ctx.foldCtx())) {
+                // Skip the redundant child TopN and continue checking for more consecutive TopNs
+                plan = plan.replaceChild(childTopN.child());
+            } else {
+                break;
             }
         }
-        return result;
-    }
-
-    private boolean canRemoveRedundantChildTopN(LogicalPlan p) {
-        return p instanceof Completion
-            || p instanceof Drop
-            || p instanceof Eval
-            || p instanceof Rename
-            || p instanceof Filter
-            || p instanceof Insist
-            || p instanceof Limit
-            || p instanceof OrderBy
-            || p instanceof Project;
+        return plan;
     }
 }

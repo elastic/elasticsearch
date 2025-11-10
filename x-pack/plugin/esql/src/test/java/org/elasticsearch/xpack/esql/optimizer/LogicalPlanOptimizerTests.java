@@ -8742,10 +8742,11 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
 
     /**
      * <pre>{@code
-     * EsqlProject[[first_name{f}#9, a{r}#6]]
-     * \_TopN[[Order[first_name{f}#9,ASC,LAST]],10[INTEGER]]
-     *   \_Eval[[12[INTEGER] AS a#6]]
-     *     \_EsRelation[test][_meta_field{f}#14, emp_no{f}#8, first_name{f}#9, ge..]
+     * EsqlProject[[first_name{f}#10, a{r}#7]]
+     * \_TopN[[Order[first_name{f}#10,ASC,LAST]],10[INTEGER],false]
+     *   \_Eval[[12[INTEGER] AS a#7]]
+     *     \_TopN[[Order[first_name{f}#10,ASC,LAST]],10[INTEGER],false]
+     *       \_EsRelation[test][_meta_field{f}#15, emp_no{f}#9, first_name{f}#10, g..]
      * }</pre>
      */
     public void testPruneRedundantTopNWithNodesInBetween() {
@@ -8762,7 +8763,8 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         var project = as(plan, Project.class);
         var topN = as(project.child(), TopN.class);
         var eval = as(topN.child(), Eval.class);
-        as(eval.child(), EsRelation.class);
+        topN = as(eval.child(), TopN.class);
+        as(topN.child(), EsRelation.class);
     }
 
     /**

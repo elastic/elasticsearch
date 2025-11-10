@@ -311,18 +311,18 @@ emp_no:integer | first_name:keyword | gender:keyword | salary:integer
 
 redundantTopNWithStats
 from employees 
-| sort gender 
+| sort emp_no 
 | limit 10 
 | stats cnt = count(*) by emp_no, gender
-| sort gender
+| sort emp_no
 | limit 5 
 | keep emp_no, gender, cnt
 ;
 
 emp_no:integer | gender:keyword | cnt:long
-10023          | F              | 1
-10027          | F              | 1
-10006          | F              | 1
-10007          | F              | 1
-10040          | F              | 1
+10001          | M              | 1
+10002          | F              | 1
+10003          | M              | 1
+10004          | M              | 1
+10005          | M              | 1
 ;

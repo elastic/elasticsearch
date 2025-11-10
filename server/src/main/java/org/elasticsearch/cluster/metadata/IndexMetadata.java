@@ -1358,6 +1358,18 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         return shardSizeInBytesForecast == null ? OptionalLong.empty() : OptionalLong.of(shardSizeInBytesForecast);
     }
 
+    /**
+     * Get the inference fields that match the provided field pattern map. The matches are returned as a map where the key is the
+     * {@link InferenceFieldMetadata} for the matching inference field and the value is the effective weight of the field.
+     * If {@code useDefaultFields} is true and {@code fields} is empty, then the field pattern map will be derived from the value of
+     * {@link DEFAULT_FIELD_SETTING} for the index.
+     *
+     * @param fields The field pattern map, where the key is the field pattern and the value is the pattern weight.
+     * @param resolveWildcards If {@code true}, wildcards in field patterns will be resolved. Otherwise, only explicit matches will be
+     *                         returned.
+     * @param useDefaultFields If {@code true}, default fields will be used if {@code fields} is empty.
+     * @return A map of inference field matches
+     */
     public Map<InferenceFieldMetadata, Float> getMatchingInferenceFields(
         Map<String, Float> fields,
         boolean resolveWildcards,
@@ -3273,6 +3285,16 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         }
     }
 
+    /**
+     * An overload of {@link #getMatchingInferenceFields(Map, boolean, boolean)}}, where the inference field metadata map to match against
+     * is provided by the caller. {@code useDefaultFields} is unavailable because the index's {@link DEFAULT_FIELD_SETTING} is out of scope.
+     *
+     * @param inferenceFieldMetadataMap The inference field metadata map to match against.
+     * @param fieldMap The field pattern map, where the key is the field pattern and the value is the pattern weight.
+     * @param resolveWildcards If {@code true}, wildcards in field patterns will be resolved. Otherwise, only explicit matches will be
+     *                         returned.
+     * @return A map of inference field matches
+     */
     public static Map<InferenceFieldMetadata, Float> getMatchingInferenceFields(
         Map<String, InferenceFieldMetadata> inferenceFieldMetadataMap,
         Map<String, Float> fieldMap,

@@ -30,7 +30,7 @@ import static org.hamcrest.Matchers.sameInstance;
 
 public class CCMCacheTests extends ESSingleNodeTestCase {
 
-    private static final TimeValue TIMEOUT = new TimeValue(30, TimeUnit.SECONDS);
+    private static final TimeValue TIMEOUT = TimeValue.THIRTY_SECONDS;
 
     private CCMCache ccmCache;
     private CCMPersistentStorageService ccmPersistentStorageService;
@@ -151,6 +151,29 @@ public class CCMCacheTests extends ESSingleNodeTestCase {
 
         assertFalse(isPresent());
         assertThat(ccmCache.stats().getHits(), equalTo(1L));
+        assertThat(ccmCache.stats().getMisses(), equalTo(1L));
+    }
+
+    public void testIsDisabledRefreshedWithGet() throws IOException {
+        indicesAdmin().prepareCreate(CCMIndex.INDEX_NAME).execute().actionGet(TIMEOUT);
+
+        assertFalse(isPresent());
+        assertThat(ccmCache.stats().getHits(), equalTo(0L));
+        assertThat(ccmCache.stats().getMisses(), equalTo(1L));
+
+        var expectedCcmModel = storeCcm();
+
+        assertFalse(isPresent());
+        assertThat(ccmCache.stats().getHits(), equalTo(1L));
+        assertThat(ccmCache.stats().getMisses(), equalTo(1L));
+
+        var actualCcmModel = getFromCache();
+        assertThat(actualCcmModel, equalTo(expectedCcmModel));
+        assertThat(ccmCache.stats().getHits(), equalTo(2L));
+        assertThat(ccmCache.stats().getMisses(), equalTo(1L));
+
+        assertTrue(isPresent());
+        assertThat(ccmCache.stats().getHits(), equalTo(3L));
         assertThat(ccmCache.stats().getMisses(), equalTo(1L));
     }
 }

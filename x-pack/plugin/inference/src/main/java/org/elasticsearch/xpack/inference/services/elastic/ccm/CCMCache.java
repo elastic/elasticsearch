@@ -36,6 +36,9 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Objects;
 
+/**
+ * Cache for whether CCM is enabled or disabled for this cluster as well as what the CCM key is for when it is enabled.
+ */
 public class CCMCache {
 
     private static final Setting<Integer> INFERENCE_CCM_CACHE_WEIGHT = Setting.intSetting(
@@ -84,25 +87,30 @@ public class CCMCache {
         this.client = client;
     }
 
+    /**
+     * Immediately returns the CCM key if it is cached, or goes to the index if there is no value cached or the previous call returned
+     * nothing. The expectation is that the caller checks if CCM is enabled via the {@link #isEnabled(ActionListener)} API, which caches
+     * a boolean value if the CCM key is present or absent in the underlying index.
+     */
     public void get(ActionListener<CCMModel> listener) {
         var projectId = projectResolver.getProjectId();
-        var cachedEntry = get(projectId);
+        var cachedEntry = getCacheEntry(projectId);
         if (cachedEntry != null && cachedEntry.enabled()) {
             listener.onResponse(cachedEntry.ccmModel());
         } else {
             ccmPersistentStorageService.get(ActionListener.wrap(ccmModel -> {
-                enabled(projectId, ccmModel);
+                putEnabledEntry(projectId, ccmModel);
                 listener.onResponse(ccmModel);
             }, e -> {
                 if (e instanceof ResourceNotFoundException) {
-                    disabled(projectId);
+                    putDisabledEntry(projectId);
                 }
                 listener.onFailure(e);
             }));
         }
     }
 
-    private CCMModelEntry get(ProjectId projectId) {
+    private CCMModelEntry getCacheEntry(ProjectId projectId) {
         return cacheEnabled() ? cache.get(projectId) : null;
     }
 
@@ -111,30 +119,34 @@ public class CCMCache {
         return state.clusterRecovered() && featureService.clusterHasFeature(state, InferenceFeatures.INFERENCE_CCM_CACHE);
     }
 
-    private void enabled(ProjectId projectId, CCMModel ccmModel) {
+    private void putEnabledEntry(ProjectId projectId, CCMModel ccmModel) {
         if (cacheEnabled()) {
             cache.put(projectId, CCMModelEntry.enabled(ccmModel));
         }
     }
 
-    private void disabled(ProjectId projectId) {
+    private void putDisabledEntry(ProjectId projectId) {
         if (cacheEnabled()) {
             cache.put(projectId, CCMModelEntry.DISABLED);
         }
     }
 
+    /**
+     * Checks if the value is present or absent based on a previous call to {@link #isEnabled(ActionListener)}
+     * or {@link #get(ActionListener)}. If the cache entry is missing or expired, then it will call through to the backing index.
+     */
     public void isEnabled(ActionListener<Boolean> listener) {
         var projectId = projectResolver.getProjectId();
-        var cachedEntry = get(projectId);
+        var cachedEntry = getCacheEntry(projectId);
         if (cachedEntry != null) {
             listener.onResponse(cachedEntry.enabled());
         } else {
             ccmPersistentStorageService.get(ActionListener.wrap(ccmModel -> {
-                enabled(projectId, ccmModel);
+                putEnabledEntry(projectId, ccmModel);
                 listener.onResponse(true);
             }, e -> {
                 if (e instanceof ResourceNotFoundException) {
-                    disabled(projectId);
+                    putDisabledEntry(projectId);
                     listener.onResponse(false);
                 } else {
                     listener.onFailure(e);

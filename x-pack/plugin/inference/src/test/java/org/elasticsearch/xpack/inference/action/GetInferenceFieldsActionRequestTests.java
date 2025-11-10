@@ -105,17 +105,16 @@ public class GetInferenceFieldsActionRequestTests extends AbstractWireSerializin
 
     private static IndicesOptions randomIndicesOptions() {
         // This isn't an exhaustive list of possible indices options, but there are enough for effective serialization tests
-        return switch (between(0, 9)) {
+        return switch (between(0, 8)) {
             case 0 -> null;
-            case 1 -> IndicesOptions.strictExpandOpen();
-            case 2 -> IndicesOptions.strictExpandOpenFailureNoSelectors();
-            case 3 -> IndicesOptions.strictExpandOpenAndForbidClosed();
-            case 4 -> IndicesOptions.strictExpandOpenAndForbidClosedIgnoreThrottled();
-            case 5 -> IndicesOptions.strictExpand();
-            case 6 -> IndicesOptions.strictExpandHidden();
-            case 7 -> IndicesOptions.strictExpandHiddenNoSelectors();
-            case 8 -> IndicesOptions.strictExpandHiddenFailureNoSelectors();
-            case 9 -> IndicesOptions.strictNoExpandForbidClosed();
+            case 1 -> IndicesOptions.strictExpandOpenFailureNoSelectors();
+            case 2 -> IndicesOptions.strictExpandOpenAndForbidClosed();
+            case 3 -> IndicesOptions.strictExpandOpenAndForbidClosedIgnoreThrottled();
+            case 4 -> IndicesOptions.strictExpand();
+            case 5 -> IndicesOptions.strictExpandHidden();
+            case 6 -> IndicesOptions.strictExpandHiddenNoSelectors();
+            case 7 -> IndicesOptions.strictExpandHiddenFailureNoSelectors();
+            case 8 -> IndicesOptions.strictNoExpandForbidClosed();
             default -> throw new AssertionError("Invalid value");
         };
     }

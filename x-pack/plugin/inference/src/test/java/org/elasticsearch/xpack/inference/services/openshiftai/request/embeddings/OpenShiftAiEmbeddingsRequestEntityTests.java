@@ -21,21 +21,22 @@ import static org.hamcrest.CoreMatchers.is;
 
 public class OpenShiftAiEmbeddingsRequestEntityTests extends ESTestCase {
 
-    private static final String MODEL = "some model";
-    private static final String INPUT = "some input";
+    private static final String MODEL_VALUE = "some_model";
+    private static final List<String> INPUT_VALUE = List.of("some input");
+    private static final int DIMENSIONS_VALUE = 100;
 
     public void testXContent_DoesNotWriteDimensionsWhenNullAndSetByUserIsFalse() throws IOException {
-        var entity = new OpenShiftAiEmbeddingsRequestEntity(List.of(INPUT), MODEL, null, false);
+        var entity = new OpenShiftAiEmbeddingsRequestEntity(INPUT_VALUE, MODEL_VALUE, null, false);
         testXContent_DoesNotWriteDimensions(entity);
     }
 
     public void testXContent_DoesNotWriteDimensionsWhenNotSetByUser() throws IOException {
-        var entity = new OpenShiftAiEmbeddingsRequestEntity(List.of(INPUT), MODEL, 100, false);
+        var entity = new OpenShiftAiEmbeddingsRequestEntity(INPUT_VALUE, MODEL_VALUE, DIMENSIONS_VALUE, false);
         testXContent_DoesNotWriteDimensions(entity);
     }
 
     public void testXContent_DoesNotWriteDimensionsWhenNull_EvenIfSetByUserIsTrue() throws IOException {
-        var entity = new OpenShiftAiEmbeddingsRequestEntity(List.of(INPUT), MODEL, null, true);
+        var entity = new OpenShiftAiEmbeddingsRequestEntity(INPUT_VALUE, MODEL_VALUE, null, true);
         testXContent_DoesNotWriteDimensions(entity);
     }
 
@@ -47,13 +48,13 @@ public class OpenShiftAiEmbeddingsRequestEntityTests extends ESTestCase {
         assertThat(xContentResult, is(XContentHelper.stripWhitespace("""
             {
                 "input": ["some input"],
-                "model": "some model"
+                "model": "some_model"
             }
             """)));
     }
 
     public void testXContent_DoesNotWriteModelWhenItIsNull() throws IOException {
-        var entity = new OpenShiftAiEmbeddingsRequestEntity(List.of(INPUT), null, null, false);
+        var entity = new OpenShiftAiEmbeddingsRequestEntity(INPUT_VALUE, null, null, false);
 
         XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
         entity.toXContent(builder, null);
@@ -67,7 +68,7 @@ public class OpenShiftAiEmbeddingsRequestEntityTests extends ESTestCase {
     }
 
     public void testXContent_WritesDimensionsWhenNonNull_AndSetByUserIsTrue() throws IOException {
-        var entity = new OpenShiftAiEmbeddingsRequestEntity(List.of(INPUT), MODEL, 100, true);
+        var entity = new OpenShiftAiEmbeddingsRequestEntity(INPUT_VALUE, MODEL_VALUE, DIMENSIONS_VALUE, true);
 
         XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
         entity.toXContent(builder, null);
@@ -76,7 +77,7 @@ public class OpenShiftAiEmbeddingsRequestEntityTests extends ESTestCase {
         assertThat(xContentResult, is(XContentHelper.stripWhitespace("""
             {
                 "input": ["some input"],
-                "model": "some model",
+                "model": "some_model",
                 "dimensions": 100
             }
             """)));

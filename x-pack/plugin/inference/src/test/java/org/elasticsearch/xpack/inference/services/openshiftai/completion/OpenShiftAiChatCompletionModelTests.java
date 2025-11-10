@@ -17,9 +17,10 @@ import static org.hamcrest.Matchers.sameInstance;
 
 public class OpenShiftAiChatCompletionModelTests extends ESTestCase {
 
-    private static final String MODEL_ID = "model_name";
-    private static final String API_KEY = "api_key";
-    private static final String URL = "some_url";
+    private static final String MODEL_VALUE = "model_name";
+    private static final String API_KEY_VALUE = "api_key";
+    private static final String URL_VALUE = "http://www.abc.com";
+    private static final String ALTERNATE_MODEL_VALUE = "different_model";
 
     public static OpenShiftAiChatCompletionModel createCompletionModel(String url, String apiKey, String modelName) {
         return createModelWithTaskType(url, apiKey, modelName, TaskType.COMPLETION);
@@ -40,28 +41,28 @@ public class OpenShiftAiChatCompletionModelTests extends ESTestCase {
     }
 
     public void testOverrideWith_UnifiedCompletionRequest_KeepsSameModelId() {
-        var model = createCompletionModel(URL, API_KEY, MODEL_ID);
-        var overriddenModel = OpenShiftAiChatCompletionModel.of(model, MODEL_ID);
+        var model = createCompletionModel(URL_VALUE, API_KEY_VALUE, MODEL_VALUE);
+        var overriddenModel = OpenShiftAiChatCompletionModel.of(model, MODEL_VALUE);
 
         assertThat(overriddenModel, is(sameInstance(model)));
     }
 
     public void testOverrideWith_UnifiedCompletionRequest_OverridesExistingModelId() {
-        var model = createCompletionModel(URL, API_KEY, MODEL_ID);
-        var overriddenModel = OpenShiftAiChatCompletionModel.of(model, "different_model");
+        var model = createCompletionModel(URL_VALUE, API_KEY_VALUE, MODEL_VALUE);
+        var overriddenModel = OpenShiftAiChatCompletionModel.of(model, ALTERNATE_MODEL_VALUE);
 
-        assertThat(overriddenModel.getServiceSettings().modelId(), is("different_model"));
+        assertThat(overriddenModel.getServiceSettings().modelId(), is(ALTERNATE_MODEL_VALUE));
     }
 
     public void testOverrideWith_UnifiedCompletionRequest_UsesModelFields_WhenRequestDoesNotOverride() {
-        var model = createCompletionModel(URL, API_KEY, MODEL_ID);
+        var model = createCompletionModel(URL_VALUE, API_KEY_VALUE, MODEL_VALUE);
         var overriddenModel = OpenShiftAiChatCompletionModel.of(model, null);
 
         assertThat(overriddenModel, is(sameInstance(model)));
     }
 
     public void testOverrideWith_UnifiedCompletionRequest_KeepsNullIfNoModelIdProvided() {
-        var model = createCompletionModel(URL, API_KEY, null);
+        var model = createCompletionModel(URL_VALUE, API_KEY_VALUE, null);
         var overriddenModel = OpenShiftAiChatCompletionModel.of(model, null);
 
         assertThat(overriddenModel, is(sameInstance(model)));

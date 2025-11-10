@@ -22,7 +22,7 @@ import java.util.ArrayList;
 import static org.hamcrest.Matchers.is;
 
 public class OpenShiftAiChatCompletionRequestEntityTests extends ESTestCase {
-    private static final String USER_ROLE_VALUE = "user";
+    private static final String ROLE_VALUE = "user";
 
     public void testSerializationWithModelIdStreaming() throws IOException {
         testSerialization("modelId", true, """
@@ -85,7 +85,7 @@ public class OpenShiftAiChatCompletionRequestEntityTests extends ESTestCase {
     private static void testSerialization(String modelId, boolean isStreaming, String expectedJson) throws IOException {
         var message = new UnifiedCompletionRequest.Message(
             new UnifiedCompletionRequest.ContentString("Hello, world!"),
-            USER_ROLE_VALUE,
+            ROLE_VALUE,
             null,
             null
         );

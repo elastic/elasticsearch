@@ -14,6 +14,7 @@ import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.inference.common.Truncator;
 import org.elasticsearch.xpack.inference.common.TruncatorTests;
 import org.elasticsearch.xpack.inference.external.request.HttpRequest;
+import org.elasticsearch.xpack.inference.services.ServiceFields;
 import org.elasticsearch.xpack.inference.services.openshiftai.embeddings.OpenShiftAiEmbeddingsModelTests;
 
 import java.io.IOException;
@@ -29,12 +30,12 @@ public class OpenShiftAiEmbeddingsRequestTests extends ESTestCase {
 
     private static final String INPUT_FIELD_NAME = "input";
     private static final String MODEL_FIELD_NAME = "model";
-    private static final String DIMENSIONS_FIELD_NAME = "dimensions";
 
-    private static final String MODEL_VALUE = "some model";
+    private static final String MODEL_VALUE = "some_model";
     private static final String INPUT_VALUE = "ABCD";
-    private static final String URL_VALUE = "some_url";
-    private static final String API_KEY = "some api key";
+    private static final String URL_VALUE = "http://www.abc.com";
+    private static final String API_KEY_VALUE = "test_api_key";
+    private static final int DIMENSIONS_VALUE = 384;
 
     public void testCreateRequest_NoDimensions_DimensionsSetByUserFalse_Success() throws IOException {
         testCreateRequest_Success(null, false, null);
@@ -45,11 +46,11 @@ public class OpenShiftAiEmbeddingsRequestTests extends ESTestCase {
     }
 
     public void testCreateRequest_WithDimensions_DimensionsSetByUserFalse_Success() throws IOException {
-        testCreateRequest_Success(384, false, null);
+        testCreateRequest_Success(DIMENSIONS_VALUE, false, null);
     }
 
     public void testCreateRequest_WithDimensions_DimensionsSetByUserTrue_Success() throws IOException {
-        testCreateRequest_Success(384, true, 384);
+        testCreateRequest_Success(DIMENSIONS_VALUE, true, DIMENSIONS_VALUE);
     }
 
     private void testCreateRequest_Success(Integer dimensions, boolean dimensionsSetByUser, Integer expectedDimensions) throws IOException {
@@ -60,8 +61,8 @@ public class OpenShiftAiEmbeddingsRequestTests extends ESTestCase {
         var requestMap = entityAsMap(httpPost.getEntity().getContent());
         assertThat(requestMap.get(INPUT_FIELD_NAME), is(List.of(INPUT_VALUE)));
         assertThat(requestMap.get(MODEL_FIELD_NAME), is(MODEL_VALUE));
-        assertThat(requestMap.get(DIMENSIONS_FIELD_NAME), is(expectedDimensions));
-        assertThat(httpPost.getFirstHeader(HttpHeaders.AUTHORIZATION).getValue(), is("Bearer %s".formatted(API_KEY)));
+        assertThat(requestMap.get(ServiceFields.DIMENSIONS), is(expectedDimensions));
+        assertThat(httpPost.getFirstHeader(HttpHeaders.AUTHORIZATION).getValue(), is("Bearer %s".formatted(API_KEY_VALUE)));
     }
 
     public void testCreateRequest_NoModel_Success() throws IOException {
@@ -72,8 +73,8 @@ public class OpenShiftAiEmbeddingsRequestTests extends ESTestCase {
         var requestMap = entityAsMap(httpPost.getEntity().getContent());
         assertThat(requestMap.get(INPUT_FIELD_NAME), is(List.of(INPUT_VALUE)));
         assertThat(requestMap.get(MODEL_FIELD_NAME), is(nullValue()));
-        assertThat(requestMap.get(DIMENSIONS_FIELD_NAME), is(nullValue()));
-        assertThat(httpPost.getFirstHeader(HttpHeaders.AUTHORIZATION).getValue(), is("Bearer %s".formatted(API_KEY)));
+        assertThat(requestMap.get(ServiceFields.DIMENSIONS), is(nullValue()));
+        assertThat(httpPost.getFirstHeader(HttpHeaders.AUTHORIZATION).getValue(), is("Bearer %s".formatted(API_KEY_VALUE)));
 
     }
 
@@ -115,7 +116,7 @@ public class OpenShiftAiEmbeddingsRequestTests extends ESTestCase {
     private static OpenShiftAiEmbeddingsRequest createRequest(Integer dimensions, Boolean dimensionsSetByUser, String modelId) {
         var embeddingsModel = OpenShiftAiEmbeddingsModelTests.createModel(
             URL_VALUE,
-            API_KEY,
+            API_KEY_VALUE,
             modelId,
             dimensions,
             dimensionsSetByUser,

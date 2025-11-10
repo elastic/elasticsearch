@@ -34,23 +34,23 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
 
 public class OpenShiftAiEmbeddingsServiceSettingsTests extends AbstractWireSerializingTestCase<OpenShiftAiEmbeddingsServiceSettings> {
-    private static final String MODEL_ID = "some model";
-    private static final String CORRECT_URL = "https://www.elastic.co";
-    private static final String INVALID_URL = "^^^";
-    private static final int DIMENSIONS = 384;
-    private static final SimilarityMeasure SIMILARITY_MEASURE = SimilarityMeasure.DOT_PRODUCT;
-    private static final int MAX_INPUT_TOKENS = 128;
-    private static final int RATE_LIMIT = 2;
+    private static final String MODEL_VALUE = "some_model";
+    private static final String CORRECT_URL_VALUE = "http://www.abc.com";
+    private static final String INVALID_URL_VALUE = "^^^";
+    private static final int DIMENSIONS_VALUE = 384;
+    private static final SimilarityMeasure SIMILARITY_MEASURE_VALUE = SimilarityMeasure.DOT_PRODUCT;
+    private static final int MAX_INPUT_TOKENS_VALUE = 128;
+    private static final int RATE_LIMIT_VALUE = 2;
 
     public void testFromMap_AllFields_Success() {
         var serviceSettings = OpenShiftAiEmbeddingsServiceSettings.fromMap(
             buildServiceSettingsMap(
-                MODEL_ID,
-                CORRECT_URL,
-                SIMILARITY_MEASURE.toString(),
-                DIMENSIONS,
-                MAX_INPUT_TOKENS,
-                new HashMap<>(Map.of(RateLimitSettings.REQUESTS_PER_MINUTE_FIELD, RATE_LIMIT)),
+                MODEL_VALUE,
+                CORRECT_URL_VALUE,
+                SIMILARITY_MEASURE_VALUE.toString(),
+                DIMENSIONS_VALUE,
+                MAX_INPUT_TOKENS_VALUE,
+                new HashMap<>(Map.of(RateLimitSettings.REQUESTS_PER_MINUTE_FIELD, RATE_LIMIT_VALUE)),
                 true
             ),
             ConfigurationParseContext.PERSISTENT
@@ -60,12 +60,12 @@ public class OpenShiftAiEmbeddingsServiceSettingsTests extends AbstractWireSeria
             serviceSettings,
             is(
                 new OpenShiftAiEmbeddingsServiceSettings(
-                    MODEL_ID,
-                    CORRECT_URL,
-                    DIMENSIONS,
-                    SIMILARITY_MEASURE,
-                    MAX_INPUT_TOKENS,
-                    new RateLimitSettings(RATE_LIMIT),
+                    MODEL_VALUE,
+                    CORRECT_URL_VALUE,
+                    DIMENSIONS_VALUE,
+                    SIMILARITY_MEASURE_VALUE,
+                    MAX_INPUT_TOKENS_VALUE,
+                    new RateLimitSettings(RATE_LIMIT_VALUE),
                     true
                 )
             )
@@ -76,11 +76,11 @@ public class OpenShiftAiEmbeddingsServiceSettingsTests extends AbstractWireSeria
         var serviceSettings = OpenShiftAiEmbeddingsServiceSettings.fromMap(
             buildServiceSettingsMap(
                 null,
-                CORRECT_URL,
-                SIMILARITY_MEASURE.toString(),
-                DIMENSIONS,
-                MAX_INPUT_TOKENS,
-                new HashMap<>(Map.of(RateLimitSettings.REQUESTS_PER_MINUTE_FIELD, RATE_LIMIT)),
+                CORRECT_URL_VALUE,
+                SIMILARITY_MEASURE_VALUE.toString(),
+                DIMENSIONS_VALUE,
+                MAX_INPUT_TOKENS_VALUE,
+                new HashMap<>(Map.of(RateLimitSettings.REQUESTS_PER_MINUTE_FIELD, RATE_LIMIT_VALUE)),
                 false
             ),
             ConfigurationParseContext.PERSISTENT
@@ -90,11 +90,11 @@ public class OpenShiftAiEmbeddingsServiceSettingsTests extends AbstractWireSeria
             is(
                 new OpenShiftAiEmbeddingsServiceSettings(
                     null,
-                    CORRECT_URL,
-                    DIMENSIONS,
-                    SIMILARITY_MEASURE,
-                    MAX_INPUT_TOKENS,
-                    new RateLimitSettings(RATE_LIMIT),
+                    CORRECT_URL_VALUE,
+                    DIMENSIONS_VALUE,
+                    SIMILARITY_MEASURE_VALUE,
+                    MAX_INPUT_TOKENS_VALUE,
+                    new RateLimitSettings(RATE_LIMIT_VALUE),
                     false
                 )
             )
@@ -106,12 +106,12 @@ public class OpenShiftAiEmbeddingsServiceSettingsTests extends AbstractWireSeria
             ValidationException.class,
             () -> OpenShiftAiEmbeddingsServiceSettings.fromMap(
                 buildServiceSettingsMap(
-                    MODEL_ID,
+                    MODEL_VALUE,
                     null,
-                    SIMILARITY_MEASURE.toString(),
-                    DIMENSIONS,
-                    MAX_INPUT_TOKENS,
-                    new HashMap<>(Map.of(RateLimitSettings.REQUESTS_PER_MINUTE_FIELD, RATE_LIMIT)),
+                    SIMILARITY_MEASURE_VALUE.toString(),
+                    DIMENSIONS_VALUE,
+                    MAX_INPUT_TOKENS_VALUE,
+                    new HashMap<>(Map.of(RateLimitSettings.REQUESTS_PER_MINUTE_FIELD, RATE_LIMIT_VALUE)),
                     false
                 ),
                 ConfigurationParseContext.PERSISTENT
@@ -128,12 +128,12 @@ public class OpenShiftAiEmbeddingsServiceSettingsTests extends AbstractWireSeria
             ValidationException.class,
             () -> OpenShiftAiEmbeddingsServiceSettings.fromMap(
                 buildServiceSettingsMap(
-                    MODEL_ID,
+                    MODEL_VALUE,
                     "",
-                    SIMILARITY_MEASURE.toString(),
-                    DIMENSIONS,
-                    MAX_INPUT_TOKENS,
-                    new HashMap<>(Map.of(RateLimitSettings.REQUESTS_PER_MINUTE_FIELD, RATE_LIMIT)),
+                    SIMILARITY_MEASURE_VALUE.toString(),
+                    DIMENSIONS_VALUE,
+                    MAX_INPUT_TOKENS_VALUE,
+                    new HashMap<>(Map.of(RateLimitSettings.REQUESTS_PER_MINUTE_FIELD, RATE_LIMIT_VALUE)),
                     false
                 ),
                 ConfigurationParseContext.PERSISTENT
@@ -150,12 +150,12 @@ public class OpenShiftAiEmbeddingsServiceSettingsTests extends AbstractWireSeria
             ValidationException.class,
             () -> OpenShiftAiEmbeddingsServiceSettings.fromMap(
                 buildServiceSettingsMap(
-                    MODEL_ID,
-                    INVALID_URL,
-                    SIMILARITY_MEASURE.toString(),
-                    DIMENSIONS,
-                    MAX_INPUT_TOKENS,
-                    new HashMap<>(Map.of(RateLimitSettings.REQUESTS_PER_MINUTE_FIELD, RATE_LIMIT)),
+                    MODEL_VALUE,
+                    INVALID_URL_VALUE,
+                    SIMILARITY_MEASURE_VALUE.toString(),
+                    DIMENSIONS_VALUE,
+                    MAX_INPUT_TOKENS_VALUE,
+                    new HashMap<>(Map.of(RateLimitSettings.REQUESTS_PER_MINUTE_FIELD, RATE_LIMIT_VALUE)),
                     false
                 ),
                 ConfigurationParseContext.PERSISTENT
@@ -163,18 +163,18 @@ public class OpenShiftAiEmbeddingsServiceSettingsTests extends AbstractWireSeria
         );
         assertThat(thrownException.getMessage(), containsString("""
             Validation Failed: 1: [service_settings] Invalid url [%s] received for field [url]. \
-            Error: unable to parse url [%s]. Reason: Illegal character in path;""".formatted(INVALID_URL, INVALID_URL)));
+            Error: unable to parse url [%s]. Reason: Illegal character in path;""".formatted(INVALID_URL_VALUE, INVALID_URL_VALUE)));
     }
 
     public void testFromMap_NoSimilarity_Success() {
         var serviceSettings = OpenShiftAiEmbeddingsServiceSettings.fromMap(
             buildServiceSettingsMap(
-                MODEL_ID,
-                CORRECT_URL,
+                MODEL_VALUE,
+                CORRECT_URL_VALUE,
                 null,
-                DIMENSIONS,
-                MAX_INPUT_TOKENS,
-                new HashMap<>(Map.of(RateLimitSettings.REQUESTS_PER_MINUTE_FIELD, RATE_LIMIT)),
+                DIMENSIONS_VALUE,
+                MAX_INPUT_TOKENS_VALUE,
+                new HashMap<>(Map.of(RateLimitSettings.REQUESTS_PER_MINUTE_FIELD, RATE_LIMIT_VALUE)),
                 false
             ),
             ConfigurationParseContext.PERSISTENT
@@ -184,12 +184,12 @@ public class OpenShiftAiEmbeddingsServiceSettingsTests extends AbstractWireSeria
             serviceSettings,
             is(
                 new OpenShiftAiEmbeddingsServiceSettings(
-                    MODEL_ID,
-                    CORRECT_URL,
-                    DIMENSIONS,
+                    MODEL_VALUE,
+                    CORRECT_URL_VALUE,
+                    DIMENSIONS_VALUE,
                     null,
-                    MAX_INPUT_TOKENS,
-                    new RateLimitSettings(RATE_LIMIT),
+                    MAX_INPUT_TOKENS_VALUE,
+                    new RateLimitSettings(RATE_LIMIT_VALUE),
                     false
                 )
             )
@@ -201,12 +201,12 @@ public class OpenShiftAiEmbeddingsServiceSettingsTests extends AbstractWireSeria
             ValidationException.class,
             () -> OpenShiftAiEmbeddingsServiceSettings.fromMap(
                 buildServiceSettingsMap(
-                    MODEL_ID,
-                    CORRECT_URL,
+                    MODEL_VALUE,
+                    CORRECT_URL_VALUE,
                     "by_size",
-                    DIMENSIONS,
-                    MAX_INPUT_TOKENS,
-                    new HashMap<>(Map.of(RateLimitSettings.REQUESTS_PER_MINUTE_FIELD, RATE_LIMIT)),
+                    DIMENSIONS_VALUE,
+                    MAX_INPUT_TOKENS_VALUE,
+                    new HashMap<>(Map.of(RateLimitSettings.REQUESTS_PER_MINUTE_FIELD, RATE_LIMIT_VALUE)),
                     false
                 ),
                 ConfigurationParseContext.PERSISTENT
@@ -220,12 +220,12 @@ public class OpenShiftAiEmbeddingsServiceSettingsTests extends AbstractWireSeria
     public void testFromMap_NoDimensions_SetByUserFalse_Persistent_Success() {
         var serviceSettings = OpenShiftAiEmbeddingsServiceSettings.fromMap(
             buildServiceSettingsMap(
-                MODEL_ID,
-                CORRECT_URL,
-                SIMILARITY_MEASURE.toString(),
+                MODEL_VALUE,
+                CORRECT_URL_VALUE,
+                SIMILARITY_MEASURE_VALUE.toString(),
                 null,
-                MAX_INPUT_TOKENS,
-                new HashMap<>(Map.of(RateLimitSettings.REQUESTS_PER_MINUTE_FIELD, RATE_LIMIT)),
+                MAX_INPUT_TOKENS_VALUE,
+                new HashMap<>(Map.of(RateLimitSettings.REQUESTS_PER_MINUTE_FIELD, RATE_LIMIT_VALUE)),
                 false
             ),
             ConfigurationParseContext.PERSISTENT
@@ -235,12 +235,12 @@ public class OpenShiftAiEmbeddingsServiceSettingsTests extends AbstractWireSeria
             serviceSettings,
             is(
                 new OpenShiftAiEmbeddingsServiceSettings(
-                    MODEL_ID,
-                    CORRECT_URL,
+                    MODEL_VALUE,
+                    CORRECT_URL_VALUE,
                     null,
-                    SIMILARITY_MEASURE,
-                    MAX_INPUT_TOKENS,
-                    new RateLimitSettings(RATE_LIMIT),
+                    SIMILARITY_MEASURE_VALUE,
+                    MAX_INPUT_TOKENS_VALUE,
+                    new RateLimitSettings(RATE_LIMIT_VALUE),
                     false
                 )
             )
@@ -250,12 +250,12 @@ public class OpenShiftAiEmbeddingsServiceSettingsTests extends AbstractWireSeria
     public void testFromMap_Persistent_WithDimensions_SetByUserFalse_Persistent_Success() {
         var serviceSettings = OpenShiftAiEmbeddingsServiceSettings.fromMap(
             buildServiceSettingsMap(
-                MODEL_ID,
-                CORRECT_URL,
-                SIMILARITY_MEASURE.toString(),
-                DIMENSIONS,
-                MAX_INPUT_TOKENS,
-                new HashMap<>(Map.of(RateLimitSettings.REQUESTS_PER_MINUTE_FIELD, RATE_LIMIT)),
+                MODEL_VALUE,
+                CORRECT_URL_VALUE,
+                SIMILARITY_MEASURE_VALUE.toString(),
+                DIMENSIONS_VALUE,
+                MAX_INPUT_TOKENS_VALUE,
+                new HashMap<>(Map.of(RateLimitSettings.REQUESTS_PER_MINUTE_FIELD, RATE_LIMIT_VALUE)),
                 false
             ),
             ConfigurationParseContext.PERSISTENT
@@ -265,12 +265,12 @@ public class OpenShiftAiEmbeddingsServiceSettingsTests extends AbstractWireSeria
             serviceSettings,
             is(
                 new OpenShiftAiEmbeddingsServiceSettings(
-                    MODEL_ID,
-                    CORRECT_URL,
-                    DIMENSIONS,
-                    SIMILARITY_MEASURE,
-                    MAX_INPUT_TOKENS,
-                    new RateLimitSettings(RATE_LIMIT),
+                    MODEL_VALUE,
+                    CORRECT_URL_VALUE,
+                    DIMENSIONS_VALUE,
+                    SIMILARITY_MEASURE_VALUE,
+                    MAX_INPUT_TOKENS_VALUE,
+                    new RateLimitSettings(RATE_LIMIT_VALUE),
                     false
                 )
             )
@@ -282,12 +282,12 @@ public class OpenShiftAiEmbeddingsServiceSettingsTests extends AbstractWireSeria
             ValidationException.class,
             () -> OpenShiftAiEmbeddingsServiceSettings.fromMap(
                 buildServiceSettingsMap(
-                    MODEL_ID,
-                    CORRECT_URL,
-                    SIMILARITY_MEASURE.toString(),
-                    DIMENSIONS,
-                    MAX_INPUT_TOKENS,
-                    new HashMap<>(Map.of(RateLimitSettings.REQUESTS_PER_MINUTE_FIELD, RATE_LIMIT)),
+                    MODEL_VALUE,
+                    CORRECT_URL_VALUE,
+                    SIMILARITY_MEASURE_VALUE.toString(),
+                    DIMENSIONS_VALUE,
+                    MAX_INPUT_TOKENS_VALUE,
+                    new HashMap<>(Map.of(RateLimitSettings.REQUESTS_PER_MINUTE_FIELD, RATE_LIMIT_VALUE)),
                     null
                 ),
                 ConfigurationParseContext.PERSISTENT
@@ -303,12 +303,12 @@ public class OpenShiftAiEmbeddingsServiceSettingsTests extends AbstractWireSeria
     public void testFromMap_NoDimensions_SetByUserNull_Request_Success() {
         var serviceSettings = OpenShiftAiEmbeddingsServiceSettings.fromMap(
             buildServiceSettingsMap(
-                MODEL_ID,
-                CORRECT_URL,
-                SIMILARITY_MEASURE.toString(),
+                MODEL_VALUE,
+                CORRECT_URL_VALUE,
+                SIMILARITY_MEASURE_VALUE.toString(),
                 null,
-                MAX_INPUT_TOKENS,
-                new HashMap<>(Map.of(RateLimitSettings.REQUESTS_PER_MINUTE_FIELD, RATE_LIMIT)),
+                MAX_INPUT_TOKENS_VALUE,
+                new HashMap<>(Map.of(RateLimitSettings.REQUESTS_PER_MINUTE_FIELD, RATE_LIMIT_VALUE)),
                 null
             ),
             ConfigurationParseContext.REQUEST
@@ -318,12 +318,12 @@ public class OpenShiftAiEmbeddingsServiceSettingsTests extends AbstractWireSeria
             serviceSettings,
             is(
                 new OpenShiftAiEmbeddingsServiceSettings(
-                    MODEL_ID,
-                    CORRECT_URL,
+                    MODEL_VALUE,
+                    CORRECT_URL_VALUE,
                     null,
-                    SIMILARITY_MEASURE,
-                    MAX_INPUT_TOKENS,
-                    new RateLimitSettings(RATE_LIMIT),
+                    SIMILARITY_MEASURE_VALUE,
+                    MAX_INPUT_TOKENS_VALUE,
+                    new RateLimitSettings(RATE_LIMIT_VALUE),
                     false
                 )
             )
@@ -333,12 +333,12 @@ public class OpenShiftAiEmbeddingsServiceSettingsTests extends AbstractWireSeria
     public void testFromMap_WithDimensions_SetByUserNull_Request_Success() {
         var serviceSettings = OpenShiftAiEmbeddingsServiceSettings.fromMap(
             buildServiceSettingsMap(
-                MODEL_ID,
-                CORRECT_URL,
-                SIMILARITY_MEASURE.toString(),
-                DIMENSIONS,
-                MAX_INPUT_TOKENS,
-                new HashMap<>(Map.of(RateLimitSettings.REQUESTS_PER_MINUTE_FIELD, RATE_LIMIT)),
+                MODEL_VALUE,
+                CORRECT_URL_VALUE,
+                SIMILARITY_MEASURE_VALUE.toString(),
+                DIMENSIONS_VALUE,
+                MAX_INPUT_TOKENS_VALUE,
+                new HashMap<>(Map.of(RateLimitSettings.REQUESTS_PER_MINUTE_FIELD, RATE_LIMIT_VALUE)),
                 null
             ),
             ConfigurationParseContext.REQUEST
@@ -348,12 +348,12 @@ public class OpenShiftAiEmbeddingsServiceSettingsTests extends AbstractWireSeria
             serviceSettings,
             is(
                 new OpenShiftAiEmbeddingsServiceSettings(
-                    MODEL_ID,
-                    CORRECT_URL,
-                    DIMENSIONS,
-                    SIMILARITY_MEASURE,
-                    MAX_INPUT_TOKENS,
-                    new RateLimitSettings(RATE_LIMIT),
+                    MODEL_VALUE,
+                    CORRECT_URL_VALUE,
+                    DIMENSIONS_VALUE,
+                    SIMILARITY_MEASURE_VALUE,
+                    MAX_INPUT_TOKENS_VALUE,
+                    new RateLimitSettings(RATE_LIMIT_VALUE),
                     true
                 )
             )
@@ -365,12 +365,12 @@ public class OpenShiftAiEmbeddingsServiceSettingsTests extends AbstractWireSeria
             ValidationException.class,
             () -> OpenShiftAiEmbeddingsServiceSettings.fromMap(
                 buildServiceSettingsMap(
-                    MODEL_ID,
-                    CORRECT_URL,
-                    SIMILARITY_MEASURE.toString(),
-                    DIMENSIONS,
-                    MAX_INPUT_TOKENS,
-                    new HashMap<>(Map.of(RateLimitSettings.REQUESTS_PER_MINUTE_FIELD, RATE_LIMIT)),
+                    MODEL_VALUE,
+                    CORRECT_URL_VALUE,
+                    SIMILARITY_MEASURE_VALUE.toString(),
+                    DIMENSIONS_VALUE,
+                    MAX_INPUT_TOKENS_VALUE,
+                    new HashMap<>(Map.of(RateLimitSettings.REQUESTS_PER_MINUTE_FIELD, RATE_LIMIT_VALUE)),
                     true
                 ),
                 ConfigurationParseContext.REQUEST
@@ -388,12 +388,12 @@ public class OpenShiftAiEmbeddingsServiceSettingsTests extends AbstractWireSeria
             ValidationException.class,
             () -> OpenShiftAiEmbeddingsServiceSettings.fromMap(
                 buildServiceSettingsMap(
-                    MODEL_ID,
-                    CORRECT_URL,
-                    SIMILARITY_MEASURE.toString(),
+                    MODEL_VALUE,
+                    CORRECT_URL_VALUE,
+                    SIMILARITY_MEASURE_VALUE.toString(),
                     0,
-                    MAX_INPUT_TOKENS,
-                    new HashMap<>(Map.of(RateLimitSettings.REQUESTS_PER_MINUTE_FIELD, RATE_LIMIT)),
+                    MAX_INPUT_TOKENS_VALUE,
+                    new HashMap<>(Map.of(RateLimitSettings.REQUESTS_PER_MINUTE_FIELD, RATE_LIMIT_VALUE)),
                     false
                 ),
                 ConfigurationParseContext.PERSISTENT
@@ -410,12 +410,12 @@ public class OpenShiftAiEmbeddingsServiceSettingsTests extends AbstractWireSeria
             ValidationException.class,
             () -> OpenShiftAiEmbeddingsServiceSettings.fromMap(
                 buildServiceSettingsMap(
-                    MODEL_ID,
-                    CORRECT_URL,
-                    SIMILARITY_MEASURE.toString(),
+                    MODEL_VALUE,
+                    CORRECT_URL_VALUE,
+                    SIMILARITY_MEASURE_VALUE.toString(),
                     -10,
-                    MAX_INPUT_TOKENS,
-                    new HashMap<>(Map.of(RateLimitSettings.REQUESTS_PER_MINUTE_FIELD, RATE_LIMIT)),
+                    MAX_INPUT_TOKENS_VALUE,
+                    new HashMap<>(Map.of(RateLimitSettings.REQUESTS_PER_MINUTE_FIELD, RATE_LIMIT_VALUE)),
                     false
                 ),
                 ConfigurationParseContext.PERSISTENT
@@ -430,12 +430,12 @@ public class OpenShiftAiEmbeddingsServiceSettingsTests extends AbstractWireSeria
     public void testFromMap_NoInputTokens_Success() {
         var serviceSettings = OpenShiftAiEmbeddingsServiceSettings.fromMap(
             buildServiceSettingsMap(
-                MODEL_ID,
-                CORRECT_URL,
-                SIMILARITY_MEASURE.toString(),
-                DIMENSIONS,
+                MODEL_VALUE,
+                CORRECT_URL_VALUE,
+                SIMILARITY_MEASURE_VALUE.toString(),
+                DIMENSIONS_VALUE,
                 null,
-                new HashMap<>(Map.of(RateLimitSettings.REQUESTS_PER_MINUTE_FIELD, RATE_LIMIT)),
+                new HashMap<>(Map.of(RateLimitSettings.REQUESTS_PER_MINUTE_FIELD, RATE_LIMIT_VALUE)),
                 false
             ),
             ConfigurationParseContext.PERSISTENT
@@ -445,12 +445,12 @@ public class OpenShiftAiEmbeddingsServiceSettingsTests extends AbstractWireSeria
             serviceSettings,
             is(
                 new OpenShiftAiEmbeddingsServiceSettings(
-                    MODEL_ID,
-                    CORRECT_URL,
-                    DIMENSIONS,
-                    SIMILARITY_MEASURE,
+                    MODEL_VALUE,
+                    CORRECT_URL_VALUE,
+                    DIMENSIONS_VALUE,
+                    SIMILARITY_MEASURE_VALUE,
                     null,
-                    new RateLimitSettings(RATE_LIMIT),
+                    new RateLimitSettings(RATE_LIMIT_VALUE),
                     false
                 )
             )
@@ -462,12 +462,12 @@ public class OpenShiftAiEmbeddingsServiceSettingsTests extends AbstractWireSeria
             ValidationException.class,
             () -> OpenShiftAiEmbeddingsServiceSettings.fromMap(
                 buildServiceSettingsMap(
-                    MODEL_ID,
-                    CORRECT_URL,
-                    SIMILARITY_MEASURE.toString(),
-                    DIMENSIONS,
+                    MODEL_VALUE,
+                    CORRECT_URL_VALUE,
+                    SIMILARITY_MEASURE_VALUE.toString(),
+                    DIMENSIONS_VALUE,
                     0,
-                    new HashMap<>(Map.of(RateLimitSettings.REQUESTS_PER_MINUTE_FIELD, RATE_LIMIT)),
+                    new HashMap<>(Map.of(RateLimitSettings.REQUESTS_PER_MINUTE_FIELD, RATE_LIMIT_VALUE)),
                     false
                 ),
                 ConfigurationParseContext.PERSISTENT
@@ -484,12 +484,12 @@ public class OpenShiftAiEmbeddingsServiceSettingsTests extends AbstractWireSeria
             ValidationException.class,
             () -> OpenShiftAiEmbeddingsServiceSettings.fromMap(
                 buildServiceSettingsMap(
-                    MODEL_ID,
-                    CORRECT_URL,
-                    SIMILARITY_MEASURE.toString(),
-                    DIMENSIONS,
+                    MODEL_VALUE,
+                    CORRECT_URL_VALUE,
+                    SIMILARITY_MEASURE_VALUE.toString(),
+                    DIMENSIONS_VALUE,
                     -10,
-                    new HashMap<>(Map.of(RateLimitSettings.REQUESTS_PER_MINUTE_FIELD, RATE_LIMIT)),
+                    new HashMap<>(Map.of(RateLimitSettings.REQUESTS_PER_MINUTE_FIELD, RATE_LIMIT_VALUE)),
                     false
                 ),
                 ConfigurationParseContext.PERSISTENT
@@ -503,7 +503,15 @@ public class OpenShiftAiEmbeddingsServiceSettingsTests extends AbstractWireSeria
 
     public void testFromMap_NoRateLimit_Success() {
         var serviceSettings = OpenShiftAiEmbeddingsServiceSettings.fromMap(
-            buildServiceSettingsMap(MODEL_ID, CORRECT_URL, SIMILARITY_MEASURE.toString(), DIMENSIONS, MAX_INPUT_TOKENS, null, false),
+            buildServiceSettingsMap(
+                MODEL_VALUE,
+                CORRECT_URL_VALUE,
+                SIMILARITY_MEASURE_VALUE.toString(),
+                DIMENSIONS_VALUE,
+                MAX_INPUT_TOKENS_VALUE,
+                null,
+                false
+            ),
             ConfigurationParseContext.PERSISTENT
         );
 
@@ -511,11 +519,11 @@ public class OpenShiftAiEmbeddingsServiceSettingsTests extends AbstractWireSeria
             serviceSettings,
             is(
                 new OpenShiftAiEmbeddingsServiceSettings(
-                    MODEL_ID,
-                    CORRECT_URL,
-                    DIMENSIONS,
-                    SIMILARITY_MEASURE,
-                    MAX_INPUT_TOKENS,
+                    MODEL_VALUE,
+                    CORRECT_URL_VALUE,
+                    DIMENSIONS_VALUE,
+                    SIMILARITY_MEASURE_VALUE,
+                    MAX_INPUT_TOKENS_VALUE,
                     new RateLimitSettings(3000),
                     false
                 )
@@ -525,11 +533,11 @@ public class OpenShiftAiEmbeddingsServiceSettingsTests extends AbstractWireSeria
 
     public void testToXContent_WritesAllValues() throws IOException {
         var entity = new OpenShiftAiEmbeddingsServiceSettings(
-            MODEL_ID,
-            CORRECT_URL,
-            DIMENSIONS,
-            SIMILARITY_MEASURE,
-            MAX_INPUT_TOKENS,
+            MODEL_VALUE,
+            CORRECT_URL_VALUE,
+            DIMENSIONS_VALUE,
+            SIMILARITY_MEASURE_VALUE,
+            MAX_INPUT_TOKENS_VALUE,
             new RateLimitSettings(3),
             false
         );
@@ -550,7 +558,7 @@ public class OpenShiftAiEmbeddingsServiceSettingsTests extends AbstractWireSeria
                 "max_input_tokens": 128,
                 "dimensions_set_by_user": false
             }
-            """.formatted(MODEL_ID, CORRECT_URL))));
+            """.formatted(MODEL_VALUE, CORRECT_URL_VALUE))));
     }
 
     @Override
@@ -641,7 +649,7 @@ public class OpenShiftAiEmbeddingsServiceSettingsTests extends AbstractWireSeria
             result.put(RateLimitSettings.FIELD_NAME, rateLimitSettings);
         }
         if (dimensionsSetByUser != null) {
-            result.put("dimensions_set_by_user", dimensionsSetByUser);
+            result.put(ServiceFields.DIMENSIONS_SET_BY_USER, dimensionsSetByUser);
         }
         return result;
     }

@@ -33,8 +33,8 @@ import static org.hamcrest.Matchers.is;
 public class OpenShiftAiChatCompletionServiceSettingsTests extends AbstractBWCWireSerializationTestCase<
     OpenShiftAiChatCompletionServiceSettings> {
 
-    private static final String MODEL_ID = "some model";
-    private static final String CORRECT_URL = "https://www.elastic.co";
+    private static final String MODEL_VALUE = "some_model";
+    private static final String URL_VALUE = "http://www.abc.com";
     private static final int RATE_LIMIT = 2;
 
     public void testFromMap_AllFields_Success() {
@@ -42,9 +42,9 @@ public class OpenShiftAiChatCompletionServiceSettingsTests extends AbstractBWCWi
             new HashMap<>(
                 Map.of(
                     ServiceFields.MODEL_ID,
-                    MODEL_ID,
+                    MODEL_VALUE,
                     ServiceFields.URL,
-                    CORRECT_URL,
+                    URL_VALUE,
                     RateLimitSettings.FIELD_NAME,
                     new HashMap<>(Map.of(RateLimitSettings.REQUESTS_PER_MINUTE_FIELD, RATE_LIMIT))
                 )
@@ -54,7 +54,7 @@ public class OpenShiftAiChatCompletionServiceSettingsTests extends AbstractBWCWi
 
         assertThat(
             serviceSettings,
-            is(new OpenShiftAiChatCompletionServiceSettings(MODEL_ID, CORRECT_URL, new RateLimitSettings(RATE_LIMIT)))
+            is(new OpenShiftAiChatCompletionServiceSettings(MODEL_VALUE, URL_VALUE, new RateLimitSettings(RATE_LIMIT)))
         );
     }
 
@@ -63,7 +63,7 @@ public class OpenShiftAiChatCompletionServiceSettingsTests extends AbstractBWCWi
             new HashMap<>(
                 Map.of(
                     ServiceFields.URL,
-                    CORRECT_URL,
+                    URL_VALUE,
                     RateLimitSettings.FIELD_NAME,
                     new HashMap<>(Map.of(RateLimitSettings.REQUESTS_PER_MINUTE_FIELD, RATE_LIMIT))
                 )
@@ -71,7 +71,7 @@ public class OpenShiftAiChatCompletionServiceSettingsTests extends AbstractBWCWi
             ConfigurationParseContext.PERSISTENT
         );
 
-        assertThat(serviceSettings, is(new OpenShiftAiChatCompletionServiceSettings(null, CORRECT_URL, new RateLimitSettings(RATE_LIMIT))));
+        assertThat(serviceSettings, is(new OpenShiftAiChatCompletionServiceSettings(null, URL_VALUE, new RateLimitSettings(RATE_LIMIT))));
     }
 
     public void testFromMap_MissingUrl_ThrowsException() {
@@ -81,7 +81,7 @@ public class OpenShiftAiChatCompletionServiceSettingsTests extends AbstractBWCWi
                 new HashMap<>(
                     Map.of(
                         ServiceFields.MODEL_ID,
-                        MODEL_ID,
+                        MODEL_VALUE,
                         RateLimitSettings.FIELD_NAME,
                         new HashMap<>(Map.of(RateLimitSettings.REQUESTS_PER_MINUTE_FIELD, RATE_LIMIT))
                     )
@@ -98,11 +98,11 @@ public class OpenShiftAiChatCompletionServiceSettingsTests extends AbstractBWCWi
 
     public void testFromMap_MissingRateLimit_Success() {
         var serviceSettings = OpenShiftAiChatCompletionServiceSettings.fromMap(
-            new HashMap<>(Map.of(ServiceFields.MODEL_ID, MODEL_ID, ServiceFields.URL, CORRECT_URL)),
+            new HashMap<>(Map.of(ServiceFields.MODEL_ID, MODEL_VALUE, ServiceFields.URL, URL_VALUE)),
             ConfigurationParseContext.PERSISTENT
         );
 
-        assertThat(serviceSettings, is(new OpenShiftAiChatCompletionServiceSettings(MODEL_ID, CORRECT_URL, null)));
+        assertThat(serviceSettings, is(new OpenShiftAiChatCompletionServiceSettings(MODEL_VALUE, URL_VALUE, null)));
     }
 
     public void testToXContent_WritesAllValues() throws IOException {
@@ -110,9 +110,9 @@ public class OpenShiftAiChatCompletionServiceSettingsTests extends AbstractBWCWi
             new HashMap<>(
                 Map.of(
                     ServiceFields.MODEL_ID,
-                    MODEL_ID,
+                    MODEL_VALUE,
                     ServiceFields.URL,
-                    CORRECT_URL,
+                    URL_VALUE,
                     RateLimitSettings.FIELD_NAME,
                     new HashMap<>(Map.of(RateLimitSettings.REQUESTS_PER_MINUTE_FIELD, RATE_LIMIT))
                 )
@@ -131,14 +131,14 @@ public class OpenShiftAiChatCompletionServiceSettingsTests extends AbstractBWCWi
                     "requests_per_minute": 2
                 }
             }
-            """.formatted(MODEL_ID, CORRECT_URL));
+            """.formatted(MODEL_VALUE, URL_VALUE));
 
         assertThat(xContentResult, is(expected));
     }
 
     public void testToXContent_DoesNotWriteOptionalValues_DefaultRateLimit() throws IOException {
         var serviceSettings = OpenShiftAiChatCompletionServiceSettings.fromMap(
-            new HashMap<>(Map.of(ServiceFields.URL, CORRECT_URL)),
+            new HashMap<>(Map.of(ServiceFields.URL, URL_VALUE)),
             ConfigurationParseContext.PERSISTENT
         );
 
@@ -152,7 +152,7 @@ public class OpenShiftAiChatCompletionServiceSettingsTests extends AbstractBWCWi
                     "requests_per_minute": 3000
                 }
             }
-            """.formatted(CORRECT_URL));
+            """.formatted(URL_VALUE));
         assertThat(xContentResult, is(expected));
     }
 

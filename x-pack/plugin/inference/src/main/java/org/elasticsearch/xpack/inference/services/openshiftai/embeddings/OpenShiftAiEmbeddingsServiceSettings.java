@@ -27,6 +27,7 @@ import java.util.Map;
 import java.util.Objects;
 
 import static org.elasticsearch.xpack.inference.services.ServiceFields.DIMENSIONS;
+import static org.elasticsearch.xpack.inference.services.ServiceFields.DIMENSIONS_SET_BY_USER;
 import static org.elasticsearch.xpack.inference.services.ServiceFields.MAX_INPUT_TOKENS;
 import static org.elasticsearch.xpack.inference.services.ServiceFields.SIMILARITY;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.createUri;
@@ -40,7 +41,6 @@ import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractSim
  */
 public class OpenShiftAiEmbeddingsServiceSettings extends OpenShiftAiServiceSettings {
     public static final String NAME = "openshift_ai_embeddings_service_settings";
-    static final String DIMENSIONS_SET_BY_USER = "dimensions_set_by_user";
 
     private final Integer dimensions;
     private final SimilarityMeasure similarity;

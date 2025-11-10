@@ -26,14 +26,23 @@ import static org.hamcrest.Matchers.sameInstance;
 
 public class OpenShiftAiChatCompletionRequestTests extends ESTestCase {
 
-    private static final String URL_VALUE = "some_url";
-    private static final String MODEL_VALUE = "some model";
-    private static final String USER_ROLE = "user";
-    private static final String API_KEY = "secret";
+    // Completion field names
+    private static final String N_FIELD_NAME = "n";
+    private static final String STREAM_FIELD_NAME = "stream";
+    private static final String MESSAGES_FIELD_NAME = "messages";
+    private static final String ROLE_FIELD_NAME = "role";
+    private static final String CONTENT_FIELD_NAME = "content";
+    private static final String MODEL_FIELD_NAME = "model";
+
+    // Test values
+    private static final String URL_VALUE = "http://www.abc.com";
+    private static final String MODEL_VALUE = "some_model";
+    private static final String ROLE_VALUE = "user";
+    private static final String API_KEY_VALUE = "test_api_key";
 
     public void testCreateRequest_WithStreaming() throws IOException {
         String input = randomAlphaOfLength(15);
-        var request = createRequest(MODEL_VALUE, URL_VALUE, API_KEY, input, true);
+        var request = createRequest(MODEL_VALUE, URL_VALUE, API_KEY_VALUE, input, true);
         var httpRequest = request.createHttpRequest();
 
         assertThat(httpRequest.httpRequestBase(), instanceOf(HttpPost.class));
@@ -41,29 +50,28 @@ public class OpenShiftAiChatCompletionRequestTests extends ESTestCase {
 
         var requestMap = entityAsMap(httpPost.getEntity().getContent());
         assertThat(request.getURI().toString(), is(URL_VALUE));
-        assertThat(requestMap.get("stream"), is(true));
-        assertThat(requestMap.get("model"), is(MODEL_VALUE));
-        assertThat(requestMap.get("n"), is(1));
-        assertThat(requestMap.get("stream_options"), is(nullValue()));
-        assertThat(requestMap.get("messages"), is(List.of(Map.of("role", USER_ROLE, "content", input))));
+        assertThat(requestMap.get(STREAM_FIELD_NAME), is(true));
+        assertThat(requestMap.get(MODEL_FIELD_NAME), is(MODEL_VALUE));
+        assertThat(requestMap.get(N_FIELD_NAME), is(1));
+        assertThat(requestMap.get(MESSAGES_FIELD_NAME), is(List.of(Map.of(ROLE_FIELD_NAME, ROLE_VALUE, CONTENT_FIELD_NAME, input))));
         assertThat(requestMap, aMapWithSize(4));
-        assertThat(httpPost.getFirstHeader(HttpHeaders.AUTHORIZATION).getValue(), is("Bearer %s".formatted(API_KEY)));
+        assertThat(httpPost.getFirstHeader(HttpHeaders.AUTHORIZATION).getValue(), is("Bearer %s".formatted(API_KEY_VALUE)));
     }
 
     public void testTruncate_DoesNotReduceInputTextSize() {
         String input = randomAlphaOfLength(5);
-        var request = createRequest(MODEL_VALUE, URL_VALUE, API_KEY, input, true);
+        var request = createRequest(MODEL_VALUE, URL_VALUE, API_KEY_VALUE, input, true);
         assertThat(request.truncate(), is(sameInstance(request)));
     }
 
     public void testTruncationInfo_ReturnsNull() {
-        var request = createRequest(MODEL_VALUE, URL_VALUE, API_KEY, randomAlphaOfLength(5), true);
+        var request = createRequest(MODEL_VALUE, URL_VALUE, API_KEY_VALUE, randomAlphaOfLength(5), true);
         assertThat(request.getTruncationInfo(), is(nullValue()));
     }
 
     public static OpenShiftAiChatCompletionRequest createRequest(String modelId, String url, String apiKey, String input, boolean stream) {
         var chatCompletionModel = OpenShiftAiChatCompletionModelTests.createChatCompletionModel(url, apiKey, modelId);
-        return new OpenShiftAiChatCompletionRequest(new UnifiedChatInput(List.of(input), USER_ROLE, stream), chatCompletionModel);
+        return new OpenShiftAiChatCompletionRequest(new UnifiedChatInput(List.of(input), ROLE_VALUE, stream), chatCompletionModel);
     }
 
 }

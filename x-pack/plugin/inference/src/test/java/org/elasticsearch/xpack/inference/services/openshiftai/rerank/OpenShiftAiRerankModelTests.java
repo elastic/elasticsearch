@@ -23,6 +23,12 @@ import static org.hamcrest.Matchers.sameInstance;
 
 public class OpenShiftAiRerankModelTests extends ESTestCase {
 
+    private static final String URL_VALUE = "http://www.abc.com";
+    private static final String API_KEY_VALUE = "test_api_key";
+    private static final String MODEL_VALUE = "some_model";
+    private static final int TOP_N_VALUE = 4;
+    private static final boolean RETURN_DOCUMENTS_VALUE = false;
+
     public static OpenShiftAiRerankModel createModel(String url, String apiKey, @Nullable String modelId) {
         return createModel(url, apiKey, modelId, 2, true);
     }
@@ -53,29 +59,29 @@ public class OpenShiftAiRerankModelTests extends ESTestCase {
     }
 
     private static void testOverrideWith_KeepsSameModel(Map<String, Object> taskSettings) {
-        var model = createModel("url", "api_key", "model_name", 2, true);
+        var model = createModel(URL_VALUE, API_KEY_VALUE, MODEL_VALUE, 2, true);
         var overriddenModel = OpenShiftAiRerankModel.of(model, taskSettings);
         assertThat(overriddenModel, is(sameInstance(model)));
     }
 
     public void testOverrideWith_DifferentParams_OverridesAllTaskSettings() {
-        testOverrideWith_DifferentParams(buildTaskSettingsMap(4, false), 4, false);
+        testOverrideWith_DifferentParams(buildTaskSettingsMap(TOP_N_VALUE, RETURN_DOCUMENTS_VALUE), TOP_N_VALUE, RETURN_DOCUMENTS_VALUE);
     }
 
     public void testOverrideWith_DifferentParams_OverridesOnlyReturnDocuments() {
-        testOverrideWith_DifferentParams(buildTaskSettingsMap(null, false), 2, false);
+        testOverrideWith_DifferentParams(buildTaskSettingsMap(null, RETURN_DOCUMENTS_VALUE), 2, RETURN_DOCUMENTS_VALUE);
     }
 
     public void testOverrideWith_DifferentParams_OverridesOnlyTopN() {
-        testOverrideWith_DifferentParams(buildTaskSettingsMap(4, null), 4, true);
+        testOverrideWith_DifferentParams(buildTaskSettingsMap(TOP_N_VALUE, null), TOP_N_VALUE, true);
     }
 
     public void testOverrideWith_DifferentParams_OverridesNullValues() {
-        var model = createModel("url", "api_key", "model_name", null, null);
-        var overriddenModel = OpenShiftAiRerankModel.of(model, buildTaskSettingsMap(4, false));
+        var model = createModel(URL_VALUE, API_KEY_VALUE, MODEL_VALUE, null, null);
+        var overriddenModel = OpenShiftAiRerankModel.of(model, buildTaskSettingsMap(TOP_N_VALUE, RETURN_DOCUMENTS_VALUE));
 
-        assertThat(overriddenModel.getTaskSettings().getTopN(), is(4));
-        assertThat(overriddenModel.getTaskSettings().getReturnDocuments(), is(false));
+        assertThat(overriddenModel.getTaskSettings().getTopN(), is(TOP_N_VALUE));
+        assertThat(overriddenModel.getTaskSettings().getReturnDocuments(), is(RETURN_DOCUMENTS_VALUE));
     }
 
     private static void testOverrideWith_DifferentParams(
@@ -83,7 +89,7 @@ public class OpenShiftAiRerankModelTests extends ESTestCase {
         int expectedTopN,
         boolean expectedReturnDocuments
     ) {
-        var model = createModel("url", "api_key", "model_name", 2, true);
+        var model = createModel(URL_VALUE, API_KEY_VALUE, MODEL_VALUE, 2, true);
         var overriddenModel = OpenShiftAiRerankModel.of(model, taskSettings);
 
         assertThat(overriddenModel.getTaskSettings().getTopN(), is(expectedTopN));

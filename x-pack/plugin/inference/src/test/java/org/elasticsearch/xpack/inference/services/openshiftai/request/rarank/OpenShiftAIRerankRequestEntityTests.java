@@ -21,21 +21,21 @@ import static org.elasticsearch.common.xcontent.XContentHelper.stripWhitespace;
 import static org.hamcrest.Matchers.is;
 
 public class OpenShiftAIRerankRequestEntityTests extends ESTestCase {
-    private static final String DOCUMENT = "some document";
-    private static final String QUERY = "some query";
-    private static final String MODEL = "some model";
-    private static final Integer TOP_N = 8;
-    private static final Boolean RETURN_DOCUMENTS = true;
+    private static final List<String> DOCUMENT_VALUE = List.of("some document");
+    private static final String QUERY_VALUE = "some query";
+    private static final String MODEL_VALUE = "some_model";
+    private static final Integer TOP_N_VALUE = 8;
+    private static final Boolean RETURN_DOCUMENTS_VALUE = true;
 
     public void testXContent_WritesAllFields_WhenTheyAreDefined() throws IOException {
-        var entity = new OpenShiftAIRerankRequestEntity(MODEL, QUERY, List.of(DOCUMENT), RETURN_DOCUMENTS, TOP_N);
+        var entity = new OpenShiftAIRerankRequestEntity(MODEL_VALUE, QUERY_VALUE, DOCUMENT_VALUE, RETURN_DOCUMENTS_VALUE, TOP_N_VALUE);
 
         XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
         entity.toXContent(builder, ToXContent.EMPTY_PARAMS);
         String result = Strings.toString(builder);
         String expected = """
             {
-                "model": "some model",
+                "model": "some_model",
                 "query": "some query",
                 "documents": ["some document"],
                 "top_n": 8,
@@ -46,7 +46,7 @@ public class OpenShiftAIRerankRequestEntityTests extends ESTestCase {
     }
 
     public void testXContent_WritesMinimalFields() throws IOException {
-        var entity = new OpenShiftAIRerankRequestEntity(null, QUERY, List.of(DOCUMENT), null, null);
+        var entity = new OpenShiftAIRerankRequestEntity(null, QUERY_VALUE, DOCUMENT_VALUE, null, null);
 
         XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
         entity.toXContent(builder, ToXContent.EMPTY_PARAMS);

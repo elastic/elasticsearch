@@ -31,7 +31,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 public class OpenShiftAiChatCompletionResponseHandlerTests extends ESTestCase {
-    private static final String URL = "https://api.openshift.ai/v1/chat/completions";
+    private static final String URL_VALUE = "http://www.abc.com";
     private static final String INFERENCE_ID = "id";
     private final OpenShiftAiChatCompletionResponseHandler responseHandler = new OpenShiftAiChatCompletionResponseHandler(
         "chat completions",
@@ -55,7 +55,7 @@ public class OpenShiftAiChatCompletionResponseHandlerTests extends ESTestCase {
             status [404]. Error message: [{\\"detail\\":\\"Not Found\\"}]",
                 "type" : "openshift_ai_error"
               }
-            }""".formatted(URL, INFERENCE_ID))));
+            }""".formatted(URL_VALUE, INFERENCE_ID))));
     }
 
     public void testFailBadRequest() throws IOException {
@@ -129,7 +129,7 @@ public class OpenShiftAiChatCompletionResponseHandlerTests extends ESTestCase {
         var request = mock(Request.class);
         when(request.getInferenceEntityId()).thenReturn(INFERENCE_ID);
         when(request.isStreaming()).thenReturn(true);
-        when(request.getURI()).thenReturn(new URI(URL));
+        when(request.getURI()).thenReturn(new URI(URL_VALUE));
         return request;
     }
 

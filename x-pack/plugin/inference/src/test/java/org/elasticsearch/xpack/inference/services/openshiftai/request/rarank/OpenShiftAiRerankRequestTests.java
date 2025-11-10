@@ -30,56 +30,80 @@ public class OpenShiftAiRerankRequestTests extends ESTestCase {
     private static final String DOCUMENTS_FIELD_NAME = "documents";
     private static final String QUERY_FIELD_NAME = "query";
 
+    private static final String URL_VALUE = "http://www.abc.com";
     private static final String DOCUMENT_VALUE = "some document";
     private static final String QUERY_VALUE = "some query";
-    private static final String MODEL_VALUE = "some model";
+    private static final String MODEL_VALUE = "some_model";
     private static final Integer TOP_N_VALUE = 8;
     private static final Boolean RETURN_DOCUMENTS_VALUE = false;
-    private static final String API_KEY_VALUE = "some api key";
+    private static final String API_KEY_VALUE = "test_api_key";
 
     public void testCreateRequest_WithMinimalFieldsSet() throws IOException {
-        testCreateRequest(null, null, null, createRequest(null, null, null));
+        testCreateRequest(createRequest(null, null, null, null, null), null, null, null);
     }
 
-    public void testCreateRequest_WithTopN() throws IOException {
-        testCreateRequest(TOP_N_VALUE, null, null, createRequest(TOP_N_VALUE, null, null));
+    public void testCreateRequest_TaskSettingsWithTopN() throws IOException {
+        testCreateRequest(createRequest(TOP_N_VALUE, null, null, null, null), TOP_N_VALUE, null, null);
     }
 
-    public void testCreateRequest_WithReturnDocuments() throws IOException {
-        testCreateRequest(null, RETURN_DOCUMENTS_VALUE, null, createRequest(null, RETURN_DOCUMENTS_VALUE, null));
+    public void testCreateRequest_TaskSettingsWithReturnDocuments() throws IOException {
+        testCreateRequest(createRequest(null, RETURN_DOCUMENTS_VALUE, null, null, null), null, RETURN_DOCUMENTS_VALUE, null);
     }
 
-    public void testCreateRequest_WithModelId() throws IOException {
-        testCreateRequest(null, null, MODEL_VALUE, createRequest(null, null, MODEL_VALUE));
+    public void testCreateRequest_TaskSettingsWithModelId() throws IOException {
+        testCreateRequest(createRequest(null, null, MODEL_VALUE, null, null), null, null, MODEL_VALUE);
     }
 
-    public void testCreateRequest_AllFields() throws IOException {
+    public void testCreateRequest_TaskSettingsWithAllFields() throws IOException {
         testCreateRequest(
+            createRequest(TOP_N_VALUE, RETURN_DOCUMENTS_VALUE, MODEL_VALUE, null, null),
             TOP_N_VALUE,
             RETURN_DOCUMENTS_VALUE,
-            MODEL_VALUE,
-            createRequest(TOP_N_VALUE, RETURN_DOCUMENTS_VALUE, MODEL_VALUE)
+            MODEL_VALUE
         );
     }
 
-    public void testCreateRequest_AllFields_OverridesTaskSettings() throws IOException {
+    public void testCreateRequest_RequestSettingsOverrideTaskSettings() throws IOException {
         testCreateRequest(
+            createRequest(1, true, MODEL_VALUE, TOP_N_VALUE, RETURN_DOCUMENTS_VALUE),
             TOP_N_VALUE,
             RETURN_DOCUMENTS_VALUE,
-            MODEL_VALUE,
-            createRequestWithDifferentTaskSettings(TOP_N_VALUE, RETURN_DOCUMENTS_VALUE)
+            MODEL_VALUE
         );
     }
 
-    public void testCreateRequest_AllFields_KeepsTaskSettings() throws IOException {
-        testCreateRequest(1, true, MODEL_VALUE, createRequestWithDifferentTaskSettings(null, null));
+    public void testCreateRequest_RequestSettingsOverrideNullTaskSettings() throws IOException {
+        testCreateRequest(
+            createRequest(null, null, MODEL_VALUE, TOP_N_VALUE, RETURN_DOCUMENTS_VALUE),
+            TOP_N_VALUE,
+            RETURN_DOCUMENTS_VALUE,
+            MODEL_VALUE
+        );
+    }
+
+    public void testCreateRequest_ReturnDocumentsFromTaskSettings_TopNFromRequest() throws IOException {
+        testCreateRequest(
+            createRequest(null, RETURN_DOCUMENTS_VALUE, MODEL_VALUE, TOP_N_VALUE, null),
+            TOP_N_VALUE,
+            RETURN_DOCUMENTS_VALUE,
+            MODEL_VALUE
+        );
+    }
+
+    public void testCreateRequest_TopNFromTaskSettings_ReturnDocumentsFromRequest() throws IOException {
+        testCreateRequest(
+            createRequest(TOP_N_VALUE, null, MODEL_VALUE, null, RETURN_DOCUMENTS_VALUE),
+            TOP_N_VALUE,
+            RETURN_DOCUMENTS_VALUE,
+            MODEL_VALUE
+        );
     }
 
     private void testCreateRequest(
+        OpenShiftAiRerankRequest request,
         Integer expectedTopN,
         Boolean expectedReturnDocuments,
-        String expectedModelId,
-        OpenShiftAiRerankRequest request
+        String expectedModelId
     ) throws IOException {
         var httpRequest = request.createHttpRequest();
 
@@ -110,19 +134,19 @@ public class OpenShiftAiRerankRequestTests extends ESTestCase {
     }
 
     private static OpenShiftAiRerankRequest createRequest(
-        @Nullable Integer topN,
-        @Nullable Boolean returnDocuments,
-        @Nullable String modelId
+        @Nullable Integer taskSettingsTopN,
+        @Nullable Boolean taskSettingsReturnDocuments,
+        @Nullable String modelId,
+        @Nullable Integer requestTopN,
+        @Nullable Boolean requestReturnDocuments
     ) {
-        var rerankModel = OpenShiftAiRerankModelTests.createModel(randomAlphaOfLength(10), API_KEY_VALUE, modelId, topN, returnDocuments);
-        return new OpenShiftAiRerankRequest(QUERY_VALUE, List.of(DOCUMENT_VALUE), returnDocuments, topN, rerankModel);
-    }
-
-    private static OpenShiftAiRerankRequest createRequestWithDifferentTaskSettings(
-        @Nullable Integer topN,
-        @Nullable Boolean returnDocuments
-    ) {
-        var rerankModel = OpenShiftAiRerankModelTests.createModel(randomAlphaOfLength(10), API_KEY_VALUE, MODEL_VALUE, 1, true);
-        return new OpenShiftAiRerankRequest(QUERY_VALUE, List.of(DOCUMENT_VALUE), returnDocuments, topN, rerankModel);
+        var rerankModel = OpenShiftAiRerankModelTests.createModel(
+            URL_VALUE,
+            API_KEY_VALUE,
+            modelId,
+            taskSettingsTopN,
+            taskSettingsReturnDocuments
+        );
+        return new OpenShiftAiRerankRequest(QUERY_VALUE, List.of(DOCUMENT_VALUE), requestReturnDocuments, requestTopN, rerankModel);
     }
 }

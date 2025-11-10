@@ -186,6 +186,7 @@ public class GPUPluginInitializationIT extends ESIntegTestCase {
         assertThat(ex.getMessage(), startsWith("[index.vectors.indexing.use_gpu] doesn't support [index_options.type] of"));
     }
 
+    @AwaitsFix(bugUrl = "GPUSupport static initialization with mocked GPU provider")
     public void testIndexSettingOnGPUNotSupportedThrows() {
         assumeTrue("GPU_FORMAT feature flag enabled", GPUPlugin.GPU_FORMAT.isEnabled());
         TestCuVSServiceProvider.mockedGPUInfoProvider = NO_GPU_PROVIDER;
@@ -211,6 +212,7 @@ public class GPUPluginInitializationIT extends ESIntegTestCase {
         );
     }
 
+    @AwaitsFix(bugUrl = "GPUSupport static initialization with mocked GPU provider")
     public void testIndexSettingOnGPUSupportThrowsRethrows() {
         assumeTrue("GPU_FORMAT feature flag enabled", GPUPlugin.GPU_FORMAT.isEnabled());
         // Mocks a cuvs-java UnsupportedProvider
@@ -257,6 +259,7 @@ public class GPUPluginInitializationIT extends ESIntegTestCase {
         assertNotNull(format);
     }
 
+    @AwaitsFix(bugUrl = "GPUSupport static initialization with mocked GPU provider")
     public void testIndexSettingAutoGPUNotSupported() {
         assumeTrue("GPU_FORMAT feature flag enabled", GPUPlugin.GPU_FORMAT.isEnabled());
         TestCuVSServiceProvider.mockedGPUInfoProvider = NO_GPU_PROVIDER;

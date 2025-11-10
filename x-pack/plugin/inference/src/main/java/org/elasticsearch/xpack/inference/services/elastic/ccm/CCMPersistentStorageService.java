@@ -18,21 +18,24 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.index.reindex.DeleteByQueryAction;
+import org.elasticsearch.index.reindex.DeleteByQueryRequest;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xpack.core.ClientHelper;
 
 import java.io.IOException;
+import java.util.Objects;
 
-public class CCMStorageService {
+public class CCMPersistentStorageService {
 
-    private static final Logger logger = LogManager.getLogger(CCMStorageService.class);
+    private static final Logger logger = LogManager.getLogger(CCMPersistentStorageService.class);
     public static final String CCM_DOC_ID = "ccm_config";
 
     private final Client client;
 
-    public CCMStorageService(Client client) {
-        this.client = new OriginSettingClient(client, ClientHelper.INFERENCE_ORIGIN);
+    public CCMPersistentStorageService(Client client) {
+        this.client = new OriginSettingClient(Objects.requireNonNull(client), ClientHelper.INFERENCE_ORIGIN);
     }
 
     public void store(CCMModel model, ActionListener<Void> listener) {
@@ -44,7 +47,7 @@ public class CCMStorageService {
                 .setId(CCM_DOC_ID)
                 .execute(listener.delegateFailureIgnoreResponseAndWrap(delegate -> delegate.onResponse(null)));
         } catch (Exception e) {
-            logger.warn("Failed to persist CCM configurations", e);
+            logger.warn("Failed to persist CCM configuration", e);
             listener.onFailure(e);
         }
     }
@@ -82,5 +85,18 @@ public class CCMStorageService {
             .setTrackTotalHits(false)
             .setQuery(QueryBuilders.idsQuery().addIds(CCM_DOC_ID))
             .execute(searchListener);
+    }
+
+    public void delete(ActionListener<Void> listener) {
+        var request = new DeleteByQueryRequest().setAbortOnVersionConflict(false)
+            .indices(CCMIndex.INDEX_PATTERN)
+            .setRefresh(true)
+            .setQuery(QueryBuilders.idsQuery().addIds(CCM_DOC_ID));
+
+        client.execute(
+            DeleteByQueryAction.INSTANCE,
+            request,
+            listener.delegateFailureIgnoreResponseAndWrap(delegate -> delegate.onResponse(null))
+        );
     }
 }

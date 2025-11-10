@@ -455,3 +455,28 @@ navy       | [0.0, 0.0, 128.0]
 gray       | [128.0, 128.0, 128.0]
 chartreuse | [127.0, 255.0, 0.0]
 ;
+
+knnWithUnionAll
+required_capability: knn_function_v5
+required_capability: subquery_in_from_command
+required_capability: full_text_functions_accept_null_field
+
+from colors, (from hosts) metadata _score
+| where knn(rgb_vector, "007800") 
+| sort _score desc, color asc
+| keep color, rgb_vector, host
+| limit 10
+;
+
+color:text | rgb_vector:dense_vector  | host:keyword  
+green      | [0.0, 128.0, 0.0]        | null          
+black      | [0.0, 0.0, 0.0]          | null          
+olive      | [128.0, 128.0, 0.0]      | null          
+teal       | [0.0, 128.0, 128.0]      | null  
+lime       | [0.0, 255.0, 0.0]        | null          
+sienna     | [160.0, 82.0, 45.0]      | null          
+maroon     | [128.0, 0.0, 0.0]        | null          
+navy       | [0.0, 0.0, 128.0]        | null
+gray       | [128.0, 128.0, 128.0]    | null          
+chartreuse | [127.0, 255.0, 0.0]      | null          
+;          

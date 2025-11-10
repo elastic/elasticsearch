@@ -12,7 +12,7 @@ package org.elasticsearch.index.mapper.blockloader.docvalues.fn;
 import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.index.mapper.TestBlock;
-import org.elasticsearch.index.mapper.blockloader.docvalues.IntsBlockLoader;
+import org.elasticsearch.index.mapper.blockloader.docvalues.LongsBlockLoader;
 import org.hamcrest.Matcher;
 
 import java.io.IOException;
@@ -23,29 +23,29 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasToString;
 import static org.hamcrest.Matchers.nullValue;
 
-public class MvMinIntsFromDocValuesBlockLoaderTests extends AbstractIntsFromDocValuesBlockLoaderTests {
-    public MvMinIntsFromDocValuesBlockLoaderTests(boolean blockAtATime, boolean multiValues, boolean missingValues) {
+public class MvMaxLongsFromDocValuesBlockLoaderTests extends AbstractIntsFromDocValuesBlockLoaderTests {
+    public MvMaxLongsFromDocValuesBlockLoaderTests(boolean blockAtATime, boolean multiValues, boolean missingValues) {
         super(blockAtATime, multiValues, missingValues);
     }
 
     @Override
     protected void innerTest(LeafReaderContext ctx, int mvCount) throws IOException {
-        var intsLoader = new IntsBlockLoader("field");
-        var mvMinIntsLoader = new MvMinIntsFromDocValuesBlockLoader("field");
+        var longsLoader = new LongsBlockLoader("field");
+        var mvMaxLongsLoader = new MvMaxLongsFromDocValuesBlockLoader("field");
 
-        var intsReader = intsLoader.reader(ctx);
-        var mvMinIntsReader = mvMinIntsLoader.reader(ctx);
-        assertThat(mvMinIntsReader, readerMatcher());
+        var longsReader = longsLoader.reader(ctx);
+        var mvMaxLongsReader = mvMaxLongsLoader.reader(ctx);
+        assertThat(mvMaxLongsReader, readerMatcher());
         BlockLoader.Docs docs = TestBlock.docs(ctx);
         try (
-            TestBlock ints = read(intsLoader, intsReader, ctx, docs);
-            TestBlock minInts = read(mvMinIntsLoader, mvMinIntsReader, ctx, docs);
+            TestBlock longs = read(longsLoader, longsReader, ctx, docs);
+            TestBlock maxLongs = read(mvMaxLongsLoader, mvMaxLongsReader, ctx, docs);
         ) {
-            checkBlocks(ints, minInts);
+            checkBlocks(longs, maxLongs);
         }
 
-        intsReader = intsLoader.reader(ctx);
-        mvMinIntsReader = mvMinIntsLoader.reader(ctx);
+        longsReader = longsLoader.reader(ctx);
+        mvMaxLongsReader = mvMaxLongsLoader.reader(ctx);
         for (int i = 0; i < ctx.reader().numDocs(); i += 10) {
             int[] docsArray = new int[Math.min(10, ctx.reader().numDocs() - i)];
             for (int d = 0; d < docsArray.length; d++) {
@@ -53,30 +53,30 @@ public class MvMinIntsFromDocValuesBlockLoaderTests extends AbstractIntsFromDocV
             }
             docs = TestBlock.docs(docsArray);
             try (
-                TestBlock ints = read(intsLoader, intsReader, ctx, docs);
-                TestBlock minInts = read(mvMinIntsLoader, mvMinIntsReader, ctx, docs);
+                TestBlock longs = read(longsLoader, longsReader, ctx, docs);
+                TestBlock maxLongs = read(mvMaxLongsLoader, mvMaxLongsReader, ctx, docs);
             ) {
-                checkBlocks(ints, minInts);
+                checkBlocks(longs, maxLongs);
             }
         }
     }
 
     private Matcher<Object> readerMatcher() {
         if (multiValues) {
-            return hasToString("MvMinIntsFromDocValues.Sorted");
+            return hasToString("MvMaxLongsFromDocValues.Sorted");
         }
-        return hasToString("IntsFromDocValues.Singleton");
+        return hasToString("LongsFromDocValues.Singleton");
     }
 
-    private void checkBlocks(TestBlock ints, TestBlock mvMin) {
-        for (int i = 0; i < ints.size(); i++) {
-            Object v = ints.get(i);
+    private void checkBlocks(TestBlock longs, TestBlock mvMax) {
+        for (int i = 0; i < longs.size(); i++) {
+            Object v = longs.get(i);
             if (v == null) {
-                assertThat(mvMin.get(i), nullValue());
+                assertThat(mvMax.get(i), nullValue());
                 continue;
             }
-            Integer min = (Integer) (v instanceof List<?> l ? l.stream().map(b -> (Integer) b).min(Comparator.naturalOrder()).get() : v);
-            assertThat(mvMin.get(i), equalTo(min));
+            Long max = (Long) (v instanceof List<?> l ? l.stream().map(b -> (Long) b).max(Comparator.naturalOrder()).get() : v);
+            assertThat(mvMax.get(i), equalTo(max));
         }
     }
 }

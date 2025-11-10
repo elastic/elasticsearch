@@ -17,7 +17,7 @@ package org.elasticsearch.index.mapper.blockloader.docvalues;
  *  < Warning: 299 Elasticsearch-${ver} "Line 1:27: java.lang.IllegalArgumentException: single-value function encountered multi-value"
  * }</pre>
  */
-interface Warnings {
+public interface Warnings {
     /**
      * Register a warning. ESQL deduplicates and limits the number of warnings returned so it should
      * be fine to blast as many warnings into this as you encounter.

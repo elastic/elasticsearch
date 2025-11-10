@@ -11,18 +11,16 @@ package org.elasticsearch.index.mapper.blockloader.docvalues.fn;
 
 import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.index.SortedNumericDocValues;
-import org.elasticsearch.index.mapper.blockloader.docvalues.AbstractIntsFromDocValuesBlockLoader;
+import org.elasticsearch.index.mapper.blockloader.docvalues.AbstractLongsFromDocValuesBlockLoader;
 import org.elasticsearch.index.mapper.blockloader.docvalues.BlockDocValuesReader;
 
 import java.io.IOException;
 
-import static org.elasticsearch.index.mapper.blockloader.docvalues.fn.MvMaxLongsFromDocValuesBlockLoader.MvMaxSorted.discardAllButLast;
-
 /**
- * Loads the MAX {@code int} in each doc.
+ * Loads the MAX {@code long} in each doc.
  */
-public class MvMaxIntsFromDocValuesBlockLoader extends AbstractIntsFromDocValuesBlockLoader {
-    public MvMaxIntsFromDocValuesBlockLoader(String fieldName) {
+public class MvMaxLongsFromDocValuesBlockLoader extends AbstractLongsFromDocValuesBlockLoader {
+    public MvMaxLongsFromDocValuesBlockLoader(String fieldName) {
         super(fieldName);
     }
 
@@ -38,7 +36,7 @@ public class MvMaxIntsFromDocValuesBlockLoader extends AbstractIntsFromDocValues
 
     @Override
     public String toString() {
-        return "IntsFromDocValues[" + fieldName + "]";
+        return "LongsFromDocValues[" + fieldName + "]";
     }
 
     public static class MvMaxSorted extends BlockDocValuesReader {
@@ -50,7 +48,7 @@ public class MvMaxIntsFromDocValuesBlockLoader extends AbstractIntsFromDocValues
 
         @Override
         public Block read(BlockFactory factory, Docs docs, int offset, boolean nullsFiltered) throws IOException {
-            try (IntBuilder builder = factory.intsFromDocValues(docs.count() - offset)) {
+            try (LongBuilder builder = factory.longsFromDocValues(docs.count() - offset)) {
                 for (int i = offset; i < docs.count(); i++) {
                     int doc = docs.get(i);
                     read(doc, builder);
@@ -61,16 +59,16 @@ public class MvMaxIntsFromDocValuesBlockLoader extends AbstractIntsFromDocValues
 
         @Override
         public void read(int docId, StoredFields storedFields, Builder builder) throws IOException {
-            read(docId, (IntBuilder) builder);
+            read(docId, (LongBuilder) builder);
         }
 
-        private void read(int doc, IntBuilder builder) throws IOException {
+        private void read(int doc, LongBuilder builder) throws IOException {
             if (false == numericDocValues.advanceExact(doc)) {
                 builder.appendNull();
                 return;
             }
             discardAllButLast(numericDocValues);
-            builder.appendInt(Math.toIntExact(numericDocValues.nextValue()));
+            builder.appendLong(numericDocValues.nextValue());
         }
 
         @Override
@@ -78,9 +76,16 @@ public class MvMaxIntsFromDocValuesBlockLoader extends AbstractIntsFromDocValues
             return numericDocValues.docID();
         }
 
+        static void discardAllButLast(SortedNumericDocValues numericDocValues) throws IOException {
+            int count = numericDocValues.docValueCount();
+            for (int i = 0; i < count - 1; i++) {
+                numericDocValues.nextValue();
+            }
+        }
+
         @Override
         public String toString() {
-            return "MvMaxIntsFromDocValues.Sorted";
+            return "MvMaxLongsFromDocValues.Sorted";
         }
     }
 }

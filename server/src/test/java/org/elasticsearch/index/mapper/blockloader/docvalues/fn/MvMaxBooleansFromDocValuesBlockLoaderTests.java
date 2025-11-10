@@ -12,40 +12,39 @@ package org.elasticsearch.index.mapper.blockloader.docvalues.fn;
 import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.index.mapper.TestBlock;
-import org.elasticsearch.index.mapper.blockloader.docvalues.IntsBlockLoader;
+import org.elasticsearch.index.mapper.blockloader.docvalues.BooleansBlockLoader;
 import org.hamcrest.Matcher;
 
 import java.io.IOException;
-import java.util.Comparator;
 import java.util.List;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasToString;
 import static org.hamcrest.Matchers.nullValue;
 
-public class MvMaxIntsFromDocValuesBlockLoaderTests extends AbstractIntsFromDocValuesBlockLoaderTests {
-    public MvMaxIntsFromDocValuesBlockLoaderTests(boolean blockAtATime, boolean multiValues, boolean missingValues) {
+public class MvMaxBooleansFromDocValuesBlockLoaderTests extends AbstractBooleansFromDocValuesBlockLoaderTests {
+    public MvMaxBooleansFromDocValuesBlockLoaderTests(boolean blockAtATime, boolean multiValues, boolean missingValues) {
         super(blockAtATime, multiValues, missingValues);
     }
 
     @Override
     protected void innerTest(LeafReaderContext ctx, int mvCount) throws IOException {
-        var intsLoader = new IntsBlockLoader("field");
-        var mvMaxIntsLoader = new MvMaxIntsFromDocValuesBlockLoader("field");
+        var booleansLoader = new BooleansBlockLoader("field");
+        var mvMaxBooleansLoader = new MvMaxBooleansBlockLoader("field");
 
-        var intsReader = intsLoader.reader(ctx);
-        var mvMaxIntsReader = mvMaxIntsLoader.reader(ctx);
-        assertThat(mvMaxIntsReader, readerMatcher());
+        var booleansReader = booleansLoader.reader(ctx);
+        var mvMaxBooleansReader = mvMaxBooleansLoader.reader(ctx);
+        assertThat(mvMaxBooleansReader, readerMatcher());
         BlockLoader.Docs docs = TestBlock.docs(ctx);
         try (
-            TestBlock ints = read(intsLoader, intsReader, ctx, docs);
-            TestBlock minInts = read(mvMaxIntsLoader, mvMaxIntsReader, ctx, docs);
+            TestBlock doubles = read(booleansLoader, booleansReader, ctx, docs);
+            TestBlock maxDoubles = read(mvMaxBooleansLoader, mvMaxBooleansReader, ctx, docs);
         ) {
-            checkBlocks(ints, minInts);
+            checkBlocks(doubles, maxDoubles);
         }
 
-        intsReader = intsLoader.reader(ctx);
-        mvMaxIntsReader = mvMaxIntsLoader.reader(ctx);
+        booleansReader = booleansLoader.reader(ctx);
+        mvMaxBooleansReader = mvMaxBooleansLoader.reader(ctx);
         for (int i = 0; i < ctx.reader().numDocs(); i += 10) {
             int[] docsArray = new int[Math.min(10, ctx.reader().numDocs() - i)];
             for (int d = 0; d < docsArray.length; d++) {
@@ -53,29 +52,29 @@ public class MvMaxIntsFromDocValuesBlockLoaderTests extends AbstractIntsFromDocV
             }
             docs = TestBlock.docs(docsArray);
             try (
-                TestBlock ints = read(intsLoader, intsReader, ctx, docs);
-                TestBlock maxInts = read(mvMaxIntsLoader, mvMaxIntsReader, ctx, docs);
+                TestBlock booleans = read(booleansLoader, booleansReader, ctx, docs);
+                TestBlock maxBooleans = read(mvMaxBooleansLoader, mvMaxBooleansReader, ctx, docs);
             ) {
-                checkBlocks(ints, maxInts);
+                checkBlocks(booleans, maxBooleans);
             }
         }
     }
 
     private Matcher<Object> readerMatcher() {
         if (multiValues) {
-            return hasToString("MvMaxIntsFromDocValues.Sorted");
+            return hasToString("MvMaxBooleansFromDocValues.Sorted");
         }
-        return hasToString("IntsFromDocValues.Singleton");
+        return hasToString("BooleansFromDocValues.Singleton");
     }
 
-    private void checkBlocks(TestBlock ints, TestBlock mvMax) {
-        for (int i = 0; i < ints.size(); i++) {
-            Object v = ints.get(i);
+    private void checkBlocks(TestBlock booleans, TestBlock mvMax) {
+        for (int i = 0; i < booleans.size(); i++) {
+            Object v = booleans.get(i);
             if (v == null) {
                 assertThat(mvMax.get(i), nullValue());
                 continue;
             }
-            Integer max = (Integer) (v instanceof List<?> l ? l.stream().map(b -> (Integer) b).max(Comparator.naturalOrder()).get() : v);
+            Boolean max = (Boolean) (v instanceof List<?> l ? l.stream().anyMatch(b -> (Boolean) b) : v);
             assertThat(mvMax.get(i), equalTo(max));
         }
     }

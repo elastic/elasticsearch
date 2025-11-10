@@ -12,7 +12,7 @@ package org.elasticsearch.index.mapper.blockloader.docvalues.fn;
 import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.index.mapper.TestBlock;
-import org.elasticsearch.index.mapper.blockloader.docvalues.IntsBlockLoader;
+import org.elasticsearch.index.mapper.blockloader.docvalues.DoublesBlockLoader;
 import org.hamcrest.Matcher;
 
 import java.io.IOException;
@@ -23,29 +23,29 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasToString;
 import static org.hamcrest.Matchers.nullValue;
 
-public class MvMaxIntsFromDocValuesBlockLoaderTests extends AbstractIntsFromDocValuesBlockLoaderTests {
-    public MvMaxIntsFromDocValuesBlockLoaderTests(boolean blockAtATime, boolean multiValues, boolean missingValues) {
+public class MvMaxDoublesFromDocValuesBlockLoaderTests extends AbstractIntsFromDocValuesBlockLoaderTests {
+    public MvMaxDoublesFromDocValuesBlockLoaderTests(boolean blockAtATime, boolean multiValues, boolean missingValues) {
         super(blockAtATime, multiValues, missingValues);
     }
 
     @Override
     protected void innerTest(LeafReaderContext ctx, int mvCount) throws IOException {
-        var intsLoader = new IntsBlockLoader("field");
-        var mvMaxIntsLoader = new MvMaxIntsFromDocValuesBlockLoader("field");
+        var doublesLoader = new DoublesBlockLoader("field", Double::longBitsToDouble);
+        var mvMaxDoublesLoader = new MvMaxDoublesFromDocValuesBlockLoader("field", Double::longBitsToDouble);
 
-        var intsReader = intsLoader.reader(ctx);
-        var mvMaxIntsReader = mvMaxIntsLoader.reader(ctx);
-        assertThat(mvMaxIntsReader, readerMatcher());
+        var doublesReader = doublesLoader.reader(ctx);
+        var mvMaxDoublesReader = mvMaxDoublesLoader.reader(ctx);
+        assertThat(mvMaxDoublesReader, readerMatcher());
         BlockLoader.Docs docs = TestBlock.docs(ctx);
         try (
-            TestBlock ints = read(intsLoader, intsReader, ctx, docs);
-            TestBlock minInts = read(mvMaxIntsLoader, mvMaxIntsReader, ctx, docs);
+            TestBlock doubles = read(doublesLoader, doublesReader, ctx, docs);
+            TestBlock maxDoubles = read(mvMaxDoublesLoader, mvMaxDoublesReader, ctx, docs);
         ) {
-            checkBlocks(ints, minInts);
+            checkBlocks(doubles, maxDoubles);
         }
 
-        intsReader = intsLoader.reader(ctx);
-        mvMaxIntsReader = mvMaxIntsLoader.reader(ctx);
+        doublesReader = doublesLoader.reader(ctx);
+        mvMaxDoublesReader = mvMaxDoublesLoader.reader(ctx);
         for (int i = 0; i < ctx.reader().numDocs(); i += 10) {
             int[] docsArray = new int[Math.min(10, ctx.reader().numDocs() - i)];
             for (int d = 0; d < docsArray.length; d++) {
@@ -53,29 +53,29 @@ public class MvMaxIntsFromDocValuesBlockLoaderTests extends AbstractIntsFromDocV
             }
             docs = TestBlock.docs(docsArray);
             try (
-                TestBlock ints = read(intsLoader, intsReader, ctx, docs);
-                TestBlock maxInts = read(mvMaxIntsLoader, mvMaxIntsReader, ctx, docs);
+                TestBlock doubles = read(doublesLoader, doublesReader, ctx, docs);
+                TestBlock maxDoubles = read(mvMaxDoublesLoader, mvMaxDoublesReader, ctx, docs);
             ) {
-                checkBlocks(ints, maxInts);
+                checkBlocks(doubles, maxDoubles);
             }
         }
     }
 
     private Matcher<Object> readerMatcher() {
         if (multiValues) {
-            return hasToString("MvMaxIntsFromDocValues.Sorted");
+            return hasToString("MvMaxDoublesFromDocValues.Sorted");
         }
-        return hasToString("IntsFromDocValues.Singleton");
+        return hasToString("DoublesFromDocValues.Singleton");
     }
 
-    private void checkBlocks(TestBlock ints, TestBlock mvMax) {
-        for (int i = 0; i < ints.size(); i++) {
-            Object v = ints.get(i);
+    private void checkBlocks(TestBlock doubles, TestBlock mvMax) {
+        for (int i = 0; i < doubles.size(); i++) {
+            Object v = doubles.get(i);
             if (v == null) {
                 assertThat(mvMax.get(i), nullValue());
                 continue;
             }
-            Integer max = (Integer) (v instanceof List<?> l ? l.stream().map(b -> (Integer) b).max(Comparator.naturalOrder()).get() : v);
+            Double max = (Double) (v instanceof List<?> l ? l.stream().map(b -> (Double) b).max(Comparator.naturalOrder()).get() : v);
             assertThat(mvMax.get(i), equalTo(max));
         }
     }

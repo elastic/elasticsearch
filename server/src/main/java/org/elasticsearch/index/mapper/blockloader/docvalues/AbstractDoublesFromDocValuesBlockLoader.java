@@ -58,7 +58,7 @@ public abstract class AbstractDoublesFromDocValuesBlockLoader extends BlockDocVa
         private final NumericDocValues docValues;
         private final ToDouble toDouble;
 
-        Singleton(NumericDocValues docValues, ToDouble toDouble) {
+        public Singleton(NumericDocValues docValues, ToDouble toDouble) {
             this.docValues = docValues;
             this.toDouble = toDouble;
         }
@@ -159,7 +159,7 @@ public abstract class AbstractDoublesFromDocValuesBlockLoader extends BlockDocVa
 
         @Override
         public String toString() {
-            return "LongsFromDocValues.Sorted";
+            return "DoublesFromDocValues.Sorted";
         }
     }
 }

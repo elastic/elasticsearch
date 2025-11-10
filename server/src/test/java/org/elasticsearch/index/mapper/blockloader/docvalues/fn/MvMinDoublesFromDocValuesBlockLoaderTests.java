@@ -12,7 +12,7 @@ package org.elasticsearch.index.mapper.blockloader.docvalues.fn;
 import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.index.mapper.TestBlock;
-import org.elasticsearch.index.mapper.blockloader.docvalues.IntsBlockLoader;
+import org.elasticsearch.index.mapper.blockloader.docvalues.DoublesBlockLoader;
 import org.hamcrest.Matcher;
 
 import java.io.IOException;
@@ -23,29 +23,29 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasToString;
 import static org.hamcrest.Matchers.nullValue;
 
-public class MvMinIntsFromDocValuesBlockLoaderTests extends AbstractIntsFromDocValuesBlockLoaderTests {
-    public MvMinIntsFromDocValuesBlockLoaderTests(boolean blockAtATime, boolean multiValues, boolean missingValues) {
+public class MvMinDoublesFromDocValuesBlockLoaderTests extends AbstractIntsFromDocValuesBlockLoaderTests {
+    public MvMinDoublesFromDocValuesBlockLoaderTests(boolean blockAtATime, boolean multiValues, boolean missingValues) {
         super(blockAtATime, multiValues, missingValues);
     }
 
     @Override
     protected void innerTest(LeafReaderContext ctx, int mvCount) throws IOException {
-        var intsLoader = new IntsBlockLoader("field");
-        var mvMinIntsLoader = new MvMinIntsFromDocValuesBlockLoader("field");
+        var doublesLoader = new DoublesBlockLoader("field", Double::longBitsToDouble);
+        var mvMinDoublesLoader = new MvMinDoublesFromDocValuesBlockLoader("field", Double::longBitsToDouble);
 
-        var intsReader = intsLoader.reader(ctx);
-        var mvMinIntsReader = mvMinIntsLoader.reader(ctx);
-        assertThat(mvMinIntsReader, readerMatcher());
+        var doublesReader = doublesLoader.reader(ctx);
+        var mvMinDoublesReader = mvMinDoublesLoader.reader(ctx);
+        assertThat(mvMinDoublesReader, readerMatcher());
         BlockLoader.Docs docs = TestBlock.docs(ctx);
         try (
-            TestBlock ints = read(intsLoader, intsReader, ctx, docs);
-            TestBlock minInts = read(mvMinIntsLoader, mvMinIntsReader, ctx, docs);
+            TestBlock doubles = read(doublesLoader, doublesReader, ctx, docs);
+            TestBlock minDoubles = read(mvMinDoublesLoader, mvMinDoublesReader, ctx, docs);
         ) {
-            checkBlocks(ints, minInts);
+            checkBlocks(doubles, minDoubles);
         }
 
-        intsReader = intsLoader.reader(ctx);
-        mvMinIntsReader = mvMinIntsLoader.reader(ctx);
+        doublesReader = doublesLoader.reader(ctx);
+        mvMinDoublesReader = mvMinDoublesLoader.reader(ctx);
         for (int i = 0; i < ctx.reader().numDocs(); i += 10) {
             int[] docsArray = new int[Math.min(10, ctx.reader().numDocs() - i)];
             for (int d = 0; d < docsArray.length; d++) {
@@ -53,29 +53,29 @@ public class MvMinIntsFromDocValuesBlockLoaderTests extends AbstractIntsFromDocV
             }
             docs = TestBlock.docs(docsArray);
             try (
-                TestBlock ints = read(intsLoader, intsReader, ctx, docs);
-                TestBlock minInts = read(mvMinIntsLoader, mvMinIntsReader, ctx, docs);
+                TestBlock doubles = read(doublesLoader, doublesReader, ctx, docs);
+                TestBlock minDoubles = read(mvMinDoublesLoader, mvMinDoublesReader, ctx, docs);
             ) {
-                checkBlocks(ints, minInts);
+                checkBlocks(doubles, minDoubles);
             }
         }
     }
 
     private Matcher<Object> readerMatcher() {
         if (multiValues) {
-            return hasToString("MvMinIntsFromDocValues.Sorted");
+            return hasToString("MvMinDoublesFromDocValues.Sorted");
         }
-        return hasToString("IntsFromDocValues.Singleton");
+        return hasToString("DoublesFromDocValues.Singleton");
     }
 
-    private void checkBlocks(TestBlock ints, TestBlock mvMin) {
-        for (int i = 0; i < ints.size(); i++) {
-            Object v = ints.get(i);
+    private void checkBlocks(TestBlock doubles, TestBlock mvMin) {
+        for (int i = 0; i < doubles.size(); i++) {
+            Object v = doubles.get(i);
             if (v == null) {
                 assertThat(mvMin.get(i), nullValue());
                 continue;
             }
-            Integer min = (Integer) (v instanceof List<?> l ? l.stream().map(b -> (Integer) b).min(Comparator.naturalOrder()).get() : v);
+            Double min = (Double) (v instanceof List<?> l ? l.stream().map(b -> (Double) b).min(Comparator.naturalOrder()).get() : v);
             assertThat(mvMin.get(i), equalTo(min));
         }
     }

@@ -11,14 +11,13 @@ package org.elasticsearch.index.mapper.blockloader.docvalues.fn;
 
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
+import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
-import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.index.mapper.BlockLoader;
-import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.TestBlock;
 import org.elasticsearch.test.ESTestCase;
 
@@ -26,18 +25,14 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
-import static org.elasticsearch.index.mapper.blockloader.docvalues.fn.Utf8CodePointsFromOrdsBlockLoader.LOW_CARDINALITY;
-
-public abstract class AbstractFromOrdsBlockLoaderTests extends ESTestCase {
-    @ParametersFactory(argumentFormatting = "blockAtATime=%s, lowCardinality=%s, multiValues=%s, missingValues=%s")
+public abstract class AbstractBooleansFromDocValuesBlockLoaderTests extends ESTestCase {
+    @ParametersFactory(argumentFormatting = "blockAtATime=%s, multiValues=%s, missingValues=%s")
     public static List<Object[]> parameters() throws IOException {
         List<Object[]> parameters = new ArrayList<>();
         for (boolean blockAtATime : new boolean[] { true, false }) {
-            for (boolean lowCardinality : new boolean[] { true, false }) {
-                for (boolean multiValues : new boolean[] { true, false }) {
-                    for (boolean missingValues : new boolean[] { true, false }) {
-                        parameters.add(new Object[] { blockAtATime, lowCardinality, multiValues, missingValues });
-                    }
+            for (boolean multiValues : new boolean[] { true, false }) {
+                for (boolean missingValues : new boolean[] { true, false }) {
+                    parameters.add(new Object[] { blockAtATime, multiValues, missingValues });
                 }
             }
         }
@@ -45,13 +40,11 @@ public abstract class AbstractFromOrdsBlockLoaderTests extends ESTestCase {
     }
 
     protected final boolean blockAtATime;
-    protected final boolean lowCardinality;
     protected final boolean multiValues;
     protected final boolean missingValues;
 
-    public AbstractFromOrdsBlockLoaderTests(boolean blockAtATime, boolean highCardinality, boolean multiValues, boolean missingValues) {
+    public AbstractBooleansFromDocValuesBlockLoaderTests(boolean blockAtATime, boolean multiValues, boolean missingValues) {
         this.blockAtATime = blockAtATime;
-        this.lowCardinality = highCardinality;
         this.multiValues = multiValues;
         this.missingValues = missingValues;
     }
@@ -62,12 +55,11 @@ public abstract class AbstractFromOrdsBlockLoaderTests extends ESTestCase {
         int mvCount = 0;
         try (Directory dir = newDirectory(); RandomIndexWriter iw = new RandomIndexWriter(random(), dir)) {
             int docCount = 10_000;
-            int cardinality = lowCardinality ? between(1, LOW_CARDINALITY) : between(LOW_CARDINALITY + 1, LOW_CARDINALITY * 2);
             for (int i = 0; i < docCount; i++) {
                 List<IndexableField> doc = new ArrayList<>(2);
-                doc.add(field(i % cardinality));
-                if (multiValues && i % cardinality == 0) {
-                    doc.add(field((i % cardinality) + 1));
+                doc.add(field(i));
+                if (multiValues && i % 100 == 0) {
+                    doc.add(field((i % 100) + 1));
                     mvCount++;
                 }
                 iw.addDocument(doc);
@@ -92,11 +84,7 @@ public abstract class AbstractFromOrdsBlockLoaderTests extends ESTestCase {
         return (TestBlock) toUse.read(TestBlock.factory(), docs, 0, false);
     }
 
-    private static KeywordFieldMapper.KeywordField field(int codePointCount) {
-        return new KeywordFieldMapper.KeywordField(
-            "field",
-            new BytesRef("a".repeat(codePointCount)),
-            KeywordFieldMapper.Defaults.FIELD_TYPE
-        );
+    private static SortedNumericDocValuesField field(int v) {
+        return new SortedNumericDocValuesField("field", v % 4 == 0 ? 1 : 0);
     }
 }

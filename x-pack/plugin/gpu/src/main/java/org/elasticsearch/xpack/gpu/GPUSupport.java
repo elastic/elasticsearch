@@ -22,82 +22,85 @@ public class GPUSupport {
     // Set the minimum at 7.5GB: 8GB GPUs (which are our targeted minimum) report less than that via the API
     private static final long MIN_DEVICE_MEMORY_IN_BYTES = 8053063680L;
 
-    private static volatile Long cachedTotalGpuMemory;
+    private static class Holder {
+        static final long TOTAL_GPU_MEMORY;
+        static final boolean IS_SUPPORTED;
 
-    /**
-     * Checks whether a GPU meets the minimum requirements for GPU-accelerated indexing.
-     * Checks compute capability and total memory requirements.
-     */
-    private static boolean meetsComputeCapabilityRequirements(int major, int minor) {
-        return major >= GPUInfoProvider.MIN_COMPUTE_CAPABILITY_MAJOR
-            && (major > GPUInfoProvider.MIN_COMPUTE_CAPABILITY_MAJOR || minor >= GPUInfoProvider.MIN_COMPUTE_CAPABILITY_MINOR);
+        static {
+            TOTAL_GPU_MEMORY = initializeGpuInfo();
+            IS_SUPPORTED = TOTAL_GPU_MEMORY != -1L;
+        }
     }
 
-    /** Tells whether the platform supports cuvs. */
-    public static boolean isSupported(boolean logError) {
+    /**
+     * Initializes GPU support information by finding the first compatible GPU.
+     * Returns the total GPU memory in bytes, or -1 if GPU is not found or supported.
+     */
+    private static long initializeGpuInfo() {
         try {
             var gpuInfoProvider = CuVSProvider.provider().gpuInfoProvider();
             var availableGPUs = gpuInfoProvider.availableGPUs();
             if (availableGPUs.isEmpty()) {
-                if (logError) {
-                    LOG.warn("No GPU found");
-                }
-                return false;
+                LOG.warn("No GPU found");
+                return -1L;
             }
 
             for (var gpu : availableGPUs) {
-                if (meetsComputeCapabilityRequirements(gpu.computeCapabilityMajor(), gpu.computeCapabilityMinor()) == false) {
-                    if (logError) {
-                        LOG.warn(
-                            "GPU [{}] does not have the minimum compute capabilities (required: [{}.{}], found: [{}.{}])",
-                            gpu.name(),
-                            GPUInfoProvider.MIN_COMPUTE_CAPABILITY_MAJOR,
-                            GPUInfoProvider.MIN_COMPUTE_CAPABILITY_MINOR,
-                            gpu.computeCapabilityMajor(),
-                            gpu.computeCapabilityMinor()
-                        );
-                    }
-                } else if (gpu.totalDeviceMemoryInBytes() < MIN_DEVICE_MEMORY_IN_BYTES) {
-                    if (logError) {
-                        LOG.warn(
-                            "GPU [{}] does not have minimum memory required (required: [{}], found: [{}])",
-                            gpu.name(),
-                            MIN_DEVICE_MEMORY_IN_BYTES,
-                            gpu.totalDeviceMemoryInBytes()
-                        );
-                    }
+                int major = gpu.computeCapabilityMajor();
+                int minor = gpu.computeCapabilityMinor();
+                boolean hasRequiredCapability = major >= GPUInfoProvider.MIN_COMPUTE_CAPABILITY_MAJOR
+                    && (major > GPUInfoProvider.MIN_COMPUTE_CAPABILITY_MAJOR || minor >= GPUInfoProvider.MIN_COMPUTE_CAPABILITY_MINOR);
+                boolean hasRequiredMemory = gpu.totalDeviceMemoryInBytes() >= MIN_DEVICE_MEMORY_IN_BYTES;
+
+                if (hasRequiredCapability == false) {
+                    LOG.warn(
+                        "GPU [{}] does not have the minimum compute capabilities (required: [{}.{}], found: [{}.{}])",
+                        gpu.name(),
+                        GPUInfoProvider.MIN_COMPUTE_CAPABILITY_MAJOR,
+                        GPUInfoProvider.MIN_COMPUTE_CAPABILITY_MINOR,
+                        gpu.computeCapabilityMajor(),
+                        gpu.computeCapabilityMinor()
+                    );
+                } else if (hasRequiredMemory == false) {
+                    LOG.warn(
+                        "GPU [{}] does not have minimum memory required (required: [{}], found: [{}])",
+                        gpu.name(),
+                        MIN_DEVICE_MEMORY_IN_BYTES,
+                        gpu.totalDeviceMemoryInBytes()
+                    );
                 } else {
-                    if (logError) {
-                        LOG.info("Found compatible GPU [{}] (id: [{}])", gpu.name(), gpu.gpuId());
-                    }
-                    return true;
+                    LOG.info("Found compatible GPU [{}] (id: [{}])", gpu.name(), gpu.gpuId());
+                    return gpu.totalDeviceMemoryInBytes();
                 }
             }
 
+            return -1L;
         } catch (UnsupportedOperationException uoe) {
-            if (logError) {
-                final String msg;
-                if (uoe.getMessage() == null) {
-                    msg = Strings.format(
-                        "runtime Java version [%d], OS [%s], arch [%s]",
-                        Runtime.version().feature(),
-                        System.getProperty("os.name"),
-                        System.getProperty("os.arch")
-                    );
-                } else {
-                    msg = uoe.getMessage();
-                }
-                LOG.warn("GPU based vector indexing is not supported on this platform; " + msg);
+            final String msg;
+            if (uoe.getMessage() == null) {
+                msg = Strings.format(
+                    "runtime Java version [%d], OS [%s], arch [%s]",
+                    Runtime.version().feature(),
+                    System.getProperty("os.name"),
+                    System.getProperty("os.arch")
+                );
+            } else {
+                msg = uoe.getMessage();
             }
+            LOG.warn("GPU based vector indexing is not supported on this platform; " + msg);
+            return -1L;
         } catch (Throwable t) {
-            if (logError) {
-                if (t instanceof ExceptionInInitializerError ex) {
-                    t = ex.getCause();
-                }
-                LOG.warn("Exception occurred during creation of cuvs resources", t);
+            if (t instanceof ExceptionInInitializerError ex) {
+                t = ex.getCause();
             }
+            LOG.warn("Exception occurred during creation of cuvs resources", t);
+            return -1L;
         }
-        return false;
+    }
+
+    /** Tells whether the platform supports cuvs. */
+    public static boolean isSupported() {
+        return Holder.IS_SUPPORTED;
     }
 
     /** Returns a resources if supported, otherwise null. */
@@ -128,45 +131,10 @@ public class GPUSupport {
 
     /**
      * Returns the total device memory in bytes of the first available compatible GPU.
-     * This is a constant property of the GPU device and is cached after the first call.
      *
      * @return total device memory in bytes, or -1 if GPU is not available or supported
      */
     public static long getTotalGpuMemory() {
-        if (cachedTotalGpuMemory != null) {
-            return cachedTotalGpuMemory;
-        }
-
-        synchronized (GPUSupport.class) {
-            if (cachedTotalGpuMemory != null) {
-                return cachedTotalGpuMemory;
-            }
-
-            try {
-                var gpuInfoProvider = CuVSProvider.provider().gpuInfoProvider();
-                var availableGPUs = gpuInfoProvider.availableGPUs();
-
-                for (var gpu : availableGPUs) {
-                    boolean hasRequiredCapability = meetsComputeCapabilityRequirements(
-                        gpu.computeCapabilityMajor(),
-                        gpu.computeCapabilityMinor()
-                    );
-                    boolean hasRequiredMemory = gpu.totalDeviceMemoryInBytes() >= MIN_DEVICE_MEMORY_IN_BYTES;
-
-                    if (hasRequiredCapability && hasRequiredMemory) {
-                        cachedTotalGpuMemory = gpu.totalDeviceMemoryInBytes();
-                        return cachedTotalGpuMemory;
-                    }
-                }
-
-                // No suitable GPU found
-                cachedTotalGpuMemory = -1L;
-                return -1L;
-            } catch (Throwable e) {
-                LOG.debug("Unable to query GPU total memory", e);
-                cachedTotalGpuMemory = -1L;
-                return -1L;
-            }
-        }
+        return Holder.TOTAL_GPU_MEMORY;
     }
 }

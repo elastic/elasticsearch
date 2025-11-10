@@ -39,6 +39,8 @@ import java.util.concurrent.locks.ReentrantLock;
  *
  */
 public interface CuVSResourceManager {
+    /** A multiplier on input data to account for intermediate and output data size required while processing it */
+    double GPU_COMPUTATION_MEMORY_FACTOR = 2.0;
 
     /**
      * Acquires a resource from the manager.
@@ -73,7 +75,7 @@ public interface CuVSResourceManager {
             case INT, UINT -> Integer.BYTES;
             case BYTE -> Byte.BYTES;
         };
-        return (long) (2.0 * numVectors * dims * elementTypeBytes);
+        return (long) (GPU_COMPUTATION_MEMORY_FACTOR * numVectors * dims * elementTypeBytes);
     }
 
     /** Returns the system-wide pooling manager. */
@@ -87,9 +89,6 @@ public interface CuVSResourceManager {
     class PoolingCuVSResourceManager implements CuVSResourceManager {
 
         static final Logger logger = LogManager.getLogger(CuVSResourceManager.class);
-
-        /** A multiplier on input data to account for intermediate and output data size required while processing it */
-        static final double GPU_COMPUTATION_MEMORY_FACTOR = 2.0;
         static final int MAX_RESOURCES = 4;
 
         static class Holder {

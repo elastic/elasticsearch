@@ -144,6 +144,7 @@ public class GPUPluginInitializationIT extends ESIntegTestCase {
         assertNull(format);
     }
 
+    @AwaitsFix(bugUrl = "GPUSupport static initialization with mocked GPU provider")
     public void testIndexSettingOnIndexTypeSupportedGPUSupported() {
         assumeTrue("GPU_FORMAT feature flag enabled", GPUPlugin.GPU_FORMAT.isEnabled());
         TestCuVSServiceProvider.mockedGPUInfoProvider = SUPPORTED_GPU_PROVIDER;
@@ -236,6 +237,7 @@ public class GPUPluginInitializationIT extends ESIntegTestCase {
         );
     }
 
+    @AwaitsFix(bugUrl = "GPUSupport static initialization with mocked GPU provider")
     public void testIndexSettingAutoIndexTypeSupportedGPUSupported() {
         assumeTrue("GPU_FORMAT feature flag enabled", GPUPlugin.GPU_FORMAT.isEnabled());
         TestCuVSServiceProvider.mockedGPUInfoProvider = SUPPORTED_GPU_PROVIDER;

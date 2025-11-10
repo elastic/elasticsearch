@@ -190,13 +190,7 @@ final class ES92GpuHnswVectorsWriter extends KnnVectorsWriter {
             );
 
             if (numVectors < MIN_NUM_VECTORS_FOR_GPU_BUILD) {
-                if (logger.isDebugEnabled()) {
-                    logger.debug(
-                        "Skip building carga index; vectors length {} < {} (min for GPU)",
-                        numVectors,
-                        MIN_NUM_VECTORS_FOR_GPU_BUILD
-                    );
-                }
+                logger.debug("Skip building carga index; vectors length {} < {} (min for GPU)", numVectors, MIN_NUM_VECTORS_FOR_GPU_BUILD);
                 // Will not be indexed on the GPU
                 flushFieldWithMockGraph(fieldInfo, numVectors, sortMap);
             } else {
@@ -376,13 +370,11 @@ final class ES92GpuHnswVectorsWriter extends KnnVectorsWriter {
                 long requiredMemoryForNnDescent = CuVSResourceManager.estimateNNDescentMemory(numVectors, dims, dataType);
                 if (requiredMemoryForNnDescent > totalDeviceMemory) {
                     useIvfPQ = true;
-                    if (logger.isDebugEnabled()) {
-                        logger.debug(
-                            "Using IVF_PQ algorithm due to insufficient GPU memory for NN_DESCENT; required [{}B] > total [{}B]",
-                            requiredMemoryForNnDescent,
-                            totalDeviceMemory
-                        );
-                    }
+                    logger.debug(
+                        "Using IVF_PQ algorithm due to insufficient GPU memory for NN_DESCENT; required [{}B] > total [{}B]",
+                        requiredMemoryForNnDescent,
+                        totalDeviceMemory
+                    );
                 }
             }
         }

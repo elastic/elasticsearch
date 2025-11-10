@@ -31,7 +31,7 @@ public class GPUPlugin extends Plugin implements InternalVectorFormatProviderPlu
         AUTO
     }
 
-    private final boolean isGpuSupported = GPUSupport.isSupported(true);
+    private final boolean isGpuSupported = GPUSupport.isSupported();
 
     /**
      * Setting to control whether to use GPU for vectors indexing.

@@ -23,15 +23,15 @@ import java.util.Map;
 public class AllocationBalancingRoundMetrics {
 
     // counters that measure rounds and moves from the last balancing round
-    public static final String NUMBER_OF_BALANCING_ROUNDS_METRIC_NAME = "es.allocator.balancing_round.balancing_rounds";
-    public static final String NUMBER_OF_SHARD_MOVES_METRIC_NAME = "es.allocator.balancing_round.shard_moves";
-    public static final String NUMBER_OF_SHARD_MOVES_HISTOGRAM_METRIC_NAME = "es.allocator.balancing_round.shard_moves_histogram";
+    public static final String NUMBER_OF_BALANCING_ROUNDS_METRIC_NAME = "es.allocator.balancing_round.balancing_rounds.total";
+    public static final String NUMBER_OF_SHARD_MOVES_METRIC_NAME = "es.allocator.balancing_round.shard_moves.total";
+    public static final String NUMBER_OF_SHARD_MOVES_HISTOGRAM_METRIC_NAME = "es.allocator.balancing_round.shard_moves.histogram";
 
     // histograms that measure current utilization
-    public static final String NUMBER_OF_SHARDS_METRIC_NAME = "es.allocator.balancing_round.shard_count";
-    public static final String DISK_USAGE_BYTES_METRIC_NAME = "es.allocator.balancing_round.disk_usage_bytes";
-    public static final String WRITE_LOAD_METRIC_NAME = "es.allocator.balancing_round.write_load";
-    public static final String TOTAL_WEIGHT_METRIC_NAME = "es.allocator.balancing_round.total_weight";
+    public static final String NUMBER_OF_SHARDS_METRIC_NAME = "es.allocator.balancing_round.shard_count.histogram";
+    public static final String DISK_USAGE_BYTES_METRIC_NAME = "es.allocator.balancing_round.disk_usage_bytes.histogram";
+    public static final String WRITE_LOAD_METRIC_NAME = "es.allocator.balancing_round.write_load.histogram";
+    public static final String TOTAL_WEIGHT_METRIC_NAME = "es.allocator.balancing_round.total_weight.histogram";
 
     private final LongCounter balancingRoundCounter;
     private final LongCounter shardMovesCounter;
@@ -47,24 +47,40 @@ public class AllocationBalancingRoundMetrics {
     public AllocationBalancingRoundMetrics(MeterRegistry meterRegistry) {
         this.balancingRoundCounter = meterRegistry.registerLongCounter(
             NUMBER_OF_BALANCING_ROUNDS_METRIC_NAME,
-            "Current number of balancing rounds",
+            "Total number of balancing rounds",
             "unit"
         );
         this.shardMovesCounter = meterRegistry.registerLongCounter(
             NUMBER_OF_SHARD_MOVES_METRIC_NAME,
-            "Current number of shard moves",
-            "{shard}"
+            "Total number of shard moves",
+            "unit"
         );
 
         this.shardMovesHistogram = meterRegistry.registerLongHistogram(
             NUMBER_OF_SHARD_MOVES_HISTOGRAM_METRIC_NAME,
-            "Histogram of shard moves",
+            "Number of shard movements executed in a balancing round",
             "unit"
         );
-        this.shardCountHistogram = meterRegistry.registerLongHistogram(NUMBER_OF_SHARDS_METRIC_NAME, "Current number of shards", "unit");
-        this.diskUsageHistogram = meterRegistry.registerDoubleHistogram(DISK_USAGE_BYTES_METRIC_NAME, "Disk usage in bytes", "unit");
-        this.writeLoadHistogram = meterRegistry.registerDoubleHistogram(WRITE_LOAD_METRIC_NAME, "Write load", "1.0");
-        this.totalWeightHistogram = meterRegistry.registerDoubleHistogram(TOTAL_WEIGHT_METRIC_NAME, "Total weight", "1.0");
+        this.shardCountHistogram = meterRegistry.registerLongHistogram(
+            NUMBER_OF_SHARDS_METRIC_NAME,
+            "change in node shard count per balancing round",
+            "unit"
+        );
+        this.diskUsageHistogram = meterRegistry.registerDoubleHistogram(
+            DISK_USAGE_BYTES_METRIC_NAME,
+            "change in disk usage in bytes per balancing round",
+            "unit"
+        );
+        this.writeLoadHistogram = meterRegistry.registerDoubleHistogram(
+            WRITE_LOAD_METRIC_NAME,
+            "change in write load per balancing round",
+            "1.0"
+        );
+        this.totalWeightHistogram = meterRegistry.registerDoubleHistogram(
+            TOTAL_WEIGHT_METRIC_NAME,
+            "change in total weight per balancing round",
+            "1.0"
+        );
     }
 
     public void addBalancingRoundSummary(BalancingRoundSummary summary) {
@@ -85,6 +101,6 @@ public class AllocationBalancingRoundMetrics {
     }
 
     private Map<String, Object> getNodeAttributes(String nodeId) {
-        return Map.of("node_name", nodeId);
+        return Map.of("balancing_node_name", nodeId);
     }
 }

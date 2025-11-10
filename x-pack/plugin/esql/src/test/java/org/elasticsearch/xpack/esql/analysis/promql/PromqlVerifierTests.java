@@ -59,8 +59,10 @@ public class PromqlVerifierTests extends ESTestCase {
         );
     }
 
-    @AwaitsFix(bugUrl = "Doesn't parse: line 1:27: Invalid query '1+1'[ArithmeticBinaryContext] given; " +
-                        "expected LogicalPlan but found VectorBinaryArithmetic")
+    @AwaitsFix(
+        bugUrl = "Doesn't parse: line 1:27: Invalid query '1+1'[ArithmeticBinaryContext] given; "
+            + "expected LogicalPlan but found VectorBinaryArithmetic"
+    )
     public void testPromqlArithmetricOperators() {
         assertThat(
             error("TS test | PROMQL step 5m (1+1)", tsdb),
@@ -80,8 +82,10 @@ public class PromqlVerifierTests extends ESTestCase {
         );
     }
 
-    @AwaitsFix(bugUrl = "Doesn't parse: line 1:27: Invalid query 'method_code_http_errors_rate5m{code=\"500\"}'" +
-                        "[ValueExpressionContext] given; expected Expression but found InstantSelector")
+    @AwaitsFix(
+        bugUrl = "Doesn't parse: line 1:27: Invalid query 'method_code_http_errors_rate5m{code=\"500\"}'"
+            + "[ValueExpressionContext] given; expected Expression but found InstantSelector"
+    )
     public void testPromqlVectorMatching() {
         assertThat(
             error(
@@ -111,8 +115,10 @@ public class PromqlVerifierTests extends ESTestCase {
         );*/
     }
 
-    @AwaitsFix(bugUrl = "Doesn't parse: line 1:27: Invalid query 'foo and bar'[LogicalBinaryContext] given; " +
-                        "expected Expression but found InstantSelector")
+    @AwaitsFix(
+        bugUrl = "Doesn't parse: line 1:27: Invalid query 'foo and bar'[LogicalBinaryContext] given; "
+            + "expected Expression but found InstantSelector"
+    )
     public void testLogicalSetBinaryOperators() {
         assertThat(error("TS test | PROMQL step 5m (foo and bar)", tsdb), equalTo(""));
         assertThat(error("TS test | PROMQL step 5m (foo or bar)", tsdb), equalTo(""));

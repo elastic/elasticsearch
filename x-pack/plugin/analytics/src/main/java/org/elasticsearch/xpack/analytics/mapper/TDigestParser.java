@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.analytics.mapper;
 
 import org.elasticsearch.index.mapper.DocumentParsingException;
+import org.elasticsearch.injection.guice.MembersInjector;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentParser;
 
@@ -18,11 +19,19 @@ import java.util.List;
 import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
 import static org.elasticsearch.xpack.analytics.mapper.TDigestFieldMapper.CENTROIDS_NAME;
 import static org.elasticsearch.xpack.analytics.mapper.TDigestFieldMapper.COUNTS_NAME;
+import static org.elasticsearch.xpack.analytics.mapper.TDigestFieldMapper.COUNT_FIELD_NAME;
+import static org.elasticsearch.xpack.analytics.mapper.TDigestFieldMapper.MAX_FIELD_NAME;
+import static org.elasticsearch.xpack.analytics.mapper.TDigestFieldMapper.MIN_FIELD_NAME;
+import static org.elasticsearch.xpack.analytics.mapper.TDigestFieldMapper.SUM_FIELD_NAME;
 
 public class TDigestParser {
 
     private static final ParseField COUNTS_FIELD = new ParseField(COUNTS_NAME);
     private static final ParseField CENTROIDS_FIELD = new ParseField(CENTROIDS_NAME);
+    private static final ParseField TOTAL_COUNT_FIELD = new ParseField(COUNT_FIELD_NAME);
+    private static final ParseField SUM_FIELD = new ParseField(SUM_FIELD_NAME);
+    private static final ParseField MAX_FIELD = new ParseField(MAX_FIELD_NAME);
+    private static final ParseField MIN_FIELD = new ParseField(MIN_FIELD_NAME);
 
     /**
      * A parsed histogram field, can represent either a T-Digest
@@ -55,6 +64,22 @@ public class TDigestParser {
                 centroids = getDoubles(mappedFieldName, parser);
             } else if (fieldName.equals(COUNTS_FIELD.getPreferredName())) {
                 counts = getLongs(mappedFieldName, parser);
+            } else if (fieldName.equals(SUM_FIELD.getPreferredName())) {
+                token = parser.nextToken();
+                ensureExpectedToken(XContentParser.Token.VALUE_NUMBER, token, parser);
+                sum = parser.doubleValue();
+            } else if (fieldName.equals(MIN_FIELD.getPreferredName())) {
+                token = parser.nextToken();
+                ensureExpectedToken(XContentParser.Token.VALUE_NUMBER, token, parser);
+                min = parser.doubleValue();
+            } else if (fieldName.equals(MAX_FIELD.getPreferredName())) {
+                token = parser.nextToken();
+                ensureExpectedToken(XContentParser.Token.VALUE_NUMBER, token, parser);
+                max = parser.doubleValue();
+            } else if (fieldName.equals(TOTAL_COUNT_FIELD.getPreferredName())) {
+                token = parser.nextToken();
+                ensureExpectedToken(XContentParser.Token.VALUE_NUMBER, token, parser);
+                count = parser.longValue();
             } else {
                 throw new DocumentParsingException(
                     parser.getTokenLocation(),

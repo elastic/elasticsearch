@@ -444,13 +444,10 @@ public class TDigestFieldMapperTests extends MapperTestCase {
         value.put("centroids", centroids);
         value.put("counts", counts);
 
-        /*
         value.put("sum", sum);
         value.put("min", min);
         value.put("max", max);
         value.put("count", total_count);
-        
-         */
 
         return value;
     }

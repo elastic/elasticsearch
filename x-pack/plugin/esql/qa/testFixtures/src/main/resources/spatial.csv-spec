@@ -956,7 +956,7 @@ FROM airport_city_boundaries
 ;
 
 cardinality:k | in_city:boolean
-very few      | null
+"very few"    | null
 "few"         | false
 "many"        | true
 ;

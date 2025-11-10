@@ -43,7 +43,7 @@ public class Deriv extends TimeSeriesAggregateFunction implements ToAggregator {
     }
 
     public Deriv(Source source, Expression field, Expression timestamp) {
-        this(source, field, Literal.TRUE, timestamp, NO_WINDOW);
+        this(source, field, Literal.TRUE, NO_WINDOW, timestamp);
     }
 
     public Deriv(Source source, Expression field, Expression filter, Expression window, Expression timestamp) {
@@ -78,14 +78,7 @@ public class Deriv extends TimeSeriesAggregateFunction implements ToAggregator {
 
     @Override
     public Expression replaceChildren(List<Expression> newChildren) {
-        if (newChildren.size() == 4) {
-            return new Deriv(source(), newChildren.get(0), newChildren.get(1), newChildren.get(2), newChildren.get(3));
-        } else if (newChildren.size() == 3) {
-            return new Deriv(source(), newChildren.get(0), newChildren.get(1), newChildren.get(2), timestamp);
-        } else {
-            assert newChildren.size() == 2 : "Expected 2, 3, 4 children but got " + newChildren.size();
-            return new Deriv(source(), newChildren.get(0), newChildren.get(1));
-        }
+        return new Deriv(source(), newChildren.get(0), newChildren.get(1), newChildren.get(2), newChildren.get(3));
     }
 
     @Override

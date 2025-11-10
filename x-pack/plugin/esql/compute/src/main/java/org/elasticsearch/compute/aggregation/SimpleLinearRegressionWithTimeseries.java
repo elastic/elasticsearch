@@ -45,7 +45,11 @@ class SimpleLinearRegressionWithTimeseries {
         if (count == 0) {
             return 0.0; // or handle as needed
         }
-        return (sumVal - slope() * sumTs) / count;
+        var slp = slope();
+        if (Double.isNaN(slp)) {
+            return Double.NaN;
+        }
+        return (sumVal - slp * sumTs) / count;
     }
 
 }

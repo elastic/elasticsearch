@@ -539,7 +539,6 @@ public final class MlIndexAndAlias {
         indices.sort(INDEX_NAME_COMPARATOR);
     }
 
-
     /**
      * True if the version is read *and* write compatible not just read only compatible
      */
@@ -824,7 +823,8 @@ public final class MlIndexAndAlias {
                 // read alias. This is useful in trying to "heal" missing read aliases, without adding them on every possible index.
                 int indexOfEarliestIndexWithAlias = findEarliestIndexWithAlias(aliasesMap, alias).map(allJobResultsIndices::indexOf)
                     // If the earliest index is not found in the list (which shouldn't happen), default to 0 to include all indices.
-                    .filter(i -> i >= 0).orElse(0);
+                    .filter(i -> i >= 0)
+                    .orElse(0);
 
                 String jobId = AnomalyDetectorsIndex.jobIdFromAlias(alias.alias());
                 aliasRequestBuilder.addAliasAction(

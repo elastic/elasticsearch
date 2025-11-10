@@ -462,18 +462,6 @@ tests:
 - class: org.elasticsearch.xpack.inference.integration.CCMPersistentStorageServiceIT
   method: testDelete_RemovesCCMConfiguration
   issue: https://github.com/elastic/elasticsearch/issues/137786
-- class: org.elasticsearch.upgrades.WildcardRollingUpgradeIT
-  method: testIndexing {upgradedNodes=0}
-  issue: https://github.com/elastic/elasticsearch/issues/137793
-- class: org.elasticsearch.upgrades.TextRollingUpgradeIT
-  method: testIndexing {upgradedNodes=0}
-  issue: https://github.com/elastic/elasticsearch/issues/137794
-- class: org.elasticsearch.upgrades.WildcardRollingUpgradeIT
-  method: testIndexing {upgradedNodes=1}
-  issue: https://github.com/elastic/elasticsearch/issues/137795
-- class: org.elasticsearch.upgrades.TextRollingUpgradeIT
-  method: testIndexing {upgradedNodes=1}
-  issue: https://github.com/elastic/elasticsearch/issues/137796
 - class: org.elasticsearch.xpack.inference.integration.CCMPersistentStorageServiceIT
   method: testDelete_DoesNotThrow_WhenTheConfigurationDoesNotExist
   issue: https://github.com/elastic/elasticsearch/issues/137797

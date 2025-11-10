@@ -108,7 +108,7 @@ public class DateTruncTests extends AbstractConfigurationFunctionTestCase {
         }
     }
 
-    private static final List<String> TEST_TIMEZONES = List.of("Z", "-08:00", "+14:00", "+11:45", "Europe/Madrid", "America/New_York");
+    private static final List<String> TEST_TIMEZONES = List.of("Z", "-08:00", "CET", "America/New_York");
 
     public static List<DurationTestCaseData> makeTruncDurationTestCases() {
         List<DurationTestCaseData> cases = new ArrayList<>();

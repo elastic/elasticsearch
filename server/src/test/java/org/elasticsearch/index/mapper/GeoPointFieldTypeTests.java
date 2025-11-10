@@ -38,10 +38,9 @@ public class GeoPointFieldTypeTests extends FieldTypeTestCase {
 
     public void testFetchSourceValue() throws IOException {
         boolean ignoreMalformed = randomBoolean();
-        MappedFieldType mapper = new GeoPointFieldMapper.Builder("field", ScriptCompiler.NONE, defaultIndexSettings())
-            .ignoreMalformed(ignoreMalformed)
-            .build(MapperBuilderContext.root(false, false)
-        ).fieldType();
+        MappedFieldType mapper = new GeoPointFieldMapper.Builder("field", ScriptCompiler.NONE, defaultIndexSettings()).ignoreMalformed(
+            ignoreMalformed
+        ).build(MapperBuilderContext.root(false, false)).fieldType();
 
         Map<String, Object> jsonPoint = Map.of("type", "Point", "coordinates", List.of(42.0, 27.1));
         Map<String, Object> otherJsonPoint = Map.of("type", "Point", "coordinates", List.of(30.0, 50.0));

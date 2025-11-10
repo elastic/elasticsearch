@@ -33,11 +33,11 @@
     },
     "params": {
       "reset_start": {
-        "type": "string",
+        "type": "date",
         "description": "Optional parameter to specify the start of the bucket resetting range"
       },
       "reset_end": {
-        "type": "string",
+        "type": "date",
         "description": "Optional parameter to specify the end of the bucket resetting range"
       }
     },

@@ -102,7 +102,6 @@ public class AllocationBalancingRoundMetrics {
     }
 
     private Map<String, Object> getNodeAttributes(DiscoveryNode node) {
-        return Map.of("node_name", node.getName(),
-                      "node_id", node.getId());
+        return Map.of("node_name", node.getName(), "node_id", node.getId());
     }
 }

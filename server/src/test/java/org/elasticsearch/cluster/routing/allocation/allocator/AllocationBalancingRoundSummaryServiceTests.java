@@ -61,7 +61,17 @@ public class AllocationBalancingRoundSummaryServiceTests extends ESTestCase {
         )
     );
 
-    final DiscoveryNode DUMMY_NODE = new DiscoveryNode("dummy1Name", "dummy1Id", "eph-dummy1", "abc", "abc", null, Map.of(), Set.of(), null);
+    final DiscoveryNode DUMMY_NODE = new DiscoveryNode(
+        "dummy1Name",
+        "dummy1Id",
+        "eph-dummy1",
+        "abc",
+        "abc",
+        null,
+        Map.of(),
+        Set.of(),
+        null
+    );
     final DiscoveryNode SECOND_DUMMY_NODE = new DiscoveryNode(
         "dummy2Name",
         "dummy2Id",
@@ -557,8 +567,7 @@ public class AllocationBalancingRoundSummaryServiceTests extends ESTestCase {
             InstrumentType.LONG_COUNTER,
             NUMBER_OF_BALANCING_ROUNDS_METRIC_NAME
         );
-        List<Long> measuredRoundCountValues = Measurement.getMeasurementValues(measuredRoundCounts,
-            (measurement -> measurement.getLong()));
+        List<Long> measuredRoundCountValues = Measurement.getMeasurementValues(measuredRoundCounts, (measurement -> measurement.getLong()));
         assertEquals(measuredRoundCountValues, roundCounts);
 
         List<Measurement> measuredShardMoves = metricRecorder.getMeasurements(
@@ -578,8 +587,7 @@ public class AllocationBalancingRoundSummaryServiceTests extends ESTestCase {
         );
         assertEquals(measuredShardMoveHistogramValues, shardMoves);
 
-        List<Measurement> measuredShardCounts = metricRecorder.getMeasurements(InstrumentType.LONG_HISTOGRAM,
-            NUMBER_OF_SHARDS_METRIC_NAME);
+        List<Measurement> measuredShardCounts = metricRecorder.getMeasurements(InstrumentType.LONG_HISTOGRAM, NUMBER_OF_SHARDS_METRIC_NAME);
         var shardCountsByNode = groupMeasurementsByAttribute(measuredShardCounts, (measurement -> measurement.getLong()));
         assertEquals(shardCountTelemetry, shardCountsByNode);
 
@@ -600,7 +608,6 @@ public class AllocationBalancingRoundSummaryServiceTests extends ESTestCase {
         List<Measurement> measurements,
         Function<Measurement, T> getMeasurementValue
     ) {
-        return Measurement.groupMeasurementsByAttribute(measurements, (attrs -> (String) attrs.get("node_name")),
-            getMeasurementValue);
+        return Measurement.groupMeasurementsByAttribute(measurements, (attrs -> (String) attrs.get("node_name")), getMeasurementValue);
     }
 }

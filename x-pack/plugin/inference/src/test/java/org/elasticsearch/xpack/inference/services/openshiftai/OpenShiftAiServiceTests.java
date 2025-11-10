@@ -104,8 +104,8 @@ import static org.mockito.Mockito.mock;
 
 public class OpenShiftAiServiceTests extends AbstractInferenceServiceTests {
     private static final String API_KEY_FIELD_NAME = "api_key";
-    private static final String INPUT_FIELD_NAME = "some input";
-    private static final String MODEL_FIELD_NAME = "some model";
+    private static final String INPUT_FIELD_NAME = "input";
+    private static final String MODEL_FIELD_NAME = "model";
     private static final String URL_VALUE = "http://www.abc.com";
     private static final String MODEL_VALUE = "some_model";
     private static final String ROLE_VALUE = "user";
@@ -114,7 +114,7 @@ public class OpenShiftAiServiceTests extends AbstractInferenceServiceTests {
     private static final int DIMENSIONS_VALUE = 1536;
     private static final int MAX_INPUT_TOKENS_VALUE = 512;
     private static final String FIRST_PART_OF_INPUT_VALUE = "abc";
-    public static final String SECOND_PART_OF_INPUT_VALUE = "def";
+    private static final String SECOND_PART_OF_INPUT_VALUE = "def";
 
     private final MockWebServer webServer = new MockWebServer();
     private ThreadPool threadPool;

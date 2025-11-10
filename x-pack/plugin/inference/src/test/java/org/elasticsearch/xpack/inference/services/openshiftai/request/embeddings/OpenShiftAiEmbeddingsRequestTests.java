@@ -88,7 +88,7 @@ public class OpenShiftAiEmbeddingsRequestTests extends ESTestCase {
         var httpPost = (HttpPost) httpRequest.httpRequestBase();
         var requestMap = entityAsMap(httpPost.getEntity().getContent());
         assertThat(requestMap, aMapWithSize(2));
-        assertThat(requestMap.get(INPUT_FIELD_NAME), is(List.of(INPUT_VALUE.substring(0, 2))));
+        assertThat(requestMap.get(INPUT_FIELD_NAME), is(List.of(INPUT_VALUE.substring(0, INPUT_VALUE.length() / 2))));
         assertThat(requestMap.get(MODEL_FIELD_NAME), is(MODEL_VALUE));
 
     }

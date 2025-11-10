@@ -168,11 +168,11 @@ final class SpatialExtentGroupingState extends AbstractArrayState {
                 int maxY = maxYs.get(si);
                 int minY = minYs.get(si);
 
-                boolean hasInfinite = minX == Integer.MAX_VALUE
+                boolean hasInfinity = minX == Integer.MAX_VALUE
                     || maxX == Integer.MIN_VALUE
                     || minY == Integer.MAX_VALUE
                     || maxY == Integer.MIN_VALUE;
-                if (hasInfinite) {
+                if (hasInfinity) {
                     builder.appendNull();
                     continue;
                 }

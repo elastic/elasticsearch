@@ -374,7 +374,7 @@ The `DECAY_FUNCTION` determines the shape of the decay:
 S(doc) = exp \left( - \dfrac{max(0, | fieldvalue_{doc} - origin| - offset)^2)}{ 2\sigma^2 } \right)
 :::
 
-where $\sigma$ is computed to assure that the score takes the value `decay` at distance `scale` from `origin ± offset`
+where ![sigma](../images/sigma.png "") is computed to assure that the score takes the value `decay` at distance `scale` from `origin ± offset`
 
 :::{math}
 \sigma^2 = -scale^2 / (2 \cdot ln(decay))
@@ -391,7 +391,7 @@ See [Normal decay, keyword `gauss`](#gauss-decay) for graphs demonstrating the c
 S(doc) = exp(\lambda \cdot max(0, |fieldvalue_{doc} - origin| - offset))
 :::
 
-where again the parameter $\lambda$ is computed to assure that the score takes the value `decay` at distance `scale` from `origin ± offset`
+where again the parameter ![lambda](../images/lambda.png "") is computed to assure that the score takes the value `decay` at distance `scale` from `origin ± offset`
 
 :::{math}
 \lambda = ln(decay)/scale

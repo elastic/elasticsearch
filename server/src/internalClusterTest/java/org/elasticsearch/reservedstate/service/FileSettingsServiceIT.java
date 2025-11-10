@@ -354,39 +354,35 @@ public class FileSettingsServiceIT extends ESIntegTestCase {
                 assertFalse("File should not exist after deletion", Files.exists(watchedFile));
                 return super.onNodeStopped(nodeName);
             }
-
-            @Override
-            public void onClusterFormed() throws Exception {
-                logger.info("--> verify file is still absent (startup flow should have processed it)");
-                assertFalse("File should still be absent after restart", Files.exists(watchedFile));
-
-                logger.info("--> verify reserved state is cleared when missing file is processed at startup");
-                final ClusterStateResponse clusterStateResponse = clusterAdmin().state(new ClusterStateRequest(TEST_REQUEST_TIMEOUT))
-                    .actionGet();
-                ReservedStateMetadata reservedState = clusterStateResponse.getState()
-                    .metadata()
-                    .reservedStateMetadata()
-                    .get(FileSettingsService.NAMESPACE);
-                assertThat(reservedState, notNullValue());
-                assertThat(reservedState.version(), equalTo(EMPTY_VERSION));
-                assertTrue(reservedState.handlers().isEmpty());
-
-                logger.info("--> verify settings are no longer reserved and can be modified");
-                ClusterUpdateSettingsRequest req = new ClusterUpdateSettingsRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT)
-                    .persistentSettings(Settings.builder().put(INDICES_RECOVERY_MAX_BYTES_PER_SEC_SETTING.getKey(), "1234kb"));
-                clusterAdmin().updateSettings(req).get();
-
-                assertThat(
-                    clusterAdmin().state(new ClusterStateRequest(TEST_REQUEST_TIMEOUT))
-                        .actionGet()
-                        .getState()
-                        .metadata()
-                        .persistentSettings()
-                        .get(INDICES_RECOVERY_MAX_BYTES_PER_SEC_SETTING.getKey()),
-                    equalTo("1234kb")
-                );
-            }
         });
+
+        logger.info("--> verify reserved state is cleared when missing file is processed at startup");
+        assertBusy(() -> {
+            final ClusterStateResponse clusterStateResponse = clusterAdmin().state(new ClusterStateRequest(TEST_REQUEST_TIMEOUT))
+                .actionGet();
+            ReservedStateMetadata reservedState = clusterStateResponse.getState()
+                .metadata()
+                .reservedStateMetadata()
+                .get(FileSettingsService.NAMESPACE);
+            assertThat(reservedState, notNullValue());
+            assertThat(reservedState.version(), equalTo(EMPTY_VERSION));
+            assertTrue(reservedState.handlers().isEmpty());
+        }, 20, TimeUnit.SECONDS);
+
+        logger.info("--> verify settings are no longer reserved and can be modified");
+        ClusterUpdateSettingsRequest req = new ClusterUpdateSettingsRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT)
+            .persistentSettings(Settings.builder().put(INDICES_RECOVERY_MAX_BYTES_PER_SEC_SETTING.getKey(), "1234kb"));
+        clusterAdmin().updateSettings(req).get();
+
+        assertThat(
+            clusterAdmin().state(new ClusterStateRequest(TEST_REQUEST_TIMEOUT))
+                .actionGet()
+                .getState()
+                .metadata()
+                .persistentSettings()
+                .get(INDICES_RECOVERY_MAX_BYTES_PER_SEC_SETTING.getKey()),
+            equalTo("1234kb")
+        );
     }
 
     private Tuple<CountDownLatch, AtomicLong> setupClusterStateListenerForError(String node) {

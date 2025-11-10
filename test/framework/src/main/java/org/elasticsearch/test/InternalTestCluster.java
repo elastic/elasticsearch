@@ -1969,7 +1969,6 @@ public final class InternalTestCluster extends TestCluster {
         if (callback.validateClusterForming() || excludedNodeIds.isEmpty() == false) {
             // we have to validate cluster size to ensure that the restarted node has rejoined the cluster if it was master-eligible;
             validateClusterFormed();
-            callback.onClusterFormed();
         }
     }
 
@@ -2528,11 +2527,6 @@ public final class InternalTestCluster extends TestCluster {
         public boolean validateClusterForming() {
             return true;
         }
-
-        /**
-         * Executed when the cluster is formed, if {@link #validateClusterForming()} returns true
-         */
-        public void onClusterFormed() throws Exception {}
     }
 
     public Settings getDefaultSettings() {

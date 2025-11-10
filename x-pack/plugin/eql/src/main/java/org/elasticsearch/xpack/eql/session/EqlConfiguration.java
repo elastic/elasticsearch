@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.eql.session;
 
+import org.elasticsearch.action.ResolvedIndexExpressions;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.Nullable;
@@ -34,6 +35,7 @@ public class EqlConfiguration extends org.elasticsearch.xpack.ql.session.Configu
     private final boolean allowPartialSequenceResults;
     private final String projectRouting;
     private final boolean crossProjectEnabled;
+    private final ResolvedIndexExpressions resolvedIndexExpressions;
 
     @Nullable
     private final QueryBuilder filter;
@@ -79,7 +81,8 @@ public class EqlConfiguration extends org.elasticsearch.xpack.ql.session.Configu
             clientId,
             taskId,
             task,
-            false
+            false,
+            null
         );
     }
 
@@ -101,7 +104,8 @@ public class EqlConfiguration extends org.elasticsearch.xpack.ql.session.Configu
         String clientId,
         TaskId taskId,
         EqlSearchTask task,
-        boolean crossProjectEnabled
+        boolean crossProjectEnabled,
+        ResolvedIndexExpressions resolvedIndexExpressions
     ) {
         super(zi, username, clusterName);
 
@@ -120,10 +124,15 @@ public class EqlConfiguration extends org.elasticsearch.xpack.ql.session.Configu
         this.allowPartialSequenceResults = allowPartialSequenceResults;
         this.projectRouting = projectRouting;
         this.crossProjectEnabled = crossProjectEnabled;
+        this.resolvedIndexExpressions = resolvedIndexExpressions;
     }
 
     public boolean crossProjectEnabled() {
         return crossProjectEnabled;
+    }
+
+    public ResolvedIndexExpressions resolvedIndexExpressions() {
+        return resolvedIndexExpressions;
     }
 
     public String projectRouting() {
@@ -185,4 +194,5 @@ public class EqlConfiguration extends org.elasticsearch.xpack.ql.session.Configu
     public TaskId getTaskId() {
         return taskId;
     }
+
 }

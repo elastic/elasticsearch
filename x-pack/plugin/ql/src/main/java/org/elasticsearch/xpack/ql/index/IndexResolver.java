@@ -366,6 +366,7 @@ public class IndexResolver {
         Map<String, Object> runtimeMappings,
         boolean crossProjectEnabled,
         String projectRouting,
+        ResolvedIndexExpressions resolvedIndexExpressions,
         ActionListener<IndexResolution> listener
     ) {
         IndicesOptions iOpts;
@@ -380,12 +381,11 @@ public class IndexResolver {
         }
         client.fieldCaps(fieldRequest, listener.delegateFailureAndWrap((l, response) -> {
             if (crossProjectEnabled) {
-                ResolvedIndexExpressions resolvedLocally = response.getResolvedLocally();
                 Map<String, ResolvedIndexExpressions> resolvedRemotely = response.getResolvedRemotely();
                 ElasticsearchException ex = CrossProjectIndexResolutionValidator.validate(
                     iOpts,
                     projectRouting,
-                    resolvedLocally,
+                    resolvedIndexExpressions,
                     resolvedRemotely
                 );
                 if (ex != null) {

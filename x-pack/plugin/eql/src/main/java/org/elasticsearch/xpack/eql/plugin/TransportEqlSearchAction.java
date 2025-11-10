@@ -243,7 +243,8 @@ public final class TransportEqlSearchAction extends HandledTransportAction<EqlSe
                 clientId,
                 new TaskId(nodeId, task.getId()),
                 task,
-                transportService.getRemoteClusterService().crossProjectEnabled()
+                transportService.getRemoteClusterService().crossProjectEnabled(),
+                request.getResolvedIndexExpressions()
             );
             planExecutor.eql(
                 cfg,

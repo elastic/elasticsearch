@@ -489,7 +489,7 @@ public class KnnVectorQueryBuilder extends AbstractQueryBuilder<KnnVectorQueryBu
                 visitPercentage,
                 rescoreVectorBuilder,
                 vectorSimilarity
-            ).boost(boost).queryName(queryName).addFilterQueries(filterQueries);
+            ).boost(boost).queryName(queryName).addFilterQueries(filterQueries).setAutoPrefiltering(isAutoPrefiltering);
         }
         if (queryVectorBuilder != null) {
             SetOnce<float[]> toSet = new SetOnce<>();
@@ -519,7 +519,7 @@ public class KnnVectorQueryBuilder extends AbstractQueryBuilder<KnnVectorQueryBu
                 visitPercentage,
                 rescoreVectorBuilder,
                 vectorSimilarity
-            ).boost(boost).queryName(queryName).addFilterQueries(filterQueries);
+            ).boost(boost).queryName(queryName).addFilterQueries(filterQueries).setAutoPrefiltering(isAutoPrefiltering);
         }
         boolean changed = false;
         List<QueryBuilder> rewrittenQueries = new ArrayList<>(filterQueries.size());
@@ -544,7 +544,7 @@ public class KnnVectorQueryBuilder extends AbstractQueryBuilder<KnnVectorQueryBu
                 visitPercentage,
                 rescoreVectorBuilder,
                 vectorSimilarity
-            ).boost(boost).queryName(queryName).addFilterQueries(rewrittenQueries);
+            ).boost(boost).queryName(queryName).addFilterQueries(rewrittenQueries).setAutoPrefiltering(isAutoPrefiltering);
         }
         if (ctx.convertToInnerHitsRewriteContext() != null) {
             QueryBuilder exactKnnQuery = new ExactKnnQueryBuilder(queryVector, fieldName, vectorSimilarity);

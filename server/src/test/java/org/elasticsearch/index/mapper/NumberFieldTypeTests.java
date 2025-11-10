@@ -25,6 +25,7 @@ import org.apache.lucene.search.IndexOrDocValuesQuery;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.IndexSortSortedNumericDocValuesRangeQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
+import org.apache.lucene.search.Pruning;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.SortField;
@@ -766,6 +767,10 @@ public class NumberFieldTypeTests extends FieldTypeTestCase {
                 assertEquals(searcher.count(query), searcher.count(fallbackQuery));
             }
         }
+
+        var comparator = sortField.getComparator(10, Pruning.GREATER_THAN_OR_EQUAL_TO);
+        var leafComparator = comparator.getLeafComparator(reader.getContext().leaves().get(0));
+        assertNotNull(leafComparator.competitiveIterator());
 
         reader.close();
         w.close();

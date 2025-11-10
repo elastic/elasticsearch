@@ -484,6 +484,9 @@ tests:
   method: testSimilarityWithOneDimVector {functionName=v_cosine
     similarityFunction=org.elasticsearch.xpack.esql.expression.function.vector.CosineSimilarity$1@3300f4fd elementType=byte}
   issue: https://github.com/elastic/elasticsearch/issues/137812
+- class: org.elasticsearch.xpack.inference.external.http.sender.RequestExecutorServiceTests
+  method: testChangingCapacity_DoesNotRejectsOverflowTasks_BecauseOfQueueFull
+  issue: https://github.com/elastic/elasticsearch/issues/137823
 
 # Examples:
 #

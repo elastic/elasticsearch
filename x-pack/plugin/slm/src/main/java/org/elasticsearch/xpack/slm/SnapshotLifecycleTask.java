@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.slm;
 
+import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
@@ -19,6 +20,7 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
+import org.elasticsearch.cluster.NotMasterException;
 import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.cluster.SnapshotsInProgress;
 import org.elasticsearch.cluster.metadata.ProjectId;
@@ -589,11 +591,14 @@ public class SnapshotLifecycleTask implements SchedulerEngine.Listener {
 
         @Override
         public void onFailure(Exception e) {
-            logger.error(
-                "failed to record snapshot policy execution status [{}] for snapshot [{}] in policy [{}]: {}",
-                exception.isPresent() ? "failure" : "success",
-                snapshotId.getName(),
-                policyName,
+            logger.log(
+                e instanceof NotMasterException ? Level.INFO : Level.ERROR,
+                format(
+                    "failed to record snapshot policy execution status [%s] for snapshot [%s] in policy [%s]",
+                    exception.isPresent() ? "failure" : "success",
+                    snapshotId.getName(),
+                    policyName
+                ),
                 e
             );
         }

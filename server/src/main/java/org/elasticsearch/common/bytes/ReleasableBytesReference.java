@@ -175,6 +175,128 @@ public final class ReleasableBytesReference implements RefCounted, Releasable, B
         return delegate.ramBytesUsed();
     }
 
+    public static StreamInput consumingStreamInput(ReleasableBytesReference... references) throws IOException {
+        final BytesReference bytesReference;
+        final RefCounted[] refs = new RefCounted[references.length];
+        if (references.length == 1) {
+            final var ref = references[0];
+            bytesReference = ref;
+            refs[0] = ref.refCounted;
+        } else {
+            bytesReference = CompositeBytesReference.of(references);
+            for (int i = 0; i < references.length; i++) {
+                refs[i] = references[i].refCounted;
+            }
+        }
+        return new BytesReferenceStreamInput(bytesReference) {
+            private ReleasableBytesReference retainAndSkip(int len) throws IOException {
+                if (len == 0) {
+                    return ReleasableBytesReference.empty();
+                }
+
+                int offset = offset();
+                skip(len);
+                // move the stream manually since creating the slice didn't move it
+                if (bytesReference instanceof ReleasableBytesReference releasable) {
+                    ReleasableBytesReference res = releasable.retainedSlice(offset, len);
+                    if (markEnd == 0 && available() == 0) {
+                        close();
+                    }
+                    return res;
+                }
+                assert bytesReference instanceof CompositeBytesReference;
+                final CompositeBytesReference composite = (CompositeBytesReference) bytesReference;
+                // instead of reading the bytes from a stream we just create a slice of the underlying bytes
+                final BytesReference result = composite.slice(offset, len);
+                if (result instanceof ReleasableBytesReference releasable) {
+                    return releasable.retain();
+                }
+                assert result instanceof CompositeBytesReference;
+                var compositeSlice = (CompositeBytesReference) result;
+                var components = compositeSlice.components();
+                final RefCounted[] refCounteds = new RefCounted[components.length];
+                for (int i = 0; i < components.length; i++) {
+                    refCounteds[i] = ((ReleasableBytesReference) components[i]).retain();
+                }
+                if (markEnd == 0) {
+                    maybeDiscardReadBytes(composite.components());
+                }
+                return new ReleasableBytesReference(compositeSlice, () -> {
+                    for (int i = 0; i < refCounteds.length; i++) {
+                        refCounteds[i].decRef();
+                        refCounteds[i] = null;
+                    }
+                });
+            }
+
+            private void maybeDiscardReadBytes(BytesReference[] components) {
+                int offset = offset();
+                int p = 0;
+                for (int i = 0; i < components.length; i++) {
+                    p += components[i].length();
+                    if (p >= offset) {
+                        return;
+                    }
+                    var r = refs[i];
+                    if (r != null) {
+                        r.decRef();
+                        refs[i] = null;
+                    }
+                }
+            }
+
+            @Override
+            public ReleasableBytesReference readReleasableBytesReference() throws IOException {
+                final int len = readVInt();
+                return retainAndSkip(len);
+            }
+
+            @Override
+            public ReleasableBytesReference readReleasableBytesReference(int len) throws IOException {
+                return retainAndSkip(len);
+            }
+
+            @Override
+            public ReleasableBytesReference readAllToReleasableBytesReference() throws IOException {
+                return retainAndSkip(bytesReference.length() - offset());
+            }
+
+            @Override
+            public boolean supportReadAllToReleasableBytesReference() {
+                return true;
+            }
+
+            @Override
+            public void close() {
+                for (int i = 0; i < refs.length; i++) {
+                    RefCounted ref = refs[i];
+                    if (ref != null) {
+                        refs[i] = null;
+                        ref.decRef();
+                    }
+                }
+            }
+
+            public void tryDiscard() {
+                if (markEnd == 0) {
+                    if (bytesReference instanceof CompositeBytesReference c) {
+                        maybeDiscardReadBytes(c.components());
+                    } else if (available() == 0) {
+                        close();
+                    }
+                }
+            }
+
+            private int markEnd = 0;
+
+            @Override
+            public void mark(int readLimit) {
+                super.mark(readLimit);
+                markEnd = offset() + readLimit;
+            }
+        };
+    }
+
     @Override
     public StreamInput streamInput() throws IOException {
         assert hasReferences();

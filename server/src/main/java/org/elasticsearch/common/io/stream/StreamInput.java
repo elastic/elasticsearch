@@ -110,13 +110,17 @@ public abstract class StreamInput extends InputStream {
     @Override
     public abstract int read(byte[] b, int off, int len) throws IOException;
 
+    public void tryDiscard() {}
+
     /**
      * Reads a bytes reference from this stream, copying any bytes read to a new {@code byte[]}. Use {@link #readReleasableBytesReference()}
      * when reading large bytes references where possible top avoid needless allocations and copying.
      */
     public BytesReference readBytesReference() throws IOException {
         int length = readArraySize();
-        return readBytesReference(length);
+        var res = readBytesReference(length);
+        tryDiscard();
+        return res;
     }
 
     /**

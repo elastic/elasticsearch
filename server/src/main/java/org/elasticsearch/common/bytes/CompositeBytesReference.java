@@ -168,6 +168,10 @@ public final class CompositeBytesReference extends AbstractBytesReference {
         return CompositeBytesReference.ofMultiple(inSlice);
     }
 
+    public BytesReference[] components() {
+        return references;
+    }
+
     private int getOffsetIndex(int offset) {
         final int i = Arrays.binarySearch(offsets, offset);
         return i < 0 ? (-(i + 1)) - 1 : i;

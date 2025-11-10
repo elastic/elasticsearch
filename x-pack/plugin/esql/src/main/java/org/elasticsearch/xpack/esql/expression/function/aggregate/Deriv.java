@@ -14,6 +14,7 @@ import org.elasticsearch.compute.aggregation.DerivIntGroupingAggregatorFunction;
 import org.elasticsearch.compute.aggregation.DerivLongGroupingAggregatorFunction;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
+import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -25,6 +26,9 @@ import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.planner.ToAggregator;
 
 import java.util.List;
+
+import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.DEFAULT;
+import static org.elasticsearch.xpack.esql.core.type.DataType.AGGREGATE_METRIC_DOUBLE;
 
 /**
  * Calculates the derivative over time of a numeric field using linear regression.
@@ -74,6 +78,17 @@ public class Deriv extends TimeSeriesAggregateFunction implements ToAggregator {
     @Override
     public DataType dataType() {
         return DataType.DOUBLE;
+    }
+
+    @Override
+    public TypeResolution resolveType() {
+        return TypeResolutions.isType(
+            field(),
+            dt -> dt.isNumeric() && dt != AGGREGATE_METRIC_DOUBLE,
+            sourceText(),
+            DEFAULT,
+            "numeric except counter types"
+        );
     }
 
     @Override

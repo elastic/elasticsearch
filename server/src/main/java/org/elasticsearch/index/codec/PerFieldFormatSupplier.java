@@ -15,6 +15,7 @@ import org.apache.lucene.codecs.PostingsFormat;
 import org.apache.lucene.codecs.lucene90.Lucene90DocValuesFormat;
 import org.apache.lucene.codecs.lucene99.Lucene99HnswVectorsFormat;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersions;
@@ -29,6 +30,7 @@ import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.index.mapper.TimeSeriesIdFieldMapper;
 import org.elasticsearch.index.mapper.TimeSeriesRoutingHashFieldMapper;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
+import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.Collections;
 import java.util.HashSet;
@@ -63,12 +65,18 @@ public class PerFieldFormatSupplier {
 
     private final ES87BloomFilterPostingsFormat bloomFilterPostingsFormat;
     private final MapperService mapperService;
+    private final ThreadPool threadPool;
 
     private final PostingsFormat defaultPostingsFormat;
 
     public PerFieldFormatSupplier(MapperService mapperService, BigArrays bigArrays) {
+        this(mapperService, bigArrays, null);
+    }
+
+    public PerFieldFormatSupplier(MapperService mapperService, BigArrays bigArrays, @Nullable ThreadPool threadPool) {
         this.mapperService = mapperService;
         this.bloomFilterPostingsFormat = new ES87BloomFilterPostingsFormat(bigArrays, this::internalGetPostingsFormatForField);
+        this.threadPool = threadPool;
 
         if (mapperService != null
             && mapperService.getIndexSettings().getIndexVersionCreated().onOrAfter(IndexVersions.UPGRADE_TO_LUCENE_10_3_0)
@@ -120,7 +128,7 @@ public class PerFieldFormatSupplier {
         if (mapperService != null) {
             Mapper mapper = mapperService.mappingLookup().getMapper(field);
             if (mapper instanceof DenseVectorFieldMapper vectorMapper) {
-                return vectorMapper.getKnnVectorsFormatForField(knnVectorsFormat, mapperService.getIndexSettings());
+                return vectorMapper.getKnnVectorsFormatForField(knnVectorsFormat, mapperService.getIndexSettings(), threadPool);
             }
         }
         return knnVectorsFormat;

@@ -327,11 +327,7 @@ final class DynamicFieldsBuilder {
         public boolean newDynamicStringField(DocumentParserContext context, String name) throws IOException {
             MapperBuilderContext mapperBuilderContext = context.createDynamicMapperBuilderContext();
             if (mapperBuilderContext.parentObjectContainsDimensions()) {
-                return createDynamicField(
-                    new KeywordFieldMapper.Builder(name, context.indexSettings().getIndexVersionCreated()),
-                    context,
-                    mapperBuilderContext
-                );
+                return createDynamicField(new KeywordFieldMapper.Builder(name, context.indexSettings()), context, mapperBuilderContext);
             } else {
                 var indexSettings = context.indexSettings();
                 return createDynamicField(
@@ -342,9 +338,7 @@ final class DynamicFieldsBuilder {
                         context.indexAnalyzers(),
                         SourceFieldMapper.isSynthetic(indexSettings),
                         false
-                    ).addMultiField(
-                        new KeywordFieldMapper.Builder("keyword", context.indexSettings().getIndexVersionCreated(), true).ignoreAbove(256)
-                    ),
+                    ).addMultiField(new KeywordFieldMapper.Builder("keyword", context.indexSettings(), true).ignoreAbove(256)),
                     context
                 );
             }

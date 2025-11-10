@@ -159,6 +159,7 @@ import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.function.Predicate;
@@ -1932,7 +1933,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
          * and thereby get used in FieldExtractExec
          */
         private static LogicalPlan addGeneratedFieldsToEsRelations(LogicalPlan plan, List<FieldAttribute> unionFieldAttributes) {
-            return plan.transformDown(EsRelation.class, esr -> {
+            var res = plan.transformDown(EsRelation.class, esr -> {
                 List<Attribute> missing = new ArrayList<>();
                 for (FieldAttribute fa : unionFieldAttributes) {
                     // Using outputSet().contains looks by NameId, resp. uses semanticEquals.
@@ -1952,6 +1953,23 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 }
                 return esr;
             });
+            res = res.transformUp(Project.class, p -> {
+                List<Attribute> syntheticAttributesToCarryOver = new ArrayList<>();
+                for (Attribute attr : p.inputSet()) {
+                    if (attr.synthetic() && p.outputSet().contains(attr) == false) {
+                        syntheticAttributesToCarryOver.add(attr);
+                    }
+                }
+
+                if (syntheticAttributesToCarryOver.isEmpty()) {
+                    return p;
+                }
+
+                List<NamedExpression> newProjections = new ArrayList<>(p.projections());
+                newProjections.addAll(syntheticAttributesToCarryOver);
+                return new EsqlProject(p.source(), p.child(), newProjections);
+            });
+            return res;
         }
 
         private Expression resolveConvertFunction(ConvertFunction convert, List<Attribute.IdIgnoringWrapper> unionFieldAttributes) {

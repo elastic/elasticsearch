@@ -369,7 +369,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         Property.PrivateIndex
     );
 
-    public static final String SETTING_TRANSPORT_VERSION_CREATED = "index.transport.version.created";
+    public static final String SETTING_TRANSPORT_VERSION_CREATED = "index.transport_version.created";
 
     public static final Setting<TransportVersion> SETTING_INDEX_TRANSPORT_VERSION_CREATED = Setting.versionIdSetting(
         SETTING_TRANSPORT_VERSION_CREATED,

@@ -243,7 +243,7 @@ Returns:
       "index.creation_date": "1474389951325",
       "index.uuid": "n6gzFZTgS664GUfx0Xrpjw",
       "index.version.created": ...,
-      "index.transport.version.created": ...,
+      "index.transport_version.created": ...,
       "index.routing.allocation.include._tier_preference" : "data_content",
       "index.provided_name" : "my-index-000001"
     }
@@ -253,7 +253,7 @@ Returns:
 // TESTRESPONSE[s/1474389951325/$body.my-index-000001.settings.index\\\\.creation_date/]
 // TESTRESPONSE[s/n6gzFZTgS664GUfx0Xrpjw/$body.my-index-000001.settings.index\\\\.uuid/]
 // TESTRESPONSE[s/"index.version.created": \.\.\./"index.version.created": $body.my-index-000001.settings.index\\\\.version\\\\.created/]
-// TESTRESPONSE[s/"index.transport.version.created": \.\.\./"index.transport.version.created": $body.my-index-000001.settings.index\\\\.transport\\\\.version\\\\.created/]
+// TESTRESPONSE[s/"index.transport_version.created": \.\.\./"index.transport_version.created": $body.my-index-000001.settings.index\\\\.transport_version\\\\.created/]
 
 When the `flat_settings` flag is `false`, settings are returned in a more
 human readable structured format:
@@ -277,7 +277,10 @@ Returns:
         "creation_date": "1474389951325",
         "uuid": "n6gzFZTgS664GUfx0Xrpjw",
         "version": {
-          "created": ...
+          "created": .v.
+        },
+        "transport_version": {
+          "created": .tv.
         },
         "routing": {
           "allocation": {
@@ -294,7 +297,8 @@ Returns:
 --------------------------------------------------
 // TESTRESPONSE[s/1474389951325/$body.my-index-000001.settings.index.creation_date/]
 // TESTRESPONSE[s/n6gzFZTgS664GUfx0Xrpjw/$body.my-index-000001.settings.index.uuid/]
-// TESTRESPONSE[s/"created": \.\.\./"created": $body.my-index-000001.settings.index.version.created/]
+// TESTRESPONSE[s/"created": \.v\./"created": $body.my-index-000001.settings.index.version.created/]
+// TESTRESPONSE[s/"created": \.tv\./"created": $body.my-index-000001.settings.index.transport_version.created/]
 
 By default `flat_settings` is set to `false`.
 

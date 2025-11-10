@@ -79,7 +79,7 @@ public class DeprecatedIndexPredicate {
         boolean filterToBlockedStatus,
         boolean includeSystem
     ) {
-        return transportVersionBeforeCurrentMajorRelease(indexMetadata)
+        return transportVersionBeforeCurrentMinorRelease(indexMetadata)
             && (includeSystem || isNotSystem(indexMetadata))
             && isNotSearchableSnapshot(indexMetadata)
             && matchBlockedStatus(indexMetadata, filterToBlockedStatus);
@@ -133,8 +133,8 @@ public class DeprecatedIndexPredicate {
         return MetadataIndexStateService.VERIFIED_READ_ONLY_SETTING.get(indexMetadata.getSettings()) == filterToBlockedStatus;
     }
 
-    private static boolean transportVersionBeforeCurrentMajorRelease(IndexMetadata indexMetadata) {
-        // We divide each transport version by 1000 to ignore both the patch version.
+    private static boolean transportVersionBeforeCurrentMinorRelease(IndexMetadata indexMetadata) {
+        // We divide each transport version by 1000 to get the base id.
         return IndexMetadata.SETTING_INDEX_TRANSPORT_VERSION_CREATED.get(indexMetadata.getSettings()).id() / 1000 < TransportVersion
             .current()
             .id() / 1000;

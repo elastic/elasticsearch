@@ -192,9 +192,7 @@ public class PatternTextFieldMapper extends FieldMapper {
             BuilderParams builderParams = builderParams(this, context);
             var templateIdMapper = KeywordFieldMapper.Builder.buildWithDocValuesSkipper(
                 patternTextFieldType.templateIdFieldName(leafName()),
-                indexSettings.getMode(),
-                indexCreatedVersion(),
-                true,
+                indexSettings,
                 isWithinMultiField()
             ).indexed(false).build(context);
             return new PatternTextFieldMapper(leafName(), fieldType, patternTextFieldType, builderParams, this, templateIdMapper);

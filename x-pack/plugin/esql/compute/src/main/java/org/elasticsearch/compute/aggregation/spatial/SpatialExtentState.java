@@ -112,7 +112,9 @@ final class SpatialExtentState implements AggregatorState {
             || minY == Integer.MAX_VALUE
             || maxY == Integer.MIN_VALUE;
 
-        return seen && (hasInfinity == false) ? factory.newConstantBytesRefBlockWith(new BytesRef(toWKB()), 1) : factory.newConstantNullBlock(1);
+        return seen && (hasInfinity == false)
+            ? factory.newConstantBytesRefBlockWith(new BytesRef(toWKB()), 1)
+            : factory.newConstantNullBlock(1);
     }
 
     private byte[] toWKB() {

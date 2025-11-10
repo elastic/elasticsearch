@@ -18,7 +18,7 @@ import static org.hamcrest.Matchers.sameInstance;
 public class OpenShiftAiChatCompletionModelTests extends ESTestCase {
 
     private static final String MODEL_VALUE = "model_name";
-    private static final String API_KEY_VALUE = "api_key";
+    private static final String API_KEY_VALUE = "test_api_key";
     private static final String URL_VALUE = "http://www.abc.com";
     private static final String ALTERNATE_MODEL_VALUE = "different_model";
 

@@ -103,16 +103,18 @@ import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.Mockito.mock;
 
 public class OpenShiftAiServiceTests extends AbstractInferenceServiceTests {
+    private static final String API_KEY_FIELD_NAME = "api_key";
+    private static final String INPUT_FIELD_NAME = "some input";
+    private static final String MODEL_FIELD_NAME = "some model";
     private static final String URL_VALUE = "http://www.abc.com";
     private static final String MODEL_VALUE = "some_model";
     private static final String ROLE_VALUE = "user";
     private static final String API_KEY_VALUE = "test_api_key";
     private static final String INFERENCE_ID_VALUE = "id";
-    private static final String API_KEY_FIELD_NAME = "api_key";
     private static final int DIMENSIONS_VALUE = 1536;
     private static final int MAX_INPUT_TOKENS_VALUE = 512;
-    private static final String INPUT_FIELD_NAME = "input";
-    private static final String MODEL_FIELD_NAME = "model";
+    private static final String FIRST_PART_OF_INPUT_VALUE = "abc";
+    public static final String SECOND_PART_OF_INPUT_VALUE = "def";
 
     private final MockWebServer webServer = new MockWebServer();
     private ThreadPool threadPool;
@@ -703,7 +705,7 @@ public class OpenShiftAiServiceTests extends AbstractInferenceServiceTests {
             service.chunkedInfer(
                 model,
                 null,
-                List.of(new ChunkInferenceInput("abc"), new ChunkInferenceInput("def")),
+                List.of(new ChunkInferenceInput(FIRST_PART_OF_INPUT_VALUE), new ChunkInferenceInput(SECOND_PART_OF_INPUT_VALUE)),
                 new HashMap<>(),
                 InputType.INTERNAL_INGEST,
                 InferenceAction.Request.DEFAULT_TIMEOUT,
@@ -750,7 +752,7 @@ public class OpenShiftAiServiceTests extends AbstractInferenceServiceTests {
 
             var requestMap = entityAsMap(webServer.requests().getFirst().getBody());
             assertThat(requestMap, aMapWithSize(2));
-            assertThat(requestMap.get(INPUT_FIELD_NAME), is(List.of("abc", "def")));
+            assertThat(requestMap.get(INPUT_FIELD_NAME), is(List.of(FIRST_PART_OF_INPUT_VALUE, SECOND_PART_OF_INPUT_VALUE)));
             assertThat(requestMap.get(MODEL_FIELD_NAME), is(MODEL_VALUE));
         }
     }
@@ -827,7 +829,7 @@ public class OpenShiftAiServiceTests extends AbstractInferenceServiceTests {
                 null,
                 null,
                 null,
-                List.of("abc"),
+                List.of(FIRST_PART_OF_INPUT_VALUE),
                 true,
                 new HashMap<>(),
                 InputType.INGEST,

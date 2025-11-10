@@ -89,7 +89,7 @@ public class AllocationBalancingRoundMetrics {
         shardMovesCounter.incrementBy(summary.numberOfShardsToMove());
         shardMovesHistogram.record(summary.numberOfShardsToMove());
 
-        for (Map.Entry<DiscoveryNode, NodesWeightsChanges> changesEntry : summary.nodeNameToWeightChanges().entrySet()) {
+        for (Map.Entry<DiscoveryNode, NodesWeightsChanges> changesEntry : summary.nodeToWeightChanges().entrySet()) {
             DiscoveryNode node = changesEntry.getKey();
             NodesWeightsChanges weightChanges = changesEntry.getValue();
             BalancingRoundSummary.NodeWeightsDiff weightsDiff = weightChanges.weightsDiff();

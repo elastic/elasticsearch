@@ -405,8 +405,8 @@ public class AllocationBalancingRoundSummaryServiceTests extends ESTestCase {
         var secondSummary = AllocationBalancingRoundSummaryService.createBalancerRoundSummary(secondDesiredBalance, thirdDesiredBalance);
 
         assertEquals(2, firstSummary.numberOfShardsToMove());
-        assertEquals(1, firstSummary.nodeNameToWeightChanges().size());
-        var firstSummaryWeights = firstSummary.nodeNameToWeightChanges().get(DUMMY_NODE);
+        assertEquals(1, firstSummary.nodeToWeightChanges().size());
+        var firstSummaryWeights = firstSummary.nodeToWeightChanges().get(DUMMY_NODE);
         assertEquals(10, firstSummaryWeights.baseWeights().shardCount());
         assertDoublesEqual(20, firstSummaryWeights.baseWeights().diskUsageInBytes());
         assertDoublesEqual(30, firstSummaryWeights.baseWeights().writeLoad());
@@ -417,8 +417,8 @@ public class AllocationBalancingRoundSummaryServiceTests extends ESTestCase {
         assertDoublesEqual(40, firstSummaryWeights.weightsDiff().totalWeightDiff());
 
         assertEquals(1, secondSummary.numberOfShardsToMove());
-        assertEquals(1, secondSummary.nodeNameToWeightChanges().size());
-        var secondSummaryWeights = secondSummary.nodeNameToWeightChanges().get(DUMMY_NODE);
+        assertEquals(1, secondSummary.nodeToWeightChanges().size());
+        var secondSummaryWeights = secondSummary.nodeToWeightChanges().get(DUMMY_NODE);
         assertEquals(20, secondSummaryWeights.baseWeights().shardCount());
         assertDoublesEqual(40, secondSummaryWeights.baseWeights().diskUsageInBytes());
         assertDoublesEqual(60, secondSummaryWeights.baseWeights().writeLoad());
@@ -459,9 +459,9 @@ public class AllocationBalancingRoundSummaryServiceTests extends ESTestCase {
         var summary = AllocationBalancingRoundSummaryService.createBalancerRoundSummary(firstDesiredBalance, secondDesiredBalance);
 
         assertEquals(0, summary.numberOfShardsToMove());
-        assertEquals(2, summary.nodeNameToWeightChanges().size());
+        assertEquals(2, summary.nodeToWeightChanges().size());
 
-        var summaryDummyNodeWeights = summary.nodeNameToWeightChanges().get(DUMMY_NODE);
+        var summaryDummyNodeWeights = summary.nodeToWeightChanges().get(DUMMY_NODE);
         assertEquals(10, summaryDummyNodeWeights.baseWeights().shardCount());
         assertDoublesEqual(20, summaryDummyNodeWeights.baseWeights().diskUsageInBytes());
         assertDoublesEqual(30, summaryDummyNodeWeights.baseWeights().writeLoad());
@@ -471,7 +471,7 @@ public class AllocationBalancingRoundSummaryServiceTests extends ESTestCase {
         assertDoublesEqual(30, summaryDummyNodeWeights.weightsDiff().writeLoadDiff());
         assertDoublesEqual(40, summaryDummyNodeWeights.weightsDiff().totalWeightDiff());
 
-        var summarySecondDummyNodeWeights = summary.nodeNameToWeightChanges().get(SECOND_DUMMY_NODE);
+        var summarySecondDummyNodeWeights = summary.nodeToWeightChanges().get(SECOND_DUMMY_NODE);
         assertEquals(5, summarySecondDummyNodeWeights.baseWeights().shardCount());
         assertDoublesEqual(15, summarySecondDummyNodeWeights.baseWeights().diskUsageInBytes());
         assertDoublesEqual(25, summarySecondDummyNodeWeights.baseWeights().writeLoad());
@@ -512,9 +512,9 @@ public class AllocationBalancingRoundSummaryServiceTests extends ESTestCase {
         var summary = AllocationBalancingRoundSummaryService.createBalancerRoundSummary(firstDesiredBalance, secondDesiredBalance);
 
         assertEquals(1, summary.numberOfShardsToMove());
-        assertEquals(2, summary.nodeNameToWeightChanges().size());
+        assertEquals(2, summary.nodeToWeightChanges().size());
 
-        var summaryDummyNodeWeights = summary.nodeNameToWeightChanges().get(DUMMY_NODE);
+        var summaryDummyNodeWeights = summary.nodeToWeightChanges().get(DUMMY_NODE);
         assertEquals(10, summaryDummyNodeWeights.baseWeights().shardCount());
         assertDoublesEqual(20, summaryDummyNodeWeights.baseWeights().diskUsageInBytes());
         assertDoublesEqual(30, summaryDummyNodeWeights.baseWeights().writeLoad());
@@ -524,7 +524,7 @@ public class AllocationBalancingRoundSummaryServiceTests extends ESTestCase {
         assertDoublesEqual(30, summaryDummyNodeWeights.weightsDiff().writeLoadDiff());
         assertDoublesEqual(40, summaryDummyNodeWeights.weightsDiff().totalWeightDiff());
 
-        var summarySecondDummyNodeWeights = summary.nodeNameToWeightChanges().get(SECOND_DUMMY_NODE);
+        var summarySecondDummyNodeWeights = summary.nodeToWeightChanges().get(SECOND_DUMMY_NODE);
         assertEquals(0, summarySecondDummyNodeWeights.baseWeights().shardCount());
         assertDoublesEqual(0, summarySecondDummyNodeWeights.baseWeights().diskUsageInBytes());
         assertDoublesEqual(0, summarySecondDummyNodeWeights.baseWeights().writeLoad());

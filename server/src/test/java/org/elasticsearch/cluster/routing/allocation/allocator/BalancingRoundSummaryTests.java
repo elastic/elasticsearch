@@ -80,10 +80,10 @@ public class BalancingRoundSummaryTests extends ESTestCase {
 
         assertEquals(2, combined.numberOfBalancingRounds());
         assertEquals(shardMovesSummary1 + shardMovesSummary2, combined.numberOfShardMoves());
-        assertEquals(2, combined.nodeNameToWeightChanges().size());
+        assertEquals(2, combined.nodeToWeightChanges().size());
 
-        var combinedNode1WeightsChanges = combined.nodeNameToWeightChanges().get(NODE_1);
-        var combinedNode2WeightsChanges = combined.nodeNameToWeightChanges().get(NODE_2);
+        var combinedNode1WeightsChanges = combined.nodeToWeightChanges().get(NODE_1);
+        var combinedNode2WeightsChanges = combined.nodeToWeightChanges().get(NODE_2);
 
         // The base weights for each node should match the first BalancingRoundSummary's base weight values. The diff weights will be summed
         // across all BalancingRoundSummary entries (in this case, there are two BalancingRoundSummary entries).

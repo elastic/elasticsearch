@@ -133,6 +133,25 @@ public class GetInferenceFieldsIT extends ESIntegTestCase {
         explicitIndicesAndFieldsTestCase("   ");
     }
 
+    public void testFieldWeight() {
+        assertSuccessfulRequest(
+            new GetInferenceFieldsAction.Request(
+                ALL_INDICES,
+                Map.of(INFERENCE_FIELD_1, 2.0f, "inference-*", 1.5f, TEXT_FIELD_1, 1.75f),
+                false,
+                false,
+                "foo"
+            ),
+            Map.of(
+                INDEX_1,
+                Set.of(new InferenceFieldWithTestMetadata(INFERENCE_FIELD_1, SPARSE_EMBEDDING_INFERENCE_ID, 2.0f)),
+                INDEX_2,
+                Set.of(new InferenceFieldWithTestMetadata(INFERENCE_FIELD_1, TEXT_EMBEDDING_INFERENCE_ID, 2.0f))
+            ),
+            ALL_EXPECTED_INFERENCE_RESULTS
+        );
+    }
+
     public void testNoInferenceFields() {
         assertSuccessfulRequest(
             new GetInferenceFieldsAction.Request(
@@ -157,16 +176,22 @@ public class GetInferenceFieldsIT extends ESIntegTestCase {
         assertSuccessfulRequest(
             new GetInferenceFieldsAction.Request(
                 ALL_INDICES,
-                generateDefaultBoostFieldMap(Set.of("*-field-1", "inference-*-3")),
+                Map.of("*-field-1", 2.0f, "*-1", 1.75f, "inference-*-3", 2.0f),
                 true,
                 false,
                 "foo"
             ),
             Map.of(
                 INDEX_1,
-                filterExpectedInferenceFieldSet(INDEX_1_EXPECTED_INFERENCE_FIELDS, Set.of(INFERENCE_FIELD_1, INFERENCE_FIELD_3)),
+                Set.of(
+                    new InferenceFieldWithTestMetadata(INFERENCE_FIELD_1, SPARSE_EMBEDDING_INFERENCE_ID, 3.5f),
+                    new InferenceFieldWithTestMetadata(INFERENCE_FIELD_3, SPARSE_EMBEDDING_INFERENCE_ID, 2.0f)
+                ),
                 INDEX_2,
-                filterExpectedInferenceFieldSet(INDEX_2_EXPECTED_INFERENCE_FIELDS, Set.of(INFERENCE_FIELD_1, INFERENCE_FIELD_3))
+                Set.of(
+                    new InferenceFieldWithTestMetadata(INFERENCE_FIELD_1, TEXT_EMBEDDING_INFERENCE_ID, 3.5f),
+                    new InferenceFieldWithTestMetadata(INFERENCE_FIELD_3, SPARSE_EMBEDDING_INFERENCE_ID, 2.0f)
+                )
             ),
             ALL_EXPECTED_INFERENCE_RESULTS
         );

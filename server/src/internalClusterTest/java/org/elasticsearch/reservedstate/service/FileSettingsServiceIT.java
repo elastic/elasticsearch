@@ -370,8 +370,9 @@ public class FileSettingsServiceIT extends ESIntegTestCase {
         }, 20, TimeUnit.SECONDS);
 
         logger.info("--> verify settings are no longer reserved and can be modified");
-        ClusterUpdateSettingsRequest req = new ClusterUpdateSettingsRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT)
-            .persistentSettings(Settings.builder().put(INDICES_RECOVERY_MAX_BYTES_PER_SEC_SETTING.getKey(), "1234kb"));
+        ClusterUpdateSettingsRequest req = new ClusterUpdateSettingsRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT).persistentSettings(
+            Settings.builder().put(INDICES_RECOVERY_MAX_BYTES_PER_SEC_SETTING.getKey(), "1234kb")
+        );
         clusterAdmin().updateSettings(req).get();
 
         assertThat(

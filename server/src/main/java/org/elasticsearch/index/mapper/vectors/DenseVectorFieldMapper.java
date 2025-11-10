@@ -242,8 +242,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
 
         private final Parameter<ElementType> elementType = new Parameter<>("element_type", false, () -> ElementType.FLOAT, (n, c, o) -> {
             ElementType elementType = namesToElementType.get((String) o);
-            if (elementType == null
-                || (elementType == ElementType.BFLOAT16 && ES93GenericFlatVectorsFormat.GENERIC_VECTOR_FORMAT.isEnabled() == false)) {
+            if (elementType == null) {
                 throw new MapperParsingException("invalid element_type [" + o + "]; available types are " + namesToElementType.keySet());
             }
             return elementType;
@@ -485,16 +484,25 @@ public class DenseVectorFieldMapper extends FieldMapper {
     public static final Element BFLOAT16_ELEMENT = new BFloat16Element();
     public static final Element BIT_ELEMENT = new BitElement();
 
-    public static final Map<String, ElementType> namesToElementType = Map.of(
-        ElementType.BYTE.toString(),
-        ElementType.BYTE,
-        ElementType.FLOAT.toString(),
-        ElementType.FLOAT,
-        ElementType.BFLOAT16.toString(),
-        ElementType.BFLOAT16,
-        ElementType.BIT.toString(),
-        ElementType.BIT
-    );
+    public static final Map<String, ElementType> namesToElementType = ES93GenericFlatVectorsFormat.GENERIC_VECTOR_FORMAT.isEnabled()
+        ? Map.of(
+            ElementType.BYTE.toString(),
+            ElementType.BYTE,
+            ElementType.FLOAT.toString(),
+            ElementType.FLOAT,
+            ElementType.BFLOAT16.toString(),
+            ElementType.BFLOAT16,
+            ElementType.BIT.toString(),
+            ElementType.BIT
+        )
+        : Map.of(
+            ElementType.BYTE.toString(),
+            ElementType.BYTE,
+            ElementType.FLOAT.toString(),
+            ElementType.FLOAT,
+            ElementType.BIT.toString(),
+            ElementType.BIT
+        );
 
     public abstract static class Element {
 

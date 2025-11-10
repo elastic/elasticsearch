@@ -7,7 +7,7 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.index.mapper.blockloader.docvalues;
+package org.elasticsearch.index.mapper.blockloader;
 
 /**
  * Warnings returned when loading values for ESQL. These are returned as HTTP 299 headers like so:
@@ -17,7 +17,7 @@ package org.elasticsearch.index.mapper.blockloader.docvalues;
  *  < Warning: 299 Elasticsearch-${ver} "Line 1:27: java.lang.IllegalArgumentException: single-value function encountered multi-value"
  * }</pre>
  */
-interface Warnings {
+public interface Warnings {
     /**
      * Register a warning. ESQL deduplicates and limits the number of warnings returned so it should
      * be fine to blast as many warnings into this as you encounter.

@@ -21,9 +21,7 @@ import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.routing.SearchShardRouting;
-import org.elasticsearch.cluster.routing.ShardIterator;
 import org.elasticsearch.cluster.routing.ShardRouting;
-import org.elasticsearch.cluster.routing.SplitShardCountSummary;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
@@ -272,25 +270,23 @@ final class RequestDispatcher {
 
         IndexSelector(
             String clusterAlias,
-            List<SearchShardRouting> shardIts,
+            List<SearchShardRouting> shards,
             QueryBuilder indexFilter,
             long nowInMillis,
             CoordinatorRewriteContextProvider coordinatorRewriteContextProvider
         ) {
-            for (ShardIterator shardIt : shardIts) {
+            for (SearchShardRouting searchShardRouting : shards) {
                 boolean canMatch = true;
-                final ShardId shardId = shardIt.shardId();
+                final ShardId shardId = searchShardRouting.shardId();
                 if (indexFilter != null && indexFilter instanceof MatchAllQueryBuilder == false) {
                     var coordinatorRewriteContext = coordinatorRewriteContextProvider.getCoordinatorRewriteContext(shardId.getIndex());
                     if (coordinatorRewriteContext != null) {
-                        // SplitShardCountSummary can be safely UNSET here since the logic below (queryStillMatchesAfterRewrite)
-                        // is purely a local operation.
                         var shardRequest = new ShardSearchRequest(
                             shardId,
                             nowInMillis,
                             AliasFilter.EMPTY,
                             clusterAlias,
-                            SplitShardCountSummary.UNSET
+                            searchShardRouting.reshardSplitShardCountSummary()
                         );
                         shardRequest.source(new SearchSourceBuilder().query(indexFilter));
                         try {
@@ -301,7 +297,7 @@ final class RequestDispatcher {
                     }
                 }
                 if (canMatch) {
-                    for (ShardRouting shard : shardIt) {
+                    for (ShardRouting shard : searchShardRouting) {
                         nodeToShards.computeIfAbsent(shard.currentNodeId(), node -> new ArrayList<>()).add(shard);
                     }
                 } else {

@@ -81,7 +81,7 @@ public class SearchShardsGroup implements Writeable {
         out.writeStringCollection(allocatedNodes);
         out.writeBoolean(skipped);
         if (out.getTransportVersion().supports(IndexReshardService.RESHARDING_SHARD_SUMMARY_IN_ESQL)) {
-            out.writeVInt(reshardSplitShardCountSummary.asInt());
+            reshardSplitShardCountSummary.writeTo(out);
         }
     }
 

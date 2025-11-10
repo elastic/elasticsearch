@@ -387,7 +387,8 @@ abstract class DataNodeRequestSender {
     }
 
     /**
-     * (Remaining) allocated nodes of a given shard id and its alias filter
+     * Information required to send requests for a shard with this shardId.
+     * Note that {@link SplitShardCountSummary} value should never change, it is important for resharding feature to work.
      */
     record TargetShard(
         ShardId shardId,

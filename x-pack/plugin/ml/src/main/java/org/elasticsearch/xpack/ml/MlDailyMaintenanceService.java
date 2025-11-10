@@ -63,8 +63,6 @@ import java.time.Clock;
 import java.time.ZonedDateTime;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
 import java.util.Random;
@@ -72,6 +70,7 @@ import java.util.Set;
 import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
+import java.util.stream.Collectors;
 
 import static java.util.stream.Collectors.toList;
 import static java.util.stream.Collectors.toSet;
@@ -445,28 +444,10 @@ public class MlDailyMaintenanceService implements Releasable {
 
         List<Exception> failures = new ArrayList<>();
 
-        HashSet<String> baseIndices = new HashSet<>();
-        for (var index : indices) {
-            String baseIndexName = MlIndexAndAlias.baseIndexName(index);
-            baseIndices.add(baseIndexName);
-        }
-
-        HashMap<String, List<String>> baseIndicesMap = new HashMap<>();
-        for (var index : baseIndices) {
-            var matching = MlIndexAndAlias.indicesMatchingBasename(index, expressionResolver, clusterState);
-            baseIndicesMap.put(index, List.of(matching));
-        }
-
-        Arrays.stream(indices)
-            .filter(index -> MlIndexAndAlias.latestIndexMatchingBaseName(index, expressionResolver, clusterState).equals(index))
-            .forEach(
-                latestIndex -> rolloverIndexSafely(
-                    clusterState,
-                    latestIndex,
-                    baseIndicesMap.get(MlIndexAndAlias.baseIndexName(latestIndex)),
-                    failures
-                )
-            );
+        // Group all the concrete indices by their base name (e.g., ".ml-anomalies-shared")
+        Arrays.stream(indices).collect(Collectors.groupingBy(MlIndexAndAlias::baseIndexName)).forEach((baseIndexName, indicesInGroup) -> {
+            rolloverIndexSafely(clusterState, MlIndexAndAlias.latestIndex(indicesInGroup.toArray(new String[0])), indicesInGroup, failures);
+        });
 
         handleRolloverResults(indices, failures, finalListener);
     }

@@ -33,8 +33,9 @@ import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
 import org.elasticsearch.xpack.core.ml.utils.MlIndexAndAlias;
 
 import java.util.ArrayList;
-import java.util.HashMap;
+import java.util.Arrays;
 import java.util.List;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
 
@@ -100,15 +101,7 @@ public class MlAnomaliesIndexUpdate implements MlAutoUpdateService.UpdateAction 
             return;
         }
 
-        HashMap<String, List<String>> baseIndicesMap = new HashMap<>();
-        for (var index : indices) {
-            String baseIndexName = MlIndexAndAlias.baseIndexName(index);
-            if (baseIndicesMap.containsKey(baseIndexName)) {
-                baseIndicesMap.get(baseIndexName).add(index);
-            } else {
-                baseIndicesMap.put(baseIndexName, List.of(index));
-            }
-        }
+        var baseIndicesMap = Arrays.stream(indices).collect(Collectors.groupingBy(MlIndexAndAlias::baseIndexName));
 
         for (String index : indices) {
             boolean isCompatibleIndexVersion = MlIndexAndAlias.indexIsReadWriteCompatibleInV9(

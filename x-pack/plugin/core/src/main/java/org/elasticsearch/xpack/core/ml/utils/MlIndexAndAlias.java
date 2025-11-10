@@ -476,6 +476,12 @@ public final class MlIndexAndAlias {
         return template != null && Long.valueOf(version).equals(template.version());
     }
 
+    /**
+     * Ensures a given index name is valid for ML results by appending the 6-digit suffix if it is missing.
+     *
+     * @param indexName The index name to validate.
+     * @return The validated index name, with the suffix added if it was missing.
+     */
     public static String ensureValidResultsIndexName(String indexName) {
         // The results index name is either the original one provided or the original with a suffix appended.
         return has6DigitSuffix(indexName) ? indexName : indexName + FIRST_INDEX_SIX_DIGIT_SUFFIX;
@@ -526,12 +532,26 @@ public final class MlIndexAndAlias {
     }
 
     /**
+     * Sorts the given list of indices based on their 6 digit suffix.
+     * @param indices List of index names
+     */
+    public static void sortIndices(List<String> indices) {
+        indices.sort(INDEX_NAME_COMPARATOR);
+    }
+
+
+    /**
      * True if the version is read *and* write compatible not just read only compatible
      */
     public static boolean indexIsReadWriteCompatibleInV9(IndexVersion version) {
         return version.onOrAfter(IndexVersions.V_8_0_0);
     }
 
+    /**
+     * Returns the given index name without its 6 digit suffix.
+     * @param index
+     * @return
+     */
     public static String baseIndexName(String index) {
         String baseIndexName = MlIndexAndAlias.has6DigitSuffix(index)
             ? index.substring(0, index.length() - FIRST_INDEX_SIX_DIGIT_SUFFIX.length())
@@ -540,6 +560,13 @@ public final class MlIndexAndAlias {
         return baseIndexName;
     }
 
+    /**
+     * Returns an array of indices that match the given base index name.
+     * @param baseIndexName         The base part of an index name, without the 6 digit suffix.
+     * @param expressionResolver    The expression resolver
+     * @param latestState           The latest cluster state
+     * @return                      An array of matching indices.
+     */
     public static String[] indicesMatchingBasename(
         String baseIndexName,
         IndexNameExpressionResolver expressionResolver,
@@ -613,6 +640,15 @@ public final class MlIndexAndAlias {
             }));
     }
 
+    /**
+     * Generates a temporary rollover alias and a potential new index name based on a source index name.
+     * This is a preparatory step for a rollover action. If the source index already has a 6-digit suffix,
+     * the new index name will be null, allowing the rollover API to auto-increment the suffix.
+     *
+     * @param index The name of the index that is a candidate for rollover.
+     * @return A {@link Tuple} where {@code v1} is the generated rollover alias and {@code v2} is the new index name
+     * (or {@code null} if rollover can auto-determine it).
+     */
     public static Tuple<String, String> createRolloverAliasAndNewIndexName(String index) {
         String indexName = Objects.requireNonNull(index);
 
@@ -632,6 +668,12 @@ public final class MlIndexAndAlias {
         return new Tuple<>(rolloverAlias, newIndexName);
     }
 
+    /**
+     * Creates a pre-configured {@link IndicesAliasesRequestBuilder} with default timeouts.
+     *
+     * @param client The client to use for the request.
+     * @return A new {@link IndicesAliasesRequestBuilder}.
+     */
     public static IndicesAliasesRequestBuilder createIndicesAliasesRequestBuilder(Client client) {
         return client.admin().indices().prepareAliases(TimeValue.THIRTY_SECONDS, TimeValue.THIRTY_SECONDS);
     }
@@ -750,8 +792,9 @@ public final class MlIndexAndAlias {
         }
 
         // Make sure to include the new index
-        List<String> allJobResultsIndices = new ArrayList<String>(currentJobResultsIndices);
+        List<String> allJobResultsIndices = new ArrayList<>(currentJobResultsIndices);
         allJobResultsIndices.add(newIndex);
+        MlIndexAndAlias.sortIndices(allJobResultsIndices);
 
         for (var alias : uniqueAliases) {
             if (isAnomaliesWriteAlias(alias.alias())) {
@@ -777,18 +820,18 @@ public final class MlIndexAndAlias {
                         .filter(QueryBuilders.termQuery(Job.ID.getPreferredName(), jobId))
                 );
             } else if (isAnomaliesReadAlias(alias.alias())) {
-                // Try to generate a list of indices to operate on where the first index in the list is the first one with the current read
-                // alias. This is useful in trying to "heal" missing read aliases, without adding them on every possible index.
-                if (findEarliestIndexWithAlias(aliasesMap, alias).isPresent()) {
-                    String earliestIndexWithAlias = findEarliestIndexWithAlias(aliasesMap, alias).get();
-                    allJobResultsIndices.sort(INDEX_NAME_COMPARATOR);
-                    allJobResultsIndices.removeIf(index -> INDEX_NAME_COMPARATOR.compare(index, earliestIndexWithAlias) < 0);
-                }
+                // Try to generate a sub list of indices to operate on where the first index in the list is the first one with the current
+                // read alias. This is useful in trying to "heal" missing read aliases, without adding them on every possible index.
+                int indexOfEarliestIndexWithAlias = findEarliestIndexWithAlias(aliasesMap, alias).map(allJobResultsIndices::indexOf)
+                    // If the earliest index is not found in the list (which shouldn't happen), default to 0 to include all indices.
+                    .filter(i -> i >= 0).orElse(0);
 
                 String jobId = AnomalyDetectorsIndex.jobIdFromAlias(alias.alias());
                 aliasRequestBuilder.addAliasAction(
                     IndicesAliasesRequest.AliasActions.add()
-                        .indices(allJobResultsIndices.toArray(new String[0]))
+                        .indices(
+                            allJobResultsIndices.subList(indexOfEarliestIndexWithAlias, allJobResultsIndices.size()).toArray(new String[0])
+                        )
                         .alias(alias.alias())
                         .isHidden(true)
                         .filter(QueryBuilders.termQuery(Job.ID.getPreferredName(), jobId))

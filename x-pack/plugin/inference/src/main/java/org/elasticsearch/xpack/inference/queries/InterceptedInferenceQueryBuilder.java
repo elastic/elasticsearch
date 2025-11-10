@@ -39,6 +39,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 
+import static org.elasticsearch.cluster.metadata.IndexMetadata.getMatchingInferenceFields;
 import static org.elasticsearch.index.IndexSettings.DEFAULT_FIELD_SETTING;
 import static org.elasticsearch.transport.RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY;
 import static org.elasticsearch.xpack.inference.queries.SemanticQueryBuilder.SEMANTIC_SEARCH_CCS_SUPPORT;
@@ -433,25 +434,22 @@ public abstract class InterceptedInferenceQueryBuilder<T extends AbstractQueryBu
     ) {
         Map<String, Float> inferenceFieldsToQuery = new HashMap<>();
         Map<String, InferenceFieldMetadata> indexInferenceFields = indexMetadataContext.getMappingLookup().inferenceFields();
-        for (Map.Entry<String, Float> entry : queryFields.entrySet()) {
-            String queryField = entry.getKey();
-            Float weight = entry.getValue();
 
-            if (indexInferenceFields.containsKey(queryField)) {
-                // No wildcards in field name
-                addToInferenceFieldsMap(inferenceFieldsToQuery, queryField, weight);
-                continue;
+        Map<InferenceFieldMetadata, Set<String>> matchingInferenceFields = getMatchingInferenceFields(
+            indexInferenceFields,
+            queryFields.keySet(),
+            resolveWildcards
+        );
+        for (var entry : matchingInferenceFields.entrySet()) {
+            String concreteFieldName = entry.getKey().getName();
+            Set<String> matchingFieldPatterns = entry.getValue();
+
+            float weight = 1.0f;
+            for (String fieldPattern : matchingFieldPatterns) {
+                weight *= queryFields.get(fieldPattern);
             }
-            if (resolveWildcards) {
-                if (Regex.isMatchAllPattern(queryField)) {
-                    indexInferenceFields.keySet().forEach(f -> addToInferenceFieldsMap(inferenceFieldsToQuery, f, weight));
-                } else if (Regex.isSimpleMatchPattern(queryField)) {
-                    indexInferenceFields.keySet()
-                        .stream()
-                        .filter(f -> Regex.simpleMatch(queryField, f))
-                        .forEach(f -> addToInferenceFieldsMap(inferenceFieldsToQuery, f, weight));
-                }
-            }
+
+            inferenceFieldsToQuery.put(concreteFieldName, weight);
         }
 
         return inferenceFieldsToQuery;
@@ -460,10 +458,6 @@ public abstract class InterceptedInferenceQueryBuilder<T extends AbstractQueryBu
     private static Map<String, Float> getDefaultFields(Settings settings) {
         List<String> defaultFieldsList = settings.getAsList(DEFAULT_FIELD_SETTING.getKey(), DEFAULT_FIELD_SETTING.getDefault(settings));
         return QueryParserHelper.parseFieldsAndWeights(defaultFieldsList);
-    }
-
-    private static void addToInferenceFieldsMap(Map<String, Float> inferenceFields, String field, Float weight) {
-        inferenceFields.compute(field, (k, v) -> v == null ? weight : v * weight);
     }
 
     private static void inferenceResultsErrorCheck(Map<FullyQualifiedInferenceId, InferenceResults> inferenceResultsMap) {

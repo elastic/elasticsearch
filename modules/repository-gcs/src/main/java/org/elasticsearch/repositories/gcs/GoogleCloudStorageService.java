@@ -15,6 +15,7 @@ import com.google.api.client.http.HttpTransport;
 import com.google.api.client.http.javanet.NetHttpTransport;
 import com.google.api.client.util.SecurityUtils;
 import com.google.api.gax.retrying.ResultRetryAlgorithm;
+import com.google.api.gax.retrying.RetrySettings;
 import com.google.auth.oauth2.GoogleCredentials;
 import com.google.auth.oauth2.ServiceAccountCredentials;
 import com.google.cloud.ServiceOptions;
@@ -198,7 +199,8 @@ public class GoogleCloudStorageService {
                 return Strings.hasLength(gcsClientSettings.getApplicationName())
                     ? Map.of("user-agent", gcsClientSettings.getApplicationName())
                     : Map.of();
-            });
+            })
+            .setRetrySettings(RetrySettings.newBuilder().setMaxAttempts(gcsClientSettings.getMaxRetries() + 1).build());
         if (Strings.hasLength(gcsClientSettings.getHost())) {
             storageOptionsBuilder.setHost(gcsClientSettings.getHost());
         }

@@ -16,6 +16,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.common.blobstore.RetryingInputStream;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.repositories.blobstore.RequestedRangeNotSatisfiedException;
 import org.elasticsearch.rest.RestStatus;
@@ -24,6 +25,8 @@ import java.io.FilterInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.NoSuchFileException;
+
+import static org.elasticsearch.repositories.gcs.GoogleCloudStorageClientSettings.MAX_RETRIES_SETTING;
 
 /**
  * Wrapper around reads from GCS that will retry blob downloads that fail part-way through, resuming from where the failure occurred.
@@ -48,17 +51,17 @@ class GoogleCloudStorageRetryingInputStream extends RetryingInputStream<Long> {
         long start,
         long end
     ) throws IOException {
-        super(
-            new GoogleCloudStorageBlobStoreServices(
-                blobStore,
-                purpose,
-                blobId,
-                blobStore.client().getOptions().getRetrySettings().getMaxAttempts() - 1
-            ),
-            purpose,
-            start,
-            end
-        );
+        super(new GoogleCloudStorageBlobStoreServices(blobStore, purpose, blobId, calculateMaxRetries(blobStore)), purpose, start, end);
+    }
+
+    private static int calculateMaxRetries(GoogleCloudStorageBlobStore blobStore) throws IOException {
+        final int maxAttempts = blobStore.client().getOptions().getRetrySettings().getMaxAttempts();
+        if (maxAttempts == 0) {
+            assert false : "Time-based retrying not supported";
+            return MAX_RETRIES_SETTING.getDefault(Settings.EMPTY);
+        }
+        // GCS client is configured by specifying the number of attempts, the number of retries is that minus one
+        return maxAttempts - 1;
     }
 
     private static class GoogleCloudStorageBlobStoreServices implements BlobStoreServices<Long> {

@@ -255,7 +255,7 @@ public class GoogleCloudStorageBlobStoreRepositoryTests extends ESMockAPIBasedRe
                                 .setInitialRetryDelay(Duration.ofMillis(10L))
                                 .setRetryDelayMultiplier(options.getRetrySettings().getRetryDelayMultiplier())
                                 .setMaxRetryDelay(Duration.ofSeconds(1L))
-                                .setMaxAttempts(0)
+                                .setMaxAttempts(6)
                                 .setJittered(false)
                                 .setInitialRpcTimeout(options.getRetrySettings().getInitialRpcTimeout())
                                 .setRpcTimeoutMultiplier(options.getRetrySettings().getRpcTimeoutMultiplier())

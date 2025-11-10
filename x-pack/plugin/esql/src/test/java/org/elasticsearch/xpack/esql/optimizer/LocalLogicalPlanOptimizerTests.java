@@ -1644,7 +1644,7 @@ public class LocalLogicalPlanOptimizerTests extends ESTestCase {
             return false;
         }).toList(),
             hasSize(
-                4 // Should be 1 - fix in https://github.com/elastic/elasticsearch/issues/137679
+                4 // Should be 2 - fix in https://github.com/elastic/elasticsearch/issues/137679
             )
         );
     }

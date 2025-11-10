@@ -15,6 +15,7 @@ import org.apache.lucene.store.Directory;
 import org.elasticsearch.index.codec.vectors.BFloat16;
 import org.elasticsearch.index.codec.vectors.BaseHnswBFloat16VectorsFormatTestCase;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
+import org.junit.AssumptionViolatedException;
 
 import java.io.IOException;
 import java.util.concurrent.ExecutorService;
@@ -62,6 +63,11 @@ public class ES93HnswScalarQuantizedBFloat16VectorsFormatTests extends BaseHnswB
             numMergeWorkers,
             service
         );
+    }
+
+    @Override
+    public void testSingleVectorCase() throws Exception {
+        throw new AssumptionViolatedException("The new quantizer caps scores at 1.0");
     }
 
     public void testSimpleOffHeapSize() throws IOException {

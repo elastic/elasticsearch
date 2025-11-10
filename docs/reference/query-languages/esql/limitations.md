@@ -32,13 +32,14 @@ By default, an {{esql}} query returns up to 1,000 rows. You can increase the num
     * You can use `to_datetime` to cast to millisecond dates to use unsupported functions
 
 * `double` (`float`, `half_float`, `scaled_float` are represented as `double`)
+* `dense_vector` {applies_to}`stack: preview 9.2` {applies_to}`serverless: preview`
 * `ip`
 * `keyword` [family](/reference/elasticsearch/mapping-reference/keyword.md) including `keyword`, `constant_keyword`, and `wildcard`
 * `int` (`short` and `byte` are represented as `int`)
 * `long`
 * `null`
 * `text` [family](/reference/elasticsearch/mapping-reference/text.md) including `text`, `semantic_text` and `match_only_text`
-* {applies_to}`stack: preview` {applies_to}`serverless: preview` `unsigned_long`
+* `unsigned_long` {applies_to}`stack: preview` {applies_to}`serverless: preview`
 * `version`
 * Spatial types
 
@@ -46,19 +47,28 @@ By default, an {{esql}} query returns up to 1,000 rows. You can increase the num
     * `geo_shape`
     * `point`
     * `shape`
-
+* TSDB metrics {applies_to}`stack: preview 9.2` {applies_to}`serverless: preview`
+   * `counter`
+   * `gauge`
+   * `aggregate_metric_double`
 
 
 ### Unsupported types [_unsupported_types]
 
 {{esql}} does not yet support the following field types:
 
+::::{tab-set}
+:::{tab-item} 9.0-9.1
+* `dense_vector`
 * TSDB metrics
-
-    * `counter`
-    * `position`
-    * `aggregate_metric_double`
-
+   * `counter`
+   * `gauge`
+   * `aggregate_metric_double`
+:::
+:::{tab-item} 9.2+
+This limitation no longer exists and TSDB metrics and `dense_vector` are now supported (preview).
+:::
+::::
 * Date/time
 
     * `date_range`
@@ -95,12 +105,19 @@ Some [field types](/reference/elasticsearch/mapping-reference/field-data-types.m
     * `cartesian_shape`
 
 
-In addition, when [querying multiple indexes](/reference/query-languages/esql/esql-multi-index.md), it’s possible for the same field to be mapped to multiple types. These fields cannot be directly used in queries or returned in results, unless they’re [explicitly converted to a single type](/reference/query-languages/esql/esql-multi-index.md#esql-multi-index-union-types).
+- In addition, when [querying multiple indexes](/reference/query-languages/esql/esql-multi-index.md), it’s possible for the same field to be mapped to multiple types. These fields cannot be directly used in queries or returned in results, unless they’re [explicitly converted to a single type](/reference/query-languages/esql/esql-multi-index.md#esql-multi-index-union-types).
 
-* `dense_vector` field type is partially supported. [`KNN` function](elasticsearch://reference/query-languages/esql/functions-operators/dense-vector-functions.md#esql-knn) queries will work and any field data will be retrieved as part of the results. However, the type will appear as `unsupported` when the `KNN` function is not used.
+#### Partial support in 9.2.0
 
-This means that `FROM test` will not retrieve `dense_vector` data. But, `FROM test WHERE KNN("dense_vector_field", [0, 1, 2, ...])` will retrieve data.
+* {applies_to}`stack: preview 9.2.0` The following types are only partially supported on 9.2.0. This is fixed in 9.2.1:
+  * `dense_vector`: The [`KNN` function](/reference/query-languages/esql/functions-operators/dense-vector-functions.md#esql-knn) and the [`TO_DENSE_VECTOR` function](/reference/query-languages/esql/functions-operators/type-conversion-functions.md#esql-to_dense_vector) will work and any field data will be retrieved as part of the results. However, the type will appear as `unsupported` when these functions are not used.
+  * `aggregate_metric_double`: Using the [`TO_AGGREGATE_METRIC_DOUBLE` function](/reference/query-languages/esql/functions-operators/type-conversion-functions.md#esql-to_aggregate_metric_double) will work and any field data will be retrieved as part of the results. However, the type will appear as `unsupported` if this function is not used.
 
+    :::{note}
+    This means that a simple query like `FROM test` will not retrieve `dense_vector` or `aggregate_metric_double` data. However, using the appropriate functions will work:
+    * `FROM test WHERE KNN("dense_vector_field", [0, 1, 2, ...])`
+    * `FROM test | EVAL agm_data = TO_AGGREGATE_METRIC_DOUBLE(aggregate_metric_double_field)`
+    :::
 
 ## _source availability [esql-_source-availability]
 
@@ -188,11 +205,16 @@ As discussed in more detail in [Using {{esql}} to query multiple indices](/refer
 * All underlying indexes and shards must be active. Using admin commands or UI, it is possible to pause an index or shard, for example by disabling a frozen tier instance, but then any {{esql}} query that includes that index or shard will fail, even if the query uses [`WHERE`](/reference/query-languages/esql/commands/where.md) to filter out the results from the paused index. If you see an error of type `search_phase_execution_exception`, with the message `Search rejected due to missing shards`, you likely have an index or shard in `UNASSIGNED` state.
 * The same field must have the same type across all indexes. If the same field is mapped to different types it is still possible to query the indexes, but the field must be [explicitly converted to a single type](/reference/query-languages/esql/esql-multi-index.md#esql-multi-index-union-types).
 
+## Time series data streams [esql-tsdb]
 
-## Time series data streams are not supported [esql-tsdb]
-
+::::{tab-set}
+:::{tab-item} 9.0-9.1
 {{esql}} does not support querying time series data streams (TSDS).
-
+:::
+:::{tab-item} 9.2+
+This limitation no longer exists and time series data streams (TSDS) are now supported (preview).
+:::
+::::
 
 ## Date math limitations [esql-limitations-date-math]
 

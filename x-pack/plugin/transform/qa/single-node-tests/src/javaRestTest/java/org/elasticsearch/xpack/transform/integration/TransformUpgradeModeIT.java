@@ -13,7 +13,6 @@ import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.core.CheckedRunnable;
 import org.elasticsearch.xpack.core.transform.TransformField;
 import org.elasticsearch.xpack.core.transform.transforms.TransformStats;
-import org.junit.After;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -48,11 +47,6 @@ public class TransformUpgradeModeIT extends TransformRestTestCase {
 
         createReviewsIndex();
         indicesCreated = true;
-    }
-
-    @After
-    public void clearOutTransforms() throws Exception {
-        performPostFeaturesReset(adminClient());
     }
 
     public void testUpgradeMode() throws Exception {

@@ -157,7 +157,7 @@ public class ElasticInferenceServiceDenseTextEmbeddingsRequestTests extends ESTe
                 ElasticInferenceServiceDenseTextEmbeddingsModelTests.createModel(url, modelId),
                 List.of(input),
                 new TraceContext(randomAlphaOfLength(10), randomAlphaOfLength(10)),
-                new ElasticInferenceServiceRequestMetadata("my-product-origin", "my-product-use-case-from-metadata"),
+                new ElasticInferenceServiceRequestMetadata("my-product-origin", "my-product-use-case-from-metadata", "1.2.3"),
                 inputType
             );
 

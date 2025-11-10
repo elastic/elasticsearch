@@ -647,9 +647,6 @@ public abstract class TransformRestTestCase extends TransformCommonRestTestCase 
     public void waitForTransform() throws Exception {
         ensureNoInitializingShards();
         logAudits();
-        if (preserveClusterUponCompletion() == false) {
-            performPostFeaturesReset(adminClient());
-        }
     }
 
     @AfterClass

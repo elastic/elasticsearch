@@ -957,6 +957,7 @@ id_left:integer | name_left:keyword | other1_from_first_join:keyword | other1:ke
 lookupJoinExpressionWithTerm
 required_capability: join_lookup_v12
 required_capability: lookup_join_with_full_text_function
+required_capability: term_function
 
 FROM multi_column_joinable
 | RENAME id_int AS id_left, is_active_bool AS is_active_left
@@ -1016,6 +1017,7 @@ id_left:integer | name_str:keyword | extra1:keyword | other1:keyword | other2:in
 lookupJoinExpressionWithMultiMatch
 required_capability: join_lookup_v12
 required_capability: lookup_join_with_full_text_function
+required_capability: multi_match_function
 
 FROM multi_column_joinable
 | RENAME id_int AS id_left, is_active_bool AS is_active_left, name_str AS name_str_left
@@ -1250,4 +1252,23 @@ FROM airports
 
 airport_code:keyword | name:text | city:keyword | country:keyword | location:geo_point | city_boundary:geo_shape
 LTN                  | London Luton | Luton | United Kingdom | POINT(-0.376227267397439 51.8802952570969) | POLYGON((-0.5059 51.9006, -0.4225 51.8545, -0.3499 51.8787, -0.3856 51.9157, -0.4191 51.9123, -0.4263 51.9267, -0.4857 51.9227, -0.4823 51.9078, -0.5059 51.9006))
+;
+
+lookupJoinExpressionOnRightFieldNotAnywhereElse
+required_capability: join_lookup_v12
+required_capability: lookup_join_with_full_text_function_bugfix
+
+FROM multi_column_joinable
+| RENAME id_int AS id_left
+| LOOKUP JOIN multi_column_joinable_lookup ON id_int == id_left AND MATCH(other1, "beta")
+| WHERE other2 IS NOT NULL
+| KEEP id_left, name_str, extra1, other2
+| SORT id_left, name_str, extra1, other2
+;
+
+warning:Line 3:3: evaluation of [LOOKUP JOIN multi_column_joinable_lookup ON id_int == id_left AND MATCH(other1, \"beta\")] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 3:3: java.lang.IllegalArgumentException: LOOKUP JOIN encountered multi-value
+
+id_left:integer | name_str:keyword | extra1:keyword | other2:integer
+1               | Alice            | foo            | 2000
 ;

@@ -57,7 +57,7 @@ public class EmbeddingsInputTests extends ESTestCase {
         );
         EmbeddingsInput input = new EmbeddingsInput(supplier, null);
         var exception = expectThrows(AssertionError.class, input::getTextInputs);
-        assertThat(exception.getMessage(), is("Non-text input returned from EmbeddingsInput.getTextInputs"));
+        assertThat(exception.getMessage(), is("Non-text input passed to InferenceString.toStringList"));
     }
 
     public void testCallingGetInputsTwice_throws() {

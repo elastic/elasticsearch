@@ -134,7 +134,7 @@ public class EmbeddingRequestChunker<E extends EmbeddingResults.Embedding<E>> {
 
             for (int chunkIndex = 0; chunkIndex < chunks.size(); chunkIndex++) {
                 // If the number of chunks is larger than the maximum allowed value,
-                // scale the indices to [0, MAX] with similar number of original
+                // scale the indices to [0, MAX) with similar number of original
                 // chunks in the final chunks.
                 int targetChunkIndex = chunks.size() <= MAX_CHUNKS ? chunkIndex : chunkIndex * MAX_CHUNKS / chunks.size();
                 if (resultOffsetStarts.getLast().size() <= targetChunkIndex) {

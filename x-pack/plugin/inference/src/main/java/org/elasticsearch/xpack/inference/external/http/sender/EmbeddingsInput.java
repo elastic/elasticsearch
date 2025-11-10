@@ -65,13 +65,11 @@ public class EmbeddingsInput extends InferenceInputs {
      * this method twice in a non-production environment will cause an {@link AssertionError} to be thrown.
      *
      * @return a list of String embedding inputs that do not contain any non-text inputs
+     * @see InferenceString#toStringList(List)
      */
     public List<String> getTextInputs() {
         assert supplierInvoked.compareAndSet(false, true) : "EmbeddingsInput supplier invoked twice";
-        return inputListSupplier.get().stream().map(i -> {
-            assert i.isText() : "Non-text input returned from EmbeddingsInput.getTextInputs";
-            return i.value();
-        }).toList();
+        return InferenceString.toStringList(inputListSupplier.get());
     }
 
     public InputType getInputType() {

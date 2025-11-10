@@ -41,8 +41,8 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.loadMapping;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 
-@TestLogging(value="org.elasticsearch.xpack.esql:TRACE", reason="debug tests")
-//@Ignore("Proper assertions need to be added")
+@TestLogging(value = "org.elasticsearch.xpack.esql:TRACE", reason = "debug tests")
+// @Ignore("Proper assertions need to be added")
 public class PromqlLogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests {
 
     private static final String PARAM_FORMATTING = "%1$s";

@@ -1046,6 +1046,17 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
             return null;
         }
 
+        if (sourceShardRouting.relocatingNodeId() != null) {
+            DiscoveryNode sourceNode = nodes.get(sourceShardRouting.relocatingNodeId());
+            if (sourceNode == null) {
+                logger.trace(
+                    "can't find relocation reshard split source node for shard {} because it is assigned to an unknown node [{}].",
+                    sourceShardRouting.shardId(),
+                    sourceShardRouting.relocatingNodeId()
+                );
+            }
+            return sourceNode;
+        }
         DiscoveryNode sourceNode = nodes.get(sourceShardRouting.currentNodeId());
         if (sourceNode == null) {
             assert false : "Source node for reshard does not exist: " + sourceShardRouting.currentNodeId();
@@ -1053,7 +1064,6 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
                 "can't find reshard split source node because source shard {} is assigned to an unknown node.",
                 sourceShardRouting.shortSummary()
             );
-            return null;
         }
         return sourceNode;
     }

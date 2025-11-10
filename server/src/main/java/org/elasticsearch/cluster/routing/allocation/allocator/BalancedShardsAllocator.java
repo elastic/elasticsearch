@@ -1835,7 +1835,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
     }
 
     /**
-     * Defensive layer to prevent weight function errors from causing allocation issues
+     * Utility for defaulting in the event of an invalid weight where it makes sense
      */
     private static float calculateNodeWeightWithIndex(
         WeightFunction weightFunction,

@@ -118,7 +118,7 @@ public class GPUPlugin extends Plugin implements InternalVectorFormatProviderPlu
             int m = int8HnswIndexOptions.m();
             int gpuM = 2 + m * 2 / 3;
             int gpuEfConstruction = m + m * efConstruction / 256;
-            return new ES92GpuHnswSQVectorsFormat(gpuM, gpuEfConstruction, int8HnswIndexOptions.confidenceInterval(), 7, false);
+            return new ES92GpuHnswSQVectorsFormat(gpuM, gpuEfConstruction, null, 7, false);
         } else {
             throw new IllegalArgumentException(
                 "GPU vector indexing is not supported on this vector type: [" + indexOptions.getType() + "]"

@@ -27,6 +27,7 @@ import org.apache.lucene.util.VectorUtil;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.codec.CodecService;
@@ -1936,8 +1937,6 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
     }
 
     public void testKnnQuantizedFlatVectorsFormat() throws IOException {
-        boolean setConfidenceInterval = randomBoolean();
-        float confidenceInterval = (float) randomDoubleBetween(0.90f, 1.0f, true);
         for (String quantizedFlatFormat : new String[] { "int8_flat", "int4_flat" }) {
             MapperService mapperService = createMapperService(fieldMapping(b -> {
                 b.field("type", "dense_vector");
@@ -1946,9 +1945,6 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
                 b.field("similarity", "dot_product");
                 b.startObject("index_options");
                 b.field("type", quantizedFlatFormat);
-                if (setConfidenceInterval) {
-                    b.field("confidence_interval", confidenceInterval);
-                }
                 b.endObject();
             }));
             CodecService codecService = new CodecService(mapperService, BigArrays.NON_RECYCLING_INSTANCE);
@@ -1965,29 +1961,25 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
                 knnVectorsFormat = ((LegacyPerFieldMapperCodec) codec).getKnnVectorsFormatForField("field");
             }
             VectorScorerFactory factory = VectorScorerFactory.instance().orElse(null);
-            String expectedString = "ES813Int8FlatVectorFormat(name=ES813Int8FlatVectorFormat, innerFormat="
-                + "ES814ScalarQuantizedVectorsFormat(name=ES814ScalarQuantizedVectorsFormat,"
-                + " confidenceInterval="
-                + (setConfidenceInterval ? Float.toString(confidenceInterval) : (quantizedFlatFormat.equals("int4_flat") ? "0.0" : null))
-                + ", bits="
-                + (quantizedFlatFormat.equals("int4_flat") ? 4 : 7)
-                + ", compressed="
-                + quantizedFlatFormat.equals("int4_flat")
-                + ", flatVectorScorer=ESFlatVectorsScorer("
-                + "delegate=ScalarQuantizedVectorScorer(nonQuantizedDelegate=DefaultFlatVectorScorer())"
-                + ", factory="
-                + (factory != null ? factory : "null")
-                + "), "
-                + "rawVectorFormat=Lucene99FlatVectorsFormat(vectorsScorer=DefaultFlatVectorScorer())))";
-            assertEquals(expectedString, knnVectorsFormat.toString());
+            String expectedString = Strings.format(
+                "ES93ScalarQuantizedVectorsFormat(name=ES93ScalarQuantizedVectorsFormat"
+                    + ", bits=%s"
+                    + ", flatVectorScorer=Lucene104ScalarQuantizedVectorScorer(nonQuantizedDelegate=DefaultFlatVectorScorer())"
+                    + ", rawVectorFormat=ES93GenericFlatVectorsFormat(name=ES93GenericFlatVectorsFormat"
+                    + ", format=Lucene99FlatVectorsFormat(name=Lucene99FlatVectorsFormat, flatVectorScorer=DefaultFlatVectorScorer())))",
+                switch (quantizedFlatFormat) {
+                    case "int8_flat" -> "7";
+                    case "int4_flat" -> "4";
+                    default -> throw new AssertionError();
+                }
+            );
+            assertThat(knnVectorsFormat, hasToString(expectedString));
         }
     }
 
     public void testKnnQuantizedHNSWVectorsFormat() throws IOException {
         final int m = randomIntBetween(1, DEFAULT_MAX_CONN + 10);
         final int efConstruction = randomIntBetween(1, DEFAULT_BEAM_WIDTH + 10);
-        boolean setConfidenceInterval = randomBoolean();
-        float confidenceInterval = (float) randomDoubleBetween(0.90f, 1.0f, true);
         MapperService mapperService = createMapperService(fieldMapping(b -> {
             b.field("type", "dense_vector");
             b.field("dims", dims);
@@ -1997,9 +1989,6 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
             b.field("type", "int8_hnsw");
             b.field("m", m);
             b.field("ef_construction", efConstruction);
-            if (setConfidenceInterval) {
-                b.field("confidence_interval", confidenceInterval);
-            }
             b.endObject();
         }));
         CodecService codecService = new CodecService(mapperService, BigArrays.NON_RECYCLING_INSTANCE);
@@ -2015,22 +2004,16 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
             assertThat(codec, instanceOf(LegacyPerFieldMapperCodec.class));
             knnVectorsFormat = ((LegacyPerFieldMapperCodec) codec).getKnnVectorsFormatForField("field");
         }
-        VectorScorerFactory factory = VectorScorerFactory.instance().orElse(null);
-        String expectedString = "ES814HnswScalarQuantizedVectorsFormat(name=ES814HnswScalarQuantizedVectorsFormat, maxConn="
-            + m
-            + ", beamWidth="
-            + efConstruction
-            + ", flatVectorFormat=ES814ScalarQuantizedVectorsFormat("
-            + "name=ES814ScalarQuantizedVectorsFormat, confidenceInterval="
-            + (setConfidenceInterval ? confidenceInterval : null)
-            + ", bits=7, compressed=false, "
-            + "flatVectorScorer=ESFlatVectorsScorer(delegate=ScalarQuantizedVectorScorer(nonQuantizedDelegate=DefaultFlatVectorScorer()), "
-            + "factory="
-            + (factory != null ? factory : "null")
-            + "), "
-            + "rawVectorFormat=Lucene99FlatVectorsFormat(vectorsScorer=DefaultFlatVectorScorer())"
-            + "))";
-        assertEquals(expectedString, knnVectorsFormat.toString());
+        String expectedString = Strings.format(
+            "ES93HnswScalarQuantizedVectorsFormat(name=ES93HnswScalarQuantizedVectorsFormat"
+                + ", maxConn=%s, beamWidth=%s, bits=7"
+                + ", flatVectorScorer=Lucene104ScalarQuantizedVectorScorer(nonQuantizedDelegate=DefaultFlatVectorScorer())"
+                + ", rawVectorFormat=ES93GenericFlatVectorsFormat(name=ES93GenericFlatVectorsFormat"
+                + ", format=Lucene99FlatVectorsFormat(name=Lucene99FlatVectorsFormat, flatVectorScorer=DefaultFlatVectorScorer())))",
+            m,
+            efConstruction
+        );
+        assertThat(knnVectorsFormat, hasToString(expectedString));
     }
 
     public void testKnnBBQHNSWVectorsFormat() throws IOException {
@@ -2119,8 +2102,6 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
     public void testKnnHalfByteQuantizedHNSWVectorsFormat() throws IOException {
         final int m = randomIntBetween(1, DEFAULT_MAX_CONN + 10);
         final int efConstruction = randomIntBetween(1, DEFAULT_BEAM_WIDTH + 10);
-        boolean setConfidenceInterval = randomBoolean();
-        float confidenceInterval = (float) randomDoubleBetween(0.90f, 1.0f, true);
         MapperService mapperService = createMapperService(fieldMapping(b -> {
             b.field("type", "dense_vector");
             b.field("dims", dims);
@@ -2130,9 +2111,6 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
             b.field("type", "int4_hnsw");
             b.field("m", m);
             b.field("ef_construction", efConstruction);
-            if (setConfidenceInterval) {
-                b.field("confidence_interval", confidenceInterval);
-            }
             b.endObject();
         }));
         CodecService codecService = new CodecService(mapperService, BigArrays.NON_RECYCLING_INSTANCE);
@@ -2148,22 +2126,16 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
             assertThat(codec, instanceOf(LegacyPerFieldMapperCodec.class));
             knnVectorsFormat = ((LegacyPerFieldMapperCodec) codec).getKnnVectorsFormatForField("field");
         }
-        VectorScorerFactory factory = VectorScorerFactory.instance().orElse(null);
-        String expectedString = "ES814HnswScalarQuantizedVectorsFormat(name=ES814HnswScalarQuantizedVectorsFormat, maxConn="
-            + m
-            + ", beamWidth="
-            + efConstruction
-            + ", flatVectorFormat=ES814ScalarQuantizedVectorsFormat("
-            + "name=ES814ScalarQuantizedVectorsFormat, confidenceInterval="
-            + (setConfidenceInterval ? confidenceInterval : 0.0f)
-            + ", bits=4, compressed=true, "
-            + "flatVectorScorer=ESFlatVectorsScorer(delegate=ScalarQuantizedVectorScorer(nonQuantizedDelegate=DefaultFlatVectorScorer()), "
-            + "factory="
-            + (factory != null ? factory : "null")
-            + "), "
-            + "rawVectorFormat=Lucene99FlatVectorsFormat(vectorsScorer=DefaultFlatVectorScorer())"
-            + "))";
-        assertEquals(expectedString, knnVectorsFormat.toString());
+        String expectedString = Strings.format(
+            "ES93HnswScalarQuantizedVectorsFormat(name=ES93HnswScalarQuantizedVectorsFormat"
+                + ", maxConn=%s, beamWidth=%s, bits=4"
+                + ", flatVectorScorer=Lucene104ScalarQuantizedVectorScorer(nonQuantizedDelegate=DefaultFlatVectorScorer())"
+                + ", rawVectorFormat=ES93GenericFlatVectorsFormat(name=ES93GenericFlatVectorsFormat"
+                + ", format=Lucene99FlatVectorsFormat(name=Lucene99FlatVectorsFormat, flatVectorScorer=DefaultFlatVectorScorer())))",
+            m,
+            efConstruction
+        );
+        assertThat(knnVectorsFormat, hasToString(expectedString));
     }
 
     public void testInvalidVectorDimensions() {

@@ -224,6 +224,12 @@ public class TransportGetDataStreamsAction extends TransportLocalProjectMetadata
                 indexMode = Enum.valueOf(IndexMode.class, rawMode.toUpperCase(Locale.ROOT));
             }
         }
+        if (indexMode == null) {
+            String rawMode = settings.get(IndexSettings.MODE.getKey());
+            if (rawMode != null) {
+                indexMode = Enum.valueOf(IndexMode.class, rawMode.toUpperCase(Locale.ROOT));
+            }
+        }
         return indexMode;
     }
 

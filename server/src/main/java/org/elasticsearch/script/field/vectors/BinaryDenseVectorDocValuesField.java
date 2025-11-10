@@ -86,12 +86,8 @@ public class BinaryDenseVectorDocValuesField extends DenseVectorDocValuesField {
 
     private void decodeVectorIfNecessary() {
         if (decoded == false && value != null) {
-            decodeDenseVector(indexVersion, value, vectorValue);
+            VectorEncoderDecoder.decodeDenseVector(indexVersion, value, vectorValue);
             decoded = true;
         }
-    }
-
-    void decodeDenseVector(IndexVersion indexVersion, BytesRef value, float[] vector) {
-        VectorEncoderDecoder.decodeDenseVector(indexVersion, value, vectorValue);
     }
 }

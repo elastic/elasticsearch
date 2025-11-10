@@ -110,6 +110,7 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.time.Period;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -4427,6 +4428,25 @@ public class AnalyzerTests extends ESTestCase {
         assertEquals("hire_date", fa.name());
         literal = as(bucket.buckets(), Literal.class);
         assertEquals(oneYear, literal);
+    }
+
+    public void testProjectionForUnionTypeResolution() {
+        LinkedHashMap<String, Set<String>> typesToIndices = new LinkedHashMap<>();
+        typesToIndices.put("keyword", Set.of("union_index_1"));
+        typesToIndices.put("integer", Set.of("union_index_2"));
+
+        EsField idField = new InvalidMappedField("id", typesToIndices);
+        EsField fooField = new EsField("foo", DataType.KEYWORD, Map.of(), true, EsField.TimeSeriesFieldType.NONE);
+
+        EsIndex index = new EsIndex(
+            "union_index*",
+            Map.of("id", idField, "foo", fooField), // Updated mapping keys
+            Map.of("union_index_1", IndexMode.STANDARD, "union_index_2", IndexMode.STANDARD)
+        );
+        IndexResolution resolution = IndexResolution.valid(index);
+        Analyzer analyzer = analyzer(resolution);
+        String query = "FROM union_index* | KEEP id, foo | MV_EXPAND foo | EVAL foo::keyword";
+        LogicalPlan plan = analyze(query, analyzer);
     }
 
     public void testImplicitCastingForDateAndDateNanosFields() {

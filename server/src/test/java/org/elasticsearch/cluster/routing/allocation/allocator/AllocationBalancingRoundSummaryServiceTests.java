@@ -45,24 +45,27 @@ public class AllocationBalancingRoundSummaryServiceTests extends ESTestCase {
 
     private static final String BALANCING_SUMMARY_MSG_PREFIX = "Balancing round summaries:*";
 
-    private static final Map<String, BalancingRoundSummary.NodesWeightsChanges> NODE_NAME_TO_WEIGHT_CHANGES = Map.of(
-        "node1",
+    final static DiscoveryNode NODE_1 = new DiscoveryNode("node1", "node1_id", "eph-NODE_1", "abc", "abc", null, Map.of(), Set.of(), null);
+    final static DiscoveryNode NODE_2 = new DiscoveryNode("node2", "node2_id", "eph-NODE_2", "abc", "abc", null, Map.of(), Set.of(), null);
+
+    private static final Map<DiscoveryNode, BalancingRoundSummary.NodesWeightsChanges> NODE_NAME_TO_WEIGHT_CHANGES = Map.of(
+        NODE_1,
         new BalancingRoundSummary.NodesWeightsChanges(
             new DesiredBalanceMetrics.NodeWeightStats(1L, 2, 3, 4),
             new BalancingRoundSummary.NodeWeightsDiff(1, 2, 3, 4)
         ),
-        "node2",
+        NODE_2,
         new BalancingRoundSummary.NodesWeightsChanges(
             new DesiredBalanceMetrics.NodeWeightStats(1L, 2, 3, 4),
             new BalancingRoundSummary.NodeWeightsDiff(1, 2, 3, 4)
         )
     );
 
-    final DiscoveryNode DUMMY_NODE = new DiscoveryNode("node1Name", "node1Id", "eph-node1", "abc", "abc", null, Map.of(), Set.of(), null);
+    final DiscoveryNode DUMMY_NODE = new DiscoveryNode("dummy1Name", "dummy1Id", "eph-dummy1", "abc", "abc", null, Map.of(), Set.of(), null);
     final DiscoveryNode SECOND_DUMMY_NODE = new DiscoveryNode(
-        "node2Name",
-        "node2Id",
-        "eph-node2",
+        "dummy2Name",
+        "dummy2Id",
+        "eph-dummy2",
         "def",
         "def",
         null,
@@ -403,7 +406,7 @@ public class AllocationBalancingRoundSummaryServiceTests extends ESTestCase {
 
         assertEquals(2, firstSummary.numberOfShardsToMove());
         assertEquals(1, firstSummary.nodeNameToWeightChanges().size());
-        var firstSummaryWeights = firstSummary.nodeNameToWeightChanges().get(DUMMY_NODE.getName());
+        var firstSummaryWeights = firstSummary.nodeNameToWeightChanges().get(DUMMY_NODE);
         assertEquals(10, firstSummaryWeights.baseWeights().shardCount());
         assertDoublesEqual(20, firstSummaryWeights.baseWeights().diskUsageInBytes());
         assertDoublesEqual(30, firstSummaryWeights.baseWeights().writeLoad());
@@ -415,7 +418,7 @@ public class AllocationBalancingRoundSummaryServiceTests extends ESTestCase {
 
         assertEquals(1, secondSummary.numberOfShardsToMove());
         assertEquals(1, secondSummary.nodeNameToWeightChanges().size());
-        var secondSummaryWeights = secondSummary.nodeNameToWeightChanges().get(DUMMY_NODE.getName());
+        var secondSummaryWeights = secondSummary.nodeNameToWeightChanges().get(DUMMY_NODE);
         assertEquals(20, secondSummaryWeights.baseWeights().shardCount());
         assertDoublesEqual(40, secondSummaryWeights.baseWeights().diskUsageInBytes());
         assertDoublesEqual(60, secondSummaryWeights.baseWeights().writeLoad());
@@ -458,7 +461,7 @@ public class AllocationBalancingRoundSummaryServiceTests extends ESTestCase {
         assertEquals(0, summary.numberOfShardsToMove());
         assertEquals(2, summary.nodeNameToWeightChanges().size());
 
-        var summaryDummyNodeWeights = summary.nodeNameToWeightChanges().get(DUMMY_NODE.getName());
+        var summaryDummyNodeWeights = summary.nodeNameToWeightChanges().get(DUMMY_NODE);
         assertEquals(10, summaryDummyNodeWeights.baseWeights().shardCount());
         assertDoublesEqual(20, summaryDummyNodeWeights.baseWeights().diskUsageInBytes());
         assertDoublesEqual(30, summaryDummyNodeWeights.baseWeights().writeLoad());
@@ -468,7 +471,7 @@ public class AllocationBalancingRoundSummaryServiceTests extends ESTestCase {
         assertDoublesEqual(30, summaryDummyNodeWeights.weightsDiff().writeLoadDiff());
         assertDoublesEqual(40, summaryDummyNodeWeights.weightsDiff().totalWeightDiff());
 
-        var summarySecondDummyNodeWeights = summary.nodeNameToWeightChanges().get(SECOND_DUMMY_NODE.getName());
+        var summarySecondDummyNodeWeights = summary.nodeNameToWeightChanges().get(SECOND_DUMMY_NODE);
         assertEquals(5, summarySecondDummyNodeWeights.baseWeights().shardCount());
         assertDoublesEqual(15, summarySecondDummyNodeWeights.baseWeights().diskUsageInBytes());
         assertDoublesEqual(25, summarySecondDummyNodeWeights.baseWeights().writeLoad());
@@ -511,7 +514,7 @@ public class AllocationBalancingRoundSummaryServiceTests extends ESTestCase {
         assertEquals(1, summary.numberOfShardsToMove());
         assertEquals(2, summary.nodeNameToWeightChanges().size());
 
-        var summaryDummyNodeWeights = summary.nodeNameToWeightChanges().get(DUMMY_NODE.getName());
+        var summaryDummyNodeWeights = summary.nodeNameToWeightChanges().get(DUMMY_NODE);
         assertEquals(10, summaryDummyNodeWeights.baseWeights().shardCount());
         assertDoublesEqual(20, summaryDummyNodeWeights.baseWeights().diskUsageInBytes());
         assertDoublesEqual(30, summaryDummyNodeWeights.baseWeights().writeLoad());
@@ -521,7 +524,7 @@ public class AllocationBalancingRoundSummaryServiceTests extends ESTestCase {
         assertDoublesEqual(30, summaryDummyNodeWeights.weightsDiff().writeLoadDiff());
         assertDoublesEqual(40, summaryDummyNodeWeights.weightsDiff().totalWeightDiff());
 
-        var summarySecondDummyNodeWeights = summary.nodeNameToWeightChanges().get(SECOND_DUMMY_NODE.getName());
+        var summarySecondDummyNodeWeights = summary.nodeNameToWeightChanges().get(SECOND_DUMMY_NODE);
         assertEquals(0, summarySecondDummyNodeWeights.baseWeights().shardCount());
         assertDoublesEqual(0, summarySecondDummyNodeWeights.baseWeights().diskUsageInBytes());
         assertDoublesEqual(0, summarySecondDummyNodeWeights.baseWeights().writeLoad());
@@ -597,7 +600,7 @@ public class AllocationBalancingRoundSummaryServiceTests extends ESTestCase {
         List<Measurement> measurements,
         Function<Measurement, T> getMeasurementValue
     ) {
-        return Measurement.groupMeasurementsByAttribute(measurements, (attrs -> (String) attrs.get("balancing_node_name")),
+        return Measurement.groupMeasurementsByAttribute(measurements, (attrs -> (String) attrs.get("node_name")),
             getMeasurementValue);
     }
 }

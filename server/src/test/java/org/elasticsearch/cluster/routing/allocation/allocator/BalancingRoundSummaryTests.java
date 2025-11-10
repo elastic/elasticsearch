@@ -9,12 +9,14 @@
 
 package org.elasticsearch.cluster.routing.allocation.allocator;
 
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.allocation.allocator.BalancingRoundSummary.CombinedBalancingRoundSummary;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 public class BalancingRoundSummaryTests extends ESTestCase {
 
@@ -22,8 +24,8 @@ public class BalancingRoundSummaryTests extends ESTestCase {
      * Tests the {@link BalancingRoundSummary.CombinedBalancingRoundSummary#combine(List)} method.
      */
     public void testCombine() {
-        final String NODE_1 = "node1";
-        final String NODE_2 = "node2";
+        final DiscoveryNode NODE_1 = new DiscoveryNode("node1", "node1Id", "eph-node1", "abc", "abc", null, Map.of(), Set.of(), null);
+        final DiscoveryNode NODE_2 = new DiscoveryNode("node2", "node2Id", "eph-node2", "abc", "abc", null, Map.of(), Set.of(), null);
         final var node1BaseWeights = new DesiredBalanceMetrics.NodeWeightStats(10, 20, 30, 40);
         final var node2BaseWeights = new DesiredBalanceMetrics.NodeWeightStats(100, 200, 300, 400);
         final var commonDiff = new BalancingRoundSummary.NodeWeightsDiff(1, 2, 3, 4);

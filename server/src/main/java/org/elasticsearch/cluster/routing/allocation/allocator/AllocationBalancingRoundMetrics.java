@@ -9,6 +9,7 @@
 
 package org.elasticsearch.cluster.routing.allocation.allocator;
 
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.allocation.allocator.BalancingRoundSummary.NodesWeightsChanges;
 import org.elasticsearch.telemetry.metric.DoubleHistogram;
 import org.elasticsearch.telemetry.metric.LongCounter;
@@ -88,19 +89,20 @@ public class AllocationBalancingRoundMetrics {
         shardMovesCounter.incrementBy(summary.numberOfShardsToMove());
         shardMovesHistogram.record(summary.numberOfShardsToMove());
 
-        for (Map.Entry<String, NodesWeightsChanges> changesEntry : summary.nodeNameToWeightChanges().entrySet()) {
-            String nodeName = changesEntry.getKey();
+        for (Map.Entry<DiscoveryNode, NodesWeightsChanges> changesEntry : summary.nodeNameToWeightChanges().entrySet()) {
+            DiscoveryNode node = changesEntry.getKey();
             NodesWeightsChanges weightChanges = changesEntry.getValue();
             BalancingRoundSummary.NodeWeightsDiff weightsDiff = weightChanges.weightsDiff();
 
-            shardCountHistogram.record(Math.abs(weightsDiff.shardCountDiff()), getNodeAttributes(nodeName));
-            diskUsageHistogram.record(Math.abs(weightsDiff.diskUsageInBytesDiff()), getNodeAttributes(nodeName));
-            writeLoadHistogram.record(Math.abs(weightsDiff.writeLoadDiff()), getNodeAttributes(nodeName));
-            totalWeightHistogram.record(Math.abs(weightsDiff.totalWeightDiff()), getNodeAttributes(nodeName));
+            shardCountHistogram.record(Math.abs(weightsDiff.shardCountDiff()), getNodeAttributes(node));
+            diskUsageHistogram.record(Math.abs(weightsDiff.diskUsageInBytesDiff()), getNodeAttributes(node));
+            writeLoadHistogram.record(Math.abs(weightsDiff.writeLoadDiff()), getNodeAttributes(node));
+            totalWeightHistogram.record(Math.abs(weightsDiff.totalWeightDiff()), getNodeAttributes(node));
         }
     }
 
-    private Map<String, Object> getNodeAttributes(String nodeId) {
-        return Map.of("balancing_node_name", nodeId);
+    private Map<String, Object> getNodeAttributes(DiscoveryNode node) {
+        return Map.of("node_name", node.getName(),
+                      "node_id", node.getId());
     }
 }

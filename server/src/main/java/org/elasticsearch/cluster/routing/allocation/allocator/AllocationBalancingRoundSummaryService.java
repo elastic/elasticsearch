@@ -11,6 +11,7 @@ package org.elasticsearch.cluster.routing.allocation.allocator;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.core.TimeValue;
@@ -105,14 +106,14 @@ public class AllocationBalancingRoundSummaryService {
      * Creates a summary of the node weight changes from {@code oldDesiredBalance} to {@code newDesiredBalance}.
      * See {@link BalancingRoundSummary.NodesWeightsChanges} for content details.
      */
-    private static Map<String, BalancingRoundSummary.NodesWeightsChanges> createWeightsSummary(
+    private static Map<DiscoveryNode, BalancingRoundSummary.NodesWeightsChanges> createWeightsSummary(
         DesiredBalance oldDesiredBalance,
         DesiredBalance newDesiredBalance
     ) {
         var oldWeightsPerNode = oldDesiredBalance.weightsPerNode();
         var newWeightsPerNode = newDesiredBalance.weightsPerNode();
 
-        Map<String, BalancingRoundSummary.NodesWeightsChanges> nodeNameToWeightInfo = new HashMap<>(oldWeightsPerNode.size());
+        Map<DiscoveryNode, BalancingRoundSummary.NodesWeightsChanges> nodeNameToWeightInfo = new HashMap<>(oldWeightsPerNode.size());
         for (var nodeAndWeights : oldWeightsPerNode.entrySet()) {
             var discoveryNode = nodeAndWeights.getKey();
             var oldNodeWeightStats = nodeAndWeights.getValue();
@@ -122,7 +123,7 @@ public class AllocationBalancingRoundSummaryService {
             var newNodeWeightStats = newWeightsPerNode.getOrDefault(discoveryNode, DesiredBalanceMetrics.NodeWeightStats.ZERO);
 
             nodeNameToWeightInfo.put(
-                discoveryNode.getName(),
+                discoveryNode,
                 new BalancingRoundSummary.NodesWeightsChanges(
                     oldNodeWeightStats,
                     BalancingRoundSummary.NodeWeightsDiff.create(oldNodeWeightStats, newNodeWeightStats)
@@ -134,11 +135,11 @@ public class AllocationBalancingRoundSummaryService {
         // the new DesiredBalance to check.
         for (var nodeAndWeights : newWeightsPerNode.entrySet()) {
             var discoveryNode = nodeAndWeights.getKey();
-            if (nodeNameToWeightInfo.containsKey(discoveryNode.getName()) == false) {
+            if (nodeNameToWeightInfo.containsKey(discoveryNode) == false) {
                 // This node is new in the new DesiredBalance, there was no entry added during iteration of the nodes in the old
                 // DesiredBalance. So we'll make a new entry with a base of zero value weights and a weights diff of the new node's weights.
                 nodeNameToWeightInfo.put(
-                    discoveryNode.getName(),
+                    discoveryNode,
                     new BalancingRoundSummary.NodesWeightsChanges(
                         DesiredBalanceMetrics.NodeWeightStats.ZERO,
                         BalancingRoundSummary.NodeWeightsDiff.create(DesiredBalanceMetrics.NodeWeightStats.ZERO, nodeAndWeights.getValue())

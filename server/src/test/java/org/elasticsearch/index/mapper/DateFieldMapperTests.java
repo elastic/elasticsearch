@@ -918,6 +918,15 @@ public class DateFieldMapperTests extends MapperTestCase {
     @Override
     protected List<SortShortcutSupport> getSortShortcutSupport() {
         return List.of(
+            new SortShortcutSupport(
+                IndexVersion.current(),
+                Settings.builder().put("index.mode", "logsdb").put("index.logsdb.sort_on_host_name", true).build(),
+                "@timestamp",
+                b -> b.field("type", "date").field("ignore_malformed", false),
+                b -> b.startObject("host.name").field("type", "keyword").endObject(),
+                b -> b.field("@timestamp", "2025-10-30T00:00:00").field("host.name", "foo"),
+                true
+            ),
             new SortShortcutSupport(b -> b.field("type", "date"), b -> b.field("field", "2025-10-30T00:00:00"), true),
             new SortShortcutSupport(b -> b.field("type", "date_nanos"), b -> b.field("field", "2025-10-30T00:00:00"), true),
             new SortShortcutSupport(

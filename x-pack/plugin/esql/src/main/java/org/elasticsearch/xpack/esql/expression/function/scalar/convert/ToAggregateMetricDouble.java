@@ -68,12 +68,13 @@ public class ToAggregateMetricDouble extends AbstractConvertFunction {
     );
 
     @FunctionInfo(
+        preview = true,
         returnType = "aggregate_metric_double",
         description = "Encode a numeric to an aggregate_metric_double.",
         examples = {
             @Example(file = "convert", tag = "toAggregateMetricDouble"),
             @Example(description = "The expression also accepts multi-values", file = "convert", tag = "toAggregateMetricDoubleMv") },
-        appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.COMING) }
+        appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW, version = "9.2.0") }
     )
     public ToAggregateMetricDouble(
         Source source,

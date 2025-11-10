@@ -281,7 +281,7 @@ public class ES93BloomFilterStoredFieldsFormat extends StoredFieldsFormat {
         }
 
         private int getBloomFilterSizeInBits() {
-            var bloomFilterSizeInBits = defaultBloomFilterSizeInBitsSupplier.getAsInt();
+            int bloomFilterSizeInBits = defaultBloomFilterSizeInBitsSupplier.getAsInt();
             assert isPowerOfTwo(bloomFilterSizeInBits) : "Bloom filter size is not a power of 2: " + bloomFilterSizeInBits;
             return bloomFilterSizeInBits;
         }
@@ -289,7 +289,7 @@ public class ES93BloomFilterStoredFieldsFormat extends StoredFieldsFormat {
         private void addToBloomFilter(FieldInfo info, BytesRef value) throws IOException {
             assert info.getName().equals(bloomFilterFieldName) : "Expected " + bloomFilterFieldName + " but got " + info;
             maybeInitializeBloomFilterWriter(info, getBloomFilterSizeInBits());
-            bloomFilterWriter.addToBloomFilter(info, value);
+            bloomFilterWriter.add(value);
         }
 
         @Override
@@ -312,8 +312,8 @@ public class ES93BloomFilterStoredFieldsFormat extends StoredFieldsFormat {
 
         @Override
         public int merge(MergeState mergeState) throws IOException {
-            if (canOrBloomFilters(mergeState)) {
-                mergeBloomFiltersWithOr(mergeState);
+            if (useOptimizedMerge(mergeState)) {
+                mergeOptimized(mergeState);
             } else {
                 rebuildBloomFilterFromSegments(mergeState);
             }
@@ -321,8 +321,8 @@ public class ES93BloomFilterStoredFieldsFormat extends StoredFieldsFormat {
             return delegateWriter.merge(mergeState);
         }
 
-        private void mergeBloomFiltersWithOr(MergeState mergeState) throws IOException {
-            assert canOrBloomFilters(mergeState);
+        private void mergeOptimized(MergeState mergeState) throws IOException {
+            assert useOptimizedMerge(mergeState);
 
             if (mergeState.storedFieldsReaders.length == 0) {
                 return;
@@ -349,7 +349,6 @@ public class ES93BloomFilterStoredFieldsFormat extends StoredFieldsFormat {
 
                 final int maxDoc = mergeState.maxDocs[readerIndex];
                 if (f != null) {
-                    // This can be somewhat expensive and we'll check the integrity again while merging the terms, should we skip it?
                     f.checkIntegrity();
                     slices.add(new ReaderSlice(docBase, maxDoc, readerIndex));
                     fields.add(f);
@@ -400,7 +399,7 @@ public class ES93BloomFilterStoredFieldsFormat extends StoredFieldsFormat {
          * @return {@code true} if all segments have compatible bloom filters that can be
          *         merged via bitwise OR; {@code false} otherwise
          */
-        private boolean canOrBloomFilters(MergeState mergeState) {
+        private boolean useOptimizedMerge(MergeState mergeState) {
             int expectedBloomFilterSize = -1;
             for (int i = 0; i < mergeState.storedFieldsReaders.length; i++) {
                 StoredFieldsReader storedFieldsReader = mergeState.storedFieldsReaders[i];
@@ -469,19 +468,25 @@ public class ES93BloomFilterStoredFieldsFormat extends StoredFieldsFormat {
                 this.hashes = new int[numHashFunctions];
                 this.bloomFilterDataOut = directory.createOutput(bloomFilterFileName(segmentInfo, segmentSuffix), context);
 
-                CodecUtil.writeIndexHeader(
-                    bloomFilterDataOut,
-                    STORED_FIELDS_BLOOM_FILTER_FORMAT_NAME,
-                    VERSION_CURRENT,
-                    segmentInfo.getId(),
-                    segmentSuffix
-                );
+                boolean success = false;
+                try {
+                    CodecUtil.writeIndexHeader(
+                        bloomFilterDataOut,
+                        STORED_FIELDS_BLOOM_FILTER_FORMAT_NAME,
+                        VERSION_CURRENT,
+                        segmentInfo.getId(),
+                        segmentSuffix
+                    );
+                    success = true;
+                } finally {
+                    if (success == false) {
+                        bloomFilterDataOut.close();
+                    }
+                }
             }
 
-            private void addToBloomFilter(FieldInfo info, BytesRef value) {
+            private void add(BytesRef value) {
                 ensureNotFlushed();
-
-                assert info.getName().equals(bloomFilterFieldName) : "Expected " + bloomFilterFieldName + " but got " + info;
                 var termHashes = hashTerm(value, hashes);
                 for (int hash : termHashes) {
                     final int posInBitArray = hash & (bitsetSizeInBits - 1);
@@ -497,24 +502,27 @@ public class ES93BloomFilterStoredFieldsFormat extends StoredFieldsFormat {
 
                 for (int readerIdx = 0; readerIdx < mergeState.storedFieldsReaders.length; readerIdx++) {
                     StoredFieldsReader storedFieldsReader = mergeState.storedFieldsReaders[readerIdx];
-                    if (storedFieldsReader instanceof Reader reader) {
-                        var bloomFilterFieldReader = reader.bloomFilterFieldReader;
+                    if (storedFieldsReader instanceof Reader == false) {
+                        throw new IllegalStateException("Expected a Reader but got " + storedFieldsReader.getClass());
+                    }
 
-                        if (bloomFilterFieldReader != null) {
-                            assert bloomFilterFieldReader.getBloomFilterBitSetSizeInBits() == bitsetSizeInBits
-                                : "Expected a bloom filter bitset size "
-                                    + bitsetSizeInBits
-                                    + " but got "
-                                    + bloomFilterFieldReader.getBloomFilterBitSetSizeInBits();
-                            bloomFilterFieldReader.checkIntegrity();
-                            IndexInput bloomFilterData = bloomFilterFieldReader.bloomFilterData;
+                    Reader reader = (Reader) storedFieldsReader;
+                    var bloomFilterFieldReader = reader.bloomFilterFieldReader;
 
-                            bloomFilterData.prefetch(0, bitSetSizeInBytes);
-                            for (int i = 0; i < bitSetSizeInBytes; i++) {
-                                var existingBloomFilterByte = bloomFilterData.readByte();
-                                var resultingBloomFilterByte = buffer.get(i);
-                                buffer.set(i, (byte) (existingBloomFilterByte | resultingBloomFilterByte));
-                            }
+                    if (bloomFilterFieldReader != null) {
+                        assert bloomFilterFieldReader.getBloomFilterBitSetSizeInBits() == bitsetSizeInBits
+                            : "Expected a bloom filter bitset size "
+                                + bitsetSizeInBits
+                                + " but got "
+                                + bloomFilterFieldReader.getBloomFilterBitSetSizeInBits();
+                        bloomFilterFieldReader.checkIntegrity();
+                        IndexInput bloomFilterData = bloomFilterFieldReader.bloomFilterData;
+
+                        bloomFilterData.prefetch(0, bitSetSizeInBytes);
+                        for (int i = 0; i < bitSetSizeInBytes; i++) {
+                            var existingBloomFilterByte = bloomFilterData.readByte();
+                            var resultingBloomFilterByte = buffer.get(i);
+                            buffer.set(i, (byte) (existingBloomFilterByte | resultingBloomFilterByte));
                         }
                     }
                 }

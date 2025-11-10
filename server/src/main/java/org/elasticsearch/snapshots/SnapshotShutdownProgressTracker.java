@@ -29,8 +29,12 @@ import java.util.function.Consumer;
 import java.util.function.Supplier;
 
 /**
- * Tracks progress of shard snapshots during shutdown, on this single data node. Periodically reports progress via logging, the interval for
- * which see {@link #SNAPSHOT_PROGRESS_DURING_SHUTDOWN_LOG_INTERVAL_SETTING}.
+ * Tracks progress of shard snapshots during shutdown, on this single data node. Periodically reports progress via logging until
+ * all snapshots have completed or are paused, the interval for which see {@link #SNAPSHOT_PROGRESS_DURING_SHUTDOWN_LOG_INTERVAL_SETTING}.
+ * <P>
+ * Note that this class is used even when the node isn't shutting down. When {@link SnapshotShardsService} starts a new snapshot task,
+ * the {@link SnapshotShutdownProgressTracker} is updated, so that if the node shuts down while the task is executing, we have an accurate
+ * counter for in-progress snapshots. This counter is decremented when the snapshot task finishes, either successfully or not.
  */
 public class SnapshotShutdownProgressTracker {
 
@@ -66,6 +70,7 @@ public class SnapshotShutdownProgressTracker {
 
     /**
      * Tracks the number of shard snapshots that have started on the data node but not yet finished.
+     * If the node starts shutting down, when this reaches 0, we stop logging the periodic progress report
      */
     private final AtomicLong numberOfShardSnapshotsInProgressOnDataNode = new AtomicLong();
 
@@ -133,25 +138,47 @@ public class SnapshotShutdownProgressTracker {
      * Logs information about shard snapshot progress.
      */
     private void logProgressReport() {
-        logger.info(
-            """
-                Current active shard snapshot stats on data node [{}]. \
-                Node shutdown cluster state update received at [{} millis]. \
-                Finished signalling shard snapshots to pause at [{} millis]. \
-                Number shard snapshots running [{}]. \
-                Number shard snapshots waiting for master node reply to status update request [{}] \
-                Shard snapshot completion stats since shutdown began: Done [{}]; Failed [{}]; Aborted [{}]; Paused [{}]\
-                """,
-            getLocalNodeId.get(),
-            shutdownStartMillis,
-            shutdownFinishedSignallingPausingMillis,
-            numberOfShardSnapshotsInProgressOnDataNode.get(),
-            shardSnapshotRequests.size(),
-            doneCount.get(),
-            failureCount.get(),
-            abortedCount.get(),
-            pausedCount.get()
-        );
+        // If there are no more snapshots in progress, then stop logging periodic progress reports
+        if (numberOfShardSnapshotsInProgressOnDataNode.get() == 0) {
+            logger.info(
+                """
+                        All shard snapshots have finished or been paused on data node [{}].\
+                        Node shutdown cluster state update received at [{} millis]. \
+                        Progress logging completed at [{} millis]. \
+                        Number shard snapshots waiting for master node reply to status update request [{}] \
+                        Shard snapshot completion stats since shutdown began: Done [{}]; Failed [{}]; Aborted [{}]; Paused [{}]\
+                    """,
+                getLocalNodeId.get(),
+                shutdownStartMillis,
+                threadPool.relativeTimeInMillis(),
+                shardSnapshotRequests.size(),
+                doneCount.get(),
+                failureCount.get(),
+                abortedCount.get(),
+                pausedCount.get()
+            );
+            cancelProgressLogger();
+        } else {
+            logger.info(
+                """
+                        Current active shard snapshot stats on data node [{}]. \
+                        Node shutdown cluster state update received at [{} millis]. \
+                        Finished signalling shard snapshots to pause at [{} millis]. \
+                        Number shard snapshots running [{}]. \
+                        Number shard snapshots waiting for master node reply to status update request [{}] \
+                        Shard snapshot completion stats since shutdown began: Done [{}]; Failed [{}]; Aborted [{}]; Paused [{}]\
+                    """,
+                getLocalNodeId.get(),
+                shutdownStartMillis,
+                shutdownFinishedSignallingPausingMillis,
+                numberOfShardSnapshotsInProgressOnDataNode.get(),
+                shardSnapshotRequests.size(),
+                doneCount.get(),
+                failureCount.get(),
+                abortedCount.get(),
+                pausedCount.get()
+            );
+        }
         // Use a callback to log the shard snapshot details.
         logIndexShardSnapshotStatuses.accept(logger);
     }

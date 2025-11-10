@@ -17,6 +17,7 @@ import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.aggregations.metrics.TDigestState;
+import org.elasticsearch.tdigest.Centroid;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.analytics.AnalyticsPlugin;
@@ -37,8 +38,7 @@ public class TDigestFieldMapperTests extends MapperTestCase {
 
     @Override
     protected Object getSampleValueForDocument() {
-        // TODO - In hybrid mode, this will not even build a t-digest. Let's test with bigger data
-        return Map.of("centroids", new double[] { 2, 3 }, "counts", new int[] { 0, 4 });
+        return generateRandomFieldValues(100);
     }
 
     @Override
@@ -418,6 +418,43 @@ public class TDigestFieldMapperTests extends MapperTestCase {
         assertEquals(Strings.toString(expected), syntheticSource);
     }
 
+    private static Map<String, Object> generateRandomFieldValues(int maxVals) {
+        Map<String, Object> value = new LinkedHashMap<>();
+        long total_count = 0;
+        double sum = 0.0;
+        double min = Double.POSITIVE_INFINITY;
+        double max = Double.NEGATIVE_INFINITY;
+        int size = between(1, maxVals);
+        TDigestState digest = TDigestState.createWithoutCircuitBreaking(100);
+        for (int i = 0; i < size; i++) {
+            double sample = randomGaussianDouble();
+            int count = randomIntBetween(1, Integer.MAX_VALUE);
+            sum += sample * count;
+            total_count += count;
+            min = Math.min(min, sample);
+            max = Math.max(max, sample);
+            digest.add(sample, count);
+        }
+        List<Double> centroids = new ArrayList<>();
+        List<Long> counts = new ArrayList<>();
+        for (Centroid c : digest.centroids()) {
+            centroids.add(c.mean());
+            counts.add(c.count());
+        }
+        value.put("centroids", centroids);
+        value.put("counts", counts);
+
+        /*
+        value.put("sum", sum);
+        value.put("min", min);
+        value.put("max", max);
+        value.put("count", total_count);
+        
+         */
+
+        return value;
+    }
+
     @Override
     protected SyntheticSourceSupport syntheticSourceSupport(boolean ignoreMalformed) {
         return new TDigestFieldSyntheticSourceSupport(ignoreMalformed);
@@ -426,28 +463,8 @@ public class TDigestFieldMapperTests extends MapperTestCase {
     private record TDigestFieldSyntheticSourceSupport(boolean ignoreMalformed) implements SyntheticSourceSupport {
         @Override
         public SyntheticSourceExample example(int maxVals) {
-            if (randomBoolean()) {
-                Map<String, Object> value = new LinkedHashMap<>();
-                value.put("centroids", List.of(randomDouble()));
-                value.put("counts", List.of(randomCount()));
-                return new SyntheticSourceExample(value, value, this::mapping);
-            }
-            int size = between(1, maxVals);
-            List<Double> centroids = new ArrayList<>(size);
-            double prev = randomDouble();
-            centroids.add(prev);
-            while (centroids.size() < size && prev != Double.MAX_VALUE) {
-                prev = randomDoubleBetween(prev, Double.MAX_VALUE, false);
-                centroids.add(prev);
-            }
-            Map<String, Object> value = new LinkedHashMap<>();
-            value.put("centroids", centroids);
-            value.put("counts", randomList(centroids.size(), centroids.size(), this::randomCount));
+            Map<String, Object> value = generateRandomFieldValues(maxVals);
             return new SyntheticSourceExample(value, value, this::mapping);
-        }
-
-        private int randomCount() {
-            return between(1, Integer.MAX_VALUE);
         }
 
         private void mapping(XContentBuilder b) throws IOException {

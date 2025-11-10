@@ -29,7 +29,7 @@ public class TDigestParser {
      * @param centroids the centroids, guaranteed to be distinct and in increasing order
      * @param counts the counts, guaranteed to be non-negative and of the same length as the centroids array
      */
-    public record ParsedHistogram(List<Double> centroids, List<Long> counts) {}
+    public record ParsedHistogram(List<Double> centroids, List<Long> counts, Long count, Double sum, Double min, Double max) {}
 
     /**
      * Parses an XContent object into a histogram.
@@ -42,60 +42,19 @@ public class TDigestParser {
     public static ParsedHistogram parse(String mappedFieldName, XContentParser parser) throws IOException {
         ArrayList<Double> centroids = null;
         ArrayList<Long> counts = null;
+        Long count = null;
+        Double sum = null;
+        Double min = null;
+        Double max = null;
         XContentParser.Token token = parser.currentToken();
         while (token != XContentParser.Token.END_OBJECT) {
             // should be a field
             ensureExpectedToken(XContentParser.Token.FIELD_NAME, token, parser);
             String fieldName = parser.currentName();
             if (fieldName.equals(CENTROIDS_FIELD.getPreferredName())) {
-                token = parser.nextToken();
-                // should be an array
-                ensureExpectedToken(XContentParser.Token.START_ARRAY, token, parser);
-                centroids = new ArrayList<>();
-                token = parser.nextToken();
-                double previousVal = -Double.MAX_VALUE;
-                while (token != XContentParser.Token.END_ARRAY) {
-                    // should be a number
-                    ensureExpectedToken(XContentParser.Token.VALUE_NUMBER, token, parser);
-                    double val = parser.doubleValue();
-                    if (val < previousVal) {
-                        // centroids must be in increasing order
-                        throw new DocumentParsingException(
-                            parser.getTokenLocation(),
-                            "error parsing field ["
-                                + mappedFieldName
-                                + "], ["
-                                + CENTROIDS_FIELD
-                                + "] centroids must be in increasing order, got ["
-                                + val
-                                + "] but previous value was ["
-                                + previousVal
-                                + "]"
-                        );
-                    }
-                    centroids.add(val);
-                    previousVal = val;
-                    token = parser.nextToken();
-                }
+                centroids = getDoubles(mappedFieldName, parser);
             } else if (fieldName.equals(COUNTS_FIELD.getPreferredName())) {
-                token = parser.nextToken();
-                // should be an array
-                ensureExpectedToken(XContentParser.Token.START_ARRAY, token, parser);
-                counts = new ArrayList<>();
-                token = parser.nextToken();
-                while (token != XContentParser.Token.END_ARRAY) {
-                    // should be a number
-                    ensureExpectedToken(XContentParser.Token.VALUE_NUMBER, token, parser);
-                    long count = parser.longValue();
-                    if (count < 0) {
-                        throw new DocumentParsingException(
-                            parser.getTokenLocation(),
-                            "error parsing field [" + mappedFieldName + "], [" + COUNTS_FIELD + "] elements must be >= 0 but got " + count
-                        );
-                    }
-                    counts.add(count);
-                    token = parser.nextToken();
-                }
+                counts = getLongs(mappedFieldName, parser);
             } else {
                 throw new DocumentParsingException(
                     parser.getTokenLocation(),
@@ -133,7 +92,66 @@ public class TDigestParser {
                     + "]"
             );
         }
-        return new ParsedHistogram(centroids, counts);
+        return new ParsedHistogram(centroids, counts, count, sum, min, max);
+    }
+
+    private static ArrayList<Long> getLongs(String mappedFieldName, XContentParser parser) throws IOException {
+        ArrayList<Long> counts;
+        XContentParser.Token token;
+        token = parser.nextToken();
+        // should be an array
+        ensureExpectedToken(XContentParser.Token.START_ARRAY, token, parser);
+        counts = new ArrayList<>();
+        token = parser.nextToken();
+        while (token != XContentParser.Token.END_ARRAY) {
+            // should be a number
+            ensureExpectedToken(XContentParser.Token.VALUE_NUMBER, token, parser);
+            long count = parser.longValue();
+            if (count < 0) {
+                throw new DocumentParsingException(
+                    parser.getTokenLocation(),
+                    "error parsing field [" + mappedFieldName + "], [" + COUNTS_FIELD + "] elements must be >= 0 but got " + count
+                );
+            }
+            counts.add(count);
+            token = parser.nextToken();
+        }
+        return counts;
+    }
+
+    private static ArrayList<Double> getDoubles(String mappedFieldName, XContentParser parser) throws IOException {
+        XContentParser.Token token;
+        ArrayList<Double> centroids;
+        token = parser.nextToken();
+        // should be an array
+        ensureExpectedToken(XContentParser.Token.START_ARRAY, token, parser);
+        centroids = new ArrayList<>();
+        token = parser.nextToken();
+        double previousVal = -Double.MAX_VALUE;
+        while (token != XContentParser.Token.END_ARRAY) {
+            // should be a number
+            ensureExpectedToken(XContentParser.Token.VALUE_NUMBER, token, parser);
+            double val = parser.doubleValue();
+            if (val < previousVal) {
+                // centroids must be in increasing order
+                throw new DocumentParsingException(
+                    parser.getTokenLocation(),
+                    "error parsing field ["
+                        + mappedFieldName
+                        + "], ["
+                        + CENTROIDS_FIELD
+                        + "] centroids must be in increasing order, got ["
+                        + val
+                        + "] but previous value was ["
+                        + previousVal
+                        + "]"
+                );
+            }
+            centroids.add(val);
+            previousVal = val;
+            token = parser.nextToken();
+        }
+        return centroids;
     }
 
 }

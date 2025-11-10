@@ -49,7 +49,7 @@ public final class PushDownMvExpandPastProject extends OptimizerRules.OptimizerR
                         if (projections.stream()
                             .anyMatch(
                                 ne -> ne.semanticEquals(alias.child())
-                                    || ne != alias && ne instanceof Alias as && as.child().semanticEquals(alias.child())
+                                    || ne instanceof Alias as && as.child().semanticEquals(alias.child()) && as != alias
                             ) == false) {
                             // The alias's original field is not referenced elsewhere, no need to preserve it,
                             mvExpand = PushDownUtils.resolveRenamesFromProject(mvExpand, pj);

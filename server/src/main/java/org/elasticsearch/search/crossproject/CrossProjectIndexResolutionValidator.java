@@ -79,9 +79,11 @@ public class CrossProjectIndexResolutionValidator {
         ResolvedIndexExpressions localResolvedExpressions,
         Map<String, ResolvedIndexExpressions> remoteResolvedExpressions
     ) {
+        ElasticsearchException baseException = null;
+
         if (indicesOptions.allowNoIndices() && indicesOptions.ignoreUnavailable()) {
             logger.debug("Skipping index existence check in lenient mode");
-            return null;
+            return baseException;
         }
 
         final boolean hasProjectRouting = Strings.isEmpty(projectRouting) == false;
@@ -106,20 +108,20 @@ public class CrossProjectIndexResolutionValidator {
             if (isQualifiedExpression) {
                 ElasticsearchException e = checkResolutionFailure(localExpressions, result, originalExpression, indicesOptions);
                 if (e != null) {
-                    return e;
+                    baseException = recordException(baseException, e);
                 }
                 // qualified linked project expression
                 for (String remoteExpression : remoteExpressions) {
                     String[] splitResource = splitQualifiedResource(remoteExpression);
-                    ElasticsearchException exception = checkSingleRemoteExpression(
+                    ElasticsearchException expressionException = checkSingleRemoteExpression(
                         remoteResolvedExpressions,
                         splitResource[0], // projectAlias
                         splitResource[1], // resource
                         remoteExpression,
                         indicesOptions
                     );
-                    if (exception != null) {
-                        return exception;
+                    if (expressionException != null) {
+                        baseException = recordException(baseException, expressionException);
                     }
                 }
             } else {
@@ -138,33 +140,47 @@ public class CrossProjectIndexResolutionValidator {
                 // checking if flat expression matched remotely
                 for (String remoteExpression : remoteExpressions) {
                     String[] splitResource = splitQualifiedResource(remoteExpression);
-                    ElasticsearchException exception = checkSingleRemoteExpression(
+                    ElasticsearchException remoteException = checkSingleRemoteExpression(
                         remoteResolvedExpressions,
                         splitResource[0], // projectAlias
                         splitResource[1], // resource
                         remoteExpression,
                         indicesOptions
                     );
-                    if (exception == null) {
+                    if (remoteException == null) {
                         // found flat expression somewhere
                         foundFlat = true;
                         break;
                     }
-                    if (false == isUnauthorized && exception instanceof ElasticsearchSecurityException) {
+                    if (false == isUnauthorized && remoteException instanceof ElasticsearchSecurityException) {
                         isUnauthorized = true;
+                        baseException = recordException(baseException, remoteException);
                     }
                 }
                 if (foundFlat) {
                     continue;
                 }
                 if (isUnauthorized) {
-                    return localException;
+                    baseException = recordException(baseException, localException);
+                    continue;
                 }
-                return new IndexNotFoundException(originalExpression);
+                baseException = recordException(baseException, new IndexNotFoundException(originalExpression));
             }
         }
-        // if we didn't throw before it means that we can proceed with the request
-        return null;
+
+        return baseException;
+    }
+
+    private static ElasticsearchException recordException(
+        @Nullable ElasticsearchException baseException,
+        ElasticsearchException exception
+    ) {
+        if (baseException == null) {
+            return exception;
+        } else {
+            baseException.addSuppressed(exception);
+            return baseException;
+        }
     }
 
     public static IndicesOptions indicesOptionsForCrossProjectFanout(IndicesOptions indicesOptions) {

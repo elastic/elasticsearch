@@ -47,7 +47,7 @@ public class LiteralSelector extends Selector {
     }
 
     public LiteralSelector(Source source, LogicalPlan child, Literal literal) {
-        super(source, child, literal, emptyList(), LabelMatchers.EMPTY, Evaluation.NONE, null);
+        super(source, child, literal, emptyList(), LabelMatchers.EMPTY, Evaluation.NONE);
         this.literal = literal;
     }
 

@@ -11,8 +11,10 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xpack.esql.capabilities.PostAnalysisVerificationAware;
 import org.elasticsearch.xpack.esql.capabilities.TelemetryAware;
 import org.elasticsearch.xpack.esql.common.Failures;
+import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.expression.function.TimestampAware;
 import org.elasticsearch.xpack.esql.expression.promql.subquery.Subquery;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
@@ -30,35 +32,38 @@ import static org.elasticsearch.xpack.esql.common.Failure.fail;
  * Container plan for embedded PromQL queries.
  * Gets eliminated by the analyzer once the query is validated.
  */
-public class PromqlCommand extends UnaryPlan implements TelemetryAware, PostAnalysisVerificationAware {
+public class PromqlCommand extends UnaryPlan implements TelemetryAware, PostAnalysisVerificationAware, TimestampAware {
 
     private final LogicalPlan promqlPlan;
     private final PromqlParams params;
+    // TODO: this should be made available through the planner
+    private final Expression timestamp;
 
     // Range query constructor
-    public PromqlCommand(Source source, LogicalPlan child, LogicalPlan promqlPlan, PromqlParams params) {
+    public PromqlCommand(Source source, LogicalPlan child, LogicalPlan promqlPlan, PromqlParams params, Expression timestamp) {
         super(source, child);
         this.promqlPlan = promqlPlan;
         this.params = params;
+        this.timestamp = timestamp;
     }
 
     @Override
     protected NodeInfo<PromqlCommand> info() {
-        return NodeInfo.create(this, PromqlCommand::new, child(), promqlPlan(), params());
+        return NodeInfo.create(this, PromqlCommand::new, child(), promqlPlan(), params(), timestamp());
     }
 
     @Override
     public PromqlCommand replaceChild(LogicalPlan newChild) {
-        return new PromqlCommand(source(), newChild, promqlPlan(), params());
+        return new PromqlCommand(source(), newChild, promqlPlan(), params(), timestamp());
     }
 
     public PromqlCommand withPromqlPlan(LogicalPlan newPromqlPlan) {
-        return new PromqlCommand(source(), child(), newPromqlPlan, params());
+        return new PromqlCommand(source(), child(), newPromqlPlan, params(), timestamp());
     }
 
     @Override
     public boolean expressionsResolved() {
-        return promqlPlan.resolved();
+        return promqlPlan.resolved() && timestamp.resolved();
     }
 
     @Override
@@ -110,7 +115,7 @@ public class PromqlCommand extends UnaryPlan implements TelemetryAware, PostAnal
 
     @Override
     public int hashCode() {
-        return Objects.hash(child(), params, promqlPlan);
+        return Objects.hash(child(), promqlPlan, params, timestamp);
     }
 
     @Override
@@ -118,7 +123,10 @@ public class PromqlCommand extends UnaryPlan implements TelemetryAware, PostAnal
         if (super.equals(obj)) {
 
             PromqlCommand other = (PromqlCommand) obj;
-            return Objects.equals(child(), other.child()) && Objects.equals(promqlPlan, other.promqlPlan);
+            return Objects.equals(child(), other.child())
+                && Objects.equals(promqlPlan, other.promqlPlan)
+                && Objects.equals(params, other.params)
+                && Objects.equals(timestamp, other.timestamp);
         }
 
         return false;
@@ -128,7 +136,7 @@ public class PromqlCommand extends UnaryPlan implements TelemetryAware, PostAnal
     public String nodeString() {
         StringBuilder sb = new StringBuilder();
         sb.append(nodeName());
-        sb.append("params=");
+        sb.append(" params=");
         sb.append(params.toString());
         sb.append(" promql=[<>\n");
         sb.append(promqlPlan.toString());
@@ -168,5 +176,10 @@ public class PromqlCommand extends UnaryPlan implements TelemetryAware, PostAnal
                 }
             }
         });
+    }
+
+    @Override
+    public Expression timestamp() {
+        return timestamp;
     }
 }

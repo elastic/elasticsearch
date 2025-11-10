@@ -44,10 +44,9 @@ public class RangeSelector extends Selector {
         List<Expression> labels,
         LabelMatchers labelMatchers,
         Expression range,
-        Evaluation evaluation,
-        Expression timestamp
+        Evaluation evaluation
     ) {
-        this(source, PlaceholderRelation.INSTANCE, series, labels, labelMatchers, range, evaluation, timestamp);
+        this(source, PlaceholderRelation.INSTANCE, series, labels, labelMatchers, range, evaluation);
     }
 
     public RangeSelector(
@@ -57,10 +56,9 @@ public class RangeSelector extends Selector {
         List<Expression> labels,
         LabelMatchers labelMatchers,
         Expression range,
-        Evaluation evaluation,
-        Expression timestamp
+        Evaluation evaluation
     ) {
-        super(source, child, series, labels, labelMatchers, evaluation, timestamp);
+        super(source, child, series, labels, labelMatchers, evaluation);
         this.range = range;
     }
 
@@ -70,12 +68,12 @@ public class RangeSelector extends Selector {
 
     @Override
     protected NodeInfo<RangeSelector> info() {
-        return NodeInfo.create(this, RangeSelector::new, child(), series(), labels(), labelMatchers(), range, evaluation(), timestamp());
+        return NodeInfo.create(this, RangeSelector::new, child(), series(), labels(), labelMatchers(), range, evaluation());
     }
 
     @Override
     public RangeSelector replaceChild(LogicalPlan newChild) {
-        return new RangeSelector(source(), newChild, series(), labels(), labelMatchers(), range, evaluation(), timestamp());
+        return new RangeSelector(source(), newChild, series(), labels(), labelMatchers(), range, evaluation());
     }
 
     // @Override

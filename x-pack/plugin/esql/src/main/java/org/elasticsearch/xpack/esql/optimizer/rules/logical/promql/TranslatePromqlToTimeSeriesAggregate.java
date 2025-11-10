@@ -127,7 +127,6 @@ public final class TranslatePromqlToTimeSeriesAggregate extends OptimizerRules.O
 
         Map<String, Expression> extras = new HashMap<>();
         extras.put("field", selector.series());
-        extras.put("timestamp", selector.timestamp());
 
         // return the condition as filter
         LogicalPlan p = new Filter(selector.source(), selector.child(), Predicates.combineAnd(selectorConditions));
@@ -147,7 +146,7 @@ public final class TranslatePromqlToTimeSeriesAggregate extends OptimizerRules.O
             Function esqlFunction = PromqlFunctionRegistry.INSTANCE.buildEsqlFunction(
                 withinAggregate.functionName(),
                 withinAggregate.source(),
-                List.of(target, extras.get("timestamp"))
+                List.of(target, promqlCommand.timestamp())
             );
 
             extras.put("field", esqlFunction);
@@ -177,16 +176,17 @@ public final class TranslatePromqlToTimeSeriesAggregate extends OptimizerRules.O
                 groupings.add(named.toAttribute());
             }
 
-            Duration bucketDuration;
-            if (promqlCommand.step() != null) {
-                bucketDuration = promqlCommand.step();
+            Duration timeBucketSize;
+            if (promqlCommand.isRangeQuery()) {
+                timeBucketSize = promqlCommand.step();
             } else {
-                bucketDuration = DEFAULT_LOOKBACK;
+                // use default lookback for instant queries
+                timeBucketSize = DEFAULT_LOOKBACK;
             }
             Bucket b = new Bucket(
                 promqlCommand.source(),
-                extras.get("timestamp"),
-                new Literal(promqlCommand.source(), bucketDuration, DataType.TIME_DURATION),
+                promqlCommand.timestamp(),
+                new Literal(promqlCommand.source(), timeBucketSize, DataType.TIME_DURATION),
                 null,
                 null
             );

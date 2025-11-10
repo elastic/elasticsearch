@@ -583,6 +583,7 @@ abstract class AbstractKnnVectorQueryBuilderTestCase extends AbstractQueryTestCa
             filters.add(QueryBuilders.termQuery(filterFieldName, randomAlphaOfLength(10)));
         }
         knnVectorQueryBuilder.addFilterQueries(filters);
+        knnVectorQueryBuilder.setAutoPrefiltering(randomBoolean());
 
         QueryRewriteContext context = new QueryRewriteContext(null, null, null);
         PlainActionFuture<QueryBuilder> knnFuture = new PlainActionFuture<>();
@@ -596,5 +597,6 @@ abstract class AbstractKnnVectorQueryBuilderTestCase extends AbstractQueryTestCa
         assertThat(rewritten.getVectorSimilarity(), equalTo(1f));
         assertThat(rewritten.filterQueries(), hasSize(numFilters));
         assertThat(rewritten.filterQueries(), equalTo(filters));
+        assertThat(rewritten.isAutoPrefiltering(), equalTo(knnVectorQueryBuilder.isAutoPrefiltering()));
     }
 }

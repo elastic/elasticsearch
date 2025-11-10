@@ -364,6 +364,10 @@ public class KnnVectorQueryBuilder extends AbstractQueryBuilder<KnnVectorQueryBu
         return this;
     }
 
+    public boolean isAutoPrefiltering() {
+        return isAutoPrefiltering;
+    }
+
     @Override
     protected void doWriteTo(StreamOutput out) throws IOException {
         if (queryVectorSupplier != null) {

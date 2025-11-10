@@ -21,11 +21,18 @@ public final class DocValuesForUtil {
     private static final int BITS_IN_FIVE_BYTES = 5 * Byte.SIZE;
     private static final int BITS_IN_SIX_BYTES = 6 * Byte.SIZE;
     private static final int BITS_IN_SEVEN_BYTES = 7 * Byte.SIZE;
+
+    private static final int BITBACK_BLOCK_SHIFT = 7;
+    private static final int BITBACK_BLOCK_SIZE = 1 << BITBACK_BLOCK_SHIFT;
+
     private final int blockSize;
-    private final byte[] encoded = new byte[1024];
+    private final byte[] encoded;
 
     public DocValuesForUtil(int numericBlockSize) {
+        assert numericBlockSize >= BITBACK_BLOCK_SIZE && (numericBlockSize & (BITBACK_BLOCK_SIZE - 1)) == 0
+            : "expected to get a block size that a multiple of " + BITBACK_BLOCK_SIZE + ", got " + numericBlockSize;
         this.blockSize = numericBlockSize;
+        this.encoded = new byte[numericBlockSize * Byte.SIZE];
     }
 
     public static int roundBits(int bitsPerValue) {
@@ -47,9 +54,11 @@ public final class DocValuesForUtil {
         if (bitsPerValue <= 24) { // these bpvs are handled efficiently by ForUtil
             ForUtil.encode(in, bitsPerValue, out);
         } else if (bitsPerValue <= 32) {
-            collapse32(in);
-            for (int i = 0; i < blockSize / 2; ++i) {
-                out.writeLong(in[i]);
+            for (int k = 0; k < blockSize >> BITBACK_BLOCK_SHIFT; k++) {
+                collapse32(in, k * BITBACK_BLOCK_SIZE);
+                for (int i = 0; i < BITBACK_BLOCK_SIZE / 2; i++) {
+                    out.writeLong(in[k * BITBACK_BLOCK_SIZE + i]);
+                }
             }
         } else if (bitsPerValue == BITS_IN_FIVE_BYTES || bitsPerValue == BITS_IN_SIX_BYTES || bitsPerValue == BITS_IN_SEVEN_BYTES) {
             encodeFiveSixOrSevenBytesPerValue(in, bitsPerValue, out);
@@ -73,8 +82,10 @@ public final class DocValuesForUtil {
         if (bitsPerValue <= 24) {
             ForUtil.decode(bitsPerValue, in, out);
         } else if (bitsPerValue <= 32) {
-            in.readLongs(out, 0, blockSize / 2);
-            expand32(out);
+            for (int k = 0; k < blockSize >> BITBACK_BLOCK_SHIFT; k++) {
+                in.readLongs(out, +k * BITBACK_BLOCK_SIZE, BITBACK_BLOCK_SIZE / 2);
+                expand32(out, k * BITBACK_BLOCK_SIZE);
+            }
         } else if (bitsPerValue == BITS_IN_FIVE_BYTES || bitsPerValue == BITS_IN_SIX_BYTES || bitsPerValue == BITS_IN_SEVEN_BYTES) {
             decodeFiveSixOrSevenBytesPerValue(bitsPerValue, in, out);
         } else {
@@ -94,17 +105,17 @@ public final class DocValuesForUtil {
         }
     }
 
-    private static void collapse32(long[] arr) {
+    private static void collapse32(long[] arr, int offset) {
         for (int i = 0; i < 64; ++i) {
-            arr[i] = (arr[i] << 32) | arr[64 + i];
+            arr[i + offset] = (arr[i + offset] << 32) | arr[64 + i + offset];
         }
     }
 
-    private static void expand32(long[] arr) {
+    private static void expand32(long[] arr, int offset) {
         for (int i = 0; i < 64; ++i) {
-            long l = arr[i];
-            arr[i] = l >>> 32;
-            arr[64 + i] = l & 0xFFFFFFFFL;
+            long l = arr[i + offset];
+            arr[i + offset] = l >>> 32;
+            arr[64 + i + offset] = l & 0xFFFFFFFFL;
         }
     }
 }

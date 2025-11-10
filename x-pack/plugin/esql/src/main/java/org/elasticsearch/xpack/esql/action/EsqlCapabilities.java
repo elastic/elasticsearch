@@ -1552,7 +1552,6 @@ public class EsqlCapabilities {
          */
         EXPONENTIAL_HISTOGRAM_TOPN(EXPONENTIAL_HISTOGRAM_FEATURE_FLAG),
 
-
         /**
          * Create new block when filtering OrdinalBytesRefBlock
          */

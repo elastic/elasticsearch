@@ -85,7 +85,7 @@ public abstract class AbstractIntsFromDocValuesBlockLoaderTests extends ESTestCa
         return (TestBlock) toUse.read(TestBlock.factory(), docs, 0, false);
     }
 
-    private static IntField field(int codePointCount) {
-        return new IntField("field", codePointCount, Field.Store.NO);
+    private static IntField field(int v) {
+        return new IntField("field", v, Field.Store.NO);
     }
 }

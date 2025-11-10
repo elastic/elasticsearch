@@ -14,6 +14,8 @@ import org.apache.lucene.index.SortedNumericDocValues;
 
 import java.io.IOException;
 
+import static org.elasticsearch.index.mapper.blockloader.docvalues.MvMaxLongsFromDocValuesBlockLoader.MvMaxSorted.discardAllButLast;
+
 /**
  * Loads the MAX {@code int} in each doc.
  */
@@ -65,20 +67,13 @@ public class MvMaxIntsFromDocValuesBlockLoader extends AbstractIntsFromDocValues
                 builder.appendNull();
                 return;
             }
-            discardAllButLast();
+            discardAllButLast(numericDocValues);
             builder.appendInt(Math.toIntExact(numericDocValues.nextValue()));
         }
 
         @Override
         public int docId() {
             return numericDocValues.docID();
-        }
-
-        private void discardAllButLast() throws IOException {
-            int count = numericDocValues.docValueCount();
-            for (int i = 0; i < count - 1; i++) {
-                numericDocValues.nextValue();
-            }
         }
 
         @Override

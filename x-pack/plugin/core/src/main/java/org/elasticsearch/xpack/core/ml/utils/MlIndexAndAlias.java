@@ -752,7 +752,6 @@ public final class MlIndexAndAlias {
         // Make sure to include the new index
         List<String> allJobResultsIndices = new ArrayList<String>(currentJobResultsIndices);
         allJobResultsIndices.add(newIndex);
-        // String[] allJobResultsIndices = list.toArray(new String[0]);
 
         for (var alias : uniqueAliases) {
             if (isAnomaliesWriteAlias(alias.alias())) {

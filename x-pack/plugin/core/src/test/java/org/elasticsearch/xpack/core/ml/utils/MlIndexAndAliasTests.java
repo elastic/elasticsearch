@@ -509,10 +509,15 @@ public class MlIndexAndAliasTests extends ESTestCase {
 
     public void testBuildIndexAliasesRequest() {
         var anomaliesIndex = ".ml-anomalies-sharedindex";
+        var newIndex = anomaliesIndex + "-000001";
+
         var jobs = List.of("job1", "job2");
-        IndexMetadata.Builder indexMetadata = createSharedResultsIndex(anomaliesIndex, IndexVersion.current(), jobs);
+        IndexMetadata.Builder oldIndexMetadata = createSharedResultsIndex(anomaliesIndex, IndexVersion.current(), jobs);
+        IndexMetadata.Builder newIndexMetadata = createEmptySharedResultsIndex(newIndex, IndexVersion.current());
+
         Metadata.Builder metadata = Metadata.builder();
-        metadata.put(indexMetadata);
+        metadata.put(oldIndexMetadata);
+        metadata.put(newIndexMetadata);
         ClusterState.Builder csBuilder = ClusterState.builder(new ClusterName("_name"));
         csBuilder.metadata(metadata);
 
@@ -522,17 +527,16 @@ public class MlIndexAndAliasTests extends ESTestCase {
             TEST_REQUEST_TIMEOUT
         );
 
-        var newIndex = anomaliesIndex + "-000001";
-        String[] allIndices = { anomaliesIndex, newIndex };
+        String[] currentIndices = { anomaliesIndex };
         var request = MlIndexAndAlias.addResultsIndexRolloverAliasActions(
             aliasRequestBuilder,
             anomaliesIndex,
             newIndex,
             csBuilder.build(),
-            Arrays.asList(allIndices)
+            Arrays.asList(currentIndices)
         );
         var actions = request.request().getAliasActions();
-        assertThat(actions, hasSize(6));
+        assertThat(actions, hasSize(10));
 
         // The order in which the alias actions are created
         // is not preserved so look for the item in the list
@@ -542,7 +546,13 @@ public class MlIndexAndAliasTests extends ESTestCase {
                 newIndex,
                 IndicesAliasesRequest.AliasActions.Type.ADD
             );
-            assertThat(actions.stream().filter(expected::matches).count(), equalTo(1L));
+            // There are two alias action requests to add the write alias.
+            // The first occurs if the write alias is being moved from the old index
+            // to the new index.
+            // The second occurs at the time a read alias is being added to the new index.
+            // This ensures a write alias should always exist on the latest index, even if
+            // it was missing from the old one.
+            assertThat(actions.stream().filter(expected::matches).count(), equalTo(2L));
 
             expected = new AliasActionMatcher(
                 AnomalyDetectorsIndex.resultsWriteAlias(job),
@@ -557,6 +567,14 @@ public class MlIndexAndAliasTests extends ESTestCase {
                 IndicesAliasesRequest.AliasActions.Type.ADD
             );
             assertThat(actions.stream().filter(expected::matches).count(), equalTo(1L));
+
+            // This alias action request ensures that every index has a read alias, even if the old index was missing one.
+            var expected1 = new AliasActionMultiIndicesMatcher(
+                AnomalyDetectorsIndex.jobResultsAliasedName(job),
+                new String[] { anomaliesIndex, newIndex },
+                IndicesAliasesRequest.AliasActions.Type.ADD
+            );
+            assertThat(actions.stream().filter(expected1::matches).count(), equalTo(1L));
         }
     }
 
@@ -568,7 +586,19 @@ public class MlIndexAndAliasTests extends ESTestCase {
         }
     }
 
-    private IndexMetadata.Builder createSharedResultsIndex(String indexName, IndexVersion indexVersion, List<String> jobs) {
+    private record AliasActionMultiIndicesMatcher(String aliasName, String[] indices, IndicesAliasesRequest.AliasActions.Type actionType) {
+        boolean matches(IndicesAliasesRequest.AliasActions aliasAction) {
+
+            List<String> aliasIndices = Arrays.stream(aliasAction.indices()).toList();
+            List<String> expectedIndices = Arrays.stream(indices).toList();
+
+            return aliasAction.actionType() == actionType
+                && aliasAction.aliases()[0].equals(aliasName)
+                && Arrays.stream(aliasAction.indices()).toList().equals(Arrays.stream(indices).toList());
+        }
+    }
+
+    private IndexMetadata.Builder createEmptySharedResultsIndex(String indexName, IndexVersion indexVersion) {
         IndexMetadata.Builder indexMetadata = IndexMetadata.builder(indexName);
         indexMetadata.settings(
             Settings.builder()
@@ -577,6 +607,13 @@ public class MlIndexAndAliasTests extends ESTestCase {
                 .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
                 .put(IndexMetadata.SETTING_INDEX_UUID, "_uuid")
         );
+
+        return indexMetadata;
+    }
+
+    private IndexMetadata.Builder createSharedResultsIndex(String indexName, IndexVersion indexVersion, List<String> jobs) {
+
+        var indexMetadata = createEmptySharedResultsIndex(indexName, indexVersion);
 
         for (var jobId : jobs) {
             indexMetadata.putAlias(AliasMetadata.builder(AnomalyDetectorsIndex.jobResultsAliasedName(jobId)).isHidden(true).build());

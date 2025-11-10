@@ -17,10 +17,14 @@
 
 package co.elastic.elasticsearch.stateless.autoscaling.indexing;
 
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.time.TimeProvider;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.shard.IndexEventListener;
+import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -32,7 +36,7 @@ import java.util.function.Function;
 /**
  * This class computes the current node indexing load
  */
-public class IngestLoadProbe {
+public class IngestLoadProbe implements IndexEventListener {
 
     private static final Logger logger = LogManager.getLogger(IngestLoadProbe.class);
 
@@ -74,7 +78,8 @@ public class IngestLoadProbe {
     /**
      * A newly started indexing node may have a large number of tasks queued up due to buffered indexing requests on the nodes that
      * are leaving the cluster and their shards are being relocated, or possibly due to a cold cache. To avoid a short spike in the
-     * queue size to cause an unnecessary scale up, we ignore the queue contribution to the ingestion load for this initial interval.
+     * queue size to cause an unnecessary scale up, we ignore the queue contribution to the ingestion load for this initial interval
+     * counted from the time the first shard starts recovering on this node.
      */
     public static final TimeValue DEFAULT_INITIAL_INTERVAL_TO_IGNORE_QUEUE_CONTRIBUTION = TimeValue.ONE_MINUTE;
     public static final Setting<TimeValue> INITIAL_INTERVAL_TO_IGNORE_QUEUE_CONTRIBUTION = Setting.timeSetting(
@@ -104,7 +109,7 @@ public class IngestLoadProbe {
     private volatile float maxQueueContributionFactor;
     private volatile boolean includeWriteCoordinationExecutors;
     private volatile TimeValue initialIntervalToIgnoreQueueContribution;
-    private volatile long probeStartTimeInMillis;
+    private volatile long firstShardRecoveryTimeInMillis;
     private volatile TimeValue maxManageableQueuedWork;
 
     @SuppressWarnings("this-escape")
@@ -144,9 +149,6 @@ public class IngestLoadProbe {
      */
     public double getIngestionLoad() {
         long currentTimeInMillis = timeProvider.relativeTimeInMillis();
-        if (probeStartTimeInMillis == 0) {
-            probeStartTimeInMillis = currentTimeInMillis;
-        }
         double totalIngestionLoad = 0.0;
         for (String executorName : AverageWriteLoadSampler.WRITE_EXECUTORS) {
             var executorStats = executorStatsProvider.apply(executorName);
@@ -161,7 +163,8 @@ public class IngestLoadProbe {
                 maxQueueContributionFactor * executorStats.maxThreads()
             );
             if (ingestionLoadForExecutor.queueThreadsNeeded > 0.0
-                && currentTimeInMillis - probeStartTimeInMillis < initialIntervalToIgnoreQueueContribution.millis()) {
+                && (firstShardRecoveryTimeInMillis == 0
+                    || currentTimeInMillis - firstShardRecoveryTimeInMillis < initialIntervalToIgnoreQueueContribution.millis())) {
                 // This is a newly started node as defined by the INITIAL_INTERVAL_TO_IGNORE_QUEUE_CONTRIBUTION
                 // setting. Drop the queue contribution.
                 logger.info(
@@ -237,5 +240,13 @@ public class IngestLoadProbe {
 
     public void setMaxTimeToClearQueue(TimeValue maxTimeToClearQueue) {
         this.maxTimeToClearQueue = maxTimeToClearQueue;
+    }
+
+    @Override
+    public void beforeIndexShardRecovery(IndexShard indexShard, IndexSettings indexSettings, ActionListener<Void> listener) {
+        if (firstShardRecoveryTimeInMillis == 0) {
+            firstShardRecoveryTimeInMillis = timeProvider.relativeTimeInMillis();
+        }
+        listener.onResponse(null);
     }
 }

@@ -17,13 +17,16 @@
 
 package co.elastic.elasticsearch.stateless.autoscaling.indexing;
 
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.TimeProviderUtils;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool.Names;
+import org.mockito.Mockito;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -157,19 +160,11 @@ public class IngestLoadProbeTests extends ESTestCase {
 
     public void testGetIngestionLoad() {
         Map<String, ExecutorStats> statsPerExecutor = new HashMap<>();
-        final ClusterSettings clusterSettings = new ClusterSettings(
-            Settings.EMPTY,
-            Sets.addToCopy(
-                ClusterSettings.BUILT_IN_CLUSTER_SETTINGS,
-                MAX_TIME_TO_CLEAR_QUEUE,
-                MAX_QUEUE_CONTRIBUTION_FACTOR,
-                INCLUDE_WRITE_COORDINATION_EXECUTORS_ENABLED,
-                INITIAL_INTERVAL_TO_IGNORE_QUEUE_CONTRIBUTION,
-                MAX_MANAGEABLE_QUEUED_WORK
-            )
-        );
+        final ClusterSettings clusterSettings = createClusterSettings();
         AtomicLong nowInMillis = new AtomicLong(randomNonNegativeLong());
         var ingestLoadProbe = new IngestLoadProbe(clusterSettings, statsPerExecutor::get, TimeProviderUtils.create(nowInMillis::get));
+        var indexShard = Mockito.mock(IndexShard.class);
+        ingestLoadProbe.beforeIndexShardRecovery(indexShard, null, ActionListener.noop());
 
         statsPerExecutor.put(Names.WRITE, new ExecutorStats(3.0, timeValueMillis(200).nanos(), 0, 0.0, between(1, 10)));
         statsPerExecutor.put(Names.SYSTEM_WRITE, new ExecutorStats(2.0, timeValueMillis(70).nanos(), 0, 0.0, between(1, 10)));
@@ -228,5 +223,44 @@ public class IngestLoadProbeTests extends ESTestCase {
 
         clusterSettings.applySettings(Settings.builder().put(MAX_MANAGEABLE_QUEUED_WORK.getKey(), maxManageableQueuedWork).build());
         assertThat(ingestLoadProbe.getIngestionLoad(), closeTo(10.0, 1e-3));
+    }
+
+    public void testQueueReportedAfterFirstShardAssignment() {
+        Map<String, ExecutorStats> statsPerExecutor = new HashMap<>();
+        final ClusterSettings clusterSettings = createClusterSettings();
+        AtomicLong nowInMillis = new AtomicLong(randomNonNegativeLong());
+        var ingestLoadProbe = new IngestLoadProbe(clusterSettings, statsPerExecutor::get, TimeProviderUtils.create(nowInMillis::get));
+        var nodeHasItsFirstShard = randomBoolean();
+        var indexShard = Mockito.mock(IndexShard.class);
+        if (nodeHasItsFirstShard) {
+            ingestLoadProbe.beforeIndexShardRecovery(indexShard, null, ActionListener.noop());
+        }
+        var emptyStats = new ExecutorStats(0, timeValueMillis(200).nanos(), 0, 0, 1);
+        // each 5 tasks take a second, so the following queue size asks for 1.0 extra threads.
+        int queueSize = 5 * (int) MAX_TIME_TO_CLEAR_QUEUE.getDefault(Settings.EMPTY).seconds();
+        statsPerExecutor.put(Names.WRITE, new ExecutorStats(3.0, timeValueMillis(200).nanos(), queueSize, queueSize, 1));
+        statsPerExecutor.put(Names.SYSTEM_WRITE, emptyStats);
+        statsPerExecutor.put(Names.SYSTEM_CRITICAL_WRITE, emptyStats);
+        statsPerExecutor.put(Names.WRITE_COORDINATION, emptyStats);
+        statsPerExecutor.put(Names.SYSTEM_WRITE_COORDINATION, emptyStats);
+        // Initially, we ignore queue contribution
+        assertThat(ingestLoadProbe.getIngestionLoad(), closeTo(3.0, 1e-3));
+        // After the initial interval, if the node has seen its first shard assignment, we include queue contribution
+        nowInMillis.addAndGet(DEFAULT_INITIAL_INTERVAL_TO_IGNORE_QUEUE_CONTRIBUTION.millis() + randomNonNegativeLong());
+        assertThat(ingestLoadProbe.getIngestionLoad(), closeTo(3.0 + (nodeHasItsFirstShard ? 1.0 : 0.0), 1e-3));
+    }
+
+    private static ClusterSettings createClusterSettings() {
+        return new ClusterSettings(
+            Settings.EMPTY,
+            Sets.addToCopy(
+                ClusterSettings.BUILT_IN_CLUSTER_SETTINGS,
+                MAX_TIME_TO_CLEAR_QUEUE,
+                MAX_QUEUE_CONTRIBUTION_FACTOR,
+                INCLUDE_WRITE_COORDINATION_EXECUTORS_ENABLED,
+                INITIAL_INTERVAL_TO_IGNORE_QUEUE_CONTRIBUTION,
+                MAX_MANAGEABLE_QUEUED_WORK
+            )
+        );
     }
 }

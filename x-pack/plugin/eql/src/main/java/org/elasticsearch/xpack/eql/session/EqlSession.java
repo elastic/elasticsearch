@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.eql.session;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.ParentTaskAssigningClient;
 import org.elasticsearch.common.breaker.CircuitBreaker;
@@ -123,12 +122,10 @@ public class EqlSession {
             return;
         }
         Set<String> fieldNames = fieldNames(parsed);
-        IndicesOptions indicesOptions = configuration.indicesOptions();
-        // TODO pass configuration.projectRouting();
         indexResolver.resolveAsMergedMapping(
             indexWildcard,
             fieldNames,
-            indicesOptions,
+            configuration.indicesOptions(),
             configuration.runtimeMappings(),
             configuration.crossProjectEnabled(),
             configuration.projectRouting(),

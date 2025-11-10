@@ -11,6 +11,7 @@ package org.elasticsearch.search.aggregations.bucket.terms;
 
 import org.apache.lucene.util.PriorityQueue;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.search.aggregations.AggregationErrors;
 import org.elasticsearch.search.aggregations.AggregationReduceContext;
 import org.elasticsearch.search.aggregations.AggregatorReducer;
@@ -46,13 +47,33 @@ import static org.elasticsearch.search.aggregations.bucket.terms.InternalTerms.S
 public abstract class AbstractInternalTerms<A extends AbstractInternalTerms<A, B>, B extends AbstractInternalTerms.AbstractTermsBucket<B>>
     extends InternalMultiBucketAggregation<A, B> {
 
-    public AbstractInternalTerms(String name, Map<String, Object> metadata) {
+    protected final BucketOrder reduceOrder;
+    protected final BucketOrder order;
+
+    protected final int requiredSize;
+    protected final long minDocCount;
+
+    public AbstractInternalTerms(
+        String name,
+        Map<String, Object> metadata,
+        BucketOrder reduceOrder,
+        BucketOrder order,
+        int requiredSize,
+        long minDocCount
+    ) {
         super(name, metadata);
+        this.reduceOrder = reduceOrder;
+        this.order = order;
+        this.requiredSize = requiredSize;
+        this.minDocCount = minDocCount;
     }
 
     protected AbstractInternalTerms(StreamInput in) throws IOException {
-
         super(in);
+        reduceOrder = InternalOrder.Streams.readOrder(in);
+        order = InternalOrder.Streams.readOrder(in);
+        requiredSize = readSize(in);
+        minDocCount = in.readVLong();
     }
 
     public abstract static class AbstractTermsBucket<B extends AbstractTermsBucket<B>> extends InternalMultiBucketAggregation.InternalBucket
@@ -75,9 +96,13 @@ public abstract class AbstractInternalTerms<A extends AbstractInternalTerms<A, B
 
     protected abstract int getShardSize();
 
-    protected abstract BucketOrder getReduceOrder();
+    public BucketOrder getReduceOrder() {
+        return reduceOrder;
+    }
 
-    protected abstract BucketOrder getOrder();
+    public BucketOrder getOrder() {
+        return order;
+    }
 
     protected abstract long getSumOfOtherDocCounts();
 
@@ -85,9 +110,13 @@ public abstract class AbstractInternalTerms<A extends AbstractInternalTerms<A, B
 
     protected abstract void setDocCountError(long docCountError);
 
-    protected abstract long getMinDocCount();
+    public long getMinDocCount() {
+        return minDocCount;
+    }
 
-    protected abstract int getRequiredSize();
+    public int getRequiredSize() {
+        return requiredSize;
+    }
 
     protected abstract boolean getShowDocCountError();
 
@@ -386,4 +415,11 @@ public abstract class AbstractInternalTerms<A extends AbstractInternalTerms<A, B
         return builder;
     }
 
+    @Override
+    protected void doWriteTo(StreamOutput out) throws IOException {
+        reduceOrder.writeTo(out);
+        order.writeTo(out);
+        writeSize(requiredSize, out);
+        out.writeVLong(minDocCount);
+    }
 }

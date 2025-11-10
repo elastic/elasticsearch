@@ -7,7 +7,7 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.index.mapper.blockloader.docvalues;
+package org.elasticsearch.index.mapper.blockloader;
 
 /**
  * Warnings returned when loading values for ESQL. These are returned as HTTP 299 headers like so:

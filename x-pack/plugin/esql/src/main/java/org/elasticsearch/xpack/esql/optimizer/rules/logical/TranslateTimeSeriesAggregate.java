@@ -241,10 +241,23 @@ public final class TranslateTimeSeriesAggregate extends OptimizerRules.Parameter
                 }
             }
         }
-        if (aggregate.child().output().contains(timestamp.get()) == false
-            && timeSeriesAggs.keySet().stream().anyMatch(ts -> ts instanceof TimestampAware)) {
-            // TODO: rephrase
-            throw new IllegalArgumentException("@timestamp field has been modified");
+        if (aggregate.child().output().contains(timestamp.get()) == false) {
+            var timestampAwareFunctions = timeSeriesAggs.keySet()
+                .stream()
+                .filter(ts -> ts instanceof TimestampAware)
+                .map(ts -> ts.sourceText())
+                .toList();
+            if (timestampAwareFunctions.isEmpty() == false) {
+                int size = timestampAwareFunctions.size();
+                throw new IllegalArgumentException(
+                    "Function"
+                        + (size > 1 ? "s " : " ")
+                        + "["
+                        + String.join(", ", timestampAwareFunctions.subList(0, Math.min(size, 3)))
+                        + (size > 3 ? ", ..." : "")
+                        + "] requires a @timestamp field of type date to be present when run with the TS command, but it was not present."
+                );
+            }
         }
         // time-series aggregates must be grouped by _tsid (and time-bucket) first and re-group by users key
         List<Expression> firstPassGroupings = new ArrayList<>();

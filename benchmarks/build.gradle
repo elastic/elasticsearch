@@ -70,6 +70,9 @@ tasks.named("compileJava").configure {
   // org.elasticsearch.plugins.internal is used in signatures classes used in benchmarks but we don't want to expose it publicly
   // adding an export to allow compilation with gradle. This does not solve a problem in intellij as it does not use compileJava task
   options.compilerArgs.addAll(["--add-exports", "org.elasticsearch.server/org.elasticsearch.plugins.internal=ALL-UNNAMED"])
+  // DO NO COMMIT: Uncomment to use the incubating vector API statically in benchmarks
+  // options.compilerArgs << '--add-modules=jdk.incubator.vector'
+  // options.compilerArgs -= '-Werror'
 }
 
 tasks.register('copyExpression', Copy) {
@@ -89,6 +92,12 @@ tasks.named("run").configure {
   args << "-Dplugins.dir=${buildDir}/plugins" << "-Dtests.index=${buildDir}/index"
   dependsOn "copyExpression", "copyPainless", configurations.nativeLib
   systemProperty 'es.nativelibs.path', TestUtil.getTestLibraryPath(file("../libs/native/libraries/build/platform/").toString())
+}
+
+tasks.named('test').configure {
+  if (buildParams.getRuntimeJavaVersion().map{ it.majorVersion.toInteger() }.get() >= 21) {
+    jvmArgs '--add-modules=jdk.incubator.vector'
+  }
 }
 
 spotless {

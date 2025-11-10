@@ -435,4 +435,8 @@ public class ESVectorUtil {
         Objects.checkFromIndexSize(offset, length, bytes.length);
         return IMPL.indexOf(bytes, offset, length, marker);
     }
+
+    public static VectorByteUtils getVectorByteUtils() {
+        return IMPL.getVectorByteUtils();
+    }
 }

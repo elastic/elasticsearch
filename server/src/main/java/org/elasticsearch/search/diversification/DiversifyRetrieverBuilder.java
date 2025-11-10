@@ -34,6 +34,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
@@ -296,26 +297,7 @@ public final class DiversifyRetrieverBuilder extends CompoundRetrieverBuilder<Di
             if (field != null) {
                 var fieldValue = field.getValue();
                 if (fieldValue != null) {
-                    switch (fieldValue) {
-                        case float[] floatArray -> fieldVectors.put(asRankDoc.doc, new VectorData(floatArray));
-                        case byte[] byteArray -> fieldVectors.put(asRankDoc.doc, new VectorData(byteArray));
-                        case Byte[] boxedByteArray -> {
-                            byte[] unboxedArray = new byte[boxedByteArray.length];
-                            int bIndex = 0;
-                            for (Byte b : boxedByteArray) {
-                                unboxedArray[bIndex++] = b;
-                            }
-                            fieldVectors.put(asRankDoc.doc, new VectorData(unboxedArray));
-                        }
-                        default -> throw new ElasticsearchStatusException(
-                            String.format(
-                                Locale.ROOT,
-                                "Failed to retrieve vectors for field [%s]. Is it a [dense_vector] field?",
-                                diversificationField
-                            ),
-                            RestStatus.BAD_REQUEST
-                        );
-                    }
+                    extractFieldVectorData(asRankDoc.doc, fieldValue, fieldVectors);
                 }
             }
         }
@@ -343,6 +325,64 @@ public final class DiversifyRetrieverBuilder extends CompoundRetrieverBuilder<Di
         } catch (IOException e) {
             throw new ElasticsearchStatusException("Result diversification failed", RestStatus.INTERNAL_SERVER_ERROR, e);
         }
+    }
+
+    private void extractFieldVectorData(int docId, Object fieldValue, Map<Integer, VectorData> fieldVectors) {
+        switch (fieldValue) {
+            case float[] floatArray -> fieldVectors.put(docId, new VectorData(floatArray));
+            case byte[] byteArray -> fieldVectors.put(docId, new VectorData(byteArray));
+            case Float[] boxedFloatArray -> fieldVectors.put(docId, new VectorData(unboxedFloatArray(boxedFloatArray)));
+            case Byte[] boxedByteArray -> fieldVectors.put(docId, new VectorData(unboxedByteArray(boxedByteArray)));
+            default -> {}
+        }
+
+        // CCS search returns a generic Object[] array, so we must
+        // examine the individual element type here.
+        if (fieldValue instanceof Object[] objectArray) {
+            if (objectArray.length == 0) {
+                return;
+            }
+
+            if (objectArray[0] instanceof Byte) {
+                Byte[] asByteArray = Arrays.stream(objectArray).map(x -> (Byte)x).toArray(Byte[]::new);
+                fieldVectors.put(docId, new VectorData(unboxedByteArray(asByteArray)));
+                return;
+            }
+
+            if (objectArray[0] instanceof Float) {
+                Float[] asFloatArray = Arrays.stream(objectArray).map(x -> (Float)x).toArray(Float[]::new);
+                fieldVectors.put(docId, new VectorData(unboxedFloatArray(asFloatArray)));
+                return;
+            }
+        }
+
+        throw new ElasticsearchStatusException(
+            String.format(
+                Locale.ROOT,
+                "Failed to retrieve vectors for field [%s]. Is it a [dense_vector] field? Type was: %s",
+                diversificationField,
+                fieldValue.getClass()
+            ),
+            RestStatus.BAD_REQUEST
+        );
+    }
+
+    private static float[] unboxedFloatArray(Float[] array) {
+        float[] unboxedArray = new float[array.length];
+        int bIndex = 0;
+        for (Float b : array) {
+            unboxedArray[bIndex++] = b;
+        }
+        return unboxedArray;
+    }
+
+    private static byte[] unboxedByteArray(Byte[] array) {
+        byte[] unboxedArray = new byte[array.length];
+        int bIndex = 0;
+        for (Byte b : array) {
+            unboxedArray[bIndex++] = b;
+        }
+        return unboxedArray;
     }
 
     @Override

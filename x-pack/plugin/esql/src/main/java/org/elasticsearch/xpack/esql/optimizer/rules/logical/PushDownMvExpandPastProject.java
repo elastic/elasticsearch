@@ -43,6 +43,19 @@ public final class PushDownMvExpandPastProject extends OptimizerRules.OptimizerR
                 NamedExpression projection = projections.get(i);
                 if (projection instanceof Alias alias) {
                     if (alias.toAttribute().semanticEquals(mvExpand.target().toAttribute())) {
+                        // Check if the alias's original field (child) is referenced elsewhere in the projections.
+                        // If the original field is not referenced by any other projection or alias,
+                        // we don't need to inject an Eval to preserve it, and can safely resolve renames and push down.
+                        if (projections.stream()
+                            .anyMatch(
+                                ne -> ne.semanticEquals(alias.child())
+                                    || ne != alias && ne instanceof Alias as && as.child().semanticEquals(alias.child())
+                            ) == false) {
+                            // The alias's original field is not referenced elsewhere, no need to preserve it,
+                            mvExpand = PushDownUtils.resolveRenamesFromProject(mvExpand, pj);
+                            break;
+                        }
+
                         // for query like: row a = 2 | eval b = a ｜ keep * | mv_expand b
                         Alias aliasAlias = new Alias(
                             alias.source(),

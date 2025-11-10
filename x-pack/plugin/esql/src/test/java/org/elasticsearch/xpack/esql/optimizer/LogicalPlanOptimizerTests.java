@@ -1618,12 +1618,11 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
     /**
      * Expected
      * <pre>{@code
-     * Project[[x{r}#20]]
+     * Project[[x{r}#20 AS x#5]]
      * \_Limit[1000[INTEGER],true,false]
-     *   \_MvExpand[$$first_name$x$0{r}#21,x{r}#20]
-     *     \_Eval[[first_name{f}#10 AS $$first_name$x$0#21]]
-     *       \_Limit[1000[INTEGER],false,false]
-     *         \_EsRelation[test][_meta_field{f}#15, emp_no{f}#9, first_name{f}#10, g..]
+     *   \_MvExpand[first_name{f}#10,x{r}#20]
+     *     \_Limit[1000[INTEGER],false,false]
+     *       \_EsRelation[test][_meta_field{f}#15, emp_no{f}#9, first_name{f}#10, g..]
      * }</pre>
      */
     public void testCopyDefaultLimitPastMvExpand() {
@@ -1636,8 +1635,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         var project = as(plan, Project.class);
         var limit = asLimit(project.child(), 1000, true);
         var mvExpand = as(limit.child(), MvExpand.class);
-        var eval = as(mvExpand.child(), Eval.class);
-        var limitPastMvExpand = asLimit(eval.child(), 1000, false);
+        var limitPastMvExpand = asLimit(mvExpand.child(), 1000, false);
         as(limitPastMvExpand.child(), EsRelation.class);
     }
 
@@ -3147,16 +3145,15 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
 
     /**
      * <pre>{@code
-     * Project[[a{r}#13, b{r}#14]]
+     * Project[[a{r}#13, b{r}#14 AS b#8]]
      * \_Limit[1000[INTEGER],true,false]
-     *   \_MvExpand[$$a$b$0$b$0{r}#16,b{r}#14]
-     *     \_Eval[[$$a$b$0{r}#15 AS $$a$b$0$b$0#16]]
-     *       \_Limit[1000[INTEGER],true,false]
-     *         \_MvExpand[a{r}#6,a{r}#13]
-     *           \_Eval[[a{r}#6 AS $$a$b$0#15]]
-     *             \_Limit[1000[INTEGER],false,false]
-     *               \_Aggregate[[],[COUNT(*[KEYWORD],true[BOOLEAN],PT0S[TIME_DURATION]) AS a#6]]
-     *                 \_LocalRelation[[a{r}#4],Page{blocks=[IntVectorBlock[vector=ConstantIntVector[positions=1, value=1]]]}]]
+     *   \_MvExpand[$$a$b$0{r}#15,b{r}#14]
+     *     \_Limit[1000[INTEGER],true,false]
+     *       \_MvExpand[a{r}#6,a{r}#13]
+     *         \_Eval[[a{r}#6 AS $$a$b$0#15]]
+     *           \_Limit[1000[INTEGER],false,false]
+     *             \_Aggregate[[],[COUNT(*[KEYWORD],true[BOOLEAN],PT0S[TIME_DURATION]) AS a#6]]
+     *               \_LocalRelation[[a{r}#4],Page{blocks=[IntVectorBlock[vector=ConstantIntVector[positions=1, value=1]]]}]
      * }</pre>
      */
     public void testPushDownMvExpandPastProject2() {
@@ -3169,10 +3166,9 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         var project = as(plan, Project.class);
         var limit = asLimit(project.child(), 1000, true);
         var mvExpand = as(limit.child(), MvExpand.class);
-        var eval = as(mvExpand.child(), Eval.class);
-        limit = asLimit(eval.child(), 1000, true);
+        limit = asLimit(mvExpand.child(), 1000, true);
         mvExpand = as(limit.child(), MvExpand.class);
-        eval = as(mvExpand.child(), Eval.class);
+        var eval = as(mvExpand.child(), Eval.class);
         limit = asLimit(eval.child(), 1000, false);
         var agg = as(limit.child(), Aggregate.class);
         as(agg.child(), LocalRelation.class);

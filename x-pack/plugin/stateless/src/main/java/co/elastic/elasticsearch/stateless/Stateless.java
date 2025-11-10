@@ -372,6 +372,7 @@ public class Stateless extends Plugin
     private final SetOnce<SearchCommitPrefetcher.PrefetchExecutor> prefetchExecutor = new SetOnce<>();
     private final SetOnce<BCCHeaderReadExecutor> bccHeaderReadExecutor = new SetOnce<>();
     private final SetOnce<SearchCommitPrefetcherDynamicSettings> prefetchingDynamicSettings = new SetOnce<>();
+    private final SetOnce<IngestLoadProbe> ingestLoadProbe = new SetOnce<>();
 
     private final boolean sharedCachedSettingExplicitlySet;
     private final boolean sharedCacheMmapExplicitlySet;
@@ -679,6 +680,7 @@ public class Stateless extends Plugin
             var ingestLoadPublisher = new IngestLoadPublisher(client, threadPool);
             var writeLoadSampler = AverageWriteLoadSampler.create(threadPool, settings, clusterService.getClusterSettings());
             var ingestLoadProbe = new IngestLoadProbe(clusterService.getClusterSettings(), writeLoadSampler::getExecutorStats, threadPool);
+            this.ingestLoadProbe.set(ingestLoadProbe);
             var ingestLoadSampler = new IngestLoadSampler(
                 threadPool,
                 writeLoadSampler,
@@ -1235,7 +1237,7 @@ public class Stateless extends Plugin
 
             indexModule.addIndexOperationListener(new StatelessIndexingOperationListener(hollowShardsService.get()));
             indexModule.addIndexEventListener(shardsMappingSizeCollector.get());
-
+            indexModule.addIndexEventListener(ingestLoadProbe.get());
             indexModule.addIndexEventListener(new IndexEventListener() {
 
                 @Override

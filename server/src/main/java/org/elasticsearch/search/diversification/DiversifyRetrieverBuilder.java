@@ -329,10 +329,22 @@ public final class DiversifyRetrieverBuilder extends CompoundRetrieverBuilder<Di
 
     private void extractFieldVectorData(int docId, Object fieldValue, Map<Integer, VectorData> fieldVectors) {
         switch (fieldValue) {
-            case float[] floatArray -> fieldVectors.put(docId, new VectorData(floatArray));
-            case byte[] byteArray -> fieldVectors.put(docId, new VectorData(byteArray));
-            case Float[] boxedFloatArray -> fieldVectors.put(docId, new VectorData(unboxedFloatArray(boxedFloatArray)));
-            case Byte[] boxedByteArray -> fieldVectors.put(docId, new VectorData(unboxedByteArray(boxedByteArray)));
+            case float[] floatArray -> {
+                fieldVectors.put(docId, new VectorData(floatArray));
+                return;
+            }
+            case byte[] byteArray -> {
+                fieldVectors.put(docId, new VectorData(byteArray));
+                return;
+            }
+            case Float[] boxedFloatArray -> {
+                fieldVectors.put(docId, new VectorData(unboxedFloatArray(boxedFloatArray)));
+                return;
+            }
+            case Byte[] boxedByteArray -> {
+                fieldVectors.put(docId, new VectorData(unboxedByteArray(boxedByteArray)));
+                return;
+            }
             default -> {
             }
         }

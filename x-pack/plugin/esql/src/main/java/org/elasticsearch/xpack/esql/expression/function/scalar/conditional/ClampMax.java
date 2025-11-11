@@ -21,6 +21,8 @@ import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.Example;
+import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
+import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlScalarFunction;
@@ -43,7 +45,8 @@ public class ClampMax extends EsqlScalarFunction {
     @FunctionInfo(
         returnType = { "double", "integer", "long", "unsigned_long", "double", "keyword", "ip", "boolean", "date", "version" },
         description = "Returns clamps the values of all input samples clamped to have an upper limit of max.",
-        examples = @Example(file = "k8s-timeseries-clamp", tag = "clamp-max")
+        examples = @Example(file = "k8s-timeseries-clamp", tag = "clamp-max"),
+        appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW, version = "9.3.0") }
     )
     public ClampMax(
         Source source,

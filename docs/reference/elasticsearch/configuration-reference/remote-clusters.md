@@ -121,7 +121,7 @@ must be configured for each remote cluster that requires signature verification.
 When using PEM encoded files for signing, use the following settings:
 
 `cluster.remote.<cluster_alias>.signing.key`
-:   ([Dynamic](docs-content://deploy-manage/stack-settings.md#dynamic-cluster-setting)) Path to a PEM encoded file containing the private key used to sign cross-cluster requests to the remote cluster. You cannot use this setting and `cluster.remote.<cluster_alias>.signing.keystore.path` at the same time.
+:   ([Dynamic](docs-content://deploy-manage/stack-settings.md#dynamic-cluster-setting)) The path to a PEM encoded file containing the private key used to sign cross-cluster requests to the remote cluster. You cannot use this setting and `cluster.remote.<cluster_alias>.signing.keystore.path` at the same time.
 
 `cluster.remote.<cluster_alias>.signing.key.secure_passphrase`
 :   ([Secure](docs-content://deploy-manage/security/secure-settings.md)) The passphrase that is used to decrypt the private key specified by `cluster.remote.<cluster_alias>.signing.key`. Because the key might not be encrypted, this value is optional.

@@ -53,7 +53,9 @@ import org.elasticsearch.geo.ShapeTestUtils;
 import org.elasticsearch.geometry.utils.Geohash;
 import org.elasticsearch.h3.H3;
 import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.RoutingPathFields;
+import org.elasticsearch.index.mapper.blockloader.BlockLoaderFunctionConfig;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.aggregations.bucket.geogrid.GeoTileUtils;
@@ -348,6 +350,15 @@ public final class EsqlTestUtils {
         @Override
         public boolean hasExactSubfield(FieldName field) {
             return exists(field);
+        }
+
+        @Override
+        public boolean supportsLoaderConfig(
+            FieldName name,
+            BlockLoaderFunctionConfig config,
+            MappedFieldType.FieldExtractPreference preference
+        ) {
+            return true;
         }
 
         @Override

@@ -2074,7 +2074,9 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
             assertThat(codec, instanceOf(LegacyPerFieldMapperCodec.class));
             knnVectorsFormat = ((LegacyPerFieldMapperCodec) codec).getKnnVectorsFormatForField("field");
         }
-        String expectedString = Build.current().isSnapshot() ? "ESNextDiskBBQVectorsFormat(vectorPerCluster=384)" : "ES920DiskBBQVectorsFormat(vectorPerCluster=384)";
+        String expectedString = Build.current().isSnapshot()
+            ? "ESNextDiskBBQVectorsFormat(vectorPerCluster=384)"
+            : "ES920DiskBBQVectorsFormat(vectorPerCluster=384)";
         assertEquals(expectedString, knnVectorsFormat.toString());
     }
 

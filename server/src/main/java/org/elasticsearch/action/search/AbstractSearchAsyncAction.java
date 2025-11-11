@@ -792,7 +792,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
     }
 
     /**
-     * Returns search request attributes used to record attributes for search phase timings
+     * Returns search request attributes used to record attributes for search phase timings in an immutable map.
      */
     public Map<String, Object> getSearchRequestAttributes() {
         return Collections.unmodifiableMap(searchRequestAttributes);

@@ -105,18 +105,9 @@ public class IpFieldMapper extends FieldMapper {
                 IGNORE_MALFORMED_SETTING.get(indexSettings.getSettings())
             );
             this.script.precludesParameters(nullValue, ignoreMalformed);
-            this.dimension = TimeSeriesParams.dimensionParam(m -> toType(m).dimension).addValidator(v -> {
-                if (v && (hasDocValues.getValue() == false)) {
-                    throw new IllegalArgumentException(
-                        "Field ["
-                            + TimeSeriesParams.TIME_SERIES_DIMENSION_PARAM
-                            + "] requires that ["
-                            + hasDocValues.name
-                            + "] is true"
-                    );
-                }
-            });
-            this.indexed = Parameter.indexParam(m -> toType(m).indexed, () -> this.dimension.get() == false);
+            this.dimension = TimeSeriesParams.dimensionParam(m -> toType(m).dimension, hasDocValues::get);
+            this.indexed = Parameter.indexParam(m -> toType(m).indexed,
+                () -> this.dimension.get() == false && indexSettings.);
             addScriptValidation(script, indexed, hasDocValues);
         }
 

@@ -256,14 +256,9 @@ public final class KeywordFieldMapper extends FieldMapper {
 
             this.script.precludesParameters(nullValue);
 
-            this.dimension = TimeSeriesParams.dimensionParam(m -> toType(m).fieldType().isDimension()).addValidator(v -> {
-                if (v && (hasDocValues.getValue() == false)) {
-                    throw new IllegalArgumentException(
-                        "Field [" + TimeSeriesParams.TIME_SERIES_DIMENSION_PARAM + "] requires that [" + hasDocValues.name + "] is true"
-                    );
-                }
-            }).precludesParameters(normalizer);
-            this.indexed = Parameter.indexParam(m -> toType(m).indexed, () -> this.dimension.get() == false);
+            this.dimension = TimeSeriesParams.dimensionParam(m -> toType(m).fieldType().isDimension(), hasDocValues::get)
+                .precludesParameters(normalizer);
+            this.indexed = Parameter.indexParam(m -> toType(m).indexed, indexSettings, dimension);
             addScriptValidation(script, indexed, hasDocValues);
 
             this.ignoreAbove = Parameter.ignoreAboveParam(

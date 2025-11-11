@@ -1,7 +1,7 @@
 pr: 137885
 summary: Deprecation message for lenient Boolean parsing
 area: Infra/Logging
-type: deprecation
+type: tech debt
 issues: []
 deprecation:
   title: Deprecation message for lenient Boolean parsing

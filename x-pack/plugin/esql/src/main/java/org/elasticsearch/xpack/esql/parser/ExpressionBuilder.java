@@ -806,31 +806,50 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
     }
 
     @Override
-    public Expression visitRlikeExpression(EsqlBaseParser.RlikeExpressionContext ctx) {
-        Source source = source(ctx);
-        Expression left = expression(ctx.valueExpression());
-        Literal patternLiteral = visitString(ctx.string());
-        try {
-            RLike rLike = new RLike(source, left, new RLikePattern(BytesRefs.toString(patternLiteral.fold(FoldContext.small()))));
-            return ctx.NOT() == null ? rLike : new Not(source, rLike);
-        } catch (InvalidArgumentException e) {
-            throw new ParsingException(source, "Invalid pattern for RLIKE [{}]: [{}]", patternLiteral, e.getMessage());
-        }
-    }
-
-    @Override
     public Expression visitLikeExpression(EsqlBaseParser.LikeExpressionContext ctx) {
         Source source = source(ctx);
         Expression left = expression(ctx.valueExpression());
-        Literal patternLiteral = visitString(ctx.string());
+        EsqlBaseParser.StringOrParameterContext right = ctx.stringOrParameter();
+        String patternString = stringFromStringOrParameter(source, right);
         try {
-            WildcardPattern pattern = new WildcardPattern(BytesRefs.toString(patternLiteral.fold(FoldContext.small())));
+            WildcardPattern pattern = new WildcardPattern(patternString);
             WildcardLike result = new WildcardLike(source, left, pattern);
             return ctx.NOT() == null ? result : new Not(source, result);
         } catch (InvalidArgumentException e) {
-            throw new ParsingException(source, "Invalid pattern for LIKE [{}]: [{}]", patternLiteral, e.getMessage());
+            throw new ParsingException(source, "Invalid pattern for LIKE [{}]: [{}]", patternString, e.getMessage());
         }
     }
+
+
+    String stringFromStringOrParameter(Source source, EsqlBaseParser.StringOrParameterContext ctx)
+    {
+        EsqlBaseParser.StringContext sctx = ctx.string();
+        if (sctx != null) {
+            Literal lit = visitString(sctx);
+            return BytesRefs.toString( lit.fold(FoldContext.small()) );
+        }
+        EsqlBaseParser.ParameterContext pctx = ctx.parameter();
+        if (pctx != null) {
+            if (pctx instanceof EsqlBaseParser.InputParamContext ipctx) {
+                Expression e = visitInputParam(ipctx);
+                if (e instanceof Literal lit) {
+                    if (lit.dataType() == KEYWORD) {
+                        return BytesRefs.toString( lit.fold(FoldContext.small()) );
+                    }
+                }
+            }
+            if (pctx instanceof EsqlBaseParser.InputNamedOrPositionalParamContext inopctx) {
+                Expression e = visitInputNamedOrPositionalParam(inopctx);
+                if (e instanceof Literal lit) {
+                    if (lit.dataType() == KEYWORD) {
+                        return BytesRefs.toString( lit.fold(FoldContext.small()) );
+                    }
+                }
+            }
+        }
+        throw new ParsingException(source, "Invalid StringOrParameterContext");
+    }
+
 
     @Override
     public Expression visitLikeListExpression(EsqlBaseParser.LikeListExpressionContext ctx) {
@@ -845,6 +864,19 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
             ? new WildcardLike(source, left, wildcardPatterns.getFirst())
             : new WildcardLikeList(source, left, new WildcardPatternList(wildcardPatterns));
         return ctx.NOT() == null ? e : new Not(source, e);
+    }
+
+    @Override
+    public Expression visitRlikeExpression(EsqlBaseParser.RlikeExpressionContext ctx) {
+        Source source = source(ctx);
+        Expression left = expression(ctx.valueExpression());
+        Literal patternLiteral = visitString(ctx.string());
+        try {
+            RLike rLike = new RLike(source, left, new RLikePattern(BytesRefs.toString(patternLiteral.fold(FoldContext.small()))));
+            return ctx.NOT() == null ? rLike : new Not(source, rLike);
+        } catch (InvalidArgumentException e) {
+            throw new ParsingException(source, "Invalid pattern for RLIKE [{}]: [{}]", patternLiteral, e.getMessage());
+        }
     }
 
     @Override

@@ -18,10 +18,15 @@ booleanExpression
     ;
 
 regexBooleanExpression
-    : valueExpression (NOT)? LIKE string                               #likeExpression
+    : valueExpression (NOT)? LIKE stringOrParameter                    #likeExpression
     | valueExpression (NOT)? RLIKE string                              #rlikeExpression
     | valueExpression (NOT)? LIKE LP string  (COMMA string )* RP       #likeListExpression
     | valueExpression (NOT)? RLIKE LP string  (COMMA string )* RP      #rlikeListExpression
+    ;
+
+stringOrParameter
+    : string
+    | parameter
     ;
 
 matchBooleanExpression

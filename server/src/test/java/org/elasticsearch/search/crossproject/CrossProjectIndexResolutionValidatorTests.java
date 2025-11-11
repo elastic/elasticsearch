@@ -253,6 +253,64 @@ public class CrossProjectIndexResolutionValidatorTests extends ESTestCase {
         assertNull(e);
     }
 
+    public void testMissingResponseFromLinkedProjectsForQualifiedExpressionWithStrictIgnoreUnavailable() {
+        ResolvedIndexExpressions local = new ResolvedIndexExpressions(
+            List.of(new ResolvedIndexExpression("P1:logs", ResolvedIndexExpression.LocalExpressions.NONE, Set.of("P1:logs")))
+        );
+
+        // Mimic no response from P1 project.
+        var remote = Map.of(
+            "P2",
+            new ResolvedIndexExpressions(
+                List.of(
+                    new ResolvedIndexExpression(
+                        "not-logs*",
+                        new ResolvedIndexExpression.LocalExpressions(
+                            Set.of("not-logs"),
+                            ResolvedIndexExpression.LocalIndexResolutionResult.SUCCESS,
+                            null
+                        ),
+                        Set.of()
+                    )
+                )
+            )
+        );
+
+        // logs does not exist in the remote responses and indices options are strict. We expect an error.
+        var e = CrossProjectIndexResolutionValidator.validate(getStrictIgnoreUnavailable(), null, local, remote);
+        assertNotNull(e);
+        assertThat(e, instanceOf(IndexNotFoundException.class));
+        assertThat(e.getMessage(), containsString("no such index [P1:logs]"));
+    }
+
+    public void testMissingResponseFromLinkedProjectsForQualifiedExpressionWithLenientIgnoreUnavailable() {
+        ResolvedIndexExpressions local = new ResolvedIndexExpressions(
+            List.of(new ResolvedIndexExpression("P1:logs", ResolvedIndexExpression.LocalExpressions.NONE, Set.of("P1:logs")))
+        );
+
+        // Mimic no response from P1 project.
+        var remote = Map.of(
+            "P2",
+            new ResolvedIndexExpressions(
+                List.of(
+                    new ResolvedIndexExpression(
+                        "not-logs*",
+                        new ResolvedIndexExpression.LocalExpressions(
+                            Set.of("not-logs"),
+                            ResolvedIndexExpression.LocalIndexResolutionResult.SUCCESS,
+                            null
+                        ),
+                        Set.of()
+                    )
+                )
+            )
+        );
+
+        // logs does not exist in the remote responses and indices options are lenient. We do not expect an error.
+        var e = CrossProjectIndexResolutionValidator.validate(getLenientIndicesOptions(), null, local, remote);
+        assertNull(e);
+    }
+
     public void testUnauthorizedFlatExpressionWithStrictIgnoreUnavailable() {
         final var exception = new ElasticsearchSecurityException("authorization errors while resolving [logs]");
         ResolvedIndexExpressions local = new ResolvedIndexExpressions(

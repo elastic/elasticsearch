@@ -2,4 +2,5 @@ pr: 137652
 summary: Fix default value for some settings when filtered
 area: Infra/Settings
 type: bug
-issues: []
+issues:
+ - 136333

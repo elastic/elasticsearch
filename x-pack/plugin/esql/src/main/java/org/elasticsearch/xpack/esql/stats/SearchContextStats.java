@@ -423,6 +423,23 @@ public class SearchContextStats implements SearchStats {
         return val;
     }
 
+    @Override
+    public MappedFieldType fieldType(FieldName name) {
+        MappedFieldType mappedFieldType = null;
+        for (SearchExecutionContext ctx : contexts) {
+            var fieldType = ctx.getFieldType(name.string());
+            if (fieldType != null) {
+                if (mappedFieldType == null) {
+                    mappedFieldType = fieldType;
+                } else if (mappedFieldType.typeName().equals(fieldType.typeName()) == false) {
+                    // mixed types; throw or return null?
+                    return null;
+                }
+            }
+        }
+        return mappedFieldType;
+    }
+
     private interface DocCountTester {
         Boolean test(LeafReader leafReader) throws IOException;
     }

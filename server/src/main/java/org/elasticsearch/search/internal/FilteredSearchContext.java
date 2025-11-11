@@ -16,6 +16,7 @@ import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
 import org.elasticsearch.index.mapper.IdLoader;
 import org.elasticsearch.index.mapper.SourceLoader;
@@ -472,5 +473,10 @@ public abstract class FilteredSearchContext extends SearchContext {
     @Override
     public long memAccountingBufferSize() {
         return in.memAccountingBufferSize();
+    }
+
+    @Override
+    public IndexService indexService() {
+        return in.indexService();
     }
 }

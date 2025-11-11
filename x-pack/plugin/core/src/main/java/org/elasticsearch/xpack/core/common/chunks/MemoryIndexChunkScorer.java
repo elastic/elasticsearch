@@ -28,7 +28,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * Utility class for scoring pre-determined chunks using an in-memory Lucene index.
+ * Scores pre-determined chunks using an in-memory Lucene index and BM25 scoring.
  */
 public class MemoryIndexChunkScorer {
 
@@ -90,9 +90,4 @@ public class MemoryIndexChunkScorer {
             }
         }
     }
-
-    /**
-     * Represents a chunk with its relevance score.
-     */
-    public record ScoredChunk(String content, float score) {}
 }

@@ -8,7 +8,7 @@
 package org.elasticsearch.xpack.esql.core.type;
 
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.blockloader.BlockLoaderFunctionConfig;
 
 import java.io.IOException;
 import java.util.Map;
@@ -16,15 +16,15 @@ import java.util.Objects;
 
 /**
  * EsField that represents a function being applied to a field on extraction. It receives a
- * {@link org.elasticsearch.index.mapper.MappedFieldType.BlockLoaderFunctionConfig} that will be passed down to the block loading process
+ * {@link BlockLoaderFunctionConfig} that will be passed down to the block loading process
  * to apply the function at data load time.
  */
 public class FunctionEsField extends EsField {
 
     // Not serialized as it will be created on the data node
-    private final transient MappedFieldType.BlockLoaderFunctionConfig functionConfig;
+    private final transient BlockLoaderFunctionConfig functionConfig;
 
-    public FunctionEsField(EsField esField, DataType dataType, MappedFieldType.BlockLoaderFunctionConfig functionConfig) {
+    public FunctionEsField(EsField esField, DataType dataType, BlockLoaderFunctionConfig functionConfig) {
         this(
             esField.getName(),
             dataType,
@@ -43,7 +43,7 @@ public class FunctionEsField extends EsField {
         boolean aggregatable,
         boolean isAlias,
         TimeSeriesFieldType timeSeriesFieldType,
-        MappedFieldType.BlockLoaderFunctionConfig functionConfig
+        BlockLoaderFunctionConfig functionConfig
     ) {
         super(name, esDataType, properties, aggregatable, isAlias, timeSeriesFieldType);
         this.functionConfig = functionConfig;
@@ -54,7 +54,7 @@ public class FunctionEsField extends EsField {
         throw new UnsupportedOperationException("FunctionEsField is not serializable, should be created on data nodes");
     }
 
-    public MappedFieldType.BlockLoaderFunctionConfig functionConfig() {
+    public BlockLoaderFunctionConfig functionConfig() {
         return functionConfig;
     }
 
@@ -69,5 +69,16 @@ public class FunctionEsField extends EsField {
     @Override
     public int hashCode() {
         return Objects.hash(super.hashCode(), functionConfig);
+    }
+
+    @Override
+    public Exact getExactInfo() {
+        /*
+         * We force and "inexact" field info to prevent pushing
+         * expressions like `WHERE LENGTH(kwd) > 2`. `LENGTH(kwd)`
+         * is a `FunctionEsField` which *looks* pushable without
+         * the inexact match.
+         */
+        return new Exact(false, "merged with " + functionConfig.function());
     }
 }

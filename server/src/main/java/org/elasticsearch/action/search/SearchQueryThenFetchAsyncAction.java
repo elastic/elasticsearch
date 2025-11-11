@@ -843,6 +843,8 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
             var channelListener = new ChannelActionListener<>(channel);
             RecyclerBytesStreamOutput out = dependencies.transportService.newNetworkBytesStream();
             out.setTransportVersion(channel.getVersion());
+
+            boolean success = false;
             try (queryPhaseResultConsumer) {
                 Exception reductionFailure = queryPhaseResultConsumer.failure.get();
                 if (reductionFailure == null) {
@@ -850,12 +852,25 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
                 } else {
                     writeReductionFailureResponse(out, reductionFailure);
                 }
+                success = true;
             } catch (IOException e) {
                 releaseAllResultsContexts();
                 channelListener.onFailure(e);
                 return;
+            } finally {
+                if (success == false) {
+                    out.close();
+                }
             }
+<<<<<<< HEAD
             ActionListener.respondAndRelease(channelListener, new BytesTransportResponse(out.moveToBytesReference()));
+=======
+
+            ActionListener.respondAndRelease(
+                channelListener,
+                new BytesTransportResponse(out.moveToBytesReference(), out.getTransportVersion())
+            );
+>>>>>>> 763332e7d62 (close properly byte stream on failure: (#137810))
         }
 
         // Writes the "successful" response (see NodeQueryResponse for the corresponding read logic)

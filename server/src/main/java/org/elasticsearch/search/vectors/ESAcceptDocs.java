@@ -125,7 +125,7 @@ public abstract sealed class ESAcceptDocs extends AcceptDocs {
             if (bits != null && bits.length() != maxDoc) {
                 throw new IllegalArgumentException("Bits length = " + bits.length() + " != maxDoc = " + maxDoc);
             }
-            this.bits = bits;
+            this.bits = Objects.requireNonNull(bits);
             if (bits instanceof BitSet bitSet) {
                 this.maxDoc = Objects.requireNonNull(bitSet).cardinality();
                 this.approximateCost = Objects.requireNonNull(bitSet).approximateCardinality();
@@ -144,8 +144,8 @@ public abstract sealed class ESAcceptDocs extends AcceptDocs {
 
         @Override
         public DocIdSetIterator iterator() {
-            if (bits instanceof BitSet bitSet) {
-                return new BitSetIterator(bitSet, maxDoc);
+            if (bitSetRef != null) {
+                return new BitSetIterator(bitSetRef, maxDoc);
             }
             return new FilteredDocIdSetIterator(DocIdSetIterator.all(maxDoc)) {
                 @Override

@@ -17,6 +17,7 @@ import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexVersion;
@@ -626,6 +627,106 @@ public class MlDailyMaintenanceServiceRolloverIndicesIT extends BaseMlIntegTestC
         // 4. Verify that no new index was created, as ILM-managed indices should be ignored
         assertIndicesAndAliases("After rollover attempt (with ILM)", indexName, Map.of(indexName, List.of()));
     }
+
+    public void testTriggerRollResultsIndicesIfNecessaryTask_whenIlmIsDisabledInMl() throws Exception {
+        // 1. Create a new maintenance service with ILM disabled
+        ThreadPool threadPool = mockThreadPool();
+        ClusterService clusterService = internalCluster().clusterService(internalCluster().getMasterName());
+        MlDailyMaintenanceService ilmDisabledService = new MlDailyMaintenanceService(
+            settings(IndexVersion.current()).build(),
+            ClusterName.DEFAULT,
+            threadPool,
+            client(),
+            clusterService,
+            mock(MlAssignmentNotifier.class),
+            TestIndexNameExpressionResolver.newInstance(),
+            true,
+            true,
+            true,
+            false // isIlmEnabled = false
+        );
+        ilmDisabledService.setRolloverMaxSize(ByteSizeValue.ZERO);
+
+        // 2. Create an ILM policy and an index that uses it
+        String policyName = "test-ilm-policy-for-disabled-test";
+        Map<String, Phase> phases = Map.of("delete", new Phase("delete", TimeValue.ZERO, Map.of(DeleteAction.NAME, DeleteAction.NO_SNAPSHOT_DELETE)));
+
+        LifecyclePolicy policy = new LifecyclePolicy(policyName, phases);
+
+        PutLifecycleRequest putLifecycleRequest = new PutLifecycleRequest(TimeValue.THIRTY_SECONDS, TimeValue.THIRTY_SECONDS, policy);
+        assertAcked(client().execute(ILMActions.PUT, putLifecycleRequest).actionGet());
+
+        String indexName = AnomalyDetectorsIndex.jobResultsIndexPrefix() + "ilm-disabled-test-000001";
+        String rolledIndexName = AnomalyDetectorsIndex.jobResultsIndexPrefix() + "ilm-disabled-test-000002";
+        createIndex(
+            indexName,
+            Settings.builder().put("index.lifecycle.name", policyName).put("index.lifecycle.rollover_alias", "dummy-alias").build()
+        );
+
+        assertIndicesAndAliases("Before rollover (ILM disabled)", indexName, Map.of(indexName, List.of()));
+
+        // 3. Trigger maintenance on the service where ILM is disabled
+        blockingCall(ilmDisabledService::triggerRollResultsIndicesIfNecessaryTask);
+
+        // 4. Verify that a rollover DID occur, because the service's isIlmEnabled flag was false
+        assertIndicesAndAliases(
+            "After rollover (ILM disabled)",
+            indexName.replace("000001", "*"),
+            Map.of(indexName, List.of(), rolledIndexName, List.of())
+        );
+    }
+
+    public void testTriggerRollResultsIndicesIfNecessaryTask_givenIndexWithEmptyIlmPolicySetting() throws Exception {
+        maintenanceService.setRolloverMaxSize(ByteSizeValue.ZERO);
+
+        // 1. Create an index with an empty "index.lifecycle.name" setting
+        String indexName = AnomalyDetectorsIndex.jobResultsIndexPrefix() + "empty-ilm-policy-000001";
+        String rolledIndexName = AnomalyDetectorsIndex.jobResultsIndexPrefix() + "empty-ilm-policy-000002";
+        createIndex(indexName, Settings.builder().put("index.lifecycle.name", "").build());
+
+        assertIndicesAndAliases("Before rollover (empty ILM setting)", indexName, Map.of(indexName, List.of()));
+
+        // 2. Trigger maintenance
+        blockingCall(maintenanceService::triggerRollResultsIndicesIfNecessaryTask);
+
+        // 3. Verify that a rollover DID occur, because an empty policy name means ILM is not active
+        assertIndicesAndAliases(
+            "After rollover (empty ILM setting)",
+            indexName.replace("000001", "*"),
+            Map.of(indexName, List.of(), rolledIndexName, List.of())
+        );
+    }
+
+    public void testTriggerRollResultsIndicesIfNecessaryTask_givenMixedGroupWithLatestIndexOnIlm() throws Exception {
+        maintenanceService.setRolloverMaxSize(ByteSizeValue.ZERO);
+
+        // 1. Create an ILM policy
+        String policyName = "test-ilm-policy-for-mixed-group";
+        Map<String, Phase> phases = Map.of("delete", new Phase("delete", TimeValue.ZERO, Map.of(DeleteAction.NAME, DeleteAction.NO_SNAPSHOT_DELETE)));
+        LifecyclePolicy policy = new LifecyclePolicy(policyName, phases);
+        PutLifecycleRequest putLifecycleRequest = new PutLifecycleRequest(TimeValue.THIRTY_SECONDS, TimeValue.THIRTY_SECONDS, policy);
+        assertAcked(client().execute(ILMActions.PUT, putLifecycleRequest).actionGet());
+
+        // 2. Create a group of indices where the LATEST one is managed by ILM
+        String indexName1 = AnomalyDetectorsIndex.jobResultsIndexPrefix() + "mixed-group-000001";
+        String indexName2 = AnomalyDetectorsIndex.jobResultsIndexPrefix() + "mixed-group-000002";
+        createIndex(indexName1);
+        createIndex(
+            indexName2,
+            Settings.builder().put("index.lifecycle.name", policyName).put("index.lifecycle.rollover_alias", "dummy-alias").build()
+        );
+
+        String indexWildcard = indexName1.replace("000001", "*");
+        assertIndicesAndAliases("Before rollover (mixed group)", indexWildcard, Map.of(indexName1, List.of(), indexName2, List.of()));
+
+        // 3. Trigger maintenance
+        blockingCall(maintenanceService::triggerRollResultsIndicesIfNecessaryTask);
+
+        // 4. Verify that NO rollover occurred, because the latest index in the group is ILM-managed
+        GetIndexResponse finalIndexResponse = client().admin().indices().prepareGetIndex(TimeValue.THIRTY_SECONDS).setIndices(indexWildcard).get();
+        assertThat(finalIndexResponse.getIndices().length, is(2)); // No new index should be created
+    }
+
 
     private void runTestScenarioWithNoRolloverOccurring(Job.Builder[] jobs, String indexNamePart) throws Exception {
         String firstJobId = jobs[0].getId();

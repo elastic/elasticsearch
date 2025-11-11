@@ -94,7 +94,13 @@ public class AllocationBalancingRoundMetrics {
             NodesWeightsChanges weightChanges = changesEntry.getValue();
             BalancingRoundSummary.NodeWeightsDiff weightsDiff = weightChanges.weightsDiff();
 
-            shardCountHistogram.record(Math.abs(weightsDiff.shardCountDiff()), getNodeAttributes(node));
+            // Math.abs on a long value does not have a corresponding positive value for long.MIN_VALUE.
+            // This is impossible here, so multiply by negative one if negative
+            long shardCountDiff = weightsDiff.shardCountDiff();
+            if (shardCountDiff < 0) {
+                shardCountDiff *= -1;
+            }
+            shardCountHistogram.record(shardCountDiff, getNodeAttributes(node));
             diskUsageHistogram.record(Math.abs(weightsDiff.diskUsageInBytesDiff()), getNodeAttributes(node));
             writeLoadHistogram.record(Math.abs(weightsDiff.writeLoadDiff()), getNodeAttributes(node));
             totalWeightHistogram.record(Math.abs(weightsDiff.totalWeightDiff()), getNodeAttributes(node));

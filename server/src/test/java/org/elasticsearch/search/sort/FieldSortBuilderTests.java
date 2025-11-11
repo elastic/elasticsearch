@@ -22,8 +22,6 @@ import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.sandbox.document.HalfFloatPoint;
 import org.apache.lucene.search.SortField;
-import org.apache.lucene.search.SortedNumericSelector;
-import org.apache.lucene.search.SortedNumericSortField;
 import org.apache.lucene.search.SortedSetSelector;
 import org.apache.lucene.search.SortedSetSortField;
 import org.apache.lucene.search.TermQuery;
@@ -151,36 +149,26 @@ public class FieldSortBuilderTests extends AbstractSortTestCase<FieldSortBuilder
         SearchExecutionContext searchExecutionContext = createMockSearchExecutionContext();
         FieldSortBuilder fieldSortBuilder = new FieldSortBuilder("value").missing("_first");
         SortField sortField = fieldSortBuilder.build(searchExecutionContext).field();
-        SortedNumericSortField expectedSortField = new SortedNumericSortField("value", SortField.Type.DOUBLE);
-        expectedSortField.setMissingValue(Double.NEGATIVE_INFINITY);
-        assertEquals(expectedSortField, sortField);
+        assertMissingValue(sortField, Double.NEGATIVE_INFINITY);
 
         fieldSortBuilder = new FieldSortBuilder("value").missing("_last");
         sortField = fieldSortBuilder.build(searchExecutionContext).field();
-        expectedSortField = new SortedNumericSortField("value", SortField.Type.DOUBLE);
-        expectedSortField.setMissingValue(Double.POSITIVE_INFINITY);
-        assertEquals(expectedSortField, sortField);
+        assertMissingValue(sortField, Double.POSITIVE_INFINITY);
 
         Double randomDouble = randomDouble();
         fieldSortBuilder = new FieldSortBuilder("value").missing(randomDouble);
         sortField = fieldSortBuilder.build(searchExecutionContext).field();
-        expectedSortField = new SortedNumericSortField("value", SortField.Type.DOUBLE);
-        expectedSortField.setMissingValue(randomDouble);
-        assertEquals(expectedSortField, sortField);
+        assertMissingValue(sortField, randomDouble);
 
         fieldSortBuilder = new FieldSortBuilder("value").missing(randomDouble.toString());
         sortField = fieldSortBuilder.build(searchExecutionContext).field();
-        expectedSortField = new SortedNumericSortField("value", SortField.Type.DOUBLE);
-        expectedSortField.setMissingValue(randomDouble);
-        assertEquals(expectedSortField, sortField);
+        assertMissingValue(sortField, randomDouble);
     }
 
-    // Specialised assertEquals to handle subclasses of SortedNumericSortField
-    public static void assertEquals(SortedNumericSortField expected, SortField actual) {
-        assertEquals(expected.getField(), actual.getField());
-        assertEquals(expected.getMissingValue(), actual.getMissingValue());
-        assertEquals(expected.getType(), actual.getType());
-        assertEquals(expected.getReverse(), actual.getReverse());
+    private static void assertMissingValue(SortField sortField, Object missingValue) {
+        assertThat(sortField.getComparatorSource(), instanceOf(XFieldComparatorSource.class));
+        XFieldComparatorSource xFieldComparatorSource = (XFieldComparatorSource) sortField.getComparatorSource();
+        assertEquals(xFieldComparatorSource.missingObject(missingValue, true), missingValue);
     }
 
     /**
@@ -190,21 +178,15 @@ public class FieldSortBuilderTests extends AbstractSortTestCase<FieldSortBuilder
         SearchExecutionContext searchExecutionContext = createMockSearchExecutionContext();
         FieldSortBuilder fieldSortBuilder = new FieldSortBuilder("value");
         SortField sortField = fieldSortBuilder.build(searchExecutionContext).field();
-        SortedNumericSortField expectedSortField = new SortedNumericSortField("value", SortField.Type.DOUBLE, false);
-        expectedSortField.setMissingValue(Double.POSITIVE_INFINITY);
-        assertEquals(expectedSortField, sortField);
+        assertMissingValue(sortField, Double.POSITIVE_INFINITY);
 
         fieldSortBuilder = new FieldSortBuilder("value").order(SortOrder.ASC);
         sortField = fieldSortBuilder.build(searchExecutionContext).field();
-        expectedSortField = new SortedNumericSortField("value", SortField.Type.DOUBLE, false);
-        expectedSortField.setMissingValue(Double.POSITIVE_INFINITY);
-        assertEquals(expectedSortField, sortField);
+        assertMissingValue(sortField, Double.POSITIVE_INFINITY);
 
         fieldSortBuilder = new FieldSortBuilder("value").order(SortOrder.DESC);
         sortField = fieldSortBuilder.build(searchExecutionContext).field();
-        expectedSortField = new SortedNumericSortField("value", SortField.Type.DOUBLE, true, SortedNumericSelector.Type.MAX);
-        expectedSortField.setMissingValue(Double.NEGATIVE_INFINITY);
-        assertEquals(expectedSortField, sortField);
+        assertMissingValue(sortField, Double.NEGATIVE_INFINITY);
     }
 
     /**
@@ -215,46 +197,38 @@ public class FieldSortBuilderTests extends AbstractSortTestCase<FieldSortBuilder
 
         FieldSortBuilder sortBuilder = new FieldSortBuilder("value").sortMode(SortMode.MIN);
         SortField sortField = sortBuilder.build(searchExecutionContext).field();
-        assertThat(sortField, instanceOf(SortedNumericSortField.class));
-        SortedNumericSortField numericSortField = (SortedNumericSortField) sortField;
-        assertEquals(SortedNumericSelector.Type.MIN, numericSortField.getSelector());
+        assertMode(sortField, MultiValueMode.MIN);
 
         sortBuilder = new FieldSortBuilder("value").sortMode(SortMode.MAX);
         sortField = sortBuilder.build(searchExecutionContext).field();
-        assertThat(sortField, instanceOf(SortedNumericSortField.class));
-        numericSortField = (SortedNumericSortField) sortField;
-        assertEquals(SortedNumericSelector.Type.MAX, numericSortField.getSelector());
+        assertMode(sortField, MultiValueMode.MAX);
 
         sortBuilder = new FieldSortBuilder("value").sortMode(SortMode.SUM);
         sortField = sortBuilder.build(searchExecutionContext).field();
-        assertThat(sortField.getComparatorSource(), instanceOf(XFieldComparatorSource.class));
-        XFieldComparatorSource comparatorSource = (XFieldComparatorSource) sortField.getComparatorSource();
-        assertEquals(MultiValueMode.SUM, comparatorSource.sortMode());
+        assertMode(sortField, MultiValueMode.SUM);
 
         sortBuilder = new FieldSortBuilder("value").sortMode(SortMode.AVG);
         sortField = sortBuilder.build(searchExecutionContext).field();
-        assertThat(sortField.getComparatorSource(), instanceOf(XFieldComparatorSource.class));
-        comparatorSource = (XFieldComparatorSource) sortField.getComparatorSource();
-        assertEquals(MultiValueMode.AVG, comparatorSource.sortMode());
+        assertMode(sortField, MultiValueMode.AVG);
 
         sortBuilder = new FieldSortBuilder("value").sortMode(SortMode.MEDIAN);
         sortField = sortBuilder.build(searchExecutionContext).field();
-        assertThat(sortField.getComparatorSource(), instanceOf(XFieldComparatorSource.class));
-        comparatorSource = (XFieldComparatorSource) sortField.getComparatorSource();
-        assertEquals(MultiValueMode.MEDIAN, comparatorSource.sortMode());
+        assertMode(sortField, MultiValueMode.MEDIAN);
 
         // sort mode should also be set by build() implicitly to MIN or MAX if not set explicitly on builder
         sortBuilder = new FieldSortBuilder("value");
         sortField = sortBuilder.build(searchExecutionContext).field();
-        assertThat(sortField, instanceOf(SortedNumericSortField.class));
-        numericSortField = (SortedNumericSortField) sortField;
-        assertEquals(SortedNumericSelector.Type.MIN, numericSortField.getSelector());
+        assertMode(sortField, MultiValueMode.MIN);
 
         sortBuilder = new FieldSortBuilder("value").order(SortOrder.DESC);
         sortField = sortBuilder.build(searchExecutionContext).field();
-        assertThat(sortField, instanceOf(SortedNumericSortField.class));
-        numericSortField = (SortedNumericSortField) sortField;
-        assertEquals(SortedNumericSelector.Type.MAX, numericSortField.getSelector());
+        assertMode(sortField, MultiValueMode.MAX);
+    }
+
+    private static void assertMode(SortField sortField, MultiValueMode mode) {
+        assertThat(sortField.getComparatorSource(), instanceOf(XFieldComparatorSource.class));
+        XFieldComparatorSource xFieldComparatorSource = (XFieldComparatorSource) sortField.getComparatorSource();
+        assertEquals(mode, xFieldComparatorSource.sortMode());
     }
 
     /**

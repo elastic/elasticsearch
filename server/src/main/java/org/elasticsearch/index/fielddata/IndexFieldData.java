@@ -69,13 +69,20 @@ public interface IndexFieldData<FD extends LeafFieldData> {
      * Returns the {@link SortField} to use for sorting depending on the version of the index.
      */
     default SortField sortField(
+        boolean indexSort,
         IndexVersion indexCreatedVersion,
         @Nullable Object missingValue,
         MultiValueMode sortMode,
         Nested nested,
         boolean reverse
     ) {
-        return sortField(missingValue, sortMode, nested, reverse);
+        return indexSort
+            ? indexSort(indexCreatedVersion, missingValue, sortMode, reverse)
+            : sortField(missingValue, sortMode, nested, reverse);
+    }
+
+    default SortField indexSort(IndexVersion indexCreatedVersion, @Nullable Object missingValue, MultiValueMode sortMode, boolean reverse) {
+        return sortField(missingValue, sortMode, null, reverse);
     }
 
     /**
@@ -230,6 +237,10 @@ public interface IndexFieldData<FD extends LeafFieldData> {
         }
 
         public abstract SortField.Type reducedType();
+
+        public SortField.Type sortType() {
+            return reducedType();
+        }
 
         /**
          * Return a missing value that is understandable by {@link SortField#setMissingValue(Object)}.

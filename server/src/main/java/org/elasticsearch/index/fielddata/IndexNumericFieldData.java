@@ -86,6 +86,7 @@ public abstract class IndexNumericFieldData implements IndexFieldData<LeafNumeri
      * match the field's <code>numericType</code>.
      */
     public final SortField sortField(
+        boolean indexSort,
         NumericType targetNumericType,
         Object missingValue,
         MultiValueMode sortMode,
@@ -104,7 +105,7 @@ public abstract class IndexNumericFieldData implements IndexFieldData<LeafNumeri
         boolean requiresCustomComparator = nested != null
             || (sortMode != MultiValueMode.MAX && sortMode != MultiValueMode.MIN)
             || targetNumericType != getNumericType();
-        if (sortRequiresCustomComparator() || requiresCustomComparator) {
+        if (indexSort == false || sortRequiresCustomComparator()) {
             SortField sortField = new SortField(getFieldName(), source, reverse);
             sortField.setOptimizeSortWithPoints(requiresCustomComparator == false && canUseOptimizedSort(indexType()));
             return sortField;
@@ -138,18 +139,24 @@ public abstract class IndexNumericFieldData implements IndexFieldData<LeafNumeri
 
     @Override
     public final SortField sortField(Object missingValue, MultiValueMode sortMode, Nested nested, boolean reverse) {
-        return sortField(getNumericType(), missingValue, sortMode, nested, reverse);
+        return sortField(false, getNumericType(), missingValue, sortMode, nested, reverse);
+    }
+
+    @Override
+    public SortField indexSort(IndexVersion indexCreatedVersion, Object missingValue, MultiValueMode sortMode, boolean reverse) {
+        return sortField(true, indexCreatedVersion, missingValue, sortMode, null, reverse);
     }
 
     @Override
     public SortField sortField(
+        boolean indexSort,
         IndexVersion indexCreatedVersion,
         Object missingValue,
         MultiValueMode sortMode,
         Nested nested,
         boolean reverse
     ) {
-        SortField sortField = sortField(missingValue, sortMode, nested, reverse);
+        SortField sortField = sortField(indexSort, getNumericType(), missingValue, sortMode, nested, reverse);
         if (getNumericType() == NumericType.DATE_NANOSECONDS
             && indexCreatedVersion.before(IndexVersions.V_7_14_0)
             && missingValue.equals("_last")

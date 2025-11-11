@@ -69,4 +69,8 @@ public final class XUpdateableDocIdSetIterator extends AbstractDocIdSetIterator 
             return super.docIDRunEnd();
         }
     }
+
+    public DocIdSetIterator getDelegate() {
+        return in;
+    }
 }

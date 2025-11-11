@@ -13,6 +13,7 @@ import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.search.FieldComparator;
 import org.apache.lucene.search.LeafFieldComparator;
 import org.apache.lucene.search.Pruning;
+import org.apache.lucene.search.SortField;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.fielddata.DenseDoubleValues;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
@@ -31,6 +32,11 @@ public class HalfFloatValuesComparatorSource extends FloatValuesComparatorSource
         Nested nested
     ) {
         super(indexFieldData, missingValue, sortMode, nested);
+    }
+
+    @Override
+    public SortField.Type sortType() {
+        return SortField.Type.CUSTOM;
     }
 
     @Override

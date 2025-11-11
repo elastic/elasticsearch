@@ -1895,6 +1895,10 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         return this.activeReaders.size();
     }
 
+    public long getActivePITContexts() {
+        return this.activeReaders.values().stream().filter(c -> c.singleSession() == false).filter(c -> c.scrollContext() == null).count();
+    }
+
     public List<ReaderContext> getActivePITContexts(ShardId shardId) {
         return this.activeReaders.values()
             .stream()

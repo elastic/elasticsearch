@@ -188,7 +188,6 @@ public class APMTracer extends AbstractLifecycleComponent implements org.elastic
 
             Instant startTime = traceContext.getTransient(Task.TRACE_START_TIME);
             if (startTime != null) {
-                logger.trace("Setting span [{}] [{}] to start time {}", spanId, spanName, startTime.toEpochMilli());
                 spanBuilder.setStartTimestamp(startTime);
             }
 

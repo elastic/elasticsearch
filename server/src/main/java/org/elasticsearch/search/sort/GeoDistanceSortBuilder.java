@@ -13,6 +13,7 @@ import org.apache.lucene.document.LatLonDocValuesField;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.search.DocIdSetIterator;
+import org.apache.lucene.search.DoubleValues;
 import org.apache.lucene.search.FieldComparator;
 import org.apache.lucene.search.LeafFieldComparator;
 import org.apache.lucene.search.Pruning;
@@ -30,12 +31,12 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.DistanceUnit;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.index.fielddata.DenseDoubleValues;
 import org.elasticsearch.index.fielddata.FieldData;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource.Nested;
 import org.elasticsearch.index.fielddata.IndexGeoPointFieldData;
 import org.elasticsearch.index.fielddata.MultiGeoPointValues;
-import org.elasticsearch.index.fielddata.NumericDoubleValues;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
 import org.elasticsearch.index.fielddata.plain.LatLonPointIndexFieldData;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -630,7 +631,7 @@ public class GeoDistanceSortBuilder extends SortBuilder<GeoDistanceSortBuilder> 
                 return SortField.Type.DOUBLE;
             }
 
-            private NumericDoubleValues getNumericDoubleValues(LeafReaderContext context) throws IOException {
+            private DenseDoubleValues getNumericDoubleValues(LeafReaderContext context) throws IOException {
                 final MultiGeoPointValues geoPointValues = geoIndexFieldData.load(context).getPointValues();
                 final SortedNumericDoubleValues distanceValues = GeoUtils.distanceValues(geoDistance, unit, geoPointValues, localPoints);
                 if (nested == null) {
@@ -651,7 +652,11 @@ public class GeoDistanceSortBuilder extends SortBuilder<GeoDistanceSortBuilder> 
                         return new DoubleLeafComparator(context) {
                             @Override
                             protected NumericDocValues getNumericDocValues(LeafReaderContext context, String field) throws IOException {
-                                return getNumericDoubleValues(context).getRawDoubleValues();
+                                return DenseDoubleValues.asNumericDocValues(
+                                    getNumericDoubleValues(context),
+                                    context.reader().maxDoc(),
+                                    Double::doubleToRawLongBits
+                                );
                             }
                         };
                     }
@@ -670,7 +675,7 @@ public class GeoDistanceSortBuilder extends SortBuilder<GeoDistanceSortBuilder> 
                     @Override
                     public Leaf forLeaf(LeafReaderContext ctx) throws IOException {
                         return new Leaf(ctx) {
-                            private final NumericDoubleValues values = getNumericDoubleValues(ctx);
+                            private final DoubleValues values = getNumericDoubleValues(ctx);
                             private double value;
 
                             @Override

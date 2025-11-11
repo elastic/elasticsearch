@@ -191,7 +191,6 @@ public class RestoreSnapshotRequestTests extends AbstractWireSerializingTestCase
         assertThat(validation.getMessage(), containsString("rename_replacement"));
     }
 
-
     private Map<String, Object> convertRequestToMap(RestoreSnapshotRequest request) throws IOException {
         XContentBuilder builder = request.toXContent(XContentFactory.jsonBuilder(), new ToXContent.MapParams(Collections.emptyMap()));
         try (

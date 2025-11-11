@@ -34,9 +34,9 @@ import java.util.Map;
 import java.util.Objects;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
+import static org.elasticsearch.cluster.metadata.MetadataCreateIndexService.MAX_INDEX_NAME_BYTES;
 import static org.elasticsearch.common.settings.Settings.readSettingsFromStream;
 import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeBooleanValue;
-import static org.elasticsearch.cluster.metadata.MetadataCreateIndexService.MAX_INDEX_NAME_BYTES;
 
 /**
  * Restore snapshot request
@@ -157,10 +157,13 @@ public class RestoreSnapshotRequest extends MasterNodeRequest<RestoreSnapshotReq
         if (renameReplacement != null) {
             int byteLength = renameReplacement.getBytes(StandardCharsets.UTF_8).length;
 
-            if(renameReplacement.getBytes(StandardCharsets.UTF_8).length > MAX_INDEX_NAME_BYTES) {
+            if (renameReplacement.getBytes(StandardCharsets.UTF_8).length > MAX_INDEX_NAME_BYTES) {
                 validationException = addValidationError(
-                    "rename_replacement UTF-8 byte length [" + byteLength +
-                        "] exceeds maximum allowed length [" + MAX_INDEX_NAME_BYTES + "] bytes",
+                    "rename_replacement UTF-8 byte length ["
+                        + byteLength
+                        + "] exceeds maximum allowed length ["
+                        + MAX_INDEX_NAME_BYTES
+                        + "] bytes",
                     validationException
                 );
             }

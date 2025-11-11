@@ -138,9 +138,9 @@ public class SnapshotShutdownProgressTracker {
         logger.info(
             """
                 Current active shard snapshot stats on data node [{}]. \
-                Node shutdown cluster state update received at [{}]. \
-                Finished signalling shard snapshots to pause at [{}]. \
-                Time between the node shutdown cluster state update and signalling shard snapshots to pause is [{} millis]\
+                Node shutdown cluster state update received at [{} UTC]. \
+                Finished signalling shard snapshots to pause at [{} UTC]. \
+                Time between the node shutdown cluster state update and signalling shard snapshots to pause is [{} millis]. \
                 Number shard snapshots running [{}]. \
                 Number shard snapshots waiting for master node reply to status update request [{}] \
                 Shard snapshot completion stats since shutdown began: Done [{}]; Failed [{}]; Aborted [{}]; Paused [{}]\

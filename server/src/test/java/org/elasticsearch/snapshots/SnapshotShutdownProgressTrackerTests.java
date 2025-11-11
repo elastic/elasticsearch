@@ -280,7 +280,7 @@ public class SnapshotShutdownProgressTrackerTests extends ESTestCase {
                     Level.INFO,
                     "*Finished signalling shard snapshots to pause at ["
                         + DateFormatter.forPattern("strict_date_optional_time").formatMillis(timeInMillis)
-                        + "]*"
+                        + " UTC]*"
                 )
             );
 

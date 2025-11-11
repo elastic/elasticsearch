@@ -39,7 +39,7 @@ public class ChunkScorerConfig implements Writeable, ToXContentObject {
     public static ChunkingSettings chunkingSettingsFromMap(Map<String, Object> map) {
 
         if (map == null || map.isEmpty()) {
-            return createChunkingSettings(DEFAULT_CHUNK_SIZE);
+            return null;
         }
 
         if (map.size() == 1 && map.containsKey("max_chunk_size")) {
@@ -53,7 +53,7 @@ public class ChunkScorerConfig implements Writeable, ToXContentObject {
         this.size = in.readOptionalVInt();
         this.inferenceText = in.readString();
         Map<String, Object> chunkingSettingsMap = in.readGenericMap();
-        this.chunkingSettings = ChunkingSettingsBuilder.fromMap(chunkingSettingsMap);
+        this.chunkingSettings = chunkingSettingsFromMap(chunkingSettingsMap);
     }
 
     public ChunkScorerConfig(Integer size, ChunkingSettings chunkingSettings) {
@@ -63,14 +63,14 @@ public class ChunkScorerConfig implements Writeable, ToXContentObject {
     public ChunkScorerConfig(Integer size, String inferenceText, ChunkingSettings chunkingSettings) {
         this.size = size;
         this.inferenceText = inferenceText;
-        this.chunkingSettings = chunkingSettings;
+        this.chunkingSettings = chunkingSettings;   
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeOptionalVInt(size);
         out.writeString(inferenceText);
-        out.writeGenericMap(chunkingSettings.asMap());
+        out.writeGenericMap(chunkingSettings != null ? chunkingSettings.asMap() : Map.of());
     }
 
     public Integer size() {
@@ -122,8 +122,10 @@ public class ChunkScorerConfig implements Writeable, ToXContentObject {
         builder.startObject();
         builder.field("size", size);
         builder.field("inference_text", inferenceText);
-        builder.field("chunking_settings");
-        chunkingSettings.toXContent(builder, params);
+        if (chunkingSettings != null) {
+            builder.field("chunking_settings");
+            chunkingSettings.toXContent(builder, params);
+        }        
         builder.endObject();
         return builder;
     }

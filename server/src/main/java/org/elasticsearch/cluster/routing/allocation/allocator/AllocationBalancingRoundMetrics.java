@@ -11,6 +11,7 @@ package org.elasticsearch.cluster.routing.allocation.allocator;
 
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.allocation.allocator.BalancingRoundSummary.NodesWeightsChanges;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.telemetry.metric.DoubleHistogram;
 import org.elasticsearch.telemetry.metric.LongCounter;
 import org.elasticsearch.telemetry.metric.LongHistogram;
@@ -84,6 +85,11 @@ public class AllocationBalancingRoundMetrics {
         );
     }
 
+    @SuppressForbidden(reason = "ForbiddenAPIs bans Math.abs on longs, but long.MIN_VALUE is impossible here")
+    private long longAbsNegativeSafe(long input) {
+        return Math.abs(input);
+    }
+
     public void addBalancingRoundSummary(BalancingRoundSummary summary) {
         balancingRoundCounter.increment();
         shardMovesCounter.incrementBy(summary.numberOfShardsToMove());
@@ -94,13 +100,7 @@ public class AllocationBalancingRoundMetrics {
             NodesWeightsChanges weightChanges = changesEntry.getValue();
             BalancingRoundSummary.NodeWeightsDiff weightsDiff = weightChanges.weightsDiff();
 
-            // Math.abs on a long value does not have a corresponding positive value for long.MIN_VALUE.
-            // This is impossible here, so multiply by negative one if negative
-            long shardCountDiff = weightsDiff.shardCountDiff();
-            if (shardCountDiff < 0) {
-                shardCountDiff *= -1;
-            }
-            shardCountHistogram.record(shardCountDiff, getNodeAttributes(node));
+            shardCountHistogram.record(longAbsNegativeSafe(weightsDiff.shardCountDiff()), getNodeAttributes(node));
             diskUsageHistogram.record(Math.abs(weightsDiff.diskUsageInBytesDiff()), getNodeAttributes(node));
             writeLoadHistogram.record(Math.abs(weightsDiff.writeLoadDiff()), getNodeAttributes(node));
             totalWeightHistogram.record(Math.abs(weightsDiff.totalWeightDiff()), getNodeAttributes(node));

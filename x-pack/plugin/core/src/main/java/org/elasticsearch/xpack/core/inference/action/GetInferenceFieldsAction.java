@@ -15,10 +15,12 @@ import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.RemoteClusterActionType;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.metadata.InferenceFieldMetadata;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.inference.InferenceResults;
 
 import java.io.IOException;
@@ -30,6 +32,16 @@ import java.util.Set;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 
+/**
+ * <p>
+ * An internal action for getting inference fields for a set of indices and optionally, the inference results for those
+ * fields given a query.
+ * </p>
+ * <p>
+ * Note that this action is intended to be used to get inference fields for a remote cluster. Local cluster inference
+ * fields can be gathered more directly using {@link IndexMetadata#getMatchingInferenceFields}.
+ * </p>
+ */
 public class GetInferenceFieldsAction extends ActionType<GetInferenceFieldsAction.Response> {
     public static final GetInferenceFieldsAction INSTANCE = new GetInferenceFieldsAction();
     public static final RemoteClusterActionType<Response> REMOTE_TYPE = new RemoteClusterActionType<>(INSTANCE.name(), Response::new);
@@ -50,6 +62,9 @@ public class GetInferenceFieldsAction extends ActionType<GetInferenceFieldsActio
         private final String query;
         private final IndicesOptions indicesOptions;
 
+        /**
+         * An overload of {@link #Request(Set, Map, boolean, boolean, String, IndicesOptions)} that uses {@link IndicesOptions#DEFAULT}
+         */
         public Request(
             Set<String> indices,
             Map<String, Float> fields,
@@ -60,6 +75,27 @@ public class GetInferenceFieldsAction extends ActionType<GetInferenceFieldsActio
             this(indices, fields, resolveWildcards, useDefaultFields, query, null);
         }
 
+        /**
+         * <p>
+         * Constructs a request to get inference fields.
+         * </p>
+         * <p>
+         * If {@code useDefaultFields} is true and {@code fields} is empty, then the field pattern map will be derived from the value of
+         * {@link IndexSettings#DEFAULT_FIELD_SETTING} for each index.
+         * </p>
+         * <p>
+         * If {@code query} is {@code null}, then no inference results will be generated. This can be useful in scenarios where the caller
+         * only needs to check for the existence of inference fields.
+         * </p>
+         *
+         * @param indices The indices to get inference fields for.
+         * @param fields The field pattern map, where the key is the field pattern and the value is the pattern weight.
+         * @param resolveWildcards If {@code true}, wildcards in field patterns will be resolved. Otherwise, only explicit matches will be
+         *                         returned.
+         * @param useDefaultFields If {@code true}, default fields will be used if {@code fields} is empty.
+         * @param query The query to generate inference results for.
+         * @param indicesOptions The {@link IndicesOptions} to use when resolving indices.
+         */
         public Request(
             Set<String> indices,
             Map<String, Float> fields,
@@ -163,6 +199,20 @@ public class GetInferenceFieldsAction extends ActionType<GetInferenceFieldsActio
         }
     }
 
+    /**
+     * <p>
+     * A response containing an inference fields map and, if a query was specified in the {@link Request}, the inference
+     * results for those fields.
+     * </p>
+     * <p>
+     * The inference fields map key is a concrete index name. The value is a list of {@link ExtendedInferenceFieldMetadata},
+     * representing the metadata for all matching inference fields in that index.
+     * </p>
+     * <p>
+     * The inference results map key is an inference ID. The value is the inference results from the inference endpoint
+     * that the inference ID resolves to. If no query was specified in the {@link Request}, this will be an empty map.
+     * </p>
+     */
     public static class Response extends ActionResponse {
         private final Map<String, List<ExtendedInferenceFieldMetadata>> inferenceFieldsMap;
         private final Map<String, InferenceResults> inferenceResultsMap;

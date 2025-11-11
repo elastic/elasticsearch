@@ -56,7 +56,6 @@ import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
-import static org.elasticsearch.xpack.core.rollup.ConfigTestHelpers.randomInterval;
 import static org.hamcrest.Matchers.equalTo;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0, numClientNodes = 4)
@@ -87,7 +86,8 @@ public class ILMDownsampleDisruptionIT extends DownsamplingIntegTestCase {
         return nodeSettings.build();
     }
 
-    public void setup(final String sourceIndex, int numOfShards, int numOfReplicas, long startTime) throws IOException {
+    public void setup(final String sourceIndex, int numOfShards, int numOfReplicas, long startTime, DownsampleConfig config)
+        throws IOException {
         final Settings.Builder settings = indexSettings(numOfShards, numOfReplicas).put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES)
             .putList(IndexMetadata.INDEX_ROUTING_PATH.getKey(), List.of(FIELD_DIMENSION_KEYWORD))
             .put(
@@ -123,10 +123,10 @@ public class ILMDownsampleDisruptionIT extends DownsamplingIntegTestCase {
                 Map.of(
                     "downsample",
                     new org.elasticsearch.xpack.core.ilm.DownsampleAction(
-                        DateHistogramInterval.HOUR,
+                        config.getFixedInterval(),
                         null,
                         randomBoolean(),
-                        randomSamplingMethod()
+                        config.getSamplingMethod()
                     )
                 )
             )
@@ -145,9 +145,9 @@ public class ILMDownsampleDisruptionIT extends DownsamplingIntegTestCase {
 
         final String sourceIndex = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
         long startTime = LocalDateTime.parse("1993-09-09T18:00:00").atZone(ZoneId.of("UTC")).toInstant().toEpochMilli();
-        setup(sourceIndex, 1, 0, startTime);
         DownsampleConfig.SamplingMethod samplingMethod = randomSamplingMethod();
-        final DownsampleConfig config = new DownsampleConfig(randomInterval(), samplingMethod);
+        final DownsampleConfig config = new DownsampleConfig(DateHistogramInterval.HOUR, samplingMethod);
+        setup(sourceIndex, 1, 0, startTime, config);
         final Supplier<XContentBuilder> sourceSupplier = () -> {
             final String ts = randomDateForInterval(config.getInterval(), startTime);
             double counterValue = DATE_FORMATTER.parseMillis(ts);

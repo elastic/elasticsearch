@@ -439,6 +439,8 @@ public class ReservedRolesStoreTests extends ESTestCase {
         assertTrue(kibanaRole.cluster().check("cluster:admin/script/get", request, authentication));
 
         // Inference
+        assertTrue(kibanaRole.cluster().check("cluster:admin/xpack/inference/ccm/delete", request, authentication));
+        assertTrue(kibanaRole.cluster().check("cluster:admin/xpack/inference/ccm/put", request, authentication));
         assertTrue(kibanaRole.cluster().check("cluster:admin/xpack/inference/get", request, authentication));
         assertTrue(kibanaRole.cluster().check("cluster:admin/xpack/inference/put", request, authentication));
         assertTrue(kibanaRole.cluster().check("cluster:admin/xpack/inference/delete", request, authentication));

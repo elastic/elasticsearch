@@ -63,7 +63,7 @@ public class ChunkScorerConfig implements Writeable, ToXContentObject {
     public ChunkScorerConfig(Integer size, String inferenceText, ChunkingSettings chunkingSettings) {
         this.size = size;
         this.inferenceText = inferenceText;
-        this.chunkingSettings = chunkingSettings;   
+        this.chunkingSettings = chunkingSettings;
     }
 
     @Override

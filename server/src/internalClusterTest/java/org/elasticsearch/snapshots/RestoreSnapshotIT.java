@@ -1154,7 +1154,7 @@ public class RestoreSnapshotIT extends AbstractSnapshotIntegTestCase {
             .cluster()
             .prepareRestoreSnapshot(TEST_REQUEST_TIMEOUT, repoName, snapshotName)
             .setIndices(indexName)
-            .setRenamePattern("b+")  // Match all the b's
+            .setRenamePattern("b+")
             .setRenameReplacement("a".repeat(255))
             .setWaitForCompletion(true)
             .get();

@@ -78,6 +78,14 @@ public class ExtractHistogramComponent extends EsqlScalarFunction {
         this(Source.readFrom((PlanStreamInput) in), in.readNamedWriteable(Expression.class), in.readNamedWriteable(Expression.class));
     }
 
+    Expression field() {
+        return field;
+    }
+
+    Expression componentOrdinal() {
+        return componentOrdinal;
+    }
+
     private ExponentialHistogramBlock.Component component() {
         if (componentOrdinal.foldable() == false) {
             throw new EsqlIllegalArgumentException("Received a non-foldable value for component ordinal");

@@ -341,17 +341,17 @@ public class GetInferenceFieldsIT extends ESIntegTestCase {
         assertFailedRequest(
             new GetInferenceFieldsAction.Request(null, Map.of(), false, false, null),
             ActionRequestValidationException.class,
-            e -> validator.accept(e, List.of("indices is null"))
+            e -> validator.accept(e, List.of("indices must not be null"))
         );
         assertFailedRequest(
             new GetInferenceFieldsAction.Request(Set.of(), null, false, false, null),
             ActionRequestValidationException.class,
-            e -> validator.accept(e, List.of("fields is null"))
+            e -> validator.accept(e, List.of("fields must not be null"))
         );
         assertFailedRequest(
             new GetInferenceFieldsAction.Request(null, null, false, false, null),
             ActionRequestValidationException.class,
-            e -> validator.accept(e, List.of("indices is null", "fields is null"))
+            e -> validator.accept(e, List.of("indices must not be null", "fields must not be null"))
         );
 
         Map<String, Float> fields = new HashMap<>();
@@ -359,7 +359,7 @@ public class GetInferenceFieldsIT extends ESIntegTestCase {
         assertFailedRequest(
             new GetInferenceFieldsAction.Request(Set.of(), fields, false, false, null),
             ActionRequestValidationException.class,
-            e -> validator.accept(e, List.of("weight for field [" + INFERENCE_FIELD_1 + "] is null"))
+            e -> validator.accept(e, List.of("weight for field [" + INFERENCE_FIELD_1 + "] must not be null"))
         );
     }
 

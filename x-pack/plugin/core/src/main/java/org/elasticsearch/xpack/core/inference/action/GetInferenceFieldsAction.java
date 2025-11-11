@@ -98,15 +98,18 @@ public class GetInferenceFieldsAction extends ActionType<GetInferenceFieldsActio
         public ActionRequestValidationException validate() {
             ActionRequestValidationException validationException = null;
             if (indices == null) {
-                validationException = addValidationError("indices is null", validationException);
+                validationException = addValidationError("indices must not be null", validationException);
             }
 
             if (fields == null) {
-                validationException = addValidationError("fields is null", validationException);
+                validationException = addValidationError("fields must not be null", validationException);
             } else {
                 for (var entry : fields.entrySet()) {
                     if (entry.getValue() == null) {
-                        validationException = addValidationError("weight for field [" + entry.getKey() + "] is null", validationException);
+                        validationException = addValidationError(
+                            "weight for field [" + entry.getKey() + "] must not be null",
+                            validationException
+                        );
                     }
                 }
             }

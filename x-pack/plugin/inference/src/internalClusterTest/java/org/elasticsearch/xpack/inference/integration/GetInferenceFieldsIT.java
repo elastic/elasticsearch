@@ -76,21 +76,26 @@ public class GetInferenceFieldsIT extends ESIntegTestCase {
     private static final String INFERENCE_FIELD_1 = "inference-field-1";
     private static final String INFERENCE_FIELD_2 = "inference-field-2";
     private static final String INFERENCE_FIELD_3 = "inference-field-3";
+    private static final String INFERENCE_FIELD_4 = "inference-field-4";
     private static final String TEXT_FIELD_1 = "text-field-1";
     private static final String TEXT_FIELD_2 = "text-field-2";
     private static final Map<String, Float> ALL_FIELDS = Collections.unmodifiableMap(
-        generateDefaultBoostFieldMap(Set.of(INFERENCE_FIELD_1, INFERENCE_FIELD_2, INFERENCE_FIELD_3, TEXT_FIELD_1, TEXT_FIELD_2))
+        generateDefaultWeightFieldMap(
+            Set.of(INFERENCE_FIELD_1, INFERENCE_FIELD_2, INFERENCE_FIELD_3, INFERENCE_FIELD_4, TEXT_FIELD_1, TEXT_FIELD_2)
+        )
     );
 
     private static final Set<InferenceFieldWithTestMetadata> INDEX_1_EXPECTED_INFERENCE_FIELDS = Set.of(
         new InferenceFieldWithTestMetadata(INFERENCE_FIELD_1, SPARSE_EMBEDDING_INFERENCE_ID, 1.0f),
         new InferenceFieldWithTestMetadata(INFERENCE_FIELD_2, TEXT_EMBEDDING_INFERENCE_ID, 1.0f),
-        new InferenceFieldWithTestMetadata(INFERENCE_FIELD_3, SPARSE_EMBEDDING_INFERENCE_ID, 1.0f)
+        new InferenceFieldWithTestMetadata(INFERENCE_FIELD_3, SPARSE_EMBEDDING_INFERENCE_ID, 1.0f),
+        new InferenceFieldWithTestMetadata(INFERENCE_FIELD_4, TEXT_EMBEDDING_INFERENCE_ID, 1.0f)
     );
     private static final Set<InferenceFieldWithTestMetadata> INDEX_2_EXPECTED_INFERENCE_FIELDS = Set.of(
         new InferenceFieldWithTestMetadata(INFERENCE_FIELD_1, TEXT_EMBEDDING_INFERENCE_ID, 1.0f),
         new InferenceFieldWithTestMetadata(INFERENCE_FIELD_2, SPARSE_EMBEDDING_INFERENCE_ID, 1.0f),
-        new InferenceFieldWithTestMetadata(INFERENCE_FIELD_3, SPARSE_EMBEDDING_INFERENCE_ID, 1.0f)
+        new InferenceFieldWithTestMetadata(INFERENCE_FIELD_3, SPARSE_EMBEDDING_INFERENCE_ID, 1.0f),
+        new InferenceFieldWithTestMetadata(INFERENCE_FIELD_4, TEXT_EMBEDDING_INFERENCE_ID, 1.0f)
     );
 
     private static final Map<String, Class<? extends InferenceResults>> ALL_EXPECTED_INFERENCE_RESULTS = Map.of(
@@ -156,7 +161,7 @@ public class GetInferenceFieldsIT extends ESIntegTestCase {
         assertSuccessfulRequest(
             new GetInferenceFieldsAction.Request(
                 ALL_INDICES,
-                generateDefaultBoostFieldMap(Set.of(TEXT_FIELD_1, TEXT_FIELD_2)),
+                generateDefaultWeightFieldMap(Set.of(TEXT_FIELD_1, TEXT_FIELD_2)),
                 false,
                 false,
                 "foo"
@@ -168,7 +173,7 @@ public class GetInferenceFieldsIT extends ESIntegTestCase {
 
     public void testResolveFieldWildcards() {
         assertSuccessfulRequest(
-            new GetInferenceFieldsAction.Request(ALL_INDICES, generateDefaultBoostFieldMap(Set.of("*")), true, false, "foo"),
+            new GetInferenceFieldsAction.Request(ALL_INDICES, generateDefaultWeightFieldMap(Set.of("*")), true, false, "foo"),
             Map.of(INDEX_1, INDEX_1_EXPECTED_INFERENCE_FIELDS, INDEX_2, INDEX_2_EXPECTED_INFERENCE_FIELDS),
             ALL_EXPECTED_INFERENCE_RESULTS
         );
@@ -239,13 +244,13 @@ public class GetInferenceFieldsIT extends ESIntegTestCase {
 
     public void testMissingFieldName() {
         assertSuccessfulRequest(
-            new GetInferenceFieldsAction.Request(ALL_INDICES, generateDefaultBoostFieldMap(Set.of("missing-field")), false, false, "foo"),
+            new GetInferenceFieldsAction.Request(ALL_INDICES, generateDefaultWeightFieldMap(Set.of("missing-field")), false, false, "foo"),
             Map.of(INDEX_1, Set.of(), INDEX_2, Set.of()),
             Map.of()
         );
 
         assertSuccessfulRequest(
-            new GetInferenceFieldsAction.Request(ALL_INDICES, generateDefaultBoostFieldMap(Set.of("missing-*")), true, false, "foo"),
+            new GetInferenceFieldsAction.Request(ALL_INDICES, generateDefaultWeightFieldMap(Set.of("missing-*")), true, false, "foo"),
             Map.of(INDEX_1, Set.of(), INDEX_2, Set.of()),
             Map.of()
         );
@@ -375,7 +380,13 @@ public class GetInferenceFieldsIT extends ESIntegTestCase {
             Set.of(SPARSE_EMBEDDING_INFERENCE_ID)
         );
         assertSuccessfulRequest(
-            new GetInferenceFieldsAction.Request(ALL_INDICES, generateDefaultBoostFieldMap(Set.of(INFERENCE_FIELD_3)), false, false, query),
+            new GetInferenceFieldsAction.Request(
+                ALL_INDICES,
+                generateDefaultWeightFieldMap(Set.of(INFERENCE_FIELD_3)),
+                false,
+                false,
+                query
+            ),
             Map.of(
                 INDEX_1,
                 filterExpectedInferenceFieldSet(INDEX_1_EXPECTED_INFERENCE_FIELDS, Set.of(INFERENCE_FIELD_3)),
@@ -388,7 +399,7 @@ public class GetInferenceFieldsIT extends ESIntegTestCase {
         assertSuccessfulRequest(
             new GetInferenceFieldsAction.Request(
                 Set.of(INDEX_1),
-                generateDefaultBoostFieldMap(Set.of(INFERENCE_FIELD_3)),
+                generateDefaultWeightFieldMap(Set.of(INFERENCE_FIELD_3)),
                 false,
                 false,
                 query
@@ -398,7 +409,7 @@ public class GetInferenceFieldsIT extends ESIntegTestCase {
         );
 
         assertSuccessfulRequest(
-            new GetInferenceFieldsAction.Request(ALL_INDICES, generateDefaultBoostFieldMap(Set.of("*")), false, false, query),
+            new GetInferenceFieldsAction.Request(ALL_INDICES, generateDefaultWeightFieldMap(Set.of("*")), false, false, query),
             Map.of(INDEX_1, Set.of(), INDEX_2, Set.of()),
             Map.of()
         );
@@ -434,6 +445,7 @@ public class GetInferenceFieldsIT extends ESIntegTestCase {
         addSemanticTextField(INFERENCE_FIELD_1, inferenceField1InferenceId, mapping);
         addSemanticTextField(INFERENCE_FIELD_2, inferenceField2InferenceId, mapping);
         addSemanticTextField(INFERENCE_FIELD_3, SPARSE_EMBEDDING_INFERENCE_ID, mapping);
+        addSemanticTextField(INFERENCE_FIELD_4, TEXT_EMBEDDING_INFERENCE_ID, mapping);
         addTextField(TEXT_FIELD_1, mapping);
         addTextField(TEXT_FIELD_2, mapping);
         mapping.endObject().endObject();
@@ -522,7 +534,7 @@ public class GetInferenceFieldsIT extends ESIntegTestCase {
         }
     }
 
-    static Map<String, Float> generateDefaultBoostFieldMap(Set<String> fieldList) {
+    static Map<String, Float> generateDefaultWeightFieldMap(Set<String> fieldList) {
         Map<String, Float> fieldMap = new HashMap<>();
         fieldList.forEach(field -> fieldMap.put(field, 1.0f));
         return fieldMap;

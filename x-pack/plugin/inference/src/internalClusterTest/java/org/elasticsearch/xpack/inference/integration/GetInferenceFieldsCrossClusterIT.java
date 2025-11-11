@@ -35,7 +35,7 @@ import java.util.function.Consumer;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.xpack.inference.integration.GetInferenceFieldsIT.assertInferenceFieldsMap;
 import static org.elasticsearch.xpack.inference.integration.GetInferenceFieldsIT.assertInferenceResultsMap;
-import static org.elasticsearch.xpack.inference.integration.GetInferenceFieldsIT.generateDefaultBoostFieldMap;
+import static org.elasticsearch.xpack.inference.integration.GetInferenceFieldsIT.generateDefaultWeightFieldMap;
 import static org.elasticsearch.xpack.inference.integration.IntegrationTestUtils.createInferenceEndpoint;
 import static org.elasticsearch.xpack.inference.integration.IntegrationTestUtils.generateSemanticTextMapping;
 import static org.hamcrest.Matchers.containsString;
@@ -111,7 +111,7 @@ public class GetInferenceFieldsCrossClusterIT extends AbstractMultiClustersTestC
 
         var request = new GetInferenceFieldsAction.Request(
             Set.of(INDEX_NAME),
-            generateDefaultBoostFieldMap(Set.of(INFERENCE_FIELD)),
+            generateDefaultWeightFieldMap(Set.of(INFERENCE_FIELD)),
             false,
             false,
             "foo"

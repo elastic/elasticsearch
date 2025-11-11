@@ -239,18 +239,6 @@ public abstract class VectorSimilarityFunction extends BinaryScalarFunction
         );
     }
 
-    @Override
-    protected Expression canonicalize() {
-        VectorSimilarityFunction canonical = (VectorSimilarityFunction) super.canonicalize();
-
-        // Set literals to the right
-        if (canonical.left() instanceof Literal && canonical.right() instanceof Literal == false) {
-            return canonical.replaceChildren(right(), left());
-        }
-
-        return canonical;
-    }
-
     interface VectorValueProvider extends Releasable {
 
         void eval(Page page);

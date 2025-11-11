@@ -29,6 +29,7 @@ import static org.elasticsearch.xpack.inference.queries.LegacySemanticKnnVectorQ
 import static org.elasticsearch.xpack.inference.queries.LegacySemanticKnnVectorQueryRewriteInterceptor.SEMANTIC_KNN_VECTOR_QUERY_REWRITE_INTERCEPTION_SUPPORTED;
 import static org.elasticsearch.xpack.inference.queries.LegacySemanticMatchQueryRewriteInterceptor.SEMANTIC_MATCH_QUERY_REWRITE_INTERCEPTION_SUPPORTED;
 import static org.elasticsearch.xpack.inference.queries.LegacySemanticSparseVectorQueryRewriteInterceptor.SEMANTIC_SPARSE_VECTOR_QUERY_REWRITE_INTERCEPTION_SUPPORTED;
+import static org.elasticsearch.xpack.inference.rank.textsimilarity.TextSimilarityRankDoc.TEXT_SIMILARITY_RANK_DOC_EXPLAIN_CHUNKS;
 import static org.elasticsearch.xpack.inference.rank.textsimilarity.TextSimilarityRankRetrieverBuilder.TEXT_SIMILARITY_RERANKER_SNIPPETS;
 
 /**
@@ -100,7 +101,8 @@ public class InferenceFeatures implements FeatureSpecification {
                 InterceptedInferenceQueryBuilder.NEW_SEMANTIC_QUERY_INTERCEPTORS,
                 TEXT_SIMILARITY_RERANKER_SNIPPETS,
                 ModelStats.SEMANTIC_TEXT_USAGE,
-                SEARCH_USAGE_EXTENDED_DATA
+                SEARCH_USAGE_EXTENDED_DATA,
+                TEXT_SIMILARITY_RANK_DOC_EXPLAIN_CHUNKS
             )
         );
         testFeatures.addAll(getFeatures());

@@ -51,6 +51,7 @@ import org.elasticsearch.cluster.routing.allocation.allocator.AllocationBalancin
 import org.elasticsearch.cluster.routing.allocation.allocator.BalancedShardsAllocator;
 import org.elasticsearch.cluster.routing.allocation.allocator.DesiredBalanceComputer;
 import org.elasticsearch.cluster.routing.allocation.allocator.DesiredBalanceReconciler;
+import org.elasticsearch.cluster.routing.allocation.allocator.UndesiredAllocationsTracker;
 import org.elasticsearch.cluster.routing.allocation.decider.AwarenessAllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.ClusterRebalanceAllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.ConcurrentRebalanceAllocationDecider;
@@ -82,6 +83,7 @@ import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.gateway.PersistedClusterStateService;
 import org.elasticsearch.health.HealthPeriodicLogger;
 import org.elasticsearch.health.node.LocalHealthMonitor;
+import org.elasticsearch.health.node.ShardsCapacityHealthIndicatorService;
 import org.elasticsearch.health.node.action.TransportHealthNodeAction;
 import org.elasticsearch.health.node.selection.HealthNodeTaskExecutor;
 import org.elasticsearch.http.HttpTransportSettings;
@@ -235,6 +237,9 @@ public final class ClusterSettings extends AbstractScopedSettings {
         DesiredBalanceComputer.MAX_BALANCE_COMPUTATION_TIME_DURING_INDEX_CREATION_SETTING,
         DesiredBalanceReconciler.UNDESIRED_ALLOCATIONS_LOG_INTERVAL_SETTING,
         DesiredBalanceReconciler.UNDESIRED_ALLOCATIONS_LOG_THRESHOLD_SETTING,
+        UndesiredAllocationsTracker.UNDESIRED_ALLOCATION_DURATION_LOG_THRESHOLD_SETTING,
+        UndesiredAllocationsTracker.UNDESIRED_ALLOCATION_DURATION_LOG_INTERVAL_SETTING,
+        UndesiredAllocationsTracker.MAX_UNDESIRED_ALLOCATIONS_TO_TRACK,
         BreakerSettings.CIRCUIT_BREAKER_LIMIT_SETTING,
         BreakerSettings.CIRCUIT_BREAKER_OVERHEAD_SETTING,
         BreakerSettings.CIRCUIT_BREAKER_TYPE,
@@ -656,6 +661,8 @@ public final class ClusterSettings extends AbstractScopedSettings {
         WriteLoadConstraintSettings.WRITE_LOAD_DECIDER_REROUTE_INTERVAL_SETTING,
         WriteLoadConstraintSettings.WRITE_LOAD_DECIDER_MINIMUM_LOGGING_INTERVAL,
         SamplingService.TTL_POLL_INTERVAL_SETTING,
-        BlobStoreRepository.MAX_HEAP_SIZE_FOR_SNAPSHOT_DELETION_SETTING
+        BlobStoreRepository.MAX_HEAP_SIZE_FOR_SNAPSHOT_DELETION_SETTING,
+        ShardsCapacityHealthIndicatorService.SETTING_SHARD_CAPACITY_UNHEALTHY_THRESHOLD_YELLOW,
+        ShardsCapacityHealthIndicatorService.SETTING_SHARD_CAPACITY_UNHEALTHY_THRESHOLD_RED
     );
 }

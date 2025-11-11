@@ -85,11 +85,11 @@ public class Present extends AggregateFunction implements ToAggregator {
             description = "Expression that outputs values to be checked for presence."
         ) Expression field
     ) {
-        this(source, field, Literal.TRUE);
+        this(source, field, Literal.TRUE, NO_WINDOW);
     }
 
-    public Present(Source source, Expression field, Expression filter) {
-        super(source, field, filter, emptyList());
+    public Present(Source source, Expression field, Expression filter, Expression window) {
+        super(source, field, filter, window, emptyList());
     }
 
     private Present(StreamInput in) throws IOException {
@@ -103,17 +103,17 @@ public class Present extends AggregateFunction implements ToAggregator {
 
     @Override
     protected NodeInfo<Present> info() {
-        return NodeInfo.create(this, Present::new, field(), filter());
+        return NodeInfo.create(this, Present::new, field(), filter(), window());
     }
 
     @Override
     public AggregateFunction withFilter(Expression filter) {
-        return new Present(source(), field(), filter);
+        return new Present(source(), field(), filter, window());
     }
 
     @Override
     public Present replaceChildren(List<Expression> newChildren) {
-        return new Present(source(), newChildren.get(0), newChildren.get(1));
+        return new Present(source(), newChildren.get(0), newChildren.get(1), newChildren.get(2));
     }
 
     @Override

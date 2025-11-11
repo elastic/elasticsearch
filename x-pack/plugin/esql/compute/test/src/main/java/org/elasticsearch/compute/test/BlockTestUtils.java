@@ -20,8 +20,8 @@ import org.elasticsearch.compute.data.DocBlock;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.ExponentialHistogramBlock;
-import org.elasticsearch.compute.data.ExponentialHistogramBlockAccessor;
 import org.elasticsearch.compute.data.ExponentialHistogramBlockBuilder;
+import org.elasticsearch.compute.data.ExponentialHistogramScratch;
 import org.elasticsearch.compute.data.FloatBlock;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
@@ -313,7 +313,10 @@ public class BlockTestUtils {
                         yield literal;
 
                     }
-                    case EXPONENTIAL_HISTOGRAM -> new ExponentialHistogramBlockAccessor((ExponentialHistogramBlock) block).get(i);
+                    case EXPONENTIAL_HISTOGRAM -> ((ExponentialHistogramBlock) block).getExponentialHistogram(
+                        i++,
+                        new ExponentialHistogramScratch()
+                    );
                     default -> throw new IllegalArgumentException("unsupported element type [" + block.elementType() + "]");
                 });
             }

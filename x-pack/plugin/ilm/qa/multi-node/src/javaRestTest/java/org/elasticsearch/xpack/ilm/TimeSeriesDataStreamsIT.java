@@ -184,8 +184,8 @@ public class TimeSeriesDataStreamsIT extends IlmESRestTestCase {
         // Manual rollover the original index such that it's not the write index in the data stream anymore
         rolloverMaxOneDocCondition(client(), dataStream);
 
-        awaitIndexExists(restoredIndexName);
-        awaitIndexDoesNotExist(backingIndexName, TimeValue.timeValueSeconds(60));
+        awaitIndexExists(restoredIndexName, TimeValue.timeValueSeconds(20));
+        awaitIndexDoesNotExist(backingIndexName);
         assertBusy(
             () -> assertThat(explainIndex(client(), restoredIndexName).get("step"), is(PhaseCompleteStep.NAME)),
             30,

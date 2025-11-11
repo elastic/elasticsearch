@@ -57,7 +57,6 @@ import org.elasticsearch.index.codec.vectors.es818.ES818BinaryQuantizedVectorsFo
 import org.elasticsearch.index.codec.vectors.es818.ES818HnswBinaryQuantizedVectorsFormat;
 import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
-import org.elasticsearch.index.mapper.ArraySourceValueFetcher;
 import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.index.mapper.BlockSourceReader;
 import org.elasticsearch.index.mapper.DocumentParserContext;
@@ -73,7 +72,9 @@ import org.elasticsearch.index.mapper.SimpleMappedFieldType;
 import org.elasticsearch.index.mapper.SourceLoader;
 import org.elasticsearch.index.mapper.SourceValueFetcher;
 import org.elasticsearch.index.mapper.ValueFetcher;
+import org.elasticsearch.index.mapper.blockloader.BlockLoaderFunctionConfig;
 import org.elasticsearch.index.mapper.blockloader.docvalues.DenseVectorBlockLoader;
+import org.elasticsearch.index.mapper.blockloader.docvalues.DenseVectorBlockLoaderProcessor;
 import org.elasticsearch.index.mapper.blockloader.docvalues.DenseVectorFromBinaryBlockLoader;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.DocValueFormat;
@@ -101,6 +102,8 @@ import java.nio.ByteOrder;
 import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Base64;
+import java.util.Collections;
 import java.util.HexFormat;
 import java.util.List;
 import java.util.Locale;
@@ -108,6 +111,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.function.UnaryOperator;
 import java.util.stream.Stream;
@@ -790,14 +794,26 @@ public class DenseVectorFieldMapper extends FieldMapper {
             return VectorData.fromBytes(vector);
         }
 
-        VectorData parseHexEncodedVector(DocumentParserContext context, IntBooleanConsumer dimChecker, VectorSimilarity similarity)
-            throws IOException {
-            byte[] decodedVector = HexFormat.of().parseHex(context.parser().text());
+        VectorData parseStringValue(
+            String s,
+            IntBooleanConsumer dimChecker,
+            VectorSimilarity similarity,
+            Function<String, byte[]> decoder
+        ) {
+            byte[] decodedVector = decoder.apply(s);
             dimChecker.accept(decodedVector.length, true);
             VectorData vectorData = VectorData.fromBytes(decodedVector);
             double squaredMagnitude = computeSquaredMagnitude(vectorData);
             checkVectorMagnitude(similarity, errorElementsAppender(decodedVector), (float) squaredMagnitude);
             return vectorData;
+        }
+
+        VectorData parseHexEncodedVector(String s, IntBooleanConsumer dimChecker, VectorSimilarity similarity) {
+            return parseStringValue(s, dimChecker, similarity, HexFormat.of()::parseHex);
+        }
+
+        VectorData parseBase64EncodedVector(String s, IntBooleanConsumer dimChecker, VectorSimilarity similarity) {
+            return parseStringValue(s, dimChecker, similarity, Base64.getDecoder()::decode);
         }
 
         @Override
@@ -810,7 +826,22 @@ public class DenseVectorFieldMapper extends FieldMapper {
             XContentParser.Token token = context.parser().currentToken();
             return switch (token) {
                 case START_ARRAY -> parseVectorArray(context, dims, dimChecker, similarity);
-                case VALUE_STRING -> parseHexEncodedVector(context, dimChecker, similarity);
+                case VALUE_STRING -> {
+                    String s = context.parser().text();
+                    if (s.length() == dims * 2) {
+                        try {
+                            yield parseHexEncodedVector(s, dimChecker, similarity);
+                        } catch (IllegalArgumentException e) {
+                            yield parseBase64EncodedVector(s, dimChecker, similarity);
+                        }
+                    } else {
+                        try {
+                            yield parseBase64EncodedVector(s, dimChecker, similarity);
+                        } catch (IllegalArgumentException e) {
+                            yield parseHexEncodedVector(s, dimChecker, similarity);
+                        }
+                    }
+                }
                 default -> throw new ParsingException(
                     context.parser().getTokenLocation(),
                     format("Unsupported type [%s] for provided value [%s]", token, context.parser().text())
@@ -828,6 +859,20 @@ public class DenseVectorFieldMapper extends FieldMapper {
             return ByteBuffer.wrap(new byte[numBytes]);
         }
 
+        static boolean isMaybeHexString(String s) {
+            int len = s.length();
+            if (len % 2 != 0) {
+                return false;
+            }
+            for (int i = 0; i < len; i++) {
+                char c = s.charAt(i);
+                if (HexFormat.isHexDigit(c) == false) {
+                    return false;
+                }
+            }
+            return true;
+        }
+
         @Override
         public int parseDimensionCount(DocumentParserContext context) throws IOException {
             XContentParser.Token currentToken = context.parser().currentToken();
@@ -840,8 +885,21 @@ public class DenseVectorFieldMapper extends FieldMapper {
                     yield index;
                 }
                 case VALUE_STRING -> {
-                    byte[] decodedVector = HexFormat.of().parseHex(context.parser().text());
-                    yield decodedVector.length;
+                    String v = context.parser().text();
+                    // Base64 is always divisible by 4, so if it's not try hex
+                    if (v.length() % 4 != 0) {
+                        try {
+                            yield HexFormat.of().parseHex(v).length;
+                        } catch (IllegalArgumentException e) {
+                            yield Base64.getDecoder().decode(v).length;
+                        }
+                    } else {
+                        try {
+                            yield Base64.getDecoder().decode(v).length;
+                        } catch (IllegalArgumentException e) {
+                            yield HexFormat.of().parseHex(v).length;
+                        }
+                    }
                 }
                 default -> throw new ParsingException(
                     context.parser().getTokenLocation(),
@@ -967,23 +1025,56 @@ public class DenseVectorFieldMapper extends FieldMapper {
         }
 
         @Override
-        public void parseKnnVectorAndIndex(DocumentParserContext context, DenseVectorFieldMapper fieldMapper) throws IOException {
-            int index = 0;
-            float[] vector = new float[fieldMapper.fieldType().dims];
-            float squaredMagnitude = 0;
-            for (Token token = context.parser().nextToken(); token != Token.END_ARRAY; token = context.parser().nextToken()) {
-                fieldMapper.checkDimensionExceeded(index, context);
-                ensureExpectedToken(Token.VALUE_NUMBER, token, context.parser());
+        public int parseDimensionCount(DocumentParserContext context) throws IOException {
+            XContentParser.Token currentToken = context.parser().currentToken();
+            return switch (currentToken) {
 
-                float value = context.parser().floatValue(true);
-                vector[index++] = value;
-                squaredMagnitude += value * value;
-            }
-            fieldMapper.checkDimensionMatches(index, context);
-            checkVectorBounds(vector);
-            checkVectorMagnitude(fieldMapper.fieldType().similarity, errorElementsAppender(vector), squaredMagnitude);
-            if (fieldMapper.fieldType().isNormalized() && isNotUnitVector(squaredMagnitude)) {
-                float length = (float) Math.sqrt(squaredMagnitude);
+                case START_ARRAY -> {
+                    int index = 0;
+                    for (Token token = context.parser().nextToken(); token != Token.END_ARRAY; token = context.parser().nextToken()) {
+                        index++;
+                    }
+                    yield index;
+                }
+                case VALUE_STRING -> {
+                    byte[] decodedVectorBytes = Base64.getDecoder().decode(context.parser().text());
+                    if (decodedVectorBytes.length % Float.BYTES != 0) {
+                        throw new ParsingException(
+                            context.parser().getTokenLocation(),
+                            "Failed to parse object: Base64 decoded vector byte length ["
+                                + decodedVectorBytes.length
+                                + "] is not a multiple of ["
+                                + Float.BYTES
+                                + "]"
+                        );
+                    }
+                    yield decodedVectorBytes.length / Float.BYTES;
+                }
+                default -> throw new ParsingException(
+                    context.parser().getTokenLocation(),
+                    format("Unsupported type [%s] for provided value [%s]", currentToken, context.parser().text())
+                );
+            };
+        }
+
+        @Override
+        public void parseKnnVectorAndIndex(DocumentParserContext context, DenseVectorFieldMapper fieldMapper) throws IOException {
+            var vandm = parseFloatVectorInput(context, fieldMapper.fieldType().dims, (i, end) -> {
+                if (end) {
+                    fieldMapper.checkDimensionMatches(i, context);
+                } else {
+                    fieldMapper.checkDimensionExceeded(i, context);
+                }
+            });
+            checkVectorBounds(vandm.vectorData.asFloatVector());
+            checkVectorMagnitude(
+                fieldMapper.fieldType().similarity,
+                errorElementsAppender(vandm.vectorData().floatVector()),
+                vandm.squaredMagnitude
+            );
+            float[] vector = vandm.vectorData.asFloatVector();
+            if (fieldMapper.fieldType().isNormalized() && isNotUnitVector(vandm.squaredMagnitude)) {
+                float length = (float) Math.sqrt(vandm.squaredMagnitude);
                 for (int i = 0; i < vector.length; i++) {
                     vector[i] /= length;
                 }
@@ -1006,22 +1097,72 @@ public class DenseVectorFieldMapper extends FieldMapper {
             IntBooleanConsumer dimChecker,
             VectorSimilarity similarity
         ) throws IOException {
+            var v = parseFloatVectorInput(context, dims, (i, end) -> {
+                if (end) {
+                    dimChecker.accept(i, true);
+                } else {
+                    dimChecker.accept(i, false);
+                }
+            });
+            checkVectorBounds(v.vectorData.asFloatVector());
+            checkVectorMagnitude(similarity, errorElementsAppender(v.vectorData.asFloatVector()), v.squaredMagnitude);
+            return v.vectorData;
+        }
+
+        VectorDataAndMagnitude parseFloatVectorInput(DocumentParserContext context, int dims, IntBooleanConsumer dimChecker)
+            throws IOException {
+            XContentParser.Token token = context.parser().currentToken();
+            return switch (token) {
+                case START_ARRAY -> parseVectorArray(context, dimChecker, dims);
+                case VALUE_STRING -> parseBase64EncodedVector(context, dimChecker, dims);
+                default -> throw new ParsingException(
+                    context.parser().getTokenLocation(),
+                    format("Unsupported type [%s] for provided value [%s]", token, context.parser().text())
+                );
+            };
+        }
+
+        VectorDataAndMagnitude parseVectorArray(DocumentParserContext context, IntBooleanConsumer dimChecker, int dims) throws IOException {
             int index = 0;
-            float squaredMagnitude = 0;
             float[] vector = new float[dims];
-            for (Token token = context.parser().nextToken(); token != Token.END_ARRAY; token = context.parser().nextToken()) {
+            float squaredMagnitude = 0;
+            for (XContentParser.Token token = context.parser().nextToken(); token != Token.END_ARRAY; token = context.parser()
+                .nextToken()) {
                 dimChecker.accept(index, false);
                 ensureExpectedToken(Token.VALUE_NUMBER, token, context.parser());
                 float value = context.parser().floatValue(true);
-                vector[index] = value;
+                vector[index++] = value;
                 squaredMagnitude += value * value;
-                index++;
             }
             dimChecker.accept(index, true);
-            checkVectorBounds(vector);
-            checkVectorMagnitude(similarity, errorElementsAppender(vector), squaredMagnitude);
-            return VectorData.fromFloats(vector);
+            return new VectorDataAndMagnitude(VectorData.fromFloats(vector), squaredMagnitude);
         }
+
+        VectorDataAndMagnitude parseBase64EncodedVector(DocumentParserContext context, IntBooleanConsumer dimChecker, int dims)
+            throws IOException {
+            // BIG_ENDIAN is the default, but just being explicit here
+            ByteBuffer byteBuffer = ByteBuffer.wrap(Base64.getDecoder().decode(context.parser().text())).order(ByteOrder.BIG_ENDIAN);
+            if (byteBuffer.remaining() != dims * Float.BYTES) {
+                throw new ParsingException(
+                    context.parser().getTokenLocation(),
+                    "Failed to parse object: Base64 decoded vector byte length ["
+                        + byteBuffer.remaining()
+                        + "] does not match the expected length of ["
+                        + (dims * Float.BYTES)
+                        + "] for dimension count ["
+                        + dims
+                        + "]"
+                );
+            }
+            float[] decodedVector = new float[dims];
+            byteBuffer.asFloatBuffer().get(decodedVector);
+            dimChecker.accept(decodedVector.length, true);
+            VectorData vectorData = VectorData.fromFloats(decodedVector);
+            float squaredMagnitude = (float) computeSquaredMagnitude(vectorData);
+            return new VectorDataAndMagnitude(vectorData, squaredMagnitude);
+        }
+
+        record VectorDataAndMagnitude(VectorData vectorData, float squaredMagnitude) {}
 
         @Override
         public int getNumBytes(int dimensions) {
@@ -1094,9 +1235,13 @@ public class DenseVectorFieldMapper extends FieldMapper {
         }
 
         @Override
-        VectorData parseHexEncodedVector(DocumentParserContext context, IntBooleanConsumer dimChecker, VectorSimilarity similarity)
-            throws IOException {
-            byte[] decodedVector = HexFormat.of().parseHex(context.parser().text());
+        VectorData parseStringValue(
+            String s,
+            IntBooleanConsumer dimChecker,
+            VectorSimilarity similarity,
+            Function<String, byte[]> decoder
+        ) {
+            byte[] decodedVector = decoder.apply(s);
             dimChecker.accept(decodedVector.length * Byte.SIZE, true);
             return VectorData.fromBytes(decodedVector);
         }
@@ -2298,19 +2443,40 @@ public class DenseVectorFieldMapper extends FieldMapper {
 
         @Override
         public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
+            // TODO add support to `binary` and `vector` formats to unify the formats
             if (format != null) {
                 throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] doesn't support formats.");
             }
-            return new ArraySourceValueFetcher(name(), context) {
+            Set<String> sourcePaths = context.isSourceEnabled() ? context.sourcePath(name()) : Collections.emptySet();
+            return new SourceValueFetcher(name(), context) {
+                @Override
+                public List<Object> fetchValues(Source source, int doc, List<Object> ignoredValues) {
+                    ArrayList<Object> values = new ArrayList<>();
+                    for (var path : sourcePaths) {
+                        Object sourceValue = source.extractValue(path, null);
+                        if (sourceValue == null) {
+                            return List.of();
+                        }
+                        switch (sourceValue) {
+                            case List<?> v -> values.addAll(v);
+                            case String s -> values.add(s);
+                            default -> ignoredValues.add(sourceValue);
+                        }
+                    }
+                    values.trimToSize();
+                    return values;
+                }
+
                 @Override
                 protected Object parseSourceValue(Object value) {
-                    return value;
+                    throw new IllegalStateException("parsing dense vector from source is not supported here");
                 }
             };
         }
 
         @Override
         public DocValueFormat docValueFormat(String format, ZoneId timeZone) {
+            // TODO we should add DENSE_VECTOR_BINARY?
             return DocValueFormat.DENSE_VECTOR;
         }
 
@@ -2689,8 +2855,41 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 return BlockLoader.CONSTANT_NULLS;
             }
 
+            BlockLoaderFunctionConfig cfg = blContext.blockLoaderFunctionConfig();
             if (indexed) {
-                return new DenseVectorBlockLoader(name(), dims, this);
+                if (cfg == null) {
+                    return new DenseVectorBlockLoader<>(
+                        name(),
+                        dims,
+                        this,
+                        new DenseVectorBlockLoaderProcessor.DenseVectorLoaderProcessor()
+                    );
+                }
+                return switch (cfg.function()) {
+                    case V_COSINE, V_DOT_PRODUCT, V_HAMMING, V_L1NORM, V_L2NORM -> {
+                        VectorSimilarityFunctionConfig similarityConfig = (VectorSimilarityFunctionConfig) cfg;
+                        if (getElementType() == ElementType.BYTE || getElementType() == ElementType.BIT) {
+                            similarityConfig = similarityConfig.forByteVector();
+                        }
+                        yield new DenseVectorBlockLoader<>(
+                            name(),
+                            dims,
+                            this,
+                            new DenseVectorBlockLoaderProcessor.DenseVectorSimilarityProcessor(similarityConfig)
+                        );
+                    }
+                    default -> throw new UnsupportedOperationException("Unknown block loader function config: " + cfg.function());
+                };
+            }
+
+            if (cfg != null) {
+                throw new IllegalArgumentException(
+                    "Field ["
+                        + name()
+                        + "] of type ["
+                        + typeName()
+                        + "] doesn't support block loader functions when [index] is set to [false]"
+                );
             }
 
             if (hasDocValues() && (blContext.fieldExtractPreference() != FieldExtractPreference.STORED || isSyntheticSource)) {
@@ -2704,21 +2903,76 @@ public class DenseVectorFieldMapper extends FieldMapper {
             );
         }
 
+        @Override
+        public boolean supportsBlockLoaderConfig(BlockLoaderFunctionConfig config, FieldExtractPreference preference) {
+            if (dims == null) {
+                // No data has been indexed yet
+                return true;
+            }
+
+            if (indexed) {
+                return switch (config.function()) {
+                    case V_COSINE, V_DOT_PRODUCT, V_HAMMING, V_L1NORM, V_L2NORM -> true;
+                    default -> false;
+                };
+            }
+            return false;
+        }
+
         private SourceValueFetcher sourceValueFetcher(Set<String> sourcePaths, IndexSettings indexSettings) {
             return new SourceValueFetcher(sourcePaths, null, indexSettings.getIgnoredSourceFormat()) {
                 @Override
-                protected Object parseSourceValue(Object value) {
-                    if (value.equals("")) {
-                        return null;
+                public List<Object> fetchValues(Source source, int doc, List<Object> ignoredValues) {
+                    ArrayList<Object> values = new ArrayList<>();
+                    for (var path : sourcePaths) {
+                        Object sourceValue = source.extractValue(path, null);
+                        if (sourceValue == null) {
+                            return List.of();
+                        }
+                        try {
+                            switch (sourceValue) {
+                                case List<?> v -> {
+                                    for (Object o : v) {
+                                        values.add(NumberFieldMapper.NumberType.FLOAT.parse(o, false));
+                                    }
+                                }
+                                case String s -> {
+                                    if ((element.elementType() == ElementType.BYTE || element.elementType() == ElementType.BIT)
+                                        && s.length() == dims * 2
+                                        && ByteElement.isMaybeHexString(s)) {
+                                        byte[] bytes;
+                                        try {
+                                            bytes = HexFormat.of().parseHex(s);
+                                        } catch (IllegalArgumentException e) {
+                                            bytes = Base64.getDecoder().decode(s);
+                                        }
+                                        for (byte b : bytes) {
+                                            values.add((float) b);
+                                        }
+                                    } else {
+                                        byte[] floatBytes = Base64.getDecoder().decode(s);
+                                        float[] floats = new float[dims];
+                                        ByteBuffer.wrap(floatBytes).asFloatBuffer().get(floats);
+                                        for (float f : floats) {
+                                            values.add(f);
+                                        }
+                                    }
+                                }
+                                default -> ignoredValues.add(sourceValue);
+                            }
+                        } catch (Exception e) {
+                            // if parsing fails here then it would have failed at index time
+                            // as well, meaning that we must be ignoring malformed values.
+                            ignoredValues.add(sourceValue);
+                        }
                     }
-                    return NumberFieldMapper.NumberType.FLOAT.parse(value, false);
+                    values.trimToSize();
+                    return values;
                 }
 
                 @Override
-                public List<Object> fetchValues(Source source, int doc, List<Object> ignoredValues) {
-                    List<Object> result = super.fetchValues(source, doc, ignoredValues);
-                    assert result.size() == dims : "Unexpected number of dimensions; got " + result.size() + " but expected " + dims;
-                    return result;
+                protected Object parseSourceValue(Object value) {
+                    throw new IllegalStateException("parsing dense vector from source is not supported here");
                 }
             };
         }
@@ -3133,5 +3387,72 @@ public class DenseVectorFieldMapper extends FieldMapper {
     @FunctionalInterface
     public interface IntBooleanConsumer {
         void accept(int value, boolean isComplete);
+    }
+
+    public interface SimilarityFunction {
+        float calculateSimilarity(float[] leftVector, float[] rightVector);
+
+        float calculateSimilarity(byte[] leftVector, byte[] rightVector);
+
+        BlockLoaderFunctionConfig.Function function();
+    }
+
+    /**
+     * Configuration for a {@link BlockLoaderFunctionConfig} that calculates vector similarity.
+     * Functions that use this config should use SIMILARITY_FUNCTION_NAME as their name.
+     */
+    public static class VectorSimilarityFunctionConfig implements BlockLoaderFunctionConfig {
+
+        private final SimilarityFunction similarityFunction;
+        private final float[] vector;
+        private byte[] vectorAsBytes;
+
+        public VectorSimilarityFunctionConfig(SimilarityFunction similarityFunction, float[] vector) {
+            this.similarityFunction = similarityFunction;
+            this.vector = vector;
+        }
+
+        /**
+         * Call before calculating byte vector similarities
+         */
+        public VectorSimilarityFunctionConfig forByteVector() {
+            vectorAsBytes = new byte[vector.length];
+            for (int i = 0; i < vector.length; i++) {
+                vectorAsBytes[i] = (byte) vector[i];
+            }
+            return this;
+        }
+
+        @Override
+        public Function function() {
+            return similarityFunction.function();
+        }
+
+        public byte[] vectorAsBytes() {
+            assert vectorAsBytes != null : "vectorAsBytes is null, call forByteVector() first";
+            return vectorAsBytes;
+        }
+
+        public float[] vector() {
+            return vector;
+        }
+
+        public SimilarityFunction similarityFunction() {
+            return similarityFunction;
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (o == null || getClass() != o.getClass()) return false;
+            VectorSimilarityFunctionConfig that = (VectorSimilarityFunctionConfig) o;
+            return Objects.equals(similarityFunction, that.similarityFunction)
+                && Objects.deepEquals(vector, that.vector)
+                && Objects.deepEquals(vectorAsBytes, that.vectorAsBytes);
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(similarityFunction, Arrays.hashCode(vector), Arrays.hashCode(vectorAsBytes));
+        }
     }
 }

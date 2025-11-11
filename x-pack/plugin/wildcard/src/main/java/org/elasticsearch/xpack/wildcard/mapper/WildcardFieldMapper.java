@@ -70,6 +70,7 @@ import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
 import org.elasticsearch.index.mapper.MappingParserContext;
 import org.elasticsearch.index.mapper.SourceValueFetcher;
+import org.elasticsearch.index.mapper.TextFamilyFieldType;
 import org.elasticsearch.index.mapper.TextSearchInfo;
 import org.elasticsearch.index.mapper.ValueFetcher;
 import org.elasticsearch.index.mapper.blockloader.docvalues.BytesRefsFromCustomBinaryBlockLoader;
@@ -1023,7 +1024,7 @@ public class WildcardFieldMapper extends FieldMapper {
         this.indexVersionCreated = builder.indexCreatedVersion;
         this.ignoreAboveDefault = builder.ignoreAboveDefault;
         this.ignoreAbove = new IgnoreAbove(builder.ignoreAbove.getValue(), builder.indexMode, builder.indexCreatedVersion);
-        this.originalName = storeIgnored ? fullPath() + "._original" : null;
+        this.originalName = storeIgnored ? fullPath() + TextFamilyFieldType.FALLBACK_FIELD_NAME_SUFFIX : null;
     }
 
     @Override
@@ -1106,7 +1107,7 @@ public class WildcardFieldMapper extends FieldMapper {
         return new SyntheticSourceSupport.Native(() -> {
             var layers = new ArrayList<CompositeSyntheticFieldLoader.Layer>();
             layers.add(new WildcardSyntheticFieldLoader());
-            if (ignoreAbove.isSet()) {
+            if (ignoreAbove.valuesPotentiallyIgnored()) {
                 layers.add(new CompositeSyntheticFieldLoader.StoredFieldLayer(originalName()) {
                     @Override
                     protected void writeValue(Object value, XContentBuilder b) throws IOException {

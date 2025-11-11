@@ -1154,7 +1154,7 @@ class NodeConstruction {
             localNodeFactory,
             settingsModule.getClusterSettings(),
             taskManager,
-            telemetryProvider.getTracer(),
+            telemetryProvider,
             nodeEnvironment.nodeId(),
             linkedProjectConfigService,
             projectResolver

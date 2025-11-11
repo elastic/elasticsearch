@@ -26,12 +26,10 @@ public class FullTextWritables {
         entries.add(Kql.ENTRY);
         entries.add(MatchPhrase.ENTRY);
         entries.add(Score.ENTRY);
+        entries.add(Decay.ENTRY);
 
         if (EsqlCapabilities.Cap.TERM_FUNCTION.isEnabled()) {
             entries.add(Term.ENTRY);
-        }
-        if (EsqlCapabilities.Cap.DECAY_FUNCTION.isEnabled()) {
-            entries.add(Decay.ENTRY);
         }
 
         return Collections.unmodifiableList(entries);

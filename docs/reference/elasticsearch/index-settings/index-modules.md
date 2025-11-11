@@ -154,7 +154,7 @@ $$$index-refresh-interval-setting$$$
 :   How often to perform a refresh operation, which makes recent changes to the index visible to search. If this setting is not explicitly set, shards that haven’t seen search traffic for at least `index.search.idle.after` seconds will not receive background refreshes until they receive a search request. Searches that hit an idle shard where a refresh is pending will trigger a refresh as part of the search operation for that shard only. This behavior aims to automatically optimize bulk indexing in the default case when no searches are performed. To opt out of this behavior, set an explicit value for the refresh interval, even if it matches the default value.
 
     The value defaults to `1s` in {{stack}} and `5s` in {{serverless-short}}. In {{serverless-short}}, `5s` is also the minimum value that can be set.
-    
+
     In both cases, the setting can be set to `-1` to disable refresh.
 
 $$$index-max-result-window$$$
@@ -272,3 +272,6 @@ $$$index-esql-stored-fields-sequential-proportion$$$
 
 $$$index-dense-vector-hnsw-early-termination$$$ `index.dense_vector.hnsw_early_termination` {applies_to}`stack: ga 9.2` {applies_to}`serverless: all`
 :   Whether to apply _patience_ based early termination strategy to knn queries over HNSW graphs (see [paper](https://cs.uwaterloo.ca/~jimmylin/publications/Teofili_Lin_ECIR2025.pdf)). This is only applicable to `dense_vector` fields with `hnsw`, `int8_hnsw`, `int4_hnsw` and `bbq_hnsw` index types. Defaults to `false`.
+
+$$$index-use_time_series_doc_values_format$$$ `index.use_time_series_doc_values_format` {applies_to}`stack: ga 9.3`
+:   Indicates whether the time series doc values format should be used. Defaults to `true` if `index.mode` is `time_series` or `logsdb`, otherwise `false`.

@@ -234,6 +234,7 @@ public abstract class TestCluster {
 
     private void wipeIndicesAsync(String[] indices, ActionListener<Void> listener) {
         assert indices != null && indices.length > 0;
+        logger.info("---- wiping indices [{}]", Strings.arrayToCommaDelimitedString(indices));
         SubscribableListener.<AcknowledgedResponse>newForked(
             l -> client().admin()
                 .indices()
@@ -248,6 +249,7 @@ public abstract class TestCluster {
 
     private void handleWipeIndicesFailure(Exception exception, boolean wipingAllIndices, ActionListener<AcknowledgedResponse> listener) {
         Throwable unwrapped = ExceptionsHelper.unwrap(exception, IndexNotFoundException.class, IllegalArgumentException.class);
+        logger.error("---- initial wiping of indices failed", exception);
         if (unwrapped instanceof IndexNotFoundException) {
             // ignore
             listener.onResponse(AcknowledgedResponse.TRUE);
@@ -255,6 +257,7 @@ public abstract class TestCluster {
             // Happens if `action.destructive_requires_name` is set to true
             // which is the case in the CloseIndexDisableCloseAllTests
             if (wipingAllIndices) {
+                logger.info("---- retry wiping indices using their concrete names", exception);
                 SubscribableListener
 
                     .<ClusterStateResponse>newForked(l -> client().admin().cluster().prepareState(TEST_REQUEST_TIMEOUT).execute(l))
@@ -274,6 +277,11 @@ public abstract class TestCluster {
                 // TODO: this is clearly wrong but at least
                 // org.elasticsearch.xpack.watcher.test.integration.BootStrapTests.testTriggeredWatchLoading depends on this
                 // quietly passing when it tries to delete an alias instead of its backing indices
+                logger.warn(
+                    "This failure is ok, if this test is BootStrapTests.testTriggeredWatchLoading."
+                        + " Otherwise, please investigate this failure:",
+                    exception
+                );
                 listener.onResponse(AcknowledgedResponse.TRUE);
 
             }

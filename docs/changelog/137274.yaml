@@ -1,0 +1,5 @@
+pr: 137274
+summary: Use a new synthetic `_id` format for time-series datastreams
+area: TSDB
+type: enhancement
+issues: []

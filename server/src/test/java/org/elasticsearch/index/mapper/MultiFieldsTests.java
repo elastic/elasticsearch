@@ -10,7 +10,6 @@
 package org.elasticsearch.index.mapper;
 
 import org.elasticsearch.common.lucene.Lucene;
-import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.script.ScriptCompiler;
 import org.elasticsearch.test.ESTestCase;
@@ -62,8 +61,8 @@ public class MultiFieldsTests extends ESTestCase {
             "field",
             IndexAnalyzers.of(Map.of(), Map.of("normalizer", Lucene.STANDARD_ANALYZER), Map.of()),
             ScriptCompiler.NONE,
-            IndexVersion.current(),
-            Mapper.SourceKeepMode.NONE,
+            defaultIndexSettings(),
+            false,
             false
         );
         if (isStored) {

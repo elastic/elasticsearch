@@ -94,9 +94,6 @@ import org.elasticsearch.action.admin.indices.settings.get.GetSettingsResponse;
 import org.elasticsearch.action.admin.indices.settings.put.TransportUpdateSettingsAction;
 import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequest;
 import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequestBuilder;
-import org.elasticsearch.action.admin.indices.shrink.ResizeAction;
-import org.elasticsearch.action.admin.indices.shrink.ResizeRequest;
-import org.elasticsearch.action.admin.indices.shrink.ResizeRequestBuilder;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsAction;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsRequest;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsRequestBuilder;
@@ -464,14 +461,6 @@ public class IndicesAdminClient implements ElasticsearchClient {
 
     public GetSettingsRequestBuilder prepareGetSettings(TimeValue masterTimeout, String... indices) {
         return new GetSettingsRequestBuilder(this, masterTimeout, indices);
-    }
-
-    public ResizeRequestBuilder prepareResizeIndex(String sourceIndex, String targetIndex) {
-        return new ResizeRequestBuilder(this).setSourceIndex(sourceIndex).setTargetIndex(new CreateIndexRequest(targetIndex));
-    }
-
-    public void resizeIndex(ResizeRequest request, ActionListener<CreateIndexResponse> listener) {
-        execute(ResizeAction.INSTANCE, request, listener);
     }
 
     public RolloverRequestBuilder prepareRolloverIndex(String alias) {

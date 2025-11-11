@@ -105,6 +105,14 @@ public class ExponentialHistogramMergerTests extends ExponentialHistogramTestCas
         assertThat(posBuckets.hasNext(), equalTo(false));
     }
 
+    public void testMergeWithoutUpscaling() {
+        ExponentialHistogram histo = createAutoReleasedHistogram(b -> b.scale(0).setPositiveBucket(2, 42));
+        try (ExponentialHistogramMerger merger = ExponentialHistogramMerger.create(100, breaker())) {
+            merger.addWithoutUpscaling(histo);
+            assertThat(merger.get(), equalTo(histo));
+        }
+    }
+
     public void testAggregatesCorrectness() {
         double[] firstValues = randomDoubles(100).map(val -> val * 2 - 1).toArray();
         double[] secondValues = randomDoubles(50).map(val -> val * 2 - 1).toArray();

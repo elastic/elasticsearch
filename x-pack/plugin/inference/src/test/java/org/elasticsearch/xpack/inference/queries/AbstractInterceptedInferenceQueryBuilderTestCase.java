@@ -514,6 +514,7 @@ public abstract class AbstractInterceptedInferenceQueryBuilderTestCase<T extends
                 null,
                 null,
                 null,
+                false,
                 false
             );
         }

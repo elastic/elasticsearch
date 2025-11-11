@@ -13,12 +13,18 @@ If you are an Enterprise Search user and want to upgrade to Elastic 9.0, refer t
 It includes detailed steps, tooling, and resources to help you transition to supported alternatives in 9.x, such as Elasticsearch, the Open Web Crawler, and self-managed connectors.
 :::
 
+## 9.2.1 [connectors-9.2.1-release-notes]
+There are no new features, enhancements, fixes, known issues, or deprecations associated with this release.
+
 ## 9.2.0 [connectors-9.2.0-release-notes]
 
 ### Features and enhancements [connectors-9.2.0-features-enhancements]
 * Refactored pagination from OFFSET-based to keyset (primary-key) pagination in the MySQL connector. This delivers 3×+ faster syncs on large tables and modest gains on smaller ones. [#3719](https://github.com/elastic/connectors/pull/3719).
 
 * Updated the Jira connector to use the new `/rest/api/3/search/jql` endpoint, ensuring compatibility with Jira’s latest API. [#3710](https://github.com/elastic/connectors/pull/3710).
+
+## 9.1.7 [connectors-9.1.7-release-notes]
+There are no new features, enhancements, fixes, known issues, or deprecations associated with this release.
 
 ## 9.1.6 [connectors-9.1.6-release-notes]
 

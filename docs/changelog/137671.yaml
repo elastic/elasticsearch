@@ -1,0 +1,5 @@
+pr: 137671
+summary: "[LTR] Fix feature display order when using explain"
+area: Search
+type: bug
+issues: []

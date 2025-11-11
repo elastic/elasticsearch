@@ -589,7 +589,7 @@ public class TimeSeriesIT extends AbstractEsqlIntegTestCase {
                     readMetrics.readersBuilt().keySet(),
                     equalTo(
                         Set.of(
-                            "_tsid:column_at_a_time:BlockDocValuesReader.SingletonOrdinals",
+                            "_tsid:column_at_a_time:BytesRefsFromOrds.Singleton",
                             "cpu:column_at_a_time:BlockDocValuesReader.SingletonDoubles"
                         )
                     )
@@ -600,8 +600,8 @@ public class TimeSeriesIT extends AbstractEsqlIntegTestCase {
                 assertThat(readDimensions.readersBuilt(), aMapWithSize(1));
                 assertThat(
                     Iterables.get(readDimensions.readersBuilt().keySet(), 0),
-                    either(equalTo("cluster:row_stride:BlockDocValuesReader.SingletonOrdinals")).or(
-                        equalTo("cluster:column_at_a_time:BlockDocValuesReader.SingletonOrdinals")
+                    either(equalTo("cluster:row_stride:BytesRefsFromOrds.Singleton")).or(
+                        equalTo("cluster:column_at_a_time:BytesRefsFromOrds.Singleton")
                     )
                 );
                 assertThat(ops.get(5).operator(), containsString("EvalOperator"));

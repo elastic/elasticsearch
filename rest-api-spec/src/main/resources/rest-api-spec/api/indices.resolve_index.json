@@ -58,7 +58,6 @@
           "logsdb",
           "lookup"
         ],
-        "default": "",
         "description": "Filter indices by index mode. Comma-separated list of IndexMode. Empty means no filter."
       },
       "project_routing": {

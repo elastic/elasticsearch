@@ -12,6 +12,7 @@ package org.elasticsearch.action.search;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.LegacyActionRequest;
+import org.elasticsearch.action.ResolvedIndexExpressions;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -42,6 +43,8 @@ public final class SearchShardsRequest extends LegacyActionRequest implements In
     private final boolean allowPartialSearchResults;
 
     private final String clusterAlias;
+
+    private ResolvedIndexExpressions resolvedIndexExpressions;
 
     public SearchShardsRequest(
         String[] indices,
@@ -178,5 +181,15 @@ public final class SearchShardsRequest extends LegacyActionRequest implements In
         int result = Objects.hash(indicesOptions, query, routing, preference, allowPartialSearchResults, clusterAlias);
         result = 31 * result + Arrays.hashCode(indices);
         return result;
+    }
+
+    @Override
+    public void setResolvedIndexExpressions(ResolvedIndexExpressions expressions) {
+        this.resolvedIndexExpressions = expressions;
+    }
+
+    @Override
+    public ResolvedIndexExpressions getResolvedIndexExpressions() {
+        return resolvedIndexExpressions;
     }
 }

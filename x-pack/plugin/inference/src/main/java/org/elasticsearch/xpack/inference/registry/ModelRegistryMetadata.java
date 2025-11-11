@@ -30,6 +30,7 @@ import java.io.IOException;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.EnumSet;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
@@ -93,17 +94,31 @@ public class ModelRegistryMetadata implements Metadata.ProjectCustom {
     );
 
     public ModelRegistryMetadata withAddedModel(String inferenceEntityId, MinimalServiceSettings settings) {
-        final var existing = modelMap.get(inferenceEntityId);
-        if (existing != null && settings.equals(existing)) {
+        return withAddedModels(List.of(new ModelRegistry.ModelAndSettings(inferenceEntityId, settings)));
+    }
+
+    public ModelRegistryMetadata withAddedModels(List<ModelRegistry.ModelAndSettings> models) {
+        var modifiedMap = false;
+        ImmutableOpenMap.Builder<String, MinimalServiceSettings> settingsBuilder = ImmutableOpenMap.builder(modelMap);
+
+        for (var model : models) {
+            if (model.settings().equals(modelMap.get(model.inferenceEntityId())) == false) {
+                modifiedMap = true;
+
+                settingsBuilder.fPut(model.inferenceEntityId(), model.settings());
+            }
+        }
+
+        if (modifiedMap == false) {
             return this;
         }
-        var settingsBuilder = ImmutableOpenMap.builder(modelMap);
-        settingsBuilder.fPut(inferenceEntityId, settings);
+
         if (isUpgraded) {
             return new ModelRegistryMetadata(settingsBuilder.build());
         }
+
         var newTombstone = new HashSet<>(tombstones);
-        newTombstone.remove(inferenceEntityId);
+        models.forEach(existing -> newTombstone.remove(existing.inferenceEntityId()));
         return new ModelRegistryMetadata(settingsBuilder.build(), newTombstone);
     }
 
@@ -136,24 +151,48 @@ public class ModelRegistryMetadata implements Metadata.ProjectCustom {
 
     private final boolean isUpgraded;
     private final ImmutableOpenMap<String, MinimalServiceSettings> modelMap;
+    private final Map<String, Set<String>> serviceToInferenceEndpointIds;
     private final Set<String> tombstones;
 
     public ModelRegistryMetadata(ImmutableOpenMap<String, MinimalServiceSettings> modelMap) {
-        this.isUpgraded = true;
-        this.modelMap = modelMap;
-        this.tombstones = null;
+        this(modelMap, null, true);
     }
 
     public ModelRegistryMetadata(ImmutableOpenMap<String, MinimalServiceSettings> modelMap, Set<String> tombstone) {
-        this.isUpgraded = false;
-        this.modelMap = modelMap;
-        this.tombstones = Collections.unmodifiableSet(tombstone);
+        this(modelMap, Collections.unmodifiableSet(tombstone), false);
     }
 
     public ModelRegistryMetadata(StreamInput in) throws IOException {
         this.isUpgraded = in.readBoolean();
         this.modelMap = in.readImmutableOpenMap(StreamInput::readString, MinimalServiceSettings::new);
         this.tombstones = isUpgraded ? null : in.readCollectionAsSet(StreamInput::readString);
+        this.serviceToInferenceEndpointIds = buildServiceToInferenceEndpointIdsMap(modelMap);
+    }
+
+    private ModelRegistryMetadata(ImmutableOpenMap<String, MinimalServiceSettings> modelMap, Set<String> tombstones, boolean isUpgraded) {
+        this.isUpgraded = isUpgraded;
+        this.modelMap = modelMap;
+        this.tombstones = tombstones;
+        this.serviceToInferenceEndpointIds = buildServiceToInferenceEndpointIdsMap(modelMap);
+    }
+
+    private static Map<String, Set<String>> buildServiceToInferenceEndpointIdsMap(
+        ImmutableOpenMap<String, MinimalServiceSettings> modelMap
+    ) {
+        var serviceToInferenceIds = new HashMap<String, Set<String>>();
+        for (var entry : modelMap.entrySet()) {
+            var settings = entry.getValue();
+            var serviceName = settings.service();
+
+            var existingSet = serviceToInferenceIds.get(serviceName);
+            if (existingSet == null) {
+                existingSet = new HashSet<>();
+            }
+
+            existingSet.add(entry.getKey());
+            serviceToInferenceIds.put(serviceName, existingSet);
+        }
+        return serviceToInferenceIds;
     }
 
     @Override
@@ -207,8 +246,23 @@ public class ModelRegistryMetadata implements Metadata.ProjectCustom {
         return modelMap;
     }
 
+    /**
+     * Returns all inference entity IDs for a given service.
+     */
+    public Set<String> getServiceInferenceIds(String service) {
+        if (serviceToInferenceEndpointIds.containsKey(service) == false) {
+            return Set.of();
+        }
+
+        return Set.copyOf(serviceToInferenceEndpointIds.get(service));
+    }
+
     public MinimalServiceSettings getMinimalServiceSettings(String inferenceEntityId) {
         return modelMap.get(inferenceEntityId);
+    }
+
+    public Set<String> getInferenceIds() {
+        return Set.copyOf(modelMap.keySet());
     }
 
     @Override
@@ -260,7 +314,9 @@ public class ModelRegistryMetadata implements Metadata.ProjectCustom {
             return false;
         }
         ModelRegistryMetadata other = (ModelRegistryMetadata) obj;
-        return Objects.equals(this.modelMap, other.modelMap) && isUpgraded == other.isUpgraded;
+        return Objects.equals(this.modelMap, other.modelMap)
+            && isUpgraded == other.isUpgraded
+            && Objects.equals(this.tombstones, other.tombstones);
     }
 
     @Override

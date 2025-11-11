@@ -1,0 +1,9 @@
+pr: 137660
+summary: Improve concurrency design of `GeoIpDownloader`
+area: Ingest Node
+type: bug
+issues:
+ - 135158
+ - 130681
+ - 135132
+ - 133597

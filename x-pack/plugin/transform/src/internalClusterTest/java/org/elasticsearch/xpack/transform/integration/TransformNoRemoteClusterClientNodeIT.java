@@ -41,7 +41,7 @@ public class TransformNoRemoteClusterClientNodeIT extends TransformSingleNodeTes
     public void testPreviewTransformWithRemoteIndex() {
         String transformId = "transform-with-remote-index";
         TransformConfig config = randomConfig(transformId, "remote_cluster:my-index");
-        PreviewTransformAction.Request request = new PreviewTransformAction.Request(config, AcknowledgedRequest.DEFAULT_ACK_TIMEOUT);
+        PreviewTransformAction.Request request = new PreviewTransformAction.Request(config, AcknowledgedRequest.DEFAULT_ACK_TIMEOUT, false);
         ElasticsearchStatusException e = expectThrows(
             ElasticsearchStatusException.class,
             () -> client().execute(PreviewTransformAction.INSTANCE, request).actionGet()

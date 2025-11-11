@@ -89,6 +89,11 @@ public interface IndicesRequest {
         default boolean allowsCrossProject() {
             return false;
         }
+
+        @Nullable // if no routing is specified
+        default String getProjectRouting() {
+            return null;
+        }
     }
 
     /**

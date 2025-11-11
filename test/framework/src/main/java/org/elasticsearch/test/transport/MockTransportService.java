@@ -46,6 +46,9 @@ import org.elasticsearch.node.Node;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.tasks.TaskManager;
+import org.elasticsearch.telemetry.RecordingMeterRegistry;
+import org.elasticsearch.telemetry.TelemetryProvider;
+import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.telemetry.tracing.Tracer;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESTestCase;
@@ -264,6 +267,19 @@ public class MockTransportService extends TransportService {
             clusterSettings,
             createTaskManager(settings, threadPool, taskHeaders, Tracer.NOOP, nodeId),
             new ClusterSettingsLinkedProjectConfigService(settings, clusterSettings, DefaultProjectResolver.INSTANCE),
+            new TelemetryProvider() {
+                final MeterRegistry meterRegistry = new RecordingMeterRegistry();
+
+                @Override
+                public Tracer getTracer() {
+                    return Tracer.NOOP;
+                }
+
+                @Override
+                public MeterRegistry getMeterRegistry() {
+                    return meterRegistry;
+                }
+            },
             DefaultProjectResolver.INSTANCE
         );
     }
@@ -277,6 +293,7 @@ public class MockTransportService extends TransportService {
         @Nullable ClusterSettings clusterSettings,
         TaskManager taskManager,
         LinkedProjectConfigService linkedProjectConfigService,
+        TelemetryProvider telemetryProvider,
         ProjectResolver projectResolver
     ) {
         super(
@@ -289,6 +306,7 @@ public class MockTransportService extends TransportService {
             new StubbableConnectionManager(new ClusterConnectionManager(settings, transport, threadPool.getThreadContext())),
             taskManager,
             linkedProjectConfigService,
+            telemetryProvider,
             projectResolver
         );
         this.original = transport.getDelegate();

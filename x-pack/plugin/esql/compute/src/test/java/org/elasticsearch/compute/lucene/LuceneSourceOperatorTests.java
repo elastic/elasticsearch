@@ -43,6 +43,7 @@ import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.mapper.SourceLoader;
+import org.elasticsearch.index.mapper.blockloader.BlockLoaderFunctionConfig;
 import org.elasticsearch.indices.CrankyCircuitBreakerService;
 import org.elasticsearch.search.internal.ContextIndexSearcher;
 import org.elasticsearch.search.sort.SortAndFormats;
@@ -466,7 +467,8 @@ public class LuceneSourceOperatorTests extends SourceOperatorTestCase {
         public BlockLoader blockLoader(
             String name,
             boolean asUnsupportedSource,
-            MappedFieldType.FieldExtractPreference fieldExtractPreference
+            MappedFieldType.FieldExtractPreference fieldExtractPreference,
+            BlockLoaderFunctionConfig blockLoaderFunctionConfig
         ) {
             throw new UnsupportedOperationException();
         }

@@ -40,6 +40,7 @@ import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.fetch.FetchPhase;
 import org.elasticsearch.tasks.TaskManager;
+import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.telemetry.tracing.Tracer;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.ClusterConnectionManager;
@@ -120,7 +121,7 @@ class NodeServiceProvider {
         Function<BoundTransportAddress, DiscoveryNode> localNodeFactory,
         ClusterSettings clusterSettings,
         TaskManager taskManager,
-        Tracer tracer,
+        TelemetryProvider telemetryProvider,
         String nodeId,
         LinkedProjectConfigService linkedProjectConfigService,
         ProjectResolver projectResolver
@@ -135,6 +136,7 @@ class NodeServiceProvider {
             new ClusterConnectionManager(settings, transport, threadPool.getThreadContext()),
             taskManager,
             linkedProjectConfigService,
+            telemetryProvider,
             projectResolver
         );
     }

@@ -24,7 +24,6 @@ import org.apache.lucene.store.ByteBuffersDirectory;
 import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexService;
-import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
 import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource.Nested;
 import org.elasticsearch.index.mapper.BinaryFieldMapper;
@@ -90,7 +89,7 @@ public abstract class AbstractFieldDataTestCase extends ESSingleNodeTestCase {
         final MapperBuilderContext context = MapperBuilderContext.root(false, false);
         if (type.equals("string")) {
             if (docValues) {
-                fieldType = new KeywordFieldMapper.Builder(fieldName, IndexVersion.current()).build(context).fieldType();
+                fieldType = new KeywordFieldMapper.Builder(fieldName, defaultIndexSettings()).build(context).fieldType();
             } else {
                 fieldType = new TextFieldMapper.Builder(fieldName, createDefaultIndexAnalyzers()).fielddata(true)
                     .build(context)
@@ -101,82 +100,54 @@ public abstract class AbstractFieldDataTestCase extends ESSingleNodeTestCase {
                 fieldName,
                 NumberFieldMapper.NumberType.FLOAT,
                 ScriptCompiler.NONE,
-                false,
-                true,
-                IndexVersion.current(),
-                null,
-                null
+                defaultIndexSettings()
             ).docValues(docValues).build(context).fieldType();
         } else if (type.equals("half_float")) {
             fieldType = new NumberFieldMapper.Builder(
                 fieldName,
                 NumberFieldMapper.NumberType.HALF_FLOAT,
                 ScriptCompiler.NONE,
-                false,
-                true,
-                IndexVersion.current(),
-                null,
-                null
+                defaultIndexSettings()
             ).docValues(docValues).build(context).fieldType();
         } else if (type.equals("double")) {
             fieldType = new NumberFieldMapper.Builder(
                 fieldName,
                 NumberFieldMapper.NumberType.DOUBLE,
                 ScriptCompiler.NONE,
-                false,
-                true,
-                IndexVersion.current(),
-                null,
-                null
+                defaultIndexSettings()
             ).docValues(docValues).build(context).fieldType();
         } else if (type.equals("long")) {
             fieldType = new NumberFieldMapper.Builder(
                 fieldName,
                 NumberFieldMapper.NumberType.LONG,
                 ScriptCompiler.NONE,
-                false,
-                true,
-                IndexVersion.current(),
-                null,
-                null
+                defaultIndexSettings()
             ).docValues(docValues).build(context).fieldType();
         } else if (type.equals("int")) {
             fieldType = new NumberFieldMapper.Builder(
                 fieldName,
                 NumberFieldMapper.NumberType.INTEGER,
                 ScriptCompiler.NONE,
-                false,
-                true,
-                IndexVersion.current(),
-                null,
-                null
+                defaultIndexSettings()
             ).docValues(docValues).build(context).fieldType();
         } else if (type.equals("short")) {
             fieldType = new NumberFieldMapper.Builder(
                 fieldName,
                 NumberFieldMapper.NumberType.SHORT,
                 ScriptCompiler.NONE,
-                false,
-                true,
-                IndexVersion.current(),
-                null,
-                null
+                defaultIndexSettings()
             ).docValues(docValues).build(context).fieldType();
         } else if (type.equals("byte")) {
             fieldType = new NumberFieldMapper.Builder(
                 fieldName,
                 NumberFieldMapper.NumberType.BYTE,
                 ScriptCompiler.NONE,
-                false,
-                true,
-                IndexVersion.current(),
-                null,
-                null
+                defaultIndexSettings()
             ).docValues(docValues).build(context).fieldType();
         } else if (type.equals("geo_point")) {
-            fieldType = new GeoPointFieldMapper.Builder(fieldName, ScriptCompiler.NONE, false, IndexVersion.current(), null).docValues(
-                docValues
-            ).build(context).fieldType();
+            fieldType = new GeoPointFieldMapper.Builder(fieldName, ScriptCompiler.NONE, defaultIndexSettings()).docValues(docValues)
+                .build(context)
+                .fieldType();
         } else if (type.equals("binary")) {
             fieldType = new BinaryFieldMapper.Builder(fieldName, SourceFieldMapper.isSynthetic(indexService.getIndexSettings())).docValues(
                 docValues

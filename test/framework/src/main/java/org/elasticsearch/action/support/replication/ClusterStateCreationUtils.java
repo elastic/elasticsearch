@@ -334,15 +334,17 @@ public class ClusterStateCreationUtils {
     }
 
     /**
-     * Creates cluster state with an index that has #(numberOfPrimaries) primary shards in the started state and no replicas. The cluster
-     * state contains #(numberOfIndexNodes) nodes with {@link DiscoveryNodeRole#INDEX_ROLE}, assigning the primary shards to those nodes,
-     * and #(numberOfSearchNodes) nodes with {@link DiscoveryNodeRole#SEARCH_ROLE}.
+     * Creates cluster state with an index that has {@code numberOfPrimaries} primary shards in the started state and no replicas. The
+     * cluster state contains {@code numberOfIndexNodes} nodes with {@link DiscoveryNodeRole#INDEX_ROLE}, assigning the primary shards
+     * to those nodes, {@code numberOfSearchNodes} nodes with {@link DiscoveryNodeRole#SEARCH_ROLE}, and {@code numberOfMLNodes} with
+     * {@link DiscoveryNodeRole#ML_ROLE}.
      */
     public static ClusterState buildServerlessRoleNodes(
         String indexName,
         int numberOfPrimaries,
         int numberOfIndexNodes,
-        int numberOfSearchNodes
+        int numberOfSearchNodes,
+        int numberOfMLNodes
     ) {
         ProjectId projectId = Metadata.DEFAULT_PROJECT_ID;
         DiscoveryNodes.Builder discoBuilder = DiscoveryNodes.builder();
@@ -354,6 +356,10 @@ public class ClusterStateCreationUtils {
         }
         for (int i = 0; i < numberOfSearchNodes; i++) {
             final DiscoveryNode node = DiscoveryNodeUtils.builder("search_" + i).roles(Set.of(DiscoveryNodeRole.SEARCH_ROLE)).build();
+            discoBuilder = discoBuilder.add(node);
+        }
+        for (int i = 0; i < numberOfMLNodes; i++) {
+            final DiscoveryNode node = DiscoveryNodeUtils.builder("ml_" + i).roles(Set.of(DiscoveryNodeRole.ML_ROLE)).build();
             discoBuilder = discoBuilder.add(node);
         }
         discoBuilder.localNodeId(randomFrom(indexNodeIds));

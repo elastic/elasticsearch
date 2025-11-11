@@ -45,6 +45,7 @@ import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NestedLookup;
 import org.elasticsearch.index.mapper.SourceLoader;
+import org.elasticsearch.index.mapper.blockloader.BlockLoaderFunctionConfig;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.ConstantScoreQueryBuilder;
 import org.elasticsearch.index.query.ExistsQueryBuilder;
@@ -68,6 +69,7 @@ import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.type.FunctionEsField;
 import org.elasticsearch.xpack.esql.core.type.KeywordEsField;
 import org.elasticsearch.xpack.esql.core.type.MultiTypeEsField;
 import org.elasticsearch.xpack.esql.core.type.PotentiallyUnmappedKeywordEsField;
@@ -192,9 +194,14 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
             shardContext = new DefaultShardContextForUnmappedField(shardContext, kf);
         }
 
+        // Apply any block loader function if present
+        BlockLoaderFunctionConfig functionConfig = null;
+        if (attr instanceof FieldAttribute fieldAttr && fieldAttr.field() instanceof FunctionEsField functionEsField) {
+            functionConfig = functionEsField.functionConfig();
+        }
         boolean isUnsupported = attr.dataType() == DataType.UNSUPPORTED;
         String fieldName = getFieldName(attr);
-        BlockLoader blockLoader = shardContext.blockLoader(fieldName, isUnsupported, fieldExtractPreference);
+        BlockLoader blockLoader = shardContext.blockLoader(fieldName, isUnsupported, fieldExtractPreference, functionConfig);
         MultiTypeEsField unionTypes = findUnionTypes(attr);
         if (unionTypes != null) {
             // Use the fully qualified name `cluster:index-name` because multiple types are resolved on coordinator with the cluster prefix
@@ -230,7 +237,7 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
         }
 
         static MappedFieldType createUnmappedFieldType(String name, DefaultShardContext context) {
-            var builder = new KeywordFieldMapper.Builder(name, context.ctx.indexVersionCreated());
+            var builder = new KeywordFieldMapper.Builder(name, context.ctx.getIndexSettings());
             builder.docValues(false);
             builder.indexed(false);
             return new KeywordFieldMapper.KeywordFieldType(
@@ -481,7 +488,8 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
         public BlockLoader blockLoader(
             String name,
             boolean asUnsupportedSource,
-            MappedFieldType.FieldExtractPreference fieldExtractPreference
+            MappedFieldType.FieldExtractPreference fieldExtractPreference,
+            BlockLoaderFunctionConfig blockLoaderFunctionConfig
         ) {
             if (asUnsupportedSource) {
                 return BlockLoader.CONSTANT_NULLS;
@@ -525,6 +533,11 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
                 @Override
                 public FieldNamesFieldMapper.FieldNamesFieldType fieldNames() {
                     return (FieldNamesFieldMapper.FieldNamesFieldType) ctx.lookup().fieldType(FieldNamesFieldMapper.NAME);
+                }
+
+                @Override
+                public BlockLoaderFunctionConfig blockLoaderFunctionConfig() {
+                    return blockLoaderFunctionConfig;
                 }
             });
             if (loader == null) {

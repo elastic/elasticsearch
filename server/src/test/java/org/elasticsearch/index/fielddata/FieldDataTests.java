@@ -9,6 +9,7 @@
 
 package org.elasticsearch.index.fielddata;
 
+import org.apache.lucene.search.DoubleValues;
 import org.apache.lucene.search.LongValues;
 import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.test.ESTestCase;
@@ -181,7 +182,7 @@ public class FieldDataTests extends ESTestCase {
 
     public void testReplaceMissingDoubles() throws IOException {
         final NumericDoubleValues values = asNumericDoubleValues(null, 1.3, 1.2, null, 1.5, null);
-        final NumericDoubleValues replaced = FieldData.replaceMissing(values, 1.4);
+        final DoubleValues replaced = FieldData.replaceMissing(values, 1.4);
 
         assertTrue(replaced.advanceExact(0));
         assertEquals(1.4, replaced.doubleValue(), 0d);

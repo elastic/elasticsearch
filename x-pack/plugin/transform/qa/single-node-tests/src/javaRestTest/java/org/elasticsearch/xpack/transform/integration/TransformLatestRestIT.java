@@ -148,6 +148,29 @@ public class TransformLatestRestIT extends TransformRestTestCase {
         }
     }
 
+    @SuppressWarnings("unchecked")
+    public void testPreviewAsIndexRequest() throws IOException {
+        setupDataAccessRole(DATA_ACCESS_ROLE, REVIEWS_INDEX_NAME);
+        var createPreviewRequest = createRequestWithAuth("POST", getTransformEndpoint() + "_preview?as_index_request", null);
+        createPreviewRequest.setJsonEntity(Strings.format("""
+            {
+              "source": {
+                "index": "%s"
+              },
+              "latest": {
+                "unique_key": [ "user_id" ],
+                "sort": "@timestamp"
+              }
+            }""", REVIEWS_INDEX_NAME));
+        var previewTransformResponse = entityAsMap(client().performRequest(createPreviewRequest));
+        var preview = (List<Map<String, Object>>) previewTransformResponse.get("preview");
+        preview.forEach(p -> {
+            assertNotNull(XContentMapValues.extractValue("_id", p));
+            assertNotNull(XContentMapValues.extractValue("_source.@timestamp", p));
+            assertNotNull(XContentMapValues.extractValue("_source.user_id", p));
+        });
+    }
+
     public void testContinuousLatestWithFrom_NoDocs() throws Exception {
         testContinuousLatestWithFrom("latest_from_no_docs", "reviews_from_no_docs", "2017-02-20", 0);
     }

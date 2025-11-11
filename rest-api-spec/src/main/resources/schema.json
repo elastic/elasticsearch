@@ -60,6 +60,9 @@
                     "properties": {
                       "stability": {
                         "const": "stable"
+                      },
+                      "visibility": {
+                        "const": "public"
                       }
                     }
                   },

@@ -33,8 +33,10 @@ import static org.elasticsearch.xpack.esql.SerializationTestUtils.assertSerializ
 import static org.elasticsearch.xpack.esql.SerializationTestUtils.serializeDeserialize;
 import static org.elasticsearch.xpack.esql.core.type.DataType.BOOLEAN;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DENSE_VECTOR;
+import static org.elasticsearch.xpack.esql.core.type.DataType.NULL;
 import static org.elasticsearch.xpack.esql.core.type.DataType.TEXT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.UNSUPPORTED;
+import static org.elasticsearch.xpack.esql.expression.function.fulltext.AbstractMatchFullTextFunctionTests.addNullFieldTestCases;
 import static org.elasticsearch.xpack.esql.planner.TranslatorHandler.TRANSLATOR_HANDLER;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -96,8 +98,22 @@ public class KnnTests extends AbstractFunctionTestCase {
                 )
             )
         );
+        suppliers.add(
+            new TestCaseSupplier(
+                List.of(NULL, DENSE_VECTOR),
+                () -> new TestCaseSupplier.TestCase(
+                    List.of(
+                        new TestCaseSupplier.TypedData(Literal.NULL, NULL, "text field"),
+                        new TestCaseSupplier.TypedData(randomDenseVector(), DENSE_VECTOR, "query")
+                    ),
+                    equalTo("KnnEvaluator" + KnnTests.class.getSimpleName()),
+                    NULL,
+                    equalTo(true)
+                )
+            )
+        );
 
-        return suppliers;
+        return addNullFieldTestCases(suppliers);
     }
 
     private static List<Float> randomDenseVector() {

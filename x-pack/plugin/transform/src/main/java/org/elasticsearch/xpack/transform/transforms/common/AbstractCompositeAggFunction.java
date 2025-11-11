@@ -38,7 +38,6 @@ import org.elasticsearch.xpack.transform.transforms.pivot.AggregationResultUtils
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
-import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.core.Strings.format;
@@ -82,32 +81,37 @@ public abstract class AbstractCompositeAggFunction implements Function {
             client,
             TransportSearchAction.TYPE,
             buildSearchRequestForValidation("preview", sourceConfig, timeout, numberOfBuckets),
-            ActionListener.wrap(r -> {
+            listener.delegateFailureAndWrap((l, r) -> {
                 try {
                     final InternalAggregations aggregations = r.getAggregations();
                     if (aggregations == null) {
-                        listener.onFailure(
+                        l.onFailure(
                             new ElasticsearchStatusException("Source indices have been deleted or closed.", RestStatus.BAD_REQUEST)
                         );
                         return;
                     }
                     final CompositeAggregation agg = aggregations.get(COMPOSITE_AGGREGATION_NAME);
                     if (agg == null || agg.getBuckets().isEmpty()) {
-                        listener.onResponse(Collections.emptyList());
+                        l.onResponse(Collections.emptyList());
                         return;
                     }
 
-                    TransformIndexerStats stats = new TransformIndexerStats();
-                    TransformProgress progress = new TransformProgress();
-                    List<Map<String, Object>> docs = extractResults(agg, fieldTypeMap, stats, progress).map(
-                        this::documentTransformationFunction
-                    ).collect(Collectors.toList());
+                    var stats = new TransformIndexerStats();
+                    var progress = new TransformProgress();
+                    var docs = extractResults(agg, fieldTypeMap, stats, progress).map(doc -> {
+                        var docId = (String) doc.get(TransformField.DOCUMENT_ID_FIELD);
+                        doc = documentTransformationFunction(doc);
+                        return Map.ofEntries(
+                            Map.entry(TransformField.DOCUMENT_ID_FIELD, docId),
+                            Map.entry(TransformField.DOCUMENT_SOURCE_FIELD, doc)
+                        );
+                    }).toList();
 
-                    listener.onResponse(docs);
+                    l.onResponse(docs);
                 } catch (AggregationResultUtils.AggregationExtractionException extractionException) {
-                    listener.onFailure(new ElasticsearchStatusException(extractionException.getMessage(), RestStatus.BAD_REQUEST));
+                    l.onFailure(new ElasticsearchStatusException(extractionException.getMessage(), RestStatus.BAD_REQUEST));
                 }
-            }, listener::onFailure)
+            })
         );
     }
 

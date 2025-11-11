@@ -1,0 +1,6 @@
+pr: 137244
+summary: Preserve deployments with zero allocations during assignment planning
+area: Machine Learning
+type: bug
+issues:
+ - 137134

@@ -893,7 +893,7 @@ public final class DateFieldMapper extends FieldMapper {
                     ++fromInclusive;
                 }
                 // we set the time range filter from during rewrite, because this may be the only time we ever parse it,
-                // in case the shard if filtered out and does not run the query phase or all its docs are within the bounds.
+                // in case the shard gets filtered out and does not run the query phase or all its docs are within the bounds.
                 context.setTimeRangeFilterFromMillis(fieldName, fromInclusive, resolution);
             }
 

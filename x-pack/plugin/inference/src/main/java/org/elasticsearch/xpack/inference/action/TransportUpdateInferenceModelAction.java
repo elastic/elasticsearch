@@ -35,7 +35,6 @@ import org.elasticsearch.inference.TaskSettings;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.inference.UnparsedModel;
 import org.elasticsearch.injection.guice.Inject;
-import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.Task;
@@ -43,13 +42,13 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
-import org.elasticsearch.xpack.core.XPackField;
 import org.elasticsearch.xpack.core.inference.action.UpdateInferenceModelAction;
 import org.elasticsearch.xpack.core.ml.action.CreateTrainedModelAssignmentAction;
 import org.elasticsearch.xpack.core.ml.action.UpdateTrainedModelDeploymentAction;
 import org.elasticsearch.xpack.core.ml.inference.assignment.TrainedModelAssignmentUtils;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
+import org.elasticsearch.xpack.inference.InferenceLicenceCheck;
 import org.elasticsearch.xpack.inference.registry.ModelRegistry;
 import org.elasticsearch.xpack.inference.services.elasticsearch.ElasticsearchInternalModel;
 import org.elasticsearch.xpack.inference.services.elasticsearch.ElasticsearchInternalService;
@@ -61,7 +60,6 @@ import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicReference;
 
-import static org.elasticsearch.xpack.inference.InferencePlugin.INFERENCE_API_FEATURE;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.resolveTaskType;
 import static org.elasticsearch.xpack.inference.services.elasticsearch.ElasticsearchInternalServiceSettings.NUM_ALLOCATIONS;
 
@@ -113,11 +111,6 @@ public class TransportUpdateInferenceModelAction extends TransportMasterNodeActi
         ClusterState state,
         ActionListener<UpdateInferenceModelAction.Response> masterListener
     ) {
-        if (INFERENCE_API_FEATURE.check(licenseState) == false) {
-            masterListener.onFailure(LicenseUtils.newComplianceException(XPackField.INFERENCE));
-            return;
-        }
-
         var bodyTaskType = request.getContentAsSettings().taskType();
         var resolvedTaskType = resolveTaskType(request.getTaskType(), bodyTaskType != null ? bodyTaskType.toString() : null);
 
@@ -137,10 +130,16 @@ public class TransportUpdateInferenceModelAction extends TransportMasterNodeActi
                             unparsedModel.service()
                         )
                     );
-                } else {
-                    service.set(optionalService.get());
-                    listener.onResponse(unparsedModel);
+                    return;
                 }
+
+                if (InferenceLicenceCheck.isServiceLicenced(optionalService.get().name(), licenseState) == false) {
+                    listener.onFailure(InferenceLicenceCheck.complianceException(optionalService.get().name()));
+                    return;
+                }
+
+                service.set(optionalService.get());
+                listener.onResponse(unparsedModel);
             })
             .<Boolean>andThen((listener, existingUnparsedModel) -> {
 

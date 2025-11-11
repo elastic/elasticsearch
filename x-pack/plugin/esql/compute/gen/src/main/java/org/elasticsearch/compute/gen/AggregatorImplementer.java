@@ -37,6 +37,7 @@ import javax.lang.model.type.TypeMirror;
 import javax.lang.model.util.Elements;
 
 import static java.util.stream.Collectors.joining;
+import static org.elasticsearch.compute.gen.Methods.getMethod;
 import static org.elasticsearch.compute.gen.Methods.optionalStaticMethod;
 import static org.elasticsearch.compute.gen.Methods.requireAnyArgs;
 import static org.elasticsearch.compute.gen.Methods.requireAnyType;
@@ -53,7 +54,6 @@ import static org.elasticsearch.compute.gen.Types.BIG_ARRAYS;
 import static org.elasticsearch.compute.gen.Types.BLOCK;
 import static org.elasticsearch.compute.gen.Types.BLOCK_ARRAY;
 import static org.elasticsearch.compute.gen.Types.BOOLEAN_VECTOR;
-import static org.elasticsearch.compute.gen.Types.BYTES_REF;
 import static org.elasticsearch.compute.gen.Types.DRIVER_CONTEXT;
 import static org.elasticsearch.compute.gen.Types.ELEMENT_TYPE;
 import static org.elasticsearch.compute.gen.Types.INTERMEDIATE_STATE_DESC;
@@ -62,6 +62,8 @@ import static org.elasticsearch.compute.gen.Types.LIST_INTEGER;
 import static org.elasticsearch.compute.gen.Types.PAGE;
 import static org.elasticsearch.compute.gen.Types.WARNINGS;
 import static org.elasticsearch.compute.gen.Types.blockType;
+import static org.elasticsearch.compute.gen.Types.fromString;
+import static org.elasticsearch.compute.gen.Types.scratchType;
 import static org.elasticsearch.compute.gen.Types.vectorType;
 
 /**
@@ -85,7 +87,7 @@ public class AggregatorImplementer {
 
     private final AggregationState aggState;
     private final List<Argument> aggParams;
-    private final boolean hasOnlyBlockArguments;
+    private final boolean tryToUseVectors;
 
     public AggregatorImplementer(
         Elements elements,
@@ -119,7 +121,8 @@ public class AggregatorImplementer {
             return a;
         }).filter(a -> a instanceof PositionArgument == false).toList();
 
-        this.hasOnlyBlockArguments = this.aggParams.stream().allMatch(a -> a instanceof BlockArgument);
+        this.tryToUseVectors = aggParams.stream().anyMatch(a -> (a instanceof BlockArgument) == false)
+            && aggParams.stream().noneMatch(a -> a.supportsVectorReadAccess() == false);
 
         this.createParameters = init.getParameters()
             .stream()
@@ -199,7 +202,7 @@ public class AggregatorImplementer {
         builder.addMethod(addRawInput());
         builder.addMethod(addRawInputExploded(true));
         builder.addMethod(addRawInputExploded(false));
-        if (hasOnlyBlockArguments == false) {
+        if (tryToUseVectors) {
             builder.addMethod(addRawVector(false));
             builder.addMethod(addRawVector(true));
         }
@@ -340,16 +343,18 @@ public class AggregatorImplementer {
             builder.addStatement("$T $L = page.getBlock(channels.get($L))", a.dataType(true), a.blockName(), i);
         }
 
-        for (Argument a : aggParams) {
-            String rawBlock = "addRawBlock("
-                + aggParams.stream().map(arg -> arg.blockName()).collect(joining(", "))
-                + (hasMask ? ", mask" : "")
-                + ")";
+        if (tryToUseVectors) {
+            for (Argument a : aggParams) {
+                String rawBlock = "addRawBlock("
+                    + aggParams.stream().map(arg -> arg.blockName()).collect(joining(", "))
+                    + (hasMask ? ", mask" : "")
+                    + ")";
 
-            a.resolveVectors(builder, rawBlock, "return");
+                a.resolveVectors(builder, rawBlock, "return");
+            }
         }
 
-        builder.addStatement(invokeAddRaw(hasOnlyBlockArguments, hasMask));
+        builder.addStatement(invokeAddRaw(tryToUseVectors == false, hasMask));
         return builder.build();
     }
 
@@ -499,9 +504,9 @@ public class AggregatorImplementer {
             builder.addParameter(BOOLEAN_VECTOR, "mask");
         }
         for (Argument a : aggParams) {
-            if (a.isBytesRef()) {
-                // Add bytes_ref scratch var that will be used for bytes_ref blocks/vectors
-                builder.addStatement("$T $L = new $T()", BYTES_REF, a.scratchName(), BYTES_REF);
+            if (a.scratchType() != null) {
+                // Add scratch var that will be used for some blocks/vectors, e.g. for bytes_ref
+                builder.addStatement("$T $L = new $T()", a.scratchType(), a.scratchName(), a.scratchType());
             }
         }
         return builder;
@@ -610,8 +615,8 @@ public class AggregatorImplementer {
                     ).map(Methods::requireType).toArray(TypeMatcher[]::new)
                 )
             );
-            if (intermediateState.stream().map(IntermediateStateDesc::elementType).anyMatch(n -> n.equals("BYTES_REF"))) {
-                builder.addStatement("$T scratch = new $T()", BYTES_REF, BYTES_REF);
+            for (IntermediateStateDesc interState : intermediateState) {
+                interState.addScratchDeclaration(builder);
             }
             builder.addStatement("$T.combineIntermediate(state, " + intermediateStateRowAccess() + ")", declarationType);
         }
@@ -706,11 +711,23 @@ public class AggregatorImplementer {
             if (block) {
                 return name();
             }
-            String s = name() + "." + vectorAccessorName(elementType()) + "(" + position;
-            if (elementType().equals("BYTES_REF")) {
-                s += ", scratch";
+            String s = name() + ".";
+            if (vectorType(elementType) != null) {
+                s += vectorAccessorName(elementType()) + "(" + position;
+            } else {
+                s += getMethod(fromString(elementType())) + "(" + name() + ".getFirstValueIndex(" + position + ")";
+            }
+            if (scratchType(elementType()) != null) {
+                s += ", " + name() + "Scratch";
             }
             return s + ")";
+        }
+
+        public void addScratchDeclaration(MethodSpec.Builder builder) {
+            ClassName scratchType = scratchType(elementType());
+            if (scratchType != null) {
+                builder.addStatement("$T $L = new $T()", scratchType, name() + "Scratch", scratchType);
+            }
         }
 
         public void assignToVariable(MethodSpec.Builder builder, int offset) {
@@ -721,7 +738,7 @@ public class AggregatorImplementer {
                 builder.addStatement("return");
                 builder.endControlFlow();
             }
-            if (block) {
+            if (block || vectorType(elementType) == null) {
                 builder.addStatement("$T $L = ($T) $L", blockType, name, blockType, name + "Uncast");
             } else {
                 builder.addStatement("$T $L = (($T) $L).asVector()", vectorType(elementType), name, blockType, name + "Uncast");
@@ -732,6 +749,7 @@ public class AggregatorImplementer {
             var type = Types.fromString(elementType);
             return block ? blockType(type) : type;
         }
+
     }
 
     /**

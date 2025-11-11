@@ -20,6 +20,8 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.telemetry.InstrumentType;
+import org.elasticsearch.telemetry.RecordingMeterRegistry;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.EnumSerializationTestUtils;
 import org.elasticsearch.test.MockLog;
@@ -28,12 +30,15 @@ import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 
+import java.util.Set;
+
 import static org.elasticsearch.test.MockLog.assertThatLogger;
 import static org.elasticsearch.transport.RemoteClusterSettings.ProxyConnectionStrategySettings.PROXY_ADDRESS;
 import static org.elasticsearch.transport.RemoteClusterSettings.REMOTE_CONNECTION_MODE;
 import static org.elasticsearch.transport.RemoteClusterSettings.SniffConnectionStrategySettings.REMOTE_CLUSTER_SEEDS;
 import static org.elasticsearch.transport.RemoteClusterSettings.toConfig;
 import static org.elasticsearch.transport.RemoteConnectionStrategy.buildConnectionProfile;
+import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.Mockito.mock;
 
 public class RemoteConnectionStrategyTests extends ESTestCase {
@@ -194,7 +199,7 @@ public class RemoteConnectionStrategyTests extends ESTestCase {
         value = "org.elasticsearch.transport.RemoteConnectionStrategyTests.FakeConnectionStrategy:DEBUG",
         reason = "logging verification"
     )
-    public void testConnectionAttemptLogging() {
+    public void testConnectionAttemptMetricsAndLogging() {
         final var originProjectId = randomUniqueProjectId();
         final var linkedProjectId = randomUniqueProjectId();
         final var alias = randomAlphanumericOfLength(10);
@@ -208,8 +213,13 @@ public class RemoteConnectionStrategyTests extends ESTestCase {
                 new ClusterConnectionManager(TestProfiles.LIGHT_PROFILE, mock(Transport.class), threadContext)
             )
         ) {
+            assert transportService.getTelemetryProvider() != null;
+            final var meterRegistry = transportService.getTelemetryProvider().getMeterRegistry();
+            assert meterRegistry instanceof RecordingMeterRegistry;
+            final var metricRecorder = ((RecordingMeterRegistry) meterRegistry).getRecorder();
+
             for (boolean shouldConnectFail : new boolean[] { true, false }) {
-                for (boolean isIntialConnectAttempt : new boolean[] { true, false }) {
+                for (boolean isInitialConnectAttempt : new boolean[] { true, false }) {
                     final var strategy = new FakeConnectionStrategy(
                         originProjectId,
                         linkedProjectId,
@@ -217,7 +227,7 @@ public class RemoteConnectionStrategyTests extends ESTestCase {
                         transportService,
                         connectionManager
                     );
-                    if (isIntialConnectAttempt == false) {
+                    if (isInitialConnectAttempt == false) {
                         waitForConnect(strategy);
                     }
                     strategy.setShouldConnectFail(shouldConnectFail);
@@ -228,7 +238,7 @@ public class RemoteConnectionStrategyTests extends ESTestCase {
                         shouldConnectFail ? "failed to connect" : "successfully connected",
                         linkedProjectId,
                         alias,
-                        isIntialConnectAttempt ? "the initial connection" : "a reconnection"
+                        isInitialConnectAttempt ? "the initial connection" : "a reconnection"
                     );
                     assertThatLogger(() -> {
                         if (shouldConnectFail) {
@@ -243,12 +253,30 @@ public class RemoteConnectionStrategyTests extends ESTestCase {
                                 + expectedLogLevel
                                 + " after a "
                                 + (shouldConnectFail ? "failed" : "successful")
-                                + (isIntialConnectAttempt ? " initial connection attempt" : " reconnection attempt"),
+                                + (isInitialConnectAttempt ? " initial connection attempt" : " reconnection attempt"),
                             strategy.getClass().getCanonicalName(),
                             expectedLogLevel,
                             expectedLogMessage
                         )
                     );
+                    if (shouldConnectFail) {
+                        metricRecorder.collect();
+                        final var counterName = RemoteClusterService.CONNECTION_ATTEMPT_FAILURES_COUNTER_NAME;
+                        final var measurements = metricRecorder.getMeasurements(InstrumentType.LONG_COUNTER, counterName);
+                        assertFalse(measurements.isEmpty());
+                        final var measurement = measurements.getLast();
+                        assertThat(measurement.getLong(), equalTo(1L));
+                        final var attributes = measurement.attributes();
+                        final var keySet = Set.of("linked_project_id", "linked_project_alias", "attempt", "strategy");
+                        final var expectedAttemptType = isInitialConnectAttempt
+                            ? RemoteConnectionStrategy.ConnectionAttempt.initial
+                            : RemoteConnectionStrategy.ConnectionAttempt.reconnect;
+                        assertThat(attributes.keySet(), equalTo(keySet));
+                        assertThat(attributes.get("linked_project_id"), equalTo(linkedProjectId.toString()));
+                        assertThat(attributes.get("linked_project_alias"), equalTo(alias));
+                        assertThat(attributes.get("attempt"), equalTo(expectedAttemptType.toString()));
+                        assertThat(attributes.get("strategy"), equalTo(strategy.strategyType().toString()));
+                    }
                 }
             }
         }

@@ -27,7 +27,7 @@ teardown:
         body:
           rate: 0.5
           max_samples: 100
-          max_size: "10mb"
+          max_size: "100kb"
           time_to_live: "1h"
 
   - match: { acknowledged: true }
@@ -39,7 +39,7 @@ teardown:
 
   - match: { configuration.rate: 0.5 }
   - match: { configuration.max_samples: 100 }
-  - match: { configuration.max_size: "10mb" }
+  - match: { configuration.max_size: "100kb" }
   - match: { configuration.time_to_live: "1h" }
 
 ---
@@ -140,7 +140,7 @@ teardown:
         body:
           rate: 0.8
           max_samples: 75
-          max_size: "5mb"
+          max_size: "100kb"
 
   - match: { acknowledged: true }
 
@@ -152,7 +152,7 @@ teardown:
 
   - match: { configuration.rate: 0.8 }
   - match: { configuration.max_samples: 75 }
-  - match: { configuration.max_size: "5mb" }
+  - match: { configuration.max_size: "100kb" }
 
 ---
 "Get sampling configuration with master timeout":

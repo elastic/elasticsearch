@@ -237,8 +237,8 @@ public final class FirstBytesRefByTimestampAggregatorFunction implements Aggrega
     }
     BooleanVector seen = ((BooleanBlock) seenUncast).asVector();
     assert seen.getPositionCount() == 1;
-    BytesRef scratch = new BytesRef();
-    FirstBytesRefByTimestampAggregator.combineIntermediate(state, timestamps.getLong(0), values.getBytesRef(0, scratch), seen.getBoolean(0));
+    BytesRef valuesScratch = new BytesRef();
+    FirstBytesRefByTimestampAggregator.combineIntermediate(state, timestamps.getLong(0), values.getBytesRef(0, valuesScratch), seen.getBoolean(0));
   }
 
   @Override

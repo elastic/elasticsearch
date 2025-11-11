@@ -163,6 +163,9 @@ public class FieldNameUtils {
                 referencesBuilder.get().addAll(enrichRefs);
             } else if (p instanceof LookupJoin join) {
                 joinRefs.addAll(join.config().leftFields());
+                if (join.config().joinOnConditions() != null) {
+                    joinRefs.addAll(join.config().joinOnConditions().references());
+                }
                 if (keepRefs.isEmpty()) {
                     // No KEEP commands after the JOIN, so we need to mark this index for "*" field resolution
                     wildcardJoinIndices.add(((UnresolvedRelation) join.right()).indexPattern().indexPattern());

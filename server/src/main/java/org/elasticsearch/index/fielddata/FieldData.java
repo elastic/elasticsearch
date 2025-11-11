@@ -614,19 +614,18 @@ public enum FieldData {
      * document, returns the same value as {@code values} if there is a value
      * for the current document and {@code missing} otherwise.
      */
-    public static LongValues replaceMissing(LongValues values, long missing) {
-        return new LongValues() {
+    public static DenseLongValues replaceMissing(LongValues values, long missing) {
+        return new DenseLongValues() {
 
             private long value;
 
             @Override
-            public boolean advanceExact(int target) throws IOException {
+            public void doAdvanceExact(int target) throws IOException {
                 if (values.advanceExact(target)) {
                     value = values.longValue();
                 } else {
                     value = missing;
                 }
-                return true;
             }
 
             @Override
@@ -641,19 +640,18 @@ public enum FieldData {
      * document, returns the same value as {@code values} if there is a value
      * for the current document and {@code missing} otherwise.
      */
-    public static NumericDoubleValues replaceMissing(NumericDoubleValues values, double missing) {
-        return new NumericDoubleValues() {
+    public static DenseDoubleValues replaceMissing(NumericDoubleValues values, double missing) {
+        return new DenseDoubleValues() {
 
             private double value;
 
             @Override
-            public boolean advanceExact(int target) throws IOException {
+            public void doAdvanceExact(int target) throws IOException {
                 if (values.advanceExact(target)) {
                     value = values.doubleValue();
                 } else {
                     value = missing;
                 }
-                return true;
             }
 
             @Override

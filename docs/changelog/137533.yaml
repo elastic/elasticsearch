@@ -1,0 +1,5 @@
+pr: 137533
+summary: Speed up sorts on secondary sort fields
+area: Search
+type: enhancement
+issues: []

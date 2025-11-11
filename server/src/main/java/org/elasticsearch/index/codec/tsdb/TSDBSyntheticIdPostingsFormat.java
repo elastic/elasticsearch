@@ -19,6 +19,7 @@ import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.index.mapper.DataStreamTimestampFieldMapper;
 import org.elasticsearch.index.mapper.SyntheticIdField;
 import org.elasticsearch.index.mapper.TimeSeriesIdFieldMapper;
+import org.elasticsearch.index.mapper.TimeSeriesRoutingHashFieldMapper;
 
 import java.io.IOException;
 
@@ -27,6 +28,7 @@ public class TSDBSyntheticIdPostingsFormat extends PostingsFormat {
     public static final String SYNTHETIC_ID = SyntheticIdField.NAME;
     public static final String TIMESTAMP = DataStreamTimestampFieldMapper.DEFAULT_PATH;
     public static final String TS_ID = TimeSeriesIdFieldMapper.NAME;
+    public static final String TS_ROUTING_HASH = TimeSeriesRoutingHashFieldMapper.NAME;
 
     static final String FORMAT_NAME = "TSDBSyntheticId";
     static final String SUFFIX = "0";

@@ -73,6 +73,14 @@ public record ResolvedIndexExpressions(List<ResolvedIndexExpression> expressions
             );
         }
 
+        /**
+         * Add a new resolved expression.
+         * @param expression       the expression you want to add.
+         */
+        public void addExpression(ResolvedIndexExpression expression) {
+            expressions.add(expression);
+        }
+
         public void addRemoteExpressions(String original, Set<String> remoteExpressions) {
             Objects.requireNonNull(original);
             Objects.requireNonNull(remoteExpressions);

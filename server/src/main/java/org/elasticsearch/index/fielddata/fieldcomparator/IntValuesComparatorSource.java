@@ -60,7 +60,7 @@ public class IntValuesComparatorSource extends LongValuesComparatorSource {
                 return new IntLeafComparator(context) {
                     @Override
                     protected NumericDocValues getNumericDocValues(LeafReaderContext context, String field) throws IOException {
-                        return wrap(getLongValues(context, iMissingValue));
+                        return wrap(getLongValues(context, iMissingValue), context.reader().maxDoc());
                     }
                 };
             }

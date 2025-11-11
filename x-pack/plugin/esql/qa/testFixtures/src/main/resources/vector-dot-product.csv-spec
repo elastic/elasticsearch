@@ -1,36 +1,34 @@
  # Tests for dot_product similarity function
  
- similarityWithVectorField
- required_capability: dot_product_vector_similarity_function
- required_capability: dense_vector_field_type_released
- 
+similarityWithVectorField
+required_capability: vector_similarity_functions_pushdown
+
 // tag::vector-dot-product[]
- from colors
- | eval similarity = v_dot_product(rgb_vector, [0, 255, 255]) 
- | sort similarity desc, color asc 
+from colors
+| eval similarity = v_dot_product(rgb_vector, [0, 255, 255]) 
+| sort similarity desc, color asc 
 // end::vector-dot-product[]
- | limit 10
- | keep color, similarity
- ;
- 
+| limit 10
+| keep color, similarity
+;
+
 // tag::vector-dot-product-result[]
 color:text | similarity:double
-azure      | 65025.5
-cyan       | 65025.5
-white      | 65025.5
-mint cream | 64388.0
-snow       | 63750.5
-honeydew   | 63113.0
-ivory      | 63113.0
-sea shell  | 61583.0
-lavender   | 61200.5
-old lace   | 60563.0
+azure      | 130050.0
+cyan       | 130050.0
+white      | 130050.0
+mint cream | 128775.0
+snow       | 127500.0
+honeydew   | 126225.0
+ivory      | 126225.0
+sea shell  | 123165.0
+lavender   | 122400.0
+old lace   | 121125.0
 // end::vector-dot-product-result[] 
 ;
 
 similarityAsPartOfExpression
-required_capability: dot_product_vector_similarity_function
-required_capability: dense_vector_field_type_released
+required_capability: vector_similarity_functions_pushdown
 
 from colors
 | eval score = round((1 + v_dot_product(rgb_vector, [0, 255, 255]) / 2), 3) 
@@ -40,21 +38,20 @@ from colors
 ;
 
 color:text | score:double
-azure      | 32513.75
-cyan       | 32513.75
-white      | 32513.75
-mint cream | 32195.0
-snow       | 31876.25
-honeydew   | 31557.5
-ivory      | 31557.5
-sea shell  | 30792.5
-lavender   | 30601.25
-old lace   | 30282.5
+azure      | 65026.0
+cyan       | 65026.0
+white      | 65026.0
+mint cream | 64388.5
+snow       | 63751.0
+honeydew   | 63113.5
+ivory      | 63113.5
+sea shell  | 61583.5
+lavender   | 61201.0
+old lace   | 60563.5
 ;
 
 similarityWithLiteralVectors
-required_capability: dot_product_vector_similarity_function
-required_capability: dense_vector_field_type_released
+required_capability: vector_similarity_functions_pushdown
  
 row a = 1
 | eval similarity = round(v_dot_product([1, 2, 3], [0, 1, 2]), 3) 
@@ -62,12 +59,11 @@ row a = 1
 ;
 
 similarity:double
-4.5
+8.0
 ;
 
 similarityWithStats
-required_capability: dot_product_vector_similarity_function
-required_capability: dense_vector_field_type_released
+required_capability: vector_similarity_functions_pushdown
 
 from colors
 | eval similarity = round(v_dot_product(rgb_vector, [0, 255, 255]), 3) 
@@ -75,13 +71,11 @@ from colors
 ;
 
 avg:double | min:double | max:double
-39519.017  | 0.5        | 65025.5
+79037.034  | 0.0        | 130050.0
 ;
 
 similarityWithNull
-required_capability: dot_product_vector_similarity_function
-required_capability: vector_similarity_functions_support_null
-required_capability: dense_vector_field_type_released
+required_capability: vector_similarity_functions_pushdown
 
 from colors
 | eval similarity = v_dot_product(rgb_vector, null) 
@@ -92,42 +86,134 @@ total_null:long
 59
 ;
 
-
 similarityWithRow
-required_capability: dot_product_vector_similarity_function
-required_capability: to_dense_vector_function
-required_capability: dense_vector_field_type_released
+required_capability: vector_similarity_functions_pushdown
  
 row vector = to_dense_vector([1, 2, 3])
 | eval similarity = round(v_dot_product(vector, [0, 1, 2]), 3) 
 ;
 
-vector: dense_vector | similarity:double
-[1.0, 2.0, 3.0]      | 4.5
+vector:dense_vector | similarity:double
+[1.0, 2.0, 3.0]     | 8.0
 ;
 
-similarityWithVectorField
-required_capability: dot_product_vector_similarity_function
-required_capability: to_dense_vector_function
-required_capability: dense_vector_field_type_released
+multipleEvalSimilarityWithVectorFields
+required_capability: vector_similarity_functions_pushdown
 
 from colors
-| eval query = to_dense_vector([0, 255, 255])
-| eval similarity = v_dot_product(rgb_vector, query) 
+| eval similarity1 = v_dot_product(rgb_vector, [0, 255, 255]), similarity2 = v_dot_product(rgb_vector, [255, 0, 255]) / 2 + 1
+| sort similarity1 desc, similarity2 desc, color asc 
+| limit 10
+| keep color, similarity1, similarity2
+;
+
+color:text | similarity1:double | similarity2:double 
+white      | 130050.0           | 65026.0
+azure      | 130050.0           | 63113.5
+cyan       | 130050.0           | 32513.5
+mint cream | 128775.0           | 63113.5
+snow       | 127500.0           | 64388.5
+ivory      | 126225.0           | 63113.5
+honeydew   | 126225.0           | 61201.0
+sea shell  | 123165.0           | 62858.5
+lavender   | 122400.0           | 61201.0
+old lace   | 121125.0           | 61583.5   
+;
+
+multipleSimilarityWithVectorFields
+required_capability: vector_similarity_functions_pushdown
+
+from colors
+| eval similarity = v_dot_product(rgb_vector, [0, 255, 255]) / 2 + v_dot_product(rgb_vector, [255, 0, 255]) / 2 + 1
 | sort similarity desc, color asc 
 | limit 10
 | keep color, similarity
 ;
 
 color:text | similarity:double
-azure      | 65025.5
-cyan       | 65025.5
-white      | 65025.5
-mint cream | 64388.0
-snow       | 63750.5
-honeydew   | 63113.0
-ivory      | 63113.0
-sea shell  | 61583.0
-lavender   | 61200.5
-old lace   | 60563.0
+white      | 130051.0
+azure      | 128138.5
+snow       | 128138.5
+mint cream | 127501.0
+ivory      | 126226.0
+sea shell  | 124441.0
+honeydew   | 124313.5
+lavender   | 122401.0
+old lace   | 122146.0
+linen      | 121126.0
+;
+
+dotProductWithLookupJoin
+required_capability: vector_similarity_functions_pushdown
+required_capability: join_lookup_v12
+
+from colors
+| eval s = v_dot_product(rgb_vector, [1, 2, 3])
+| lookup join colors_cmyk on id
+| keep color, s, cmyk_vector
+| sort s desc, color asc
+| limit 10
+;
+
+color:text | s:double | cmyk_vector:dense_vector
+white      | 1530.0   | [0.0, 0.0, 0.0, 0.0]
+azure      | 1515.0   | [6.0, 0.0, 0.0, 0.0]
+mint cream | 1505.0   | [4.0, 0.0, 2.0, 0.0]
+snow       | 1505.0   | [0.0, 2.0, 2.0, 0.0]
+ivory      | 1485.0   | [0.0, 0.0, 6.0, 0.0]
+honeydew   | 1470.0   | [6.0, 0.0, 6.0, 0.0]
+sea shell  | 1459.0   | [0.0, 4.0, 7.0, 0.0]
+lavender   | 1440.0   | [8.0, 8.0, 0.0, 2.0]
+old lace   | 1433.0   | [0.0, 3.0, 9.0, 1.0]
+linen      | 1420.0   | [0.0, 4.0, 8.0, 2.0]
+;
+
+dotProductWithLookupJoinOnJoinedField
+required_capability: vector_similarity_functions_pushdown
+required_capability: join_lookup_v12
+
+from colors
+| lookup join colors_cmyk on id
+| eval s = v_dot_product(cmyk_vector, [1, 2, 3, 4])
+| keep color, s
+| sort s desc, color asc
+| limit 10
+;
+
+color:text | s:double
+maroon     | 700.0
+green      | 600.0
+firebrick  | 525.0
+brown      | 515.0
+navy       | 500.0
+olive      | 500.0
+red        | 500.0
+sienna     | 462.0
+crimson    | 457.0
+indigo     | 438.0
+;
+
+dotProductWithEnrich
+required_capability: vector_similarity_functions_pushdown
+required_capability: enrich_load
+
+from colors
+| eval s = v_dot_product(rgb_vector, [1, 2, 3])
+| enrich colors_policy
+| keep color_name, s
+| sort s desc, color_name asc
+| limit 10
+;
+
+color_name:text | s:double
+white           | 1530.0
+azure           | 1515.0
+mint cream      | 1505.0
+snow            | 1505.0
+ivory           | 1485.0
+honeydew        | 1470.0
+sea shell       | 1459.0
+lavender        | 1440.0
+old lace        | 1433.0
+linen           | 1420.0
 ;

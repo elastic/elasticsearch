@@ -149,8 +149,8 @@ public final class PercentileDoubleAggregatorFunction implements AggregatorFunct
     }
     BytesRefVector quart = ((BytesRefBlock) quartUncast).asVector();
     assert quart.getPositionCount() == 1;
-    BytesRef scratch = new BytesRef();
-    PercentileDoubleAggregator.combineIntermediate(state, quart.getBytesRef(0, scratch));
+    BytesRef quartScratch = new BytesRef();
+    PercentileDoubleAggregator.combineIntermediate(state, quart.getBytesRef(0, quartScratch));
   }
 
   @Override

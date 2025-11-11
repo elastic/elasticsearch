@@ -60,16 +60,11 @@ public class Increase extends TimeSeriesAggregateFunction implements OptionalArg
         @Param(name = "field", type = { "counter_long", "counter_integer", "counter_double" }) Expression field,
         Expression timestamp
     ) {
-        this(source, field, Literal.TRUE, timestamp);
+        this(source, field, Literal.TRUE, NO_WINDOW, timestamp);
     }
 
-    // compatibility constructor used when reading from the stream
-    private Increase(Source source, Expression field, Expression filter, List<Expression> children) {
-        this(source, field, filter, children.getFirst());
-    }
-
-    private Increase(Source source, Expression field, Expression filter, Expression timestamp) {
-        super(source, field, filter, List.of(timestamp));
+    private Increase(Source source, Expression field, Expression filter, Expression window, Expression timestamp) {
+        super(source, field, filter, window, List.of(timestamp));
         this.timestamp = timestamp;
     }
 
@@ -78,7 +73,8 @@ public class Increase extends TimeSeriesAggregateFunction implements OptionalArg
             Source.readFrom((PlanStreamInput) in),
             in.readNamedWriteable(Expression.class),
             in.readNamedWriteable(Expression.class),
-            in.readNamedWriteableCollectionAsList(Expression.class)
+            readWindow(in),
+            in.readNamedWriteableCollectionAsList(Expression.class).getFirst()
         );
     }
 
@@ -94,16 +90,12 @@ public class Increase extends TimeSeriesAggregateFunction implements OptionalArg
 
     @Override
     public Increase replaceChildren(List<Expression> newChildren) {
-        if (newChildren.size() != 3) {
-            assert false : "expected 3 children for field, filter, @timestamp; got " + newChildren;
-            throw new IllegalArgumentException("expected 3 children for field, filter, @timestamp; got " + newChildren);
-        }
-        return new Increase(source(), newChildren.get(0), newChildren.get(1), newChildren.get(2));
+        return new Increase(source(), newChildren.get(0), newChildren.get(1), newChildren.get(2), newChildren.get(3));
     }
 
     @Override
     public Increase withFilter(Expression filter) {
-        return new Increase(source(), field(), filter, timestamp);
+        return new Increase(source(), field(), filter, window(), timestamp);
     }
 
     @Override

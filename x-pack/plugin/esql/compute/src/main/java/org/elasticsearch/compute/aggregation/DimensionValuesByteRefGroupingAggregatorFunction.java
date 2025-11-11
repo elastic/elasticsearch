@@ -237,16 +237,17 @@ public final class DimensionValuesByteRefGroupingAggregatorFunction implements G
     @Override
     public void evaluateIntermediate(Block[] blocks, int offset, IntVector selected) {
         int positionCount = selected.getPositionCount();
-        boolean allSelected = positionCount == maxGroupId + 1;
+        boolean allSelected = positionCount > maxGroupId;
         if (allSelected) {
             for (int i = 0; i < selected.getPositionCount(); i++) {
-                if (selected.getInt(i) == i) {
+                if (selected.getInt(i) != i) {
                     allSelected = false;
                     break;
                 }
             }
         }
         if (allSelected) {
+            fillNullsUpTo(positionCount);
             blocks[offset] = builder.build();
             return;
         }

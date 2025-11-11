@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.inference.rank.textsimilarity;
 
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -25,7 +24,6 @@ public class ChunkScorerConfig implements Writeable, ToXContentObject {
 
     public final Integer size;
     private final String inferenceText;
-    private final String inferenceId;
     private final ChunkingSettings chunkingSettings;
 
     public static final int DEFAULT_CHUNK_SIZE = 300;
@@ -54,26 +52,16 @@ public class ChunkScorerConfig implements Writeable, ToXContentObject {
     public ChunkScorerConfig(StreamInput in) throws IOException {
         this.size = in.readOptionalVInt();
         this.inferenceText = in.readString();
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_19_0)) {
-            this.inferenceId = in.readOptionalString();
-        } else {
-            this.inferenceId = null;
-        }
         Map<String, Object> chunkingSettingsMap = in.readGenericMap();
         this.chunkingSettings = ChunkingSettingsBuilder.fromMap(chunkingSettingsMap);
     }
 
     public ChunkScorerConfig(Integer size, ChunkingSettings chunkingSettings) {
-        this(size, null, null, chunkingSettings);
+        this(size, null, chunkingSettings);
     }
 
     public ChunkScorerConfig(Integer size, String inferenceText, ChunkingSettings chunkingSettings) {
-        this(size, null, inferenceText, chunkingSettings);
-    }
-
-    public ChunkScorerConfig(Integer size, String inferenceId, String inferenceText, ChunkingSettings chunkingSettings) {
         this.size = size;
-        this.inferenceId = inferenceId;
         this.inferenceText = inferenceText;
         this.chunkingSettings = chunkingSettings;
     }
@@ -82,9 +70,6 @@ public class ChunkScorerConfig implements Writeable, ToXContentObject {
     public void writeTo(StreamOutput out) throws IOException {
         out.writeOptionalVInt(size);
         out.writeString(inferenceText);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_19_0)) {
-            out.writeOptionalString(inferenceId);
-        }
         out.writeGenericMap(chunkingSettings.asMap());
     }
 
@@ -100,10 +85,6 @@ public class ChunkScorerConfig implements Writeable, ToXContentObject {
         return inferenceText;
     }
 
-    public String inferenceId() {
-        return inferenceId;
-    }
-
     public ChunkingSettings chunkingSettings() {
         return chunkingSettings;
     }
@@ -115,13 +96,12 @@ public class ChunkScorerConfig implements Writeable, ToXContentObject {
         ChunkScorerConfig that = (ChunkScorerConfig) o;
         return Objects.equals(size, that.size)
             && Objects.equals(inferenceText, that.inferenceText)
-            && Objects.equals(inferenceId, that.inferenceId)
             && Objects.equals(chunkingSettings, that.chunkingSettings);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(size, inferenceText, inferenceId, chunkingSettings);
+        return Objects.hash(size, inferenceText, chunkingSettings);
     }
 
     @Override
@@ -131,9 +111,6 @@ public class ChunkScorerConfig implements Writeable, ToXContentObject {
             + sizeOrDefault()
             + ", inferenceText=["
             + inferenceText
-            + ']'
-            + ", inferenceId=["
-            + inferenceId
             + ']'
             + ", chunkingSettings="
             + chunkingSettings
@@ -145,7 +122,6 @@ public class ChunkScorerConfig implements Writeable, ToXContentObject {
         builder.startObject();
         builder.field("size", size);
         builder.field("inference_text", inferenceText);
-        builder.field("inference_id", inferenceId);
         builder.field("chunking_settings");
         chunkingSettings.toXContent(builder, params);
         builder.endObject();

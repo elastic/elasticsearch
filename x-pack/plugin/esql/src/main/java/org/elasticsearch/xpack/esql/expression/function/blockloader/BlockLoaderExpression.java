@@ -27,8 +27,8 @@ import org.elasticsearch.xpack.esql.stats.SearchStats;
  * <ul>
  *     <li>
  *         {@code V_COSINE(vector, [constant_vector])} - vector is ~512 floats
- *         and V_COSINE is one double. We can find the similarity without any
- *         copies if we combine.
+ *         and V_COSINE is one double. We can do this without copying the floats
+ *         at all if we push.
  *     </li>
  *     <li>
  *         {@code ST_CENTROID(shape)} - shapes can be quite large. Centroids
@@ -44,7 +44,7 @@ import org.elasticsearch.xpack.esql.stats.SearchStats;
  *         {@code MV_COUNT(anything)} - counts are always integers.
  *     </li>
  *     <li>
- *         {@code MV_MIN} and {@code MV_MAX} - loads much fewer data for
+ *         {@code MV_MIN} and {@code MV_MAX} - loads a single value instead of
  *         multivalued fields.
  *     </li>
  * </ul>
@@ -217,7 +217,7 @@ import org.elasticsearch.xpack.esql.stats.SearchStats;
  *     <a href="https://benchmarks.elastic.co/index.html">benchmarks.elastic.co</a>.
  * </p>
  * <p>
- *     If there isn't already a rally track then you should add one like this
+ *     If there isn't already a rally operation then you should add one like this
  *     <a href="https://github.com/elastic/rally-tracks/pull/902">PR</a>. How you add
  *     one of these and how you get it into the nightlies and whether it should be in
  *     the nightlies is outside the scope of this document.

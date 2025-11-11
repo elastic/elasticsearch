@@ -22,15 +22,12 @@ public final class DocValuesForUtil {
     private static final int BITS_IN_SIX_BYTES = 6 * Byte.SIZE;
     private static final int BITS_IN_SEVEN_BYTES = 7 * Byte.SIZE;
 
-    private static final int BITPACK_BLOCK_SHIFT = 7;
-    private static final int BITBACK_BLOCK_SIZE = 1 << BITPACK_BLOCK_SHIFT;
-
     private final int blockSize;
     private final byte[] encoded;
 
     public DocValuesForUtil(int numericBlockSize) {
-        assert numericBlockSize >= BITBACK_BLOCK_SIZE && (numericBlockSize & (BITBACK_BLOCK_SIZE - 1)) == 0
-            : "expected to get a block size that a multiple of " + BITBACK_BLOCK_SIZE + ", got " + numericBlockSize;
+        assert numericBlockSize >= ForUtil.BLOCK_SIZE && (numericBlockSize & (ForUtil.BLOCK_SIZE - 1)) == 0
+            : "expected to get a block size that a multiple of " + ForUtil.BLOCK_SIZE + ", got " + numericBlockSize;
         this.blockSize = numericBlockSize;
         this.encoded = new byte[numericBlockSize * Long.BYTES];
     }
@@ -54,10 +51,10 @@ public final class DocValuesForUtil {
         if (bitsPerValue <= 24) { // these bpvs are handled efficiently by ForUtil
             ForUtil.encode(in, bitsPerValue, out);
         } else if (bitsPerValue <= 32) {
-            for (int k = 0; k < blockSize >> BITPACK_BLOCK_SHIFT; k++) {
-                collapse32(in, k * BITBACK_BLOCK_SIZE);
-                for (int i = 0; i < BITBACK_BLOCK_SIZE / 2; i++) {
-                    out.writeLong(in[k * BITBACK_BLOCK_SIZE + i]);
+            for (int k = 0; k < blockSize >> ForUtil.BLOCK_SIZE; k++) {
+                collapse32(in, k * ForUtil.BLOCK_SIZE);
+                for (int i = 0; i < ForUtil.BLOCK_SIZE / 2; i++) {
+                    out.writeLong(in[k * ForUtil.BLOCK_SIZE + i]);
                 }
             }
         } else if (bitsPerValue == BITS_IN_FIVE_BYTES || bitsPerValue == BITS_IN_SIX_BYTES || bitsPerValue == BITS_IN_SEVEN_BYTES) {
@@ -82,9 +79,9 @@ public final class DocValuesForUtil {
         if (bitsPerValue <= 24) {
             ForUtil.decode(bitsPerValue, in, out);
         } else if (bitsPerValue <= 32) {
-            for (int k = 0; k < blockSize >> BITPACK_BLOCK_SHIFT; k++) {
-                in.readLongs(out, +k * BITBACK_BLOCK_SIZE, BITBACK_BLOCK_SIZE / 2);
-                expand32(out, k * BITBACK_BLOCK_SIZE);
+            for (int k = 0; k < blockSize >> ForUtil.BLOCK_SIZE_SHIFT; k++) {
+                in.readLongs(out, +k * ForUtil.BLOCK_SIZE, ForUtil.BLOCK_SIZE / 2);
+                expand32(out, k * ForUtil.BLOCK_SIZE);
             }
         } else if (bitsPerValue == BITS_IN_FIVE_BYTES || bitsPerValue == BITS_IN_SIX_BYTES || bitsPerValue == BITS_IN_SEVEN_BYTES) {
             decodeFiveSixOrSevenBytesPerValue(bitsPerValue, in, out);

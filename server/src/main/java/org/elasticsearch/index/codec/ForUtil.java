@@ -21,7 +21,7 @@ import java.io.IOException;
 // else we pack 2 ints per long
 public final class ForUtil {
 
-    private static final int BLOCK_SIZE_SHIFT = 7;
+    public static final int BLOCK_SIZE_SHIFT = 7;
     public static final int BLOCK_SIZE = 1 << BLOCK_SIZE_SHIFT;
     private static final int BLOCK_SIZE_MASK = BLOCK_SIZE - 1;
 

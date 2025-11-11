@@ -219,6 +219,63 @@ public class VectorByteUtilsTests extends BaseVectorizationTests {
         }
     }
 
+    public void testLoopBoundExactMultiple() {
+        // length is already a multiple of laneCount
+        assertEquals(64, VectorByteUtils.loopBound(64, 8));
+        assertEquals(128, VectorByteUtils.loopBound(128, 16));
+        assertEquals(128, VectorByteUtils.loopBound(128, 32));
+        assertEquals(256, VectorByteUtils.loopBound(256, 64));
+    }
+
+    public void testLoopBoundNonMultiple() {
+        // length is not a multiple, round down to the nearest multiple
+        assertEquals(56, VectorByteUtils.loopBound(63, 8));
+        assertEquals(48, VectorByteUtils.loopBound(55, 16));
+        assertEquals(32, VectorByteUtils.loopBound(55, 32));
+        assertEquals(192, VectorByteUtils.loopBound(255, 64));
+    }
+
+    public void testLoopBoundSmallerThanLaneCount() {
+        // length smaller than laneCount, result is 0
+        assertEquals(0, VectorByteUtils.loopBound(3, 8));
+        assertEquals(0, VectorByteUtils.loopBound(15, 16));
+        assertEquals(0, VectorByteUtils.loopBound(29, 32));
+        assertEquals(0, VectorByteUtils.loopBound(63, 64));
+    }
+
+    public void testLoopBoundLengthZero() {
+        assertEquals(0, VectorByteUtils.loopBound(0, 8));
+        assertEquals(0, VectorByteUtils.loopBound(0, 16));
+        assertEquals(0, VectorByteUtils.loopBound(0, 32));
+        assertEquals(0, VectorByteUtils.loopBound(0, 64));
+    }
+
+    public void testLoopBoundLaneCountOne() {
+        // laneCount = 1, loopBound == length
+        for (int len = 0; len < 10; len++) {
+            assertEquals(len, VectorByteUtils.loopBound(len, 1));
+        }
+    }
+
+    public void testLoopBoundPowersOfTwo() {
+        // verify behavior for a variety of power-of-two lane counts
+        int[] laneCounts = { 2, 4, 8, 16, 32, 64 };
+        int length = 123;
+        for (int laneCount : laneCounts) {
+            int bound = VectorByteUtils.loopBound(length, laneCount);
+            assertEquals("Bound should be a multiple of laneCount", 0, bound % laneCount);
+            assertTrue("Bound should be <= length", bound <= length);
+        }
+    }
+
+    public void testLoopBoundInvalidLaneCountZero() {
+        expectThrows(AssertionError.class, () -> VectorByteUtils.loopBound(10, 0));
+    }
+
+    public void testLoopBoundInvalidLaneCountNonPowerOfTwo() {
+        expectThrows(AssertionError.class, () -> VectorByteUtils.loopBound(10, 3)); // not a power of two
+    }
+
     static boolean isPowerOfTwo(int n) {
         return n > 0 && (n & (n - 1)) == 0;
     }

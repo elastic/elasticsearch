@@ -176,6 +176,7 @@ public class EsqlExecutionInfo implements ChunkedToXContentObject, Writeable {
         assert inSubplan == false : "Should not be serializing execution info while in subplans";
     }
 
+    // this is still here for testing only, use includeExecutionMetadata() in production code
     public boolean includeCCSMetadata() {
         return includeExecutionMetadata == IncludeExecutionMetadata.ALWAYS || includeExecutionMetadata == IncludeExecutionMetadata.CCS_ONLY;
     }

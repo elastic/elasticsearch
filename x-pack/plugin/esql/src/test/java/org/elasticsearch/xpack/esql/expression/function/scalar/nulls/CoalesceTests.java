@@ -19,6 +19,8 @@ import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.compute.test.TestBlockFactory;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.exponentialhistogram.ExponentialHistogram;
+import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
@@ -117,6 +119,19 @@ public class CoalesceTests extends AbstractScalarFunctionTestCase {
                 "CoalesceLongEagerEvaluator[values=[Attribute[channel=0], Attribute[channel=1]]]",
                 DataType.DATE_NANOS,
                 equalTo(firstDate == null ? secondDate : firstDate)
+            );
+        }));
+        noNullsSuppliers.add(new TestCaseSupplier(List.of(DataType.EXPONENTIAL_HISTOGRAM, DataType.EXPONENTIAL_HISTOGRAM), () -> {
+            ExponentialHistogram firstHisto = randomBoolean() ? null : EsqlTestUtils.randomExponentialHistogram();
+            ExponentialHistogram secondHisto = EsqlTestUtils.randomExponentialHistogram();
+            return new TestCaseSupplier.TestCase(
+                List.of(
+                    new TestCaseSupplier.TypedData(firstHisto, DataType.EXPONENTIAL_HISTOGRAM, "first"),
+                    new TestCaseSupplier.TypedData(secondHisto, DataType.EXPONENTIAL_HISTOGRAM, "second")
+                ),
+                "CoalesceExponentialHistogramEagerEvaluator[values=[Attribute[channel=0], Attribute[channel=1]]]",
+                DataType.EXPONENTIAL_HISTOGRAM,
+                equalTo(firstHisto == null ? secondHisto : firstHisto)
             );
         }));
 

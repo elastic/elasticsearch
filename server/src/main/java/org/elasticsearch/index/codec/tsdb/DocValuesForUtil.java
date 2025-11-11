@@ -80,7 +80,7 @@ public final class DocValuesForUtil {
             ForUtil.decode(bitsPerValue, in, out);
         } else if (bitsPerValue <= 32) {
             for (int k = 0; k < blockSize >> ForUtil.BLOCK_SIZE_SHIFT; k++) {
-                in.readLongs(out, +k * ForUtil.BLOCK_SIZE, ForUtil.BLOCK_SIZE / 2);
+                in.readLongs(out, k * ForUtil.BLOCK_SIZE, ForUtil.BLOCK_SIZE / 2);
                 expand32(out, k * ForUtil.BLOCK_SIZE);
             }
         } else if (bitsPerValue == BITS_IN_FIVE_BYTES || bitsPerValue == BITS_IN_SIX_BYTES || bitsPerValue == BITS_IN_SEVEN_BYTES) {

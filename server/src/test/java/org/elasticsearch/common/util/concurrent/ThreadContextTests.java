@@ -1195,12 +1195,12 @@ public class ThreadContextTests extends ESTestCase {
         threadContext.putHeader(rootTraceContext);
         threadContext.putTransient(Task.APM_TRACE_CONTEXT, apmTraceContext);
 
-        assertThat(threadContext.hasTraceContext(), equalTo(true));
-        assertThat(threadContext.hasParentTraceContext(), equalTo(false));
+        assertThat(threadContext.hasApmTraceContext(), equalTo(true));
+        assertThat(threadContext.hasParentApmTraceContext(), equalTo(false));
 
         try (var ignored = threadContext.newTraceContext()) {
-            assertThat(threadContext.hasTraceContext(), equalTo(false)); // no trace started yet
-            assertThat(threadContext.hasParentTraceContext(), equalTo(true));
+            assertThat(threadContext.hasApmTraceContext(), equalTo(false)); // no trace started yet
+            assertThat(threadContext.hasParentApmTraceContext(), equalTo(true));
 
             assertThat(threadContext.getHeaders(), is(anEmptyMap()));
             assertThat(
@@ -1220,8 +1220,8 @@ public class ThreadContextTests extends ESTestCase {
             threadContext.addResponseHeader(responseKey, responseValue);
         }
 
-        assertThat(threadContext.hasTraceContext(), equalTo(true));
-        assertThat(threadContext.hasParentTraceContext(), equalTo(false));
+        assertThat(threadContext.hasApmTraceContext(), equalTo(true));
+        assertThat(threadContext.hasParentApmTraceContext(), equalTo(false));
 
         assertThat(threadContext.getHeaders(), equalTo(rootTraceContext));
         assertThat(threadContext.getTransientHeaders(), equalTo(Map.of(Task.APM_TRACE_CONTEXT, apmTraceContext)));
@@ -1234,13 +1234,13 @@ public class ThreadContextTests extends ESTestCase {
         var responseKey = randomIdentifier();
         var responseValue = randomAlphaOfLength(10);
 
-        assertThat(threadContext.hasTraceContext(), equalTo(false));
-        assertThat(threadContext.hasParentTraceContext(), equalTo(false));
+        assertThat(threadContext.hasApmTraceContext(), equalTo(false));
+        assertThat(threadContext.hasParentApmTraceContext(), equalTo(false));
 
         try (var ignored = threadContext.newTraceContext()) {
             assertTrue(threadContext.isDefaultContext());
-            assertThat(threadContext.hasTraceContext(), equalTo(false));
-            assertThat(threadContext.hasParentTraceContext(), equalTo(false));
+            assertThat(threadContext.hasApmTraceContext(), equalTo(false));
+            assertThat(threadContext.hasParentApmTraceContext(), equalTo(false));
 
             // discared, just making sure the context is isolated
             threadContext.putTransient(randomIdentifier(), randomAlphaOfLength(10));

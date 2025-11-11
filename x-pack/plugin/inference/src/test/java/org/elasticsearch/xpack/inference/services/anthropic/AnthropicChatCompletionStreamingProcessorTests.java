@@ -38,10 +38,10 @@ public class AnthropicChatCompletionStreamingProcessorTests extends ESTestCase {
                     {
                          "type": "message_start",
                          "message": {
+                             "model": "claude-3-5-haiku-20241022",
                              "id": "msg_vrtx_01F9nngkx9PojtBCkhj9xP2v",
                              "type": "message",
                              "role": "assistant",
-                             "model": "claude-3-5-haiku-20241022",
                              "content": [],
                              "stop_reason": null,
                              "stop_sequence": null,

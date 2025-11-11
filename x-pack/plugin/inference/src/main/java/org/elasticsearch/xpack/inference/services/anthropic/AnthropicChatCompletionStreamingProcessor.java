@@ -147,9 +147,9 @@ public class AnthropicChatCompletionStreamingProcessor extends DelegatingProcess
         String data
     ) throws IOException {
         try (XContentParser jsonParser = XContentFactory.xContent(XContentType.JSON).createParser(parserConfig, data)) {
+            var model = parseStringField(jsonParser, MODEL_FIELD);
             var id = parseStringField(jsonParser, ID_FIELD);
             var role = parseStringField(jsonParser, ROLE_FIELD);
-            var model = parseStringField(jsonParser, MODEL_FIELD);
             var finishReason = parseStringOrNullField(jsonParser, STOP_REASON_FIELD);
             var promptTokens = parseNumberField(jsonParser, INPUT_TOKENS_FIELD);
             var completionTokens = parseNumberField(jsonParser, OUTPUT_TOKENS_FIELD);

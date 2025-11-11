@@ -17,13 +17,13 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.FunctionEsField;
 import org.elasticsearch.xpack.esql.expression.function.blockloader.BlockLoaderExpression;
 import org.elasticsearch.xpack.esql.optimizer.LocalLogicalOptimizerContext;
-import org.elasticsearch.xpack.esql.optimizer.rules.logical.OptimizerRules;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.local.EsqlProject;
+import org.elasticsearch.xpack.esql.rule.ParameterizedRule;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -37,31 +37,32 @@ import static org.elasticsearch.xpack.esql.core.expression.Attribute.rawTemporar
  * the similarity function during value loading, when one side of the function is a literal.
  * It also adds the new field function attribute to the EsRelation output, and adds a projection after it to remove it from the output.
  */
-public class PushExpressionsToFieldLoad extends OptimizerRules.ParameterizedRule<LogicalPlan, LocalLogicalOptimizerContext> {
+public class PushExpressionsToFieldLoad extends ParameterizedRule<LogicalPlan, LogicalPlan, LocalLogicalOptimizerContext> {
 
     @Override
     public LogicalPlan apply(LogicalPlan plan, LocalLogicalOptimizerContext context) {
         Map<Attribute.IdIgnoringWrapper, Attribute> addedAttrs = new HashMap<>();
-        return plan.transformDown(LogicalPlan.class, p -> doRule(p, context.searchStats(), addedAttrs));
+        return plan.transformDown(LogicalPlan.class, p -> doRule(p, context, addedAttrs));
     }
 
-
-    @Override
-    private LogicalPlan doRule(LogicalPlan plan, SearchStats searchStats, Map<Attribute.IdIgnoringWrapper, Attribute> addedAttrs) {
+    private LogicalPlan doRule(
+        LogicalPlan plan,
+        LocalLogicalOptimizerContext context,
+        Map<Attribute.IdIgnoringWrapper, Attribute> addedAttrs
+    ) {
         // Collect field attributes from previous runs
         int originalAddedAttrsSize = addedAttrs.size();
         if (plan instanceof Eval || plan instanceof Filter || plan instanceof Aggregate) {
-            Map<Attribute.IdIgnoringWrapper, Attribute> addedAttrs = new HashMap<>();
             LogicalPlan transformedPlan = plan.transformExpressionsOnly(Expression.class, e -> {
                 if (e instanceof BlockLoaderExpression ble) {
                     BlockLoaderExpression.PushedBlockLoaderExpression fuse = ble.tryPushToFieldLoading(context.searchStats());
                     if (fuse != null
                         && context.searchStats()
-                        .supportsLoaderConfig(
-                            fuse.field().fieldName(),
-                            fuse.config(),
-                            context.configuration().pragmas().fieldExtractPreference()
-                        )) {
+                            .supportsLoaderConfig(
+                                fuse.field().fieldName(),
+                                fuse.config(),
+                                context.configuration().pragmas().fieldExtractPreference()
+                            )) {
                         return replaceFieldsForFieldTransformations(e, addedAttrs, fuse);
                     }
                 }

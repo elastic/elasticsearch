@@ -64,7 +64,7 @@ public class TextSimilarityRankFeaturePhaseRankCoordinatorContext extends RankFe
 
     @Override
     protected void computeScores(RankFeatureDoc[] featureDocs, ActionListener<float[]> scoreListener) {
-        
+
         // top N listener
         ActionListener<GetInferenceModelAction.Response> topNListener = scoreListener.delegateFailureAndWrap((l, r) -> {
             // The rerank inference endpoint may have an override to return top N documents only
@@ -155,6 +155,7 @@ public class TextSimilarityRankFeaturePhaseRankCoordinatorContext extends RankFe
         GetInferenceModelAction.Request getModelRequest = new GetInferenceModelAction.Request(inferenceId, TaskType.RERANK);
         client.execute(GetInferenceModelAction.INSTANCE, getModelRequest, topNListener);
     }
+
     /**
      * Sorts documents by score descending and discards those with a score less than minScore.
      *
@@ -237,33 +238,27 @@ public class TextSimilarityRankFeaturePhaseRankCoordinatorContext extends RankFe
         return Math.max(score, 0) + Math.min((float) Math.exp(score), 1);
     }
 
-
     private ChunkScorerConfig resolveChunkingSettings(GetInferenceModelAction.Response response) {
         if (chunkScorerConfig == null) {
             return null;
         }
-        
+
         if (chunkScorerConfig.chunkingSettings() != null) {
             return chunkScorerConfig;
         }
-        
+
         ChunkingSettings endpointSettings = extractChunkingSettingsFromResponse(response);
-        
+
         if (endpointSettings != null) {
-            return new ChunkScorerConfig(
-                chunkScorerConfig.size(),
-                chunkScorerConfig.inferenceText(),
-                endpointSettings
-            );
+            return new ChunkScorerConfig(chunkScorerConfig.size(), chunkScorerConfig.inferenceText(), endpointSettings);
         }
-        
+
         return new ChunkScorerConfig(
             chunkScorerConfig.size(),
             chunkScorerConfig.inferenceText(),
             ChunkScorerConfig.createChunkingSettings(ChunkScorerConfig.DEFAULT_CHUNK_SIZE)
         );
     }
-
 
     private ChunkingSettings extractChunkingSettingsFromResponse(GetInferenceModelAction.Response response) {
         for (var endpoint : response.getEndpoints()) {

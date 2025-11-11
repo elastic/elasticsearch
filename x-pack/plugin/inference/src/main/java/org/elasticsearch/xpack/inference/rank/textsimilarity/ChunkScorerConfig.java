@@ -125,7 +125,7 @@ public class ChunkScorerConfig implements Writeable, ToXContentObject {
         if (chunkingSettings != null) {
             builder.field("chunking_settings");
             chunkingSettings.toXContent(builder, params);
-        }        
+        }
         builder.endObject();
         return builder;
     }

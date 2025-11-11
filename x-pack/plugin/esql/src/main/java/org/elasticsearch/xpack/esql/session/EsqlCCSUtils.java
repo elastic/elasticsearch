@@ -11,6 +11,7 @@ import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesFailure;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.action.support.IndicesOptions;
@@ -416,7 +417,8 @@ public class EsqlCCSUtils {
         IndexPattern indexPattern,
         IndexResolution indexResolution,
         IndicesExpressionGrouper indicesGrouper,
-        EsqlExecutionInfo executionInfo
+        EsqlExecutionInfo executionInfo,
+        Map<String, String> clusterWithInvalidIndexPatterns
     ) {
         // check if all clusters involved have skip_unavailable = true
         boolean allClustersSkipUnavailable = true;
@@ -437,9 +439,15 @@ public class EsqlCCSUtils {
                     + "replacing with EMPTY_SUBQUERY index resolution",
                 indexPattern.indexPattern()
             );
-            // mark the index pattern is skipped in execution info
-            for (String clusterAlias : groupedIndices.keySet()) {
-                markClusterWithFinalStateAndNoShards(executionInfo, clusterAlias, Cluster.Status.SKIPPED, null);
+            // update the map of clusters with invalid index patterns
+            for (Map.Entry<String, OriginalIndices> entry : groupedIndices.entrySet()) {
+                String clusterAlias = entry.getKey();
+                String indexExpression = Strings.arrayToCommaDelimitedString(entry.getValue().indices());
+                clusterWithInvalidIndexPatterns.merge(
+                    clusterAlias,
+                    indexExpression,
+                    (existingIndexExpression, newIndexExpression) -> existingIndexExpression + "," + newIndexExpression
+                );
             }
             return IndexResolution.EMPTY_SUBQUERY;
         }

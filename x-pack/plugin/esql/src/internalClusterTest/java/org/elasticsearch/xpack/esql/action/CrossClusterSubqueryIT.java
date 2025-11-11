@@ -169,7 +169,10 @@ public class CrossClusterSubqueryIT extends AbstractCrossClusterTestCase {
 
             // The subquery does not have any index matching the index pattern, Analyzer prunes that branch.
             try (EsqlQueryResponse resp = runQuery("""
-                FROM local*,(FROM c*:remote* metadata _index),(FROM r*:remote* metadata _index) metadata _index
+                FROM local*,
+                    (FROM c*:remote* metadata _index),
+                    (FROM r*:remote* metadata _index)
+                  metadata _index
                 | STATS c = count(*) by _index
                 | SORT _index
                 """, randomBoolean())) {
@@ -189,6 +192,125 @@ public class CrossClusterSubqueryIT extends AbstractCrossClusterTestCase {
                 assertThat(localCluster.getStatus(), equalTo(EsqlExecutionInfo.Cluster.Status.SUCCESSFUL));
                 remoteCluster = executionInfo.getCluster(REMOTE_CLUSTER_1);
                 assertThat(remoteCluster.getStatus(), equalTo(EsqlExecutionInfo.Cluster.Status.SKIPPED));
+                assertThat(remoteCluster.getFailures(), empty());
+            }
+
+            try (EsqlQueryResponse resp = runQuery("""
+                FROM local*,
+                    (FROM c*:remote* metadata _index),
+                    (FROM c*:missing* metadata _index),
+                    (FROM r*:remote* metadata _index)
+                  metadata _index
+                | STATS c = count(*) by _index
+                | SORT _index
+                """, randomBoolean())) {
+                var columns = resp.columns().stream().map(ColumnInfoImpl::name).toList();
+                assertThat(columns, hasItems("c", "_index"));
+
+                List<List<Object>> values = getValuesList(resp);
+                assertThat(values, hasSize(2));
+                List<List<Object>> expected = List.of(List.of(5L, "local_idx"), List.of(5L, "remote-b:remote_idx"));
+                assertEquals(expected, values);
+
+                EsqlExecutionInfo executionInfo = resp.getExecutionInfo();
+
+                var localCluster = executionInfo.getCluster(LOCAL_CLUSTER);
+                assertThat(localCluster.getStatus(), equalTo(EsqlExecutionInfo.Cluster.Status.SUCCESSFUL));
+                var remoteCluster = executionInfo.getCluster(REMOTE_CLUSTER_2);
+                assertThat(localCluster.getStatus(), equalTo(EsqlExecutionInfo.Cluster.Status.SUCCESSFUL));
+                remoteCluster = executionInfo.getCluster(REMOTE_CLUSTER_1);
+                assertThat(remoteCluster.getStatus(), equalTo(EsqlExecutionInfo.Cluster.Status.SKIPPED));
+                assertThat(remoteCluster.getFailures(), empty());
+            }
+
+            try (EsqlQueryResponse resp = runQuery("""
+                FROM local*,
+                    (FROM c*:remote*, c*:missing metadata _index),
+                    (FROM c*:missing* metadata _index),
+                    (FROM r*:remote* metadata _index)
+                  metadata _index
+                | STATS c = count(*) by _index
+                | SORT _index
+                """, randomBoolean())) {
+                var columns = resp.columns().stream().map(ColumnInfoImpl::name).toList();
+                assertThat(columns, hasItems("c", "_index"));
+
+                List<List<Object>> values = getValuesList(resp);
+                assertThat(values, hasSize(2));
+                List<List<Object>> expected = List.of(List.of(5L, "local_idx"), List.of(5L, "remote-b:remote_idx"));
+                assertEquals(expected, values);
+
+                EsqlExecutionInfo executionInfo = resp.getExecutionInfo();
+
+                var localCluster = executionInfo.getCluster(LOCAL_CLUSTER);
+                assertThat(localCluster.getStatus(), equalTo(EsqlExecutionInfo.Cluster.Status.SUCCESSFUL));
+                var remoteCluster = executionInfo.getCluster(REMOTE_CLUSTER_2);
+                assertThat(localCluster.getStatus(), equalTo(EsqlExecutionInfo.Cluster.Status.SUCCESSFUL));
+                remoteCluster = executionInfo.getCluster(REMOTE_CLUSTER_1);
+                assertThat(remoteCluster.getStatus(), equalTo(EsqlExecutionInfo.Cluster.Status.SKIPPED));
+                assertThat(remoteCluster.getFailures(), empty());
+            }
+
+            try (EsqlQueryResponse resp = runQuery("""
+                FROM local*,
+                    (FROM c*:remote* metadata _index),
+                    (FROM r*:remote* metadata _index),
+                    (FROM c*:logs-* metadata _index)
+                  metadata _index
+                | STATS c = count(*) by _index
+                | SORT _index
+                """, randomBoolean())) {
+                var columns = resp.columns().stream().map(ColumnInfoImpl::name).toList();
+                assertThat(columns, hasItems("c", "_index"));
+
+                List<List<Object>> values = getValuesList(resp);
+                assertThat(values, hasSize(3));
+                List<List<Object>> expected = List.of(
+                    List.of(10L, "cluster-a:logs-2"),
+                    List.of(5L, "local_idx"),
+                    List.of(5L, "remote-b:remote_idx")
+                );
+                assertEquals(expected, values);
+
+                EsqlExecutionInfo executionInfo = resp.getExecutionInfo();
+
+                var localCluster = executionInfo.getCluster(LOCAL_CLUSTER);
+                assertThat(localCluster.getStatus(), equalTo(EsqlExecutionInfo.Cluster.Status.SUCCESSFUL));
+                var remoteCluster = executionInfo.getCluster(REMOTE_CLUSTER_2);
+                assertThat(localCluster.getStatus(), equalTo(EsqlExecutionInfo.Cluster.Status.SUCCESSFUL));
+                remoteCluster = executionInfo.getCluster(REMOTE_CLUSTER_1);
+                assertThat(remoteCluster.getStatus(), equalTo(EsqlExecutionInfo.Cluster.Status.SUCCESSFUL));
+                assertThat(remoteCluster.getFailures(), empty());
+            }
+
+            try (EsqlQueryResponse resp = runQuery("""
+                FROM local*,
+                    (FROM c*:remote* metadata _index),
+                    (FROM r*:remote*, c*:logs-* metadata _index)
+                  metadata _index
+                | STATS c = count(*) by _index
+                | SORT _index
+                """, randomBoolean())) {
+                var columns = resp.columns().stream().map(ColumnInfoImpl::name).toList();
+                assertThat(columns, hasItems("c", "_index"));
+
+                List<List<Object>> values = getValuesList(resp);
+                assertThat(values, hasSize(3));
+                List<List<Object>> expected = List.of(
+                    List.of(10L, "cluster-a:logs-2"),
+                    List.of(5L, "local_idx"),
+                    List.of(5L, "remote-b:remote_idx")
+                );
+                assertEquals(expected, values);
+
+                EsqlExecutionInfo executionInfo = resp.getExecutionInfo();
+
+                var localCluster = executionInfo.getCluster(LOCAL_CLUSTER);
+                assertThat(localCluster.getStatus(), equalTo(EsqlExecutionInfo.Cluster.Status.SUCCESSFUL));
+                var remoteCluster = executionInfo.getCluster(REMOTE_CLUSTER_2);
+                assertThat(localCluster.getStatus(), equalTo(EsqlExecutionInfo.Cluster.Status.SUCCESSFUL));
+                remoteCluster = executionInfo.getCluster(REMOTE_CLUSTER_1);
+                assertThat(remoteCluster.getStatus(), equalTo(EsqlExecutionInfo.Cluster.Status.SUCCESSFUL));
                 assertThat(remoteCluster.getFailures(), empty());
             }
 

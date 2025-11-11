@@ -574,6 +574,7 @@ public class EsqlSession {
                     boolean hasValid = indexResolutions.stream().anyMatch(IndexResolution::isValid);
                     // Only if there is partial invalid index resolutions in subqueries
                     if (hasInvalid && hasValid) {
+                        Map<String, String> clustersWithInvalidIndexResolutions = new HashMap<>();
                         // iterate the index resolution and replace it with EMPTY_SUBQUERY if the index resolution is invalid
                         // and skipUnavailable is true for all the clusters involved
                         for (var entry : r.indexResolution.entrySet()) {
@@ -586,8 +587,24 @@ public class EsqlSession {
                                         indexPattern,
                                         indexResolution,
                                         indicesExpressionGrouper,
-                                        executionInfo
+                                        executionInfo,
+                                        clustersWithInvalidIndexResolutions
                                     )
+                                );
+                            }
+                        }
+                        // mark the clusters as SKIPPED in EsqlExecutionInfo for those clusters involved in the invalid
+                        // index resolution with skipUnavailable=true
+                        for (Map.Entry<String, String> entry : clustersWithInvalidIndexResolutions.entrySet()) {
+                            String clusterAlias = entry.getKey();
+                            String indexExpression = entry.getValue();
+                            EsqlExecutionInfo.Cluster cluster = executionInfo.getCluster(clusterAlias);
+                            if (indexExpression.equals(cluster.getIndexExpression())) {
+                                EsqlCCSUtils.markClusterWithFinalStateAndNoShards(
+                                    executionInfo,
+                                    clusterAlias,
+                                    EsqlExecutionInfo.Cluster.Status.SKIPPED,
+                                    null
                                 );
                             }
                         }

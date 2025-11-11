@@ -13,7 +13,6 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.DoubleValues;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.LeafNumericFieldData;
-import org.elasticsearch.index.fielddata.NumericDoubleValues;
 import org.elasticsearch.search.MultiValueMode;
 
 import java.io.IOException;
@@ -41,7 +40,7 @@ class DateMethodValueSource extends FieldDataValueSource {
     public DoubleValues getValues(LeafReaderContext leaf, DoubleValues scores) {
         LeafNumericFieldData leafData = (LeafNumericFieldData) fieldData.load(leaf);
         final Calendar calendar = Calendar.getInstance(TimeZone.getTimeZone("UTC"), Locale.ROOT);
-        NumericDoubleValues docValues = multiValueMode.select(leafData.getDoubleValues());
+        DoubleValues docValues = multiValueMode.select(leafData.getDoubleValues());
         return new DoubleValues() {
             @Override
             public double doubleValue() throws IOException {

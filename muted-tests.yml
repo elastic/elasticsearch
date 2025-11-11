@@ -472,9 +472,6 @@ tests:
 - class: org.elasticsearch.xpack.inference.external.http.sender.RequestExecutorServiceTests
   method: testChangingCapacity_DoesNotRejectsOverflowTasks_BecauseOfQueueFull
   issue: https://github.com/elastic/elasticsearch/issues/137823
-- class: org.elasticsearch.xpack.inference.external.http.sender.RequestExecutorServiceTests
-  method: testExecute_NotifiesNonRateLimitedTasksOfShutdown
-  issue: https://github.com/elastic/elasticsearch/issues/137831
 
 # Examples:
 #

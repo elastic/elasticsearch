@@ -92,7 +92,7 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
 
     public DenseVectorFieldMapperTests() {
         this.elementType = ES93GenericFlatVectorsFormat.GENERIC_VECTOR_FORMAT.isEnabled()
-    ? randomFrom(ElementType.BYTE, ElementType.FLOAT, ElementType.BFLOAT16, ElementType.BIT)
+            ? randomFrom(ElementType.BYTE, ElementType.FLOAT, ElementType.BFLOAT16, ElementType.BIT)
             : randomFrom(ElementType.BYTE, ElementType.FLOAT, ElementType.BIT);
         this.indexed = usually();
         this.indexOptionsSet = this.indexed && randomBoolean();
@@ -1930,18 +1930,18 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
             knnVectorsFormat = ((LegacyPerFieldMapperCodec) codec).getKnnVectorsFormatForField("field");
         }
         String expectedString = ES93GenericFlatVectorsFormat.GENERIC_VECTOR_FORMAT.isEnabled()
-        ? "ES93HnswVectorsFormat(name=ES93HnswVectorsFormat, maxConn="
-            + (setM ? m : DEFAULT_MAX_CONN)
-            + ", beamWidth="
-            + (setEfConstruction ? efConstruction : DEFAULT_BEAM_WIDTH)
-            + ", flatVectorFormat=ES93GenericFlatVectorsFormat(name=ES93GenericFlatVectorsFormat"
-            + ", format=Lucene99FlatVectorsFormat(name=Lucene99FlatVectorsFormat, flatVectorScorer=DefaultFlatVectorScorer())))"
-            :"Lucene99HnswVectorsFormat(name=Lucene99HnswVectorsFormat, maxConn="
-            + (setM ? m : DEFAULT_MAX_CONN)
-            + ", beamWidth="
-            + (setEfConstruction ? efConstruction : DEFAULT_BEAM_WIDTH)
-            + ", flatVectorFormat=Lucene99FlatVectorsFormat(vectorsScorer=DefaultFlatVectorScorer())"
-            + ")";
+            ? "ES93HnswVectorsFormat(name=ES93HnswVectorsFormat, maxConn="
+                + (setM ? m : DEFAULT_MAX_CONN)
+                + ", beamWidth="
+                + (setEfConstruction ? efConstruction : DEFAULT_BEAM_WIDTH)
+                + ", flatVectorFormat=ES93GenericFlatVectorsFormat(name=ES93GenericFlatVectorsFormat"
+                + ", format=Lucene99FlatVectorsFormat(name=Lucene99FlatVectorsFormat, flatVectorScorer=DefaultFlatVectorScorer())))"
+            : "Lucene99HnswVectorsFormat(name=Lucene99HnswVectorsFormat, maxConn="
+                + (setM ? m : DEFAULT_MAX_CONN)
+                + ", beamWidth="
+                + (setEfConstruction ? efConstruction : DEFAULT_BEAM_WIDTH)
+                + ", flatVectorFormat=Lucene99FlatVectorsFormat(vectorsScorer=DefaultFlatVectorScorer())"
+                + ")";
         assertEquals(expectedString, knnVectorsFormat.toString());
     }
 
@@ -2072,22 +2072,21 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
             knnVectorsFormat = ((LegacyPerFieldMapperCodec) codec).getKnnVectorsFormatForField("field");
         }
         String expectedString = ES93GenericFlatVectorsFormat.GENERIC_VECTOR_FORMAT.isEnabled()
-        ? "ES93HnswBinaryQuantizedVectorsFormat(name=ES93HnswBinaryQuantizedVectorsFormat, maxConn="
-            + m
-            + ", beamWidth="
-            + efConstruction
-            + ", flatVectorFormat=ES93BinaryQuantizedVectorsFormat("
-            + "name=ES93BinaryQuantizedVectorsFormat, "
-            + "rawVectorFormat=ES93GenericFlatVectorsFormat(name=ES93GenericFlatVectorsFormat,"
-            + " format=Lucene99FlatVectorsFormat"
+            ? "ES93HnswBinaryQuantizedVectorsFormat(name=ES93HnswBinaryQuantizedVectorsFormat, maxConn="
+                + m
+                + ", beamWidth="
+                + efConstruction
+                + ", flatVectorFormat=ES93BinaryQuantizedVectorsFormat("
+                + "name=ES93BinaryQuantizedVectorsFormat, "
+                + "rawVectorFormat=ES93GenericFlatVectorsFormat(name=ES93GenericFlatVectorsFormat,"
+                + " format=Lucene99FlatVectorsFormat"
             : "ES818HnswBinaryQuantizedVectorsFormat(name=ES818HnswBinaryQuantizedVectorsFormat, maxConn="
-            + m
-            + ", beamWidth="
-            + efConstruction
-            + ", flatVectorFormat=ES818BinaryQuantizedVectorsFormat("
-            + "name=ES818BinaryQuantizedVectorsFormat, "
-            + "flatVectorScorer=ES818BinaryFlatVectorsScorer(nonQuantizedDelegate=DefaultFlatVectorScorer())))";
-        assertEquals(expectedString, knnVectorsFormat.toString());;
+                + m
+                + ", beamWidth="
+                + efConstruction
+                + ", flatVectorFormat=ES818BinaryQuantizedVectorsFormat("
+                + "name=ES818BinaryQuantizedVectorsFormat, "
+                + "flatVectorScorer=ES818BinaryFlatVectorsScorer(nonQuantizedDelegate=DefaultFlatVectorScorer())))";
         assertThat(knnVectorsFormat, hasToString(startsWith(expectedString)));
     }
 
@@ -2219,7 +2218,7 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
     private static class DenseVectorSyntheticSourceSupport implements SyntheticSourceSupport {
         private final int dims = between(5, 1000);
         private final ElementType elementType = ES93GenericFlatVectorsFormat.GENERIC_VECTOR_FORMAT.isEnabled()
-        ? randomFrom(ElementType.BYTE, ElementType.FLOAT, ElementType.BFLOAT16, ElementType.BIT)
+            ? randomFrom(ElementType.BYTE, ElementType.FLOAT, ElementType.BFLOAT16, ElementType.BIT)
             : randomFrom(ElementType.BYTE, ElementType.FLOAT, ElementType.BIT);
         private final boolean indexed = randomBoolean();
         private final boolean indexOptionsSet = indexed && randomBoolean();

@@ -504,13 +504,11 @@ public class BalancedShardsAllocator implements ShardsAllocator {
             assert currentNode != null : "currently assigned node could not be found";
 
             // balance the shard, if a better node can be found
-            final float currentWeight = calculateNodeWeightWithIndex(
-                sorter.getWeightFunction(),
-                this,
-                currentNode,
-                index,
-                -Float.MAX_VALUE
-            );
+            final float currentWeight = sorter.getWeightFunction().calculateNodeWeightWithIndex(this, currentNode, index);
+            if (nodeWeightIsInvalid(currentWeight)) {
+                maybeLogInvalidWeightEncountered(currentNode, index, currentWeight);
+                return MoveDecision.NOT_TAKEN;
+            }
             final AllocationDeciders deciders = allocation.deciders();
             Type rebalanceDecisionType = Type.NO;
             ModelNode targetNode = null;
@@ -526,7 +524,12 @@ public class BalancedShardsAllocator implements ShardsAllocator {
                 // this is a comparison of the number of shards on this node to the number of shards
                 // that should be on each node on average (both taking the cluster as a whole into account
                 // as well as shards per index)
-                final float nodeWeight = calculateNodeWeightWithIndex(sorter.getWeightFunction(), this, node, index, Float.MAX_VALUE);
+                final float nodeWeight = sorter.getWeightFunction().calculateNodeWeightWithIndex(this, node, index);
+                if (nodeWeightIsInvalid(nodeWeight)) {
+                    maybeLogInvalidWeightEncountered(node, index, nodeWeight);
+                    // Don't consider any nodes returning invalid weights
+                    continue;
+                }
                 // if the node we are examining has a worse (higher) weight than the node the shard is
                 // assigned to, then there is no way moving the shard to the node with the worse weight
                 // can make the balance of the cluster better, so we check for that here
@@ -1396,7 +1399,11 @@ public class BalancedShardsAllocator implements ShardsAllocator {
                 }
 
                 // weight of this index currently on the node
-                float currentWeight = calculateNodeWeightWithIndex(weightFunction, this, node, index, Float.MAX_VALUE);
+                float currentWeight = weightFunction.calculateNodeWeightWithIndex(this, node, index);
+                if (nodeWeightIsInvalid(currentWeight)) {
+                    maybeLogInvalidWeightEncountered(node, index, currentWeight);
+                    continue;
+                }
                 // moving the shard would not improve the balance, and we are not in explain mode, so short circuit
                 if (currentWeight > minWeight && explain == false) {
                     continue;
@@ -1566,6 +1573,10 @@ public class BalancedShardsAllocator implements ShardsAllocator {
             logger.trace("No shards of [{}] can relocate from [{}] to [{}]", idx, maxNode.getNodeId(), minNode.getNodeId());
             return false;
         }
+    }
+
+    private static boolean nodeWeightIsInvalid(float currentWeight) {
+        return Float.isFinite(currentWeight) == false;
     }
 
     public static class ModelNode implements Iterable<ModelIndex> {
@@ -1774,7 +1785,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
          */
         public float weight(ModelNode node) throws InvalidWeightException {
             float weight = function.calculateNodeWeightWithIndex(balancer, node, index);
-            if (Float.isFinite(weight) == false) {
+            if (nodeWeightIsInvalid(weight)) {
                 throw new InvalidWeightException(node, index, weight);
             }
             return weight;
@@ -1832,25 +1843,6 @@ public class BalancedShardsAllocator implements ShardsAllocator {
                 this.weight = weight;
             }
         }
-    }
-
-    /**
-     * Utility for defaulting in the event of an invalid weight where it makes sense
-     */
-    private static float calculateNodeWeightWithIndex(
-        WeightFunction weightFunction,
-        Balancer balancer,
-        ModelNode modelNode,
-        ProjectIndex index,
-        float defaultIfInvalid
-    ) {
-        assert Float.isFinite(defaultIfInvalid) : "defaultIfInvalid must be finite";
-        final float currentWeight = weightFunction.calculateNodeWeightWithIndex(balancer, modelNode, index);
-        if (Float.isFinite(currentWeight) == false) {
-            maybeLogInvalidWeightEncountered(modelNode, index, currentWeight);
-            return defaultIfInvalid;
-        }
-        return currentWeight;
     }
 
     /**

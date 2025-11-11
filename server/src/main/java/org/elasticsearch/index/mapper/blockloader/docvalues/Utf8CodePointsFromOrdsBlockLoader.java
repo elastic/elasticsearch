@@ -16,11 +16,12 @@ import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.apache.lucene.util.UnicodeUtil;
+import org.elasticsearch.index.mapper.blockloader.Warnings;
 
 import java.io.IOException;
 import java.util.Arrays;
 
-import static org.elasticsearch.index.mapper.blockloader.docvalues.Warnings.registerSingleValueWarning;
+import static org.elasticsearch.index.mapper.blockloader.Warnings.registerSingleValueWarning;
 
 /**
  * A count of utf-8 code points for {@code keyword} style fields that are stored as a lookup table.

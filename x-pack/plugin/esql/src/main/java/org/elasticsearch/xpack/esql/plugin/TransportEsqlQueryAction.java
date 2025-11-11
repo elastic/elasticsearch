@@ -294,7 +294,8 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
     }
 
     private void recordCCSTelemetry(Task task, EsqlExecutionInfo executionInfo, EsqlQueryRequest request, @Nullable Exception exception) {
-        if (executionInfo.isCrossClusterSearch() == false && executionInfo.includeExecutionMetadata() == false) {
+        if (executionInfo.isCrossClusterSearch() == false
+            && executionInfo.includeExecutionMetadata() != EsqlExecutionInfo.IncludeExecutionMetadata.ALWAYS) {
             return;
         }
 
@@ -360,12 +361,17 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
             );
         }
 
-        boolean includeCcsMetadata = Boolean.TRUE.equals(request.includeCCSMetadata());
-        boolean includeExecutionMetadata = Boolean.TRUE.equals(request.includeExecutionMetadata());
+        EsqlExecutionInfo.IncludeExecutionMetadata includeExecutionMetadata;
+        if (Boolean.TRUE.equals(request.includeExecutionMetadata())) {
+            includeExecutionMetadata = EsqlExecutionInfo.IncludeExecutionMetadata.ALWAYS;
+        } else if (Boolean.TRUE.equals(request.includeCCSMetadata())) {
+            includeExecutionMetadata = EsqlExecutionInfo.IncludeExecutionMetadata.CCS_ONLY;
+        } else {
+            includeExecutionMetadata = EsqlExecutionInfo.IncludeExecutionMetadata.NEVER;
+        }
         Boolean allowPartialResults = request.allowPartialResults() != null ? request.allowPartialResults() : defaultAllowPartialResults;
         return new EsqlExecutionInfo(
             clusterAlias -> remoteClusterService.shouldSkipOnFailure(clusterAlias, allowPartialResults),
-            includeCcsMetadata,
             includeExecutionMetadata
         );
     }

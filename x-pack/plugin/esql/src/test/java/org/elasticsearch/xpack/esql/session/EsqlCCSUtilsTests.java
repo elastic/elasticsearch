@@ -558,8 +558,7 @@ public class EsqlCCSUtilsTests extends ESTestCase {
         boolean includeCcsMetadata = randomBoolean();
         return new EsqlExecutionInfo(
             skipOnPlanTimeFailurePredicate,
-            includeCcsMetadata,
-            randomBoolean() ? false : includeCcsMetadata == false
+            includeCcsMetadata ? EsqlExecutionInfo.IncludeExecutionMetadata.CCS_ONLY : EsqlExecutionInfo.IncludeExecutionMetadata.NEVER
         );
     }
 

@@ -73,10 +73,15 @@ public class EsqlExecutionInfo implements ChunkedToXContentObject, Writeable {
     public final ConcurrentMap<String, Cluster> clusterInfo;
     // Is the clusterInfo map iinitialization in progress? If so, we should not try to serialize it.
     private transient volatile boolean clusterInfoInitializing;
-    // whether the user has asked for CCS metadata to be in the JSON response (the overall took will always be present)
-    private final boolean includeCCSMetadata;
-    // whether the user has asked for execution metadata to be in the JSON response (the overall took will always be present)
-    private final boolean includeExecutionMetadata;
+
+    public enum IncludeExecutionMetadata {
+        ALWAYS,
+        CCS_ONLY,
+        NEVER
+    }
+
+    // whether the user has asked for execution/CCS metadata to be in the JSON response (the overall took will always be present)
+    private final IncludeExecutionMetadata includeExecutionMetadata;
 
     // fields that are not Writeable since they are only needed on the primary CCS coordinator
     private final transient Predicate<String> skipOnFailurePredicate; // Predicate to determine if we should skip a cluster on failure
@@ -92,42 +97,41 @@ public class EsqlExecutionInfo implements ChunkedToXContentObject, Writeable {
     // Are we doing subplans? No need to serialize this because it is only relevant for the coordinator node.
     private transient boolean inSubplan = false;
 
-    // This is only used is tests.
+    // FOR TESTS ONLY
     public EsqlExecutionInfo(boolean includeCCSMetadata) {
-        this(Predicates.always(), includeCCSMetadata, false);  // default all clusters to being skippable on failure
+        // default all clusters to being skippable on failure
+        this(Predicates.always(), includeCCSMetadata ? IncludeExecutionMetadata.CCS_ONLY : IncludeExecutionMetadata.NEVER);
+    }
+
+    /**
+     * FOR TESTING use with fromXContent parsing ONLY
+     */
+    EsqlExecutionInfo(ConcurrentMap<String, Cluster> clusterInfo, boolean includeCCSMetadata) {
+        this(
+            clusterInfo,
+            Predicates.always(),
+            includeCCSMetadata ? IncludeExecutionMetadata.CCS_ONLY : IncludeExecutionMetadata.NEVER,
+            null
+        );
     }
 
     /**
      * @param skipOnPlanTimeFailurePredicate Decides whether we should skip the cluster that fails during planning phase.
-     * @param includeCCSMetadata (user defined setting) whether to include the CCS metadata in the HTTP response
+     * @param includeExecutionMetadata (user defined setting) whether to include the execution/CCS metadata in the HTTP response
      */
-    public EsqlExecutionInfo(
-        Predicate<String> skipOnPlanTimeFailurePredicate,
-        boolean includeCCSMetadata,
-        boolean includeExecutionMetadata
-    ) {
-        this(new ConcurrentHashMap<>(), skipOnPlanTimeFailurePredicate, includeCCSMetadata, includeExecutionMetadata, TimeSpan.start());
-    }
-
-    /**
-     * For testing use with fromXContent parsing only
-     */
-    EsqlExecutionInfo(ConcurrentMap<String, Cluster> clusterInfo, boolean includeCCSMetadata) {
-        this(clusterInfo, Predicates.always(), includeCCSMetadata, false, null);
+    public EsqlExecutionInfo(Predicate<String> skipOnPlanTimeFailurePredicate, IncludeExecutionMetadata includeExecutionMetadata) {
+        this(new ConcurrentHashMap<>(), skipOnPlanTimeFailurePredicate, includeExecutionMetadata, TimeSpan.start());
     }
 
     EsqlExecutionInfo(
         ConcurrentMap<String, Cluster> clusterInfo,
         Predicate<String> skipOnPlanTimeFailurePredicate,
-        boolean includeCCSMetadata,
-        boolean includeExecutionMetadata,
+        IncludeExecutionMetadata includeExecutionMetadata,
         TimeSpan.Builder relativeStart
     ) {
-        assert includeCCSMetadata == false || includeExecutionMetadata == false
-            : "include_ccs_metadata and include_execution_metadata cannot be both true";
+        assert includeExecutionMetadata != null;
         this.clusterInfo = clusterInfo;
         this.skipOnFailurePredicate = skipOnPlanTimeFailurePredicate;
-        this.includeCCSMetadata = includeCCSMetadata;
         this.includeExecutionMetadata = includeExecutionMetadata;
         this.relativeStart = relativeStart;
     }
@@ -135,8 +139,11 @@ public class EsqlExecutionInfo implements ChunkedToXContentObject, Writeable {
     public EsqlExecutionInfo(StreamInput in) throws IOException {
         this.overallTook = in.readOptionalTimeValue();
         this.clusterInfo = in.readMapValues(EsqlExecutionInfo.Cluster::new, Cluster::getClusterAlias, ConcurrentHashMap::new);
-        this.includeCCSMetadata = in.readBoolean();
-        this.includeExecutionMetadata = in.getTransportVersion().supports(EXECUTION_METADATA_VERSION) ? in.readBoolean() : false;
+        if (in.getTransportVersion().supports(EXECUTION_METADATA_VERSION)) {
+            this.includeExecutionMetadata = in.readEnum(IncludeExecutionMetadata.class);
+        } else {
+            this.includeExecutionMetadata = in.readBoolean() ? IncludeExecutionMetadata.CCS_ONLY : IncludeExecutionMetadata.NEVER;
+        }
         this.isPartial = in.getTransportVersion().supports(TransportVersions.V_8_18_0) ? in.readBoolean() : false;
         this.skipOnFailurePredicate = Predicates.always();
         this.relativeStart = null;
@@ -154,9 +161,10 @@ public class EsqlExecutionInfo implements ChunkedToXContentObject, Writeable {
         } else {
             out.writeCollection(Collections.emptyList());
         }
-        out.writeBoolean(includeCCSMetadata);
         if (out.getTransportVersion().supports(EXECUTION_METADATA_VERSION)) {
-            out.writeBoolean(includeExecutionMetadata);
+            out.writeEnum(includeExecutionMetadata);
+        } else {
+            out.writeBoolean(includeExecutionMetadata != IncludeExecutionMetadata.NEVER);
         }
         if (out.getTransportVersion().supports(TransportVersions.V_8_18_0)) {
             out.writeBoolean(isPartial);
@@ -169,10 +177,10 @@ public class EsqlExecutionInfo implements ChunkedToXContentObject, Writeable {
     }
 
     public boolean includeCCSMetadata() {
-        return includeCCSMetadata;
+        return includeExecutionMetadata == IncludeExecutionMetadata.ALWAYS || includeExecutionMetadata == IncludeExecutionMetadata.CCS_ONLY;
     }
 
-    public boolean includeExecutionMetadata() {
+    public IncludeExecutionMetadata includeExecutionMetadata() {
         return includeExecutionMetadata;
     }
 
@@ -257,8 +265,8 @@ public class EsqlExecutionInfo implements ChunkedToXContentObject, Writeable {
      * This is true on cross-cluster search with includeCCSMetadata=true or when there are partial failures.
      */
     public boolean hasMetadataToReport() {
-        return includeExecutionMetadata && clusterInfo.isEmpty() == false
-            || isCrossClusterSearch() && includeCCSMetadata
+        return includeExecutionMetadata == IncludeExecutionMetadata.ALWAYS && clusterInfo.isEmpty() == false
+            || isCrossClusterSearch() && includeExecutionMetadata == IncludeExecutionMetadata.CCS_ONLY
             || (isPartial && clusterInfo.values().stream().anyMatch(c -> c.getFailures().isEmpty() == false));
     }
 
@@ -305,7 +313,7 @@ public class EsqlExecutionInfo implements ChunkedToXContentObject, Writeable {
         if (clusterInfo.isEmpty()) {
             return Collections.emptyIterator();
         }
-        if (includeCCSMetadata == false && includeExecutionMetadata == false) {
+        if (includeExecutionMetadata == IncludeExecutionMetadata.NEVER) {
             // If includeCCSMetadata is false, the only reason we're here is partial failures, so just report them.
             return onlyFailuresToXContent();
         }

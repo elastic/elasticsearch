@@ -88,7 +88,12 @@ public class QueryExecutionMetadataIT extends AbstractCrossClusterTestCase {
             assertThat(executionInfo.isCrossClusterSearch(), is(remote));
             long overallTookMillis = executionInfo.overallTook().millis();
             assertThat(overallTookMillis, greaterThanOrEqualTo(0L));
-            assertThat(executionInfo.includeExecutionMetadata(), equalTo(includeMetadata));
+            assertThat(
+                executionInfo.includeExecutionMetadata(),
+                equalTo(
+                    includeMetadata ? EsqlExecutionInfo.IncludeExecutionMetadata.ALWAYS : EsqlExecutionInfo.IncludeExecutionMetadata.NEVER
+                )
+            );
 
             if (remote && local) {
                 assertThat(executionInfo.clusterAliases(), equalTo(Set.of(REMOTE_CLUSTER_1, LOCAL_CLUSTER)));

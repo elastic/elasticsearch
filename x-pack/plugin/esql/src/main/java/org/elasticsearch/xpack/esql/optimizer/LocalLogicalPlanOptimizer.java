@@ -15,7 +15,7 @@ import org.elasticsearch.xpack.esql.optimizer.rules.logical.ReplaceStringCasingW
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.local.IgnoreNullMetrics;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.local.InferIsNotNull;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.local.InferNonNullAggConstraint;
-import org.elasticsearch.xpack.esql.optimizer.rules.logical.local.PushDownVectorSimilarityFunctions;
+import org.elasticsearch.xpack.esql.optimizer.rules.logical.local.PushExpressionsToFieldLoad;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.local.ReplaceDateTruncBucketWithRoundTo;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.local.ReplaceFieldWithConstantOrNull;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.local.ReplaceTopNWithLimitAndSort;
@@ -71,7 +71,7 @@ public class LocalLogicalPlanOptimizer extends ParameterizedRuleExecutor<Logical
             )
         );
         if (EsqlCapabilities.Cap.VECTOR_SIMILARITY_FUNCTIONS_PUSHDOWN.isEnabled()) {
-            rules.add(new PushDownVectorSimilarityFunctions());
+            rules.add(new PushExpressionsToFieldLoad());
         }
 
         return new Batch<>("Local rewrite", Limiter.ONCE, rules.toArray(Rule[]::new));

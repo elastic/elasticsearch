@@ -119,7 +119,7 @@ public class GetInferenceFieldsActionRequestTests extends AbstractBWCWireSeriali
     }
 
     private static String randomQuery() {
-        return randomBoolean() ? randomAlphaOfLength(10) : null;
+        return randomBoolean() ? randomAlphaOfLengthBetween(5, 10) : null;
     }
 
     private static IndicesOptions randomIndicesOptions() {

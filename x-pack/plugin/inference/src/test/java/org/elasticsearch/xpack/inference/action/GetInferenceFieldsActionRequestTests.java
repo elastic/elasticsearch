@@ -7,18 +7,23 @@
 
 package org.elasticsearch.xpack.inference.action;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.Tuple;
-import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.xpack.core.inference.action.GetInferenceFieldsAction;
+import org.elasticsearch.xpack.core.ml.AbstractBWCWireSerializationTestCase;
 
 import java.io.IOException;
+import java.util.Collection;
 import java.util.Map;
 import java.util.Set;
 
-public class GetInferenceFieldsActionRequestTests extends AbstractWireSerializingTestCase<GetInferenceFieldsAction.Request> {
+import static org.elasticsearch.xpack.core.inference.action.GetInferenceFieldsAction.GET_INFERENCE_FIELDS_ACTION_TV;
+
+public class GetInferenceFieldsActionRequestTests extends AbstractBWCWireSerializationTestCase<GetInferenceFieldsAction.Request> {
     @Override
     protected Writeable.Reader<GetInferenceFieldsAction.Request> instanceReader() {
         return GetInferenceFieldsAction.Request::new;
@@ -89,6 +94,20 @@ public class GetInferenceFieldsActionRequestTests extends AbstractWireSerializin
             );
             default -> throw new AssertionError("Invalid value");
         };
+    }
+
+    @Override
+    protected Collection<TransportVersion> bwcVersions() {
+        TransportVersion minVersion = TransportVersion.max(TransportVersion.minimumCompatible(), GET_INFERENCE_FIELDS_ACTION_TV);
+        return TransportVersionUtils.allReleasedVersions().tailSet(minVersion, true);
+    }
+
+    @Override
+    protected GetInferenceFieldsAction.Request mutateInstanceForVersion(
+        GetInferenceFieldsAction.Request instance,
+        TransportVersion version
+    ) {
+        return instance;
     }
 
     private static Set<String> randomIndentifierSet() {

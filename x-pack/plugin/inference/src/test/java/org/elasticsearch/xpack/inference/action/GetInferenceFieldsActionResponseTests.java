@@ -7,13 +7,15 @@
 
 package org.elasticsearch.xpack.inference.action;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.cluster.metadata.InferenceFieldMetadata;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.inference.InferenceResults;
-import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.xpack.core.inference.action.GetInferenceFieldsAction;
+import org.elasticsearch.xpack.core.ml.AbstractBWCWireSerializationTestCase;
 import org.elasticsearch.xpack.core.ml.inference.MlInferenceNamedXContentProvider;
 import org.elasticsearch.xpack.core.ml.inference.results.ErrorInferenceResultsTests;
 import org.elasticsearch.xpack.core.ml.inference.results.MlDenseEmbeddingResultsTests;
@@ -22,13 +24,15 @@ import org.elasticsearch.xpack.core.ml.inference.results.WarningInferenceResults
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.cluster.metadata.InferenceFieldMetadataTests.generateRandomChunkingSettings;
+import static org.elasticsearch.xpack.core.inference.action.GetInferenceFieldsAction.GET_INFERENCE_FIELDS_ACTION_TV;
 
-public class GetInferenceFieldsActionResponseTests extends AbstractWireSerializingTestCase<GetInferenceFieldsAction.Response> {
+public class GetInferenceFieldsActionResponseTests extends AbstractBWCWireSerializationTestCase<GetInferenceFieldsAction.Response> {
 
     @Override
     protected NamedWriteableRegistry getNamedWriteableRegistry() {
@@ -73,6 +77,20 @@ public class GetInferenceFieldsActionResponseTests extends AbstractWireSerializi
             map.put(indexName, fields);
         }
         return map;
+    }
+
+    @Override
+    protected Collection<TransportVersion> bwcVersions() {
+        TransportVersion minVersion = TransportVersion.max(TransportVersion.minimumCompatible(), GET_INFERENCE_FIELDS_ACTION_TV);
+        return TransportVersionUtils.allReleasedVersions().tailSet(minVersion, true);
+    }
+
+    @Override
+    protected GetInferenceFieldsAction.Response mutateInstanceForVersion(
+        GetInferenceFieldsAction.Response instance,
+        TransportVersion version
+    ) {
+        return instance;
     }
 
     private static GetInferenceFieldsAction.ExtendedInferenceFieldMetadata randomeExtendedInferenceFieldMetadata() {

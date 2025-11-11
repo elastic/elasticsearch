@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.core.inference.action;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
@@ -32,6 +33,8 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
 public class GetInferenceFieldsAction extends ActionType<GetInferenceFieldsAction.Response> {
     public static final GetInferenceFieldsAction INSTANCE = new GetInferenceFieldsAction();
     public static final RemoteClusterActionType<Response> REMOTE_TYPE = new RemoteClusterActionType<>(INSTANCE.name(), Response::new);
+
+    public static final TransportVersion GET_INFERENCE_FIELDS_ACTION_TV = TransportVersion.fromName("get_inference_fields_action");
 
     public static final String NAME = "cluster:internal/xpack/inference/fields/get";
 

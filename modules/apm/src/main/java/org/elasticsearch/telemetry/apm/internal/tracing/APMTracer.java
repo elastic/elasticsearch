@@ -287,7 +287,7 @@ public class APMTracer extends AbstractLifecycleComponent implements org.elastic
     @Override
     public Releasable withScope(Traceable traceable) {
         final Context context = spans.get(traceable.getSpanId());
-        if (context != null) {
+        if (context != null && Span.fromContextOrNull(context).isRecording()) {
             return context.makeCurrent()::close;
         }
         return () -> {};

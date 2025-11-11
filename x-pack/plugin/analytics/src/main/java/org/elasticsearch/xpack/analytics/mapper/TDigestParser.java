@@ -169,6 +169,16 @@ public class TDigestParser {
                     + "]"
             );
         }
+        if (centroids.isEmpty()) {
+            throw new DocumentParsingException(
+                parser.getTokenLocation(),
+                "error parsing field ["
+                    + mappedFieldName
+                    + "], expected a non-empty array from ["
+                    + CENTROIDS_FIELD.getPreferredName()
+                    + "]"
+            );
+        }
         return new ParsedHistogram(centroids, counts, count, sum, min, max);
     }
 

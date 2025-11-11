@@ -96,6 +96,23 @@ public class IndexShardCountTests extends ESTestCase {
         assertEquals(-1, count.count());
     }
 
+    public void testFromIndexMetaDataWithNestedSettingsThrowsIllegalArgumentException() throws IOException {
+        XContentBuilder builder = XContentFactory.jsonBuilder()
+            .startObject()
+            .field("my_index")
+            .startObject()
+            .startObject(KEY_SETTINGS)
+            .startObject("index")
+            .field("number_of_shards", randomNonNegativeInt())
+            .endObject()
+            .endObject()
+            .endObject()
+            .endObject();
+        XContentParser parser = createParser(builder);
+
+        assertThrows(IllegalArgumentException.class, () -> IndexShardCount.fromIndexMetadata(parser));
+    }
+
     // IndexMetadata specifies two parsing methods legacyFromXContent and fromXContent to be used depending
     // on the IndexVersion. Since we are only reading the shard count, we should succeed in either case
     public void testFromIndexMetaDataWithOldVersionSucceeds() throws IOException {

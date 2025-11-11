@@ -20,13 +20,11 @@ import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF
 
 /**
  * A subset of {@link IndexMetadata} storing only the shard count of an index
- * Prior to v9.3, the entire {@link IndexMetadata} object was stored in heap and then loaded during snapshotting to determine
- * the shard count. As per ES-12539, this is replaced with the {@link IndexShardCount} class that writes and loads only the index's
- * shard count to and from heap memory, reducing the possibility of smaller nodes going OOMe during snapshotting
  */
 public record IndexShardCount(int count) {
     /**
-     * Parses an {@link IndexMetadata} object, reading only the shard count and skipping the rest
+     * Parses an {@link IndexMetadata} object, reading only the shard count and skipping the rest.
+     * Assumes that the settings object is flat, and not nested.
      * @param parser The parser of the {@link IndexMetadata} object
      * @return Returns an {@link IndexShardCount} containing the shard count for the index
      * @throws IOException Thrown if the {@link IndexMetadata} object cannot be parsed correctly
@@ -49,7 +47,13 @@ public record IndexShardCount(int count) {
                         String fieldName = parser.currentName();
                         parser.nextToken();
                         if (SETTING_NUMBER_OF_SHARDS.equals(fieldName)) {
+                            assert indexShardCount == null : "number_of_shards setting encountered multiple times in index settings";
                             indexShardCount = new IndexShardCount(parser.intValue());
+                        } else if (parser.currentToken() == XContentParser.Token.START_OBJECT) {
+                            // Settings should be flat, not nested
+                            throw new IllegalArgumentException(
+                                "Settings object contains nested object for key [" + fieldName + "], expected flat settings map"
+                            );
                         } else {
                             parser.skipChildren();
                         }

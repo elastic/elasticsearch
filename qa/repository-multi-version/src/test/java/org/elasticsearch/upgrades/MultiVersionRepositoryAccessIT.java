@@ -260,11 +260,11 @@ public class MultiVersionRepositoryAccessIT extends ESRestTestCase {
                 // Delete a bulk number of snapshots, avoiding the case where we delete all snapshots since this invokes
                 // cleanup code and bulk snapshot deletion logic which is tested in testUpgradeMovesRepoToNewMetaVersion
                 final List<String> snapshotsToDeleteInBulk = randomSubsetOf(randomIntBetween(1, snapshotNames.size() - 1), snapshotNames);
-                deleteSnapshot(repoName, snapshotsToDeleteInBulk);
+                deleteSnapshots(repoName, snapshotsToDeleteInBulk);
                 snapshotNames.removeAll(snapshotsToDeleteInBulk);
 
                 // Delete the rest of the snapshots (will invoke bulk snapshot deletion logic)
-                deleteSnapshot(repoName, snapshotNames);
+                deleteSnapshots(repoName, snapshotNames);
             }
         } finally {
             deleteRepository(repoName);
@@ -279,7 +279,7 @@ public class MultiVersionRepositoryAccessIT extends ESRestTestCase {
         }
     }
 
-    private void deleteSnapshot(String repoName, List<String> names) throws IOException {
+    private void deleteSnapshots(String repoName, List<String> names) throws IOException {
         assertAcknowledged(
             client().performRequest(new Request("DELETE", "/_snapshot/" + repoName + "/" + Strings.collectionToCommaDelimitedString(names)))
         );

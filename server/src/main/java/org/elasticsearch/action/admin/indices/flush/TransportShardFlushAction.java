@@ -13,6 +13,7 @@ import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.action.support.replication.ReplicationRequestSplitHelper;
 import org.elasticsearch.action.support.replication.ReplicationResponse;
 import org.elasticsearch.action.support.replication.TransportReplicationAction;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
@@ -48,7 +49,7 @@ public class TransportShardFlushAction extends TransportReplicationAction<ShardF
     public static final String NAME = FlushAction.NAME + "[s]";
     public static final ActionType<ReplicationResponse> TYPE = new ActionType<>(NAME);
 
-    protected final ProjectResolver projectResolver;
+    private final ProjectResolver projectResolver;
 
     @Inject
     public TransportShardFlushAction(
@@ -108,6 +109,14 @@ public class TransportShardFlushAction extends TransportReplicationAction<ShardF
     // the current state.
     @Override
     protected Map<ShardId, ShardFlushRequest> splitRequestOnPrimary(ShardFlushRequest request) {
+        return ReplicationRequestSplitHelper.splitRequestCommon(
+            request,
+            projectResolver.getProjectMetadata(clusterService.state()),
+            (targetShard, shardCountSummary) ->
+                new ShardFlushRequest(request.getRequest(), targetShard, shardCountSummary)
+        );
+
+        /*
         ProjectMetadata project = projectResolver.getProjectMetadata(clusterService.state());
         final ShardId sourceShard = request.shardId();
         IndexMetadata indexMetadata = project.getIndexSafe(request.shardId().getIndex());
@@ -121,6 +130,7 @@ public class TransportShardFlushAction extends TransportReplicationAction<ShardF
         ShardId targetShard = new ShardId(request.shardId().getIndex(), targetShardId);
         requestsByShard.put(targetShard, new ShardFlushRequest(request.getRequest(), targetShard, shardCountSummary));
         return requestsByShard;
+         */
     }
 
     @Override

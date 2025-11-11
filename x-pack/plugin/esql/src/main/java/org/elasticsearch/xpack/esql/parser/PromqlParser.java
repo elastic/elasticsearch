@@ -21,12 +21,10 @@ import org.antlr.v4.runtime.atn.PredictionMode;
 import org.antlr.v4.runtime.dfa.DFA;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
+import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.parser.promql.PromqlAstBuilder;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 
-import java.time.Clock;
-import java.time.Instant;
-import java.time.ZoneOffset;
 import java.util.BitSet;
 import java.util.EmptyStackException;
 import java.util.Locale;
@@ -39,7 +37,6 @@ public class PromqlParser {
 
     private static final Logger log = LogManager.getLogger(PromqlParser.class);
 
-    private static final Clock UTC = Clock.tickMillis(ZoneOffset.UTC);
     private final boolean DEBUG = false;
 
     /**
@@ -49,21 +46,18 @@ public class PromqlParser {
         return createStatement(query, null, null, 0, 0);
     }
 
-    public LogicalPlan createStatement(String query, Instant start, Instant end, int startLine, int startColumn) {
+    public LogicalPlan createStatement(String query, Literal start, Literal end, int startLine, int startColumn) {
         if (log.isDebugEnabled()) {
             log.debug("Parsing as expression: {}", query);
         }
 
-        if (start == null) {
-            start = Instant.now(UTC);
-        }
         return invokeParser(query, start, end, startLine, startColumn, PromqlBaseParser::singleStatement, PromqlAstBuilder::plan);
     }
 
     private <T> T invokeParser(
         String query,
-        Instant start,
-        Instant end,
+        Literal start,
+        Literal end,
         int startLine,
         int startColumn,
         Function<PromqlBaseParser, ParserRuleContext> parseFunction,

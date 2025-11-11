@@ -31,9 +31,9 @@ public class PromqlParamsTests extends ESTestCase {
 
     public void testValidRangeQuery() {
         PromqlCommand promql = parse("TS test | PROMQL start \"2025-10-31T00:00:00Z\" end \"2025-10-31T01:00:00Z\" step 1m (avg(foo))");
-        assertThat(promql.start(), equalTo(Instant.parse("2025-10-31T00:00:00Z")));
-        assertThat(promql.end(), equalTo(Instant.parse("2025-10-31T01:00:00Z")));
-        assertThat(promql.step(), equalTo(Duration.ofMinutes(1)));
+        assertThat(promql.start().value(), equalTo(Instant.parse("2025-10-31T00:00:00Z")));
+        assertThat(promql.end().value(), equalTo(Instant.parse("2025-10-31T01:00:00Z")));
+        assertThat(promql.step().value(), equalTo(Duration.ofMinutes(1)));
         assertThat(promql.isRangeQuery(), equalTo(true));
         assertThat(promql.isInstantQuery(), equalTo(false));
     }
@@ -52,9 +52,9 @@ public class PromqlParamsTests extends ESTestCase {
             ),
             PromqlCommand.class
         );
-        assertThat(promql.start(), equalTo(Instant.parse("2025-10-31T00:00:00Z")));
-        assertThat(promql.end(), equalTo(Instant.parse("2025-10-31T01:00:00Z")));
-        assertThat(promql.step(), equalTo(Duration.ofMinutes(1)));
+        assertThat(promql.start().value(), equalTo(Instant.parse("2025-10-31T00:00:00Z")));
+        assertThat(promql.end().value(), equalTo(Instant.parse("2025-10-31T01:00:00Z")));
+        assertThat(promql.step().value(), equalTo(Duration.ofMinutes(1)));
         assertThat(promql.isRangeQuery(), equalTo(true));
         assertThat(promql.isInstantQuery(), equalTo(false));
     }
@@ -63,16 +63,15 @@ public class PromqlParamsTests extends ESTestCase {
         PromqlCommand promql = parse("TS test | PROMQL `step` \"1\" (avg(foo))");
         assertThat(promql.start(), nullValue());
         assertThat(promql.end(), nullValue());
-        assertThat(promql.step(), equalTo(Duration.ofSeconds(1)));
+        assertThat(promql.step().value(), equalTo(Duration.ofSeconds(1)));
         assertThat(promql.isRangeQuery(), equalTo(true));
         assertThat(promql.isInstantQuery(), equalTo(false));
     }
 
     public void testValidInstantQuery() {
         PromqlCommand promql = parse("TS test | PROMQL time \"2025-10-31T00:00:00Z\" (avg(foo))");
-        assertThat(promql.start(), nullValue());
-        assertThat(promql.end(), nullValue());
-        assertThat(promql.time(), equalTo(Instant.parse("2025-10-31T00:00:00Z")));
+        assertThat(promql.start().value(), equalTo(Instant.parse("2025-10-31T00:00:00Z")));
+        assertThat(promql.end().value(), equalTo(Instant.parse("2025-10-31T00:00:00Z")));
         assertThat(promql.step(), nullValue());
         assertThat(promql.isInstantQuery(), equalTo(true));
         assertThat(promql.isRangeQuery(), equalTo(false));

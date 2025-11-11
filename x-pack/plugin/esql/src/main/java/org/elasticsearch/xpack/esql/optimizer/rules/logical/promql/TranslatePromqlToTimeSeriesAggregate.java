@@ -176,20 +176,14 @@ public final class TranslatePromqlToTimeSeriesAggregate extends OptimizerRules.O
                 groupings.add(named.toAttribute());
             }
 
-            Duration timeBucketSize;
+            Expression timeBucketSize;
             if (promqlCommand.isRangeQuery()) {
                 timeBucketSize = promqlCommand.step();
             } else {
                 // use default lookback for instant queries
-                timeBucketSize = DEFAULT_LOOKBACK;
+                timeBucketSize = new Literal(Source.EMPTY, DEFAULT_LOOKBACK, DataType.TIME_DURATION);
             }
-            Bucket b = new Bucket(
-                promqlCommand.source(),
-                promqlCommand.timestamp(),
-                new Literal(promqlCommand.source(), timeBucketSize, DataType.TIME_DURATION),
-                null,
-                null
-            );
+            Bucket b = new Bucket(promqlCommand.source(), promqlCommand.timestamp(), timeBucketSize, null, null);
             Alias tbucket = new Alias(b.source(), "TBUCKET", b);
             aggs.add(tbucket.toAttribute());
             groupings.add(tbucket.toAttribute());

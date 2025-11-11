@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.esql.optimizer.promql;
 
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.index.IndexMode;
-import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.analysis.Analyzer;

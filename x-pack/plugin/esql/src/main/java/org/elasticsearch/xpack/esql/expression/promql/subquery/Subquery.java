@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.expression.promql.subquery;
 
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
+import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
@@ -16,26 +17,25 @@ import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
 import org.elasticsearch.xpack.esql.plan.logical.promql.selector.Evaluation;
 
 import java.io.IOException;
-import java.time.Duration;
 import java.util.Objects;
 
 public class Subquery extends UnaryPlan {
-    private final Duration range;
-    private final Duration resolution;
+    private final Literal range;
+    private final Literal resolution;
     private final Evaluation evaluation;
 
-    public Subquery(Source source, LogicalPlan child, Duration range, Duration resolution, Evaluation evaluation) {
+    public Subquery(Source source, LogicalPlan child, Literal range, Literal resolution, Evaluation evaluation) {
         super(source, child);
         this.range = range;
         this.resolution = resolution;
         this.evaluation = evaluation;
     }
 
-    public Duration range() {
+    public Literal range() {
         return range;
     }
 
-    public Duration resolution() {
+    public Literal resolution() {
         return resolution;
     }
 

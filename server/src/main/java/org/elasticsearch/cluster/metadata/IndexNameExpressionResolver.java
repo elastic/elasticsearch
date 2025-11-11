@@ -479,12 +479,7 @@ public class IndexNameExpressionResolver {
             return;
         }
         if (RemoteClusterAware.isRemoteIndexName(current)) {
-            List<String> crossClusterIndices = new ArrayList<>();
-            for (int i = 0; i < expressions.length; i++) {
-                if (RemoteClusterAware.isRemoteIndexName(expressions[i])) {
-                    crossClusterIndices.add(expressions[i]);
-                }
-            }
+            List<String> crossClusterIndices = RemoteClusterAware.getRemoteIndexExpressions(expressions);
             throw new IllegalArgumentException(
                 "Cross-cluster calls are not supported in this context but remote indices were requested: " + crossClusterIndices
             );

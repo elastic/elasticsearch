@@ -1,0 +1,5 @@
+pr: 137387
+summary: Extends constant MVs handling with warnings to general binary comparisons
+area: ES|QL
+type: bug
+issues: []

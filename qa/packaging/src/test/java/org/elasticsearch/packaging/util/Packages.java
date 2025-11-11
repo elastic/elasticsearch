@@ -232,7 +232,7 @@ public class Packages {
             ).forEach(confFile -> assertThat(confFile, file(File, "root", "root", p644)));
 
             final String sysctlExecutable = (distribution.packaging == Distribution.Packaging.RPM) ? "/usr/sbin/sysctl" : "/sbin/sysctl";
-            // Restarting sysctl so changes get applied
+            // Restarting sysctl so changes to conf get applied
             sh.run(sysctlExecutable + " --system");
             assertThat(sh.run(sysctlExecutable + " vm.max_map_count").stdout(), containsString("vm.max_map_count = 262144"));
         }

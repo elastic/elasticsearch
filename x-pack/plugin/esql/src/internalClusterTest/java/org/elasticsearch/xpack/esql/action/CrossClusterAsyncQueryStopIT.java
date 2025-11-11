@@ -116,15 +116,15 @@ public class CrossClusterAsyncQueryStopIT extends AbstractCrossClusterTestCase {
                 assertThat(executionInfo.isPartial(), equalTo(true));
 
                 EsqlExecutionInfo.Cluster remoteCluster = executionInfo.getCluster(REMOTE_CLUSTER_1);
-                assertThat(remoteCluster.getIndexExpression(), equalTo("logs-*"));
+                assertThat(remoteCluster.getOriginalIndices(), equalTo("logs-*"));
                 assertClusterInfoSuccess(remoteCluster, remote1NumShards);
 
                 EsqlExecutionInfo.Cluster remote2Cluster = executionInfo.getCluster(REMOTE_CLUSTER_2);
-                assertThat(remote2Cluster.getIndexExpression(), equalTo("blocking"));
+                assertThat(remote2Cluster.getOriginalIndices(), equalTo("blocking"));
                 assertThat(remote2Cluster.getStatus(), equalTo(EsqlExecutionInfo.Cluster.Status.PARTIAL));
 
                 EsqlExecutionInfo.Cluster localCluster = executionInfo.getCluster(LOCAL_CLUSTER);
-                assertThat(localCluster.getIndexExpression(), equalTo("logs-*"));
+                assertThat(localCluster.getOriginalIndices(), equalTo("logs-*"));
                 assertClusterInfoSuccess(localCluster, localNumShards);
 
                 assertClusterMetadataInResponse(asyncResponse, responseExpectMeta, 3);
@@ -214,15 +214,15 @@ public class CrossClusterAsyncQueryStopIT extends AbstractCrossClusterTestCase {
                 assertThat(executionInfo.isPartial(), equalTo(true));
 
                 EsqlExecutionInfo.Cluster remoteCluster = executionInfo.getCluster(REMOTE_CLUSTER_1);
-                assertThat(remoteCluster.getIndexExpression(), equalTo("logs-*"));
+                assertThat(remoteCluster.getOriginalIndices(), equalTo("logs-*"));
                 assertClusterInfoSuccess(remoteCluster, remote1NumShards);
 
                 EsqlExecutionInfo.Cluster remote2Cluster = executionInfo.getCluster(REMOTE_CLUSTER_2);
-                assertThat(remote2Cluster.getIndexExpression(), equalTo("logs-*"));
+                assertThat(remote2Cluster.getOriginalIndices(), equalTo("logs-*"));
                 assertClusterInfoSuccess(remote2Cluster, remote2NumShards);
 
                 EsqlExecutionInfo.Cluster localCluster = executionInfo.getCluster(LOCAL_CLUSTER);
-                assertThat(localCluster.getIndexExpression(), equalTo("blocking"));
+                assertThat(localCluster.getOriginalIndices(), equalTo("blocking"));
                 assertThat(localCluster.getStatus(), equalTo(EsqlExecutionInfo.Cluster.Status.PARTIAL));
 
                 assertClusterMetadataInResponse(asyncResponse, responseExpectMeta, 3);
@@ -346,11 +346,11 @@ public class CrossClusterAsyncQueryStopIT extends AbstractCrossClusterTestCase {
                 assertThat(executionInfo.isPartial(), equalTo(true));
 
                 EsqlExecutionInfo.Cluster remote2Cluster = executionInfo.getCluster(REMOTE_CLUSTER_2);
-                assertThat(remote2Cluster.getIndexExpression(), equalTo("blocking"));
+                assertThat(remote2Cluster.getOriginalIndices(), equalTo("blocking"));
                 assertThat(remote2Cluster.getStatus(), equalTo(EsqlExecutionInfo.Cluster.Status.PARTIAL));
 
                 EsqlExecutionInfo.Cluster localCluster = executionInfo.getCluster(LOCAL_CLUSTER);
-                assertThat(localCluster.getIndexExpression(), equalTo("logs-*"));
+                assertThat(localCluster.getOriginalIndices(), equalTo("logs-*"));
                 assertThat(localCluster.getStatus(), equalTo(EsqlExecutionInfo.Cluster.Status.PARTIAL));
 
                 assertClusterMetadataInResponse(asyncResponse, responseExpectMeta, 2);

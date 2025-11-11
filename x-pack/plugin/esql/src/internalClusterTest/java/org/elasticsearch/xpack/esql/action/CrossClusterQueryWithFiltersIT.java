@@ -51,7 +51,7 @@ public class CrossClusterQueryWithFiltersIT extends AbstractCrossClusterTestCase
     }
 
     protected void assertClusterMetadata(EsqlExecutionInfo.Cluster clusterMetatata, long took, String indexExpression, Status status) {
-        assertThat(clusterMetatata.getIndexExpression(), equalTo(indexExpression));
+        assertThat(clusterMetatata.getOriginalIndices(), equalTo(indexExpression));
         assertThat(clusterMetatata.getStatus(), equalTo(status));
         assertThat(clusterMetatata.getTook().millis(), greaterThanOrEqualTo(0L));
         assertThat(clusterMetatata.getTook().millis(), lessThanOrEqualTo(took));

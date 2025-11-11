@@ -15,7 +15,9 @@ import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.cluster.RemoteException;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.RunOnce;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.Page;
@@ -368,8 +370,7 @@ public class ComputeService {
                 return;
             }
         }
-        Map<String, OriginalIndices> clusterToOriginalIndices = transportService.getRemoteClusterService()
-            .groupIndices(SearchRequest.DEFAULT_INDICES_OPTIONS, PlannerUtils.planOriginalIndices(physicalPlan));
+        Map<String, OriginalIndices> clusterToOriginalIndices = getOriginalIndices(execInfo);
         var localOriginalIndices = clusterToOriginalIndices.remove(LOCAL_CLUSTER);
         var localConcreteIndices = clusterToConcreteIndices.remove(LOCAL_CLUSTER);
         /*
@@ -797,5 +798,18 @@ public class ComputeService {
         public String getDescription() {
             return "group [" + parentDescription.get() + "]";
         }
+    }
+
+    /**
+     * Returns the original indices specified in the FROM command of the query. We need the original query to resolve alias filters.
+     */
+    private static Map<String, OriginalIndices> getOriginalIndices(EsqlExecutionInfo executionInfo) {
+        return Maps.transformValues(
+            executionInfo.getClusters(),
+            cluster -> new OriginalIndices(
+                Strings.commaDelimitedListToStringArray(cluster.getOriginalIndices()),
+                SearchRequest.DEFAULT_INDICES_OPTIONS
+            )
+        );
     }
 }

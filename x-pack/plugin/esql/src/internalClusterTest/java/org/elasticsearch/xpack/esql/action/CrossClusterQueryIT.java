@@ -64,7 +64,7 @@ public class CrossClusterQueryIT extends AbstractCrossClusterTestCase {
     }
 
     protected void assertClusterInfoSuccess(EsqlExecutionInfo.Cluster clusterInfo, int numShards, long overallTookMillis) {
-        assertThat(clusterInfo.getIndexExpression(), equalTo("logs-*"));
+        assertThat(clusterInfo.getOriginalIndices(), equalTo("logs-*"));
         assertThat(clusterInfo.getTook().millis(), lessThanOrEqualTo(overallTookMillis));
         super.assertClusterInfoSuccess(clusterInfo, numShards);
     }
@@ -471,7 +471,7 @@ public class CrossClusterQueryIT extends AbstractCrossClusterTestCase {
         for (ExpectedCluster expectedCluster : expected) {
             EsqlExecutionInfo.Cluster cluster = executionInfo.getCluster(expectedCluster.clusterAlias());
             String msg = cluster.getClusterAlias();
-            assertThat(msg, cluster.getIndexExpression(), equalTo(expectedCluster.indexExpression()));
+            assertThat(msg, cluster.getOriginalIndices(), equalTo(expectedCluster.indexExpression()));
             assertThat(msg, cluster.getStatus(), equalTo(expectedCluster.status()));
             assertThat(msg, cluster.getTook().millis(), greaterThanOrEqualTo(0L));
             assertThat(msg, cluster.getTook().millis(), lessThanOrEqualTo(overallTookMillis));
@@ -542,11 +542,11 @@ public class CrossClusterQueryIT extends AbstractCrossClusterTestCase {
             assertThat(executionInfo.clusterAliases(), equalTo(Set.of(REMOTE_CLUSTER_1, LOCAL_CLUSTER)));
 
             EsqlExecutionInfo.Cluster remoteCluster = executionInfo.getCluster(REMOTE_CLUSTER_1);
-            assertThat(remoteCluster.getIndexExpression(), equalTo("no_such_index*"));
+            assertThat(remoteCluster.getOriginalIndices(), equalTo("no_such_index*"));
             assertClusterInfoSuccess(remoteCluster, 0);
 
             EsqlExecutionInfo.Cluster localCluster = executionInfo.getCluster(LOCAL_CLUSTER);
-            assertThat(localCluster.getIndexExpression(), equalTo("logs-*,no_such_index*"));
+            assertThat(localCluster.getOriginalIndices(), equalTo("logs-*,no_such_index*"));
             assertClusterInfoSuccess(localCluster, localNumShards);
         } finally {
             clearSkipUnavailable();
@@ -588,7 +588,7 @@ public class CrossClusterQueryIT extends AbstractCrossClusterTestCase {
             assertThat(executionInfo.clusterAliases(), equalTo(Set.of(REMOTE_CLUSTER_1, LOCAL_CLUSTER)));
 
             EsqlExecutionInfo.Cluster remoteCluster = executionInfo.getCluster(REMOTE_CLUSTER_1);
-            assertThat(remoteCluster.getIndexExpression(), equalTo("*"));
+            assertThat(remoteCluster.getOriginalIndices(), equalTo("*"));
             assertThat(remoteCluster.getTook().millis(), lessThanOrEqualTo(overallTookMillis));
             assertClusterInfoSuccess(remoteCluster, 0);
 
@@ -792,7 +792,7 @@ public class CrossClusterQueryIT extends AbstractCrossClusterTestCase {
             assertThat(executionInfo.overallTook().millis(), greaterThanOrEqualTo(0L));
 
             EsqlExecutionInfo.Cluster remoteCluster = executionInfo.getCluster(REMOTE_CLUSTER_1);
-            assertThat(remoteCluster.getIndexExpression(), equalTo("logs-2*"));
+            assertThat(remoteCluster.getOriginalIndices(), equalTo("logs-2*"));
             assertClusterInfoSkipped(remoteCluster);
             assertThat(remoteCluster.getFailures().getFirst().reason(), containsString("Accessing failing field"));
         }
@@ -813,7 +813,7 @@ public class CrossClusterQueryIT extends AbstractCrossClusterTestCase {
             assertThat(executionInfo.overallTook().millis(), greaterThanOrEqualTo(0L));
 
             EsqlExecutionInfo.Cluster remoteCluster = executionInfo.getCluster(REMOTE_CLUSTER_1);
-            assertThat(remoteCluster.getIndexExpression(), equalTo("logs-2*"));
+            assertThat(remoteCluster.getOriginalIndices(), equalTo("logs-2*"));
             assertClusterInfoSkipped(remoteCluster);
             assertThat(remoteCluster.getFailures().getFirst().reason(), containsString("Accessing failing field"));
         }
@@ -827,7 +827,7 @@ public class CrossClusterQueryIT extends AbstractCrossClusterTestCase {
             assertThat(executionInfo.overallTook().millis(), greaterThanOrEqualTo(0L));
 
             EsqlExecutionInfo.Cluster remoteCluster = executionInfo.getCluster(REMOTE_CLUSTER_1);
-            assertThat(remoteCluster.getIndexExpression(), equalTo("logs-2*"));
+            assertThat(remoteCluster.getOriginalIndices(), equalTo("logs-2*"));
             assertClusterInfoSkipped(remoteCluster);
             assertThat(remoteCluster.getFailures().getFirst().reason(), containsString("Accessing failing field"));
         }

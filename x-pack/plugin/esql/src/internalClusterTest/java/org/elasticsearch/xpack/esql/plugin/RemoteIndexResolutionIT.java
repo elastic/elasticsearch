@@ -212,7 +212,7 @@ public class RemoteIndexResolutionIT extends AbstractCrossClusterTestCase {
             .getClusters()
             .values()
             .stream()
-            .map(cluster -> new EsqlResponseExecutionInfo(cluster.getClusterAlias(), cluster.getIndexExpression(), cluster.getStatus()))
+            .map(cluster -> new EsqlResponseExecutionInfo(cluster.getClusterAlias(), cluster.getOriginalIndices(), cluster.getStatus()))
             .toList();
     }
 

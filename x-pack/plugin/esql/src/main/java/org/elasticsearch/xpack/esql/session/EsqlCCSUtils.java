@@ -213,8 +213,8 @@ public class EsqlCCSUtils {
          * Mark it as SKIPPED with 0 shards searched and took=0.
          */
         for (String c : clustersWithNoMatchingIndices) {
-            final String indexExpression = executionInfo.getCluster(c).getIndexExpression();
-            if (concreteIndexRequested(executionInfo.getCluster(c).getIndexExpression())) {
+            final String indexExpression = executionInfo.getCluster(c).getOriginalIndices();
+            if (concreteIndexRequested(executionInfo.getCluster(c).getOriginalIndices())) {
                 String error = Strings.format(
                     "Unknown index [%s]",
                     (c.equals(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY) ? indexExpression : c + ":" + indexExpression)
@@ -340,7 +340,7 @@ public class EsqlCCSUtils {
                         executionInfo.swapCluster(clusterAlias, (k, v) -> {
                             var indexExpr = Strings.arrayToCommaDelimitedString(indices.indices());
                             if (v != null) {
-                                indexExpr = v.getIndexExpression() + "," + indexExpr;
+                                indexExpr = v.getOriginalIndices() + "," + indexExpr;
                             }
                             return new EsqlExecutionInfo.Cluster(clusterAlias, indexExpr, executionInfo.shouldSkipOnFailure(clusterAlias));
                         });

@@ -31,13 +31,13 @@ public class CrossClusterQueryUnavailableRemotesIT extends AbstractCrossClusterT
     }
 
     protected void assertClusterInfoSkipped(EsqlExecutionInfo.Cluster clusterInfo, long overallTookMillis) {
-        assertThat(clusterInfo.getIndexExpression(), equalTo("logs-*"));
+        assertThat(clusterInfo.getOriginalIndices(), equalTo("logs-*"));
         assertThat(clusterInfo.getTook().millis(), lessThanOrEqualTo(overallTookMillis));
         super.assertClusterInfoSkipped(clusterInfo);
     }
 
     protected void assertClusterInfoSuccess(EsqlExecutionInfo.Cluster clusterInfo, int numShards, long overallTookMillis) {
-        assertThat(clusterInfo.getIndexExpression(), equalTo("logs-*"));
+        assertThat(clusterInfo.getOriginalIndices(), equalTo("logs-*"));
         assertThat(clusterInfo.getTook().millis(), lessThanOrEqualTo(overallTookMillis));
         super.assertClusterInfoSuccess(clusterInfo, numShards);
     }
@@ -110,11 +110,11 @@ public class CrossClusterQueryUnavailableRemotesIT extends AbstractCrossClusterT
 
                 EsqlExecutionInfo.Cluster remote2Cluster = executionInfo.getCluster(REMOTE_CLUSTER_2);
                 assertClusterInfoSkipped(remote1Cluster);
-                assertThat(remote2Cluster.getIndexExpression(), equalTo("nomatch*"));
+                assertThat(remote2Cluster.getOriginalIndices(), equalTo("nomatch*"));
                 assertThat(remote2Cluster.getTook().millis(), lessThanOrEqualTo(overallTookMillis));
 
                 EsqlExecutionInfo.Cluster localCluster = executionInfo.getCluster(LOCAL_CLUSTER);
-                assertThat(localCluster.getIndexExpression(), equalTo("nomatch*"));
+                assertThat(localCluster.getOriginalIndices(), equalTo("nomatch*"));
                 // local cluster should never be marked as SKIPPED
                 assertClusterInfoSuccess(localCluster, 0);
                 assertThat(localCluster.getTook().millis(), lessThanOrEqualTo(overallTookMillis));
@@ -228,11 +228,11 @@ public class CrossClusterQueryUnavailableRemotesIT extends AbstractCrossClusterT
 
                 EsqlExecutionInfo.Cluster remote2Cluster = executionInfo.getCluster(REMOTE_CLUSTER_2);
                 assertClusterInfoSkipped(remote1Cluster);
-                assertThat(remote2Cluster.getIndexExpression(), equalTo("nomatch*"));
+                assertThat(remote2Cluster.getOriginalIndices(), equalTo("nomatch*"));
                 assertThat(remote2Cluster.getTook().millis(), lessThanOrEqualTo(overallTookMillis));
 
                 EsqlExecutionInfo.Cluster localCluster = executionInfo.getCluster(LOCAL_CLUSTER);
-                assertThat(localCluster.getIndexExpression(), equalTo("nomatch*"));
+                assertThat(localCluster.getOriginalIndices(), equalTo("nomatch*"));
                 // local cluster should never be marked as SKIPPED
                 assertClusterInfoSuccess(localCluster, 0);
                 assertThat(localCluster.getTook().millis(), lessThanOrEqualTo(overallTookMillis));

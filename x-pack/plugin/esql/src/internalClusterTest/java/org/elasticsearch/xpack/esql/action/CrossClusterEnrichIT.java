@@ -546,7 +546,7 @@ public class CrossClusterEnrichIT extends AbstractEnrichBasedCrossClusterTestCas
         for (EsqlExecutionInfo.Cluster cluster : clusters) {
             assertThat(cluster.getTook().millis(), greaterThanOrEqualTo(0L));
             assertThat(cluster.getStatus(), equalTo(EsqlExecutionInfo.Cluster.Status.SUCCESSFUL));
-            assertThat(cluster.getIndexExpression(), equalTo("events"));
+            assertThat(cluster.getOriginalIndices(), equalTo("events"));
             assertThat(cluster.getTotalShards(), equalTo(1));
             assertThat(cluster.getSuccessfulShards(), equalTo(1));
             assertThat(cluster.getSkippedShards(), equalTo(0));

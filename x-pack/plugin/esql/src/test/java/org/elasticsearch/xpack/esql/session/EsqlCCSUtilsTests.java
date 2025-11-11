@@ -128,15 +128,15 @@ public class EsqlCCSUtilsTests extends ESTestCase {
             assertNull(executionInfo.overallTook());
 
             EsqlExecutionInfo.Cluster localCluster = executionInfo.getCluster(LOCAL_CLUSTER_ALIAS);
-            assertThat(localCluster.getIndexExpression(), equalTo("logs*"));
+            assertThat(localCluster.getOriginalIndices(), equalTo("logs*"));
             assertClusterStatusAndShardCounts(localCluster, EsqlExecutionInfo.Cluster.Status.RUNNING);
 
             EsqlExecutionInfo.Cluster remote1Cluster = executionInfo.getCluster(REMOTE1_ALIAS);
-            assertThat(remote1Cluster.getIndexExpression(), equalTo("*"));
+            assertThat(remote1Cluster.getOriginalIndices(), equalTo("*"));
             assertClusterStatusAndShardCounts(remote1Cluster, EsqlExecutionInfo.Cluster.Status.SKIPPED);
 
             EsqlExecutionInfo.Cluster remote2Cluster = executionInfo.getCluster(REMOTE2_ALIAS);
-            assertThat(remote2Cluster.getIndexExpression(), equalTo("mylogs1,mylogs2,logs*"));
+            assertThat(remote2Cluster.getOriginalIndices(), equalTo("mylogs1,mylogs2,logs*"));
             assertClusterStatusAndShardCounts(remote2Cluster, EsqlExecutionInfo.Cluster.Status.SKIPPED);
         }
 
@@ -179,15 +179,15 @@ public class EsqlCCSUtilsTests extends ESTestCase {
             assertNull(executionInfo.overallTook());
 
             EsqlExecutionInfo.Cluster localCluster = executionInfo.getCluster(LOCAL_CLUSTER_ALIAS);
-            assertThat(localCluster.getIndexExpression(), equalTo("logs*"));
+            assertThat(localCluster.getOriginalIndices(), equalTo("logs*"));
             assertClusterStatusAndShardCounts(localCluster, EsqlExecutionInfo.Cluster.Status.RUNNING);
 
             EsqlExecutionInfo.Cluster remote1Cluster = executionInfo.getCluster(REMOTE1_ALIAS);
-            assertThat(remote1Cluster.getIndexExpression(), equalTo("*"));
+            assertThat(remote1Cluster.getOriginalIndices(), equalTo("*"));
             assertClusterStatusAndShardCounts(remote1Cluster, EsqlExecutionInfo.Cluster.Status.RUNNING);
 
             EsqlExecutionInfo.Cluster remote2Cluster = executionInfo.getCluster(REMOTE2_ALIAS);
-            assertThat(remote2Cluster.getIndexExpression(), equalTo("mylogs1,mylogs2,logs*"));
+            assertThat(remote2Cluster.getOriginalIndices(), equalTo("mylogs1,mylogs2,logs*"));
             assertClusterStatusAndShardCounts(remote2Cluster, EsqlExecutionInfo.Cluster.Status.RUNNING);
         }
     }
@@ -227,15 +227,15 @@ public class EsqlCCSUtilsTests extends ESTestCase {
             EsqlCCSUtils.updateExecutionInfoWithClustersWithNoMatchingIndices(executionInfo, Set.of(indexResolution));
 
             EsqlExecutionInfo.Cluster localCluster = executionInfo.getCluster(LOCAL_CLUSTER_ALIAS);
-            assertThat(localCluster.getIndexExpression(), equalTo("logs*"));
+            assertThat(localCluster.getOriginalIndices(), equalTo("logs*"));
             assertClusterStatusAndShardCounts(localCluster, EsqlExecutionInfo.Cluster.Status.RUNNING);
 
             EsqlExecutionInfo.Cluster remote1Cluster = executionInfo.getCluster(REMOTE1_ALIAS);
-            assertThat(remote1Cluster.getIndexExpression(), equalTo("*"));
+            assertThat(remote1Cluster.getOriginalIndices(), equalTo("*"));
             assertClusterStatusAndShardCounts(remote1Cluster, EsqlExecutionInfo.Cluster.Status.RUNNING);
 
             EsqlExecutionInfo.Cluster remote2Cluster = executionInfo.getCluster(REMOTE2_ALIAS);
-            assertThat(remote2Cluster.getIndexExpression(), equalTo("mylogs1,mylogs2,logs*"));
+            assertThat(remote2Cluster.getOriginalIndices(), equalTo("mylogs1,mylogs2,logs*"));
             assertClusterStatusAndShardCounts(remote2Cluster, EsqlExecutionInfo.Cluster.Status.RUNNING);
         }
 
@@ -270,11 +270,11 @@ public class EsqlCCSUtilsTests extends ESTestCase {
             EsqlCCSUtils.updateExecutionInfoWithClustersWithNoMatchingIndices(executionInfo, Set.of(indexResolution));
 
             EsqlExecutionInfo.Cluster localCluster = executionInfo.getCluster(LOCAL_CLUSTER_ALIAS);
-            assertThat(localCluster.getIndexExpression(), equalTo("logs*"));
+            assertThat(localCluster.getOriginalIndices(), equalTo("logs*"));
             assertClusterStatusAndShardCounts(localCluster, EsqlExecutionInfo.Cluster.Status.RUNNING);
 
             EsqlExecutionInfo.Cluster remote1Cluster = executionInfo.getCluster(REMOTE1_ALIAS);
-            assertThat(remote1Cluster.getIndexExpression(), equalTo("*"));
+            assertThat(remote1Cluster.getOriginalIndices(), equalTo("*"));
             assertThat(remote1Cluster.getStatus(), equalTo(EsqlExecutionInfo.Cluster.Status.SUCCESSFUL));
             assertThat(remote1Cluster.getTook().millis(), greaterThanOrEqualTo(0L));
             assertThat(remote1Cluster.getTotalShards(), equalTo(0));
@@ -283,7 +283,7 @@ public class EsqlCCSUtilsTests extends ESTestCase {
             assertThat(remote1Cluster.getFailedShards(), equalTo(0));
 
             EsqlExecutionInfo.Cluster remote2Cluster = executionInfo.getCluster(REMOTE2_ALIAS);
-            assertThat(remote2Cluster.getIndexExpression(), equalTo("mylogs1,mylogs2,logs*"));
+            assertThat(remote2Cluster.getOriginalIndices(), equalTo("mylogs1,mylogs2,logs*"));
             assertClusterStatusAndShardCounts(remote2Cluster, EsqlExecutionInfo.Cluster.Status.RUNNING);
         }
 
@@ -312,16 +312,16 @@ public class EsqlCCSUtilsTests extends ESTestCase {
             EsqlCCSUtils.updateExecutionInfoWithClustersWithNoMatchingIndices(executionInfo, Set.of(indexResolution));
 
             EsqlExecutionInfo.Cluster localCluster = executionInfo.getCluster(LOCAL_CLUSTER_ALIAS);
-            assertThat(localCluster.getIndexExpression(), equalTo("logs*"));
+            assertThat(localCluster.getOriginalIndices(), equalTo("logs*"));
             assertClusterStatusAndShardCounts(localCluster, EsqlExecutionInfo.Cluster.Status.RUNNING);
 
             EsqlExecutionInfo.Cluster remote1Cluster = executionInfo.getCluster(REMOTE1_ALIAS);
-            assertThat(remote1Cluster.getIndexExpression(), equalTo("*"));
+            assertThat(remote1Cluster.getOriginalIndices(), equalTo("*"));
             // since remote1 is in the failures Map (passed to IndexResolution.valid),
             assertThat(remote1Cluster.getStatus(), equalTo(EsqlExecutionInfo.Cluster.Status.SKIPPED));
 
             EsqlExecutionInfo.Cluster remote2Cluster = executionInfo.getCluster(REMOTE2_ALIAS);
-            assertThat(remote2Cluster.getIndexExpression(), equalTo("mylogs1*,mylogs2*,logs*"));
+            assertThat(remote2Cluster.getOriginalIndices(), equalTo("mylogs1*,mylogs2*,logs*"));
             assertThat(remote2Cluster.getStatus(), equalTo(EsqlExecutionInfo.Cluster.Status.SUCCESSFUL));
             assertThat(remote2Cluster.getTook().millis(), greaterThanOrEqualTo(0L));
             assertThat(remote2Cluster.getTotalShards(), equalTo(0));
@@ -353,7 +353,7 @@ public class EsqlCCSUtilsTests extends ESTestCase {
             EsqlCCSUtils.updateExecutionInfoWithClustersWithNoMatchingIndices(executionInfo, Set.of(indexResolution));
 
             EsqlExecutionInfo.Cluster localCluster = executionInfo.getCluster(LOCAL_CLUSTER_ALIAS);
-            assertThat(localCluster.getIndexExpression(), equalTo("logs*"));
+            assertThat(localCluster.getOriginalIndices(), equalTo("logs*"));
             assertClusterStatusAndShardCounts(localCluster, EsqlExecutionInfo.Cluster.Status.RUNNING);
 
             EsqlExecutionInfo.Cluster remote1Cluster = executionInfo.getCluster(REMOTE1_ALIAS);
@@ -402,16 +402,16 @@ public class EsqlCCSUtilsTests extends ESTestCase {
             EsqlCCSUtils.updateExecutionInfoWithClustersWithNoMatchingIndices(executionInfo, Set.of(indexResolution));
 
             EsqlExecutionInfo.Cluster localCluster = executionInfo.getCluster(LOCAL_CLUSTER_ALIAS);
-            assertThat(localCluster.getIndexExpression(), equalTo("logs*"));
+            assertThat(localCluster.getOriginalIndices(), equalTo("logs*"));
             assertClusterStatusAndShardCounts(localCluster, EsqlExecutionInfo.Cluster.Status.RUNNING);
 
             EsqlExecutionInfo.Cluster remote1Cluster = executionInfo.getCluster(REMOTE1_ALIAS);
-            assertThat(remote1Cluster.getIndexExpression(), equalTo("*"));
+            assertThat(remote1Cluster.getOriginalIndices(), equalTo("*"));
             // skipped since remote1 is in the failures Map
             assertThat(remote1Cluster.getStatus(), equalTo(EsqlExecutionInfo.Cluster.Status.SKIPPED));
 
             EsqlExecutionInfo.Cluster remote2Cluster = executionInfo.getCluster(REMOTE2_ALIAS);
-            assertThat(remote2Cluster.getIndexExpression(), equalTo("mylogs1*,mylogs2*,logs*"));
+            assertThat(remote2Cluster.getOriginalIndices(), equalTo("mylogs1*,mylogs2*,logs*"));
             assertThat(remote2Cluster.getStatus(), equalTo(EsqlExecutionInfo.Cluster.Status.SKIPPED));
         }
     }

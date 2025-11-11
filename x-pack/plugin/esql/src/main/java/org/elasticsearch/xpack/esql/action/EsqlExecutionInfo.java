@@ -397,7 +397,10 @@ public class EsqlExecutionInfo implements ChunkedToXContentObject, Writeable {
         public static final ParseField TOOK = new ParseField("took");
 
         private final String clusterAlias;
-        private final String indexExpression; // original index expression from the user for this cluster
+        /**
+         * This cluster's indices as specified in the query.
+         */
+        private final String originalIndices;
         private final boolean skipUnavailable;
         private final Cluster.Status status;
         private final Integer totalShards;
@@ -423,8 +426,8 @@ public class EsqlExecutionInfo implements ChunkedToXContentObject, Writeable {
             }
         }
 
-        public Cluster(String clusterAlias, String indexExpression) {
-            this(clusterAlias, indexExpression, true, Cluster.Status.RUNNING, null, null, null, null, null, null);
+        public Cluster(String clusterAlias, String originalIndices) {
+            this(clusterAlias, originalIndices, true, Cluster.Status.RUNNING, null, null, null, null, null, null);
         }
 
         /**
@@ -432,28 +435,28 @@ public class EsqlExecutionInfo implements ChunkedToXContentObject, Writeable {
          *
          * @param clusterAlias clusterAlias as defined in the remote cluster settings or RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY
          *                     for the local cluster
-         * @param indexExpression the original (not resolved/concrete) indices expression provided for this cluster.
+         * @param originalIndices the original (not resolved/concrete) indices expression provided for this cluster.
          * @param skipUnavailable whether this Cluster is marked as skip_unavailable in remote cluster settings
          */
-        public Cluster(String clusterAlias, String indexExpression, boolean skipUnavailable) {
-            this(clusterAlias, indexExpression, skipUnavailable, Cluster.Status.RUNNING, null, null, null, null, null, null);
+        public Cluster(String clusterAlias, String originalIndices, boolean skipUnavailable) {
+            this(clusterAlias, originalIndices, skipUnavailable, Cluster.Status.RUNNING, null, null, null, null, null, null);
         }
 
         /**
          * Create a Cluster with a new Status other than the default of RUNNING.
          * @param clusterAlias clusterAlias as defined in the remote cluster settings or RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY
          *                     for the local cluster
-         * @param indexExpression the original (not resolved/concrete) indices expression provided for this cluster.
+         * @param originalIndices the original (not resolved/concrete) indices expression provided for this cluster.
          * @param skipUnavailable whether cluster is marked as skip_unavailable in remote cluster settings
          * @param status current status of the search on this Cluster
          */
-        public Cluster(String clusterAlias, String indexExpression, boolean skipUnavailable, Cluster.Status status) {
-            this(clusterAlias, indexExpression, skipUnavailable, status, null, null, null, null, null, null);
+        public Cluster(String clusterAlias, String originalIndices, boolean skipUnavailable, Cluster.Status status) {
+            this(clusterAlias, originalIndices, skipUnavailable, status, null, null, null, null, null, null);
         }
 
         public Cluster(
             String clusterAlias,
-            String indexExpression,
+            String originalIndices,
             boolean skipUnavailable,
             Cluster.Status status,
             Integer totalShards,
@@ -464,10 +467,10 @@ public class EsqlExecutionInfo implements ChunkedToXContentObject, Writeable {
             TimeValue took
         ) {
             assert clusterAlias != null : "clusterAlias cannot be null";
-            assert indexExpression != null : "indexExpression of Cluster cannot be null";
+            assert originalIndices != null : "indexExpression of Cluster cannot be null";
             assert status != null : "status of Cluster cannot be null";
             this.clusterAlias = clusterAlias;
-            this.indexExpression = indexExpression;
+            this.originalIndices = originalIndices;
             this.skipUnavailable = skipUnavailable;
             this.status = status;
             this.totalShards = totalShards;
@@ -480,7 +483,7 @@ public class EsqlExecutionInfo implements ChunkedToXContentObject, Writeable {
 
         public Cluster(StreamInput in) throws IOException {
             this.clusterAlias = in.readString();
-            this.indexExpression = in.readString();
+            this.originalIndices = in.readString();
             this.status = Cluster.Status.valueOf(in.readString().toUpperCase(Locale.ROOT));
             this.totalShards = in.readOptionalInt();
             this.successfulShards = in.readOptionalInt();
@@ -494,7 +497,7 @@ public class EsqlExecutionInfo implements ChunkedToXContentObject, Writeable {
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeString(clusterAlias);
-            out.writeString(indexExpression);
+            out.writeString(originalIndices);
             out.writeString(status.toString());
             out.writeOptionalInt(totalShards);
             out.writeOptionalInt(successfulShards);
@@ -536,7 +539,7 @@ public class EsqlExecutionInfo implements ChunkedToXContentObject, Writeable {
             public Cluster build() {
                 return new Cluster(
                     original.getClusterAlias(),
-                    original.getIndexExpression(),
+                    original.getOriginalIndices(),
                     original.isSkipUnavailable(),
                     status != null ? status : original.getStatus(),
                     totalShards != null ? totalShards : original.getTotalShards(),
@@ -599,7 +602,7 @@ public class EsqlExecutionInfo implements ChunkedToXContentObject, Writeable {
             builder.startObject(name);
             {
                 builder.field(STATUS_FIELD.getPreferredName(), getStatus().toString());
-                builder.field(INDICES_FIELD.getPreferredName(), indexExpression);
+                builder.field(INDICES_FIELD.getPreferredName(), originalIndices);
                 if (took != null && status != Status.RUNNING) {
                     builder.field(TOOK.getPreferredName(), took.millis());
                 }
@@ -638,8 +641,8 @@ public class EsqlExecutionInfo implements ChunkedToXContentObject, Writeable {
             return clusterAlias;
         }
 
-        public String getIndexExpression() {
-            return indexExpression;
+        public String getOriginalIndices() {
+            return originalIndices;
         }
 
         public boolean isSkipUnavailable() {
@@ -684,7 +687,7 @@ public class EsqlExecutionInfo implements ChunkedToXContentObject, Writeable {
             if (o == null || getClass() != o.getClass()) return false;
             Cluster cluster = (Cluster) o;
             return Objects.equals(clusterAlias, cluster.clusterAlias)
-                && Objects.equals(indexExpression, cluster.indexExpression)
+                && Objects.equals(originalIndices, cluster.originalIndices)
                 && status == cluster.status
                 && Objects.equals(totalShards, cluster.totalShards)
                 && Objects.equals(successfulShards, cluster.successfulShards)
@@ -695,7 +698,7 @@ public class EsqlExecutionInfo implements ChunkedToXContentObject, Writeable {
 
         @Override
         public int hashCode() {
-            return Objects.hash(clusterAlias, indexExpression, status, totalShards, successfulShards, skippedShards, failedShards, took);
+            return Objects.hash(clusterAlias, originalIndices, status, totalShards, successfulShards, skippedShards, failedShards, took);
         }
 
         @Override
@@ -717,7 +720,7 @@ public class EsqlExecutionInfo implements ChunkedToXContentObject, Writeable {
                 + ", took="
                 + took
                 + ", indexExpression='"
-                + indexExpression
+                + originalIndices
                 + '\''
                 + ", skipUnavailable="
                 + skipUnavailable

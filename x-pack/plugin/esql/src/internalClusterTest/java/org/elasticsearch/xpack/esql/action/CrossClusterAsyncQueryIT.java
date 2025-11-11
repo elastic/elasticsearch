@@ -168,17 +168,17 @@ public class CrossClusterAsyncQueryIT extends AbstractCrossClusterTestCase {
 
                 EsqlExecutionInfo.Cluster remoteCluster = executionInfo.getCluster(REMOTE_CLUSTER_1);
                 assertThat(remoteCluster.getTook().millis(), lessThanOrEqualTo(overallTookMillis));
-                assertThat(remoteCluster.getIndexExpression(), equalTo("logs*"));
+                assertThat(remoteCluster.getOriginalIndices(), equalTo("logs*"));
                 assertClusterInfoSuccess(remoteCluster, 0);
 
                 EsqlExecutionInfo.Cluster remote2Cluster = executionInfo.getCluster(REMOTE_CLUSTER_2);
                 assertClusterInfoSuccess(remote2Cluster, 0);
-                assertThat(remote2Cluster.getIndexExpression(), equalTo("logs*"));
+                assertThat(remote2Cluster.getOriginalIndices(), equalTo("logs*"));
                 assertThat(remote2Cluster.getTook().millis(), lessThanOrEqualTo(overallTookMillis));
 
                 EsqlExecutionInfo.Cluster localCluster = executionInfo.getCluster(LOCAL_CLUSTER);
                 assertClusterInfoSuccess(localCluster, 0);
-                assertThat(localCluster.getIndexExpression(), equalTo("logs*"));
+                assertThat(localCluster.getOriginalIndices(), equalTo("logs*"));
                 assertThat(localCluster.getTook().millis(), lessThanOrEqualTo(overallTookMillis));
 
                 assertClusterMetadataInResponse(resp, responseExpectMeta, 3);

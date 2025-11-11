@@ -861,7 +861,7 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
                 if (success == false) {
                     out.close();
                 }
-            }     
+            }
 
             ActionListener.respondAndRelease(channelListener, new BytesTransportResponse(out.moveToBytesReference()));
         }

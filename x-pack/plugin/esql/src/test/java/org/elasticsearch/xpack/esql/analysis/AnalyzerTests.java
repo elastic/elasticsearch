@@ -4445,8 +4445,31 @@ public class AnalyzerTests extends ESTestCase {
         );
         IndexResolution resolution = IndexResolution.valid(index);
         Analyzer analyzer = analyzer(resolution);
+
         String query = "FROM union_index* | KEEP id, foo | MV_EXPAND foo | EVAL id::keyword";
         LogicalPlan plan = analyze(query, analyzer);
+
+        Project project = as(plan, Project.class);
+        List<? extends NamedExpression> projections = project.projections();
+        assertEquals(3, projections.size());
+
+        ReferenceAttribute castRa = as(projections.get(2), ReferenceAttribute.class);
+        verifyNameAndType(castRa.name(), castRa.dataType(), "id::keyword", KEYWORD);
+
+        Eval eval = as(as(project.child(), Limit.class).child(), Eval.class);
+        FieldAttribute convertedFa = as(eval.output().get(2), FieldAttribute.class);
+        verifyNameAndType(convertedFa.name(), convertedFa.dataType(), "$$id$converted_to$keyword", KEYWORD);
+
+        LogicalPlan current = eval.child();
+        // TODO idiomatic "walk-down"?
+        while (current != null && (current instanceof EsRelation) == false) {
+            if (current.outputSet().contains(convertedFa)) {
+                // TODO matcher fails
+                // assertThat(current.inputSet(), contains(convertedFa));
+                assertTrue(current.inputSet().contains(convertedFa));
+            }
+            current = current.children().getFirst();
+        }
     }
 
     public void testImplicitCastingForDateAndDateNanosFields() {

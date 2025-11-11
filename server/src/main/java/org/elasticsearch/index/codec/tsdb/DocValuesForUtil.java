@@ -22,8 +22,8 @@ public final class DocValuesForUtil {
     private static final int BITS_IN_SIX_BYTES = 6 * Byte.SIZE;
     private static final int BITS_IN_SEVEN_BYTES = 7 * Byte.SIZE;
 
-    private static final int BITBACK_BLOCK_SHIFT = 7;
-    private static final int BITBACK_BLOCK_SIZE = 1 << BITBACK_BLOCK_SHIFT;
+    private static final int BITPACK_BLOCK_SHIFT = 7;
+    private static final int BITBACK_BLOCK_SIZE = 1 << BITPACK_BLOCK_SHIFT;
 
     private final int blockSize;
     private final byte[] encoded;
@@ -32,7 +32,7 @@ public final class DocValuesForUtil {
         assert numericBlockSize >= BITBACK_BLOCK_SIZE && (numericBlockSize & (BITBACK_BLOCK_SIZE - 1)) == 0
             : "expected to get a block size that a multiple of " + BITBACK_BLOCK_SIZE + ", got " + numericBlockSize;
         this.blockSize = numericBlockSize;
-        this.encoded = new byte[numericBlockSize * Byte.SIZE];
+        this.encoded = new byte[numericBlockSize * Long.BYTES];
     }
 
     public static int roundBits(int bitsPerValue) {
@@ -54,7 +54,7 @@ public final class DocValuesForUtil {
         if (bitsPerValue <= 24) { // these bpvs are handled efficiently by ForUtil
             ForUtil.encode(in, bitsPerValue, out);
         } else if (bitsPerValue <= 32) {
-            for (int k = 0; k < blockSize >> BITBACK_BLOCK_SHIFT; k++) {
+            for (int k = 0; k < blockSize >> BITPACK_BLOCK_SHIFT; k++) {
                 collapse32(in, k * BITBACK_BLOCK_SIZE);
                 for (int i = 0; i < BITBACK_BLOCK_SIZE / 2; i++) {
                     out.writeLong(in[k * BITBACK_BLOCK_SIZE + i]);
@@ -82,7 +82,7 @@ public final class DocValuesForUtil {
         if (bitsPerValue <= 24) {
             ForUtil.decode(bitsPerValue, in, out);
         } else if (bitsPerValue <= 32) {
-            for (int k = 0; k < blockSize >> BITBACK_BLOCK_SHIFT; k++) {
+            for (int k = 0; k < blockSize >> BITPACK_BLOCK_SHIFT; k++) {
                 in.readLongs(out, +k * BITBACK_BLOCK_SIZE, BITBACK_BLOCK_SIZE / 2);
                 expand32(out, k * BITBACK_BLOCK_SIZE);
             }

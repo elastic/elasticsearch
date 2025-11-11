@@ -313,6 +313,8 @@ class KibanaOwnedReservedRoleDescriptors {
                 // Endpoint events. Kibana reads endpoint alert lineage for building and sending
                 // telemetry
                 RoleDescriptor.IndicesPrivileges.builder().indices("logs-endpoint.events.*").privileges("read").build(),
+                // Endpoint alerts. Kibana reads alerts to show value suggestions to the user.
+                RoleDescriptor.IndicesPrivileges.builder().indices("logs-endpoint.alerts-*").privileges("read").build(),
                 // Fleet package install and upgrade
                 RoleDescriptor.IndicesPrivileges.builder()
                     .indices(

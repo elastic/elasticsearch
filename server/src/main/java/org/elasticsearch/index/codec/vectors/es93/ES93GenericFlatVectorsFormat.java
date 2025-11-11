@@ -15,17 +15,20 @@ import org.apache.lucene.codecs.hnsw.FlatVectorsScorer;
 import org.apache.lucene.codecs.hnsw.FlatVectorsWriter;
 import org.apache.lucene.index.SegmentReadState;
 import org.apache.lucene.index.SegmentWriteState;
-import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.index.codec.vectors.AbstractFlatVectorsFormat;
 import org.elasticsearch.index.codec.vectors.DirectIOCapableFlatVectorsFormat;
-import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 
 import java.io.IOException;
 import java.util.Map;
 
 public class ES93GenericFlatVectorsFormat extends AbstractFlatVectorsFormat {
 
-    public static final FeatureFlag GENERIC_VECTOR_FORMAT = new FeatureFlag("generic_vector_format");
+    // TODO: replace with DenseVectorFieldMapper.ElementType
+    public enum ElementType {
+        STANDARD,
+        BIT,        // only supports byte[]
+        BFLOAT16    // only supports float[]
+    }
 
     static final String NAME = "ES93GenericFlatVectorsFormat";
     static final String VECTOR_FORMAT_INFO_EXTENSION = "vfi";
@@ -41,7 +44,7 @@ public class ES93GenericFlatVectorsFormat extends AbstractFlatVectorsFormat {
         VERSION_CURRENT
     );
 
-    private static final DirectIOCapableFlatVectorsFormat defaultVectorFormat = new DirectIOCapableLucene99FlatVectorsFormat(
+    private static final DirectIOCapableFlatVectorsFormat standardVectorFormat = new DirectIOCapableLucene99FlatVectorsFormat(
         FlatVectorScorerUtil.getLucene99FlatVectorsScorer()
     );
     private static final DirectIOCapableFlatVectorsFormat bitVectorFormat = new DirectIOCapableLucene99FlatVectorsFormat(
@@ -58,10 +61,10 @@ public class ES93GenericFlatVectorsFormat extends AbstractFlatVectorsFormat {
     );
 
     private static final Map<String, DirectIOCapableFlatVectorsFormat> supportedFormats = Map.of(
-        defaultVectorFormat.getName(),
-        defaultVectorFormat,
         bitVectorFormat.getName(),
         bitVectorFormat,
+        standardVectorFormat.getName(),
+        standardVectorFormat,
         bfloat16VectorFormat.getName(),
         bfloat16VectorFormat
     );
@@ -70,13 +73,13 @@ public class ES93GenericFlatVectorsFormat extends AbstractFlatVectorsFormat {
     private final boolean useDirectIO;
 
     public ES93GenericFlatVectorsFormat() {
-        this(DenseVectorFieldMapper.ElementType.FLOAT, false);
+        this(ElementType.STANDARD, false);
     }
 
-    public ES93GenericFlatVectorsFormat(DenseVectorFieldMapper.ElementType elementType, boolean useDirectIO) {
+    public ES93GenericFlatVectorsFormat(ElementType elementType, boolean useDirectIO) {
         super(NAME);
         writeFormat = switch (elementType) {
-            case FLOAT, BYTE -> defaultVectorFormat;
+            case STANDARD -> standardVectorFormat;
             case BIT -> bitVectorFormat;
             case BFLOAT16 -> bfloat16VectorFormat;
         };

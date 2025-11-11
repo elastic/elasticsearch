@@ -16,6 +16,7 @@ import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
+import org.elasticsearch.xpack.esql.core.tree.Node;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.CollectionUtils;
 import org.elasticsearch.xpack.esql.core.util.Holder;
@@ -245,7 +246,8 @@ public final class TranslateTimeSeriesAggregate extends OptimizerRules.Parameter
             var timestampAwareFunctions = timeSeriesAggs.keySet()
                 .stream()
                 .filter(ts -> ts instanceof TimestampAware)
-                .map(ts -> ts.sourceText())
+                .map(Node::sourceText)
+                .sorted()
                 .toList();
             if (timestampAwareFunctions.isEmpty() == false) {
                 int size = timestampAwareFunctions.size();

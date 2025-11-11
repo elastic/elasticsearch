@@ -9675,7 +9675,6 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         assertEquals("test", relation.indexPattern());
     }
 
-
     /*
      * Renaming or shadowing the @timestamp field prior to running stats with TS command is not allowed.
      */
@@ -9690,7 +9689,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
                     """)))
             ).getMessage(),
             containsString("""
-                Functions [max(network.cost), count(network.eth0.rx)] requires a @timestamp field of type date \
+                Functions [count(network.eth0.rx), max(network.cost)] requires a @timestamp field of type date \
                 to be present when run with the TS command, but it was not present.""")
         );
 

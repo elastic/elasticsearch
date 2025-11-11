@@ -76,7 +76,6 @@ public interface ReservedClusterStateHandler<T> {
      */
     ClusterState remove(TransformState prevState) throws Exception;
 
-
     /**
      * List of dependent handler names for this handler.
      *

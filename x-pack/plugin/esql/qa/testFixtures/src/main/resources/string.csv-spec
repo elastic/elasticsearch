@@ -196,6 +196,14 @@ emp_no:integer | last_name:keyword | f_l:keyword
 10010 | Piveteau  | eau
 ;
 
+aggregate length
+FROM employees
+| STATS SUM(LENGTH(last_name));
+
+SUM(LENGTH(last_name)):long
+720
+;
+
 substring nested negative start
 from employees | where emp_no <= 10010 | eval f_l = substring(substring(last_name, -3),-1) | keep emp_no, last_name, f_l;
 ignoreOrder:true

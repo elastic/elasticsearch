@@ -27,7 +27,6 @@ import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.fielddata.FieldDataContext;
@@ -103,27 +102,19 @@ public class BooleanFieldMapper extends FieldMapper {
 
         private final ScriptCompiler scriptCompiler;
 
-        private final IndexVersion indexCreatedVersion;
-
-        private final SourceKeepMode indexSourceKeepMode;
+        private final IndexSettings indexSettings;
 
         private final Parameter<Boolean> dimension;
 
-        public Builder(
-            String name,
-            ScriptCompiler scriptCompiler,
-            boolean ignoreMalformedByDefault,
-            IndexVersion indexCreatedVersion,
-            SourceKeepMode indexSourceKeepMode
-        ) {
+        public Builder(String name, ScriptCompiler scriptCompiler, IndexSettings indexSettings) {
             super(name);
             this.scriptCompiler = Objects.requireNonNull(scriptCompiler);
-            this.indexCreatedVersion = Objects.requireNonNull(indexCreatedVersion);
+            this.indexSettings = Objects.requireNonNull(indexSettings);
             this.ignoreMalformed = Parameter.explicitBoolParam(
                 "ignore_malformed",
                 true,
                 m -> toType(m).ignoreMalformed,
-                ignoreMalformedByDefault
+                IGNORE_MALFORMED_SETTING.get(indexSettings.getSettings())
             );
             this.script.precludesParameters(ignoreMalformed, nullValue);
             addScriptValidation(script, indexed, docValues);
@@ -140,8 +131,6 @@ public class BooleanFieldMapper extends FieldMapper {
                     );
                 }
             });
-
-            this.indexSourceKeepMode = indexSourceKeepMode;
         }
 
         public Builder dimension(boolean dimension) {
@@ -170,7 +159,7 @@ public class BooleanFieldMapper extends FieldMapper {
             }
             MappedFieldType ft = new BooleanFieldType(
                 context.buildFullName(leafName()),
-                indexed.getValue() && indexCreatedVersion.isLegacyIndexVersion() == false,
+                indexed.getValue() && indexSettings.getIndexVersionCreated().isLegacyIndexVersion() == false,
                 stored.getValue(),
                 docValues.getValue(),
                 nullValue.getValue(),
@@ -183,11 +172,11 @@ public class BooleanFieldMapper extends FieldMapper {
             onScriptError = onScriptErrorParam.getValue();
             String offsetsFieldName = getOffsetsFieldName(
                 context,
-                indexSourceKeepMode,
+                indexSettings.sourceKeepMode(),
                 docValues.getValue(),
                 stored.getValue(),
                 this,
-                indexCreatedVersion,
+                indexSettings.getIndexVersionCreated(),
                 IndexVersions.SYNTHETIC_SOURCE_STORE_ARRAYS_NATIVELY_BOOLEAN
             );
             return new BooleanFieldMapper(
@@ -214,13 +203,7 @@ public class BooleanFieldMapper extends FieldMapper {
     }
 
     public static final TypeParser PARSER = createTypeParserWithLegacySupport(
-        (n, c) -> new Builder(
-            n,
-            c.scriptCompiler(),
-            IGNORE_MALFORMED_SETTING.get(c.getSettings()),
-            c.indexVersionCreated(),
-            c.getIndexSettings().sourceKeepMode()
-        )
+        (n, c) -> new Builder(n, c.scriptCompiler(), c.getIndexSettings())
     );
 
     public static final class BooleanFieldType extends TermBasedFieldType {
@@ -522,14 +505,11 @@ public class BooleanFieldMapper extends FieldMapper {
     private final Script script;
     private final FieldValues<Boolean> scriptValues;
     private final ScriptCompiler scriptCompiler;
-    private final IndexVersion indexCreatedVersion;
     private final Explicit<Boolean> ignoreMalformed;
-    private final boolean ignoreMalformedByDefault;
-
+    private final IndexSettings indexSettings;
     private final boolean storeMalformedFields;
 
     private final String offsetsFieldName;
-    private final SourceKeepMode indexSourceKeepMode;
 
     protected BooleanFieldMapper(
         String simpleName,
@@ -547,12 +527,10 @@ public class BooleanFieldMapper extends FieldMapper {
         this.script = builder.script.get();
         this.scriptValues = builder.scriptValues();
         this.scriptCompiler = builder.scriptCompiler;
-        this.indexCreatedVersion = builder.indexCreatedVersion;
+        this.indexSettings = builder.indexSettings;
         this.ignoreMalformed = builder.ignoreMalformed.getValue();
-        this.ignoreMalformedByDefault = builder.ignoreMalformed.getDefaultValue().value();
         this.storeMalformedFields = storeMalformedFields;
         this.offsetsFieldName = offsetsFieldName;
-        this.indexSourceKeepMode = builder.indexSourceKeepMode;
     }
 
     @Override
@@ -641,9 +619,7 @@ public class BooleanFieldMapper extends FieldMapper {
 
     @Override
     public FieldMapper.Builder getMergeBuilder() {
-        return new Builder(leafName(), scriptCompiler, ignoreMalformedByDefault, indexCreatedVersion, indexSourceKeepMode).dimension(
-            fieldType().isDimension()
-        ).init(this);
+        return new Builder(leafName(), scriptCompiler, indexSettings).dimension(fieldType().isDimension()).init(this);
     }
 
     @Override

@@ -12,7 +12,6 @@ package org.elasticsearch.index.codec.vectors.es93;
 import org.apache.lucene.codecs.KnnVectorsFormat;
 import org.apache.lucene.store.Directory;
 import org.elasticsearch.index.codec.vectors.BaseHnswVectorsFormatTestCase;
-import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 
 import java.io.IOException;
 import java.util.Locale;
@@ -30,17 +29,24 @@ public class ES93HnswVectorsFormatTests extends BaseHnswVectorsFormatTestCase {
 
     @Override
     protected KnnVectorsFormat createFormat() {
-        return new ES93HnswVectorsFormat(DenseVectorFieldMapper.ElementType.FLOAT);
+        return new ES93HnswVectorsFormat(ES93GenericFlatVectorsFormat.ElementType.STANDARD, random().nextBoolean());
     }
 
     @Override
     protected KnnVectorsFormat createFormat(int maxConn, int beamWidth) {
-        return new ES93HnswVectorsFormat(maxConn, beamWidth, DenseVectorFieldMapper.ElementType.FLOAT);
+        return new ES93HnswVectorsFormat(maxConn, beamWidth, ES93GenericFlatVectorsFormat.ElementType.STANDARD, random().nextBoolean());
     }
 
     @Override
     protected KnnVectorsFormat createFormat(int maxConn, int beamWidth, int numMergeWorkers, ExecutorService service) {
-        return new ES93HnswVectorsFormat(maxConn, beamWidth, DenseVectorFieldMapper.ElementType.FLOAT, numMergeWorkers, service);
+        return new ES93HnswVectorsFormat(
+            maxConn,
+            beamWidth,
+            ES93GenericFlatVectorsFormat.ElementType.STANDARD,
+            random().nextBoolean(),
+            numMergeWorkers,
+            service
+        );
     }
 
     public void testToString() {

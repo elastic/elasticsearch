@@ -13,7 +13,6 @@ import org.apache.lucene.codecs.KnnVectorsFormat;
 import org.apache.lucene.store.Directory;
 import org.elasticsearch.index.codec.vectors.BFloat16;
 import org.elasticsearch.index.codec.vectors.BaseHnswBFloat16VectorsFormatTestCase;
-import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 
 import java.io.IOException;
 import java.util.Locale;
@@ -31,17 +30,24 @@ public class ES93HnswBFloat16VectorsFormatTests extends BaseHnswBFloat16VectorsF
 
     @Override
     protected KnnVectorsFormat createFormat() {
-        return new ES93HnswVectorsFormat(DenseVectorFieldMapper.ElementType.BFLOAT16);
+        return new ES93HnswVectorsFormat(ES93GenericFlatVectorsFormat.ElementType.BFLOAT16, random().nextBoolean());
     }
 
     @Override
     protected KnnVectorsFormat createFormat(int maxConn, int beamWidth) {
-        return new ES93HnswVectorsFormat(maxConn, beamWidth, DenseVectorFieldMapper.ElementType.BFLOAT16);
+        return new ES93HnswVectorsFormat(maxConn, beamWidth, ES93GenericFlatVectorsFormat.ElementType.BFLOAT16, random().nextBoolean());
     }
 
     @Override
     protected KnnVectorsFormat createFormat(int maxConn, int beamWidth, int numMergeWorkers, ExecutorService service) {
-        return new ES93HnswVectorsFormat(maxConn, beamWidth, DenseVectorFieldMapper.ElementType.BFLOAT16, numMergeWorkers, service);
+        return new ES93HnswVectorsFormat(
+            maxConn,
+            beamWidth,
+            ES93GenericFlatVectorsFormat.ElementType.BFLOAT16,
+            random().nextBoolean(),
+            numMergeWorkers,
+            service
+        );
     }
 
     public void testToString() {

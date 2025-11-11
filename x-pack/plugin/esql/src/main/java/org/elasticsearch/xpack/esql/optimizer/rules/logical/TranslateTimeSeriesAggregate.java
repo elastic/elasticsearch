@@ -26,6 +26,7 @@ import org.elasticsearch.xpack.esql.expression.function.aggregate.TimeSeriesAggr
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Values;
 import org.elasticsearch.xpack.esql.expression.function.grouping.Bucket;
 import org.elasticsearch.xpack.esql.expression.function.grouping.TBucket;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToString;
 import org.elasticsearch.xpack.esql.expression.function.scalar.internal.PackDimension;
 import org.elasticsearch.xpack.esql.expression.function.scalar.internal.UnpackDimension;
 import org.elasticsearch.xpack.esql.optimizer.LogicalOptimizerContext;
@@ -181,7 +182,15 @@ public final class TranslateTimeSeriesAggregate extends OptimizerRules.Parameter
         List<NamedExpression> secondPassAggs = new ArrayList<>();
         Holder<Boolean> requiredTimeSeriesSource = new Holder<>(Boolean.FALSE);
         var internalNames = new InternalNames();
+        boolean tsidInAggregates = false;
         for (NamedExpression agg : aggregate.aggregates()) {
+            if (agg instanceof Attribute attr && attr.name().equals(MetadataAttribute.TSID_FIELD)) {
+                tsidInAggregates = true;
+                // Don't add _tsid to firstPassAggs - it's already in firstPassGroupings
+                // and mergeExpressions will add it from groupings, so adding it here would create a duplicate
+                // Don't add to secondPassAggs - we'll only output _timeseries
+                continue;
+            }
             if (agg instanceof Alias alias && alias.child() instanceof AggregateFunction af) {
                 Holder<Boolean> changed = new Holder<>(Boolean.FALSE);
                 final Expression inlineFilter;
@@ -212,7 +221,7 @@ public final class TranslateTimeSeriesAggregate extends OptimizerRules.Parameter
                     return newAgg.toAttribute();
                 });
                 if (changed.get()) {
-                    secondPassAggs.add(new Alias(alias.source(), alias.name(), new Values(outerAgg.source(), outerAgg), agg.id()));
+                    secondPassAggs.add(new Alias(alias.source(), alias.name(), outerAgg, agg.id()));
                 } else {
                     // TODO: reject over_time_aggregation only
                     final Expression aggField = af.field();
@@ -240,7 +249,9 @@ public final class TranslateTimeSeriesAggregate extends OptimizerRules.Parameter
                 }
             }
         }
-
+        // time-series aggregates must be grouped by _tsid (and time-bucket) first and re-group by users key
+        List<Expression> firstPassGroupings = new ArrayList<>();
+        firstPassGroupings.add(tsid.get());
         List<Alias> packDimensions = new ArrayList<>();
         List<Expression> secondPassGroupings = new ArrayList<>();
         List<Alias> unpackDimensions = new ArrayList<>();
@@ -262,39 +273,19 @@ public final class TranslateTimeSeriesAggregate extends OptimizerRules.Parameter
             }
         });
         NamedExpression timeBucket = timeBucketRef.get();
-
-        boolean tsidInGroupings = aggregate.groupings().stream().anyMatch(expr -> {
-            Attribute attr = Expressions.attribute(expr);
-            return attr != null && attr.name().equals(MetadataAttribute.TSID_FIELD);
-        });
-
-        Expression tsidExpression = aggregate.groupings()
-            .stream()
-            .filter(g -> g instanceof Attribute attr && attr.name().equals(MetadataAttribute.TSID_FIELD))
-            .findFirst()
-            .orElse(tsid.get());
-
-        Attribute tsidAttribute = Expressions.attribute(tsidExpression);
-
-        List<Expression> aggGroupings = new ArrayList<>();
-        if (tsidInGroupings == false) {
-            aggGroupings.add(tsidExpression);
-        }
-        aggGroupings.addAll(aggregate.groupings());
-
-        // time-series aggregates must be grouped by _tsid (and time-bucket) first and re-group by users key
-        List<Expression> firstPassGroupings = new ArrayList<>();
-        for (var group : aggGroupings) {
+        for (var group : aggregate.groupings()) {
             if (group instanceof Attribute == false) {
                 throw new EsqlIllegalArgumentException("expected named expression for grouping; got " + group);
             }
             final Attribute g = (Attribute) group;
-
-            if (tsidAttribute != null && g.id().equals(tsidAttribute.id())) {
-                var newFinalGroup = tsidAttribute.toAttribute();
-                firstPassGroupings.add(newFinalGroup);
-                secondPassGroupings.add(new Alias(g.source(), g.name(), newFinalGroup.toAttribute(), g.id()));
-            } else if (timeBucket != null && g.id().equals(timeBucket.id())) {
+            // Skip _tsid as it's already handled separately in firstPassGroupings
+            if (g.name().equals(MetadataAttribute.TSID_FIELD)) {
+                // Add _tsid to secondPassGroupings to preserve it in output when explicitly requested
+                // _tsid will be in firstPhase.output() since it's in firstPassGroupings
+                secondPassGroupings.add(new Alias(g.source(), g.name(), tsid.get(), g.id()));
+                continue;
+            }
+            if (timeBucket != null && g.id().equals(timeBucket.id())) {
                 var newFinalGroup = timeBucket.toAttribute();
                 firstPassGroupings.add(newFinalGroup);
                 secondPassGroupings.add(new Alias(g.source(), g.name(), newFinalGroup.toAttribute(), g.id()));
@@ -339,8 +330,27 @@ public final class TranslateTimeSeriesAggregate extends OptimizerRules.Parameter
             mergeExpressions(firstPassAggs, firstPassGroupings),
             (Bucket) Alias.unwrap(timeBucket)
         );
+        // Ensure _tsid is in secondPassGroupings so it's available in finalPlan.inputSet()
+        // This is only needed when creating the _timeseries field (i.e., when tsidInAggregates is true)
+        // Get the _tsid attribute from firstPhase.output() to ensure we use the correct reference
+        if (tsidInAggregates) {
+            boolean tsidInSecondPass = secondPassGroupings.stream().anyMatch(g -> {
+                Attribute attr = Expressions.attribute(g);
+                return attr != null && attr.name().equals(MetadataAttribute.TSID_FIELD);
+            });
+            if (tsidInSecondPass == false) {
+                Attribute tsidFromFirstPhase = firstPhase.output()
+                    .stream()
+                    .filter(attr -> attr.name().equals(MetadataAttribute.TSID_FIELD))
+                    .findFirst()
+                    .orElse(tsid.get());
+
+                secondPassGroupings.add(new Alias(aggregate.source(), MetadataAttribute.TSID_FIELD, tsidFromFirstPhase, null));
+            }
+        }
+        LogicalPlan finalPlan;
         if (packDimensions.isEmpty()) {
-            return new Aggregate(
+            finalPlan = new Aggregate(
                 firstPhase.source(),
                 firstPhase,
                 secondPassGroupings,
@@ -355,7 +365,6 @@ public final class TranslateTimeSeriesAggregate extends OptimizerRules.Parameter
                 mergeExpressions(secondPassAggs, secondPassGroupings)
             );
             Eval unpackValues = new Eval(secondPhase.source(), secondPhase, unpackDimensions);
-
             List<NamedExpression> projects = new ArrayList<>();
             for (NamedExpression agg : secondPassAggs) {
                 projects.add(Expressions.attribute(agg));
@@ -363,14 +372,47 @@ public final class TranslateTimeSeriesAggregate extends OptimizerRules.Parameter
             int pos = 0;
             for (Expression group : secondPassGroupings) {
                 Attribute g = Expressions.attribute(group);
+                if (g.name().equals(MetadataAttribute.TSID_FIELD)) {
+                    // _tsid is added to secondPassGroupings for availability but should not be in final output
+                    // Skip it here - we'll only output _timeseries
+                    continue;
+                }
+
                 if (timeBucket != null && g.id().equals(timeBucket.id())) {
                     projects.add(g);
                 } else {
                     projects.add(unpackDimensions.get(pos++).toAttribute());
                 }
             }
-            return new Project(newChild.source(), unpackValues, projects);
+            finalPlan = new Project(newChild.source(), unpackValues, projects);
         }
+
+        // Add _timeseries field containing string representation of _tsid
+        if (tsidInAggregates) {
+            Attribute tsidAttrFromInput = firstPhase.child()
+                .output()
+                .stream()
+                .filter(attr -> attr.name().equals(MetadataAttribute.TSID_FIELD))
+                .findFirst()
+                .orElse(null);
+
+            ToString toStringTsid = new ToString(aggregate.source(), tsidAttrFromInput);
+
+            // Create _timeseries
+            MetadataAttribute timeseriesAttr = MetadataAttribute.create(aggregate.source(), MetadataAttribute.TIMESERIES);
+            Alias timeseriesAlias = new Alias(aggregate.source(), MetadataAttribute.TIMESERIES, toStringTsid, timeseriesAttr.id());
+            Eval evalWithTimeseries = new Eval(aggregate.source(), finalPlan, List.of(timeseriesAlias));
+
+            List<NamedExpression> finalProjects = new ArrayList<>();
+            for (Attribute attr : finalPlan.output()) {
+                if (attr.name().equals(MetadataAttribute.TSID_FIELD) == false) {
+                    finalProjects.add(attr);
+                }
+            }
+            finalProjects.add(timeseriesAlias.toAttribute());
+            return new Project(aggregate.source(), evalWithTimeseries, finalProjects);
+        }
+        return finalPlan;
     }
 
     private static List<? extends NamedExpression> mergeExpressions(

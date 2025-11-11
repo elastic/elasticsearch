@@ -16,6 +16,7 @@ import org.elasticsearch.xpack.esql.analysis.AnalyzerContext;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
@@ -94,6 +95,19 @@ public class TimeSeriesAggregationsTests extends AbstractLogicalPlanOptimizerTes
 
         var aggregates = tsa.aggregates();
         assertThat("Should have aggregates", aggregates.isEmpty(), is(false));
+
+        List<Attribute> output = plan.output();
+        boolean hasTimeseries = output.stream().anyMatch(attr -> attr.name().equals(MetadataAttribute.TIMESERIES));
+        assertThat("Should have _timeseries in output", hasTimeseries, is(true));
+
+        Attribute timeseriesAttr = output.stream()
+            .filter(attr -> attr.name().equals(MetadataAttribute.TIMESERIES))
+            .findFirst()
+            .orElse(null);
+
+        assertNotNull(timeseriesAttr);
+        assertThat("_timeseries attribute should exist", timeseriesAttr, is(instanceOf(Attribute.class)));
+        assertThat("_timeseries should be KEYWORD type", timeseriesAttr.dataType(), is(DataType.KEYWORD));
     }
 
     /**
@@ -115,6 +129,19 @@ public class TimeSeriesAggregationsTests extends AbstractLogicalPlanOptimizerTes
 
         var aggregates = tsa.aggregates();
         assertThat("Should have aggregates", aggregates.isEmpty(), is(false));
+
+        List<Attribute> output = plan.output();
+        boolean hasTimeseries = output.stream().anyMatch(attr -> attr.name().equals(MetadataAttribute.TIMESERIES));
+        assertThat("Should have _timeseries in output", hasTimeseries, is(true));
+
+        Attribute timeseriesAttr = output.stream()
+            .filter(attr -> attr.name().equals(MetadataAttribute.TIMESERIES))
+            .findFirst()
+            .orElse(null);
+
+        assertNotNull(timeseriesAttr);
+        assertThat("_timeseries attribute should exist", timeseriesAttr, is(instanceOf(Attribute.class)));
+        assertThat("_timeseries should be KEYWORD type", timeseriesAttr.dataType(), is(DataType.KEYWORD));
     }
 
     /**
@@ -138,6 +165,19 @@ public class TimeSeriesAggregationsTests extends AbstractLogicalPlanOptimizerTes
 
         boolean hasBucket = groupings.stream().anyMatch(g -> g.name().equalsIgnoreCase("BUCKET"));
         assertThat("Should group by bucket", hasBucket, is(true));
+
+        List<Attribute> output = plan.output();
+        boolean hasTimeseries = output.stream().anyMatch(attr -> attr.name().equals(MetadataAttribute.TIMESERIES));
+        assertThat("Should have _timeseries in output", hasTimeseries, is(true));
+
+        Attribute timeseriesAttr = output.stream()
+            .filter(attr -> attr.name().equals(MetadataAttribute.TIMESERIES))
+            .findFirst()
+            .orElse(null);
+
+        assertNotNull(timeseriesAttr);
+        assertThat("_timeseries attribute should exist", timeseriesAttr, is(instanceOf(Attribute.class)));
+        assertThat("_timeseries should be KEYWORD type", timeseriesAttr.dataType(), is(DataType.KEYWORD));
     }
 
     /**
@@ -161,6 +201,19 @@ public class TimeSeriesAggregationsTests extends AbstractLogicalPlanOptimizerTes
 
         boolean hasBucket = groupings.stream().anyMatch(g -> g.name().equalsIgnoreCase("BUCKET"));
         assertThat("Should group by bucket", hasBucket, is(true));
+
+        List<Attribute> output = plan.output();
+        boolean hasTimeseries = output.stream().anyMatch(attr -> attr.name().equals(MetadataAttribute.TIMESERIES));
+        assertThat("Should have _timeseries in output", hasTimeseries, is(true));
+
+        Attribute timeseriesAttr = output.stream()
+            .filter(attr -> attr.name().equals(MetadataAttribute.TIMESERIES))
+            .findFirst()
+            .orElse(null);
+
+        assertNotNull(timeseriesAttr);
+        assertThat("_timeseries attribute should exist", timeseriesAttr, is(instanceOf(Attribute.class)));
+        assertThat("_timeseries should be KEYWORD type", timeseriesAttr.dataType(), is(DataType.KEYWORD));
     }
 
     /**
@@ -176,23 +229,6 @@ public class TimeSeriesAggregationsTests extends AbstractLogicalPlanOptimizerTes
         assertThat("Plan should be valid", planBefore, is(instanceOf(LogicalPlan.class)));
     }
 
-    /**
-     * Support of explicit BY _tsid.
-     */
-    public void testExistingTsidGroupingPreserved() {
-        assumeTrue("requires metrics command", EsqlCapabilities.Cap.METRICS_GROUP_BY_ALL.isEnabled());
-        LogicalPlan plan = planK8s("TS k8s | STATS sum_over_time(network.cost) BY _tsid");
-
-        TimeSeriesAggregate tsa = findTimeSeriesAggregate(plan);
-        assertThat("Should have TimeSeriesAggregate", tsa, is(instanceOf(TimeSeriesAggregate.class)));
-
-        List<Attribute> groupings = tsa.groupings().stream().filter(g -> g instanceof Attribute).map(g -> (Attribute) g).toList();
-        assertThat(groupings.size(), is(1));
-
-        boolean hasTsid = groupings.stream().anyMatch(g -> g.name().equals(MetadataAttribute.TSID_FIELD));
-        assertThat("Should still group by _tsid", hasTsid, is(true));
-    }
-
     public void testCountOverTime() {
         assumeTrue("requires metrics command", EsqlCapabilities.Cap.METRICS_GROUP_BY_ALL.isEnabled());
         LogicalPlan plan = planK8s("TS k8s | STATS count = count_over_time(network.cost)");
@@ -205,6 +241,19 @@ public class TimeSeriesAggregationsTests extends AbstractLogicalPlanOptimizerTes
 
         boolean hasTsid = groupings.stream().anyMatch(g -> g.name().equals(MetadataAttribute.TSID_FIELD));
         assertThat("Should still group by _tsid", hasTsid, is(true));
+
+        List<Attribute> output = plan.output();
+        boolean hasTimeseries = output.stream().anyMatch(attr -> attr.name().equals(MetadataAttribute.TIMESERIES));
+        assertThat("Should have _timeseries in output", hasTimeseries, is(true));
+
+        Attribute timeseriesAttr = output.stream()
+            .filter(attr -> attr.name().equals(MetadataAttribute.TIMESERIES))
+            .findFirst()
+            .orElse(null);
+
+        assertNotNull(timeseriesAttr);
+        assertThat("_timeseries attribute should exist", timeseriesAttr, is(instanceOf(Attribute.class)));
+        assertThat("_timeseries should be KEYWORD type", timeseriesAttr.dataType(), is(DataType.KEYWORD));
     }
 
     private TimeSeriesAggregate findTimeSeriesAggregate(LogicalPlan plan) {

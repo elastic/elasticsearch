@@ -30,6 +30,7 @@ public class MetadataAttribute extends TypedAttribute {
     public static final String TSID_FIELD = "_tsid";
     public static final String SCORE = "_score";
     public static final String INDEX = "_index";
+    public static final String TIMESERIES = "_timeseries";
 
     static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         Attribute.class,
@@ -46,7 +47,8 @@ public class MetadataAttribute extends TypedAttribute {
         Map.entry(SourceFieldMapper.NAME, new MetadataAttributeConfiguration(DataType.SOURCE, false)),
         Map.entry(IndexModeFieldMapper.NAME, new MetadataAttributeConfiguration(DataType.KEYWORD, true)),
         Map.entry(SCORE, new MetadataAttributeConfiguration(DataType.DOUBLE, false)),
-        Map.entry(TSID_FIELD, new MetadataAttributeConfiguration(DataType.TSID_DATA_TYPE, false))
+        Map.entry(TSID_FIELD, new MetadataAttributeConfiguration(DataType.TSID_DATA_TYPE, false)),
+        Map.entry(TIMESERIES, new MetadataAttributeConfiguration(DataType.KEYWORD, false))
     );
 
     private record MetadataAttributeConfiguration(DataType dataType, boolean searchable) {}

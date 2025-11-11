@@ -86,19 +86,14 @@ public abstract class PostOptimizationPhasePlanVerifier<P extends QueryPlan<P>> 
                 a -> a instanceof TimeSeriesAggregate ts
                     && ts.aggregates().stream().anyMatch(g -> Alias.unwrap(g) instanceof Values v && v.field().dataType() == DataType.TEXT)
             );
-            // TranslateTimeSeriesAggregate creates a Project with an Eval child that contains additional attributes (like _tsid)
-            // that weren't in the original query.
-            int optimizedOutputSize = optimizedPlan.output().size();
-            int expectedOutputSize = expectedOutputAttributes.size();
 
-            boolean hasTranslatedTimeSeriesAggregate = optimizedOutputSize > expectedOutputSize
-                && optimizedOutputSize - expectedOutputSize == 1
-                && optimizedPlan.output().stream().anyMatch(a -> a.name().equals(MetadataAttribute.TSID_FIELD));
+            // TranslateTimeSeriesAggregate may replace _tsid with _timeseries in the output
+            boolean hasTimeseriesReplacingTsid = expectedOutputAttributes.stream()
+                .anyMatch(a -> a.name().equals(MetadataAttribute.TSID_FIELD))
+                && optimizedPlan.output().stream().anyMatch(a -> a.name().equals(MetadataAttribute.TIMESERIES))
+                && optimizedPlan.output().stream().noneMatch(a -> a.name().equals(MetadataAttribute.TSID_FIELD));
 
-            boolean ignoreError = hasProjectAwayColumns
-                || hasLookupJoinExec
-                || hasTextGroupingInTimeSeries
-                || hasTranslatedTimeSeriesAggregate;
+            boolean ignoreError = hasProjectAwayColumns || hasLookupJoinExec || hasTextGroupingInTimeSeries || hasTimeseriesReplacingTsid;
             if (ignoreError == false) {
                 failures.add(
                     fail(

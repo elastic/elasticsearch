@@ -1,0 +1,111 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
+ */
+
+package org.elasticsearch.xpack.esql.analysis;
+
+import org.elasticsearch.xpack.esql.core.expression.Alias;
+import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
+import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
+import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.util.CollectionUtils;
+import org.elasticsearch.xpack.esql.core.util.Holder;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.TimeSeriesAggregateFunction;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.Values;
+import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
+import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
+import org.elasticsearch.xpack.esql.rule.Rule;
+
+import java.util.ArrayList;
+import java.util.List;
+
+/**
+ * This rule implements the "group by all" logic for time series aggregations.  It is intended to work in conjunction with
+ * {@link org.elasticsearch.xpack.esql.optimizer.rules.logical.TranslateTimeSeriesAggregate}, and should be run before that
+ * rule.  This rule adds output columns corresponding to the dimensions on the indices involved in the query, as discovered
+ * by the {@link org.elasticsearch.xpack.esql.session.IndexResolver}. Despite the name, this does not actually group on the
+ * dimension values, for efficiency reasons.
+ * <p>
+ * This rule will operate on "bare" over time aggregations.
+ */
+public class TimeSeriesGroupByAll extends Rule<LogicalPlan, LogicalPlan> {
+    @Override
+    public LogicalPlan apply(LogicalPlan logicalPlan) {
+        return logicalPlan.transformUp(node -> node instanceof TimeSeriesAggregate, this::rule);
+    }
+
+    public LogicalPlan rule(TimeSeriesAggregate aggregate) {
+        // Flag to check if we should apply this rule.
+        boolean hasTopLevelOverTimeAggs = false;
+        // the new `Value(dimension)` aggregation functions we intend to add to the query, along with the translated over time aggs
+        List<NamedExpression> newAggregateFunctions = new ArrayList<>();
+        for (NamedExpression agg : aggregate.aggregates()) {
+            if (agg instanceof Alias alias && alias.child() instanceof AggregateFunction af) {
+                if (af instanceof TimeSeriesAggregateFunction tsAgg) {
+                    hasTopLevelOverTimeAggs = true;
+                    newAggregateFunctions.add(new Alias(alias.source(), alias.name(), new Values(tsAgg.source(), tsAgg)));
+                }
+            }
+        }
+        if (hasTopLevelOverTimeAggs == false) {
+            // If there are no top level time series aggregations, there's no need for this rule to apply
+            return aggregate;
+        }
+
+        // Grouping parameters for the new aggregation node.
+        List<Expression> groupings = new ArrayList<>();
+
+        Holder<Attribute> tsid = new Holder<>();
+        // Holder<Attribute> timestamp = new Holder<>();
+        getTsFields(aggregate, tsid);
+
+        // Add the _tsid to the EsRelation Leaf, if it's not there already
+        LogicalPlan newChild = aggregate.child().transformUp(EsRelation.class, r -> {
+            boolean tsidFoundInOutput = r.output().stream().anyMatch(attr -> attr.name().equalsIgnoreCase(MetadataAttribute.TSID_FIELD));
+            if (tsidFoundInOutput) {
+                return r;
+            }
+
+            return new EsRelation(
+                r.source(),
+                r.indexPattern(),
+                r.indexMode(),
+                r.indexNameWithModes(),
+                CollectionUtils.combine(r.output(), tsid.get())
+            );
+        });
+
+        // Group the new aggregations by tsid. This is equivalent to grouping by all dimensions.
+        groupings.add(tsid.get());
+
+        // We add the tsid to the aggregates list because we want to include it in the output of the first pass in
+        // TranslateTimeSeriesAggregate
+        newAggregateFunctions.add(tsid.get());
+
+        // Add the user defined grouping
+        groupings.addAll(aggregate.groupings());
+
+        return new TimeSeriesAggregate(aggregate.source(), newChild, groupings, newAggregateFunctions, null);
+    }
+
+    private static void getTsFields(TimeSeriesAggregate aggregate, Holder<Attribute> tsid) {
+        aggregate.forEachDown(EsRelation.class, r -> {
+            for (Attribute attr : r.output()) {
+                if (attr.name().equals(MetadataAttribute.TSID_FIELD)) {
+                    tsid.set(attr);
+                }
+            }
+        });
+
+        if (tsid.get() == null) {
+            tsid.set(new MetadataAttribute(aggregate.source(), MetadataAttribute.TSID_FIELD, DataType.TSID_DATA_TYPE, false));
+        }
+    }
+}

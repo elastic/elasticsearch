@@ -439,6 +439,10 @@ public final class MappingLookup {
      * Returns the mapped field type for the given field name.
      */
     public MappedFieldType getFieldType(String field) {
+        if ("_timeseries".equalsIgnoreCase(field)) {
+            return fieldTypesLookup().get("_tsid");
+        }
+
         return fieldTypesLookup().get(field);
     }
 

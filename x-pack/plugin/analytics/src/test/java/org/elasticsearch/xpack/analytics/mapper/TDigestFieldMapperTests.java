@@ -407,7 +407,14 @@ public class TDigestFieldMapperTests extends MapperTestCase {
         // Other values are stored as is as part of ignore_malformed logic for synthetic source.
         {
             expected.startArray("field");
-            expected.startObject().field("centroids", new double[] { 1, 2, 3 }).field("counts", new int[] { 1, 2, 3 }).endObject();
+            expected.startObject();
+            expected.field("min", 1.0d);
+            expected.field("max", 3.0d);
+            expected.field("sum", 14.0d);
+            expected.field("count", 6L);
+            expected.field("centroids", new double[] { 1, 2, 3 });
+            expected.field("counts", new int[] { 1, 2, 3 });
+            expected.endObject();
             expected.startObject().field("counts", new int[] { 4, 5, 6 }).field("centroids", new double[] { 4, 5, 6 }).endObject();
             expected.value(randomString);
             expected.endArray();
@@ -441,13 +448,12 @@ public class TDigestFieldMapperTests extends MapperTestCase {
             centroids.add(c.mean());
             counts.add(c.count());
         }
-        value.put("centroids", centroids);
-        value.put("counts", counts);
-
-        value.put("sum", sum);
         value.put("min", min);
         value.put("max", max);
+        value.put("sum", sum);
         value.put("count", total_count);
+        value.put("centroids", centroids);
+        value.put("counts", counts);
 
         return value;
     }

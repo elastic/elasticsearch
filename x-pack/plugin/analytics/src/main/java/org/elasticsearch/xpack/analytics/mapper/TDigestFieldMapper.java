@@ -15,7 +15,6 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.io.stream.ByteArrayStreamInput;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
@@ -68,7 +67,7 @@ public class TDigestFieldMapper extends FieldMapper {
     public static final String CENTROIDS_NAME = "centroids";
     public static final String COUNTS_NAME = "counts";
     public static final String SUM_FIELD_NAME = "sum";
-    public static final String COUNT_FIELD_NAME = "count";
+    public static final String TOTAL_COUNT_FIELD_NAME = "count";
     public static final String MIN_FIELD_NAME = "min";
     public static final String MAX_FIELD_NAME = "max";
     public static final String CONTENT_TYPE = "tdigest";
@@ -206,7 +205,7 @@ public class TDigestFieldMapper extends FieldMapper {
                         public HistogramValues getHistogramValues() throws IOException {
                             try {
                                 final BinaryDocValues values = DocValues.getBinary(context.reader(), fieldName);
-                                final InternalHistogramValue value = new InternalHistogramValue();
+                                final InternalTDigestValue value = new InternalTDigestValue();
                                 return new HistogramValues() {
 
                                     @Override
@@ -238,7 +237,7 @@ public class TDigestFieldMapper extends FieldMapper {
                         public FormattedDocValues getFormattedValues(DocValueFormat format) {
                             try {
                                 final BinaryDocValues values = DocValues.getBinary(context.reader(), fieldName);
-                                final InternalHistogramValue value = new InternalHistogramValue();
+                                final InternalTDigestValue value = new InternalTDigestValue();
                                 return new FormattedDocValues() {
                                     @Override
                                     public boolean advanceExact(int docId) throws IOException {
@@ -402,7 +401,7 @@ public class TDigestFieldMapper extends FieldMapper {
     }
 
     /** re-usable {@link HistogramValue} implementation */
-    private static class InternalHistogramValue extends HistogramValue {
+    private static class InternalTDigestValue extends HistogramValue {
         double value;
         long count;
         double min;
@@ -413,7 +412,7 @@ public class TDigestFieldMapper extends FieldMapper {
 
         final ByteArrayStreamInput streamInput;
 
-        InternalHistogramValue() {
+        InternalTDigestValue() {
             streamInput = new ByteArrayStreamInput();
         }
 
@@ -464,14 +463,14 @@ public class TDigestFieldMapper extends FieldMapper {
             () -> new CompositeSyntheticFieldLoader(
                 leafName(),
                 fullPath(),
-                new HistogramSyntheticFieldLoader(),
+                new TDigestSyntheticFieldLoader(),
                 new CompositeSyntheticFieldLoader.MalformedValuesLayer(fullPath())
             )
         );
     }
 
-    private class HistogramSyntheticFieldLoader implements CompositeSyntheticFieldLoader.DocValuesLayer {
-        private final InternalHistogramValue value = new InternalHistogramValue();
+    private class TDigestSyntheticFieldLoader implements CompositeSyntheticFieldLoader.DocValuesLayer {
+        private final InternalTDigestValue value = new InternalTDigestValue();
         private BytesRef binaryValue;
 
         @Override
@@ -502,9 +501,13 @@ public class TDigestFieldMapper extends FieldMapper {
             if (binaryValue == null) {
                 return;
             }
-            b.startObject();
-
             value.reset(binaryValue);
+
+            b.startObject();
+            b.field(MIN_FIELD_NAME, value.min);
+            b.field(MAX_FIELD_NAME, value.max);
+            b.field(SUM_FIELD_NAME, value.sum);
+            b.field(TOTAL_COUNT_FIELD_NAME, value.totalCount);
             b.startArray(CENTROIDS_NAME);
             while (value.next()) {
                 b.value(value.value());

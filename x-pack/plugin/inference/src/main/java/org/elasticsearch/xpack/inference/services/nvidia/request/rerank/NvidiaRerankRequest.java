@@ -31,6 +31,7 @@ import static org.elasticsearch.xpack.inference.external.request.RequestUtils.cr
 /**
  * Represents a request to the Nvidia rerank service.
  * This class constructs the HTTP request with the necessary headers and body content.
+ *
  * @param query the query string to rerank against
  * @param input the list of input documents to be reranked
  * @param model the Nvidia rerank model configuration

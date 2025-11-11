@@ -87,6 +87,7 @@ public class NvidiaEmbeddingsRequest implements Request {
      * Extracts the input type to be used for the request.
      * It first checks if the inputType field is specified, then checks the model's task settings.
      * If neither is specified, it returns null.
+     *
      * @return the {@link InputType} to be used for the request, or null if not specified
      */
     private InputType extractInputTypeToUse() {

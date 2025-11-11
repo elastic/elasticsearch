@@ -16,6 +16,7 @@ import java.util.Objects;
 
 /**
  * Entity representing the request body for Nvidia rerank requests.
+ *
  * @param modelId the model identifier
  * @param query the query string
  * @param passages the list of passages to be reranked

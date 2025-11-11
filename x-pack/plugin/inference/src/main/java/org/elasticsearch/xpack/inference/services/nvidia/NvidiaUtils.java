@@ -35,6 +35,7 @@ public final class NvidiaUtils {
 
     /**
      * Converts an {@link InputType} to its corresponding string representation for Nvidia services.
+     *
      * @param inputType the InputType to convert
      * @return the string representation of the {@link InputType}, or null if the input type is null
      */
@@ -54,6 +55,7 @@ public final class NvidiaUtils {
 
     /**
      * Check if the given transport version supports Nvidia inference services.
+     *
      * @param version the transport version to check
      * @return true if the version supports Nvidia inference services, false otherwise
      */

@@ -653,7 +653,7 @@ public final class ThreadContext implements Writeable, TraceContext {
         return (T) threadLocal.get().transientHeaders.get(key);
     }
 
-    public boolean hasTransient(Collection<String> keys){
+    public boolean hasTransient(Collection<String> keys) {
         return threadLocal.get().transientHeaders.keySet().containsAll(keys);
     }
 

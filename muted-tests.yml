@@ -197,9 +197,6 @@ tests:
 - class: org.elasticsearch.packaging.test.EnrollmentProcessTests
   method: test20DockerAutoFormCluster
   issue: https://github.com/elastic/elasticsearch/issues/128113
-- class: org.elasticsearch.ingest.geoip.GeoIpDownloaderCliIT
-  method: testInvalidTimestamp
-  issue: https://github.com/elastic/elasticsearch/issues/128284
 - class: org.elasticsearch.packaging.test.TemporaryDirectoryConfigTests
   method: test21AcceptsCustomPathInDocker
   issue: https://github.com/elastic/elasticsearch/issues/128114
@@ -429,9 +426,6 @@ tests:
 - class: org.elasticsearch.xpack.ilm.CCRIndexLifecycleIT
   method: testTsdbLeaderIndexRolloverAndSyncAfterWaitUntilEndTime {targetCluster=FOLLOWER}
   issue: https://github.com/elastic/elasticsearch/issues/137565
-- class: org.elasticsearch.action.IndicesRequestIT
-  method: testIndicesStats
-  issue: https://github.com/elastic/elasticsearch/issues/137594
 - class: org.elasticsearch.xpack.esql.vector.VectorSimilarityFunctionsIT
   method: testTopNSimilarityBetweenConstantVectorAndField {functionName=v_l2_norm
     similarityFunction=org.elasticsearch.xpack.esql.expression.function.vector.L2Norm$1@5b068087 elementType=byte}
@@ -445,9 +439,6 @@ tests:
 - class: org.elasticsearch.xpack.inference.action.filter.ShardBulkInferenceActionFilterBasicLicenseIT
   method: testLicenseInvalidForInference {p0=false}
   issue: https://github.com/elastic/elasticsearch/issues/137691
-- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIT
-  method: test {csv-spec:exponential_histogram.LoadFiltered}
-  issue: https://github.com/elastic/elasticsearch/issues/137727
 - class: org.elasticsearch.xpack.inference.InferenceRestIT
   method: test {p0=inference/70_text_similarity_rank_retriever/Text similarity reranker with min_score zero includes all docs}
   issue: https://github.com/elastic/elasticsearch/issues/137732
@@ -462,6 +453,28 @@ tests:
   method: testSimilarityWithOneDimVector {functionName=v_cosine
     similarityFunction=org.elasticsearch.xpack.esql.expression.function.vector.CosineSimilarity$1@5b068087 elementType=byte}
   issue: https://github.com/elastic/elasticsearch/issues/137778
+- class: org.elasticsearch.upgrades.WildcardRollingUpgradeIT
+  method: testIndexing {upgradedNodes=0}
+  issue: https://github.com/elastic/elasticsearch/issues/137793
+- class: org.elasticsearch.upgrades.TextRollingUpgradeIT
+  method: testIndexing {upgradedNodes=0}
+  issue: https://github.com/elastic/elasticsearch/issues/137794
+- class: org.elasticsearch.upgrades.WildcardRollingUpgradeIT
+  method: testIndexing {upgradedNodes=1}
+  issue: https://github.com/elastic/elasticsearch/issues/137795
+- class: org.elasticsearch.upgrades.TextRollingUpgradeIT
+  method: testIndexing {upgradedNodes=1}
+  issue: https://github.com/elastic/elasticsearch/issues/137796
+- class: org.elasticsearch.xpack.esql.vector.VectorSimilarityFunctionsIT
+  method: testSimilarityWithOneDimVector {functionName=v_cosine
+    similarityFunction=org.elasticsearch.xpack.esql.expression.function.vector.CosineSimilarity$1@3300f4fd elementType=byte}
+  issue: https://github.com/elastic/elasticsearch/issues/137812
+- class: org.elasticsearch.xpack.inference.external.http.sender.RequestExecutorServiceTests
+  method: testChangingCapacity_DoesNotRejectsOverflowTasks_BecauseOfQueueFull
+  issue: https://github.com/elastic/elasticsearch/issues/137823
+- class: org.elasticsearch.xpack.inference.external.http.sender.RequestExecutorServiceTests
+  method: testExecute_NotifiesNonRateLimitedTasksOfShutdown
+  issue: https://github.com/elastic/elasticsearch/issues/137831
 
 # Examples:
 #

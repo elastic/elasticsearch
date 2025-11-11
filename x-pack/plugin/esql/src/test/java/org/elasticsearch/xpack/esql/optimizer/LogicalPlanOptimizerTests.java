@@ -9337,8 +9337,6 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
     }
 
     public void testDecayOriginMustBeLiteral() {
-        assumeTrue("requires DECAY_FUNCTION capability enabled", EsqlCapabilities.Cap.DECAY_FUNCTION.isEnabled());
-
         var query = """
             FROM employees
             | EVAL decay_result = decay(salary, salary, 10, {"offset": 5, "decay": 0.5, "type": "linear"})
@@ -9353,8 +9351,6 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
     }
 
     public void testDecayScaleMustBeLiteral() {
-        assumeTrue("requires DECAY_FUNCTION capability enabled", EsqlCapabilities.Cap.DECAY_FUNCTION.isEnabled());
-
         var query = """
             FROM employees
             | EVAL decay_result = decay(salary, 10, salary, {"offset": 5, "decay": 0.5, "type": "linear"})

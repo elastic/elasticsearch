@@ -39,7 +39,7 @@ import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.xpack.inference.common.Truncator.truncate;
 
 /**
- * Creates actions for Nvidia inference requests, handling both embeddings and completions.
+ * Creates executable actions for Nvidia inference requests, handling embeddings, completions and reranking.
  * This class implements the {@link NvidiaActionVisitor} interface to provide specific action creation methods.
  */
 public class NvidiaActionCreator implements NvidiaActionVisitor {
@@ -67,7 +67,7 @@ public class NvidiaActionCreator implements NvidiaActionVisitor {
     private final ServiceComponents serviceComponents;
 
     /**
-     * Constructs a new NvidiaActionCreator with the specified sender and service components.
+     * Constructs a new {@link NvidiaActionCreator} with the specified sender and service components.
      *
      * @param sender the sender to use for executing actions
      * @param serviceComponents the service components providing necessary services

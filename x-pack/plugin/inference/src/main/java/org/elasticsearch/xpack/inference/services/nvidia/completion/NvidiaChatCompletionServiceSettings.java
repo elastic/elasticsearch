@@ -35,11 +35,11 @@ public class NvidiaChatCompletionServiceSettings extends NvidiaServiceSettings {
     public static final String NAME = "nvidia_chat_completion_service_settings";
 
     /**
-     * Creates a new instance of NvidiaChatCompletionServiceSettings from a map of settings.
+     * Creates a new instance of {@link NvidiaChatCompletionServiceSettings} from a map of settings.
      *
      * @param map the map containing the service settings
      * @param context the context for parsing configuration settings
-     * @return a new instance of NvidiaChatCompletionServiceSettings
+     * @return a new instance of {@link NvidiaChatCompletionServiceSettings}
      * @throws ValidationException if required fields are missing or invalid
      */
     public static NvidiaChatCompletionServiceSettings fromMap(Map<String, Object> map, ConfigurationParseContext context) {
@@ -63,9 +63,9 @@ public class NvidiaChatCompletionServiceSettings extends NvidiaServiceSettings {
     }
 
     /**
-     * Constructs a new NvidiaChatCompletionServiceSettings from a StreamInput.
+     * Constructs a new instance of {@link NvidiaChatCompletionServiceSettings} from a {@link StreamInput}.
      *
-     * @param in the StreamInput to read from
+     * @param in the {@link StreamInput} to read from
      * @throws IOException if an I/O error occurs during reading
      */
     public NvidiaChatCompletionServiceSettings(StreamInput in) throws IOException {
@@ -73,9 +73,9 @@ public class NvidiaChatCompletionServiceSettings extends NvidiaServiceSettings {
     }
 
     /**
-     * Constructs a new NvidiaChatCompletionServiceSettings with the specified model ID, URI, and rate limit settings.
+     * Constructs a new instance of {@link NvidiaChatCompletionServiceSettings} with the specified model ID, URI, and rate limit settings.
      *
-     * @param modelId the ID of the model
+     * @param modelId the model identifier
      * @param uri the URI of the service
      * @param rateLimitSettings the rate limit settings for the service
      */
@@ -84,10 +84,9 @@ public class NvidiaChatCompletionServiceSettings extends NvidiaServiceSettings {
     }
 
     /**
-     * Constructs a new NvidiaChatCompletionServiceSettings with the specified model ID and URL.
-     * The rate limit settings will be set to the default value.
+     * Constructs a new instance of {@link NvidiaChatCompletionServiceSettings} with the specified model ID and URL.
      *
-     * @param modelId the ID of the model
+     * @param modelId the model identifier
      * @param url the URL of the service
      * @param rateLimitSettings the rate limit settings for the service, can be null
      */

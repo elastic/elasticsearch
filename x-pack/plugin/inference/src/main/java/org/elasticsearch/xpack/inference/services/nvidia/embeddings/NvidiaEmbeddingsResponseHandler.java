@@ -13,12 +13,12 @@ import org.elasticsearch.xpack.inference.services.openai.OpenAiResponseHandler;
 
 /**
  * Handles responses for Nvidia embeddings requests, parsing the response and handling errors.
- * This class extends OpenAiResponseHandler to provide specific functionality for Nvidia embeddings.
+ * This class extends {@link OpenAiResponseHandler} to provide specific functionality for Nvidia embeddings.
  */
 public class NvidiaEmbeddingsResponseHandler extends OpenAiResponseHandler {
 
     /**
-     * Constructs a new NvidiaEmbeddingsResponseHandler with the specified request type and response parser.
+     * Constructs a new {@link NvidiaEmbeddingsResponseHandler} with the specified request type and response parser.
      *
      * @param requestType the type of request this handler will process
      * @param parseFunction the function to parse the response

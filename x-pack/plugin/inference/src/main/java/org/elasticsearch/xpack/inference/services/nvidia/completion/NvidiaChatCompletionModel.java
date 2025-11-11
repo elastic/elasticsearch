@@ -7,12 +7,12 @@
 
 package org.elasticsearch.xpack.inference.services.nvidia.completion;
 
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.EmptyTaskSettings;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
 import org.elasticsearch.inference.SecretSettings;
 import org.elasticsearch.inference.TaskType;
-import org.elasticsearch.inference.UnifiedCompletionRequest;
 import org.elasticsearch.xpack.inference.external.action.ExecutableAction;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.nvidia.NvidiaModel;
@@ -24,12 +24,13 @@ import java.util.Map;
 
 /**
  * Represents an Nvidia chat completion model for inference.
- * This class extends the NvidiaModel and provides specific configurations and settings for chat completion tasks.
+ * This class extends {@link NvidiaModel} and provides specific configurations and settings for chat completion tasks.
  */
 public class NvidiaChatCompletionModel extends NvidiaModel {
 
     /**
-     * Constructor for creating an NvidiaChatCompletionModel with specified parameters.
+     * Constructs a new {@link NvidiaChatCompletionModel} with specified parameters.
+     *
      * @param inferenceEntityId the unique identifier for the inference entity
      * @param taskType the type of task this model is designed for
      * @param service the name of the inference service
@@ -55,12 +56,13 @@ public class NvidiaChatCompletionModel extends NvidiaModel {
     }
 
     /**
-     * Constructor for creating an NvidiaChatCompletionModel with specified parameters.
+     * Constructs a new {@link NvidiaChatCompletionModel} with specified parameters.
+     *
      * @param inferenceEntityId the unique identifier for the inference entity
      * @param taskType the type of task this model is designed for
      * @param service the name of the inference service
      * @param serviceSettings the settings for the inference service, specific to chat completion
-     * @param secrets the secret settings for the model, such as API keys or tokens
+     * @param secrets the secret settings for the model, such as API keys
      */
     public NvidiaChatCompletionModel(
         String inferenceEntityId,
@@ -76,22 +78,22 @@ public class NvidiaChatCompletionModel extends NvidiaModel {
     }
 
     /**
-     * Factory method to create an NvidiaChatCompletionModel with overridden model settings based on the request.
-     * If the request does not specify a model, the original model is returned.
+     * Factory method to create an {@link NvidiaChatCompletionModel} with overridden model settings based on the request.
+     * If the modelId is null or matches the original model's modelId, the original model is returned.
      *
-     * @param model the original NvidiaChatCompletionModel
-     * @param request the UnifiedCompletionRequest containing potential overrides
-     * @return a new NvidiaChatCompletionModel with overridden settings or the original model if no overrides are specified
+     * @param model the original {@link NvidiaChatCompletionModel}
+     * @param modelId the model identifier specified in the request, or null if not specified
+     * @return a new {@link NvidiaChatCompletionModel} with overridden settings or the original model if no overrides are specified
      */
-    public static NvidiaChatCompletionModel of(NvidiaChatCompletionModel model, UnifiedCompletionRequest request) {
-        if (request.model() == null) {
-            // If no model id is specified in the request, return the original model
+    public static NvidiaChatCompletionModel of(NvidiaChatCompletionModel model, @Nullable String modelId) {
+        if (modelId == null || modelId.equals(model.getServiceSettings().modelId())) {
+            // If modelId is null or matches the original model's modelId, return the original model
             return model;
         }
 
         var originalModelServiceSettings = model.getServiceSettings();
         var overriddenServiceSettings = new NvidiaChatCompletionServiceSettings(
-            request.model(),
+            modelId,
             originalModelServiceSettings.uri(),
             originalModelServiceSettings.rateLimitSettings()
         );
@@ -113,7 +115,7 @@ public class NvidiaChatCompletionModel extends NvidiaModel {
     /**
      * Returns the service settings specific to Nvidia chat completion.
      *
-     * @return the NvidiaChatCompletionServiceSettings associated with this model
+     * @return the {@link NvidiaChatCompletionServiceSettings} associated with this model
      */
     @Override
     public NvidiaChatCompletionServiceSettings getServiceSettings() {
@@ -124,9 +126,11 @@ public class NvidiaChatCompletionModel extends NvidiaModel {
      * Accepts a visitor that creates an executable action for this Nvidia chat completion model.
      *
      * @param creator the visitor that creates the executable action
-     * @return an ExecutableAction representing this model
+     * @param taskSettings the task settings for the inference task (not used in this model)
+     * @return an {@link ExecutableAction} representing the Nvidia chat completion model
      */
-    public ExecutableAction accept(NvidiaActionVisitor creator) {
+    @Override
+    public ExecutableAction accept(NvidiaActionVisitor creator, Map<String, Object> taskSettings) {
         return creator.create(this);
     }
 }

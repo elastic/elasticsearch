@@ -35,11 +35,11 @@ public class NvidiaRerankServiceSettings extends NvidiaServiceSettings {
     public static final String NAME = "nvidia_rerank_service_settings";
 
     /**
-     * Creates a new instance of NvidiaRerankServiceSettings from a map of settings.
+     * Creates a new instance of {@link NvidiaRerankServiceSettings} from a map of settings.
      *
      * @param map the map containing the service settings
      * @param context the context for parsing configuration settings
-     * @return a new instance of NvidiaRerankServiceSettings
+     * @return a new instance of {@link NvidiaRerankServiceSettings}
      * @throws ValidationException if required fields are missing or invalid
      */
     public static NvidiaRerankServiceSettings fromMap(Map<String, Object> map, ConfigurationParseContext context) {
@@ -63,7 +63,7 @@ public class NvidiaRerankServiceSettings extends NvidiaServiceSettings {
     }
 
     /**
-     * Constructs a new NvidiaRerankServiceSettings from a StreamInput.
+     * Constructs a new instance of {@link NvidiaRerankServiceSettings} from a {@link StreamInput}.
      *
      * @param in the StreamInput to read from
      * @throws IOException if an I/O error occurs during reading
@@ -73,21 +73,21 @@ public class NvidiaRerankServiceSettings extends NvidiaServiceSettings {
     }
 
     /**
-     * Constructs a new NvidiaRerankServiceSettings with the specified model ID, URI, and rate limit settings.
+     * Constructs a new instance of {@link NvidiaRerankServiceSettings} with the specified model ID, URI, and rate limit settings.
      *
-     * @param modelId the ID of the model
+     * @param modelId the model identifier
      * @param uri the URI of the service
-     * @param rateLimitSettings the rate limit settings for the service
+     * @param rateLimitSettings the rate limit settings for the service, if null the default will be used
      */
     public NvidiaRerankServiceSettings(String modelId, @Nullable URI uri, @Nullable RateLimitSettings rateLimitSettings) {
         super(modelId, uri, rateLimitSettings);
     }
 
     /**
-     * Constructs a new NvidiaRerankServiceSettings with the specified model ID and URL.
+     * Constructs a new instance of {@link NvidiaRerankServiceSettings} with the specified model identifier and URL.
      * The rate limit settings will be set to the default value.
      *
-     * @param modelId the ID of the model
+     * @param modelId the model identifier
      * @param url the URL of the service
      * @param rateLimitSettings the rate limit settings for the service, can be null
      */

@@ -48,11 +48,11 @@ public class NvidiaEmbeddingsServiceSettings extends NvidiaServiceSettings {
     private final Integer maxInputTokens;
 
     /**
-     * Creates a new instance of NvidiaEmbeddingsServiceSettings from a map of settings.
+     * Creates a new instance of {@link NvidiaEmbeddingsServiceSettings} from a map of settings.
      *
      * @param map the map containing the settings
      * @param context the context for parsing configuration settings
-     * @return a new instance of NvidiaEmbeddingsServiceSettings
+     * @return a new instance of {@link NvidiaEmbeddingsServiceSettings}
      * @throws ValidationException if any required fields are missing or invalid
      */
     public static NvidiaEmbeddingsServiceSettings fromMap(Map<String, Object> map, ConfigurationParseContext context) {
@@ -79,9 +79,9 @@ public class NvidiaEmbeddingsServiceSettings extends NvidiaServiceSettings {
     }
 
     /**
-     * Constructs a new NvidiaEmbeddingsServiceSettings from a StreamInput.
+     * Constructs a new instance of {@link NvidiaEmbeddingsServiceSettings} from a StreamInput.
      *
-     * @param in the StreamInput to read from
+     * @param in the {@link StreamInput} to read from
      * @throws IOException if an I/O error occurs during reading
      */
     public NvidiaEmbeddingsServiceSettings(StreamInput in) throws IOException {
@@ -92,9 +92,9 @@ public class NvidiaEmbeddingsServiceSettings extends NvidiaServiceSettings {
     }
 
     /**
-     * Constructs a new NvidiaEmbeddingsServiceSettings with the specified parameters.
+     * Constructs a new instance of {@link NvidiaEmbeddingsServiceSettings} with the specified parameters.
      *
-     * @param modelId the identifier for the model
+     * @param modelId the model identifier
      * @param uri the URI of the Nvidia service
      * @param dimensions the number of dimensions for the embeddings, can be null
      * @param similarity the similarity measure to use, can be null
@@ -116,9 +116,9 @@ public class NvidiaEmbeddingsServiceSettings extends NvidiaServiceSettings {
     }
 
     /**
-     * Constructs a new NvidiaEmbeddingsServiceSettings with the specified parameters.
+     * Constructs a new instance of {@link NvidiaEmbeddingsServiceSettings} with the specified parameters.
      *
-     * @param modelId the identifier for the model
+     * @param modelId the model identifier
      * @param url the URL of the Nvidia service
      * @param dimensions the number of dimensions for the embeddings, can be null
      * @param similarity the similarity measure to use, can be null

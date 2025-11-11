@@ -34,9 +34,9 @@ public final class NvidiaUtils {
     private static final String QUERY = "query";
 
     /**
-     * Converts an InputType to its corresponding string representation for Nvidia services.
+     * Converts an {@link InputType} to its corresponding string representation for Nvidia services.
      * @param inputType the InputType to convert
-     * @return the string representation of the InputType, or null if the inputType is null
+     * @return the string representation of the {@link InputType}, or null if the input type is null
      */
     public static String inputTypeToString(@Nullable InputType inputType) {
         return switch (inputType) {

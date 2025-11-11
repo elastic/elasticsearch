@@ -10,14 +10,12 @@ package org.elasticsearch.xpack.inference.services.nvidia.completion;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.TaskType;
-import org.elasticsearch.inference.UnifiedCompletionRequest;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettings;
 
-import java.util.List;
-
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.sameInstance;
 
 public class NvidiaChatCompletionModelTests extends ESTestCase {
     public static NvidiaChatCompletionModel createCompletionModel(@Nullable String url, String apiKey, String modelName) {
@@ -54,56 +52,22 @@ public class NvidiaChatCompletionModelTests extends ESTestCase {
 
     public void testOverrideWith_UnifiedCompletionRequest_KeepsSameModelId() {
         var model = createCompletionModel("url", "api_key", "model_name");
-        var request = new UnifiedCompletionRequest(
-            List.of(new UnifiedCompletionRequest.Message(new UnifiedCompletionRequest.ContentString("hello"), "role", null, null)),
-            "model_name", // same model
-            null,
-            null,
-            null,
-            null,
-            null,
-            null
-        );
+        var overriddenModel = NvidiaChatCompletionModel.of(model, "model_name");
 
-        var overriddenModel = NvidiaChatCompletionModel.of(model, request);
-
-        assertThat(overriddenModel, is(model));
+        assertThat(overriddenModel, is(sameInstance(model)));
     }
 
     public void testOverrideWith_UnifiedCompletionRequest_OverridesExistingModelId() {
         var model = createCompletionModel("url", "api_key", "model_name");
-        var request = new UnifiedCompletionRequest(
-            List.of(new UnifiedCompletionRequest.Message(new UnifiedCompletionRequest.ContentString("hello"), "role", null, null)),
-            "different_model", // overriding model
-            null,
-            null,
-            null,
-            null,
-            null,
-            null
-        );
-
-        var overriddenModel = NvidiaChatCompletionModel.of(model, request);
+        var overriddenModel = NvidiaChatCompletionModel.of(model, "different_model");
 
         assertThat(overriddenModel.getServiceSettings().modelId(), is("different_model"));
     }
 
     public void testOverrideWith_UnifiedCompletionRequest_UsesModelFields_WhenRequestDoesNotOverride() {
         var model = createCompletionModel("url", "api_key", "model_name");
-        var request = new UnifiedCompletionRequest(
-            List.of(new UnifiedCompletionRequest.Message(new UnifiedCompletionRequest.ContentString("hello"), "role", null, null)),
-            null, // not overriding model
-            null,
-            null,
-            null,
-            null,
-            null,
-            null
-        );
+        var overriddenModel = NvidiaChatCompletionModel.of(model, null);
 
-        var overriddenModel = NvidiaChatCompletionModel.of(model, request);
-
-        assertThat(overriddenModel.getServiceSettings().modelId(), is("model_name"));
+        assertThat(overriddenModel, is(model));
     }
-
 }

@@ -42,7 +42,7 @@ public class NvidiaEmbeddingsTaskSettings implements TaskSettings {
     private final CohereTruncation truncation;
 
     /**
-     * Creates a new {@link NvidiaEmbeddingsTaskSettings} from a map of settings.
+     * Creates a new instance of {@link NvidiaEmbeddingsTaskSettings} from a map of settings.
      * @param map the map of settings
      * @return a constructed {@link NvidiaEmbeddingsTaskSettings}
      */
@@ -78,7 +78,7 @@ public class NvidiaEmbeddingsTaskSettings implements TaskSettings {
     }
 
     /**
-     * Creates a new {@link NvidiaEmbeddingsTaskSettings} by merging the original settings with the request task settings.
+     * Creates a new instance of {@link NvidiaEmbeddingsTaskSettings} by merging the original settings with the request task settings.
      * @param originalSettings the settings stored as part of the inference entity configuration
      * @param requestTaskSettings the settings passed in within the task_settings field of the request
      * @return a constructed {@link NvidiaEmbeddingsTaskSettings}

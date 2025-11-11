@@ -22,7 +22,7 @@ import java.util.Map;
 
 /**
  * Represents an Nvidia embeddings model for inference.
- * This class extends the NvidiaModel and provides specific configurations and settings for embeddings tasks.
+ * This class extends the {@link NvidiaModel} and provides specific configurations and settings for embeddings tasks.
  */
 public class NvidiaEmbeddingsModel extends NvidiaModel {
 
@@ -32,7 +32,7 @@ public class NvidiaEmbeddingsModel extends NvidiaModel {
     }
 
     /**
-     * Constructor for creating an NvidiaEmbeddingsModel with specified parameters.
+     * Constructor for creating an {@link NvidiaEmbeddingsModel} with specified parameters.
      *
      * @param inferenceEntityId the unique identifier for the inference entity
      * @param taskType the type of task this model is designed for
@@ -65,7 +65,7 @@ public class NvidiaEmbeddingsModel extends NvidiaModel {
     }
 
     /**
-     * Constructor for creating an NvidiaEmbeddingsModel with specified parameters.
+     * Constructor for creating an {@link NvidiaEmbeddingsModel} with specified parameters.
      *
      * @param model the base NvidiaEmbeddingsModel to copy properties from
      * @param serviceSettings the settings for the inference service, specific to embeddings
@@ -75,9 +75,9 @@ public class NvidiaEmbeddingsModel extends NvidiaModel {
     }
 
     /**
-     * Constructor for creating an NvidiaEmbeddingsModel with specified parameters.
+     * Constructor for creating an {@link NvidiaEmbeddingsModel} with specified parameters.
      *
-     * @param model the base NvidiaEmbeddingsModel to copy properties from
+     * @param model the base {@link NvidiaEmbeddingsModel} to copy properties from
      * @param taskSettings the task-specific settings to be applied
      */
     public NvidiaEmbeddingsModel(NvidiaEmbeddingsModel model, NvidiaEmbeddingsTaskSettings taskSettings) {
@@ -85,7 +85,7 @@ public class NvidiaEmbeddingsModel extends NvidiaModel {
     }
 
     /**
-     * Constructor for creating an NvidiaEmbeddingsModel with specified parameters.
+     * Constructor for creating an {@link NvidiaEmbeddingsModel} with specified parameters.
      *
      * @param inferenceEntityId the unique identifier for the inference entity
      * @param taskType the type of task this model is designed for
@@ -124,9 +124,10 @@ public class NvidiaEmbeddingsModel extends NvidiaModel {
      * Accepts a visitor to create an executable action for this Nvidia embeddings model.
      *
      * @param creator the visitor that creates the executable action
-     *                @param taskSettings the task-specific settings to be applied
-     * @return an ExecutableAction representing the Nvidia embeddings model
+     * @param taskSettings the task-specific settings to be applied
+     * @return an {@link ExecutableAction} representing the Nvidia embeddings model
      */
+    @Override
     public ExecutableAction accept(NvidiaActionVisitor creator, Map<String, Object> taskSettings) {
         return creator.create(this, taskSettings);
     }

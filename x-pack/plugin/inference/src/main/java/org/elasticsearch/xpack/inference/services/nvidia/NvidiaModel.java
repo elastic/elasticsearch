@@ -11,19 +11,22 @@ import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
 import org.elasticsearch.inference.ServiceSettings;
 import org.elasticsearch.inference.TaskSettings;
+import org.elasticsearch.xpack.inference.external.action.ExecutableAction;
 import org.elasticsearch.xpack.inference.services.RateLimitGroupingModel;
+import org.elasticsearch.xpack.inference.services.nvidia.action.NvidiaActionVisitor;
 import org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettings;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 
+import java.util.Map;
 import java.util.Objects;
 
 /**
  * Abstract class representing an Nvidia model for inference.
- * This class extends RateLimitGroupingModel and provides common functionality for Nvidia models.
+ * This class extends {@link RateLimitGroupingModel} and provides common functionality for Nvidia models.
  */
 public abstract class NvidiaModel extends RateLimitGroupingModel {
     /**
-     * Constructor for creating an NvidiaModel with specified configurations and secrets.
+     * Constructor for creating an {@link NvidiaModel} with specified configurations and secrets.
      *
      * @param configurations the model configurations
      * @param secrets the secret settings for the model
@@ -33,7 +36,8 @@ public abstract class NvidiaModel extends RateLimitGroupingModel {
     }
 
     /**
-     * Constructor for creating an NvidiaModel with specified model, service settings, and secret settings.
+     * Constructor for creating an {@link NvidiaModel} with specified model, service settings, and secret settings.
+     *
      * @param model the model configurations
      * @param serviceSettings the settings for the inference service
      */
@@ -42,7 +46,8 @@ public abstract class NvidiaModel extends RateLimitGroupingModel {
     }
 
     /**
-     * Constructor for creating an NvidiaModel with specified model, service settings, and secret settings.
+     * Constructor for creating an {@link NvidiaModel} with specified model, service settings, and secret settings.
+     *
      * @param model the model configurations
      * @param taskSettings the task settings for the inference task
      */
@@ -69,5 +74,14 @@ public abstract class NvidiaModel extends RateLimitGroupingModel {
     public DefaultSecretSettings getSecretSettings() {
         return (DefaultSecretSettings) super.getSecretSettings();
     }
+
+    /**
+     * Accepts a visitor to create an executable action for this Nvidia model.
+     *
+     * @param creator the visitor that creates the executable action
+     * @param taskSettings the task settings for the inference task
+     * @return an executable action for this Nvidia model
+     */
+    public abstract ExecutableAction accept(NvidiaActionVisitor creator, Map<String, Object> taskSettings);
 
 }

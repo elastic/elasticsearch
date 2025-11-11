@@ -42,7 +42,7 @@ public class NvidiaEmbeddingsRequest implements Request {
     private final InputType inputType;
 
     /**
-     * Constructs a new NvidiaEmbeddingsRequest with the specified truncator, input, and model.
+     * Constructs a new {@link NvidiaEmbeddingsRequest} with the specified truncator, input, and model.
      *
      * @param truncator the truncator to handle input truncation
      * @param input     the input to be truncated
@@ -87,7 +87,7 @@ public class NvidiaEmbeddingsRequest implements Request {
      * Extracts the input type to be used for the request.
      * It first checks if the inputType field is specified, then checks the model's task settings.
      * If neither is specified, it returns null.
-     * @return the InputType to be used for the request, or null if not specified
+     * @return the {@link InputType} to be used for the request, or null if not specified
      */
     private InputType extractInputTypeToUse() {
         if (InputType.isSpecified(inputType)) {

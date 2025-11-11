@@ -37,9 +37,9 @@ public abstract class NvidiaServiceSettings extends FilteredXContentObject imple
     protected final RateLimitSettings rateLimitSettings;
 
     /**
-     * Constructs a new NvidiaServiceSettings from a StreamInput.
+     * Constructs new {@link NvidiaServiceSettings} from a {@link StreamInput}.
      *
-     * @param in the StreamInput to read from
+     * @param in the {@link StreamInput} to read from
      * @throws IOException if an I/O error occurs during reading
      */
     protected NvidiaServiceSettings(StreamInput in) throws IOException {

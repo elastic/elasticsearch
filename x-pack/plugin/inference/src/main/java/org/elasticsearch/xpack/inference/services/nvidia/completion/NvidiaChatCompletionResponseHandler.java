@@ -15,6 +15,7 @@ import org.elasticsearch.xpack.inference.services.openai.OpenAiUnifiedChatComple
 /**
  * Handles streaming chat completion responses and error parsing for Nvidia inference endpoints.
  * This handler is designed to work with the unified Nvidia chat completion API.
+ * Extending the OpenAI unified chat completion response handler to leverage existing functionality.
  */
 public class NvidiaChatCompletionResponseHandler extends OpenAiUnifiedChatCompletionResponseHandler {
 
@@ -23,7 +24,7 @@ public class NvidiaChatCompletionResponseHandler extends OpenAiUnifiedChatComple
         .createErrorParserWithStringify(NVIDIA_ERROR);
 
     /**
-     * Constructor for creating an NvidiaChatCompletionResponseHandler with specified request type and response parser.
+     * Constructor for creating an {@link NvidiaChatCompletionResponseHandler} with specified request type and response parser.
      *
      * @param requestType the type of request this handler will process
      * @param parseFunction the function to parse the response

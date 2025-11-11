@@ -18,7 +18,7 @@ import java.util.Objects;
 
 /**
  * NvidiaChatCompletionRequestEntity is responsible for creating the request entity for Nvidia chat completion.
- * It implements ToXContentObject to allow serialization to XContent format.
+ * It implements {@link ToXContentObject} to allow serialization to XContent format.
  */
 public class NvidiaChatCompletionRequestEntity implements ToXContentObject {
 

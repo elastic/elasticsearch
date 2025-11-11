@@ -73,7 +73,7 @@ import static org.elasticsearch.xpack.inference.services.ServiceUtils.throwIfNot
 
 /**
  * NvidiaService is an inference service for Nvidia models, supporting text embedding and chat completion tasks.
- * It extends SenderService to handle HTTP requests and responses for Nvidia models.
+ * It extends {@link SenderService} to handle HTTP requests and responses for Nvidia models.
  */
 public class NvidiaService extends SenderService implements RerankingInferenceService {
     public static final String NAME = "nvidia";
@@ -86,9 +86,8 @@ public class NvidiaService extends SenderService implements RerankingInferenceSe
         InputType.INTERNAL_SEARCH
     );
     /**
-     * The optimal batch size depends on the hardware the model is deployed on.
-     * For Nvidia use a conservatively small max batch size as it is
-     * unknown how the model is deployed
+     * The optimal batch size depends on the model.
+     * For Nvidia use a conservatively small max batch size as it is unknown what model is used.
      */
     static final int EMBEDDING_MAX_BATCH_SIZE = 20;
     private static final EnumSet<TaskType> SUPPORTED_TASK_TYPES = EnumSet.of(
@@ -103,7 +102,7 @@ public class NvidiaService extends SenderService implements RerankingInferenceSe
     );
 
     /**
-     * Constructor for creating an NvidiaService with specified HTTP request sender factory and service components.
+     * Constructor for creating an {@link NvidiaService} with specified HTTP request sender factory and service components.
      *
      * @param factory the factory to create HTTP request senders
      * @param serviceComponents the components required for the inference service
@@ -130,18 +129,16 @@ public class NvidiaService extends SenderService implements RerankingInferenceSe
         ActionListener<InferenceServiceResults> listener
     ) {
         var actionCreator = new NvidiaActionCreator(getSender(), getServiceComponents());
-        switch (model) {
-            case NvidiaChatCompletionModel nvidiaChatCompletionModel -> nvidiaChatCompletionModel.accept(actionCreator)
-                .execute(inputs, timeout, listener);
-            case NvidiaEmbeddingsModel nvidiaEmbeddingsModel -> nvidiaEmbeddingsModel.accept(actionCreator, taskSettings)
-                .execute(inputs, timeout, listener);
-            case NvidiaRerankModel nvidiaRerankModel -> nvidiaRerankModel.accept(actionCreator).execute(inputs, timeout, listener);
-            default -> listener.onFailure(createInvalidModelException(model));
+        if (model instanceof NvidiaModel == false) {
+            listener.onFailure(createInvalidModelException(model));
+            return;
         }
+        var nvidiaModel = (NvidiaModel) model;
+        nvidiaModel.accept(actionCreator, taskSettings).execute(inputs, timeout, listener);
     }
 
     /**
-     * Creates an NvidiaModel based on the provided parameters.
+     * Creates an {@link NvidiaModel} based on the provided parameters.
      *
      * @param inferenceId the unique identifier for the inference entity
      * @param taskType the type of task this model is designed for
@@ -150,7 +147,7 @@ public class NvidiaService extends SenderService implements RerankingInferenceSe
      * @param chunkingSettings the settings for chunking, if applicable
      * @param secretSettings the secret settings for the model, such as API keys or tokens
      * @param context the context for parsing configuration settings
-     * @return a new instance of NvidiaModel based on the provided parameters
+     * @return a new instance of {@link NvidiaModel} based on the provided parameters
      */
     protected NvidiaModel createModel(
         String inferenceId,
@@ -198,7 +195,7 @@ public class NvidiaService extends SenderService implements RerankingInferenceSe
         }
 
         var nvidiaChatCompletionModel = (NvidiaChatCompletionModel) model;
-        var overriddenModel = NvidiaChatCompletionModel.of(nvidiaChatCompletionModel, inputs.getRequest());
+        var overriddenModel = NvidiaChatCompletionModel.of(nvidiaChatCompletionModel, inputs.getRequest().model());
         var manager = new GenericRequestManager<>(
             getServiceComponents().threadPool(),
             overriddenModel,

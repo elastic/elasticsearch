@@ -21,7 +21,7 @@ import java.util.Objects;
 
 /**
  * NvidiaEmbeddingsRequestEntity is responsible for creating the request entity for Nvidia embeddings.
- * It implements ToXContentObject to allow serialization to XContent format.
+ * It implements {@link ToXContentObject} to allow serialization to XContent format.
  */
 public record NvidiaEmbeddingsRequestEntity(
     List<String> input,

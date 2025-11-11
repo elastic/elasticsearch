@@ -21,18 +21,18 @@ import org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettings
 import java.util.Map;
 
 /**
- * Represents an Nvidia embeddings model for inference.
- * This class extends the NvidiaModel and provides specific configurations and settings for embeddings tasks.
+ * Represents an Nvidia rerank model for inference.
+ * This class extends the NvidiaModel and provides specific configurations and settings for rerank tasks.
  */
 public class NvidiaRerankModel extends NvidiaModel {
 
     /**
-     * Constructor for creating an NvidiaEmbeddingsModel with specified parameters.
+     * Constructor for creating an {@link NvidiaRerankModel} with specified parameters.
      *
      * @param inferenceEntityId the unique identifier for the inference entity
      * @param taskType the type of task this model is designed for
      * @param service the name of the inference service
-     * @param serviceSettings the settings for the inference service, specific to embeddings
+     * @param serviceSettings the settings for the inference service, specific to reranking
      * @param secrets the secret settings for the model, such as API keys or tokens
      * @param context the context for parsing configuration settings
      */
@@ -54,12 +54,12 @@ public class NvidiaRerankModel extends NvidiaModel {
     }
 
     /**
-     * Constructor for creating an NvidiaEmbeddingsModel with specified parameters.
+     * Constructor for creating an {@link NvidiaRerankModel} with specified parameters.
      *
      * @param inferenceEntityId the unique identifier for the inference entity
      * @param taskType the type of task this model is designed for
      * @param service the name of the inference service
-     * @param serviceSettings the settings for the inference service, specific to embeddings
+     * @param serviceSettings the settings for the inference service, specific to rerank
      * @param secrets the secret settings for the model, such as API keys or tokens
      */
     public NvidiaRerankModel(
@@ -81,12 +81,14 @@ public class NvidiaRerankModel extends NvidiaModel {
     }
 
     /**
-     * Accepts a visitor to create an executable action for this Nvidia embeddings model.
+     * Accepts a visitor to create an executable action for this Nvidia rerank model.
      *
      * @param creator the visitor that creates the executable action
-     * @return an ExecutableAction representing the Nvidia embeddings model
+     * @param taskSettings the task settings for the inference task (not used in this model)
+     * @return an {@link ExecutableAction} representing the Nvidia rerank model
      */
-    public ExecutableAction accept(NvidiaActionVisitor creator) {
+    @Override
+    public ExecutableAction accept(NvidiaActionVisitor creator, Map<String, Object> taskSettings) {
         return creator.create(this);
     }
 }

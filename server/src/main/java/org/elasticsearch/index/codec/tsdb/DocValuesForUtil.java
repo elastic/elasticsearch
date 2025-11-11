@@ -51,7 +51,7 @@ public final class DocValuesForUtil {
         if (bitsPerValue <= 24) { // these bpvs are handled efficiently by ForUtil
             ForUtil.encode(in, bitsPerValue, out);
         } else if (bitsPerValue <= 32) {
-            for (int k = 0; k < blockSize >> ForUtil.BLOCK_SIZE; k++) {
+            for (int k = 0; k < blockSize >> ForUtil.BLOCK_SIZE_SHIFT; k++) {
                 collapse32(in, k * ForUtil.BLOCK_SIZE);
                 for (int i = 0; i < ForUtil.BLOCK_SIZE / 2; i++) {
                     out.writeLong(in[k * ForUtil.BLOCK_SIZE + i]);

@@ -74,7 +74,6 @@ import static java.nio.file.StandardCopyOption.REPLACE_EXISTING;
 import static org.elasticsearch.health.HealthStatus.GREEN;
 import static org.elasticsearch.health.HealthStatus.YELLOW;
 import static org.elasticsearch.node.Node.NODE_NAME_SETTING;
-import static org.hamcrest.Matchers.anEmptyMap;
 import static org.hamcrest.Matchers.hasEntry;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.argThat;
@@ -443,7 +442,7 @@ public class FileSettingsServiceTests extends ESTestCase {
         deadThreadLatch.countDown();
     }
 
-    public void testHandleSnapshotRestoreClearsMetadata() throws Exception {
+    public void testHandleSnapshotRestoreClearsMetadata() {
         ClusterState state = ClusterState.builder(clusterService.state())
             .metadata(
                 Metadata.builder(clusterService.state().metadata())
@@ -455,7 +454,7 @@ public class FileSettingsServiceTests extends ESTestCase {
         Metadata.Builder metadata = Metadata.builder(state.metadata());
         fileSettingsService.handleSnapshotRestore(state, ClusterState.builder(state), metadata, ProjectId.DEFAULT);
 
-        assertThat(metadata.build().reservedStateMetadata(), anEmptyMap());
+        verify(controller).initEmpty(FileSettingsService.NAMESPACE, ActionListener.noop());
     }
 
     public void testHandleSnapshotRestoreResetsMetadata() throws Exception {

@@ -1102,4 +1102,63 @@ public class RestoreSnapshotIT extends AbstractSnapshotIntegTestCase {
             );
         }
     }
+
+    public void testRenameReplacementTooLongRejected() throws Exception {
+        String repoName = "test-repo";
+        createRepository(repoName, "fs");
+
+        // Create an index with a long name (255 characters of 'b')
+        String indexName = "b".repeat(255);
+        createIndex(indexName);
+        indexRandomDocs(indexName, 10);
+
+        String snapshotName = "test-snap";
+        createSnapshot(repoName, snapshotName, Collections.singletonList(indexName));
+
+        logger.info("--> delete the index");
+        cluster().wipeIndices(indexName);
+
+        logger.info("--> attempt restore with excessively long rename_replacement (should fail validation)");
+        IllegalArgumentException exception = expectThrows(
+            IllegalArgumentException.class,
+            () -> client().admin()
+                .cluster()
+                .prepareRestoreSnapshot(TEST_REQUEST_TIMEOUT, repoName, snapshotName)
+                .setIndices(indexName)
+                .setRenamePattern("b")
+                .setRenameReplacement("1".repeat(10_000_000))
+                .setWaitForCompletion(true)
+                .get()
+        );
+
+        assertThat(exception.getMessage(), containsString("rename_replacement"));
+        assertThat(exception.getMessage(), containsString("exceeds maximum"));
+
+        logger.info("--> attempt restore with 256 character rename_replacement (should also fail)");
+        exception = expectThrows(
+            IllegalArgumentException.class,
+            () -> client().admin()
+                .cluster()
+                .prepareRestoreSnapshot(TEST_REQUEST_TIMEOUT, repoName, snapshotName)
+                .setIndices(indexName)
+                .setRenamePattern("b")
+                .setRenameReplacement("a".repeat(256))
+                .setWaitForCompletion(true)
+                .get()
+        );
+
+        assertThat(exception.getMessage(), containsString("rename_replacement"));
+
+        logger.info("--> restore with valid 255 character rename_replacement (should succeed)");
+        RestoreSnapshotResponse restoreResponse = client().admin()
+            .cluster()
+            .prepareRestoreSnapshot(TEST_REQUEST_TIMEOUT, repoName, snapshotName)
+            .setIndices(indexName)
+            .setRenamePattern("b+")  // Match all the b's
+            .setRenameReplacement("a".repeat(255))
+            .setWaitForCompletion(true)
+            .get();
+
+        assertThat(restoreResponse.getRestoreInfo().failedShards(), equalTo(0));
+    }
 }

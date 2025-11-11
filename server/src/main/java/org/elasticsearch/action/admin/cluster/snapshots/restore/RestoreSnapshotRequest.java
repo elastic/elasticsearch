@@ -26,6 +26,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -35,6 +36,7 @@ import java.util.Objects;
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 import static org.elasticsearch.common.settings.Settings.readSettingsFromStream;
 import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeBooleanValue;
+import static org.elasticsearch.cluster.metadata.MetadataCreateIndexService.MAX_INDEX_NAME_BYTES;
 
 /**
  * Restore snapshot request
@@ -151,6 +153,17 @@ public class RestoreSnapshotRequest extends MasterNodeRequest<RestoreSnapshotReq
         }
         if (featureStates == null) {
             validationException = addValidationError("featureStates is missing", validationException);
+        }
+        if (renameReplacement != null) {
+            int byteLength = renameReplacement.getBytes(StandardCharsets.UTF_8).length;
+
+            if(renameReplacement.getBytes(StandardCharsets.UTF_8).length > MAX_INDEX_NAME_BYTES) {
+                validationException = addValidationError(
+                    "rename_replacement UTF-8 byte length [" + byteLength +
+                        "] exceeds maximum allowed length [" + MAX_INDEX_NAME_BYTES + "] bytes",
+                    validationException
+                );
+            }
         }
         if (indexSettings == null) {
             validationException = addValidationError("indexSettings are missing", validationException);

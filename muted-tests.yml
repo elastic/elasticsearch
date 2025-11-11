@@ -255,9 +255,6 @@ tests:
   - class: org.elasticsearch.xpack.test.rest.XPackRestIT
     method: test {p0=transform/transforms_start_stop/Test schedule_now on an already started transform}
     issue: https://github.com/elastic/elasticsearch/issues/120720
-  - class: org.elasticsearch.xpack.shutdown.NodeShutdownIT
-    method: testStalledShardMigrationProperlyDetected
-    issue: https://github.com/elastic/elasticsearch/issues/115697
   - class: org.elasticsearch.xpack.security.FileSettingsRoleMappingsRestartIT
     method: testFileSettingsReprocessedOnRestartWithoutVersionChange
     issue: https://github.com/elastic/elasticsearch/issues/120964

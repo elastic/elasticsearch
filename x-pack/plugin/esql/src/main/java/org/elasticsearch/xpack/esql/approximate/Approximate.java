@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.approximate;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.compute.data.LongBlock;
@@ -382,11 +383,9 @@ public class Approximate {
                 boolean esStatsQueryExecuted = result.executionInfo() != null
                     && result.executionInfo().clusterInfo.values()
                         .stream()
-                        .noneMatch(
-                            cluster -> cluster.getFailures().stream().anyMatch(e -> e.getCause() instanceof UnsupportedOperationException)
-                        );
+                        .noneMatch(cluster -> cluster.getFailures().stream().anyMatch(Approximate::isCausedByUnsupported));
                 if (esStatsQueryExecuted) {
-                    logger.debug("not approximating stats query");
+                    logger.debug("stats query succeeded; returning exact result");
                     listener.onResponse(result);
                 } else {
                     result.pages().forEach(Page::close);
@@ -396,13 +395,18 @@ public class Approximate {
 
             @Override
             public void onFailure(Exception e) {
-                if (e instanceof UnsupportedOperationException) {
+                if (isCausedByUnsupported(e)) {
                     runner.run(toPhysicalPlan.apply(sourceCountPlan()), configuration, foldContext, sourceCountListener(listener));
                 } else {
+                    logger.debug("stats query failed; returning error", e);
                     listener.onFailure(e);
                 }
             }
         };
+    }
+
+    private static boolean isCausedByUnsupported(Exception ex) {
+        return ExceptionsHelper.unwrapCausesAndSuppressed(ex, e -> e instanceof UnsupportedOperationException).isPresent();
     }
 
     /**

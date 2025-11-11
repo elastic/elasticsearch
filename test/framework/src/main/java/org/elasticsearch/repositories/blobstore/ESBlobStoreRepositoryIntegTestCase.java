@@ -60,6 +60,7 @@ import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
+import static org.elasticsearch.repositories.blobstore.AbstractBlobContainerRetriesTestCase.randomRetryingPurpose;
 import static org.elasticsearch.repositories.blobstore.BlobStoreRepository.READONLY_SETTING_KEY;
 import static org.elasticsearch.repositories.blobstore.BlobStoreRepository.SNAPSHOT_INDEX_NAME_FORMAT;
 import static org.elasticsearch.repositories.blobstore.BlobStoreRepository.SNAPSHOT_NAME_FORMAT;
@@ -130,7 +131,7 @@ public abstract class ESBlobStoreRepositoryIntegTestCase extends ESIntegTestCase
         try (BlobStore store = newBlobStore()) {
             final BlobContainer container = store.blobContainer(BlobPath.EMPTY);
             expectThrows(NoSuchFileException.class, () -> {
-                try (InputStream is = container.readBlob(randomPurpose(), "non-existing")) {
+                try (InputStream is = container.readBlob(randomRetryingPurpose(), "non-existing")) {
                     is.read();
                 }
             });
@@ -157,7 +158,7 @@ public abstract class ESBlobStoreRepositoryIntegTestCase extends ESIntegTestCase
                     readBlobName = destinationBlobName;
                 } catch (UnsupportedOperationException ignored) {}
             }
-            try (InputStream stream = container.readBlob(randomPurpose(), readBlobName)) {
+            try (InputStream stream = container.readBlob(randomRetryingPurpose(), readBlobName)) {
                 BytesRefBuilder target = new BytesRefBuilder();
                 while (target.length() < data.length) {
                     byte[] buffer = new byte[scaledRandomIntBetween(1, data.length - target.length())];
@@ -285,7 +286,7 @@ public abstract class ESBlobStoreRepositoryIntegTestCase extends ESIntegTestCase
 
     public static byte[] readBlobFully(BlobContainer container, String name, int length) throws IOException {
         byte[] data = new byte[length];
-        try (InputStream inputStream = container.readBlob(randomPurpose(), name)) {
+        try (InputStream inputStream = container.readBlob(randomRetryingPurpose(), name)) {
             assertThat(Streams.readFully(inputStream, data), CoreMatchers.equalTo(length));
             assertThat(inputStream.read(), CoreMatchers.equalTo(-1));
         }

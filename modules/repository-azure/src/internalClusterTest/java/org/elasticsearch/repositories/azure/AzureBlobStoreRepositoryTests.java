@@ -64,6 +64,7 @@ import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.repositories.RepositoriesMetrics.METRIC_REQUESTS_TOTAL;
+import static org.elasticsearch.repositories.blobstore.AbstractBlobContainerRetriesTestCase.randomRetryingPurpose;
 import static org.elasticsearch.repositories.blobstore.BlobStoreTestUtil.randomPurpose;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
@@ -347,7 +348,10 @@ public class AzureBlobStoreRepositoryTests extends ESMockAPIBasedRepositoryInteg
     public void testNotFoundErrorMessageContainsFullKey() throws Exception {
         try (BlobStore store = newBlobStore()) {
             BlobContainer container = store.blobContainer(BlobPath.EMPTY.add("nested").add("dir"));
-            NoSuchFileException exception = expectThrows(NoSuchFileException.class, () -> container.readBlob(randomPurpose(), "blob"));
+            NoSuchFileException exception = expectThrows(
+                NoSuchFileException.class,
+                () -> container.readBlob(randomRetryingPurpose(), "blob")
+            );
             assertThat(exception.getMessage(), containsString("nested/dir/blob] not found"));
         }
     }
@@ -360,7 +364,7 @@ public class AzureBlobStoreRepositoryTests extends ESMockAPIBasedRepositoryInteg
             container.writeBlob(randomPurpose(), blobName, new ByteArrayInputStream(data), data.length, true);
 
             var originalDataInputStream = new ByteArrayInputStream(data);
-            try (var azureInputStream = container.readBlob(randomPurpose(), blobName)) {
+            try (var azureInputStream = container.readBlob(randomRetryingPurpose(), blobName)) {
                 for (int i = 0; i < data.length; i++) {
                     assertThat(originalDataInputStream.read(), is(equalTo(azureInputStream.read())));
                 }

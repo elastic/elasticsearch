@@ -298,7 +298,7 @@ public abstract class AbstractBlobContainerRetriesTestCase extends ESTestCase {
         return allOf(greaterThanOrEqualTo(maxRetries), lessThanOrEqualTo(RetryingInputStream.MAX_SUPPRESSED_EXCEPTIONS));
     }
 
-    protected OperationPurpose randomRetryingPurpose() {
+    public static OperationPurpose randomRetryingPurpose() {
         return randomValueOtherThan(OperationPurpose.REPOSITORY_ANALYSIS, BlobStoreTestUtil::randomPurpose);
     }
 

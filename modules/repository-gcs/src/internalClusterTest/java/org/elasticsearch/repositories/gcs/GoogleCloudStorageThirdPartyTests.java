@@ -33,6 +33,7 @@ import java.util.Base64;
 import java.util.Collection;
 
 import static org.elasticsearch.common.io.Streams.readFully;
+import static org.elasticsearch.repositories.blobstore.AbstractBlobContainerRetriesTestCase.randomRetryingPurpose;
 import static org.elasticsearch.repositories.blobstore.BlobStoreTestUtil.randomPurpose;
 import static org.hamcrest.Matchers.blankOrNullString;
 import static org.hamcrest.Matchers.containsString;
@@ -115,7 +116,7 @@ public class GoogleCloudStorageThirdPartyTests extends AbstractThirdPartyReposit
         executeOnBlobStore(repo, container -> {
             container.writeBlob(randomPurpose(), blobKey, new BytesArray(initialValue), true);
 
-            try (InputStream inputStream = container.readBlob(randomPurpose(), blobKey)) {
+            try (InputStream inputStream = container.readBlob(randomRetryingPurpose(), blobKey)) {
                 // Trigger the first request for the blob, partially read it
                 int read = inputStream.read();
                 assert read != -1;

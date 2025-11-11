@@ -49,6 +49,7 @@ import java.util.List;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 
+import static org.elasticsearch.repositories.blobstore.AbstractBlobContainerRetriesTestCase.randomRetryingPurpose;
 import static org.elasticsearch.repositories.blobstore.BlobStoreTestUtil.randomPurpose;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.blankOrNullString;
@@ -253,7 +254,7 @@ public class S3RepositoryThirdPartyTests extends AbstractThirdPartyRepositoryTes
                 blobBytes.length()
             );
 
-            return destinationBlobContainer.readBlob(randomPurpose(), destinationBlobName).readAllBytes();
+            return destinationBlobContainer.readBlob(randomRetryingPurpose(), destinationBlobName).readAllBytes();
         });
 
         assertArrayEquals(BytesReference.toBytes(blobBytes), targetBytes);
@@ -280,7 +281,7 @@ public class S3RepositoryThirdPartyTests extends AbstractThirdPartyRepositoryTes
                 blobBytes.length()
             );
 
-            return destinationBlobContainer.readBlob(randomPurpose(), destinationBlobName).readAllBytes();
+            return destinationBlobContainer.readBlob(randomRetryingPurpose(), destinationBlobName).readAllBytes();
         });
 
         assertArrayEquals(BytesReference.toBytes(blobBytes), targetBytes);

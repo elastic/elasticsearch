@@ -273,7 +273,7 @@ public class GoogleCloudStorageBlobContainerRetriesTests extends AbstractBlobCon
             exchange.close();
         });
 
-        try (InputStream inputStream = blobContainer.readBlob(randomPurpose(), "large_blob_retries")) {
+        try (InputStream inputStream = blobContainer.readBlob(randomRetryingPurpose(), "large_blob_retries")) {
             assertArrayEquals(bytes, BytesReference.toBytes(Streams.readFully(inputStream)));
         }
     }
@@ -600,10 +600,10 @@ public class GoogleCloudStorageBlobContainerRetriesTests extends AbstractBlobCon
         byte[] initialValue = randomByteArrayOfLength(enoughBytesToNotBeEntirelyBuffered);
         container.writeBlob(randomPurpose(), key, new BytesArray(initialValue), true);
 
-        BytesReference reference = readFully(container.readBlob(randomPurpose(), key));
+        BytesReference reference = readFully(container.readBlob(randomRetryingPurpose(), key));
         assertEquals(new BytesArray(initialValue), reference);
 
-        try (InputStream inputStream = container.readBlob(randomPurpose(), key)) {
+        try (InputStream inputStream = container.readBlob(randomRetryingPurpose(), key)) {
             // Trigger the first chunk to load
             int read = inputStream.read();
             assert read != -1;

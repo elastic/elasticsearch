@@ -44,6 +44,7 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Collectors;
 
 import static java.nio.charset.StandardCharsets.UTF_8;
+import static org.elasticsearch.repositories.blobstore.AbstractBlobContainerRetriesTestCase.randomRetryingPurpose;
 import static org.elasticsearch.repositories.blobstore.BlobStoreTestUtil.randomPurpose;
 import static org.elasticsearch.repositories.blobstore.ESBlobStoreRepositoryIntegTestCase.randomBytes;
 import static org.elasticsearch.test.hamcrest.OptionalMatchers.isPresentWith;
@@ -64,11 +65,11 @@ public class AzureBlobContainerRetriesTests extends AbstractAzureServerTestCase 
         final BlobContainer blobContainer = createBlobContainer(between(1, 5));
         final Exception exception = expectThrows(NoSuchFileException.class, () -> {
             if (randomBoolean()) {
-                blobContainer.readBlob(randomPurpose(), "read_nonexistent_blob");
+                blobContainer.readBlob(randomRetryingPurpose(), "read_nonexistent_blob");
             } else {
                 final long position = randomLongBetween(0, MAX_RANGE_VAL - 1L);
                 final long length = randomLongBetween(1, MAX_RANGE_VAL - position);
-                blobContainer.readBlob(randomPurpose(), "read_nonexistent_blob", position, length);
+                blobContainer.readBlob(randomRetryingPurpose(), "read_nonexistent_blob", position, length);
             }
         });
         assertThat(exception.toString(), exception.getMessage().toLowerCase(Locale.ROOT), containsString("not found"));
@@ -115,7 +116,7 @@ public class AzureBlobContainerRetriesTests extends AbstractAzureServerTestCase 
         });
 
         final BlobContainer blobContainer = createBlobContainer(maxRetries);
-        try (InputStream inputStream = blobContainer.readBlob(randomPurpose(), "read_blob_max_retries")) {
+        try (InputStream inputStream = blobContainer.readBlob(randomRetryingPurpose(), "read_blob_max_retries")) {
             assertArrayEquals(bytes, BytesReference.toBytes(Streams.readFully(inputStream)));
             assertThat(countDownHead.isCountedDown(), is(true));
             assertThat(countDownGet.isCountedDown(), is(true));
@@ -161,7 +162,7 @@ public class AzureBlobContainerRetriesTests extends AbstractAzureServerTestCase 
         });
 
         final BlobContainer blobContainer = createBlobContainer(responsesToSend * 2);
-        try (InputStream inputStream = blobContainer.readBlob(randomPurpose(), "read_blob_fail_mid_stream")) {
+        try (InputStream inputStream = blobContainer.readBlob(randomRetryingPurpose(), "read_blob_fail_mid_stream")) {
             assertArrayEquals(blobContents, BytesReference.toBytes(Streams.readFully(inputStream)));
         }
     }
@@ -527,7 +528,7 @@ public class AzureBlobContainerRetriesTests extends AbstractAzureServerTestCase 
         }
 
         final BlobContainer blobContainer = createBlobContainer(maxRetries, secondaryHost, locationMode);
-        try (InputStream inputStream = blobContainer.readBlob(randomPurpose(), "read_blob_from_secondary")) {
+        try (InputStream inputStream = blobContainer.readBlob(randomRetryingPurpose(), "read_blob_from_secondary")) {
             assertArrayEquals(bytes, BytesReference.toBytes(Streams.readFully(inputStream)));
 
             // It does round robin, first tries on the primary, then on the secondary

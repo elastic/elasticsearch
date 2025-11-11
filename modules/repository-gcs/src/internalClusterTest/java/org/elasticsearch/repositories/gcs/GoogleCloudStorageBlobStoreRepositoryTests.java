@@ -60,6 +60,7 @@ import java.util.Collections;
 import java.util.Map;
 
 import static org.elasticsearch.common.io.Streams.readFully;
+import static org.elasticsearch.repositories.blobstore.AbstractBlobContainerRetriesTestCase.randomRetryingPurpose;
 import static org.elasticsearch.repositories.blobstore.BlobStoreTestUtil.randomPurpose;
 import static org.elasticsearch.repositories.gcs.GoogleCloudStorageClientSettings.CREDENTIALS_FILE_SETTING;
 import static org.elasticsearch.repositories.gcs.GoogleCloudStorageClientSettings.ENDPOINT_SETTING;
@@ -195,7 +196,7 @@ public class GoogleCloudStorageBlobStoreRepositoryTests extends ESMockAPIBasedRe
                 random().nextBytes(data);
                 writeBlob(container, "foobar", new BytesArray(data), false);
             }
-            try (InputStream stream = container.readBlob(randomPurpose(), "foobar")) {
+            try (InputStream stream = container.readBlob(randomRetryingPurpose(), "foobar")) {
                 BytesRefBuilder target = new BytesRefBuilder();
                 while (target.length() < data.length) {
                     byte[] buffer = new byte[scaledRandomIntBetween(1, data.length - target.length())];
@@ -218,7 +219,7 @@ public class GoogleCloudStorageBlobStoreRepositoryTests extends ESMockAPIBasedRe
             byte[] initialValue = randomByteArrayOfLength(uploadSize);
             container.writeBlob(randomPurpose(), key, new BytesArray(initialValue), true);
 
-            BytesReference reference = readFully(container.readBlob(randomPurpose(), key));
+            BytesReference reference = readFully(container.readBlob(randomRetryingPurpose(), key));
             assertEquals(new BytesArray(initialValue), reference);
 
             container.deleteBlobsIgnoringIfNotExists(randomPurpose(), Iterators.single(key));

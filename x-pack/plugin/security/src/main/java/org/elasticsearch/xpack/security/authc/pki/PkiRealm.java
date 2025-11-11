@@ -8,9 +8,7 @@ package org.elasticsearch.xpack.security.authc.pki;
 
 import com.unboundid.ldap.sdk.Attribute;
 import com.unboundid.ldap.sdk.DN;
-
 import com.unboundid.ldap.sdk.LDAPException;
-
 import com.unboundid.ldap.sdk.RDN;
 
 import org.apache.logging.log4j.Logger;

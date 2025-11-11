@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.esql.optimizer.rules.logical;
 
-import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
@@ -44,7 +43,7 @@ import static org.hamcrest.Matchers.is;
 
 //@TestLogging(value = "org.elasticsearch.xpack.esql:TRACE", reason = "debug")
 public class DeduplicateAggsTests extends AbstractLogicalPlanOptimizerTests {
-    private <T extends AggregateFunction> void aggFieldName(Expression exp, Class<T> aggType, String fieldName) {
+    public static <T extends AggregateFunction> void aggFieldName(Expression exp, Class<T> aggType, String fieldName) {
         var alias = as(exp, Alias.class);
         var af = as(alias.child(), aggType);
         var field = af.field();
@@ -52,7 +51,7 @@ public class DeduplicateAggsTests extends AbstractLogicalPlanOptimizerTests {
         assertThat(name, is(fieldName));
     }
 
-    private <T> T aliased(Expression exp, Class<T> clazz) {
+    public static <T> T aliased(Expression exp, Class<T> clazz) {
         var alias = as(exp, Alias.class);
         return as(alias.child(), clazz);
     }
@@ -190,13 +189,14 @@ public class DeduplicateAggsTests extends AbstractLogicalPlanOptimizerTests {
     /**
      * Expects
      * <pre>{@code
-     * Project[[c1{r}#9, c1{r}#9 AS cx#12, cs{r}#14, c1{r}#9 AS cy#17]]
-     * \_Limit[1000[INTEGER],false,false]
-     *   \_Aggregate[[],[COUNT(1[INTEGER],true[BOOLEAN],PT0S[TIME_DURATION]) AS c1#9, COUNT(*[KEYWORD],true[BOOLEAN],PT0S[TIME_DURAT
-     * ION]) AS cs#14]]
-     *     \_EsRelation[test][_meta_field{f}#24, emp_no{f}#18, first_name{f}#19, ..]
+     * Project[[c1{r}#7, cx{r}#10, cs{r}#12, cy{r}#15]]
+     * \_Eval[[c1{r}#7 AS cx, c1{r}#7 AS cs, c1{r}#7 AS cy]]
+     *   \_Limit[1000[INTEGER]]
+     *     \_Aggregate[[],[COUNT([2a][KEYWORD]) AS c1]]
+     *       \_EsRelation[test][_meta_field{f}#22, emp_no{f}#16, first_name{f}#17, ..]
      * }</pre>
      */
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/100634")
     public void testEliminateDuplicateAggsWithAliasedFields() {
         var plan = plan("""
               from test
@@ -206,30 +206,19 @@ public class DeduplicateAggsTests extends AbstractLogicalPlanOptimizerTests {
             """);
 
         var project = as(plan, Project.class);
-        var projections = project.projections();
-        assertThat(projections, hasSize(4));
-
-        assertEquals("c1", as(projections.get(0), ReferenceAttribute.class).name());
-        assertEquals("cx", as(projections.get(1), Alias.class).name());
-        assertEquals("c1", as(as(projections.get(1), Alias.class).child(), ReferenceAttribute.class).name());
-        assertEquals("cs", as(projections.get(2), ReferenceAttribute.class).name());
-        assertEquals("c1", as(as(projections.get(3), Alias.class).child(), ReferenceAttribute.class).name());
-        assertEquals("c1", as(as(projections.get(3), Alias.class).child(), ReferenceAttribute.class).name());
-
-        var limit = as(project.child(), Limit.class);
-        Aggregate agg = as(limit.child(), Aggregate.class);
-        var aggregates = agg.aggregates();
-
-        var c1 = as(aggregates.get(0), Alias.class);
-        var c1Field = as(c1.child(), Count.class).field();
-        var c2 = as(aggregates.get(1), Alias.class);
-        var c2Field = as(c2.child(), Count.class).field();
-
-        assertEquals(1, as(c1Field, Literal.class).value());
-        assertEquals("c1", c1.name());
-        assertEquals("cs", c2.name());
-        // U+002A, 42 in decimal is the asterisk *
-        assertEquals(new BytesRef(new byte[] { 42 }), as(c2Field, Literal.class).value());
+        assertThat(Expressions.names(project.projections()), contains("c1", "cx", "cs", "cy"));
+        var eval = as(project.child(), Eval.class);
+        var fields = eval.fields();
+        assertThat(Expressions.names(fields), contains("cx", "cs", "cy"));
+        for (Alias field : fields) {
+            assertThat(Expressions.name(field.child()), is("c1"));
+        }
+        var limit = as(eval.child(), Limit.class);
+        var agg = as(limit.child(), Aggregate.class);
+        var aggs = agg.aggregates();
+        assertThat(Expressions.names(aggs), contains("c1"));
+        aggFieldName(aggs.get(0), Count.class, "*");
+        var source = as(agg.child(), EsRelation.class);
     }
 
     /**

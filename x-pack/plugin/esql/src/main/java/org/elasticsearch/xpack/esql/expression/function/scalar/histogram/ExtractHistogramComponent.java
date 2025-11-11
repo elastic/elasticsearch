@@ -17,8 +17,10 @@ import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
+import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -30,7 +32,9 @@ import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import java.io.IOException;
 import java.util.List;
 
-import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.DEFAULT;
+import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.FIRST;
+import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.SECOND;
+import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isFoldable;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DOUBLE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.LONG;
@@ -49,40 +53,47 @@ public class ExtractHistogramComponent extends EsqlScalarFunction {
     );
 
     private final Expression field;
-    private final ExponentialHistogramBlock.Component componentToExtract;
+    private final Expression componentOrdinal;
 
+    /**
+     * Constructor for this function.
+     *
+     * @param source the source
+     * @param field the exponential_histogram field to extract the value from
+     * @param componentOrdinal The {@link org.elasticsearch.compute.data.ExponentialHistogramBlock.Component#ordinal()}
+     *                         as integer-expression, must be foldable
+     */
     @FunctionInfo(returnType = { "long", "double" })
     public ExtractHistogramComponent(
         Source source,
         @Param(name = "histogram", type = { "exponential_histogram" }) Expression field,
-        ExponentialHistogramBlock.Component componentToExtract
+        @Param(name = "component", type = { "integer" }) Expression componentOrdinal
     ) {
-        super(source, List.of(field));
+        super(source, List.of(field, componentOrdinal));
         this.field = field;
-        this.componentToExtract = componentToExtract;
+        this.componentOrdinal = componentOrdinal;
     }
 
     private ExtractHistogramComponent(StreamInput in) throws IOException {
-        this(
-            Source.readFrom((PlanStreamInput) in),
-            in.readNamedWriteable(Expression.class),
-            in.readEnum(ExponentialHistogramBlock.Component.class)
-        );
+        this(Source.readFrom((PlanStreamInput) in), in.readNamedWriteable(Expression.class), in.readNamedWriteable(Expression.class));
     }
 
-    Expression field() {
-        return field;
-    }
-
-    ExponentialHistogramBlock.Component componentToExtract() {
-        return componentToExtract;
+    private ExponentialHistogramBlock.Component component() {
+        if (componentOrdinal.foldable() == false) {
+            throw new EsqlIllegalArgumentException("Received a non-foldable value for component ordinal");
+        }
+        final Number ordinal = ((Number) componentOrdinal.fold(FoldContext.small()));
+        if (ordinal == null) {
+            return null;
+        }
+        return ExponentialHistogramBlock.Component.values()[ordinal.intValue()];
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         source().writeTo(out);
         out.writeNamedWriteable(field);
-        out.writeEnum(componentToExtract);
+        out.writeNamedWriteable(componentOrdinal);
     }
 
     @Override
@@ -92,7 +103,8 @@ public class ExtractHistogramComponent extends EsqlScalarFunction {
 
     @Override
     public DataType dataType() {
-        return switch (componentToExtract) {
+        return switch (component()) {
+            case null -> DataType.NULL;
             case MIN, MAX, SUM -> DOUBLE;
             case COUNT -> LONG;
         };
@@ -100,17 +112,27 @@ public class ExtractHistogramComponent extends EsqlScalarFunction {
 
     @Override
     public Expression replaceChildren(List<Expression> newChildren) {
-        return new ExtractHistogramComponent(source(), newChildren.get(0), componentToExtract);
+        return new ExtractHistogramComponent(source(), newChildren.get(0), newChildren.get(1));
     }
 
     @Override
     protected NodeInfo<? extends Expression> info() {
-        return NodeInfo.create(this, (source, field) -> new ExtractHistogramComponent(source, field, componentToExtract), field);
+        return NodeInfo.create(this, ExtractHistogramComponent::new, field, componentOrdinal);
     }
 
     @Override
     protected TypeResolution resolveType() {
-        return isType(field, dt -> dt == DataType.EXPONENTIAL_HISTOGRAM, sourceText(), DEFAULT, "exponential_histogram");
+        TypeResolution histoTypeCheck = isType(
+            field,
+            dt -> dt == DataType.EXPONENTIAL_HISTOGRAM,
+            sourceText(),
+            FIRST,
+            "exponential_histogram"
+        );
+        TypeResolution componentOrdinalCheck = isType(componentOrdinal, dt -> dt == DataType.INTEGER, sourceText(), SECOND, "integer").and(
+            isFoldable(componentOrdinal, sourceText(), SECOND)
+        );
+        return histoTypeCheck.and(componentOrdinalCheck);
     }
 
     @Override
@@ -125,12 +147,12 @@ public class ExtractHistogramComponent extends EsqlScalarFunction {
 
             @Override
             public String toString() {
-                return "ExtractHistogramComponentEvaluator[" + "field=" + fieldEvaluator + ",component=" + componentToExtract + "]";
+                return "ExtractHistogramComponentEvaluator[" + "field=" + fieldEvaluator + ",component=" + component() + "]";
             }
 
             @Override
             public EvalOperator.ExpressionEvaluator get(DriverContext context) {
-                return new Evaluator(fieldEvaluator.get(context), componentToExtract);
+                return new Evaluator(fieldEvaluator.get(context), component());
             }
         };
     }

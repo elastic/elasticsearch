@@ -13,7 +13,6 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 import org.elasticsearch.compute.data.ExponentialHistogramBlock;
 import org.elasticsearch.exponentialhistogram.ExponentialHistogram;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
-import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.plugin.EsqlCorePlugin;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -52,9 +51,7 @@ public class ExtractHistogramComponentTests extends AbstractScalarFunctionTestCa
                 DataType.INTEGER,
                 true
             );
-            List<TestCaseSupplier.TypedDataSupplier> histoSuppliers = new ArrayList<>(TestCaseSupplier.exponentialHistogramCases());
-            histoSuppliers.add(new TestCaseSupplier.TypedDataSupplier("<null exponential_histogram>", () -> null, DataType.NULL));
-            for (TestCaseSupplier.TypedDataSupplier histoSupplier : histoSuppliers) {
+            for (TestCaseSupplier.TypedDataSupplier histoSupplier : TestCaseSupplier.exponentialHistogramCases()) {
                 suppliers.add(
                     new TestCaseSupplier(
                         "<" + histoSupplier.type().typeName() + "," + component + ">",
@@ -63,9 +60,7 @@ public class ExtractHistogramComponentTests extends AbstractScalarFunctionTestCa
                             TestCaseSupplier.TypedData histogram = histoSupplier.get();
                             return new TestCaseSupplier.TestCase(
                                 List.of(histogram, componentOrdinalSupplier.get()),
-                                histogram.getValue() == null
-                                    ? "LiteralsEvaluator[lit=null]"
-                                    : "ExtractHistogramComponentEvaluator[field=Attribute[channel=0],component=" + component + "]",
+                                "ExtractHistogramComponentEvaluator[field=Attribute[channel=0],component=" + component + "]",
                                 getExpectedDataTypeForComponent(component),
                                 equalTo(getExpectedValue(histogram, component))
                             );
@@ -74,7 +69,12 @@ public class ExtractHistogramComponentTests extends AbstractScalarFunctionTestCa
                 );
             }
         }
-        return parameterSuppliersFromTypedData(suppliers);
+        List<TestCaseSupplier> withNulls = anyNullIsNull(
+            suppliers,
+            (nullPosition, nullValueDataType, original) -> nullPosition == 1 ? DataType.NULL : original.expectedType(),
+            (nullPosition, nullData, original) -> nullData.isForceLiteral() ? equalTo("LiteralsEvaluator[lit=null]") : original
+        );
+        return parameterSuppliersFromTypedData(withNulls);
     }
 
     private static Object getExpectedValue(TestCaseSupplier.TypedData histogram, ExponentialHistogramBlock.Component component) {
@@ -105,9 +105,8 @@ public class ExtractHistogramComponentTests extends AbstractScalarFunctionTestCa
 
     @Override
     protected Expression build(Source source, List<Expression> args) {
-        Integer componentOrdinal = (Integer) args.get(1).fold(FoldContext.small());
-        ExponentialHistogramBlock.Component component = ExponentialHistogramBlock.Component.values()[componentOrdinal];
-        return new ExtractHistogramComponent(source, args.get(0), component);
+        assumeTrue("Test sometimes wraps literals as fields", args.get(1).foldable());
+        return new ExtractHistogramComponent(source, args.get(0), args.get(1));
     }
 
 }

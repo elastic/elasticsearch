@@ -8,7 +8,10 @@
 package org.elasticsearch.xpack.esql.expression.function.scalar.histogram;
 
 import org.elasticsearch.compute.data.ExponentialHistogramBlock;
+import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.plugin.EsqlCorePlugin;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.AbstractExpressionSerializationTests;
 import org.junit.Before;
 
@@ -26,11 +29,12 @@ public class ExtractHistogramComponentSerializationTests extends AbstractExpress
 
     @Override
     protected ExtractHistogramComponent createTestInstance() {
-        return new ExtractHistogramComponent(randomSource(), randomChild(), randomComponent());
+        return new ExtractHistogramComponent(randomSource(), randomChild(), randomComponentOrdinal());
     }
 
-    private static ExponentialHistogramBlock.Component randomComponent() {
-        return randomFrom(ExponentialHistogramBlock.Component.values());
+    private static Expression randomComponentOrdinal() {
+        ExponentialHistogramBlock.Component result = randomFrom(ExponentialHistogramBlock.Component.values());
+        return new Literal(randomSource(), result.ordinal(), DataType.INTEGER);
     }
 
     @Override
@@ -38,7 +42,7 @@ public class ExtractHistogramComponentSerializationTests extends AbstractExpress
         return new ExtractHistogramComponent(
             randomSource(),
             randomValueOtherThan(instance.field(), AbstractExpressionSerializationTests::randomChild),
-            randomValueOtherThan(instance.componentToExtract(), ExtractHistogramComponentSerializationTests::randomComponent)
+            randomValueOtherThan(instance.componentOrdinal(), ExtractHistogramComponentSerializationTests::randomComponentOrdinal)
         );
     }
 }

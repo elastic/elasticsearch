@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.esql.expression.function.scalar.histogram;
 
-import org.elasticsearch.compute.data.ExponentialHistogramBlock;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.plugin.EsqlCorePlugin;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -19,7 +18,6 @@ import org.junit.Before;
 
 import java.util.List;
 import java.util.Set;
-import java.util.stream.Stream;
 
 import static org.hamcrest.Matchers.equalTo;
 
@@ -34,24 +32,21 @@ public class ExtractHistogramComponentErrorTests extends ErrorsForCasesWithoutEx
     }
 
     @Override
-    protected Stream<List<DataType>> testCandidates(List<TestCaseSupplier> cases, Set<List<DataType>> valid) {
-        return super.testCandidates(cases, valid).filter(types -> types.get(1) == DataType.INTEGER); // component ordinal must be integer
-                                                                                                     // and is only synthetic for tests
-    }
-
-    @Override
     protected List<TestCaseSupplier> cases() {
         return paramsToSuppliers(HistogramPercentileTests.parameters());
     }
 
     @Override
     protected Expression build(Source source, List<Expression> args) {
-        // Component to extract does not matter for these tests
-        return new ExtractHistogramComponent(source, args.get(0), ExponentialHistogramBlock.Component.MIN);
+        return new ExtractHistogramComponent(source, args.get(0), args.get(1));
     }
 
     @Override
     protected Matcher<String> expectedTypeErrorMatcher(List<Set<DataType>> validPerPosition, List<DataType> signature) {
-        return equalTo(typeErrorMessage(false, validPerPosition, signature, (v, p) -> "exponential_histogram"));
+        return equalTo(typeErrorMessage(true, validPerPosition, signature, (v, p) -> switch (p) {
+            case 0 -> "exponential_histogram";
+            case 1 -> "integer";
+            default -> throw new IllegalStateException("Unexpected value: " + p);
+        }));
     }
 }

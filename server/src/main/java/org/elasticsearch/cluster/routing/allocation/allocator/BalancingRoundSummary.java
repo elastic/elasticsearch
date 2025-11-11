@@ -108,16 +108,16 @@ public record BalancingRoundSummary(Map<DiscoveryNode, NodesWeightsChanges> node
         public static final CombinedBalancingRoundSummary EMPTY_RESULTS = new CombinedBalancingRoundSummary(0, new HashMap<>(), 0);
 
         /**
-         * Serialize the CombinedBalancingRoundSummary to a compact log representation, where {@link DiscoveryNode#getName()} is used instead
-         * of the entire {@link DiscoveryNode#toString()} method.
+         * Serialize the CombinedBalancingRoundSummary to a compact log representation, where {@link DiscoveryNode#getName()} is used
+         * instead of the entire {@link DiscoveryNode#toString()} method.
          */
         @Override
         public String toString() {
             Map<String, NodesWeightsChanges> nodeNameToWeightChanges = new HashMap<>(nodeToWeightChanges.size());
             nodeToWeightChanges.forEach((node, nodesWeightChanges) -> nodeNameToWeightChanges.put(node.getName(), nodesWeightChanges));
 
-            return Strings.format("CombinedBalancingRoundSummary[numberOfBalancingRounds=%d, nodeToWeightChange=%s, "
-                + "numberOfShardMoves=%d]",
+            return Strings.format(
+                "CombinedBalancingRoundSummary[numberOfBalancingRounds=%d, nodeToWeightChange=%s, " + "numberOfShardMoves=%d]",
                 numberOfBalancingRounds,
                 nodeNameToWeightChanges,
                 numberOfShardMoves

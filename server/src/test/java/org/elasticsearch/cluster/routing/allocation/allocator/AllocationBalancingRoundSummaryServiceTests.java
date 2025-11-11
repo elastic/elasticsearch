@@ -45,8 +45,8 @@ public class AllocationBalancingRoundSummaryServiceTests extends ESTestCase {
 
     private static final String BALANCING_SUMMARY_MSG_PREFIX = "Balancing round summaries:*";
 
-    final static DiscoveryNode NODE_1 = new DiscoveryNode("node1", "node1_id", "eph-NODE_1", "abc", "abc", null, Map.of(), Set.of(), null);
-    final static DiscoveryNode NODE_2 = new DiscoveryNode("node2", "node2_id", "eph-NODE_2", "abc", "abc", null, Map.of(), Set.of(), null);
+    static final DiscoveryNode NODE_1 = new DiscoveryNode("node1", "node1_id", "eph-NODE_1", "abc", "abc", null, Map.of(), Set.of(), null);
+    static final DiscoveryNode NODE_2 = new DiscoveryNode("node2", "node2_id", "eph-NODE_2", "abc", "abc", null, Map.of(), Set.of(), null);
 
     private static final Map<DiscoveryNode, BalancingRoundSummary.NodesWeightsChanges> NODE_NAME_TO_WEIGHT_CHANGES = Map.of(
         NODE_1,

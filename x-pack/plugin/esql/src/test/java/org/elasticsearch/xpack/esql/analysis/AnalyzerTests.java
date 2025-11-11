@@ -4439,37 +4439,26 @@ public class AnalyzerTests extends ESTestCase {
         EsField fooField = new EsField("foo", DataType.KEYWORD, Map.of(), true, EsField.TimeSeriesFieldType.NONE);
 
         EsIndex index = new EsIndex(
-            "union_index*",
+            "union_index_combined",
             Map.of("id", idField, "foo", fooField), // Updated mapping keys
             Map.of("union_index_1", IndexMode.STANDARD, "union_index_2", IndexMode.STANDARD)
         );
         IndexResolution resolution = IndexResolution.valid(index);
         Analyzer analyzer = analyzer(resolution);
 
-        String query = "FROM union_index* | KEEP id, foo | MV_EXPAND foo | EVAL id::keyword";
+        String query = "FROM union_index_combined | KEEP id, foo | MV_EXPAND foo | EVAL id = id::keyword";
         LogicalPlan plan = analyze(query, analyzer);
 
-        Project project = as(plan, Project.class);
-        List<? extends NamedExpression> projections = project.projections();
-        assertEquals(3, projections.size());
-
-        ReferenceAttribute castRa = as(projections.get(2), ReferenceAttribute.class);
-        verifyNameAndType(castRa.name(), castRa.dataType(), "id::keyword", KEYWORD);
-
-        Eval eval = as(as(project.child(), Limit.class).child(), Eval.class);
-        FieldAttribute convertedFa = as(eval.output().get(2), FieldAttribute.class);
+        Limit limit = as(plan, Limit.class);
+        Eval eval = as(limit.child(), Eval.class);
+        FieldAttribute convertedFa = as(eval.output().get(1), FieldAttribute.class);
         verifyNameAndType(convertedFa.name(), convertedFa.dataType(), "$$id$converted_to$keyword", KEYWORD);
 
-        LogicalPlan current = eval.child();
-        // TODO idiomatic "walk-down"?
-        while (current != null && (current instanceof EsRelation) == false) {
-            if (current.outputSet().contains(convertedFa)) {
-                // TODO matcher fails
-                // assertThat(current.inputSet(), contains(convertedFa));
-                assertTrue(current.inputSet().contains(convertedFa));
+        eval.forEachDown(Project.class, project -> {
+            if (project.inputSet().contains(convertedFa)) {
+                assertTrue(project.outputSet().contains(convertedFa));
             }
-            current = current.children().getFirst();
-        }
+        });
     }
 
     public void testImplicitCastingForDateAndDateNanosFields() {

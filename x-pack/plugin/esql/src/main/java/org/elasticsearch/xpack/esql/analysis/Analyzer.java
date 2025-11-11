@@ -1966,7 +1966,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
 
                 List<NamedExpression> newProjections = new ArrayList<>(p.projections());
                 newProjections.addAll(syntheticAttributesToCarryOver);
-                return new EsqlProject(p.source(), p.child(), newProjections);
+                return new Project(p.source(), p.child(), newProjections);
             });
             return res;
         }

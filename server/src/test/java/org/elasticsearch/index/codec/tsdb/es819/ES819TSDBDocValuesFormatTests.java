@@ -761,19 +761,21 @@ public class ES819TSDBDocValuesFormatTests extends ES87TSDBDocValuesFormatTests 
         final String counterFieldAsString = "counter_as_string";
         final String timestampField = "@timestamp";
         final String gaugeField = "gauge";
-        final String binaryField = "binary";
+        final String binaryFixedField = "binary_variable";
+        final String binaryVariableField = "binary_fixed";
         long currentTimestamp = 1704067200000L;
         long currentCounter = 10_000_000;
-        boolean fixedLengthBinaryField = randomBoolean();
 
         var config = getTimeSeriesIndexWriterConfig(null, timestampField);
         try (var dir = newDirectory(); var iw = new IndexWriter(dir, config)) {
             long[] gauge1Values = new long[] { 2, 4, 6, 8, 10, 12, 14, 16 };
-            List<BytesRef> binaryValues = new ArrayList<>();
+            List<BytesRef> binaryFixedValues = new ArrayList<>();
+            List<BytesRef> binaryVariableValues = new ArrayList<>();
             int numDocs = 256 + random().nextInt(8096);
 
             for (int i = 0; i < numDocs; i++) {
-                binaryValues.add(new BytesRef(fixedLengthBinaryField ? randomAlphaOfLength(10) : randomAlphaOfLength(between(0, 10))));
+                binaryFixedValues.add(new BytesRef(randomAlphaOfLength(10)));
+                binaryVariableValues.add(new BytesRef(randomAlphaOfLength(between(0, 10))));
                 var d = new Document();
                 long timestamp = currentTimestamp;
                 // Index sorting doesn't work with NumericDocValuesField:
@@ -781,7 +783,8 @@ public class ES819TSDBDocValuesFormatTests extends ES87TSDBDocValuesFormatTests 
                 d.add(new SortedNumericDocValuesField(counterField, currentCounter));
                 d.add(new SortedSetDocValuesField(counterFieldAsString, new BytesRef(Long.toString(currentCounter))));
                 d.add(new SortedNumericDocValuesField(gaugeField, gauge1Values[i % gauge1Values.length]));
-                d.add(new BinaryDocValuesField(binaryField, binaryValues.getLast()));
+                d.add(new BinaryDocValuesField(binaryFixedField, binaryFixedValues.getLast()));
+                d.add(new BinaryDocValuesField(binaryVariableField, binaryVariableValues.getLast()));
 
                 iw.addDocument(d);
                 if (i % 100 == 0) {
@@ -803,7 +806,8 @@ public class ES819TSDBDocValuesFormatTests extends ES87TSDBDocValuesFormatTests 
                     var counterDV = getBaseDenseNumericValues(leaf.reader(), counterField);
                     var gaugeDV = getBaseDenseNumericValues(leaf.reader(), gaugeField);
                     var stringCounterDV = getBaseSortedDocValues(leaf.reader(), counterFieldAsString);
-                    var binaryDV = getDenseBinaryValues(leaf.reader(), binaryField);
+                    var binaryFixedDV = getDenseBinaryValues(leaf.reader(), binaryFixedField);
+                    var binaryVariableDV = getDenseBinaryValues(leaf.reader(), binaryVariableField);
 
                     int maxDoc = leaf.reader().maxDoc();
                     for (int i = 0; i < maxDoc;) {
@@ -855,13 +859,25 @@ public class ES819TSDBDocValuesFormatTests extends ES87TSDBDocValuesFormatTests 
                         }
 
                         {
-                            // bulk loading binary field:
-                            var block = (TestBlock) binaryDV.tryRead(factory, docs, 0, random().nextBoolean(), null, false);
+                            // bulk loading binary fixed length field:
+                            var block = (TestBlock) binaryFixedDV.tryRead(factory, docs, 0, random().nextBoolean(), null, false);
                             assertNotNull(block);
                             assertEquals(size, block.size());
                             for (int j = 0; j < block.size(); j++) {
                                 var actual = (BytesRef) block.get(j);
-                                var expected = binaryValues.removeLast();
+                                var expected = binaryFixedValues.removeLast();
+                                assertEquals(expected, actual);
+                            }
+                        }
+
+                        {
+                            // bulk loading binary variable length field:
+                            var block = (TestBlock) binaryVariableDV.tryRead(factory, docs, 0, random().nextBoolean(), null, false);
+                            assertNotNull(block);
+                            assertEquals(size, block.size());
+                            for (int j = 0; j < block.size(); j++) {
+                                var actual = (BytesRef) block.get(j);
+                                var expected = binaryVariableValues.removeLast();
                                 assertEquals(expected, actual);
                             }
                         }

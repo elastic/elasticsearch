@@ -1402,7 +1402,8 @@ public class BalancedShardsAllocator implements ShardsAllocator {
                 float currentWeight = weightFunction.calculateNodeWeightWithIndex(this, node, index);
                 if (nodeWeightIsInvalid(currentWeight)) {
                     maybeLogInvalidWeightEncountered(node, index, currentWeight);
-                    continue;
+                    // Only allocate to a node with invalid weight as a last resort
+                    currentWeight = Float.MAX_VALUE;
                 }
                 // moving the shard would not improve the balance, and we are not in explain mode, so short circuit
                 if (currentWeight > minWeight && explain == false) {

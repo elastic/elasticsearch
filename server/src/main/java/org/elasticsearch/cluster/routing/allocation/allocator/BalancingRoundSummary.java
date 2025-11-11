@@ -117,7 +117,7 @@ public record BalancingRoundSummary(Map<DiscoveryNode, NodesWeightsChanges> node
             nodeToWeightChanges.forEach((node, nodesWeightChanges) -> nodeNameToWeightChanges.put(node.getName(), nodesWeightChanges));
 
             return Strings.format(
-                "CombinedBalancingRoundSummary[numberOfBalancingRounds=%d, nodeToWeightChange=%s, " + "numberOfShardMoves=%d]",
+                "CombinedBalancingRoundSummary[numberOfBalancingRounds=%d, nodeToWeightChange=%s, numberOfShardMoves=%d]",
                 numberOfBalancingRounds,
                 nodeNameToWeightChanges,
                 numberOfShardMoves

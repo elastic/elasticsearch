@@ -6,5 +6,5 @@ Calculates the derivative over time of a numeric field using linear regression.
 ```esql
 TS k8s
 | WHERE pod == "three"
-| STATS max_deriv = max(deriv(network.cost)) BY time_bucket = bucket(@timestamp,5minute), pod
+| STATS max_deriv = MAX(DERIV(network.cost)) BY time_bucket = BUCKET(@timestamp,5minute), pod
 ```

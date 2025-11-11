@@ -33,7 +33,7 @@ public class MvMaxBooleansBlockLoader extends AbstractBooleansBlockLoader {
 
     @Override
     protected AllReader sortedReader(SortedNumericDocValues docValues) {
-        return new MvMinSorted(docValues);
+        return new MvMaxSorted(docValues);
     }
 
     @Override
@@ -41,10 +41,10 @@ public class MvMaxBooleansBlockLoader extends AbstractBooleansBlockLoader {
         return "BooleansFromDocValues[" + fieldName + "]";
     }
 
-    private static class MvMinSorted extends BlockDocValuesReader {
+    private static class MvMaxSorted extends BlockDocValuesReader {
         private final SortedNumericDocValues numericDocValues;
 
-        MvMinSorted(SortedNumericDocValues numericDocValues) {
+        MvMaxSorted(SortedNumericDocValues numericDocValues) {
             this.numericDocValues = numericDocValues;
         }
 

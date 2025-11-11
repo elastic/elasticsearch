@@ -3401,19 +3401,11 @@ public class DenseVectorFieldMapper extends FieldMapper {
     public static class VectorSimilarityFunctionConfig implements BlockLoaderFunctionConfig {
 
         private final SimilarityFunction similarityFunction;
-        private final float[] vector;
-        private final byte[] vectorAsBytes;
+        private final VectorData vectorData;
 
-        public VectorSimilarityFunctionConfig(SimilarityFunction similarityFunction, float[] vector) {
+        public VectorSimilarityFunctionConfig(SimilarityFunction similarityFunction, VectorData vectorData) {
             this.similarityFunction = similarityFunction;
-            this.vector = vector;
-            this.vectorAsBytes = null;
-        }
-
-        public VectorSimilarityFunctionConfig(SimilarityFunction similarityFunction, byte[] vector) {
-            this.similarityFunction = similarityFunction;
-            this.vector = null;
-            this.vectorAsBytes = vector;
+            this.vectorData = vectorData;
         }
 
         @Override
@@ -3422,12 +3414,11 @@ public class DenseVectorFieldMapper extends FieldMapper {
         }
 
         public byte[] vectorAsBytes() {
-            assert vectorAsBytes != null : "vectorAsBytes is null, maybe incorrect element type during construction?";
-            return vectorAsBytes;
+            return vectorData.byteVector();
         }
 
         public float[] vector() {
-            return vector;
+            return vectorData.floatVector();
         }
 
         public SimilarityFunction similarityFunction() {
@@ -3438,14 +3429,12 @@ public class DenseVectorFieldMapper extends FieldMapper {
         public boolean equals(Object o) {
             if (o == null || getClass() != o.getClass()) return false;
             VectorSimilarityFunctionConfig that = (VectorSimilarityFunctionConfig) o;
-            return Objects.equals(similarityFunction, that.similarityFunction)
-                && Objects.deepEquals(vector, that.vector)
-                && Objects.deepEquals(vectorAsBytes, that.vectorAsBytes);
+            return Objects.equals(similarityFunction, that.similarityFunction) && Objects.deepEquals(vectorData, that.vectorData);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(similarityFunction, Arrays.hashCode(vector), Arrays.hashCode(vectorAsBytes));
+            return Objects.hash(similarityFunction, vectorData);
         }
     }
 }

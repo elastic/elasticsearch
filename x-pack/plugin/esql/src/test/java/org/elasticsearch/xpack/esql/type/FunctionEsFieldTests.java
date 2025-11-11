@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.type;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.index.mapper.blockloader.BlockLoaderFunctionConfig;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
+import org.elasticsearch.search.vectors.VectorData;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.core.type.FunctionEsField;
@@ -53,7 +54,7 @@ public class FunctionEsFieldTests extends AbstractEsFieldTypeTests<FunctionEsFie
             L2Norm.SIMILARITY_FUNCTION,
             Hamming.SIMILARITY_FUNCTION
         );
-        return new DenseVectorFieldMapper.VectorSimilarityFunctionConfig(similarityFunction, randomVector());
+        return new DenseVectorFieldMapper.VectorSimilarityFunctionConfig(similarityFunction, VectorData.fromFloats(randomVector()));
     }
 
     private static float[] randomVector() {

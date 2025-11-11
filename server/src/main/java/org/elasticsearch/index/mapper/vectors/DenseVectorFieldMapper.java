@@ -3410,10 +3410,10 @@ public class DenseVectorFieldMapper extends FieldMapper {
             this.vectorAsBytes = null;
         }
 
-        public VectorSimilarityFunctionConfig(SimilarityFunction similarityFunction, byte[] vector) {
+        public VectorSimilarityFunctionConfig(SimilarityFunction similarityFunction, byte[] vectorAsBytes) {
             this.similarityFunction = similarityFunction;
             this.vector = null;
-            this.vectorAsBytes = vector;
+            this.vectorAsBytes = vectorAsBytes;
         }
 
         @Override
@@ -3427,6 +3427,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
         }
 
         public float[] vector() {
+            assert vector != null : "vector is null, maybe incorrect element type during construction?";
             return vector;
         }
 

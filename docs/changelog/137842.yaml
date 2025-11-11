@@ -1,0 +1,5 @@
+pr: 137842
+summary: Add `VectorByteUtils` for vectorized byte comparison utilities
+area: "ES|QL, Performance"
+type: enhancement
+issues: []

@@ -84,7 +84,7 @@ deployment:
   self: preview 9.3
 ```
 
-The following settings are used to sign and verify cross-cluster API key requests when using the [API key-based security model](docs-content://deploy-manage/remote-clusters/remote-clusters-api-key.md). These settings enable certificate-based signatures on cross-cluster requests to provide additional security by validating that requests originate from trusted clusters.
+The following settings are used to sign and verify cross-cluster API key requests when using the [API key-based security model](docs-content://deploy-manage/remote-clusters/security-models.md#api-key). These settings enable certificate-based signatures on cross-cluster requests to provide additional security by validating that requests originate from trusted clusters.
 
 ### Signature verification settings [remote-cluster-signature-verification]
 

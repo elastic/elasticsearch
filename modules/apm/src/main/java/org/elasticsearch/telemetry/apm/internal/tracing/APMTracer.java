@@ -175,7 +175,7 @@ public class APMTracer extends AbstractLifecycleComponent implements org.elastic
             logger.trace("Tracing [{}] [{}]", spanId, spanName);
             final SpanBuilder spanBuilder = services.tracer.spanBuilder(spanName);
 
-            // A span can have a parent span, which here is modeled though a parent span context.
+            // A span can have a parent span, which here is modelled though a parent span context.
             // Setting this is important for seeing a complete trace in the APM UI.
             // Attempt to fetch a local parent context first, otherwise look for a remote parent
             final Context localParentContext = traceContext.getTransient(Task.PARENT_APM_TRACE_CONTEXT);

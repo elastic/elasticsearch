@@ -13,6 +13,7 @@ import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
@@ -45,8 +46,8 @@ public class AllocationBalancingRoundSummaryServiceTests extends ESTestCase {
 
     private static final String BALANCING_SUMMARY_MSG_PREFIX = "Balancing round summaries:*";
 
-    static final DiscoveryNode NODE_1 = new DiscoveryNode("node1", "node1_id", "eph-NODE_1", "abc", "abc", null, Map.of(), Set.of(), null);
-    static final DiscoveryNode NODE_2 = new DiscoveryNode("node2", "node2_id", "eph-NODE_2", "abc", "abc", null, Map.of(), Set.of(), null);
+    static final DiscoveryNode NODE_1 = DiscoveryNodeUtils.create("node1", "node1_id");
+    static final DiscoveryNode NODE_2 = DiscoveryNodeUtils.create("node2", "node2_id");
 
     private static final Map<DiscoveryNode, BalancingRoundSummary.NodesWeightsChanges> NODE_NAME_TO_WEIGHT_CHANGES = Map.of(
         NODE_1,
@@ -61,28 +62,8 @@ public class AllocationBalancingRoundSummaryServiceTests extends ESTestCase {
         )
     );
 
-    final DiscoveryNode DUMMY_NODE = new DiscoveryNode(
-        "dummy1Name",
-        "dummy1Id",
-        "eph-dummy1",
-        "abc",
-        "abc",
-        null,
-        Map.of(),
-        Set.of(),
-        null
-    );
-    final DiscoveryNode SECOND_DUMMY_NODE = new DiscoveryNode(
-        "dummy2Name",
-        "dummy2Id",
-        "eph-dummy2",
-        "def",
-        "def",
-        null,
-        Map.of(),
-        Set.of(),
-        null
-    );
+    final DiscoveryNode DUMMY_NODE = DiscoveryNodeUtils.create("dummy1Name", "dummy1Id");
+    final DiscoveryNode SECOND_DUMMY_NODE = DiscoveryNodeUtils.create("dummy2Name", "dummy2Id");
 
     final String INDEX_NAME = "index";
     final String INDEX_UUID = "_indexUUID_";

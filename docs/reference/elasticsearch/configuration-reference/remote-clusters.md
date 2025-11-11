@@ -141,7 +141,7 @@ When using Java keystore files (JKS) for signing, which contain the private key 
 :   ([Dynamic](docs-content://deploy-manage/stack-settings.md#dynamic-cluster-setting)) The format of the keystore file. It must be either `jks` or `PKCS12`. If the keystore path ends in ".p12", ".pfx", or ".pkcs12", this setting defaults to `PKCS12`. Otherwise, it defaults to `jks`.
 
 `cluster.remote.<cluster_alias>.signing.keystore.alias`
-:   ([Dynamic](docs-content://deploy-manage/stack-settings.md#dynamic-cluster-setting)) Specifies the alias of the key within the keystore that should be used for signing cross-cluster requests. If the keystore contains more than one private key, this setting must be specified.
+:   ([Dynamic](docs-content://deploy-manage/stack-settings.md#dynamic-cluster-setting)) The alias of the key within the keystore that should be used for signing cross-cluster requests. If the keystore contains more than one private key, this setting must be specified.
 
 `cluster.remote.<cluster_alias>.signing.keystore.secure_password`
 :   ([Secure](docs-content://deploy-manage/security/secure-settings.md)) The password for the keystore specified by `cluster.remote.<cluster_alias>.signing.keystore.path`.

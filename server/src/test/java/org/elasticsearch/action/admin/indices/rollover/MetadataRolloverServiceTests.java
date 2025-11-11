@@ -21,11 +21,13 @@ import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.cluster.metadata.ComponentTemplate;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.DataStream;
+import org.elasticsearch.cluster.metadata.DataStreamGlobalRetentionSettings;
 import org.elasticsearch.cluster.metadata.DataStreamTestHelper;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
 import org.elasticsearch.cluster.metadata.MetadataCreateIndexService;
+import org.elasticsearch.cluster.metadata.MetadataDataStreamsService;
 import org.elasticsearch.cluster.metadata.MetadataIndexAliasesService;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.metadata.Template;
@@ -33,13 +35,17 @@ import org.elasticsearch.cluster.routing.allocation.WriteLoadForecaster;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexSettingProviders;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.indices.EmptySystemIndices;
+import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.telemetry.TestTelemetryPlugin;
+import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -654,7 +660,18 @@ public class MetadataRolloverServiceTests extends ESTestCase {
                 .index(rolloverResult.rolloverIndexName())
                 .getSettings();
             Set<String> rolledOverIndexSettingNames = rolledOverIndexSettings.keySet();
-            for (String settingName : dataStream.getEffectiveSettings(clusterState.metadata().getProject(projectId)).keySet()) {
+            ClusterService clusterService = ClusterServiceUtils.createClusterService(testThreadPool);
+            IndicesService indicesService = mock(IndicesService.class);
+            MetadataDataStreamsService metadataDataStreamsService = new MetadataDataStreamsService(
+                clusterService,
+                indicesService,
+                DataStreamGlobalRetentionSettings.create(ClusterSettings.createBuiltInClusterSettings()),
+                IndexSettingProviders.EMPTY
+            );
+            for (String settingName : metadataDataStreamsService.getEffectiveSettings(
+                clusterState.metadata().getProject(projectId),
+                dataStream
+            ).keySet()) {
                 assertTrue(rolledOverIndexSettingNames.contains(settingName));
             }
             String newIndexName = rolloverResult.rolloverIndexName();

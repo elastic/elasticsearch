@@ -1,0 +1,5 @@
+pr: 137721
+summary: Do not calculate query plan diff when not needed
+area: ES|QL
+type: enhancement
+issues: []

@@ -39,6 +39,7 @@ import org.elasticsearch.common.BackoffPolicy;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.lucene.Lucene;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.common.xcontent.XContentHelper;
@@ -107,12 +108,19 @@ import static org.elasticsearch.xpack.security.support.SecurityIndexManager.Avai
 import static org.elasticsearch.xpack.security.support.SecuritySystemIndices.SECURITY_PROFILE_ALIAS;
 
 public class ProfileService {
+
+    public static final Setting<Integer> MAX_SIZE_SETTING = Setting.intSetting(
+        "xpack.security.profile.max_size",
+        10 * 1_024 * 1_024,  // default: 10 MB
+        0,  // minimum: 0 bytes
+        Setting.Property.NodeScope
+    );
+
     private static final Logger logger = LogManager.getLogger(ProfileService.class);
     private static final String DOC_ID_PREFIX = "profile_";
     private static final BackoffPolicy DEFAULT_BACKOFF = BackoffPolicy.exponentialBackoff();
     private static final int DIFFERENTIATOR_UPPER_LIMIT = 9;
     private static final long ACTIVATE_INTERVAL_IN_MS = TimeValue.timeValueSeconds(30).millis();
-    private static final int MAX_PROFILE_SIZE_IN_BYTES = 10_000_000;
 
     private final Settings settings;
     private final Clock clock;
@@ -120,6 +128,7 @@ public class ProfileService {
     private final SecurityIndexManager profileIndex;
     private final Function<String, DomainConfig> domainConfigLookup;
     private final Function<RealmConfig.RealmIdentifier, Authentication.RealmRef> realmRefLookup;
+    private final int maxProfileSizeInBytes;
 
     public ProfileService(Settings settings, Clock clock, Client client, SecurityIndexManager profileIndex, Realms realms) {
         this.settings = settings;
@@ -128,6 +137,7 @@ public class ProfileService {
         this.profileIndex = profileIndex;
         this.domainConfigLookup = realms::getDomainConfig;
         this.realmRefLookup = realms::getRealmRef;
+        this.maxProfileSizeInBytes = MAX_SIZE_SETTING.get(settings);
     }
 
     public void getProfiles(List<String> uids, Set<String> dataKeys, ActionListener<ResultsAndErrors<Profile>> listener) {
@@ -243,7 +253,7 @@ public class ProfileService {
         }
 
         getVersionedDocument(request.getUid(), ActionListener.wrap(doc -> {
-            validateProfileSize(doc, request, MAX_PROFILE_SIZE_IN_BYTES);
+            validateProfileSize(doc, request, maxProfileSizeInBytes);
 
             doUpdate(
                 buildUpdateRequest(request.getUid(), builder, request.getRefreshPolicy(), request.getIfPrimaryTerm(), request.getIfSeqNo()),

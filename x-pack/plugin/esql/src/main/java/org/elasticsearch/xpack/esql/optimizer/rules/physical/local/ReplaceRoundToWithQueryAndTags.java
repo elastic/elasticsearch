@@ -31,20 +31,15 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.core.util.Queries;
-import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.RoundTo;
 import org.elasticsearch.xpack.esql.expression.predicate.Range;
 import org.elasticsearch.xpack.esql.expression.predicate.nulls.IsNull;
-import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThan;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThanOrEqual;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThan;
 import org.elasticsearch.xpack.esql.optimizer.LocalPhysicalOptimizerContext;
 import org.elasticsearch.xpack.esql.optimizer.PhysicalOptimizerRules;
-import org.elasticsearch.xpack.esql.plan.physical.AggregateExec;
 import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
-import org.elasticsearch.xpack.esql.plan.physical.EsStatsQueryExec;
 import org.elasticsearch.xpack.esql.plan.physical.EvalExec;
-import org.elasticsearch.xpack.esql.plan.physical.FilterExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.querydsl.query.SingleValueQuery;
 import org.elasticsearch.xpack.esql.stats.SearchStats;
@@ -271,18 +266,14 @@ import static org.elasticsearch.xpack.esql.plugin.QueryPragmas.ROUNDTO_PUSHDOWN_
  *    is not supported by {@code EsStatsQueryExec} today.
  */
 public class ReplaceRoundToWithQueryAndTags extends PhysicalOptimizerRules.ParameterizedOptimizerRule<
-    AggregateExec,
+    EvalExec,
     LocalPhysicalOptimizerContext> {
 
     private static final Logger logger = LogManager.getLogger(ReplaceRoundToWithQueryAndTags.class);
 
     @Override
-    protected PhysicalPlan rule(AggregateExec aggregateExec, LocalPhysicalOptimizerContext ctx) {
-        return aggregateExec.child() instanceof EvalExec evalExec ? rule(aggregateExec, evalExec, ctx) : aggregateExec;
-    }
-
-    private PhysicalPlan rule(AggregateExec aggregateExec, EvalExec evalExec, LocalPhysicalOptimizerContext ctx) {
-        PhysicalPlan plan = aggregateExec;
+    protected PhysicalPlan rule(EvalExec evalExec, LocalPhysicalOptimizerContext ctx) {
+        PhysicalPlan plan = evalExec;
         // TimeSeriesSourceOperator and LuceneTopNSourceOperator do not support QueryAndTags, skip them
         // Lookup join is not supported yet
         if (evalExec.child() instanceof EsQueryExec queryExec && queryExec.canSubstituteRoundToWithQueryBuilderAndTags()) {
@@ -312,10 +303,7 @@ public class ReplaceRoundToWithQueryAndTags extends PhysicalOptimizerRules.Param
                     );
                     return evalExec;
                 }
-                plan = switch (planRoundTo(roundTo, aggregateExec, evalExec, queryExec, ctx)) {
-                    case FilterExec stats -> stats; // // FIXME(gal, NOCOMMIT) rename
-                    case PhysicalPlan newPlan -> aggregateExec.replaceChild(newPlan);
-                };
+                plan = planRoundTo(roundTo, evalExec, queryExec, ctx);
             }
         }
         return plan;
@@ -324,13 +312,7 @@ public class ReplaceRoundToWithQueryAndTags extends PhysicalOptimizerRules.Param
     /**
      * Rewrite the {@code RoundTo} to a list of {@code QueryBuilderAndTags} as input to {@code EsPhysicalOperationProviders}.
      */
-    private static PhysicalPlan planRoundTo(
-        RoundTo roundTo,
-        AggregateExec aggregateExec,
-        EvalExec evalExec,
-        EsQueryExec queryExec,
-        LocalPhysicalOptimizerContext ctx
-    ) {
+    private static PhysicalPlan planRoundTo(RoundTo roundTo, EvalExec evalExec, EsQueryExec queryExec, LocalPhysicalOptimizerContext ctx) {
         // Usually EsQueryExec has only one QueryBuilder, one Lucene query, without RoundTo push down.
         // If the RoundTo can be pushed down, a list of QueryBuilders with tags will be added into EsQueryExec, and it will be sent to
         // EsPhysicalOperationProviders.sourcePhysicalOperation to create a list of LuceneSliceQueue.QueryAndTags
@@ -339,27 +321,6 @@ public class ReplaceRoundToWithQueryAndTags extends PhysicalOptimizerRules.Param
             return evalExec;
         }
 
-        // FIXME(gal, NOCOMMIT) document why the null check
-        if (aggregateExec.groupings().size() == 1
-            && aggregateExec.aggregates().size() == 2
-            && aggregateExec.aggregates().get(0) instanceof Alias alias
-            && alias.child() instanceof Count count
-            && count.hasFilter() == false
-            && count.field() instanceof Literal
-            && queryExec.query() == null) {
-            EsStatsQueryExec statsQueryExec = new EsStatsQueryExec(
-                queryExec.source(),
-                queryExec.indexPattern(),
-                queryExec.query(),
-                queryExec.limit(),
-                queryExec.attrs(),
-                List.of(new EsStatsQueryExec.ByStat(aggregateExec, queryBuilderAndTags))
-            );
-            // Wrap with FilterExec to remove empty buckets (keep buckets where count > 0)
-            Attribute outputAttr = statsQueryExec.output().get(1);
-            var zero = new Literal(Source.EMPTY, 0L, DataType.LONG);
-            return new FilterExec(Source.EMPTY, statsQueryExec, new GreaterThan(Source.EMPTY, outputAttr, zero));
-        }
         FieldAttribute fieldAttribute = (FieldAttribute) roundTo.field();
         String tagFieldName = Attribute.rawTemporaryName(
             // $$fieldName$round_to$dateType

@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.plan.physical;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.compute.data.ElementType;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
@@ -96,7 +97,7 @@ public class EsStatsQueryExec extends LeafExec implements EstimatesRowSize {
     public EsStatsQueryExec(
         Source source,
         String indexPattern,
-        QueryBuilder query,
+        @Nullable QueryBuilder query,
         Expression limit,
         List<Attribute> attributes,
         List<Stat> stats
@@ -124,7 +125,7 @@ public class EsStatsQueryExec extends LeafExec implements EstimatesRowSize {
         return NodeInfo.create(this, EsStatsQueryExec::new, indexPattern, query, limit, attrs, stats);
     }
 
-    public QueryBuilder query() {
+    public @Nullable QueryBuilder query() {
         return query;
     }
 

@@ -18,7 +18,7 @@ import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
-import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
+import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.expression.function.Function;
@@ -27,14 +27,17 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.grouping.Bucket;
 import org.elasticsearch.xpack.esql.expression.function.scalar.date.DateTrunc;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.RoundTo;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThan;
 import org.elasticsearch.xpack.esql.optimizer.AbstractLocalPhysicalPlanOptimizerTests;
 import org.elasticsearch.xpack.esql.optimizer.TestPlannerOptimizer;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.physical.AggregateExec;
 import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
+import org.elasticsearch.xpack.esql.plan.physical.EsStatsQueryExec;
 import org.elasticsearch.xpack.esql.plan.physical.EvalExec;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeExec;
 import org.elasticsearch.xpack.esql.plan.physical.FieldExtractExec;
+import org.elasticsearch.xpack.esql.plan.physical.FilterExec;
 import org.elasticsearch.xpack.esql.plan.physical.FragmentExec;
 import org.elasticsearch.xpack.esql.plan.physical.LimitExec;
 import org.elasticsearch.xpack.esql.plan.physical.LookupJoinExec;
@@ -69,8 +72,10 @@ import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.DEFAULT_DA
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.dateNanosToLong;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.dateTimeToLong;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 
+// FIXME(gal, NOCOMMIT) rename, since it tests both rewrites now
 //@TestLogging(value = "org.elasticsearch.xpack.esql:TRACE", reason = "debug")
 public class ReplaceRoundToWithQueryAndTagsTests extends AbstractLocalPhysicalPlanOptimizerTests {
 
@@ -127,47 +132,31 @@ public class ReplaceRoundToWithQueryAndTagsTests extends AbstractLocalPhysicalPl
 
     // DateTrunc/Bucket is transformed to RoundTo first and then to QueryAndTags
     public void testDateTruncBucketTransformToQueryAndTags() {
-        for (String dateHistogram : dateHistograms) {
+        for (String dateHistogramAndType : dateHistograms) {
             String query = LoggerMessageFormat.format(null, """
                 from test
                 | stats count(*) by x = {}
-                """, dateHistogram);
-            PhysicalPlan plan = plannerOptimizer.plan(query, searchStats, makeAnalyzer("mapping-all-types.json"));
+                """, dateHistogramAndType);
 
-            LimitExec limit = as(plan, LimitExec.class);
-            AggregateExec agg = as(limit.child(), AggregateExec.class);
-            assertThat(agg.getMode(), is(FINAL));
-            List<? extends Expression> groupings = agg.groupings();
-            NamedExpression grouping = as(groupings.get(0), NamedExpression.class);
-            assertEquals("x", grouping.name());
-            assertEquals(DataType.DATETIME, grouping.dataType());
-            assertEquals(List.of("count(*)", "x"), Expressions.names(agg.aggregates()));
-            ExchangeExec exchange = as(agg.child(), ExchangeExec.class);
-            assertThat(exchange.inBetweenAggs(), is(true));
-            agg = as(exchange.child(), AggregateExec.class);
-            EvalExec eval = as(agg.child(), EvalExec.class);
-            List<Alias> aliases = eval.fields();
-            assertEquals(1, aliases.size());
-            FieldAttribute roundToTag = as(aliases.get(0).child(), FieldAttribute.class);
-            assertEquals("$$date$round_to$datetime", roundToTag.name());
-            EsQueryExec esQueryExec = as(eval.child(), EsQueryExec.class);
-            List<EsQueryExec.QueryBuilderAndTags> queryBuilderAndTags = esQueryExec.queryBuilderAndTags();
+            ExchangeExec exchange = validateTopPlan(query, DataType.DATETIME);
+
+            var queryBuilderAndTags = getBuilderAndTags(exchange, DataType.DATETIME);
+
             List<EsQueryExec.QueryBuilderAndTags> expectedQueryBuilderAndTags = expectedQueryBuilderAndTags(
                 query,
                 "date",
                 List.of(),
-                new Source(2, 24, dateHistogram),
+                new Source(2, 24, dateHistogramAndType),
                 null
             );
             verifyQueryAndTags(expectedQueryBuilderAndTags, queryBuilderAndTags);
-            assertThrows(UnsupportedOperationException.class, esQueryExec::query);
         }
     }
 
     // DateTrunc is transformed to RoundTo first but cannot be transformed to QueryAndTags, when the TopN is pushed down to EsQueryExec
     public void testDateTruncNotTransformToQueryAndTags() {
         for (String dateHistogram : dateHistograms) {
-            if (dateHistogram.contains("bucket")) { // bucket cannot be used out side of stats
+            if (dateHistogram.contains("bucket")) { // bucket cannot be used outside of stats
                 continue;
             }
             String query = LoggerMessageFormat.format(null, """
@@ -188,13 +177,13 @@ public class ReplaceRoundToWithQueryAndTagsTests extends AbstractLocalPhysicalPl
             EvalExec evalExec = as(fieldExtractExec.child(), EvalExec.class);
             List<Alias> aliases = evalExec.fields();
             assertEquals(1, aliases.size());
-            RoundTo roundTo = as(aliases.get(0).child(), RoundTo.class);
+            RoundTo roundTo = as(aliases.getFirst().child(), RoundTo.class);
             assertEquals(4, roundTo.points().size());
             fieldExtractExec = as(evalExec.child(), FieldExtractExec.class);
             EsQueryExec esQueryExec = as(fieldExtractExec.child(), EsQueryExec.class);
             List<EsQueryExec.QueryBuilderAndTags> queryBuilderAndTags = esQueryExec.queryBuilderAndTags();
             assertEquals(1, queryBuilderAndTags.size());
-            EsQueryExec.QueryBuilderAndTags queryBuilder = queryBuilderAndTags.get(0);
+            EsQueryExec.QueryBuilderAndTags queryBuilder = queryBuilderAndTags.getFirst();
             assertNull(queryBuilder.query());
             assertTrue(queryBuilder.tags().isEmpty());
             assertNull(esQueryExec.query());
@@ -215,25 +204,12 @@ public class ReplaceRoundToWithQueryAndTagsTests extends AbstractLocalPhysicalPl
                 from test
                 | stats count(*) by x = {}
                 """, expression);
-            PhysicalPlan plan = plannerOptimizer.plan(query, searchStats, makeAnalyzer("mapping-all-types.json"));
+            DataType bucketType = DataType.fromTypeName(roundTo.getKey()).widenSmallNumeric();
 
-            LimitExec limit = as(plan, LimitExec.class);
-            AggregateExec agg = as(limit.child(), AggregateExec.class);
-            assertThat(agg.getMode(), is(FINAL));
-            List<? extends Expression> groupings = agg.groupings();
-            NamedExpression grouping = as(groupings.get(0), NamedExpression.class);
-            assertEquals("x", grouping.name());
-            assertEquals(List.of("count(*)", "x"), Expressions.names(agg.aggregates()));
-            ExchangeExec exchange = as(agg.child(), ExchangeExec.class);
-            assertThat(exchange.inBetweenAggs(), is(true));
-            agg = as(exchange.child(), AggregateExec.class);
-            EvalExec eval = as(agg.child(), EvalExec.class);
-            List<Alias> aliases = eval.fields();
-            assertEquals(1, aliases.size());
-            FieldAttribute roundToTag = as(aliases.get(0).child(), FieldAttribute.class);
-            assertTrue(roundToTag.name().startsWith("$$" + fieldName + "$round_to$"));
-            EsQueryExec esQueryExec = as(eval.child(), EsQueryExec.class);
-            List<EsQueryExec.QueryBuilderAndTags> queryBuilderAndTags = esQueryExec.queryBuilderAndTags();
+            ExchangeExec exchange = validateTopPlan(query, bucketType);
+
+            var queryBuilderAndTags = getBuilderAndTags(exchange, bucketType);
+
             List<EsQueryExec.QueryBuilderAndTags> expectedQueryBuilderAndTags = expectedQueryBuilderAndTags(
                 query,
                 fieldName,
@@ -242,7 +218,6 @@ public class ReplaceRoundToWithQueryAndTagsTests extends AbstractLocalPhysicalPl
                 null
             );
             verifyQueryAndTags(expectedQueryBuilderAndTags, queryBuilderAndTags);
-            assertThrows(UnsupportedOperationException.class, esQueryExec::query);
         }
     }
 
@@ -266,26 +241,10 @@ public class ReplaceRoundToWithQueryAndTagsTests extends AbstractLocalPhysicalPl
                         new Source(2, 8, predicate.contains("and") ? predicate.substring(0, 20) : predicate)
                     );
 
-                PhysicalPlan plan = plannerOptimizer.plan(query, searchStats, makeAnalyzer("mapping-all-types.json"));
+                ExchangeExec exchange = validateTopPlan(query, DataType.DATETIME);
 
-                LimitExec limit = as(plan, LimitExec.class);
-                AggregateExec agg = as(limit.child(), AggregateExec.class);
-                assertThat(agg.getMode(), is(FINAL));
-                List<? extends Expression> groupings = agg.groupings();
-                NamedExpression grouping = as(groupings.get(0), NamedExpression.class);
-                assertEquals("x", grouping.name());
-                assertEquals(DataType.DATETIME, grouping.dataType());
-                assertEquals(List.of("count(*)", "x"), Expressions.names(agg.aggregates()));
-                ExchangeExec exchange = as(agg.child(), ExchangeExec.class);
-                assertThat(exchange.inBetweenAggs(), is(true));
-                agg = as(exchange.child(), AggregateExec.class);
-                EvalExec eval = as(agg.child(), EvalExec.class);
-                List<Alias> aliases = eval.fields();
-                assertEquals(1, aliases.size());
-                FieldAttribute roundToTag = as(aliases.get(0).child(), FieldAttribute.class);
-                assertEquals("$$date$round_to$datetime", roundToTag.name());
-                EsQueryExec esQueryExec = as(eval.child(), EsQueryExec.class);
-                List<EsQueryExec.QueryBuilderAndTags> queryBuilderAndTags = esQueryExec.queryBuilderAndTags();
+                var queryBuilderAndTags = getBuilderAndTags(exchange, DataType.DATETIME);
+
                 List<EsQueryExec.QueryBuilderAndTags> expectedQueryBuilderAndTags = expectedQueryBuilderAndTags(
                     query,
                     "date",
@@ -294,7 +253,6 @@ public class ReplaceRoundToWithQueryAndTagsTests extends AbstractLocalPhysicalPl
                     mainQueryBuilder
                 );
                 verifyQueryAndTags(expectedQueryBuilderAndTags, queryBuilderAndTags);
-                assertThrows(UnsupportedOperationException.class, esQueryExec::query);
             }
         }
     }
@@ -325,39 +283,29 @@ public class ReplaceRoundToWithQueryAndTagsTests extends AbstractLocalPhysicalPl
                 | lookup join languages_lookup on language_code
                 | stats count(*) by x = {}
                 """, dateHistogram);
-            PhysicalPlan plan = plannerOptimizer.plan(query, searchStats, makeAnalyzer("mapping-all-types.json"));
+            ExchangeExec exchange = validateTopPlan(query, DataType.DATETIME);
 
-            LimitExec limit = as(plan, LimitExec.class);
-            AggregateExec agg = as(limit.child(), AggregateExec.class);
-            assertThat(agg.getMode(), is(FINAL));
-            List<? extends Expression> groupings = agg.groupings();
-            NamedExpression grouping = as(groupings.get(0), NamedExpression.class);
-            assertEquals("x", grouping.name());
-            assertEquals(DataType.DATETIME, grouping.dataType());
-            assertEquals(List.of("count(*)", "x"), Expressions.names(agg.aggregates()));
-            ExchangeExec exchange = as(agg.child(), ExchangeExec.class);
-            assertThat(exchange.inBetweenAggs(), is(true));
-            agg = as(exchange.child(), AggregateExec.class);
+            AggregateExec agg = as(exchange.child(), AggregateExec.class);
             EvalExec eval = as(agg.child(), EvalExec.class);
             List<Alias> aliases = eval.fields();
             assertEquals(1, aliases.size());
-            RoundTo roundTo = as(aliases.get(0).child(), RoundTo.class);
+            RoundTo roundTo = as(aliases.getFirst().child(), RoundTo.class);
             assertEquals(4, roundTo.points().size());
             FieldExtractExec fieldExtractExec = as(eval.child(), FieldExtractExec.class);
             List<Attribute> attributes = fieldExtractExec.attributesToExtract();
             assertEquals(1, attributes.size());
-            assertEquals("date", attributes.get(0).name());
+            assertEquals("date", attributes.getFirst().name());
             LookupJoinExec lookupJoinExec = as(fieldExtractExec.child(), LookupJoinExec.class); // this is why the rule doesn't apply
             // lhs of lookup join
             fieldExtractExec = as(lookupJoinExec.left(), FieldExtractExec.class);
             attributes = fieldExtractExec.attributesToExtract();
             assertEquals(1, attributes.size());
-            assertEquals("integer", attributes.get(0).name());
+            assertEquals("integer", attributes.getFirst().name());
             EsQueryExec esQueryExec = as(fieldExtractExec.child(), EsQueryExec.class);
             assertEquals("test", esQueryExec.indexPattern());
             List<EsQueryExec.QueryBuilderAndTags> queryBuilderAndTags = esQueryExec.queryBuilderAndTags();
             assertEquals(1, queryBuilderAndTags.size());
-            EsQueryExec.QueryBuilderAndTags queryBuilder = queryBuilderAndTags.get(0);
+            EsQueryExec.QueryBuilderAndTags queryBuilder = queryBuilderAndTags.getFirst();
             assertNull(queryBuilder.query());
             assertTrue(queryBuilder.tags().isEmpty());
             assertNull(esQueryExec.query());
@@ -383,14 +331,14 @@ public class ReplaceRoundToWithQueryAndTagsTests extends AbstractLocalPhysicalPl
             AggregateExec agg = as(limit.child(), AggregateExec.class);
             assertThat(agg.getMode(), is(SINGLE));
             List<? extends Expression> groupings = agg.groupings();
-            NamedExpression grouping = as(groupings.get(0), NamedExpression.class);
+            NamedExpression grouping = as(groupings.getFirst(), NamedExpression.class);
             assertEquals("x", grouping.name());
             assertEquals(DataType.DATETIME, grouping.dataType());
             assertEquals(List.of("count(*)", "x"), Expressions.names(agg.aggregates()));
             EvalExec eval = as(agg.child(), EvalExec.class);
             List<Alias> aliases = eval.fields();
             assertEquals(1, aliases.size());
-            var function = as(aliases.get(0).child(), Function.class);
+            var function = as(aliases.getFirst().child(), Function.class);
             ReferenceAttribute fa = null; // if merge returns FieldAttribute instead of ReferenceAttribute, the rule might apply
             if (function instanceof DateTrunc dateTrunc) {
                 fa = as(dateTrunc.field(), ReferenceAttribute.class);
@@ -402,7 +350,7 @@ public class ReplaceRoundToWithQueryAndTagsTests extends AbstractLocalPhysicalPl
             assertNotNull(fa);
             assertEquals("date", fa.name());
             assertEquals(DataType.DATETIME, fa.dataType());
-            MergeExec mergeExec = as(eval.child(), MergeExec.class);
+            as(eval.child(), MergeExec.class);
         }
     }
 
@@ -424,42 +372,44 @@ public class ReplaceRoundToWithQueryAndTagsTests extends AbstractLocalPhysicalPl
                 | stats count(*) by x = round_to(integer, {})
                 """, points.toString());
 
-            PhysicalPlan plan = plannerOptimizer.plan(query, searchStats, makeAnalyzer("mapping-all-types.json"));
+            ExchangeExec exchange = validateTopPlan(query, DataType.INTEGER);
 
-            LimitExec limit = as(plan, LimitExec.class);
-            AggregateExec agg = as(limit.child(), AggregateExec.class);
-            assertThat(agg.getMode(), is(FINAL));
-            List<? extends Expression> groupings = agg.groupings();
-            NamedExpression grouping = as(groupings.get(0), NamedExpression.class);
-            assertEquals("x", grouping.name());
-            assertEquals(DataType.INTEGER, grouping.dataType());
-            assertEquals(List.of("count(*)", "x"), Expressions.names(agg.aggregates()));
-            ExchangeExec exchange = as(agg.child(), ExchangeExec.class);
-            assertThat(exchange.inBetweenAggs(), is(true));
-            agg = as(exchange.child(), AggregateExec.class);
-            EvalExec evalExec = as(agg.child(), EvalExec.class);
-            List<Alias> aliases = evalExec.fields();
-            assertEquals(1, aliases.size());
             if (numOfPoints == 127) {
-                FieldAttribute roundToTag = as(aliases.get(0).child(), FieldAttribute.class);
-                assertTrue(roundToTag.name().startsWith("$$integer$round_to$"));
-                EsQueryExec esQueryExec = as(evalExec.child(), EsQueryExec.class);
-                List<EsQueryExec.QueryBuilderAndTags> queryBuilderAndTags = esQueryExec.queryBuilderAndTags();
-                assertEquals(128, queryBuilderAndTags.size()); // 127 + nullBucket
-                assertThrows(UnsupportedOperationException.class, esQueryExec::query);
+                var queryBuilderAndTags = getBuilderAndTags(exchange, DataType.INTEGER);
+                assertThat(queryBuilderAndTags, hasSize(128)); // 127 + nullBucket
             } else { // numOfPoints == 128, query rewrite does not happen
-                RoundTo roundTo = as(aliases.get(0).child(), RoundTo.class);
+                AggregateExec agg = as(exchange.child(), AggregateExec.class);
+                EvalExec evalExec = as(agg.child(), EvalExec.class);
+                List<Alias> aliases = evalExec.fields();
+                assertEquals(1, aliases.size());
+                RoundTo roundTo = as(aliases.getFirst().child(), RoundTo.class);
                 assertEquals(128, roundTo.points().size());
                 FieldExtractExec fieldExtractExec = as(evalExec.child(), FieldExtractExec.class);
                 EsQueryExec esQueryExec = as(fieldExtractExec.child(), EsQueryExec.class);
                 List<EsQueryExec.QueryBuilderAndTags> queryBuilderAndTags = esQueryExec.queryBuilderAndTags();
                 assertEquals(1, queryBuilderAndTags.size());
-                EsQueryExec.QueryBuilderAndTags queryBuilder = queryBuilderAndTags.get(0);
+                EsQueryExec.QueryBuilderAndTags queryBuilder = queryBuilderAndTags.getFirst();
                 assertNull(queryBuilder.query());
                 assertTrue(queryBuilder.tags().isEmpty());
                 assertNull(esQueryExec.query());
             }
         }
+    }
+
+    private static List<EsQueryExec.QueryBuilderAndTags> getBuilderAndTags(ExchangeExec exchange, DataType aggregateType) {
+        FilterExec filter = as(exchange.child(), FilterExec.class);
+        GreaterThan condition = as(filter.condition(), GreaterThan.class);
+        Literal literal = as(condition.right(), Literal.class);
+
+        assertThat(literal.value(), is(0L));
+        EsStatsQueryExec statsQueryExec = as(filter.child(), EsStatsQueryExec.class);
+        assertThat(
+            statsQueryExec.output().stream().map(Attribute::dataType).toList(),
+            equalTo(List.of(aggregateType, DataType.LONG, DataType.BOOLEAN))
+        );
+        var left = as(condition.left(), ReferenceAttribute.class);
+        assertThat(left.id(), is(statsQueryExec.output().get(1).id()));
+        return as(EsqlTestUtils.singleValue(statsQueryExec.stats()), EsStatsQueryExec.ByStat.class).queryBuilderAndTags();
     }
 
     /**
@@ -494,43 +444,32 @@ public class ReplaceRoundToWithQueryAndTagsTests extends AbstractLocalPhysicalPl
                 EsqlFlags esqlFlags = new EsqlFlags(clusterLevelThreshold);
                 assertEquals(clusterLevelThreshold, esqlFlags.roundToPushdownThreshold());
                 assertTrue(esqlFlags.stringLikeOnIndex());
-                PhysicalPlan plan = plannerOptimizerWithPragmas.plan(query, searchStats, esqlFlags);
-                boolean pushdown = false;
+                boolean pushdown;
                 if (queryLevelThreshold > -1) {
                     pushdown = queryLevelThreshold >= 127;
                 } else {
                     pushdown = clusterLevelThreshold >= 127;
                 }
 
-                LimitExec limit = as(plan, LimitExec.class);
-                AggregateExec agg = as(limit.child(), AggregateExec.class);
-                assertThat(agg.getMode(), is(FINAL));
-                List<? extends Expression> groupings = agg.groupings();
-                NamedExpression grouping = as(groupings.get(0), NamedExpression.class);
-                assertEquals("x", grouping.name());
-                assertEquals(DataType.INTEGER, grouping.dataType());
-                assertEquals(List.of("count(*)", "x"), Expressions.names(agg.aggregates()));
-                ExchangeExec exchange = as(agg.child(), ExchangeExec.class);
-                assertThat(exchange.inBetweenAggs(), is(true));
-                agg = as(exchange.child(), AggregateExec.class);
-                EvalExec evalExec = as(agg.child(), EvalExec.class);
-                List<Alias> aliases = evalExec.fields();
-                assertEquals(1, aliases.size());
+                ExchangeExec exchange = validatePlanBeforeExchange(
+                    plannerOptimizerWithPragmas.plan(query, searchStats, esqlFlags),
+                    DataType.INTEGER
+                );
                 if (pushdown) {
-                    FieldAttribute roundToTag = as(aliases.get(0).child(), FieldAttribute.class);
-                    assertTrue(roundToTag.name().startsWith("$$integer$round_to$"));
-                    EsQueryExec esQueryExec = as(evalExec.child(), EsQueryExec.class);
-                    List<EsQueryExec.QueryBuilderAndTags> queryBuilderAndTags = esQueryExec.queryBuilderAndTags();
-                    assertEquals(128, queryBuilderAndTags.size()); // 127 + nullBucket
-                    assertThrows(UnsupportedOperationException.class, esQueryExec::query);
+                    var queryBuilderAndTags = getQueryBuilderAndTags(exchange);
+                    assertThat(queryBuilderAndTags, hasSize(128)); // 127 + nullBucket
                 } else { // query rewrite does not happen
-                    RoundTo roundTo = as(aliases.get(0).child(), RoundTo.class);
+                    AggregateExec agg = as(exchange.child(), AggregateExec.class);
+                    EvalExec evalExec = as(agg.child(), EvalExec.class);
+                    List<Alias> aliases = evalExec.fields();
+                    assertEquals(1, aliases.size());
+                    RoundTo roundTo = as(aliases.getFirst().child(), RoundTo.class);
                     assertEquals(127, roundTo.points().size());
                     FieldExtractExec fieldExtractExec = as(evalExec.child(), FieldExtractExec.class);
                     EsQueryExec esQueryExec = as(fieldExtractExec.child(), EsQueryExec.class);
                     List<EsQueryExec.QueryBuilderAndTags> queryBuilderAndTags = esQueryExec.queryBuilderAndTags();
                     assertEquals(1, queryBuilderAndTags.size());
-                    EsQueryExec.QueryBuilderAndTags queryBuilder = queryBuilderAndTags.get(0);
+                    EsQueryExec.QueryBuilderAndTags queryBuilder = queryBuilderAndTags.getFirst();
                     assertNull(queryBuilder.query());
                     assertTrue(queryBuilder.tags().isEmpty());
                     assertNull(esQueryExec.query());
@@ -539,13 +478,42 @@ public class ReplaceRoundToWithQueryAndTagsTests extends AbstractLocalPhysicalPl
         }
     }
 
-    static String pointArray(int numPoints) {
+    private static List<EsQueryExec.QueryBuilderAndTags> getQueryBuilderAndTags(ExchangeExec exchange) {
+        return getBuilderAndTags(exchange, DataType.INTEGER);
+    }
+
+    private ExchangeExec validateTopPlan(String query, DataType aggregateType) {
+        return validatePlanBeforeExchange(plannerOptimizer.plan(query, searchStats, makeAnalyzer("mapping-all-types.json")), aggregateType);
+    }
+
+    private static ExchangeExec validatePlanBeforeExchange(PhysicalPlan plan, DataType aggregateType) {
+        LimitExec limit = as(plan, LimitExec.class);
+
+        AggregateExec agg = as(limit.child(), AggregateExec.class);
+        assertThat(agg.getMode(), is(FINAL));
+        List<? extends Expression> groupings = agg.groupings();
+        NamedExpression grouping = as(groupings.getFirst(), NamedExpression.class);
+        assertEquals("x", grouping.name());
+        assertEquals(aggregateType, grouping.dataType());
+        assertEquals(List.of("count(*)", "x"), Expressions.names(agg.aggregates()));
+
+        ExchangeExec exchange = as(agg.child(), ExchangeExec.class);
+        assertThat(exchange.inBetweenAggs(), is(true));
+        return exchange;
+    }
+
+    private static String pointArray(int numPoints) {
         return IntStream.range(0, numPoints).mapToObj(Integer::toString).collect(Collectors.joining(","));
     }
 
-    static int queryAndTags(PhysicalPlan plan) {
+    private static int plainQueryAndTags(PhysicalPlan plan) {
         EsQueryExec esQuery = (EsQueryExec) plan.collectFirstChildren(EsQueryExec.class::isInstance).getFirst();
         return esQuery.queryBuilderAndTags().size();
+    }
+
+    private static int statsQueryAndTags(PhysicalPlan plan) {
+        EsStatsQueryExec esQuery = (EsStatsQueryExec) plan.collectFirstChildren(EsStatsQueryExec.class::isInstance).getFirst();
+        return ((EsStatsQueryExec.ByStat) EsqlTestUtils.singleValue(esQuery.stats())).queryBuilderAndTags().size();
     }
 
     public void testAdjustThresholdForQueries() {
@@ -556,7 +524,7 @@ public class ReplaceRoundToWithQueryAndTagsTests extends AbstractLocalPhysicalPl
                 | stats count(*) by x = round_to(integer, %s)
                 """, pointArray(points));
             PhysicalPlan plan = plannerOptimizer.plan(q, searchStats, makeAnalyzer("mapping-all-types.json"));
-            int queryAndTags = queryAndTags(plan);
+            int queryAndTags = statsQueryAndTags(plan);
             assertThat(queryAndTags, equalTo(points + 1)); // include null bucket
         }
         {
@@ -567,7 +535,7 @@ public class ReplaceRoundToWithQueryAndTagsTests extends AbstractLocalPhysicalPl
                 | stats count(*) by x = round_to(integer, %s)
                 """, pointArray(points));
             var plan = plannerOptimizer.plan(q, searchStats, makeAnalyzer("mapping-all-types.json"));
-            int queryAndTags = queryAndTags(plan);
+            int queryAndTags = statsQueryAndTags(plan);
             assertThat(queryAndTags, equalTo(points + 1)); // include null bucket
         }
         {
@@ -578,7 +546,7 @@ public class ReplaceRoundToWithQueryAndTagsTests extends AbstractLocalPhysicalPl
                 | stats count(*) by x = round_to(integer, %s)
                 """, pointArray(points));
             var plan = plannerOptimizer.plan(q, searchStats, makeAnalyzer("mapping-all-types.json"));
-            int queryAndTags = queryAndTags(plan);
+            int queryAndTags = plainQueryAndTags(plan);
             assertThat(queryAndTags, equalTo(1)); // no rewrite
         }
         {
@@ -590,7 +558,7 @@ public class ReplaceRoundToWithQueryAndTagsTests extends AbstractLocalPhysicalPl
                 | stats count(*) by x = round_to(integer, %s)
                 """, pointArray(points));
             var plan = plannerOptimizer.plan(q, searchStats, makeAnalyzer("mapping-all-types.json"));
-            int queryAndTags = queryAndTags(plan);
+            int queryAndTags = statsQueryAndTags(plan);
             assertThat("points=" + points, queryAndTags, equalTo(points + 1)); // include null bucket
         }
         {
@@ -602,7 +570,7 @@ public class ReplaceRoundToWithQueryAndTagsTests extends AbstractLocalPhysicalPl
                 | stats count(*) by x = round_to(integer, %s)
                 """, pointArray(points));
             PhysicalPlan plan = plannerOptimizer.plan(q, searchStats, makeAnalyzer("mapping-all-types.json"));
-            int queryAndTags = queryAndTags(plan);
+            int queryAndTags = plainQueryAndTags(plan);
             assertThat("points=" + points, queryAndTags, equalTo(1)); // no rewrite
         }
     }
@@ -613,7 +581,7 @@ public class ReplaceRoundToWithQueryAndTagsTests extends AbstractLocalPhysicalPl
             EsQueryExec.QueryBuilderAndTags expectedItem = expected.get(i);
             EsQueryExec.QueryBuilderAndTags actualItem = actual.get(i);
             assertEquals(expectedItem.query().toString(), actualItem.query().toString());
-            assertEquals(expectedItem.tags().get(0), actualItem.tags().get(0));
+            assertEquals(expectedItem.tags().getFirst(), actualItem.tags().getFirst());
         }
     }
 

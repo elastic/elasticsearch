@@ -20,8 +20,10 @@ import org.elasticsearch.cluster.metadata.DataStreamGlobalRetentionSettings;
 import org.elasticsearch.cluster.metadata.DataStreamTestHelper;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.metadata.MetadataDataStreamsService;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.metadata.Template;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
@@ -31,10 +33,17 @@ import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexSettingProviders;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.indices.TestIndexNameExpressionResolver;
+import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.threadpool.TestThreadPool;
+import org.elasticsearch.threadpool.ThreadPool;
+import org.junit.After;
+import org.junit.Before;
 
+import java.io.IOException;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
@@ -55,6 +64,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
+import static org.mockito.Mockito.mock;
 
 public class TransportGetDataStreamsActionTests extends ESTestCase {
 
@@ -66,6 +76,29 @@ public class TransportGetDataStreamsActionTests extends ESTestCase {
     private final DataStreamFailureStoreSettings emptyDataStreamFailureStoreSettings = DataStreamFailureStoreSettings.create(
         ClusterSettings.createBuiltInClusterSettings()
     );
+    private ThreadPool testThreadPool;
+    private MetadataDataStreamsService metadataDataStreamsService;
+
+    @Before
+    public void setup() throws IOException {
+        testThreadPool = new TestThreadPool(getTestName());
+        ClusterService clusterService = ClusterServiceUtils.createClusterService(testThreadPool);
+        IndicesService indicesService = mock(IndicesService.class);
+        metadataDataStreamsService = new MetadataDataStreamsService(
+            clusterService,
+            indicesService,
+            DataStreamGlobalRetentionSettings.create(ClusterSettings.createBuiltInClusterSettings()),
+            IndexSettingProviders.EMPTY
+        );
+    }
+
+    @After
+    public void tearDown() throws Exception {
+        super.tearDown();
+        if (testThreadPool != null) {
+            testThreadPool.shutdown();
+        }
+    }
 
     public void testGetDataStream() {
         final String dataStreamName = "my-data-stream";
@@ -186,7 +219,8 @@ public class TransportGetDataStreamsActionTests extends ESTestCase {
             dataStreamGlobalRetentionSettings,
             emptyDataStreamFailureStoreSettings,
             new IndexSettingProviders(Set.of()),
-            null
+            null,
+            metadataDataStreamsService
         );
         assertThat(
             response.getDataStreams(),
@@ -219,7 +253,8 @@ public class TransportGetDataStreamsActionTests extends ESTestCase {
             dataStreamGlobalRetentionSettings,
             emptyDataStreamFailureStoreSettings,
             new IndexSettingProviders(Set.of()),
-            null
+            null,
+            metadataDataStreamsService
         );
         assertThat(
             response.getDataStreams(),
@@ -273,7 +308,8 @@ public class TransportGetDataStreamsActionTests extends ESTestCase {
             dataStreamGlobalRetentionSettings,
             emptyDataStreamFailureStoreSettings,
             new IndexSettingProviders(Set.of()),
-            null
+            null,
+            metadataDataStreamsService
         );
         assertThat(
             response.getDataStreams(),
@@ -313,7 +349,8 @@ public class TransportGetDataStreamsActionTests extends ESTestCase {
             dataStreamGlobalRetentionSettings,
             emptyDataStreamFailureStoreSettings,
             new IndexSettingProviders(Set.of()),
-            null
+            null,
+            metadataDataStreamsService
         );
 
         var name1 = getDefaultBackingIndexName("ds-1", 1, instant.toEpochMilli());
@@ -349,7 +386,8 @@ public class TransportGetDataStreamsActionTests extends ESTestCase {
             dataStreamGlobalRetentionSettings,
             emptyDataStreamFailureStoreSettings,
             new IndexSettingProviders(Set.of()),
-            null
+            null,
+            metadataDataStreamsService
         );
         assertThat(response.getDataGlobalRetention(), nullValue());
         DataStreamGlobalRetention dataGlobalRetention = new DataStreamGlobalRetention(
@@ -376,7 +414,8 @@ public class TransportGetDataStreamsActionTests extends ESTestCase {
             withGlobalRetentionSettings,
             emptyDataStreamFailureStoreSettings,
             new IndexSettingProviders(Set.of()),
-            null
+            null,
+            metadataDataStreamsService
         );
         assertThat(response.getDataGlobalRetention(), equalTo(dataGlobalRetention));
         // We used the default failures retention here which is greater than the max
@@ -404,7 +443,8 @@ public class TransportGetDataStreamsActionTests extends ESTestCase {
             dataStreamGlobalRetentionSettings,
             emptyDataStreamFailureStoreSettings,
             new IndexSettingProviders(Set.of()),
-            null
+            null,
+            metadataDataStreamsService
         );
         assertThat(response.getDataStreams(), hasSize(1));
         assertThat(response.getDataStreams().getFirst().isFailureStoreEffectivelyEnabled(), is(false));
@@ -431,7 +471,8 @@ public class TransportGetDataStreamsActionTests extends ESTestCase {
             dataStreamGlobalRetentionSettings,
             emptyDataStreamFailureStoreSettings,
             new IndexSettingProviders(Set.of()),
-            null
+            null,
+            metadataDataStreamsService
         );
         assertThat(response.getDataStreams(), hasSize(1));
         assertThat(response.getDataStreams().getFirst().isFailureStoreEffectivelyEnabled(), is(true));
@@ -464,7 +505,8 @@ public class TransportGetDataStreamsActionTests extends ESTestCase {
                 )
             ),
             new IndexSettingProviders(Set.of()),
-            null
+            null,
+            metadataDataStreamsService
         );
         assertThat(response.getDataStreams(), hasSize(1));
         assertThat(response.getDataStreams().getFirst().isFailureStoreEffectivelyEnabled(), is(true));
@@ -491,7 +533,8 @@ public class TransportGetDataStreamsActionTests extends ESTestCase {
             dataStreamGlobalRetentionSettings,
             emptyDataStreamFailureStoreSettings,
             IndexSettingProviders.of((additionalSettings) -> additionalSettings.put("index.mode", IndexMode.LOOKUP)),
-            null
+            null,
+            metadataDataStreamsService
         );
         assertThat(response.getDataStreams().getFirst().getIndexModeName(), equalTo("lookup"));
         assertThat(
@@ -531,7 +574,8 @@ public class TransportGetDataStreamsActionTests extends ESTestCase {
             dataStreamGlobalRetentionSettings,
             emptyDataStreamFailureStoreSettings,
             new IndexSettingProviders(Set.of()),
-            null
+            null,
+            metadataDataStreamsService
         );
         assertNotNull(response.getDataStreams());
         assertThat(response.getDataStreams().size(), equalTo(1));
@@ -563,7 +607,8 @@ public class TransportGetDataStreamsActionTests extends ESTestCase {
             dataStreamGlobalRetentionSettings,
             emptyDataStreamFailureStoreSettings,
             new IndexSettingProviders(Set.of()),
-            null
+            null,
+            metadataDataStreamsService
         );
         assertNotNull(response.getDataStreams());
         assertThat(response.getDataStreams().size(), equalTo(1));
@@ -601,7 +646,8 @@ public class TransportGetDataStreamsActionTests extends ESTestCase {
             dataStreamGlobalRetentionSettings,
             emptyDataStreamFailureStoreSettings,
             new IndexSettingProviders(Set.of()),
-            null
+            null,
+            metadataDataStreamsService
         );
         assertNotNull(response.getDataStreams());
         assertThat(response.getDataStreams().size(), equalTo(1));

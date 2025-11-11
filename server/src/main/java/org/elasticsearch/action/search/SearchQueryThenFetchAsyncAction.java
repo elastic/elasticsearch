@@ -862,15 +862,7 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
                     out.close();
                 }
             }
-<<<<<<< HEAD
             ActionListener.respondAndRelease(channelListener, new BytesTransportResponse(out.moveToBytesReference()));
-=======
-
-            ActionListener.respondAndRelease(
-                channelListener,
-                new BytesTransportResponse(out.moveToBytesReference(), out.getTransportVersion())
-            );
->>>>>>> 763332e7d62 (close properly byte stream on failure: (#137810))
         }
 
         // Writes the "successful" response (see NodeQueryResponse for the corresponding read logic)

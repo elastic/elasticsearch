@@ -3167,10 +3167,13 @@ public class DenseVectorFieldMapper extends FieldMapper {
         IndexSettings indexSettings,
         @Nullable ThreadPool threadPool
     ) {
-        // TODO only if the merging tp scheduler is used....
         ExecutorService mergingExecutorService = threadPool != null ? threadPool.executor(ThreadPool.Names.MERGE) : null;
         // TODO something other than max???
         int maxMergingWorkers = mergingExecutorService != null ? threadPool.info(ThreadPool.Names.MERGE).getMax() : 1;
+        // we shouldn't provide an executor service if we only have one thread
+        if (maxMergingWorkers == 1 && mergingExecutorService != null) {
+            mergingExecutorService = null;
+        }
         final KnnVectorsFormat format;
         if (indexOptions == null) {
             format = fieldType().element.elementType() == ElementType.BIT

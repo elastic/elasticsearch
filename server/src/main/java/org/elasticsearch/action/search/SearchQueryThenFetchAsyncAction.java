@@ -117,7 +117,8 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
         SearchResponse.Clusters clusters,
         Client client,
         boolean batchQueryPhase,
-        SearchResponseMetrics searchResponseMetrics
+        SearchResponseMetrics searchResponseMetrics,
+        Map<String, Object> searchRequestAttributes
     ) {
         super(
             "query",
@@ -137,7 +138,8 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
             resultConsumer,
             request.getMaxConcurrentShardRequests(),
             clusters,
-            searchResponseMetrics
+            searchResponseMetrics,
+            searchRequestAttributes
         );
         this.topDocsSize = getTopDocsSize(request);
         this.trackTotalHitsUpTo = request.resolveTrackTotalHitsUpTo();

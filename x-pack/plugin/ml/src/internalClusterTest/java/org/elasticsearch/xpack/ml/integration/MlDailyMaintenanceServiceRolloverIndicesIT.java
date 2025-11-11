@@ -649,7 +649,10 @@ public class MlDailyMaintenanceServiceRolloverIndicesIT extends BaseMlIntegTestC
 
         // 2. Create an ILM policy and an index that uses it
         String policyName = "test-ilm-policy-for-disabled-test";
-        Map<String, Phase> phases = Map.of("delete", new Phase("delete", TimeValue.ZERO, Map.of(DeleteAction.NAME, DeleteAction.NO_SNAPSHOT_DELETE)));
+        Map<String, Phase> phases = Map.of(
+            "delete",
+            new Phase("delete", TimeValue.ZERO, Map.of(DeleteAction.NAME, DeleteAction.NO_SNAPSHOT_DELETE))
+        );
 
         LifecyclePolicy policy = new LifecyclePolicy(policyName, phases);
 
@@ -702,7 +705,10 @@ public class MlDailyMaintenanceServiceRolloverIndicesIT extends BaseMlIntegTestC
 
         // 1. Create an ILM policy
         String policyName = "test-ilm-policy-for-mixed-group";
-        Map<String, Phase> phases = Map.of("delete", new Phase("delete", TimeValue.ZERO, Map.of(DeleteAction.NAME, DeleteAction.NO_SNAPSHOT_DELETE)));
+        Map<String, Phase> phases = Map.of(
+            "delete",
+            new Phase("delete", TimeValue.ZERO, Map.of(DeleteAction.NAME, DeleteAction.NO_SNAPSHOT_DELETE))
+        );
         LifecyclePolicy policy = new LifecyclePolicy(policyName, phases);
         PutLifecycleRequest putLifecycleRequest = new PutLifecycleRequest(TimeValue.THIRTY_SECONDS, TimeValue.THIRTY_SECONDS, policy);
         assertAcked(client().execute(ILMActions.PUT, putLifecycleRequest).actionGet());
@@ -723,10 +729,13 @@ public class MlDailyMaintenanceServiceRolloverIndicesIT extends BaseMlIntegTestC
         blockingCall(maintenanceService::triggerRollResultsIndicesIfNecessaryTask);
 
         // 4. Verify that NO rollover occurred, because the latest index in the group is ILM-managed
-        GetIndexResponse finalIndexResponse = client().admin().indices().prepareGetIndex(TimeValue.THIRTY_SECONDS).setIndices(indexWildcard).get();
+        GetIndexResponse finalIndexResponse = client().admin()
+            .indices()
+            .prepareGetIndex(TimeValue.THIRTY_SECONDS)
+            .setIndices(indexWildcard)
+            .get();
         assertThat(finalIndexResponse.getIndices().length, is(2)); // No new index should be created
     }
-
 
     private void runTestScenarioWithNoRolloverOccurring(Job.Builder[] jobs, String indexNamePart) throws Exception {
         String firstJobId = jobs[0].getId();

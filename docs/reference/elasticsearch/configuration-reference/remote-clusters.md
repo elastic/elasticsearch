@@ -79,9 +79,10 @@ To use [proxy mode](docs-content://deploy-manage/remote-clusters/remote-clusters
 :   An optional hostname string which is sent in the `server_name` field of the TLS Server Name Indication extension if [TLS is enabled](docs-content://deploy-manage/security/secure-cluster-communications.md#encrypt-internode-communication). The TLS transport will fail to open remote connections if this field is not a valid hostname as defined by the TLS SNI specification.
 
 ## Remote cluster strong verification settings [remote-cluster-signing-settings]
-::::{warning}
-This functionality is in technical preview and may be changed or removed in a future release. Elastic will work to fix any issues, but features in technical preview are not subject to the support SLA of official GA features.
-::::
+```{applies_to}
+deployment:
+  self: preview 9.3
+```
 
 The following settings are used to sign and verify cross-cluster API key requests when using the [API key-based security model](docs-content://deploy-manage/remote-clusters/remote-clusters-api-key.md). These settings enable certificate-based signatures on cross-cluster requests to provide additional security by validating that requests originate from trusted clusters.
 

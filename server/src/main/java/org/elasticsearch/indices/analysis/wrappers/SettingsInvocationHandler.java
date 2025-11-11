@@ -12,7 +12,7 @@ package org.elasticsearch.indices.analysis.wrappers;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.core.SuppressForbidden;
+import org.elasticsearch.common.util.Booleans;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.plugin.settings.BooleanSetting;
 import org.elasticsearch.plugin.settings.IntSetting;
@@ -47,9 +47,6 @@ public class SettingsInvocationHandler implements InvocationHandler {
         );
     }
 
-    @SuppressForbidden(
-        reason = "TODO Deprecate any lenient usage of Boolean#parseBoolean https://github.com/elastic/elasticsearch/issues/128993"
-    )
     @Override
     public Object invoke(Object proxy, Method method, Object[] args) throws Throwable {
         assert method.getAnnotations().length == 1;
@@ -60,7 +57,7 @@ public class SettingsInvocationHandler implements InvocationHandler {
         } else if (annotation instanceof LongSetting setting) {
             return getValue(Long::valueOf, setting.path(), setting.defaultValue());
         } else if (annotation instanceof BooleanSetting setting) {
-            return getValue(Boolean::valueOf, setting.path(), setting.defaultValue());
+            return getValue(Booleans::parseBoolean, setting.path(), setting.defaultValue());
         } else if (annotation instanceof StringSetting setting) {
             return getValue(String::valueOf, setting.path(), setting.defaultValue());
         } else if (annotation instanceof ListSetting setting) {

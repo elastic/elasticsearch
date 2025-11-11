@@ -13,7 +13,7 @@ import org.apache.lucene.codecs.DocValuesConsumer;
 import org.apache.lucene.codecs.DocValuesProducer;
 import org.apache.lucene.index.SegmentReadState;
 import org.apache.lucene.index.SegmentWriteState;
-import org.elasticsearch.core.SuppressForbidden;
+import org.elasticsearch.common.util.Booleans;
 
 import java.io.IOException;
 
@@ -97,11 +97,8 @@ public class ES819TSDBDocValuesFormat extends org.apache.lucene.codecs.DocValues
         OPTIMIZED_MERGE_ENABLE_DEFAULT = getOptimizedMergeEnabledDefault();
     }
 
-    @SuppressForbidden(
-        reason = "TODO Deprecate any lenient usage of Boolean#parseBoolean https://github.com/elastic/elasticsearch/issues/128993"
-    )
     private static boolean getOptimizedMergeEnabledDefault() {
-        return Boolean.parseBoolean(System.getProperty(OPTIMIZED_MERGE_ENABLED_NAME, Boolean.TRUE.toString()));
+        return Booleans.parseBoolean(System.getProperty(OPTIMIZED_MERGE_ENABLED_NAME, Boolean.TRUE.toString()));
     }
 
     /**

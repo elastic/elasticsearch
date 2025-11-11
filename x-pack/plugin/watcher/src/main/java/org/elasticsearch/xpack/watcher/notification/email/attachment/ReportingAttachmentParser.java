@@ -15,10 +15,10 @@ import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.Booleans;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
@@ -297,11 +297,8 @@ public final class ReportingAttachmentParser implements EmailAttachmentParser<Re
         );
     }
 
-    @SuppressForbidden(
-        reason = "TODO Deprecate any lenient usage of Boolean#parseBoolean https://github.com/elastic/elasticsearch/issues/128993"
-    )
     private static boolean parseBoolean(String s) {
-        return Boolean.valueOf(s);
+        return Booleans.parseBoolean(s);
     }
 
     private static void sleep(long sleepMillis, WatchExecutionContext context, ReportingAttachment attachment) {

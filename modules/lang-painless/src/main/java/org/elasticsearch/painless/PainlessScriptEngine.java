@@ -11,7 +11,7 @@ package org.elasticsearch.painless;
 
 import org.elasticsearch.SpecialPermission;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.core.SuppressForbidden;
+import org.elasticsearch.common.util.Booleans;
 import org.elasticsearch.painless.Compiler.Loader;
 import org.elasticsearch.painless.lookup.PainlessLookup;
 import org.elasticsearch.painless.lookup.PainlessLookupBuilder;
@@ -440,11 +440,8 @@ public final class PainlessScriptEngine implements ScriptEngine {
         return compilerSettings;
     }
 
-    @SuppressForbidden(
-        reason = "TODO Deprecate any lenient usage of Boolean#parseBoolean https://github.com/elastic/elasticsearch/issues/128993"
-    )
     private static boolean parseBoolean(String value) {
-        return Boolean.parseBoolean(value);
+        return Booleans.parseBoolean(value);
     }
 
     private static ScriptException convertToScriptException(String scriptSource, Throwable t) {

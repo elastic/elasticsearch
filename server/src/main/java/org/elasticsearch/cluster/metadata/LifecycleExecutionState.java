@@ -11,7 +11,7 @@ package org.elasticsearch.cluster.metadata;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.core.SuppressForbidden;
+import org.elasticsearch.common.util.Booleans;
 
 import java.util.Collections;
 import java.util.HashMap;
@@ -212,11 +212,8 @@ public record LifecycleExecutionState(
         return builder.build();
     }
 
-    @SuppressForbidden(
-        reason = "TODO Deprecate any lenient usage of Boolean#parseBoolean https://github.com/elastic/elasticsearch/issues/128993"
-    )
     private static boolean parseIsAutoRetryableError(String isAutoRetryableError) {
-        return Boolean.parseBoolean(isAutoRetryableError);
+        return Booleans.parseBoolean(isAutoRetryableError);
     }
 
     /**

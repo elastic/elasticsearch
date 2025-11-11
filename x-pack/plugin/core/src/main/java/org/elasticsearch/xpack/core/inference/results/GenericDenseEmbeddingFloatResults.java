@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.core.inference.results;
 
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.inference.InferenceResults;
 
 import java.io.IOException;
 import java.util.List;
@@ -16,37 +17,40 @@ import java.util.List;
  * Writes a dense embedding result in the following json format
  * <pre>
  * {
- *     "text_embedding_bytes": [
+ *     "embeddings": [
  *         {
  *             "embedding": [
- *                 23
+ *                 0.1
  *             ]
  *         },
  *         {
  *             "embedding": [
- *                 -23
+ *                 0.2
  *             ]
  *         }
  *     ]
  * }
  * </pre>
  */
-public final class DenseEmbeddingByteResults extends AbstractDenseEmbeddingByteResults {
-    // This name is a holdover from before this class was renamed
-    public static final String NAME = "text_embedding_service_byte_results";
-    public static final String TEXT_EMBEDDING_BYTES = "text_embedding_bytes";
+public final class GenericDenseEmbeddingFloatResults extends AbstractDenseEmbeddingFloatResults {
+    public static final String NAME = "embedding_float_results";
+    public static final String EMBEDDINGS = "embeddings";
 
-    public DenseEmbeddingByteResults(List<AbstractDenseEmbeddingByteResults.Embedding> embeddings) {
+    public GenericDenseEmbeddingFloatResults(List<Embedding> embeddings) {
         super(embeddings);
     }
 
-    public DenseEmbeddingByteResults(StreamInput in) throws IOException {
+    public GenericDenseEmbeddingFloatResults(StreamInput in) throws IOException {
         super(in);
+    }
+
+    public static GenericDenseEmbeddingFloatResults of(List<? extends InferenceResults> results) {
+        return new GenericDenseEmbeddingFloatResults(getEmbeddingsFromResults(results));
     }
 
     @Override
     public String getArrayName() {
-        return TEXT_EMBEDDING_BYTES;
+        return EMBEDDINGS;
     }
 
     @Override

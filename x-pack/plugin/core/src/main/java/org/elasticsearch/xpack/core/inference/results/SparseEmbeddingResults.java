@@ -120,7 +120,6 @@ public record SparseEmbeddingResults(List<Embedding> embeddings) implements Embe
             ToXContentObject,
             EmbeddingResults.Embedding<Embedding> {
 
-        public static final String EMBEDDING = "embedding";
         public static final String IS_TRUNCATED = "is_truncated";
 
         public Embedding(StreamInput in) throws IOException {

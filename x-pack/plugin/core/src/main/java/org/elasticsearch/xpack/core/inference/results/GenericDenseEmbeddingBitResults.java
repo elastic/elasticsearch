@@ -13,10 +13,10 @@ import java.io.IOException;
 import java.util.List;
 
 /**
- * Writes a dense embedding result in the following json format
+ * Writes a dense embedding result in the following json format.
  * <pre>
  * {
- *     "text_embedding_bytes": [
+ *     "embeddings_bits": [
  *         {
  *             "embedding": [
  *                 23
@@ -31,22 +31,21 @@ import java.util.List;
  * }
  * </pre>
  */
-public final class DenseEmbeddingByteResults extends AbstractDenseEmbeddingByteResults {
-    // This name is a holdover from before this class was renamed
-    public static final String NAME = "text_embedding_service_byte_results";
-    public static final String TEXT_EMBEDDING_BYTES = "text_embedding_bytes";
+public final class GenericDenseEmbeddingBitResults extends AbstractDenseEmbeddingBitResults {
+    public static final String NAME = "embedding_bit_results";
+    public static final String EMBEDDINGS_BITS = "embeddings_bits";
 
-    public DenseEmbeddingByteResults(List<AbstractDenseEmbeddingByteResults.Embedding> embeddings) {
+    public GenericDenseEmbeddingBitResults(List<AbstractDenseEmbeddingByteResults.Embedding> embeddings) {
         super(embeddings);
     }
 
-    public DenseEmbeddingByteResults(StreamInput in) throws IOException {
+    public GenericDenseEmbeddingBitResults(StreamInput in) throws IOException {
         super(in);
     }
 
     @Override
     public String getArrayName() {
-        return TEXT_EMBEDDING_BYTES;
+        return EMBEDDINGS_BITS;
     }
 
     @Override

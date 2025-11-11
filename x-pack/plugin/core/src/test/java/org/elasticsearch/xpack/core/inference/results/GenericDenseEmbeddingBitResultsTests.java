@@ -19,19 +19,19 @@ import java.util.Map;
 
 import static org.hamcrest.Matchers.is;
 
-public class DenseEmbeddingBitResultsTests extends AbstractWireSerializingTestCase<DenseEmbeddingBitResults> {
-    public static DenseEmbeddingBitResults createRandomResults() {
+public class GenericDenseEmbeddingBitResultsTests extends AbstractWireSerializingTestCase<GenericDenseEmbeddingBitResults> {
+    public static GenericDenseEmbeddingBitResults createRandomResults() {
         int embeddings = randomIntBetween(1, 10);
-        List<DenseEmbeddingByteResults.Embedding> embeddingResults = new ArrayList<>(embeddings);
+        List<GenericDenseEmbeddingByteResults.Embedding> embeddingResults = new ArrayList<>(embeddings);
 
         for (int i = 0; i < embeddings; i++) {
             embeddingResults.add(createRandomEmbedding());
         }
 
-        return new DenseEmbeddingBitResults(embeddingResults);
+        return new GenericDenseEmbeddingBitResults(embeddingResults);
     }
 
-    private static DenseEmbeddingByteResults.Embedding createRandomEmbedding() {
+    private static GenericDenseEmbeddingByteResults.Embedding createRandomEmbedding() {
         int columns = randomIntBetween(1, 10);
         byte[] bytes = new byte[columns];
 
@@ -39,16 +39,16 @@ public class DenseEmbeddingBitResultsTests extends AbstractWireSerializingTestCa
             bytes[i] = randomByte();
         }
 
-        return new DenseEmbeddingByteResults.Embedding(bytes);
+        return new GenericDenseEmbeddingByteResults.Embedding(bytes);
     }
 
     public void testToXContent_CreatesTheRightFormatForASingleEmbedding() throws IOException {
-        var entity = new DenseEmbeddingBitResults(List.of(new DenseEmbeddingByteResults.Embedding(new byte[] { (byte) 23 })));
+        var entity = new GenericDenseEmbeddingBitResults(List.of(new GenericDenseEmbeddingByteResults.Embedding(new byte[] { (byte) 23 })));
 
         String xContentResult = Strings.toString(entity, true, true);
         assertThat(xContentResult, is("""
             {
-              "text_embedding_bits" : [
+              "embeddings_bits" : [
                 {
                   "embedding" : [
                     23
@@ -59,17 +59,17 @@ public class DenseEmbeddingBitResultsTests extends AbstractWireSerializingTestCa
     }
 
     public void testToXContent_CreatesTheRightFormatForMultipleEmbeddings() throws IOException {
-        var entity = new DenseEmbeddingBitResults(
+        var entity = new GenericDenseEmbeddingBitResults(
             List.of(
-                new DenseEmbeddingByteResults.Embedding(new byte[] { (byte) 23 }),
-                new DenseEmbeddingByteResults.Embedding(new byte[] { (byte) 24 })
+                new GenericDenseEmbeddingByteResults.Embedding(new byte[] { (byte) 23 }),
+                new GenericDenseEmbeddingByteResults.Embedding(new byte[] { (byte) 24 })
             )
         );
 
         String xContentResult = Strings.toString(entity, true, true);
         assertThat(xContentResult, is("""
             {
-              "text_embedding_bits" : [
+              "embeddings_bits" : [
                 {
                   "embedding" : [
                     23
@@ -85,10 +85,10 @@ public class DenseEmbeddingBitResultsTests extends AbstractWireSerializingTestCa
     }
 
     public void testTransformToCoordinationFormat() {
-        var results = new DenseEmbeddingBitResults(
+        var results = new GenericDenseEmbeddingBitResults(
             List.of(
-                new DenseEmbeddingByteResults.Embedding(new byte[] { (byte) 23, (byte) 24 }),
-                new DenseEmbeddingByteResults.Embedding(new byte[] { (byte) 25, (byte) 26 })
+                new GenericDenseEmbeddingByteResults.Embedding(new byte[] { (byte) 23, (byte) 24 }),
+                new GenericDenseEmbeddingByteResults.Embedding(new byte[] { (byte) 25, (byte) 26 })
             )
         ).transformToCoordinationFormat();
 
@@ -96,18 +96,18 @@ public class DenseEmbeddingBitResultsTests extends AbstractWireSerializingTestCa
             results,
             is(
                 List.of(
-                    new MlDenseEmbeddingResults(DenseEmbeddingBitResults.TEXT_EMBEDDING_BITS, new double[] { 23F, 24F }, false),
-                    new MlDenseEmbeddingResults(DenseEmbeddingBitResults.TEXT_EMBEDDING_BITS, new double[] { 25F, 26F }, false)
+                    new MlDenseEmbeddingResults(GenericDenseEmbeddingBitResults.EMBEDDINGS_BITS, new double[] { 23F, 24F }, false),
+                    new MlDenseEmbeddingResults(GenericDenseEmbeddingBitResults.EMBEDDINGS_BITS, new double[] { 25F, 26F }, false)
                 )
             )
         );
     }
 
     public void testGetFirstEmbeddingSize() {
-        var firstEmbeddingSize = new DenseEmbeddingBitResults(
+        var firstEmbeddingSize = new GenericDenseEmbeddingBitResults(
             List.of(
-                new DenseEmbeddingByteResults.Embedding(new byte[] { (byte) 23, (byte) 24 }),
-                new DenseEmbeddingByteResults.Embedding(new byte[] { (byte) 25, (byte) 26 })
+                new GenericDenseEmbeddingByteResults.Embedding(new byte[] { (byte) 23, (byte) 24 }),
+                new GenericDenseEmbeddingByteResults.Embedding(new byte[] { (byte) 25, (byte) 26 })
             )
         ).getFirstEmbeddingSize();
 
@@ -115,32 +115,32 @@ public class DenseEmbeddingBitResultsTests extends AbstractWireSerializingTestCa
     }
 
     @Override
-    protected Writeable.Reader<DenseEmbeddingBitResults> instanceReader() {
-        return DenseEmbeddingBitResults::new;
+    protected Writeable.Reader<GenericDenseEmbeddingBitResults> instanceReader() {
+        return GenericDenseEmbeddingBitResults::new;
     }
 
     @Override
-    protected DenseEmbeddingBitResults createTestInstance() {
+    protected GenericDenseEmbeddingBitResults createTestInstance() {
         return createRandomResults();
     }
 
     @Override
-    protected DenseEmbeddingBitResults mutateInstance(DenseEmbeddingBitResults instance) throws IOException {
+    protected GenericDenseEmbeddingBitResults mutateInstance(GenericDenseEmbeddingBitResults instance) throws IOException {
         // if true we reduce the embeddings list by a random amount, if false we add an embedding to the list
         if (randomBoolean()) {
             // -1 to remove at least one item from the list
             int end = randomInt(instance.embeddings().size() - 1);
-            return new DenseEmbeddingBitResults(instance.embeddings().subList(0, end));
+            return new GenericDenseEmbeddingBitResults(instance.embeddings().subList(0, end));
         } else {
-            List<DenseEmbeddingByteResults.Embedding> embeddings = new ArrayList<>(instance.embeddings());
+            List<GenericDenseEmbeddingByteResults.Embedding> embeddings = new ArrayList<>(instance.embeddings());
             embeddings.add(createRandomEmbedding());
-            return new DenseEmbeddingBitResults(embeddings);
+            return new GenericDenseEmbeddingBitResults(embeddings);
         }
     }
 
     public static Map<String, Object> buildExpectationByte(List<List<Byte>> embeddings) {
         return Map.of(
-            DenseEmbeddingBitResults.TEXT_EMBEDDING_BITS,
+            GenericDenseEmbeddingBitResults.EMBEDDINGS_BITS,
             embeddings.stream().map(embedding -> Map.of(EmbeddingResults.EMBEDDING, embedding)).toList()
         );
     }

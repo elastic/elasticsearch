@@ -34,7 +34,7 @@ public final class DeduplicateAggs extends AbstractAggregateDeduplicator impleme
     ) {
         AttributeMap.Builder<Expression> builder = AttributeMap.builder();
         aggregate.forEachExpressionUp(Alias.class, a -> {
-            if (!(a.child() instanceof GroupingFunction.NonEvaluatableGroupingFunction)) {
+            if (a.child() instanceof GroupingFunction.NonEvaluatableGroupingFunction == false) {
                 builder.put(a.toAttribute(), a.child());
             }
         });

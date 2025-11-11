@@ -61,19 +61,16 @@ abstract class AbstractAggregateDeduplicator extends OptimizerRules.OptimizerRul
                 newProjections.add(agg.toAttribute());
             }
         }
-        if (!changed.get()) {
+        if (changed.get() == false) {
             return aggregate;
         }
-        LogicalPlan plan = aggregate;
-        if (changed.get()) {
-            Source source = aggregate.source();
-            plan = aggregate.with(aggregate.child(), aggregate.groupings(), newAggs);
-            if (newEvals.size() > 0) {
-                plan = new Eval(source, plan, newEvals);
-            }
-            // preserve initial projection
-            plan = new Project(source, plan, newProjections);
+        Source source = aggregate.source();
+        LogicalPlan plan = aggregate.with(aggregate.child(), aggregate.groupings(), newAggs);
+        if (newEvals.size() > 0) {
+            plan = new Eval(source, plan, newEvals);
         }
+        // preserve initial projection
+        plan = new Project(source, plan, newProjections);
 
         return plan;
     }

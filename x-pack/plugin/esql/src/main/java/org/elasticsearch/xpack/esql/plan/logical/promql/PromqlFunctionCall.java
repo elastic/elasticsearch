@@ -20,7 +20,6 @@ import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
 
 import java.io.IOException;
 import java.util.List;
-import java.util.Locale;
 import java.util.Objects;
 
 /**

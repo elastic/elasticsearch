@@ -48,7 +48,8 @@ public class CCMAuthenticationApplierFactory {
             if (enabled == false) {
                 listener.onFailure(
                     new ElasticsearchStatusException(
-                        "Cloud connected mode is not configured, please configure it using PUT {}",
+                        "Cloud connected mode is not configured, please configure it using PUT {} "
+                            + "before accessing the Elastic Inference Service.",
                         RestStatus.BAD_REQUEST,
                         INFERENCE_CCM_PATH
                     )

@@ -359,27 +359,40 @@ public class InferencePlugin extends Plugin
 
         var sageMakerSchemas = new SageMakerSchemas();
         var sageMakerConfigurations = new LazyInitializable<>(new SageMakerConfiguration(sageMakerSchemas));
-        inferenceServices.add(
-            () -> List.of(
-                context -> new ElasticInferenceService(
-                    elasticInferenceServiceFactory.get(),
-                    serviceComponents.get(),
-                    inferenceServiceSettings,
-                    context
-                ),
-                context -> new SageMakerService(
-                    new SageMakerModelBuilder(sageMakerSchemas),
-                    new SageMakerClient(
-                        new SageMakerClient.Factory(new HttpSettings(settings, services.clusterService())),
-                        services.threadPool()
-                    ),
-                    sageMakerSchemas,
-                    services.threadPool(),
-                    sageMakerConfigurations::getOrCompute,
-                    context
-                )
-            )
+
+        var ccmRelatedComponents = createCCMDependentComponents(
+            services,
+            inferenceServiceSettings,
+            serviceComponents.get(),
+            elasticInferenceServiceFactory.get().createSender(),
+            modelRegistry.get(),
+            ccmFeature.get()
         );
+        components.addAll(ccmRelatedComponents.components());
+
+        inferenceServices.add(() -> List.of(context -> {
+            var eisService = new ElasticInferenceService(
+                elasticInferenceServiceFactory.get(),
+                serviceComponents.get(),
+                inferenceServiceSettings,
+                context,
+                ccmRelatedComponents.ccmAuthApplierFactory()
+            );
+            eisService.init();
+            return eisService;
+        },
+            context -> new SageMakerService(
+                new SageMakerModelBuilder(sageMakerSchemas),
+                new SageMakerClient(
+                    new SageMakerClient.Factory(new HttpSettings(settings, services.clusterService())),
+                    services.threadPool()
+                ),
+                sageMakerSchemas,
+                services.threadPool(),
+                sageMakerConfigurations::getOrCompute,
+                context
+            )
+        ));
 
         var meterRegistry = services.telemetryProvider().getMeterRegistry();
         var inferenceStats = InferenceStats.create(meterRegistry);
@@ -429,21 +442,12 @@ public class InferencePlugin extends Plugin
             )
         );
 
-        components.addAll(
-            createAuthorizationComponents(
-                services,
-                inferenceServiceSettings,
-                serviceComponents.get(),
-                elasticInferenceServiceFactory.get().createSender(),
-                modelRegistry.get(),
-                ccmFeature.get()
-            )
-        );
-
         return components;
     }
 
-    private Collection<?> createAuthorizationComponents(
+    private record CCMRelatedComponents(Collection<?> components, CCMAuthenticationApplierFactory ccmAuthApplierFactory) {}
+
+    private CCMRelatedComponents createCCMDependentComponents(
         PluginServices services,
         ElasticInferenceServiceSettings inferenceServiceSettings,
         ServiceComponents serviceComponents,
@@ -471,7 +475,8 @@ public class InferencePlugin extends Plugin
 
         var ccmPersistentStorageService = new CCMPersistentStorageService(services.client());
         var ccmService = new CCMService(ccmPersistentStorageService, authTaskExecutor);
-        authorizationHandler.init(new CCMAuthenticationApplierFactory(ccmFeature, ccmService));
+        var ccmAuthApplierFactory = new CCMAuthenticationApplierFactory(ccmFeature, ccmService);
+        authorizationHandler.init(ccmAuthApplierFactory);
 
         // If CCM is not allowed in this environment then we can initialize the auth poller task because
         // authentication with EIS will be through certs that are already configured. If CCM configuration is allowed,
@@ -480,7 +485,7 @@ public class InferencePlugin extends Plugin
             authTaskExecutor.init();
         }
 
-        return List.of(authorizationHandler, authTaskExecutor, ccmService);
+        return new CCMRelatedComponents(List.of(authorizationHandler, authTaskExecutor, ccmService), ccmAuthApplierFactory);
     }
 
     @Override

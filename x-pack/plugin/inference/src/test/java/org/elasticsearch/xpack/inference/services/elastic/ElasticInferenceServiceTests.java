@@ -86,6 +86,7 @@ import static org.elasticsearch.xpack.inference.external.http.Utils.entityAsMap;
 import static org.elasticsearch.xpack.inference.external.http.Utils.getUrl;
 import static org.elasticsearch.xpack.inference.services.SenderServiceTests.createMockSender;
 import static org.elasticsearch.xpack.inference.services.ServiceComponentsTests.createWithEmptySettings;
+import static org.elasticsearch.xpack.inference.services.elastic.ccm.CCMAuthenticationApplierFactoryTests.createNoopApplierFactory;
 import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.Matchers.contains;
@@ -1166,7 +1167,8 @@ public class ElasticInferenceServiceTests extends ESSingleNodeTestCase {
             factory,
             createWithEmptySettings(threadPool),
             new ElasticInferenceServiceSettings(Settings.EMPTY),
-            mockClusterServiceEmpty()
+            mockClusterServiceEmpty(),
+            createNoopApplierFactory()
         );
     }
 
@@ -1179,7 +1181,8 @@ public class ElasticInferenceServiceTests extends ESSingleNodeTestCase {
             senderFactory,
             createWithEmptySettings(threadPool),
             ElasticInferenceServiceSettingsTests.create(elasticInferenceServiceURL),
-            mockClusterServiceEmpty()
+            mockClusterServiceEmpty(),
+            createNoopApplierFactory()
         );
     }
 }

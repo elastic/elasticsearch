@@ -98,7 +98,7 @@ The following global settings are used on the remote cluster to verify signature
 :   ([Dynamic](docs-content://deploy-manage/stack-settings.md#dynamic-cluster-setting)) The path for the truststore that contains the certificates to trust when verifying signatures. It must be either a Java keystore (jks) or a PKCS#12 file. You cannot use this setting and `cluster.remote.signing.certificate_authorities` at the same time.
 
 `cluster.remote.signing.truststore.secure_password`
-:   ([Secure](docs-content://deploy-manage/security/secure-settings.md)) Password for the truststore specified by `cluster.remote.signing.truststore.path`.
+:   ([Secure](docs-content://deploy-manage/security/secure-settings.md)) The password for the truststore specified by `cluster.remote.signing.truststore.path`.
 
 `cluster.remote.signing.truststore.algorithm`
 :   ([Dynamic](docs-content://deploy-manage/stack-settings.md#dynamic-cluster-setting)) The algorithm for the truststore. Defaults to the default algorithm for the Java KeyManagerFactory.

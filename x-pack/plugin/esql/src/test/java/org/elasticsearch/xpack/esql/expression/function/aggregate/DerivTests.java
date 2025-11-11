@@ -123,7 +123,6 @@ public class DerivTests extends AbstractFunctionTestCase {
             return new TestCaseSupplier.TestCase(
                 List.of(fieldTypedData, timestampsField, sliceIndexType, nextTimestampType),
                 Matchers.stringContainsInOrder("GroupingAggregator", "Deriv", "GroupingAggregatorFunction"),
-                // Matchers.any(String.class),
                 DataType.DOUBLE,
                 matcher
             );

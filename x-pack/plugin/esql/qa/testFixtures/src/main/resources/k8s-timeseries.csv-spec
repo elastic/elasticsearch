@@ -729,7 +729,7 @@ required_capability: TS_LINREG_DERIVATIVE
 // tag::deriv[]
 TS k8s
 | WHERE pod == "three"
-| STATS max_deriv = max(deriv(network.cost)) BY time_bucket = bucket(@timestamp,5minute), pod
+| STATS max_deriv = MAX(DERIV(network.cost)) BY time_bucket = BUCKET(@timestamp,5minute), pod
 // end::deriv[]
 | EVAL max_deriv = ROUND(max_deriv,6)
 | KEEP max_deriv, time_bucket, pod

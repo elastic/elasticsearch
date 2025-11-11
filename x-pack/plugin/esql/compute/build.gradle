@@ -996,11 +996,6 @@ tasks.named('stringTemplates').configure {
 
   File derivAggregatorInputFile = file("src/main/java/org/elasticsearch/compute/aggregation/X-DerivGroupingAggregatorFunction.java.st")
   template {
-    it.properties = intProperties
-    it.inputFile = derivAggregatorInputFile
-    it.outputFile = "org/elasticsearch/compute/aggregation/DerivIntGroupingAggregatorFunction.java"
-  }
-  template {
     it.properties = doubleProperties
     it.inputFile = derivAggregatorInputFile
     it.outputFile = "org/elasticsearch/compute/aggregation/DerivDoubleGroupingAggregatorFunction.java"

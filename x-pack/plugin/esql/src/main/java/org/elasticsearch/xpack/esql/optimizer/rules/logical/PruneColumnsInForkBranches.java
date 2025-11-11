@@ -41,10 +41,11 @@ import static org.elasticsearch.xpack.esql.optimizer.rules.logical.PruneEmptyPla
 /**
  * Remove unused columns created in the plan, in fields inside eval or aggregations inside stats.
  */
-public final class PruneColumnsInFork extends OptimizerRules.OptimizerRule<Fork> {
+public final class PruneColumnsInForkBranches extends OptimizerRules.OptimizerRule<Fork> {
 
     @Override
     protected LogicalPlan rule(Fork plan) {
+        // only do this for fork
         if (plan instanceof UnionAll) {
             return plan;
         }

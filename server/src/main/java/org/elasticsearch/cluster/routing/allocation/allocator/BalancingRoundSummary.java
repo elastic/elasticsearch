@@ -10,6 +10,7 @@
 package org.elasticsearch.cluster.routing.allocation.allocator;
 
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.core.Strings;
 
 import java.util.HashMap;
 import java.util.List;
@@ -105,6 +106,23 @@ public record BalancingRoundSummary(Map<DiscoveryNode, NodesWeightsChanges> node
     ) {
 
         public static final CombinedBalancingRoundSummary EMPTY_RESULTS = new CombinedBalancingRoundSummary(0, new HashMap<>(), 0);
+
+        /**
+         * Serialize the CombinedBalancingRoundSummary to a compact log representation, where {@link DiscoveryNode#getName()} is used instead
+         * of the entire {@link DiscoveryNode#toString()} method.
+         */
+        @Override
+        public String toString() {
+            Map<String, NodesWeightsChanges> nodeNameToWeightChanges = new HashMap<>(nodeToWeightChanges.size());
+            nodeToWeightChanges.forEach((node, nodesWeightChanges) -> nodeNameToWeightChanges.put(node.getName(), nodesWeightChanges));
+
+            return Strings.format("CombinedBalancingRoundSummary[numberOfBalancingRounds=%d, nodeToWeightChange=%s, "
+                + "numberOfShardMoves=%d]",
+                numberOfBalancingRounds,
+                nodeNameToWeightChanges,
+                numberOfShardMoves
+            );
+        }
 
         /**
          * Merges multiple {@link BalancingRoundSummary} summaries into a single {@link CombinedBalancingRoundSummary}.

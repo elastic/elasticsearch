@@ -17,6 +17,7 @@ import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.BytesRefVector;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.ElementType;
+import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.OrdinalBytesRefVector;
@@ -149,6 +150,21 @@ public abstract class DelegatingBlockLoaderFactory implements BlockLoader.BlockF
     @Override
     public BlockLoader.AggregateMetricDoubleBuilder aggregateMetricDoubleBuilder(int count) {
         return factory.newAggregateMetricDoubleBlockBuilder(count);
+    }
+
+    @Override
+    public BlockLoader.Block buildAggregateMetricDoubleDirect(
+        BlockLoader.Block minBlock,
+        BlockLoader.Block maxBlock,
+        BlockLoader.Block sumBlock,
+        BlockLoader.Block countBlock
+    ) {
+        return factory.newAggregateMetricDoubleBlockFromDocValues(
+            (DoubleBlock) minBlock,
+            (DoubleBlock) maxBlock,
+            (DoubleBlock) sumBlock,
+            (IntBlock) countBlock
+        );
     }
 
     @Override

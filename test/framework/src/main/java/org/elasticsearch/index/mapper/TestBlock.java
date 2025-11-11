@@ -450,6 +450,21 @@ public class TestBlock implements BlockLoader.Block {
             }
 
             @Override
+            public BlockLoader.Block buildAggregateMetricDoubleDirect(
+                BlockLoader.Block minBlock,
+                BlockLoader.Block maxBlock,
+                BlockLoader.Block sumBlock,
+                BlockLoader.Block countBlock
+            ) {
+                return AggregateMetricDoubleBlockBuilder.parseAggMetricsToBlock(
+                    (TestBlock) minBlock,
+                    (TestBlock) maxBlock,
+                    (TestBlock) sumBlock,
+                    (TestBlock) countBlock
+                );
+            }
+
+            @Override
             public BlockLoader.ExponentialHistogramBuilder exponentialHistogramBlockBuilder(int count) {
                 return new ExponentialHistogramBlockBuilder(this, count);
             }
@@ -644,6 +659,10 @@ public class TestBlock implements BlockLoader.Block {
             var sumBlock = sum.build();
             var countBlock = count.build();
 
+            return parseAggMetricsToBlock(minBlock, maxBlock, sumBlock, countBlock);
+        }
+
+        public static TestBlock parseAggMetricsToBlock(TestBlock minBlock, TestBlock maxBlock, TestBlock sumBlock, TestBlock countBlock) {
             assert minBlock.size() == maxBlock.size();
             assert maxBlock.size() == sumBlock.size();
             assert sumBlock.size() == countBlock.size();

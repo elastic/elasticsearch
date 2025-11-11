@@ -6,8 +6,13 @@
  */
 package org.elasticsearch.xpack.core.security.authc.pki;
 
+import com.unboundid.ldap.sdk.LDAPException;
+import com.unboundid.ldap.sdk.schema.AttributeTypeDefinition;
+import com.unboundid.ldap.sdk.schema.Schema;
+
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.settings.SettingsException;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xpack.core.security.authc.RealmSettings;
 import org.elasticsearch.xpack.core.security.authc.support.DelegatedAuthorizationSettings;
@@ -29,16 +34,31 @@ public final class PkiRealmSettings {
         key -> new Setting<>(key, DEFAULT_USERNAME_PATTERN, s -> Pattern.compile(s, Pattern.CASE_INSENSITIVE), Setting.Property.NodeScope)
     );
 
-    public static final Setting.AffixSetting<Boolean> USERNAME_RDN_ENABLED_SETTING = Setting.affixKeySetting(
+    public static final Setting.AffixSetting<String> USERNAME_RDN_OID_SETTING = Setting.affixKeySetting(
         RealmSettings.realmSettingPrefix(TYPE),
-        "username_rdn.enabled",
-        key -> Setting.boolSetting(key, false, Setting.Property.NodeScope)
+        "username_rdn_oid",
+        key -> Setting.simpleString(key, Setting.Property.NodeScope)
     );
 
-    public static final Setting.AffixSetting<String> USERNAME_RDN_TYPE_SETTING = Setting.affixKeySetting(
+    public static final Setting.AffixSetting<String> USERNAME_RDN_NAME_SETTING = Setting.affixKeySetting(
         RealmSettings.realmSettingPrefix(TYPE),
-        "username_rdn.type",
-        key -> Setting.simpleString(key, "2.5.4.3", Setting.Property.NodeScope)
+        "username_rdn_name",
+        key -> new Setting<>(key, (String) null, s -> {
+            if (s == null) {
+                return "";
+            }
+            Schema schema;
+            try {
+                schema = Schema.getDefaultStandardSchema();
+            } catch (LDAPException e) {
+                throw new IllegalStateException("Unexpected error occurred obtaining default LDAP schema", e);
+            }
+            AttributeTypeDefinition atd = schema.getAttributeType(s);
+            if (atd == null) {
+                throw new IllegalArgumentException("Unknown RDN name [" + s + "] for setting [" + key + "]");
+            }
+            return atd.getOID();
+        }, Setting.Property.NodeScope)
     );
 
     private static final TimeValue DEFAULT_TTL = TimeValue.timeValueMinutes(20);
@@ -87,8 +107,8 @@ public final class PkiRealmSettings {
     public static Set<Setting.AffixSetting<?>> getSettings() {
         Set<Setting.AffixSetting<?>> settings = new HashSet<>();
         settings.add(USERNAME_PATTERN_SETTING);
-        settings.add(USERNAME_RDN_ENABLED_SETTING);
-        settings.add(USERNAME_RDN_TYPE_SETTING);
+        settings.add(USERNAME_RDN_OID_SETTING);
+        settings.add(USERNAME_RDN_NAME_SETTING);
         settings.add(CACHE_TTL_SETTING);
         settings.add(CACHE_MAX_USERS_SETTING);
         settings.add(DELEGATION_ENABLED_SETTING);

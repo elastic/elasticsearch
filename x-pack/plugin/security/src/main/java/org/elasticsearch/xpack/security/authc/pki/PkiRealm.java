@@ -12,6 +12,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.cache.Cache;
 import org.elasticsearch.common.cache.CacheBuilder;
 import org.elasticsearch.common.hash.MessageDigests;
+import org.elasticsearch.common.settings.SettingsException;
 import org.elasticsearch.common.ssl.SslConfiguration;
 import org.elasticsearch.common.ssl.SslTrustConfig;
 import org.elasticsearch.common.util.concurrent.ReleasableLock;
@@ -77,8 +78,7 @@ public class PkiRealm extends Realm implements CachingRealm {
 
     private final X509TrustManager trustManager;
     private final Pattern principalPattern;
-    private final boolean principalRdnEnabled;
-    private final String principalRdnType;
+    private final String principalRdnOid;
     private final UserRoleMapper roleMapper;
     private final Cache<BytesKey, User> cache;
     private DelegatedAuthorizationSupport delegatedRealms;
@@ -94,8 +94,20 @@ public class PkiRealm extends Realm implements CachingRealm {
         this.delegationEnabled = config.getSetting(PkiRealmSettings.DELEGATION_ENABLED_SETTING);
         this.trustManager = trustManagers(config);
         this.principalPattern = config.getSetting(PkiRealmSettings.USERNAME_PATTERN_SETTING);
-        this.principalRdnEnabled = config.getSetting(PkiRealmSettings.USERNAME_RDN_ENABLED_SETTING);
-        this.principalRdnType = config.getSetting(PkiRealmSettings.USERNAME_RDN_TYPE_SETTING);
+        String rdnOid = config.getSetting(PkiRealmSettings.USERNAME_RDN_OID_SETTING);
+        String rdnOidFromName = config.getSetting(PkiRealmSettings.USERNAME_RDN_NAME_SETTING);
+        if (false == rdnOid.isEmpty() && false == rdnOidFromName.isEmpty()) {
+            throw new SettingsException(
+                "Both ["
+                    + config.getConcreteSetting(PkiRealmSettings.USERNAME_RDN_OID_SETTING).getKey()
+                    + "] and ["
+                    + config.getConcreteSetting(PkiRealmSettings.USERNAME_RDN_NAME_SETTING).getKey()
+                    + "] are set. Only one of these settings can be configured."
+            );
+        }
+        this.principalRdnOid = false == rdnOid.isEmpty()
+            ? rdnOid
+            : (false == rdnOidFromName.isEmpty() ? rdnOidFromName : null);
         this.roleMapper = roleMapper;
         this.roleMapper.clearRealmCacheOnChange(this);
         this.cache = CacheBuilder.<BytesKey, User>builder()
@@ -237,20 +249,20 @@ public class PkiRealm extends Realm implements CachingRealm {
     }
 
     String getPrincipalFromToken(X509AuthenticationToken token) {
-        return principalRdnEnabled
-            ? getPrincipalFromRdnAttribute(principalRdnType, token, logger)
+        return principalRdnOid != null
+            ? getPrincipalFromRdnAttribute(principalRdnOid, token, logger)
             : getPrincipalFromSubjectDN(principalPattern, token, logger);
     }
 
-    static String getPrincipalFromRdnAttribute(String principalRdnType, X509AuthenticationToken token, Logger logger) {
+    static String getPrincipalFromRdnAttribute(String principalRdnOid, X509AuthenticationToken token, Logger logger) {
         X500Principal certPrincipal = token.credentials()[0].getSubjectX500Principal();
-        String principal = RdnFieldExtractor.extract(certPrincipal.getEncoded(), principalRdnType);
+        String principal = RdnFieldExtractor.extract(certPrincipal.getEncoded(), principalRdnOid);
         if (principal == null) {
             logger.debug(
                 () -> format(
-                    "the extracted principal from DN [%s] using RDN type [%s] is empty",
+                    "the extracted principal from DN [%s] using RDN OID [%s] is empty",
                     certPrincipal.toString(),
-                    principalRdnType
+                    principalRdnOid
                 )
             );
             return null;

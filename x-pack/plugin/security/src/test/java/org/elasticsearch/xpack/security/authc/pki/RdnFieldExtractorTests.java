@@ -67,10 +67,10 @@ public class RdnFieldExtractorTests extends ESTestCase {
     }
 
     public void testExtractFirstOUWhenMultipleExist() {
-        // When multiple RDNs with the same OID exist, should return the first one encountered in DER encoding
+        // When multiple RDNs with the same OID exist, should return the last one encountered in DER encoding
         // Note: X.500 encoding reverses the order - the last attribute in the DN string is first in DER encoding
         String ou = extractFromDN("CN=John Doe, OU=Security Team, OU=Engineering, O=Elastic", OID_OU);
-        assertThat(ou, is(equalTo("Engineering")));
+        assertThat(ou, is(equalTo("Security Team")));
     }
 
     public void testExtractOidNotFound() {

@@ -111,6 +111,7 @@ public class WriteLoadConstraintDeciderTests extends ESAllocationTestCase {
     public void testWriteLoadDeciderCanAllocate() {
         String indexName = "test-index";
         var testHarness = createClusterStateAndRoutingAllocation(indexName);
+        testHarness.routingAllocation.debugDecision(true);
 
         var writeLoadDecider = createWriteLoadConstraintDecider(
             Settings.builder()
@@ -151,7 +152,7 @@ public class WriteLoadConstraintDeciderTests extends ESAllocationTestCase {
                 testHarness.routingAllocation
             ),
             Decision.Type.YES,
-            null
+            "Shard [[test-index][0]] in index [[test-index]] can be assigned to node [*]. The node's utilization would become [*]"
         );
         assertDecisionMatches(
             "Assigning a new shard without a write load estimate should _not_ be blocked by lack of capacity",
@@ -183,6 +184,7 @@ public class WriteLoadConstraintDeciderTests extends ESAllocationTestCase {
     public void testWriteLoadDeciderCanRemain() {
         String indexName = "test-index";
         var testHarness = createClusterStateAndRoutingAllocation(indexName);
+        testHarness.routingAllocation.debugDecision(true);
 
         var writeLoadDecider = createWriteLoadConstraintDecider(
             Settings.builder()
@@ -234,8 +236,8 @@ public class WriteLoadConstraintDeciderTests extends ESAllocationTestCase {
             ).type()
         );
         assertEquals(
-            "A shard without write load should remain on a node with queuing above the threshold",
-            Decision.Type.YES,
+            "A shard with no write load can still return NOT_PREFERRED",
+            Decision.Type.NOT_PREFERRED,
             writeLoadDecider.canRemain(
                 testHarness.clusterState.metadata().getProject().index(indexName),
                 testHarness.shardRoutingNoWriteLoad,

@@ -196,6 +196,14 @@ emp_no:integer | last_name:keyword | f_l:keyword
 10010 | Piveteau  | eau
 ;
 
+aggregate length
+FROM employees
+| STATS SUM(LENGTH(last_name));
+
+SUM(LENGTH(last_name)):long
+720
+;
+
 substring nested negative start
 from employees | where emp_no <= 10010 | eval f_l = substring(substring(last_name, -3),-1) | keep emp_no, last_name, f_l;
 ignoreOrder:true
@@ -2594,6 +2602,18 @@ warning:Line 2:9: java.lang.IllegalArgumentException: single-value function enco
     @timestamp:date     | message:text
 ;
 
+mvStringNotEqualsMultiValueConstant
+required_capability: fix_mv_constant_comparison_field
+FROM mv_text
+| WHERE message != ["Connected to 10.1.0.1", "Banana"]
+| KEEP @timestamp, message
+;
+warning:Line 2:9: evaluation of [message != [\"Connected to 10.1.0.1\", \"Banana\"]] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 2:9: java.lang.IllegalArgumentException: single-value function encountered multi-value
+
+    @timestamp:date     | message:text
+;
+
 mvString_IN_MultiValueConstant
 required_capability: fix_mv_constant_equals_field
 FROM mv_text
@@ -2625,6 +2645,18 @@ FROM employees
 | KEEP emp_no, job_positions
 ;
 warning:Line 2:9: evaluation of [job_positions == [\"Tech Lead\" , \"Data Scientist\", \"Senior Team Lead\"]] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 2:9: java.lang.IllegalArgumentException: single-value function encountered multi-value
+
+    emp_no:integer     | job_positions:keyword
+;
+
+mvKeywordNotEqualsMultiValueConstant
+required_capability: fix_mv_constant_comparison_field
+FROM employees
+| WHERE job_positions != ["Tech Lead" , "Data Scientist", "Senior Team Lead"]
+| KEEP emp_no, job_positions
+;
+warning:Line 2:9: evaluation of [job_positions != [\"Tech Lead\" , \"Data Scientist\", \"Senior Team Lead\"]] failed, treating result as null. Only first 20 failures recorded.
 warning:Line 2:9: java.lang.IllegalArgumentException: single-value function encountered multi-value
 
     emp_no:integer     | job_positions:keyword

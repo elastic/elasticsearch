@@ -398,7 +398,7 @@ setup:
               rank_window_size: 10
               inference_id: my-rerank-model
               inference_text: "How often does the moon hide the sun?"
-              field: inference_text_field
+              field: text
           size: 10
 
   - match: { hits.total.value: 1 }
@@ -477,7 +477,7 @@ setup:
               rank_window_size: 10
               inference_id: my-rerank-model
               inference_text: "How often does the moon hide the sun?"
-              field: inference_text_field
+              field: text
               min_score: 0
           size: 10
 

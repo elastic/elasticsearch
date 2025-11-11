@@ -25,6 +25,7 @@ import org.elasticsearch.cluster.routing.allocation.ShardAllocationDecision;
 import org.elasticsearch.cluster.routing.allocation.allocator.DesiredBalanceShardsAllocator.ShardAllocationExplainer;
 import org.elasticsearch.cluster.routing.allocation.command.MoveAllocationCommand;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
+import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.metrics.MeanMetric;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
@@ -38,6 +39,7 @@ import org.elasticsearch.index.shard.ShardId;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
@@ -294,12 +296,14 @@ public class DesiredBalanceComputer {
                     final var rerouteExplanation = command.execute(routingAllocation, false);
                     assert rerouteExplanation.decisions().type() != Decision.Type.NO : "should have thrown for NO decision";
                     if (rerouteExplanation.decisions().type() != Decision.Type.NO) {
-                        final ShardRouting[] initializingShards = routingNodes.node(
+                        final Iterator<ShardRouting> initializingShardsIterator = routingNodes.node(
                             routingAllocation.nodes().resolveNode(command.toNode()).getId()
-                        ).initializing();
-                        assert initializingShards.length == 1
-                            : "expect exactly one relocating shard, but got: " + List.of(initializingShards);
-                        final var initializingShard = initializingShards[0];
+                        ).initializing().iterator();
+                        assert initializingShardsIterator.hasNext();
+                        final var initializingShard = initializingShardsIterator.next();
+                        assert initializingShardsIterator.hasNext() == false
+                            : "expect exactly one relocating shard, but got: "
+                                + Iterators.toList(Iterators.concat(Iterators.single(initializingShard), initializingShardsIterator));
                         assert routingAllocation.nodes()
                             .resolveNode(command.fromNode())
                             .getId()
@@ -486,6 +490,13 @@ public class DesiredBalanceComputer {
                     || info.lastAllocationStatus() == UnassignedInfo.AllocationStatus.DECIDERS_THROTTLED) : "Unexpected stats in: " + info;
 
             if (hasChanges == false && info.lastAllocationStatus() == UnassignedInfo.AllocationStatus.DECIDERS_THROTTLED) {
+                // Unassigned ignored shards must be based on the provided set of ignoredShards
+                assert ignoredShards.contains(discardAllocationStatus(shard))
+                    || ignoredShards.stream().filter(ShardRouting::primary).anyMatch(primary -> primary.shardId().equals(shard.shardId()))
+                    : "ignored shard "
+                        + shard
+                        + " unexpectedly has THROTTLE status and no counterpart in the provided ignoredShards set "
+                        + ignoredShards;
                 // Simulation could not progress due to missing information in any of the deciders.
                 // Currently, this could happen if `HasFrozenCacheAllocationDecider` is still fetching the data.
                 // Progress would be made after the followup reroute call.

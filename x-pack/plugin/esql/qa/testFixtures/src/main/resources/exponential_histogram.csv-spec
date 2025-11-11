@@ -1,5 +1,5 @@
 loadFiltered
-required_capability: exponential_histogram
+required_capability: exponential_histogram_topn
 
 FROM exp_histo_sample | WHERE STARTS_WITH(instance, "dummy") | SORT instance | KEEP instance, responseTime
 ;

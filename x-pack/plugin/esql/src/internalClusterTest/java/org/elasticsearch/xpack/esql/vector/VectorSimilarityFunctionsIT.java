@@ -341,8 +341,20 @@ public class VectorSimilarityFunctionsIT extends AbstractEsqlIntegTestCase {
         List<Number> vector = new ArrayList<>(dimensions);
         for (int j = 0; j < dimensions; j++) {
             switch (elementType) {
-                case FLOAT -> vector.add(randomFloat());
-                case BYTE, BIT -> vector.add((byte) randomIntBetween(-128, 127));
+                case FLOAT -> {
+                    if (dimensions == 1) {
+                        vector.add(randomValueOtherThan(0f, () -> randomFloat()));
+                    } else {
+                        vector.add(randomFloat());
+                    }
+                }
+                case BYTE, BIT -> {
+                    if (dimensions == 1) {
+                        vector.add(randomValueOtherThan((byte) 0, () -> (byte) randomIntBetween(-128, 127)));
+                    } else {
+                        vector.add((byte) randomIntBetween(-128, 127));
+                    }
+                }
                 default -> throw new IllegalArgumentException("Unexpected element type: " + elementType);
             }
         }

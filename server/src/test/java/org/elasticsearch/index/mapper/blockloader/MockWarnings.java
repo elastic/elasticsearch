@@ -7,14 +7,13 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.index.mapper.blockloader.docvalues;
+package org.elasticsearch.index.mapper.blockloader;
 
 import java.util.ArrayList;
 import java.util.List;
 
-// TODO move me once we have more of these loaders
-class MockWarnings implements Warnings {
-    record MockWarning(Class<? extends Exception> exceptionClass, String message) {}
+public class MockWarnings implements Warnings {
+    public record MockWarning(Class<? extends Exception> exceptionClass, String message) {}
 
     private final List<MockWarning> warnings = new ArrayList<>();
 

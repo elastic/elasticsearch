@@ -81,7 +81,7 @@ public class TextSimilarityRankRetrieverBuilder extends CompoundRetrieverBuilder
         new ConstructingObjectParser<>(CHUNK_RESCORER_FIELD.getPreferredName(), true, args -> {
             Integer size = (Integer) args[0];
             @SuppressWarnings("unchecked")
-            Map<String, Object> chunkingSettingsMap = (Map<String, Object>) args[2];
+            Map<String, Object> chunkingSettingsMap = (Map<String, Object>) args[1];
             ChunkingSettings chunkingSettings = ChunkScorerConfig.chunkingSettingsFromMap(chunkingSettingsMap);
             return new ChunkScorerConfig(size, null, chunkingSettings);
         });

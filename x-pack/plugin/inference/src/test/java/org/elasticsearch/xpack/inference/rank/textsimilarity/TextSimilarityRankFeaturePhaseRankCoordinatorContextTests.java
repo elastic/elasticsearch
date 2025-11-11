@@ -130,4 +130,56 @@ public class TextSimilarityRankFeaturePhaseRankCoordinatorContextTests extends E
         return featureDoc;
     }
 
+    public void testExtractScoresFromRankedChunksWithAutoResolveSettings() {
+        ChunkScorerConfig configWithNullSettings = new ChunkScorerConfig(3, "test query", null);
+
+        TextSimilarityRankFeaturePhaseRankCoordinatorContext context = new TextSimilarityRankFeaturePhaseRankCoordinatorContext(
+            10,
+            0,
+            100,
+            mockClient,
+            "my-inference-id",
+            "some query",
+            0.0f,
+            false,
+            configWithNullSettings
+        );
+        List<RankedDocsResults.RankedDoc> rankedDocs = List.of(
+            new RankedDocsResults.RankedDoc(0, 2.0f, "chunk1"),
+            new RankedDocsResults.RankedDoc(1, 1.5f, "chunk2"),
+            new RankedDocsResults.RankedDoc(2, 3.0f, "chunk3")
+        );
+        RankFeatureDoc[] featureDocs = new RankFeatureDoc[] {
+            createRankFeatureDoc(0, 1.0f, 0, List.of("chunk1", "chunk2")),
+            createRankFeatureDoc(1, 2.0f, 0, List.of("chunk3")) };
+        // Should not throw NPE.
+        float[] scores = context.extractScoresFromRankedChunks(rankedDocs, featureDocs);
+
+        assertNotNull("Scores should not be null", scores);
+        assertEquals("Should have 2 document scores", 2, scores.length);
+        assertEquals("First doc should get max chunk score", 2.0f, scores[0], 0.0f);
+        assertEquals("Second doc should get its chunk score", 3.0f, scores[1], 0.0f);
+    }
+
+    public void testExtractScoresWithEmptyChunkRescorer() {
+        ChunkScorerConfig emptyConfig = new ChunkScorerConfig(null, "test query", null);
+
+        TextSimilarityRankFeaturePhaseRankCoordinatorContext context = new TextSimilarityRankFeaturePhaseRankCoordinatorContext(
+            10,
+            0,
+            100,
+            mockClient,
+            "my-inference-id",
+            "some query",
+            0.0f,
+            false,
+            emptyConfig
+        );
+        List<RankedDocsResults.RankedDoc> rankedDocs = List.of(new RankedDocsResults.RankedDoc(0, 1.0f, "chunk1"));
+        RankFeatureDoc[] featureDocs = new RankFeatureDoc[] { createRankFeatureDoc(0, 1.0f, 0, List.of("chunk1")) };
+        float[] scores = context.extractScoresFromRankedChunks(rankedDocs, featureDocs);
+
+        assertNotNull("Scores should not be null", scores);
+        assertEquals("Should have 1 score", 1, scores.length);
+    }
 }

@@ -16,6 +16,8 @@ import java.util.Set;
 
 public final class IndexResolution {
 
+    public static final IndexResolution EMPTY_SUBQUERY = notFound("empty subquery");
+
     /**
      * @param index EsIndex encapsulating requested index expression, resolved mappings and index modes from field-caps.
      * @param resolvedIndices Set of concrete indices resolved by field-caps. (This information is not always present in the EsIndex).

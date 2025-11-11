@@ -208,6 +208,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             "Initialize",
             Limiter.ONCE,
             new ResolveTable(),
+            new PruneEmptyUnionAllBranch(),
             new ResolveEnrich(),
             new ResolveLookupTables(),
             new ResolveFunctions(),
@@ -2763,6 +2764,30 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 Attribute updated = idToUpdatedAttr.get(expr.id());
                 return (updated != null && expr.dataType() != updated.dataType()) ? updated : expr;
             });
+        }
+    }
+
+    private static class PruneEmptyUnionAllBranch extends ParameterizedAnalyzerRule<UnionAll, AnalyzerContext> {
+
+        @Override
+        protected LogicalPlan rule(UnionAll unionAll, AnalyzerContext context) {
+            Map<IndexPattern, IndexResolution> indexResolutions = context.indexResolution();
+            // check if any child is an UnresolvedRelation that resolves to an empty subquery
+            List<LogicalPlan> newChildren = new ArrayList<>(unionAll.children().size());
+            for (LogicalPlan child : unionAll.children()) {
+                // check for UnresolvedRelation in the child plan tree
+                Holder<Boolean> isEmptySubquery = new Holder<>(Boolean.FALSE);
+                child.forEachUp(UnresolvedRelation.class, ur -> {
+                    IndexResolution resolution = indexResolutions.get(ur.indexPattern());
+                    if (resolution != null && resolution == IndexResolution.EMPTY_SUBQUERY) {
+                        isEmptySubquery.set(Boolean.TRUE);
+                    }
+                });
+                if (isEmptySubquery.get() == false) {
+                    newChildren.add(child);
+                }
+            }
+            return newChildren.size() == unionAll.children().size() ? unionAll : unionAll.replaceChildren(newChildren);
         }
     }
 }

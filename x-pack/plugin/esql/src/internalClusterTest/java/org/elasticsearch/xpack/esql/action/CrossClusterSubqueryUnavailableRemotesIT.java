@@ -72,9 +72,9 @@ public class CrossClusterSubqueryUnavailableRemotesIT extends AbstractCrossClust
                 assertThat(failure.reason(), containsString(simulatedFailure.getMessage()));
             }
 
-            // No remote index can be found in a subquery, the query should fail regardless skipUnavailable=true or false,
-            // index resolution in Analyzer will fail on the branch anyway, it does not prune the branch with missing indices.
-            // TODO think about how to prune branches with no matching indices
+            // This is how it behaves today. If all the remote clusters referenced by a subquery fail to respond,
+            // the whole query fails even if there are other subqueries and their local/remote clusters are available.
+            // The mock TransportationService does not cause a trouble to IndexResolution.
             Exception ex = expectThrows(Exception.class, () -> runQuery("""
                 FROM logs-*,(FROM c*:logs-*), (FROM r*:logs-*)
                 | KEEP v, tag
@@ -155,7 +155,6 @@ public class CrossClusterSubqueryUnavailableRemotesIT extends AbstractCrossClust
 
             // This is how it behaves today, if the remote cluster that is referenced by a subquery is not available,
             // and there is no other cluster available in the same subquery, then no data is returned, no exception is thrown.
-            // This seems make sense, as Analyzer will fail this query anyway, because the indices on remate-1 cannot be found.
             try (EsqlQueryResponse resp = runQuery("""
                 FROM logs-*,(FROM c*:logs-*), (FROM r*:logs-*)
                 | KEEP v, tag
@@ -214,7 +213,7 @@ public class CrossClusterSubqueryUnavailableRemotesIT extends AbstractCrossClust
         }
     }
 
-    /**
+    /*
      * Mocks a bad REMOTE_CLUSTER_1.
      */
     private Exception mockTransportServiceToRecevieSimulatedFailure() {

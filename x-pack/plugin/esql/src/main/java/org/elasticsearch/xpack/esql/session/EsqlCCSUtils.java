@@ -20,6 +20,8 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.indices.IndicesExpressionGrouper;
 import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.transport.ConnectTransportException;
 import org.elasticsearch.transport.NoSuchRemoteClusterException;
 import org.elasticsearch.transport.RemoteClusterAware;
@@ -45,6 +47,8 @@ import static java.util.stream.Collectors.joining;
 import static java.util.stream.Collectors.toSet;
 
 public class EsqlCCSUtils {
+
+    private static final Logger LOGGER = LogManager.getLogger(EsqlCCSUtils.class);
 
     private EsqlCCSUtils() {}
 
@@ -406,5 +410,39 @@ public class EsqlCCSUtils {
         } else {
             return "in remote cluster [" + clusterAlias + "]";
         }
+    }
+
+    public static IndexResolution replaceInvalidIndexResolutionWithEmptyIndexResolutionForSubquery(
+        IndexPattern indexPattern,
+        IndexResolution indexResolution,
+        IndicesExpressionGrouper indicesGrouper,
+        EsqlExecutionInfo executionInfo
+    ) {
+        // check if all clusters involved have skip_unavailable = true
+        boolean allClustersSkipUnavailable = true;
+        var groupedIndices = indicesGrouper.groupIndices(
+            IndicesOptions.DEFAULT,
+            Strings.splitStringByCommaToArray(indexPattern.indexPattern()),
+            false
+        );
+        for (String clusterAlias : groupedIndices.keySet()) {
+            if (executionInfo.shouldSkipOnFailure(clusterAlias) == false) {
+                allClustersSkipUnavailable = false;
+                break;
+            }
+        }
+        if (allClustersSkipUnavailable) {
+            LOGGER.debug(
+                "Index pattern [{}] is invalid, but all clusters involved have skip_unavailable=true, "
+                    + "replacing with EMPTY_SUBQUERY index resolution",
+                indexPattern.indexPattern()
+            );
+            // mark the index pattern is skipped in execution info
+            for (String clusterAlias : groupedIndices.keySet()) {
+                markClusterWithFinalStateAndNoShards(executionInfo, clusterAlias, Cluster.Status.SKIPPED, null);
+            }
+            return IndexResolution.EMPTY_SUBQUERY;
+        }
+        return indexResolution;
     }
 }

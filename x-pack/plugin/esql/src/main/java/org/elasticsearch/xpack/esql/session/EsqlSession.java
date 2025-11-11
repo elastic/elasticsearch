@@ -561,6 +561,38 @@ public class EsqlSession {
                     LOGGER.debug("No more clusters to search, ending analysis stage");
                     throw new NoClustersToSearchException();
                 }
+                // Check if a subquery need to be pruned. If some but not all the subqueries has invalid index resolution,
+                // and all the clusters referenced by the subquery that has invalid index resolution have skipUnavailable=true,
+                // try to prune it by setting IndexResolution to EMPTY_SUBQUERY.,Analyzer.PruneEmptyUnionAllBranch will
+                // take care of removing the subquery during analysis.
+                // If all subqueries have invalid index resolution, we should fail in Analyzer's verifier.
+                if (r.indexResolution.isEmpty() == false // it is not a row
+                    && r.indexResolution.size() > 1 // there is a subquery
+                    && executionInfo.isCrossClusterSearch()) {
+                    Collection<IndexResolution> indexResolutions = r.indexResolution.values();
+                    boolean hasInvalid = indexResolutions.stream().anyMatch(ir -> ir.isValid() == false);
+                    boolean hasValid = indexResolutions.stream().anyMatch(IndexResolution::isValid);
+                    // Only if there is partial invalid index resolutions in subqueries
+                    if (hasInvalid && hasValid) {
+                        // iterate the index resolution and replace it with EMPTY_SUBQUERY if the index resolution is invalid
+                        // and skipUnavailable is true for all the clusters involved
+                        for (var entry : r.indexResolution.entrySet()) {
+                            IndexPattern indexPattern = entry.getKey();
+                            IndexResolution indexResolution = entry.getValue();
+                            if (indexResolution.isValid() == false) {
+                                r.withIndices(
+                                    indexPattern,
+                                    EsqlCCSUtils.replaceInvalidIndexResolutionWithEmptyIndexResolutionForSubquery(
+                                        indexPattern,
+                                        indexResolution,
+                                        indicesExpressionGrouper,
+                                        executionInfo
+                                    )
+                                );
+                            }
+                        }
+                    }
+                }
                 return r;
             })
             .<PreAnalysisResult>andThen((l, r) -> preAnalyzeLookupIndices(preAnalysis.lookupIndices().iterator(), r, executionInfo, l))

@@ -50,7 +50,7 @@ public class VectorSimilarityFunctionsIT extends AbstractEsqlIntegTestCase {
     public static Iterable<Object[]> parameters() throws Exception {
         List<Object[]> params = new ArrayList<>();
 
-        for (ElementType elementType : Set.of(ElementType.FLOAT, ElementType.BYTE)) {
+        for (ElementType elementType : Set.of(ElementType.FLOAT, ElementType.BYTE, ElementType.BIT)) {
             if (EsqlCapabilities.Cap.COSINE_VECTOR_SIMILARITY_FUNCTION.isEnabled()) {
                 params.add(new Object[] { "v_cosine", CosineSimilarity.SIMILARITY_FUNCTION, elementType });
             }

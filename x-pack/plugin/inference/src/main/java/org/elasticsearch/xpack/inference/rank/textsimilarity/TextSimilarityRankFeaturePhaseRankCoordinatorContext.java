@@ -67,7 +67,8 @@ public class TextSimilarityRankFeaturePhaseRankCoordinatorContext extends RankFe
 
         // top N listener
         ActionListener<GetInferenceModelAction.Response> topNListener = scoreListener.delegateFailureAndWrap((l, r) -> {
-            // The rerank inference endpoint may have an override to return top N documents only
+            // The rerank inference endpoint may have an override to return top N documents only, in that case let's fail fast to avoid
+            // assigning scores to the wrong input
             Integer configuredTopN = null;
             if (r.getEndpoints().isEmpty() == false
                 && r.getEndpoints().get(0).getTaskSettings() instanceof CohereRerankTaskSettings cohereTaskSettings) {
@@ -97,7 +98,8 @@ public class TextSimilarityRankFeaturePhaseRankCoordinatorContext extends RankFe
             // Resolve chunking settings if needed
             final ChunkScorerConfig resolvedChunkScorerConfig = resolveChunkingSettings(r);
 
-            // Create inference listener using resolved config
+            // Wrap the provided rankListener to an ActionListener that would handle the response from the inference service
+            // and then pass the results
             ActionListener<InferenceAction.Response> inferenceListener = scoreListener.delegateFailureAndWrap((l2, r2) -> {
                 InferenceServiceResults results = r2.getResults();
                 assert results instanceof RankedDocsResults;
@@ -118,7 +120,7 @@ public class TextSimilarityRankFeaturePhaseRankCoordinatorContext extends RankFe
                         scores = extractScoresFromRankedDocs(rankedDocs);
                     }
 
-                    // Ensure we get exactly as many final scores as the number of docs we passed
+                    // Ensure we get exactly as many final scores as the number of docs we passed, otherwise we may return incorrect results
                     if (scores.length != featureDocs.length) {
                         l2.onFailure(
                             new IllegalStateException(

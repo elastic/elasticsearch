@@ -106,8 +106,8 @@ public class ReservedRepositoryAction implements ReservedClusterStateHandler<Lis
     }
 
     @Override
-    public ClusterState remove(ProjectId projectId, TransformState prevState) throws Exception {
-        return transform(projectId, List.of(), prevState).state();
+    public ClusterState remove(TransformState prevState) throws Exception {
+        return transform(List.of(), prevState).state();
     }
 
     @Override

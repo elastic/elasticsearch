@@ -15,3 +15,4 @@
 * [`STDDEV_OVER_TIME`](../../functions-operators/time-series-aggregation-functions.md#esql-stddev_over_time) {applies_to}`stack: preview 9.3` {applies_to}`serverless: preview`
 * [`VARIANCE_OVER_TIME`](../../functions-operators/time-series-aggregation-functions.md#esql-variance_over_time) {applies_to}`stack: preview 9.3` {applies_to}`serverless: preview`
 * [`SUM_OVER_TIME`](../../functions-operators/time-series-aggregation-functions.md#esql-sum_over_time) {applies_to}`stack: preview 9.2` {applies_to}`serverless: preview`
+* [`DERIV`](../../functions-operators/time-series-aggregation-functions.md#esql-deriv) {applies_to}`stack: preview 9.3` {applies_to}`serverless: preview`

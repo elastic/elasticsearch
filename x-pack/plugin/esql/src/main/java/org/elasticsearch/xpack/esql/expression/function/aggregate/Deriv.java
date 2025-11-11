@@ -19,6 +19,7 @@ import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionType;
 import org.elasticsearch.xpack.esql.expression.function.Param;
@@ -40,7 +41,8 @@ public class Deriv extends TimeSeriesAggregateFunction implements ToAggregator {
     @FunctionInfo(
         type = FunctionType.TIME_SERIES_AGGREGATE,
         returnType = { "double" },
-        description = "Calculates the derivative over time of a numeric field using linear regression."
+        description = "Calculates the derivative over time of a numeric field using linear regression.",
+        examples = { @Example(file = "k8s-timeseries", tag = "deriv") }
     )
     public Deriv(Source source, @Param(name = "field", type = { "long", "integer", "double" }) Expression field) {
         this(source, field, new UnresolvedAttribute(source, "@timestamp"));
@@ -61,7 +63,7 @@ public class Deriv extends TimeSeriesAggregateFunction implements ToAggregator {
             in.readNamedWriteable(Expression.class),
             in.readNamedWriteable(Expression.class),
             in.readNamedWriteable(Expression.class),
-            in.readNamedWriteable(Expression.class)
+            in.readNamedWriteableCollectionAsList(Expression.class).getFirst()
         );
     }
 

@@ -21,6 +21,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.date.DateFormat;
 import org.elasticsearch.xpack.esql.expression.function.scalar.date.DateParse;
 import org.elasticsearch.xpack.esql.expression.function.scalar.date.DateTrunc;
 import org.elasticsearch.xpack.esql.expression.function.scalar.date.DayName;
+import org.elasticsearch.xpack.esql.expression.function.scalar.date.InRange;
 import org.elasticsearch.xpack.esql.expression.function.scalar.date.MonthName;
 import org.elasticsearch.xpack.esql.expression.function.scalar.date.Now;
 import org.elasticsearch.xpack.esql.expression.function.scalar.histogram.ExtractHistogramComponent;
@@ -92,6 +93,7 @@ public class ScalarFunctionWritables {
         entries.add(DateParse.ENTRY);
         entries.add(DateTrunc.ENTRY);
         entries.add(DayName.ENTRY);
+        entries.add(InRange.ENTRY);
         entries.add(MonthName.ENTRY);
         entries.add(IpPrefix.ENTRY);
         entries.add(Least.ENTRY);

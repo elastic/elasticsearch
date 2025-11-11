@@ -40,9 +40,9 @@ import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlFunctionCall;
 import org.elasticsearch.xpack.esql.plan.logical.promql.WithinSeriesAggregate;
 import org.elasticsearch.xpack.esql.plan.logical.promql.selector.LabelMatcher;
 import org.elasticsearch.xpack.esql.plan.logical.promql.selector.LabelMatchers;
-import org.elasticsearch.xpack.esql.plan.logical.promql.selector.RangeSelector;
 import org.elasticsearch.xpack.esql.plan.logical.promql.selector.Selector;
 
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
@@ -72,6 +72,8 @@ import java.util.Map;
  */
 public final class TranslatePromqlToTimeSeriesAggregate extends OptimizerRules.OptimizerRule<PromqlCommand> {
 
+    public static final Duration DEFAULT_LOOKBACK = Duration.ofMinutes(5);
+
     public TranslatePromqlToTimeSeriesAggregate() {
         super(OptimizerRules.TransformDirection.UP);
     }
@@ -85,12 +87,12 @@ public final class TranslatePromqlToTimeSeriesAggregate extends OptimizerRules.O
         promqlPlan = promqlPlan.transformUp(PlaceholderRelation.class, pr -> promqlCommand.child());
 
         // Translate based on plan type
-        return translate(promqlPlan);
+        return translate(promqlCommand, promqlPlan);
     }
 
-    private LogicalPlan translate(LogicalPlan promqlPlan) {
+    private LogicalPlan translate(PromqlCommand promqlCommand, LogicalPlan promqlPlan) {
         // convert the plan bottom-up
-        MapResult result = map(promqlPlan);
+        MapResult result = map(promqlCommand, promqlPlan);
         return result.plan();
     }
 
@@ -100,17 +102,17 @@ public final class TranslatePromqlToTimeSeriesAggregate extends OptimizerRules.O
     // - AcrossSeriesAggregate -> Aggregate over TimeSeriesAggregate
     // - WithinSeriesAggregate -> TimeSeriesAggregate
     // - Selector -> EsRelation + Filter
-    private static MapResult map(LogicalPlan p) {
+    private static MapResult map(PromqlCommand promqlCommand, LogicalPlan p) {
         if (p instanceof Selector selector) {
-            return map(selector);
+            return map(promqlCommand, selector);
         }
         if (p instanceof PromqlFunctionCall functionCall) {
-            return map(functionCall);
+            return map(promqlCommand, functionCall);
         }
         throw new QlIllegalArgumentException("Unsupported PromQL plan node: {}", p);
     }
 
-    private static MapResult map(Selector selector) {
+    private static MapResult map(PromqlCommand promqlCommand, Selector selector) {
         // Create a placeholder relation to be replaced later
         var matchers = selector.labelMatchers();
         Expression matcherCondition = translateLabelMatchers(selector.source(), selector.labels(), matchers);
@@ -125,24 +127,15 @@ public final class TranslatePromqlToTimeSeriesAggregate extends OptimizerRules.O
 
         Map<String, Expression> extras = new HashMap<>();
         extras.put("field", selector.series());
-        extras.put("timestamp", selector.timestamp());
 
         // return the condition as filter
         LogicalPlan p = new Filter(selector.source(), selector.child(), Predicates.combineAnd(selectorConditions));
 
-        // arguably the instant selector is a selector with range 0
-        if (selector instanceof RangeSelector rangeSelector) {
-            Bucket b = new Bucket(rangeSelector.source(), selector.timestamp(), rangeSelector.range(), null, null);
-            Alias tbucket = new Alias(b.source(), "TBUCKET", b);
-            p = new Eval(tbucket.source(), p, List.of(tbucket));
-            extras.put("tbucket", tbucket.toAttribute());
-        }
-
         return new MapResult(p, extras);
     }
 
-    private static MapResult map(PromqlFunctionCall functionCall) {
-        MapResult childResult = map(functionCall.child());
+    private static MapResult map(PromqlCommand promqlCommand, PromqlFunctionCall functionCall) {
+        MapResult childResult = map(promqlCommand, functionCall.child());
         Map<String, Expression> extras = childResult.extras;
 
         MapResult result;
@@ -153,7 +146,7 @@ public final class TranslatePromqlToTimeSeriesAggregate extends OptimizerRules.O
             Function esqlFunction = PromqlFunctionRegistry.INSTANCE.buildEsqlFunction(
                 withinAggregate.functionName(),
                 withinAggregate.source(),
-                List.of(target, extras.get("timestamp"))
+                List.of(target, promqlCommand.timestamp())
             );
 
             extras.put("field", esqlFunction);
@@ -183,13 +176,27 @@ public final class TranslatePromqlToTimeSeriesAggregate extends OptimizerRules.O
                 groupings.add(named.toAttribute());
             }
 
-            NamedExpression bucket = (NamedExpression) extras.get("tbucket");
-            if (bucket != null) {
-                aggs.add(bucket);
-                groupings.add(bucket.toAttribute());
+            Duration timeBucketSize;
+            if (promqlCommand.isRangeQuery()) {
+                timeBucketSize = promqlCommand.step();
+            } else {
+                // use default lookback for instant queries
+                timeBucketSize = DEFAULT_LOOKBACK;
             }
+            Bucket b = new Bucket(
+                promqlCommand.source(),
+                promqlCommand.timestamp(),
+                new Literal(promqlCommand.source(), timeBucketSize, DataType.TIME_DURATION),
+                null,
+                null
+            );
+            Alias tbucket = new Alias(b.source(), "TBUCKET", b);
+            aggs.add(tbucket.toAttribute());
+            groupings.add(tbucket.toAttribute());
 
-            LogicalPlan p = new TimeSeriesAggregate(acrossAggregate.source(), childResult.plan, groupings, aggs, null);
+            LogicalPlan p = childResult.plan;
+            p = new Eval(tbucket.source(), p, List.of(tbucket));
+            p = new TimeSeriesAggregate(acrossAggregate.source(), p, groupings, aggs, null);
             result = new MapResult(p, extras);
         } else {
             throw new QlIllegalArgumentException("Unsupported PromQL function call: {}", functionCall);

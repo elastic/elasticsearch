@@ -12,7 +12,6 @@ import org.elasticsearch.xpack.esql.core.capabilities.Resolvables;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
-import org.elasticsearch.xpack.esql.expression.function.TimestampAware;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
 import org.elasticsearch.xpack.esql.plan.logical.promql.PlaceholderRelation;
@@ -25,27 +24,18 @@ import java.util.Objects;
  * Base class representing a PromQL vector selector.
  * A vector selector is defined by a set of label matchers and a point in time evaluation context.
  */
-public abstract class Selector extends UnaryPlan implements TimestampAware {
+public abstract class Selector extends UnaryPlan {
     // implements TelemetryAware
 
     // in Promql this is the __name__ label however for now, this gets mapped to an exact field
     private final Expression series;
     private final List<Expression> labels;
-    // TODO: this should be made available through the planner
-    private final Expression timestamp;
     private final LabelMatchers labelMatchers;
     private final Evaluation evaluation;
     protected List<Attribute> output;
 
-    Selector(
-        Source source,
-        Expression series,
-        List<Expression> labels,
-        LabelMatchers labelMatchers,
-        Evaluation evaluation,
-        Expression timestamp
-    ) {
-        this(source, PlaceholderRelation.INSTANCE, series, labels, labelMatchers, evaluation, timestamp);
+    Selector(Source source, Expression series, List<Expression> labels, LabelMatchers labelMatchers, Evaluation evaluation) {
+        this(source, PlaceholderRelation.INSTANCE, series, labels, labelMatchers, evaluation);
     }
 
     Selector(
@@ -54,15 +44,13 @@ public abstract class Selector extends UnaryPlan implements TimestampAware {
         Expression series,
         List<Expression> labels,
         LabelMatchers labelMatchers,
-        Evaluation evaluation,
-        Expression timestamp
+        Evaluation evaluation
     ) {
         super(source, child);
         this.series = series;
         this.labels = labels;
         this.labelMatchers = labelMatchers;
         this.evaluation = evaluation;
-        this.timestamp = timestamp;
     }
 
     public Expression series() {
@@ -71,10 +59,6 @@ public abstract class Selector extends UnaryPlan implements TimestampAware {
 
     public List<Expression> labels() {
         return labels;
-    }
-
-    public Expression timestamp() {
-        return timestamp;
     }
 
     public LabelMatchers labelMatchers() {
@@ -87,7 +71,7 @@ public abstract class Selector extends UnaryPlan implements TimestampAware {
 
     @Override
     public boolean expressionsResolved() {
-        return series.resolved() && timestamp.resolved() && Resolvables.resolved(labels);
+        return series.resolved() && Resolvables.resolved(labels);
     }
 
     @Override
@@ -97,7 +81,6 @@ public abstract class Selector extends UnaryPlan implements TimestampAware {
             return Objects.equals(evaluation, selector.evaluation)
                 && Objects.equals(labelMatchers, selector.labelMatchers)
                 && Objects.equals(series, selector.series)
-                && Objects.equals(timestamp, selector.timestamp)
                 && Objects.equals(labels, selector.labels);
         }
         return false;
@@ -105,7 +88,7 @@ public abstract class Selector extends UnaryPlan implements TimestampAware {
 
     @Override
     public int hashCode() {
-        return Objects.hash(super.hashCode(), series, labels, labelMatchers, evaluation, timestamp);
+        return Objects.hash(super.hashCode(), series, labels, labelMatchers, evaluation);
     }
 
     @Override

@@ -38,15 +38,8 @@ import java.util.List;
  */
 public class InstantSelector extends Selector {
 
-    public InstantSelector(
-        Source source,
-        Expression series,
-        List<Expression> labels,
-        LabelMatchers labelMatchers,
-        Evaluation evaluation,
-        Expression timestamp
-    ) {
-        this(source, PlaceholderRelation.INSTANCE, series, labels, labelMatchers, evaluation, timestamp);
+    public InstantSelector(Source source, Expression series, List<Expression> labels, LabelMatchers labelMatchers, Evaluation evaluation) {
+        this(source, PlaceholderRelation.INSTANCE, series, labels, labelMatchers, evaluation);
     }
 
     public InstantSelector(
@@ -55,20 +48,19 @@ public class InstantSelector extends Selector {
         Expression series,
         List<Expression> labels,
         LabelMatchers labelMatchers,
-        Evaluation evaluation,
-        Expression timestamp
+        Evaluation evaluation
     ) {
-        super(source, child, series, labels, labelMatchers, evaluation, timestamp);
+        super(source, child, series, labels, labelMatchers, evaluation);
     }
 
     @Override
     protected NodeInfo<InstantSelector> info() {
-        return NodeInfo.create(this, InstantSelector::new, child(), series(), labels(), labelMatchers(), evaluation(), timestamp());
+        return NodeInfo.create(this, InstantSelector::new, child(), series(), labels(), labelMatchers(), evaluation());
     }
 
     @Override
     public InstantSelector replaceChild(LogicalPlan newChild) {
-        return new InstantSelector(source(), newChild, series(), labels(), labelMatchers(), evaluation(), timestamp());
+        return new InstantSelector(source(), newChild, series(), labels(), labelMatchers(), evaluation());
     }
 
     // @Override

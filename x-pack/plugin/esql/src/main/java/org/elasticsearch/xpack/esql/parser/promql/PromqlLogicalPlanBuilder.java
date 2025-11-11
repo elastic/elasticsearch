@@ -14,7 +14,6 @@ import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute;
-import org.elasticsearch.xpack.esql.core.expression.UnresolvedTimestamp;
 import org.elasticsearch.xpack.esql.core.expression.predicate.operator.arithmetic.Arithmetics;
 import org.elasticsearch.xpack.esql.core.tree.Node;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -235,11 +234,9 @@ public class PromqlLogicalPlanBuilder extends PromqlExpressionBuilder {
 
         final LabelMatchers matchers = new LabelMatchers(labels);
 
-        UnresolvedTimestamp timestamp = new UnresolvedTimestamp(source);
-
         return rangeEx == null
-            ? new InstantSelector(source, series, labelExpressions, matchers, evaluation, timestamp)
-            : new RangeSelector(source, series, labelExpressions, matchers, rangeEx, evaluation, timestamp);
+            ? new InstantSelector(source, series, labelExpressions, matchers, evaluation)
+            : new RangeSelector(source, series, labelExpressions, matchers, rangeEx, evaluation);
     }
 
     @Override

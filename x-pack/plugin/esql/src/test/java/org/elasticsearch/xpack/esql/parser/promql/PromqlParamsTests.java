@@ -14,12 +14,11 @@ import org.elasticsearch.xpack.esql.parser.EsqlParser;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
 import org.elasticsearch.xpack.esql.parser.QueryParams;
 import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlCommand;
+import org.junit.BeforeClass;
 
 import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
-
-import org.junit.BeforeClass;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.paramAsConstant;

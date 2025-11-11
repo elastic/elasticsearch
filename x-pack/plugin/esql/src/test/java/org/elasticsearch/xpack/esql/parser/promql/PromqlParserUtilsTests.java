@@ -12,12 +12,11 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.action.PromqlFeatures;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
+import org.junit.BeforeClass;
 
 import java.time.Duration;
 import java.util.List;
 import java.util.function.Function;
-
-import org.junit.BeforeClass;
 
 import static java.time.Duration.ofDays;
 import static java.time.Duration.ofHours;

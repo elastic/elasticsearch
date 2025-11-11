@@ -10,10 +10,9 @@ package org.elasticsearch.xpack.esql.optimizer.rules.logical.promql;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.action.PromqlFeatures;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.promql.AutomatonUtils.PatternFragment;
+import org.junit.BeforeClass;
 
 import java.util.List;
-
-import org.junit.BeforeClass;
 
 import static org.elasticsearch.xpack.esql.optimizer.rules.logical.promql.AutomatonUtils.PatternFragment.Type.EXACT;
 import static org.elasticsearch.xpack.esql.optimizer.rules.logical.promql.AutomatonUtils.PatternFragment.Type.PREFIX;

@@ -11,10 +11,9 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.action.PromqlFeatures;
 import org.elasticsearch.xpack.esql.analysis.Analyzer;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils;
+import org.junit.BeforeClass;
 
 import java.util.List;
-
-import org.junit.BeforeClass;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.withDefaultLimitWarning;
 import static org.elasticsearch.xpack.esql.analysis.VerifierTests.error;

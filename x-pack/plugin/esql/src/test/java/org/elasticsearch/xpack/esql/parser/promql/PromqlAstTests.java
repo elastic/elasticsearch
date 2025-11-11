@@ -16,13 +16,12 @@ import org.elasticsearch.xpack.esql.action.PromqlFeatures;
 import org.elasticsearch.xpack.esql.core.QlClientException;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
 import org.elasticsearch.xpack.esql.parser.PromqlParser;
+import org.junit.BeforeClass;
 
 import java.io.BufferedReader;
 import java.net.URL;
 import java.util.ArrayList;
 import java.util.List;
-
-import org.junit.BeforeClass;
 
 import static java.util.Arrays.asList;
 import static org.elasticsearch.common.logging.LoggerMessageFormat.format;

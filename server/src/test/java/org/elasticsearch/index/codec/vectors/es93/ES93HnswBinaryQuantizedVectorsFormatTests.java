@@ -25,7 +25,6 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.MMapDirectory;
 import org.apache.lucene.tests.store.MockDirectoryWrapper;
 import org.elasticsearch.index.codec.vectors.BaseHnswVectorsFormatTestCase;
-import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 
 import java.io.IOException;
 import java.util.Locale;
@@ -44,7 +43,7 @@ public class ES93HnswBinaryQuantizedVectorsFormatTests extends BaseHnswVectorsFo
 
     @Override
     protected KnnVectorsFormat createFormat() {
-        return new ES93HnswBinaryQuantizedVectorsFormat(DenseVectorFieldMapper.ElementType.FLOAT, random().nextBoolean());
+        return new ES93HnswBinaryQuantizedVectorsFormat(ES93GenericFlatVectorsFormat.ElementType.STANDARD, random().nextBoolean());
     }
 
     @Override
@@ -52,7 +51,7 @@ public class ES93HnswBinaryQuantizedVectorsFormatTests extends BaseHnswVectorsFo
         return new ES93HnswBinaryQuantizedVectorsFormat(
             maxConn,
             beamWidth,
-            DenseVectorFieldMapper.ElementType.FLOAT,
+            ES93GenericFlatVectorsFormat.ElementType.STANDARD,
             random().nextBoolean()
         );
     }
@@ -62,7 +61,7 @@ public class ES93HnswBinaryQuantizedVectorsFormatTests extends BaseHnswVectorsFo
         return new ES93HnswBinaryQuantizedVectorsFormat(
             maxConn,
             beamWidth,
-            DenseVectorFieldMapper.ElementType.FLOAT,
+            ES93GenericFlatVectorsFormat.ElementType.STANDARD,
             random().nextBoolean(),
             numMergeWorkers,
             service

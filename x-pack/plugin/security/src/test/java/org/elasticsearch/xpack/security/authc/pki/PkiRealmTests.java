@@ -6,6 +6,8 @@
  */
 package org.elasticsearch.xpack.security.authc.pki;
 
+import com.unboundid.ldap.sdk.LDAPException;
+
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.settings.ClusterSettings;
@@ -706,4 +708,51 @@ public class PkiRealmTests extends ESTestCase {
             return (X509Certificate) factory.generateCertificate(in);
         }
     }
+
+    public void testExtractPrincipalFromRdnAttribute() throws LDAPException {
+        X500Principal principal = new X500Principal("CN=Test+UID=abc123, CN=Interior, OU=elasticsearch, O=org");
+        assertThat(PkiRealm.extractPrincipalFromRdnAttribute(principal, "CN"), is("Test"));
+        assertThat(PkiRealm.extractPrincipalFromRdnAttribute(principal, "UID"), is("abc123"));
+        assertThat(PkiRealm.extractPrincipalFromRdnAttribute(principal, "OU"), is("elasticsearch"));
+        assertThat(PkiRealm.extractPrincipalFromRdnAttribute(principal, "O"), is("org"));
+        assertThat(PkiRealm.extractPrincipalFromRdnAttribute(principal, "EMAILADDRESS"), nullValue());
+    }
+
+    public void testExtractPrincipalFromRdnAttributeMultipleValues() throws LDAPException {
+        X500Principal principal = new X500Principal("CN=Test+CN=Best, OU=elasticsearch, O=org");
+        assertThat(PkiRealm.extractPrincipalFromRdnAttribute(principal, "CN"), is("Test"));
+    }
+
+    public void testRdnOidNameMatches() throws Exception {
+        Settings settings = Settings.builder()
+            .put(globalSettings)
+            .put("xpack.security.authc.realms.pki.my_pki.username_rdn_name", "OU")
+            .build();
+        ThreadContext threadContext = new ThreadContext(settings);
+        X509Certificate certificate = readCert(getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.crt"));
+        UserRoleMapper roleMapper = buildRoleMapper();
+        PkiRealm realm = buildRealm(roleMapper, settings);
+        threadContext.putTransient(PkiRealm.PKI_CERT_HEADER_NAME, new X509Certificate[] { certificate });
+
+        X509AuthenticationToken token = realm.token(threadContext);
+        User user = authenticate(token, realm).getValue();
+        assertThat(user, is(notNullValue()));
+        assertThat(user.principal(), is("elasticsearch"));
+    }
+
+    public void testRdnOidNameNotMatches() throws Exception {
+        Settings settings = Settings.builder()
+            .put(globalSettings)
+            .put("xpack.security.authc.realms.pki.my_pki.username_rdn_name", "UID")
+            .build();
+        ThreadContext threadContext = new ThreadContext(settings);
+        X509Certificate certificate = readCert(getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.crt"));
+        UserRoleMapper roleMapper = buildRoleMapper();
+        PkiRealm realm = buildRealm(roleMapper, settings);
+        threadContext.putTransient(PkiRealm.PKI_CERT_HEADER_NAME, new X509Certificate[] { certificate });
+
+        X509AuthenticationToken token = realm.token(threadContext);
+        assertThat(token, is(nullValue()));
+    }
+
 }

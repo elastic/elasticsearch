@@ -6,6 +6,13 @@
  */
 package org.elasticsearch.xpack.security.authc.pki;
 
+import com.unboundid.ldap.sdk.Attribute;
+import com.unboundid.ldap.sdk.DN;
+
+import com.unboundid.ldap.sdk.LDAPException;
+
+import com.unboundid.ldap.sdk.RDN;
+
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.Strings;
@@ -51,6 +58,7 @@ import java.util.regex.Pattern;
 
 import javax.net.ssl.X509ExtendedTrustManager;
 import javax.net.ssl.X509TrustManager;
+import javax.security.auth.x500.X500Principal;
 
 import static org.elasticsearch.core.Strings.format;
 
@@ -76,6 +84,7 @@ public class PkiRealm extends Realm implements CachingRealm {
 
     private final X509TrustManager trustManager;
     private final Pattern principalPattern;
+    private final String principalAttributeName;
     private final UserRoleMapper roleMapper;
     private final Cache<BytesKey, User> cache;
     private DelegatedAuthorizationSupport delegatedRealms;
@@ -91,6 +100,7 @@ public class PkiRealm extends Realm implements CachingRealm {
         this.delegationEnabled = config.getSetting(PkiRealmSettings.DELEGATION_ENABLED_SETTING);
         this.trustManager = trustManagers(config);
         this.principalPattern = config.getSetting(PkiRealmSettings.USERNAME_PATTERN_SETTING);
+        this.principalAttributeName = config.getSetting(PkiRealmSettings.USERNAME_RDN_NAME_SETTING);
         this.roleMapper = roleMapper;
         this.roleMapper.clearRealmCacheOnChange(this);
         this.cache = CacheBuilder.<BytesKey, User>builder()
@@ -133,7 +143,7 @@ public class PkiRealm extends Realm implements CachingRealm {
         // validation). In this case the principal should be set by the realm that completes the authentication. But in the common case,
         // where a single PKI realm is configured, there is no risk of eagerly parsing the principal before authentication and it also
         // maintains BWC.
-        String parsedPrincipal = getPrincipalFromSubjectDN(principalPattern, token, logger);
+        String parsedPrincipal = getPrincipalFromToken(token);
         if (parsedPrincipal == null) {
             return null;
         }
@@ -164,7 +174,7 @@ public class PkiRealm extends Realm implements CachingRealm {
                 // parse the principal again after validating the cert chain, and do not rely on the token.principal one, because that could
                 // be set by a different realm that failed trusted chain validation. We SHOULD NOT parse the principal BEFORE this step, but
                 // we do it for BWC purposes. Changing this is a breaking change.
-                final String principal = getPrincipalFromSubjectDN(principalPattern, token, logger);
+                final String principal = getPrincipalFromToken(token);
                 if (principal == null) {
                     logger.debug(
                         () -> format(
@@ -229,6 +239,44 @@ public class PkiRealm extends Realm implements CachingRealm {
     @Override
     public void lookupUser(String username, ActionListener<User> listener) {
         listener.onResponse(null);
+    }
+
+    String getPrincipalFromToken(X509AuthenticationToken token) {
+        return principalAttributeName.isEmpty()
+            ? getPrincipalFromSubjectDN(principalPattern, token, logger)
+            : getPrincipalFromRdnAttribute(principalAttributeName, token, logger);
+    }
+
+    static String getPrincipalFromRdnAttribute(String principalAttributeName, X509AuthenticationToken token, Logger logger) {
+        X500Principal certPrincipal = token.credentials()[0].getSubjectX500Principal();
+        try {
+            String value = extractPrincipalFromRdnAttribute(certPrincipal, principalAttributeName);
+            if (value == null) {
+                logger.debug(
+                    () -> format(
+                        "the principal attribute name [%s] was not found in the certificate DN [%s]",
+                        principalAttributeName,
+                        certPrincipal.toString()
+                    )
+                );
+            }
+            return value;
+        } catch (LDAPException e) {
+            logger.debug(() -> format("failed to parse certificate DN [%s]", certPrincipal.toString()), e);
+            return null;
+        }
+    }
+
+    static String extractPrincipalFromRdnAttribute(X500Principal certPrincipal, String principalAttributeName) throws LDAPException {
+        DN dn = new DN(certPrincipal.getName(X500Principal.RFC2253));
+        for (RDN rdn : dn.getRDNs()) {
+            for (Attribute attr : rdn.getAttributes()) {
+                if (attr.getName().equalsIgnoreCase(principalAttributeName)) {
+                    return attr.getValue();
+                }
+            }
+        }
+        return null;
     }
 
     static String getPrincipalFromSubjectDN(Pattern principalPattern, X509AuthenticationToken token, Logger logger) {

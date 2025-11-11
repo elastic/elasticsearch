@@ -14,6 +14,7 @@ import org.apache.lucene.search.FieldComparator;
 import org.apache.lucene.search.LeafFieldComparator;
 import org.apache.lucene.search.Pruning;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.index.fielddata.DenseDoubleValues;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
 import org.elasticsearch.search.MultiValueMode;
 
@@ -45,7 +46,11 @@ public class HalfFloatValuesComparatorSource extends FloatValuesComparatorSource
                 return new HalfFloatLeafComparator(context) {
                     @Override
                     protected NumericDocValues getNumericDocValues(LeafReaderContext context, String field) throws IOException {
-                        return HalfFloatValuesComparatorSource.this.getNumericDocValues(context, fMissingValue).getRawFloatValues();
+                        return DenseDoubleValues.asNumericDocValues(
+                            getDenseDoubleValues(context, fMissingValue),
+                            context.reader().maxDoc(),
+                            v -> Float.floatToRawIntBits((float) v)
+                        );
                     }
                 };
             }

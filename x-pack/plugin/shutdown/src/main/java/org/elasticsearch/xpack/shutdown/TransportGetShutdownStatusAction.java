@@ -285,9 +285,9 @@ public class TransportGetShutdownStatusAction extends TransportMasterNodeAction<
             .map(shardRouting -> new Tuple<>(shardRouting, allocationService.explainShardAllocation(shardRouting, allocation)))
             // Given that we're checking the status of a node that's shutting down, no shards should be allowed to remain
             .filter(pair -> {
-                assert pair.v2().getMoveDecision().canRemain() == false
+                assert pair.v2().getMoveDecision().cannotRemain()
                     : "shard [" + pair + "] can remain on node [" + nodeId + "], but that node is shutting down";
-                return pair.v2().getMoveDecision().canRemain() == false;
+                return pair.v2().getMoveDecision().cannotRemain();
             })
             // These shards will move as soon as possible
             .filter(pair -> pair.v2().getMoveDecision().getAllocationDecision().equals(AllocationDecision.YES) == false)

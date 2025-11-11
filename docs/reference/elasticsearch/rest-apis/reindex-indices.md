@@ -801,7 +801,7 @@ GET _tasks/r1A2WoRbTwKZ516z6NEs5A:36619
 ::::{note}
  - If the `completed` field in the response to the `GET _tasks/<task_id>` call is `false` then the reindex is still running.
  - If the `completed` field is `true` and the `error` field is present then the reindex failed. Check the `error` object for details.
- - If the `completed` field is `true` and the `response` field is present then the reindex at least partially succeeded. Check the `failures` property in the `response` object to see if there were partial failures.
+ - If the `completed` field is `true` and the `response` field is present then the reindex at least partially succeeded. Check the `failures` field in the `response` object to see if there were partial failures.
  - If this call returns a 404 (`NOT FOUND`) then reindex failed because the task was lost, perhaps due to a node restart.
 
 In any of the failure cases, partial data may have been written to the destination index.

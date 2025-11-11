@@ -17,18 +17,20 @@ import org.apache.lucene.index.SortedNumericDocValues;
 import java.io.IOException;
 
 /**
- * Loads {@code int}s from doc values.
+ * Loads {@code double}s from doc values.
  */
-public abstract class AbstractIntsFromDocValuesBlockLoader extends BlockDocValuesReader.DocValuesBlockLoader {
+public abstract class AbstractDoublesFromDocValuesBlockLoader extends BlockDocValuesReader.DocValuesBlockLoader {
     protected final String fieldName;
+    private final BlockDocValuesReader.ToDouble toDouble;
 
-    protected AbstractIntsFromDocValuesBlockLoader(String fieldName) {
+    public AbstractDoublesFromDocValuesBlockLoader(String fieldName, BlockDocValuesReader.ToDouble toDouble) {
         this.fieldName = fieldName;
+        this.toDouble = toDouble;
     }
 
     @Override
     public final Builder builder(BlockFactory factory, int expectedCount) {
-        return factory.ints(expectedCount);
+        return factory.doubles(expectedCount);
     }
 
     @Override
@@ -37,41 +39,43 @@ public abstract class AbstractIntsFromDocValuesBlockLoader extends BlockDocValue
         if (docValues != null) {
             NumericDocValues singleton = DocValues.unwrapSingleton(docValues);
             if (singleton != null) {
-                return singletonReader(singleton);
+                return singletonReader(singleton, toDouble);
             }
-            return sortedReader(docValues);
+            return sortedReader(docValues, toDouble);
         }
         NumericDocValues singleton = context.reader().getNumericDocValues(fieldName);
         if (singleton != null) {
-            return singletonReader(singleton);
+            return singletonReader(singleton, toDouble);
         }
         return new ConstantNullsReader();
     }
 
-    protected abstract AllReader singletonReader(NumericDocValues docValues);
+    protected abstract AllReader singletonReader(NumericDocValues docValues, BlockDocValuesReader.ToDouble toDouble);
 
-    protected abstract AllReader sortedReader(SortedNumericDocValues docValues);
+    protected abstract AllReader sortedReader(SortedNumericDocValues docValues, BlockDocValuesReader.ToDouble toDouble);
 
     public static class Singleton extends BlockDocValuesReader implements BlockDocValuesReader.NumericDocValuesAccessor {
-        private final NumericDocValues numericDocValues;
+        private final NumericDocValues docValues;
+        private final ToDouble toDouble;
 
-        public Singleton(NumericDocValues numericDocValues) {
-            this.numericDocValues = numericDocValues;
+        public Singleton(NumericDocValues docValues, ToDouble toDouble) {
+            this.docValues = docValues;
+            this.toDouble = toDouble;
         }
 
         @Override
         public Block read(BlockFactory factory, Docs docs, int offset, boolean nullsFiltered) throws IOException {
-            if (numericDocValues instanceof OptionalColumnAtATimeReader direct) {
-                Block result = direct.tryRead(factory, docs, offset, nullsFiltered, null, true);
+            if (docValues instanceof OptionalColumnAtATimeReader direct) {
+                Block result = direct.tryRead(factory, docs, offset, nullsFiltered, toDouble, false);
                 if (result != null) {
                     return result;
                 }
             }
-            try (IntBuilder builder = factory.intsFromDocValues(docs.count() - offset)) {
+            try (DoubleBuilder builder = factory.doublesFromDocValues(docs.count() - offset)) {
                 for (int i = offset; i < docs.count(); i++) {
                     int doc = docs.get(i);
-                    if (numericDocValues.advanceExact(doc)) {
-                        builder.appendInt(Math.toIntExact(numericDocValues.longValue()));
+                    if (docValues.advanceExact(doc)) {
+                        builder.appendDouble(toDouble.convert(docValues.longValue()));
                     } else {
                         builder.appendNull();
                     }
@@ -82,9 +86,9 @@ public abstract class AbstractIntsFromDocValuesBlockLoader extends BlockDocValue
 
         @Override
         public void read(int docId, StoredFields storedFields, Builder builder) throws IOException {
-            IntBuilder blockBuilder = (IntBuilder) builder;
-            if (numericDocValues.advanceExact(docId)) {
-                blockBuilder.appendInt(Math.toIntExact(numericDocValues.longValue()));
+            DoubleBuilder blockBuilder = (DoubleBuilder) builder;
+            if (docValues.advanceExact(docId)) {
+                blockBuilder.appendDouble(toDouble.convert(docValues.longValue()));
             } else {
                 blockBuilder.appendNull();
             }
@@ -92,30 +96,32 @@ public abstract class AbstractIntsFromDocValuesBlockLoader extends BlockDocValue
 
         @Override
         public int docId() {
-            return numericDocValues.docID();
+            return docValues.docID();
         }
 
         @Override
         public String toString() {
-            return "IntsFromDocValues.Singleton";
+            return "DoublesFromDocValues.Singleton";
         }
 
         @Override
         public NumericDocValues numericDocValues() {
-            return numericDocValues;
+            return docValues;
         }
     }
 
     public static class Sorted extends BlockDocValuesReader {
-        private final SortedNumericDocValues numericDocValues;
+        private final SortedNumericDocValues docValues;
+        private final ToDouble toDouble;
 
-        Sorted(SortedNumericDocValues numericDocValues) {
-            this.numericDocValues = numericDocValues;
+        Sorted(SortedNumericDocValues docValues, ToDouble toDouble) {
+            this.docValues = docValues;
+            this.toDouble = toDouble;
         }
 
         @Override
         public Block read(BlockFactory factory, Docs docs, int offset, boolean nullsFiltered) throws IOException {
-            try (IntBuilder builder = factory.intsFromDocValues(docs.count() - offset)) {
+            try (DoubleBuilder builder = factory.doublesFromDocValues(docs.count() - offset)) {
                 for (int i = offset; i < docs.count(); i++) {
                     int doc = docs.get(i);
                     read(doc, builder);
@@ -126,34 +132,34 @@ public abstract class AbstractIntsFromDocValuesBlockLoader extends BlockDocValue
 
         @Override
         public void read(int docId, StoredFields storedFields, Builder builder) throws IOException {
-            read(docId, (IntBuilder) builder);
+            read(docId, (DoubleBuilder) builder);
         }
 
-        private void read(int doc, IntBuilder builder) throws IOException {
-            if (false == numericDocValues.advanceExact(doc)) {
+        private void read(int doc, DoubleBuilder builder) throws IOException {
+            if (false == docValues.advanceExact(doc)) {
                 builder.appendNull();
                 return;
             }
-            int count = numericDocValues.docValueCount();
+            int count = docValues.docValueCount();
             if (count == 1) {
-                builder.appendInt(Math.toIntExact(numericDocValues.nextValue()));
+                builder.appendDouble(toDouble.convert(docValues.nextValue()));
                 return;
             }
             builder.beginPositionEntry();
             for (int v = 0; v < count; v++) {
-                builder.appendInt(Math.toIntExact(numericDocValues.nextValue()));
+                builder.appendDouble(toDouble.convert(docValues.nextValue()));
             }
             builder.endPositionEntry();
         }
 
         @Override
         public int docId() {
-            return numericDocValues.docID();
+            return docValues.docID();
         }
 
         @Override
         public String toString() {
-            return "IntsFromDocValues.Sorted";
+            return "DoublesFromDocValues.Sorted";
         }
     }
 }

@@ -38,7 +38,60 @@ public class TDigestParser {
      * @param centroids the centroids, guaranteed to be distinct and in increasing order
      * @param counts the counts, guaranteed to be non-negative and of the same length as the centroids array
      */
-    public record ParsedHistogram(List<Double> centroids, List<Long> counts, Long count, Double sum, Double min, Double max) {}
+    public record ParsedHistogram(List<Double> centroids, List<Long> counts, Long count, Double sum, Double min, Double max) {
+        @Override
+        public Double max() {
+            if (max != null) {
+                return max;
+            }
+            if (centroids != null) {
+                return centroids.get(centroids.size() - 1);
+            }
+            // NOCOMMIT - TODO: something more sensible for the empty array case? Do we even want to support that?
+            return Double.NaN;
+        }
+
+        @Override
+        public Double min() {
+            if (min != null) {
+                return min;
+            }
+            if (centroids != null) {
+                return centroids.get(0);
+            }
+            return Double.NaN;
+        }
+
+        @Override
+        public Double sum() {
+            if (sum != null) {
+                return sum;
+            }
+            if (centroids != null) {
+                double observedSum = 0;
+                for (int i = 0; i < centroids.size(); i++) {
+                    observedSum += centroids.get(i) * counts.get(i);
+                }
+                return observedSum;
+            }
+            return Double.NaN;
+        }
+
+        @Override
+        public Long count() {
+            if (count != null) {
+                return count;
+            }
+            if (counts != null) {
+                long observedCount = 0;
+                for (Long count : counts) {
+                    observedCount += count;
+                }
+                return observedCount;
+            }
+            return 0L;
+        }
+    }
 
     /**
      * Parses an XContent object into a histogram.

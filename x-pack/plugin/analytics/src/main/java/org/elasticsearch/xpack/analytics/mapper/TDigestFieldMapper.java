@@ -344,15 +344,22 @@ public class TDigestFieldMapper extends FieldMapper {
             TDigestParser.ParsedHistogram parsedHistogram = TDigestParser.parse(fullPath(), subParser);
 
             BytesStreamOutput streamOutput = new BytesStreamOutput();
+
+            streamOutput.writeDouble(parsedHistogram.min());
+            streamOutput.writeDouble(parsedHistogram.max());
+            streamOutput.writeDouble(parsedHistogram.sum());
+            streamOutput.writeLong(parsedHistogram.count());
+
             for (int i = 0; i < parsedHistogram.centroids().size(); i++) {
                 long count = parsedHistogram.counts().get(i);
                 assert count >= 0;
                 // we do not add elements with count == 0
                 if (count > 0) {
                     streamOutput.writeVLong(count);
-                    streamOutput.writeLong(Double.doubleToRawLongBits(parsedHistogram.centroids().get(i)));
+                    streamOutput.writeDouble(parsedHistogram.centroids().get(i));
                 }
             }
+
             BytesRef docValue = streamOutput.bytes().toBytesRef();
             Field field = new BinaryDocValuesField(fullPath(), docValue);
             if (context.doc().getByKey(fieldType().name()) != null) {
@@ -398,7 +405,12 @@ public class TDigestFieldMapper extends FieldMapper {
     private static class InternalHistogramValue extends HistogramValue {
         double value;
         long count;
+        double min;
+        double max;
+        double sum;
+        long totalCount;
         boolean isExhausted;
+
         final ByteArrayStreamInput streamInput;
 
         InternalHistogramValue() {
@@ -406,22 +418,23 @@ public class TDigestFieldMapper extends FieldMapper {
         }
 
         /** reset the value for the histogram */
-        void reset(BytesRef bytesRef) {
+        void reset(BytesRef bytesRef) throws IOException {
             streamInput.reset(bytesRef.bytes, bytesRef.offset, bytesRef.length);
             isExhausted = false;
             value = 0;
             count = 0;
+
+            min = streamInput.readDouble();
+            max = streamInput.readDouble();
+            sum = streamInput.readDouble();
+            totalCount = streamInput.readLong();
         }
 
         @Override
         public boolean next() throws IOException {
             if (streamInput.available() > 0) {
-                if (streamInput.getTransportVersion().onOrAfter(TransportVersions.V_8_11_X)) {
-                    count = streamInput.readVLong();
-                } else {
-                    count = streamInput.readVInt();
-                }
-                value = Double.longBitsToDouble(streamInput.readLong());
+                count = streamInput.readVLong();
+                value = streamInput.readDouble();
                 return true;
             }
             isExhausted = true;

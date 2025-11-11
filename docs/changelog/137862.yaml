@@ -1,0 +1,5 @@
+pr: 137862
+summary: "[Vector Search] Fix  wrong vector docvalue_fields"
+area: Vector Search
+type: bug
+issues: []

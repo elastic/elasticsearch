@@ -130,34 +130,38 @@ public class DenormalizedCosineFloatVectorValuesTests extends ESTestCase {
 
         // After merge, the vector ordinals will be 0, 1, 2 but they correspond to docIds 1, 3, 4
         int totalDocs = 6;
-        int[] docIdsWithVectors = {1, 3, 4}; // Document IDs that have vectors
+        int[] docIdsWithVectors = { 1, 3, 4 }; // Document IDs that have vectors
         int numVectors = docIdsWithVectors.length;
 
         float[][] normalizedVectors = new float[numVectors][];
         float[] magnitudes = new float[numVectors];
 
-        normalizedVectors[0] = new float[]{0.6f, 0.8f, 0.0f, 0.0f}; // Doc 1
+        normalizedVectors[0] = new float[] { 0.6f, 0.8f, 0.0f, 0.0f }; // Doc 1
         magnitudes[0] = 5.0f;
 
-        normalizedVectors[1] = new float[]{1.0f, 0.0f, 0.0f, 0.0f}; // Doc 3
+        normalizedVectors[1] = new float[] { 1.0f, 0.0f, 0.0f, 0.0f }; // Doc 3
         magnitudes[1] = 2.0f;
 
-        normalizedVectors[2] = new float[]{0.0f, 0.0f, 0.6f, 0.8f}; // Doc 4
+        normalizedVectors[2] = new float[] { 0.0f, 0.0f, 0.6f, 0.8f }; // Doc 4
         magnitudes[2] = 10.0f;
 
         // Expected original vectors after denormalization
         float[][] expectedVectors = new float[numVectors][];
-        expectedVectors[0] = new float[]{3.0f, 4.0f, 0.0f, 0.0f}; // Doc 1
-        expectedVectors[1] = new float[]{2.0f, 0.0f, 0.0f, 0.0f}; // Doc 3
-        expectedVectors[2] = new float[]{0.0f, 0.0f, 6.0f, 8.0f}; // Doc 4
+        expectedVectors[0] = new float[] { 3.0f, 4.0f, 0.0f, 0.0f }; // Doc 1
+        expectedVectors[1] = new float[] { 2.0f, 0.0f, 0.0f, 0.0f }; // Doc 3
+        expectedVectors[2] = new float[] { 0.0f, 0.0f, 6.0f, 8.0f }; // Doc 4
 
         // Create a custom FloatVectorValues that simulates post-merge sparse vector scenario
         FloatVectorValues sparseVectorValues = new FloatVectorValues() {
             @Override
-            public int dimension() { return 4; }
+            public int dimension() {
+                return 4;
+            }
 
             @Override
-            public int size() { return numVectors; }
+            public int size() {
+                return numVectors;
+            }
 
             @Override
             public DocIndexIterator iterator() {
@@ -165,13 +169,19 @@ public class DenormalizedCosineFloatVectorValuesTests extends ESTestCase {
                     private int index = -1;
 
                     @Override
-                    public int docID() { return index; }
+                    public int docID() {
+                        return index;
+                    }
 
                     @Override
-                    public int index() { return index; }
+                    public int index() {
+                        return index;
+                    }
 
                     @Override
-                    public int nextDoc() { return advance(index + 1); }
+                    public int nextDoc() {
+                        return advance(index + 1);
+                    }
 
                     @Override
                     public int advance(int target) {
@@ -180,15 +190,21 @@ public class DenormalizedCosineFloatVectorValuesTests extends ESTestCase {
                     }
 
                     @Override
-                    public long cost() { return numVectors; }
+                    public long cost() {
+                        return numVectors;
+                    }
                 };
             }
 
             @Override
-            public FloatVectorValues copy() { throw new UnsupportedOperationException(); }
+            public FloatVectorValues copy() {
+                throw new UnsupportedOperationException();
+            }
 
             @Override
-            public VectorScorer scorer(float[] floats) { throw new UnsupportedOperationException(); }
+            public VectorScorer scorer(float[] floats) {
+                throw new UnsupportedOperationException();
+            }
 
             // This is the key method - it maps ordinals to actual document IDs
             @Override
@@ -231,10 +247,14 @@ public class DenormalizedCosineFloatVectorValuesTests extends ESTestCase {
             }
 
             @Override
-            public int docID() { return docId; }
+            public int docID() {
+                return docId;
+            }
 
             @Override
-            public int nextDoc() { return advance(docId + 1); }
+            public int nextDoc() {
+                return advance(docId + 1);
+            }
 
             @Override
             public int advance(int target) {
@@ -248,14 +268,13 @@ public class DenormalizedCosineFloatVectorValuesTests extends ESTestCase {
             }
 
             @Override
-            public long cost() { return totalDocs; }
+            public long cost() {
+                return totalDocs;
+            }
         };
 
         // Test the fixed version (with ordToDoc)
-        DenormalizedCosineFloatVectorValues vectorValues = new DenormalizedCosineFloatVectorValues(
-            sparseVectorValues,
-            sparseMagnitudes
-        );
+        DenormalizedCosineFloatVectorValues vectorValues = new DenormalizedCosineFloatVectorValues(sparseVectorValues, sparseMagnitudes);
 
         // Test that ordToDoc method properly maps ordinals to document IDs
         KnnVectorValues.DocIndexIterator iterator = vectorValues.iterator();
@@ -266,11 +285,7 @@ public class DenormalizedCosineFloatVectorValuesTests extends ESTestCase {
             // Verify that ordToDoc works correctly
             int expectedDocId = docIdsWithVectors[ord];
             int actualDocId = vectorValues.ordToDoc(ord);
-            assertEquals(
-                "ordToDoc should correctly map ord " + ord + " to docId " + expectedDocId,
-                expectedDocId,
-                actualDocId
-            );
+            assertEquals("ordToDoc should correctly map ord " + ord + " to docId " + expectedDocId, expectedDocId, actualDocId);
 
             // Get the denormalized vector - this relies on ordToDoc working correctly
             float[] actualVector = vectorValues.vectorValue(iterator.index());

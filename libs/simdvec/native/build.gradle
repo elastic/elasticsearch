@@ -20,9 +20,9 @@ var os = org.gradle.internal.os.OperatingSystem.current()
 //   docker run 9c9f36564c148b275aeecc42749e7b4580ded79dcf51ff6ccc008c8861e7a979 > build/libs/vec/shared/$arch/libvec.so
 //
 // To run tests and benchmarks on a locally built libvec,
-//  1. Temporarily comment out the download in libs/native/library/build.gradle
-//       libs "org.elasticsearch:vec:${vecVersion}@zip"
-//  2. Copy your locally built libvec binary, e.g.
+//  1. Set the LOCAL_VEC_BINARY environment variable to any value to skip downloading the binary, e.g.
+//       export LOCAL_VEC_BINARY=1
+//  2. Copy your locally built libvec binary (assumes from the repo root), e.g.
 //       cp libs/simdvec/native/build/libs/vec/shared/aarch64/libvec.dylib libs/native/libraries/build/platform/darwin-aarch64/libvec.dylib
 //
 // Look at the disassemble:

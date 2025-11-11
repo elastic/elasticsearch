@@ -4,5 +4,5 @@
 * [`LEAST`](../../functions-operators/conditional-functions-and-expressions.md#esql-least)
 * [`CLAMP`](../../functions-operators/conditional-functions-and-expressions.md#esql-clamp)
 * [`CLAMP_MIN`](../../functions-operators/conditional-functions-and-expressions.md#esql-clamp_min)
-* [`CLAMP_MAX`](../../functions-operators/conditional-functions-and-expressions.md#esql-clamp_max)
+* [`CLAMP_MAX`](../../functions-operators/conditional-functions-and-expressions.md#esql-clamp_max) {applies_to}`stack: preview 9.3` {applies_to}`serverless: preview`
 

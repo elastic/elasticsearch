@@ -101,7 +101,8 @@ The following global settings are used on the remote cluster to verify signature
 :   ([Secure](docs-content://deploy-manage/security/secure-settings.md)) The password for the truststore specified by `cluster.remote.signing.truststore.path`.
 
 `cluster.remote.signing.truststore.algorithm`
-:   ([Dynamic](docs-content://deploy-manage/stack-settings.md#dynamic-cluster-setting)) The algorithm for the truststore. Defaults to the default algorithm for the Java KeyManagerFactory.
+:   ([Dynamic](docs-content://deploy-manage/stack-settings.md#dynamic-cluster-setting)) The algorithm for the truststore. Defaults to 
+`SunX509`.
 
 `cluster.remote.signing.truststore.type`
 :   ([Dynamic](docs-content://deploy-manage/stack-settings.md#dynamic-cluster-setting)) The format of the truststore file. It must be either `jks` or `PKCS12`. If the file name ends in ".p12", ".pfx", or "pkcs12", the default is `PKCS12`. Otherwise, it defaults to `jks`.

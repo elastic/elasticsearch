@@ -475,6 +475,9 @@ tests:
 - class: org.elasticsearch.xpack.inference.external.http.sender.RequestExecutorServiceTests
   method: testExecute_NotifiesNonRateLimitedTasksOfShutdown
   issue: https://github.com/elastic/elasticsearch/issues/137831
+- class: org.elasticsearch.ingest.SamplingServiceTests
+  method: testMaybeSample
+  issue: https://github.com/elastic/elasticsearch/issues/137871
 
 # Examples:
 #

@@ -28,7 +28,7 @@ teardown:
         body:
           rate: 0.5
           max_samples: 100
-          max_size: "10mb"
+          max_size: "100kb"
           time_to_live: "1h"
 
   - match: { acknowledged: true }
@@ -186,7 +186,7 @@ teardown:
         body:
           rate: 0.9
           max_samples: 90
-          max_size: "20mb"
+          max_size: "100kb"
 
   - match: { acknowledged: true }
 

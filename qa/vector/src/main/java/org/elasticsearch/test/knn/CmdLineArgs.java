@@ -58,7 +58,8 @@ record CmdLineArgs(
     KnnIndexTester.MergePolicyType mergePolicy,
     double writerBufferSizeInMb,
     int writerMaxBufferedDocs,
-    int forceMergeMaxNumSegments
+    int forceMergeMaxNumSegments,
+    boolean onDiskRescore
 ) implements ToXContentObject {
 
     static final ParseField DOC_VECTORS_FIELD = new ParseField("doc_vectors");
@@ -90,6 +91,7 @@ record CmdLineArgs(
     static final ParseField MERGE_POLICY_FIELD = new ParseField("merge_policy");
     static final ParseField WRITER_BUFFER_MB_FIELD = new ParseField("writer_buffer_mb");
     static final ParseField WRITER_BUFFER_DOCS_FIELD = new ParseField("writer_buffer_docs");
+    static final ParseField ON_DISK_RESCORE_FIELD = new ParseField("on_disk_rescore");
 
     /** By default, in ES the default writer buffer size is 10% of the heap space
      * (see {@code IndexingMemoryController.INDEX_BUFFER_SIZE_SETTING}).
@@ -135,6 +137,7 @@ record CmdLineArgs(
         PARSER.declareDouble(Builder::setWriterBufferMb, WRITER_BUFFER_MB_FIELD);
         PARSER.declareInt(Builder::setWriterMaxBufferedDocs, WRITER_BUFFER_DOCS_FIELD);
         PARSER.declareInt(Builder::setForceMergeMaxNumSegments, FORCE_MERGE_MAX_NUM_SEGMENTS_FIELD);
+        PARSER.declareBoolean(Builder::setOnDiskRescore, ON_DISK_RESCORE_FIELD);
     }
 
     @Override
@@ -209,6 +212,7 @@ record CmdLineArgs(
         private long seed = 1751900822751L;
         private KnnIndexTester.MergePolicyType mergePolicy = null;
         private double writerBufferSizeInMb = DEFAULT_WRITER_BUFFER_MB;
+        private boolean onDiskRescore = false;
 
         /**
          * Elasticsearch does not set this explicitly, and in Lucene this setting is
@@ -360,6 +364,11 @@ record CmdLineArgs(
             return this;
         }
 
+        public Builder setOnDiskRescore(boolean onDiskRescore) {
+            this.onDiskRescore = onDiskRescore;
+            return this;
+        }
+
         public CmdLineArgs build() {
             if (docVectors == null) {
                 throw new IllegalArgumentException("Document vectors path must be provided");
@@ -397,7 +406,8 @@ record CmdLineArgs(
                 mergePolicy,
                 writerBufferSizeInMb,
                 writerMaxBufferedDocs,
-                forceMergeMaxNumSegments
+                forceMergeMaxNumSegments,
+                onDiskRescore
             );
         }
     }

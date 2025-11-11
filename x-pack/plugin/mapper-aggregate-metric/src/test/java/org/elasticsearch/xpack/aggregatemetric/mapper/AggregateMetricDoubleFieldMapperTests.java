@@ -618,4 +618,9 @@ public class AggregateMetricDoubleFieldMapperTests extends MapperTestCase {
     protected boolean supportsCopyTo() {
         return false;
     }
+
+    @Override
+    protected List<SortShortcutSupport> getSortShortcutSupport() {
+        return List.of(new SortShortcutSupport(this::minimalMapping, this::writeField, true));
+    }
 }

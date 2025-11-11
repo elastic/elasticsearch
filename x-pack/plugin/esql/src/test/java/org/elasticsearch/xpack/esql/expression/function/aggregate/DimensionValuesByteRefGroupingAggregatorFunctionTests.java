@@ -77,14 +77,17 @@ public class DimensionValuesByteRefGroupingAggregatorFunctionTests extends Compu
             randomFrom(AggregatorMode.INITIAL, AggregatorMode.SINGLE),
             List.of(0)
         );
+        final List<BlockHash.GroupSpec> groupSpecs;
+        if (randomBoolean()) {
+            // Use IntBlockHash; reserves 0 for null values
+            groupSpecs = List.of(new BlockHash.GroupSpec(1, ElementType.INT));
+        } else {
+            // Use PackedValuesBlockHash; does not reserve 0 for null values
+            groupSpecs = List.of(new BlockHash.GroupSpec(1, ElementType.INT), new BlockHash.GroupSpec(1, ElementType.INT));
+        }
         HashAggregationOperator hashAggregationOperator = new HashAggregationOperator(
             List.of(aggregatorFactory),
-            () -> BlockHash.build(
-                List.of(new BlockHash.GroupSpec(1, ElementType.INT)),
-                driverContext.blockFactory(),
-                randomIntBetween(1, 1024),
-                randomBoolean()
-            ),
+            () -> BlockHash.build(groupSpecs, driverContext.blockFactory(), randomIntBetween(1, 1024), randomBoolean()),
             driverContext
         );
         List<Page> outputPages = new ArrayList<>();
@@ -99,7 +102,7 @@ public class DimensionValuesByteRefGroupingAggregatorFunctionTests extends Compu
         Map<Integer, List<BytesRef>> actualValues = new HashMap<>();
         for (Page out : outputPages) {
             IntBlock groups = out.getBlock(0);
-            BytesRefBlock valuesBlock = out.getBlock(1);
+            BytesRefBlock valuesBlock = out.getBlock(groupSpecs.size());
             for (int p = 0; p < out.getPositionCount(); p++) {
                 int group = groups.getInt(p);
                 int valueCount = valuesBlock.getValueCount(p);

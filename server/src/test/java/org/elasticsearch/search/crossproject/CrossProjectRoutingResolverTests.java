@@ -23,6 +23,7 @@ import java.util.Objects;
 import java.util.stream.Stream;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
 
 /**
  * Assumptions to clarify:
@@ -170,21 +171,27 @@ public class CrossProjectRoutingResolverTests extends ESTestCase {
     public void test() {
         if (testCase.expectedResolvedProjectAliases != null && testCase.expectedResolvedProjectAliases.isEmpty()) {
             assertThat(
-                crossProjectRoutingResolver.resolve(testCase.projectRouting, testCase.originProject, testCase.candidateProjects),
-                Matchers.empty()
+                crossProjectRoutingResolver.resolve(
+                    testCase.projectRouting,
+                    new TargetProjects(testCase.originProject, testCase.candidateProjects)
+                ),
+                is(TargetProjects.EMPTY)
             );
         } else if (testCase.expectedResolvedProjectAliases != null) {
             assertThat(
-                crossProjectRoutingResolver.resolve(testCase.projectRouting, testCase.originProject, testCase.candidateProjects)
-                    .stream()
-                    .map(ProjectRoutingInfo::projectAlias)
-                    .toList(),
+                crossProjectRoutingResolver.resolve(
+                    testCase.projectRouting,
+                    new TargetProjects(testCase.originProject, testCase.candidateProjects)
+                ).allProjectAliases(),
                 Matchers.containsInAnyOrder(testCase.expectedResolvedProjectAliases.toArray())
             );
         } else if (testCase.expectedException != null) {
             var actualException = assertThrows(
                 ElasticsearchStatusException.class,
-                () -> crossProjectRoutingResolver.resolve(testCase.projectRouting, testCase.originProject, testCase.candidateProjects)
+                () -> crossProjectRoutingResolver.resolve(
+                    testCase.projectRouting,
+                    new TargetProjects(testCase.originProject, testCase.candidateProjects)
+                )
             );
             assertThat(actualException.getMessage(), equalTo(testCase.expectedException.getMessage()));
             assertThat(actualException.status(), equalTo(testCase.expectedException.status()));

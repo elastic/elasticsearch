@@ -18,10 +18,16 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.indices.TestIndexNameExpressionResolver;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.core.ilm.DeleteAction;
+import org.elasticsearch.xpack.core.ilm.LifecyclePolicy;
+import org.elasticsearch.xpack.core.ilm.Phase;
+import org.elasticsearch.xpack.core.ilm.action.ILMActions;
+import org.elasticsearch.xpack.core.ilm.action.PutLifecycleRequest;
 import org.elasticsearch.xpack.core.ml.action.PutJobAction;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
@@ -38,6 +44,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex.createStateIndexAndAliasIfNecessary;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.is;
@@ -65,6 +72,7 @@ public class MlDailyMaintenanceServiceRolloverIndicesIT extends BaseMlIntegTestC
             clusterService,
             mock(MlAssignmentNotifier.class),
             TestIndexNameExpressionResolver.newInstance(),
+            true,
             true,
             true,
             true
@@ -126,8 +134,7 @@ public class MlDailyMaintenanceServiceRolloverIndicesIT extends BaseMlIntegTestC
                     .prepareGetIndex(TEST_REQUEST_TIMEOUT)
                     .setIndices(indexPattern)
                     .get();
-                logger.warn("get_index_response: {}", getIndexResponse.toString());
-                assertThat(getIndexResponse.getIndices().length, is(0));
+                assertThat(getIndexResponse.toString(), getIndexResponse.getIndices().length, is(0));
                 var aliases = getIndexResponse.getAliases();
                 assertThat(aliases.size(), is(0));
             }
@@ -140,8 +147,7 @@ public class MlDailyMaintenanceServiceRolloverIndicesIT extends BaseMlIntegTestC
                     .prepareGetIndex(TEST_REQUEST_TIMEOUT)
                     .setIndices(indexPattern)
                     .get();
-                logger.warn("get_index_response: {}", getIndexResponse.toString());
-                assertThat(getIndexResponse.getIndices().length, is(0));
+                assertThat(getIndexResponse.toString(), getIndexResponse.getIndices().length, is(0));
                 var aliases = getIndexResponse.getAliases();
                 assertThat(aliases.size(), is(0));
             }
@@ -577,6 +583,50 @@ public class MlDailyMaintenanceServiceRolloverIndicesIT extends BaseMlIntegTestC
         );
     }
 
+    public void testTriggerRollResultsIndicesIfNecessaryTask_givenIndexWithIlmPolicy() throws Exception {
+        // Delete the pre-existing .ml-state-000001 index for this particular test
+        // We create it anew with an ILM policy attached
+        DeleteIndexRequest request = new DeleteIndexRequest(AnomalyDetectorsIndexFields.STATE_INDEX_PREFIX + "-000001");
+        client().admin().indices().delete(request).actionGet();
+
+        // Set the rollover max size to 0 so that the ML maintenance service would normally roll over the index
+        maintenanceService.setRolloverMaxSize(ByteSizeValue.ZERO);
+
+        // 1. Create an ILM policy, it doesn't matter exactly what it is for the purpose of this test
+        String policyName = "test-ilm-policy";
+        Map<String, Phase> phases = Map.of(
+            "delete",
+            new Phase("delete", TimeValue.ZERO, Map.of(DeleteAction.NAME, DeleteAction.NO_SNAPSHOT_DELETE))
+        );
+        LifecyclePolicy policy = new LifecyclePolicy(policyName, phases);
+        PutLifecycleRequest putLifecycleRequest = new PutLifecycleRequest(TimeValue.THIRTY_SECONDS, TimeValue.THIRTY_SECONDS, policy);
+        assertAcked(client().execute(ILMActions.PUT, putLifecycleRequest).actionGet());
+
+        // 2. Create an index with the ILM policy applied
+        String indexName = AnomalyDetectorsIndexFields.STATE_INDEX_PREFIX + "-000001";
+        CreateIndexRequest createIndexRequest = new CreateIndexRequest(indexName).settings(
+            Map.of(
+                "index.number_of_shards",
+                1,
+                "index.number_of_replicas",
+                0,
+                "index.lifecycle.name",
+                policyName,
+                "index.lifecycle.rollover_alias",
+                "dummy-rollover-alias"
+            )
+        );
+        client().admin().indices().create(createIndexRequest).actionGet();
+
+        assertIndicesAndAliases("Before rollover attempt (with ILM)", indexName, Map.of(indexName, List.of()));
+
+        // 3. Trigger maintenance
+        blockingCall(maintenanceService::triggerRollStateIndicesIfNecessaryTask);
+
+        // 4. Verify that no new index was created, as ILM-managed indices should be ignored
+        assertIndicesAndAliases("After rollover attempt (with ILM)", indexName, Map.of(indexName, List.of()));
+    }
+
     private void runTestScenarioWithNoRolloverOccurring(Job.Builder[] jobs, String indexNamePart) throws Exception {
         String firstJobId = jobs[0].getId();
         String secondJobId = jobs[1].getId();
@@ -700,7 +750,7 @@ public class MlDailyMaintenanceServiceRolloverIndicesIT extends BaseMlIntegTestC
                 sb.append("  Index [").append(indexName).append("]: ").append(actualAliasList).append("\n");
             }
         });
-        logger.warn(sb.toString().trim());
+        logger.info(sb.toString().trim());
     }
 
     private String readAlias(String jobId) {

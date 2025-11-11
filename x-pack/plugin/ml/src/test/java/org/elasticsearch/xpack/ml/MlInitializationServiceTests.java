@@ -79,6 +79,7 @@ public class MlInitializationServiceTests extends ESTestCase {
             TestIndexNameExpressionResolver.newInstance(),
             true,
             true,
+            true,
             true
         );
         initializationService.onMaster();
@@ -94,6 +95,7 @@ public class MlInitializationServiceTests extends ESTestCase {
             adaptiveAllocationsScalerService,
             mlAssignmentNotifier,
             TestIndexNameExpressionResolver.newInstance(),
+            true,
             true,
             true,
             true

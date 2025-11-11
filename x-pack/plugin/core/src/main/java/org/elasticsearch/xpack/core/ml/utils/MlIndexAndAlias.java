@@ -56,6 +56,7 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.function.Predicate;
 import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
@@ -539,7 +540,6 @@ public final class MlIndexAndAlias {
         indices.sort(INDEX_NAME_COMPARATOR);
     }
 
-
     /**
      * True if the version is read *and* write compatible not just read only compatible
      */
@@ -713,7 +713,6 @@ public final class MlIndexAndAlias {
      * This method is robust and will move the correct alias regardless of the current alias state on the old index.
      *
      * @param aliasRequestBuilder The request builder to add actions to.
-     * @param oldIndex            The index from which the alias is being moved.
      * @param newIndex            The new index to which the alias will be moved.
      * @param clusterState        The current cluster state, used to inspect existing aliases on the old index.
      * @param allStateIndices     A list of all current .ml-state indices
@@ -721,24 +720,18 @@ public final class MlIndexAndAlias {
      */
     public static IndicesAliasesRequestBuilder addStateIndexRolloverAliasActions(
         IndicesAliasesRequestBuilder aliasRequestBuilder,
-        String oldIndex,
         String newIndex,
         ClusterState clusterState,
         List<String> allStateIndices
     ) {
-        var meta = clusterState.metadata().getProject().index(oldIndex);
-        if (meta == null) {
-            // This should not happen in practice as we are iterating over existing indices, but we defend against it.
-            return aliasRequestBuilder;
-        }
+        allStateIndices.stream().filter(index -> clusterState.metadata().getProject().index(index) != null).forEach(index -> {
+            // Remove the write alias from ALL state indices to handle any inconsistencies where it might exist on more than one.
+            aliasRequestBuilder.addAliasAction(
+                IndicesAliasesRequest.AliasActions.remove().indices(index).alias(AnomalyDetectorsIndex.jobStateIndexWriteAlias())
+            );
+        });
 
-        // Remove the write alias from ALL state indices to handle any inconsistencies where it might exist on more than one.
-        aliasRequestBuilder.addAliasAction(
-            IndicesAliasesRequest.AliasActions.remove()
-                .indices(allStateIndices.toArray(new String[0]))
-                .alias(AnomalyDetectorsIndex.jobStateIndexWriteAlias())
-        );
-
+        // Add the write alias to the latest state index
         aliasRequestBuilder.addAliasAction(
             IndicesAliasesRequest.AliasActions.add()
                 .index(newIndex)
@@ -763,22 +756,20 @@ public final class MlIndexAndAlias {
      * Adds alias actions to a request builder to move ML job aliases from an old index to a new one after a rollover.
      * This includes moving the write alias and re-creating the filtered read aliases on the new index.
      *
-     * @param aliasRequestBuilder The request builder to add actions to.
-     * @param oldIndex            The index from which aliases are being moved.
-     * @param newIndex            The new index to which aliases will be moved.
-     * @param clusterState        The current cluster state, used to inspect existing aliases on the old index.
+     * @param aliasRequestBuilder       The request builder to add actions to.
+     * @param newIndex                  The new index to which aliases will be moved.
+     * @param clusterState              The current cluster state, used to inspect existing aliases on the old index.
+     * @param currentJobResultsIndices  A list of all current .ml-anomalies indices
      * @return The modified {@link IndicesAliasesRequestBuilder}.
      */
     public static IndicesAliasesRequestBuilder addResultsIndexRolloverAliasActions(
         IndicesAliasesRequestBuilder aliasRequestBuilder,
-        String oldIndex,
         String newIndex,
         ClusterState clusterState,
         List<String> currentJobResultsIndices
     ) {
-        // Multiple jobs can share the same index each job
-        // has a read and write alias that needs updating
-        // after the rollover
+        // Multiple jobs can share the same index, each job should have
+        // a read and write alias that needs updating after the rollover
         var aliasesMap = clusterState.metadata().getProject().findAllAliases(currentJobResultsIndices.toArray(new String[0]));
         if (aliasesMap == null) {
             return aliasRequestBuilder;
@@ -786,10 +777,7 @@ public final class MlIndexAndAlias {
 
         // Compile a unique set of all aliases from all the indices.
         // An alias could appear on multiple indices in an inconsistent state, but its properties (filter, etc.) should be the same.
-        var uniqueAliases = new HashSet<AliasMetadata>();
-        for (var indexAliases : aliasesMap.values()) {
-            uniqueAliases.addAll(indexAliases);
-        }
+        var uniqueAliases = aliasesMap.values().stream().flatMap(List::stream).collect(Collectors.toSet());
 
         // Make sure to include the new index
         List<String> allJobResultsIndices = new ArrayList<>(currentJobResultsIndices);
@@ -824,7 +812,8 @@ public final class MlIndexAndAlias {
                 // read alias. This is useful in trying to "heal" missing read aliases, without adding them on every possible index.
                 int indexOfEarliestIndexWithAlias = findEarliestIndexWithAlias(aliasesMap, alias).map(allJobResultsIndices::indexOf)
                     // If the earliest index is not found in the list (which shouldn't happen), default to 0 to include all indices.
-                    .filter(i -> i >= 0).orElse(0);
+                    .filter(i -> i >= 0)
+                    .orElse(0);
 
                 String jobId = AnomalyDetectorsIndex.jobIdFromAlias(alias.alias());
                 aliasRequestBuilder.addAliasAction(

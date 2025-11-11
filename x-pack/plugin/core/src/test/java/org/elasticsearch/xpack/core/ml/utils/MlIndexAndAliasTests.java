@@ -530,7 +530,6 @@ public class MlIndexAndAliasTests extends ESTestCase {
         String[] currentIndices = { anomaliesIndex };
         var request = MlIndexAndAlias.addResultsIndexRolloverAliasActions(
             aliasRequestBuilder,
-            anomaliesIndex,
             newIndex,
             csBuilder.build(),
             Arrays.asList(currentIndices)

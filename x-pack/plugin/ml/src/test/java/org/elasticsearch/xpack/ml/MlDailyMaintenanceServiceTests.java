@@ -140,7 +140,7 @@ public class MlDailyMaintenanceServiceTests extends ESTestCase {
     public void testNoAnomalyDetectionTasksWhenDisabled() throws InterruptedException {
         when(clusterService.state()).thenReturn(createClusterState(false));
 
-        executeMaintenanceTriggers(1, false, randomBoolean(), randomBoolean());
+        executeMaintenanceTriggers(1, false, randomBoolean(), randomBoolean(), randomBoolean());
 
         verify(client, never()).threadPool();
         verify(client, never()).execute(same(DeleteExpiredDataAction.INSTANCE), any(), any());
@@ -291,14 +291,15 @@ public class MlDailyMaintenanceServiceTests extends ESTestCase {
     }
 
     private void executeMaintenanceTriggers(int triggerCount) throws InterruptedException {
-        executeMaintenanceTriggers(triggerCount, true, true, true);
+        executeMaintenanceTriggers(triggerCount, true, true, true, true);
     }
 
     private void executeMaintenanceTriggers(
         int triggerCount,
         boolean isAnomalyDetectionEnabled,
         boolean isDataFrameAnalyticsEnabled,
-        boolean isNlpEnabled
+        boolean isNlpEnabled,
+        boolean isIlmEnabled
     ) throws InterruptedException {
         // The scheduleProvider is called upon scheduling. The latch waits for (triggerCount + 1)
         // schedules to happen, which means that the maintenance task is executed triggerCount
@@ -323,7 +324,8 @@ public class MlDailyMaintenanceServiceTests extends ESTestCase {
                 TestIndexNameExpressionResolver.newInstance(),
                 isAnomalyDetectionEnabled,
                 isDataFrameAnalyticsEnabled,
-                isNlpEnabled
+                isNlpEnabled,
+                isIlmEnabled
             )
         ) {
             service.start();

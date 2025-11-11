@@ -16,6 +16,8 @@ import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.TransportListTasksAction;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequestBuilder;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesResponse;
+import org.elasticsearch.action.admin.indices.get.GetIndexRequest;
+import org.elasticsearch.action.admin.indices.get.GetIndexResponse;
 import org.elasticsearch.action.admin.indices.rollover.RolloverConditions;
 import org.elasticsearch.action.admin.indices.rollover.RolloverRequestBuilder;
 import org.elasticsearch.action.support.IndicesOptions;
@@ -104,6 +106,7 @@ public class MlDailyMaintenanceService implements Releasable {
     private final boolean isAnomalyDetectionEnabled;
     private final boolean isDataFrameAnalyticsEnabled;
     private final boolean isNlpEnabled;
+    private final boolean isIlmEnabled;
 
     private volatile Scheduler.Cancellable cancellable;
     private volatile float deleteExpiredDataRequestsPerSecond;
@@ -119,7 +122,8 @@ public class MlDailyMaintenanceService implements Releasable {
         IndexNameExpressionResolver expressionResolver,
         boolean isAnomalyDetectionEnabled,
         boolean isDataFrameAnalyticsEnabled,
-        boolean isNlpEnabled
+        boolean isNlpEnabled,
+        boolean isIlmEnabled
     ) {
         this.threadPool = Objects.requireNonNull(threadPool);
         this.client = Objects.requireNonNull(client);
@@ -132,6 +136,7 @@ public class MlDailyMaintenanceService implements Releasable {
         this.isAnomalyDetectionEnabled = isAnomalyDetectionEnabled;
         this.isDataFrameAnalyticsEnabled = isDataFrameAnalyticsEnabled;
         this.isNlpEnabled = isNlpEnabled;
+        this.isIlmEnabled = isIlmEnabled;
     }
 
     public MlDailyMaintenanceService(
@@ -144,7 +149,8 @@ public class MlDailyMaintenanceService implements Releasable {
         IndexNameExpressionResolver expressionResolver,
         boolean isAnomalyDetectionEnabled,
         boolean isDataFrameAnalyticsEnabled,
-        boolean isNlpEnabled
+        boolean isNlpEnabled,
+        boolean isIlmEnabled
     ) {
         this(
             settings,
@@ -156,7 +162,8 @@ public class MlDailyMaintenanceService implements Releasable {
             expressionResolver,
             isAnomalyDetectionEnabled,
             isDataFrameAnalyticsEnabled,
-            isNlpEnabled
+            isNlpEnabled,
+            isIlmEnabled
         );
     }
 
@@ -354,21 +361,9 @@ public class MlDailyMaintenanceService implements Releasable {
         // 3 Update aliases
         ActionListener<String> rolloverListener = ActionListener.wrap(newIndexNameResponse -> {
             if (MlIndexAndAlias.isAnomaliesStateIndex(index)) {
-                MlIndexAndAlias.addStateIndexRolloverAliasActions(
-                    aliasRequestBuilder,
-                    index,
-                    newIndexNameResponse,
-                    clusterState,
-                    allIndices
-                );
+                MlIndexAndAlias.addStateIndexRolloverAliasActions(aliasRequestBuilder, newIndexNameResponse, clusterState, allIndices);
             } else {
-                MlIndexAndAlias.addResultsIndexRolloverAliasActions(
-                    aliasRequestBuilder,
-                    index,
-                    newIndexNameResponse,
-                    clusterState,
-                    allIndices
-                );
+                MlIndexAndAlias.addResultsIndexRolloverAliasActions(aliasRequestBuilder, newIndexNameResponse, clusterState, allIndices);
             }
             // On success, the rollover alias may have been moved to the new index, so we attempt to remove it from there.
             // Note that the rollover request is considered "successful" even if it didn't occur due to a condition not being met
@@ -395,7 +390,9 @@ public class MlDailyMaintenanceService implements Releasable {
     private String[] findIndicesMatchingPattern(ClusterState clusterState, String indexPattern) {
         // list all indices matching the given index pattern
         String[] indices = expressionResolver.concreteIndexNames(clusterState, IndicesOptions.lenientExpandOpenHidden(), indexPattern);
-        logger.trace("findIndicesMatchingPattern: indices found: {} matching pattern [{}]", Arrays.toString(indices), indexPattern);
+        if (logger.isTraceEnabled()) {
+            logger.trace("findIndicesMatchingPattern: indices found: {} matching pattern [{}]", Arrays.toString(indices), indexPattern);
+        }
         return indices;
     }
 
@@ -426,6 +423,30 @@ public class MlDailyMaintenanceService implements Releasable {
         finalListener.onResponse(AcknowledgedResponse.FALSE);
     }
 
+    // Helper function to check for the "index.lifecycle.name" setting on an index
+    private boolean hasIlm(String indexName) {
+        // If ILM is not enabled at all in the machine learning plugin then return false.
+        if (isIlmEnabled == false) {
+            return false;
+        }
+
+        GetIndexRequest request = new GetIndexRequest(TimeValue.THIRTY_SECONDS);
+        request.indices(indexName);
+        request.includeDefaults(true); // Request index settings, mappings and aliases
+
+        GetIndexResponse response = client.admin().indices().getIndex(request).actionGet();
+
+        Settings settings = response.getSettings().get(indexName);
+
+        if (settings != null) {
+            String ilmPolicyName = settings.get("index.lifecycle.name");
+            // If the setting is present and not empty, ILM is in force
+            return ilmPolicyName != null && ilmPolicyName.isEmpty() == false;
+        }
+
+        return false;
+    }
+
     private void triggerRollIndicesIfNecessaryTask(
         String taskName,
         String indexPattern,
@@ -444,10 +465,18 @@ public class MlDailyMaintenanceService implements Releasable {
 
         List<Exception> failures = new ArrayList<>();
 
-        // Group all the concrete indices by their base name (e.g., ".ml-anomalies-shared")
-        Arrays.stream(indices).collect(Collectors.groupingBy(MlIndexAndAlias::baseIndexName)).forEach((baseIndexName, indicesInGroup) -> {
-            rolloverIndexSafely(clusterState, MlIndexAndAlias.latestIndex(indicesInGroup.toArray(new String[0])), indicesInGroup, failures);
-        });
+        // Filter out any indices that have an ILM policy to avoid a potential race when rolling indices.
+        Arrays.stream(indices)
+            .filter(index -> hasIlm(index) == false)
+            .collect(Collectors.groupingBy(MlIndexAndAlias::baseIndexName))
+            .forEach((baseIndexName, indicesInGroup) -> {
+                rolloverIndexSafely(
+                    clusterState,
+                    MlIndexAndAlias.latestIndex(indicesInGroup.toArray(new String[0])),
+                    indicesInGroup,
+                    failures
+                );
+            });
 
         handleRolloverResults(indices, failures, finalListener);
     }

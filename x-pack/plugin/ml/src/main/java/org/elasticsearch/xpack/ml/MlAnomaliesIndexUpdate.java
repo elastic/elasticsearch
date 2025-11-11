@@ -162,13 +162,7 @@ public class MlAnomaliesIndexUpdate implements MlAutoUpdateService.UpdateAction 
         ).<String>andThen((l, success) -> {
             rollover(rolloverAlias, newIndexName, l);
         }).<Boolean>andThen((l, newIndexNameResponse) -> {
-            MlIndexAndAlias.addResultsIndexRolloverAliasActions(
-                aliasRequestBuilder,
-                index,
-                newIndexNameResponse,
-                clusterState,
-                baseIndices
-            );
+            MlIndexAndAlias.addResultsIndexRolloverAliasActions(aliasRequestBuilder, newIndexNameResponse, clusterState, baseIndices);
             // Delete the new alias created for the rollover action
             aliasRequestBuilder.removeAlias(newIndexNameResponse, rolloverAlias);
             MlIndexAndAlias.updateAliases(aliasRequestBuilder, l);

@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.esql.optimizer.rules.logical.promql;
 
+import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
+import org.elasticsearch.xpack.esql.action.PromqlFeatures;
 import org.elasticsearch.xpack.esql.core.QlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
@@ -80,6 +82,14 @@ public final class TranslatePromqlToTimeSeriesAggregate extends OptimizerRules.O
 
     @Override
     protected LogicalPlan rule(PromqlCommand promqlCommand) {
+        // Safety check: this should never occur as the parser should reject PromQL when disabled,
+        // but we check here as an additional safety measure
+        if (PromqlFeatures.isEnabled() == false) {
+            throw new EsqlIllegalArgumentException(
+                "PromQL translation attempted but feature is disabled. This should have been caught by the parser."
+            );
+        }
+
         // Extract the promqlPlan from the container
         LogicalPlan promqlPlan = promqlCommand.promqlPlan();
 

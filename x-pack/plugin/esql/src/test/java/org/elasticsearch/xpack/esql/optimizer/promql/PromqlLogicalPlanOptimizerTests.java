@@ -12,6 +12,7 @@ import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
+import org.elasticsearch.xpack.esql.action.PromqlFeatures;
 import org.elasticsearch.xpack.esql.analysis.Analyzer;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerContext;
 import org.elasticsearch.xpack.esql.core.expression.predicate.regex.RegexMatch;
@@ -36,6 +37,7 @@ import java.util.Map;
 
 import static java.util.Collections.emptyMap;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_VERIFIER;
+import static org.junit.Assume.assumeTrue;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.emptyInferenceResolution;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.loadMapping;
 import static org.hamcrest.Matchers.equalTo;
@@ -50,7 +52,8 @@ public class PromqlLogicalPlanOptimizerTests extends AbstractLogicalPlanOptimize
 
     @BeforeClass
     public static void initTest() {
-        assumeTrue("requires metrics command", EsqlCapabilities.Cap.TS_COMMAND_V0.isEnabled());
+        assumeTrue("requires snapshot build with promql feature enabled", PromqlFeatures.isEnabled());
+
 
         var timeSeriesMapping = loadMapping("k8s-mappings.json");
         var timeSeriesIndex = IndexResolution.valid(new EsIndex("k8s", timeSeriesMapping, Map.of("k8s", IndexMode.TIME_SERIES)));

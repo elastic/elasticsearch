@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.parser.promql;
 
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
+import org.elasticsearch.xpack.esql.action.PromqlFeatures;
 import org.elasticsearch.xpack.esql.parser.EsqlParser;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
 import org.elasticsearch.xpack.esql.parser.QueryParams;
@@ -18,16 +19,24 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
 
+import org.junit.BeforeClass;
+
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.paramAsConstant;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.withDefaultLimitWarning;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
+import static org.junit.Assume.assumeTrue;
 
 public class PromqlParamsTests extends ESTestCase {
 
     private static final EsqlParser parser = new EsqlParser();
+
+    @BeforeClass
+    public static void checkPromqlEnabled() {
+        assumeTrue("requires snapshot build with promql feature enabled", PromqlFeatures.isEnabled());
+    }
 
     public void testValidRangeQuery() {
         PromqlCommand promql = parse("TS test | PROMQL start \"2025-10-31T00:00:00Z\" end \"2025-10-31T01:00:00Z\" step 1m (avg(foo))");

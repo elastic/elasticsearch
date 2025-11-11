@@ -8,18 +8,27 @@
 package org.elasticsearch.xpack.esql.analysis.promql;
 
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.action.PromqlFeatures;
 import org.elasticsearch.xpack.esql.analysis.Analyzer;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils;
 
 import java.util.List;
 
+import org.junit.BeforeClass;
+
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.withDefaultLimitWarning;
 import static org.elasticsearch.xpack.esql.analysis.VerifierTests.error;
 import static org.hamcrest.Matchers.equalTo;
+import static org.junit.Assume.assumeTrue;
 
 public class PromqlVerifierTests extends ESTestCase {
 
     private final Analyzer tsdb = AnalyzerTestUtils.analyzer(AnalyzerTestUtils.tsdbIndexResolution());
+
+    @BeforeClass
+    public static void checkPromqlEnabled() {
+        assumeTrue("requires snapshot build with promql feature enabled", PromqlFeatures.isEnabled());
+    }
 
     public void testPromqlMissingAcrossSeriesAggregation() {
         assertThat(

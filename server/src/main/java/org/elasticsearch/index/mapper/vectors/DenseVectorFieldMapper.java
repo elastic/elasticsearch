@@ -3390,8 +3390,6 @@ public class DenseVectorFieldMapper extends FieldMapper {
     }
 
     public interface SimilarityFunction {
-        String name();
-
         float calculateSimilarity(float[] leftVector, float[] rightVector);
 
         float calculateSimilarity(byte[] leftVector, byte[] rightVector);
@@ -3443,10 +3441,6 @@ public class DenseVectorFieldMapper extends FieldMapper {
 
         public SimilarityFunction similarityFunction() {
             return similarityFunction;
-        }
-
-        public String name() {
-            return similarityFunction.name() + "$" + Arrays.hashCode(vector);
         }
 
         @Override

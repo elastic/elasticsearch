@@ -28,11 +28,6 @@ public class L1Norm extends VectorSimilarityFunction {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "L1Norm", L1Norm::new);
     public static final DenseVectorFieldMapper.SimilarityFunction SIMILARITY_FUNCTION = new DenseVectorFieldMapper.SimilarityFunction() {
         @Override
-        public String name() {
-            return "L1Norm";
-        }
-
-        @Override
         public float calculateSimilarity(byte[] leftVector, byte[] rightVector) {
             if (leftVector.length != rightVector.length) {
                 throw new IllegalArgumentException("vector dimensions differ:" + leftVector.length + "!=" + rightVector.length);

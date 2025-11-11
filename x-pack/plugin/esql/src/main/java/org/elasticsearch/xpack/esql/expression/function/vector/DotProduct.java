@@ -34,11 +34,6 @@ public class DotProduct extends VectorSimilarityFunction {
 
     public static final DenseVectorFieldMapper.SimilarityFunction SIMILARITY_FUNCTION = new DenseVectorFieldMapper.SimilarityFunction() {
         @Override
-        public String name() {
-            return "DotProduct";
-        }
-
-        @Override
         public float calculateSimilarity(byte[] leftVector, byte[] rightVector) {
             return VectorUtil.dotProduct(leftVector, rightVector);
         }

@@ -29,11 +29,6 @@ public class Hamming extends VectorSimilarityFunction {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Hamming", Hamming::new);
     public static final DenseVectorFieldMapper.SimilarityFunction SIMILARITY_FUNCTION = new DenseVectorFieldMapper.SimilarityFunction() {
         @Override
-        public String name() {
-            return "Hamming";
-        }
-
-        @Override
         public float calculateSimilarity(byte[] leftVector, byte[] rightVector) {
             return Hamming.calculateSimilarity(leftVector, rightVector);
         }
@@ -50,11 +45,6 @@ public class Hamming extends VectorSimilarityFunction {
     };
     public static final DenseVectorFieldMapper.SimilarityFunction EVALUATOR_SIMILARITY_FUNCTION =
         new DenseVectorFieldMapper.SimilarityFunction() {
-            @Override
-            public String name() {
-                return "Hamming_evaluator";
-            }
-
             @Override
             public float calculateSimilarity(byte[] leftVector, byte[] rightVector) {
                 return Hamming.calculateSimilarity(leftVector, rightVector);

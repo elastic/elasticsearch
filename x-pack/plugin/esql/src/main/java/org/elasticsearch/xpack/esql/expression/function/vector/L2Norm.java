@@ -30,11 +30,6 @@ public class L2Norm extends VectorSimilarityFunction {
 
     public static final DenseVectorFieldMapper.SimilarityFunction SIMILARITY_FUNCTION = new DenseVectorFieldMapper.SimilarityFunction() {
         @Override
-        public String name() {
-            return "L2Norm";
-        }
-
-        @Override
         public float calculateSimilarity(byte[] leftVector, byte[] rightVector) {
             return (float) Math.sqrt(VectorUtil.squareDistance(leftVector, rightVector));
         }

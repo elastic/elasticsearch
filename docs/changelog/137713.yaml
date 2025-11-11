@@ -1,0 +1,6 @@
+pr: 137713
+summary: TS Disallow renaming into timestamp prior to implicit use
+area: ES|QL
+type: bug
+issues:
+ - 137655

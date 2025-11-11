@@ -90,9 +90,7 @@ public class RestPostSampleDocsAction extends BaseRestHandler {
 
         XContentParser.Token token = parser.nextToken();
         if (token != XContentParser.Token.START_OBJECT) {
-            throw new IllegalArgumentException(
-                "Request body must be a JSON object with a 'docs' field, but found [" + token + "]"
-            );
+            throw new IllegalArgumentException("Request body must be a JSON object with a 'docs' field, but found [" + token + "]");
         }
 
         String currentFieldName = null;
@@ -101,9 +99,7 @@ public class RestPostSampleDocsAction extends BaseRestHandler {
                 currentFieldName = parser.currentName();
             } else if ("docs".equals(currentFieldName)) {
                 if (token != XContentParser.Token.START_ARRAY) {
-                    throw new IllegalArgumentException(
-                        "The 'docs' field must be an array, but found [" + token + "]"
-                    );
+                    throw new IllegalArgumentException("The 'docs' field must be an array, but found [" + token + "]");
                 }
                 while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
                     if (token != XContentParser.Token.START_OBJECT) {
@@ -119,12 +115,9 @@ public class RestPostSampleDocsAction extends BaseRestHandler {
         }
 
         if (documents.isEmpty()) {
-            throw new IllegalArgumentException(
-                "Request body must contain a 'docs' field with at least one document"
-            );
+            throw new IllegalArgumentException("Request body must contain a 'docs' field with at least one document");
         }
 
         return documents;
     }
 }
-

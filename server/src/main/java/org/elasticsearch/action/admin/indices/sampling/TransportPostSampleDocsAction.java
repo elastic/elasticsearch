@@ -9,7 +9,6 @@
 
 package org.elasticsearch.action.admin.indices.sampling;
 
-import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.nodes.TransportNodesAction;
@@ -111,12 +110,6 @@ public class TransportPostSampleDocsAction extends TransportNodesAction<Request,
             documents
         );
 
-        return new NodeResponse(
-            transportService.getLocalNode(),
-            result.getAdded(),
-            result.getRejected(),
-            result.getFailures()
-        );
+        return new NodeResponse(transportService.getLocalNode(), result.getAdded(), result.getRejected(), result.getFailures());
     }
 }
-

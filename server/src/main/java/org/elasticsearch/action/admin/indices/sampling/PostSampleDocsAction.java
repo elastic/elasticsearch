@@ -25,7 +25,6 @@ import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.transport.AbstractTransportRequest;
-import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 
@@ -330,4 +329,3 @@ public class PostSampleDocsAction extends ActionType<PostSampleDocsAction.Respon
         }
     }
 }
-

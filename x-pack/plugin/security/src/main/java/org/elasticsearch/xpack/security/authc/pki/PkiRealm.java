@@ -105,9 +105,7 @@ public class PkiRealm extends Realm implements CachingRealm {
                     + "] are set. Only one of these settings can be configured."
             );
         }
-        this.principalRdnOid = false == rdnOid.isEmpty()
-            ? rdnOid
-            : (false == rdnOidFromName.isEmpty() ? rdnOidFromName : null);
+        this.principalRdnOid = false == rdnOid.isEmpty() ? rdnOid : (false == rdnOidFromName.isEmpty() ? rdnOidFromName : null);
         this.roleMapper = roleMapper;
         this.roleMapper.clearRealmCacheOnChange(this);
         this.cache = CacheBuilder.<BytesKey, User>builder()
@@ -259,11 +257,7 @@ public class PkiRealm extends Realm implements CachingRealm {
         String principal = RdnFieldExtractor.extract(certPrincipal.getEncoded(), principalRdnOid);
         if (principal == null) {
             logger.debug(
-                () -> format(
-                    "the extracted principal from DN [%s] using RDN OID [%s] is empty",
-                    certPrincipal.toString(),
-                    principalRdnOid
-                )
+                () -> format("the extracted principal from DN [%s] using RDN OID [%s] is empty", certPrincipal.toString(), principalRdnOid)
             );
             return null;
         }

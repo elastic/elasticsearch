@@ -123,7 +123,8 @@ public class GetInferenceFieldsActionRequestTests extends AbstractBWCWireSeriali
     }
 
     private static IndicesOptions randomIndicesOptions() {
-        // This isn't an exhaustive list of possible indices options, but there are enough for effective serialization tests
+        // This isn't an exhaustive list of possible indices options, but there are enough for effective serialization tests.
+        // Omit IndicesOptions.strictExpandOpen() because it is equal to IndicesOptions#DEFAULT, which we use in the null case.
         return switch (between(0, 8)) {
             case 0 -> null;
             case 1 -> IndicesOptions.strictExpandOpenFailureNoSelectors();

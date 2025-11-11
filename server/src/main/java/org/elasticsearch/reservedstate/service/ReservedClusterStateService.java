@@ -166,7 +166,7 @@ public class ReservedClusterStateService {
                 namespace,
                 emptyState,
                 ReservedStateVersionCheck.HIGHER_VERSION_ONLY,
-                Map.of(),
+                handlers,
                 List.of(),
                 // error state should not be possible since there is no metadata being parsed or processed
                 errorState -> { throw new AssertionError(); },

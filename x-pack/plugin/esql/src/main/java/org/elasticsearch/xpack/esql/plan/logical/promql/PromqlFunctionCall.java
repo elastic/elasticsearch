@@ -38,12 +38,8 @@ public class PromqlFunctionCall extends UnaryPlan {
 
     public PromqlFunctionCall(Source source, LogicalPlan child, String functionName, List<Expression> parameters) {
         super(source, child);
-        this.functionName = functionName.toLowerCase(Locale.ROOT);
+        this.functionName = functionName;
         this.parameters = parameters != null ? parameters : List.of();
-    }
-
-    public PromqlFunctionCall(Source source, LogicalPlan child, String functionName) {
-        this(source, child, functionName, List.of());
     }
 
     @Override

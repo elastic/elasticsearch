@@ -128,7 +128,6 @@ final class RankVectorsDVLeafFieldData implements LeafFieldData {
                     return vectors;
                 }
             };
-            case BFLOAT16 -> throw new IllegalArgumentException("Unsupported element type: bfloat16");
         };
     }
 
@@ -141,7 +140,6 @@ final class RankVectorsDVLeafFieldData implements LeafFieldData {
                 case BYTE -> new ByteRankVectorsDocValuesField(values, magnitudeValues, name, elementType, dims);
                 case FLOAT -> new FloatRankVectorsDocValuesField(values, magnitudeValues, name, elementType, dims);
                 case BIT -> new BitRankVectorsDocValuesField(values, magnitudeValues, name, elementType, dims);
-                case BFLOAT16 -> throw new IllegalArgumentException("Unsupported element type: bfloat16");
             };
         } catch (IOException e) {
             throw new IllegalStateException("Cannot load doc values for multi-vector field!", e);

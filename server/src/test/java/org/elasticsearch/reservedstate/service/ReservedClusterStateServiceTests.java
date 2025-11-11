@@ -130,6 +130,11 @@ public class ReservedClusterStateServiceTests extends ESTestCase {
         }
 
         @Override
+        public ClusterState remove(TransformState prevState) throws Exception {
+            return transform(null, prevState).state();
+        }
+
+        @Override
         public Map<String, Object> fromXContent(XContentParser parser) throws IOException {
             return parser.map();
         }

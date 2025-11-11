@@ -11,6 +11,7 @@ package org.elasticsearch.reservedstate;
 
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.master.MasterNodeRequest;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.indices.settings.InternalOrPrivateSettingsPlugin;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentParser;
@@ -30,6 +31,11 @@ public class ReservedClusterStateHandlerTests extends ESTestCase {
             @Override
             public TransformState transform(Object source, TransformState prevState) throws Exception {
                 return prevState;
+            }
+
+            @Override
+            public ClusterState remove(TransformState prevState) throws Exception {
+                return prevState.state();
             }
 
             @Override

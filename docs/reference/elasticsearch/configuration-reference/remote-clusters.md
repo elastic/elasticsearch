@@ -127,7 +127,7 @@ When using PEM encoded files for signing, use the following settings:
 :   ([Secure](docs-content://deploy-manage/security/secure-settings.md)) The passphrase that is used to decrypt the private key specified by `cluster.remote.<cluster_alias>.signing.key`. Since the key might not be encrypted, this value is optional.
 
 `cluster.remote.<cluster_alias>.signing.certificate`
-:   ([Dynamic](docs-content://deploy-manage/stack-settings.md#dynamic-cluster-setting)) Specifies the path for the PEM encoded certificate (or certificate chain) that is associated with the signing key. This certificate is sent as part of the signature and must be trusted by the remote cluster's `cluster.remote.signing.certificate_authorities` or `cluster.remote.signing.truststore.path` configuration. This setting can be used only if `cluster.remote.<cluster_alias>.signing.key` is set.
+:   ([Dynamic](docs-content://deploy-manage/stack-settings.md#dynamic-cluster-setting)) The path for the PEM encoded certificate (or certificate chain) that is associated with the signing key. This certificate is sent as part of the signature and must be trusted by the remote cluster's `cluster.remote.signing.certificate_authorities` or `cluster.remote.signing.truststore.path` configuration. This setting can be used only if `cluster.remote.<cluster_alias>.signing.key` is set.
 
 
 ### Java keystore files [remote-cluster-signing-keystore-files]

@@ -1163,6 +1163,18 @@ not support user authentication until the metadata can be successfully loaded.
 This setting is ignored if metadata is loaded from a file.
 // end::saml-idp-metadata-http-refresh-tag[]
 
+// tag::saml-idp-metadata-http-connect_timeout-tag[]
+`idp.metadata.http.connect_timeout`::
+(<<static-cluster-setting,Static>>)
+Controls the behavior of the HTTP client that is used for fetching the SAML 2.0 metadata file from a remote URL. Specifies the maximum time the client waits for a connection to be established. A value of zero means the timeout is not used. Defaults to `5s` (5 seconds).
+// end::saml-idp-metadata-http-connect_timeout-tag[]
+
+// tag::saml-idp-metadata-http-read_timeout-tag[]
+`idp.metadata.http.read_timeout`::
+(<<static-cluster-setting,Static>>)
+Controls the behavior of the HTTP client that is used for fetching the SAML 2.0 metadata file from a remote URL. Specifies the maximum time the client waits when requesting a connection from the connection manager. Defaults to `10s` (10 seconds).
+// end::saml-idp-metadata-http-read_timeout-tag[]
+
 // tag::saml-idp-metadata-http-refresh-tag[]
 `idp.metadata.http.refresh` {ess-icon}::
 (<<static-cluster-setting,Static>>)

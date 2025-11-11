@@ -11,7 +11,7 @@ package org.elasticsearch.simdvec;
 
 import org.elasticsearch.simdvec.internal.vectorization.BaseVectorizationTests;
 
-@com.carrotsearch.randomizedtesting.annotations.Repeat(iterations = 1000)
+// @com.carrotsearch.randomizedtesting.annotations.Repeat(iterations = 10000)
 public class VectorByteUtilsTests extends BaseVectorizationTests {
 
     static final VectorByteUtils defaultVectorByteUtils = defaultProvider().getVectorUtilSupport().getVectorByteUtils();
@@ -48,16 +48,37 @@ public class VectorByteUtilsTests extends BaseVectorizationTests {
         }
     }
 
-    public void testEqualMaskWithRandomMatches() {
-        // Generate random array
-        int length = randomInt(1025);
-        byte[] data = new byte[length];
+    // Always test with a few known boundaries sizes.
+    public void testEqualMaskWithRandomMatchesKnownSizes() {
+        testEqualMaskWithRandomMatches(0);
+        testEqualMaskWithRandomMatches(1);
+        testEqualMaskWithRandomMatches(63);
+        testEqualMaskWithRandomMatches(64);
+        testEqualMaskWithRandomMatches(65);
+        testEqualMaskWithRandomMatches(127);
+        testEqualMaskWithRandomMatches(128);
+        testEqualMaskWithRandomMatches(129);
+        testEqualMaskWithRandomMatches(255);
+        testEqualMaskWithRandomMatches(256);
+        testEqualMaskWithRandomMatches(257);
+        testEqualMaskWithRandomMatches(511);
+        testEqualMaskWithRandomMatches(512);
+        testEqualMaskWithRandomMatches(513);
+        testEqualMaskWithRandomMatches(1023);
+        testEqualMaskWithRandomMatches(1024);
+        testEqualMaskWithRandomMatches(1025);
+    }
 
+    public void testEqualMaskWithRandomMatches() {
+        testEqualMaskWithRandomMatches(randomInt(10250));
+    }
+
+    private void testEqualMaskWithRandomMatches(int length) {
+        byte[] data = new byte[length];
         // Fill array with random bytes in range 0..7
         for (int i = 0; i < length; i++) {
             data[i] = (byte) random().nextInt(8);
         }
-
         byte target = (byte) random().nextInt(8);
 
         // Track expected match positions
@@ -109,6 +130,93 @@ public class VectorByteUtilsTests extends BaseVectorizationTests {
         assertEquals(5, VectorByteUtils.firstSet(mask));
         assertEquals(7, VectorByteUtils.nextSet(mask, 5));
         assertEquals(-1, VectorByteUtils.nextSet(mask, 7));
+    }
+
+    public void testNextSetFromIndex63() {
+        // Only the top bit (bit 63) is set
+        long mask = 1L << 63;
+        // fromIndex == 62, should find bit 63
+        assertEquals(63, VectorByteUtils.nextSet(mask, 62));
+        // fromIndex == 63, should safely return -1 (no bits beyond 63)
+        assertEquals(-1, VectorByteUtils.nextSet(mask, 63));
+    }
+
+    public void testNextSetEmptyMask() {
+        long mask = 0L;
+        assertEquals(-1, VectorByteUtils.nextSet(mask, -1));
+        assertEquals(-1, VectorByteUtils.nextSet(mask, 0));
+        assertEquals(-1, VectorByteUtils.nextSet(mask, 63));
+    }
+
+    public void testNextSetSingleBitAtVariousPositions() {
+        for (int pos = 0; pos < Long.SIZE; pos++) {
+            long mask = 1L << pos;
+            // fromIndex less than pos, should find pos
+            assertEquals(pos, VectorByteUtils.nextSet(mask, pos - 1));
+            // fromIndex == pos, should find nothing after it
+            assertEquals(-1, VectorByteUtils.nextSet(mask, pos));
+        }
+    }
+
+    public void testSequentialIteration() {
+        long mask = 0b101101L; // bits at 0, 2, 3, 5
+        int pos = VectorByteUtils.firstSet(mask);
+        assertEquals(0, VectorByteUtils.firstSet(mask));
+        pos = VectorByteUtils.nextSet(mask, pos);
+        assertEquals(2, pos);
+        pos = VectorByteUtils.nextSet(mask, pos);
+        assertEquals(3, pos);
+        pos = VectorByteUtils.nextSet(mask, pos);
+        assertEquals(5, pos);
+        pos = VectorByteUtils.nextSet(mask, pos);
+        assertEquals(-1, pos);
+    }
+
+    public void testFirstSetEmptyMask() {
+        long mask = 0L;
+        assertEquals("Empty mask should return -1", -1, VectorByteUtils.firstSet(mask));
+    }
+
+    public void testFirstSetSingleBitAtLSB() {
+        long mask = 1L; // bit 0 set
+        assertEquals("First set bit at position 0", 0, VectorByteUtils.firstSet(mask));
+    }
+
+    public void testFirstSetSingleBitAtMSB() {
+        long mask = 1L << 63; // bit 63 set
+        assertEquals("First set bit at position 63", 63, VectorByteUtils.firstSet(mask));
+    }
+
+    public void testFirstSetConsecutiveBits() {
+        long mask = 0b11100L; // bits at 2, 3, 4
+        assertEquals("Lowest set bit is 2", 2, VectorByteUtils.firstSet(mask));
+    }
+
+    public void testFirstSetRandomBits() {
+        long mask = (1L << 10) | (1L << 30) | (1L << 45);
+        assertEquals("Lowest set bit is 10", 10, VectorByteUtils.firstSet(mask));
+    }
+
+    public void testFirstSetAllBitsSet() {
+        long mask = ~0L; // all 64 bits set
+        assertEquals("Lowest set bit is 0", 0, VectorByteUtils.firstSet(mask));
+    }
+
+    public void testFirstSetHighOnlyBits() {
+        long mask = 0xF000000000000000L; // bits 60–63 set
+        assertEquals("Lowest set bit among high bits is 60", 60, VectorByteUtils.firstSet(mask));
+    }
+
+    public void testFirstSetAlternatingBits() {
+        long mask = 0xAAAAAAAAAAAAAAAAL; // alternating 1010...
+        assertEquals("Lowest set bit is at position 1", 1, VectorByteUtils.firstSet(mask));
+    }
+
+    public void testFirstSetSingleBitEachPosition() {
+        for (int i = 0; i < Long.SIZE; i++) {
+            long mask = 1L << i;
+            assertEquals("First set bit should match position", i, VectorByteUtils.firstSet(mask));
+        }
     }
 
     static boolean isPowerOfTwo(int n) {

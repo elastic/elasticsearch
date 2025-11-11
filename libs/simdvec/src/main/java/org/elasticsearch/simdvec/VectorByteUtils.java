@@ -59,7 +59,7 @@ public interface VectorByteUtils {
      * Returns the number of bytes processed by the current byte vector species.
      *
      * <p>This corresponds to the number of lanes in the vector and represents
-     * how many bytes are compared in each vectorized operation.</p>
+     * how many bytes are compared in each vectorized operation.
      *
      * @return the vector length in bytes
      */
@@ -71,7 +71,7 @@ public interface VectorByteUtils {
      * Returns whether any bits are set in the given mask.
      *
      * <p>This indicates whether any bytes in the compared vector matched
-     * the comparison condition (e.g., {@link #equalMask(byte[], int, byte)}).</p>
+     * the comparison condition (e.g., {@link #equalMask(byte[], int, byte)}).
      *
      * @param mask the bitmask returned from a vector comparison
      * @return {@code true} if any bits are set, {@code false} otherwise
@@ -84,7 +84,7 @@ public interface VectorByteUtils {
      * Returns the index (lane position) of the first set bit in the given mask.
      *
      * <p>The least significant bit corresponds to lane index {@code 0}.
-     * If no bits are set, this method returns {@code -1}.</p>
+     * If no bits are set, this method returns {@code -1}.
      *
      * @param mask the bitmask returned from a vector comparison
      * @return the index of the first set bit, or {@code -1} if none are set
@@ -101,7 +101,7 @@ public interface VectorByteUtils {
      * starting from the bit position immediately after {@code fromIndex}.
      *
      * <p>The least significant bit corresponds to lane index {@code 0}.
-     * If no further bits are set, this method returns {@code -1}.</p>
+     * If no further bits are set, this method returns {@code -1}.
      *
      * <p>Example usage, iterate over all bytes in the vector that matched the comparison:
      * <pre>{@code
@@ -120,14 +120,12 @@ public interface VectorByteUtils {
      * @return the index of the next set bit, or {@code -1} if none are set after {@code fromIndex}
      */
     static int nextSet(long mask, int fromIndex) {
-        assert fromIndex >= 0;
-        // Clear all bits up to and including 'fromIndex'
-        long remaining = mask >>> (fromIndex + 1);
-        if (remaining == 0L) {
+        if (fromIndex >= Long.SIZE - 1) {
             return -1;
         }
-        // Find the position of the next set bit relative to the original mask
-        return fromIndex + 1 + Long.numberOfTrailingZeros(remaining);
+        long remaining = mask >>> (fromIndex + 1);
+        // Clear all bits up to and including 'fromIndex'
+        return (remaining == 0L) ? -1 : fromIndex + 1 + Long.numberOfTrailingZeros(remaining);
     }
 
     /**

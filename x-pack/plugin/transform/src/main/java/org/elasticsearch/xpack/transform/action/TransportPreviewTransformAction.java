@@ -123,7 +123,11 @@ public class TransportPreviewTransformAction extends HandledTransportAction<Requ
     protected void doExecute(Task task, Request request, ActionListener<Response> listener) {
         TaskId parentTaskId = new TaskId(clusterService.localNode().getId(), task.getId());
         final ClusterState clusterState = clusterService.state();
-        TransformNodes.throwIfNoTransformNodes(clusterState);
+
+        if (TransformNodes.hasNoTransformNodes(clusterState)) {
+            TransformNodes.completeWithNoTransformNodeException(listener);
+            return;
+        }
 
         boolean requiresRemote = request.getConfig().getSource().requiresRemoteCluster();
         if (TransformNodes.redirectToAnotherNodeIfNeeded(

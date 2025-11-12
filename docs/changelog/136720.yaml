@@ -1,6 +1,0 @@
-pr: 136720
-summary: Use Suppliers To Get Inference Results In Semantic Queries
-area: Vector Search
-type: bug
-issues:
- - 136621

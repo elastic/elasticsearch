@@ -23,6 +23,7 @@ import org.apache.lucene.store.ByteBuffersDirectory;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.NumericUtils;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.logging.LogConfigurator;
 import org.elasticsearch.common.lucene.Lucene;
@@ -110,6 +111,15 @@ public class ValuesSourceReaderBenchmark {
         new NoopCircuitBreaker("noop"),
         BigArrays.NON_RECYCLING_INSTANCE
     );
+
+    public static IndexSettings defaultIndexSettings() {
+        IndexMetadata INDEX_METADATA = IndexMetadata.builder("index")
+            .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current()))
+            .numberOfShards(1)
+            .numberOfReplicas(0)
+            .build();
+        return new IndexSettings(INDEX_METADATA, Settings.EMPTY);
+    }
 
     static {
         // Smoke test all the expected values and force loading subclasses more like prod
@@ -223,7 +233,7 @@ public class ValuesSourceReaderBenchmark {
                 Lucene.KEYWORD_ANALYZER,
                 Lucene.KEYWORD_ANALYZER,
                 Lucene.KEYWORD_ANALYZER,
-                new KeywordFieldMapper.Builder(name, IndexVersion.current()).docValues(ft.docValuesType() != DocValuesType.NONE),
+                new KeywordFieldMapper.Builder(name, defaultIndexSettings()).docValues(ft.docValuesType() != DocValuesType.NONE),
                 syntheticSource
             ).blockLoader(new MappedFieldType.BlockLoaderContext() {
                 @Override

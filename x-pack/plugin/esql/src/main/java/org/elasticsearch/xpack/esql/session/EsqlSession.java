@@ -379,7 +379,12 @@ public class EsqlSession {
                 );
                 // TODO: INLINE STATS can we do better here and further optimize the plan AFTER one of the subplans executed?
                 newLogicalPlan.setOptimized();
-                LOGGER.trace("Main plan change after previous subplan execution:\n{}", NodeUtils.diffString(optimizedPlan, newLogicalPlan));
+                if (LOGGER.isTraceEnabled()) {
+                    LOGGER.trace(
+                        "Main plan change after previous subplan execution:\n{}",
+                        NodeUtils.diffString(optimizedPlan, newLogicalPlan)
+                    );
+                }
 
                 // look for the next inlinejoin plan
                 var newSubPlan = firstSubPlan(newLogicalPlan, subPlansResults);

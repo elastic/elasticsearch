@@ -279,7 +279,7 @@ public class TDigestFieldMapper extends FieldMapper {
 
                 @Override
                 public SortField sortField(Object missingValue, MultiValueMode sortMode, Nested nested, boolean reverse) {
-                    throw new UnsupportedOperationException("can't sort on the [" + CONTENT_TYPE + "] field");
+                    throw new IllegalArgumentException("can't sort on the [" + CONTENT_TYPE + "] field");
                 }
 
                 @Override

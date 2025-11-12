@@ -30,6 +30,7 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.codec.CodecService;
+import org.elasticsearch.index.codec.DeduplicateFieldInfosCodec;
 import org.elasticsearch.index.codec.LegacyPerFieldMapperCodec;
 import org.elasticsearch.index.codec.PerFieldMapperCodec;
 import org.elasticsearch.index.codec.vectors.BFloat16;
@@ -1923,7 +1924,7 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
             assertThat(codec, instanceOf(PerFieldMapperCodec.class));
             knnVectorsFormat = ((PerFieldMapperCodec) codec).getKnnVectorsFormatForField("field");
         } else {
-            if (codec instanceof CodecService.DeduplicateFieldInfosCodec deduplicateFieldInfosCodec) {
+            if (codec instanceof DeduplicateFieldInfosCodec deduplicateFieldInfosCodec) {
                 codec = deduplicateFieldInfosCodec.delegate();
             }
             assertThat(codec, instanceOf(LegacyPerFieldMapperCodec.class));
@@ -1968,7 +1969,7 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
                 assertThat(codec, instanceOf(PerFieldMapperCodec.class));
                 knnVectorsFormat = ((PerFieldMapperCodec) codec).getKnnVectorsFormatForField("field");
             } else {
-                if (codec instanceof CodecService.DeduplicateFieldInfosCodec deduplicateFieldInfosCodec) {
+                if (codec instanceof DeduplicateFieldInfosCodec deduplicateFieldInfosCodec) {
                     codec = deduplicateFieldInfosCodec.delegate();
                 }
                 assertThat(codec, instanceOf(LegacyPerFieldMapperCodec.class));
@@ -2019,7 +2020,7 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
             assertThat(codec, instanceOf(PerFieldMapperCodec.class));
             knnVectorsFormat = ((PerFieldMapperCodec) codec).getKnnVectorsFormatForField("field");
         } else {
-            if (codec instanceof CodecService.DeduplicateFieldInfosCodec deduplicateFieldInfosCodec) {
+            if (codec instanceof DeduplicateFieldInfosCodec deduplicateFieldInfosCodec) {
                 codec = deduplicateFieldInfosCodec.delegate();
             }
             assertThat(codec, instanceOf(LegacyPerFieldMapperCodec.class));
@@ -2065,7 +2066,7 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
             assertThat(codec, instanceOf(PerFieldMapperCodec.class));
             knnVectorsFormat = ((PerFieldMapperCodec) codec).getKnnVectorsFormatForField("field");
         } else {
-            if (codec instanceof CodecService.DeduplicateFieldInfosCodec deduplicateFieldInfosCodec) {
+            if (codec instanceof DeduplicateFieldInfosCodec deduplicateFieldInfosCodec) {
                 codec = deduplicateFieldInfosCodec.delegate();
             }
             assertThat(codec, instanceOf(LegacyPerFieldMapperCodec.class));
@@ -2108,7 +2109,7 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
             assertThat(codec, instanceOf(PerFieldMapperCodec.class));
             knnVectorsFormat = ((PerFieldMapperCodec) codec).getKnnVectorsFormatForField("field");
         } else {
-            if (codec instanceof CodecService.DeduplicateFieldInfosCodec deduplicateFieldInfosCodec) {
+            if (codec instanceof DeduplicateFieldInfosCodec deduplicateFieldInfosCodec) {
                 codec = deduplicateFieldInfosCodec.delegate();
             }
             assertThat(codec, instanceOf(LegacyPerFieldMapperCodec.class));
@@ -2160,7 +2161,7 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
             assertThat(codec, instanceOf(PerFieldMapperCodec.class));
             knnVectorsFormat = ((PerFieldMapperCodec) codec).getKnnVectorsFormatForField("field");
         } else {
-            if (codec instanceof CodecService.DeduplicateFieldInfosCodec deduplicateFieldInfosCodec) {
+            if (codec instanceof DeduplicateFieldInfosCodec deduplicateFieldInfosCodec) {
                 codec = deduplicateFieldInfosCodec.delegate();
             }
             assertThat(codec, instanceOf(LegacyPerFieldMapperCodec.class));

@@ -10,8 +10,6 @@
 package org.elasticsearch.index.codec;
 
 import org.apache.lucene.codecs.Codec;
-import org.apache.lucene.codecs.FieldInfosFormat;
-import org.apache.lucene.codecs.FilterCodec;
 import org.apache.lucene.codecs.lucene103.Lucene103Codec;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.FeatureFlag;
@@ -95,24 +93,4 @@ public class CodecService implements CodecProvider {
         return codecs.keySet().toArray(new String[0]);
     }
 
-    public static final class DeduplicateFieldInfosCodec extends FilterCodec {
-
-        private final DeduplicatingFieldInfosFormat deduplicatingFieldInfosFormat;
-
-        @SuppressWarnings("this-escape")
-        protected DeduplicateFieldInfosCodec(String name, Codec delegate) {
-            super(name, delegate);
-            this.deduplicatingFieldInfosFormat = new DeduplicatingFieldInfosFormat(super.fieldInfosFormat());
-        }
-
-        @Override
-        public FieldInfosFormat fieldInfosFormat() {
-            return deduplicatingFieldInfosFormat;
-        }
-
-        public Codec delegate() {
-            return delegate;
-        }
-
-    }
 }

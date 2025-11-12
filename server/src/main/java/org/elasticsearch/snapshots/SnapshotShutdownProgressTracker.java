@@ -184,7 +184,7 @@ public class SnapshotShutdownProgressTracker {
                 pausedCount.get()
             );
             // Use a callback to log the shard snapshot details.
-//            logIndexShardSnapshotStatuses.accept(logger);
+            // logIndexShardSnapshotStatuses.accept(logger);
         }
         // Use a callback to log the shard snapshot details.
         logIndexShardSnapshotStatuses.accept(logger);

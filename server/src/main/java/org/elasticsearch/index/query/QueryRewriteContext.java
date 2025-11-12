@@ -364,7 +364,6 @@ public class QueryRewriteContext {
     }
 
     public void registerRemoteAsyncAction(String clusterAlias, BiConsumer<RemoteClusterClient, ActionListener<?>> asyncAction) {
-        // TODO: Fail early when an invalid cluster alias is provided
         List<BiConsumer<RemoteClusterClient, ActionListener<?>>> asyncActions = remoteAsyncActions.computeIfAbsent(
             clusterAlias,
             k -> new ArrayList<>()

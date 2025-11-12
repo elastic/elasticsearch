@@ -492,11 +492,13 @@ public class TDigestFieldMapperTests extends MapperTestCase {
     private record TDigestFieldSyntheticSourceSupport(boolean ignoreMalformed) implements SyntheticSourceSupport {
         @Override
         public SyntheticSourceExample example(int maxVals) {
+            assumeTrue("Requires t-digest field", TDigestFieldMapper.TDIGEST_FIELD_MAPPER.isEnabled());
             Map<String, Object> value = generateRandomFieldValues(maxVals);
             return new SyntheticSourceExample(value, value, this::mapping);
         }
 
         private void mapping(XContentBuilder b) throws IOException {
+            assumeTrue("Requires t-digest field", TDigestFieldMapper.TDIGEST_FIELD_MAPPER.isEnabled());
             b.field("type", "tdigest");
             if (ignoreMalformed) {
                 b.field("ignore_malformed", true);
@@ -505,6 +507,7 @@ public class TDigestFieldMapperTests extends MapperTestCase {
 
         @Override
         public List<SyntheticSourceInvalidExample> invalidExample() throws IOException {
+            assumeTrue("Requires t-digest field", TDigestFieldMapper.TDIGEST_FIELD_MAPPER.isEnabled());
             return List.of();
         }
     }
@@ -513,4 +516,16 @@ public class TDigestFieldMapperTests extends MapperTestCase {
     public void testSyntheticSourceKeepArrays() {
         // The mapper expects to parse an array of values by default, it's not compatible with array of arrays.
     }
+    /*
+    - org.elasticsearch.xpack.analytics.mapper.TDigestFieldMapperTests.testSyntheticSourceWithTranslogSnapshot
+    - org.elasticsearch.xpack.analytics.mapper.TDigestFieldMapperTests.testSyntheticEmptyList
+    - org.elasticsearch.xpack.analytics.mapper.TDigestFieldMapperTests.testSyntheticSourceInNestedObject
+    - org.elasticsearch.xpack.analytics.mapper.TDigestFieldMapperTests.testSyntheticSourceKeepNone
+    - org.elasticsearch.xpack.analytics.mapper.TDigestFieldMapperTests.testSyntheticEmptyListNoDocValuesLoader
+    - org.elasticsearch.xpack.analytics.mapper.TDigestFieldMapperTests.testSyntheticSource
+    - org.elasticsearch.xpack.analytics.mapper.TDigestFieldMapperTests.testEmptyDocumentNoDocValueLoader
+    - org.elasticsearch.xpack.analytics.mapper.TDigestFieldMapperTests.testSyntheticSourceKeepAll
+    - org.elasticsearch.xpack.analytics.mapper.TDigestFieldMapperTests.testSyntheticSourceInObject
+    - org.elasticsearch.xpack.analytics.mapper.TDigestFieldMapperTests.testSyntheticSourceMany
+     */
 }

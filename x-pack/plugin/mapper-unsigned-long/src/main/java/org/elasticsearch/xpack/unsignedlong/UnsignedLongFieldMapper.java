@@ -126,8 +126,8 @@ public class UnsignedLongFieldMapper extends FieldMapper {
             this.dimension = TimeSeriesParams.dimensionParam(m -> toType(m).dimension, hasDocValues::get);
             this.indexed = Parameter.indexParam(m -> toType(m).indexed, () -> {
                 if (dimension.get()) {
-                    return indexSettings.useDocValuesSkipper() == false ||
-                        indexSettings.getIndexVersionCreated().before(IndexVersions.TIME_SERIES_DIMENSIONS_USE_SKIPPERS);
+                    return indexSettings.useDocValuesSkipper() == false
+                        || indexSettings.getIndexVersionCreated().before(IndexVersions.TIME_SERIES_DIMENSIONS_USE_SKIPPERS);
                 }
                 if (indexSettings.getMode() == IndexMode.TIME_SERIES) {
                     var metricType = getMetric().getValue();

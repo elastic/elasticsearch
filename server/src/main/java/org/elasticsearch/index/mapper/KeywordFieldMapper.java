@@ -406,10 +406,7 @@ public final class KeywordFieldMapper extends FieldMapper {
 
         @Override
         public KeywordFieldMapper build(MapperBuilderContext context) {
-            FieldType fieldtype = resolveFieldType(
-                forceDocValuesSkipper,
-                context.buildFullName(leafName())
-            );
+            FieldType fieldtype = resolveFieldType(forceDocValuesSkipper, context.buildFullName(leafName()));
             super.hasScript = script.get() != null;
             super.onScriptError = onScriptError.getValue();
 
@@ -432,10 +429,7 @@ public final class KeywordFieldMapper extends FieldMapper {
             );
         }
 
-        private FieldType resolveFieldType(
-            final boolean forceDocValuesSkipper,
-            final String fullFieldName
-        ) {
+        private FieldType resolveFieldType(final boolean forceDocValuesSkipper, final String fullFieldName) {
             FieldType fieldtype = new FieldType(Defaults.FIELD_TYPE);
             if (forceDocValuesSkipper || shouldUseHostnameSkipper(fullFieldName) || shouldUseDimensionSkipper()) {
                 fieldtype = new FieldType(Defaults.FIELD_TYPE_WITH_SKIP_DOC_VALUES);
@@ -465,9 +459,7 @@ public final class KeywordFieldMapper extends FieldMapper {
                 && indexSettings.getIndexVersionCreated().onOrAfter(IndexVersions.TIME_SERIES_DIMENSIONS_USE_SKIPPERS);
         }
 
-        private boolean shouldUseHostnameSkipper(
-            final String fullFieldName
-        ) {
+        private boolean shouldUseHostnameSkipper(final String fullFieldName) {
             return hasDocValues.get()
                 && indexSettings.useDocValuesSkipper()
                 && indexSettings.getIndexVersionCreated().onOrAfter(IndexVersions.SKIPPERS_ENABLED_BY_DEFAULT)

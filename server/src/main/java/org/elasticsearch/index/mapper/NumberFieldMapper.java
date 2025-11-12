@@ -169,8 +169,8 @@ public class NumberFieldMapper extends FieldMapper {
             this.dimension = TimeSeriesParams.dimensionParam(m -> toType(m).dimension, hasDocValues::get);
             this.indexed = Parameter.indexParam(m -> toType(m).indexed, () -> {
                 if (dimension.get()) {
-                    return indexSettings.useDocValuesSkipper() == false ||
-                        indexSettings.getIndexVersionCreated().before(IndexVersions.TIME_SERIES_DIMENSIONS_USE_SKIPPERS);
+                    return indexSettings.useDocValuesSkipper() == false
+                        || indexSettings.getIndexVersionCreated().before(IndexVersions.TIME_SERIES_DIMENSIONS_USE_SKIPPERS);
                 }
                 if (indexSettings.getMode() == IndexMode.TIME_SERIES) {
                     var metricType = getMetric().getValue();
@@ -1567,13 +1567,7 @@ public class NumberFieldMapper extends FieldMapper {
          * @param indexType an IndexType describing the index structures to be added
          * @param stored whether or not the field is stored
          */
-        public abstract void addFields(
-            LuceneDocument document,
-            String name,
-            Number value,
-            IndexType indexType,
-            boolean stored
-        );
+        public abstract void addFields(LuceneDocument document, String name, Number value, IndexType indexType, boolean stored);
 
         /**
          * For a given {@code Number}, returns the sortable long representation that will be stored in the doc values.

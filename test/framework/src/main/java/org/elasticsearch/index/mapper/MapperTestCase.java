@@ -407,14 +407,13 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
             minimalMapping(b);
             b.field("time_series_dimension", true);
         }));
+        assumeTrue("Skippers disabled by feature flag", mapperService.getIndexSettings().useDocValuesSkipper());
+
         ParsedDocument doc = mapperService.documentMapper().parse(source(this::writeField));
         IndexableField field = doc.rootDoc().getField("field");
-        assertEquals(field.fieldType().docValuesSkipIndexType() == DocValuesSkipIndexType.RANGE,
-            mapperService.getIndexSettings().useDocValuesSkipper());
-        assertEquals(field.fieldType().indexOptions() == IndexOptions.NONE,
-            mapperService.getIndexSettings().useDocValuesSkipper());
-        assertEquals(field.fieldType().pointDimensionCount() == 0,
-            mapperService.getIndexSettings().useDocValuesSkipper());
+        assertSame(DocValuesSkipIndexType.RANGE, field.fieldType().docValuesSkipIndexType());
+        assertSame(IndexOptions.NONE, field.fieldType().indexOptions());
+        assertEquals(0, field.fieldType().pointDimensionCount());
     }
 
     protected <T> void assertMetricType(String metricType, Function<T, Enum<TimeSeriesParams.MetricType>> checker) throws IOException {

@@ -40,6 +40,7 @@ import org.apache.lucene.search.knn.KnnSearchStrategy;
 import org.apache.lucene.util.BitUtil;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.VectorUtil;
+import org.elasticsearch.Build;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
@@ -54,6 +55,7 @@ import org.elasticsearch.index.codec.vectors.ES814HnswScalarQuantizedVectorsForm
 import org.elasticsearch.index.codec.vectors.ES815BitFlatVectorFormat;
 import org.elasticsearch.index.codec.vectors.ES815HnswBitVectorsFormat;
 import org.elasticsearch.index.codec.vectors.diskbbq.ES920DiskBBQVectorsFormat;
+import org.elasticsearch.index.codec.vectors.diskbbq.next.ESNextDiskBBQVectorsFormat;
 import org.elasticsearch.index.codec.vectors.es818.ES818BinaryQuantizedVectorsFormat;
 import org.elasticsearch.index.codec.vectors.es818.ES818HnswBinaryQuantizedVectorsFormat;
 import org.elasticsearch.index.codec.vectors.es93.ES93BinaryQuantizedVectorsFormat;
@@ -2377,6 +2379,16 @@ public class DenseVectorFieldMapper extends FieldMapper {
 
         @Override
         KnnVectorsFormat getVectorsFormat(ElementType elementType) {
+            assert elementType == ElementType.FLOAT || elementType == ElementType.BFLOAT16;
+            if (Build.current().isSnapshot()) {
+                return new ESNextDiskBBQVectorsFormat(
+                    ESNextDiskBBQVectorsFormat.QuantEncoding.ONE_BIT_4BIT_QUERY,
+                    clusterSize,
+                    ES920DiskBBQVectorsFormat.DEFAULT_CENTROIDS_PER_PARENT_CLUSTER,
+                    elementType,
+                    onDiskRescore
+                );
+            }
             return new ES920DiskBBQVectorsFormat(
                 clusterSize,
                 ES920DiskBBQVectorsFormat.DEFAULT_CENTROIDS_PER_PARENT_CLUSTER,

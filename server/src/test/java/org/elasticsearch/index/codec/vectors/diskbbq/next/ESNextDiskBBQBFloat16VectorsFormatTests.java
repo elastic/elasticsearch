@@ -7,7 +7,7 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.index.codec.vectors.diskbbq;
+package org.elasticsearch.index.codec.vectors.diskbbq.next;
 
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 
@@ -21,6 +21,7 @@ import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.tests.util.TestUtil;
 import org.elasticsearch.common.logging.LogConfigurator;
 import org.elasticsearch.index.codec.vectors.BaseBFloat16KnnVectorsFormatTestCase;
+import org.elasticsearch.index.codec.vectors.diskbbq.ES920DiskBBQVectorsFormat;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.junit.AssumptionViolatedException;
 import org.junit.Before;
@@ -33,7 +34,7 @@ import static org.elasticsearch.index.codec.vectors.diskbbq.ES920DiskBBQVectorsF
 import static org.hamcrest.Matchers.anEmptyMap;
 import static org.hamcrest.Matchers.equalTo;
 
-public class ES920DiskBBQBFloat16VectorsFormatTests extends BaseBFloat16KnnVectorsFormatTestCase {
+public class ESNextDiskBBQBFloat16VectorsFormatTests extends BaseBFloat16KnnVectorsFormatTestCase {
 
     static {
         LogConfigurator.loadLog4jPlugins();
@@ -45,8 +46,12 @@ public class ES920DiskBBQBFloat16VectorsFormatTests extends BaseBFloat16KnnVecto
     @Before
     @Override
     public void setUp() throws Exception {
+        ESNextDiskBBQVectorsFormat.QuantEncoding encoding = ESNextDiskBBQVectorsFormat.QuantEncoding.values()[random().nextInt(
+            ESNextDiskBBQVectorsFormat.QuantEncoding.values().length
+        )];
         if (rarely()) {
-            format = new ES920DiskBBQVectorsFormat(
+            format = new ESNextDiskBBQVectorsFormat(
+                encoding,
                 random().nextInt(2 * MIN_VECTORS_PER_CLUSTER, ES920DiskBBQVectorsFormat.MAX_VECTORS_PER_CLUSTER),
                 random().nextInt(8, ES920DiskBBQVectorsFormat.MAX_CENTROIDS_PER_PARENT_CLUSTER),
                 DenseVectorFieldMapper.ElementType.BFLOAT16,
@@ -54,7 +59,8 @@ public class ES920DiskBBQBFloat16VectorsFormatTests extends BaseBFloat16KnnVecto
             );
         } else {
             // run with low numbers to force many clusters with parents
-            format = new ES920DiskBBQVectorsFormat(
+            format = new ESNextDiskBBQVectorsFormat(
+                encoding,
                 random().nextInt(MIN_VECTORS_PER_CLUSTER, 2 * MIN_VECTORS_PER_CLUSTER),
                 random().nextInt(MIN_CENTROIDS_PER_PARENT_CLUSTER, 8),
                 DenseVectorFieldMapper.ElementType.BFLOAT16,

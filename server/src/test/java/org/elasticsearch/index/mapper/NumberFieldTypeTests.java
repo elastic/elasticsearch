@@ -723,7 +723,7 @@ public class NumberFieldTypeTests extends FieldTypeTestCase {
         NumberFieldType fieldType = new NumberFieldType("field", type);
         IndexNumericFieldData fielddata = (IndexNumericFieldData) fieldType.fielddataBuilder(FieldDataContext.noRuntimeFields("test"))
             .build(null, null);
-        SortField sortField = fielddata.sortField(null, MultiValueMode.MIN, null, randomBoolean());
+        SortField sortField = fielddata.indexSort(IndexVersion.current(), null, MultiValueMode.MIN, randomBoolean());
 
         IndexWriterConfig writerConfig = new IndexWriterConfig();
         writerConfig.setIndexSort(new Sort(sortField));

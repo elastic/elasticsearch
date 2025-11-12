@@ -7,12 +7,13 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.index.mapper.blockloader.docvalues;
+package org.elasticsearch.index.mapper.blockloader.docvalues.fn;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.index.mapper.TestBlock;
+import org.elasticsearch.index.mapper.blockloader.docvalues.BytesRefsFromOrdsBlockLoader;
 import org.hamcrest.Matcher;
 
 import java.io.IOException;
@@ -23,8 +24,8 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasToString;
 import static org.hamcrest.Matchers.nullValue;
 
-public class MvMaxBytesRefsFromOrdsBlockLoaderTests extends AbstractFromOrdsBlockLoaderTests {
-    public MvMaxBytesRefsFromOrdsBlockLoaderTests(
+public class MvMinBytesRefsFromOrdsBlockLoaderTests extends AbstractFromOrdsBlockLoaderTests {
+    public MvMinBytesRefsFromOrdsBlockLoaderTests(
         boolean blockAtATime,
         boolean highCardinality,
         boolean multiValues,
@@ -36,21 +37,21 @@ public class MvMaxBytesRefsFromOrdsBlockLoaderTests extends AbstractFromOrdsBloc
     @Override
     protected void innerTest(LeafReaderContext ctx, int mvCount) throws IOException {
         var stringsLoader = new BytesRefsFromOrdsBlockLoader("field");
-        var mvMaxLoader = new MvMaxBytesRefsFromOrdsBlockLoader("field");
+        var mvMinLoader = new MvMinBytesRefsFromOrdsBlockLoader("field");
 
         var stringsReader = stringsLoader.reader(ctx);
-        var mvMaxReader = mvMaxLoader.reader(ctx);
-        assertThat(mvMaxReader, readerMatcher());
+        var mvMinReader = mvMinLoader.reader(ctx);
+        assertThat(mvMinReader, readerMatcher());
         BlockLoader.Docs docs = TestBlock.docs(ctx);
         try (
             TestBlock strings = read(stringsLoader, stringsReader, ctx, docs);
-            TestBlock maxStrings = read(mvMaxLoader, mvMaxReader, ctx, docs);
+            TestBlock minStrings = read(mvMinLoader, mvMinReader, ctx, docs);
         ) {
-            checkBlocks(strings, maxStrings);
+            checkBlocks(strings, minStrings);
         }
 
         stringsReader = stringsLoader.reader(ctx);
-        mvMaxReader = mvMaxLoader.reader(ctx);
+        mvMinReader = mvMinLoader.reader(ctx);
         for (int i = 0; i < ctx.reader().numDocs(); i += 10) {
             int[] docsArray = new int[Math.min(10, ctx.reader().numDocs() - i)];
             for (int d = 0; d < docsArray.length; d++) {
@@ -59,16 +60,16 @@ public class MvMaxBytesRefsFromOrdsBlockLoaderTests extends AbstractFromOrdsBloc
             docs = TestBlock.docs(docsArray);
             try (
                 TestBlock strings = read(stringsLoader, stringsReader, ctx, docs);
-                TestBlock maxStrings = read(mvMaxLoader, mvMaxReader, ctx, docs);
+                TestBlock minStrings = read(mvMinLoader, mvMinReader, ctx, docs);
             ) {
-                checkBlocks(strings, maxStrings);
+                checkBlocks(strings, minStrings);
             }
         }
     }
 
     private Matcher<Object> readerMatcher() {
         if (multiValues) {
-            return hasToString("MvMaxBytesRefsFromOrds.SortedSet");
+            return hasToString("MvMinBytesRefsFromOrds.SortedSet");
         }
         return hasToString("BytesRefsFromOrds.Singleton");
     }
@@ -81,7 +82,7 @@ public class MvMaxBytesRefsFromOrdsBlockLoaderTests extends AbstractFromOrdsBloc
                 continue;
             }
             BytesRef bytes = (BytesRef) (str instanceof List<?> l
-                ? l.stream().map(b -> (BytesRef) b).max(Comparator.naturalOrder()).get()
+                ? l.stream().map(b -> (BytesRef) b).min(Comparator.naturalOrder()).get()
                 : str);
             assertThat(mvMin.get(i), equalTo(bytes));
         }

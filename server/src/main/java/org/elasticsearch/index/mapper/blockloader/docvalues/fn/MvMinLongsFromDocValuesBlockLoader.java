@@ -7,18 +7,20 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.index.mapper.blockloader.docvalues;
+package org.elasticsearch.index.mapper.blockloader.docvalues.fn;
 
 import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.index.SortedNumericDocValues;
+import org.elasticsearch.index.mapper.blockloader.docvalues.AbstractLongsFromDocValuesBlockLoader;
+import org.elasticsearch.index.mapper.blockloader.docvalues.BlockDocValuesReader;
 
 import java.io.IOException;
 
 /**
- * Loads the MIN {@code int} in each doc.
+ * Loads the MIN {@code long} in each doc.
  */
-public class MvMinIntsFromDocValuesBlockLoader extends AbstractIntsFromDocValuesBlockLoader {
-    public MvMinIntsFromDocValuesBlockLoader(String fieldName) {
+public class MvMinLongsFromDocValuesBlockLoader extends AbstractLongsFromDocValuesBlockLoader {
+    public MvMinLongsFromDocValuesBlockLoader(String fieldName) {
         super(fieldName);
     }
 
@@ -29,24 +31,24 @@ public class MvMinIntsFromDocValuesBlockLoader extends AbstractIntsFromDocValues
 
     @Override
     protected AllReader sortedReader(SortedNumericDocValues docValues) {
-        return new MvMinSorted(docValues);
+        return new MvMaxSorted(docValues);
     }
 
     @Override
     public String toString() {
-        return "IntsFromDocValues[" + fieldName + "]";
+        return "LongsFromDocValues[" + fieldName + "]";
     }
 
-    public static class MvMinSorted extends BlockDocValuesReader {
+    private static class MvMaxSorted extends BlockDocValuesReader {
         private final SortedNumericDocValues numericDocValues;
 
-        MvMinSorted(SortedNumericDocValues numericDocValues) {
+        MvMaxSorted(SortedNumericDocValues numericDocValues) {
             this.numericDocValues = numericDocValues;
         }
 
         @Override
         public Block read(BlockFactory factory, Docs docs, int offset, boolean nullsFiltered) throws IOException {
-            try (IntBuilder builder = factory.intsFromDocValues(docs.count() - offset)) {
+            try (LongBuilder builder = factory.longsFromDocValues(docs.count() - offset)) {
                 for (int i = offset; i < docs.count(); i++) {
                     int doc = docs.get(i);
                     read(doc, builder);
@@ -57,15 +59,15 @@ public class MvMinIntsFromDocValuesBlockLoader extends AbstractIntsFromDocValues
 
         @Override
         public void read(int docId, StoredFields storedFields, Builder builder) throws IOException {
-            read(docId, (IntBuilder) builder);
+            read(docId, (LongBuilder) builder);
         }
 
-        private void read(int doc, IntBuilder builder) throws IOException {
+        private void read(int doc, LongBuilder builder) throws IOException {
             if (false == numericDocValues.advanceExact(doc)) {
                 builder.appendNull();
                 return;
             }
-            builder.appendInt(Math.toIntExact(numericDocValues.nextValue()));
+            builder.appendLong(numericDocValues.nextValue());
         }
 
         @Override
@@ -75,7 +77,7 @@ public class MvMinIntsFromDocValuesBlockLoader extends AbstractIntsFromDocValues
 
         @Override
         public String toString() {
-            return "MvMinIntsFromDocValues.Sorted";
+            return "MvMinLongsFromDocValues.Sorted";
         }
     }
 }

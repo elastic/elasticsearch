@@ -131,7 +131,7 @@ public record ModelStrategyFactory(ServiceComponents serviceComponents) {
                 DENSE_TEXT_EMBEDDINGS_HANDLER,
                 (embeddingsInput) -> new ElasticInferenceServiceDenseTextEmbeddingsRequest(
                     model,
-                    embeddingsInput.getInputs(),
+                    embeddingsInput.getTextInputs(),
                     traceContext,
                     metadata,
                     embeddingsInput.getInputType(),

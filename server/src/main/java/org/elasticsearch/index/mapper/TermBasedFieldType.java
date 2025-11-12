@@ -28,15 +28,8 @@ public abstract class TermBasedFieldType extends SimpleMappedFieldType {
 
     protected final TextSearchInfo textSearchInfo;
 
-    public TermBasedFieldType(
-        String name,
-        boolean isIndexed,
-        boolean isStored,
-        boolean hasDocValues,
-        TextSearchInfo textSearchInfo,
-        Map<String, String> meta
-    ) {
-        super(name, IndexType.terms(isIndexed, hasDocValues), isStored, meta);
+    public TermBasedFieldType(String name, IndexType indexType, boolean isStored, TextSearchInfo textSearchInfo, Map<String, String> meta) {
+        super(name, indexType, isStored, meta);
         this.textSearchInfo = textSearchInfo;
     }
 

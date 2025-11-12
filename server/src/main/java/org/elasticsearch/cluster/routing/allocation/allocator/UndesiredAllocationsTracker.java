@@ -76,9 +76,6 @@ public class UndesiredAllocationsTracker {
         Setting.Property.Dynamic,
         Setting.Property.NodeScope
     );
-    private static final org.apache.logging.log4j.Logger log = org.apache.logging.log4j.LogManager.getLogger(
-        UndesiredAllocationsTracker.class
-    );
 
     private final TimeProvider timeProvider;
     private final LinkedHashMap<String, UndesiredAllocation> undesiredAllocations = new LinkedHashMap<>();

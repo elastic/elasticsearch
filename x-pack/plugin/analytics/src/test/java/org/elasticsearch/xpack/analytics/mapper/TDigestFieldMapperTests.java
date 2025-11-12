@@ -38,6 +38,7 @@ public class TDigestFieldMapperTests extends MapperTestCase {
 
     @Override
     protected Object getSampleValueForDocument() {
+        assumeTrue("Requires t-digest field", TDigestFieldMapper.TDIGEST_FIELD_MAPPER.isEnabled());
         return generateRandomFieldValues(100);
     }
 
@@ -53,11 +54,13 @@ public class TDigestFieldMapperTests extends MapperTestCase {
 
     @Override
     protected void minimalMapping(XContentBuilder b) throws IOException {
+        assumeTrue("Requires t-digest field", TDigestFieldMapper.TDIGEST_FIELD_MAPPER.isEnabled());
         b.field("type", "tdigest");
     }
 
     @Override
     protected void registerParameters(ParameterChecker checker) throws IOException {
+        assumeTrue("Requires t-digest field", TDigestFieldMapper.TDIGEST_FIELD_MAPPER.isEnabled());
         checker.registerUpdateCheck(b -> b.field("ignore_malformed", true), m -> assertTrue(m.ignoreMalformed()));
         checker.registerConflictCheck("digest_type", b -> b.field("digest_type", TDigestState.Type.AVL_TREE));
         checker.registerConflictCheck("compression", b -> b.field("compression", 117));

@@ -188,6 +188,7 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.TIME_DURATION;
 import static org.elasticsearch.xpack.esql.core.type.DataType.UNSUPPORTED;
 import static org.elasticsearch.xpack.esql.core.type.DataType.VERSION;
 import static org.elasticsearch.xpack.esql.core.type.DataType.isTemporalAmount;
+import static org.elasticsearch.xpack.esql.parser.ParserUtils.source;
 import static org.elasticsearch.xpack.esql.telemetry.FeatureMetric.LIMIT;
 import static org.elasticsearch.xpack.esql.telemetry.FeatureMetric.STATS;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.maybeParseTemporalAmount;
@@ -226,6 +227,10 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
     );
     public static final TransportVersion ESQL_LOOKUP_JOIN_FULL_TEXT_FUNCTION = TransportVersion.fromName(
         "esql_lookup_join_full_text_function"
+    );
+
+    public static final TransportVersion ESQL_LOOKUP_JOIN_GENERAL_EXPRESSION = TransportVersion.fromName(
+        "esql_lookup_join_general_expression"
     );
 
     private final Verifier verifier;
@@ -730,7 +735,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         /**
          * This function resolves and orients a single join on condition.
          * We support AND of such conditions, here we handle a single child of the AND
-         * We support the following 2 cases:
+         * We support the following cases:
          * 1) Binary comparisons between a left and a right attribute.
          * We resolve all attributes and orient them so that the attribute on the left side of the join
          * is on the left side of the binary comparison
@@ -738,6 +743,9 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
          * 2) A Lucene pushable expression containing only attributes from the lookup side of the join
          * We resolve all attributes in the expression, verify they are from the right side of the join
          * and also verify that the expression is potentially Lucene pushable
+         * 3) General expressions (when all nodes support ESQL_LOOKUP_JOIN_GENERAL_EXPRESSION) that may reference
+         * attributes from both sides. We extract all left-side attributes referenced in the expression
+         * and add them to leftJoinKeysToPopulate to ensure they are sent to the lookup join.
          */
         private Expression resolveAndOrientJoinCondition(
             Expression condition,
@@ -778,14 +786,35 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                         + condition.sourceText()
                 );
             }
-            return handleRightOnlyPushableFilter(condition, rightChildOutput);
+            Expression result = handleRightOnlyPushableFilter(condition, rightChildOutput, context);
+            // If general expressions are enabled and this is not an error, extract all left-side attributes
+            // This ensures that fields like 'value' in ABS(value) > 15 are included in leftFields
+            if (context.minimumVersion().onOrAfter(ESQL_LOOKUP_JOIN_GENERAL_EXPRESSION) && result instanceof UnresolvedAttribute == false) {
+                // Extract all left-side attributes from the expression and add them to leftJoinKeysToPopulate
+                // This handles general expressions that reference left-side fields (e.g., ABS(value) > 15)
+                for (Attribute attr : condition.references()) {
+                    if (leftChildOutput.contains(attr)) {
+                        // Check if we've already added this attribute (by NameId to avoid duplicates)
+                        boolean alreadyAdded = leftJoinKeysToPopulate.stream().anyMatch(a -> a.id().equals(attr.id()));
+                        if (alreadyAdded == false) {
+                            leftJoinKeysToPopulate.add(attr);
+                        }
+                    }
+                }
+            }
+            return result;
         }
 
-        private Expression handleRightOnlyPushableFilter(Expression condition, AttributeSet rightChildOutput) {
+        private Expression handleRightOnlyPushableFilter(Expression condition, AttributeSet rightChildOutput, AnalyzerContext context) {
             if (isCompletelyRightSideAndTranslatable(condition, rightChildOutput)) {
                 // The condition is completely on the right side and is translation aware, so it can be (potentially) pushed down
                 return condition;
             } else {
+                // Check if general expressions are enabled
+                if (context.minimumVersion().onOrAfter(ESQL_LOOKUP_JOIN_GENERAL_EXPRESSION)) {
+                    // General expressions are enabled, allow the condition
+                    return condition;
+                }
                 // The condition cannot be used in the join on clause for now
                 // It is not a binary comparison between left and right attributes
                 // It is not using fields from the right side only and translation aware
@@ -801,7 +830,13 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             JoinConfig config = join.config();
             // for now, support only (LEFT) USING clauses
             JoinType type = config.type();
-
+            if (context.minimumVersion().onOrAfter(ESQL_LOOKUP_JOIN_GENERAL_EXPRESSION) == false
+                && (join.config().leftFields().isEmpty() || join.config().rightFields().isEmpty())) {
+                throw new ParsingException(
+                    Source.EMPTY,
+                    "JOIN ON clause with expressions must contain at least one condition relating the left index and the lookup index"
+                );
+            }
             // rewrite the join into an equi-join between the field with the same name between left and right
             if (type == JoinTypes.LEFT) {
                 // the lookup cannot be resolved, bail out

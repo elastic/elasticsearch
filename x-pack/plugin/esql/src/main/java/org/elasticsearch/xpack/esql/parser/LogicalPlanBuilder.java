@@ -868,12 +868,6 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         for (var f : expressions) {
             addJoinExpression(f, joinFields, joinExpressions, ctx);
         }
-        if (joinFields.isEmpty()) {
-            throw new ParsingException(
-                source(ctx),
-                "JOIN ON clause with expressions must contain at least one condition relating the left index and the lookup index"
-            );
-        }
         return new JoinInfo(joinFields, joinExpressions);
     }
 

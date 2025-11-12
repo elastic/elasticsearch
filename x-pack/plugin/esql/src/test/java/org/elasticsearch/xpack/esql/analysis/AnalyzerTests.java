@@ -5561,6 +5561,48 @@ public class AnalyzerTests extends ESTestCase {
         assertEquals("sample_data", subqueryIndex.indexPattern());
     }
 
+    public void testLookupJoinExpressionOnlyRightFilter() {
+        assumeTrue("requires LOOKUP JOIN capability", EsqlCapabilities.Cap.JOIN_LOOKUP_V12.isEnabled());
+        assumeTrue(
+            "requires LOOKUP JOIN ON boolean expression capability",
+            EsqlCapabilities.Cap.LOOKUP_JOIN_WITH_FULL_TEXT_FUNCTION.isEnabled()
+        );
+        String query = """
+            from test
+            | rename languages as languages_left
+            | lookup join languages_lookup ON salary > 1000
+            """;
+
+        ParsingException e = expectThrows(ParsingException.class, () -> analyze(query));
+        assertThat(
+            e.getMessage(),
+            containsString(
+                "JOIN ON clause with expressions must contain " + "at least one condition relating the left index and the lookup index"
+            )
+        );
+    }
+
+    public void testLookupJoinExpressionMixed() {
+        assumeTrue("requires LOOKUP JOIN capability", EsqlCapabilities.Cap.JOIN_LOOKUP_V12.isEnabled());
+        assumeTrue(
+            "requires LOOKUP JOIN ON boolean expression capability",
+            EsqlCapabilities.Cap.LOOKUP_JOIN_WITH_FULL_TEXT_FUNCTION.isEnabled()
+        );
+        String query = """
+            from test
+            | rename languages as languages_left
+            | lookup join languages_lookup ON languages_left == language_code or salary > 1000
+            """;
+
+        ParsingException e = expectThrows(ParsingException.class, () -> analyze(query));
+        assertThat(
+            e.getMessage(),
+            containsString(
+                "JOIN ON clause with expressions must contain at least " + "one condition relating the left index and the lookup index"
+            )
+        );
+    }
+
     public void testLookupJoinOnFieldNotAnywhereElse() {
         assumeTrue(
             "requires LOOKUP JOIN ON boolean expression capability",

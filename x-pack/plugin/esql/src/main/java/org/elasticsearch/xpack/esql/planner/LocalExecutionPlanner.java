@@ -135,10 +135,12 @@ import org.elasticsearch.xpack.esql.session.Configuration;
 import org.elasticsearch.xpack.esql.session.EsqlCCSUtils;
 
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
 import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.IntStream;
@@ -763,11 +765,16 @@ public class LocalExecutionPlanner {
             );
         }
         String indexName = indexSplit[1];
-        if (join.leftFields().size() != join.rightFields().size()) {
+        // When joinOnConditions is present, leftFields can have more fields than rightFields
+        // because general expressions can reference additional left-side fields (e.g., ABS(value) > 15)
+        // In this case, we only create MatchConfig entries for equi-join fields (those with corresponding rightFields)
+        int equiJoinFieldCount = Math.min(join.leftFields().size(), join.rightFields().size());
+        if (join.joinOnConditions() == null && join.leftFields().size() != join.rightFields().size()) {
             throw new IllegalArgumentException("can't plan [" + join + "]: mismatching left and right field count");
         }
-        List<MatchConfig> matchFields = new ArrayList<>(join.leftFields().size());
-        for (int i = 0; i < join.leftFields().size(); i++) {
+        List<MatchConfig> matchFields = new ArrayList<>(equiJoinFieldCount);
+        Set<NameId> matchFieldIds = new HashSet<>();
+        for (int i = 0; i < equiJoinFieldCount; i++) {
             TypedAttribute left = (TypedAttribute) join.leftFields().get(i);
             FieldAttribute right = (FieldAttribute) join.rightFields().get(i);
             Layout.ChannelAndType input = source.layout.get(left.id());
@@ -794,6 +801,39 @@ public class LocalExecutionPlanner {
                 fieldName = left.name();
             }
             matchFields.add(new MatchConfig(fieldName, input));
+            matchFieldIds.add(left.id());
+        }
+        // Extract additional left-side fields referenced in joinOnConditions that aren't already in matchFields
+        // These are needed for evaluating general expressions like ABS(value) > 15 or MATCH(description, "test")
+        // We need MatchConfig entries for ALL left-side fields referenced in joinOnConditions
+        if (join.joinOnConditions() != null) {
+            // Iterate through ALL attributes referenced in joinOnConditions to find left-side fields
+            // This ensures we catch fields like 'description' in MATCH(description, "test") even if
+            // they're not explicitly in join.leftFields()
+            for (Attribute attr : join.joinOnConditions().references()) {
+                // Skip if already in matchFields
+                if (matchFieldIds.contains(attr.id())) {
+                    continue;
+                }
+                // Check if this attribute is in the source layout (left side)
+                Layout.ChannelAndType input = source.layout.get(attr.id());
+                if (input != null) {
+                    // Check if it's not a right-side field
+                    boolean isRightSide = false;
+                    for (Attribute rightField : join.rightFields()) {
+                        if (rightField.id().equals(attr.id())) {
+                            isRightSide = true;
+                            break;
+                        }
+                    }
+                    // If it's in the source layout and not a right-side field, it's a left-side field
+                    if (isRightSide == false) {
+                        // Create MatchConfig with the left field name (since there's no corresponding right field)
+                        matchFields.add(new MatchConfig(attr.name(), input));
+                        matchFieldIds.add(attr.id());
+                    }
+                }
+            }
         }
         return source.with(
             new LookupFromIndexOperator.Factory(

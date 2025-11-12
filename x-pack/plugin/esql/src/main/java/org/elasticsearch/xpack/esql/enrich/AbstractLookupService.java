@@ -40,6 +40,7 @@ import org.elasticsearch.compute.lucene.IndexedByShardIdFromSingleton;
 import org.elasticsearch.compute.lucene.read.ValuesSourceReaderOperator;
 import org.elasticsearch.compute.operator.Driver;
 import org.elasticsearch.compute.operator.DriverContext;
+import org.elasticsearch.compute.operator.FilterOperator;
 import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.compute.operator.OutputOperator;
 import org.elasticsearch.compute.operator.ProjectOperator;
@@ -74,20 +75,31 @@ import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
+import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
+import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
+import org.elasticsearch.xpack.esql.core.expression.TypedAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.type.EsField;
+import org.elasticsearch.xpack.esql.evaluator.EvalMapper;
+import org.elasticsearch.xpack.esql.expression.predicate.Predicates;
 import org.elasticsearch.xpack.esql.planner.EsPhysicalOperationProviders;
+import org.elasticsearch.xpack.esql.planner.Layout;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.concurrent.Executor;
 import java.util.function.Function;
 import java.util.stream.IntStream;
@@ -339,23 +351,34 @@ public abstract class AbstractLookupService<R extends AbstractLookupService.Requ
                 request.source.source().getColumnNumber(),
                 request.source.text()
             );
+            // creates a layout builder and appends Docs and Positions fields
+            Layout.Builder builder = createLookupLayoutBuilder();
+            // add the main query operator (the Lucene search)
             LookupEnrichQueryGenerator queryList = queryList(request, shardContext.executionContext, aliasFilter, inputBlock, warnings);
-            var queryOperator = new EnrichQuerySourceOperator(
-                driverContext.blockFactory(),
-                EnrichQuerySourceOperator.DEFAULT_MAX_PAGE_SIZE,
+            EnrichQuerySourceOperator queryOperator = createQueryOperator(
                 queryList,
-                new IndexedByShardIdFromSingleton<>(shardContext.context),
-                0,
-                warnings
+                shardContext,
+                warnings,
+                driverContext,
+                builder,
+                request.extractFields,
+                releasables
             );
-            releasables.add(queryOperator);
-
             List<Operator> operators = new ArrayList<>();
-            if (request.extractFields.isEmpty() == false) {
-                var extractFieldsOperator = extractFieldsOperator(shardContext.context, driverContext, request.extractFields);
-                releasables.add(extractFieldsOperator);
-                operators.add(extractFieldsOperator);
-            }
+
+            // get the fields from the right side, as specified in extractFields
+            extractRightFields(request, shardContext, driverContext, releasables, operators);
+
+            // get the left side fields that are needed for filter application
+            // we read them from the input page and populate in the output page
+            extractLeftFields(queryList, request, builder, driverContext, releasables, operators);
+
+            // add the filters to be executed after the join
+            // all fields needed have been populated above
+            addPostJoinFilterOperator(queryList, shardContext, driverContext, builder, releasables, operators);
+
+            // append the finish pages operator at the end
+            // it should remove the fields that are not needed in the output (e.g. the left side fields extracted for filtering)
             operators.add(finishPages);
 
             /*
@@ -415,6 +438,200 @@ public abstract class AbstractLookupService<R extends AbstractLookupService.Requ
                 Releasables.close(releasables);
             }
         }
+    }
+
+    /**
+     * Creates a Layout.Builder for lookup operations with Docs and Positions fields.
+     */
+    private static Layout.Builder createLookupLayoutBuilder() {
+        Layout.Builder builder = new Layout.Builder();
+        // append the docsIds and positions to the layout
+        builder.append(
+            // this looks wrong, what is the datatype for the Docs? It says DocVector but it is not a DataType
+            new FieldAttribute(
+                Source.EMPTY,
+                "$$DocID$$",
+                new EsField("$$DocID$$", DataType.DOC_DATA_TYPE, Collections.emptyMap(), false, EsField.TimeSeriesFieldType.NONE)
+            )
+        );
+        builder.append(
+            new FieldAttribute(
+                Source.EMPTY,
+                "$$Positions$$",
+                new EsField("$$Positions$$", DataType.INTEGER, Collections.emptyMap(), false, EsField.TimeSeriesFieldType.NONE)
+            )
+        );
+        return builder;
+    }
+
+    /**
+     * Creates the query operator for lookup operations and sets up the initial layout.
+     * Adds the operator to releasables and appends extractFields to the builder.
+     */
+    private EnrichQuerySourceOperator createQueryOperator(
+        LookupEnrichQueryGenerator queryList,
+        LookupShardContext shardContext,
+        Warnings warnings,
+        DriverContext driverContext,
+        Layout.Builder builder,
+        List<NamedExpression> extractFields,
+        List<Releasable> releasables
+    ) {
+        var queryOperator = new EnrichQuerySourceOperator(
+            driverContext.blockFactory(),
+            EnrichQuerySourceOperator.DEFAULT_MAX_PAGE_SIZE,
+            queryList,
+            new IndexedByShardIdFromSingleton<>(shardContext.context),
+            0,
+            warnings
+        );
+        releasables.add(queryOperator);
+        builder.append(extractFields);
+        return queryOperator;
+    }
+
+    /**
+     * Extracts right-side fields from the lookup index and creates the extractFields operator.
+     */
+    private void extractRightFields(
+        T request,
+        LookupShardContext shardContext,
+        DriverContext driverContext,
+        List<Releasable> releasables,
+        List<Operator> operators
+    ) {
+        if (request.extractFields.isEmpty() == false) {
+            var extractFieldsOperator = extractFieldsOperator(shardContext.context, driverContext, request.extractFields);
+            releasables.add(extractFieldsOperator);
+            operators.add(extractFieldsOperator);
+        }
+    }
+
+    /**
+     * Extracts left-side fields that need to be broadcast and creates the matchFields operator.
+     * Collects left-side fields from post-join filter expressions and broadcasts them.
+     */
+    private void extractLeftFields(
+        LookupEnrichQueryGenerator queryList,
+        T request,
+        Layout.Builder builder,
+        DriverContext driverContext,
+        List<Releasable> releasables,
+        List<Operator> operators
+    ) {
+        // Collect all left-side fields that will be added to the layout so we can broadcast them
+        List<MatchConfig> allLeftFieldsToBroadcast = collectLeftSideFieldsToBroadcast(queryList, request, builder);
+        // Add all left-side fields to the Page so they're available when evaluating post-join filters
+        // We broadcast them using the Positions block (channel 1), similar to RightChunkedLeftJoin
+        // The order must match the layout order
+        if (allLeftFieldsToBroadcast.isEmpty() == false) {
+            Operator matchFieldsOperator = broadcastMatchFieldsOperator(driverContext, request.inputPage, allLeftFieldsToBroadcast);
+            releasables.add(matchFieldsOperator);
+            operators.add(matchFieldsOperator);
+        }
+    }
+
+    /**
+     * Adds a post-join filter operator if the queryList has post-join filter expressions.
+     */
+    private void addPostJoinFilterOperator(
+        LookupEnrichQueryGenerator queryList,
+        LookupShardContext shardContext,
+        DriverContext driverContext,
+        Layout.Builder builder,
+        List<Releasable> releasables,
+        List<Operator> operators
+    ) {
+        if (queryList instanceof PostJoinFilterable postJoinFilterable) {
+            List<Expression> postJoinFilterExpressions = postJoinFilterable.getPostJoinFilter();
+            if (postJoinFilterExpressions.isEmpty() == false) {
+                Expression combinedFilter = Predicates.combineAnd(postJoinFilterExpressions);
+                Operator postJoinFilter = filterExecOperator(combinedFilter, shardContext.context, driverContext, builder);
+                if (postJoinFilter != null) {
+                    releasables.add(postJoinFilter);
+                    operators.add(postJoinFilter);
+                }
+            }
+        }
+    }
+
+    private Operator filterExecOperator(
+        Expression filterExpression,
+        EsPhysicalOperationProviders.ShardContext shardContext,
+        DriverContext driverContext,
+        Layout.Builder builder
+    ) {
+        if (filterExpression == null) {
+            return null;
+        }
+
+        var evaluatorFactory = EvalMapper.toEvaluator(
+            FoldContext.small()/*is this correct*/,
+            filterExpression,
+            builder.build(),
+            new IndexedByShardIdFromSingleton<>(shardContext)
+        );
+        var filterOperatorFactory = new FilterOperator.FilterOperatorFactory(evaluatorFactory);
+        return filterOperatorFactory.get(driverContext);
+    }
+
+    /**
+     * Collects left-side fields from post-join filter expressions that need to be broadcast.
+     * Adds these fields to the layout builder and returns the list of MatchConfigs to broadcast.
+     */
+    private List<MatchConfig> collectLeftSideFieldsToBroadcast(LookupEnrichQueryGenerator queryList, T request, Layout.Builder builder) {
+        List<MatchConfig> allLeftFieldsToBroadcast = new ArrayList<>();
+        // Extract left-side fields from post-join filter expressions to determine what needs to be broadcast
+        if (queryList instanceof PostJoinFilterable postJoinFilterable) {
+            List<Expression> postJoinFilterExpressions = postJoinFilterable.getPostJoinFilter();
+            if (postJoinFilterExpressions.isEmpty() == false) {
+                LookupFromIndexService.TransportRequest lookupRequest = (LookupFromIndexService.TransportRequest) request;
+                // Build a map of matchField names for quick lookup
+                Map<String, MatchConfig> matchFieldsByName = new HashMap<>();
+                for (MatchConfig matchField : lookupRequest.getMatchFields()) {
+                    matchFieldsByName.put(matchField.fieldName(), matchField);
+                }
+                // Build a set of extractFields names to avoid adding duplicates
+                Set<String> extractFieldNames = new HashSet<>();
+                for (NamedExpression extractField : request.extractFields) {
+                    extractFieldNames.add(extractField.name());
+                }
+                // Extract FieldAttributes from post-join filter expressions and check if they are in matchFields
+                Map<String, TypedAttribute> fieldsToBroadcast = new HashMap<>();
+                for (Expression filterExpr : postJoinFilterExpressions) {
+                    for (Attribute attr : filterExpr.references()) {
+                        if (attr instanceof TypedAttribute typedAttribute) {
+                            String fieldName = attr.name();
+                            // Check if this field is in matchFields (left-side field with a channel)
+                            if (matchFieldsByName.containsKey(fieldName)) {
+                                fieldsToBroadcast.put(fieldName, typedAttribute);
+                            }
+                        }
+                    }
+                }
+                // Add matching fields to layout and broadcast list, but skip if already in extractFields
+                for (Map.Entry<String, TypedAttribute> entry : fieldsToBroadcast.entrySet()) {
+                    String fieldName = entry.getKey();
+                    TypedAttribute typedAttribute = entry.getValue();
+                    MatchConfig matchField = matchFieldsByName.get(fieldName);
+                    // Only add if not already in extractFields to avoid duplicates
+                    if (extractFieldNames.contains(fieldName) == false) {
+                        builder.append(typedAttribute);
+                        allLeftFieldsToBroadcast.add(matchField);
+                    }
+                }
+            }
+        }
+        return allLeftFieldsToBroadcast;
+    }
+
+    /**
+     * Creates an operator that broadcasts matchFields from the inputPage to each output Page
+     * using the Positions block at the specified channel to determine which left-hand row each right-hand row corresponds to.
+     * This is similar to how RightChunkedLeftJoin broadcasts left-hand blocks.
+     */
+    private Operator broadcastMatchFieldsOperator(DriverContext driverContext, Page inputPage, List<MatchConfig> matchFields) {
+        return new BroadcastMatchFieldsOperator(driverContext, inputPage, matchFields, 1);
     }
 
     private static Operator extractFieldsOperator(

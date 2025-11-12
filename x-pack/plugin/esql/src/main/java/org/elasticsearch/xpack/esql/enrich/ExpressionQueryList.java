@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.enrich;
 
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
+import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.compute.data.Block;
@@ -38,7 +39,9 @@ import org.elasticsearch.xpack.esql.stats.SearchContextStats;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.LOOKUP_JOIN_ON_BOOLEAN_EXPRESSION;
 import static org.elasticsearch.xpack.esql.enrich.AbstractLookupService.termQueryList;
@@ -56,12 +59,14 @@ import static org.elasticsearch.xpack.esql.planner.TranslatorHandler.TRANSLATOR_
  * It is used for field-based join when the join is on more than one field or there is a preJoinFilter
  * 2. Expression-based join: The join conditions are based on a complex expression that can involve multiple fields and operators.
  */
-public class ExpressionQueryList implements LookupEnrichQueryGenerator {
+public class ExpressionQueryList implements LookupEnrichQueryGenerator, PostJoinFilterable {
     private final List<QueryList> queryLists;
     private final List<Query> lucenePushableFilters = new ArrayList<>();
     private final SearchExecutionContext context;
     private final AliasFilter aliasFilter;
     private final LucenePushdownPredicates lucenePushdownPredicates;
+    private List<Expression> postJoinFilter;
+    private int inputPagePositionCount = -1;
 
     private ExpressionQueryList(
         List<QueryList> queryLists,
@@ -77,6 +82,7 @@ public class ExpressionQueryList implements LookupEnrichQueryGenerator {
             SearchContextStats.from(List.of(context)),
             new EsqlFlags(clusterService.getClusterSettings())
         );
+        postJoinFilter = new ArrayList<>();
         buildPreJoinFilter(rightPreJoinPlan, clusterService);
     }
 
@@ -146,19 +152,94 @@ public class ExpressionQueryList implements LookupEnrichQueryGenerator {
         ClusterService clusterService,
         Warnings warnings
     ) {
+        this.inputPagePositionCount = inputPage.getPositionCount();
         List<Expression> expressions = Predicates.splitAnd(joinOnConditions);
-        for (Expression expr : expressions) {
+
+        // Build set of left-side field names for categorization
+        Set<String> leftSideFieldNames = new HashSet<>();
+        for (MatchConfig matchField : matchFields) {
+            leftSideFieldNames.add(matchField.fieldName());
+        }
+
+        // Split expressions into left-only, right-only, and mixed
+        List<Expression> leftOnlyExpressions = new ArrayList<>();
+        List<Expression> rightOnlyExpressions = new ArrayList<>();
+        List<Expression> mixedExpressions = new ArrayList<>();
+        splitExpressionsBySide(expressions, leftSideFieldNames, leftOnlyExpressions, rightOnlyExpressions, mixedExpressions);
+
+        // Process mixed expressions - try as left-right binary comparison first
+        // If that fails, add to post-join filter
+        for (Expression expr : mixedExpressions) {
             boolean applied = applyAsLeftRightBinaryComparison(expr, matchFields, inputPage, clusterService, warnings);
             if (applied == false) {
-                applied = applyAsRightSidePushableFilter(expr);
+                postJoinFilter.add(expr);
             }
+        }
+
+        // Process right-only expressions as right-side pushable filters
+        // If that fails, add to post-join filter
+        for (Expression expr : rightOnlyExpressions) {
+            boolean applied = applyAsRightSidePushableFilter(expr, matchFields);
             if (applied == false) {
-                throw new IllegalArgumentException("Cannot apply join condition: " + expr);
+                postJoinFilter.add(expr);
+            }
+        }
+
+        // Process left-only expressions as post-join filters
+        postJoinFilter.addAll(leftOnlyExpressions);
+    }
+
+    private void splitExpressionsBySide(
+        List<Expression> expressions,
+        Set<String> leftSideFieldNames,
+        List<Expression> leftOnlyExpressions,
+        List<Expression> rightOnlyExpressions,
+        List<Expression> mixedExpressions
+    ) {
+        for (Expression expr : expressions) {
+            List<Attribute> allAttributes = new ArrayList<>();
+            expr.forEachDown(Attribute.class, allAttributes::add);
+
+            boolean hasLeftSide = false;
+            boolean hasRightSide = false;
+
+            for (Attribute attr : allAttributes) {
+                if (leftSideFieldNames.contains(attr.name())) {
+                    hasLeftSide = true;
+                } else {
+                    hasRightSide = true;
+                }
+            }
+
+            if (hasLeftSide && hasRightSide) {
+                mixedExpressions.add(expr);
+            } else if (hasLeftSide) {
+                leftOnlyExpressions.add(expr);
+            } else {
+                rightOnlyExpressions.add(expr);
             }
         }
     }
 
-    private boolean applyAsRightSidePushableFilter(Expression filter) {
+    private boolean applyAsRightSidePushableFilter(Expression filter, List<MatchConfig> matchFields) {
+        // First check if this filter only references right-side attributes
+        // Right-side attributes are those NOT in matchFields (which are left-side fields)
+        Set<String> leftSideFieldNames = new HashSet<>();
+        for (MatchConfig matchField : matchFields) {
+            leftSideFieldNames.add(matchField.fieldName());
+        }
+        // Check if any attribute in the filter expression tree is from the left side
+        // We need to traverse the entire expression tree, not just top-level references,
+        // because some functions may have attributes nested in their children
+        List<Attribute> allAttributes = new ArrayList<>();
+        filter.forEachDown(Attribute.class, allAttributes::add);
+        for (Attribute attr : allAttributes) {
+            if (leftSideFieldNames.contains(attr.name())) {
+                // This filter references a left-side attribute, so it cannot be pushed to Lucene
+                return false;
+            }
+        }
+        // All attributes are from the right side, check if it's translatable
         if (filter instanceof TranslationAware translationAware) {
             if (TranslationAware.Translatable.YES.equals(translationAware.translatable(lucenePushdownPredicates))) {
                 QueryBuilder queryBuilder = translationAware.asQuery(lucenePushdownPredicates, TRANSLATOR_HANDLER).toQueryBuilder();
@@ -284,6 +365,11 @@ public class ExpressionQueryList implements LookupEnrichQueryGenerator {
         for (Query preJoinFilter : lucenePushableFilters) {
             builder.add(preJoinFilter, BooleanClause.Occur.FILTER);
         }
+        // If builder is empty (no queryLists and no lucenePushableFilters),
+        // we need to fetch all rows so post-join filters can evaluate general expression join conditions
+        if (queryLists.isEmpty() && lucenePushableFilters.isEmpty()) {
+            return new MatchAllDocsQuery();
+        }
         return builder.build();
     }
 
@@ -295,6 +381,14 @@ public class ExpressionQueryList implements LookupEnrichQueryGenerator {
      */
     @Override
     public int getPositionCount() {
+        if (queryLists.isEmpty()) {
+            // When all conditions are post-join filters or lucenePushableFilters,
+            // we need to return the input page position count
+            if (inputPagePositionCount < 0) {
+                throw new IllegalStateException("Input page position count not set");
+            }
+            return inputPagePositionCount;
+        }
         int positionCount = queryLists.get(0).getPositionCount();
         for (QueryList queryList : queryLists) {
             if (queryList.getPositionCount() != positionCount) {
@@ -307,5 +401,10 @@ public class ExpressionQueryList implements LookupEnrichQueryGenerator {
             }
         }
         return positionCount;
+    }
+
+    @Override
+    public List<Expression> getPostJoinFilter() {
+        return postJoinFilter;
     }
 }

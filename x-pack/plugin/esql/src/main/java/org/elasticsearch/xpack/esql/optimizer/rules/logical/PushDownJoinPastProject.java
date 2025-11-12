@@ -50,6 +50,11 @@ public final class PushDownJoinPastProject extends OptimizerRules.OptimizerRule<
         }
 
         if (join.left() instanceof Project project && join.config().type() == JoinTypes.LEFT) {
+            // Check for conflicts between Project aliases and join condition attributes
+            // If conflicts exist, disable the rule to avoid complications
+            if (hasConflictsWithLookupJoinOnCondition(project, join)) {
+                return join;
+            }
             AttributeMap.Builder<Expression> aliasBuilder = AttributeMap.builder();
             project.forEachExpression(Alias.class, a -> aliasBuilder.put(a.toAttribute(), a.child()));
             var aliasesFromProject = aliasBuilder.build();
@@ -117,5 +122,49 @@ public final class PushDownJoinPastProject extends OptimizerRules.OptimizerRule<
         }
 
         return join;
+    }
+
+    /**
+     * Checks if pushing down the Project would cause conflicts with attributes in the join condition.
+     * A conflict occurs when a left-side attribute in the join condition, after being resolved through
+     * Project aliases to the child's attribute names, would conflict with a right-side output field name.
+     *
+     * @param project The Project to be pushed down
+     * @param join The Join operation
+     * @return true if conflicts are detected, false otherwise
+     */
+    private static boolean hasConflictsWithLookupJoinOnCondition(Project project, Join join) {
+        if (join.config().joinOnConditions() == null) {
+            return false;
+        }
+
+        // Build aliases map from Project
+        AttributeMap.Builder<Expression> aliasBuilder = AttributeMap.builder();
+        project.forEachExpression(Alias.class, a -> aliasBuilder.put(a.toAttribute(), a.child()));
+        AttributeMap<Expression> aliasesFromProject = aliasBuilder.build();
+
+        // Get right-side output field names
+        Set<String> rightSideNames = new HashSet<>(Expressions.names(join.rightOutputFields()));
+
+        // Get left-side attribute names from the child (these are the names that will be available after removing the Project)
+        Set<String> childOutputNames = new HashSet<>(Expressions.names(project.child().output()));
+
+        // Check each attribute referenced in the join condition
+        for (Attribute attr : join.config().joinOnConditions().references()) {
+            // Resolve attr through Project aliases to get the underlying expression
+            Expression resolved = aliasesFromProject.resolve(attr, attr);
+            Attribute resolvedAttr = resolved instanceof Attribute ? (Attribute) resolved : attr;
+            String resolvedName = resolvedAttr.name();
+
+            // Check if the resolved attribute is from the left side (by name)
+            if (childOutputNames.contains(resolvedName)) {
+                // Check if the resolved attribute name conflicts with right-side names
+                if (rightSideNames.contains(resolvedName)) {
+                    return true;
+                }
+            }
+        }
+
+        return false;
     }
 }

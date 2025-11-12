@@ -76,6 +76,8 @@ abstract class AbstractKnnVectorQueryBuilderTestCase extends AbstractQueryTestCa
     protected static String indexType;
     protected static int vectorDimensions;
 
+    protected boolean rescoreVectorAllowZero = true;
+
     @Before
     private void checkIndexTypeAndDimensions() {
         // Check that these are initialized - should be done as part of the createAdditionalMappings method
@@ -182,7 +184,7 @@ abstract class AbstractKnnVectorQueryBuilderTestCase extends AbstractQueryTestCa
             return null;
         }
 
-        return new RescoreVectorBuilder(randomBoolean() ? 0f : randomFloatBetween(1.0f, 10.0f, false));
+        return new RescoreVectorBuilder((rescoreVectorAllowZero && randomBoolean()) ? 0f : randomFloatBetween(1.0f, 10.0f, false));
     }
 
     @Override
@@ -492,6 +494,36 @@ abstract class AbstractKnnVectorQueryBuilderTestCase extends AbstractQueryTestCa
         assertBWCSerialization(query, queryNoRescoreVector, version);
     }
 
+    public void testBWCVersionSerialization_GivenAutoPrefiltering() throws IOException {
+        for (int i = 0; i < 100; i++) {
+
+            TransportVersion version = TransportVersionUtils.randomVersionBetween(
+                random(),
+                TransportVersions.V_8_18_0,
+                TransportVersionUtils.getPreviousVersion(KnnVectorQueryBuilder.AUTO_PREFILTERING)
+            );
+            rescoreVectorAllowZero = version.onOrAfter(RescoreVectorBuilder.RESCORE_VECTOR_ALLOW_ZERO);
+            KnnVectorQueryBuilder query = doCreateTestQueryBuilder().setAutoPrefiltering(true);
+            KnnVectorQueryBuilder queryNoAutoPrefiltering = new KnnVectorQueryBuilder(
+                query.getFieldName(),
+                query.queryVector(),
+                query.k(),
+                query.numCands(),
+                version.onOrAfter(KnnVectorQueryBuilder.VISIT_PERCENTAGE) ? query.visitPercentage() : null,
+                query.rescoreVectorBuilder(),
+                query.getVectorSimilarity()
+            ).queryName(query.queryName()).boost(query.boost()).addFilterQueries(query.filterQueries()).setAutoPrefiltering(false);
+            assertBWCSerialization(query, queryNoAutoPrefiltering, version);
+        }
+    }
+
+    public void testSerialization_GivenAutoPrefiltering() throws IOException {
+        KnnVectorQueryBuilder query = doCreateTestQueryBuilder().setAutoPrefiltering(true);
+        KnnVectorQueryBuilder serializedQuery = copyQuery(query);
+        assertThat(serializedQuery, equalTo(query));
+        assertThat(serializedQuery.hashCode(), equalTo(query.hashCode()));
+    }
+
     private void assertBWCSerialization(QueryBuilder newQuery, QueryBuilder bwcQuery, TransportVersion version) throws IOException {
         assertSerialization(bwcQuery, version);
         try (BytesStreamOutput output = new BytesStreamOutput()) {
@@ -551,6 +583,7 @@ abstract class AbstractKnnVectorQueryBuilderTestCase extends AbstractQueryTestCa
             filters.add(QueryBuilders.termQuery(filterFieldName, randomAlphaOfLength(10)));
         }
         knnVectorQueryBuilder.addFilterQueries(filters);
+        knnVectorQueryBuilder.setAutoPrefiltering(randomBoolean());
 
         QueryRewriteContext context = new QueryRewriteContext(null, null, null);
         PlainActionFuture<QueryBuilder> knnFuture = new PlainActionFuture<>();
@@ -564,5 +597,6 @@ abstract class AbstractKnnVectorQueryBuilderTestCase extends AbstractQueryTestCa
         assertThat(rewritten.getVectorSimilarity(), equalTo(1f));
         assertThat(rewritten.filterQueries(), hasSize(numFilters));
         assertThat(rewritten.filterQueries(), equalTo(filters));
+        assertThat(rewritten.isAutoPrefiltering(), equalTo(knnVectorQueryBuilder.isAutoPrefiltering()));
     }
 }

@@ -191,7 +191,7 @@ public class PercolatorFieldMapper extends FieldMapper {
             NumberFieldMapper.Builder builder = NumberFieldMapper.Builder.docValuesOnly(
                 MINIMUM_SHOULD_MATCH_FIELD_NAME,
                 NumberFieldMapper.NumberType.INTEGER,
-                indexSettings.getIndexVersionCreated()
+                indexSettings
             );
             return builder.build(context);
         }

@@ -68,7 +68,6 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
         "Data too large", // Circuit breaker exceptions eg. https://github.com/elastic/elasticsearch/issues/130072
         "long overflow", // https://github.com/elastic/elasticsearch/issues/135759
         "cannot be cast to class", // https://github.com/elastic/elasticsearch/issues/133992
-        "can't find input for", // https://github.com/elastic/elasticsearch/issues/136596
         "unexpected byte", // https://github.com/elastic/elasticsearch/issues/136598
         "out of bounds for length", // https://github.com/elastic/elasticsearch/issues/136851
 

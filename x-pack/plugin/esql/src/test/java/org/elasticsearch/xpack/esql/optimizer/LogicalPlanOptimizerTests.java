@@ -1618,11 +1618,11 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
     /**
      * Expected
      * <pre>{@code
-     * Limit[1000[INTEGER],true]
-     * \_MvExpand[x{r}#4,x{r}#19]
-     *   \_EsqlProject[[first_name{f}#9 AS x]]
-     *     \_Limit[1000[INTEGER],false]
-     *       \_EsRelation[test][_meta_field{f}#14, emp_no{f}#8, first_name{f}#9, ge..]
+     * Project[[x{r}#20 AS x#5]]
+     * \_Limit[1000[INTEGER],true,false]
+     *   \_MvExpand[first_name{f}#10,x{r}#20]
+     *     \_Limit[1000[INTEGER],false,false]
+     *       \_EsRelation[test][_meta_field{f}#15, emp_no{f}#9, first_name{f}#10, g..]
      * }</pre>
      */
     public void testCopyDefaultLimitPastMvExpand() {
@@ -1632,11 +1632,10 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
             | keep x
             | mv_expand x
             """);
-
-        var limit = asLimit(plan, 1000, true);
+        var project = as(plan, Project.class);
+        var limit = asLimit(project.child(), 1000, true);
         var mvExpand = as(limit.child(), MvExpand.class);
-        var keep = as(mvExpand.child(), EsqlProject.class);
-        var limitPastMvExpand = asLimit(keep.child(), 1000, false);
+        var limitPastMvExpand = asLimit(mvExpand.child(), 1000, false);
         as(limitPastMvExpand.child(), EsRelation.class);
     }
 
@@ -1669,11 +1668,11 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
     /**
      * Expected
      * <pre>{@code
-     * Limit[10[INTEGER],true]
-     * \_MvExpand[first_name{f}#7,first_name{r}#17]
-     *   \_EsqlProject[[first_name{f}#7, last_name{f}#10]]
-     *     \_Limit[1[INTEGER],false]
-     *       \_EsRelation[test][_meta_field{f}#12, emp_no{f}#6, first_name{f}#7, ge..]
+     * Project[[first_name{r}#18, last_name{f}#11]]
+     * \_Limit[10[INTEGER],true,false]
+     *   \_MvExpand[first_name{f}#8,first_name{r}#18]
+     *     \_Limit[1[INTEGER],false,false]
+     *       \_EsRelation[test][_meta_field{f}#13, emp_no{f}#7, first_name{f}#8, ge..]
      * }</pre>
      */
     public void testDontPushDownLimitPastMvExpand() {
@@ -1684,11 +1683,10 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
             | mv_expand first_name
             | limit 10
             """);
-
-        var limit = asLimit(plan, 10, true);
+        var project = as(plan, Project.class);
+        var limit = asLimit(project.child(), 10, true);
         var mvExpand = as(limit.child(), MvExpand.class);
-        var project = as(mvExpand.child(), EsqlProject.class);
-        var limit2 = asLimit(project.child(), 1, false);
+        var limit2 = asLimit(mvExpand.child(), 1, false);
         as(limit2.child(), EsRelation.class);
     }
 
@@ -2138,16 +2136,16 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
      * Expected
      *
      * <pre>{@code
-     * Limit[10000[INTEGER],true]
-     * \_MvExpand[c{r}#7,c{r}#16]
-     *   \_EsqlProject[[c{r}#7, a{r}#3]]
-     *     \_TopN[[Order[a{r}#3,ASC,FIRST]],7300[INTEGER]]
-     *       \_Limit[7300[INTEGER],true]
-     *         \_MvExpand[b{r}#5,b{r}#15]
-     *           \_Limit[7300[INTEGER],false]
-     *             \_LocalRelation[[a{r}#3, b{r}#5, c{r}#7],[ConstantNullBlock[positions=1],
-     *               IntVectorBlock[vector=ConstantIntVector[positions=1, value=123]],
-     *               IntVectorBlock[vector=ConstantIntVector[positions=1, value=234]]]]
+     * EsqlProject[[c{r}#17, a{r}#4]]
+     * \_Limit[10000[INTEGER],true,false]
+     *   \_MvExpand[c{r}#8,c{r}#17]
+     *     \_TopN[[Order[a{r}#4,ASC,FIRST]],7300[INTEGER],false]
+     *       \_Limit[7300[INTEGER],true,false]
+     *         \_MvExpand[b{r}#6,b{r}#16]
+     *           \_Limit[7300[INTEGER],false,false]
+     *             \_LocalRelation[[a{r}#4, b{r}#6, c{r}#8],Page{blocks=[ConstantNullBlock[positions=1],
+     *             IntVectorBlock[vector=ConstantIntVector[positions=1, value=123]],
+     *             IntVectorBlock[vector=ConstantIntVector[positions=1, value=234]]]}]
      * }</pre>
      */
     public void testLimitThenSortBeforeMvExpand() {
@@ -2159,10 +2157,10 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
             | sort a NULLS FIRST
             | mv_expand c""");
 
-        var limit10kBefore = asLimit(plan, 10000, true);
+        var project = as(plan, Project.class);
+        var limit10kBefore = asLimit(project.child(), 10000, true);
         var mvExpand = as(limit10kBefore.child(), MvExpand.class);
-        var project = as(mvExpand.child(), EsqlProject.class);
-        var topN = as(project.child(), TopN.class);
+        var topN = as(mvExpand.child(), TopN.class);
         assertThat(topN.limit().fold(FoldContext.small()), equalTo(7300));
         assertThat(orderNames(topN), contains("a"));
         var limit7300Before = asLimit(topN.child(), 7300, true);
@@ -3118,6 +3116,88 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
 
         var keep = as(plan, Project.class);
         as(keep.child(), Enrich.class);
+    }
+
+    /**
+     * <pre>{@code
+     * EsqlProject[[_meta_field{f}#12, emp_no{f}#6, first_name{f}#7, gender{f}#8, hire_date{f}#13, job{f}#14, job.raw{f}#15, lang
+     * uages{f}#9, last_name{f}#10, long_noidx{f}#16, salary{r}#17]]
+     * \_Limit[1000[INTEGER],false]
+     *   \_Filter[salary{r}#17 > 20[INTEGER]]
+     *     \_MvExpand[salary{f}#11,salary{r}#17]
+     *       \_EsRelation[test][_meta_field{f}#12, emp_no{f}#6, first_name{f}#7, ge..]
+     * }</pre>
+     */
+    public void testPushDownMvExpandPastProject() {
+        LogicalPlan plan = optimizedPlan("""
+            from test
+            | keep *
+            | mv_expand salary
+            | where salary > 20
+            """);
+
+        var keep = as(plan, Project.class);
+        var limit = asLimit(keep.child(), 1000, false);
+        var filter = as(limit.child(), Filter.class);
+        var mvExpand = as(filter.child(), MvExpand.class);
+        as(mvExpand.child(), EsRelation.class);
+    }
+
+    /**
+     * <pre>{@code
+     * Project[[a{r}#13, b{r}#14 AS b#8]]
+     * \_Limit[1000[INTEGER],true,false]
+     *   \_MvExpand[$$a$b$0{r}#15,b{r}#14]
+     *     \_Limit[1000[INTEGER],true,false]
+     *       \_MvExpand[a{r}#6,a{r}#13]
+     *         \_Eval[[a{r}#6 AS $$a$b$0#15]]
+     *           \_Limit[1000[INTEGER],false,false]
+     *             \_Aggregate[[],[COUNT(*[KEYWORD],true[BOOLEAN],PT0S[TIME_DURATION]) AS a#6]]
+     *               \_LocalRelation[[a{r}#4],Page{blocks=[IntVectorBlock[vector=ConstantIntVector[positions=1, value=1]]]}]
+     * }</pre>
+     */
+    public void testPushDownMvExpandPastProject2() {
+        LogicalPlan plan = optimizedPlan("""
+            row a = 1
+            | stats a = count(*), b = count(*)
+            | mv_expand a
+            | mv_expand b
+            """);
+        var project = as(plan, Project.class);
+        var limit = asLimit(project.child(), 1000, true);
+        var mvExpand = as(limit.child(), MvExpand.class);
+        limit = asLimit(mvExpand.child(), 1000, true);
+        mvExpand = as(limit.child(), MvExpand.class);
+        var eval = as(mvExpand.child(), Eval.class);
+        limit = asLimit(eval.child(), 1000, false);
+        var agg = as(limit.child(), Aggregate.class);
+        as(agg.child(), LocalRelation.class);
+    }
+
+    /**
+     * <pre>{@code
+     * Project[[b{r}#22]]
+     * \_Limit[1000[INTEGER],true,false]
+     *   \_MvExpand[$$a$b$0{r}#23,b{r}#22]
+     *     \_Eval[[2[INTEGER] AS $$a$b$0#23]]
+     *       \_Limit[1000[INTEGER],false,false]
+     *         \_EsRelation[test][_meta_field{f}#17, emp_no{f}#11, first_name{f}#12, ..]
+     * }</pre>
+     */
+    public void testPushDownMvExpandPastProject3() {
+        LogicalPlan plan = optimizedPlan("""
+            from test
+            | eval a = 2
+            | rename a AS b
+            | mv_expand b
+            | keep b
+            """);
+        var project = as(plan, Project.class);
+        var limit = asLimit(project.child(), 1000, true);
+        var mvExpand = as(limit.child(), MvExpand.class);
+        var eval = as(mvExpand.child(), Eval.class);
+        limit = asLimit(eval.child(), 1000, false);
+        as(limit.child(), EsRelation.class);
     }
 
     public void testTopNEnrich() {
@@ -8559,14 +8639,14 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
      * Expects
      *
      * <pre>{@code
-     * TopN[[Order[emp_no{f}#23,ASC,LAST]],1000[INTEGER]]
-     * \_Filter[emp_no{f}#23 > 1[INTEGER]]
-     *   \_MvExpand[languages{f}#26,languages{r}#36]
-     *     \_Project[[language_name{f}#35, foo{r}#5 AS bar#18, languages{f}#26, emp_no{f}#23]]
-     *       \_Join[LEFT,[languages{f}#26],[languages{f}#26],[language_code{f}#34]]
-     *         |_Eval[[TOSTRING(languages{f}#26) AS foo#5]]
-     *         | \_EsRelation[test][_meta_field{f}#29, emp_no{f}#23, first_name{f}#24, ..]
-     *         \_EsRelation[languages_lookup][LOOKUP][language_code{f}#34, language_name{f}#35]
+     * Project[[language_name{f}#36, foo{r}#6 AS bar#19, languages{r}#37, emp_no{f}#24]]
+     * \_TopN[[Order[emp_no{f}#24,ASC,LAST]],1000[INTEGER],false]
+     *   \_Filter[emp_no{f}#24 > 1[INTEGER]]
+     *     \_MvExpand[languages{f}#27,languages{r}#37]
+     *       \_Join[LEFT,[languages{f}#27],[language_code{f}#35],null]
+     *         |_Eval[[TOSTRING(languages{f}#27) AS foo#6]]
+     *         | \_EsRelation[test][_meta_field{f}#30, emp_no{f}#24, first_name{f}#25, ..]
+     *         \_EsRelation[languages_lookup][LOOKUP][language_code{f}#35, language_name{f}#36]
      * }</pre>
      */
     public void testRedundantSortOnMvExpandJoinKeepDropRename() {
@@ -8583,11 +8663,11 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
             | SORT emp_no
             """);
 
-        var topN = as(plan, TopN.class);
+        var project = as(plan, Project.class);
+        var topN = as(project.child(), TopN.class);
         var filter = as(topN.child(), Filter.class);
         var mvExpand = as(filter.child(), MvExpand.class);
-        var project = as(mvExpand.child(), Project.class);
-        var join = as(project.child(), Join.class);
+        var join = as(mvExpand.child(), Join.class);
         var eval = as(join.left(), Eval.class);
         as(eval.child(), EsRelation.class);
 

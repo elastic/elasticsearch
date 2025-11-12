@@ -481,3 +481,68 @@ Production   | false                 | true            | -1            | 1      
 Success      | false                 | true            | -1            | 1             | null               | 1
 ;
 
+
+testPushDownMvExpandPastProject
+// https://github.com/elastic/elasticsearch/issues/136596
+required_capability: push_down_mv_expand_past_project
+from partial_mapping_no_source_sample_data,no_mapping_sample_data 
+| eval spZehshmg = false, `@timestamp` = null, xrRYYdVC = -1193517579093331092 
+| rename xrRYYdVC AS `goqRirHJaE`, `@timestamp` AS gilMWmQyQ 
+| sort goqRirHJaE NULLS LAST 
+| where true 
+| limit 14644 
+| mv_expand `spZehshmg` 
+| keep goqRirHJaE
+;
+
+goqRirHJaE:long
+-1193517579093331092
+-1193517579093331092
+-1193517579093331092
+-1193517579093331092
+-1193517579093331092
+-1193517579093331092
+-1193517579093331092
+-1193517579093331092
+-1193517579093331092
+-1193517579093331092
+-1193517579093331092
+-1193517579093331092
+-1193517579093331092
+-1193517579093331092
+;
+
+
+testPushDownMvExpandPastProject2
+required_capability: push_down_mv_expand_past_project
+from languages 
+| eval a = 2 
+| rename a AS b 
+| sort b 
+| mv_expand b 
+| keep b
+;
+
+b:integer
+2
+2
+2
+2
+;
+
+
+testPushDownMvExpandPastProject3
+required_capability: push_down_mv_expand_past_project
+from languages 
+| eval a = 2 
+| rename a AS b 
+| mv_expand b 
+| keep b
+;
+
+b:integer
+2
+2
+2
+2
+;

@@ -27,6 +27,7 @@ import org.elasticsearch.reservedstate.TransformState;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
@@ -131,7 +132,23 @@ public class ReservedStateUpdateTask implements ClusterStateTaskListener {
         }
 
         // Now, any existing handler not listed in updateSequence must have been removed.
-        // TODO: Removal logic
+        // We do removals after updates in case one of the updated handlers depends on one of these,
+        // to give that handler a chance to clean up before its dependency vanishes.
+        if (reservedStateMetadata != null) {
+            Set<String> toRemove = new HashSet<>(reservedStateMetadata.handlers().keySet());
+            toRemove.removeAll(updateSequence);
+            var reverseRemovalSequence = List.copyOf(orderedStateHandlers(toRemove, handlers));
+            for (var iter = reverseRemovalSequence.listIterator(reverseRemovalSequence.size()); iter.hasPrevious();) {
+                String handlerName = iter.previous();
+                var handler = handlers.get(handlerName);
+                try {
+                    Set<String> existingKeys = keysForHandler(reservedStateMetadata, handlerName);
+                    state = handler.remove(new TransformState(state, existingKeys));
+                } catch (Exception e) {
+                    errors.add(format("Error processing %s state removal: %s", handler.name(), stackTrace(e)));
+                }
+            }
+        }
 
         checkAndThrowOnError(errors, reservedStateVersion, versionCheck);
 

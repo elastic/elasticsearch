@@ -25,14 +25,19 @@ public record ResolvedIndexExpression(Set<String> expression, Set<String> resolv
         return Stream.concat(
             Stream.of(Map.entry(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY, response.getResolvedLocally())),
             response.getResolvedRemotely().entrySet().stream()
-        ).map(entry -> Map.entry(
-            entry.getKey(),
-            entry.getValue().expressions()
-                .stream()
-                .filter(e -> e.localExpressions().indices().isEmpty() == false)
-                .map(e -> new ResolvedIndexExpression(Set.of(e.original()), e.localExpressions().indices()))
-                .reduce(EMPTY, ResolvedIndexExpression::merge)
-        )).collect(toMap(Map.Entry::getKey, Map.Entry::getValue));
+        )
+            .map(
+                entry -> Map.entry(
+                    entry.getKey(),
+                    entry.getValue()
+                        .expressions()
+                        .stream()
+                        .filter(e -> e.localExpressions().indices().isEmpty() == false)
+                        .map(e -> new ResolvedIndexExpression(Set.of(e.original()), e.localExpressions().indices()))
+                        .reduce(EMPTY, ResolvedIndexExpression::merge)
+                )
+            )
+            .collect(toMap(Map.Entry::getKey, Map.Entry::getValue));
     }
 
     private static ResolvedIndexExpression merge(ResolvedIndexExpression a, ResolvedIndexExpression b) {

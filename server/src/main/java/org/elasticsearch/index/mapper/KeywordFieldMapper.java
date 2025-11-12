@@ -536,7 +536,7 @@ public final class KeywordFieldMapper extends FieldMapper {
         public KeywordFieldType(String name, FieldType fieldType, boolean isSyntheticSource) {
             super(
                 name,
-                IndexType.terms(fieldType.indexOptions() != IndexOptions.NONE, false),
+                IndexType.terms(fieldType),
                 fieldType.stored(),
                 textSearchInfo(fieldType, null, Lucene.KEYWORD_ANALYZER, Lucene.KEYWORD_ANALYZER),
                 Collections.emptyMap(),

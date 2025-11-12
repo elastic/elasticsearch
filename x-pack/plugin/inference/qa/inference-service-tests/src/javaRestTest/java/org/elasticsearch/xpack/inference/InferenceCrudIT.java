@@ -10,6 +10,7 @@
 package org.elasticsearch.xpack.inference;
 
 import org.apache.http.util.EntityUtils;
+import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.Strings;
@@ -211,7 +212,7 @@ public class InferenceCrudIT extends InferenceBaseRestTest {
         final String endpointId = "endpoint_referenced_by_semantic_text";
         final String searchEndpointId = "search_endpoint_referenced_by_semantic_text";
         final String indexName = randomAlphaOfLength(10).toLowerCase();
-        final Function<String, String> buildErrorString = endpointName -> " Inference endpoint "
+        final Function<String, String> buildErrorString = endpointName -> "Inference endpoint "
             + endpointName
             + " is being used in the mapping for indexes: "
             + Set.of(indexName)
@@ -301,6 +302,74 @@ public class InferenceCrudIT extends InferenceBaseRestTest {
         }
         deletePipeline(pipelineId);
         deleteIndex(indexName);
+    }
+
+    public void testCreateEndpoint_withInferenceIdReferencedBySemanticText() throws IOException {
+        final String endpointId = "endpoint_referenced_by_semantic_text";
+        final String otherEndpointId = "other_endpoint_referenced_by_semantic_text";
+        final String indexName1 = randomAlphaOfLength(10).toLowerCase();
+        final String indexName2 = randomValueOtherThan(indexName1, () -> randomAlphaOfLength(10).toLowerCase());
+
+        putModel(endpointId, mockDenseServiceModelConfig(128), TaskType.TEXT_EMBEDDING);
+        putModel(otherEndpointId, mockDenseServiceModelConfig(), TaskType.TEXT_EMBEDDING);
+        // Create two indices, one where the inference ID of the endpoint we'll be deleting and
+        // recreating is used for inference_id and one where it's used for search_inference_id
+        putSemanticText(endpointId, otherEndpointId, indexName1);
+        putSemanticText(otherEndpointId, endpointId, indexName2);
+
+        // Confirm that we can create the endpoint with different settings if there
+        // are documents in the indices which do not use the semantic text field
+        var request = new Request("PUT", indexName1 + "/_create/1");
+        request.setJsonEntity("{\"non_inference_field\": \"value\"}");
+        assertStatusOkOrCreated(client().performRequest(request));
+
+        request = new Request("PUT", indexName2 + "/_create/1");
+        request.setJsonEntity("{\"non_inference_field\": \"value\"}");
+        assertStatusOkOrCreated(client().performRequest(request));
+
+        assertStatusOkOrCreated(client().performRequest(new Request("GET", "_refresh")));
+
+        deleteModel(endpointId, "force=true");
+        putModel(endpointId, mockDenseServiceModelConfig(64), TaskType.TEXT_EMBEDDING);
+
+        // Index a document with the semantic text field into each index
+        request = new Request("PUT", indexName1 + "/_create/2");
+        request.setJsonEntity("{\"inference_field\": \"value\"}");
+        assertStatusOkOrCreated(client().performRequest(request));
+
+        request = new Request("PUT", indexName2 + "/_create/2");
+        request.setJsonEntity("{\"inference_field\": \"value\"}");
+        assertStatusOkOrCreated(client().performRequest(request));
+
+        assertStatusOkOrCreated(client().performRequest(new Request("GET", "_refresh")));
+
+        deleteModel(endpointId, "force=true");
+
+        // Try to create an inference endpoint with the same ID but different dimensions
+        // from when the document with the semantic text field was indexed
+        ResponseException responseException = assertThrows(
+            ResponseException.class,
+            () -> putModel(endpointId, mockDenseServiceModelConfig(128), TaskType.TEXT_EMBEDDING)
+        );
+        assertThat(
+            responseException.getMessage(),
+            containsString(
+                "Inference endpoint ["
+                    + endpointId
+                    + "] could not be created because the inference_id is being used in mappings with incompatible settings for indices: ["
+            )
+        );
+        assertThat(responseException.getMessage(), containsString(indexName1));
+        assertThat(responseException.getMessage(), containsString(indexName2));
+        assertThat(
+            responseException.getMessage(),
+            containsString("Please either use a different inference_id or update the index mappings to refer to a different inference_id.")
+        );
+
+        deleteIndex(indexName1);
+        deleteIndex(indexName2);
+
+        deleteModel(otherEndpointId, "force=true");
     }
 
     public void testUnsupportedStream() throws Exception {

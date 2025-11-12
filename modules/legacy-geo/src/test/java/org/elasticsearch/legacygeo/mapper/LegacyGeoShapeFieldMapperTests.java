@@ -62,12 +62,6 @@ public class LegacyGeoShapeFieldMapperTests extends MapperTestCase {
     }
 
     @Override
-    public void testSupportsParsingObject() throws IOException {
-        super.testSupportsParsingObject();
-        assertWarnings("Parameter [strategy] is deprecated and will be removed in a future version");
-    }
-
-    @Override
     protected void minimalMapping(XContentBuilder b) throws IOException {
         b.field("type", "geo_shape").field("strategy", "recursive");
     }
@@ -75,12 +69,6 @@ public class LegacyGeoShapeFieldMapperTests extends MapperTestCase {
     @Override
     protected boolean supportsStoredFields() {
         return false;
-    }
-
-    @Override
-    public void testTotalFieldsCount() throws IOException {
-        super.testTotalFieldsCount();
-        assertWarnings("Parameter [strategy] is deprecated and will be removed in a future version");
     }
 
     @Override
@@ -677,5 +665,10 @@ public class LegacyGeoShapeFieldMapperTests extends MapperTestCase {
     @Override
     protected IngestScriptSupport ingestScriptSupport() {
         throw new AssumptionViolatedException("not supported");
+    }
+
+    @Override
+    protected List<SortShortcutSupport> getSortShortcutSupport() {
+        return List.of();
     }
 }

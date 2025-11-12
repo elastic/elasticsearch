@@ -51,7 +51,6 @@ import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
-import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.mapper.SourceLoader;
 import org.elasticsearch.index.mapper.SourceValueFetcher;
 import org.elasticsearch.index.mapper.TextFamilyFieldType;
@@ -168,7 +167,7 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
             n,
             c.indexVersionCreated(),
             c.getIndexAnalyzers(),
-            SourceFieldMapper.isSynthetic(c.getIndexSettings()),
+            isSyntheticSourceStoredFieldInBinaryFormat(c.indexVersionCreated()),
             c.isWithinMultiField()
         )
     );

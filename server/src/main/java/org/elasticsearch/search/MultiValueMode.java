@@ -24,6 +24,8 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.index.fielddata.AbstractBinaryDocValues;
 import org.elasticsearch.index.fielddata.AbstractSortedDocValues;
+import org.elasticsearch.index.fielddata.DenseDoubleValues;
+import org.elasticsearch.index.fielddata.DenseLongValues;
 import org.elasticsearch.index.fielddata.FieldData;
 import org.elasticsearch.index.fielddata.NumericDoubleValues;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
@@ -562,7 +564,7 @@ public enum MultiValueMode implements Writeable {
      * NOTE: Calling the returned instance on docs that are not root docs is illegal
      *       The returned instance can only be evaluate the current and upcoming docs
      */
-    public LongValues select(
+    public DenseLongValues select(
         final SortedNumericLongValues values,
         final long missingValue,
         final BitSet parentDocs,
@@ -573,26 +575,25 @@ public enum MultiValueMode implements Writeable {
             return FieldData.replaceMissing(FieldData.EMPTY, missingValue);
         }
 
-        return new LongValues() {
+        return new DenseLongValues() {
 
             int lastSeenParentDoc = -1;
             long lastEmittedValue = missingValue;
 
             @Override
-            public boolean advanceExact(int parentDoc) throws IOException {
+            public void doAdvanceExact(int parentDoc) throws IOException {
                 assert parentDoc >= lastSeenParentDoc : "can only evaluate current and upcoming parent docs";
                 if (parentDoc == lastSeenParentDoc) {
-                    return true;
+                    return;
                 } else if (parentDoc == 0) {
                     lastEmittedValue = missingValue;
-                    return true;
+                    return;
                 }
                 final int prevParentDoc = parentDocs.prevSetBit(parentDoc - 1);
                 final int firstChildDoc = getFirstChildDoc(prevParentDoc, childDocs);
 
                 lastSeenParentDoc = parentDoc;
                 lastEmittedValue = pick(values, missingValue, childDocs, firstChildDoc, parentDoc, maxChildren);
-                return true;
             }
 
             @Override
@@ -662,7 +663,7 @@ public enum MultiValueMode implements Writeable {
      * NOTE: Calling the returned instance on docs that are not root docs is illegal
      *       The returned instance can only be evaluate the current and upcoming docs
      */
-    public NumericDoubleValues select(
+    public DenseDoubleValues select(
         final SortedNumericDoubleValues values,
         final double missingValue,
         final BitSet parentDocs,
@@ -673,23 +674,22 @@ public enum MultiValueMode implements Writeable {
             return FieldData.replaceMissing(FieldData.emptyNumericDouble(), missingValue);
         }
 
-        return new NumericDoubleValues() {
+        return new DenseDoubleValues() {
 
             int lastSeenParentDoc = 0;
             double lastEmittedValue = missingValue;
 
             @Override
-            public boolean advanceExact(int parentDoc) throws IOException {
+            public void doAdvanceExact(int parentDoc) throws IOException {
                 assert parentDoc >= lastSeenParentDoc : "can only evaluate current and upcoming parent docs";
                 if (parentDoc == lastSeenParentDoc) {
-                    return true;
+                    return;
                 }
                 final int prevParentDoc = parentDocs.prevSetBit(parentDoc - 1);
                 final int firstChildDoc = getFirstChildDoc(prevParentDoc, childDocs);
 
                 lastSeenParentDoc = parentDoc;
                 lastEmittedValue = pick(values, missingValue, childDocs, firstChildDoc, parentDoc, maxChildren);
-                return true;
             }
 
             @Override

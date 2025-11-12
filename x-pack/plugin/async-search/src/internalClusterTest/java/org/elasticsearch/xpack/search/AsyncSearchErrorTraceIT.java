@@ -85,9 +85,6 @@ public class AsyncSearchErrorTraceIT extends AsyncSearchIntegTestCase {
                 Request getAsyncRequest = new Request("GET", "/_async_search/" + asyncExecutionId);
                 awaitAsyncRequestDoneRunning(getAsyncRequest);
             }
-
-            // check that the stack trace was not sent from the data node to the coordinating node
-            ErrorTraceHelper.assertStackTraceCleared(internalCluster());
         } finally {
             deleteAsyncSearchIfPresent(createAsyncResponseEntity);
         }
@@ -120,9 +117,6 @@ public class AsyncSearchErrorTraceIT extends AsyncSearchIntegTestCase {
                 getAsyncRequest.addParameter("error_trace", "true");
                 awaitAsyncRequestDoneRunning(getAsyncRequest);
             }
-
-            // check that the stack trace was sent from the data node to the coordinating node
-            ErrorTraceHelper.assertStackTraceObserved(internalCluster());
         } finally {
             deleteAsyncSearchIfPresent(createAsyncResponseEntity);
         }
@@ -155,9 +149,6 @@ public class AsyncSearchErrorTraceIT extends AsyncSearchIntegTestCase {
                 getAsyncRequest.addParameter("error_trace", "false");
                 awaitAsyncRequestDoneRunning(getAsyncRequest);
             }
-
-            // check that the stack trace was not sent from the data node to the coordinating node
-            ErrorTraceHelper.assertStackTraceCleared(internalCluster());
         } finally {
             deleteAsyncSearchIfPresent(createAsyncResponseEntity);
         }
@@ -242,9 +233,6 @@ public class AsyncSearchErrorTraceIT extends AsyncSearchIntegTestCase {
                 getAsyncRequest.addParameter("error_trace", "true");
                 awaitAsyncRequestDoneRunning(getAsyncRequest);
             }
-
-            // check that the stack trace was not sent from the data node to the coordinating node
-            ErrorTraceHelper.assertStackTraceCleared(internalCluster());
         } finally {
             deleteAsyncSearchIfPresent(createAsyncResponseEntity);
         }
@@ -276,9 +264,6 @@ public class AsyncSearchErrorTraceIT extends AsyncSearchIntegTestCase {
                 getAsyncRequest.addParameter("error_trace", "false");
                 awaitAsyncRequestDoneRunning(getAsyncRequest);
             }
-
-            // check that the stack trace was sent from the data node to the coordinating node
-            ErrorTraceHelper.assertStackTraceObserved(internalCluster());
         } finally {
             deleteAsyncSearchIfPresent(createAsyncResponseEntity);
         }

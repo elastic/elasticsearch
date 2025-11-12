@@ -190,12 +190,12 @@ public class UndesiredAllocationsTrackerTests extends ESTestCase {
     }
 
     public void testMaybeLogUndesiredAllocations() {
-        final int shardCount = randomIntBetween(5, 8);
+        final int maxShardsToTrack = randomIntBetween(2, 8);
         final var warningThreshold = TimeValue.timeValueMinutes(randomIntBetween(1, 5));
         final var logInterval = TimeValue.timeValueMinutes(randomIntBetween(1, 5));
         final var clusterSettings = ClusterSettings.createBuiltInClusterSettings(
             Settings.builder()
-                .put(UndesiredAllocationsTracker.MAX_UNDESIRED_ALLOCATIONS_TO_TRACK.getKey(), shardCount)
+                .put(UndesiredAllocationsTracker.MAX_UNDESIRED_ALLOCATIONS_TO_TRACK.getKey(), maxShardsToTrack)
                 .put(UndesiredAllocationsTracker.UNDESIRED_ALLOCATION_DURATION_LOG_INTERVAL_SETTING.getKey(), logInterval)
                 .put(UndesiredAllocationsTracker.UNDESIRED_ALLOCATION_DURATION_LOG_THRESHOLD_SETTING.getKey(), warningThreshold)
                 .build()

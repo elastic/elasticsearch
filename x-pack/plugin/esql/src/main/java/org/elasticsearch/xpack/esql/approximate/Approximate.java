@@ -244,6 +244,12 @@ public class Approximate {
     private static final double CONFIDENCE_LEVEL = 0.90;
 
     /**
+     * Don't sample with a probability higher than this threshold. The cost of
+     * tracking confidence intervals doesn't outweigh the benefits of sampling.
+     */
+    private static final double SAMPLE_PROBABILITY_THRESHOLD = 0.1;
+
+    /**
      * The number of times (trials) the sampled rows are divided into buckets.
      */
     private static final int TRIAL_COUNT = 2;
@@ -442,8 +448,8 @@ public class Approximate {
             sourceRowCount = rowCount(countResult);
             logger.debug("sourceCountPlan result: {} rows", sourceRowCount);
             double sampleProbability = sourceRowCount <= SAMPLE_ROW_COUNT ? 1.0 : (double) SAMPLE_ROW_COUNT / sourceRowCount;
-            if (queryProperties.canIncreaseRowCount == false && sampleProbability == 1.0) {
-                // If the query cannot increase the number of rows, and the sample probability is 1.0,
+            if (queryProperties.canIncreaseRowCount == false && sampleProbability > SAMPLE_PROBABILITY_THRESHOLD) {
+                // If the query cannot increase the number of rows, and the sample probability is large,
                 // we can directly run the original query without sampling.
                 runner.run(toPhysicalPlan.apply(logicalPlan), configuration, foldContext, listener);
             } else if (queryProperties.canIncreaseRowCount == false && queryProperties.canDecreaseRowCount == false) {
@@ -510,7 +516,7 @@ public class Approximate {
             long rowCount = rowCount(countResult);
             logger.debug("countPlan result (p={}): {} rows", sampleProbability, rowCount);
             double newSampleProbability = Math.min(1.0, sampleProbability * SAMPLE_ROW_COUNT / Math.max(1, rowCount));
-            if (rowCount <= SAMPLE_ROW_COUNT / 2 && newSampleProbability < 1.0) {
+            if (rowCount <= SAMPLE_ROW_COUNT / 2 && newSampleProbability < SAMPLE_PROBABILITY_THRESHOLD) {
                 runner.run(
                     toPhysicalPlan.apply(countPlan(newSampleProbability)),
                     configuration,
@@ -583,7 +589,7 @@ public class Approximate {
      * </pre>
      */
     private LogicalPlan approximatePlan(double sampleProbability) {
-        if (sampleProbability == 1.0) {
+        if (sampleProbability > SAMPLE_PROBABILITY_THRESHOLD) {
             logger.debug("using original plan (too few rows)");
             return logicalPlan;
         }

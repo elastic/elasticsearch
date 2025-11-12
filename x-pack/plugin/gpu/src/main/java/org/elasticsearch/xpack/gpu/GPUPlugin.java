@@ -9,12 +9,13 @@ package org.elasticsearch.xpack.gpu;
 import org.apache.lucene.codecs.KnnVectorsFormat;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.util.FeatureFlag;
+import org.elasticsearch.gpu.GPUSupport;
+import org.elasticsearch.gpu.codec.ES92GpuHnswSQVectorsFormat;
+import org.elasticsearch.gpu.codec.ES92GpuHnswVectorsFormat;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.index.mapper.vectors.VectorsFormatProvider;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.internal.InternalVectorFormatProviderPlugin;
-import org.elasticsearch.xpack.gpu.codec.ES92GpuHnswSQVectorsFormat;
-import org.elasticsearch.xpack.gpu.codec.ES92GpuHnswVectorsFormat;
 
 import java.util.List;
 

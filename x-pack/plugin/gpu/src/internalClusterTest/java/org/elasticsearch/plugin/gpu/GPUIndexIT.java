@@ -11,12 +11,12 @@ import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.gpu.GPUSupport;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.vectors.KnnSearchBuilder;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.xpack.gpu.GPUPlugin;
-import org.elasticsearch.xpack.gpu.GPUSupport;
 import org.junit.Assert;
 import org.junit.BeforeClass;
 

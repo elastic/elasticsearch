@@ -1,19 +1,22 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0; you may not use this file except in compliance with the Elastic License
- * 2.0.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.xpack.gpu;
+package org.elasticsearch.gpu;
 
 import com.nvidia.cuvs.CuVSResources;
 import com.nvidia.cuvs.GPUInfoProvider;
 import com.nvidia.cuvs.spi.CuVSProvider;
 
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
+
+import java.util.Locale;
 
 public class GPUSupport {
 
@@ -69,7 +72,8 @@ public class GPUSupport {
             if (logError) {
                 final String msg;
                 if (uoe.getMessage() == null) {
-                    msg = Strings.format(
+                    msg = String.format(
+                        Locale.ROOT,
                         "runtime Java version [%d], OS [%s], arch [%s]",
                         Runtime.version().feature(),
                         System.getProperty("os.name"),

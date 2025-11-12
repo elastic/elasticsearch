@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.gpu.codec;
 import org.apache.lucene.codecs.Codec;
 import org.apache.lucene.codecs.KnnVectorsFormat;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.gpu.GPUSupport;
 import org.elasticsearch.index.codec.CodecService;
 import org.elasticsearch.index.codec.LegacyPerFieldMapperCodec;
 import org.elasticsearch.index.codec.PerFieldMapperCodec;
@@ -17,7 +18,6 @@ import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapperTests;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.xpack.gpu.GPUPlugin;
-import org.elasticsearch.xpack.gpu.GPUSupport;
 import org.junit.BeforeClass;
 
 import java.io.IOException;

@@ -1,11 +1,13 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0; you may not use this file except in compliance with the Elastic License
- * 2.0.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.xpack.gpu.codec;
+package org.elasticsearch.gpu.codec;
 
 import com.nvidia.cuvs.CuVSMatrix;
 
@@ -13,8 +15,8 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.MMapDirectory;
 import org.apache.lucene.store.MemorySegmentAccessInput;
+import org.elasticsearch.gpu.GPUSupport;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.gpu.GPUSupport;
 import org.junit.Before;
 
 import java.lang.foreign.MemorySegment;

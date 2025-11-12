@@ -1,7 +1,6 @@
 apply plugin: 'elasticsearch.internal-es-plugin'
 apply plugin: 'elasticsearch.internal-cluster-test'
 apply plugin: 'elasticsearch.internal-yaml-rest-test'
-apply plugin: 'elasticsearch.mrjar'
 
 esplugin {
   name = 'gpu'
@@ -16,10 +15,13 @@ base {
 dependencies {
   compileOnly project(path: xpackModule('core'))
   compileOnly project(':server')
-  implementation('com.nvidia.cuvs:cuvs-java:25.10.0')
+  implementation project(':libs:gpu-codec')
+
   testImplementation(testArtifact(project(xpackModule('core'))))
   testImplementation(testArtifact(project(':server')))
-  yamlRestTestImplementation(project(xpackModule('gpu')))
+  yamlRestTestImplementation project(':libs:gpu-codec')
+  internalClusterTestImplementation('com.nvidia.cuvs:cuvs-java:25.10.0')
+
   clusterModules project(xpackModule('gpu'))
 }
 

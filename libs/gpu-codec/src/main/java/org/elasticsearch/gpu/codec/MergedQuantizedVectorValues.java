@@ -18,7 +18,7 @@
  * Modifications copyright (C) 2025 Elasticsearch B.V.
  */
 
-package org.elasticsearch.xpack.gpu.codec;
+package org.elasticsearch.gpu.codec;
 
 import org.apache.lucene.codecs.KnnVectorsReader;
 import org.apache.lucene.codecs.perfield.PerFieldKnnVectorsFormat;
@@ -69,7 +69,7 @@ class MergedQuantizedVectorValues extends QuantizedByteVectorValues {
 
     @Override
     public DocIndexIterator iterator() {
-        return new MergedQuantizedVectorValues.CompositeIterator();
+        return new CompositeIterator();
     }
 
     @Override

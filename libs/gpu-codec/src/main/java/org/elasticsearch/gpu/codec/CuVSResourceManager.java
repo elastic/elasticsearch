@@ -1,11 +1,13 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0; you may not use this file except in compliance with the Elastic License
- * 2.0.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.xpack.gpu.codec;
+package org.elasticsearch.gpu.codec;
 
 import com.nvidia.cuvs.CagraIndexParams;
 import com.nvidia.cuvs.CuVSMatrix;
@@ -13,9 +15,9 @@ import com.nvidia.cuvs.CuVSResources;
 import com.nvidia.cuvs.spi.CuVSProvider;
 
 import org.elasticsearch.core.Strings;
+import org.elasticsearch.gpu.GPUSupport;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.xpack.gpu.GPUSupport;
 
 import java.nio.file.Path;
 import java.util.Objects;
@@ -23,7 +25,7 @@ import java.util.concurrent.locks.Condition;
 import java.util.concurrent.locks.ReentrantLock;
 
 /**
- * A manager of {@link com.nvidia.cuvs.CuVSResources}. There is one manager per GPU.
+ * A manager of {@link CuVSResources}. There is one manager per GPU.
  *
  * <p>All access to GPU resources is mediated through a manager. A manager helps coordinate usage threads to:
  * <ul>

@@ -1,11 +1,13 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0; you may not use this file except in compliance with the Elastic License
- * 2.0.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.xpack.gpu.codec;
+package org.elasticsearch.gpu.codec;
 
 import org.apache.lucene.codecs.KnnVectorsFormat;
 import org.apache.lucene.codecs.KnnVectorsReader;
@@ -19,9 +21,9 @@ import org.elasticsearch.index.codec.vectors.ES814ScalarQuantizedVectorsFormat;
 import java.io.IOException;
 import java.util.function.Supplier;
 
+import static org.elasticsearch.gpu.codec.ES92GpuHnswVectorsFormat.DEFAULT_BEAM_WIDTH;
+import static org.elasticsearch.gpu.codec.ES92GpuHnswVectorsFormat.DEFAULT_MAX_CONN;
 import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.MAX_DIMS_COUNT;
-import static org.elasticsearch.xpack.gpu.codec.ES92GpuHnswVectorsFormat.DEFAULT_BEAM_WIDTH;
-import static org.elasticsearch.xpack.gpu.codec.ES92GpuHnswVectorsFormat.DEFAULT_MAX_CONN;
 
 /**
  * Codec format for GPU-accelerated scalar quantized HNSW vector indexes.

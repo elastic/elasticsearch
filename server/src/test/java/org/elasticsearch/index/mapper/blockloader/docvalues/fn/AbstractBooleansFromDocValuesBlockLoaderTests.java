@@ -7,12 +7,11 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.index.mapper.blockloader.docvalues;
+package org.elasticsearch.index.mapper.blockloader.docvalues.fn;
 
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
-import org.apache.lucene.document.Field;
-import org.apache.lucene.document.IntField;
+import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.LeafReaderContext;
@@ -26,7 +25,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
-public abstract class AbstractIntsFromDocValuesBlockLoaderTests extends ESTestCase {
+public abstract class AbstractBooleansFromDocValuesBlockLoaderTests extends ESTestCase {
     @ParametersFactory(argumentFormatting = "blockAtATime=%s, multiValues=%s, missingValues=%s")
     public static List<Object[]> parameters() throws IOException {
         List<Object[]> parameters = new ArrayList<>();
@@ -44,7 +43,7 @@ public abstract class AbstractIntsFromDocValuesBlockLoaderTests extends ESTestCa
     protected final boolean multiValues;
     protected final boolean missingValues;
 
-    public AbstractIntsFromDocValuesBlockLoaderTests(boolean blockAtATime, boolean multiValues, boolean missingValues) {
+    public AbstractBooleansFromDocValuesBlockLoaderTests(boolean blockAtATime, boolean multiValues, boolean missingValues) {
         this.blockAtATime = blockAtATime;
         this.multiValues = multiValues;
         this.missingValues = missingValues;
@@ -85,7 +84,7 @@ public abstract class AbstractIntsFromDocValuesBlockLoaderTests extends ESTestCa
         return (TestBlock) toUse.read(TestBlock.factory(), docs, 0, false);
     }
 
-    private static IntField field(int codePointCount) {
-        return new IntField("field", codePointCount, Field.Store.NO);
+    private static SortedNumericDocValuesField field(int v) {
+        return new SortedNumericDocValuesField("field", v % 4 == 0 ? 1 : 0);
     }
 }

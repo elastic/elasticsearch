@@ -7,12 +7,8 @@
 
 package org.elasticsearch.plugin.gpu;
 
-import com.nvidia.cuvs.CuVSResources;
-import com.nvidia.cuvs.CuVSResourcesInfo;
 import com.nvidia.cuvs.GPUInfo;
 import com.nvidia.cuvs.GPUInfoProvider;
-import com.nvidia.cuvs.spi.CuVSProvider;
-import com.nvidia.cuvs.spi.CuVSServiceProvider;
 
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexService;
@@ -23,20 +19,17 @@ import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.xpack.gpu.GPUPlugin;
-import org.junit.After;
 
 import java.util.Collection;
 import java.util.List;
-import java.util.function.Function;
 
 import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.startsWith;
 
-public class GPUPluginInitializationIT extends ESIntegTestCase {
+public class GPUPluginInitializationWithGPUIT extends ESIntegTestCase {
 
-    private static final Function<CuVSProvider, GPUInfoProvider> SUPPORTED_GPU_PROVIDER =
-        p -> new TestCuVSServiceProvider.TestGPUInfoProvider(
+    static {
+        TestCuVSServiceProvider.mockedGPUInfoProvider = SUPPORTEp -> new TestCuVSServiceProvider.TestGPUInfoProvider(
             List.of(
                 new GPUInfo(
                     0,
@@ -49,58 +42,11 @@ public class GPUPluginInitializationIT extends ESIntegTestCase {
                 )
             )
         );
-
-    private static final Function<CuVSProvider, GPUInfoProvider> NO_GPU_PROVIDER = p -> new TestCuVSServiceProvider.TestGPUInfoProvider(
-        List.of()
-    );
+    }
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         return List.of(GPUPlugin.class);
-    }
-
-    public static class TestCuVSServiceProvider extends CuVSServiceProvider {
-
-        static final Function<CuVSProvider, GPUInfoProvider> BUILTIN_GPU_INFO_PROVIDER = CuVSProvider::gpuInfoProvider;
-        static Function<CuVSProvider, GPUInfoProvider> mockedGPUInfoProvider = BUILTIN_GPU_INFO_PROVIDER;
-
-        @Override
-        public CuVSProvider get(CuVSProvider builtin) {
-            return new CuVSProviderDelegate(builtin) {
-                @Override
-                public GPUInfoProvider gpuInfoProvider() {
-                    return mockedGPUInfoProvider.apply(builtin);
-                }
-            };
-        }
-
-        private static class TestGPUInfoProvider implements GPUInfoProvider {
-            private final List<GPUInfo> gpuList;
-
-            private TestGPUInfoProvider(List<GPUInfo> gpuList) {
-                this.gpuList = gpuList;
-            }
-
-            @Override
-            public List<GPUInfo> availableGPUs() {
-                return gpuList;
-            }
-
-            @Override
-            public List<GPUInfo> compatibleGPUs() {
-                return gpuList;
-            }
-
-            @Override
-            public CuVSResourcesInfo getCurrentInfo(CuVSResources cuVSResources) {
-                return null;
-            }
-        }
-    }
-
-    @After
-    public void disableMock() {
-        TestCuVSServiceProvider.mockedGPUInfoProvider = TestCuVSServiceProvider.BUILTIN_GPU_INFO_PROVIDER;
     }
 
     public void testFFOff() {
@@ -127,7 +73,6 @@ public class GPUPluginInitializationIT extends ESIntegTestCase {
 
     public void testFFOffGPUFormatNull() {
         assumeFalse("GPU_FORMAT feature flag disabled", GPUPlugin.GPU_FORMAT.isEnabled());
-        TestCuVSServiceProvider.mockedGPUInfoProvider = SUPPORTED_GPU_PROVIDER;
 
         GPUPlugin gpuPlugin = internalCluster().getInstance(GPUPlugin.class);
         VectorsFormatProvider vectorsFormatProvider = gpuPlugin.getVectorsFormatProvider();
@@ -146,7 +91,6 @@ public class GPUPluginInitializationIT extends ESIntegTestCase {
 
     public void testIndexSettingOnIndexTypeSupportedGPUSupported() {
         assumeTrue("GPU_FORMAT feature flag enabled", GPUPlugin.GPU_FORMAT.isEnabled());
-        TestCuVSServiceProvider.mockedGPUInfoProvider = SUPPORTED_GPU_PROVIDER;
 
         GPUPlugin gpuPlugin = internalCluster().getInstance(GPUPlugin.class);
         VectorsFormatProvider vectorsFormatProvider = gpuPlugin.getVectorsFormatProvider();
@@ -165,7 +109,6 @@ public class GPUPluginInitializationIT extends ESIntegTestCase {
 
     public void testIndexSettingOnIndexTypeNotSupportedThrows() {
         assumeTrue("GPU_FORMAT feature flag enabled", GPUPlugin.GPU_FORMAT.isEnabled());
-        TestCuVSServiceProvider.mockedGPUInfoProvider = SUPPORTED_GPU_PROVIDER;
 
         GPUPlugin gpuPlugin = internalCluster().getInstance(GPUPlugin.class);
         VectorsFormatProvider vectorsFormatProvider = gpuPlugin.getVectorsFormatProvider();
@@ -185,60 +128,8 @@ public class GPUPluginInitializationIT extends ESIntegTestCase {
         assertThat(ex.getMessage(), startsWith("[index.vectors.indexing.use_gpu] doesn't support [index_options.type] of"));
     }
 
-    public void testIndexSettingOnGPUNotSupportedThrows() {
-        assumeTrue("GPU_FORMAT feature flag enabled", GPUPlugin.GPU_FORMAT.isEnabled());
-        TestCuVSServiceProvider.mockedGPUInfoProvider = NO_GPU_PROVIDER;
-
-        GPUPlugin gpuPlugin = internalCluster().getInstance(GPUPlugin.class);
-        VectorsFormatProvider vectorsFormatProvider = gpuPlugin.getVectorsFormatProvider();
-
-        createIndex("index1", Settings.builder().put(GPUPlugin.VECTORS_INDEXING_USE_GPU_SETTING.getKey(), GPUPlugin.GpuMode.TRUE).build());
-        IndexSettings settings = getIndexSettings();
-        final var indexOptions = DenseVectorFieldTypeTests.randomGpuSupportedIndexOptions();
-
-        var ex = expectThrows(
-            IllegalArgumentException.class,
-            () -> vectorsFormatProvider.getKnnVectorsFormat(
-                settings,
-                indexOptions,
-                DenseVectorFieldTypeTests.randomGPUSupportedSimilarity(indexOptions.getType())
-            )
-        );
-        assertThat(
-            ex.getMessage(),
-            equalTo("[index.vectors.indexing.use_gpu] was set to [true], but GPU resources are not accessible on the node.")
-        );
-    }
-
-    public void testIndexSettingOnGPUSupportThrowsRethrows() {
-        assumeTrue("GPU_FORMAT feature flag enabled", GPUPlugin.GPU_FORMAT.isEnabled());
-        // Mocks a cuvs-java UnsupportedProvider
-        TestCuVSServiceProvider.mockedGPUInfoProvider = p -> { throw new UnsupportedOperationException("cuvs-java UnsupportedProvider"); };
-
-        GPUPlugin gpuPlugin = internalCluster().getInstance(GPUPlugin.class);
-        VectorsFormatProvider vectorsFormatProvider = gpuPlugin.getVectorsFormatProvider();
-
-        createIndex("index1", Settings.builder().put(GPUPlugin.VECTORS_INDEXING_USE_GPU_SETTING.getKey(), GPUPlugin.GpuMode.TRUE).build());
-        IndexSettings settings = getIndexSettings();
-        final var indexOptions = DenseVectorFieldTypeTests.randomGpuSupportedIndexOptions();
-
-        var ex = expectThrows(
-            IllegalArgumentException.class,
-            () -> vectorsFormatProvider.getKnnVectorsFormat(
-                settings,
-                indexOptions,
-                DenseVectorFieldTypeTests.randomGPUSupportedSimilarity(indexOptions.getType())
-            )
-        );
-        assertThat(
-            ex.getMessage(),
-            equalTo("[index.vectors.indexing.use_gpu] was set to [true], but GPU resources are not accessible on the node.")
-        );
-    }
-
     public void testIndexSettingAutoIndexTypeSupportedGPUSupported() {
         assumeTrue("GPU_FORMAT feature flag enabled", GPUPlugin.GPU_FORMAT.isEnabled());
-        TestCuVSServiceProvider.mockedGPUInfoProvider = SUPPORTED_GPU_PROVIDER;
 
         GPUPlugin gpuPlugin = internalCluster().getInstance(GPUPlugin.class);
         VectorsFormatProvider vectorsFormatProvider = gpuPlugin.getVectorsFormatProvider();
@@ -255,28 +146,8 @@ public class GPUPluginInitializationIT extends ESIntegTestCase {
         assertNotNull(format);
     }
 
-    public void testIndexSettingAutoGPUNotSupported() {
-        assumeTrue("GPU_FORMAT feature flag enabled", GPUPlugin.GPU_FORMAT.isEnabled());
-        TestCuVSServiceProvider.mockedGPUInfoProvider = NO_GPU_PROVIDER;
-
-        GPUPlugin gpuPlugin = internalCluster().getInstance(GPUPlugin.class);
-        VectorsFormatProvider vectorsFormatProvider = gpuPlugin.getVectorsFormatProvider();
-
-        createIndex("index1", Settings.builder().put(GPUPlugin.VECTORS_INDEXING_USE_GPU_SETTING.getKey(), GPUPlugin.GpuMode.AUTO).build());
-        IndexSettings settings = getIndexSettings();
-        final var indexOptions = DenseVectorFieldTypeTests.randomGpuSupportedIndexOptions();
-
-        var format = vectorsFormatProvider.getKnnVectorsFormat(
-            settings,
-            indexOptions,
-            DenseVectorFieldTypeTests.randomGPUSupportedSimilarity(indexOptions.getType())
-        );
-        assertNull(format);
-    }
-
     public void testIndexSettingAutoIndexTypeNotSupported() {
         assumeTrue("GPU_FORMAT feature flag enabled", GPUPlugin.GPU_FORMAT.isEnabled());
-        TestCuVSServiceProvider.mockedGPUInfoProvider = SUPPORTED_GPU_PROVIDER;
 
         GPUPlugin gpuPlugin = internalCluster().getInstance(GPUPlugin.class);
         VectorsFormatProvider vectorsFormatProvider = gpuPlugin.getVectorsFormatProvider();
@@ -295,7 +166,6 @@ public class GPUPluginInitializationIT extends ESIntegTestCase {
 
     public void testIndexSettingOff() {
         assumeTrue("GPU_FORMAT feature flag enabled", GPUPlugin.GPU_FORMAT.isEnabled());
-        TestCuVSServiceProvider.mockedGPUInfoProvider = SUPPORTED_GPU_PROVIDER;
 
         GPUPlugin gpuPlugin = internalCluster().getInstance(GPUPlugin.class);
         VectorsFormatProvider vectorsFormatProvider = gpuPlugin.getVectorsFormatProvider();

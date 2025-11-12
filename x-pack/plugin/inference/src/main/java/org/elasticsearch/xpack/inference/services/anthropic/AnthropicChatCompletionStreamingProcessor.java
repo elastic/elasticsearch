@@ -27,6 +27,8 @@ import java.util.Map;
 import java.util.function.BiFunction;
 import java.util.stream.Stream;
 
+import static org.elasticsearch.common.Strings.format;
+
 /**
  * Chat Completions Streaming Processor for Anthropic provider
  */
@@ -397,7 +399,7 @@ public class AnthropicChatCompletionStreamingProcessor extends DelegatingProcess
     private static <T> T extractMandatoryField(Map<String, Object> map, String fieldName, Class<T> type) {
         Object value = map.get(fieldName);
         if (value == null) {
-            throw new IllegalStateException(FAILED_TO_FIND_FIELD_TEMPLATE.formatted(fieldName));
+            throw new IllegalStateException(format(FAILED_TO_FIND_FIELD_TEMPLATE, fieldName));
         }
         return castFieldValueOrThrow(value, type, fieldName);
     }
@@ -414,7 +416,7 @@ public class AnthropicChatCompletionStreamingProcessor extends DelegatingProcess
     private static <T> T castFieldValueOrThrow(Object value, Class<T> type, String fieldName) {
         if (type.isInstance(value) == false) {
             throw new IllegalStateException(
-                UNEXPECTED_FIELD_TYPE_TEMPLATE.formatted(fieldName, value.getClass().getSimpleName(), type.getSimpleName())
+                format(UNEXPECTED_FIELD_TYPE_TEMPLATE, fieldName, value.getClass().getSimpleName(), type.getSimpleName())
             );
         }
         return (T) value;

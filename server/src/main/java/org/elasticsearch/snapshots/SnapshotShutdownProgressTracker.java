@@ -91,7 +91,7 @@ public class SnapshotShutdownProgressTracker {
      * Ensure that we only log a periodic progress report while there are in progress snapshots,
      * and that we do not continue to log after all snapshots have completed
      */
-    private boolean shouldLog = false;
+    private boolean shouldLogPeriodicProgressReport = false;
 
     public SnapshotShutdownProgressTracker(
         Supplier<String> localNodeIdSupplier,
@@ -141,7 +141,7 @@ public class SnapshotShutdownProgressTracker {
      * Logs information about shard snapshot progress.
      */
     private void logProgressReport() {
-        assert shouldLog : "Only log while there are in-progress snapshots";
+        assert shouldLogPeriodicProgressReport : "Only log while there are in-progress snapshots";
         // If there are no more snapshots in progress, then stop logging periodic progress reports
         if (numberOfShardSnapshotsInProgressOnDataNode.get() == 0) {
             logger.info(
@@ -162,7 +162,7 @@ public class SnapshotShutdownProgressTracker {
                 pausedCount.get()
             );
             cancelProgressLogger();
-            this.shouldLog = false;
+            this.shouldLogPeriodicProgressReport = false;
         } else {
             logger.info(
                 """
@@ -195,7 +195,7 @@ public class SnapshotShutdownProgressTracker {
      */
     public void onClusterStateAddShutdown() {
         assert this.shutdownStartMillis == -1 : "Expected not to be tracking anything. Call shutdown remove before adding shutdown again";
-        this.shouldLog = true;
+        this.shouldLogPeriodicProgressReport = true;
 
         // Reset these values when a new shutdown occurs, to minimize/eliminate chances of racing if shutdown is later removed and async
         // shard snapshots updates continue to occur.
@@ -228,7 +228,7 @@ public class SnapshotShutdownProgressTracker {
      */
     public void onClusterStateRemoveShutdown() {
         assert shutdownStartMillis != -1 : "Expected a call to add shutdown mode before a call to remove shutdown mode.";
-        this.shouldLog = false;
+        this.shouldLogPeriodicProgressReport = false;
 
         // Reset the shutdown specific trackers.
         this.shutdownStartMillis = -1;

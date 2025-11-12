@@ -61,7 +61,7 @@ public class BalancedShardsAllocatorInvalidWeightsTests extends ESTestCase {
                 balancingWeightsFactory
             );
 
-            final ClusterState clusterState = makeUnbalanced(
+            final ClusterState clusterState = moveAllShardsToNode(
                 ClusterStateCreationUtils.state(3, new String[] { "one", "two", "three" }, 1),
                 "node_0"
             );
@@ -91,7 +91,7 @@ public class BalancedShardsAllocatorInvalidWeightsTests extends ESTestCase {
             );
 
             final AllocationDecider allocationDecider = spy(AllocationDecider.class);
-            final ClusterState clusterState = makeUnbalanced(
+            final ClusterState clusterState = moveAllShardsToNode(
                 ClusterStateCreationUtils.state(3, new String[] { "one", "two", "three" }, randomIntBetween(1, 2)),
                 "node_0"
             );
@@ -342,7 +342,7 @@ public class BalancedShardsAllocatorInvalidWeightsTests extends ESTestCase {
      * Move all the shards to the specified node, the balancer should make some movement on a routing table
      * in this state
      */
-    private ClusterState makeUnbalanced(ClusterState clusterState, String nodeId) {
+    private ClusterState moveAllShardsToNode(ClusterState clusterState, String nodeId) {
         final var routingNodes = clusterState.getRoutingNodes().mutableCopy();
         final var targetNode = Objects.requireNonNull(clusterState.nodes().get(nodeId), "Unknown node specified: " + nodeId);
         for (RoutingNode routingNode : routingNodes) {

@@ -1,0 +1,41 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
+ */
+
+package org.elasticsearch.xpack.esql.session;
+
+import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
+import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.transport.RemoteClusterAware;
+
+import java.util.Map;
+import java.util.Set;
+import java.util.stream.Stream;
+
+import static java.util.stream.Collectors.toMap;
+
+public record ResolvedIndexExpression(Set<String> expression, Set<String> resolved) {
+
+    private static final ResolvedIndexExpression EMPTY = new ResolvedIndexExpression(Set.of(), Set.of());
+
+    public static Map<String, ResolvedIndexExpression> from(FieldCapabilitiesResponse response) {
+        return Stream.concat(
+            Stream.of(Map.entry(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY, response.getResolvedLocally())),
+            response.getResolvedRemotely().entrySet().stream()
+        ).map(entry -> Map.entry(
+            entry.getKey(),
+            entry.getValue().expressions()
+                .stream()
+                .filter(e -> e.localExpressions().indices().isEmpty() == false)
+                .map(e -> new ResolvedIndexExpression(Set.of(e.original()), e.localExpressions().indices()))
+                .reduce(EMPTY, ResolvedIndexExpression::merge)
+        )).collect(toMap(Map.Entry::getKey, Map.Entry::getValue));
+    }
+
+    private static ResolvedIndexExpression merge(ResolvedIndexExpression a, ResolvedIndexExpression b) {
+        return new ResolvedIndexExpression(Sets.union(a.expression(), b.expression()), Sets.union(a.resolved(), b.resolved()));
+    }
+}

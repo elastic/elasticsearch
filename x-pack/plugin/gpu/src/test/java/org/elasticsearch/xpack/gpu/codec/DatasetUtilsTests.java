@@ -32,7 +32,7 @@ public class DatasetUtilsTests extends ESTestCase {
     @Before
     public void setup() {  // TODO: abstract out setup in to common GPUTestcase
         assumeTrue("cuvs runtime only supported on 22 or greater, your JDK is " + Runtime.version(), Runtime.version().feature() >= 22);
-        assumeTrue("cuvs not supported", GPUSupport.isSupported(false));
+        assumeTrue("cuvs not supported", GPUSupport.isSupported());
         datasetUtils = DatasetUtils.getInstance();
     }
 

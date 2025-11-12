@@ -34,7 +34,7 @@ public class ES92GpuHnswSQVectorsFormatTests extends BaseKnnVectorsFormatTestCas
 
     @BeforeClass
     public static void beforeClass() {
-        assumeTrue("cuvs not supported", GPUSupport.isSupported(false));
+        assumeTrue("cuvs not supported", GPUSupport.isSupported());
         codec = TestUtil.alwaysKnnVectorsFormat(new ES92GpuHnswSQVectorsFormat());
     }
 

@@ -34,8 +34,6 @@ public class GPUPlugin extends Plugin implements InternalVectorFormatProviderPlu
         AUTO
     }
 
-    private final boolean isGpuSupported = GPUSupport.isSupported(true);
-
     /**
      * Setting to control whether to use GPU for vectors indexing.
      * Currently only applicable for index_options.type: hnsw.
@@ -73,14 +71,14 @@ public class GPUPlugin extends Plugin implements InternalVectorFormatProviderPlu
                             "[index.vectors.indexing.use_gpu] doesn't support [index_options.type] of [" + indexOptions.getType() + "]."
                         );
                     }
-                    if (isGpuSupported == false) {
+                    if (GPUSupport.isSupported() == false) {
                         throw new IllegalArgumentException(
                             "[index.vectors.indexing.use_gpu] was set to [true], but GPU resources are not accessible on the node."
                         );
                     }
                     return getVectorsFormat(indexOptions, similarity);
                 }
-                if (gpuMode == GpuMode.AUTO && vectorIndexTypeSupported(indexOptions.getType()) && isGpuSupported) {
+                if (gpuMode == GpuMode.AUTO && vectorIndexTypeSupported(indexOptions.getType()) && GPUSupport.isSupported()) {
                     return getVectorsFormat(indexOptions, similarity);
                 }
             }

@@ -19,6 +19,7 @@ import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.Scope;
 import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestToXContentListener;
+import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 
@@ -32,9 +33,11 @@ import static org.elasticsearch.rest.RestRequest.Method.POST;
 public class RestOpenPointInTimeAction extends BaseRestHandler {
 
     private final Settings settings;
+    private final CrossProjectModeDecider crossProjectModeDecider;
 
     public RestOpenPointInTimeAction(Settings settings) {
         this.settings = settings;
+        this.crossProjectModeDecider = new CrossProjectModeDecider(settings);
     }
 
     @Override
@@ -49,13 +52,13 @@ public class RestOpenPointInTimeAction extends BaseRestHandler {
 
     @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
-        if (settings != null && settings.getAsBoolean("serverless.cross_project.enabled", false)) {
-            // accept but drop project_routing param until fully supported
-            request.param("project_routing");
-        }
 
         final String[] indices = Strings.splitStringByCommaToArray(request.param("index"));
         final OpenPointInTimeRequest openRequest = new OpenPointInTimeRequest(indices);
+        final boolean crossProjectEnabled = crossProjectModeDecider.crossProjectEnabled();
+        if (crossProjectEnabled) {
+            openRequest.projectRouting(request.param("project_routing", null));
+        }
         openRequest.indicesOptions(IndicesOptions.fromRequest(request, OpenPointInTimeRequest.DEFAULT_INDICES_OPTIONS));
         openRequest.routing(request.param("routing"));
         openRequest.preference(request.param("preference"));

@@ -13,6 +13,7 @@ import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.LegacyActionRequest;
+import org.elasticsearch.action.ResolvedIndexExpressions;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -39,6 +40,10 @@ public final class OpenPointInTimeRequest extends LegacyActionRequest implements
     private String routing;
     @Nullable
     private String preference;
+
+    private ResolvedIndexExpressions resolvedIndexExpressions;
+    @Nullable
+    private String projectRouting;
 
     private QueryBuilder indexFilter;
 
@@ -184,6 +189,30 @@ public final class OpenPointInTimeRequest extends LegacyActionRequest implements
     @Override
     public boolean allowsRemoteIndices() {
         return true;
+    }
+
+    @Override
+    public void setResolvedIndexExpressions(ResolvedIndexExpressions expressions) {
+        this.resolvedIndexExpressions = expressions;
+    }
+
+    @Override
+    public ResolvedIndexExpressions getResolvedIndexExpressions() {
+        return resolvedIndexExpressions;
+    }
+
+    @Override
+    public boolean allowsCrossProject() {
+        return true;
+    }
+
+    @Override
+    public String getProjectRouting() {
+        return projectRouting;
+    }
+
+    public void projectRouting(String projectRouting) {
+        this.projectRouting = projectRouting;
     }
 
     @Override

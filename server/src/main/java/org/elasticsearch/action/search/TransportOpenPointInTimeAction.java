@@ -19,16 +19,21 @@ import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.OriginalIndices;
+import org.elasticsearch.action.ResolvedIndexExpression;
+import org.elasticsearch.action.ResolvedIndexExpressions;
+import org.elasticsearch.action.admin.indices.resolve.ResolveIndexAction;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.ChannelActionListener;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.action.support.IndicesOptions;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.util.concurrent.CountDown;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.shard.ShardId;
@@ -38,11 +43,14 @@ import org.elasticsearch.rest.action.search.SearchResponseMetrics;
 import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.search.crossproject.CrossProjectIndexResolutionValidator;
+import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
 import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.search.internal.ShardSearchContextId;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.AbstractTransportRequest;
+import org.elasticsearch.transport.RemoteClusterService;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportActionProxy;
 import org.elasticsearch.transport.TransportChannel;
@@ -51,12 +59,20 @@ import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
+import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.SortedMap;
+import java.util.TreeMap;
 import java.util.concurrent.Executor;
 import java.util.function.BiFunction;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.core.Strings.format;
+import static org.elasticsearch.search.crossproject.CrossProjectIndexResolutionValidator.indicesOptionsForCrossProjectFanout;
+import static org.elasticsearch.transport.RemoteClusterAware.buildRemoteIndexName;
 
 public class TransportOpenPointInTimeAction extends HandledTransportAction<OpenPointInTimeRequest, OpenPointInTimeResponse> {
 
@@ -72,6 +88,8 @@ public class TransportOpenPointInTimeAction extends HandledTransportAction<OpenP
     private final SearchService searchService;
     private final ClusterService clusterService;
     private final SearchResponseMetrics searchResponseMetrics;
+    private final Client client;
+    private final CrossProjectModeDecider crossProjectModeDecider;
 
     @Inject
     public TransportOpenPointInTimeAction(
@@ -82,7 +100,8 @@ public class TransportOpenPointInTimeAction extends HandledTransportAction<OpenP
         SearchTransportService searchTransportService,
         NamedWriteableRegistry namedWriteableRegistry,
         ClusterService clusterService,
-        SearchResponseMetrics searchResponseMetrics
+        SearchResponseMetrics searchResponseMetrics,
+        Client client
     ) {
         super(TYPE.name(), transportService, actionFilters, OpenPointInTimeRequest::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
         this.transportService = transportService;
@@ -92,6 +111,8 @@ public class TransportOpenPointInTimeAction extends HandledTransportAction<OpenP
         this.namedWriteableRegistry = namedWriteableRegistry;
         this.clusterService = clusterService;
         this.searchResponseMetrics = searchResponseMetrics;
+        this.client = client;
+        this.crossProjectModeDecider = new CrossProjectModeDecider(clusterService.getSettings());
         transportService.registerRequestHandler(
             OPEN_SHARD_READER_CONTEXT_NAME,
             EsExecutors.DIRECT_EXECUTOR_SERVICE,
@@ -105,6 +126,10 @@ public class TransportOpenPointInTimeAction extends HandledTransportAction<OpenP
             ShardOpenReaderResponse::new,
             namedWriteableRegistry
         );
+    }
+
+    private static String[] validateResponseAndGetIndicesArray(ResolveIndexAction.Response r) {
+        return new String[] {};
     }
 
     @Override
@@ -123,6 +148,103 @@ public class TransportOpenPointInTimeAction extends HandledTransportAction<OpenP
             );
             return;
         }
+        // in CPS before executing the open pit request we need to get index resolution and possibly throw based on merged project view
+        // rules. This should happen only if either ignore_unavailable or allow_no_indices is set to false (strict) if instead both are true
+        // we can continue with the "normal" pit execution.
+        final boolean resolveCrossProject = crossProjectModeDecider.resolvesCrossProject(request);
+        String[] indices = request.indices();
+        if (resolveCrossProject) {
+            IndicesOptions originalIndicesOptions = request.indicesOptions();
+            if (false == originalIndicesOptions.ignoreUnavailable() || false == originalIndicesOptions.allowNoIndices()) {
+                final SortedMap<String, ResolveIndexAction.Response> remoteResponses = Collections.synchronizedSortedMap(new TreeMap<>());
+                final ResolvedIndexExpressions localResolvedIndexExpressions = request.getResolvedIndexExpressions();
+                RemoteClusterService remoteClusterService = searchTransportService.getRemoteClusterService();
+                final Map<String, OriginalIndices> remoteClusterIndices = remoteClusterService.groupIndices(
+                    indicesOptionsForCrossProjectFanout(originalIndicesOptions),
+                    indices
+                );
+                if (false == remoteClusterIndices.isEmpty()) {
+                    final int remoteRequests = remoteClusterIndices.size();
+                    final CountDown completionCounter = new CountDown(remoteRequests);
+                    final Runnable terminalHandler = () -> {
+                        if (completionCounter.countDown()) {
+                            Map<String, ResolvedIndexExpressions> resolvedRemoteExpressions = remoteResponses.entrySet()
+                                .stream()
+                                .filter(e -> e.getValue().getResolvedIndexExpressions() != null)
+                                .collect(
+                                    Collectors.toMap(
+                                        Map.Entry::getKey,
+                                        e -> e.getValue().getResolvedIndexExpressions()
+
+                                    )
+                                );
+
+                            final Exception ex = CrossProjectIndexResolutionValidator.validate(
+                                originalIndicesOptions,
+                                request.getProjectRouting(),
+                                localResolvedIndexExpressions,
+                                resolvedRemoteExpressions
+                            );
+                            if (ex != null) {
+                                listener.onFailure(ex);
+                                return;
+                            }
+                            // TODO MP: collect indices and call execute open pit
+                            Set<String> collectedIndices = new HashSet<>(indices.length);
+
+                            for (String remoteAlias : resolvedRemoteExpressions.keySet()) {
+                                ResolvedIndexExpressions remoteExpressions = resolvedRemoteExpressions.get(remoteAlias);
+                                for (ResolvedIndexExpression expression : remoteExpressions.expressions()) {
+                                    ResolvedIndexExpression.LocalExpressions oneRemoteExpression = expression.localExpressions();
+                                    if (false == oneRemoteExpression.indices().isEmpty()
+                                        && oneRemoteExpression
+                                            .localIndexResolutionResult() == ResolvedIndexExpression.LocalIndexResolutionResult.SUCCESS) {
+                                        collectedIndices.addAll(
+                                            oneRemoteExpression.indices()
+                                                .stream()
+                                                .map(i -> buildRemoteIndexName(remoteAlias, i))
+                                                .collect(Collectors.toSet())
+                                        );
+                                    }
+                                }
+                            }
+                            if (localResolvedIndexExpressions != null) { // this should never be null in CPS
+                                collectedIndices.addAll(localResolvedIndexExpressions.getLocalIndicesList());
+                            }
+                            request.indices(collectedIndices.stream().toArray(String[]::new));
+                            executeOpenPit((SearchTask) task, request, listener);
+                        }
+                    };
+
+                    // make CPS calls
+                    for (Map.Entry<String, OriginalIndices> remoteIndices : remoteClusterIndices.entrySet()) {
+                        String clusterAlias = remoteIndices.getKey();
+                        OriginalIndices originalIndices = remoteIndices.getValue();
+                        var remoteClusterClient = remoteClusterService.getRemoteClusterClient(
+                            clusterAlias,
+                            EsExecutors.DIRECT_EXECUTOR_SERVICE,
+                            RemoteClusterService.DisconnectedStrategy.RECONNECT_UNLESS_SKIP_UNAVAILABLE
+                        );
+                        ResolveIndexAction.Request remoteRequest = new ResolveIndexAction.Request(
+                            originalIndices.indices(),
+                            originalIndices.indicesOptions()
+                        );
+                        remoteClusterClient.execute(ResolveIndexAction.REMOTE_TYPE, remoteRequest, ActionListener.wrap(response -> {
+                            remoteResponses.put(clusterAlias, response);
+                            terminalHandler.run();
+                        }, failure -> {
+                            logger.info("failed to resolve indices on remote cluster [" + clusterAlias + "]", failure);
+                            terminalHandler.run();
+                        }));
+                    }
+                }
+            }
+        } else {
+            executeOpenPit((SearchTask) task, request, listener);
+        }
+    }
+
+    private void executeOpenPit(SearchTask task, OpenPointInTimeRequest request, ActionListener<OpenPointInTimeResponse> listener) {
         final SearchRequest searchRequest = new SearchRequest().indices(request.indices())
             .indicesOptions(request.indicesOptions())
             .preference(request.preference())
@@ -132,7 +254,7 @@ public class TransportOpenPointInTimeAction extends HandledTransportAction<OpenP
         searchRequest.setMaxConcurrentShardRequests(request.maxConcurrentShardRequests());
         searchRequest.setCcsMinimizeRoundtrips(false);
 
-        transportSearchAction.executeOpenPit((SearchTask) task, searchRequest, listener.map(r -> {
+        transportSearchAction.executeOpenPit(task, searchRequest, listener.map(r -> {
             assert r.pointInTimeId() != null : r;
             return new OpenPointInTimeResponse(
                 r.pointInTimeId(),

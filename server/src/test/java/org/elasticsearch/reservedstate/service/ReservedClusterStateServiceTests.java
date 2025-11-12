@@ -253,7 +253,7 @@ public class ReservedClusterStateServiceTests extends ESTestCase {
         ReservedStateUpdateTask task = spy(
             new ReservedStateUpdateTask(
                 "test",
-                null,
+                new ReservedStateChunk(Map.of(), new ReservedStateVersion(1L, Version.CURRENT)),
                 ReservedStateVersionCheck.HIGHER_VERSION_ONLY,
                 Map.of(),
                 Set.of(),
@@ -565,19 +565,24 @@ public class ReservedClusterStateServiceTests extends ESTestCase {
 
         ClusterService clusterService = mock(ClusterService.class);
         final var controller = new ReservedClusterStateService(clusterService, mock(RerouteService.class), List.of(oh1, oh2, oh3));
-        Collection<String> ordered = controller.orderedStateHandlers(Set.of("one", "two", "three"));
+        Collection<String> ordered = ReservedStateUpdateTask.orderedStateHandlers(Set.of("one", "two", "three"), controller.handlers);
         assertThat(ordered, contains("two", "three", "one"));
 
         // assure that we bail on unknown handler
         assertThat(
-            expectThrows(IllegalStateException.class, () -> controller.orderedStateHandlers(Set.of("one", "two", "three", "four")))
-                .getMessage(),
+            expectThrows(
+                IllegalStateException.class,
+                () -> ReservedStateUpdateTask.orderedStateHandlers(Set.of("one", "two", "three", "four"), controller.handlers)
+            ).getMessage(),
             is("Unknown handler type: four")
         );
 
         // assure that we bail on missing dependency link
         assertThat(
-            expectThrows(IllegalStateException.class, () -> controller.orderedStateHandlers(Set.of("one", "two"))).getMessage(),
+            expectThrows(
+                IllegalStateException.class,
+                () -> ReservedStateUpdateTask.orderedStateHandlers(Set.of("one", "two"), controller.handlers)
+            ).getMessage(),
             is("Missing handler dependency definition: one -> three")
         );
 
@@ -587,7 +592,10 @@ public class ReservedClusterStateServiceTests extends ESTestCase {
         final var controller1 = new ReservedClusterStateService(clusterService, mock(RerouteService.class), List.of(oh1, oh2));
 
         assertThat(
-            expectThrows(IllegalStateException.class, () -> controller1.orderedStateHandlers(Set.of("one", "two"))).getMessage(),
+            expectThrows(
+                IllegalStateException.class,
+                () -> ReservedStateUpdateTask.orderedStateHandlers(Set.of("one", "two"), controller1.handlers)
+            ).getMessage(),
             anyOf(
                 is("Cycle found in settings dependencies: one -> two -> one"),
                 is("Cycle found in settings dependencies: two -> one -> two")

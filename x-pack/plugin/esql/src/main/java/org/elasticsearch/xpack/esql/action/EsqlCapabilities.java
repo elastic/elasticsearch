@@ -1351,7 +1351,7 @@ public class EsqlCapabilities {
         /**
          * Decay function for custom scoring
          */
-        DECAY_FUNCTION(Build.current().isSnapshot()),
+        DECAY_FUNCTION,
 
         /**
          * FIRST and LAST aggregate functions.
@@ -1546,6 +1546,11 @@ public class EsqlCapabilities {
          * Support for exponential_histogram type
          */
         EXPONENTIAL_HISTOGRAM(EXPONENTIAL_HISTOGRAM_FEATURE_FLAG),
+
+        /**
+         * Support for exponential_histogram type in TOPN
+         */
+        EXPONENTIAL_HISTOGRAM_TOPN(EXPONENTIAL_HISTOGRAM_FEATURE_FLAG),
 
         /**
          * Create new block when filtering OrdinalBytesRefBlock

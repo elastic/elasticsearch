@@ -1758,6 +1758,15 @@ public abstract class ESTestCase extends LuceneTestCase {
         return TestEnvironment.newEnvironment(build);
     }
 
+    public static IndexSettings defaultIndexSettings() {
+        IndexMetadata INDEX_METADATA = IndexMetadata.builder("index")
+            .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current()))
+            .numberOfShards(1)
+            .numberOfReplicas(0)
+            .build();
+        return new IndexSettings(INDEX_METADATA, Settings.EMPTY);
+    }
+
     /** Return consistent index settings for the provided index version. */
     public static Settings.Builder settings(IndexVersion version) {
         return Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, version);

@@ -39,7 +39,6 @@ import org.elasticsearch.xpack.core.inference.results.ChunkedInferenceEmbedding;
 import org.elasticsearch.xpack.core.inference.results.ChunkedInferenceError;
 import org.elasticsearch.xpack.core.inference.results.SparseEmbeddingResults;
 import org.elasticsearch.xpack.core.ml.inference.results.ErrorInferenceResults;
-import org.elasticsearch.xpack.inference.external.action.SenderExecutableAction;
 import org.elasticsearch.xpack.inference.external.http.sender.EmbeddingsInput;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSender;
 import org.elasticsearch.xpack.inference.external.http.sender.InferenceInputs;
@@ -60,12 +59,10 @@ import org.elasticsearch.xpack.inference.telemetry.TraceContext;
 import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 
 import static org.elasticsearch.xpack.core.inference.results.ResultUtils.createInvalidChunkedResultException;
-import static org.elasticsearch.xpack.inference.external.action.ActionUtils.constructFailedToSendRequestMessage;
 import static org.elasticsearch.xpack.inference.services.ServiceFields.MAX_INPUT_TOKENS;
 import static org.elasticsearch.xpack.inference.services.ServiceFields.MODEL_ID;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.createInvalidModelException;
@@ -177,18 +174,12 @@ public class ElasticInferenceService extends SenderService {
 
         var completionModel = (ElasticInferenceServiceCompletionModel) model;
         var overriddenModel = ElasticInferenceServiceCompletionModel.of(completionModel, inputs.getRequest());
-        var errorMessage = constructFailedToSendRequestMessage(
-            String.format(Locale.ROOT, "%s completions", ELASTIC_INFERENCE_SERVICE_IDENTIFIER)
-        );
 
-        var requestManager = ElasticInferenceServiceUnifiedCompletionRequestManager.of(
+        actionCreator.create(
             overriddenModel,
-            getServiceComponents().threadPool(),
-            currentTraceInfo
+            currentTraceInfo,
+            listener.delegateFailureAndWrap((delegate, action) -> action.execute(inputs, timeout, delegate))
         );
-        var action = new SenderExecutableAction(getSender(), requestManager, errorMessage);
-
-        action.execute(inputs, timeout, listener);
     }
 
     @Override

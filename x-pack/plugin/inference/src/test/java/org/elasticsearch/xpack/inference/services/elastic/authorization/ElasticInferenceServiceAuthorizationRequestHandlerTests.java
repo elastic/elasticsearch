@@ -40,6 +40,7 @@ import static org.elasticsearch.xpack.inference.Utils.mockClusterServiceEmpty;
 import static org.elasticsearch.xpack.inference.external.http.Utils.getUrl;
 import static org.elasticsearch.xpack.inference.external.http.retry.RetryingHttpSender.MAX_RETIES;
 import static org.elasticsearch.xpack.inference.services.SenderServiceTests.createMockSender;
+import static org.elasticsearch.xpack.inference.services.elastic.ccm.CCMAuthenticationApplierFactoryTests.createNoopApplierFactory;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
@@ -75,6 +76,7 @@ public class ElasticInferenceServiceAuthorizationRequestHandlerTests extends EST
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
         var logger = mock(Logger.class);
         var authHandler = new ElasticInferenceServiceAuthorizationRequestHandler(null, threadPool, logger);
+        authHandler.init(createNoopApplierFactory());
 
         try (var sender = senderFactory.createSender()) {
             PlainActionFuture<ElasticInferenceServiceAuthorizationModel> listener = new PlainActionFuture<>();
@@ -97,6 +99,7 @@ public class ElasticInferenceServiceAuthorizationRequestHandlerTests extends EST
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
         var logger = mock(Logger.class);
         var authHandler = new ElasticInferenceServiceAuthorizationRequestHandler("", threadPool, logger);
+        authHandler.init(createNoopApplierFactory());
 
         try (var sender = senderFactory.createSender()) {
             PlainActionFuture<ElasticInferenceServiceAuthorizationModel> listener = new PlainActionFuture<>();
@@ -120,6 +123,7 @@ public class ElasticInferenceServiceAuthorizationRequestHandlerTests extends EST
         var eisGatewayUrl = getUrl(webServer);
         var logger = mock(Logger.class);
         var authHandler = new ElasticInferenceServiceAuthorizationRequestHandler(eisGatewayUrl, threadPool, logger);
+        authHandler.init(createNoopApplierFactory());
 
         try (var sender = senderFactory.createSender()) {
             String responseJson = """
@@ -166,6 +170,7 @@ public class ElasticInferenceServiceAuthorizationRequestHandlerTests extends EST
         var eisGatewayUrl = getUrl(webServer);
         var logger = mock(Logger.class);
         var authHandler = new ElasticInferenceServiceAuthorizationRequestHandler(eisGatewayUrl, threadPool, logger);
+        authHandler.init(createNoopApplierFactory());
 
         try (var sender = senderFactory.createSender()) {
             String responseJson = """
@@ -202,6 +207,7 @@ public class ElasticInferenceServiceAuthorizationRequestHandlerTests extends EST
         var eisGatewayUrl = getUrl(webServer);
         var logger = mock(Logger.class);
         var authHandler = new ElasticInferenceServiceAuthorizationRequestHandler(eisGatewayUrl, threadPool, logger);
+        authHandler.init(createNoopApplierFactory());
 
         PlainActionFuture<ElasticInferenceServiceAuthorizationModel> listener = new PlainActionFuture<>();
         ActionListener<ElasticInferenceServiceAuthorizationModel> onlyOnceListener = ActionListener.assertOnce(listener);
@@ -247,6 +253,7 @@ public class ElasticInferenceServiceAuthorizationRequestHandlerTests extends EST
 
         var logger = mock(Logger.class);
         var authHandler = new ElasticInferenceServiceAuthorizationRequestHandler("abc", threadPool, logger);
+        authHandler.init(createNoopApplierFactory());
 
         try (var sender = senderFactory.createSender()) {
             PlainActionFuture<ElasticInferenceServiceAuthorizationModel> listener = new PlainActionFuture<>();

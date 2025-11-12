@@ -24,6 +24,7 @@ import java.util.List;
 
 import static org.elasticsearch.xpack.inference.InferencePlugin.X_ELASTIC_PRODUCT_USE_CASE_HTTP_HEADER;
 import static org.elasticsearch.xpack.inference.external.http.Utils.entityAsMap;
+import static org.elasticsearch.xpack.inference.external.request.RequestUtils.bearerToken;
 import static org.elasticsearch.xpack.inference.services.elastic.request.ElasticInferenceServiceRequestTests.randomElasticInferenceServiceRequestMetadata;
 import static org.hamcrest.Matchers.aMapWithSize;
 import static org.hamcrest.Matchers.equalTo;
@@ -141,7 +142,7 @@ public class ElasticInferenceServiceSparseEmbeddingsRequestTests extends ESTestC
                 new TraceContext(randomAlphaOfLength(10), randomAlphaOfLength(10)),
                 new ElasticInferenceServiceRequestMetadata("my-product-origin", "my-product-use-case-from-metadata", "1.2.3"),
                 inputType,
-                CCMAuthenticationApplierFactory.NOOP_APPLIER
+                new CCMAuthenticationApplierFactory.AuthenticationHeaderApplier(secret)
             );
 
             var httpRequest = request.createHttpRequest();
@@ -151,7 +152,7 @@ public class ElasticInferenceServiceSparseEmbeddingsRequestTests extends ESTestC
 
             var headers = httpPost.getHeaders(HttpHeaders.AUTHORIZATION);
             assertThat(headers.length, is(1));
-            assertThat(headers[0].getValue(), is(secret));
+            assertThat(headers[0].getValue(), is(bearerToken(secret)));
         }
     }
 

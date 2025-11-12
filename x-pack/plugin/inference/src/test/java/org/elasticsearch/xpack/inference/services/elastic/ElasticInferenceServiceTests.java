@@ -1163,13 +1163,15 @@ public class ElasticInferenceServiceTests extends ESSingleNodeTestCase {
 
         var factory = mock(HttpRequestSender.Factory.class);
         when(factory.createSender()).thenReturn(sender);
-        return new ElasticInferenceService(
+        var service = new ElasticInferenceService(
             factory,
             createWithEmptySettings(threadPool),
             new ElasticInferenceServiceSettings(Settings.EMPTY),
             mockClusterServiceEmpty(),
             createNoopApplierFactory()
         );
+        service.init();
+        return service;
     }
 
     private ElasticInferenceService createService(HttpRequestSender.Factory senderFactory) {
@@ -1177,12 +1179,14 @@ public class ElasticInferenceServiceTests extends ESSingleNodeTestCase {
     }
 
     private ElasticInferenceService createService(HttpRequestSender.Factory senderFactory, String elasticInferenceServiceURL) {
-        return new ElasticInferenceService(
+        var service = new ElasticInferenceService(
             senderFactory,
             createWithEmptySettings(threadPool),
             ElasticInferenceServiceSettingsTests.create(elasticInferenceServiceURL),
             mockClusterServiceEmpty(),
             createNoopApplierFactory()
         );
+        service.init();
+        return service;
     }
 }

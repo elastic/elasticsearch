@@ -20,6 +20,7 @@ import java.net.URI;
 
 import static org.elasticsearch.xpack.inference.InferencePlugin.X_ELASTIC_ES_VERSION;
 import static org.elasticsearch.xpack.inference.InferencePlugin.X_ELASTIC_PRODUCT_USE_CASE_HTTP_HEADER;
+import static org.elasticsearch.xpack.inference.external.request.RequestUtils.bearerToken;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
@@ -35,7 +36,7 @@ public class ElasticInferenceServiceRequestTests extends ESTestCase {
         var httpRequest = elasticInferenceServiceRequestWrapper.createHttpRequest();
 
         assertThat(httpRequest.httpRequestBase().getHeaders(HttpHeaders.AUTHORIZATION).length, equalTo(1));
-        assertThat(httpRequest.httpRequestBase().getFirstHeader(HttpHeaders.AUTHORIZATION), is(secret));
+        assertThat(httpRequest.httpRequestBase().getFirstHeader(HttpHeaders.AUTHORIZATION).getValue(), is(bearerToken(secret)));
     }
 
     public void testElasticInferenceServiceRequestSubclasses_Decorate_HttpRequest_WithProductOrigin() {

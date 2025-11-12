@@ -35,8 +35,7 @@ public class CCMAuthenticationApplierFactory {
         this.ccmService = Objects.requireNonNull(ccmService);
     }
 
-    public sealed interface AuthApplier extends Function<HttpRequestBase, HttpRequestBase> permits AuthenticationHeaderApplier,
-        NoopApplier {}
+    public interface AuthApplier extends Function<HttpRequestBase, HttpRequestBase> {}
 
     public void getAuthenticationApplier(ActionListener<AuthApplier> listener) {
         if (ccmFeature.allowConfiguringCcm() == false) {
@@ -62,6 +61,9 @@ public class CCMAuthenticationApplierFactory {
     }
 
     public record AuthenticationHeaderApplier(SecureString apiKey) implements AuthApplier {
+        public AuthenticationHeaderApplier(String apiKey) {
+            this(new SecureString(Objects.requireNonNull(apiKey).toCharArray()));
+        }
 
         @Override
         public HttpRequestBase apply(HttpRequestBase request) {

@@ -10,13 +10,9 @@ package org.elasticsearch.xpack.inference.services.elastic.action;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.xpack.inference.external.action.ExecutableAction;
 import org.elasticsearch.xpack.inference.external.action.SenderExecutableAction;
-import org.elasticsearch.xpack.inference.external.http.retry.ResponseHandler;
 import org.elasticsearch.xpack.inference.external.http.sender.Sender;
-import org.elasticsearch.xpack.inference.external.response.elastic.ElasticInferenceServiceDenseTextEmbeddingsResponseEntity;
-import org.elasticsearch.xpack.inference.external.response.elastic.ElasticInferenceServiceRerankResponseEntity;
 import org.elasticsearch.xpack.inference.services.ServiceComponents;
 import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceModel;
-import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceResponseHandler;
 import org.elasticsearch.xpack.inference.services.elastic.ccm.CCMAuthenticationApplierFactory;
 import org.elasticsearch.xpack.inference.telemetry.TraceContext;
 
@@ -25,16 +21,6 @@ import java.util.Objects;
 import static org.elasticsearch.xpack.inference.external.action.ActionUtils.constructFailedToSendRequestMessage;
 
 public class ElasticInferenceServiceActionCreator {
-
-    static final ResponseHandler DENSE_TEXT_EMBEDDINGS_HANDLER = new ElasticInferenceServiceResponseHandler(
-        "elastic dense text embedding",
-        ElasticInferenceServiceDenseTextEmbeddingsResponseEntity::fromResponse
-    );
-
-    static final ResponseHandler RERANK_HANDLER = new ElasticInferenceServiceResponseHandler(
-        "elastic rerank",
-        (request, response) -> ElasticInferenceServiceRerankResponseEntity.fromResponse(response)
-    );
 
     private final Sender sender;
     private final ServiceComponents serviceComponents;

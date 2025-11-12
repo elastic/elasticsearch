@@ -11,6 +11,7 @@ import org.elasticsearch.core.Tuple;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.action.PromqlFeatures;
 import org.elasticsearch.xpack.esql.core.QlClientException;
@@ -33,7 +34,7 @@ import static org.junit.Assume.assumeTrue;
  * Test for checking the overall grammar by throwing a number of valid queries at the parser to see whether any exception is raised.
  * In time, the queries themselves get to be checked against the actual execution model and eventually against the expected results.
  */
-// @TestLogging(reason = "debug", value = "org.elasticsearch.xpack.esql.parser.promql:TRACE")
+//@TestLogging(reason = "debug", value = "org.elasticsearch.xpack.esql.parser.promql:TRACE")
 public class PromqlAstTests extends ESTestCase {
 
     private static final Logger log = LogManager.getLogger(PromqlAstTests.class);
@@ -43,9 +44,17 @@ public class PromqlAstTests extends ESTestCase {
         assumeTrue("requires snapshot build with promql feature enabled", PromqlFeatures.isEnabled());
     }
 
-    @AwaitsFix(bugUrl = "tests are passing until aggregations")
     public void testValidQueries() throws Exception {
-        List<Tuple<String, Integer>> lines = readQueries("/promql/grammar/queries-valid.promql");
+        testValidQueries("/promql/grammar/queries-valid.promql");
+    }
+
+    //@AwaitsFix(bugUrl = "functionality not implemented yet")
+    public void testValidQueriesNotYetWorkingDueToMissingFunctionality() throws Exception {
+        testValidQueries("/promql/grammar/queries-valid-extra.promql");
+    }
+
+    private void testValidQueries(String url) throws Exception {
+        List<Tuple<String, Integer>> lines = readQueries(url);
         for (Tuple<String, Integer> line : lines) {
             String q = line.v1();
             try {
@@ -60,7 +69,6 @@ public class PromqlAstTests extends ESTestCase {
         }
     }
 
-    @AwaitsFix(bugUrl = "query doesn't fail to parse while it should: `foo offset 9.5e10`")
     public void testUnsupportedQueries() throws Exception {
         List<Tuple<String, Integer>> lines = readQueries("/promql/grammar/queries-invalid.promql");
         for (Tuple<String, Integer> line : lines) {

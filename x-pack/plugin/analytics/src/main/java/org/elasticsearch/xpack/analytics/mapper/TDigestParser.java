@@ -46,7 +46,6 @@ public class TDigestParser {
             if (centroids != null && centroids.isEmpty() == false) {
                 return centroids.get(centroids.size() - 1);
             }
-            // NOCOMMIT - TODO: something more sensible for the empty array case? Do we even want to support that?
             return Double.NaN;
         }
 

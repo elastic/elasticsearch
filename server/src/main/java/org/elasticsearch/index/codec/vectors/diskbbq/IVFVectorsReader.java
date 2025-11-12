@@ -112,6 +112,8 @@ public abstract class IVFVectorsReader extends KnnVectorsReader {
         FieldInfo fieldInfo,
         int numCentroids,
         IndexInput centroids,
+        AcceptDocs acceptDocs,
+        FloatVectorValues values,
         float[] target,
         IndexInput postingListSlice,
         float visitRatio
@@ -283,7 +285,8 @@ public abstract class IVFVectorsReader extends KnnVectorsReader {
                 "vector query dimension: " + target.length + " differs from field dimension: " + fieldInfo.getVectorDimension()
             );
         }
-        int numVectors = getReaderForField(field).getFloatVectorValues(field).size();
+        FloatVectorValues values = getReaderForField(field).getFloatVectorValues(field);
+        int numVectors = values.size();
         float percentFiltered = Math.max(0f, Math.min(1f, (float) acceptDocs.cost() / numVectors));
         float visitRatio = DYNAMIC_VISIT_RATIO;
         // Search strategy may be null if this is being called from checkIndex (e.g. from a test)
@@ -309,6 +312,8 @@ public abstract class IVFVectorsReader extends KnnVectorsReader {
             fieldInfo,
             entry.numCentroids,
             entry.centroidSlice(ivfCentroids),
+            acceptDocs,
+            values,
             target,
             postListSlice,
             visitRatio

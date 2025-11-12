@@ -10,9 +10,11 @@
 package org.elasticsearch.index.codec.vectors.diskbbq;
 
 import org.apache.lucene.index.FieldInfo;
+import org.apache.lucene.index.FloatVectorValues;
 import org.apache.lucene.index.SegmentReadState;
 import org.apache.lucene.index.VectorEncoding;
 import org.apache.lucene.index.VectorSimilarityFunction;
+import org.apache.lucene.search.AcceptDocs;
 import org.apache.lucene.search.KnnCollector;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.util.Bits;
@@ -86,6 +88,8 @@ public class ES920DiskBBQVectorsReader extends IVFVectorsReader {
         FieldInfo fieldInfo,
         int numCentroids,
         IndexInput centroids,
+        AcceptDocs acceptDocs,
+        FloatVectorValues values,
         float[] targetQuery,
         IndexInput postingListSlice,
         float visitRatio

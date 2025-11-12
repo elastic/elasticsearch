@@ -379,6 +379,7 @@ public class ESNextDiskBBQVectorsWriter extends IVFVectorsWriter {
     public void writeCentroids(
         FieldInfo fieldInfo,
         CentroidSupplier centroidSupplier,
+        int[] centroidAssignments,
         float[] globalCentroid,
         CentroidOffsetAndLength centroidOffsetAndLength,
         IndexOutput centroidOutput
@@ -387,8 +388,33 @@ public class ESNextDiskBBQVectorsWriter extends IVFVectorsWriter {
         // TODO: sort centroids by global centroid (was doing so previously here)
         // TODO: sorting tanks recall possibly because centroids ordinals no longer are aligned
         if (centroidSupplier.size() > centroidsPerParentCluster * centroidsPerParentCluster) {
-            writeCentroidsWithParents(fieldInfo, centroidSupplier, globalCentroid, centroidOffsetAndLength, centroidOutput);
+
+            final CentroidGroups centroidGroups = buildCentroidGroups(fieldInfo, centroidSupplier);
+            {
+                // write vector ord -> centroid lookup table. We need to remap current centroid ordinals
+                // to the ordinals on the parent / child structure.
+                final int[] centroidOrdinalMap = new int[centroidSupplier.size()];
+                int idx = 0;
+                for (int[] centroidVectors : centroidGroups.vectors()) {
+                    for (int assignment : centroidVectors) {
+                        centroidOrdinalMap[assignment] = idx++;
+                    }
+                }
+                assert idx == centroidSupplier.size() : "Expected [" + centroidSupplier.size() + "], got [" + idx + "]";
+                // TODO: write ordinal to centroid map in a packed format?
+                for (int centroidAssignment : centroidAssignments) {
+                    centroidOutput.writeInt(centroidOrdinalMap[centroidAssignment]);
+                }
+            }
+            writeCentroidsWithParents(fieldInfo, centroidSupplier, globalCentroid, centroidOffsetAndLength, centroidOutput, centroidGroups);
         } else {
+            {
+                // write vector ord -> centroid lookup table.
+                // TODO: write ordinal to centroid map in a packed format?
+                for (int centroidAssignment : centroidAssignments) {
+                    centroidOutput.writeInt(centroidAssignment);
+                }
+            }
             writeCentroidsWithoutParents(fieldInfo, centroidSupplier, globalCentroid, centroidOffsetAndLength, centroidOutput);
         }
     }
@@ -398,11 +424,11 @@ public class ESNextDiskBBQVectorsWriter extends IVFVectorsWriter {
         CentroidSupplier centroidSupplier,
         float[] globalCentroid,
         CentroidOffsetAndLength centroidOffsetAndLength,
-        IndexOutput centroidOutput
+        IndexOutput centroidOutput,
+        CentroidGroups centroidGroups
     ) throws IOException {
         DiskBBQBulkWriter bulkWriter = DiskBBQBulkWriter.fromBitSize(7, ES92Int7VectorsScorer.BULK_SIZE, centroidOutput);
         final OptimizedScalarQuantizer osq = new OptimizedScalarQuantizer(fieldInfo.getVectorSimilarityFunction());
-        final CentroidGroups centroidGroups = buildCentroidGroups(fieldInfo, centroidSupplier);
         centroidOutput.writeVInt(centroidGroups.centroids.length);
         centroidOutput.writeVInt(centroidGroups.maxVectorsPerCentroidLength);
         QuantizedCentroids parentQuantizeCentroid = new QuantizedCentroids(
@@ -413,10 +439,10 @@ public class ESNextDiskBBQVectorsWriter extends IVFVectorsWriter {
         );
         bulkWriter.writeVectors(parentQuantizeCentroid, null);
         int offset = 0;
-        for (int i = 0; i < centroidGroups.centroids().length; i++) {
+        for (int[] centroidVectors : centroidGroups.vectors()) {
             centroidOutput.writeInt(offset);
-            centroidOutput.writeInt(centroidGroups.vectors()[i].length);
-            offset += centroidGroups.vectors()[i].length;
+            centroidOutput.writeInt(centroidVectors.length);
+            offset += centroidVectors.length;
         }
 
         QuantizedCentroids childrenQuantizeCentroid = new QuantizedCentroids(
@@ -425,15 +451,13 @@ public class ESNextDiskBBQVectorsWriter extends IVFVectorsWriter {
             osq,
             globalCentroid
         );
-        for (int i = 0; i < centroidGroups.centroids().length; i++) {
-            final int[] centroidAssignments = centroidGroups.vectors()[i];
-            childrenQuantizeCentroid.reset(idx -> centroidAssignments[idx], centroidAssignments.length);
+        for (int[] centroidVectors : centroidGroups.vectors()) {
+            childrenQuantizeCentroid.reset(idx -> centroidVectors[idx], centroidVectors.length);
             bulkWriter.writeVectors(childrenQuantizeCentroid, null);
         }
         // write the centroid offsets at the end of the file
-        for (int i = 0; i < centroidGroups.centroids().length; i++) {
-            final int[] centroidAssignments = centroidGroups.vectors()[i];
-            for (int assignment : centroidAssignments) {
+        for (int[] centroidVectors : centroidGroups.vectors()) {
+            for (int assignment : centroidVectors) {
                 centroidOutput.writeLong(centroidOffsetAndLength.offsets().get(assignment));
                 centroidOutput.writeLong(centroidOffsetAndLength.lengths().get(assignment));
             }

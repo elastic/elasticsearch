@@ -26,13 +26,13 @@ import java.util.List;
  *                              into the same document.
  *                              In these cases, the behavior is undefined but does not lead to data loss.
  */
-public record MappingHints(boolean aggregateMetricDouble, boolean docCount) {
+public record MappingHints(boolean aggregateMetricDouble, boolean useExponentialHistogramType, boolean docCount) {
 
     public static final String MAPPING_HINTS = "elasticsearch.mapping.hints";
     public static final String AGGREGATE_METRIC_DOUBLE = "aggregate_metric_double";
     public static final String DOC_COUNT = "_doc_count";
 
-    private static final MappingHints EMPTY = new MappingHints(false, false);
+    private static final MappingHints EMPTY = new MappingHints(false, true, false);
 
     public static MappingHints fromAttributes(List<KeyValue> attributes) {
         boolean aggregateMetricDouble = false;
@@ -54,7 +54,8 @@ public record MappingHints(boolean aggregateMetricDouble, boolean docCount) {
                         }
                     }
                 }
-                return new MappingHints(aggregateMetricDouble, docCount);
+                // TODO: use setting to control useExponentialHistogramType
+                return new MappingHints(aggregateMetricDouble, true, docCount);
             }
         }
         return EMPTY;

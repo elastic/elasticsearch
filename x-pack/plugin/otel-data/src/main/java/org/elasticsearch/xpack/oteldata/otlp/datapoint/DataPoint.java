@@ -205,6 +205,8 @@ public interface DataPoint {
         public void buildMetricValue(MappingHints mappingHints, XContentBuilder builder) throws IOException {
             if (mappingHints.aggregateMetricDouble()) {
                 buildAggregateMetricDouble(builder, dataPoint.getSum(), dataPoint.getCount());
+            } else if (mappingHints.useExponentialHistogramType()) {
+                buildExponentialHistogram(builder);
             } else {
                 builder.startObject();
                 builder.startArray("counts");
@@ -217,6 +219,54 @@ public interface DataPoint {
             }
         }
 
+        private void buildExponentialHistogram(XContentBuilder builder) throws IOException {
+            builder.startObject();
+            builder.field("scale", dataPoint.getScale());
+            if (dataPoint.getZeroCount() > 0) {
+                builder.startObject("zero")
+                    .field("count", dataPoint.getZeroCount())
+                    .field("threshold", dataPoint.getZeroThreshold())
+                    .endObject();
+            }
+            if(dataPoint.hasNegative()) {
+                writeBuckets(builder, "negative", dataPoint.getNegative());
+            }
+            if(dataPoint.hasNegative()) {
+                writeBuckets(builder, "positive", dataPoint.getPositive());
+            }
+            if (dataPoint.hasSum()) {
+                builder.field("sum", dataPoint.getSum());
+            }
+            if (dataPoint.hasMin()) {
+                builder.field("min", dataPoint.getMin());
+            }
+            if (dataPoint.hasMax()) {
+                builder.field("max", dataPoint.getMax());
+            }
+            builder.endObject();
+        }
+
+        private static void writeBuckets(XContentBuilder builder, String fieldName, ExponentialHistogramDataPoint.Buckets buckets) throws IOException {
+            builder.startObject(fieldName);
+            builder.startArray("indices");
+            for (int i = 0; i < buckets.getBucketCountsCount(); i++) {
+                long count = buckets.getBucketCounts(i);
+                if (count != 0) {
+                    builder.value(buckets.getOffset() + i);
+                }
+            }
+            builder.endArray();
+            builder.startArray("counts");
+            for (int i = 0; i < buckets.getBucketCountsCount(); i++) {
+                long count = buckets.getBucketCounts(i);
+                if (count != 0) {
+                    builder.value(count);
+                }
+            }
+            builder.endArray();
+            builder.endObject();
+        }
+
         @Override
         public long getDocCount() {
             return dataPoint.getCount();
@@ -226,6 +276,8 @@ public interface DataPoint {
         public String getDynamicTemplate(MappingHints mappingHints) {
             if (mappingHints.aggregateMetricDouble()) {
                 return "summary";
+            } else if (mappingHints.useExponentialHistogramType()) {
+                return "exponential_histogram";
             } else {
                 return "histogram";
             }

@@ -39,6 +39,8 @@ import java.util.concurrent.locks.ReentrantLock;
  *
  */
 public interface CuVSResourceManager {
+    /** A multiplier on input data to account for intermediate and output data size required while processing it */
+    double GPU_COMPUTATION_MEMORY_FACTOR = 2.0;
 
     /**
      * Acquires a resource from the manager.
@@ -59,6 +61,23 @@ public interface CuVSResourceManager {
     /** Shuts down the manager, releasing all open resources. */
     void shutdown();
 
+    /**
+     * Estimates the required GPU memory for building an index using the NN_DESCENT algorithm.
+     *
+     * @param numVectors the number of vectors
+     * @param dims the dimensionality of vectors
+     * @param dataType the data type of the vectors
+     * @return the estimated memory in bytes needed for NN_DESCENT
+     */
+    static long estimateNNDescentMemory(int numVectors, int dims, CuVSMatrix.DataType dataType) {
+        int elementTypeBytes = switch (dataType) {
+            case FLOAT -> Float.BYTES;
+            case INT, UINT -> Integer.BYTES;
+            case BYTE -> Byte.BYTES;
+        };
+        return (long) (GPU_COMPUTATION_MEMORY_FACTOR * numVectors * dims * elementTypeBytes);
+    }
+
     /** Returns the system-wide pooling manager. */
     static CuVSResourceManager pooling() {
         return PoolingCuVSResourceManager.Holder.INSTANCE;
@@ -70,9 +89,6 @@ public interface CuVSResourceManager {
     class PoolingCuVSResourceManager implements CuVSResourceManager {
 
         static final Logger logger = LogManager.getLogger(CuVSResourceManager.class);
-
-        /** A multiplier on input data to account for intermediate and output data size required while processing it */
-        static final double GPU_COMPUTATION_MEMORY_FACTOR = 2.0;
         static final int MAX_RESOURCES = 4;
 
         static class Holder {
@@ -193,17 +209,16 @@ public interface CuVSResourceManager {
         }
 
         private long estimateRequiredMemory(int numVectors, int dims, CuVSMatrix.DataType dataType, CagraIndexParams cagraIndexParams) {
-            int elementTypeBytes = switch (dataType) {
-                case FLOAT -> Float.BYTES;
-                case INT, UINT -> Integer.BYTES;
-                case BYTE -> Byte.BYTES;
-            };
-
             if (cagraIndexParams.getCagraGraphBuildAlgo() == CagraIndexParams.CagraGraphBuildAlgo.IVF_PQ
                 && cagraIndexParams.getCuVSIvfPqParams() != null
                 && cagraIndexParams.getCuVSIvfPqParams().getIndexParams() != null
                 && cagraIndexParams.getCuVSIvfPqParams().getIndexParams().getPqDim() != 0) {
                 // See https://docs.rapids.ai/api/cuvs/nightly/neighbors/ivfpq/#index-device-memory
+                int elementTypeBytes = switch (dataType) {
+                    case FLOAT -> Float.BYTES;
+                    case INT, UINT -> Integer.BYTES;
+                    case BYTE -> Byte.BYTES;
+                };
                 var pqDim = cagraIndexParams.getCuVSIvfPqParams().getIndexParams().getPqDim();
                 var pqBits = cagraIndexParams.getCuVSIvfPqParams().getIndexParams().getPqBits();
                 var numClusters = cagraIndexParams.getCuVSIvfPqParams().getIndexParams().getnLists();
@@ -211,7 +226,7 @@ public interface CuVSResourceManager {
                 return (long) (GPU_COMPUTATION_MEMORY_FACTOR * approximatedIvfBytes);
             }
 
-            return (long) (GPU_COMPUTATION_MEMORY_FACTOR * numVectors * dims * elementTypeBytes);
+            return CuVSResourceManager.estimateNNDescentMemory(numVectors, dims, dataType);
         }
 
         // visible for testing

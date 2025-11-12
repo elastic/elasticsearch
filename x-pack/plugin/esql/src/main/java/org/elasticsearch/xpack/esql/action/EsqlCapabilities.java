@@ -1356,7 +1356,7 @@ public class EsqlCapabilities {
         /**
          * Decay function for custom scoring
          */
-        DECAY_FUNCTION(Build.current().isSnapshot()),
+        DECAY_FUNCTION,
 
         /**
          * FIRST and LAST aggregate functions.

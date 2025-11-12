@@ -22,6 +22,7 @@ import org.apache.lucene.util.BitSet;
 import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.index.fielddata.DenseLongValues;
 import org.elasticsearch.index.fielddata.FieldData;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
@@ -88,7 +89,7 @@ public class LongValuesComparatorSource extends IndexFieldData.XFieldComparatorS
         return converter != null ? converter.apply(values) : values;
     }
 
-    LongValues getLongValues(LeafReaderContext context, long missingValue) throws IOException {
+    DenseLongValues getLongValues(LeafReaderContext context, long missingValue) throws IOException {
         final SortedNumericLongValues values = loadDocValues(context);
         if (nested == null) {
             return FieldData.replaceMissing(sortMode.select(values), missingValue);
@@ -201,7 +202,7 @@ public class LongValuesComparatorSource extends IndexFieldData.XFieldComparatorS
         return super.missingObject(missingValue, reversed);
     }
 
-    protected static NumericDocValues wrap(LongValues longValues, int maxDoc) {
+    protected static NumericDocValues wrap(DenseLongValues longValues, int maxDoc) {
         return new NumericDocValues() {
 
             int doc = -1;

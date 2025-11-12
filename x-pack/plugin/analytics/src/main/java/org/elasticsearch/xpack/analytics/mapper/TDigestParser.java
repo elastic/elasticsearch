@@ -18,10 +18,10 @@ import java.util.List;
 import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
 import static org.elasticsearch.xpack.analytics.mapper.TDigestFieldMapper.CENTROIDS_NAME;
 import static org.elasticsearch.xpack.analytics.mapper.TDigestFieldMapper.COUNTS_NAME;
-import static org.elasticsearch.xpack.analytics.mapper.TDigestFieldMapper.TOTAL_COUNT_FIELD_NAME;
 import static org.elasticsearch.xpack.analytics.mapper.TDigestFieldMapper.MAX_FIELD_NAME;
 import static org.elasticsearch.xpack.analytics.mapper.TDigestFieldMapper.MIN_FIELD_NAME;
 import static org.elasticsearch.xpack.analytics.mapper.TDigestFieldMapper.SUM_FIELD_NAME;
+import static org.elasticsearch.xpack.analytics.mapper.TDigestFieldMapper.TOTAL_COUNT_FIELD_NAME;
 
 public class TDigestParser {
 

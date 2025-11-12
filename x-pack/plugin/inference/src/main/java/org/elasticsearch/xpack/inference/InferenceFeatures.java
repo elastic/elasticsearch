@@ -55,8 +55,9 @@ public class InferenceFeatures implements FeatureSpecification {
 
     public static final NodeFeature INFERENCE_ENDPOINT_CACHE = new NodeFeature("inference.endpoint.cache");
     public static final NodeFeature SEARCH_USAGE_EXTENDED_DATA = new NodeFeature("search.usage.extended_data");
-    public static final NodeFeature TEXT_SIMILARITY_RERANKER_INFERENCE_ID_CHUNKING = 
-        new NodeFeature("text_similarity_reranker_inference_id_chunking");
+    public static final NodeFeature TEXT_SIMILARITY_RERANKER_INFERENCE_ID_CHUNKING = new NodeFeature(
+        "text_similarity_reranker_inference_id_chunking"
+    );
 
     @Override
     public Set<NodeFeature> getFeatures() {

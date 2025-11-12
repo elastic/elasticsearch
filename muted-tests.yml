@@ -444,6 +444,15 @@ tests:
 - class: org.elasticsearch.upgrades.TextRollingUpgradeIT
   method: testIndexing {upgradedNodes=1}
   issue: https://github.com/elastic/elasticsearch/issues/137796
+- class: org.elasticsearch.xpack.inference.integration.CCMPersistentStorageServiceIT
+  method: testDelete_RemovesCCMConfiguration
+  issue: https://github.com/elastic/elasticsearch/issues/137786
+- class: org.elasticsearch.xpack.inference.integration.CCMPersistentStorageServiceIT
+  method: testDelete_DoesNotThrow_WhenTheConfigurationDoesNotExist
+  issue: https://github.com/elastic/elasticsearch/issues/137797
+- class: org.elasticsearch.xpack.inference.integration.CCMServiceIT
+  method: testIsEnabled_ReturnsTrue_WhenCCMConfigurationIsPresent
+  issue: https://github.com/elastic/elasticsearch/issues/137798
 - class: org.elasticsearch.xpack.inference.external.http.sender.RequestExecutorServiceTests
   method: testChangingCapacity_DoesNotRejectsOverflowTasks_BecauseOfQueueFull
   issue: https://github.com/elastic/elasticsearch/issues/137823
@@ -456,10 +465,6 @@ tests:
 - class: org.elasticsearch.xpack.inference.integration.AuthorizationTaskExecutorMultipleNodesIT
   method: testAuthorizationTaskGetsRelocatedToAnotherNode_WhenTheNodeThatIsRunningItShutsDown
   issue: https://github.com/elastic/elasticsearch/issues/137911
-- class: org.elasticsearch.xpack.esql.vector.VectorSimilarityFunctionsIT
-  method: testSimilarityWithOneDimVector {functionName=v_cosine
-    similarityFunction=org.elasticsearch.xpack.esql.expression.function.vector.CosineSimilarity$1@ebb6851 elementType=byte}
-  issue: https://github.com/elastic/elasticsearch/issues/137915
 - class: org.elasticsearch.xpack.esql.qa.multi_node.GenerativeIT
   method: test
   issue: https://github.com/elastic/elasticsearch/issues/137909

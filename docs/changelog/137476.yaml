@@ -1,6 +1,0 @@
-pr: 137476
-summary: Handle missing geotile buckets
-area: Transform
-type: bug
-issues:
- - 126591

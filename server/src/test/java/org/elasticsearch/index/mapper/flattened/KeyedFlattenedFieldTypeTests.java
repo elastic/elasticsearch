@@ -21,6 +21,7 @@ import org.elasticsearch.common.lucene.search.AutomatonQueries;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.index.mapper.FieldTypeTestCase;
+import org.elasticsearch.index.mapper.IndexType;
 import org.elasticsearch.index.mapper.ValueFetcher;
 import org.elasticsearch.index.mapper.flattened.FlattenedFieldMapper.KeyedFlattenedFieldType;
 import org.elasticsearch.index.query.SearchExecutionContext;
@@ -42,7 +43,7 @@ import static org.mockito.Mockito.when;
 public class KeyedFlattenedFieldTypeTests extends FieldTypeTestCase {
 
     private static KeyedFlattenedFieldType createFieldType() {
-        return new KeyedFlattenedFieldType("field", true, true, "key", false, Collections.emptyMap(), false);
+        return new KeyedFlattenedFieldType("field", IndexType.terms(true, true), "key", false, Collections.emptyMap(), false);
     }
 
     public void testIndexedValueForSearch() {
@@ -69,8 +70,7 @@ public class KeyedFlattenedFieldTypeTests extends FieldTypeTestCase {
 
         KeyedFlattenedFieldType unsearchable = new KeyedFlattenedFieldType(
             "field",
-            false,
-            true,
+            IndexType.terms(false, true),
             "key",
             false,
             Collections.emptyMap(),

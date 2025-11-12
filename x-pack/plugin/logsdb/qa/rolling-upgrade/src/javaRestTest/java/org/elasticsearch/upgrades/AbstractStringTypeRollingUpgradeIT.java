@@ -96,6 +96,7 @@ public abstract class AbstractStringTypeRollingUpgradeIT extends AbstractRolling
     protected void testIndexing(boolean shouldIncludeKeywordMultifield) throws Exception {
         String dataStreamName = DATA_STREAM + (shouldIncludeKeywordMultifield ? "-multifield" : "");
         if (isOldCluster()) {
+            // given - reset data stream since it could've been used by other tests
             smallestMessageMap.remove(dataStreamName);
 
             // given - enable logsdb and create a template
@@ -235,7 +236,7 @@ public abstract class AbstractStringTypeRollingUpgradeIT extends AbstractRolling
     /**
      * Generates a string containing a random number of random length alphas, all delimited by space.
      */
-    public static String randomAlphasDelimitedBySpace(int maxAlphas, int minCodeUnits, int maxCodeUnits) {
+    private static String randomAlphasDelimitedBySpace(int maxAlphas, int minCodeUnits, int maxCodeUnits) {
         int numAlphas = randomIntBetween(1, maxAlphas);
         List<String> alphas = new ArrayList<>(numAlphas);
         for (int i = 0; i < numAlphas; i++) {

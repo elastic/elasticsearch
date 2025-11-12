@@ -7,7 +7,7 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.index.mapper.blockloader.docvalues;
+package org.elasticsearch.index.mapper.blockloader.docvalues.fn;
 
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
@@ -26,7 +26,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
-import static org.elasticsearch.index.mapper.blockloader.docvalues.Utf8CodePointsFromOrdsBlockLoader.LOW_CARDINALITY;
+import static org.elasticsearch.index.mapper.blockloader.docvalues.fn.Utf8CodePointsFromOrdsBlockLoader.LOW_CARDINALITY;
 
 public abstract class AbstractFromOrdsBlockLoaderTests extends ESTestCase {
     @ParametersFactory(argumentFormatting = "blockAtATime=%s, lowCardinality=%s, multiValues=%s, missingValues=%s")

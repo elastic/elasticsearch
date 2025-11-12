@@ -106,7 +106,20 @@ public class EsqlQueryResponse extends org.elasticsearch.xpack.core.esql.action.
         long expirationTimeMillis,
         EsqlExecutionInfo executionInfo
     ) {
-        this(columns, pages, documentsFound, valuesLoaded, profile, columnar, null, false, isAsync, startTimeMillis, expirationTimeMillis, executionInfo);
+        this(
+            columns,
+            pages,
+            documentsFound,
+            valuesLoaded,
+            profile,
+            columnar,
+            null,
+            false,
+            isAsync,
+            startTimeMillis,
+            expirationTimeMillis,
+            executionInfo
+        );
     }
 
     /**

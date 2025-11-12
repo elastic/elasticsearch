@@ -8,6 +8,7 @@ steps:
           setup:
             image:
               - debian-12
+              - debian-13
               - opensuse-leap-15
               - oraclelinux-8
               - oraclelinux-9

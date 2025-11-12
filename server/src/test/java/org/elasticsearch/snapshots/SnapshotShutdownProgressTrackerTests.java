@@ -89,7 +89,7 @@ public class SnapshotShutdownProgressTrackerTests extends ESTestCase {
         testThreadPool = deterministicTaskQueue.getThreadPool();
     }
 
-    private void setLogProgressReportSeenEventExpectation(
+    private void setLogPeriodicProgressReportSeenEventExpectation(
         MockLog mockLog,
         int numberOfSnapshotsInProgress,
         int done,
@@ -121,7 +121,7 @@ public class SnapshotShutdownProgressTrackerTests extends ESTestCase {
         );
     }
 
-    private void setLogProgressReportUnseenEventExpectation(MockLog mockLog, int done, int failed, int aborted, int paused) {
+    private void setLogPeriodicProgressReportUnseenEventExpectation(MockLog mockLog, int done, int failed, int aborted, int paused) {
         mockLog.addExpectation(
             new MockLog.UnseenEventExpectation(
                 "does not log progress report",
@@ -143,17 +143,25 @@ public class SnapshotShutdownProgressTrackerTests extends ESTestCase {
         );
     }
 
-    private void testPeriodicLogReport(SnapshotShutdownProgressTracker tracker, MockLog mockLog) {
-        // Expect the periodic logger to update the completion stats
-        setLogProgressReportSeenEventExpectation(mockLog, 4, 1, 0, 0, 0);
-        setLogProgressReportSeenEventExpectation(mockLog, 3, 1, 0, 1, 0);
-        setLogProgressReportSeenEventExpectation(mockLog, 2, 1, 1, 1, 0);
-        setLogProgressReportSeenEventExpectation(mockLog, 1, 1, 1, 1, 1);
+    private void setInFlightSnapshots(SnapshotShutdownProgressTracker tracker) {
+        for (int i = 0; i < 5; ++i) {
+            tracker.incNumberOfShardSnapshotsInProgress(dummyShardId, dummySnapshot);
+        }
+    }
 
-        // We expect the last snapshot to trigger a different log message and for the periodic logger to end
-        setLogProgressReportUnseenEventExpectation(mockLog, 2, 1, 1, 1);
+    private void ensurePeriodicLogMessagesAsSnapshotsComplete(SnapshotShutdownProgressTracker tracker, MockLog mockLog) {
+        // We are going to simulate 5 in-progress snapshots while the node is shutting down, so we expect the periodic logger
+        // to update the completion stats
+        setLogPeriodicProgressReportSeenEventExpectation(mockLog, 4, 1, 0, 0, 0);
+        setLogPeriodicProgressReportSeenEventExpectation(mockLog, 3, 1, 0, 1, 0);
+        setLogPeriodicProgressReportSeenEventExpectation(mockLog, 2, 1, 1, 1, 0);
+        setLogPeriodicProgressReportSeenEventExpectation(mockLog, 1, 1, 1, 1, 1);
 
-        // Assert we only log the final state once (ES-12794)
+        // When there are no more in-progress snapshots, the tracker emits a final log message, and terminates the periodic logger.
+        setLogPeriodicProgressReportUnseenEventExpectation(mockLog, 2, 1, 1, 1);
+
+        // We expect that the tracker sees no more snapshots in-progress and logs the final exit message.
+        // This exit message should only be logged once, and then there should be no more subsequent logging
         mockLog.addExpectation(new MockLog.LoggingExpectation() {
             int count = 0;
 
@@ -195,7 +203,7 @@ public class SnapshotShutdownProgressTrackerTests extends ESTestCase {
             }
             logger.info("---> Generated shard snapshot status in stage (" + status.getStage() + ") for switch case (" + (i % 4) + ")");
             tracker.decNumberOfShardSnapshotsInProgress(dummyShardId, dummySnapshot, status);
-            // Wait for the next periodic log message to include the new completion stats.
+            // Advance time to the next periodic log message and expect it to include the new completion stats.
             deterministicTaskQueue.advanceTime();
             deterministicTaskQueue.runAllRunnableTasks();
         }
@@ -223,20 +231,20 @@ public class SnapshotShutdownProgressTrackerTests extends ESTestCase {
                 )
             );
 
-            // Register each snapshot as in progress
-            for (int i = 0; i < 5; ++i) {
-                tracker.incNumberOfShardSnapshotsInProgress(dummyShardId, dummySnapshot);
-            }
+            // Adds in-progress snapshots so that the tracker doesn't immediately exit on seeing that all snapshots are finished,
+            // and should begin logging the periodic progress report
+            setInFlightSnapshots(tracker);
 
             // Simulate starting shutdown -- should reset the completion stats and start logging as there are snapshots in-flight
             tracker.onClusterStateAddShutdown();
 
-            // Wait for the initial progress log message with no shard snapshot completions.
+            // Skip forward to the initial progress log message with no shard snapshot completions.
             deterministicTaskQueue.advanceTime();
             deterministicTaskQueue.runAllRunnableTasks();
             mockLog.awaitAllExpectationsMatched();
 
-            // Test the consumer logger functionality works as expected
+            // In the tracker we use a callback to log the shard snapshot details. Here, we have mocked that with a dummy message,
+            // but we expect this dummy message to still be logged with each periodic report.
             mockLog.addExpectation(
                 new MockLog.SeenEventExpectation(
                     "index shard snapshot statuses",
@@ -247,7 +255,7 @@ public class SnapshotShutdownProgressTrackerTests extends ESTestCase {
             );
 
             // A helper function to run the report periodically and assert the stats are as expected
-            testPeriodicLogReport(tracker, mockLog);
+            ensurePeriodicLogMessagesAsSnapshotsComplete(tracker, mockLog);
         }
     }
 
@@ -289,7 +297,8 @@ public class SnapshotShutdownProgressTrackerTests extends ESTestCase {
                 )
             );
 
-            // Add an in-progress snapshot
+            // Adds in-progress snapshots so that the tracker doesn't immediately exit on seeing that all snapshots are finished,
+            // and should begin logging the periodic progress report
             tracker.incNumberOfShardSnapshotsInProgress(dummyShardId, dummySnapshot);
 
             // Simulate starting shutdown -- no logging will start because the Tracker logging is disabled.
@@ -339,7 +348,8 @@ public class SnapshotShutdownProgressTrackerTests extends ESTestCase {
                 )
             );
 
-            // Add an in-progress snapshot
+            // Adds in-progress snapshots so that the tracker doesn't immediately exit on seeing that all snapshots are finished,
+            // and should begin logging the periodic progress report
             tracker.incNumberOfShardSnapshotsInProgress(dummyShardId, dummySnapshot);
 
             // Simulate starting shutdown -- progress logging should begin as there are in-flight snapshots
@@ -371,7 +381,8 @@ public class SnapshotShutdownProgressTrackerTests extends ESTestCase {
                 )
             );
 
-            // Add an in-progress snapshot
+            // Adds in-progress snapshots so that the tracker doesn't immediately exit on seeing that all snapshots are finished,
+            // and should begin logging the periodic progress report
             tracker.incNumberOfShardSnapshotsInProgress(dummyShardId, dummySnapshot);
 
             // Simulate starting shutdown -- start logging.
@@ -397,7 +408,8 @@ public class SnapshotShutdownProgressTrackerTests extends ESTestCase {
         Snapshot snapshot = new Snapshot("repositoryName", new SnapshotId("snapshotName", "snapshotUUID"));
         ShardId shardId = new ShardId(new Index("indexName", "indexUUID"), 0);
 
-        // Add an in-progress snapshot
+        // Adds in-progress snapshots so that the tracker doesn't immediately exit on seeing that all snapshots are finished,
+        // and should begin logging the periodic progress report
         tracker.incNumberOfShardSnapshotsInProgress(dummyShardId, dummySnapshot);
 
         // Simulate starting shutdown -- start logging.
@@ -451,10 +463,9 @@ public class SnapshotShutdownProgressTrackerTests extends ESTestCase {
             testThreadPool
         );
 
-        // Register each snapshot as in progress
-        for (int i = 0; i < 5; ++i) {
-            tracker.incNumberOfShardSnapshotsInProgress(dummyShardId, dummySnapshot);
-        }
+        // Adds in-progress snapshots so that the tracker doesn't immediately exit on seeing that all snapshots are finished,
+        // and should begin logging the periodic progress report
+        setInFlightSnapshots(tracker);
 
         // 1. Simulate a node shutdown
         try (var mockLog = MockLog.capture(Coordinator.class, SnapshotShutdownProgressTracker.class)) {
@@ -479,9 +490,9 @@ public class SnapshotShutdownProgressTrackerTests extends ESTestCase {
             mockLog.awaitAllExpectationsMatched();
         }
 
-        // Simulate 5 snapshots finishing, and assert whether the periodic logger works as expected
+        // 2. Simulate 5 snapshots finishing, and assert whether the periodic logger works as expected
         try (var mockLog = MockLog.capture(Coordinator.class, SnapshotShutdownProgressTracker.class)) {
-            testPeriodicLogReport(tracker, mockLog);
+            ensurePeriodicLogMessagesAsSnapshotsComplete(tracker, mockLog);
         }
 
         // 3. Clear start and pause timestamps, and expect the periodic logger to reset

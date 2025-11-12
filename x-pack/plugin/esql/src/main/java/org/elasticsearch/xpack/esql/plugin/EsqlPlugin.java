@@ -89,15 +89,12 @@ import org.elasticsearch.xpack.esql.session.IndexResolver;
 import org.elasticsearch.xpack.esql.view.ClusterViewService;
 import org.elasticsearch.xpack.esql.view.DeleteViewAction;
 import org.elasticsearch.xpack.esql.view.GetViewAction;
-import org.elasticsearch.xpack.esql.view.ListViewsAction;
 import org.elasticsearch.xpack.esql.view.PutViewAction;
 import org.elasticsearch.xpack.esql.view.RestDeleteViewAction;
 import org.elasticsearch.xpack.esql.view.RestGetViewAction;
-import org.elasticsearch.xpack.esql.view.RestListViewsAction;
 import org.elasticsearch.xpack.esql.view.RestPutViewAction;
 import org.elasticsearch.xpack.esql.view.TransportDeleteViewAction;
 import org.elasticsearch.xpack.esql.view.TransportGetViewAction;
-import org.elasticsearch.xpack.esql.view.TransportListViewsAction;
 import org.elasticsearch.xpack.esql.view.TransportPutViewAction;
 import org.elasticsearch.xpack.esql.view.ViewMetadata;
 import org.elasticsearch.xpack.esql.view.ViewService;
@@ -296,8 +293,7 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
             new ActionHandler(EsqlGetQueryAction.INSTANCE, TransportEsqlGetQueryAction.class),
             new ActionHandler(PutViewAction.INSTANCE, TransportPutViewAction.class),
             new ActionHandler(DeleteViewAction.INSTANCE, TransportDeleteViewAction.class),
-            new ActionHandler(GetViewAction.INSTANCE, TransportGetViewAction.class),
-            new ActionHandler(ListViewsAction.INSTANCE, TransportListViewsAction.class)
+            new ActionHandler(GetViewAction.INSTANCE, TransportGetViewAction.class)
         );
     }
 
@@ -322,8 +318,7 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
             new RestEsqlListQueriesAction(),
             new RestPutViewAction(),
             new RestDeleteViewAction(),
-            new RestGetViewAction(),
-            new RestListViewsAction()
+            new RestGetViewAction()
         );
     }
 

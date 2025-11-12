@@ -74,6 +74,7 @@ public class TDigestFieldMapperTests extends MapperTestCase {
     }
 
     public void testParseValue() throws Exception {
+        assumeTrue("Requires t-digest field", TDigestFieldMapper.TDIGEST_FIELD_MAPPER.isEnabled());
         DocumentMapper mapper = createDocumentMapper(fieldMapping(this::minimalMapping));
         ParsedDocument doc = mapper.parse(
             source(b -> b.startObject("field").field("centroids", new double[] { 2, 3 }).field("counts", new int[] { 0, 4 }).endObject())
@@ -82,6 +83,7 @@ public class TDigestFieldMapperTests extends MapperTestCase {
     }
 
     public void testParseArrayValue() throws Exception {
+        assumeTrue("Requires t-digest field", TDigestFieldMapper.TDIGEST_FIELD_MAPPER.isEnabled());
         DocumentMapper mapper = createDocumentMapper(fieldMapping(this::minimalMapping));
         Exception e = expectThrows(DocumentParsingException.class, () -> mapper.parse(source(b -> {
             b.startArray("field");
@@ -98,6 +100,7 @@ public class TDigestFieldMapperTests extends MapperTestCase {
     }
 
     public void testEmptyArrays() throws Exception {
+        assumeTrue("Requires t-digest field", TDigestFieldMapper.TDIGEST_FIELD_MAPPER.isEnabled());
         DocumentMapper mapper = createDocumentMapper(fieldMapping(this::minimalMapping));
         ParsedDocument doc = mapper.parse(
             source(b -> b.startObject("field").field("centroids", new double[] {}).field("counts", new int[] {}).endObject())
@@ -106,12 +109,14 @@ public class TDigestFieldMapperTests extends MapperTestCase {
     }
 
     public void testNullValue() throws Exception {
+        assumeTrue("Requires t-digest field", TDigestFieldMapper.TDIGEST_FIELD_MAPPER.isEnabled());
         DocumentMapper mapper = createDocumentMapper(fieldMapping(this::minimalMapping));
         ParsedDocument doc = mapper.parse(source(b -> b.nullField("pre_aggregated")));
         assertThat(doc.rootDoc().getField("pre_aggregated"), nullValue());
     }
 
     public void testMissingFieldCounts() throws Exception {
+        assumeTrue("Requires t-digest field", TDigestFieldMapper.TDIGEST_FIELD_MAPPER.isEnabled());
         DocumentMapper mapper = createDocumentMapper(fieldMapping(this::minimalMapping));
         Exception e = expectThrows(
             DocumentParsingException.class,
@@ -170,6 +175,7 @@ public class TDigestFieldMapperTests extends MapperTestCase {
     }
 
     public void testIgnoreMalformedSkipsKeyword() throws Exception {
+        assumeTrue("Requires t-digest field", TDigestFieldMapper.TDIGEST_FIELD_MAPPER.isEnabled());
         DocumentMapper mapper = createDocumentMapper(mapping(b -> {
             b.startObject("pre_aggregated").field("type", "tdigest").field("ignore_malformed", true).endObject();
             b.startObject("otherField").field("type", "keyword").endObject();
@@ -180,6 +186,7 @@ public class TDigestFieldMapperTests extends MapperTestCase {
     }
 
     public void testIgnoreMalformedSkipsArray() throws Exception {
+        assumeTrue("Requires t-digest field", TDigestFieldMapper.TDIGEST_FIELD_MAPPER.isEnabled());
         DocumentMapper mapper = createDocumentMapper(mapping(b -> {
             b.startObject("pre_aggregated").field("type", "tdigest").field("ignore_malformed", true).endObject();
             b.startObject("otherField").field("type", "keyword").endObject();
@@ -190,6 +197,7 @@ public class TDigestFieldMapperTests extends MapperTestCase {
     }
 
     public void testIgnoreMalformedSkipsField() throws Exception {
+        assumeTrue("Requires t-digest field", TDigestFieldMapper.TDIGEST_FIELD_MAPPER.isEnabled());
         DocumentMapper mapper = createDocumentMapper(mapping(b -> {
             b.startObject("pre_aggregated").field("type", "tdigest").field("ignore_malformed", true).endObject();
             b.startObject("otherField").field("type", "keyword").endObject();
@@ -203,6 +211,7 @@ public class TDigestFieldMapperTests extends MapperTestCase {
     }
 
     public void testIgnoreMalformedSkipsObjects() throws Exception {
+        assumeTrue("Requires t-digest field", TDigestFieldMapper.TDIGEST_FIELD_MAPPER.isEnabled());
         DocumentMapper mapper = createDocumentMapper(mapping(b -> {
             b.startObject("pre_aggregated").field("type", "tdigest").field("ignore_malformed", true).endObject();
             b.startObject("otherField").field("type", "keyword").endObject();
@@ -230,6 +239,7 @@ public class TDigestFieldMapperTests extends MapperTestCase {
     }
 
     public void testIgnoreMalformedSkipsEmpty() throws Exception {
+        assumeTrue("Requires t-digest field", TDigestFieldMapper.TDIGEST_FIELD_MAPPER.isEnabled());
         DocumentMapper mapper = createDocumentMapper(mapping(b -> {
             b.startObject("pre_aggregated").field("type", "tdigest").field("ignore_malformed", true).endObject();
             b.startObject("otherField").field("type", "keyword").endObject();
@@ -240,6 +250,7 @@ public class TDigestFieldMapperTests extends MapperTestCase {
     }
 
     public void testMissingFieldValues() throws Exception {
+        assumeTrue("Requires t-digest field", TDigestFieldMapper.TDIGEST_FIELD_MAPPER.isEnabled());
         DocumentMapper mapper = createDocumentMapper(fieldMapping(this::minimalMapping));
         Exception e = expectThrows(
             DocumentParsingException.class,
@@ -249,6 +260,7 @@ public class TDigestFieldMapperTests extends MapperTestCase {
     }
 
     public void testUnknownField() throws Exception {
+        assumeTrue("Requires t-digest field", TDigestFieldMapper.TDIGEST_FIELD_MAPPER.isEnabled());
         DocumentMapper mapper = createDocumentMapper(fieldMapping(this::minimalMapping));
         SourceToParse source = source(
             b -> b.startObject("field")
@@ -263,6 +275,7 @@ public class TDigestFieldMapperTests extends MapperTestCase {
     }
 
     public void testFieldArraysDifferentSize() throws Exception {
+        assumeTrue("Requires t-digest field", TDigestFieldMapper.TDIGEST_FIELD_MAPPER.isEnabled());
         DocumentMapper mapper = createDocumentMapper(fieldMapping(this::minimalMapping));
         SourceToParse source = source(
             b -> b.startObject("field").field("counts", new int[] { 2, 2 }).field("centroids", new double[] { 2, 2, 3 }).endObject()
@@ -272,6 +285,7 @@ public class TDigestFieldMapperTests extends MapperTestCase {
     }
 
     public void testFieldCountsNotArray() throws Exception {
+        assumeTrue("Requires t-digest field", TDigestFieldMapper.TDIGEST_FIELD_MAPPER.isEnabled());
         DocumentMapper mapper = createDocumentMapper(fieldMapping(this::minimalMapping));
         SourceToParse source = source(
             b -> b.startObject("field").field("counts", "bah").field("centroids", new double[] { 2, 2, 3 }).endObject()
@@ -281,6 +295,7 @@ public class TDigestFieldMapperTests extends MapperTestCase {
     }
 
     public void testFieldCountsStringArray() throws Exception {
+        assumeTrue("Requires t-digest field", TDigestFieldMapper.TDIGEST_FIELD_MAPPER.isEnabled());
         DocumentMapper mapper = createDocumentMapper(fieldMapping(this::minimalMapping));
         SourceToParse source = source(
             b -> b.startObject("field")
@@ -293,6 +308,7 @@ public class TDigestFieldMapperTests extends MapperTestCase {
     }
 
     public void testFieldValuesStringArray() throws Exception {
+        assumeTrue("Requires t-digest field", TDigestFieldMapper.TDIGEST_FIELD_MAPPER.isEnabled());
         DocumentMapper mapper = createDocumentMapper(fieldMapping(this::minimalMapping));
         SourceToParse source = source(
             b -> b.field("field")
@@ -306,6 +322,7 @@ public class TDigestFieldMapperTests extends MapperTestCase {
     }
 
     public void testFieldValuesNotArray() throws Exception {
+        assumeTrue("Requires t-digest field", TDigestFieldMapper.TDIGEST_FIELD_MAPPER.isEnabled());
         DocumentMapper mapper = createDocumentMapper(fieldMapping(this::minimalMapping));
         SourceToParse source = source(
             b -> b.startObject("field").field("counts", new int[] { 2, 2, 3 }).field("centroids", "bah").endObject()
@@ -315,6 +332,7 @@ public class TDigestFieldMapperTests extends MapperTestCase {
     }
 
     public void testCountIsLong() throws Exception {
+        assumeTrue("Requires t-digest field", TDigestFieldMapper.TDIGEST_FIELD_MAPPER.isEnabled());
         DocumentMapper mapper = createDocumentMapper(fieldMapping(this::minimalMapping));
         SourceToParse source = source(
             b -> b.startObject("field")
@@ -327,6 +345,7 @@ public class TDigestFieldMapperTests extends MapperTestCase {
     }
 
     public void testValuesNotInOrder() throws Exception {
+        assumeTrue("Requires t-digest field", TDigestFieldMapper.TDIGEST_FIELD_MAPPER.isEnabled());
         DocumentMapper mapper = createDocumentMapper(fieldMapping(this::minimalMapping));
         SourceToParse source = source(
             b -> b.field("field")
@@ -343,6 +362,7 @@ public class TDigestFieldMapperTests extends MapperTestCase {
     }
 
     public void testFieldNotObject() throws Exception {
+        assumeTrue("Requires t-digest field", TDigestFieldMapper.TDIGEST_FIELD_MAPPER.isEnabled());
         DocumentMapper mapper = createDocumentMapper(fieldMapping(this::minimalMapping));
         SourceToParse source = source(b -> b.field("field", "bah"));
         Exception e = expectThrows(DocumentParsingException.class, () -> mapper.parse(source));
@@ -350,6 +370,7 @@ public class TDigestFieldMapperTests extends MapperTestCase {
     }
 
     public void testNegativeCount() throws Exception {
+        assumeTrue("Requires t-digest field", TDigestFieldMapper.TDIGEST_FIELD_MAPPER.isEnabled());
         DocumentMapper mapper = createDocumentMapper(fieldMapping(this::minimalMapping));
         SourceToParse source = source(
             b -> b.startObject("field").field("counts", new int[] { 2, 2, -3 }).field("centroids", new double[] { 2, 2, 3 }).endObject()
@@ -365,6 +386,7 @@ public class TDigestFieldMapperTests extends MapperTestCase {
     }
 
     public void testCannotBeUsedInMultifields() {
+        assumeTrue("Requires t-digest field", TDigestFieldMapper.TDIGEST_FIELD_MAPPER.isEnabled());
         Exception e = expectThrows(MapperParsingException.class, () -> createMapperService(fieldMapping(b -> {
             b.field("type", "keyword");
             b.startObject("fields");
@@ -387,6 +409,7 @@ public class TDigestFieldMapperTests extends MapperTestCase {
     }
 
     public void testArrayValueSyntheticSource() throws Exception {
+        assumeTrue("Requires t-digest field", TDigestFieldMapper.TDIGEST_FIELD_MAPPER.isEnabled());
         DocumentMapper mapper = createSytheticSourceMapperService(
             fieldMapping(b -> b.field("type", "tdigest").field("ignore_malformed", "true"))
         ).documentMapper();

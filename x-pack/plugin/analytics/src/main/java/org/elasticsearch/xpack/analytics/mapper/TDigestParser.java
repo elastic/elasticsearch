@@ -66,7 +66,7 @@ public class TDigestParser {
             if (sum != null) {
                 return sum;
             }
-            if (centroids != null) {
+            if (centroids != null && centroids.isEmpty() == false) {
                 double observedSum = 0;
                 for (int i = 0; i < centroids.size(); i++) {
                     observedSum += centroids.get(i) * counts.get(i);
@@ -81,7 +81,7 @@ public class TDigestParser {
             if (count != null) {
                 return count;
             }
-            if (counts != null) {
+            if (counts != null && counts.isEmpty() == false) {
                 long observedCount = 0;
                 for (Long count : counts) {
                     observedCount += count;

@@ -70,11 +70,11 @@ public class CountOverTime extends TimeSeriesAggregateFunction {
                 "version" }
         ) Expression field
     ) {
-        this(source, field, Literal.TRUE);
+        this(source, field, Literal.TRUE, NO_WINDOW);
     }
 
-    public CountOverTime(Source source, Expression field, Expression filter) {
-        super(source, field, filter, emptyList());
+    public CountOverTime(Source source, Expression field, Expression filter, Expression window) {
+        super(source, field, filter, window, emptyList());
     }
 
     private CountOverTime(StreamInput in) throws IOException {
@@ -88,17 +88,17 @@ public class CountOverTime extends TimeSeriesAggregateFunction {
 
     @Override
     public CountOverTime withFilter(Expression filter) {
-        return new CountOverTime(source(), field(), filter);
+        return new CountOverTime(source(), field(), filter, window());
     }
 
     @Override
     protected NodeInfo<CountOverTime> info() {
-        return NodeInfo.create(this, CountOverTime::new, field(), filter());
+        return NodeInfo.create(this, CountOverTime::new, field(), filter(), window());
     }
 
     @Override
     public CountOverTime replaceChildren(List<Expression> newChildren) {
-        return new CountOverTime(source(), newChildren.get(0), newChildren.get(1));
+        return new CountOverTime(source(), newChildren.get(0), newChildren.get(1), newChildren.get(2));
     }
 
     @Override
@@ -113,6 +113,6 @@ public class CountOverTime extends TimeSeriesAggregateFunction {
 
     @Override
     public Count perTimeSeriesAggregation() {
-        return new Count(source(), field(), filter());
+        return new Count(source(), field(), filter(), window());
     }
 }

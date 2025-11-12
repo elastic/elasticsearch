@@ -26,7 +26,7 @@ teardown:
       indices.get_all_sample_configuration: {}
 
   # Should return an empty array
-  - length: { $body: 0 }
+  - length: { configurations: 0 }
 
 ---
 "Get all sampling configurations with single configuration":
@@ -40,7 +40,7 @@ teardown:
         body:
           rate: 0.5
           max_samples: 100
-          max_size: "10mb"
+          max_size: "100kb"
           time_to_live: "1h"
 
   - match: { acknowledged: true }
@@ -49,12 +49,12 @@ teardown:
       indices.get_all_sample_configuration:
         human: true
 
-  - length: { $body: 1 }
-  - match: { 0.index: "test-single-config-index" }
-  - match: { 0.configuration.rate: 0.5 }
-  - match: { 0.configuration.max_samples: 100 }
-  - match: { 0.configuration.max_size: "10mb" }
-  - match: { 0.configuration.time_to_live: "1h" }
+  - length: { configurations: 1 }
+  - match: { configurations.0.index: "test-single-config-index" }
+  - match: { configurations.0.configuration.rate: 0.5 }
+  - match: { configurations.0.configuration.max_samples: 100 }
+  - match: { configurations.0.configuration.max_size: "100kb" }
+  - match: { configurations.0.configuration.time_to_live: "1h" }
 
 ---
 "Get all sampling configurations with multiple configurations":
@@ -85,7 +85,7 @@ teardown:
         body:
           rate: 0.7
           max_samples: 200
-          max_size: "20mb"
+          max_size: "100kb"
 
   - match: { acknowledged: true }
 
@@ -102,14 +102,14 @@ teardown:
       indices.get_all_sample_configuration:
         human: true
 
-  - length: { $body: 3 }
+  - length: { configurations: 3 }
   # Note: Array order may vary, so we just verify all 3 configurations exist
-  - is_true: 0.index
-  - is_true: 0.configuration
-  - is_true: 1.index
-  - is_true: 1.configuration
-  - is_true: 2.index
-  - is_true: 2.configuration
+  - is_true: configurations.0.index
+  - is_true: configurations.0.configuration
+  - is_true: configurations.1.index
+  - is_true: configurations.1.configuration
+  - is_true: configurations.2.index
+  - is_true: configurations.2.configuration
 
 ---
 "Get all sampling configurations with mixed indices":
@@ -148,11 +148,11 @@ teardown:
         human: true
 
   # Should only return configured indices (2 items)
-  - length: { $body: 2 }
-  - is_true: 0.index
-  - is_true: 0.configuration
-  - is_true: 1.index
-  - is_true: 1.configuration
+  - length: { configurations: 2 }
+  - is_true: configurations.0.index
+  - is_true: configurations.0.configuration
+  - is_true: configurations.1.index
+  - is_true: configurations.1.configuration
 
 ---
 "Get all sampling configurations after update":
@@ -174,10 +174,10 @@ teardown:
       indices.get_all_sample_configuration:
         human: true
 
-  - length: { $body: 1 }
-  - match: { 0.index: "test-update-all-index" }
-  - match: { 0.configuration.rate: 0.2 }
-  - match: { 0.configuration.max_samples: 30 }
+  - length: { configurations: 1 }
+  - match: { configurations.0.index: "test-update-all-index" }
+  - match: { configurations.0.configuration.rate: 0.2 }
+  - match: { configurations.0.configuration.max_samples: 30 }
 
   # Update configuration
   - do:
@@ -186,7 +186,7 @@ teardown:
         body:
           rate: 0.9
           max_samples: 150
-          max_size: "15mb"
+          max_size: "100kb"
 
   - match: { acknowledged: true }
 
@@ -195,11 +195,11 @@ teardown:
       indices.get_all_sample_configuration:
         human: true
 
-  - length: { $body: 1 }
-  - match: { 0.index: "test-update-all-index" }
-  - match: { 0.configuration.rate: 0.9 }
-  - match: { 0.configuration.max_samples: 150 }
-  - match: { 0.configuration.max_size: "15mb" }
+  - length: { configurations: 1 }
+  - match: { configurations.0.index: "test-update-all-index" }
+  - match: { configurations.0.configuration.rate: 0.9 }
+  - match: { configurations.0.configuration.max_samples: 150 }
+  - match: { configurations.0.configuration.max_size: "100kb" }
 
 ---
 "Get all sampling configurations after deletion":
@@ -234,7 +234,7 @@ teardown:
       indices.get_all_sample_configuration:
         human: true
 
-  - length: { $body: 2 }
+  - length: { configurations: 2 }
 
   # Delete one configuration
   - do:
@@ -248,7 +248,7 @@ teardown:
       indices.get_all_sample_configuration:
         human: true
 
-  - length: { $body: 1 }
-  - match: { 0.index: "test-delete-all-index-2" }
-  - match: { 0.configuration.rate: 0.8 }
-  - match: { 0.configuration.max_samples: 200 }
+  - length: { configurations: 1 }
+  - match: { configurations.0.index: "test-delete-all-index-2" }
+  - match: { configurations.0.configuration.rate: 0.8 }
+  - match: { configurations.0.configuration.max_samples: 200 }

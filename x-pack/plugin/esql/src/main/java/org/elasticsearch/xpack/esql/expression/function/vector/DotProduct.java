@@ -7,8 +7,11 @@
 
 package org.elasticsearch.xpack.esql.expression.function.vector;
 
+import org.apache.lucene.util.VectorUtil;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.index.mapper.blockloader.BlockLoaderFunctionConfig;
+import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.function.scalar.BinaryScalarFunction;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
@@ -21,8 +24,6 @@ import org.elasticsearch.xpack.esql.expression.function.Param;
 
 import java.io.IOException;
 
-import static org.apache.lucene.index.VectorSimilarityFunction.DOT_PRODUCT;
-
 public class DotProduct extends VectorSimilarityFunction {
 
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
@@ -30,7 +31,28 @@ public class DotProduct extends VectorSimilarityFunction {
         "DotProduct",
         DotProduct::new
     );
-    static final SimilarityEvaluatorFunction SIMILARITY_FUNCTION = DOT_PRODUCT::compare;
+
+    public static final DenseVectorFieldMapper.SimilarityFunction SIMILARITY_FUNCTION = new DenseVectorFieldMapper.SimilarityFunction() {
+        @Override
+        public float calculateSimilarity(byte[] leftVector, byte[] rightVector) {
+            return VectorUtil.dotProduct(leftVector, rightVector);
+        }
+
+        @Override
+        public float calculateSimilarity(float[] leftVector, float[] rightVector) {
+            return VectorUtil.dotProduct(leftVector, rightVector);
+        }
+
+        @Override
+        public BlockLoaderFunctionConfig.Function function() {
+            return BlockLoaderFunctionConfig.Function.V_DOT_PRODUCT;
+        }
+
+        @Override
+        public String toString() {
+            return "V_DOT_PRODUCT";
+        }
+    };
 
     @FunctionInfo(
         returnType = "double",
@@ -65,7 +87,7 @@ public class DotProduct extends VectorSimilarityFunction {
     }
 
     @Override
-    protected SimilarityEvaluatorFunction getSimilarityFunction() {
+    public DenseVectorFieldMapper.SimilarityFunction getSimilarityFunction() {
         return SIMILARITY_FUNCTION;
     }
 

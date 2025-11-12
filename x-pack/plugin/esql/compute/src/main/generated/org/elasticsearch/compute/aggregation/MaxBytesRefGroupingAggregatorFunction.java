@@ -164,7 +164,7 @@ public final class MaxBytesRefGroupingAggregatorFunction implements GroupingAggr
     }
     BooleanVector seen = ((BooleanBlock) seenUncast).asVector();
     assert max.getPositionCount() == seen.getPositionCount();
-    BytesRef scratch = new BytesRef();
+    BytesRef maxScratch = new BytesRef();
     for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
       if (groups.isNull(groupPosition)) {
         continue;
@@ -174,7 +174,7 @@ public final class MaxBytesRefGroupingAggregatorFunction implements GroupingAggr
       for (int g = groupStart; g < groupEnd; g++) {
         int groupId = groups.getInt(g);
         int valuesPosition = groupPosition + positionOffset;
-        MaxBytesRefAggregator.combineIntermediate(state, groupId, max.getBytesRef(valuesPosition, scratch), seen.getBoolean(valuesPosition));
+        MaxBytesRefAggregator.combineIntermediate(state, groupId, max.getBytesRef(valuesPosition, maxScratch), seen.getBoolean(valuesPosition));
       }
     }
   }
@@ -236,7 +236,7 @@ public final class MaxBytesRefGroupingAggregatorFunction implements GroupingAggr
     }
     BooleanVector seen = ((BooleanBlock) seenUncast).asVector();
     assert max.getPositionCount() == seen.getPositionCount();
-    BytesRef scratch = new BytesRef();
+    BytesRef maxScratch = new BytesRef();
     for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
       if (groups.isNull(groupPosition)) {
         continue;
@@ -246,7 +246,7 @@ public final class MaxBytesRefGroupingAggregatorFunction implements GroupingAggr
       for (int g = groupStart; g < groupEnd; g++) {
         int groupId = groups.getInt(g);
         int valuesPosition = groupPosition + positionOffset;
-        MaxBytesRefAggregator.combineIntermediate(state, groupId, max.getBytesRef(valuesPosition, scratch), seen.getBoolean(valuesPosition));
+        MaxBytesRefAggregator.combineIntermediate(state, groupId, max.getBytesRef(valuesPosition, maxScratch), seen.getBoolean(valuesPosition));
       }
     }
   }
@@ -293,11 +293,11 @@ public final class MaxBytesRefGroupingAggregatorFunction implements GroupingAggr
     }
     BooleanVector seen = ((BooleanBlock) seenUncast).asVector();
     assert max.getPositionCount() == seen.getPositionCount();
-    BytesRef scratch = new BytesRef();
+    BytesRef maxScratch = new BytesRef();
     for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
       int groupId = groups.getInt(groupPosition);
       int valuesPosition = groupPosition + positionOffset;
-      MaxBytesRefAggregator.combineIntermediate(state, groupId, max.getBytesRef(valuesPosition, scratch), seen.getBoolean(valuesPosition));
+      MaxBytesRefAggregator.combineIntermediate(state, groupId, max.getBytesRef(valuesPosition, maxScratch), seen.getBoolean(valuesPosition));
     }
   }
 

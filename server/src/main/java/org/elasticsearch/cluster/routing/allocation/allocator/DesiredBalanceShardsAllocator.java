@@ -255,8 +255,8 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
     }
 
     @Override
-    public ShardAllocationDecision decideShardAllocation(ShardRouting shard, RoutingAllocation allocation) {
-        return delegateAllocator.decideShardAllocation(shard, allocation);
+    public ShardAllocationDecision explainShardAllocation(ShardRouting shard, RoutingAllocation allocation) {
+        return delegateAllocator.explainShardAllocation(shard, allocation);
     }
 
     @Override

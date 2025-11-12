@@ -7,8 +7,11 @@
 
 package org.elasticsearch.xpack.esql.expression.function.vector;
 
+import org.apache.lucene.util.VectorUtil;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.index.mapper.blockloader.BlockLoaderFunctionConfig;
+import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.function.scalar.BinaryScalarFunction;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
@@ -21,8 +24,6 @@ import org.elasticsearch.xpack.esql.expression.function.Param;
 
 import java.io.IOException;
 
-import static org.apache.lucene.index.VectorSimilarityFunction.COSINE;
-
 public class CosineSimilarity extends VectorSimilarityFunction {
 
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
@@ -30,7 +31,27 @@ public class CosineSimilarity extends VectorSimilarityFunction {
         "CosineSimilarity",
         CosineSimilarity::new
     );
-    static final SimilarityEvaluatorFunction SIMILARITY_FUNCTION = COSINE::compare;
+    public static final DenseVectorFieldMapper.SimilarityFunction SIMILARITY_FUNCTION = new DenseVectorFieldMapper.SimilarityFunction() {
+        @Override
+        public float calculateSimilarity(byte[] leftVector, byte[] rightVector) {
+            return VectorUtil.cosine(leftVector, rightVector);
+        }
+
+        @Override
+        public float calculateSimilarity(float[] leftVector, float[] rightVector) {
+            return VectorUtil.cosine(leftVector, rightVector);
+        }
+
+        @Override
+        public BlockLoaderFunctionConfig.Function function() {
+            return BlockLoaderFunctionConfig.Function.V_COSINE;
+        }
+
+        @Override
+        public String toString() {
+            return "V_COSINE";
+        }
+    };
 
     @FunctionInfo(
         returnType = "double",
@@ -56,13 +77,13 @@ public class CosineSimilarity extends VectorSimilarityFunction {
     }
 
     @Override
-    protected BinaryScalarFunction replaceChildren(Expression newLeft, Expression newRight) {
-        return new CosineSimilarity(source(), newLeft, newRight);
+    public DenseVectorFieldMapper.SimilarityFunction getSimilarityFunction() {
+        return SIMILARITY_FUNCTION;
     }
 
     @Override
-    protected SimilarityEvaluatorFunction getSimilarityFunction() {
-        return SIMILARITY_FUNCTION;
+    protected BinaryScalarFunction replaceChildren(Expression newLeft, Expression newRight) {
+        return new CosineSimilarity(source(), newLeft, newRight);
     }
 
     @Override

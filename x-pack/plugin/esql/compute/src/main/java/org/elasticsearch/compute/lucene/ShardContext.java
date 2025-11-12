@@ -13,6 +13,7 @@ import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.SourceLoader;
+import org.elasticsearch.index.mapper.blockloader.BlockLoaderFunctionConfig;
 import org.elasticsearch.search.sort.SortAndFormats;
 import org.elasticsearch.search.sort.SortBuilder;
 
@@ -54,7 +55,12 @@ public interface ShardContext extends RefCounted {
     /**
      * Returns something to load values from this field into a {@link Block}.
      */
-    BlockLoader blockLoader(String name, boolean asUnsupportedSource, MappedFieldType.FieldExtractPreference fieldExtractPreference);
+    BlockLoader blockLoader(
+        String name,
+        boolean asUnsupportedSource,
+        MappedFieldType.FieldExtractPreference fieldExtractPreference,
+        BlockLoaderFunctionConfig blockLoaderFunctionConfig
+    );
 
     /**
      * Returns the {@link MappedFieldType} for the given field name.

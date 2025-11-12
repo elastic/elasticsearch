@@ -217,7 +217,7 @@ public class AllocationStatsServiceTests extends ESAllocationTestCase {
             }
 
             @Override
-            public ShardAllocationDecision decideShardAllocation(ShardRouting shard, RoutingAllocation allocation) {
+            public ShardAllocationDecision explainShardAllocation(ShardRouting shard, RoutingAllocation allocation) {
                 return null;
             }
         };

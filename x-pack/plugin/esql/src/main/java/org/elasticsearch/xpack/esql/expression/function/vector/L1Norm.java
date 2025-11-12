@@ -9,6 +9,8 @@ package org.elasticsearch.xpack.esql.expression.function.vector;
 
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.index.mapper.blockloader.BlockLoaderFunctionConfig;
+import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.function.scalar.BinaryScalarFunction;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
@@ -24,7 +26,41 @@ import java.io.IOException;
 public class L1Norm extends VectorSimilarityFunction {
 
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "L1Norm", L1Norm::new);
-    static final SimilarityEvaluatorFunction SIMILARITY_FUNCTION = L1Norm::calculateSimilarity;
+    public static final DenseVectorFieldMapper.SimilarityFunction SIMILARITY_FUNCTION = new DenseVectorFieldMapper.SimilarityFunction() {
+        @Override
+        public float calculateSimilarity(byte[] leftVector, byte[] rightVector) {
+            if (leftVector.length != rightVector.length) {
+                throw new IllegalArgumentException("vector dimensions differ:" + leftVector.length + "!=" + rightVector.length);
+            }
+            float result = 0f;
+            for (int i = 0; i < leftVector.length; i++) {
+                result += Math.absExact(leftVector[i] - rightVector[i]);
+            }
+            return result;
+        }
+
+        @Override
+        public float calculateSimilarity(float[] leftVector, float[] rightVector) {
+            if (leftVector.length != rightVector.length) {
+                throw new IllegalArgumentException("vector dimensions differ:" + leftVector.length + "!=" + rightVector.length);
+            }
+            float result = 0f;
+            for (int i = 0; i < leftVector.length; i++) {
+                result += Math.abs(leftVector[i] - rightVector[i]);
+            }
+            return result;
+        }
+
+        @Override
+        public BlockLoaderFunctionConfig.Function function() {
+            return BlockLoaderFunctionConfig.Function.V_L1NORM;
+        }
+
+        @Override
+        public String toString() {
+            return "V_L1_NORM";
+        }
+    };
 
     @FunctionInfo(
         returnType = "double",
@@ -59,7 +95,7 @@ public class L1Norm extends VectorSimilarityFunction {
     }
 
     @Override
-    protected SimilarityEvaluatorFunction getSimilarityFunction() {
+    public DenseVectorFieldMapper.SimilarityFunction getSimilarityFunction() {
         return SIMILARITY_FUNCTION;
     }
 
@@ -71,14 +107,6 @@ public class L1Norm extends VectorSimilarityFunction {
     @Override
     public String getWriteableName() {
         return ENTRY.name;
-    }
-
-    public static float calculateSimilarity(float[] leftScratch, float[] rightScratch) {
-        float result = 0f;
-        for (int i = 0; i < leftScratch.length; i++) {
-            result += Math.abs(leftScratch[i] - rightScratch[i]);
-        }
-        return result;
     }
 
 }

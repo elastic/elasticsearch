@@ -35,6 +35,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
+import org.elasticsearch.index.mapper.blockloader.BlockLoaderFunctionConfig;
 import org.elasticsearch.index.query.DistanceFeatureQueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.QueryShardException;
@@ -642,6 +643,10 @@ public abstract class MappedFieldType {
         return null;
     }
 
+    public boolean supportsBlockLoaderConfig(BlockLoaderFunctionConfig config, FieldExtractPreference preference) {
+        return false;
+    }
+
     public enum FieldExtractPreference {
         /**
          * Load the field from doc-values into a BlockLoader supporting doc-values.
@@ -660,7 +665,7 @@ public abstract class MappedFieldType {
          * loading many fields. The {@link MappedFieldType} can chose a different
          * method to load the field if it needs to.
          */
-        STORED;
+        STORED
     }
 
     /**
@@ -703,6 +708,11 @@ public abstract class MappedFieldType {
          * The {@code _field_names} field mapper, mostly used to check if it is enabled.
          */
         FieldNamesFieldMapper.FieldNamesFieldType fieldNames();
+
+        @Nullable
+        default BlockLoaderFunctionConfig blockLoaderFunctionConfig() {
+            return null;
+        }
     }
 
 }

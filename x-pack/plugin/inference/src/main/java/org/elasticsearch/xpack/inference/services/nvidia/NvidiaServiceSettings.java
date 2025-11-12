@@ -8,21 +8,28 @@
 package org.elasticsearch.xpack.inference.services.nvidia;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ServiceSettings;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.settings.FilteredXContentObject;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 
 import java.io.IOException;
 import java.net.URI;
+import java.util.Map;
 import java.util.Objects;
+import java.util.function.Function;
 
 import static org.elasticsearch.xpack.inference.services.ServiceFields.MODEL_ID;
 import static org.elasticsearch.xpack.inference.services.ServiceFields.URL;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.createOptionalUri;
+import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalUri;
+import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractRequiredString;
 
 /**
  * Represents the settings for an Nvidia service.
@@ -112,4 +119,48 @@ public abstract class NvidiaServiceSettings extends FilteredXContentObject imple
         rateLimitSettings.toXContent(builder, params);
         return builder;
     }
+
+    /**
+     * Creates an instance of T from the provided map using the given factory function.
+     * @param map the map containing the service settings
+     * @param context the context for parsing configuration settings
+     * @param factory the factory function to create an instance of T
+     * @return an instance of T
+     * @param <T> the type of {@link NvidiaServiceSettings} to create
+     */
+    protected static <T extends NvidiaServiceSettings> T fromMap(
+        Map<String, Object> map,
+        ConfigurationParseContext context,
+        Function<NvidiaCommonServiceSettings, T> factory
+    ) {
+        var validationException = new ValidationException();
+        var commonServiceSettings = extractNvidiaCommonServiceSettings(map, context, validationException);
+
+        if (validationException.validationErrors().isEmpty() == false) {
+            throw validationException;
+        }
+
+        return factory.apply(commonServiceSettings);
+    }
+
+    /**
+     * Extracts common Nvidia service settings from the provided map.
+     * @param map the map containing the service settings
+     * @param context the context for parsing configuration settings
+     * @param validationException the validation exception to collect validation errors
+     * @return an instance of {@link NvidiaCommonServiceSettings}
+     */
+    protected static NvidiaCommonServiceSettings extractNvidiaCommonServiceSettings(
+        Map<String, Object> map,
+        ConfigurationParseContext context,
+        ValidationException validationException
+    ) {
+        var model = extractRequiredString(map, MODEL_ID, ModelConfigurations.SERVICE_SETTINGS, validationException);
+        var uri = extractOptionalUri(map, URL, validationException);
+        var rateLimitSettings = RateLimitSettings.of(map, DEFAULT_RATE_LIMIT_SETTINGS, validationException, NvidiaService.NAME, context);
+        return new NvidiaCommonServiceSettings(model, uri, rateLimitSettings);
+    }
+
+    protected record NvidiaCommonServiceSettings(String model, @Nullable URI uri, RateLimitSettings rateLimitSettings) {}
+
 }

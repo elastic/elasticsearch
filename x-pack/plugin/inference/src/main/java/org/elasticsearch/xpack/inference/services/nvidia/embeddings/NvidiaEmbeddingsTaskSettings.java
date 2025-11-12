@@ -79,7 +79,7 @@ public class NvidiaEmbeddingsTaskSettings implements TaskSettings {
     }
 
     /**
-     * Creates a new instance of {@link NvidiaEmbeddingsTaskSettings} by merging the original settings with the request task settings.
+     * Creates a new instance of {@link NvidiaEmbeddingsTaskSettings} by using non-null fields from the request settings over the original settings.
      *
      * @param originalSettings the settings stored as part of the inference entity configuration
      * @param requestTaskSettings the settings passed in within the task_settings field of the request
@@ -89,31 +89,33 @@ public class NvidiaEmbeddingsTaskSettings implements TaskSettings {
         NvidiaEmbeddingsTaskSettings originalSettings,
         NvidiaEmbeddingsTaskSettings requestTaskSettings
     ) {
-        var inputTypeToUse = getValidInputType(originalSettings, requestTaskSettings);
-        var truncationToUse = getValidTruncation(originalSettings, requestTaskSettings);
+        if (requestTaskSettings.isEmpty() || originalSettings.equals(requestTaskSettings)) {
+            return originalSettings;
+        }
+        var inputTypeToUse = extractInputTypeToUse(originalSettings, requestTaskSettings);
+        var truncationToUse = extractTruncationToUse(originalSettings, requestTaskSettings);
 
         return new NvidiaEmbeddingsTaskSettings(inputTypeToUse, truncationToUse);
     }
 
-    private static InputType getValidInputType(
+    private static InputType extractInputTypeToUse(
         NvidiaEmbeddingsTaskSettings originalSettings,
         NvidiaEmbeddingsTaskSettings requestTaskSettings
     ) {
-        InputType inputTypeToUse = originalSettings.inputType;
-
-        // prefer input type in request task settings over input type in persisted task settings
-        if (requestTaskSettings.inputType != null) {
-            inputTypeToUse = requestTaskSettings.inputType;
+        if (requestTaskSettings.getInputType() == null) {
+            return originalSettings.getInputType();
         }
-
-        return inputTypeToUse;
+        return requestTaskSettings.getInputType();
     }
 
-    private static CohereTruncation getValidTruncation(
+    private static CohereTruncation extractTruncationToUse(
         NvidiaEmbeddingsTaskSettings originalSettings,
         NvidiaEmbeddingsTaskSettings requestTaskSettings
     ) {
-        return requestTaskSettings.getTruncation() == null ? originalSettings.truncation : requestTaskSettings.getTruncation();
+        if (requestTaskSettings.getTruncation() == null) {
+            return originalSettings.getTruncation();
+        }
+        return requestTaskSettings.getTruncation();
     }
 
     public NvidiaEmbeddingsTaskSettings(StreamInput in) throws IOException {

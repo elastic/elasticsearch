@@ -10,9 +10,7 @@ package org.elasticsearch.xpack.inference.services.nvidia.completion;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
-import org.elasticsearch.xpack.inference.services.nvidia.NvidiaService;
 import org.elasticsearch.xpack.inference.services.nvidia.NvidiaServiceSettings;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 
@@ -21,11 +19,7 @@ import java.net.URI;
 import java.util.Map;
 import java.util.Objects;
 
-import static org.elasticsearch.xpack.inference.services.ServiceFields.MODEL_ID;
-import static org.elasticsearch.xpack.inference.services.ServiceFields.URL;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.createOptionalUri;
-import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalUri;
-import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractRequiredString;
 
 /**
  * Represents the settings for an Nvidia chat completion service.
@@ -43,23 +37,15 @@ public class NvidiaChatCompletionServiceSettings extends NvidiaServiceSettings {
      * @throws ValidationException if required fields are missing or invalid
      */
     public static NvidiaChatCompletionServiceSettings fromMap(Map<String, Object> map, ConfigurationParseContext context) {
-        ValidationException validationException = new ValidationException();
-
-        var model = extractRequiredString(map, MODEL_ID, ModelConfigurations.SERVICE_SETTINGS, validationException);
-        var uri = extractOptionalUri(map, URL, validationException);
-        RateLimitSettings rateLimitSettings = RateLimitSettings.of(
+        return fromMap(
             map,
-            DEFAULT_RATE_LIMIT_SETTINGS,
-            validationException,
-            NvidiaService.NAME,
-            context
+            context,
+            commonServiceSettings -> new NvidiaChatCompletionServiceSettings(
+                commonServiceSettings.model(),
+                commonServiceSettings.uri(),
+                commonServiceSettings.rateLimitSettings()
+            )
         );
-
-        if (validationException.validationErrors().isEmpty() == false) {
-            throw validationException;
-        }
-
-        return new NvidiaChatCompletionServiceSettings(model, uri, rateLimitSettings);
     }
 
     /**

@@ -16,7 +16,6 @@ import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
-import org.elasticsearch.xpack.inference.services.nvidia.NvidiaService;
 import org.elasticsearch.xpack.inference.services.nvidia.NvidiaServiceSettings;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 
@@ -27,13 +26,9 @@ import java.util.Objects;
 
 import static org.elasticsearch.xpack.inference.services.ServiceFields.DIMENSIONS;
 import static org.elasticsearch.xpack.inference.services.ServiceFields.MAX_INPUT_TOKENS;
-import static org.elasticsearch.xpack.inference.services.ServiceFields.MODEL_ID;
 import static org.elasticsearch.xpack.inference.services.ServiceFields.SIMILARITY;
-import static org.elasticsearch.xpack.inference.services.ServiceFields.URL;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.createOptionalUri;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalPositiveInteger;
-import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalUri;
-import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractRequiredString;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractSimilarity;
 
 /**
@@ -56,10 +51,9 @@ public class NvidiaEmbeddingsServiceSettings extends NvidiaServiceSettings {
      * @throws ValidationException if any required fields are missing or invalid
      */
     public static NvidiaEmbeddingsServiceSettings fromMap(Map<String, Object> map, ConfigurationParseContext context) {
-        ValidationException validationException = new ValidationException();
+        var validationException = new ValidationException();
+        var commonServiceSettings = extractNvidiaCommonServiceSettings(map, context, validationException);
 
-        var model = extractRequiredString(map, MODEL_ID, ModelConfigurations.SERVICE_SETTINGS, validationException);
-        var uri = extractOptionalUri(map, URL, validationException);
         var dimensions = extractOptionalPositiveInteger(map, DIMENSIONS, ModelConfigurations.SERVICE_SETTINGS, validationException);
         var similarity = extractSimilarity(map, ModelConfigurations.SERVICE_SETTINGS, validationException);
         var maxInputTokens = extractOptionalPositiveInteger(
@@ -69,13 +63,18 @@ public class NvidiaEmbeddingsServiceSettings extends NvidiaServiceSettings {
             validationException
         );
 
-        var rateLimitSettings = RateLimitSettings.of(map, DEFAULT_RATE_LIMIT_SETTINGS, validationException, NvidiaService.NAME, context);
-
         if (validationException.validationErrors().isEmpty() == false) {
             throw validationException;
         }
 
-        return new NvidiaEmbeddingsServiceSettings(model, uri, dimensions, similarity, maxInputTokens, rateLimitSettings);
+        return new NvidiaEmbeddingsServiceSettings(
+            commonServiceSettings.model(),
+            commonServiceSettings.uri(),
+            dimensions,
+            similarity,
+            maxInputTokens,
+            commonServiceSettings.rateLimitSettings()
+        );
     }
 
     /**

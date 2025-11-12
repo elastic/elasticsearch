@@ -843,6 +843,8 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
             var channelListener = new ChannelActionListener<>(channel);
             RecyclerBytesStreamOutput out = dependencies.transportService.newNetworkBytesStream();
             out.setTransportVersion(channel.getVersion());
+
+            boolean success = false;
             try (queryPhaseResultConsumer) {
                 Exception reductionFailure = queryPhaseResultConsumer.failure.get();
                 if (reductionFailure == null) {
@@ -850,10 +852,15 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
                 } else {
                     writeReductionFailureResponse(out, reductionFailure);
                 }
+                success = true;
             } catch (IOException e) {
                 releaseAllResultsContexts();
                 channelListener.onFailure(e);
                 return;
+            } finally {
+                if (success == false) {
+                    out.close();
+                }
             }
             ActionListener.respondAndRelease(channelListener, new BytesTransportResponse(out.moveToBytesReference()));
         }

@@ -1,5 +1,0 @@
-pr: 136147
-summary: Fixed geo point block loader slowness
-area: Mapping
-type: bug
-issues: []

@@ -1157,12 +1157,13 @@ public class RestoreSnapshotIT extends AbstractSnapshotIntegTestCase {
             .setWaitForCompletion(true)
             .get();
         assertThat(restoreResponse.getRestoreInfo().failedShards(), equalTo(0));
-        assertTrue("Renamed index should exist", indexExists("test-restored-1"));
-        ensureGreen("test-restored-1");
-        assertDocCount("test-restored-1", 10L);
 
-        // Clean up before next test
-        cluster().wipeIndices("test-restored-1");
+        String expectedIndexName = "a".repeat(255);
+        assertTrue("Renamed index should exist", indexExists(expectedIndexName));
+        ensureGreen(expectedIndexName);
+        assertDocCount(expectedIndexName, 10L);
+
+        cluster().wipeIndices(expectedIndexName);
 
         logger.info("--> restore with rename pattern that creates too-long index name (should fail)");
         InvalidIndexNameException invalidIndexNameException = expectThrows(
@@ -1171,8 +1172,8 @@ public class RestoreSnapshotIT extends AbstractSnapshotIntegTestCase {
                 .cluster()
                 .prepareRestoreSnapshot(TEST_REQUEST_TIMEOUT, repoName, snapshotName)
                 .setIndices(indexName)
-                .setRenamePattern("b")  // Matches each b individually
-                .setRenameReplacement("aa")  // Would create 510 chars
+                .setRenamePattern("b")
+                .setRenameReplacement("aa")
                 .setWaitForCompletion(true)
                 .get()
         );

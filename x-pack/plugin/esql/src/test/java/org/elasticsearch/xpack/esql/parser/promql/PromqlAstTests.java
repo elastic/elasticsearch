@@ -13,9 +13,11 @@ import org.elasticsearch.logging.Logger;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
+import org.elasticsearch.xpack.esql.action.PromqlFeatures;
 import org.elasticsearch.xpack.esql.core.QlClientException;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
 import org.elasticsearch.xpack.esql.parser.PromqlParser;
+import org.junit.BeforeClass;
 
 import java.io.BufferedReader;
 import java.net.URL;
@@ -26,6 +28,7 @@ import static java.util.Arrays.asList;
 import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.not;
+import static org.junit.Assume.assumeTrue;
 
 /**
  * Test for checking the overall grammar by throwing a number of valid queries at the parser to see whether any exception is raised.
@@ -36,6 +39,10 @@ public class PromqlAstTests extends ESTestCase {
 
     private static final Logger log = LogManager.getLogger(PromqlAstTests.class);
 
+    @BeforeClass
+    public static void checkPromqlEnabled() {
+        assumeTrue("requires snapshot build with promql feature enabled", PromqlFeatures.isEnabled());
+    }
 
     public void testValidQueries() throws Exception {
         testValidQueries("/promql/grammar/queries-valid.promql");

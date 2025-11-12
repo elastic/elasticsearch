@@ -24,6 +24,7 @@ import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
+import org.elasticsearch.xpack.esql.action.PromqlFeatures;
 import org.elasticsearch.xpack.esql.capabilities.TelemetryAware;
 import org.elasticsearch.xpack.esql.common.Failure;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
@@ -1227,6 +1228,15 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
     @Override
     public PlanFactory visitPromqlCommand(EsqlBaseParser.PromqlCommandContext ctx) {
         Source source = source(ctx);
+
+        // Check if PromQL functionality is enabled
+        if (PromqlFeatures.isEnabled() == false) {
+            throw new ParsingException(
+                source,
+                "PROMQL command is not available. Requires snapshot build with capability [promql_vX] enabled"
+            );
+        }
+
         PromqlParams params = parsePromqlParams(ctx, source);
 
         // TODO: Perform type and value validation

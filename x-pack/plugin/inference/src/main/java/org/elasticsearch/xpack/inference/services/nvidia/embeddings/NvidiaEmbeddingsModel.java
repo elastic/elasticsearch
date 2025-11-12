@@ -26,8 +26,18 @@ import java.util.Map;
  */
 public class NvidiaEmbeddingsModel extends NvidiaModel {
 
+    /**
+     * Creates a new {@link NvidiaEmbeddingsModel} with updated task settings if they differ from the existing ones.
+     *
+     * @param model the existing Nvidia embeddings model
+     * @param taskSettings the new task settings to apply
+     * @return a new {@link NvidiaEmbeddingsModel} with updated task settings, or the original model if settings are unchanged
+     */
     public static NvidiaEmbeddingsModel of(NvidiaEmbeddingsModel model, Map<String, Object> taskSettings) {
         var requestTaskSettings = NvidiaEmbeddingsTaskSettings.fromMap(taskSettings);
+        if (requestTaskSettings.isEmpty() || requestTaskSettings.equals(model.getTaskSettings())) {
+            return model;
+        }
         return new NvidiaEmbeddingsModel(model, NvidiaEmbeddingsTaskSettings.of(model.getTaskSettings(), requestTaskSettings));
     }
 

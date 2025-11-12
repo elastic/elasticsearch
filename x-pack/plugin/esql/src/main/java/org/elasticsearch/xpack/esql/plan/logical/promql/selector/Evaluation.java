@@ -7,8 +7,11 @@
 
 package org.elasticsearch.xpack.esql.plan.logical.promql.selector;
 
+import org.elasticsearch.xpack.esql.core.expression.Literal;
+import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.DataType;
+
 import java.time.Duration;
-import java.time.Instant;
 import java.util.Objects;
 
 /**
@@ -19,27 +22,35 @@ import java.util.Objects;
  * &lt;implicit&gt; offset &lt;optional_offset&gt; @ &lt;optional_at&gt;
  */
 public class Evaluation {
-    public static final Evaluation NONE = new Evaluation(Duration.ZERO, false, null);
+    public static final Evaluation NONE = new Evaluation(
+        new Literal(Source.EMPTY, Duration.ZERO, DataType.TIME_DURATION),
+        false,
+        Literal.NULL
+    );
 
-    private final Duration offset;
+    private final Literal offset;
     private final boolean offsetNegative;
-    private final Instant at;
+    private final Literal at;
 
-    public Evaluation(Duration offset, boolean offsetNegative, Instant at) {
+    public Evaluation(Literal offset, boolean offsetNegative, Literal at) {
         this.offset = offset;
         this.offsetNegative = offsetNegative;
         this.at = at;
     }
 
-    public Duration offset() {
+    public Literal offset() {
         return offset;
+    }
+
+    public Duration offsetDuration() {
+        return (Duration) offset.value();
     }
 
     public boolean offsetNegative() {
         return offsetNegative;
     }
 
-    public Instant at() {
+    public Literal at() {
         return at;
     }
 
@@ -63,7 +74,7 @@ public class Evaluation {
     @Override
     public String toString() {
         StringBuilder sb = new StringBuilder();
-        if (offset != null && offset.isZero() == false) {
+        if (offset != null && offsetDuration().isZero() == false) {
             sb.append("offset ");
             if (offsetNegative) {
                 sb.append("-");
@@ -71,11 +82,11 @@ public class Evaluation {
             sb.append(offset);
         }
         if (at != null) {
-            if (sb.length() > 0) {
+            if (sb.isEmpty() == false) {
                 sb.append(" ");
             }
             sb.append("@ ").append(at);
         }
-        return sb.length() > 0 ? sb.toString() : "";
+        return sb.toString();
     }
 }

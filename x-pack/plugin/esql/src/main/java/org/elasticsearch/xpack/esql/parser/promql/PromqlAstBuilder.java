@@ -8,10 +8,9 @@
 package org.elasticsearch.xpack.esql.parser.promql;
 
 import org.antlr.v4.runtime.tree.ParseTree;
+import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
-
-import java.time.Instant;
 
 public class PromqlAstBuilder extends PromqlLogicalPlanBuilder {
 
@@ -19,11 +18,7 @@ public class PromqlAstBuilder extends PromqlLogicalPlanBuilder {
 
     private int expressionDepth = 0;
 
-    public PromqlAstBuilder() {
-        this(null, null, 0, 0);
-    }
-
-    public PromqlAstBuilder(Instant start, Instant end, int startLine, int startColumn) {
+    public PromqlAstBuilder(Literal start, Literal end, int startLine, int startColumn) {
         super(start, end, startLine, startColumn);
     }
 

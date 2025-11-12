@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.esql.parser.promql;
 
 import org.antlr.v4.runtime.ParserRuleContext;
 import org.antlr.v4.runtime.tree.ParseTree;
-import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.xpack.esql.core.InvalidArgumentException;
 import org.elasticsearch.xpack.esql.core.QlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
@@ -53,21 +52,12 @@ class PromqlExpressionBuilder extends PromqlIdentifierBuilder {
     private static final long MAX_DURATION_SECONDS = 9223372036L;
     private static final long MIN_DURATION_SECONDS = -9223372037L;
 
-    protected final Instant start, end;
+    private final Literal start, end;
 
-    PromqlExpressionBuilder() {
-        this(null, null, 0, 0);
-    }
-
-    PromqlExpressionBuilder(Instant start, Instant end, int startLine, int startColumn) {
+    PromqlExpressionBuilder(Literal start, Literal end, int startLine, int startColumn) {
         super(startLine, startColumn);
-        Instant now = null;
-        if (start == null || end == null) {
-            now = DateUtils.nowWithMillisResolution().toInstant();
-        }
-
-        this.start = start != null ? start : now;
-        this.end = end != null ? end : now;
+        this.start = start;
+        this.end = end;
     }
 
     protected Expression expression(ParseTree ctx) {
@@ -119,16 +109,22 @@ class PromqlExpressionBuilder extends PromqlIdentifierBuilder {
             return Evaluation.NONE;
         }
 
-        Duration offset = null;
+        Literal offset = Literal.NULL;
         boolean negativeOffset = false;
-        Instant at = null;
+        Literal at = Literal.NULL;
 
         AtContext atCtx = ctx.at();
         if (atCtx != null) {
             Source source = source(atCtx);
             if (atCtx.AT_START() != null) {
+                if (start == null) {
+                    throw new ParsingException(source, "@ start() can only be used if parameter [start] or [time] is provided");
+                }
                 at = start;
             } else if (atCtx.AT_END() != null) {
+                if (end == null) {
+                    throw new ParsingException(source, "@ end() can only be used if parameter [end] or [time] is provided");
+                }
                 at = end;
             } else {
                 Duration timeValue = visitTimeValue(atCtx.timeValue());
@@ -143,7 +139,7 @@ class PromqlExpressionBuilder extends PromqlIdentifierBuilder {
                     seconds = -seconds;
                     nanos = -nanos;
                 }
-                at = Instant.ofEpochSecond(seconds, nanos);
+                at = new Literal(source, Instant.ofEpochSecond(seconds, nanos), DataType.DATETIME);
             }
         }
         OffsetContext offsetContext = ctx.offset();
@@ -155,9 +151,9 @@ class PromqlExpressionBuilder extends PromqlIdentifierBuilder {
     }
 
     @Override
-    public Duration visitDuration(DurationContext ctx) {
+    public Literal visitDuration(DurationContext ctx) {
         if (ctx == null) {
-            return null;
+            return Literal.NULL;
         }
         Object o = visit(ctx.expression());
 
@@ -182,10 +178,8 @@ class PromqlExpressionBuilder extends PromqlIdentifierBuilder {
             default -> o;
         };
 
-        return switch (o) {
-            case Duration duration -> {
-                yield duration;
-            }
+        Duration d = switch (o) {
+            case Duration duration -> duration;
             // Handle numeric scalars interpreted as seconds
             case Number num -> {
                 long seconds = num.longValue();
@@ -199,6 +193,7 @@ class PromqlExpressionBuilder extends PromqlIdentifierBuilder {
             }
             default -> throw new ParsingException(source(ctx), "Expected a duration, got [{}]", source(ctx).text());
         };
+        return new Literal(source(ctx), d, DataType.TIME_DURATION);
     }
 
     @Override

@@ -90,7 +90,6 @@ import org.elasticsearch.xpack.esql.plan.logical.inference.InferencePlan;
 import org.elasticsearch.xpack.esql.plan.logical.inference.Rerank;
 import org.elasticsearch.xpack.esql.plan.logical.join.LookupJoin;
 import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlCommand;
-import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlParams;
 import org.elasticsearch.xpack.esql.plan.logical.show.ShowInfo;
 import org.joni.exception.SyntaxException;
 
@@ -1260,12 +1259,26 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         LogicalPlan promqlPlan;
         try {
             // The existing PromqlParser is used to parse the inner query
-            promqlPlan = promqlParser.createStatement(promqlQuery, null, null, promqlStartLine, promqlStartColumn);
+            promqlPlan = promqlParser.createStatement(
+                promqlQuery,
+                params.startLiteral(),
+                params.endLiteral(),
+                promqlStartLine,
+                promqlStartColumn
+            );
         } catch (ParsingException pe) {
             throw PromqlParserUtils.adjustParsingException(pe, promqlStartLine, promqlStartColumn);
         }
 
-        return plan -> new PromqlCommand(source, plan, promqlPlan, params, new UnresolvedTimestamp(source));
+        return plan -> new PromqlCommand(
+            source,
+            plan,
+            promqlPlan,
+            params.startLiteral(),
+            params.endLiteral(),
+            params.stepLiteral(),
+            new UnresolvedTimestamp(source)
+        );
     }
 
     private PromqlParams parsePromqlParams(EsqlBaseParser.PromqlCommandContext ctx, Source source) {
@@ -1317,6 +1330,8 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
                     END
                 );
             }
+            start = time;
+            end = time;
         } else if (step != null) {
             if (start != null || end != null) {
                 if (start == null || end == null) {
@@ -1347,7 +1362,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         } else {
             throw new ParsingException(source, "Parameter [{}] or [{}] is required", STEP, TIME);
         }
-        return new PromqlParams(time, start, end, step);
+        return new PromqlParams(source, start, end, step);
     }
 
     private String parseParamName(EsqlBaseParser.PromqlParamContentContext ctx) {
@@ -1375,4 +1390,45 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         }
     }
 
+    /**
+     * Container for PromQL command parameters:
+     * <ul>
+     *     <li>time for instant queries</li>
+     *     <li>start, end, step for range queries</li>
+     * </ul>
+     * These can be specified in the {@linkplain PromqlCommand PROMQL command} like so:
+     * <pre>
+     *     # instant query
+     *     PROMQL time "2025-10-31T00:00:00Z" (avg(foo))
+     *     # range query with explicit start and end
+     *     PROMQL start "2025-10-31T00:00:00Z" end "2025-10-31T01:00:00Z" step 1m (avg(foo))
+     *     # range query with implicit time bounds, doesn't support calling {@code start()} or {@code end()} functions
+     *     PROMQL step 5m (avg(foo))
+     * </pre>
+     *
+     * @see <a href="https://prometheus.io/docs/prometheus/latest/querying/api/#expression-queries">PromQL API documentation</a>
+     */
+    public record PromqlParams(Source source, Instant start, Instant end, Duration step) {
+
+        public Literal startLiteral() {
+            if (start == null) {
+                return Literal.NULL;
+            }
+            return new Literal(source, start, DataType.DATETIME);
+        }
+
+        public Literal endLiteral() {
+            if (end == null) {
+                return Literal.NULL;
+            }
+            return new Literal(source, end, DataType.DATETIME);
+        }
+
+        public Literal stepLiteral() {
+            if (step == null) {
+                return Literal.NULL;
+            }
+            return new Literal(source, step, DataType.TIME_DURATION);
+        }
+    }
 }

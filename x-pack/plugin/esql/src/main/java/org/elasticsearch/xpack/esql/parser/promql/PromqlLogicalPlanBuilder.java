@@ -40,7 +40,6 @@ import org.elasticsearch.xpack.esql.plan.logical.promql.selector.LiteralSelector
 import org.elasticsearch.xpack.esql.plan.logical.promql.selector.RangeSelector;
 
 import java.time.Duration;
-import java.time.Instant;
 import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -70,11 +69,9 @@ import static org.elasticsearch.xpack.esql.plan.logical.promql.selector.LabelMat
 
 public class PromqlLogicalPlanBuilder extends PromqlExpressionBuilder {
 
-    PromqlLogicalPlanBuilder() {
-        this(null, null, 0, 0);
-    }
+    public static final Duration GLOBAL_EVALUATION_INTERVAL = Duration.ofMinutes(1);
 
-    PromqlLogicalPlanBuilder(Instant start, Instant end, int startLine, int startColumn) {
+    PromqlLogicalPlanBuilder(Literal start, Literal end, int startLine, int startColumn) {
         super(start, end, startLine, startColumn);
     }
 
@@ -225,18 +222,13 @@ public class PromqlLogicalPlanBuilder extends PromqlExpressionBuilder {
             }
         }
         Evaluation evaluation = visitEvaluation(ctx.evaluation());
-        var durationCtx = ctx.duration();
-        Expression rangeEx = null;
-        if (durationCtx != null) {
-            Duration range = visitDuration(durationCtx);
-            rangeEx = new Literal(source(ctx.duration()), range, DataType.TIME_DURATION);
-        }
+        Expression range = visitDuration(ctx.duration());
 
         final LabelMatchers matchers = new LabelMatchers(labels);
 
-        return rangeEx == null
+        return range == Literal.NULL
             ? new InstantSelector(source, series, labelExpressions, matchers, evaluation)
-            : new RangeSelector(source, series, labelExpressions, matchers, rangeEx, evaluation);
+            : new RangeSelector(source, series, labelExpressions, matchers, range, evaluation);
     }
 
     @Override
@@ -518,11 +510,11 @@ public class PromqlLogicalPlanBuilder extends PromqlExpressionBuilder {
         }
 
         Evaluation evaluation = visitEvaluation(ctx.evaluation());
-        Duration rangeEx = visitDuration(ctx.range);
-        Duration resolution = visitSubqueryResolution(ctx.subqueryResolution());
+        Literal rangeEx = visitDuration(ctx.range);
+        Literal resolution = visitSubqueryResolution(ctx.subqueryResolution());
 
         if (resolution == null) {
-            resolution = Duration.ofMinutes(1);
+            resolution = new Literal(Source.EMPTY, GLOBAL_EVALUATION_INTERVAL, DataType.TIME_DURATION);
         }
         return new Subquery(source(ctx), plan, rangeEx, resolution, evaluation);
     }
@@ -530,9 +522,9 @@ public class PromqlLogicalPlanBuilder extends PromqlExpressionBuilder {
     /**
      * Parse subquery resolution, reusing the same expression folding logic used for duration arithmetic.
      */
-    public Duration visitSubqueryResolution(PromqlBaseParser.SubqueryResolutionContext ctx) {
+    public Literal visitSubqueryResolution(PromqlBaseParser.SubqueryResolutionContext ctx) {
         if (ctx == null) {
-            return null;
+            return Literal.NULL;
         }
 
         // Case 1: COLON (resolution=duration)?
@@ -552,7 +544,7 @@ public class PromqlLogicalPlanBuilder extends PromqlExpressionBuilder {
             Duration baseValue = PromqlParserUtils.parseDuration(timeSource, timeString);
 
             if (ctx.op == null || ctx.expression() == null) {
-                return baseValue;
+                return new Literal(source(timeCtx), baseValue, DataType.TIME_DURATION);
             }
 
             // Evaluate right expression
@@ -568,13 +560,13 @@ public class PromqlLogicalPlanBuilder extends PromqlExpressionBuilder {
             }
             // Result should be Duration
             if (result instanceof Duration duration) {
-                return duration;
+                return new Literal(source(timeCtx), duration, DataType.TIME_DURATION);
             }
 
             throw new ParsingException(source(ctx), "Expected duration result, got [{}]", result.getClass().getSimpleName());
         }
 
         // Just COLON with no resolution - use default
-        return null;
+        return Literal.NULL;
     }
 }

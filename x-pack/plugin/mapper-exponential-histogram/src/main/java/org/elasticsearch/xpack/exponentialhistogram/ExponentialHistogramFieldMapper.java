@@ -133,15 +133,15 @@ public class ExponentialHistogramFieldMapper extends FieldMapper {
         return fullPath + "._values_count";
     }
 
-    static String valuesSumSubFieldName(String fullPath) {
+    private static String valuesSumSubFieldName(String fullPath) {
         return fullPath + "._values_sum";
     }
 
-    static String valuesMinSubFieldName(String fullPath) {
+    private static String valuesMinSubFieldName(String fullPath) {
         return fullPath + "._values_min";
     }
 
-    static String valuesMaxSubFieldName(String fullPath) {
+    private static String valuesMaxSubFieldName(String fullPath) {
         return fullPath + "._values_max";
     }
 

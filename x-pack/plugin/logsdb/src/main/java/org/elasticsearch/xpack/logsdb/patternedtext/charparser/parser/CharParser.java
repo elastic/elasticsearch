@@ -29,8 +29,8 @@ import java.util.function.ToIntFunction;
 import static org.elasticsearch.xpack.logsdb.patternedtext.charparser.common.CharCodes.DIGIT_CHAR_CODE;
 import static org.elasticsearch.xpack.logsdb.patternedtext.charparser.common.CharCodes.LINE_END_CODE;
 import static org.elasticsearch.xpack.logsdb.patternedtext.charparser.common.CharCodes.SUBTOKEN_DELIMITER_CHAR_CODE;
-import static org.elasticsearch.xpack.logsdb.patternedtext.charparser.common.CharCodes.TOKEN_DELIMITER_CHAR_CODE;
 import static org.elasticsearch.xpack.logsdb.patternedtext.charparser.common.CharCodes.TOKEN_BOUNDARY_CHAR_CODE;
+import static org.elasticsearch.xpack.logsdb.patternedtext.charparser.common.CharCodes.TOKEN_DELIMITER_CHAR_CODE;
 
 /**
  * During parsing, the different current bitmasks represent a superset of all applicable types for the currently parsed entity (subToken,

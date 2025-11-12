@@ -8,8 +8,8 @@
 package org.elasticsearch.xpack.logsdb.patternedtext.charparser.compiler;
 
 import org.elasticsearch.xpack.logsdb.patternedtext.charparser.parser.BitmaskRegistry;
-import org.elasticsearch.xpack.logsdb.patternedtext.charparser.parser.MultiTokenType;
 import org.elasticsearch.xpack.logsdb.patternedtext.charparser.parser.CharSpecificParsingInfo;
+import org.elasticsearch.xpack.logsdb.patternedtext.charparser.parser.MultiTokenType;
 import org.elasticsearch.xpack.logsdb.patternedtext.charparser.parser.SubTokenType;
 import org.elasticsearch.xpack.logsdb.patternedtext.charparser.parser.SubstringToIntegerMap;
 import org.elasticsearch.xpack.logsdb.patternedtext.charparser.parser.TokenType;

@@ -77,14 +77,7 @@ final class CanMatchPreFilterSearchPhase {
     private int numPossibleMatches;
     private final CoordinatorRewriteContextProvider coordinatorRewriteContextProvider;
 
-    /**
- * Temporary placeholder for ES|QL optimization:
- * Future work will skip node-level can_match when handling ES|QL queries.
- */
-private boolean shouldSkipNodeLevelCanMatch(SearchRequest request) {
-    // TODO: Implement ES|QL detection and version check
-    return false;
-}
+
 
     private CanMatchPreFilterSearchPhase(
         Logger logger,
@@ -313,12 +306,16 @@ private boolean shouldSkipNodeLevelCanMatch(SearchRequest request) {
 
                 var sendingTarget = entry.getKey();
 
-                    // TODO [ES|QL]: Skip node-level can_match once ES|QL request detection is integrated
-    if (shouldSkipNodeLevelCanMatch(request)) {
-        // Future: short-circuit node-level can_match here
-        continue;
-    }
+           
                 try {
+                    if (shouldSkipNodeLevelCanMatch(request)) {
+    // For now: short–circuit with "everything can match"
+    for (CanMatchNodeRequest.Shard shard : shardLevelRequests) {
+        onOperation(shard.getShardRequestIndex(), new CanMatchShardResponse(true, null));
+    }
+    continue;
+}
+
                     searchTransportService.sendCanMatch(
                         nodeIdToConnection.apply(sendingTarget.clusterAlias, sendingTarget.nodeId),
                         canMatchNodeRequest,
@@ -374,6 +371,8 @@ private boolean shouldSkipNodeLevelCanMatch(SearchRequest request) {
             }
         }
 
+        
+
         private void finishRound() {
             List<SearchShardIterator> remainingShards = new ArrayList<>();
             for (SearchShardIterator ssi : shards) {
@@ -424,6 +423,31 @@ private boolean shouldSkipNodeLevelCanMatch(SearchRequest request) {
             first.getClusterAlias()
         );
     }
+      /**
+ * Skip node-level can_match only if:
+ *  - This is an ES|QL request, and
+ *  - The cluster is fully upgraded to a version supporting this optimization.
+ */
+private boolean shouldSkipNodeLevelCanMatch(SearchRequest request) {
+    // Temporary ES|QL detection placeholder
+    String[] indices = request.indices();
+    boolean isEsql = false;
+    if (indices != null) {
+        for (String index : indices) {
+            if (index != null && index.startsWith(".esql")) {
+                isEsql = true;
+                break;
+            }
+        }
+    }
+
+    // TODO: Replace Version.CURRENT with clusterState.nodes().getMinNodeVersion() check
+    boolean upgradedCluster = org.elasticsearch.Version.CURRENT.onOrAfter(
+        org.elasticsearch.Version.V_9_0_0
+    );
+
+    return isEsql && upgradedCluster;
+}
 
     private static final float DEFAULT_INDEX_BOOST = 1.0f;
 

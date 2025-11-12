@@ -107,7 +107,7 @@ public class Top extends AggregateFunction
             name = "outputField",
             type = { "double", "integer", "long", "date" },
             description = "The extra field that, if present, will be the output of the TOP call instead of `field`."
-                + "{applies_to}`stack: ga 9.3.`"
+                + "{applies_to}`stack: ga 9.3`"
         ) Expression outputField
     ) {
         this(source, field, Literal.TRUE, NO_WINDOW, limit, order == null ? Literal.keyword(source, ORDER_ASC) : order, outputField);

@@ -99,7 +99,7 @@ public class PluggableAuthenticatorChainTests extends ESTestCase {
         private boolean succeed;
 
         public TokenAAuthenticator() {
-            id = "1";
+            this("1", true);
         }
 
         public TokenAAuthenticator(String id, boolean succeed) {
@@ -383,7 +383,7 @@ public class PluggableAuthenticatorChainTests extends ESTestCase {
     private Authenticator.Context createContext() {
         final var request = Mockito.mock(AuthenticationService.AuditableRequest.class);
         Mockito.when(request.authenticationFailed(Mockito.any(AuthenticationToken.class)))
-            .thenReturn(new ElasticsearchSecurityException("mock-request-failure", RestStatus.UNAUTHORIZED));
+            .thenAnswer(inv -> new ElasticsearchSecurityException("mock-request-failure", RestStatus.UNAUTHORIZED));
         return new Authenticator.Context(threadContext, request, null, true, null);
     }
 }

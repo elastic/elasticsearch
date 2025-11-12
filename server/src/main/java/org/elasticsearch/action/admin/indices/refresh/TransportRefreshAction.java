@@ -18,7 +18,6 @@ import org.elasticsearch.action.support.replication.ReplicationResponse;
 import org.elasticsearch.action.support.replication.TransportBroadcastReplicationAction;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.routing.SplitShardCountSummary;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -62,11 +61,8 @@ public class TransportRefreshAction extends TransportBroadcastReplicationAction<
     }
 
     @Override
-    protected BasicReplicationRequest newShardRequest(RefreshRequest request, ShardId shardId, ProjectMetadata project) {
-        // Get effective shardCount for shardId and pass it on as parameter to new shard request
-        var indexMetadata = project.getIndexSafe(shardId.getIndex());
-        SplitShardCountSummary reshardSplitShardCountSummary = SplitShardCountSummary.forIndexing(indexMetadata, shardId.getId());
-        BasicReplicationRequest replicationRequest = new BasicReplicationRequest(shardId, reshardSplitShardCountSummary);
+    protected BasicReplicationRequest newShardRequest(RefreshRequest request, ShardId shardId, SplitShardCountSummary shardCountSummary) {
+        BasicReplicationRequest replicationRequest = new BasicReplicationRequest(shardId, shardCountSummary);
         replicationRequest.waitForActiveShards(ActiveShardCount.NONE);
         return replicationRequest;
     }

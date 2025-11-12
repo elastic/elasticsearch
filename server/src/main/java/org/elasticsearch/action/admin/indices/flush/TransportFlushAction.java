@@ -17,7 +17,6 @@ import org.elasticsearch.action.support.replication.ReplicationResponse;
 import org.elasticsearch.action.support.replication.TransportBroadcastReplicationAction;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.routing.SplitShardCountSummary;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -61,11 +60,8 @@ public class TransportFlushAction extends TransportBroadcastReplicationAction<
     }
 
     @Override
-    protected ShardFlushRequest newShardRequest(FlushRequest request, ShardId shardId, ProjectMetadata project) {
-        // Get effective shardCount for shardId and pass it on as parameter to new ShardFlushRequest
-        var indexMetadata = project.getIndexSafe(shardId.getIndex());
-        SplitShardCountSummary reshardSplitShardCountSummary = SplitShardCountSummary.forIndexing(indexMetadata, shardId.getId());
-        return new ShardFlushRequest(request, shardId, reshardSplitShardCountSummary);
+    protected ShardFlushRequest newShardRequest(FlushRequest request, ShardId shardId, SplitShardCountSummary shardCountSummary) {
+        return new ShardFlushRequest(request, shardId, shardCountSummary);
     }
 
     @Override

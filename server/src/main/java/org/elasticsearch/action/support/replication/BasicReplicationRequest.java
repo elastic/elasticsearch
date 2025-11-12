@@ -25,6 +25,7 @@ public class BasicReplicationRequest extends ReplicationRequest<BasicReplication
     /**
      * Creates a new request with resolved shard id
      */
+    // TODO: Check if callers of this need to be modified to pass in shardCountSummary
     public BasicReplicationRequest(ShardId shardId) {
         super(shardId);
     }

@@ -34,6 +34,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.CheckedConsumer;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
@@ -103,20 +104,23 @@ public abstract class TransportBroadcastReplicationAction<
                 final ClusterState clusterState = clusterService.state();
                 final ProjectState projectState = projectResolver.getProjectState(clusterState);
                 final ProjectMetadata project = projectState.metadata();
-                final List<ShardId> shards = shards(request, projectState);
+                final List<Tuple<ShardId, SplitShardCountSummary>> shards = shards(request, projectState);
                 final Map<String, IndexMetadata> indexMetadataByName = project.indices();
 
                 try (var refs = new RefCountingRunnable(() -> finish(listener))) {
-                    for (final ShardId shardId : shards) {
+                    // for (final ShardId shardId : shards) {
+                    shards.forEach(tuple -> {
+                        ShardId shardId = tuple.v1();
+                        SplitShardCountSummary shardCountSummary = tuple.v2();
                         // NB This sends O(#shards) requests in a tight loop; TODO add some throttling here?
                         shardExecute(
                             task,
                             request,
                             shardId,
-                            project, // needed to calculate the correct SplitShardCountSummary down the stack
+                            shardCountSummary,
                             ActionListener.releaseAfter(new ReplicationResponseActionListener(shardId, indexMetadataByName), refs.acquire())
                         );
-                    }
+                    });
                 }
             }
 
@@ -184,18 +188,16 @@ public abstract class TransportBroadcastReplicationAction<
         Task task,
         Request request,
         ShardId shardId,
-        ProjectMetadata project,
+        SplitShardCountSummary shardCountSummary,
         ActionListener<ShardResponse> shardActionListener
     ) {
         assert Transports.assertNotTransportThread("may hit all the shards");
-        ShardRequest shardRequest = newShardRequest(request, shardId, project);
+        ShardRequest shardRequest = newShardRequest(request, shardId, shardCountSummary);
         shardRequest.setParentTask(clusterService.localNode().getId(), task.getId());
         client.executeLocally(replicatedBroadcastShardAction, shardRequest, shardActionListener);
     }
 
-    /**
-     * @return all shard ids the request should run on
-     */
+    /*
     protected List<ShardId> shards(Request request, ProjectState projectState) {
         assert Transports.assertNotTransportThread("may hit all the shards");
         List<ShardId> shardIds = new ArrayList<>();
@@ -215,8 +217,35 @@ public abstract class TransportBroadcastReplicationAction<
         }
         return shardIds;
     }
+    */
 
-    protected abstract ShardRequest newShardRequest(Request request, ShardId shardId, ProjectMetadata project);
+    /**
+     * @return all shard ids the request should run on
+     */
+    protected List<Tuple<ShardId, SplitShardCountSummary>> shards(Request request, ProjectState projectState) {
+        assert Transports.assertNotTransportThread("may hit all the shards");
+
+        List<Tuple<ShardId, SplitShardCountSummary>> shards = new ArrayList<>();
+
+        OperationRouting operationRouting = clusterService.operationRouting();
+        ProjectMetadata project = projectState.metadata();
+
+        String[] concreteIndices = indexNameExpressionResolver.concreteIndexNames(project, request);
+        for (String index : concreteIndices) {
+            Iterator<IndexShardRoutingTable> iterator = operationRouting.allWritableShards(projectState, index);
+            IndexMetadata indexMetadata = project.index(index);
+
+            while (iterator.hasNext()) {
+                ShardId shardId = iterator.next().shardId();
+                SplitShardCountSummary splitSummary = SplitShardCountSummary.forIndexing(indexMetadata, shardId.getId());
+                shards.add(new Tuple<>(shardId, splitSummary));
+            }
+        }
+
+        return shards;
+    }
+
+    protected abstract ShardRequest newShardRequest(Request request, ShardId shardId, SplitShardCountSummary shardCountSummary);
 
     protected abstract Response newResponse(
         int successfulShards,

@@ -119,11 +119,9 @@ public class MlDailyMaintenanceServiceRolloverIndicesIT extends BaseMlIntegTestC
 
         Map<String, Consumer<ActionListener<AcknowledgedResponse>>> params = Map.of(
             AnomalyDetectorsIndex.jobResultsIndexPattern(),
-            (listener) -> {
-                maintenanceService.triggerRollResultsIndicesIfNecessaryTask(listener);
-            },
+            (listener) -> maintenanceService.triggerRollResultsIndicesIfNecessaryTask(listener),
             AnomalyDetectorsIndex.jobStateIndexPattern(),
-            (listener) -> { maintenanceService.triggerRollStateIndicesIfNecessaryTask(listener); }
+            (listener) -> maintenanceService.triggerRollStateIndicesIfNecessaryTask(listener)
         );
 
         for (Map.Entry<String, Consumer<ActionListener<AcknowledgedResponse>>> param : params.entrySet()) {
@@ -307,7 +305,7 @@ public class MlDailyMaintenanceServiceRolloverIndicesIT extends BaseMlIntegTestC
             indexWildcard,
             Map.of(
                 indexName,
-                List.of(), // Old index should have no aliases
+                List.of(readAlias(jobId)), // Old index should now have read alias
                 rolledIndexName,
                 List.of(writeAlias(jobId), readAlias(jobId)) // New index has both aliases
             )
@@ -500,11 +498,6 @@ public class MlDailyMaintenanceServiceRolloverIndicesIT extends BaseMlIntegTestC
         blockingCall(maintenanceService::triggerRollStateIndicesIfNecessaryTask);
 
         {
-            GetIndexResponse getIndexResponse = client().admin()
-                .indices()
-                .prepareGetIndex(TEST_REQUEST_TIMEOUT)
-                .setIndices(AnomalyDetectorsIndex.jobStateIndexPattern())
-                .get();
             assertIndicesAndAliases(
                 "After rollover (state)",
                 AnomalyDetectorsIndex.jobStateIndexPattern(),

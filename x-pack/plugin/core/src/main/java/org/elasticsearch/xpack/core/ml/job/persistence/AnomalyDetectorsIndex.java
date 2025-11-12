@@ -19,6 +19,7 @@ import org.elasticsearch.xpack.core.template.TemplateUtils;
 
 import java.util.Locale;
 import java.util.Map;
+import java.util.Optional;
 
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
@@ -58,16 +59,16 @@ public final class AnomalyDetectorsIndex {
      * @param jobResultsAliasedName The alias
      * @return The job Id
      */
-    public static String jobIdFromAlias(String jobResultsAliasedName) {
+    public static Optional<String> jobIdFromAlias(String jobResultsAliasedName) {
         if (jobResultsAliasedName.length() < AnomalyDetectorsIndexFields.RESULTS_INDEX_PREFIX.length()) {
-            return null;
+            return Optional.empty();
         }
 
         var jobId = jobResultsAliasedName.substring(AnomalyDetectorsIndexFields.RESULTS_INDEX_PREFIX.length());
         if (jobId.startsWith(WRITE_ALIAS_PREFIX)) {
             jobId = jobId.substring(WRITE_ALIAS_PREFIX.length());
         }
-        return jobId;
+        return Optional.of(jobId);
     }
 
     /**

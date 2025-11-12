@@ -10,8 +10,8 @@ package org.elasticsearch.xpack.logsdb.patternedtext.charparser.compiler;
 import org.elasticsearch.xpack.logsdb.patternedtext.charparser.common.EncodingType;
 import org.elasticsearch.xpack.logsdb.patternedtext.charparser.common.TimestampComponentType;
 import org.elasticsearch.xpack.logsdb.patternedtext.charparser.parser.BitmaskRegistry;
-import org.elasticsearch.xpack.logsdb.patternedtext.charparser.parser.MultiTokenType;
 import org.elasticsearch.xpack.logsdb.patternedtext.charparser.parser.CharSpecificParsingInfo;
+import org.elasticsearch.xpack.logsdb.patternedtext.charparser.parser.MultiTokenType;
 import org.elasticsearch.xpack.logsdb.patternedtext.charparser.parser.SubTokenType;
 import org.elasticsearch.xpack.logsdb.patternedtext.charparser.parser.SubstringToIntegerMap;
 import org.elasticsearch.xpack.logsdb.patternedtext.charparser.parser.SubstringView;
@@ -42,8 +42,8 @@ import static org.elasticsearch.xpack.logsdb.patternedtext.charparser.common.Cha
 import static org.elasticsearch.xpack.logsdb.patternedtext.charparser.common.CharCodes.DIGIT_CHAR_CODE;
 import static org.elasticsearch.xpack.logsdb.patternedtext.charparser.common.CharCodes.OTHER_CHAR_CODE;
 import static org.elasticsearch.xpack.logsdb.patternedtext.charparser.common.CharCodes.SUBTOKEN_DELIMITER_CHAR_CODE;
-import static org.elasticsearch.xpack.logsdb.patternedtext.charparser.common.CharCodes.TOKEN_DELIMITER_CHAR_CODE;
 import static org.elasticsearch.xpack.logsdb.patternedtext.charparser.common.CharCodes.TOKEN_BOUNDARY_CHAR_CODE;
+import static org.elasticsearch.xpack.logsdb.patternedtext.charparser.common.CharCodes.TOKEN_DELIMITER_CHAR_CODE;
 
 public class SchemaCompiler {
 

@@ -46,6 +46,11 @@ public class CosineSimilarity extends VectorSimilarityFunction {
         public BlockLoaderFunctionConfig.Function function() {
             return BlockLoaderFunctionConfig.Function.V_COSINE;
         }
+
+        @Override
+        public String toString() {
+            return "V_COSINE";
+        }
     };
 
     @FunctionInfo(

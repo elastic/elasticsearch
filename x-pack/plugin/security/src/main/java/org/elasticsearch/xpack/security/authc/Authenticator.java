@@ -241,5 +241,15 @@ public interface Authenticator {
                 ese.addMetadata("es.additional_unsuccessful_credentials", getUnsuccessfulMessages());
             }
         }
+
+        @Override
+        public String toString() {
+            return Strings.format(
+                "%s{tokens=%s, messages=%s}",
+                getClass().getSimpleName(),
+                this.authenticationTokens,
+                this.unsuccessfulMessages
+            );
+        }
     }
 }

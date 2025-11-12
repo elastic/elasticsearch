@@ -321,7 +321,9 @@ public class AuthenticatorChainTests extends ESTestCase {
     }
 
     public void testContextWithDirectWrongTokenFailsAuthn() {
-        final Authenticator.Context context = createAuthenticatorContext(mock(AuthenticationToken.class));
+        final AuthenticationToken token = mock(AuthenticationToken.class);
+        when(token.toString()).thenReturn("MOCK_AUTHENTICATION_TOKEN");
+        final Authenticator.Context context = createAuthenticatorContext(token);
         doCallRealMethod().when(serviceAccountAuthenticator).authenticate(eq(context), anyActionListener());
         doCallRealMethod().when(oAuth2TokenAuthenticator).authenticate(eq(context), anyActionListener());
         doCallRealMethod().when(apiKeyAuthenticator).authenticate(eq(context), anyActionListener());
@@ -335,6 +337,18 @@ public class AuthenticatorChainTests extends ESTestCase {
             return null;
         }).when(realmsAuthenticator).authenticate(eq(context), any());
         final PlainActionFuture<Authentication> future = new PlainActionFuture<>();
+
+        Loggers.setLevel(LogManager.getLogger(AuthenticatorChain.class), Level.DEBUG);
+        final MockLog mockLog = MockLog.capture(AuthenticatorChain.class);
+        mockLog.addExpectation(
+            new MockLog.SeenEventExpectation(
+                "debug-failure",
+                AuthenticatorChain.class.getName(),
+                Level.DEBUG,
+                "Authentication for context [Context{tokens=[MOCK_AUTHENTICATION_TOKEN], messages=[]}] failed"
+            )
+        );
+
         authenticatorChain.authenticate(context, future);
         final ElasticsearchSecurityException e = expectThrows(ElasticsearchSecurityException.class, future::actionGet);
         assertThat(e.getMessage(), containsString("failed to authenticate"));
@@ -345,6 +359,8 @@ public class AuthenticatorChainTests extends ESTestCase {
         verify(realmsAuthenticator, never()).extractCredentials(any());
         verifyNoMoreInteractions(authenticationContextSerializer);
         verifyNoMoreInteractions(operatorPrivilegesService);
+        mockLog.assertAllExpectationsMatched();
+
         // OR 2. realms fail the token
         doAnswer(invocationOnMock -> {
             @SuppressWarnings("unchecked")

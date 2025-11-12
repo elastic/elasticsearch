@@ -854,6 +854,7 @@ public class EsqlSession {
                 preAnalysis.useAggregateMetricDoubleWhenNotSupported(),
                 preAnalysis.useDenseVectorWhenNotSupported(),
                 listener.delegateFailureAndWrap((l, indexResolution) -> {
+                    EsqlCCSUtils.updateExecutionInfoWithResolvedConcreteIndices(executionInfo, indexResolution.inner());
                     EsqlCCSUtils.updateExecutionInfoWithUnavailableClusters(executionInfo, indexResolution.inner().failures());
                     l.onResponse(
                         result.withIndices(indexPattern, indexResolution.inner())

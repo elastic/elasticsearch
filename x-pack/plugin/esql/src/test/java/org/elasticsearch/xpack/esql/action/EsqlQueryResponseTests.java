@@ -165,6 +165,7 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
             (k, v) -> new EsqlExecutionInfo.Cluster(
                 "",
                 "logs-1",
+                "logs-1",
                 false,
                 EsqlExecutionInfo.Cluster.Status.SUCCESSFUL,
                 10,
@@ -179,6 +180,7 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
             "remote1",
             (k, v) -> new EsqlExecutionInfo.Cluster(
                 "remote1",
+                "remote1:logs-1",
                 "remote1:logs-1",
                 true,
                 EsqlExecutionInfo.Cluster.Status.SUCCESSFUL,
@@ -563,6 +565,7 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
             TimeValue tookTimeValue = took == -1L ? null : new TimeValue(took);
             return new EsqlExecutionInfo.Cluster(
                 clusterAlias,
+                indexExpression,
                 indexExpression,
                 true,
                 EsqlExecutionInfo.Cluster.Status.valueOf(status.toUpperCase(Locale.ROOT)),

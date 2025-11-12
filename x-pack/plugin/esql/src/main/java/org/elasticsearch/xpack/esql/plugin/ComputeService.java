@@ -326,8 +326,10 @@ public class ComputeService {
             listener.onFailure(new IllegalStateException("expected data node plan starts with an ExchangeSink; got " + dataNodePlan));
             return;
         }
-        Map<String, OriginalIndices> clusterToConcreteIndices = transportService.getRemoteClusterService()
-            .groupIndices(SearchRequest.DEFAULT_INDICES_OPTIONS, PlannerUtils.planConcreteIndices(physicalPlan).toArray(String[]::new));
+
+        // Returns the concrete/resolved indices used in the FROM command of the query.
+        Map<String, OriginalIndices> clusterToConcreteIndices = getIndices(execInfo, EsqlExecutionInfo.Cluster::getConcreteIndices);
+
         QueryPragmas queryPragmas = configuration.pragmas();
         Runnable cancelQueryOnFailure = cancelQueryOnFailure(rootTask);
         if (dataNodePlan == null) {
@@ -370,7 +372,8 @@ public class ComputeService {
                 return;
             }
         }
-        Map<String, OriginalIndices> clusterToOriginalIndices = getOriginalIndices(execInfo);
+        // Gets the original indices specified in the FROM command of the query. We need the original query to resolve alias filters.
+        Map<String, OriginalIndices> clusterToOriginalIndices = getIndices(execInfo, EsqlExecutionInfo.Cluster::getOriginalIndices);
         var localOriginalIndices = clusterToOriginalIndices.remove(LOCAL_CLUSTER);
         var localConcreteIndices = clusterToConcreteIndices.remove(LOCAL_CLUSTER);
         /*
@@ -800,14 +803,14 @@ public class ComputeService {
         }
     }
 
-    /**
-     * Returns the original indices specified in the FROM command of the query. We need the original query to resolve alias filters.
-     */
-    private static Map<String, OriginalIndices> getOriginalIndices(EsqlExecutionInfo executionInfo) {
+    private static Map<String, OriginalIndices> getIndices(
+        EsqlExecutionInfo executionInfo,
+        Function<EsqlExecutionInfo.Cluster, String> getter
+    ) {
         return Maps.transformValues(
             executionInfo.getClusters(),
             cluster -> new OriginalIndices(
-                Strings.commaDelimitedListToStringArray(cluster.getOriginalIndices()),
+                Strings.commaDelimitedListToStringArray(getter.apply(cluster)),
                 SearchRequest.DEFAULT_INDICES_OPTIONS
             )
         );

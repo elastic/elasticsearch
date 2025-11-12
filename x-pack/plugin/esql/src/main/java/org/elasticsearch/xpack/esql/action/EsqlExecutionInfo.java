@@ -64,6 +64,7 @@ public class EsqlExecutionInfo implements ChunkedToXContentObject, Writeable {
     public static final ParseField IS_PARTIAL_FIELD = new ParseField("is_partial");
 
     private static final TransportVersion ESQL_QUERY_PLANNING_DURATION = TransportVersion.fromName("esql_query_planning_duration");
+    private static final TransportVersion CONCRETE_INDICES_VERSION = TransportVersion.fromName("esql_concrete_indices");
 
     // Map key is clusterAlias on the primary querying cluster of a CCS minimize_roundtrips=true query
     // The Map itself is immutable after construction - all Clusters will be accounted for at the start of the search.
@@ -398,9 +399,13 @@ public class EsqlExecutionInfo implements ChunkedToXContentObject, Writeable {
 
         private final String clusterAlias;
         /**
-         * This cluster's indices as specified in the query.
+         * This cluster's indices as specified in the query. They may contain aliases, patterns, etc.
          */
         private final String originalIndices;
+        /**
+         * This cluster's concrete/resolved indices.
+         */
+        private final String concreteIndices;
         private final boolean skipUnavailable;
         private final Cluster.Status status;
         private final Integer totalShards;
@@ -427,7 +432,7 @@ public class EsqlExecutionInfo implements ChunkedToXContentObject, Writeable {
         }
 
         public Cluster(String clusterAlias, String originalIndices) {
-            this(clusterAlias, originalIndices, true, Cluster.Status.RUNNING, null, null, null, null, null, null);
+            this(clusterAlias, originalIndices, null, true, Cluster.Status.RUNNING, null, null, null, null, null, null);
         }
 
         /**
@@ -439,7 +444,7 @@ public class EsqlExecutionInfo implements ChunkedToXContentObject, Writeable {
          * @param skipUnavailable whether this Cluster is marked as skip_unavailable in remote cluster settings
          */
         public Cluster(String clusterAlias, String originalIndices, boolean skipUnavailable) {
-            this(clusterAlias, originalIndices, skipUnavailable, Cluster.Status.RUNNING, null, null, null, null, null, null);
+            this(clusterAlias, originalIndices, null, skipUnavailable, Cluster.Status.RUNNING, null, null, null, null, null, null);
         }
 
         /**
@@ -451,12 +456,13 @@ public class EsqlExecutionInfo implements ChunkedToXContentObject, Writeable {
          * @param status current status of the search on this Cluster
          */
         public Cluster(String clusterAlias, String originalIndices, boolean skipUnavailable, Cluster.Status status) {
-            this(clusterAlias, originalIndices, skipUnavailable, status, null, null, null, null, null, null);
+            this(clusterAlias, originalIndices, null, skipUnavailable, status, null, null, null, null, null, null);
         }
 
         public Cluster(
             String clusterAlias,
             String originalIndices,
+            String concreteIndices,
             boolean skipUnavailable,
             Cluster.Status status,
             Integer totalShards,
@@ -471,6 +477,7 @@ public class EsqlExecutionInfo implements ChunkedToXContentObject, Writeable {
             assert status != null : "status of Cluster cannot be null";
             this.clusterAlias = clusterAlias;
             this.originalIndices = originalIndices;
+            this.concreteIndices = concreteIndices;
             this.skipUnavailable = skipUnavailable;
             this.status = status;
             this.totalShards = totalShards;
@@ -484,6 +491,7 @@ public class EsqlExecutionInfo implements ChunkedToXContentObject, Writeable {
         public Cluster(StreamInput in) throws IOException {
             this.clusterAlias = in.readString();
             this.originalIndices = in.readString();
+            this.concreteIndices = in.getTransportVersion().supports(CONCRETE_INDICES_VERSION) ? in.readString() : null;
             this.status = Cluster.Status.valueOf(in.readString().toUpperCase(Locale.ROOT));
             this.totalShards = in.readOptionalInt();
             this.successfulShards = in.readOptionalInt();
@@ -498,6 +506,9 @@ public class EsqlExecutionInfo implements ChunkedToXContentObject, Writeable {
         public void writeTo(StreamOutput out) throws IOException {
             out.writeString(clusterAlias);
             out.writeString(originalIndices);
+            if (out.getTransportVersion().supports(CONCRETE_INDICES_VERSION)) {
+                out.writeString(concreteIndices);
+            }
             out.writeString(status.toString());
             out.writeOptionalInt(totalShards);
             out.writeOptionalInt(successfulShards);
@@ -506,6 +517,22 @@ public class EsqlExecutionInfo implements ChunkedToXContentObject, Writeable {
             out.writeOptionalTimeValue(took);
             out.writeBoolean(skipUnavailable);
             out.writeCollection(failures);
+        }
+
+        public Cluster withConcreteIndices(String concreteIndices) {
+            return new Cluster(
+                clusterAlias,
+                originalIndices,
+                concreteIndices,
+                skipUnavailable,
+                status,
+                totalShards,
+                successfulShards,
+                skippedShards,
+                failedShards,
+                failures,
+                took
+            );
         }
 
         /**
@@ -540,6 +567,7 @@ public class EsqlExecutionInfo implements ChunkedToXContentObject, Writeable {
                 return new Cluster(
                     original.getClusterAlias(),
                     original.getOriginalIndices(),
+                    original.getConcreteIndices(),
                     original.isSkipUnavailable(),
                     status != null ? status : original.getStatus(),
                     totalShards != null ? totalShards : original.getTotalShards(),
@@ -632,17 +660,16 @@ public class EsqlExecutionInfo implements ChunkedToXContentObject, Writeable {
             return builder;
         }
 
-        @Override
-        public boolean isFragment() {
-            return ToXContentFragment.super.isFragment();
-        }
-
         public String getClusterAlias() {
             return clusterAlias;
         }
 
         public String getOriginalIndices() {
             return originalIndices;
+        }
+
+        public String getConcreteIndices() {
+            return concreteIndices;
         }
 
         public boolean isSkipUnavailable() {

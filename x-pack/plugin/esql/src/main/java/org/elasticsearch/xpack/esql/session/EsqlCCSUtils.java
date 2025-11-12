@@ -41,6 +41,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 
+import static java.util.stream.Collectors.groupingBy;
 import static java.util.stream.Collectors.joining;
 import static java.util.stream.Collectors.toSet;
 
@@ -163,6 +164,15 @@ public class EsqlCCSUtils {
         return executionInfo.getRunningClusterAliases()
             .map(clusterAlias -> RemoteClusterAware.buildRemoteIndexName(clusterAlias, localPattern))
             .collect(joining(","));
+    }
+
+    static void updateExecutionInfoWithResolvedConcreteIndices(EsqlExecutionInfo executionInfo, IndexResolution indexResolution) {
+        indexResolution.resolvedIndices()
+            .stream()
+            .collect(groupingBy(RemoteClusterAware::parseClusterAlias, joining(",")))
+            .forEach((clusterAlias, indices) -> {
+                executionInfo.swapCluster(clusterAlias, (k, v) -> v.withConcreteIndices(indices));
+            });
     }
 
     static void updateExecutionInfoWithUnavailableClusters(

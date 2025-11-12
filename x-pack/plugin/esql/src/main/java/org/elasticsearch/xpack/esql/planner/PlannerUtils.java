@@ -60,7 +60,6 @@ import org.elasticsearch.xpack.esql.stats.SearchContextStats;
 import org.elasticsearch.xpack.esql.stats.SearchStats;
 
 import java.util.ArrayList;
-import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.function.Consumer;
@@ -151,18 +150,6 @@ public class PlannerUtils {
 
     private static ReducedPlan getPhysicalPlanReduction(int estimatedRowSize, PhysicalPlan plan) {
         return new ReducedPlan(EstimatesRowSize.estimateRowSize(estimatedRowSize, plan));
-    }
-
-    /**
-     * Returns a set of concrete indices after resolving the original indices specified in the FROM command.
-     */
-    public static Set<String> planConcreteIndices(PhysicalPlan plan) {
-        if (plan == null) {
-            return Set.of();
-        }
-        var indices = new LinkedHashSet<String>();
-        forEachRelation(plan, relation -> indices.addAll(relation.concreteIndices()));
-        return indices;
     }
 
     public static boolean requiresSortedTimeSeriesSource(PhysicalPlan plan) {

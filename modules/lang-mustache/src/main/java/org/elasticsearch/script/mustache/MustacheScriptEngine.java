@@ -21,7 +21,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.text.SizeLimitingStringWriter;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.MemorySizeValue;
-import org.elasticsearch.common.util.Booleans;
+import org.elasticsearch.common.util.LenientBooleans;
 import org.elasticsearch.script.GeneralScriptException;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptContext;
@@ -115,7 +115,10 @@ public final class MustacheScriptEngine implements ScriptEngine {
     }
 
     private static boolean getDetectMissingParamsOption(Map<String, String> options) {
-        return Booleans.parseBoolean(options.get(DETECT_MISSING_PARAMS_OPTION));
+        return LenientBooleans.parseAndCheckForDeprecatedUsage(
+            options.get(DETECT_MISSING_PARAMS_OPTION),
+            LenientBooleans.Category.COMPILER_OPTION
+        );
     }
 
     @Override

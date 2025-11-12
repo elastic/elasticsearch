@@ -11,7 +11,7 @@ package org.elasticsearch.painless;
 
 import org.elasticsearch.SpecialPermission;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.Booleans;
+import org.elasticsearch.common.util.LenientBooleans;
 import org.elasticsearch.painless.Compiler.Loader;
 import org.elasticsearch.painless.lookup.PainlessLookup;
 import org.elasticsearch.painless.lookup.PainlessLookupBuilder;
@@ -441,7 +441,7 @@ public final class PainlessScriptEngine implements ScriptEngine {
     }
 
     private static boolean parseBoolean(String value) {
-        return Booleans.parseBoolean(value);
+        return LenientBooleans.parseAndCheckForDeprecatedUsage(value, LenientBooleans.Category.COMPILER_OPTION);
     }
 
     private static ScriptException convertToScriptException(String scriptSource, Throwable t) {

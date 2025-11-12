@@ -1,11 +1,11 @@
 pr: 137885
-summary: Deprecation message for lenient Boolean parsing
+summary: Add deprecation lenient booleans usage for analysis boolean setting (3rd party plugins) and boolean system properties.
 area: Infra/Logging
 type: deprecation
-issues: []
+issues:
+  - 128993
 deprecation:
-  title: Deprecation message for lenient Boolean parsing
-  area: Infra/Logging
-  details: Please describe the details of this change for the release notes. You can
-    use asciidoc.
-  impact: Please describe the impact of this change to users
+  title: Add deprecation lenient booleans usage for analysis boolean setting (3rd party plugins) and boolean system properties.
+  area: Logging
+  details: Usage of lenient booleans was deprecated for analysis boolean setting in external plugins using the stable plugin API and various boolean system properties.
+  impact: Usage of lenient booleans other than `true` or `false` will result in deprecations logs. Future releases of ES may only accept strict boolean values `true` or `false.

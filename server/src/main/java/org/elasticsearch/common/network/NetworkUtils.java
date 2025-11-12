@@ -11,7 +11,7 @@ package org.elasticsearch.common.network;
 
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.Constants;
-import org.elasticsearch.common.util.Booleans;
+import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.Predicates;
 
 import java.io.IOException;
@@ -48,7 +48,7 @@ public abstract class NetworkUtils {
     static final boolean PREFER_V6 = preferIPv6Addresses();
 
     private static boolean preferIPv6Addresses() {
-        return Booleans.parseBoolean(System.getProperty("java.net.preferIPv6Addresses", "false"));
+        return Booleans.parseBooleanLenient(System.getProperty("java.net.preferIPv6Addresses", "false"), false);
     }
 
     /**

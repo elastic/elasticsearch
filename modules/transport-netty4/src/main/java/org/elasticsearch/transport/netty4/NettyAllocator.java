@@ -170,7 +170,7 @@ public class NettyAllocator {
     }
 
     private static boolean useG1GC() {
-        return org.elasticsearch.common.util.Booleans.parseBoolean(JvmInfo.jvmInfo().useG1GC());
+        return Booleans.parseBooleanLenient(JvmInfo.jvmInfo().useG1GC(), false);
     }
 
     public static void logAllocatorDescriptionIfNeeded() {

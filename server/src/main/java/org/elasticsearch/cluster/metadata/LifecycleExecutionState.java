@@ -11,7 +11,7 @@ package org.elasticsearch.cluster.metadata;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.util.Booleans;
+import org.elasticsearch.common.util.LenientBooleans;
 
 import java.util.Collections;
 import java.util.HashMap;
@@ -213,7 +213,7 @@ public record LifecycleExecutionState(
     }
 
     private static boolean parseIsAutoRetryableError(String isAutoRetryableError) {
-        return Booleans.parseBoolean(isAutoRetryableError);
+        return LenientBooleans.parseAndCheckForDeprecatedUsage(isAutoRetryableError, LenientBooleans.Category.INDEX_METADATA);
     }
 
     /**

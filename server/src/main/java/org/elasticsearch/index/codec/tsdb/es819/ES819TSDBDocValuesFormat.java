@@ -13,7 +13,7 @@ import org.apache.lucene.codecs.DocValuesConsumer;
 import org.apache.lucene.codecs.DocValuesProducer;
 import org.apache.lucene.index.SegmentReadState;
 import org.apache.lucene.index.SegmentWriteState;
-import org.elasticsearch.common.util.Booleans;
+import org.elasticsearch.common.util.LenientBooleans;
 
 import java.io.IOException;
 
@@ -98,7 +98,10 @@ public class ES819TSDBDocValuesFormat extends org.apache.lucene.codecs.DocValues
     }
 
     private static boolean getOptimizedMergeEnabledDefault() {
-        return Booleans.parseBoolean(System.getProperty(OPTIMIZED_MERGE_ENABLED_NAME, Boolean.TRUE.toString()));
+        return LenientBooleans.parseAndCheckForDeprecatedUsage(
+            System.getProperty(OPTIMIZED_MERGE_ENABLED_NAME, Boolean.TRUE.toString()),
+            LenientBooleans.Category.SYSTEM_PROPERTY
+        );
     }
 
     /**

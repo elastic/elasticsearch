@@ -1039,10 +1039,7 @@ public class CrossClusterQueryIT extends AbstractCrossClusterTestCase {
 
         assertThat(
             expectThrows(VerificationException.class, () -> runQuery(request)).getMessage(),
-            containsString(
-                "Both [include_execution_metadata] and [include_ccs_metadata] query parameters are set. "
-                    + "Use only [include_execution_metadata]"
-            )
+            containsString("Both [include_execution_metadata] and [include_ccs_metadata] query parameters are set. Use only one")
         );
     }
 }

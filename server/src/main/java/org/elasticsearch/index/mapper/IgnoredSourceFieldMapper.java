@@ -142,7 +142,7 @@ public class IgnoredSourceFieldMapper extends MetadataFieldMapper {
         private static final IgnoredValuesFieldMapperType INSTANCE = new IgnoredValuesFieldMapperType();
 
         private IgnoredValuesFieldMapperType() {
-            super(NAME, false, true, false, TextSearchInfo.NONE, Collections.emptyMap());
+            super(NAME, IndexType.NONE, true, TextSearchInfo.NONE, Collections.emptyMap());
         }
 
         @Override

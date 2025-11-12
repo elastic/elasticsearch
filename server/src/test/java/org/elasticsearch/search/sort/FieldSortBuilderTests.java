@@ -145,30 +145,78 @@ public class FieldSortBuilderTests extends AbstractSortTestCase<FieldSortBuilder
     /**
      * Test that missing values get transferred correctly to the SortField
      */
-    public void testBuildSortFieldMissingValue() throws IOException {
+    public void testBuildSortFieldDoubleMissingValue() throws IOException {
         SearchExecutionContext searchExecutionContext = createMockSearchExecutionContext();
         FieldSortBuilder fieldSortBuilder = new FieldSortBuilder("value").missing("_first");
-        SortField sortField = fieldSortBuilder.build(searchExecutionContext).field();
-        assertMissingValue(sortField, Double.NEGATIVE_INFINITY);
+        assertMissingValue(fieldSortBuilder, searchExecutionContext, Double.NEGATIVE_INFINITY);
 
         fieldSortBuilder = new FieldSortBuilder("value").missing("_last");
-        sortField = fieldSortBuilder.build(searchExecutionContext).field();
-        assertMissingValue(sortField, Double.POSITIVE_INFINITY);
+        assertMissingValue(fieldSortBuilder, searchExecutionContext, Double.POSITIVE_INFINITY);
 
         Double randomDouble = randomDouble();
         fieldSortBuilder = new FieldSortBuilder("value").missing(randomDouble);
-        sortField = fieldSortBuilder.build(searchExecutionContext).field();
-        assertMissingValue(sortField, randomDouble);
+        assertMissingValue(fieldSortBuilder, searchExecutionContext, randomDouble);
 
         fieldSortBuilder = new FieldSortBuilder("value").missing(randomDouble.toString());
-        sortField = fieldSortBuilder.build(searchExecutionContext).field();
-        assertMissingValue(sortField, randomDouble);
+        assertMissingValue(fieldSortBuilder, searchExecutionContext, randomDouble);
     }
 
-    private static void assertMissingValue(SortField sortField, Object missingValue) {
+    public void testBuildSortFieldIntegerMissingValue() throws IOException {
+        SearchExecutionContext searchExecutionContext = createMockSearchExecutionContext();
+        String fieldName = "custom-integer";
+        FieldSortBuilder fieldSortBuilder = new FieldSortBuilder(fieldName).missing("_first");
+        assertMissingValue(fieldSortBuilder, searchExecutionContext, Integer.MIN_VALUE);
+
+        fieldSortBuilder = new FieldSortBuilder(fieldName).missing("_last");
+        assertMissingValue(fieldSortBuilder, searchExecutionContext, Integer.MAX_VALUE);
+
+        Integer randomInt = randomInt();
+        fieldSortBuilder = new FieldSortBuilder(fieldName).missing(randomInt);
+        assertMissingValue(fieldSortBuilder, searchExecutionContext, randomInt);
+
+        fieldSortBuilder = new FieldSortBuilder(fieldName).missing(randomInt.toString());
+        assertMissingValue(fieldSortBuilder, searchExecutionContext, randomInt);
+    }
+
+    public void testBuildSortFieldShortMissingValue() throws IOException {
+        SearchExecutionContext searchExecutionContext = createMockSearchExecutionContext();
+        String fieldName = "custom-short";
+        FieldSortBuilder fieldSortBuilder = new FieldSortBuilder(fieldName).missing("_first");
+        assertMissingValue(fieldSortBuilder, searchExecutionContext, Integer.MIN_VALUE);
+
+        fieldSortBuilder = new FieldSortBuilder(fieldName).missing("_last");
+        assertMissingValue(fieldSortBuilder, searchExecutionContext, Integer.MAX_VALUE);
+
+        Integer randomInt = randomInt();
+        fieldSortBuilder = new FieldSortBuilder(fieldName).missing(randomInt);
+        assertMissingValue(fieldSortBuilder, searchExecutionContext, randomInt);
+
+        fieldSortBuilder = new FieldSortBuilder(fieldName).missing(randomInt.toString());
+        assertMissingValue(fieldSortBuilder, searchExecutionContext, randomInt);
+    }
+
+    public void testBuildSortFieldByteMissingValue() throws IOException {
+        SearchExecutionContext searchExecutionContext = createMockSearchExecutionContext();
+        String fieldName = "custom-byte";
+        FieldSortBuilder fieldSortBuilder = new FieldSortBuilder(fieldName).missing("_first");
+        assertMissingValue(fieldSortBuilder, searchExecutionContext, Integer.MIN_VALUE);
+
+        fieldSortBuilder = new FieldSortBuilder(fieldName).missing("_last");
+        assertMissingValue(fieldSortBuilder, searchExecutionContext, Integer.MAX_VALUE);
+
+        Byte randomByte = randomByte();
+        fieldSortBuilder = new FieldSortBuilder(fieldName).missing(randomByte);
+        assertMissingValue(fieldSortBuilder, searchExecutionContext, (int) randomByte);
+
+        fieldSortBuilder = new FieldSortBuilder(fieldName).missing(randomByte.toString());
+        assertMissingValue(fieldSortBuilder, searchExecutionContext, (int) randomByte);
+    }
+
+    private static void assertMissingValue(FieldSortBuilder fsb, SearchExecutionContext ctx, Object missingValue) throws IOException {
+        SortField sortField = fsb.build(ctx).field();
         assertThat(sortField.getComparatorSource(), instanceOf(XFieldComparatorSource.class));
         XFieldComparatorSource xFieldComparatorSource = (XFieldComparatorSource) sortField.getComparatorSource();
-        assertEquals(xFieldComparatorSource.missingObject(missingValue, true), missingValue);
+        assertEquals(xFieldComparatorSource.missingObject(fsb.missing(), fsb.order() == SortOrder.DESC), missingValue);
     }
 
     /**
@@ -177,16 +225,13 @@ public class FieldSortBuilderTests extends AbstractSortTestCase<FieldSortBuilder
     public void testBuildSortFieldOrder() throws IOException {
         SearchExecutionContext searchExecutionContext = createMockSearchExecutionContext();
         FieldSortBuilder fieldSortBuilder = new FieldSortBuilder("value");
-        SortField sortField = fieldSortBuilder.build(searchExecutionContext).field();
-        assertMissingValue(sortField, Double.POSITIVE_INFINITY);
+        assertMissingValue(fieldSortBuilder, searchExecutionContext, Double.POSITIVE_INFINITY);
 
         fieldSortBuilder = new FieldSortBuilder("value").order(SortOrder.ASC);
-        sortField = fieldSortBuilder.build(searchExecutionContext).field();
-        assertMissingValue(sortField, Double.POSITIVE_INFINITY);
+        assertMissingValue(fieldSortBuilder, searchExecutionContext, Double.POSITIVE_INFINITY);
 
         fieldSortBuilder = new FieldSortBuilder("value").order(SortOrder.DESC);
-        sortField = fieldSortBuilder.build(searchExecutionContext).field();
-        assertMissingValue(sortField, Double.NEGATIVE_INFINITY);
+        assertMissingValue(fieldSortBuilder, searchExecutionContext, Double.NEGATIVE_INFINITY);
     }
 
     /**

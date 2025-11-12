@@ -49,8 +49,12 @@ import org.elasticsearch.index.mapper.blockloader.BlockLoaderFunctionConfig;
 import org.elasticsearch.index.mapper.blockloader.docvalues.DoublesBlockLoader;
 import org.elasticsearch.index.mapper.blockloader.docvalues.IntsBlockLoader;
 import org.elasticsearch.index.mapper.blockloader.docvalues.LongsBlockLoader;
-import org.elasticsearch.index.mapper.blockloader.docvalues.MvMaxIntsFromDocValuesBlockLoader;
-import org.elasticsearch.index.mapper.blockloader.docvalues.MvMinIntsFromDocValuesBlockLoader;
+import org.elasticsearch.index.mapper.blockloader.docvalues.fn.MvMaxIntsFromDocValuesBlockLoader;
+import org.elasticsearch.index.mapper.blockloader.docvalues.fn.MvMaxLongsFromDocValuesBlockLoader;
+import org.elasticsearch.index.mapper.blockloader.docvalues.fn.MvMinIntsFromDocValuesBlockLoader;
+import org.elasticsearch.index.mapper.blockloader.docvalues.fn.MvMaxDoublesFromDocValuesBlockLoader;
+import org.elasticsearch.index.mapper.blockloader.docvalues.fn.MvMinDoublesFromDocValuesBlockLoader;
+import org.elasticsearch.index.mapper.blockloader.docvalues.fn.MvMinLongsFromDocValuesBlockLoader;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.script.DoubleFieldScript;
 import org.elasticsearch.script.LongFieldScript;
@@ -494,12 +498,12 @@ public class NumberFieldMapper extends FieldMapper {
 
             @Override
             BlockLoader blockLoaderFromDocValuesMvMin(String fieldName) {
-                throw new UnsupportedOperationException("coming in 137820");
+                return new MvMinDoublesFromDocValuesBlockLoader(fieldName, l -> HalfFloatPoint.sortableShortToHalfFloat((short) l));
             }
 
             @Override
             BlockLoader blockLoaderFromDocValuesMvMax(String fieldName) {
-                throw new UnsupportedOperationException("coming in 137820");
+                return new MvMaxDoublesFromDocValuesBlockLoader(fieldName, l -> HalfFloatPoint.sortableShortToHalfFloat((short) l));
             }
         },
         FLOAT("float", NumericType.FLOAT) {
@@ -698,12 +702,12 @@ public class NumberFieldMapper extends FieldMapper {
 
             @Override
             BlockLoader blockLoaderFromDocValuesMvMin(String fieldName) {
-                throw new UnsupportedOperationException("coming in 137820");
+                return new MvMinDoublesFromDocValuesBlockLoader(fieldName, l -> NumericUtils.sortableIntToFloat((int) l));
             }
 
             @Override
             BlockLoader blockLoaderFromDocValuesMvMax(String fieldName) {
-                throw new UnsupportedOperationException("coming in 137820");
+                return new MvMaxDoublesFromDocValuesBlockLoader(fieldName, l -> NumericUtils.sortableIntToFloat((int) l));
             }
         },
         DOUBLE("double", NumericType.DOUBLE) {
@@ -868,12 +872,12 @@ public class NumberFieldMapper extends FieldMapper {
 
             @Override
             BlockLoader blockLoaderFromDocValuesMvMin(String fieldName) {
-                throw new UnsupportedOperationException("coming in 137820");
+                return new MvMinDoublesFromDocValuesBlockLoader(fieldName, NumericUtils::sortableLongToDouble);
             }
 
             @Override
             BlockLoader blockLoaderFromDocValuesMvMax(String fieldName) {
-                throw new UnsupportedOperationException("coming in 137820");
+                return new MvMaxDoublesFromDocValuesBlockLoader(fieldName, NumericUtils::sortableLongToDouble);
             }
         },
         BYTE("byte", NumericType.BYTE) {
@@ -1547,12 +1551,12 @@ public class NumberFieldMapper extends FieldMapper {
 
             @Override
             BlockLoader blockLoaderFromDocValuesMvMin(String fieldName) {
-                throw new UnsupportedOperationException("coming in 137820");
+                return new MvMinLongsFromDocValuesBlockLoader(fieldName);
             }
 
             @Override
             BlockLoader blockLoaderFromDocValuesMvMax(String fieldName) {
-                throw new UnsupportedOperationException("coming in 137820");
+                return new MvMaxLongsFromDocValuesBlockLoader(fieldName);
             }
 
             private boolean isOutOfRange(Object value) {
@@ -2119,13 +2123,6 @@ public class NumberFieldMapper extends FieldMapper {
             if (hasDocValues() && (preference != FieldExtractPreference.STORED || isSyntheticSource)) {
                 if (config == null) {
                     return true;
-                }
-                if (switch (type) {
-                    case HALF_FLOAT, FLOAT, DOUBLE, LONG -> true;
-                    default -> false;
-                }) {
-                    // removed in 137820
-                    return false;
                 }
                 return switch (config.function()) {
                     case MV_MAX, MV_MIN -> true;

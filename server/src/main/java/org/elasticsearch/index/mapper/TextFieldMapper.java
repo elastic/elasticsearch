@@ -582,7 +582,13 @@ public final class TextFieldMapper extends FieldMapper {
         final TextFieldType parentField;
 
         PrefixFieldType(TextFieldType parentField, int minChars, int maxChars) {
-            super(parentField.name() + FAST_PREFIX_SUFFIX, true, false, false, parentField.getTextSearchInfo(), Collections.emptyMap());
+            super(
+                parentField.name() + FAST_PREFIX_SUFFIX,
+                IndexType.terms(true, false),
+                false,
+                parentField.getTextSearchInfo(),
+                Collections.emptyMap()
+            );
             this.minChars = minChars;
             this.maxChars = maxChars;
             this.parentField = parentField;
@@ -707,7 +713,7 @@ public final class TextFieldMapper extends FieldMapper {
             boolean eagerGlobalOrdinals,
             boolean indexPhrases
         ) {
-            super(name, indexed, stored, false, tsi, meta, isSyntheticSource, isWithinMultiField);
+            super(name, indexed ? IndexType.terms(true, false) : IndexType.NONE, stored, tsi, meta, isSyntheticSource, isWithinMultiField);
             fielddata = false;
             // TODO block loader could use a "fast loading" delegate which isn't always the same - but frequently is.
             this.syntheticSourceDelegate = Optional.ofNullable(syntheticSourceDelegate);
@@ -718,9 +724,8 @@ public final class TextFieldMapper extends FieldMapper {
         public TextFieldType(String name, boolean indexed, boolean stored, Map<String, String> meta) {
             super(
                 name,
-                indexed,
+                IndexType.terms(indexed, false),
                 stored,
-                false,
                 new TextSearchInfo(Defaults.FIELD_TYPE, null, Lucene.STANDARD_ANALYZER, Lucene.STANDARD_ANALYZER),
                 meta,
                 false,

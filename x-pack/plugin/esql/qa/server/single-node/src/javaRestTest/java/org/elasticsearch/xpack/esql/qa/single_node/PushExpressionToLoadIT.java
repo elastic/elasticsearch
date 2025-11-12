@@ -222,6 +222,18 @@ public class PushExpressionToLoadIT extends ESRestTestCase {
         );
     }
 
+    public void testMvMinToLong() throws IOException {
+        long min = randomLongBetween(Long.MIN_VALUE, Long.MAX_VALUE - 10);
+        long max = randomLongBetween(min + 1, Long.MAX_VALUE);
+        test(
+            justType("integer"),
+            b -> b.startArray("test").value(min).value(max).endArray(),
+            "| EVAL test = MV_MIN(test)",
+            matchesList().item(min),
+            matchesMap().entry("test:column_at_a_time:MvMinIntsFromDocValues.Sorted", 1)
+        );
+    }
+
     public void testMvMaxToKeyword() throws IOException {
         String min = "a".repeat(between(1, 256));
         String max = "b".repeat(between(1, 256));
@@ -273,6 +285,18 @@ public class PushExpressionToLoadIT extends ESRestTestCase {
     public void testMvMaxToInt() throws IOException {
         int min = between(Integer.MIN_VALUE, Integer.MAX_VALUE - 10);
         int max = between(min + 1, Integer.MAX_VALUE);
+        test(
+            justType("integer"),
+            b -> b.startArray("test").value(min).value(max).endArray(),
+            "| EVAL test = MV_MAX(test)",
+            matchesList().item(max),
+            matchesMap().entry("test:column_at_a_time:MvMaxIntsFromDocValues.Sorted", 1)
+        );
+    }
+
+    public void testMvMaxToLong() throws IOException {
+        long min = randomLongBetween(Long.MIN_VALUE, Long.MAX_VALUE - 10);
+        long max = randomLongBetween(min + 1, Long.MAX_VALUE);
         test(
             justType("integer"),
             b -> b.startArray("test").value(min).value(max).endArray(),

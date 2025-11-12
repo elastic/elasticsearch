@@ -12,9 +12,9 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.blockloader.BlockLoaderFunctionConfig;
-import org.elasticsearch.index.mapper.blockloader.docvalues.MvMaxBytesRefsFromOrdsBlockLoader;
-import org.elasticsearch.index.mapper.blockloader.docvalues.MvMaxIntsFromDocValuesBlockLoader;
-import org.elasticsearch.index.mapper.blockloader.docvalues.Utf8CodePointsFromOrdsBlockLoader;
+import org.elasticsearch.index.mapper.blockloader.docvalues.fn.MvMaxBytesRefsFromOrdsBlockLoader;
+import org.elasticsearch.index.mapper.blockloader.docvalues.fn.Utf8CodePointsFromOrdsBlockLoader;
+import org.elasticsearch.index.mapper.blockloader.docvalues.fn.MvMaxLongsFromDocValuesBlockLoader;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.stats.SearchStats;
@@ -69,7 +69,7 @@ import org.elasticsearch.xpack.esql.stats.SearchStats;
  *         {@link Utf8CodePointsFromOrdsBlockLoader} is for {@code LENGTH x keyword x docValues}.
  *     </li>
  *     <li>
- *         {@link MvMaxIntsFromDocValuesBlockLoader} is for {@code MV_MAX x int x docValues}.
+ *         {@link MvMaxLongsFromDocValuesBlockLoader} is for {@code MV_MAX x long x docValues}.
  *     </li>
  *     <li>
  *         {@link MvMaxBytesRefsFromOrdsBlockLoader} is for {@code MV_MAX x (keyword|ip) x doc_values}.

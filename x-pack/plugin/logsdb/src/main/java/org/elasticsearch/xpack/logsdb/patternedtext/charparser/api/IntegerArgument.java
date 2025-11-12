@@ -19,15 +19,21 @@ public final class IntegerArgument implements Argument<Integer> {
     private final int startPosition;
     private final int length;
     private final int value;
+    private final Sign sign;
 
     // for encoding
     private final byte[] integerBytes = new byte[4];
     private final Base64.Encoder encoder = Base64.getEncoder().withoutPadding();
 
     public IntegerArgument(int startPosition, int length, int value) {
+        this(startPosition, length, value, null);
+    }
+
+    public IntegerArgument(int startPosition, int length, int value, Sign sign) {
         this.startPosition = startPosition;
         this.length = length;
         this.value = value;
+        this.sign = sign;
     }
 
     /**
@@ -58,5 +64,9 @@ public final class IntegerArgument implements Argument<Integer> {
     public String encode() {
         ByteUtils.writeIntLE(value, integerBytes, 0);
         return encoder.encodeToString(integerBytes);
+    }
+
+    public Sign sign() {
+        return sign;
     }
 }

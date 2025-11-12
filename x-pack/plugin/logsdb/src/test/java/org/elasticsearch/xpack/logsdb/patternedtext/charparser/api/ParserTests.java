@@ -35,7 +35,10 @@ public class ParserTests extends ESTestCase {
         assertEquals("Response from %4 took %I ms", patternedMessage.toString());
         assertEquals(2, parsedArguments.size());
         assertEquals("IPV4", parsedArguments.getFirst().type().name());
-        assertEquals("INTEGER", parsedArguments.get(1).type().name());
+        Argument<?> argument = parsedArguments.get(1);
+        assertThat(argument, instanceOf(IntegerArgument.class));
+        assertEquals(2000, ((IntegerArgument) argument).value().intValue());
+        assertNull("Sign should be null", ((IntegerArgument) argument).sign());
     }
 
     public void testTimestampAndIpAndNumber() throws ParseException {
@@ -61,5 +64,25 @@ public class ParserTests extends ESTestCase {
         Parser.constructPattern(messageWithTimestampIpAndNumber, parsedArguments, patternedMessage, true);
         // todo - add support for local time - based on java.time.LocalTime
         assertEquals("Oct %I %I 02:48:07 PM INFO Response from %4 took %I ms", patternedMessage.toString());
+    }
+
+    public void testNumberArgumentsWithSign() throws ParseException {
+        String messageWithTimestampIpAndNumber = "-5 is negative, this:+10 is positive and so is this: +20";
+        List<Argument<?>> parsedArguments = parser.parse(messageWithTimestampIpAndNumber);
+        Parser.constructPattern(messageWithTimestampIpAndNumber, parsedArguments, patternedMessage, true);
+        assertEquals("%I is negative, this:%I is positive and so is this: %I", patternedMessage.toString());
+        assertEquals(3, parsedArguments.size());
+        Argument<?> argument = parsedArguments.getFirst();
+        assertThat(argument, instanceOf(IntegerArgument.class));
+        assertEquals(Sign.MINUS, ((IntegerArgument) argument).sign());
+        assertEquals(-5, ((IntegerArgument) argument).value().intValue());
+        argument = parsedArguments.get(1);
+        assertThat(argument, instanceOf(IntegerArgument.class));
+        assertEquals(Sign.PLUS, ((IntegerArgument) argument).sign());
+        assertEquals(10, ((IntegerArgument) argument).value().intValue());
+        argument = parsedArguments.get(2);
+        assertThat(argument, instanceOf(IntegerArgument.class));
+        assertEquals(Sign.PLUS, ((IntegerArgument) argument).sign());
+        assertEquals(20, ((IntegerArgument) argument).value().intValue());
     }
 }

@@ -184,3 +184,43 @@ histogram with synthetic source and ignore_malformed:
         },
           { "centroids": [ 1.0 ], "counts": [ 1 ], "hello": "world" },
           123, 456, "fox" ]
+---
+TDigest with synthetic source and empty digest:
+  - requires:
+      cluster_features: [ "mapper.source.mode_from_index_setting" ]
+      reason: "Source mode configured through index setting"
+
+  - do:
+      indices.create:
+        index: tdigest_synthetic
+        body:
+          settings:
+            index:
+              mapping.source.mode: synthetic
+          mappings:
+            properties:
+              latency:
+                type: tdigest
+  - do:
+      bulk:
+        index: tdigest_synthetic
+        refresh: true
+        body:
+          - '{"index": {"_id": 1}}'
+          - '{"latency": {"centroids" : [], "counts" : []}}'
+
+  - do:
+      get:
+        index: tdigest_synthetic
+        id: 1
+  - match:
+      _source:
+        latency:
+          min: NaN
+          max: NaN
+          sum: 0.0
+          count: 0
+          centroids: [ ]
+          counts: [ ]
+
+

@@ -2937,9 +2937,6 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 return switch (cfg.function()) {
                     case V_COSINE, V_DOT_PRODUCT, V_HAMMING, V_L1NORM, V_L2NORM -> {
                         VectorSimilarityFunctionConfig similarityConfig = (VectorSimilarityFunctionConfig) cfg;
-                        if (getElementType() == ElementType.BYTE || getElementType() == ElementType.BIT) {
-                            similarityConfig = similarityConfig.forByteVector();
-                        }
                         yield new DenseVectorBlockLoader<>(
                             name(),
                             dims,
@@ -3474,22 +3471,18 @@ public class DenseVectorFieldMapper extends FieldMapper {
 
         private final SimilarityFunction similarityFunction;
         private final float[] vector;
-        private byte[] vectorAsBytes;
+        private final byte[] vectorAsBytes;
 
         public VectorSimilarityFunctionConfig(SimilarityFunction similarityFunction, float[] vector) {
             this.similarityFunction = similarityFunction;
             this.vector = vector;
+            this.vectorAsBytes = null;
         }
 
-        /**
-         * Call before calculating byte vector similarities
-         */
-        public VectorSimilarityFunctionConfig forByteVector() {
-            vectorAsBytes = new byte[vector.length];
-            for (int i = 0; i < vector.length; i++) {
-                vectorAsBytes[i] = (byte) vector[i];
-            }
-            return this;
+        public VectorSimilarityFunctionConfig(SimilarityFunction similarityFunction, byte[] vectorAsBytes) {
+            this.similarityFunction = similarityFunction;
+            this.vector = null;
+            this.vectorAsBytes = vectorAsBytes;
         }
 
         @Override
@@ -3498,11 +3491,12 @@ public class DenseVectorFieldMapper extends FieldMapper {
         }
 
         public byte[] vectorAsBytes() {
-            assert vectorAsBytes != null : "vectorAsBytes is null, call forByteVector() first";
+            assert vectorAsBytes != null : "vectorAsBytes is null, maybe incorrect element type during construction?";
             return vectorAsBytes;
         }
 
         public float[] vector() {
+            assert vector != null : "vector is null, maybe incorrect element type during construction?";
             return vector;
         }
 

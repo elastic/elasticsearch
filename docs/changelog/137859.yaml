@@ -1,0 +1,6 @@
+pr: 137859
+summary: Add length validation for `rename_replacement` parameter in snapshot restore
+  request
+area: Snapshot/Restore
+type: bug
+issues: []

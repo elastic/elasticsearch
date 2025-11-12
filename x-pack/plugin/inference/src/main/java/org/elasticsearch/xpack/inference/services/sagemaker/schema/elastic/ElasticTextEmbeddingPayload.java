@@ -99,6 +99,7 @@ public class ElasticTextEmbeddingPayload implements ElasticPayload {
                 case BIT -> TextEmbeddingBinary.PARSER.apply(p, null);
                 case BYTE -> TextEmbeddingBytes.PARSER.apply(p, null);
                 case FLOAT -> TextEmbeddingFloat.PARSER.apply(p, null);
+                case BFLOAT16 -> throw new UnsupportedOperationException("Bfloat16 not supported");
             };
         }
     }

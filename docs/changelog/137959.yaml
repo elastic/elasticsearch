@@ -1,0 +1,5 @@
+pr: 137959
+summary: "[DiskBBQ] Support for centroid filtering for restrictive filters"
+area: Vector Search
+type: enhancement
+issues: []

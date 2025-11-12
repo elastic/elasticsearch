@@ -99,13 +99,10 @@ public class TDigestFieldMapperTests extends MapperTestCase {
 
     public void testEmptyArrays() throws Exception {
         DocumentMapper mapper = createDocumentMapper(fieldMapping(this::minimalMapping));
-        Exception e = expectThrows(
-            DocumentParsingException.class,
-            () -> mapper.parse(
-                source(b -> b.startObject("field").field("centroids", new double[] {}).field("counts", new int[] {}).endObject())
-            )
+        ParsedDocument doc = mapper.parse(
+            source(b -> b.startObject("field").field("centroids", new double[] {}).field("counts", new int[] {}).endObject())
         );
-        assertThat(e.getCause().getMessage(), containsString("expected a non-empty array"));
+        assertThat(doc.rootDoc().getField("field"), notNullValue());
     }
 
     public void testNullValue() throws Exception {

@@ -43,7 +43,7 @@ public class TDigestParser {
             if (max != null) {
                 return max;
             }
-            if (centroids != null) {
+            if (centroids != null && centroids.isEmpty() == false) {
                 return centroids.get(centroids.size() - 1);
             }
             // NOCOMMIT - TODO: something more sensible for the empty array case? Do we even want to support that?
@@ -55,7 +55,7 @@ public class TDigestParser {
             if (min != null) {
                 return min;
             }
-            if (centroids != null) {
+            if (centroids != null && centroids.isEmpty() == false) {
                 return centroids.get(0);
             }
             return Double.NaN;
@@ -170,14 +170,10 @@ public class TDigestParser {
             );
         }
         if (centroids.isEmpty()) {
-            throw new DocumentParsingException(
-                parser.getTokenLocation(),
-                "error parsing field ["
-                    + mappedFieldName
-                    + "], expected a non-empty array from ["
-                    + CENTROIDS_FIELD.getPreferredName()
-                    + "]"
-            );
+            count = 0L;
+            sum = 0.0;
+            min = null;
+            max = null;
         }
         return new ParsedHistogram(centroids, counts, count, sum, min, max);
     }

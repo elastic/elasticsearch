@@ -15,6 +15,7 @@ import org.elasticsearch.xpack.esql.core.expression.NameId;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.FunctionEsField;
+import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.expression.function.blockloader.BlockLoaderExpression;
 import org.elasticsearch.xpack.esql.optimizer.LocalLogicalOptimizerContext;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
@@ -50,8 +51,7 @@ public class PushExpressionsToFieldLoad extends ParameterizedRule<LogicalPlan, L
         LocalLogicalOptimizerContext context,
         Map<Attribute.IdIgnoringWrapper, Attribute> addedAttrs
     ) {
-        // Collect field attributes from previous runs
-        int originalAddedAttrsSize = addedAttrs.size();
+        Holder<Boolean> planWasTransformed = new Holder<>(false);
         if (plan instanceof Eval || plan instanceof Filter || plan instanceof Aggregate) {
             LogicalPlan transformedPlan = plan.transformExpressionsOnly(Expression.class, e -> {
                 if (e instanceof BlockLoaderExpression ble) {
@@ -63,14 +63,14 @@ public class PushExpressionsToFieldLoad extends ParameterizedRule<LogicalPlan, L
                                 fuse.config(),
                                 context.configuration().pragmas().fieldExtractPreference()
                             )) {
+                        planWasTransformed.set(true);
                         return replaceFieldsForFieldTransformations(e, addedAttrs, fuse);
                     }
                 }
                 return e;
             });
 
-            // No fields were added, return the original plan
-            if (addedAttrs.size() == originalAddedAttrsSize) {
+            if (planWasTransformed.get() == false) {
                 return plan;
             }
 

@@ -1634,7 +1634,6 @@ public class LocalLogicalPlanOptimizerTests extends ESTestCase {
     }
 
     public void testLengthInWhereAndEval() {
-        assumeFalse("fix me", true);
         assumeTrue("requires push", EsqlCapabilities.Cap.VECTOR_SIMILARITY_FUNCTIONS_PUSHDOWN.isEnabled());
         String query = """
             FROM test
@@ -1644,10 +1643,11 @@ public class LocalLogicalPlanOptimizerTests extends ESTestCase {
         LogicalPlan plan = localPlan(plan(query, analyzer), TEST_SEARCH_STATS);
 
         var project = as(plan, EsqlProject.class);
-        var limit = as(project.child(), Limit.class);
-        var eval = as(limit.child(), Eval.class);
-        var filter = as(eval.child(), Filter.class);
-        Attribute lAttr = assertLengthPushdown(as(filter.condition(), GreaterThan.class).left(), "last_name");
+        var eval = as(project.child(), Eval.class);
+        Attribute lAttr = assertLengthPushdown(as(eval.fields().getFirst(), Alias.class).child(), "last_name");
+        var limit = as(eval.child(), Limit.class);
+        var filter = as(limit.child(), Filter.class);
+        assertThat(as(filter.condition(), GreaterThan.class).left(), is(lAttr));
         var relation = as(filter.child(), EsRelation.class);
         assertThat(relation.output(), hasItem(lAttr));
     }
@@ -1663,48 +1663,53 @@ public class LocalLogicalPlanOptimizerTests extends ESTestCase {
             | EVAL a1 = LENGTH(last_name), a2 = LENGTH(last_name), a3 = LENGTH(last_name),
                    a4 = abs(LENGTH(last_name)) + a1 + LENGTH(first_name) * 3
             | WHERE a1 > 1 and LENGTH(last_name) > 1
-            | STATS l = SUM(LENGTH(last_name)) + AVG(a3)
+            | STATS l = SUM(LENGTH(last_name)) + AVG(a3) + SUM(LENGTH(first_name))
             """;
         LogicalPlan plan = localPlan(plan(query, analyzer), TEST_SEARCH_STATS);
 
         var project = as(plan, Project.class);
-        var eval1 = as(project.child(), Eval.class); // SUM + AVG
+        assertThat(Expressions.names(project.projections()), contains("l"));
+
+        // Eval - computes final aggregation result (SUM + AVG + SUM)
+        var eval1 = as(project.child(), Eval.class);
+        assertThat(eval1.fields(), hasSize(2));
+
+        // Limit[1000[INTEGER],false,false]
         var limit = as(eval1.child(), Limit.class);
+
+        // Aggregate with 4 aggregates: SUM for last_name, SUM and COUNT for AVG(a3), SUM for first_name
         var agg = as(limit.child(), Aggregate.class);
-        var eval2 = as(agg.child(), Eval.class); // Resolves the pushed LENGTH(last_name)
-        assertThat(eval2.fields(), hasSize(2));
+        assertThat(agg.aggregates(), hasSize(4));
 
-        Alias a3 = as(eval2.fields().getFirst(), Alias.class);
-        assertThat(a3.name(), equalTo("a3"));
-        Attribute a3Push = assertLengthPushdown(a3.child(), "last_name");
+        // Eval - pushdown fields: a3, LENGTH(last_name) for SUM, and LENGTH(first_name) for SUM
+        var evalPushdown = as(agg.child(), Eval.class);
+        assertThat(evalPushdown.fields(), hasSize(3));
+        Alias a3Alias = as(evalPushdown.fields().getFirst(), Alias.class);
+        assertThat(a3Alias.name(), equalTo("a3"));
+        Attribute lastNamePushDownAttr = assertLengthPushdown(a3Alias.child(), "last_name");
+        Alias lastNamePushdownAlias = as(evalPushdown.fields().get(1), Alias.class);
+        assertLengthPushdown(lastNamePushdownAlias.child(), "last_name");
+        Alias firstNamePushdownAlias = as(evalPushdown.fields().get(2), Alias.class);
+        Attribute firstNamePushDownAttr = assertLengthPushdown(firstNamePushdownAlias.child(), "first_name");
 
-        Alias sumInput = as(eval2.fields().getFirst(), Alias.class);
-        Attribute sumInputPush = assertLengthPushdown(sumInput.child(), "last_name");
+        // Verify aggregates reference the pushed down fields
+        var sumForLastName = as(as(agg.aggregates().get(0), Alias.class).child(), Sum.class);
+        assertThat(as(sumForLastName.field(), ReferenceAttribute.class).id(), equalTo(lastNamePushdownAlias.id()));
+        var sumForAvg = as(as(agg.aggregates().get(1), Alias.class).child(), Sum.class);
+        assertThat(as(sumForAvg.field(), ReferenceAttribute.class).id(), equalTo(a3Alias.id()));
+        var countForAvg = as(as(agg.aggregates().get(2), Alias.class).child(), Count.class);
+        assertThat(as(countForAvg.field(), ReferenceAttribute.class).id(), equalTo(a3Alias.id()));
+        var sumForFirstName = as(as(agg.aggregates().get(3), Alias.class).child(), Sum.class);
+        assertThat(as(sumForFirstName.field(), ReferenceAttribute.class).id(), equalTo(firstNamePushdownAlias.id()));
 
-        Filter filter = as(eval2.child(), Filter.class);
-        And and = as(filter.condition(), And.class);
-        GreaterThan left = as(and.left(), GreaterThan.class);
-        Expression a1 = left.left();
-        Attribute a1Push = assertLengthPushdown(a1, "last_name");
+        // Filter[LENGTH(last_name) > 1]
+        var filter = as(evalPushdown.child(), Filter.class);
+        assertLengthPushdown(as(filter.condition(), GreaterThan.class).left(), "last_name");
 
-        GreaterThan right = as(and.right(), GreaterThan.class);
-        Attribute filterPush = assertLengthPushdown(right.left(), "last_name");
-
-        EsRelation relation = as(filter.child(), EsRelation.class);
-        assertThat(relation.output(), hasItems(a3Push, sumInputPush, a1Push, filterPush));
-
-        assertThat(relation.output().stream().filter(a -> {
-            if (a instanceof FieldAttribute fa) {
-                if (fa.field() instanceof FunctionEsField fef) {
-                    return fef.functionConfig().function() == BlockLoaderFunctionConfig.Function.LENGTH;
-                }
-            }
-            return false;
-        }).toList(),
-            hasSize(
-                4 // Should be 1 - fix in https://github.com/elastic/elasticsearch/issues/137679
-            )
-        );
+        // EsRelation[test] - should contain the pushed-down field attribute
+        var relation = as(filter.child(), EsRelation.class);
+        assertThat(relation.output(), hasItem(lastNamePushDownAttr));
+        assertThat(relation.output(), hasItem(firstNamePushDownAttr));
     }
 
     public void testLengthInStatsTwice() {

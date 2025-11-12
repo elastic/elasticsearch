@@ -22,16 +22,21 @@ import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.settings.ClusterSettings;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xpack.oteldata.OTelPlugin;
 import org.elasticsearch.xpack.oteldata.otlp.OTLPMetricsTransportAction.MetricsResponse;
 import org.mockito.ArgumentCaptor;
 
 import java.util.Arrays;
 import java.util.List;
+import java.util.Set;
 import java.util.function.Consumer;
 
 import static org.elasticsearch.xpack.oteldata.otlp.OtlpUtils.keyValue;
@@ -56,7 +61,18 @@ public class OTLPMetricsTransportActionTests extends ESTestCase {
         client = mock(Client.class);
         when(client.prepareBulk()).thenAnswer(invocation -> new BulkRequestBuilder(client));
 
-        action = new OTLPMetricsTransportAction(mock(TransportService.class), mock(ActionFilters.class), mock(ThreadPool.class), client);
+        ClusterService clusterService = mock(ClusterService.class);
+        // setup clusterService.getClusterSettings() to return an empty ClusterSettings
+        ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, Set.of(OTelPlugin.USE_EXPONENTIAL_HISTOGRAM_FIELD_TYPE));
+        when(clusterService.getClusterSettings()).thenReturn(clusterSettings);
+
+        action = new OTLPMetricsTransportAction(
+            mock(TransportService.class),
+            mock(ActionFilters.class),
+            mock(ThreadPool.class),
+            client,
+            clusterService
+        );
     }
 
     public void testSuccess() throws Exception {

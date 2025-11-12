@@ -22,7 +22,7 @@ import java.util.List;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public class HistogramConverterTests extends ESTestCase {
+public class HistogramToTDigestConverterTests extends ESTestCase {
 
     @SuppressWarnings("unused")
     private final String name;
@@ -31,7 +31,7 @@ public class HistogramConverterTests extends ESTestCase {
     private final List<Double> expectedValues;
     private final boolean valid;
 
-    public HistogramConverterTests(
+    public HistogramToTDigestConverterTests(
         String name,
         HistogramDataPoint dataPoint,
         List<Long> expectedCounts,
@@ -61,9 +61,9 @@ public class HistogramConverterTests extends ESTestCase {
             return;
         }
         List<Long> actualCounts = new ArrayList<>();
-        HistogramConverter.counts(dataPoint, actualCounts::add);
+        TDigestConverter.counts(dataPoint, actualCounts::add);
         List<Double> actualValues = new ArrayList<>();
-        HistogramConverter.centroidValues(dataPoint, actualValues::add);
+        TDigestConverter.centroidValues(dataPoint, actualValues::add);
 
         assertEquals(expectedCounts, actualCounts);
         assertEquals(expectedValues.size(), actualValues.size());

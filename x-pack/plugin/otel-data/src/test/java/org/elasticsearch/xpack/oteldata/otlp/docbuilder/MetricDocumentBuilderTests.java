@@ -57,7 +57,10 @@ import static org.hamcrest.Matchers.nullValue;
 
 public class MetricDocumentBuilderTests extends ESTestCase {
 
-    private final MetricDocumentBuilder documentBuilder = new MetricDocumentBuilder(new BufferedByteStringAccessor());
+    private final MetricDocumentBuilder documentBuilder = new MetricDocumentBuilder(
+        new BufferedByteStringAccessor(),
+        MappingHints.DEFAULT_TDIGEST
+    );
     private final DataPointGroupingContext dataPointGroupingContext = new DataPointGroupingContext(new BufferedByteStringAccessor());
     private final long timestamp = randomLong();
     private final long startTimestamp = randomLong();

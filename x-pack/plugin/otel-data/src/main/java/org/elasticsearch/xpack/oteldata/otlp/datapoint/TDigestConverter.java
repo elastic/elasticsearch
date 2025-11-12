@@ -22,7 +22,7 @@ import org.elasticsearch.exponentialhistogram.ExponentialScaleUtils;
  * Elasticsearch exporter on GitHub
  * </a>
  */
-class HistogramConverter {
+class TDigestConverter {
 
     static <E extends Exception> void counts(ExponentialHistogramDataPoint dp, CheckedLongConsumer<E> counts) throws E {
         ExponentialHistogramDataPoint.Buckets negative = dp.getNegative();
@@ -106,23 +106,30 @@ class HistogramConverter {
             long count = dp.getBucketCounts(i);
             if (count != 0) {
                 double value;
-                if (i == 0) {
-                    // (-infinity, explicit_bounds[i]]
-                    value = dp.getExplicitBounds(i);
-                    if (value > 0) {
-                        value /= 2;
-                    }
-                } else if (i == size - 1) {
-                    // (explicit_bounds[i], +infinity)
-                    value = dp.getExplicitBounds(i - 1);
-                } else {
-                    // [explicit_bounds[i-1], explicit_bounds[i])
-                    // Use the midpoint between the boundaries.
-                    value = dp.getExplicitBounds(i - 1) + (dp.getExplicitBounds(i) - dp.getExplicitBounds(i - 1)) / 2.0;
-                }
+                value = getCentroid(dp, i);
                 values.accept(value);
             }
         }
+    }
+
+    public static double getCentroid(HistogramDataPoint dp, int bucketIndex) {
+        double value;
+        if (bucketIndex == 0) {
+            // (-infinity, explicit_bounds[i]]
+            value = dp.getExplicitBounds(bucketIndex);
+            if (value > 0) {
+                value /= 2;
+            }
+        } else if (bucketIndex == dp.getBucketCountsCount() - 1) {
+            // (explicit_bounds[i], +infinity)
+            value = dp.getExplicitBounds(bucketIndex - 1);
+        } else {
+            // [explicit_bounds[i-1], explicit_bounds[i])
+            // Use the midpoint between the boundaries.
+            value = dp.getExplicitBounds(bucketIndex - 1) + (dp.getExplicitBounds(bucketIndex) - dp.getExplicitBounds(bucketIndex - 1))
+                / 2.0;
+        }
+        return value;
     }
 
     interface CheckedLongConsumer<E extends Exception> {

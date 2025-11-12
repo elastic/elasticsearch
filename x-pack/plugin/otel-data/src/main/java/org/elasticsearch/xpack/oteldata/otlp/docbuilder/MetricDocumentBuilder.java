@@ -37,9 +37,11 @@ public class MetricDocumentBuilder {
 
     private final BufferedByteStringAccessor byteStringAccessor;
     private final BufferedMurmur3Hasher hasher = new BufferedMurmur3Hasher(0);
+    private final MappingHints defaultMappingHints;
 
-    public MetricDocumentBuilder(BufferedByteStringAccessor byteStringAccessor) {
+    public MetricDocumentBuilder(BufferedByteStringAccessor byteStringAccessor, MappingHints defaultMappingHints) {
         this.byteStringAccessor = byteStringAccessor;
+        this.defaultMappingHints = defaultMappingHints;
     }
 
     public BytesRef buildMetricDocument(
@@ -66,7 +68,7 @@ public class MetricDocumentBuilder {
         for (int i = 0, dataPointsSize = dataPoints.size(); i < dataPointsSize; i++) {
             DataPoint dataPoint = dataPoints.get(i);
             builder.field(dataPoint.getMetricName());
-            MappingHints mappingHints = MappingHints.fromAttributes(dataPoint.getAttributes());
+            MappingHints mappingHints = defaultMappingHints.withConfigFromAttributes(dataPoint.getAttributes());
             dataPoint.buildMetricValue(mappingHints, builder);
             String dynamicTemplate = dataPoint.getDynamicTemplate(mappingHints);
             if (dynamicTemplate != null) {

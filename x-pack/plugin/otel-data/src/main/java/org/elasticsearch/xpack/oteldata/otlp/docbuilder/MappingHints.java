@@ -10,14 +10,15 @@ package org.elasticsearch.xpack.oteldata.otlp.docbuilder;
 import io.opentelemetry.proto.common.v1.AnyValue;
 import io.opentelemetry.proto.common.v1.KeyValue;
 
+import org.elasticsearch.xpack.oteldata.OTelPlugin;
+
 import java.util.List;
 
 /**
  * Represents mapping hints that can be used to influence how data is indexed in Elasticsearch.
  * These hints can be provided by users via data point attributes.
  *
- * @param aggregateMetricDouble Indicates that the metric should be mapped as an aggregate_metric_double.
- *                              This hint is available for histogram and exponential histogram metrics.
+ * @param histogramMapping      Defines how histogram and exponential histogram metrics should be mapped.
  * @param docCount              Indicates that the metric should be mapped with a _doc_count field.
  *                              This hint is available for all metric types.
  *                              When used for a histogram, exponential histogram, or summary metric,
@@ -26,20 +27,28 @@ import java.util.List;
  *                              into the same document.
  *                              In these cases, the behavior is undefined but does not lead to data loss.
  */
-public record MappingHints(boolean aggregateMetricDouble, boolean docCount) {
+public record MappingHints(HistogramMapping histogramMapping, boolean docCount) {
 
     public static final String MAPPING_HINTS = "elasticsearch.mapping.hints";
     public static final String AGGREGATE_METRIC_DOUBLE = "aggregate_metric_double";
     public static final String DOC_COUNT = "_doc_count";
 
-    private static final MappingHints EMPTY = new MappingHints(false, false);
+    public static MappingHints DEFAULT_TDIGEST = new MappingHints(HistogramMapping.TDIGEST, false);
+    public static MappingHints DEFAULT_EXPONENTIAL_HISTOGRAM = new MappingHints(HistogramMapping.EXPONENTIAL_HISTOGRAM, false);
 
-    public static MappingHints fromAttributes(List<KeyValue> attributes) {
-        boolean aggregateMetricDouble = false;
-        boolean docCount = false;
+    public static MappingHints fromSettings(OTelPlugin.HistogramMappingSettingValues histogramSetting) {
+        return switch (histogramSetting) {
+            case HISTOGRAM -> DEFAULT_TDIGEST;
+            case EXPONENTIAL_HISTOGRAM -> DEFAULT_EXPONENTIAL_HISTOGRAM;
+        };
+    }
+
+    public MappingHints withConfigFromAttributes(List<KeyValue> attributes) {
         for (int i = 0, attributesSize = attributes.size(); i < attributesSize; i++) {
             KeyValue attribute = attributes.get(i);
             if (attribute.getKey().equals(MAPPING_HINTS)) {
+                HistogramMapping histoMapping = this.histogramMapping;
+                boolean docCount = this.docCount;
                 if (attribute.getValue().hasArrayValue()) {
                     List<AnyValue> valuesList = attribute.getValue().getArrayValue().getValuesList();
                     for (int j = 0, valuesListSize = valuesList.size(); j < valuesListSize; j++) {
@@ -47,21 +56,17 @@ public record MappingHints(boolean aggregateMetricDouble, boolean docCount) {
                         if (hint.hasStringValue()) {
                             String value = hint.getStringValue();
                             if (value.equals(AGGREGATE_METRIC_DOUBLE)) {
-                                aggregateMetricDouble = true;
+                                histoMapping = HistogramMapping.AGGREGATE_METRIC_DOUBLE;
                             } else if (value.equals(DOC_COUNT)) {
                                 docCount = true;
                             }
                         }
                     }
                 }
-                return new MappingHints(aggregateMetricDouble, docCount);
+                return new MappingHints(histoMapping, docCount);
             }
         }
-        return EMPTY;
-    }
-
-    public static MappingHints empty() {
-        return EMPTY;
+        return this;
     }
 
     public static boolean isMappingHintsAttribute(String attributeKey) {

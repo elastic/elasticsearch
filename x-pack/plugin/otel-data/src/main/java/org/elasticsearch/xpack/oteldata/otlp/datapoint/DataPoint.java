@@ -203,18 +203,22 @@ public interface DataPoint {
 
         @Override
         public void buildMetricValue(MappingHints mappingHints, XContentBuilder builder) throws IOException {
-            if (mappingHints.aggregateMetricDouble()) {
-                buildAggregateMetricDouble(builder, dataPoint.getSum(), dataPoint.getCount());
-            } else {
-                builder.startObject();
-                builder.startArray("counts");
-                HistogramConverter.counts(dataPoint, builder::value);
-                builder.endArray();
-                builder.startArray("values");
-                HistogramConverter.centroidValues(dataPoint, builder::value);
-                builder.endArray();
-                builder.endObject();
+            switch (mappingHints.histogramMapping()) {
+                case AGGREGATE_METRIC_DOUBLE -> buildAggregateMetricDouble(builder, dataPoint.getSum(), dataPoint.getCount());
+                case TDIGEST -> buildTDigest(builder);
+                case EXPONENTIAL_HISTOGRAM -> ExponentialHistogramConverter.buildExponentialHistogram(dataPoint, builder);
             }
+        }
+
+        private void buildTDigest(XContentBuilder builder) throws IOException {
+            builder.startObject();
+            builder.startArray("counts");
+            TDigestConverter.counts(dataPoint, builder::value);
+            builder.endArray();
+            builder.startArray("values");
+            TDigestConverter.centroidValues(dataPoint, builder::value);
+            builder.endArray();
+            builder.endObject();
         }
 
         @Override
@@ -224,11 +228,7 @@ public interface DataPoint {
 
         @Override
         public String getDynamicTemplate(MappingHints mappingHints) {
-            if (mappingHints.aggregateMetricDouble()) {
-                return "summary";
-            } else {
-                return "histogram";
-            }
+            return getHistogramDynamicTemplate(mappingHints);
         }
 
         @Override
@@ -269,18 +269,23 @@ public interface DataPoint {
 
         @Override
         public void buildMetricValue(MappingHints mappingHints, XContentBuilder builder) throws IOException {
-            if (mappingHints.aggregateMetricDouble()) {
-                buildAggregateMetricDouble(builder, dataPoint.getSum(), dataPoint.getCount());
-            } else {
-                builder.startObject();
-                builder.startArray("counts");
-                HistogramConverter.counts(dataPoint, builder::value);
-                builder.endArray();
-                builder.startArray("values");
-                HistogramConverter.centroidValues(dataPoint, builder::value);
-                builder.endArray();
-                builder.endObject();
+            switch (mappingHints.histogramMapping()) {
+                // TODO: reuse scratch
+                case EXPONENTIAL_HISTOGRAM -> ExponentialHistogramConverter.buildExponentialHistogram(dataPoint, builder, new ExponentialHistogramConverter.BucketBuffer());
+                case TDIGEST -> buildTDigest(builder);
+                case AGGREGATE_METRIC_DOUBLE -> buildAggregateMetricDouble(builder, dataPoint.getSum(), dataPoint.getCount());
             }
+        }
+
+        private void buildTDigest(XContentBuilder builder) throws IOException {
+            builder.startObject();
+            builder.startArray("counts");
+            TDigestConverter.counts(dataPoint, builder::value);
+            builder.endArray();
+            builder.startArray("values");
+            TDigestConverter.centroidValues(dataPoint, builder::value);
+            builder.endArray();
+            builder.endObject();
         }
 
         @Override
@@ -290,11 +295,7 @@ public interface DataPoint {
 
         @Override
         public String getDynamicTemplate(MappingHints mappingHints) {
-            if (mappingHints.aggregateMetricDouble()) {
-                return "summary";
-            } else {
-                return "histogram";
-            }
+            return getHistogramDynamicTemplate(mappingHints);
         }
 
         @Override
@@ -309,6 +310,14 @@ public interface DataPoint {
             }
             return true;
         }
+    }
+
+    private static String getHistogramDynamicTemplate(MappingHints mappingHints) {
+        return switch (mappingHints.histogramMapping()) {
+            case AGGREGATE_METRIC_DOUBLE -> "summary";
+            case TDIGEST -> "histogram";
+            case EXPONENTIAL_HISTOGRAM -> "exponential_histogram";
+        };
     }
 
     record Summary(SummaryDataPoint dataPoint, Metric metric) implements DataPoint {

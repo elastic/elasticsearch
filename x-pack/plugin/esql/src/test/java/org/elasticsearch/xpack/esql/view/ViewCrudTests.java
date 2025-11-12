@@ -49,7 +49,7 @@ public class ViewCrudTests extends AbstractViewTestCase {
         assertView(viewsApi.get(name), name, view);
 
         viewsApi.delete(name);
-        assertThat(viewsApi.get(name).size(), equalTo(0));
+        assertViewMissing(viewsApi, name, 0);
     }
 
     public void testList() throws Exception {
@@ -66,8 +66,7 @@ public class ViewCrudTests extends AbstractViewTestCase {
             String name = "my-view-" + i;
             assertThat(viewsApi.get(name).size(), equalTo(1));
             viewsApi.delete(name);
-            expectThrows(name, IllegalArgumentException.class, equalTo("Views do not exist: " + name), () -> viewsApi.get(name));
-            assertThat(viewsApi.get().size(), equalTo(9 - i));
+            assertViewMissing(viewsApi, name, 9 - i);
         }
     }
 
@@ -84,7 +83,7 @@ public class ViewCrudTests extends AbstractViewTestCase {
         assertView(viewsApi.get(name), name, view);
 
         viewsApi.delete(name);
-        assertThat(viewsApi.get(name).size(), equalTo(0));
+        assertViewMissing(viewsApi, name, 0);
     }
 
     public void testPutValidation() throws Exception {
@@ -131,16 +130,22 @@ public class ViewCrudTests extends AbstractViewTestCase {
     }
 
     public void testGetValidation() throws Exception {
-        String nullOrEmptyName = randomBoolean() ? "" : null;
-
-        IllegalArgumentException error = expectThrows(IllegalArgumentException.class, () -> viewsApi.get(nullOrEmptyName));
-        assertThat(error.getMessage(), equalTo("name is missing or empty"));
-        assertThat(viewsApi.get("null-view").size(), equalTo(0));
-    }
-
-    public void testListValidation() throws Exception {
-        Map<String, View> result = viewsApi.get("null-view");
-        assertTrue(result.isEmpty());
+        expectThrows("null name", IllegalArgumentException.class, equalTo("name is missing or empty"), () -> viewsApi.get((String) null));
+        expectThrows("empty name", IllegalArgumentException.class, equalTo("name is missing or empty"), () -> viewsApi.get(""));
+        expectThrows("missing view", IllegalArgumentException.class, equalTo("Views do not exist: name"), () -> viewsApi.get("name"));
+        expectThrows(
+            "missing views",
+            IllegalArgumentException.class,
+            equalTo("Views do not exist: v1, v2"),
+            () -> viewsApi.get("v1", "v2")
+        );
+        viewsApi.save("v2", randomView(XContentType.JSON));
+        expectThrows(
+            "partially missing views",
+            IllegalArgumentException.class,
+            equalTo("Views do not exist: v1, v3"),
+            () -> viewsApi.get("v1", "v2", "v3")
+        );
     }
 
     private void assertView(Map<String, View> result, String name, View view) {
@@ -148,5 +153,10 @@ public class ViewCrudTests extends AbstractViewTestCase {
         View found = result.get(name);
         assertThat(found, not(nullValue()));
         assertThat(found, equalTo(view));
+    }
+
+    private void assertViewMissing(TestViewsApi viewsApi, String name, int viewCount) throws Exception {
+        expectThrows(name, IllegalArgumentException.class, equalTo("Views do not exist: " + name), () -> viewsApi.get(name));
+        assertThat(viewsApi.get().size(), equalTo(viewCount));
     }
 }

@@ -60,6 +60,10 @@ public abstract class AbstractViewTestCase extends ESSingleNodeTestCase {
         }
 
         public Map<String, View> get(String... names) throws Exception {
+            if (names == null || names.length == 1 && names[0] == null) {
+                // This is only for consistent testing, in production this is already checked in the REST API
+                throw new IllegalArgumentException("name is missing or empty");
+            }
             TestResponseCapture<GetViewAction.Response> responseCapture = new TestResponseCapture<>();
             TransportGetViewAction getViewAction = getInstanceFromNode(TransportGetViewAction.class);
             GetViewAction.Request request = new GetViewAction.Request(TimeValue.THIRTY_SECONDS, names);

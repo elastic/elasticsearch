@@ -447,13 +447,13 @@ public class RequestExecutorServiceTests extends ESTestCase {
         assertThat(service.remainingQueueCapacity(requestManager), is(2));
     }
 
-    public void testChangingCapacity_DoesNotRejectsOverflowTasks_BecauseOfQueueFull() throws ExecutionException, InterruptedException,
-        TimeoutException {
+    public void testChangingCapacity_DoesNotRejectOverflowTasks_BecauseOfQueueFull() throws Exception {
         var requestSender = mock(RetryingHttpSender.class);
 
         var settings = createRequestExecutorServiceSettings(3);
         var service = new RequestExecutorService(threadPool, null, settings, requestSender);
 
+        // Request 1
         service.submitTaskToRateLimitedExecutionPath(
             new RequestTask(
                 RequestManagerTests.createMockWithRateLimitingEnabled(requestSender, "id"),
@@ -463,6 +463,8 @@ public class RequestExecutorServiceTests extends ESTestCase {
                 new PlainActionFuture<>()
             )
         );
+
+        // Request 2
         service.submitTaskToRateLimitedExecutionPath(
             new RequestTask(
                 RequestManagerTests.createMockWithRateLimitingEnabled(requestSender, "id"),
@@ -475,18 +477,26 @@ public class RequestExecutorServiceTests extends ESTestCase {
 
         PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
         var requestManager = RequestManagerTests.createMockWithRateLimitingEnabled(requestSender, "id");
+
+        // Request 3
         service.submitTaskToRateLimitedExecutionPath(
             new RequestTask(requestManager, new EmbeddingsInput(List.of(), InputTypeTests.randomWithNull()), null, threadPool, listener)
         );
+
+        // We expect three requests in the queue (service is not started yet, so no processing happens)
         assertThat(service.queueSize(), is(3));
 
+        // This should not reject existing tasks in the queue
         settings.setQueueCapacity(1);
 
         var waitToShutdown = new CountDownLatch(1);
         var waitToReturnFromSend = new CountDownLatch(1);
+
         // There is a request already queued, and its execution path will initiate shutting down the service
         doAnswer(invocation -> {
+            // Signals shutdown (request in flight)
             waitToShutdown.countDown();
+            // Wait for signal to return from requestSender.send(...)
             waitToReturnFromSend.await(TIMEOUT.getSeconds(), TimeUnit.SECONDS);
             return Void.TYPE;
         }).when(requestSender).send(any(), any(), any(), any(), any());
@@ -498,7 +508,8 @@ public class RequestExecutorServiceTests extends ESTestCase {
         executorTermination.get(TIMEOUT.millis(), TimeUnit.MILLISECONDS);
         assertTrue(service.isTerminated());
         assertThat(service.remainingQueueCapacity(requestManager), is(1));
-        assertThat(service.queueSize(), is(0));
+        // Allow some time for the service to clean up queues
+        assertBusy(() -> assertThat(service.queueSize(), is(0)));
 
         var thrownException = expectThrows(
             EsRejectedExecutionException.class,

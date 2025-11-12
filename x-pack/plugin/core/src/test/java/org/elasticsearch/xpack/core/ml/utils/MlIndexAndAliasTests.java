@@ -535,7 +535,7 @@ public class MlIndexAndAliasTests extends ESTestCase {
             Arrays.asList(currentIndices)
         );
         var actions = request.request().getAliasActions();
-        assertThat(actions, hasSize(10));
+        assertThat(actions, hasSize(6));
 
         // The order in which the alias actions are created
         // is not preserved so look for the item in the list
@@ -545,25 +545,13 @@ public class MlIndexAndAliasTests extends ESTestCase {
                 newIndex,
                 IndicesAliasesRequest.AliasActions.Type.ADD
             );
-            // There are two alias action requests to add the write alias.
-            // The first occurs if the write alias is being moved from the old index
-            // to the new index.
-            // The second occurs at the time a read alias is being added to the new index.
-            // This ensures a write alias should always exist on the latest index, even if
-            // it was missing from the old one.
-            assertThat(actions.stream().filter(expected::matches).count(), equalTo(2L));
+
+            assertThat(actions.stream().filter(expected::matches).count(), equalTo(1L));
 
             expected = new AliasActionMatcher(
                 AnomalyDetectorsIndex.resultsWriteAlias(job),
                 anomaliesIndex,
                 IndicesAliasesRequest.AliasActions.Type.REMOVE
-            );
-            assertThat(actions.stream().filter(expected::matches).count(), equalTo(1L));
-
-            expected = new AliasActionMatcher(
-                AnomalyDetectorsIndex.jobResultsAliasedName(job),
-                newIndex,
-                IndicesAliasesRequest.AliasActions.Type.ADD
             );
             assertThat(actions.stream().filter(expected::matches).count(), equalTo(1L));
 
@@ -587,10 +575,6 @@ public class MlIndexAndAliasTests extends ESTestCase {
 
     private record AliasActionMultiIndicesMatcher(String aliasName, String[] indices, IndicesAliasesRequest.AliasActions.Type actionType) {
         boolean matches(IndicesAliasesRequest.AliasActions aliasAction) {
-
-            List<String> aliasIndices = Arrays.stream(aliasAction.indices()).toList();
-            List<String> expectedIndices = Arrays.stream(indices).toList();
-
             return aliasAction.actionType() == actionType
                 && aliasAction.aliases()[0].equals(aliasName)
                 && Arrays.stream(aliasAction.indices()).toList().equals(Arrays.stream(indices).toList());

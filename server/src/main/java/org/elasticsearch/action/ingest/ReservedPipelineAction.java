@@ -109,6 +109,11 @@ public class ReservedPipelineAction implements ReservedClusterStateHandler<List<
     }
 
     @Override
+    public ClusterState remove(TransformState prevState) throws Exception {
+        return transform(List.of(), prevState).state();
+    }
+
+    @Override
     public List<PutPipelineRequest> fromXContent(XContentParser parser) throws IOException {
         List<PutPipelineRequest> result = new ArrayList<>();
 

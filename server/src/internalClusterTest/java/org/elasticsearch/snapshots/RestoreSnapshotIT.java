@@ -1103,7 +1103,7 @@ public class RestoreSnapshotIT extends AbstractSnapshotIntegTestCase {
         }
     }
 
-    public void testRenameReplacementTooLongRejected() throws Exception {
+    public void testRenameReplacementValidation() throws Exception {
         String repoName = "test-repo";
         createRepository(repoName, "fs");
 
@@ -1126,11 +1126,10 @@ public class RestoreSnapshotIT extends AbstractSnapshotIntegTestCase {
                 .prepareRestoreSnapshot(TEST_REQUEST_TIMEOUT, repoName, snapshotName)
                 .setIndices(indexName)
                 .setRenamePattern("b")
-                .setRenameReplacement("1".repeat(10_000_000))
+                .setRenameReplacement("1".repeat(randomIntBetween(256, 10_000_000)))
                 .setWaitForCompletion(true)
                 .get()
         );
-
         assertThat(exception.getMessage(), containsString("rename_replacement"));
         assertThat(exception.getMessage(), containsString("exceeds maximum"));
 
@@ -1146,7 +1145,6 @@ public class RestoreSnapshotIT extends AbstractSnapshotIntegTestCase {
                 .setWaitForCompletion(true)
                 .get()
         );
-
         assertThat(exception.getMessage(), containsString("rename_replacement"));
 
         logger.info("--> restore with valid 255 character rename_replacement (should succeed)");
@@ -1158,7 +1156,27 @@ public class RestoreSnapshotIT extends AbstractSnapshotIntegTestCase {
             .setRenameReplacement("a".repeat(255))
             .setWaitForCompletion(true)
             .get();
-
         assertThat(restoreResponse.getRestoreInfo().failedShards(), equalTo(0));
+        assertTrue("Renamed index should exist", indexExists("test-restored-1"));
+        ensureGreen("test-restored-1");
+        assertDocCount("test-restored-1", 10L);
+
+        // Clean up before next test
+        cluster().wipeIndices("test-restored-1");
+
+        logger.info("--> restore with rename pattern that creates too-long index name (should fail)");
+        InvalidIndexNameException invalidIndexNameException = expectThrows(
+            InvalidIndexNameException.class,
+            () -> client().admin()
+                .cluster()
+                .prepareRestoreSnapshot(TEST_REQUEST_TIMEOUT, repoName, snapshotName)
+                .setIndices(indexName)
+                .setRenamePattern("b")  // Matches each b individually
+                .setRenameReplacement("aa")  // Would create 510 chars
+                .setWaitForCompletion(true)
+                .get()
+        );
+        assertThat(invalidIndexNameException.getMessage(), containsString("Invalid index name"));
+
     }
 }

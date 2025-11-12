@@ -31,21 +31,16 @@ import java.util.List;
  * }
  * </pre>
  */
-public final class GenericDenseEmbeddingByteResults extends AbstractDenseEmbeddingByteResults {
+public final class GenericDenseEmbeddingByteResults extends EmbeddingByteResults {
     public static final String NAME = "embedding_byte_results";
     public static final String EMBEDDINGS_BYTES = "embeddings_bytes";
 
     public GenericDenseEmbeddingByteResults(List<Embedding> embeddings) {
-        super(embeddings);
+        super(embeddings, EMBEDDINGS_BYTES);
     }
 
     public GenericDenseEmbeddingByteResults(StreamInput in) throws IOException {
-        super(in);
-    }
-
-    @Override
-    public String getArrayName() {
-        return EMBEDDINGS_BYTES;
+        super(in, EMBEDDINGS_BYTES);
     }
 
     @Override

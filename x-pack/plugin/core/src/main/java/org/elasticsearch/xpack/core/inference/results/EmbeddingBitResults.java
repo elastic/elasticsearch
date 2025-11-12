@@ -28,21 +28,21 @@ import java.util.Objects;
  */
 // Note: inheriting from AbstractDenseEmbeddingByteResults gives a bad implementation of the
 // Embedding.merge method for bits. TODO: implement a proper merge method
-public abstract class AbstractDenseEmbeddingBitResults implements DenseEmbeddingResults<AbstractDenseEmbeddingByteResults.Embedding> {
-    private final List<AbstractDenseEmbeddingByteResults.Embedding> embeddings;
+public abstract class EmbeddingBitResults implements DenseEmbeddingResults<EmbeddingByteResults.Embedding> {
+    private final List<EmbeddingByteResults.Embedding> embeddings;
+    private final String arrayName;
 
-    public AbstractDenseEmbeddingBitResults(List<AbstractDenseEmbeddingByteResults.Embedding> embeddings) {
+    public EmbeddingBitResults(List<EmbeddingByteResults.Embedding> embeddings, String arrayName) {
         this.embeddings = embeddings;
+        this.arrayName = arrayName;
     }
 
-    public AbstractDenseEmbeddingBitResults(StreamInput in) throws IOException {
-        this(in.readCollectionAsList(AbstractDenseEmbeddingByteResults.Embedding::new));
+    public EmbeddingBitResults(StreamInput in, String arrayName) throws IOException {
+        this(in.readCollectionAsList(EmbeddingByteResults.Embedding::new), arrayName);
     }
-
-    public abstract String getArrayName();
 
     @Override
-    public List<AbstractDenseEmbeddingByteResults.Embedding> embeddings() {
+    public List<EmbeddingByteResults.Embedding> embeddings() {
         return embeddings;
     }
 
@@ -57,7 +57,7 @@ public abstract class AbstractDenseEmbeddingBitResults implements DenseEmbedding
 
     @Override
     public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params params) {
-        return ChunkedToXContentHelper.array(getArrayName(), embeddings.iterator());
+        return ChunkedToXContentHelper.array(arrayName, embeddings.iterator());
     }
 
     @Override
@@ -67,12 +67,12 @@ public abstract class AbstractDenseEmbeddingBitResults implements DenseEmbedding
 
     @Override
     public List<? extends InferenceResults> transformToCoordinationFormat() {
-        return embeddings.stream().map(embedding -> new MlDenseEmbeddingResults(getArrayName(), embedding.toDoubleArray(), false)).toList();
+        return embeddings.stream().map(embedding -> new MlDenseEmbeddingResults(arrayName, embedding.toDoubleArray(), false)).toList();
     }
 
     public Map<String, Object> asMap() {
         Map<String, Object> map = new LinkedHashMap<>();
-        map.put(getArrayName(), embeddings);
+        map.put(arrayName, embeddings);
 
         return map;
     }
@@ -81,7 +81,7 @@ public abstract class AbstractDenseEmbeddingBitResults implements DenseEmbedding
     public boolean equals(Object o) {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
-        AbstractDenseEmbeddingBitResults that = (AbstractDenseEmbeddingBitResults) o;
+        EmbeddingBitResults that = (EmbeddingBitResults) o;
         return Objects.equals(embeddings, that.embeddings);
     }
 

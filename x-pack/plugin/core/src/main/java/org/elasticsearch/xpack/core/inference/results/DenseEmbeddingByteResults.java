@@ -31,22 +31,17 @@ import java.util.List;
  * }
  * </pre>
  */
-public final class DenseEmbeddingByteResults extends AbstractDenseEmbeddingByteResults {
+public final class DenseEmbeddingByteResults extends EmbeddingByteResults {
     // This name is a holdover from before this class was renamed
     public static final String NAME = "text_embedding_service_byte_results";
     public static final String TEXT_EMBEDDING_BYTES = "text_embedding_bytes";
 
-    public DenseEmbeddingByteResults(List<AbstractDenseEmbeddingByteResults.Embedding> embeddings) {
-        super(embeddings);
+    public DenseEmbeddingByteResults(List<EmbeddingByteResults.Embedding> embeddings) {
+        super(embeddings, TEXT_EMBEDDING_BYTES);
     }
 
     public DenseEmbeddingByteResults(StreamInput in) throws IOException {
-        super(in);
-    }
-
-    @Override
-    public String getArrayName() {
-        return TEXT_EMBEDDING_BYTES;
+        super(in, TEXT_EMBEDDING_BYTES);
     }
 
     @Override

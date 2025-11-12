@@ -32,25 +32,20 @@ import java.util.List;
  * }
  * </pre>
  */
-public final class GenericDenseEmbeddingFloatResults extends AbstractDenseEmbeddingFloatResults {
+public final class GenericDenseEmbeddingFloatResults extends EmbeddingFloatResults {
     public static final String NAME = "embedding_float_results";
     public static final String EMBEDDINGS = "embeddings";
 
     public GenericDenseEmbeddingFloatResults(List<Embedding> embeddings) {
-        super(embeddings);
+        super(embeddings, EMBEDDINGS);
     }
 
     public GenericDenseEmbeddingFloatResults(StreamInput in) throws IOException {
-        super(in);
+        super(in, EMBEDDINGS);
     }
 
     public static GenericDenseEmbeddingFloatResults of(List<? extends InferenceResults> results) {
         return new GenericDenseEmbeddingFloatResults(getEmbeddingsFromResults(results));
-    }
-
-    @Override
-    public String getArrayName() {
-        return EMBEDDINGS;
     }
 
     @Override

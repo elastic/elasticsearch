@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.core.inference.results;
 
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.inference.InferenceResults;
-import org.elasticsearch.inference.TaskType;
 
 import java.io.IOException;
 import java.util.List;
@@ -33,26 +32,21 @@ import java.util.List;
  * }
  * </pre>
  */
-public final class DenseEmbeddingFloatResults extends AbstractDenseEmbeddingFloatResults {
+public final class DenseEmbeddingFloatResults extends EmbeddingFloatResults {
     // This name is a holdover from before this class was renamed
     public static final String NAME = "text_embedding_service_results";
-    public static final String TEXT_EMBEDDING = TaskType.TEXT_EMBEDDING.toString();
+    public static final String TEXT_EMBEDDING = "text_embedding";
 
-    public DenseEmbeddingFloatResults(List<AbstractDenseEmbeddingFloatResults.Embedding> embeddings) {
-        super(embeddings);
+    public DenseEmbeddingFloatResults(List<EmbeddingFloatResults.Embedding> embeddings) {
+        super(embeddings, TEXT_EMBEDDING);
     }
 
     public DenseEmbeddingFloatResults(StreamInput in) throws IOException {
-        super(in);
+        super(in, TEXT_EMBEDDING);
     }
 
     public static DenseEmbeddingFloatResults of(List<? extends InferenceResults> results) {
         return new DenseEmbeddingFloatResults(getEmbeddingsFromResults(results));
-    }
-
-    @Override
-    public String getArrayName() {
-        return TEXT_EMBEDDING;
     }
 
     @Override

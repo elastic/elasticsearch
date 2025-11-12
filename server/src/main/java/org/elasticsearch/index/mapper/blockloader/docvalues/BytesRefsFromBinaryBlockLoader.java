@@ -13,6 +13,7 @@ import org.apache.lucene.index.BinaryDocValues;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.index.mapper.BlockLoader;
 
 import java.io.IOException;
 
@@ -50,6 +51,17 @@ public class BytesRefsFromBinaryBlockLoader extends BlockDocValuesReader.DocValu
 
         BytesRefsFromBinary(BinaryDocValues docValues) {
             super(docValues);
+        }
+
+        @Override
+        public BlockLoader.Block read(BlockFactory factory, Docs docs, int offset, boolean nullsFiltered) throws IOException {
+            if (docValues instanceof BlockLoader.OptionalColumnAtATimeReader direct) {
+                BlockLoader.Block block = direct.tryRead(factory, docs, offset, nullsFiltered, null, false);
+                if (block != null) {
+                    return block;
+                }
+            }
+            return super.read(factory, docs, offset, nullsFiltered);
         }
 
         @Override

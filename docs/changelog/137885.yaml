@@ -1,5 +1,11 @@
 pr: 137885
 summary: Deprecation message for lenient Boolean parsing
 area: Infra/Logging
-type: known-issue
+type: deprecation
 issues: []
+deprecation:
+  title: Deprecation message for lenient Boolean parsing
+  area: Infra/Logging
+  details: Please describe the details of this change for the release notes. You can
+    use asciidoc.
+  impact: Please describe the impact of this change to users

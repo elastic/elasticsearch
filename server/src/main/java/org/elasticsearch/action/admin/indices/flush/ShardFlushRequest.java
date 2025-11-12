@@ -21,11 +21,12 @@ import java.io.IOException;
 public class ShardFlushRequest extends ReplicationRequest<ShardFlushRequest> {
 
     private final FlushRequest request;
+    private static final ActiveShardCount DEFAULT_ACTIVE_SHARD_COUNT = ActiveShardCount.NONE;
 
     public ShardFlushRequest(FlushRequest request, ShardId shardId) {
         super(shardId);
         this.request = request;
-        this.waitForActiveShards = ActiveShardCount.NONE; // don't wait for any active shards before proceeding, by default
+        this.waitForActiveShards = DEFAULT_ACTIVE_SHARD_COUNT; // don't wait for any active shards before proceeding, by default
     }
 
     /**
@@ -36,7 +37,7 @@ public class ShardFlushRequest extends ReplicationRequest<ShardFlushRequest> {
     public ShardFlushRequest(FlushRequest request, ShardId shardId, SplitShardCountSummary reshardSplitShardCountSummary) {
         super(shardId, reshardSplitShardCountSummary);
         this.request = request;
-        this.waitForActiveShards = ActiveShardCount.NONE; // don't wait for any active shards before proceeding, by default
+        this.waitForActiveShards = DEFAULT_ACTIVE_SHARD_COUNT; // don't wait for any active shards before proceeding, by default
     }
 
     public ShardFlushRequest(StreamInput in) throws IOException {

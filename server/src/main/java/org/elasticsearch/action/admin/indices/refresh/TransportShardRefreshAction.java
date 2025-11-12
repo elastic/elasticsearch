@@ -51,7 +51,7 @@ public class TransportShardRefreshAction extends TransportReplicationAction<
     public static final String SOURCE_API = "api";
 
     private final Executor refreshExecutor;
-    protected final ProjectResolver projectResolver;
+    private final ProjectResolver projectResolver;
 
     @Inject
     public TransportShardRefreshAction(

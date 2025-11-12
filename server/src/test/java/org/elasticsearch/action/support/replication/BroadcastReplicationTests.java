@@ -247,12 +247,12 @@ public class BroadcastReplicationTests extends ESTestCase {
             index
         );
         logger.debug("--> using initial state:\n{}", clusterService.state());
-        List<Tuple<ShardId, SplitShardCountSummary>> shards = broadcastReplicationAction.shards(
+        List<TransportBroadcastReplicationAction.ShardRecord> shards = broadcastReplicationAction.shards(
             new DummyBroadcastRequest().indices(shardId.getIndexName()),
             clusterState.projectState(projectId)
         );
         assertThat(shards.size(), equalTo(1));
-        assertThat(shards.get(0).v1(), equalTo(shardId));
+        assertThat(shards.get(0).shardId(), equalTo(shardId));
     }
 
     private class TestBroadcastReplicationAction extends TransportBroadcastReplicationAction<

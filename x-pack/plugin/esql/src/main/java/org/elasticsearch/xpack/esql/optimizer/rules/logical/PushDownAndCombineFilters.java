@@ -145,14 +145,7 @@ public final class PushDownAndCombineFilters extends OptimizerRules.Parameterize
         List<Expression> leftFilters = new ArrayList<>(filters);
 
         AttributeSet leftOutput = ij.left().outputSet();
-        // AttributeSet rightGroupings = AttributeSet.of(right.);
-        // right.collect(p -> {
-        // if (p instanceof Aggregate agg) {
-        // return AttributeSet.of(Expressions.asAttributes(agg.groupings()));
-        // }
-        // });
         AttributeSet rightOutput = AttributeSet.of(ij.config().rightFields());
-        // rightOutput.retainAll(ij.right().outputSet());
 
         leftFilters.removeIf(f -> {
             if (f.references().subsetOf(rightOutput)) {
@@ -186,6 +179,8 @@ public final class PushDownAndCombineFilters extends OptimizerRules.Parameterize
                 ? scopeInlineStatsFilter(Predicates.splitAnd(filter.condition()), ij)
                 : scopeFilter(Predicates.splitAnd(filter.condition()), left, right);
 
+            // For InlineJoin, in EsqlSession the left-hand side becomes the source for the right-hand side replacing the StubRelation
+            // and, as such, the filters used on the left-hand side are also used on the right-hand side.
             var pushableToLeftSide = join instanceof InlineJoin ? scoped.commonFilters() : scoped.leftFilters();
             var pushableToRightSide = scoped.rightFilters();
             var commonFilters = join instanceof InlineJoin ? scoped.leftFilters() : scoped.commonFilters();
@@ -197,12 +192,6 @@ public final class PushDownAndCombineFilters extends OptimizerRules.Parameterize
                 // update the join with the new left child
                 join = (Join) join.replaceLeft(left);
                 // we completely applied the left filters, so we can remove them from the scoped filters
-                // if (join instanceof InlineJoin) {
-                // // for InlineJoin the left filters are the common filters
-                // scoped = new ScopedFilter(List.of(), scoped.leftFilters, scoped.rightFilters);
-                // } else {
-                // scoped = new ScopedFilter(scoped.commonFilters(), List.of(), scoped.rightFilters);
-                // }
                 scoped = new ScopedFilter(commonFilters, List.of(), scoped.rightFilters);
                 optimizationApplied = true;
             }

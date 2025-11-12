@@ -18,10 +18,12 @@ import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
+import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
@@ -86,6 +88,8 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.wildcardLike;
 import static org.elasticsearch.xpack.esql.core.tree.Source.EMPTY;
 import static org.elasticsearch.xpack.esql.plan.logical.join.InlineJoin.firstSubPlan;
 import static org.elasticsearch.xpack.esql.session.EsqlSession.newMainPlan;
+import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.mockito.Mockito.mock;
@@ -1600,8 +1604,8 @@ public class PushDownAndCombineFiltersTests extends AbstractLogicalPlanOptimizer
         );
         var resultWrapper = new LocalRelation(subPlans.stubReplacedSubPlan().source(), schema, LocalSupplier.of(new Page(blocks)));
         subPlansResults.add(resultWrapper);
-        LogicalPlan newMainPlan = newMainPlan(plan, subPlans, resultWrapper);
-        firstSubPlan = firstSubPlan(newMainPlan, subPlansResults).stubReplacedSubPlan();
+        // this is Second InlineJoin stubReplacedSubPlan
+        firstSubPlan = firstSubPlan(newMainPlan(plan, subPlans, resultWrapper), subPlansResults).stubReplacedSubPlan();
 
         // first InlineJoin right side
         var right = as(ij.right(), Project.class);
@@ -1758,6 +1762,7 @@ public class PushDownAndCombineFiltersTests extends AbstractLogicalPlanOptimizer
         var resultWrapper = new LocalRelation(subPlans.stubReplacedSubPlan().source(), schema, LocalSupplier.of(new Page(blocks)));
         subPlansResults.add(resultWrapper);
         LogicalPlan newMainPlan = newMainPlan(plan, subPlans, resultWrapper);
+        // this is Second InlineJoin stubReplacedSubPlan
         firstSubPlan = firstSubPlan(newMainPlan, subPlansResults).stubReplacedSubPlan();
 
         // first InlineJoin right side
@@ -1776,5 +1781,350 @@ public class PushDownAndCombineFiltersTests extends AbstractLogicalPlanOptimizer
         // the IS NOT NULL filter is the same as the one pushed down on the left side of the first InlineJoin
         var firstSubPlanFilter = as(firstSubPlanAggregate.child(), Filter.class);
         assertEquals(firstSubPlanFilter.condition(), left.condition());
+    }
+
+    /**
+     * EsqlProject[[avgByL{r}#5, avgByG{r}#9, languages{f}#22, gender{f}#21, emp_no{f}#19]]
+     * \_Limit[1000[INTEGER],false,false]
+     *   \_Filter[avgByL{r}#5 > 40000[INTEGER]]
+     *     \_InlineJoin[LEFT,[gender{f}#21, languages{f}#22],[gender{r}#21, languages{r}#22]]
+     *       |_Filter[ISNOTNULL(gender{f}#21)]
+     *       | \_InlineJoin[LEFT,[languages{f}#22],[languages{r}#22]]
+     *       |   |_Filter[languages{f}#22 > 3[INTEGER]]
+     *       |   | \_EsRelation[employees][_meta_field{f}#25, emp_no{f}#19, first_name{f}#20, ..]
+     *       |   \_Project[[avgByL{r}#5, languages{f}#22]]
+     *       |     \_Eval[[$$SUM$avgByL$0{r$}#31 / $$COUNT$avgByL$1{r$}#32 AS avgByL#5]]
+     *       |       \_Aggregate[[languages{f}#22],[SUM(salary{f}#24,true[BOOLEAN],PT0S[TIME_DURATION],compensated[KEYWORD]) AS
+     * $$SUM$avgByL$0#31, COUNT(salary{f}#24,true[BOOLEAN],PT0S[TIME_DURATION]) AS $$COUNT$avgByL$1#32, languages{f}#22]]
+     *       |         \_StubRelation[[_meta_field{f}#25, emp_no{f}#19, first_name{f}#20, gender{f}#21, hire_date{f}#26, job{f}#27,
+     * job.raw{f}#28, languages{f}#22, last_name{f}#23, long_noidx{f}#29, salary{f}#24]]
+     *       \_Project[[avgByG{r}#9, gender{f}#21, languages{f}#22]]
+     *         \_Eval[[$$SUM$avgByG$0{r$}#33 / $$COUNT$avgByG$1{r$}#34 AS avgByG#9]]
+     *           \_Aggregate[[gender{f}#21, languages{f}#22],[SUM(salary{f}#24,true[BOOLEAN],PT0S[TIME_DURATION],compensated[KEYWORD]) AS $$
+     * SUM$avgByG$0#33, COUNT(salary{f}#24,true[BOOLEAN],PT0S[TIME_DURATION]) AS $$COUNT$avgByG$1#34, gender{f}#21, languages{f}#22]]
+     *             \_StubRelation[[_meta_field{f}#25, emp_no{f}#19, first_name{f}#20, gender{f}#21, hire_date{f}#26, job{f}#27,
+     * job.raw{f}#28, last_name{f}#23, long_noidx{f}#29, salary{f}#24, avgByL{r}#5, languages{f}#22]]
+     *
+     * First InlineJoin stubReplacedSubPlan:
+     * Project[[avgByL{r}#5, languages{f}#22]]
+     * \_Eval[[$$SUM$avgByL$0{r$}#31 / $$COUNT$avgByL$1{r$}#32 AS avgByL#5]]
+     *   \_Aggregate[[languages{f}#22],[SUM(salary{f}#24,true[BOOLEAN],PT0S[TIME_DURATION],compensated[KEYWORD]) AS $$SUM$avgByL$0#3
+     * 1, COUNT(salary{f}#24,true[BOOLEAN],PT0S[TIME_DURATION]) AS $$COUNT$avgByL$1#32, languages{f}#22]]
+     *     \_Filter[languages{f}#22 > 3[INTEGER]]
+     *       \_EsRelation[employees][_meta_field{f}#25, emp_no{f}#19, first_name{f}#20, ..]
+     *
+     * Second InlineJoin stubReplacedSubPlan:
+     * Project[[avgByG{r}#9, gender{f}#21, languages{f}#22]]
+     * \_Eval[[$$SUM$avgByG$0{r$}#33 / $$COUNT$avgByG$1{r$}#34 AS avgByG#9]]
+     *   \_Aggregate[[gender{f}#21, languages{f}#22],[SUM(salary{f}#24,true[BOOLEAN],PT0S[TIME_DURATION],compensated[KEYWORD]) AS $$
+     * SUM$avgByG$0#33, COUNT(salary{f}#24,true[BOOLEAN],PT0S[TIME_DURATION]) AS $$COUNT$avgByG$1#34, gender{f}#21, languages{f}#22]]
+     *     \_Filter[ISNOTNULL(gender{f}#21)]
+     *       \_InlineJoin[LEFT,[languages{f}#22],[languages{r}#22]]
+     *         |_Filter[languages{f}#22 > 3[INTEGER]]
+     *         | \_EsRelation[employees][_meta_field{f}#25, emp_no{f}#19, first_name{f}#20, ..]
+     *         \_LocalRelation[[avgByL{r}#5, languages{f}#22],org.elasticsearch.xpack.esql.plan.logical.local.CopyingLocalSupplier@1dc60410]
+     */
+    public void testPartiallyPushDown_GroupingFilters_PastTwoInlineJoins_ExcludeAggFilters() {
+        var plan = plan("""
+            FROM employees
+            | INLINE STATS avgByL = AVG(salary) BY languages
+            | INLINE STATS avgByG = AVG(salary) BY gender, languages
+            | WHERE languages > 3 AND gender IS NOT NULL AND avgByL > 40000
+            | KEEP avgB*, languages, gender, emp_no
+            """);
+
+        // the optimized query should roughly look like this:
+        /*
+        FROM employees
+            | WHERE languages > 3
+            | INLINE STATS avgByL = AVG(salary) BY languages
+            | WHERE gender IS NOT NULL
+            | INLINE STATS avgByG = AVG(salary) BY gender, languages
+            | WHERE avgByL > 40000
+            | KEEP avgB*, languages, gender, emp_no
+         */
+        var subPlansResults = new HashSet<LocalRelation>();
+        var subPlans = InlineJoin.firstSubPlan(plan, subPlansResults);
+        var firstSubPlan = subPlans.stubReplacedSubPlan();
+
+        var project = as(plan, EsqlProject.class);
+        var limit = as(project.child(), Limit.class);
+
+        // common filter, above first InlineJoin (inline stats ... by gender, languages)
+        var commonFilter = as(limit.child(), Filter.class);
+        assertThat(commonFilter.condition(), instanceOf(GreaterThan.class));
+        var commonGt = as(commonFilter.condition(), GreaterThan.class);
+        var commonGtField = as(commonGt.left(), ReferenceAttribute.class);
+        assertEquals("avgByL", commonGtField.name());
+        var commonGtRight = as(commonGt.right(), Literal.class);
+        assertEquals(40000, commonGtRight.value());
+
+        // first InlineJoin left side
+        var ij = as(commonFilter.child(), InlineJoin.class);
+        // IS NOT NULL filter getting pushed down past first InlineJoin
+        var left = as(ij.left(), Filter.class);
+        assertThat(left.condition(), instanceOf(IsNotNull.class));
+        var isNotNull = as(left.condition(), IsNotNull.class);
+        var isNotNullField = as(isNotNull.field(), FieldAttribute.class);
+        assertEquals("gender", isNotNullField.name());
+
+        // second InlineJoin left side
+        var innerIj = as(left.child(), InlineJoin.class);
+        var innerLeft = as(innerIj.left(), Filter.class);
+        assertThat(innerLeft.condition(), instanceOf(GreaterThan.class));
+        var innerGt = as(innerLeft.condition(), GreaterThan.class);
+        var innerGtField = as(innerGt.left(), FieldAttribute.class);
+        assertEquals("languages", innerGtField.name());
+        var innerGtRight = as(innerGt.right(), Literal.class);
+        assertEquals(3, innerGtRight.value());
+        var innerLeftChild = as(innerLeft.child(), EsRelation.class);
+
+        // second InlineJoin right side
+        var innerRight = as(innerIj.right(), Project.class);
+        // What EsqlSession is doing
+        var firstSubPlanInnerRight = as(firstSubPlan, Project.class);
+        assertEquals(innerRight.output(), firstSubPlanInnerRight.output());
+        var innerEval = as(innerRight.child(), Eval.class);
+        var firstSubPlanInnerEval = as(firstSubPlanInnerRight.child(), Eval.class);
+        assertEquals(innerEval.fields(), firstSubPlanInnerEval.fields());
+        var innerAggregate = as(innerEval.child(), Aggregate.class);
+        var firstSubPlanInnerAggregate = as(firstSubPlanInnerEval.child(), Aggregate.class);
+        assertEquals(innerAggregate.groupings(), firstSubPlanInnerAggregate.groupings());
+        assertEquals(innerAggregate.aggregates(), firstSubPlanInnerAggregate.aggregates());
+        var firstSubPlanInnerRelation = as(firstSubPlanInnerAggregate.child(), Filter.class);
+        assertThat(firstSubPlanInnerRelation.condition(), instanceOf(GreaterThan.class));
+        var firstSubPlanInnerRelationGt = as(firstSubPlanInnerRelation.condition(), GreaterThan.class);
+        var firstSubPlanInnerRelationGtField = as(firstSubPlanInnerRelationGt.left(), FieldAttribute.class);
+        assertEquals("languages", firstSubPlanInnerRelationGtField.name());
+        var firstSubPlanInnerRelationGtRight = as(firstSubPlanInnerRelationGt.right(), Literal.class);
+        assertEquals(3, firstSubPlanInnerRelationGtRight.value());
+        var firstSubPlanInnerRelationChild = as(firstSubPlanInnerRelation.child(), EsRelation.class);
+
+        // important bit below: the EsRelation that is executed in the right hand side is the same as the one in the left hand side
+        assertEquals(innerLeft, firstSubPlanInnerRelation);
+
+        // simulate the result of the first sub-plan execution
+        // not important what the actual values are, just need to have something to feed into the second InlineJoin
+        List<Attribute> schema = innerRight.output(); // [avgByL{r}#5, languages{f}#20]
+        Block[] blocks = new Block[schema.size()];
+        blocks[0] = BlockUtils.constantBlock(
+            TestBlockFactory.getNonBreakingInstance(),
+            new Literal(Source.EMPTY, 5.5, DataType.DOUBLE).value(),
+            1
+        );
+        blocks[1] = BlockUtils.constantBlock(
+            TestBlockFactory.getNonBreakingInstance(),
+            new Literal(Source.EMPTY, new BytesRef("M"), DataType.KEYWORD).value(),
+            1
+        );
+        var resultWrapper = new LocalRelation(subPlans.stubReplacedSubPlan().source(), schema, LocalSupplier.of(new Page(blocks)));
+        subPlansResults.add(resultWrapper);
+        LogicalPlan newMainPlan = newMainPlan(plan, subPlans, resultWrapper);
+        // this is Second InlineJoin stubReplacedSubPlan
+        firstSubPlan = firstSubPlan(newMainPlan, subPlansResults).stubReplacedSubPlan();
+
+        // first InlineJoin right side
+        var right = as(ij.right(), Project.class);
+        // What EsqlSession is doing
+        var firstSubPlanProject = as(firstSubPlan, Project.class);
+        assertEquals(right.output(), firstSubPlanProject.output());
+        var eval = as(right.child(), Eval.class);
+        var firstSubPlanEval = as(firstSubPlanProject.child(), Eval.class);
+        assertEquals(eval.fields(), firstSubPlanEval.fields());
+        var aggregate = as(eval.child(), Aggregate.class);
+        var firstSubPlanAggregate = as(firstSubPlanEval.child(), Aggregate.class);
+        assertEquals(aggregate.groupings(), firstSubPlanAggregate.groupings());
+        assertEquals(aggregate.aggregates(), firstSubPlanAggregate.aggregates());
+
+        // the IS NOT NULL filter is the same as the one pushed down on the left side of the first InlineJoin
+        var firstSubPlanFilter = as(firstSubPlanAggregate.child(), Filter.class);
+        assertEquals(firstSubPlanFilter.condition(), left.condition());
+    }
+
+    /**
+     * EsqlProject[[avgByL{r}#9, avgByG{r}#16, lang{r}#13, gender{f}#28, emp_no{f}#26]]
+     * \_Limit[1000[INTEGER],false,false]
+     *   \_Filter[emp_no{f}#26 > 10050[INTEGER]]
+     *     \_InlineJoin[LEFT,[gender{f}#28, lang{r}#13],[gender{r}#28, lang{r}#13]]
+     *       |_EsqlProject[[salary{f}#31, gender{f}#28, emp_no{f}#26, avgByL{r}#9, languages{f}#29 AS lang#13]]
+     *       | \_Filter[ISNOTNULL(gender{f}#28)]
+     *       |   \_InlineJoin[LEFT,[languages{f}#29],[languages{r}#29]]
+     *       |     |_EsqlProject[[languages{f}#29, salary{f}#31, gender{f}#28, emp_no{f}#26]]
+     *       |     | \_Filter[languages{f}#29 > 3[INTEGER]]
+     *       |     |   \_EsRelation[employees][_meta_field{f}#32, emp_no{f}#26, first_name{f}#27, ..]
+     *       |     \_Project[[avgByL{r}#9, languages{f}#29]]
+     *       |       \_Eval[[$$SUM$avgByL$0{r$}#38 / $$COUNT$avgByL$1{r$}#39 AS avgByL#9]]
+     *       |         \_Aggregate[[languages{f}#29],[SUM(salary{f}#31,true[BOOLEAN],PT0S[TIME_DURATION],compensated[KEYWORD]) AS
+     * $$SUM$avgByL$0#38, COUNT(salary{f}#31,true[BOOLEAN],PT0S[TIME_DURATION]) AS $$COUNT$avgByL$1#39, languages{f}#29]]
+     *       |           \_StubRelation[[languages{f}#29, salary{f}#31, gender{f}#28, emp_no{f}#26]]
+     *       \_Project[[avgByG{r}#16, gender{f}#28, lang{r}#13]]
+     *         \_Eval[[$$SUM$avgByG$0{r$}#40 / $$COUNT$avgByG$1{r$}#41 AS avgByG#16]]
+     *           \_Aggregate[[gender{f}#28, lang{r}#13],[SUM(salary{f}#31,true[BOOLEAN],PT0S[TIME_DURATION],compensated[KEYWORD]) AS
+     * $$SUM$avgByG$0#40, COUNT(salary{f}#31,true[BOOLEAN],PT0S[TIME_DURATION]) AS $$COUNT$avgByG$1#41, gender{f}#28, lang{r}#13]]
+     *             \_StubRelation[[salary{f}#31, gender{f}#28, emp_no{f}#26, avgByL{r}#9, lang{r}#13]]
+     *
+     * First InlineJoin stubReplacedSubPlan:
+     * Project[[avgByL{r}#9, languages{f}#29]]
+     * \_Eval[[$$SUM$avgByL$0{r$}#38 / $$COUNT$avgByL$1{r$}#39 AS avgByL#9]]
+     *   \_Aggregate[[languages{f}#29],[SUM(salary{f}#31,true[BOOLEAN],PT0S[TIME_DURATION],compensated[KEYWORD]) AS
+     * $$SUM$avgByL$0#38, COUNT(salary{f}#31,true[BOOLEAN],PT0S[TIME_DURATION]) AS $$COUNT$avgByL$1#39, languages{f}#29]]
+     *     \_EsqlProject[[languages{f}#29, salary{f}#31, gender{f}#28, emp_no{f}#26]]
+     *       \_Filter[languages{f}#29 > 3[INTEGER]]
+     *         \_EsRelation[employees][_meta_field{f}#32, emp_no{f}#26, first_name{f}#27, ..]
+     *
+     * Second InlineJoin stubReplacedSubPlan:\Project[[avgByG{r}#16, gender{f}#28, lang{r}#13]]
+     * \_Eval[[$$SUM$avgByG$0{r$}#40 / $$COUNT$avgByG$1{r$}#41 AS avgByG#16]]
+     *   \_Aggregate[[gender{f}#28, lang{r}#13],[SUM(salary{f}#31,true[BOOLEAN],PT0S[TIME_DURATION],compensated[KEYWORD]) AS $$SUM$a
+     * vgByG$0#40, COUNT(salary{f}#31,true[BOOLEAN],PT0S[TIME_DURATION]) AS $$COUNT$avgByG$1#41, gender{f}#28, lang{r}#13]]
+     *     \_EsqlProject[[salary{f}#31, gender{f}#28, emp_no{f}#26, avgByL{r}#9, languages{f}#29 AS lang#13]]
+     *       \_Filter[ISNOTNULL(gender{f}#28)]
+     *         \_InlineJoin[LEFT,[languages{f}#29],[languages{r}#29]]
+     *           |_EsqlProject[[languages{f}#29, salary{f}#31, gender{f}#28, emp_no{f}#26]]
+     *           | \_Filter[languages{f}#29 > 3[INTEGER]]
+     *           |   \_EsRelation[employees][_meta_field{f}#32, emp_no{f}#26, first_name{f}#27, ..]
+     *           \_LocalRelation[[avgByL{r}#9, languages{f}#29],org.elasticsearch.xpack.esql.plan.logical.local.CopyingLocalSupplier]
+     */
+    public void testPartiallyPushDown_RenamedGroupingFilters_PastTwoInlineJoins() {
+        var plan = plan("""
+            FROM employees
+            | KEEP languages, salary, gender, emp_no
+            | INLINE STATS avgByL = AVG(salary) BY languages
+            | RENAME languages AS lang
+            | INLINE STATS avgByG = AVG(salary) BY gender, lang
+            | WHERE lang > 3 AND gender IS NOT NULL AND emp_no > 10050
+            | KEEP avgB*, lang, gender, emp_no
+            """);
+
+        // the optimized query should roughly look like this:
+        /*
+        FROM employees
+            | WHERE languages > 3
+            | INLINE STATS avgByL = AVG(salary) BY languages
+            | WHERE gender IS NOT NULL
+            | INLINE STATS avgByG = AVG(salary) BY gender, lang
+            | WHERE emp_no > 10050
+            | KEEP avgB*, lang, gender, emp_no
+         */
+        var subPlansResults = new HashSet<LocalRelation>();
+        var subPlans = InlineJoin.firstSubPlan(plan, subPlansResults);
+        var firstSubPlan = subPlans.stubReplacedSubPlan();
+
+        var project = as(plan, EsqlProject.class);
+        var limit = as(project.child(), Limit.class);
+
+        // common filter, above first InlineJoin (inline stats ... by gender, languages)
+        var commonFilter = as(limit.child(), Filter.class);
+        assertThat(commonFilter.condition(), instanceOf(GreaterThan.class));
+        var commonGt = as(commonFilter.condition(), GreaterThan.class);
+        var commonGtField = as(commonGt.left(), FieldAttribute.class);
+        assertEquals("emp_no", commonGtField.name());
+        var commonGtRight = as(commonGt.right(), Literal.class);
+        assertEquals(10050, commonGtRight.value());
+
+        // first InlineJoin left side
+        var ij = as(commonFilter.child(), InlineJoin.class);
+        // this is the projection that renames languages AS lang
+        var left = as(ij.left(), EsqlProject.class);
+        var projections = left.projections();
+        assertThat(Expressions.names(projections), contains("salary", "gender", "emp_no", "avgByL", "lang"));
+        var langRename = as(projections.get(4), Alias.class);
+        assertThat(Expressions.name(langRename), containsString("lang"));
+        var langField = as(langRename.child(), FieldAttribute.class);
+        assertEquals("languages", langField.name());
+
+        // IS NOT NULL filter getting pushed down past first InlineJoin
+        var leftFilter = as(left.child(), Filter.class);
+        assertThat(leftFilter.condition(), instanceOf(IsNotNull.class));
+        var isNotNull = as(leftFilter.condition(), IsNotNull.class);
+        var isNotNullField = as(isNotNull.field(), FieldAttribute.class);
+        assertEquals("gender", isNotNullField.name());
+
+        // second InlineJoin left side
+        var innerIj = as(leftFilter.child(), InlineJoin.class);
+        var innerLeft = as(innerIj.left(), EsqlProject.class);
+        var innerProjections = innerLeft.projections();
+        assertThat(Expressions.names(innerProjections), contains("languages", "salary", "gender", "emp_no"));
+
+        var innerLeftFilter = as(innerLeft.child(), Filter.class);
+        assertThat(innerLeftFilter.condition(), instanceOf(GreaterThan.class));
+        var innerGt = as(innerLeftFilter.condition(), GreaterThan.class);
+        var innerGtField = as(innerGt.left(), FieldAttribute.class);
+        assertEquals("languages", innerGtField.name());
+        var innerGtRight = as(innerGt.right(), Literal.class);
+        assertEquals(3, innerGtRight.value());
+        var innerLeftChild = as(innerLeftFilter.child(), EsRelation.class);
+
+        // second InlineJoin right side
+        var innerRight = as(innerIj.right(), Project.class);
+        // What EsqlSession is doing
+        var firstSubPlanInnerRight = as(firstSubPlan, Project.class);
+        assertEquals(innerRight.output(), firstSubPlanInnerRight.output());
+        var innerEval = as(innerRight.child(), Eval.class);
+        var firstSubPlanInnerEval = as(firstSubPlanInnerRight.child(), Eval.class);
+        assertEquals(innerEval.fields(), firstSubPlanInnerEval.fields());
+        var innerAggregate = as(innerEval.child(), Aggregate.class);
+        var firstSubPlanInnerAggregate = as(firstSubPlanInnerEval.child(), Aggregate.class);
+        assertEquals(innerAggregate.groupings(), firstSubPlanInnerAggregate.groupings());
+        assertEquals(innerAggregate.aggregates(), firstSubPlanInnerAggregate.aggregates());
+
+        var firstSubPlanInnerRelation = as(firstSubPlanInnerAggregate.child(), EsqlProject.class);
+        var firstSubPlanInnerProjections = firstSubPlanInnerRelation.projections();
+        assertThat(Expressions.names(firstSubPlanInnerProjections), contains("languages", "salary", "gender", "emp_no"));
+
+        var firstSubPlanInnerFilter = as(firstSubPlanInnerRelation.child(), Filter.class);
+        assertThat(firstSubPlanInnerFilter.condition(), instanceOf(GreaterThan.class));
+        var firstSubPlanInnerRelationGt = as(firstSubPlanInnerFilter.condition(), GreaterThan.class);
+        var firstSubPlanInnerRelationGtField = as(firstSubPlanInnerRelationGt.left(), FieldAttribute.class);
+        assertEquals("languages", firstSubPlanInnerRelationGtField.name());
+        var firstSubPlanInnerRelationGtRight = as(firstSubPlanInnerRelationGt.right(), Literal.class);
+        assertEquals(3, firstSubPlanInnerRelationGtRight.value());
+        var firstSubPlanInnerRelationChild = as(firstSubPlanInnerFilter.child(), EsRelation.class);
+
+        // important bit below: the EsRelation that is executed in the right hand side is the same as the one in the left hand side
+        assertEquals(innerLeftFilter, firstSubPlanInnerFilter);
+
+        // simulate the result of the first sub-plan execution
+        // not important what the actual values are, just need to have something to feed into the second InlineJoin
+        List<Attribute> schema = innerRight.output(); // [avgByL{r}#5, languages{f}#20]
+        Block[] blocks = new Block[schema.size()];
+        blocks[0] = BlockUtils.constantBlock(
+            TestBlockFactory.getNonBreakingInstance(),
+            new Literal(Source.EMPTY, 5.5, DataType.DOUBLE).value(),
+            1
+        );
+        blocks[1] = BlockUtils.constantBlock(
+            TestBlockFactory.getNonBreakingInstance(),
+            new Literal(Source.EMPTY, new BytesRef("M"), DataType.KEYWORD).value(),
+            1
+        );
+        var resultWrapper = new LocalRelation(subPlans.stubReplacedSubPlan().source(), schema, LocalSupplier.of(new Page(blocks)));
+        subPlansResults.add(resultWrapper);
+        LogicalPlan newMainPlan = newMainPlan(plan, subPlans, resultWrapper);
+        // this is Second InlineJoin stubReplacedSubPlan
+        firstSubPlan = firstSubPlan(newMainPlan, subPlansResults).stubReplacedSubPlan();
+
+        // first InlineJoin right side
+        var right = as(ij.right(), Project.class);
+        // What EsqlSession is doing
+        var firstSubPlanProject = as(firstSubPlan, Project.class);
+        assertEquals(right.output(), firstSubPlanProject.output());
+        var eval = as(right.child(), Eval.class);
+        var firstSubPlanEval = as(firstSubPlanProject.child(), Eval.class);
+        assertEquals(eval.fields(), firstSubPlanEval.fields());
+        var aggregate = as(eval.child(), Aggregate.class);
+        var firstSubPlanAggregate = as(firstSubPlanEval.child(), Aggregate.class);
+        assertEquals(aggregate.groupings(), firstSubPlanAggregate.groupings());
+        assertEquals(aggregate.aggregates(), firstSubPlanAggregate.aggregates());
+
+        var firstSubPlanProjection = as(ij.left(), EsqlProject.class);
+        projections = firstSubPlanProjection.projections();
+        assertThat(Expressions.names(projections), contains("salary", "gender", "emp_no", "avgByL", "lang"));
+        langRename = as(projections.get(4), Alias.class);
+        assertThat(Expressions.name(langRename), containsString("lang"));
+        langField = as(langRename.child(), FieldAttribute.class);
+        assertEquals("languages", langField.name());
+        // the IS NOT NULL filter is the same as the one pushed down on the left side of the first InlineJoin
+        var firstSubPlanFilter = as(firstSubPlanProjection.child(), Filter.class);
+        assertEquals(firstSubPlanFilter.condition(), leftFilter.condition());
     }
 }

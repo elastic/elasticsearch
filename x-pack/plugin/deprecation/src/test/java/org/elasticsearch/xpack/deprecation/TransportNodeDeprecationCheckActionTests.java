@@ -254,19 +254,27 @@ public class TransportNodeDeprecationCheckActionTests extends ESTestCase {
             clusterInfoService
         );
 
-        NodeDeprecationChecks.NodeDeprecationCheck<Settings, PluginsAndModules, ClusterState, XPackLicenseState, DeprecationIssue> deprecationCheck = (first, second, third, fourth) -> {
-            if (first.keySet().contains(deprecatedSettingKey)) {
-                return new DeprecationIssue(DeprecationIssue.Level.WARNING, "Deprecated setting", null, null, false, null);
-            }
-            return null;
-        };
-        NodesDeprecationCheckAction.NodeResponse nodeResponse = transportNodeDeprecationCheckAction.nodeOperation(Collections.singletonList(
-            deprecationCheck
-        ));
+        NodeDeprecationChecks.NodeDeprecationCheck<
+            Settings,
+            PluginsAndModules,
+            ClusterState,
+            XPackLicenseState,
+            DeprecationIssue> deprecationCheck = (first, second, third, fourth) -> {
+                if (first.keySet().contains(deprecatedSettingKey)) {
+                    return new DeprecationIssue(DeprecationIssue.Level.WARNING, "Deprecated setting", null, null, false, null);
+                }
+                return null;
+            };
+        NodesDeprecationCheckAction.NodeResponse nodeResponse = transportNodeDeprecationCheckAction.nodeOperation(
+            Collections.singletonList(deprecationCheck)
+        );
         List<DeprecationIssue> deprecationIssues = nodeResponse.getDeprecationIssues();
         assertThat(deprecationIssues, hasSize(2));
         assertThat(deprecationIssues, hasItem(new DeprecationIssueMatcher(DeprecationIssue.Level.WARNING, equalTo("Deprecated setting"))));
-        assertThat(deprecationIssues, hasItem(new DeprecationIssueMatcher(DeprecationIssue.Level.CRITICAL, equalTo("Disk usage exceeds low watermark"))));
+        assertThat(
+            deprecationIssues,
+            hasItem(new DeprecationIssueMatcher(DeprecationIssue.Level.CRITICAL, equalTo("Disk usage exceeds low watermark")))
+        );
     }
 
     private static class DeprecationIssueMatcher extends BaseMatcher<DeprecationIssue> {

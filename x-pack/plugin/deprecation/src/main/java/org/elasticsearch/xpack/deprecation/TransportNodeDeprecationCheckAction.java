@@ -131,7 +131,12 @@ public class TransportNodeDeprecationCheckAction extends TransportNodesAction<
             .build();
 
         List<DeprecationIssue> issues = new ArrayList<>();
-        for (NodeDeprecationChecks.NodeDeprecationCheck<Settings, PluginsAndModules, ClusterState, XPackLicenseState, DeprecationIssue> c : nodeSettingsChecks) {
+        for (NodeDeprecationChecks.NodeDeprecationCheck<
+            Settings,
+            PluginsAndModules,
+            ClusterState,
+            XPackLicenseState,
+            DeprecationIssue> c : nodeSettingsChecks) {
             DeprecationIssue deprecationIssue = c.apply(filteredNodeSettings, pluginsService.info(), filteredClusterState, licenseState);
             if (deprecationIssue != null) {
                 issues.add(deprecationIssue);

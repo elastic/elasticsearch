@@ -8,7 +8,9 @@
 package org.elasticsearch.xpack.esql.optimizer.rules.logical.promql;
 
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.action.PromqlFeatures;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.promql.AutomatonUtils.PatternFragment;
+import org.junit.BeforeClass;
 
 import java.util.List;
 
@@ -23,8 +25,14 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
+import static org.junit.Assume.assumeTrue;
 
 public class AutomatonUtilsTests extends ESTestCase {
+
+    @BeforeClass
+    public static void checkPromqlEnabled() {
+        assumeTrue("requires snapshot build with promql feature enabled", PromqlFeatures.isEnabled());
+    }
 
     public void testExtractFragments_ExactString() {
         // Single exact string (no wildcards)

@@ -44,6 +44,14 @@ import static org.elasticsearch.xpack.esql.parser.PromqlBaseParser.TimeValueCont
 
 class PromqlExpressionBuilder extends PromqlIdentifierBuilder {
 
+    /**
+     * Prometheus duration limits based on Go time.Duration (int64 nanoseconds).
+     * Maximum: ~292.27 years (2^63 - 1 nanoseconds = 9,223,372,036 seconds)
+     * Minimum: ~-292.27 years (-(2^63) nanoseconds = -9,223,372,037 seconds)
+     */
+    private static final long MAX_DURATION_SECONDS = 9223372036L;
+    private static final long MIN_DURATION_SECONDS = -9223372037L;
+
     private final Literal start, end;
 
     PromqlExpressionBuilder(Literal start, Literal end, int startLine, int startColumn) {
@@ -58,6 +66,21 @@ class PromqlExpressionBuilder extends PromqlIdentifierBuilder {
 
     protected List<Expression> expressions(List<? extends ParserRuleContext> contexts) {
         return visitList(this, contexts, Expression.class);
+    }
+
+    /**
+     * Validates that a duration is within Prometheus's acceptable range (~292 years).
+     * Prometheus uses Go's time.Duration internally, which is an int64 of nanoseconds.
+     *
+     * @param source the source location for error reporting
+     * @param duration the duration to validate
+     * @throws ParsingException if the duration is out of range
+     */
+    private static void validateDurationRange(Source source, Duration duration) {
+        long seconds = duration.getSeconds();
+        if (seconds > MAX_DURATION_SECONDS || seconds < MIN_DURATION_SECONDS) {
+            throw new ParsingException(source, "Duration out of range");
+        }
     }
 
     @Override
@@ -163,7 +186,10 @@ class PromqlExpressionBuilder extends PromqlIdentifierBuilder {
                 if (seconds <= 0) {
                     throw new ParsingException(source(ctx), "Duration must be positive, got [{}]s", seconds);
                 }
-                yield Duration.ofSeconds(seconds);
+                Duration duration = Duration.ofSeconds(seconds);
+                // Validate the resulting duration is within acceptable range
+                validateDurationRange(source(ctx), duration);
+                yield duration;
             }
             default -> throw new ParsingException(source(ctx), "Expected a duration, got [{}]", source(ctx).text());
         };
@@ -181,6 +207,12 @@ class PromqlExpressionBuilder extends PromqlIdentifierBuilder {
                 if (Double.isFinite(v) == false) {
                     throw new ParsingException(source, "Invalid timestamp [{}]", v);
                 }
+
+                // Check if the value exceeds duration range before conversion
+                if (v > MAX_DURATION_SECONDS || v < MIN_DURATION_SECONDS) {
+                    throw new ParsingException(source, "Duration out of range");
+                }
+
                 // Convert to milliseconds (matching Prometheus behavior)
                 double millisDouble = v * 1000.0;
                 if (millisDouble >= Long.MAX_VALUE || millisDouble <= Long.MIN_VALUE) {
@@ -192,7 +224,12 @@ class PromqlExpressionBuilder extends PromqlIdentifierBuilder {
                 return Duration.ofMillis(millis);
             }
 
-            return Duration.ofSeconds(number.longValue());
+            // Handle integer/long values
+            long longValue = number.longValue();
+            if (longValue > MAX_DURATION_SECONDS || longValue < MIN_DURATION_SECONDS) {
+                throw new ParsingException(literal.source(), "Duration out of range");
+            }
+            return Duration.ofSeconds(longValue);
         }
         String timeString = null;
         Source source;
@@ -290,6 +327,7 @@ class PromqlExpressionBuilder extends PromqlIdentifierBuilder {
         if (duration.isZero()) {
             throw new ParsingException(source, "Invalid time duration [{}], zero value specified", text);
         }
+        validateDurationRange(source, duration);
         return duration;
     }
 }

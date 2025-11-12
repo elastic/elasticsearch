@@ -20,7 +20,6 @@ import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
 
 import java.io.IOException;
 import java.util.List;
-import java.util.Locale;
 import java.util.Objects;
 
 /**
@@ -38,12 +37,8 @@ public class PromqlFunctionCall extends UnaryPlan {
 
     public PromqlFunctionCall(Source source, LogicalPlan child, String functionName, List<Expression> parameters) {
         super(source, child);
-        this.functionName = functionName.toLowerCase(Locale.ROOT);
+        this.functionName = functionName;
         this.parameters = parameters != null ? parameters : List.of();
-    }
-
-    public PromqlFunctionCall(Source source, LogicalPlan child, String functionName) {
-        this(source, child, functionName, List.of());
     }
 
     @Override

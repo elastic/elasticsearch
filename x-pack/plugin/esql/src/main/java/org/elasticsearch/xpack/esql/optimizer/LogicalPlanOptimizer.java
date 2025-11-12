@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.optimizer;
 
 import org.elasticsearch.xpack.esql.VerificationException;
+import org.elasticsearch.xpack.esql.action.PromqlFeatures;
 import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.optimizer.rules.PruneInlineJoinOnEmptyRightSide;
@@ -122,9 +123,12 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
         var optimized = execute(verified);
 
         Failures failures = verifier.verify(optimized, verified.output());
-        // TODO re-enable verification for PromQL once we make sure the output columns don't change
-        if (failures.hasFailures() && verified.anyMatch(PromqlCommand.class::isInstance) == false) {
-            throw new VerificationException(failures);
+        if (failures.hasFailures()) {
+            // TODO re-enable verification for PromQL once we make sure the output columns don't change
+            // Throw exception unless we have PromQL with the feature enabled
+            if (PromqlFeatures.isEnabled() == false || verified.anyMatch(PromqlCommand.class::isInstance) == false) {
+                throw new VerificationException(failures);
+            }
         }
         optimized.setOptimized();
         return optimized;

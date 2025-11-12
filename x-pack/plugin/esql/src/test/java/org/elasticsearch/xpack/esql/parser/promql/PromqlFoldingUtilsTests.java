@@ -8,10 +8,12 @@
 package org.elasticsearch.xpack.esql.parser.promql;
 
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.action.PromqlFeatures;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.expression.promql.predicate.operator.arithmetic.VectorBinaryArithmetic.ArithmeticOp;
 import org.elasticsearch.xpack.esql.expression.promql.predicate.operator.comparison.VectorBinaryComparison.ComparisonOp;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
+import org.junit.BeforeClass;
 
 import java.time.Duration;
 
@@ -28,8 +30,14 @@ import static org.elasticsearch.xpack.esql.expression.promql.predicate.operator.
 import static org.elasticsearch.xpack.esql.expression.promql.predicate.operator.comparison.VectorBinaryComparison.ComparisonOp.LTE;
 import static org.elasticsearch.xpack.esql.expression.promql.predicate.operator.comparison.VectorBinaryComparison.ComparisonOp.NEQ;
 import static org.hamcrest.Matchers.containsString;
+import static org.junit.Assume.assumeTrue;
 
 public class PromqlFoldingUtilsTests extends ESTestCase {
+
+    @BeforeClass
+    public static void checkPromqlEnabled() {
+        assumeTrue("requires snapshot build with promql feature enabled", PromqlFeatures.isEnabled());
+    }
 
     private static Duration sec(int seconds) {
         return Duration.ofSeconds(seconds);

@@ -57,10 +57,6 @@ public class WithinSeriesAggregate extends PromqlFunctionCall implements Surroga
         super(source, child, functionName, parameters);
     }
 
-    public WithinSeriesAggregate(Source source, LogicalPlan child, String functionName) {
-        super(source, child, functionName, List.of());
-    }
-
     @Override
     protected NodeInfo<PromqlFunctionCall> info() {
         return NodeInfo.create(this, WithinSeriesAggregate::new, child(), functionName(), parameters());

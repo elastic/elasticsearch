@@ -71,12 +71,7 @@ public class CodecService implements CodecProvider {
         assert useTsdbSyntheticId == false || mapperService.getIndexSettings().getMode() == IndexMode.TIME_SERIES;
 
         this.codecs = codecs.entrySet().stream().collect(Collectors.toUnmodifiableMap(Map.Entry::getKey, e -> {
-            Codec codec;
-            if (e.getValue() instanceof DeduplicateFieldInfosCodec dedupCodec) {
-                codec = dedupCodec;
-            } else {
-                codec = new DeduplicateFieldInfosCodec(e.getValue().getName(), e.getValue());
-            }
+            Codec codec = new DeduplicateFieldInfosCodec(e.getValue().getName(), e.getValue());
             if (useTsdbSyntheticId && codec instanceof TSDBSyntheticIdCodec == false) {
                 codec = new TSDBSyntheticIdCodec(codec.getName(), codec);
             }
@@ -100,7 +95,7 @@ public class CodecService implements CodecProvider {
         return codecs.keySet().toArray(new String[0]);
     }
 
-    public static class DeduplicateFieldInfosCodec extends FilterCodec {
+    public static final class DeduplicateFieldInfosCodec extends FilterCodec {
 
         private final DeduplicatingFieldInfosFormat deduplicatingFieldInfosFormat;
 
@@ -111,11 +106,11 @@ public class CodecService implements CodecProvider {
         }
 
         @Override
-        public final FieldInfosFormat fieldInfosFormat() {
+        public FieldInfosFormat fieldInfosFormat() {
             return deduplicatingFieldInfosFormat;
         }
 
-        public final Codec delegate() {
+        public Codec delegate() {
             return delegate;
         }
 

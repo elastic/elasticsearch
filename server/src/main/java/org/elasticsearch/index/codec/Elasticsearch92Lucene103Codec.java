@@ -10,6 +10,7 @@
 package org.elasticsearch.index.codec;
 
 import org.apache.lucene.codecs.DocValuesFormat;
+import org.apache.lucene.codecs.FilterCodec;
 import org.apache.lucene.codecs.KnnVectorsFormat;
 import org.apache.lucene.codecs.PostingsFormat;
 import org.apache.lucene.codecs.StoredFieldsFormat;
@@ -26,7 +27,7 @@ import org.elasticsearch.index.codec.zstd.Zstd814StoredFieldsFormat;
  * Elasticsearch codec as of 9.2 relying on Lucene 10.3. This extends the Lucene 10.3 codec to compressed
  * stored fields with ZSTD instead of LZ4/DEFLATE. See {@link Zstd814StoredFieldsFormat}.
  */
-public class Elasticsearch92Lucene103Codec extends CodecService.DeduplicateFieldInfosCodec {
+public class Elasticsearch92Lucene103Codec extends FilterCodec {
 
     static final PostingsFormat DEFAULT_POSTINGS_FORMAT = new Lucene103PostingsFormat();
 

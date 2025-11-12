@@ -398,6 +398,8 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
                 asyncExecutionId,
                 false,
                 request.async(),
+                task.getStartTime(),
+                ((EsqlQueryTask) task).getExpirationTimeMillis(),
                 result.executionInfo()
             );
         }
@@ -409,6 +411,8 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
             profile,
             request.columnar(),
             request.async(),
+            task.getStartTime(),
+            threadPool.absoluteTimeInMillis() + request.keepAlive().millis(),
             result.executionInfo()
         );
     }
@@ -474,6 +478,8 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
             asyncExecutionId,
             true, // is_running
             true, // isAsync
+            task.getStartTime(),
+            task.getExpirationTimeMillis(),
             task.executionInfo()
         );
     }

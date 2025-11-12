@@ -30,7 +30,7 @@ public class GPUDenseVectorFieldMapperTests extends DenseVectorFieldMapperTests 
 
     @BeforeClass
     public static void setup() {
-        assumeTrue("cuvs not supported", GPUSupport.isSupported(false));
+        assumeTrue("cuvs not supported", GPUSupport.isSupported());
     }
 
     @Override

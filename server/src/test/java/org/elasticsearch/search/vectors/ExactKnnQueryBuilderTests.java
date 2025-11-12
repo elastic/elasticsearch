@@ -101,7 +101,7 @@ public class ExactKnnQueryBuilderTests extends AbstractQueryTestCase<ExactKnnQue
         float[] expected = Arrays.copyOf(queryBuilder.getQuery().asFloatVector(), queryBuilder.getQuery().asFloatVector().length);
         float magnitude = VectorUtil.dotProduct(expected, expected);
         if (context.getIndexSettings().getIndexVersionCreated().onOrAfter(IndexVersions.NORMALIZED_VECTOR_COSINE)
-            && DenseVectorFieldMapper.isNotUnitVector(magnitude)) {
+            && DenseVectorFieldMapper.FLOAT_ELEMENT.isUnitVector(magnitude) == false) {
             VectorUtil.l2normalize(expected);
             assertArrayEquals(expected, denseVectorQuery.getQuery(), 0.0f);
         } else {

@@ -85,9 +85,10 @@ public class AllocationBalancingRoundMetrics {
         );
     }
 
-    @SuppressForbidden(reason = "ForbiddenAPIs bans Math.abs on longs, but long.MIN_VALUE is impossible here")
-    private long longAbsNegativeSafe(long input) {
-        return Math.abs(input);
+    @SuppressForbidden(reason = "ForbiddenAPIs bans Math.abs(long) because of overflow on Long.MIN_VALUE, but this is impossible here")
+    private long longAbsNegativeSafe(long value) {
+        assert value != Long.MIN_VALUE : "value must not be Long.MIN_VALUE";
+        return Math.abs(value);
     }
 
     public void addBalancingRoundSummary(BalancingRoundSummary summary) {

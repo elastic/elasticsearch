@@ -723,7 +723,7 @@ public class NumberFieldTypeTests extends FieldTypeTestCase {
         NumberFieldType fieldType = new NumberFieldType("field", type);
         IndexNumericFieldData fielddata = (IndexNumericFieldData) fieldType.fielddataBuilder(FieldDataContext.noRuntimeFields("test"))
             .build(null, null);
-        SortField sortField = fielddata.sortField(null, MultiValueMode.MIN, null, randomBoolean());
+        SortField sortField = fielddata.indexSort(IndexVersion.current(), null, MultiValueMode.MIN, randomBoolean());
 
         IndexWriterConfig writerConfig = new IndexWriterConfig();
         writerConfig.setIndexSort(new Sort(sortField));
@@ -940,16 +940,9 @@ public class NumberFieldTypeTests extends FieldTypeTestCase {
     }
 
     public void testFetchSourceValue() throws IOException {
-        MappedFieldType mapper = new NumberFieldMapper.Builder(
-            "field",
-            NumberType.INTEGER,
-            ScriptCompiler.NONE,
-            false,
-            true,
-            IndexVersion.current(),
-            null,
-            null
-        ).build(MapperBuilderContext.root(false, false)).fieldType();
+        MappedFieldType mapper = new NumberFieldMapper.Builder("field", NumberType.INTEGER, ScriptCompiler.NONE, defaultIndexSettings())
+            .build(MapperBuilderContext.root(false, false))
+            .fieldType();
         assertEquals(List.of(3), fetchSourceValue(mapper, 3.14));
         assertEquals(List.of(42), fetchSourceValue(mapper, "42.9"));
         assertEquals(List.of(3, 42), fetchSourceValues(mapper, 3.14, "foo", "42.9"));
@@ -958,27 +951,16 @@ public class NumberFieldTypeTests extends FieldTypeTestCase {
             "field",
             NumberType.FLOAT,
             ScriptCompiler.NONE,
-            false,
-            true,
-            IndexVersion.current(),
-            null,
-            null
+            defaultIndexSettings()
         ).nullValue(2.71f).build(MapperBuilderContext.root(false, false)).fieldType();
         assertEquals(List.of(2.71f), fetchSourceValue(nullValueMapper, ""));
         assertEquals(List.of(2.71f), fetchSourceValue(nullValueMapper, null));
     }
 
     public void testFetchHalfFloatFromSource() throws IOException {
-        MappedFieldType mapper = new NumberFieldMapper.Builder(
-            "field",
-            NumberType.HALF_FLOAT,
-            ScriptCompiler.NONE,
-            false,
-            true,
-            IndexVersion.current(),
-            null,
-            null
-        ).build(MapperBuilderContext.root(false, false)).fieldType();
+        MappedFieldType mapper = new NumberFieldMapper.Builder("field", NumberType.HALF_FLOAT, ScriptCompiler.NONE, defaultIndexSettings())
+            .build(MapperBuilderContext.root(false, false))
+            .fieldType();
         /*
          * Half float loses a fair bit of precision compared to float but
          * we still do floating point comparisons. The "funny" trailing

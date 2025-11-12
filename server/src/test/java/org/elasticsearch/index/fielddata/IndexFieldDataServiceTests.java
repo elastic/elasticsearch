@@ -24,7 +24,6 @@ import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexService;
-import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.fielddata.plain.SortedDoublesIndexFieldData;
 import org.elasticsearch.index.fielddata.plain.SortedNumericIndexFieldData;
 import org.elasticsearch.index.fielddata.plain.SortedSetOrdinalsIndexFieldData;
@@ -85,15 +84,10 @@ public class IndexFieldDataServiceTests extends ESSingleNodeTestCase {
         assertTrue(fd instanceof SortedSetOrdinalsIndexFieldData);
 
         for (MappedFieldType mapper : Arrays.asList(
-            new NumberFieldMapper.Builder("int", BYTE, ScriptCompiler.NONE, false, true, IndexVersion.current(), null, null).build(context)
-                .fieldType(),
-            new NumberFieldMapper.Builder("int", SHORT, ScriptCompiler.NONE, false, true, IndexVersion.current(), null, null).build(context)
-                .fieldType(),
-            new NumberFieldMapper.Builder("int", INTEGER, ScriptCompiler.NONE, false, true, IndexVersion.current(), null, null).build(
-                context
-            ).fieldType(),
-            new NumberFieldMapper.Builder("long", LONG, ScriptCompiler.NONE, false, true, IndexVersion.current(), null, null).build(context)
-                .fieldType()
+            new NumberFieldMapper.Builder("int", BYTE, ScriptCompiler.NONE, defaultIndexSettings()).build(context).fieldType(),
+            new NumberFieldMapper.Builder("int", SHORT, ScriptCompiler.NONE, defaultIndexSettings()).build(context).fieldType(),
+            new NumberFieldMapper.Builder("int", INTEGER, ScriptCompiler.NONE, defaultIndexSettings()).build(context).fieldType(),
+            new NumberFieldMapper.Builder("long", LONG, ScriptCompiler.NONE, defaultIndexSettings()).build(context).fieldType()
         )) {
             ifdService.clear();
             fd = ifdService.getForField(mapper, FieldDataContext.noRuntimeFields("test"));
@@ -104,26 +98,15 @@ public class IndexFieldDataServiceTests extends ESSingleNodeTestCase {
             "float",
             NumberType.FLOAT,
             ScriptCompiler.NONE,
-            false,
-            true,
-            IndexVersion.current(),
-            null,
-            null
+            defaultIndexSettings()
         ).build(context).fieldType();
         ifdService.clear();
         fd = ifdService.getForField(floatMapper, FieldDataContext.noRuntimeFields("test"));
         assertTrue(fd instanceof SortedDoublesIndexFieldData);
 
-        final MappedFieldType doubleMapper = new NumberFieldMapper.Builder(
-            "double",
-            DOUBLE,
-            ScriptCompiler.NONE,
-            false,
-            true,
-            IndexVersion.current(),
-            null,
-            null
-        ).build(context).fieldType();
+        final MappedFieldType doubleMapper = new NumberFieldMapper.Builder("double", DOUBLE, ScriptCompiler.NONE, defaultIndexSettings())
+            .build(context)
+            .fieldType();
         ifdService.clear();
         fd = ifdService.getForField(doubleMapper, FieldDataContext.noRuntimeFields("test"));
         assertTrue(fd instanceof SortedDoublesIndexFieldData);

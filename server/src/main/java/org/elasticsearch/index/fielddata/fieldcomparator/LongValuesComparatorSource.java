@@ -22,6 +22,7 @@ import org.apache.lucene.util.BitSet;
 import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.index.fielddata.DenseLongValues;
 import org.elasticsearch.index.fielddata.FieldData;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
@@ -88,7 +89,7 @@ public class LongValuesComparatorSource extends IndexFieldData.XFieldComparatorS
         return converter != null ? converter.apply(values) : values;
     }
 
-    LongValues getLongValues(LeafReaderContext context, long missingValue) throws IOException {
+    DenseLongValues getLongValues(LeafReaderContext context, long missingValue) throws IOException {
         final SortedNumericLongValues values = loadDocValues(context);
         if (nested == null) {
             return FieldData.replaceMissing(sortMode.select(values), missingValue);
@@ -104,9 +105,7 @@ public class LongValuesComparatorSource extends IndexFieldData.XFieldComparatorS
         assert indexFieldData == null || fieldname.equals(indexFieldData.getFieldName());
 
         final long lMissingValue = (Long) missingObject(missingValue, reversed);
-        // NOTE: it's important to pass null as a missing value in the constructor so that
-        // the comparator doesn't check docsWithField since we replace missing values in select()
-        return new XLongComparator(numHits, fieldname, null, reversed, enableSkipping) {
+        return new XLongComparator(numHits, fieldname, lMissingValue, reversed, enableSkipping) {
             @Override
             public LeafFieldComparator getLeafComparator(LeafReaderContext context) throws IOException {
                 final int maxDoc = context.reader().maxDoc();
@@ -201,7 +200,7 @@ public class LongValuesComparatorSource extends IndexFieldData.XFieldComparatorS
         return super.missingObject(missingValue, reversed);
     }
 
-    protected static NumericDocValues wrap(LongValues longValues, int maxDoc) {
+    protected static NumericDocValues wrap(DenseLongValues longValues, int maxDoc) {
         return new NumericDocValues() {
 
             int doc = -1;

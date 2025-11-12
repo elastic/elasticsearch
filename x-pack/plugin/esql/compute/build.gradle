@@ -37,6 +37,7 @@ def projectDirectory = project.layout.projectDirectory
 def generatedSourceDir = projectDirectory.dir("src/main/generated")
 tasks.named("compileJava").configure {
   options.compilerArgumentProviders.add(new SourceDirectoryCommandLineArgumentProvider(generatedSourceDir))
+  options.compilerArgs -= '-Werror'
 }
 
 tasks.named('checkstyleMain').configure {

@@ -2266,7 +2266,14 @@ public class DenseVectorFieldMapper extends FieldMapper {
         KnnVectorsFormat getVectorsFormat(ElementType elementType, ExecutorService mergingExecutorService, int numMergeWorkers) {
             assert elementType == ElementType.FLOAT || elementType == ElementType.BFLOAT16;
             return ES93GenericFlatVectorsFormat.GENERIC_VECTOR_FORMAT.isEnabled()
-                ? new ES93HnswBinaryQuantizedVectorsFormat(m, efConstruction, elementType, onDiskRescore, numMergeWorkers, mergingExecutorService)
+                ? new ES93HnswBinaryQuantizedVectorsFormat(
+                    m,
+                    efConstruction,
+                    elementType,
+                    onDiskRescore,
+                    numMergeWorkers,
+                    mergingExecutorService
+                )
                 : new ES818HnswBinaryQuantizedVectorsFormat(m, efConstruction, numMergeWorkers, mergingExecutorService);
         }
 

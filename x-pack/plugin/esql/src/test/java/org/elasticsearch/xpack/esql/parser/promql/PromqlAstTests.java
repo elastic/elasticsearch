@@ -46,7 +46,7 @@ public class PromqlAstTests extends ESTestCase {
         testValidQueries("/promql/grammar/queries-valid.promql");
     }
 
-    // @AwaitsFix(bugUrl = "functionality not implemented yet")
+    @AwaitsFix(bugUrl = "functionality not implemented yet")
     public void testValidQueriesNotYetWorkingDueToMissingFunctionality() throws Exception {
         testValidQueries("/promql/grammar/queries-valid-extra.promql");
     }

@@ -14,12 +14,16 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.action.PromqlFeatures;
 import org.elasticsearch.xpack.esql.core.QlClientException;
+import org.elasticsearch.xpack.esql.core.expression.Literal;
+import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
 import org.elasticsearch.xpack.esql.parser.PromqlParser;
 import org.junit.BeforeClass;
 
 import java.io.BufferedReader;
 import java.net.URL;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -57,7 +61,8 @@ public class PromqlAstTests extends ESTestCase {
             String q = line.v1();
             try {
                 PromqlParser parser = new PromqlParser();
-                var plan = parser.createStatement(q);
+                Literal now = new Literal(Source.EMPTY, Instant.now(), DataType.DATETIME);
+                var plan = parser.createStatement(q, now, now, 0, 0);
                 log.trace("{}", plan);
             } catch (ParsingException pe) {
                 fail(format(null, "Error parsing line {}:{} '{}' [{}]", line.v2(), pe.getColumnNumber(), pe.getErrorMessage(), q));

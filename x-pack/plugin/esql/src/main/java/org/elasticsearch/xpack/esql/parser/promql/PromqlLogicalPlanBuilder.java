@@ -226,7 +226,7 @@ public class PromqlLogicalPlanBuilder extends PromqlExpressionBuilder {
 
         final LabelMatchers matchers = new LabelMatchers(labels);
 
-        return range == null
+        return range == Literal.NULL
             ? new InstantSelector(source, series, labelExpressions, matchers, evaluation)
             : new RangeSelector(source, series, labelExpressions, matchers, range, evaluation);
     }

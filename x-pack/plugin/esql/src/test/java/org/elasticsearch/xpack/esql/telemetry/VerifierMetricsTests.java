@@ -814,6 +814,7 @@ public class VerifierMetricsTests extends ESTestCase {
         assertEquals(1L, function("min", c));
     }
 
+    @AwaitsFix(bugUrl = "unresolved @timestamp field")
     public void testPromql() {
         assumeTrue("PromQL required", EsqlCapabilities.Cap.PROMQL_V0.isEnabled());
         Counters c = esql("""

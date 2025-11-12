@@ -47,19 +47,14 @@ crud:
       esql.get_view:
         name: dogs
 
-  - match: { query: 'FROM test | WHERE animal == "dog"' }
-
-  - do:
-      esql.list_views: { }
-
-  - match: { views: { dogs: { query: 'FROM test | WHERE animal == "dog"'} } }
+  - match: { views: { dogs: { query: 'FROM test | WHERE animal == "dog"' } } }
 
   - do:
       esql.delete_view:
         name: dogs
 
   - do:
-      esql.list_views: { }
+      esql.get_view: { }
 
   - match: { views: { } }
 

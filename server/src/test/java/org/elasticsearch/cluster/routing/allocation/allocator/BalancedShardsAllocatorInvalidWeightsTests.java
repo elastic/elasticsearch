@@ -45,6 +45,11 @@ import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.when;
 
+/**
+ * Tests for how the balanced shards allocator will behave when the weight function
+ * starts returning invalid (non-finite) values. This shouldn't happen in the absence
+ * of bugs.
+ */
 public class BalancedShardsAllocatorInvalidWeightsTests extends ESTestCase {
 
     public void testBalanceIsSkippedWhenInvalidWeightsAreEncounteredDuringSorting() {

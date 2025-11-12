@@ -9,25 +9,24 @@
 
 package org.elasticsearch.search.basic;
 
+import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.RemoteClusterActionType;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
-import org.elasticsearch.index.query.BoolQueryBuilder;
-import org.elasticsearch.index.query.MatchQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
-import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.plugins.ActionPlugin;
@@ -36,8 +35,6 @@ import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.AbstractMultiClustersTestCase;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.xcontent.ConstructingObjectParser;
-import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 
@@ -46,13 +43,14 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-
-import static org.elasticsearch.action.ValidateActions.addValidationError;
-import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicInteger;
 
 public class QueryRewriteContextRemoteAsyncActionIT extends AbstractMultiClustersTestCase {
     private static final String REMOTE_CLUSTER_A = "cluster-a";
     private static final String REMOTE_CLUSTER_B = "cluster-b";
+
+    private static final ConcurrentHashMap<String, AtomicInteger> INSTRUMENTED_ACTION_CALL_MAP = new ConcurrentHashMap<>();
 
     @Override
     protected Map<String, Boolean> skipUnavailableForRemoteClusters() {
@@ -67,57 +65,44 @@ public class QueryRewriteContextRemoteAsyncActionIT extends AbstractMultiCluster
     private static class TestQueryBuilder extends AbstractQueryBuilder<TestQueryBuilder> {
         private static final String NAME = "test";
 
-        private static final ParseField FIELD_FIELD = new ParseField("field");
-        private static final ParseField QUERY_FIELD = new ParseField("query");
+        private final boolean actionAcknowledged;
+        private final SetOnce<Boolean> actionAcknowledgedSupplier;
 
-        private static final ConstructingObjectParser<TestQueryBuilder, Void> PARSER = new ConstructingObjectParser<>(
-            NAME,
-            false,
-            args -> new TestQueryBuilder((String) args[0], (String) args[1])
-        );
-
-        static {
-            PARSER.declareString(constructorArg(), FIELD_FIELD);
-            PARSER.declareString(constructorArg(), QUERY_FIELD);
+        private static TestQueryBuilder fromXContent(XContentParser parser) {
+            return new TestQueryBuilder();
         }
 
-        private static TestQueryBuilder fromXContent(XContentParser parser) throws IOException {
-            return PARSER.apply(parser, null);
-        }
-
-        private final String fieldName;
-        private final List<String> queries;
-
-        private TestQueryBuilder(String fieldName, String query) {
-            this.fieldName = fieldName;
-            this.queries = List.of(query);
+        private TestQueryBuilder() {
+            this.actionAcknowledged = false;
+            this.actionAcknowledgedSupplier = null;
         }
 
         private TestQueryBuilder(StreamInput in) throws IOException {
             super(in);
-            this.fieldName = in.readString();
-            this.queries = in.readCollectionAsImmutableList(StreamInput::readString);
+            this.actionAcknowledged = in.readBoolean();
+            this.actionAcknowledgedSupplier = null;
         }
 
         @Override
         protected void doWriteTo(StreamOutput out) throws IOException {
-            out.writeString(fieldName);
-            out.writeStringCollection(queries);
+            if (actionAcknowledgedSupplier != null) {
+                throw new IllegalStateException(
+                    "actionAcknowledgedSupplier must be null, can't serialize suppliers, missing a rewriteAndFetch?"
+                );
+            }
+
+            out.writeBoolean(this.actionAcknowledged);
         }
 
         @Override
         protected void doXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject(NAME);
-            builder.field(FIELD_FIELD.getPreferredName(), fieldName);
-            builder.field(QUERY_FIELD.getPreferredName(), queries.getFirst());
             builder.endObject();
         }
 
         @Override
-        protected Query doToQuery(SearchExecutionContext context) throws IOException {
-            BoolQueryBuilder boolQuery = QueryBuilders.boolQuery();
-            queries.forEach(q -> boolQuery.should(new MatchQueryBuilder(fieldName, q)));
-            return boolQuery.toQuery(context);
+        protected Query doToQuery(SearchExecutionContext context) {
+            return new MatchNoDocsQuery();
         }
 
         @Override
@@ -132,125 +117,91 @@ public class QueryRewriteContextRemoteAsyncActionIT extends AbstractMultiCluster
 
         @Override
         protected boolean doEquals(TestQueryBuilder other) {
-            return Objects.equals(fieldName, other.fieldName) && Objects.equals(queries, other.queries);
+            return Objects.equals(this.actionAcknowledged, other.actionAcknowledged)
+                && Objects.equals(this.actionAcknowledgedSupplier, other.actionAcknowledgedSupplier);
         }
 
         @Override
         protected int doHashCode() {
-            return Objects.hash(fieldName, queries);
+            return Objects.hash(actionAcknowledged, actionAcknowledgedSupplier);
         }
     }
 
-    private static class EchoRemoteAction extends ActionType<EchoRemoteAction.Response> {
-        private static final EchoRemoteAction INSTANCE = new EchoRemoteAction();
+    private static class InstrumentedAction extends ActionType<InstrumentedAction.Response> {
+        private static final InstrumentedAction INSTANCE = new InstrumentedAction();
         private static final RemoteClusterActionType<Response> REMOTE_TYPE = new RemoteClusterActionType<>(INSTANCE.name(), Response::new);
 
-        private static final String NAME = "cluster:internal/test/echo";
+        private static final String NAME = "cluster:internal/test/instrumented";
 
-        private EchoRemoteAction() {
+        private InstrumentedAction() {
             super(NAME);
         }
 
         private static class Request extends ActionRequest {
-            private final String value;
-
-            private Request(String value) {
-                this.value = value;
-            }
+            private Request() {}
 
             private Request(StreamInput in) throws IOException {
                 super(in);
-                this.value = in.readString();
             }
 
             @Override
             public void writeTo(StreamOutput out) throws IOException {
                 super.writeTo(out);
-                out.writeString(value);
             }
 
             @Override
             public ActionRequestValidationException validate() {
-                ActionRequestValidationException validationException = null;
-                if (value == null) {
-                    validationException = addValidationError("value must not be null", validationException);
-                }
-
-                return validationException;
-            }
-
-            public String getValue() {
-                return value;
+                return null;
             }
 
             @Override
             public boolean equals(Object o) {
                 if (this == o) return true;
                 if (o == null || getClass() != o.getClass()) return false;
-                Request request = (Request) o;
-                return Objects.equals(value, request.value);
+                return true;
             }
 
             @Override
             public int hashCode() {
-                return Objects.hashCode(value);
+                return 0;
             }
         }
 
-        private static class Response extends ActionResponse {
-            private final String value;
-
-            private Response(String value) {
-                this.value = value;
+        private static class Response extends AcknowledgedResponse {
+            private Response() {
+                super(true);
             }
 
             private Response(StreamInput in) throws IOException {
-                this.value = in.readString();
-            }
-
-            @Override
-            public void writeTo(StreamOutput out) throws IOException {
-                out.writeString(value);
-            }
-
-            public String getValue() {
-                return value;
-            }
-
-            @Override
-            public boolean equals(Object o) {
-                if (this == o) return true;
-                if (o == null || getClass() != o.getClass()) return false;
-                Response response = (Response) o;
-                return Objects.equals(value, response.value);
-            }
-
-            @Override
-            public int hashCode() {
-                return Objects.hashCode(value);
+                super(in);
             }
         }
     }
 
-    private static class TransportEchoRemoteAction extends HandledTransportAction<EchoRemoteAction.Request, EchoRemoteAction.Response> {
+    private static class TransportInstrumentedAction extends HandledTransportAction<
+        InstrumentedAction.Request,
+        InstrumentedAction.Response> {
         private final ClusterService clusterService;
 
         @Inject
-        private TransportEchoRemoteAction(TransportService transportService, ActionFilters actionFilters, ClusterService clusterService) {
+        private TransportInstrumentedAction(TransportService transportService, ActionFilters actionFilters, ClusterService clusterService) {
             super(
-                EchoRemoteAction.NAME,
+                InstrumentedAction.NAME,
                 transportService,
                 actionFilters,
-                EchoRemoteAction.Request::new,
+                InstrumentedAction.Request::new,
                 EsExecutors.DIRECT_EXECUTOR_SERVICE
             );
             this.clusterService = clusterService;
         }
 
         @Override
-        protected void doExecute(Task task, EchoRemoteAction.Request request, ActionListener<EchoRemoteAction.Response> listener) {
+        protected void doExecute(Task task, InstrumentedAction.Request request, ActionListener<InstrumentedAction.Response> listener) {
             String clusterName = clusterService.getClusterName().value();
-            listener.onResponse(new EchoRemoteAction.Response(request.getValue() + "_" + clusterName));
+            AtomicInteger callCounter = INSTRUMENTED_ACTION_CALL_MAP.computeIfAbsent(clusterName, k -> new AtomicInteger());
+            callCounter.incrementAndGet();
+
+            listener.onResponse(new InstrumentedAction.Response());
         }
     }
 
@@ -259,7 +210,7 @@ public class QueryRewriteContextRemoteAsyncActionIT extends AbstractMultiCluster
 
         @Override
         public Collection<ActionHandler> getActions() {
-            return List.of(new ActionHandler(EchoRemoteAction.INSTANCE, TransportEchoRemoteAction.class));
+            return List.of(new ActionHandler(InstrumentedAction.INSTANCE, TransportInstrumentedAction.class));
         }
 
         @Override

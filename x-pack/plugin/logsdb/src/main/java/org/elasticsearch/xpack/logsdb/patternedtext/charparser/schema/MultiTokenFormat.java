@@ -8,33 +8,31 @@
 package org.elasticsearch.xpack.logsdb.patternedtext.charparser.schema;
 
 import java.util.List;
-import java.util.stream.Collectors;
 
 /**
  * A multi-token format can only contain valid token names prefixed with '$', separated by token delimiters and optionally
- * {@link Schema#getTokenBoundaryCharacters() "token boundary characters"}. The {@link #formatParts} can be a mix of {@link TokenType}
- * instances and literal strings that represent whole parts of the format between tokens, meaning that they may include only
- * {@link Schema#getTokenDelimiters() token delimiters} and {@link Schema#getTokenBoundaryCharacters() token boundary characters}.
- * For convenience, the {@link #tokens} list contains only the {@link TokenType} instances extracted from the format parts, in the
- * order they appear in the format.
+ * {@link Schema#getTokenBoundaryCharacters() "token boundary characters"}. The {@link #delimiterParts} are literal strings that
+ * represent whole parts of the format between tokens, meaning that they may include only {@link Schema#getTokenDelimiters() token
+ * delimiters} and {@link Schema#getTokenBoundaryCharacters() token boundary characters}. This list is always one element shorter than the
+ * {@link #tokens} list.
  */
 public class MultiTokenFormat {
     private final String rawFormat;
-    private final List<Object> formatParts;
+    private final List<String> delimiterParts;
     private final List<TokenType> tokens;
 
-    public MultiTokenFormat(String rawFormat, List<Object> formatParts) {
+    public MultiTokenFormat(String rawFormat, List<String> delimiterParts, List<TokenType> tokens) {
         this.rawFormat = rawFormat;
-        this.formatParts = formatParts;
-        this.tokens = formatParts.stream().filter(TokenType.class::isInstance).map(TokenType.class::cast).collect(Collectors.toList());
+        this.delimiterParts = delimiterParts;
+        this.tokens = tokens;
     }
 
     public String getRawFormat() {
         return rawFormat;
     }
 
-    public List<Object> getFormatParts() {
-        return formatParts;
+    public List<String> getDelimiterParts() {
+        return delimiterParts;
     }
 
     public List<TokenType> getTokens() {

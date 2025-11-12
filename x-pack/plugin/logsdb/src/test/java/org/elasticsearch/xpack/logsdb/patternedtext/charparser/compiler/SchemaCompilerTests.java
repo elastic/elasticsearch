@@ -12,7 +12,7 @@ import org.elasticsearch.xpack.logsdb.patternedtext.charparser.common.CharCodes;
 import org.elasticsearch.xpack.logsdb.patternedtext.charparser.common.TimestampComponentType;
 import org.elasticsearch.xpack.logsdb.patternedtext.charparser.parser.BitmaskRegistry;
 import org.elasticsearch.xpack.logsdb.patternedtext.charparser.parser.MultiTokenType;
-import org.elasticsearch.xpack.logsdb.patternedtext.charparser.parser.SubTokenDelimiterCharParsingInfo;
+import org.elasticsearch.xpack.logsdb.patternedtext.charparser.parser.CharSpecificParsingInfo;
 import org.elasticsearch.xpack.logsdb.patternedtext.charparser.parser.SubTokenType;
 import org.elasticsearch.xpack.logsdb.patternedtext.charparser.parser.SubstringToIntegerMap;
 import org.elasticsearch.xpack.logsdb.patternedtext.charparser.parser.SubstringView;
@@ -239,9 +239,9 @@ public class SchemaCompilerTests extends ESTestCase {
         assertEquals(0x00, bitmaskForInteger & TZOhhmm_bitmask);
         assertNotEquals("int_bitmask should be set for 2000", 0x00, bitmaskForInteger & int_bitmask);
 
-        SubTokenDelimiterCharParsingInfo[] subTokenDelimiterCharParsingInfos = compiledSchema.subTokenDelimiterCharParsingInfos;
-        assertNotNull(subTokenDelimiterCharParsingInfos);
-        SubTokenDelimiterCharParsingInfo spaceDelimiterInfo = subTokenDelimiterCharParsingInfos[' '];
+        CharSpecificParsingInfo[] charSpecificParsingInfos = compiledSchema.charSpecificParsingInfos;
+        assertNotNull(charSpecificParsingInfos);
+        CharSpecificParsingInfo spaceDelimiterInfo = charSpecificParsingInfos[' '];
 
         BitmaskRegistry<TokenType> tokenBitmaskRegistry = compiledSchema.tokenBitmaskRegistry;
 
@@ -257,11 +257,11 @@ public class SchemaCompilerTests extends ESTestCase {
         int uuid_bitmask = tokenBitmaskRegistry.getBitmask("UUID_standard");
         int Mon_token_bitmask = tokenBitmaskRegistry.getBitmask("Mon");
 
-        SubTokenDelimiterCharParsingInfo dotDelimiterInfo = subTokenDelimiterCharParsingInfos['.'];
-        int[] tokenBitmaskPerSubTokenIndex_dot = dotDelimiterInfo.tokenBitmaskPerSubTokenIndex;
-        SubTokenDelimiterCharParsingInfo dashDelimiterInfo = subTokenDelimiterCharParsingInfos['-'];
-        int[] tokenBitmaskPerSubTokenIndex_dash = dashDelimiterInfo.tokenBitmaskPerSubTokenIndex;
-        int[] tokenBitmaskPerSubTokenIndex_space = spaceDelimiterInfo.tokenBitmaskPerSubTokenIndex;
+        CharSpecificParsingInfo dotDelimiterInfo = charSpecificParsingInfos['.'];
+        int[] tokenBitmaskPerSubTokenIndex_dot = dotDelimiterInfo.tokenBitmaskPerDelimiterPosition;
+        CharSpecificParsingInfo dashDelimiterInfo = charSpecificParsingInfos['-'];
+        int[] tokenBitmaskPerSubTokenIndex_dash = dashDelimiterInfo.tokenBitmaskPerDelimiterPosition;
+        int[] tokenBitmaskPerSubTokenIndex_space = spaceDelimiterInfo.tokenBitmaskPerDelimiterPosition;
 
         // IPv4
         assertNotEquals(0x00, tokenBitmaskPerSubTokenIndex_dot[0] & ipv4_bitmask);
@@ -285,7 +285,7 @@ public class SchemaCompilerTests extends ESTestCase {
         // UUID standard format is defined in the schema as: "(%X{8})-(%X{4})-(%X{4})-(%X{4})-(%X{12})"
         int tokenBitmaskForUUID = tokenBitmaskRegistry.getCombinedBitmask();
         String testUuid = "123e4567-e89b-12d3-a456-426614174000";
-        ToIntFunction<SubstringView>[] dashSubTokenBitmaskGeneratorPerIndex = dashDelimiterInfo.subTokenBitmaskGeneratorPerSubTokenIndices;
+        ToIntFunction<SubstringView>[] dashSubTokenBitmaskGeneratorPerIndex = dashDelimiterInfo.bitmaskGeneratorPerPosition;
         assertNotNull(dashSubTokenBitmaskGeneratorPerIndex);
         ToIntFunction<SubstringView> subTokenBitmaskGenerator = dashSubTokenBitmaskGeneratorPerIndex[0];
         assertNotNull(subTokenBitmaskGenerator);
@@ -328,7 +328,7 @@ public class SchemaCompilerTests extends ESTestCase {
         );
         subTokenBitmaskGenerator = dashSubTokenBitmaskGeneratorPerIndex[4];
         assertNull(subTokenBitmaskGenerator);
-        subTokenBitmaskGenerator = spaceDelimiterInfo.subTokenBitmaskGeneratorPerSubTokenIndices[4];
+        subTokenBitmaskGenerator = spaceDelimiterInfo.bitmaskGeneratorPerPosition[4];
         assertNotNull(subTokenBitmaskGenerator);
         assertEquals(0, subTokenBitmaskGenerator.applyAsInt(new SubstringView(testUuid, 24, 35)));
         testedSubstring = new SubstringView(testUuid, 24, 36);
@@ -381,14 +381,22 @@ public class SchemaCompilerTests extends ESTestCase {
 
     public void testCreateTimestampFormat_withBracketLiterals() {
         Schema schema = Schema.getInstance();
-        String rawFormat = "[$date2  {$timeMS} $TZOhhmm]";
-        List<Object> formatParts = PatternUtils.parseMultiTokenFormat(rawFormat, schema.getTokenTypes(), schema.getTokenBoundaryChars());
-        MultiTokenFormat multiTokenFormat = new MultiTokenFormat(rawFormat, formatParts);
+        String rawFormat = "$date2  {$timeMS} $TZOhhmm";
+        List<org.elasticsearch.xpack.logsdb.patternedtext.charparser.schema.TokenType> formatTokens = new ArrayList<>();
+        List<String> formatDelimiterParts = new ArrayList<>();
+        PatternUtils.parseMultiTokenFormat(
+            rawFormat,
+            schema.getTokenTypes(),
+            schema.getAllTokenBoundaryChars(),
+            formatTokens,
+            formatDelimiterParts
+        );
+        MultiTokenFormat multiTokenFormat = new MultiTokenFormat(rawFormat, formatDelimiterParts, formatTokens);
 
         TimestampFormat result = SchemaCompiler.createTimestampFormat(multiTokenFormat);
 
         // bracket literals should be escaped in the Java time format; double-space should be preserved
-        assertEquals("'['yyyy-MM-dd  '{'hh:mm:ss.SSS'}' Z']'", result.getJavaTimeFormat());
+        assertEquals("yyyy-MM-dd  '{'hh:mm:ss.SSS'}' Z", result.getJavaTimeFormat());
         int[] order = result.getTimestampComponentsOrder();
         assertEquals(0, order[TimestampComponentType.YEAR_CODE]);
         assertEquals(1, order[TimestampComponentType.MONTH_CODE]);
@@ -411,5 +419,35 @@ public class SchemaCompilerTests extends ESTestCase {
             }
         }
         throw new IllegalArgumentException("Value " + value + " is below minimum range defined in schema.");
+    }
+
+    public void testSpecialCharacters() {
+        Schema schema = Schema.getInstance();
+        CompiledSchema compiledSchema = SchemaCompiler.compile(schema);
+        assertNotNull(compiledSchema);
+        CharSpecificParsingInfo[] charSpecificParsingInfos = compiledSchema.charSpecificParsingInfos;
+        for (char c : schema.getTokenDelimiters()) {
+            CharSpecificParsingInfo info = charSpecificParsingInfos[c];
+            assertNotNull("CharSpecificParsingInfo should be defined for token delimiter char: '" + c + "'", info);
+            assertNotNull(info.tokenBitmaskPerDelimiterPosition);
+            assertNotNull(info.bitmaskGeneratorPerPosition);
+            if (c == ' ') {
+                assertNotNull(info.multiTokenBitmaskPerDelimiterPartPosition);
+            }
+        }
+        for (char c : "./:-".toCharArray()) {
+            CharSpecificParsingInfo info = charSpecificParsingInfos[c];
+            assertNotNull("CharSpecificParsingInfo should be defined for sub-token delimiter char: '" + c + "'", info);
+            assertNotNull("info.bitmaskPerPosition is null for char: " + c, info.tokenBitmaskPerDelimiterPosition);
+            if (c == '-') {
+                assertNotNull("info.bitmaskPerPosition is null for char: " + c, info.bitmaskGeneratorPerPosition);
+            }
+            assertNull(info.multiTokenBitmaskPerDelimiterPartPosition);
+        }
+        CharSpecificParsingInfo info = charSpecificParsingInfos[','];
+        assertNotNull("CharSpecificParsingInfo should be defined for token boundary char: ','", info);
+        assertNull(info.tokenBitmaskPerDelimiterPosition);
+        assertNull(info.bitmaskGeneratorPerPosition);
+        assertNotNull(info.multiTokenBitmaskPerDelimiterPartPosition);
     }
 }

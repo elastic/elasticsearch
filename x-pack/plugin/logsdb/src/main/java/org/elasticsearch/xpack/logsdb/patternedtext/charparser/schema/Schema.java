@@ -159,10 +159,10 @@ public class Schema {
         return actualDelimiters;
     }
 
-    private ArrayList<MultiTokenType> parseMultiTokenTypes(List<Object> multiTokenTypesList) {
+    ArrayList<MultiTokenType> parseMultiTokenTypes(List<Object> multiTokenTypesList) {
         ArrayList<MultiTokenType> result = new ArrayList<>();
         // Create the set of boundary characters once
-        Set<Character> boundaryChars = getTokenBoundaryChars();
+        Set<Character> boundaryChars = getAllTokenBoundaryChars();
 
         for (Object obj : multiTokenTypesList) {
             Map<String, Object> typeMap = (Map<String, Object>) obj;
@@ -172,8 +172,10 @@ public class Schema {
             EncodingType encodingType = EncodingType.fromSymbol(encodingTypeStr.charAt(1));
 
             String rawFormat = (String) typeMap.get("format");
-            List<Object> formatParts = PatternUtils.parseMultiTokenFormat(rawFormat, tokenTypes, boundaryChars);
-            MultiTokenFormat format = new MultiTokenFormat(rawFormat, formatParts);
+            List<TokenType> formatTokens = new ArrayList<>();
+            List<String> formatDelimiterParts = new ArrayList<>();
+            PatternUtils.parseMultiTokenFormat(rawFormat, tokenTypes, boundaryChars, formatTokens, formatDelimiterParts);
+            MultiTokenFormat format = new MultiTokenFormat(rawFormat, formatDelimiterParts, formatTokens);
 
             String description = getConfigValue(typeMap, "description");
             result.addLast(new MultiTokenType(name, encodingType, format, description));
@@ -182,7 +184,7 @@ public class Schema {
         return result;
     }
 
-    public Set<Character> getTokenBoundaryChars() {
+    public Set<Character> getAllTokenBoundaryChars() {
         Set<Character> boundaryChars = new HashSet<>();
         for (char c : getTokenDelimiters()) {
             boundaryChars.add(c);

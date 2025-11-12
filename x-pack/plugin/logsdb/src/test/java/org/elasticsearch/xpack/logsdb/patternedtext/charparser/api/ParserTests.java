@@ -18,9 +18,6 @@ import static org.hamcrest.Matchers.instanceOf;
 
 public class ParserTests extends ESTestCase {
 
-    public static final String MESSAGE_WITH_IP_AND_NUMBER = "Response from 127.0.0.1 took 2000 ms";
-    public static final String MESSAGE_WITH_TIMESTAMP_IP_AND_NUMBER =
-        "Oct 05 2023 02:48:07 PM INFO Response from 146.10.10.133 took 2000 ms";
     private static Parser parser;
     private static StringBuilder patternedMessage;
 
@@ -32,8 +29,9 @@ public class ParserTests extends ESTestCase {
     }
 
     public void testSimpleIpAndNumber() throws ParseException {
-        List<Argument<?>> parsedArguments = parser.parse(MESSAGE_WITH_IP_AND_NUMBER);
-        Parser.constructPattern(MESSAGE_WITH_IP_AND_NUMBER, parsedArguments, patternedMessage, true);
+        String messageWithIpAndNumber = "Response from 127.0.0.1 took 2000 ms";
+        List<Argument<?>> parsedArguments = parser.parse(messageWithIpAndNumber);
+        Parser.constructPattern(messageWithIpAndNumber, parsedArguments, patternedMessage, true);
         assertEquals("Response from %4 took %I ms", patternedMessage.toString());
         assertEquals(2, parsedArguments.size());
         assertEquals("IPV4", parsedArguments.getFirst().type().name());
@@ -41,9 +39,9 @@ public class ParserTests extends ESTestCase {
     }
 
     public void testTimestampAndIpAndNumber() throws ParseException {
-        // todo - there is a bug here, "Oct 05 2023 02:48:07 PM" SHOULD NOT match the timestamp format and "Oct, 05 2023 02:48:07 PM" SHOULD
-        List<Argument<?>> parsedArguments = parser.parse(MESSAGE_WITH_TIMESTAMP_IP_AND_NUMBER);
-        Parser.constructPattern(MESSAGE_WITH_TIMESTAMP_IP_AND_NUMBER, parsedArguments, patternedMessage, true);
+        String messageWithTimestampIpAndNumber = "Oct, 05 2023 02:48:07 PM INFO Response from 146.10.10.133 took 2000 ms";
+        List<Argument<?>> parsedArguments = parser.parse(messageWithTimestampIpAndNumber);
+        Parser.constructPattern(messageWithTimestampIpAndNumber, parsedArguments, patternedMessage, true);
         assertEquals("%T INFO Response from %4 took %I ms", patternedMessage.toString());
         assertEquals(3, parsedArguments.size());
         assertThat(parsedArguments.getFirst(), instanceOf(Timestamp.class));
@@ -55,5 +53,13 @@ public class ParserTests extends ESTestCase {
         assertEquals(1696517287000L, TimestampFormat.parseTimestamp(dateTimeFormatter, "Oct, 05 2023 02:48:07 PM"));
         assertEquals("IPV4", parsedArguments.get(1).type().name());
         assertEquals("INTEGER", parsedArguments.get(2).type().name());
+    }
+
+    public void testInvalidTimestamp() throws ParseException {
+        String messageWithTimestampIpAndNumber = "Oct 05 2023 02:48:07 PM INFO Response from 146.10.10.133 took 2000 ms";
+        List<Argument<?>> parsedArguments = parser.parse(messageWithTimestampIpAndNumber);
+        Parser.constructPattern(messageWithTimestampIpAndNumber, parsedArguments, patternedMessage, true);
+        // todo - add support for local time - based on java.time.LocalTime
+        assertEquals("Oct %I %I 02:48:07 PM INFO Response from %4 took %I ms", patternedMessage.toString());
     }
 }

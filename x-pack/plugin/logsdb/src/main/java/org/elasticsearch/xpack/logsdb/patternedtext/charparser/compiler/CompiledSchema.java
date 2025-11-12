@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.logsdb.patternedtext.charparser.compiler;
 
 import org.elasticsearch.xpack.logsdb.patternedtext.charparser.parser.BitmaskRegistry;
 import org.elasticsearch.xpack.logsdb.patternedtext.charparser.parser.MultiTokenType;
-import org.elasticsearch.xpack.logsdb.patternedtext.charparser.parser.SubTokenDelimiterCharParsingInfo;
+import org.elasticsearch.xpack.logsdb.patternedtext.charparser.parser.CharSpecificParsingInfo;
 import org.elasticsearch.xpack.logsdb.patternedtext.charparser.parser.SubTokenType;
 import org.elasticsearch.xpack.logsdb.patternedtext.charparser.parser.SubstringToIntegerMap;
 import org.elasticsearch.xpack.logsdb.patternedtext.charparser.parser.TokenType;
@@ -40,11 +40,11 @@ public final class CompiledSchema {
 
     /**
      * A fast-access lookup table for finding parsing information for delimiter characters.
-     * This array contains instances of {@link SubTokenDelimiterCharParsingInfo} for delimiter characters, where the index in the array
+     * This array contains instances of {@link CharSpecificParsingInfo} for delimiter characters, where the index in the array
      * corresponds to the ASCII code of the character.
      * This means that the array is sparse and only contains information for characters that are defined as delimiters in the schema.
      */
-    public final SubTokenDelimiterCharParsingInfo[] subTokenDelimiterCharParsingInfos;
+    public final CharSpecificParsingInfo[] charSpecificParsingInfos;
 
     /**
      * A fast-access map for retrieving the numeric value representation for String subTokens.
@@ -125,6 +125,13 @@ public final class CompiledSchema {
     public final int[] subTokenCountToMultiTokenBitmask;
 
     /**
+     * A fast-access multi-token bitmask lookup table for each total length of delimiter parts. For example, the bitmask at index 10
+     * indicates the multi-token types that have delimiter parts with a total length of 10 characters. Delimiter parts are the literal
+     * strings between tokens in a multi-token format.
+     */
+    public final int[] delimiterPartsTotalLengthToMultiTokenBitmask;
+
+    /**
      * A subToken bitmask registry that allows for fast access to subToken types by their bit index or bitmask.
      */
     public final BitmaskRegistry<SubTokenType> subTokenBitmaskRegistry;
@@ -147,7 +154,7 @@ public final class CompiledSchema {
     public CompiledSchema(
         int[] charToSubTokenBitmask,
         byte[] charToCharType,
-        SubTokenDelimiterCharParsingInfo[] subTokenDelimiterCharParsingInfos,
+        CharSpecificParsingInfo[] charSpecificParsingInfos,
         SubstringToIntegerMap subTokenNumericValueRepresentation,
         int maxSubTokensPerToken,
         int maxTokensPerMultiToken,
@@ -161,13 +168,14 @@ public final class CompiledSchema {
         int[] subTokenCountToTokenBitmask,
         int[] tokenCountToMultiTokenBitmask,
         int[] subTokenCountToMultiTokenBitmask,
+        int[] delimiterPartsTotalLengthToMultiTokenBitmask,
         BitmaskRegistry<SubTokenType> subTokenBitmaskRegistry,
         BitmaskRegistry<TokenType> tokenBitmaskRegistry,
         BitmaskRegistry<MultiTokenType> multiTokenBitmaskRegistry
     ) {
         this.charToSubTokenBitmask = charToSubTokenBitmask;
         this.charToCharType = charToCharType;
-        this.subTokenDelimiterCharParsingInfos = subTokenDelimiterCharParsingInfos;
+        this.charSpecificParsingInfos = charSpecificParsingInfos;
         this.subTokenNumericValueRepresentation = subTokenNumericValueRepresentation;
         this.maxSubTokensPerToken = maxSubTokensPerToken;
         this.maxTokensPerMultiToken = maxTokensPerMultiToken;
@@ -181,6 +189,7 @@ public final class CompiledSchema {
         this.subTokenCountToTokenBitmask = subTokenCountToTokenBitmask;
         this.tokenCountToMultiTokenBitmask = tokenCountToMultiTokenBitmask;
         this.subTokenCountToMultiTokenBitmask = subTokenCountToMultiTokenBitmask;
+        this.delimiterPartsTotalLengthToMultiTokenBitmask = delimiterPartsTotalLengthToMultiTokenBitmask;
         if (subTokenBitmaskRegistry.isSealed() == false) {
             throw new IllegalArgumentException("SubToken bitmask registry must be sealed before passing to the compiled schema");
         }

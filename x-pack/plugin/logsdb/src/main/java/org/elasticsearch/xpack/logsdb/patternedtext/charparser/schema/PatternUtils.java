@@ -334,17 +334,22 @@ public class PatternUtils {
      * Handles references to token types (e.g., {@code $time}) and subToken types (e.g., {@code $Mon}).
      *
      * @param format The multi-token format string (e.g., {@code $Mon, $DD $YYYY} or {@code $datetime $TZA})
-     * @param tokenTypes Map of defined token types by name
+     * @param registeredTokenTypes Map of defined token types by name
      * @param boundaryChars A set of characters that define the boundaries of a token name
-     * @return A list of objects, where each object is either a {@link String} literal or a {@link TokenType}
+     * @param formatTokens Output list to hold the extracted TokenType instances in order
+     * @param formatDelimiterParts Output list to hold the literal string parts between tokens
      * @throws IllegalArgumentException if the format is invalid or contains unknown token references
      */
-    public static List<Object> parseMultiTokenFormat(String format, List<TokenType> tokenTypes, Set<Character> boundaryChars) {
+    public static void parseMultiTokenFormat(
+        String format,
+        List<TokenType> registeredTokenTypes,
+        Set<Character> boundaryChars,
+        List<TokenType> formatTokens,
+        List<String> formatDelimiterParts
+    ) {
         if (format == null || format.isEmpty()) {
             throw new IllegalArgumentException("Format string cannot be null or empty");
         }
-
-        List<Object> parts = new ArrayList<>();
         StringBuilder currentPart = new StringBuilder();
         boolean isTokenNamePart = false;
         for (int i = 0; i < format.length(); i++) {
@@ -355,16 +360,23 @@ public class PatternUtils {
                 } else {
                     if (boundaryChars.contains(c)) {
                         // end of token name
-                        addMultiTokenPart(format, tokenTypes, currentPart, isTokenNamePart, parts);
-                        currentPart.setLength(0); // reset for next token
+                        if (currentPart.length() > 0) {
+                            addTokenToList(format, registeredTokenTypes, formatTokens, currentPart.toString());
+                            currentPart.setLength(0); // reset for next part
+                        } else {
+                            throw new IllegalArgumentException("Token name cannot be empty in format: " + format);
+                        }
                         isTokenNamePart = false;
                     }
                     currentPart.append(c);
                 }
             } else {
                 if (c == '$') {
-                    addMultiTokenPart(format, tokenTypes, currentPart, isTokenNamePart, parts);
-                    currentPart.setLength(0);
+                    // end of literal part
+                    if (currentPart.length() > 0) {
+                        formatDelimiterParts.add(currentPart.toString());
+                        currentPart.setLength(0);
+                    }
                     isTokenNamePart = true;
                 } else if (boundaryChars.contains(c)) {
                     currentPart.append(c);
@@ -375,34 +387,20 @@ public class PatternUtils {
                 }
             }
         }
-        addMultiTokenPart(format, tokenTypes, currentPart, isTokenNamePart, parts);
-        return parts;
+        // Handle the last part
+        if (isTokenNamePart) {
+            addTokenToList(format, registeredTokenTypes, formatTokens, currentPart.toString());
+        } else {
+            throw new IllegalArgumentException("Invalid format \"" + format + "\". Multi-token format must end with a valid token");
+        }
     }
 
-    private static void addMultiTokenPart(
-        String format,
-        List<TokenType> tokenTypes,
-        StringBuilder currentPart,
-        boolean isTokenNamePart,
-        List<Object> parts
-    ) {
-        // noinspection SizeReplaceableByIsEmpty
-        if (currentPart.length() > 0) {
-            if (isTokenNamePart) {
-                // if the last part is a token name, it must end with a boundary character
-                String tokenName = currentPart.toString();
-                TokenType token = findTokenTypeByName(tokenTypes, tokenName);
-                if (token == null) {
-                    throw new IllegalArgumentException("Unknown token type: " + tokenName + " in format: " + format);
-                }
-                parts.add(token);
-            } else {
-                // otherwise, it's a literal part
-                parts.add(currentPart.toString());
-            }
-        } else if (isTokenNamePart) {
-            throw new IllegalArgumentException("Token name cannot be empty in format: " + format);
+    private static void addTokenToList(String format, List<TokenType> registeredTokens, List<TokenType> tokenList, String tokenName) {
+        TokenType token = findTokenTypeByName(registeredTokens, tokenName);
+        if (token == null) {
+            throw new IllegalArgumentException("Unknown token type: " + tokenName + " in format: " + format);
         }
+        tokenList.add(token);
     }
 
     private static SubTokenType findSubTokenTypeByName(List<SubTokenType> list, String name) {

@@ -11,7 +11,7 @@ import org.elasticsearch.xpack.logsdb.patternedtext.charparser.common.EncodingTy
 import org.elasticsearch.xpack.logsdb.patternedtext.charparser.common.TimestampComponentType;
 import org.elasticsearch.xpack.logsdb.patternedtext.charparser.parser.BitmaskRegistry;
 import org.elasticsearch.xpack.logsdb.patternedtext.charparser.parser.MultiTokenType;
-import org.elasticsearch.xpack.logsdb.patternedtext.charparser.parser.SubTokenDelimiterCharParsingInfo;
+import org.elasticsearch.xpack.logsdb.patternedtext.charparser.parser.CharSpecificParsingInfo;
 import org.elasticsearch.xpack.logsdb.patternedtext.charparser.parser.SubTokenType;
 import org.elasticsearch.xpack.logsdb.patternedtext.charparser.parser.SubstringToIntegerMap;
 import org.elasticsearch.xpack.logsdb.patternedtext.charparser.parser.SubstringView;
@@ -73,6 +73,12 @@ public class SchemaCompiler {
         ArrayList<SubstringToBitmaskChain.Builder> bitmaskGeneratorForLastSubToken = new ArrayList<>();
         // a global map for all string subToken types, that maps a string value to the corresponding subToken bitmask
         SubstringToIntegerMap.Builder subTokenValueToBitmaskMapBuilder = SubstringToIntegerMap.builder();
+        // for each token boundary character (either token delimiters or boundary characters), we store the superset of multi-token types
+        // that are valid for this character at each index within the total concatenated delimiter parts of all multi-token formats.
+        // For example, given the multi-token format "$Mon, $DD $YYYY $timeS $AP", the full concatenated string made up of the delimiter
+        // parts is ", ". Therefore, the bit of this multi-token will be set at index 0 for the character ',' and at indices
+        // 1, 2, 3, and 4 for the space character.
+        Map<Character, ArrayList<Integer>> tokenBoundaryCharToMultiTokenBitmaskPerIndex = new HashMap<>();
 
         int allSubTokenBitmask = 0;
         int intSubTokenBitmask;
@@ -85,8 +91,11 @@ public class SchemaCompiler {
 
         int maxTokensPerMultiToken = 0;
         int maxSubTokensPerMultiToken = 0;
+        int maxDelimiterPartsLength = 0;
+
         Map<String, ArrayList<Integer>> tokenTypeToMultiTokenBitmaskByPosition = new HashMap<>();
         BitmaskRegistry<MultiTokenType> multiTokenBitmaskRegistry = new BitmaskRegistry<>();
+        ArrayList<Integer> multiTokenBitmaskPerDelimiterPartsLengths = new ArrayList<>();
         for (org.elasticsearch.xpack.logsdb.patternedtext.charparser.schema.MultiTokenType multiTokenType : schema.getMultiTokenTypes()) {
             MultiTokenFormat format = multiTokenType.getFormat();
             List<org.elasticsearch.xpack.logsdb.patternedtext.charparser.schema.TokenType> tokens = format.getTokens();
@@ -121,6 +130,28 @@ public class SchemaCompiler {
                 fillListUpToIndex(bitmaskList, i, () -> 0);
                 bitmaskList.set(i, bitmaskList.get(i) | multiTokenBitmask);
             }
+
+            int delimiterCharPosition = -1;
+            for (String delimiterPart : format.getDelimiterParts()) {
+                for (char tokenBoundaryCharacter : delimiterPart.toCharArray()) {
+                    delimiterCharPosition++;
+                    ArrayList<Integer> multiTokenBitmaskPerDelimiterIndex = tokenBoundaryCharToMultiTokenBitmaskPerIndex.computeIfAbsent(
+                        tokenBoundaryCharacter,
+                        input -> new ArrayList<>()
+                    );
+                    fillListUpToIndex(multiTokenBitmaskPerDelimiterIndex, delimiterCharPosition, () -> 0);
+                    multiTokenBitmaskPerDelimiterIndex.set(
+                        delimiterCharPosition,
+                        multiTokenBitmaskPerDelimiterIndex.get(delimiterCharPosition) | multiTokenBitmask
+                    );
+                }
+            }
+            maxDelimiterPartsLength = Math.max(maxDelimiterPartsLength, delimiterCharPosition + 1);
+            fillListUpToIndex(multiTokenBitmaskPerDelimiterPartsLengths, delimiterCharPosition, () -> 0);
+            multiTokenBitmaskPerDelimiterPartsLengths.set(
+                delimiterCharPosition,
+                multiTokenBitmaskPerDelimiterPartsLengths.get(delimiterCharPosition) | multiTokenBitmask
+            );
         }
         multiTokenBitmaskRegistry.seal();
 
@@ -326,7 +357,7 @@ public class SchemaCompiler {
         }
         subTokenBitmaskRegistry.seal();
 
-        SubTokenDelimiterCharParsingInfo[] subTokenDelimiterCharParsingInfos = new SubTokenDelimiterCharParsingInfo[ASCII_RANGE];
+        CharSpecificParsingInfo[] charSpecificParsingInfos = new CharSpecificParsingInfo[ASCII_RANGE];
 
         for (char delimiter : schema.getSubTokenDelimiters()) {
             if (delimiter < ASCII_RANGE) {
@@ -347,14 +378,36 @@ public class SchemaCompiler {
                     subTokenBitmaskGeneratorPerSubTokenIndexList,
                     maxSubTokensPerToken
                 );
-                subTokenDelimiterCharParsingInfos[delimiter] = new SubTokenDelimiterCharParsingInfo(
+                charSpecificParsingInfos[delimiter] = new CharSpecificParsingInfo(
                     delimiter,
                     tokenBitmaskPerSubTokenIndex,
-                    subTokenBitmaskGeneratorPerSubTokenIndices
+                    subTokenBitmaskGeneratorPerSubTokenIndices,
+                    null
                 );
             } else {
                 throw new IllegalArgumentException(
                     "SubToken delimiter character '" + delimiter + "' is outside the ASCII range and will not be processed."
+                );
+            }
+        }
+
+        for (char tokenBoundaryCharacter : schema.getTokenBoundaryCharacters()) {
+            if (tokenBoundaryCharacter < ASCII_RANGE) {
+                int[] multiTokenBitmaskPerBoundaryCharIndex = getMultiTokenBitmaskPerBoundaryCharIndex(
+                    tokenBoundaryCharacter,
+                    tokenBoundaryCharToMultiTokenBitmaskPerIndex,
+                    maxDelimiterPartsLength
+                );
+                CharSpecificParsingInfo tokenBoundaryCharParsingInfo = new CharSpecificParsingInfo(
+                    tokenBoundaryCharacter,
+                    null,
+                    null,
+                    multiTokenBitmaskPerBoundaryCharIndex
+                );
+                charSpecificParsingInfos[tokenBoundaryCharacter] = tokenBoundaryCharParsingInfo;
+            } else {
+                throw new IllegalArgumentException(
+                    "Token boundary character '" + tokenBoundaryCharacter + "' is outside the ASCII range and will not be processed."
                 );
             }
         }
@@ -369,12 +422,19 @@ public class SchemaCompiler {
                 // token delimiter characters are also subToken delimiters (that delimit between the last subToken to the next token)
                 // and therefore should be mapped to the inclusive subToken bitmask, as they are valid to all subToken types
                 charToSubTokenBitmask[delimiter] = allSubTokenBitmask;
-                SubTokenDelimiterCharParsingInfo tokenDelimiterCharParsingInfo = new SubTokenDelimiterCharParsingInfo(
+
+                int[] multiTokenBitmaskPerBoundaryCharIndex = getMultiTokenBitmaskPerBoundaryCharIndex(
+                    delimiter,
+                    tokenBoundaryCharToMultiTokenBitmaskPerIndex,
+                    maxDelimiterPartsLength
+                );
+                CharSpecificParsingInfo tokenDelimiterCharParsingInfo = new CharSpecificParsingInfo(
                     delimiter,
                     tokenBitmaskPerSubTokenIndex,
-                    subTokenBitmaskGeneratorForLastIndex
+                    subTokenBitmaskGeneratorForLastIndex,
+                    multiTokenBitmaskPerBoundaryCharIndex
                 );
-                subTokenDelimiterCharParsingInfos[delimiter] = tokenDelimiterCharParsingInfo;
+                charSpecificParsingInfos[delimiter] = tokenDelimiterCharParsingInfo;
             } else {
                 throw new IllegalArgumentException(
                     "Token delimiter character '" + delimiter + "' is outside the ASCII range and will not be processed."
@@ -444,6 +504,11 @@ public class SchemaCompiler {
             }
         }
 
+        int[] delimiterLengthToMultiTokenBitmask = new int[maxDelimiterPartsLength];
+        for (int i = 0; i < multiTokenBitmaskPerDelimiterPartsLengths.size(); i++) {
+            delimiterLengthToMultiTokenBitmask[i] = multiTokenBitmaskPerDelimiterPartsLengths.get(i);
+        }
+
         intRangeBitmasks = mergeIntRangeBitmasks(intRangeBitmasks);
         int[] integerSubTokenBitmaskArrayRanges = new int[intRangeBitmasks.size()];
         int[] integerSubTokenBitmasks = new int[intRangeBitmasks.size()];
@@ -457,7 +522,7 @@ public class SchemaCompiler {
         return new CompiledSchema(
             charToSubTokenBitmask,
             charToCharType,
-            subTokenDelimiterCharParsingInfos,
+            charSpecificParsingInfos,
             subTokenValueToBitmaskMapBuilder.build(),
             maxSubTokensPerToken,
             maxTokensPerMultiToken,
@@ -471,10 +536,30 @@ public class SchemaCompiler {
             subTokenCountToTokenBitmask,
             tokenCountToMultiTokenBitmask,
             subTokenCountToMultiTokenBitmask,
+            delimiterLengthToMultiTokenBitmask,
             subTokenBitmaskRegistry,
             tokenBitmaskRegistry,
             multiTokenBitmaskRegistry
         );
+    }
+
+    private static int[] getMultiTokenBitmaskPerBoundaryCharIndex(
+        char tokenBoundaryCharacter,
+        Map<Character, ArrayList<Integer>> tokenBoundaryCharToMultiTokenBitmaskPerIndex,
+        int maxDelimiterPartsLength
+    ) {
+        int[] multiTokenBitmaskPerBoundaryCharIndex = null;
+        ArrayList<Integer> multiTokenBitmaskPerBoundaryCharIndexArray = tokenBoundaryCharToMultiTokenBitmaskPerIndex.get(
+            tokenBoundaryCharacter
+        );
+        if (multiTokenBitmaskPerBoundaryCharIndexArray != null) {
+            multiTokenBitmaskPerBoundaryCharIndex = new int[maxDelimiterPartsLength];
+            fillListUpToIndex(multiTokenBitmaskPerBoundaryCharIndexArray, maxDelimiterPartsLength - 1, () -> 0);
+            for (int i = 0; i < multiTokenBitmaskPerBoundaryCharIndexArray.size(); i++) {
+                multiTokenBitmaskPerBoundaryCharIndex[i] = multiTokenBitmaskPerBoundaryCharIndexArray.get(i);
+            }
+        }
+        return multiTokenBitmaskPerBoundaryCharIndex;
     }
 
     /**
@@ -688,19 +773,31 @@ public class SchemaCompiler {
      * @return A TimestampFormat object containing the format string and an array indicating the order of timestamp components.
      */
     static TimestampFormat createTimestampFormat(MultiTokenFormat format) {
-        StringBuilder javaTimeFormat = new StringBuilder();
+        List<String> delimiterParts = format.getDelimiterParts();
+        List<org.elasticsearch.xpack.logsdb.patternedtext.charparser.schema.TokenType> tokens = format.getTokens();
+        if (delimiterParts.size() != tokens.size() - 1) {
+            throw new IllegalArgumentException(
+                "Invalid MultiTokenFormat: number of delimiter parts ("
+                    + delimiterParts.size()
+                    + ") must be one less than number of tokens ("
+                    + tokens.size()
+                    + ")."
+            );
+        }
         int[] timestampComponentsOrder = new int[TimestampComponentType.values().length];
         Arrays.fill(timestampComponentsOrder, -1);
         int nextComponentIndex = 0;
-        for (Object part : format.getFormatParts()) {
-            if (part instanceof String) {
-                for (char c : ((String) part).toCharArray()) {
+        StringBuilder javaTimeFormat = new StringBuilder();
+        for (int i = 0; i < tokens.size(); i++) {
+            org.elasticsearch.xpack.logsdb.patternedtext.charparser.schema.TokenType token = tokens.get(i);
+            StringBuilder tokenJavaTimeFormat = new StringBuilder();
+            nextComponentIndex += appendTimestampComponents(token, tokenJavaTimeFormat, timestampComponentsOrder, nextComponentIndex);
+            javaTimeFormat.append(tokenJavaTimeFormat);
+            if (i < delimiterParts.size()) {
+                String delimiterPart = delimiterParts.get(i);
+                for (char c : delimiterPart.toCharArray()) {
                     appendDelimiter(javaTimeFormat, c);
                 }
-            } else if (part instanceof org.elasticsearch.xpack.logsdb.patternedtext.charparser.schema.TokenType token) {
-                StringBuilder tokenJavaTimeFormat = new StringBuilder();
-                nextComponentIndex += appendTimestampComponents(token, tokenJavaTimeFormat, timestampComponentsOrder, nextComponentIndex);
-                javaTimeFormat.append(tokenJavaTimeFormat);
             }
         }
         return new TimestampFormat(javaTimeFormat.toString(), timestampComponentsOrder);

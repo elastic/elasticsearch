@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.logsdb.patternedtext.charparser.parser;
 
 import org.elasticsearch.xpack.logsdb.patternedtext.charparser.common.TimestampComponentType;
 
+import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.Locale;
@@ -170,7 +171,19 @@ public final class TimestampFormat {
 
     public static long parseTimestamp(DateTimeFormatter dateTimeFormatter, String timestampString) {
         return dateTimeFormatter.parse(timestampString, LocalDateTime::from)
+            // todo - handle timezone offset
             .toInstant(java.time.ZoneOffset.ofTotalSeconds(0))
             .toEpochMilli();
+    }
+
+    public String representAsString(long timestamp) {
+        return representAsString(dateTimeFormatter, timestamp);
+    }
+
+    public static String representAsString(DateTimeFormatter dateTimeFormatter, long timestamp) {
+        return Instant.ofEpochMilli(timestamp)
+            // todo - handle timezone offset
+            .atZone(java.time.ZoneOffset.ofTotalSeconds(0))
+            .format(dateTimeFormatter);
     }
 }

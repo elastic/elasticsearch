@@ -9,6 +9,11 @@ package org.elasticsearch.xpack.logsdb.patternedtext.charparser.schema;
 
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.logsdb.patternedtext.charparser.common.EncodingType;
+
+import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
 
 @SuppressForbidden(reason = "prints out the schema for debugging purposes within test")
 public class SchemaTests extends ESTestCase {
@@ -16,5 +21,39 @@ public class SchemaTests extends ESTestCase {
         Schema schema = Schema.getInstance();
         assertNotNull(schema);
         System.out.println(schema);
+    }
+
+    public void testMultiTokenTypesParsing() {
+        Schema schema = Schema.getInstance();
+        assertNotNull(schema);
+
+        // build name->type map for easy assertions
+        Map<String, MultiTokenType> nameToType = schema.getMultiTokenTypes()
+            .stream()
+            .collect(Collectors.toMap(MultiTokenType::name, t -> t));
+
+        // ensure expected multi-token types from schema.yaml are present
+        assertTrue("timestamp1 should be present", nameToType.containsKey("timestamp1"));
+        assertTrue("timestamp2 should be present", nameToType.containsKey("timestamp2"));
+
+        MultiTokenType t1 = nameToType.get("timestamp1");
+        MultiTokenType t2 = nameToType.get("timestamp2");
+
+        // encoding type expected to be %T (Timestamp)
+        assertEquals("encodingType for timestamp1", EncodingType.TIMESTAMP, t1.encodingType());
+        assertEquals("encodingType for timestamp2", EncodingType.TIMESTAMP, t2.encodingType());
+
+        nameToType.values().forEach(t -> {
+            StringBuilder formatFromParts = new StringBuilder();
+            List<String> delimiterParts = t.getFormat().getDelimiterParts();
+            List<TokenType> tokens = t.getFormat().getTokens();
+            for (int i = 0; i < tokens.size(); i++) {
+                formatFromParts.append('$').append(tokens.get(i).name());
+                if (i < delimiterParts.size()) {
+                    formatFromParts.append(delimiterParts.get(i));
+                }
+            }
+            assertEquals(t.getFormat().getRawFormat(), formatFromParts.toString());
+        });
     }
 }

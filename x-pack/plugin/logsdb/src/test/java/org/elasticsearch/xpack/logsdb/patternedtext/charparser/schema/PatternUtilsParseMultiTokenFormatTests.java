@@ -15,7 +15,6 @@ import java.util.List;
 import java.util.Set;
 
 import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.instanceOf;
 
 public class PatternUtilsParseMultiTokenFormatTests extends ESTestCase {
 
@@ -26,7 +25,7 @@ public class PatternUtilsParseMultiTokenFormatTests extends ESTestCase {
     public void setUp() throws Exception {
         super.setUp();
         this.tokenTypes = createTestTokenTypes();
-        this.boundaryChars = Schema.getInstance().getTokenBoundaryChars();
+        this.boundaryChars = Schema.getInstance().getAllTokenBoundaryChars();
     }
 
     private List<TokenType> createTestTokenTypes() {
@@ -64,45 +63,47 @@ public class PatternUtilsParseMultiTokenFormatTests extends ESTestCase {
     }
 
     public void testParseMultiTokenFormat_SingleToken() {
-        List<Object> result = PatternUtils.parseMultiTokenFormat("$time", tokenTypes, boundaryChars);
+        List<String> delimiterParts = new ArrayList<>();
+        List<TokenType> tokens = new ArrayList<>();
+        PatternUtils.parseMultiTokenFormat("$time", tokenTypes, boundaryChars, tokens, delimiterParts);
 
-        assertEquals(1, result.size());
-        assertThat(result.getFirst(), instanceOf(TokenType.class));
-        assertEquals("time", ((TokenType) result.getFirst()).name());
+        assertEquals(1, tokens.size());
+        assertEquals(0, delimiterParts.size());
+        assertEquals("time", tokens.getFirst().name());
     }
 
     public void testParseMultiTokenFormat_MultipleTokensWithSpaces() {
-        List<Object> result = PatternUtils.parseMultiTokenFormat("$Mon $DD $YYYY", tokenTypes, boundaryChars);
+        List<String> delimiterParts = new ArrayList<>();
+        List<TokenType> tokens = new ArrayList<>();
+        PatternUtils.parseMultiTokenFormat("$Mon $DD $YYYY", tokenTypes, boundaryChars, tokens, delimiterParts);
 
-        assertEquals(5, result.size());
-        assertThat(result.get(0), instanceOf(TokenType.class));
-        assertEquals("Mon", ((TokenType) result.get(0)).name());
-        assertEquals(" ", result.get(1));
-        assertThat(result.get(2), instanceOf(TokenType.class));
-        assertEquals("DD", ((TokenType) result.get(2)).name());
-        assertEquals(" ", result.get(3));
-        assertThat(result.get(4), instanceOf(TokenType.class));
-        assertEquals("YYYY", ((TokenType) result.get(4)).name());
+        assertEquals(3, tokens.size());
+        assertEquals(2, delimiterParts.size());
+        assertEquals("Mon", tokens.getFirst().name());
+        assertEquals(" ", delimiterParts.getFirst());
+        assertEquals("DD", tokens.get(1).name());
+        assertEquals(" ", delimiterParts.get(1));
+        assertEquals("YYYY", tokens.get(2).name());
     }
 
     public void testParseMultiTokenFormat_TokensWithCommaDelimiter() {
-        List<Object> result = PatternUtils.parseMultiTokenFormat("$Mon, $DD $YYYY", tokenTypes, boundaryChars);
+        List<String> delimiterParts = new ArrayList<>();
+        List<TokenType> tokens = new ArrayList<>();
+        PatternUtils.parseMultiTokenFormat("$Mon, $DD $YYYY", tokenTypes, boundaryChars, tokens, delimiterParts);
 
-        assertEquals(5, result.size());
-        assertThat(result.get(0), instanceOf(TokenType.class));
-        assertEquals("Mon", ((TokenType) result.get(0)).name());
-        assertEquals(", ", result.get(1));
-        assertThat(result.get(2), instanceOf(TokenType.class));
-        assertEquals("DD", ((TokenType) result.get(2)).name());
-        assertEquals(" ", result.get(3));
-        assertThat(result.get(4), instanceOf(TokenType.class));
-        assertEquals("YYYY", ((TokenType) result.get(4)).name());
+        assertEquals(3, tokens.size());
+        assertEquals(2, delimiterParts.size());
+        assertEquals("Mon", tokens.getFirst().name());
+        assertEquals(", ", delimiterParts.getFirst());
+        assertEquals("DD", tokens.get(1).name());
+        assertEquals(" ", delimiterParts.get(1));
+        assertEquals("YYYY", tokens.get(2).name());
     }
 
     public void testParseMultiTokenFormat_IllegalLiteralAtStart() {
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
-            () -> PatternUtils.parseMultiTokenFormat("Date: $Mon $DD", tokenTypes, boundaryChars)
+            () -> PatternUtils.parseMultiTokenFormat("Date: $Mon $DD", tokenTypes, boundaryChars, new ArrayList<>(), new ArrayList<>())
         );
         assertThat(
             e.getMessage(),
@@ -113,7 +114,13 @@ public class PatternUtilsParseMultiTokenFormatTests extends ESTestCase {
     public void testParseMultiTokenFormat_IllegalLiteralAtEnd() {
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
-            () -> PatternUtils.parseMultiTokenFormat("$datetime $TZA (UTC)", tokenTypes, boundaryChars)
+            () -> PatternUtils.parseMultiTokenFormat(
+                "$datetime $TZA (UTC)",
+                tokenTypes,
+                boundaryChars,
+                new ArrayList<>(),
+                new ArrayList<>()
+            )
         );
         assertThat(
             e.getMessage(),
@@ -124,7 +131,7 @@ public class PatternUtilsParseMultiTokenFormatTests extends ESTestCase {
     public void testParseMultiTokenFormat_LiteralTextBetweenWithoutDelimiter() {
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
-            () -> PatternUtils.parseMultiTokenFormat("$ip:$level", tokenTypes, boundaryChars)
+            () -> PatternUtils.parseMultiTokenFormat("$ip:$level", tokenTypes, boundaryChars, new ArrayList<>(), new ArrayList<>())
         );
         assertThat(e.getMessage(), containsString("Token names must be separated by delimiters:"));
     }
@@ -132,7 +139,7 @@ public class PatternUtilsParseMultiTokenFormatTests extends ESTestCase {
     public void testParseMultiTokenFormat_OnlyLiteralText() {
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
-            () -> PatternUtils.parseMultiTokenFormat("No tokens here", tokenTypes, boundaryChars)
+            () -> PatternUtils.parseMultiTokenFormat("No tokens here", tokenTypes, boundaryChars, new ArrayList<>(), new ArrayList<>())
         );
         assertThat(
             e.getMessage(),
@@ -143,7 +150,7 @@ public class PatternUtilsParseMultiTokenFormatTests extends ESTestCase {
     public void testParseMultiTokenFormat_EmptyString() {
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
-            () -> PatternUtils.parseMultiTokenFormat("", tokenTypes, boundaryChars)
+            () -> PatternUtils.parseMultiTokenFormat("", tokenTypes, boundaryChars, new ArrayList<>(), new ArrayList<>())
         );
         assertEquals("Format string cannot be null or empty", e.getMessage());
     }
@@ -152,7 +159,7 @@ public class PatternUtilsParseMultiTokenFormatTests extends ESTestCase {
         @SuppressWarnings("DataFlowIssue")
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
-            () -> PatternUtils.parseMultiTokenFormat(null, tokenTypes, boundaryChars)
+            () -> PatternUtils.parseMultiTokenFormat(null, tokenTypes, boundaryChars, new ArrayList<>(), new ArrayList<>())
         );
         assertEquals("Format string cannot be null or empty", e.getMessage());
     }
@@ -160,7 +167,7 @@ public class PatternUtilsParseMultiTokenFormatTests extends ESTestCase {
     public void testParseMultiTokenFormat_UnknownTokenType() {
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
-            () -> PatternUtils.parseMultiTokenFormat("$unknown", tokenTypes, boundaryChars)
+            () -> PatternUtils.parseMultiTokenFormat("$unknown", tokenTypes, boundaryChars, new ArrayList<>(), new ArrayList<>())
         );
         assertEquals("Unknown token type: unknown in format: $unknown", e.getMessage());
     }
@@ -168,7 +175,7 @@ public class PatternUtilsParseMultiTokenFormatTests extends ESTestCase {
     public void testParseMultiTokenFormat_InvalidTokenReference() {
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
-            () -> PatternUtils.parseMultiTokenFormat("$ ", tokenTypes, boundaryChars)
+            () -> PatternUtils.parseMultiTokenFormat("$ ", tokenTypes, boundaryChars, new ArrayList<>(), new ArrayList<>())
         );
         assertEquals("Token name cannot be empty in format: $ ", e.getMessage());
     }
@@ -176,7 +183,7 @@ public class PatternUtilsParseMultiTokenFormatTests extends ESTestCase {
     public void testParseMultiTokenFormat_DollarAtEnd() {
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
-            () -> PatternUtils.parseMultiTokenFormat("text$", tokenTypes, boundaryChars)
+            () -> PatternUtils.parseMultiTokenFormat("text$", tokenTypes, boundaryChars, new ArrayList<>(), new ArrayList<>())
         );
         assertEquals(
             "Invalid format - only token delimiters and token boundary characters are allowed between tokens: text$",
@@ -185,27 +192,26 @@ public class PatternUtilsParseMultiTokenFormatTests extends ESTestCase {
     }
 
     public void testParseMultiTokenFormat_TokensBoundedByDifferentChars() {
-        List<Object> result = PatternUtils.parseMultiTokenFormat("($time)[$level]", tokenTypes, boundaryChars);
+        List<String> delimiterParts = new ArrayList<>();
+        List<TokenType> tokens = new ArrayList<>();
+        PatternUtils.parseMultiTokenFormat("$time;,$level", tokenTypes, boundaryChars, tokens, delimiterParts);
 
-        assertEquals(5, result.size());
-        assertEquals("(", result.get(0));
-        assertThat(result.get(1), instanceOf(TokenType.class));
-        assertEquals("time", ((TokenType) result.get(1)).name());
-        assertEquals(")[", result.get(2));
-        assertThat(result.get(3), instanceOf(TokenType.class));
-        assertEquals("level", ((TokenType) result.get(3)).name());
-        assertEquals("]", result.get(4));
+        assertEquals(2, tokens.size());
+        assertEquals(1, delimiterParts.size());
+        assertEquals("time", tokens.getFirst().name());
+        assertEquals(";,", delimiterParts.getFirst());
+        assertEquals("level", tokens.get(1).name());
     }
 
     public void testParseMultiTokenFormat_WhitespaceHandling() {
-        List<Object> result = PatternUtils.parseMultiTokenFormat("  $time\t$level", tokenTypes, boundaryChars);
+        List<String> delimiterParts = new ArrayList<>();
+        List<TokenType> tokens = new ArrayList<>();
+        PatternUtils.parseMultiTokenFormat("$time  \t$level", tokenTypes, boundaryChars, tokens, delimiterParts);
 
-        assertEquals(4, result.size());
-        assertEquals("  ", result.get(0));
-        assertThat(result.get(1), instanceOf(TokenType.class));
-        assertEquals("time", ((TokenType) result.get(1)).name());
-        assertEquals("\t", result.get(2));
-        assertThat(result.get(3), instanceOf(TokenType.class));
-        assertEquals("level", ((TokenType) result.get(3)).name());
+        assertEquals(2, tokens.size());
+        assertEquals(1, delimiterParts.size());
+        assertEquals("time", tokens.getFirst().name());
+        assertEquals("  \t", delimiterParts.getFirst());
+        assertEquals("level", tokens.get(1).name());
     }
 }

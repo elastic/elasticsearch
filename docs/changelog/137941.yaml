@@ -1,0 +1,5 @@
+pr: 137941
+summary: Additional DEBUG logging on authc failures
+area: Authentication
+type: enhancement
+issues: []

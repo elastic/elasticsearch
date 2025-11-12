@@ -12,6 +12,7 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ResolvedIndices;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.client.internal.RemoteClusterClient;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.routing.allocation.DataTier;
@@ -36,11 +37,13 @@ import org.elasticsearch.script.ScriptCompiler;
 import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
 import org.elasticsearch.search.builder.PointInTimeBuilder;
 import org.elasticsearch.transport.RemoteClusterAware;
+import org.elasticsearch.transport.RemoteClusterService;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -51,6 +54,8 @@ import java.util.function.BooleanSupplier;
 import java.util.function.LongSupplier;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
+
+import static org.elasticsearch.common.util.concurrent.EsExecutors.DIRECT_EXECUTOR_SERVICE;
 
 /**
  * Context object used to rewrite {@link QueryBuilder} instances into simplified version.
@@ -72,6 +77,7 @@ public class QueryRewriteContext {
     protected final Client client;
     protected final LongSupplier nowInMillis;
     private final List<BiConsumer<Client, ActionListener<?>>> asyncActions = new ArrayList<>();
+    private final Map<String, List<BiConsumer<RemoteClusterClient, ActionListener<?>>>> remoteAsyncActions = new HashMap<>();
     protected boolean allowUnmappedFields;
     protected boolean mapUnmappedFieldAsString;
     protected Predicate<String> allowedFields;
@@ -357,11 +363,20 @@ public class QueryRewriteContext {
         asyncActions.add(asyncAction);
     }
 
+    public void registerRemoteAsyncAction(String clusterAlias, BiConsumer<RemoteClusterClient, ActionListener<?>> asyncAction) {
+        // TODO: Fail early when an invalid cluster alias is provided
+        List<BiConsumer<RemoteClusterClient, ActionListener<?>>> asyncActions = remoteAsyncActions.computeIfAbsent(
+            clusterAlias,
+            k -> new ArrayList<>()
+        );
+        asyncActions.add(asyncAction);
+    }
+
     /**
      * Returns <code>true</code> if there are any registered async actions.
      */
     public boolean hasAsyncActions() {
-        return asyncActions.isEmpty() == false;
+        return asyncActions.isEmpty() == false || remoteAsyncActions.isEmpty() == false;
     }
 
     /**
@@ -369,10 +384,15 @@ public class QueryRewriteContext {
      * <code>null</code>. The list of registered actions is cleared once this method returns.
      */
     public void executeAsyncActions(ActionListener<Void> listener) {
-        if (asyncActions.isEmpty()) {
+        if (asyncActions.isEmpty() && remoteAsyncActions.isEmpty()) {
             listener.onResponse(null);
         } else {
-            CountDown countDown = new CountDown(asyncActions.size());
+            int actionCount = asyncActions.size();
+            for (var actionList : remoteAsyncActions.values()) {
+                actionCount += actionList.size();
+            }
+
+            CountDown countDown = new CountDown(actionCount);
             ActionListener<?> internalListener = new ActionListener<>() {
                 @Override
                 public void onResponse(Object o) {
@@ -388,12 +408,29 @@ public class QueryRewriteContext {
                     }
                 }
             };
+
             // make a copy to prevent concurrent modification exception
             List<BiConsumer<Client, ActionListener<?>>> biConsumers = new ArrayList<>(asyncActions);
             asyncActions.clear();
             for (BiConsumer<Client, ActionListener<?>> action : biConsumers) {
                 action.accept(client, internalListener);
             }
+
+            // TODO: Need to make a copy of remoteAsyncActions?
+            for (var entry : remoteAsyncActions.entrySet()) {
+                String clusterAlias = entry.getKey();
+                List<BiConsumer<RemoteClusterClient, ActionListener<?>>> remoteBiConsumers = entry.getValue();
+
+                RemoteClusterClient remoteClient = client.getRemoteClusterClient(
+                    clusterAlias,
+                    DIRECT_EXECUTOR_SERVICE,
+                    RemoteClusterService.DisconnectedStrategy.RECONNECT_UNLESS_SKIP_UNAVAILABLE
+                );
+                for (var action : remoteBiConsumers) {
+                    action.accept(remoteClient, internalListener);
+                }
+            }
+            remoteAsyncActions.clear();
         }
     }
 

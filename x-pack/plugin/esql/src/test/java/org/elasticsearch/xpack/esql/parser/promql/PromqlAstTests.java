@@ -11,7 +11,6 @@ import org.elasticsearch.core.Tuple;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.action.PromqlFeatures;
 import org.elasticsearch.xpack.esql.core.QlClientException;
@@ -28,13 +27,12 @@ import static java.util.Arrays.asList;
 import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.not;
-import static org.junit.Assume.assumeTrue;
 
 /**
  * Test for checking the overall grammar by throwing a number of valid queries at the parser to see whether any exception is raised.
  * In time, the queries themselves get to be checked against the actual execution model and eventually against the expected results.
  */
-//@TestLogging(reason = "debug", value = "org.elasticsearch.xpack.esql.parser.promql:TRACE")
+// @TestLogging(reason = "debug", value = "org.elasticsearch.xpack.esql.parser.promql:TRACE")
 public class PromqlAstTests extends ESTestCase {
 
     private static final Logger log = LogManager.getLogger(PromqlAstTests.class);
@@ -48,7 +46,7 @@ public class PromqlAstTests extends ESTestCase {
         testValidQueries("/promql/grammar/queries-valid.promql");
     }
 
-    //@AwaitsFix(bugUrl = "functionality not implemented yet")
+    @AwaitsFix(bugUrl = "functionality not implemented yet")
     public void testValidQueriesNotYetWorkingDueToMissingFunctionality() throws Exception {
         testValidQueries("/promql/grammar/queries-valid-extra.promql");
     }

@@ -27,7 +27,6 @@ import org.junit.BeforeClass;
 import java.io.IOException;
 import java.util.Collection;
 import java.util.Map;
-import java.util.concurrent.ExecutionException;
 
 @TestLogging(
     reason = "testing debug log output to identify race condition",
@@ -282,24 +281,13 @@ public class AsyncSearchErrorTraceIT extends AsyncSearchIntegTestCase {
 
     private Map<String, Object> performRequestAndGetResponseEntity(Request r) throws IOException {
         Response response = getRestClient().performRequest(r);
-
-        HttpEntity entity = response.getEntity();
-        if (entity == null) {
-            return Map.of();
-        }
-
-        try {
-            XContentType entityContentType = XContentType.fromMediaType(entity.getContentType().getValue());
-            return XContentHelper.convertToMap(entityContentType.xContent(), entity.getContent(), false);
-        } finally {
-            // Make sure the connection is released
-            EntityUtils.consumeQuietly(entity);
-        }
+        XContentType entityContentType = XContentType.fromMediaType(response.getEntity().getContentType().getValue());
+        return XContentHelper.convertToMap(entityContentType.xContent(), response.getEntity().getContent(), false);
     }
 
     private void deleteAsyncSearchIfPresent(Map<String, Object> map) throws IOException {
         String id = (String) map.get("id");
-        if(id != null) {
+        if(id == null) {
             return;
         }
 

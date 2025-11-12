@@ -101,6 +101,7 @@ public class ShardSearchPhaseAPMMetricsTests extends ESSingleNodeTestCase {
         );
         final List<Measurement> dfsMeasurements = getTestTelemetryPlugin().getLongHistogramMeasurement(DFS_SEARCH_PHASE_METRIC);
         assertEquals(num_primaries, dfsMeasurements.size());
+        assertAttributes(dfsMeasurements, false, false);
         final List<Measurement> queryMeasurements = getTestTelemetryPlugin().getLongHistogramMeasurement(QUERY_SEARCH_PHASE_METRIC);
         assertEquals(num_primaries, queryMeasurements.size());
         final List<Measurement> fetchMeasurements = getTestTelemetryPlugin().getLongHistogramMeasurement(FETCH_SEARCH_PHASE_METRIC);
@@ -117,8 +118,10 @@ public class ShardSearchPhaseAPMMetricsTests extends ESSingleNodeTestCase {
         );
         final List<Measurement> dfsMeasurements = getTestTelemetryPlugin().getLongHistogramMeasurement(DFS_SEARCH_PHASE_METRIC);
         assertEquals(0, dfsMeasurements.size()); // DFS phase not done for index with single shard
+        assertAttributes(dfsMeasurements, true, false);
         final List<Measurement> queryMeasurements = getTestTelemetryPlugin().getLongHistogramMeasurement(QUERY_SEARCH_PHASE_METRIC);
         assertEquals(1, queryMeasurements.size());
+        assertAttributes(queryMeasurements, true, false);
         final List<Measurement> fetchMeasurements = getTestTelemetryPlugin().getLongHistogramMeasurement(FETCH_SEARCH_PHASE_METRIC);
         assertEquals(1, fetchMeasurements.size());
         assertAttributes(fetchMeasurements, true, false);
@@ -368,6 +371,17 @@ public class ShardSearchPhaseAPMMetricsTests extends ESSingleNodeTestCase {
         });
         final List<Measurement> canMatchMeasurements = getTestTelemetryPlugin().getLongHistogramMeasurement(CAN_MATCH_SEARCH_PHASE_METRIC);
         assertEquals(num_primaries, canMatchMeasurements.size());
+        for (Measurement measurement : canMatchMeasurements) {
+            Map<String, Object> attributes = measurement.attributes();
+            assertEquals(5, attributes.size());
+            assertEquals("user", attributes.get("target"));
+            assertEquals("hits_only", attributes.get("query_type"));
+            assertEquals("_score", attributes.get("sort"));
+            assertEquals(false, attributes.get(SearchRequestAttributesExtractor.SYSTEM_THREAD_ATTRIBUTE_NAME));
+            // the range query was rewritten to one without bounds: we do track the time range filter from value but we don't set
+            // the time range filter field because no range query is executed at the shard level.
+            assertEquals("older_than_14_days", attributes.get("time_range_filter_from"));
+        }
         final List<Measurement> queryMeasurements = getTestTelemetryPlugin().getLongHistogramMeasurement(QUERY_SEARCH_PHASE_METRIC);
         // the two docs are at most spread across two shards, other shards are empty and get filtered out
         assertThat(queryMeasurements.size(), Matchers.lessThanOrEqualTo(2));

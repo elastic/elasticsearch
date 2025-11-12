@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.inference.services.openshiftai.request.completio
 
 import org.apache.http.HttpHeaders;
 import org.apache.http.client.methods.HttpPost;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.inference.external.http.sender.UnifiedChatInput;
 import org.elasticsearch.xpack.inference.services.openshiftai.completion.OpenShiftAiChatCompletionModelTests;
@@ -55,7 +56,7 @@ public class OpenShiftAiChatCompletionRequestTests extends ESTestCase {
         assertThat(requestMap.get(N_FIELD_NAME), is(1));
         assertThat(requestMap.get(MESSAGES_FIELD_NAME), is(List.of(Map.of(ROLE_FIELD_NAME, ROLE_VALUE, CONTENT_FIELD_NAME, input))));
         assertThat(requestMap, aMapWithSize(4));
-        assertThat(httpPost.getFirstHeader(HttpHeaders.AUTHORIZATION).getValue(), is("Bearer %s".formatted(API_KEY_VALUE)));
+        assertThat(httpPost.getFirstHeader(HttpHeaders.AUTHORIZATION).getValue(), is(Strings.format("Bearer %s", API_KEY_VALUE)));
     }
 
     public void testTruncate_DoesNotReduceInputTextSize() {

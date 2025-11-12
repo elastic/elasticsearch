@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.inference.services.openshiftai.request.embedding
 
 import org.apache.http.HttpHeaders;
 import org.apache.http.client.methods.HttpPost;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.inference.common.Truncator;
@@ -62,7 +63,7 @@ public class OpenShiftAiEmbeddingsRequestTests extends ESTestCase {
         assertThat(requestMap.get(INPUT_FIELD_NAME), is(List.of(INPUT_VALUE)));
         assertThat(requestMap.get(MODEL_FIELD_NAME), is(MODEL_VALUE));
         assertThat(requestMap.get(ServiceFields.DIMENSIONS), is(expectedDimensions));
-        assertThat(httpPost.getFirstHeader(HttpHeaders.AUTHORIZATION).getValue(), is("Bearer %s".formatted(API_KEY_VALUE)));
+        assertThat(httpPost.getFirstHeader(HttpHeaders.AUTHORIZATION).getValue(), is(Strings.format("Bearer %s", API_KEY_VALUE)));
     }
 
     public void testCreateRequest_NoModel_Success() throws IOException {
@@ -74,7 +75,7 @@ public class OpenShiftAiEmbeddingsRequestTests extends ESTestCase {
         assertThat(requestMap.get(INPUT_FIELD_NAME), is(List.of(INPUT_VALUE)));
         assertThat(requestMap.get(MODEL_FIELD_NAME), is(nullValue()));
         assertThat(requestMap.get(ServiceFields.DIMENSIONS), is(nullValue()));
-        assertThat(httpPost.getFirstHeader(HttpHeaders.AUTHORIZATION).getValue(), is("Bearer %s".formatted(API_KEY_VALUE)));
+        assertThat(httpPost.getFirstHeader(HttpHeaders.AUTHORIZATION).getValue(), is(Strings.format("Bearer %s", API_KEY_VALUE)));
 
     }
 

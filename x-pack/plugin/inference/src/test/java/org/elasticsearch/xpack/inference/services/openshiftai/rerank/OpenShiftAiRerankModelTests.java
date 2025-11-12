@@ -29,10 +29,6 @@ public class OpenShiftAiRerankModelTests extends ESTestCase {
     private static final int TOP_N_VALUE = 4;
     private static final boolean RETURN_DOCUMENTS_VALUE = false;
 
-    public static OpenShiftAiRerankModel createModel(String url, String apiKey, @Nullable String modelId) {
-        return createModel(url, apiKey, modelId, 2, true);
-    }
-
     public static OpenShiftAiRerankModel createModel(
         String url,
         String apiKey,

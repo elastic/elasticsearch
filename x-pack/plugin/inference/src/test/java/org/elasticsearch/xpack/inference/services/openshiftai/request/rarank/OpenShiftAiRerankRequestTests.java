@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.inference.services.openshiftai.request.rarank;
 
 import org.apache.http.HttpHeaders;
 import org.apache.http.client.methods.HttpPost;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentType;
@@ -111,7 +112,7 @@ public class OpenShiftAiRerankRequestTests extends ESTestCase {
         var httpPost = (HttpPost) httpRequest.httpRequestBase();
 
         assertThat(httpPost.getLastHeader(HttpHeaders.CONTENT_TYPE).getValue(), is(XContentType.JSON.mediaTypeWithoutParameters()));
-        assertThat(httpPost.getLastHeader(HttpHeaders.AUTHORIZATION).getValue(), is("Bearer %s".formatted(API_KEY_VALUE)));
+        assertThat(httpPost.getLastHeader(HttpHeaders.AUTHORIZATION).getValue(), is(Strings.format("Bearer %s", API_KEY_VALUE)));
 
         var requestMap = entityAsMap(httpPost.getEntity().getContent());
 

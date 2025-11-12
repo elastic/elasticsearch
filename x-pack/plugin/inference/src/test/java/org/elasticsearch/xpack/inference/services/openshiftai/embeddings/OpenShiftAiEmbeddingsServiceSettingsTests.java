@@ -161,9 +161,9 @@ public class OpenShiftAiEmbeddingsServiceSettingsTests extends AbstractWireSeria
                 ConfigurationParseContext.PERSISTENT
             )
         );
-        assertThat(thrownException.getMessage(), containsString("""
+        assertThat(thrownException.getMessage(), containsString(Strings.format("""
             Validation Failed: 1: [service_settings] Invalid url [%s] received for field [url]. \
-            Error: unable to parse url [%s]. Reason: Illegal character in path;""".formatted(INVALID_URL_VALUE, INVALID_URL_VALUE)));
+            Error: unable to parse url [%s]. Reason: Illegal character in path;""", INVALID_URL_VALUE, INVALID_URL_VALUE)));
     }
 
     public void testFromMap_NoSimilarity_Success() {
@@ -546,7 +546,7 @@ public class OpenShiftAiEmbeddingsServiceSettingsTests extends AbstractWireSeria
         entity.toXContent(builder, null);
         String xContentResult = Strings.toString(builder);
 
-        assertThat(xContentResult, CoreMatchers.is(XContentHelper.stripWhitespace("""
+        assertThat(xContentResult, CoreMatchers.is(XContentHelper.stripWhitespace(Strings.format("""
             {
                 "model_id": "%s",
                 "url": "%s",
@@ -558,7 +558,7 @@ public class OpenShiftAiEmbeddingsServiceSettingsTests extends AbstractWireSeria
                 "max_input_tokens": 128,
                 "dimensions_set_by_user": false
             }
-            """.formatted(MODEL_VALUE, CORRECT_URL_VALUE))));
+            """, MODEL_VALUE, CORRECT_URL_VALUE))));
     }
 
     @Override

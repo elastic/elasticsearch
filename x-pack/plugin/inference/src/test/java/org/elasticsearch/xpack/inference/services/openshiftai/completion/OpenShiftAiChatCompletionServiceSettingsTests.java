@@ -153,7 +153,7 @@ public class OpenShiftAiChatCompletionServiceSettingsTests extends AbstractBWCWi
         XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
         serviceSettings.toXContent(builder, null);
         String xContentResult = Strings.toString(builder);
-        var expected = XContentHelper.stripWhitespace("""
+        var expected = XContentHelper.stripWhitespace(Strings.format("""
             {
                 "model_id": "%s",
                 "url": "%s",
@@ -161,7 +161,7 @@ public class OpenShiftAiChatCompletionServiceSettingsTests extends AbstractBWCWi
                     "requests_per_minute": 2
                 }
             }
-            """.formatted(MODEL_VALUE, URL_VALUE));
+            """, MODEL_VALUE, URL_VALUE));
 
         assertThat(xContentResult, is(expected));
     }
@@ -175,14 +175,14 @@ public class OpenShiftAiChatCompletionServiceSettingsTests extends AbstractBWCWi
         XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
         serviceSettings.toXContent(builder, null);
         String xContentResult = Strings.toString(builder);
-        var expected = XContentHelper.stripWhitespace("""
+        var expected = XContentHelper.stripWhitespace(Strings.format("""
             {
                 "url": "%s",
                 "rate_limit": {
                     "requests_per_minute": 3000
                 }
             }
-            """.formatted(URL_VALUE));
+            """, URL_VALUE));
         assertThat(xContentResult, is(expected));
     }
 

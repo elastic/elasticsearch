@@ -12,6 +12,7 @@ import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -70,7 +71,6 @@ import java.util.Arrays;
 import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
@@ -175,7 +175,7 @@ public class OpenShiftAiServiceTests extends AbstractInferenceServiceTests {
             case TEXT_EMBEDDING -> assertTextEmbeddingModel(model, modelIncludesSecrets);
             case COMPLETION -> assertCompletionModel(model, modelIncludesSecrets);
             case CHAT_COMPLETION -> assertChatCompletionModel(model, modelIncludesSecrets);
-            default -> fail("unexpected task type [%s]".formatted(taskType));
+            default -> fail(Strings.format("unexpected task type [%s]", taskType));
         }
     }
 
@@ -277,7 +277,7 @@ public class OpenShiftAiServiceTests extends AbstractInferenceServiceTests {
     }
 
     public void testParseRequestConfig_CreatesAnEmbeddingsModelWhenChunkingSettingsProvided() throws IOException {
-        var chunkingSettingsMap = createRandomChunkingSettings();
+        var chunkingSettings = createRandomChunkingSettings();
         try (var service = createService()) {
             ActionListener<Model> modelVerificationActionListener = ActionListener.wrap(model -> {
                 assertThat(model, instanceOf(OpenShiftAiEmbeddingsModel.class));
@@ -285,7 +285,7 @@ public class OpenShiftAiServiceTests extends AbstractInferenceServiceTests {
                 var embeddingsModel = (OpenShiftAiEmbeddingsModel) model;
                 assertThat(embeddingsModel.getServiceSettings().uri().toString(), is(URL_VALUE));
                 assertThat(embeddingsModel.getConfigurations().getChunkingSettings(), instanceOf(ChunkingSettings.class));
-                assertThat(embeddingsModel.getConfigurations().getChunkingSettings().asMap(), is(chunkingSettingsMap.asMap()));
+                assertThat(embeddingsModel.getConfigurations().getChunkingSettings().asMap(), is(chunkingSettings.asMap()));
                 assertThat(embeddingsModel.getSecretSettings().apiKey().toString(), is(API_KEY_VALUE));
             }, e -> fail("parse request should not fail " + e.getMessage()));
 
@@ -294,7 +294,7 @@ public class OpenShiftAiServiceTests extends AbstractInferenceServiceTests {
                 TaskType.TEXT_EMBEDDING,
                 getRequestConfigMap(
                     getServiceSettingsMap(MODEL_VALUE, URL_VALUE),
-                    chunkingSettingsMap.asMap(),
+                    chunkingSettings.asMap(),
                     getSecretSettingsMap(API_KEY_VALUE)
                 ),
                 modelVerificationActionListener
@@ -461,7 +461,7 @@ public class OpenShiftAiServiceTests extends AbstractInferenceServiceTests {
                             }
                         });
                         var json = XContentHelper.convertToJson(BytesReference.bytes(builder), false, builder.contentType());
-                        assertThat(json, is(String.format(Locale.ROOT, XContentHelper.stripWhitespace("""
+                        assertThat(json, is(Strings.format(XContentHelper.stripWhitespace("""
                             {
                               "error" : {
                                 "code" : "not_found",
@@ -568,7 +568,7 @@ public class OpenShiftAiServiceTests extends AbstractInferenceServiceTests {
 
         var e = assertThrows(ElasticsearchStatusException.class, this::streamCompletion);
         assertThat(e.status(), equalTo(RestStatus.NOT_FOUND));
-        assertThat(e.getMessage(), equalTo(String.format(Locale.ROOT, """
+        assertThat(e.getMessage(), equalTo(Strings.format("""
             Resource not found at [%s] for request from inference entity id [inferenceEntityId] status [404]. Error message: [{
                 "detail": "Not Found"
             }]""", getUrl(webServer))));
@@ -748,7 +748,10 @@ public class OpenShiftAiServiceTests extends AbstractInferenceServiceTests {
                 webServer.requests().getFirst().getHeader(HttpHeaders.CONTENT_TYPE),
                 equalTo(XContentType.JSON.mediaTypeWithoutParameters())
             );
-            assertThat(webServer.requests().getFirst().getHeader(HttpHeaders.AUTHORIZATION), is("Bearer %s".formatted(API_KEY_VALUE)));
+            assertThat(
+                webServer.requests().getFirst().getHeader(HttpHeaders.AUTHORIZATION),
+                is(Strings.format("Bearer %s", API_KEY_VALUE))
+            );
 
             var requestMap = entityAsMap(webServer.requests().getFirst().getBody());
             assertThat(requestMap, aMapWithSize(2));

@@ -11,6 +11,7 @@ import org.apache.http.HttpResponse;
 import org.apache.http.StatusLine;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xpack.core.inference.results.UnifiedChatCompletionException;
@@ -47,7 +48,7 @@ public class OpenShiftAiChatCompletionResponseHandlerTests extends ESTestCase {
 
         var errorJson = invalidResponseJson(responseJson, 404);
 
-        assertThat(errorJson, is(XContentHelper.stripWhitespace("""
+        assertThat(errorJson, is(XContentHelper.stripWhitespace(Strings.format("""
             {
               "error" : {
                 "code" : "not_found",
@@ -55,7 +56,7 @@ public class OpenShiftAiChatCompletionResponseHandlerTests extends ESTestCase {
             status [404]. Error message: [{\\"detail\\":\\"Not Found\\"}]",
                 "type" : "openshift_ai_error"
               }
-            }""".formatted(URL_VALUE, INFERENCE_ID))));
+            }""", URL_VALUE, INFERENCE_ID))));
     }
 
     public void testFailBadRequest() throws IOException {
@@ -73,7 +74,7 @@ public class OpenShiftAiChatCompletionResponseHandlerTests extends ESTestCase {
 
         var errorJson = invalidResponseJson(responseJson, 400);
 
-        assertThat(errorJson, is(XContentHelper.stripWhitespace("""
+        assertThat(errorJson, is(XContentHelper.stripWhitespace(Strings.format("""
             {
                 "error": {
                     "code": "bad_request",
@@ -84,7 +85,7 @@ public class OpenShiftAiChatCompletionResponseHandlerTests extends ESTestCase {
                     "type": "openshift_ai_error"
                 }
             }
-            """.formatted(INFERENCE_ID))));
+            """, INFERENCE_ID))));
     }
 
     public void testFailValidationWithInvalidJson() throws IOException {
@@ -94,7 +95,7 @@ public class OpenShiftAiChatCompletionResponseHandlerTests extends ESTestCase {
 
         var errorJson = invalidResponseJson(responseJson, 500);
 
-        assertThat(errorJson, is(XContentHelper.stripWhitespace("""
+        assertThat(errorJson, is(XContentHelper.stripWhitespace(Strings.format("""
             {
                 "error": {
                     "code": "bad_request",
@@ -103,7 +104,7 @@ public class OpenShiftAiChatCompletionResponseHandlerTests extends ESTestCase {
                     "type": "openshift_ai_error"
                 }
             }
-            """.formatted(INFERENCE_ID))));
+            """, INFERENCE_ID))));
     }
 
     private String invalidResponseJson(String responseJson, int statusCode) throws IOException {

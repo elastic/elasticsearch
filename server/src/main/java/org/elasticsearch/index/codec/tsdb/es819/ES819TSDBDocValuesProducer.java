@@ -209,6 +209,26 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
                         bytesSlice.readBytes((long) doc * length, bytes.bytes, 0, length);
                         return bytes;
                     }
+
+                    @Override
+                    public BlockLoader.Block tryRead(
+                        BlockLoader.BlockFactory factory,
+                        BlockLoader.Docs docs,
+                        int offset,
+                        boolean nullsFiltered,
+                        BlockDocValuesReader.ToDouble toDouble,
+                        boolean toInt
+                    ) throws IOException {
+                        int count = docs.count() - offset;
+                        try (var builder = factory.bytesRefs(count)) {
+                            for (int i = offset; i < docs.count(); i++) {
+                                doc = docs.get(i);
+                                bytesSlice.readBytes((long) doc * length, bytes.bytes, 0, length);
+                                builder.appendBytesRef(bytes);
+                            }
+                            return builder.build();
+                        }
+                    }
                 };
             } else {
                 // variable length
@@ -223,6 +243,28 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
                         bytes.length = (int) (addresses.get(doc + 1L) - startOffset);
                         bytesSlice.readBytes(startOffset, bytes.bytes, 0, bytes.length);
                         return bytes;
+                    }
+
+                    @Override
+                    public BlockLoader.Block tryRead(
+                        BlockLoader.BlockFactory factory,
+                        BlockLoader.Docs docs,
+                        int offset,
+                        boolean nullsFiltered,
+                        BlockDocValuesReader.ToDouble toDouble,
+                        boolean toInt
+                    ) throws IOException {
+                        int count = docs.count() - offset;
+                        try (var builder = factory.bytesRefs(count)) {
+                            for (int i = offset; i < docs.count(); i++) {
+                                doc = docs.get(i);
+                                long startOffset = addresses.get(doc);
+                                bytes.length = (int) (addresses.get(doc + 1L) - startOffset);
+                                bytesSlice.readBytes(startOffset, bytes.bytes, 0, bytes.length);
+                                builder.appendBytesRef(bytes);
+                            }
+                            return builder.build();
+                        }
                     }
                 };
             }
@@ -268,7 +310,7 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
         }
     }
 
-    private abstract static class DenseBinaryDocValues extends BinaryDocValues {
+    abstract static class DenseBinaryDocValues extends BinaryDocValues implements BlockLoader.OptionalColumnAtATimeReader {
 
         final int maxDoc;
         int doc = -1;

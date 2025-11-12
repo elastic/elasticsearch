@@ -91,13 +91,12 @@ public class BalancedShardsAllocatorInvalidWeightsTests extends ESTestCase {
                 balancingWeightsFactory
             );
 
-            final AllocationDecider allocationDecider = spy(AllocationDecider.class);
             final ClusterState clusterState = moveAllShardsToNode(
                 ClusterStateCreationUtils.state(3, new String[] { "one", "two", "three" }, randomIntBetween(1, 2)),
                 "node_0"
             );
             final RoutingAllocation allocation = new RoutingAllocation(
-                new AllocationDeciders(List.of(allocationDecider)),
+                new AllocationDeciders(List.of()),
                 clusterState.getRoutingNodes().mutableCopy(),
                 clusterState,
                 ClusterInfo.EMPTY,
@@ -105,6 +104,7 @@ public class BalancedShardsAllocatorInvalidWeightsTests extends ESTestCase {
                 System.nanoTime()
             );
 
+            // Start returning invalid weights after we've seen a shard move
             doAnswer(iom -> {
                 if (allocation.routingNodes().getRelocatingShardCount() > 0) {
                     return randomFrom(Float.POSITIVE_INFINITY, Float.NEGATIVE_INFINITY, Float.NaN);

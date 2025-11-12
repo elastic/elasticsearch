@@ -1,0 +1,6 @@
+pr: 137585
+summary: "Restore API: Fix file settings handling"
+area: Infra/Settings
+type: bug
+issues:
+ - 122429

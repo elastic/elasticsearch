@@ -76,6 +76,7 @@ public class AsyncSearchErrorTraceIT extends AsyncSearchIntegTestCase {
             """);
         createAsyncRequest.addParameter("keep_on_completion", "true");
         createAsyncRequest.addParameter("wait_for_completion_timeout", "0ms");
+        ErrorTraceHelper.expectStackTraceCleared(internalCluster());
         Map<String, Object> createAsyncResponseEntity = performRequestAndGetResponseEntity(createAsyncRequest);
 
         try {
@@ -109,6 +110,7 @@ public class AsyncSearchErrorTraceIT extends AsyncSearchIntegTestCase {
         createAsyncRequest.addParameter("error_trace", "true");
         createAsyncRequest.addParameter("keep_on_completion", "true");
         createAsyncRequest.addParameter("wait_for_completion_timeout", "0ms");
+        ErrorTraceHelper.expectStackTraceObserved(internalCluster());
         Map<String, Object> createAsyncResponseEntity = performRequestAndGetResponseEntity(createAsyncRequest);
 
         try {
@@ -143,6 +145,7 @@ public class AsyncSearchErrorTraceIT extends AsyncSearchIntegTestCase {
         createAsyncRequest.addParameter("error_trace", "false");
         createAsyncRequest.addParameter("keep_on_completion", "true");
         createAsyncRequest.addParameter("wait_for_completion_timeout", "0ms");
+        ErrorTraceHelper.expectStackTraceCleared(internalCluster());
         Map<String, Object> createAsyncResponseEntity = performRequestAndGetResponseEntity(createAsyncRequest);
 
         try {
@@ -229,6 +232,7 @@ public class AsyncSearchErrorTraceIT extends AsyncSearchIntegTestCase {
         createAsyncSearchRequest.addParameter("error_trace", "false");
         createAsyncSearchRequest.addParameter("keep_on_completion", "true");
         createAsyncSearchRequest.addParameter("wait_for_completion_timeout", "0ms");
+        ErrorTraceHelper.expectStackTraceCleared(internalCluster());
         Map<String, Object> createAsyncResponseEntity = performRequestAndGetResponseEntity(createAsyncSearchRequest);
 
         try {
@@ -263,6 +267,7 @@ public class AsyncSearchErrorTraceIT extends AsyncSearchIntegTestCase {
         createAsyncSearchRequest.addParameter("error_trace", "true");
         createAsyncSearchRequest.addParameter("keep_on_completion", "true");
         createAsyncSearchRequest.addParameter("wait_for_completion_timeout", "0ms");
+        ErrorTraceHelper.expectStackTraceObserved(internalCluster());
         Map<String, Object> createAsyncResponseEntity = performRequestAndGetResponseEntity(createAsyncSearchRequest);
         try {
             if (Boolean.TRUE.equals(createAsyncResponseEntity.get("is_running"))) {

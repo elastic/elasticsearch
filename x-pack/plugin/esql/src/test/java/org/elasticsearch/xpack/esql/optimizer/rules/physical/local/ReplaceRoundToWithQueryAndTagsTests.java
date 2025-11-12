@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.optimizer.rules.physical.local;
 
 import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.MatchQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -18,6 +19,7 @@ import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
+import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
@@ -132,24 +134,88 @@ public class ReplaceRoundToWithQueryAndTagsTests extends AbstractLocalPhysicalPl
 
     // DateTrunc/Bucket is transformed to RoundTo first and then to QueryAndTags
     public void testDateTruncBucketTransformToQueryAndTags() {
-        for (String dateHistogramAndType : dateHistograms) {
+        for (String dateHistogram : dateHistograms) {
             String query = LoggerMessageFormat.format(null, """
                 from test
                 | stats count(*) by x = {}
-                """, dateHistogramAndType);
+                """, dateHistogram);
 
-            ExchangeExec exchange = validateTopPlan(query, DataType.DATETIME);
+            ExchangeExec exchange = validatePlanBeforeExchange(query, DataType.DATETIME);
 
-            var queryBuilderAndTags = getBuilderAndTags(exchange, DataType.DATETIME);
+            var queryBuilderAndTags = getBuilderAndTagsFromStats(exchange, DataType.DATETIME);
 
             List<EsQueryExec.QueryBuilderAndTags> expectedQueryBuilderAndTags = expectedQueryBuilderAndTags(
                 query,
                 "date",
                 List.of(),
-                new Source(2, 24, dateHistogramAndType),
+                new Source(2, 24, dateHistogram),
                 null
             );
             verifyQueryAndTags(expectedQueryBuilderAndTags, queryBuilderAndTags);
+        }
+    }
+
+    // Pushing count to source isn't supported when there is a filter on the count at the moment.
+    public void testDateTruncBucketTransformToQueryAndTagsWithFilter() {
+        for (String dateHistogram : dateHistograms) {
+            String query = LoggerMessageFormat.format(null, """
+                from test
+                | stats count(*) where long > 10 by x = {}
+                """, dateHistogram);
+
+            ExchangeExec exchange = validatePlanBeforeExchange(query, DataType.DATETIME, List.of("count(*) where long > 10"));
+
+            AggregateExec agg = as(exchange.child(), AggregateExec.class);
+            FieldExtractExec fieldExtractExec = as(agg.child(), FieldExtractExec.class);
+            EvalExec evalExec = as(fieldExtractExec.child(), EvalExec.class);
+            List<Alias> aliases = evalExec.fields();
+            assertEquals(1, aliases.size());
+            FieldAttribute roundToTag = as(aliases.get(0).child(), FieldAttribute.class);
+            assertEquals("$$date$round_to$datetime", roundToTag.name());
+            EsQueryExec esQueryExec = as(evalExec.child(), EsQueryExec.class);
+
+            List<EsQueryExec.QueryBuilderAndTags> queryBuilderAndTags = esQueryExec.queryBuilderAndTags();
+            List<EsQueryExec.QueryBuilderAndTags> expectedQueryBuilderAndTags = expectedQueryBuilderAndTags(
+                query,
+                "date",
+                List.of(),
+                new Source(2, 40, dateHistogram),
+                null
+            );
+            verifyQueryAndTags(expectedQueryBuilderAndTags, queryBuilderAndTags);
+            assertThrows(UnsupportedOperationException.class, esQueryExec::query);
+        }
+    }
+
+    // Pushing count to source isn't supported when there are multiple aggregates.
+    public void testDateTruncBucketTransformToQueryAndTagsWithMultipleAggregates() {
+        for (String dateHistogram : dateHistograms) {
+            String query = LoggerMessageFormat.format(null, """
+                from test
+                | stats sum(long), count(*) by x = {}
+                """, dateHistogram);
+
+            ExchangeExec exchange = validatePlanBeforeExchange(query, DataType.DATETIME, List.of("sum(long)", "count(*)"));
+
+            AggregateExec agg = as(exchange.child(), AggregateExec.class);
+            FieldExtractExec fieldExtractExec = as(agg.child(), FieldExtractExec.class);
+            EvalExec evalExec = as(fieldExtractExec.child(), EvalExec.class);
+            List<Alias> aliases = evalExec.fields();
+            assertEquals(1, aliases.size());
+            FieldAttribute roundToTag = as(aliases.get(0).child(), FieldAttribute.class);
+            assertEquals("$$date$round_to$datetime", roundToTag.name());
+            EsQueryExec esQueryExec = as(evalExec.child(), EsQueryExec.class);
+
+            List<EsQueryExec.QueryBuilderAndTags> queryBuilderAndTags = esQueryExec.queryBuilderAndTags();
+            List<EsQueryExec.QueryBuilderAndTags> expectedQueryBuilderAndTags = expectedQueryBuilderAndTags(
+                query,
+                "date",
+                List.of(),
+                new Source(2, 35, dateHistogram),
+                null
+            );
+            verifyQueryAndTags(expectedQueryBuilderAndTags, queryBuilderAndTags);
+            assertThrows(UnsupportedOperationException.class, esQueryExec::query);
         }
     }
 
@@ -206,9 +272,9 @@ public class ReplaceRoundToWithQueryAndTagsTests extends AbstractLocalPhysicalPl
                 """, expression);
             DataType bucketType = DataType.fromTypeName(roundTo.getKey()).widenSmallNumeric();
 
-            ExchangeExec exchange = validateTopPlan(query, bucketType);
+            ExchangeExec exchange = validatePlanBeforeExchange(query, bucketType);
 
-            var queryBuilderAndTags = getBuilderAndTags(exchange, bucketType);
+            var queryBuilderAndTags = getBuilderAndTagsFromStats(exchange, bucketType);
 
             List<EsQueryExec.QueryBuilderAndTags> expectedQueryBuilderAndTags = expectedQueryBuilderAndTags(
                 query,
@@ -241,9 +307,9 @@ public class ReplaceRoundToWithQueryAndTagsTests extends AbstractLocalPhysicalPl
                         new Source(2, 8, predicate.contains("and") ? predicate.substring(0, 20) : predicate)
                     );
 
-                ExchangeExec exchange = validateTopPlan(query, DataType.DATETIME);
+                ExchangeExec exchange = validatePlanBeforeExchange(query, DataType.DATETIME);
 
-                var queryBuilderAndTags = getBuilderAndTags(exchange, DataType.DATETIME);
+                var queryBuilderAndTags = getBuilderAndTagsFromStats(exchange, DataType.DATETIME);
 
                 List<EsQueryExec.QueryBuilderAndTags> expectedQueryBuilderAndTags = expectedQueryBuilderAndTags(
                     query,
@@ -283,7 +349,7 @@ public class ReplaceRoundToWithQueryAndTagsTests extends AbstractLocalPhysicalPl
                 | lookup join languages_lookup on language_code
                 | stats count(*) by x = {}
                 """, dateHistogram);
-            ExchangeExec exchange = validateTopPlan(query, DataType.DATETIME);
+            ExchangeExec exchange = validatePlanBeforeExchange(query, DataType.DATETIME);
 
             AggregateExec agg = as(exchange.child(), AggregateExec.class);
             EvalExec eval = as(agg.child(), EvalExec.class);
@@ -372,10 +438,10 @@ public class ReplaceRoundToWithQueryAndTagsTests extends AbstractLocalPhysicalPl
                 | stats count(*) by x = round_to(integer, {})
                 """, points.toString());
 
-            ExchangeExec exchange = validateTopPlan(query, DataType.INTEGER);
+            ExchangeExec exchange = validatePlanBeforeExchange(query, DataType.INTEGER);
 
             if (numOfPoints == 127) {
-                var queryBuilderAndTags = getBuilderAndTags(exchange, DataType.INTEGER);
+                var queryBuilderAndTags = getBuilderAndTagsFromStats(exchange, DataType.INTEGER);
                 assertThat(queryBuilderAndTags, hasSize(128)); // 127 + nullBucket
             } else { // numOfPoints == 128, query rewrite does not happen
                 AggregateExec agg = as(exchange.child(), AggregateExec.class);
@@ -396,7 +462,7 @@ public class ReplaceRoundToWithQueryAndTagsTests extends AbstractLocalPhysicalPl
         }
     }
 
-    private static List<EsQueryExec.QueryBuilderAndTags> getBuilderAndTags(ExchangeExec exchange, DataType aggregateType) {
+    private static List<EsQueryExec.QueryBuilderAndTags> getBuilderAndTagsFromStats(ExchangeExec exchange, DataType aggregateType) {
         FilterExec filter = as(exchange.child(), FilterExec.class);
         GreaterThan condition = as(filter.condition(), GreaterThan.class);
         Literal literal = as(condition.right(), Literal.class);
@@ -453,7 +519,8 @@ public class ReplaceRoundToWithQueryAndTagsTests extends AbstractLocalPhysicalPl
 
                 ExchangeExec exchange = validatePlanBeforeExchange(
                     plannerOptimizerWithPragmas.plan(query, searchStats, esqlFlags),
-                    DataType.INTEGER
+                    DataType.INTEGER,
+                    List.of("count(*)")
                 );
                 if (pushdown) {
                     var queryBuilderAndTags = getQueryBuilderAndTags(exchange);
@@ -479,14 +546,22 @@ public class ReplaceRoundToWithQueryAndTagsTests extends AbstractLocalPhysicalPl
     }
 
     private static List<EsQueryExec.QueryBuilderAndTags> getQueryBuilderAndTags(ExchangeExec exchange) {
-        return getBuilderAndTags(exchange, DataType.INTEGER);
+        return getBuilderAndTagsFromStats(exchange, DataType.INTEGER);
     }
 
-    private ExchangeExec validateTopPlan(String query, DataType aggregateType) {
-        return validatePlanBeforeExchange(plannerOptimizer.plan(query, searchStats, makeAnalyzer("mapping-all-types.json")), aggregateType);
+    private ExchangeExec validatePlanBeforeExchange(String query, DataType aggregateType) {
+        return validatePlanBeforeExchange(query, aggregateType, List.of("count(*)"));
     }
 
-    private static ExchangeExec validatePlanBeforeExchange(PhysicalPlan plan, DataType aggregateType) {
+    private ExchangeExec validatePlanBeforeExchange(String query, DataType aggregateType, List<String> aggregation) {
+        return validatePlanBeforeExchange(
+            plannerOptimizer.plan(query, searchStats, makeAnalyzer("mapping-all-types.json")),
+            aggregateType,
+            aggregation
+        );
+    }
+
+    private static ExchangeExec validatePlanBeforeExchange(PhysicalPlan plan, DataType aggregateType, List<String> aggregation) {
         LimitExec limit = as(plan, LimitExec.class);
 
         AggregateExec agg = as(limit.child(), AggregateExec.class);
@@ -495,7 +570,7 @@ public class ReplaceRoundToWithQueryAndTagsTests extends AbstractLocalPhysicalPl
         NamedExpression grouping = as(groupings.getFirst(), NamedExpression.class);
         assertEquals("x", grouping.name());
         assertEquals(aggregateType, grouping.dataType());
-        assertEquals(List.of("count(*)", "x"), Expressions.names(agg.aggregates()));
+        assertEquals(CollectionUtils.appendToCopy(aggregation, "x"), Expressions.names(agg.aggregates()));
 
         ExchangeExec exchange = as(agg.child(), ExchangeExec.class);
         assertThat(exchange.inBetweenAggs(), is(true));

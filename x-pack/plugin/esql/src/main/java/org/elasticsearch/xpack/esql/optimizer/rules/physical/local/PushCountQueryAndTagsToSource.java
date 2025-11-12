@@ -35,10 +35,11 @@ public class PushCountQueryAndTagsToSource extends PhysicalOptimizerRules.Parame
         // FIXME(gal, NOCOMMIT) Temp documentation, for later
         if (
         // Ensures we are only grouping by one field (2 aggregates: count + group by field).
-        aggregateExec.aggregates().size() == 2 && aggregateExec.aggregates().get(0) instanceof Alias alias
-        // Ensures the eval exec is a filterless count, since we don't support filters yet.
+        aggregateExec.aggregates().size() == 2
+            && aggregateExec.aggregates().get(0) instanceof Alias alias
             && aggregateExec.child() instanceof EvalExec evalExec
             && alias.child() instanceof Count count
+            // Ensures the eval exec is a filterless count, since we don't support filters yet.
             && count.hasFilter() == false
             && count.field() instanceof Literal // Ensures count(*), or count(1), or equivalent.
             && evalExec.child() instanceof EsQueryExec queryExec

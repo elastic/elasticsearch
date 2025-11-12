@@ -13,142 +13,140 @@ import org.elasticsearch.xpack.esql.parser.ParsingException;
 import org.junit.After;
 import org.junit.Before;
 
-import java.util.Set;
+import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.xpack.esql.view.ViewTests.randomView;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 
 public class ViewCrudTests extends AbstractViewTestCase {
 
-    private ViewService viewService;
+    private TestViewsApi viewsApi;
 
     @Before
     public void setup() throws Exception {
         super.setUp();
-        this.viewService = viewService();
+        this.viewsApi = new TestViewsApi();
     }
 
     @After
     public void tearDown() throws Exception {
-        for (String name : this.viewService.list()) {
-            deleteView(name, viewService);
+        for (String name : this.viewsApi.viewService.list()) {
+            viewsApi.delete(name);
         }
         super.tearDown();
     }
 
     public void testCrud() throws Exception {
-        ViewService viewService = viewService();
         View view = randomView(XContentType.JSON);
         String name = "my-view";
 
-        AtomicReference<Exception> error = saveView(name, view, viewService);
+        AtomicReference<Exception> error = viewsApi.save(name, view);
         assertThat(error.get(), nullValue());
+        assertView(viewsApi.get(name), name, view);
 
-        View result = viewService.get(name);
-        assertThat(result, equalTo(view));
+        viewsApi.delete(name);
+        assertThat(viewsApi.get(name).size(), equalTo(0));
+    }
 
-        Set<String> views = viewService.list();
-        assertThat(views.size(), equalTo(1));
-        assertThat(views, equalTo(Set.of(name)));
+    public void testList() throws Exception {
+        for (int i = 0; i < 10; i++) {
+            View view = randomView(XContentType.JSON);
+            String name = "my-view-" + i;
 
-        deleteView(name, viewService);
-        result = viewService.get(name);
-        assertThat(result, nullValue());
+            AtomicReference<Exception> error = viewsApi.save(name, view);
+            assertThat(error.get(), nullValue());
+            assertView(viewsApi.get(name), name, view);
+            assertThat(viewsApi.get().size(), equalTo(1 + i));
+        }
+        for (int i = 0; i < 10; i++) {
+            String name = "my-view-" + i;
+            assertThat(viewsApi.get(name).size(), equalTo(1));
+            viewsApi.delete(name);
+            expectThrows(name, IllegalArgumentException.class, equalTo("Views do not exist: " + name), () -> viewsApi.get(name));
+            assertThat(viewsApi.get().size(), equalTo(9 - i));
+        }
     }
 
     public void testUpdate() throws Exception {
-        ViewService viewService = viewService();
         View view = randomView(XContentType.JSON);
         String name = "my-view";
 
-        AtomicReference<Exception> error = saveView(name, view, viewService);
+        AtomicReference<Exception> error = viewsApi.save(name, view);
         assertThat(error.get(), nullValue());
 
         view = randomView(XContentType.JSON);
-        error = saveView(name, view, viewService);
+        error = viewsApi.save(name, view);
         assertThat(error.get(), nullValue());
-        View result = viewService.get(name);
-        assertThat(result, equalTo(view));
+        assertView(viewsApi.get(name), name, view);
 
-        deleteView(name, viewService);
-        result = viewService.get(name);
-        assertThat(result, nullValue());
+        viewsApi.delete(name);
+        assertThat(viewsApi.get(name).size(), equalTo(0));
     }
 
     public void testPutValidation() throws Exception {
-        ViewService viewService = viewService();
         View view = randomView(XContentType.JSON);
 
         {
             String nullOrEmptyName = randomBoolean() ? "" : null;
-
-            IllegalArgumentException error = expectThrows(
-                IllegalArgumentException.class,
-                () -> saveView(nullOrEmptyName, view, viewService)
-            );
-
+            IllegalArgumentException error = expectThrows(IllegalArgumentException.class, () -> viewsApi.save(nullOrEmptyName, view));
             assertThat(error.getMessage(), equalTo("name is missing or empty"));
         }
         {
-            IllegalArgumentException error = expectThrows(IllegalArgumentException.class, () -> saveView("my-view", null, viewService));
-
+            IllegalArgumentException error = expectThrows(IllegalArgumentException.class, () -> viewsApi.save("my-view", null));
             assertThat(error.getMessage(), equalTo("view is missing"));
         }
         {
-            IllegalArgumentException error = expectThrows(IllegalArgumentException.class, () -> saveView("my#view", view, viewService));
+            IllegalArgumentException error = expectThrows(IllegalArgumentException.class, () -> viewsApi.save("my#view", view));
             assertThat(error.getMessage(), equalTo("Invalid view name [my#view], must not contain '#'"));
         }
         {
-            IllegalArgumentException error = expectThrows(IllegalArgumentException.class, () -> saveView("..", view, viewService));
+            IllegalArgumentException error = expectThrows(IllegalArgumentException.class, () -> viewsApi.save("..", view));
             assertThat(error.getMessage(), equalTo("Invalid view name [..], must not be '.' or '..'"));
         }
         {
-            IllegalArgumentException error = expectThrows(IllegalArgumentException.class, () -> saveView("myView", view, viewService));
+            IllegalArgumentException error = expectThrows(IllegalArgumentException.class, () -> viewsApi.save("myView", view));
             assertThat(error.getMessage(), equalTo("Invalid view name [myView], must be lowercase"));
         }
         {
             View invalidView = new View("FROMMM abc");
-            ParsingException error = expectThrows(ParsingException.class, () -> saveView("name", invalidView, viewService));
+            ParsingException error = expectThrows(ParsingException.class, () -> viewsApi.save("name", invalidView));
             assertThat(error.getMessage(), containsString("mismatched input 'FROMMM'"));
         }
     }
 
     public void testDeleteValidation() {
-        ViewService viewService = viewService();
-
         {
             String nullOrEmptyName = randomBoolean() ? "" : null;
-
-            IllegalArgumentException error = expectThrows(IllegalArgumentException.class, () -> deleteView(nullOrEmptyName, viewService));
-
+            IllegalArgumentException error = expectThrows(IllegalArgumentException.class, () -> viewsApi.delete(nullOrEmptyName));
             assertThat(error.getMessage(), equalTo("name is missing or empty"));
         }
         {
-            ResourceNotFoundException error = expectThrows(ResourceNotFoundException.class, () -> deleteView("my-view", viewService));
-
+            ResourceNotFoundException error = expectThrows(ResourceNotFoundException.class, () -> viewsApi.delete("my-view"));
             assertThat(error.getMessage(), equalTo("view [my-view] not found"));
         }
     }
 
-    public void testGetValidation() {
-        ViewService viewService = viewService();
+    public void testGetValidation() throws Exception {
         String nullOrEmptyName = randomBoolean() ? "" : null;
 
-        IllegalArgumentException error = expectThrows(IllegalArgumentException.class, () -> viewService.get(nullOrEmptyName));
-
+        IllegalArgumentException error = expectThrows(IllegalArgumentException.class, () -> viewsApi.get(nullOrEmptyName));
         assertThat(error.getMessage(), equalTo("name is missing or empty"));
-
-        View view = viewService.get("null-view");
-        assertNull(view);
+        assertThat(viewsApi.get("null-view").size(), equalTo(0));
     }
 
-    public void testListValidation() {
-        ViewService viewService = viewService();
-        Set<String> views = viewService.list();
-        assertTrue(views.isEmpty());
+    public void testListValidation() throws Exception {
+        Map<String, View> result = viewsApi.get("null-view");
+        assertTrue(result.isEmpty());
     }
 
+    private void assertView(Map<String, View> result, String name, View view) {
+        assertThat(result.size(), equalTo(1));
+        View found = result.get(name);
+        assertThat(found, not(nullValue()));
+        assertThat(found, equalTo(view));
+    }
 }

@@ -23,10 +23,16 @@
           ],
           "parts": {
             "name": {
-              "type": "string",
-              "description": "The name of the view to get"
+              "type": "list",
+              "description": "A comma-separated list of view names"
             }
           }
+        },
+        {
+          "path": "/_query/view",
+          "methods": [
+            "GET"
+          ]
         }
       ]
     }

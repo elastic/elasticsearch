@@ -16,6 +16,10 @@ import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 
+import java.util.ArrayList;
+import java.util.List;
+import java.util.TreeMap;
+
 public class TransportGetViewAction extends HandledTransportAction<GetViewAction.Request, GetViewAction.Response> {
     public static final ActionType<RemoteInfoResponse> TYPE = new ActionType<>(GetViewAction.NAME);
     private final ClusterViewService viewService;
@@ -28,11 +32,24 @@ public class TransportGetViewAction extends HandledTransportAction<GetViewAction
 
     @Override
     protected void doExecute(Task task, GetViewAction.Request request, ActionListener<GetViewAction.Response> listener) {
-        View view = viewService.get(request.name());
-        if (view == null) {
-            listener.onFailure(new IllegalArgumentException("View [" + request.name() + "] does not exist"));
+        TreeMap<String, View> views = new TreeMap<>();
+        List<String> missing = new ArrayList<>();
+        var names = request.names();
+        if (names.isEmpty()) {
+            names = new ArrayList<>(viewService.list());
+        }
+        for (String name : names) {
+            View view = viewService.get(name);
+            if (view == null) {
+                missing.add(name);
+            } else {
+                views.put(name, view);
+            }
+        }
+        if (missing.isEmpty() == false) {
+            listener.onFailure(new IllegalArgumentException("Views do not exist: " + String.join(", ", missing)));
         } else {
-            listener.onResponse(new GetViewAction.Response(view));
+            listener.onResponse(new GetViewAction.Response(views));
         }
     }
 }

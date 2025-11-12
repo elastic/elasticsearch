@@ -6,18 +6,24 @@
  */
 package org.elasticsearch.xpack.esql.view;
 
-import org.elasticsearch.action.ActionRequest;
-import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.TransportAction;
+import org.elasticsearch.action.support.local.LocalClusterStateRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.xcontent.ChunkedToXContentHelper;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
+import java.util.List;
+import java.util.Map;
 import java.util.Objects;
+import java.util.TreeMap;
+
+import static org.elasticsearch.xpack.esql.view.ViewMetadata.VIEWS;
 
 public class GetViewAction extends ActionType<GetViewAction.Response> {
 
@@ -28,30 +34,20 @@ public class GetViewAction extends ActionType<GetViewAction.Response> {
         super(NAME);
     }
 
-    public static class Request extends ActionRequest {
-        private String name;
+    public static class Request extends LocalClusterStateRequest {
+        private List<String> names;
 
-        public Request(String name) {
-            this.name = Objects.requireNonNull(name, "name cannot be null");
+        public Request(TimeValue masterNodeTimeout, String... names) {
+            super(masterNodeTimeout);
+            this.names = List.of(names);
         }
 
         public Request(StreamInput in) throws IOException {
             super(in);
         }
 
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            super.writeTo(out);
-            out.writeString(name);
-        }
-
-        public String name() {
-            return name;
-        }
-
-        @Override
-        public ActionRequestValidationException validate() {
-            return null;
+        public List<String> names() {
+            return names;
         }
 
         @Override
@@ -59,25 +55,27 @@ public class GetViewAction extends ActionType<GetViewAction.Response> {
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             Request request = (Request) o;
-            return name.equals(request.name);
+            return Objects.equals(names, request.names);
         }
 
         @Override
         public int hashCode() {
-            return name.hashCode();
+            return Objects.hash(names);
         }
     }
 
     public static class Response extends ActionResponse implements ToXContentObject {
 
-        private final View view;
+        private final Map<String, View> views;
 
-        public Response(final View view) {
-            this.view = view;
+        public Response(Map<String, View> views) {
+            Objects.requireNonNull(views, "views cannot be null");
+            // use a treemap to guarantee ordering in the set, then transform it to the list of named policies
+            this.views = new TreeMap<>(views);
         }
 
-        public View getView() {
-            return view;
+        public Map<String, View> getViews() {
+            return views;
         }
 
         @Override
@@ -88,7 +86,10 @@ public class GetViewAction extends ActionType<GetViewAction.Response> {
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
-            view.toXContent(builder, params);
+            var v = ChunkedToXContentHelper.xContentObjectFieldObjects(VIEWS.getPreferredName(), views);
+            while (v.hasNext()) {
+                v.next().toXContent(builder, params);
+            }
             builder.endObject();
             return builder;
         }
@@ -101,17 +102,17 @@ public class GetViewAction extends ActionType<GetViewAction.Response> {
             if (o == null || getClass() != o.getClass()) {
                 return false;
             }
-            return view.equals(((Response) o).view);
+            return views.equals(((Response) o).views);
         }
 
         @Override
         public int hashCode() {
-            return view.hashCode();
+            return views.hashCode();
         }
 
         @Override
         public String toString() {
-            return "GetViewAction.Response{view=" + view.toString() + '}';
+            return "GetViewAction.Response{" + views.toString() + '}';
         }
     }
 }

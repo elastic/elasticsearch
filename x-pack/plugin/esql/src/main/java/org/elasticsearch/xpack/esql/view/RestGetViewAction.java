@@ -8,10 +8,13 @@
 package org.elasticsearch.xpack.esql.view;
 
 import org.elasticsearch.client.internal.node.NodeClient;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.RestUtils;
 import org.elasticsearch.rest.Scope;
 import org.elasticsearch.rest.ServerlessScope;
+import org.elasticsearch.rest.action.RestCancellableNodeClient;
 import org.elasticsearch.rest.action.RestToXContentListener;
 
 import java.io.IOException;
@@ -23,7 +26,7 @@ import static org.elasticsearch.rest.RestRequest.Method.GET;
 public class RestGetViewAction extends BaseRestHandler {
     @Override
     public List<Route> routes() {
-        return List.of(new Route(GET, "/_query/view/{name}"));
+        return List.of(new Route(GET, "/_query/view/{name}"), new Route(GET, "/_query/view"));
     }
 
     @Override
@@ -33,7 +36,14 @@ public class RestGetViewAction extends BaseRestHandler {
 
     @Override
     protected RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
-        GetViewAction.Request req = new GetViewAction.Request(request.param("name"));
-        return channel -> client.execute(TransportGetViewAction.TYPE, req, new RestToXContentListener<>(channel));
+        GetViewAction.Request req = new GetViewAction.Request(
+            RestUtils.getMasterNodeTimeout(request),
+            Strings.splitStringByCommaToArray(request.param("name"))
+        );
+        return channel -> new RestCancellableNodeClient(client, request.getHttpChannel()).execute(
+            GetViewAction.INSTANCE,
+            req,
+            new RestToXContentListener<>(channel)
+        );
     }
 }

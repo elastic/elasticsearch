@@ -10,6 +10,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.indices.TestIndexNameExpressionResolver;
 import org.elasticsearch.plugins.Plugin;
@@ -18,6 +19,7 @@ import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 
 import java.util.Collection;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -37,30 +39,47 @@ public abstract class AbstractViewTestCase extends ESSingleNodeTestCase {
         return new ClusterViewService(new EsqlFunctionRegistry(), clusterService, featureService, projectResolver, DEFAULT);
     }
 
-    protected AtomicReference<Exception> saveView(String name, View policy, ViewService viewService) throws InterruptedException {
-        IndexNameExpressionResolver resolver = TestIndexNameExpressionResolver.newInstance();
-        TestResponseCapture responseCapture = new TestResponseCapture();
-        viewService.put(name, policy, responseCapture);
-        responseCapture.latch.await();
-        return responseCapture.error;
-    }
+    protected class TestViewsApi {
+        protected ViewService viewService = viewService();
 
-    protected void deleteView(String name, ViewService viewService) throws Exception {
-        TestResponseCapture responseCapture = new TestResponseCapture();
-        viewService.delete(name, responseCapture);
-        responseCapture.latch.await();
-        if (responseCapture.error.get() != null) {
-            throw responseCapture.error.get();
+        protected AtomicReference<Exception> save(String name, View policy) throws InterruptedException {
+            IndexNameExpressionResolver resolver = TestIndexNameExpressionResolver.newInstance();
+            TestResponseCapture<Void> responseCapture = new TestResponseCapture<>();
+            viewService.put(name, policy, responseCapture);
+            responseCapture.latch.await();
+            return responseCapture.error;
+        }
+
+        protected void delete(String name) throws Exception {
+            TestResponseCapture<Void> responseCapture = new TestResponseCapture<>();
+            viewService.delete(name, responseCapture);
+            responseCapture.latch.await();
+            if (responseCapture.error.get() != null) {
+                throw responseCapture.error.get();
+            }
+        }
+
+        public Map<String, View> get(String... names) throws Exception {
+            TestResponseCapture<GetViewAction.Response> responseCapture = new TestResponseCapture<>();
+            TransportGetViewAction getViewAction = getInstanceFromNode(TransportGetViewAction.class);
+            GetViewAction.Request request = new GetViewAction.Request(TimeValue.THIRTY_SECONDS, names);
+            getViewAction.doExecute(null, request, responseCapture);
+            if (responseCapture.error.get() != null) {
+                throw responseCapture.error.get();
+            }
+            return responseCapture.response.getViews();
         }
     }
 
-    protected static class TestResponseCapture implements ActionListener<Void> {
+    protected static class TestResponseCapture<T> implements ActionListener<T> {
         CountDownLatch latch = new CountDownLatch(1);
         AtomicReference<Exception> error = new AtomicReference<>();
+        T response;
 
         @Override
-        public void onResponse(Void unused) {
+        public void onResponse(T response) {
             latch.countDown();
+            this.response = response;
         }
 
         @Override

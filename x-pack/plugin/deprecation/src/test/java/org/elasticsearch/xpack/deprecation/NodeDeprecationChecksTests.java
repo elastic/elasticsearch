@@ -80,7 +80,11 @@ public class NodeDeprecationChecksTests extends ESTestCase {
     public void testRemovedAffixSetting() {
         final Settings clusterSettings = Settings.EMPTY;
         final Settings nodeSettings = Settings.builder().put("node.removed_setting.a.value", "value").build();
-        final Setting<?> removedSetting = Setting.affixKeySetting("node.removed_setting.", "value", key -> Setting.simpleString(key, Setting.Property.NodeScope));
+        final Setting<?> removedSetting = Setting.affixKeySetting(
+            "node.removed_setting.",
+            "value",
+            key -> Setting.simpleString(key, Setting.Property.NodeScope)
+        );
         final DeprecationIssue issue = NodeDeprecationChecks.checkRemovedSetting(
             clusterSettings,
             nodeSettings,

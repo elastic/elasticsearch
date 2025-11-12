@@ -85,7 +85,7 @@ public class OpenShiftAiActionCreator implements OpenShiftAiActionVisitor {
             EMBEDDINGS_HANDLER,
             embeddingsInput -> new OpenShiftAiEmbeddingsRequest(
                 serviceComponents.truncator(),
-                truncate(embeddingsInput.getInputs(), model.getServiceSettings().maxInputTokens()),
+                truncate(embeddingsInput.getTextInputs(), model.getServiceSettings().maxInputTokens()),
                 model
             ),
             EmbeddingsInput.class

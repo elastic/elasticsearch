@@ -131,6 +131,38 @@ public class AnthropicChatCompletionStreamingProcessorTests extends ESTestCase {
         }
     }
 
+    public void testParseAlternateFieldOrder() {
+        var item = events(List.of(Pair.of("message_start", """
+            {
+                "message": {
+                    "content": [],
+                    "id": "msg_vrtx_01F9nngkx9PojtBCkhj9xP2v",
+                    "model": "claude-3-5-haiku-20241022",
+                    "role": "assistant",
+                    "stop_reason": null,
+                    "stop_sequence": null,
+                    "type": "message",
+                    "usage": {
+                        "cache_creation_input_tokens": 0,
+                        "cache_read_input_tokens": 0,
+                        "input_tokens": 393,
+                        "output_tokens": 1
+                    }
+                },
+                "type": "message_start"
+            }
+            """)));
+
+        var response = onNext(new AnthropicChatCompletionStreamingProcessor((noOp1, noOp2) -> {
+            fail("This should not be called");
+            return null;
+        }), item);
+        assertThat(response.chunks().size(), equalTo(1));
+        {
+            assertMessageStartBlock(response);
+        }
+    }
+
     private static void assertMessageDeltaBlock(StreamingUnifiedChatCompletionResults.Results response) {
         var chatCompletionChunk = response.chunks().remove();
         var choices = chatCompletionChunk.choices();

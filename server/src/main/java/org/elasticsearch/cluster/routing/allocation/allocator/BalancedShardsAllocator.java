@@ -119,13 +119,12 @@ public class BalancedShardsAllocator implements ShardsAllocator {
     );
     private static final AtomicLong INVALID_WEIGHT_FUNCTION_LAST_LOG = new AtomicLong(0);
     private static final TimeValue MINIMUM_INVALID_WEIGHT_LOG_INTERVAL = TimeValue.timeValueMinutes(5);
+    private static boolean enableInvalidWeightsAssertion = true;
+    private static TimeValue minimumInvalidWeightLogInterval = MINIMUM_INVALID_WEIGHT_LOG_INTERVAL;
 
     private final BalancerSettings balancerSettings;
     private final WriteLoadForecaster writeLoadForecaster;
     private final BalancingWeightsFactory balancingWeightsFactory;
-
-    private static boolean enableInvalidWeightsAssertion = true;
-    private static TimeValue minimumInvalidWeightLogInterval = MINIMUM_INVALID_WEIGHT_LOG_INTERVAL;
 
     public BalancedShardsAllocator() {
         this(Settings.EMPTY);

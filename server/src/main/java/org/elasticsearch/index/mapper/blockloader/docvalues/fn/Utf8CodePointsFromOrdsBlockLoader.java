@@ -7,7 +7,7 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.index.mapper.blockloader.docvalues;
+package org.elasticsearch.index.mapper.blockloader.docvalues.fn;
 
 import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.LeafReaderContext;
@@ -17,6 +17,7 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.apache.lucene.util.UnicodeUtil;
 import org.elasticsearch.index.mapper.blockloader.Warnings;
+import org.elasticsearch.index.mapper.blockloader.docvalues.BlockDocValuesReader;
 
 import java.io.IOException;
 import java.util.Arrays;

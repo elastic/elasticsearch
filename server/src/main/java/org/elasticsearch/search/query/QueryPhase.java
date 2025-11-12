@@ -214,6 +214,11 @@ public class QueryPhase {
 
                 QueryPhaseResult queryPhaseResult = searcher.search(query, collectorManager);
 
+                if (queryPhaseResult == null) {
+                    finalizeAsTimedOutResult(searchContext);
+                    return;
+                }
+
                 if (searchContext.getProfilers() != null) {
                     searchContext.getProfilers().getCurrentQueryProfiler().setCollectorResult(queryPhaseResult.collectorResult());
                 }
@@ -239,19 +244,32 @@ public class QueryPhase {
                     queryResult.serviceTimeEWMA((long) rExecutor.getTaskExecutionEWMA());
                 }
             } catch (ContextIndexSearcher.TimeExceededException tee) {
-                SearchTimeoutException.handleTimeout(
-                    searchContext.request().allowPartialSearchResults(),
-                    searchContext.shardTarget(),
-                    searchContext.queryResult()
-                );
-                queryResult.topDocs(new TopDocsAndMaxScore(Lucene.EMPTY_TOP_DOCS, Float.NaN), new DocValueFormat[0]);
-
-                if (searchContext.aggregations() != null) {
-                    queryResult.aggregations(InternalAggregations.EMPTY);
-                }
+                finalizeAsTimedOutResult(searchContext);
+                return;
             }
         } catch (Exception e) {
             throw new QueryPhaseExecutionException(searchContext.shardTarget(), "Failed to execute main query", e);
+        }
+    }
+
+    /**
+     * Marks the current search as timed out and finalizes the {@link QuerySearchResult}
+     * with a well-formed empty response. This ensures that even when a timeout occurs
+     * (e.g., during collector setup or search execution), the shard still returns a
+     * valid result object with empty top docs and aggregations instead of throwing.
+     */
+    private static void finalizeAsTimedOutResult(SearchContext searchContext) {
+        QuerySearchResult queryResult = searchContext.queryResult();
+        SearchTimeoutException.handleTimeout(
+            searchContext.request().allowPartialSearchResults(),
+            searchContext.shardTarget(),
+            queryResult
+        );
+
+        queryResult.topDocs(new TopDocsAndMaxScore(Lucene.EMPTY_TOP_DOCS, Float.NaN), new DocValueFormat[0]);
+
+        if (searchContext.aggregations() != null) {
+            queryResult.aggregations(InternalAggregations.EMPTY);
         }
     }
 

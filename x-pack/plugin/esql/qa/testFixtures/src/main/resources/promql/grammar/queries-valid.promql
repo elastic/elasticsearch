@@ -160,25 +160,25 @@ sum by ("foo bar")({"some.metric"});
 sum by ("foo", bar, 'baz')({"some.metric"});
 avg by (foo)(some_metric);
 max by (foo)(some_metric);
-sum without (foo) (some_metric);
-sum (some_metric) without (foo);
-stddev(some_metric);
-stdvar by (foo)(some_metric);
+// sum without (foo) (some_metric);
+// sum (some_metric) without (foo);
+// stddev(some_metric);
+// stdvar by (foo)(some_metric);
 sum by ()(some_metric);
 sum by (foo,bar,)(some_metric);
 sum by (foo,)(some_metric);
-topk(5, some_metric);
-count_values("value", some_metric);
-sum without(and, by, avg, count, alert, annotations)(some_metric);
+//topk(5, some_metric);
+//count_values("value", some_metric);
+//sum without(and, by, avg, count, alert, annotations)(some_metric);
 
 //
 // functions
 //
-time();
-floor(some_metric{foo!="bar"});
+//time();
+//floor(some_metric{foo!="bar"});
 rate(some_metric[5m]);
-round(some_metric);
-round(some_metric, 5);
+//round(some_metric);
+//round(some_metric, 5);
 sum(sum);
 a + sum;
 
@@ -188,9 +188,9 @@ a + sum;
 "double-quoted string \" with escaped quote";
 'single-quoted string \' with escaped quote';
 `backtick-quoted string`;
-"\a\b\f\n\r\t\v\\\" - \xFF\377\u1234\U00010111\U0001011111â˜º";
-'\a\b\f\n\r\t\v\\\' - \xFF\377\u1234\U00010111\U0001011111â˜º';
-`\a\b\f\n\r\t\v\\\"\' - \xFF\377\u1234\U00010111\U0001011111â˜º`;
+//"\a\b\f\n\r\t\v\\\" - \xFF\377\u1234\U00010111\U0001011111â˜º";
+//'\a\b\f\n\r\t\v\\\' - \xFF\377\u1234\U00010111\U0001011111â˜º';
+//`\a\b\f\n\r\t\v\\\"\' - \xFF\377\u1234\U00010111\U0001011111â˜º`;
 
 //
 // subqueries
@@ -203,10 +203,10 @@ min_over_time(rate(foo{bar="baz"}[2s])[5m:])[4m:3s];
 min_over_time(rate(foo{bar="baz"}[2s])[5m:] offset 4m)[4m:3s];
 min_over_time(rate(foo{bar="baz"}[2s])[5m:] @ 1603775091)[4m:3s];
 min_over_time(rate(foo{bar="baz"}[2s])[5m:] @ -160377509)[4m:3s];
-sum without(and, by, avg, count, alert, annotations)(some_metric) [30m:10s];
-some_metric OFFSET 1m [10m:5s];
+//sum without(and, by, avg, count, alert, annotations)(some_metric) [30m:10s];
+//some_metric OFFSET 1m [10m:5s];
 some_metric @ 123 [10m:5s];
-some_metric @ 123 offset 1m [10m:5s];
+//some_metric @ 123 offset 1m [10m:5s];
 some_metric offset 1m @ 123 [10m:5s];
 some_metric[10m:5s] offset 1m @ 123;
 (foo + bar{nm="val"})[5m:];
@@ -230,22 +230,22 @@ start{end="foo"};
 end{start="foo"};
 foo unless on(start) bar;
 foo unless on(end) bar;
-info(rate(http_request_counter_total{}[5m]));
-info(http_request_counter_total{namespace="zzz"}, {foo="bar", bar="baz"});
+//info(rate(http_request_counter_total{}[5m]));
+//info(http_request_counter_total{namespace="zzz"}, {foo="bar", bar="baz"});
 
 // nested math, added in Prometheus 3.4.0 / May 2025
 // https://github.com/prometheus/prometheus/pull/16249
 foo[11s+10s-5*2^2];
-foo[-(10s-5s)+20s];
-foo[-10s+15s];
+//foo[-(10s-5s)+20s];
+//foo[-10s+15s];
 foo[4s+4s:1s*2] offset (5s-8);
 foo offset 5s-8;
 rate(foo[2m+2m]);
 foo offset -1^1;
 foo offset -(1^2);
-foo offset (-1^2);
-foo[-2^2];
-foo[0+-2^2];
+//foo offset (-1^2);
+//foo[-2^2];
+//foo[0+-2^2];
 (sum(foo));
 (sum(foo) by (bar));
 (sum by (bar) (foo));

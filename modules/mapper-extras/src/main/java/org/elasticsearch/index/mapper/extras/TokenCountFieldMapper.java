@@ -164,7 +164,13 @@ public class TokenCountFieldMapper extends FieldMapper {
             tokenCount = countPositions(analyzer, fullPath(), value, enablePositionIncrements);
         }
 
-        NumberFieldMapper.NumberType.INTEGER.addFields(context.doc(), fieldType().name(), tokenCount, index, hasDocValues, store);
+        NumberFieldMapper.NumberType.INTEGER.addFields(
+            context.doc(),
+            fieldType().name(),
+            tokenCount,
+            IndexType.points(index, hasDocValues),
+            store
+        );
     }
 
     /**

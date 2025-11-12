@@ -39,6 +39,8 @@ public abstract class WholeNumberFieldMapperTests extends NumberFieldMapperTests
 
         assertDimension(true, NumberFieldMapper.NumberFieldType::isDimension);
         assertDimension(false, NumberFieldMapper.NumberFieldType::isDimension);
+
+        assertDimensionIndexing();
     }
 
     public void testDimensionIndexedAndDocvalues() {
@@ -49,7 +51,7 @@ public abstract class WholeNumberFieldMapperTests extends NumberFieldMapperTests
             })));
             assertThat(
                 e.getCause().getMessage(),
-                containsString("Field [time_series_dimension] requires that [index] and [doc_values] are true")
+                containsString("Field [time_series_dimension] requires that [doc_values] is true")
             );
         }
         {
@@ -59,17 +61,7 @@ public abstract class WholeNumberFieldMapperTests extends NumberFieldMapperTests
             })));
             assertThat(
                 e.getCause().getMessage(),
-                containsString("Field [time_series_dimension] requires that [index] and [doc_values] are true")
-            );
-        }
-        {
-            Exception e = expectThrows(MapperParsingException.class, () -> createDocumentMapper(fieldMapping(b -> {
-                minimalMapping(b);
-                b.field("time_series_dimension", true).field("index", false).field("doc_values", true);
-            })));
-            assertThat(
-                e.getCause().getMessage(),
-                containsString("Field [time_series_dimension] requires that [index] and [doc_values] are true")
+                containsString("Field [time_series_dimension] requires that [doc_values] is true")
             );
         }
     }

@@ -321,6 +321,11 @@ public class FieldCapabilitiesResponse extends ActionResponse implements Chunked
             return this;
         }
 
+        public Builder withResolvedRemotely(Map<String, ResolvedIndexExpressions> resolvedRemotely) {
+            this.resolvedRemotely = resolvedRemotely;
+            return this;
+        }
+
         public Builder withResolvedLocally(ResolvedIndexExpressions resolvedLocally) {
             this.resolvedLocally = resolvedLocally;
             return this;

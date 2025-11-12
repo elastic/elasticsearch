@@ -9,7 +9,9 @@
 
 package org.elasticsearch.cluster.routing.allocation.allocator;
 
+import org.apache.logging.log4j.Level;
 import org.elasticsearch.action.support.replication.ClusterStateCreationUtils;
+import org.elasticsearch.cluster.ClusterInfo;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
@@ -17,18 +19,29 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.GlobalRoutingTable;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.RecoverySource;
+import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
+import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
+import org.elasticsearch.cluster.routing.allocation.decider.AllocationDecider;
+import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
+import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.AdvancingTimeProvider;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.snapshots.SnapshotShardSizeInfo;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.MockLog;
 
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
@@ -174,6 +187,148 @@ public class UndesiredAllocationsTrackerTests extends ESTestCase {
         shardRouting = shardRouting.cancelRelocation();
         undesiredAllocationsTracker.removeTracking(shardRouting);
         assertEquals(0, undesiredAllocationsTracker.getUndesiredAllocations().size());
+    }
+
+    public void testMaybeLogUndesiredAllocations() {
+        final int shardCount = randomIntBetween(5, 8);
+        final var warningThreshold = TimeValue.timeValueMinutes(randomIntBetween(1, 5));
+        final var logInterval = TimeValue.timeValueMinutes(randomIntBetween(1, 5));
+        final var clusterSettings = ClusterSettings.createBuiltInClusterSettings(
+            Settings.builder()
+                .put(UndesiredAllocationsTracker.MAX_UNDESIRED_ALLOCATIONS_TO_TRACK.getKey(), shardCount)
+                .put(UndesiredAllocationsTracker.UNDESIRED_ALLOCATION_DURATION_LOG_INTERVAL_SETTING.getKey(), logInterval)
+                .put(UndesiredAllocationsTracker.UNDESIRED_ALLOCATION_DURATION_LOG_THRESHOLD_SETTING.getKey(), warningThreshold)
+                .build()
+        );
+        final var advancingTimeProvider = new AdvancingTimeProvider();
+        final var undesiredAllocationsTracker = new UndesiredAllocationsTracker(clusterSettings, advancingTimeProvider);
+        final var indexName = randomIdentifier();
+
+        final var state = ClusterStateCreationUtils.state(2, new String[] { indexName }, 1);
+        final var shardRouting = state.routingTable(ProjectId.DEFAULT).index(indexName).shard(0).primaryShard();
+        final var routingNodes = RoutingNodes.immutable(state.globalRoutingTable(), state.nodes());
+        final var alwaysSaysNo = new AllocationDecider() {
+            @Override
+            public Decision canAllocate(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
+                return allocation.decision(Decision.NO, "test_no_decider", "Always says no");
+            }
+        };
+        final var alwaysSaysYes = new AllocationDecider() {
+            @Override
+            public Decision canAllocate(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
+                return allocation.decision(Decision.YES, "test_yes_decider", "Always says yes");
+            }
+        };
+        final var allocation = new RoutingAllocation(
+            new AllocationDeciders(List.of(alwaysSaysNo, alwaysSaysYes)),
+            state,
+            ClusterInfo.EMPTY,
+            SnapshotShardSizeInfo.EMPTY,
+            randomNonNegativeLong()
+        );
+        final var currentNodeId = shardRouting.currentNodeId();
+        final var otherNodeId = state.nodes().getNodes().keySet().stream().filter(n -> n.equals(currentNodeId) == false).findFirst().get();
+
+        undesiredAllocationsTracker.trackUndesiredAllocation(shardRouting);
+
+        final String shardInUndesiredLocationLogString = "Shard * has been in an undesired allocation for *";
+
+        final var desiredBalance = new DesiredBalance(
+            randomNonNegativeInt(),
+            Map.of(shardRouting.shardId(), new ShardAssignment(Set.of(otherNodeId), 1, 0, 0))
+        );
+        // Nothing should be logged because we haven't passed the minimal time
+        MockLog.assertThatLogger(
+            () -> undesiredAllocationsTracker.maybeLogUndesiredShardsWarning(routingNodes, allocation, desiredBalance),
+            UndesiredAllocationsTracker.class,
+            new MockLog.UnseenEventExpectation(
+                "undesired allocation log",
+                UndesiredAllocationsTracker.class.getName(),
+                Level.WARN,
+                shardInUndesiredLocationLogString
+            )
+        );
+
+        // Advance past the threshold
+        advancingTimeProvider.advanceByMillis(randomLongBetween(warningThreshold.millis() + 1, warningThreshold.millis() * 2));
+
+        // We should log now because we've passed the threshold
+        MockLog.assertThatLogger(
+            () -> undesiredAllocationsTracker.maybeLogUndesiredShardsWarning(routingNodes, allocation, desiredBalance),
+            UndesiredAllocationsTracker.class,
+            new MockLog.SeenEventExpectation(
+                "undesired allocation log",
+                UndesiredAllocationsTracker.class.getName(),
+                Level.WARN,
+                shardInUndesiredLocationLogString
+            ),
+            new MockLog.SeenEventExpectation(
+                "no decision for other node",
+                UndesiredAllocationsTracker.class.getName(),
+                Level.WARN,
+                "Shard * allocation decision for node [" + otherNodeId + "]: [NO(Always says no)]"
+            ),
+            new MockLog.UnseenEventExpectation(
+                "yes decision for other node",
+                UndesiredAllocationsTracker.class.getName(),
+                Level.WARN,
+                "*Always says yes*"
+            )
+        );
+
+        // Rate-limiting should prevent us from logging again immediately
+        MockLog.assertThatLogger(
+            () -> undesiredAllocationsTracker.maybeLogUndesiredShardsWarning(routingNodes, allocation, desiredBalance),
+            UndesiredAllocationsTracker.class,
+            new MockLog.UnseenEventExpectation(
+                "undesired allocation log",
+                UndesiredAllocationsTracker.class.getName(),
+                Level.WARN,
+                shardInUndesiredLocationLogString
+            )
+        );
+
+        // Advance past the log interval
+        advancingTimeProvider.advanceByMillis(randomLongBetween(logInterval.millis() + 1, logInterval.millis() * 2));
+
+        // Test logging where desired node has left the cluster
+        final var absentDesiredNodeId = randomIdentifier() + "-left-cluster";
+        final var desiredBalanceNodeLeft = new DesiredBalance(
+            randomNonNegativeInt(),
+            Map.of(shardRouting.shardId(), new ShardAssignment(Set.of(absentDesiredNodeId), 1, 0, 0))
+        );
+        MockLog.assertThatLogger(
+            () -> undesiredAllocationsTracker.maybeLogUndesiredShardsWarning(routingNodes, allocation, desiredBalanceNodeLeft),
+            UndesiredAllocationsTracker.class,
+            new MockLog.SeenEventExpectation(
+                "undesired allocation log",
+                UndesiredAllocationsTracker.class.getName(),
+                Level.WARN,
+                shardInUndesiredLocationLogString
+            ),
+            new MockLog.SeenEventExpectation(
+                "no decision for other node",
+                UndesiredAllocationsTracker.class.getName(),
+                Level.WARN,
+                "Shard * desired node has left the cluster [" + absentDesiredNodeId + "]"
+            )
+        );
+
+        // Advance past the log interval
+        advancingTimeProvider.advanceByMillis(randomLongBetween(logInterval.millis() + 1, logInterval.millis() * 2));
+
+        // Test logging is skipped where there is no desired balance for the shard (not sure if this can happen, but just to be safe)
+        final var desiredBalanceWithNoEntryForShard = new DesiredBalance(randomNonNegativeInt(), Map.of());
+        MockLog.assertThatLogger(
+            () -> undesiredAllocationsTracker.maybeLogUndesiredShardsWarning(routingNodes, allocation, desiredBalanceWithNoEntryForShard),
+            UndesiredAllocationsTracker.class,
+            new MockLog.UnseenEventExpectation(
+                "undesired allocation log",
+                UndesiredAllocationsTracker.class.getName(),
+                Level.WARN,
+                shardInUndesiredLocationLogString
+            )
+        );
     }
 
     private ClusterState removeRandomIndex(ClusterState state) {

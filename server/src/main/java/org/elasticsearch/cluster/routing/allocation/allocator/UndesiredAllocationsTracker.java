@@ -76,6 +76,9 @@ public class UndesiredAllocationsTracker {
         Setting.Property.Dynamic,
         Setting.Property.NodeScope
     );
+    private static final org.apache.logging.log4j.Logger log = org.apache.logging.log4j.LogManager.getLogger(
+        UndesiredAllocationsTracker.class
+    );
 
     private final TimeProvider timeProvider;
     private final LinkedHashMap<String, UndesiredAllocation> undesiredAllocations = new LinkedHashMap<>();
@@ -199,10 +202,16 @@ public class UndesiredAllocationsTracker {
         allocation.setDebugMode(RoutingAllocation.DebugMode.EXCLUDE_YES_DECISIONS);
         try {
             final var assignment = desiredBalance.getAssignment(shardRouting.shardId());
-            logger.warn("Shard {} has been in an undesired allocation for {}", shardRouting.shardId(), undesiredDuration);
-            for (final var nodeId : assignment.nodeIds()) {
-                final var decision = allocation.deciders().canAllocate(shardRouting, routingNodes.node(nodeId), allocation);
-                logger.warn("Shard {} allocation decision for node [{}]: {}", shardRouting.shardId(), nodeId, decision);
+            if (assignment != null) {
+                logger.warn("Shard {} has been in an undesired allocation for {}", shardRouting.shardId(), undesiredDuration);
+                for (final var nodeId : assignment.nodeIds()) {
+                    if (allocation.nodes().nodeExists(nodeId)) {
+                        final var decision = allocation.deciders().canAllocate(shardRouting, routingNodes.node(nodeId), allocation);
+                        logger.warn("Shard {} allocation decision for node [{}]: {}", shardRouting.shardId(), nodeId, decision);
+                    } else {
+                        logger.warn("Shard {} desired node has left the cluster [{}]", shardRouting.shardId(), nodeId);
+                    }
+                }
             }
         } finally {
             allocation.setDebugMode(originalDebugMode);

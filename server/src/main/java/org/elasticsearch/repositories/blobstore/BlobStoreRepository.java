@@ -1125,6 +1125,11 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
          */
         private final ShardBlobsToDelete shardBlobsToDelete = new ShardBlobsToDelete();
 
+        /**
+         * A map of blob id to index UUID
+         */
+        private final Map<String, String> blobIdToIndexUuidMap;
+
         SnapshotsDeletion(
             Collection<SnapshotId> snapshotIds,
             long originalRepositoryDataGeneration,
@@ -1140,6 +1145,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             this.originalRootBlobs = originalRootBlobs;
             this.originalIndexContainers = originalIndexContainers;
             this.originalRepositoryData = originalRepositoryData;
+            this.blobIdToIndexUuidMap = originalRepositoryData.indexMetaDataGenerations().getBlobIdToIndexUuidMap();
         }
 
         // ---------------------------------------------------------------------------------------------------------------------------------
@@ -1312,7 +1318,6 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
 
             private void determineShardCount(ActionListener<Void> listener) {
                 try (var listeners = new RefCountingListener(listener)) {
-                    Map<String, String> blobIdToIndexUuidMap = originalRepositoryData.indexMetaDataGenerations().getBlobIdToIndexUuidMap();
                     for (final var blobId : snapshotIds.stream()
                         .filter(snapshotsWithIndex::contains)
                         .map(id -> originalRepositoryData.indexMetaDataGenerations().indexMetaBlobId(id, indexId))

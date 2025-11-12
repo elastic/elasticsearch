@@ -197,7 +197,7 @@ public final class IndexMetaDataGenerations {
     }
 
     /**
-     * Generates a map of blob id to Index UUID. This is a reverse lookup of {@code identifiers}
+     * Generates a map of blob id to Index UUID. This is a reverse lookup of {@link #identifiers}
      * @return A map of blob id to index UUID
      */
     public Map<String, String> getBlobIdToIndexUuidMap() {

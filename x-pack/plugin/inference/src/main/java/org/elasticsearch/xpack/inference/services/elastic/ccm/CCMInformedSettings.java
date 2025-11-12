@@ -14,7 +14,7 @@ import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServic
 import java.util.Objects;
 
 public class CCMInformedSettings extends ElasticInferenceServiceSettings {
-    private static final String DEFAULT_CCM_URL = "https://inference.us-east-1.aws.svc.elastic.cloud";
+    static final String DEFAULT_CCM_URL = "https://inference.us-east-1.aws.svc.elastic.cloud";
 
     private final CCMFeature ccmFeature;
 
@@ -27,7 +27,7 @@ public class CCMInformedSettings extends ElasticInferenceServiceSettings {
     public String getElasticInferenceServiceUrl() {
         String urlFromSettings = super.getElasticInferenceServiceUrl();
         if (ccmFeature.allowConfiguringCcm() == false || Strings.isNullOrEmpty(urlFromSettings) == false) {
-            return super.getElasticInferenceServiceUrl();
+            return urlFromSettings;
         }
 
         return DEFAULT_CCM_URL;

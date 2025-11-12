@@ -53,12 +53,11 @@ public class AuthorizationTaskExecutor extends PersistentTasksExecutor<Authoriza
         Objects.requireNonNull(clusterService);
         Objects.requireNonNull(parameters);
 
-        var executor = new AuthorizationTaskExecutor(
+        return new AuthorizationTaskExecutor(
             clusterService,
             new PersistentTasksService(clusterService, parameters.serviceComponents().threadPool(), parameters.client()),
             parameters
         );
-        return executor;
     }
 
     // default for testing

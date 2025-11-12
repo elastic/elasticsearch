@@ -84,6 +84,55 @@ public class AuthorizationTaskExecutorTests extends ESTestCase {
         verify(mockClusterService, times(1)).addListener(executor);
     }
 
+    public void testDoesNotRegisterListener_IfUrlIsEmpty() {
+        var eisUrl = "";
+        var mockClusterService = mock(ClusterService.class);
+        var executor = new AuthorizationTaskExecutor(
+            mockClusterService,
+            persistentTasksService,
+            new AuthorizationPoller.Parameters(
+                createWithEmptySettings(threadPool),
+                mock(ElasticInferenceServiceAuthorizationRequestHandler.class),
+                mock(Sender.class),
+                ElasticInferenceServiceSettingsTests.create(eisUrl, TimeValue.timeValueMillis(1), TimeValue.timeValueMillis(1), true),
+                mock(ModelRegistry.class),
+                mock(Client.class)
+            )
+        );
+        executor.init();
+        executor.init();
+
+        verify(mockClusterService, never()).addListener(executor);
+    }
+
+    public void testMultipleCallsToInit_AndShutdown() {
+        var eisUrl = "abc";
+        var mockClusterService = mock(ClusterService.class);
+        var executor = new AuthorizationTaskExecutor(
+            mockClusterService,
+            persistentTasksService,
+            new AuthorizationPoller.Parameters(
+                createWithEmptySettings(threadPool),
+                mock(ElasticInferenceServiceAuthorizationRequestHandler.class),
+                mock(Sender.class),
+                ElasticInferenceServiceSettingsTests.create(eisUrl, TimeValue.timeValueMillis(1), TimeValue.timeValueMillis(1), true),
+                mock(ModelRegistry.class),
+                mock(Client.class)
+            )
+        );
+        executor.init();
+        executor.init();
+        executor.shutdown();
+        executor.shutdown();
+        verify(mockClusterService, times(1)).addListener(executor);
+        verify(mockClusterService, times(1)).removeListener(executor);
+
+        executor.init();
+        executor.shutdown();
+        verify(mockClusterService, times(2)).addListener(executor);
+        verify(mockClusterService, times(2)).removeListener(executor);
+    }
+
     public void testCreatesTask_WhenItDoesNotExistOnClusterStateChange() {
         var eisUrl = "abc";
 

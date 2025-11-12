@@ -1,6 +1,0 @@
-pr: 137479
-summary: "Fix illegal_access_exception: class com.maxmind.db.Decoder from `ip_location`\
-  \ processor"
-area: Ingest Node
-type: bug
-issues: []

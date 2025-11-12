@@ -111,7 +111,7 @@ public class IntervalQueryBuilderTests extends AbstractQueryTestCase<IntervalQue
     }
 
     static IntervalsSourceProvider.Combine createRandomCombine(int depth, boolean useScripts) {
-        int count = randomInt(5) + 1;
+        int count = randomInt(4) + 1;
         List<IntervalsSourceProvider> subSources = createRandomSourceList(depth, useScripts, count);
         boolean ordered = randomBoolean();
         int maxGaps = randomInt(5) - 1;

@@ -13,6 +13,7 @@ import org.apache.logging.log4j.Level;
 import org.elasticsearch.action.support.replication.ClusterStateCreationUtils;
 import org.elasticsearch.cluster.ClusterInfo;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.RoutingChangesObserver;
 import org.elasticsearch.cluster.routing.RoutingNode;
@@ -20,6 +21,7 @@ import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
+import org.elasticsearch.cluster.routing.allocation.ShardAllocationDecision;
 import org.elasticsearch.cluster.routing.allocation.WriteLoadForecaster;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
@@ -33,6 +35,9 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Objects;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.test.MockLog.assertThatLogger;
 import static org.mockito.ArgumentMatchers.any;
@@ -164,6 +169,135 @@ public class BalancedShardsAllocatorInvalidWeightsTests extends ESTestCase {
             assertInvalidWeightsMessageLogged(() -> allocator.allocate(allocation));
             // No shards should be left unassigned
             assertFalse(allocation.routingNodes().hasUnassignedShards());
+        }
+    }
+
+    public void testExplainRebalanceIsSkippedWhenInvalidWeightsAreEncounteredDuringSorting() {
+        try (var ignored = BalancedShardsAllocator.disableInvalidWeightsAssertionsAndRemoveLogRateLimiting()) {
+            final var balancingWeightsFactory = new InvalidWeightsBalancingWeightsFactory();
+            final var allocator = new BalancedShardsAllocator(
+                BalancerSettings.DEFAULT,
+                WriteLoadForecaster.DEFAULT,
+                balancingWeightsFactory
+            );
+
+            final ClusterState clusterState = ClusterStateCreationUtils.state(3, new String[] { "one", "two", "three" }, 1);
+            balancingWeightsFactory.returnInvalidWeightsForRandomNodes(clusterState);
+
+            final RoutingAllocation allocation = new RoutingAllocation(
+                new AllocationDeciders(List.of()),
+                clusterState.getRoutingNodes().mutableCopy(),
+                clusterState,
+                ClusterInfo.EMPTY,
+                null,
+                System.nanoTime()
+            );
+
+            assertInvalidWeightsMessageLogged(() -> {
+                ShardAllocationDecision shardAllocationDecision = allocator.explainShardAllocation(
+                    randomFrom(clusterState.routingTable(ProjectId.DEFAULT).allShards().collect(Collectors.toSet())),
+                    allocation
+                );
+                assertFalse(shardAllocationDecision.isDecisionTaken());
+            });
+        }
+    }
+
+    public void testExplainRebalanceWillNotConsiderNodesReturningInvalidWeights() {
+        try (var ignored = BalancedShardsAllocator.disableInvalidWeightsAssertionsAndRemoveLogRateLimiting()) {
+            final var balancingWeightsFactory = new InvalidWeightsBalancingWeightsFactory();
+            final var allocator = new BalancedShardsAllocator(
+                BalancerSettings.DEFAULT,
+                WriteLoadForecaster.DEFAULT,
+                balancingWeightsFactory
+            );
+
+            final ClusterState clusterState = ClusterStateCreationUtils.state(3, new String[] { "one", "two", "three" }, 1);
+            balancingWeightsFactory.returnInvalidWeightsForRandomNodes(clusterState);
+
+            final AllocationDecider allocationDecider = spy(AllocationDecider.class);
+            final RoutingAllocation allocation = new RoutingAllocation(
+                new AllocationDeciders(List.of(allocationDecider)),
+                clusterState.getRoutingNodes().mutableCopy(),
+                clusterState,
+                ClusterInfo.EMPTY,
+                null,
+                System.nanoTime()
+            );
+            final AtomicBoolean decidersBeingCalled = new AtomicBoolean(false);
+            when(allocationDecider.canAllocate(any(ShardRouting.class), any(), any())).thenAnswer(iom -> {
+                decidersBeingCalled.set(true);
+                return Decision.YES;
+            });
+            doAnswer(iom -> {
+                final BalancedShardsAllocator.ModelNode node = iom.getArgument(1);
+                final var nodeId = node.getRoutingNode().nodeId();
+                return switch (nodeId) {
+                    case "node_1" -> 10f;
+                    case "node_2" -> decidersBeingCalled.get()
+                        ? randomFrom(Float.POSITIVE_INFINITY, Float.NEGATIVE_INFINITY, Float.NaN)
+                        : 1f;
+                    case "node_0" -> 5f;
+                    default -> throw new AssertionError("Unexpected node: " + nodeId);
+                };
+            }).when(balancingWeightsFactory.getWeightFunction()).calculateNodeWeightWithIndex(any(), any(), any());
+
+            assertInvalidWeightsMessageLogged(() -> {
+                ShardAllocationDecision shardAllocationDecision = allocator.explainShardAllocation(
+                    clusterState.getRoutingNodes().node("node_1").copyShards()[0],
+                    allocation
+                );
+                assertTrue(shardAllocationDecision.isDecisionTaken());
+                assertEquals(1, shardAllocationDecision.getMoveDecision().getNodeDecisions().size());
+                assertTrue(shardAllocationDecision.getMoveDecision().getNodeDecisions().get(0).getNode().getId().equals("node_0"));
+            });
+        }
+    }
+
+    public void testExplainRebalanceWillAbortIfCurrentNodeReturnsInvalidWeight() {
+        try (var ignored = BalancedShardsAllocator.disableInvalidWeightsAssertionsAndRemoveLogRateLimiting()) {
+            final var balancingWeightsFactory = new InvalidWeightsBalancingWeightsFactory();
+            final var allocator = new BalancedShardsAllocator(
+                BalancerSettings.DEFAULT,
+                WriteLoadForecaster.DEFAULT,
+                balancingWeightsFactory
+            );
+
+            final ClusterState clusterState = ClusterStateCreationUtils.state(3, new String[] { "one", "two", "three" }, 1);
+            balancingWeightsFactory.returnInvalidWeightsForRandomNodes(clusterState);
+
+            final RoutingAllocation allocation = new RoutingAllocation(
+                new AllocationDeciders(List.of()),
+                clusterState.getRoutingNodes().mutableCopy(),
+                clusterState,
+                ClusterInfo.EMPTY,
+                null,
+                System.nanoTime()
+            );
+            // This is a fairly brittle way of allowing the weight function through the sort
+            // only to fail when determining the current node's weight. Also seems unlikely
+            // to actually occur in the real-world
+            final AtomicInteger weightsCalculatedCount = new AtomicInteger(0);
+            doAnswer(iom -> {
+                final BalancedShardsAllocator.ModelNode node = iom.getArgument(1);
+                final var nodeId = node.getRoutingNode().nodeId();
+                return switch (nodeId) {
+                    case "node_0" -> 5f;
+                    case "node_1" -> weightsCalculatedCount.incrementAndGet() >= 2
+                        ? randomFrom(Float.POSITIVE_INFINITY, Float.NEGATIVE_INFINITY, Float.NaN)
+                        : 10f;
+                    case "node_2" -> 1f;
+                    default -> throw new AssertionError("Unexpected node: " + nodeId);
+                };
+            }).when(balancingWeightsFactory.getWeightFunction()).calculateNodeWeightWithIndex(any(), any(), any());
+
+            assertInvalidWeightsMessageLogged(() -> {
+                ShardAllocationDecision shardAllocationDecision = allocator.explainShardAllocation(
+                    clusterState.getRoutingNodes().node("node_1").copyShards()[0],
+                    allocation
+                );
+                assertFalse(shardAllocationDecision.isDecisionTaken());
+            });
         }
     }
 

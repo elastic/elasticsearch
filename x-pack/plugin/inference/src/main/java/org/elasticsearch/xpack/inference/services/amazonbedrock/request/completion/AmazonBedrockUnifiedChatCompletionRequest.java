@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.inference.services.amazonbedrock.request.completion;
 
 import software.amazon.awssdk.core.document.Document;
-import software.amazon.awssdk.core.document.internal.ListDocument;
 import software.amazon.awssdk.services.bedrockruntime.model.ConverseStreamRequest;
 import software.amazon.awssdk.services.bedrockruntime.model.SpecificToolChoice;
 import software.amazon.awssdk.services.bedrockruntime.model.Tool;
@@ -98,14 +97,12 @@ public class AmazonBedrockUnifiedChatCompletionRequest extends AmazonBedrockRequ
             case null -> Document.fromNull();
             case String stringValue -> Document.fromString(stringValue);
             case Integer numberValue -> Document.fromNumber(numberValue);
-            case List<?> values ->
-                Document.fromList(values.stream()
-                    .map(v -> {
-                        if (v instanceof String) {
-                            return Document.fromString((String) v);
-                        }
-                        return Document.fromNull();
-                    }).collect(Collectors.toList()));
+            case List<?> values -> Document.fromList(values.stream().map(v -> {
+                if (v instanceof String) {
+                    return Document.fromString((String) v);
+                }
+                return Document.fromNull();
+            }).collect(Collectors.toList()));
             case Map<?, ?> mapValue -> {
                 final Map<String, Document> converted = new HashMap<>();
                 for (Map.Entry<?, ?> entry : mapValue.entrySet()) {

@@ -389,6 +389,7 @@ public class NvidiaService extends SenderService implements RerankingInferenceSe
     @Override
     public int rerankerWindowSize(String modelId) {
         // Nvidia reranking models have a max window size of 512 input tokens, so use a conservative default of 300 words
+        // Documentation: https://docs.api.nvidia.com/nim/reference/nvidia-llama-3_2-nv-rerankqa-1b-v1
         return CONSERVATIVE_DEFAULT_WINDOW_SIZE;
     }
 

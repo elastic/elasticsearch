@@ -37,6 +37,7 @@ import org.elasticsearch.test.AbstractMultiClustersTestCase;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
+import org.junit.Before;
 
 import java.io.IOException;
 import java.util.Collection;
@@ -60,6 +61,23 @@ public class QueryRewriteContextRemoteAsyncActionIT extends AbstractMultiCluster
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins(String clusterAlias) {
         return List.of(TestPlugin.class);
+    }
+
+    @Before
+    public void clearInstrumentedActionCallMap() {
+        INSTRUMENTED_ACTION_CALL_MAP.clear();
+    }
+
+    public void testCallRemoteAsyncAction() {
+        // TODO: Implement
+    }
+
+    public void testInvalidClusterAlias() {
+        // TODO: Implement
+    }
+
+    public void testRemoteClusterUnavailable() {
+        // TODO: Implement
     }
 
     private static class TestQueryBuilder extends AbstractQueryBuilder<TestQueryBuilder> {
@@ -178,13 +196,13 @@ public class QueryRewriteContextRemoteAsyncActionIT extends AbstractMultiCluster
         }
     }
 
-    private static class TransportInstrumentedAction extends HandledTransportAction<
+    public static class TransportInstrumentedAction extends HandledTransportAction<
         InstrumentedAction.Request,
         InstrumentedAction.Response> {
         private final ClusterService clusterService;
 
         @Inject
-        private TransportInstrumentedAction(TransportService transportService, ActionFilters actionFilters, ClusterService clusterService) {
+        public TransportInstrumentedAction(TransportService transportService, ActionFilters actionFilters, ClusterService clusterService) {
             super(
                 InstrumentedAction.NAME,
                 transportService,
@@ -205,8 +223,8 @@ public class QueryRewriteContextRemoteAsyncActionIT extends AbstractMultiCluster
         }
     }
 
-    private static class TestPlugin extends Plugin implements ActionPlugin, SearchPlugin {
-        private TestPlugin() {}
+    public static class TestPlugin extends Plugin implements ActionPlugin, SearchPlugin {
+        public TestPlugin() {}
 
         @Override
         public Collection<ActionHandler> getActions() {

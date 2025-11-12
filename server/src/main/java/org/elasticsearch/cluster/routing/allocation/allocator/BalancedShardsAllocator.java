@@ -42,6 +42,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.gateway.PriorityComparator;
@@ -122,6 +123,9 @@ public class BalancedShardsAllocator implements ShardsAllocator {
     private final BalancerSettings balancerSettings;
     private final WriteLoadForecaster writeLoadForecaster;
     private final BalancingWeightsFactory balancingWeightsFactory;
+
+    private static boolean enableInvalidWeightsAssertion = true;
+    private static TimeValue minimumInvalidWeightLogInterval = MINIMUM_INVALID_WEIGHT_LOG_INTERVAL;
 
     public BalancedShardsAllocator() {
         this(Settings.EMPTY);
@@ -1853,10 +1857,20 @@ public class BalancedShardsAllocator implements ShardsAllocator {
         FrequencyCappedAction.runIfDue(
             System::currentTimeMillis,
             INVALID_WEIGHT_FUNCTION_LAST_LOG,
-            MINIMUM_INVALID_WEIGHT_LOG_INTERVAL,
+            minimumInvalidWeightLogInterval,
             () -> logger.error("Weight function returned invalid weight node={}, index={}, weight={}", modelNode, index, weight)
         );
-        assert false : "Weight function is returning invalid weights";
+        assert enableInvalidWeightsAssertion == false : "Weight function is returning invalid weights";
+    }
+
+    // visible for testing
+    static Releasable disableInvalidWeightsAssertionsAndRemoveLogRateLimiting() {
+        enableInvalidWeightsAssertion = false;
+        minimumInvalidWeightLogInterval = TimeValue.ZERO;
+        return () -> {
+            enableInvalidWeightsAssertion = true;
+            minimumInvalidWeightLogInterval = MINIMUM_INVALID_WEIGHT_LOG_INTERVAL;
+        };
     }
 
     record ProjectIndex(ProjectId project, String indexName) {

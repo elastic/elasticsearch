@@ -58,7 +58,7 @@ public class FrequencyCappedAction {
     ) {
         final long lastTimestamp = lastTimeExecuted.get();
         final long currentTimeMillis = currentTimeMillisSupplier.getAsLong();
-        if (currentTimeMillis - lastTimestamp > minInterval.millis()) {
+        if (currentTimeMillis - lastTimestamp >= minInterval.millis()) {
             if (lastTimeExecuted.compareAndSet(lastTimestamp, currentTimeMillis)) {
                 runnable.run();
             }

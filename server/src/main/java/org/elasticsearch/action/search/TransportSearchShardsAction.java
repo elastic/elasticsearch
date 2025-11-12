@@ -172,6 +172,10 @@ public class TransportSearchShardsAction extends HandledTransportAction<SearchSh
                         )
                     );
                 } else {
+                    final Map<String, Object> searchRequestAttributes = SearchRequestAttributesExtractor.extractAttributes(
+                        searchRequest,
+                        concreteIndexNames
+                    );
                     CanMatchPreFilterSearchPhase.execute(logger, searchTransportService, (clusterAlias, node) -> {
                         assert Objects.equals(clusterAlias, searchShardsRequest.clusterAlias());
                         return transportService.getConnection(project.cluster().nodes().get(node));
@@ -185,7 +189,8 @@ public class TransportSearchShardsAction extends HandledTransportAction<SearchSh
                         (SearchTask) task,
                         false,
                         searchService.getCoordinatorRewriteContextProvider(timeProvider::absoluteStartMillis),
-                        searchResponseMetrics
+                        searchResponseMetrics,
+                        searchRequestAttributes
                     )
                         .addListener(
                             delegate.map(

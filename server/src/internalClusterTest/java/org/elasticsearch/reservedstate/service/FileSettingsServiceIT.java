@@ -15,6 +15,7 @@ import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequ
 import org.elasticsearch.action.admin.cluster.state.ClusterStateRequest;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.cluster.ClusterChangedEvent;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.metadata.ReservedStateErrorMetadata;
 import org.elasticsearch.cluster.metadata.ReservedStateHandlerMetadata;
@@ -39,6 +40,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.Function;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.cluster.metadata.ReservedStateMetadata.EMPTY_VERSION;
@@ -194,22 +196,31 @@ public class FileSettingsServiceIT extends ESIntegTestCase {
         ClusterService clusterService = internalCluster().clusterService(node);
         CountDownLatch savedClusterState = new CountDownLatch(1);
         AtomicLong metadataVersion = new AtomicLong(-1);
-        clusterService.addListener(new ClusterStateListener() {
-            @Override
-            public void clusterChanged(ClusterChangedEvent event) {
-                ReservedStateMetadata reservedState = event.state().metadata().reservedStateMetadata().get(FileSettingsService.NAMESPACE);
+        Function<ClusterState, Boolean> clusterStateProcessor = clusterState -> {
+            synchronized (savedClusterState) {
+                ReservedStateMetadata reservedState = clusterState.metadata().reservedStateMetadata().get(FileSettingsService.NAMESPACE);
                 if (reservedState != null && reservedState.version() == fileSettingsVersion) {
-                    clusterService.removeListener(this);
-                    metadataVersion.set(event.state().metadata().version());
+                    metadataVersion.set(clusterState.metadata().version());
                     savedClusterState.countDown();
                     logger.info(
                         "done waiting for file settings [version: {}, metadata version: {}]",
-                        event.state().version(),
-                        event.state().metadata().version()
+                        clusterState.version(),
+                        clusterState.metadata().version()
                     );
+                    return true;
+                }
+                return false;
+            }
+        };
+        clusterService.addListener(new ClusterStateListener() {
+            @Override
+            public void clusterChanged(ClusterChangedEvent event) {
+                if (clusterStateProcessor.apply(event.state())) {
+                    clusterService.removeListener(this);
                 }
             }
         });
+        clusterStateProcessor.apply(clusterService.state());
 
         return new Tuple<>(savedClusterState, metadataVersion);
     }

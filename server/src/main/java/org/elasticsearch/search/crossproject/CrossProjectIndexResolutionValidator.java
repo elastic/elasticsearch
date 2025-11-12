@@ -83,7 +83,7 @@ public class CrossProjectIndexResolutionValidator {
 
         if (indicesOptions.allowNoIndices() && indicesOptions.ignoreUnavailable()) {
             logger.debug("Skipping index existence check in lenient mode");
-            return baseException;
+            return null;
         }
 
         final boolean hasProjectRouting = Strings.isEmpty(projectRouting) == false;
@@ -113,15 +113,21 @@ public class CrossProjectIndexResolutionValidator {
                 // qualified linked project expression
                 for (String remoteExpression : remoteExpressions) {
                     String[] splitResource = splitQualifiedResource(remoteExpression);
-                    ElasticsearchException expressionException = checkSingleRemoteExpression(
+                    ElasticsearchException remoteException = checkSingleRemoteExpression(
                         remoteResolvedExpressions,
                         splitResource[0], // projectAlias
                         splitResource[1], // resource
                         remoteExpression,
                         indicesOptions
                     );
-                    if (expressionException != null) {
-                        baseException = recordException(baseException, expressionException);
+                    if (remoteException != null) {
+                        var replaced = remoteException instanceof ElasticsearchSecurityException
+                            ? new ElasticsearchSecurityException(
+                                Strings.replace(remoteException.getMessage(), splitResource[1], remoteExpression),
+                                remoteException
+                            )
+                            : remoteException;
+                        baseException = recordException(baseException, replaced);
                     }
                 }
             } else {
@@ -154,7 +160,11 @@ public class CrossProjectIndexResolutionValidator {
                     }
                     if (false == isUnauthorized && remoteException instanceof ElasticsearchSecurityException) {
                         isUnauthorized = true;
-                        baseException = recordException(baseException, remoteException);
+                        var replaced = new ElasticsearchSecurityException(
+                            Strings.replace(remoteException.getMessage(), splitResource[1], remoteExpression),
+                            remoteException
+                        );
+                        baseException = recordException(baseException, replaced);
                     }
                 }
                 if (foundFlat) {
@@ -189,11 +199,6 @@ public class CrossProjectIndexResolutionValidator {
             .wildcardOptions(IndicesOptions.WildcardOptions.builder(indicesOptions.wildcardOptions()).allowEmptyExpressions(true).build())
             .crossProjectModeOptions(IndicesOptions.CrossProjectModeOptions.DEFAULT)
             .build();
-    }
-
-    private static ElasticsearchSecurityException securityException(String originalExpression) {
-        // TODO plug in proper recorded authorization exceptions instead, once available
-        return new ElasticsearchSecurityException("user cannot access [" + originalExpression + "]", RestStatus.FORBIDDEN);
     }
 
     private static ElasticsearchException checkSingleRemoteExpression(

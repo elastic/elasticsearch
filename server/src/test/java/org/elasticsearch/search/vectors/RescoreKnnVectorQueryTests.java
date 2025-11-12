@@ -43,10 +43,10 @@ import org.elasticsearch.index.codec.Elasticsearch92Lucene103Codec;
 import org.elasticsearch.index.codec.vectors.ES813Int8FlatVectorFormat;
 import org.elasticsearch.index.codec.vectors.ES814HnswScalarQuantizedVectorsFormat;
 import org.elasticsearch.index.codec.vectors.diskbbq.ES920DiskBBQVectorsFormat;
-import org.elasticsearch.index.codec.vectors.es818.ES818BinaryQuantizedVectorsFormat;
-import org.elasticsearch.index.codec.vectors.es818.ES818HnswBinaryQuantizedVectorsFormat;
+import org.elasticsearch.index.codec.vectors.es93.ES93BinaryQuantizedVectorsFormat;
 import org.elasticsearch.index.codec.vectors.es93.ES93HnswBinaryQuantizedVectorsFormat;
 import org.elasticsearch.index.codec.zstd.Zstd814StoredFieldsFormat;
+import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.search.profile.query.QueryProfiler;
 import org.elasticsearch.test.ESTestCase;
 
@@ -283,10 +283,20 @@ public class RescoreKnnVectorQueryTests extends ESTestCase {
         IndexWriterConfig iwc = new IndexWriterConfig();
         // Pick codec from quantized vector formats to ensure scores use real scores when using knn rescore
         KnnVectorsFormat format = randomFrom(
-            new ES920DiskBBQVectorsFormat(DEFAULT_VECTORS_PER_CLUSTER, DEFAULT_CENTROIDS_PER_PARENT_CLUSTER, randomBoolean()),
-            new ES818BinaryQuantizedVectorsFormat(),
-            new ES818HnswBinaryQuantizedVectorsFormat(),
-            new ES93HnswBinaryQuantizedVectorsFormat(),
+            new ES920DiskBBQVectorsFormat(
+                DEFAULT_VECTORS_PER_CLUSTER,
+                DEFAULT_CENTROIDS_PER_PARENT_CLUSTER,
+                randomFrom(DenseVectorFieldMapper.ElementType.FLOAT, DenseVectorFieldMapper.ElementType.BFLOAT16),
+                randomBoolean()
+            ),
+            new ES93BinaryQuantizedVectorsFormat(
+                randomFrom(DenseVectorFieldMapper.ElementType.FLOAT, DenseVectorFieldMapper.ElementType.BFLOAT16),
+                randomBoolean()
+            ),
+            new ES93HnswBinaryQuantizedVectorsFormat(
+                randomFrom(DenseVectorFieldMapper.ElementType.FLOAT, DenseVectorFieldMapper.ElementType.BFLOAT16),
+                randomBoolean()
+            ),
             new ES813Int8FlatVectorFormat(),
             new ES813Int8FlatVectorFormat(),
             new ES814HnswScalarQuantizedVectorsFormat()

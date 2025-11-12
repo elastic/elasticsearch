@@ -43,6 +43,7 @@ import java.util.Set;
 
 import static java.util.stream.Collectors.groupingBy;
 import static java.util.stream.Collectors.joining;
+import static java.util.stream.Collectors.mapping;
 import static java.util.stream.Collectors.toSet;
 
 public class EsqlCCSUtils {
@@ -169,7 +170,10 @@ public class EsqlCCSUtils {
     static void updateExecutionInfoWithResolvedConcreteIndices(EsqlExecutionInfo executionInfo, IndexResolution indexResolution) {
         indexResolution.resolvedIndices()
             .stream()
-            .collect(groupingBy(RemoteClusterAware::parseClusterAlias, joining(",")))
+            .map(RemoteClusterAware::splitIndexName)
+            .collect(
+                groupingBy(it -> it[0] == null ? RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY : it[0], mapping(it -> it[1], joining(",")))
+            )
             .forEach((clusterAlias, indices) -> {
                 executionInfo.swapCluster(clusterAlias, (k, v) -> v.withConcreteIndices(indices));
             });

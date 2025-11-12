@@ -347,7 +347,7 @@ public class InferenceBaseRestTest extends ESRestTestCase {
     }
 
     @SuppressWarnings("unchecked")
-    protected Map<String, Object> getModel(String modelId) throws IOException {
+    static Map<String, Object> getModel(String modelId) throws IOException {
         var endpoint = Strings.format("_inference/%s?error_trace", modelId);
         return ((List<Map<String, Object>>) getInternalAsMap(endpoint).get("endpoints")).get(0);
     }

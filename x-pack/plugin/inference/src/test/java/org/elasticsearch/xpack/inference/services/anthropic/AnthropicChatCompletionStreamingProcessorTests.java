@@ -22,6 +22,7 @@ import static org.elasticsearch.xpack.inference.common.DelegatingProcessorTests.
 import static org.elasticsearch.xpack.inference.common.DelegatingProcessorTests.onNext;
 import static org.elasticsearch.xpack.inference.external.response.streaming.StreamingInferenceTestUtils.events;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.sameInstance;
 import static org.mockito.ArgumentMatchers.any;
@@ -222,5 +223,59 @@ public class AnthropicChatCompletionStreamingProcessorTests extends ESTestCase {
         var processor = new AnthropicChatCompletionStreamingProcessor((noOp1, noOp2) -> { throw expectedException; });
 
         assertThat(onError(processor, events(List.of(Pair.of("error", "error")))), sameInstance(expectedException));
+    }
+
+    public void testMissingRequiredModelField() {
+        var item = events(List.of(Pair.of("message_start", """
+            {
+                 "type": "message_start",
+                 "message": {
+                     "id": "msg_vrtx_01F9nngkx9PojtBCkhj9xP2v",
+                     "type": "message",
+                     "role": "assistant",
+                     "content": [],
+                     "stop_reason": null,
+                     "stop_sequence": null,
+                     "usage": {
+                         "input_tokens": 393,
+                         "cache_creation_input_tokens": 0,
+                         "cache_read_input_tokens": 0,
+                         "output_tokens": 1
+                     }
+                 }
+            }
+            """)));
+        Throwable actual = onError(new AnthropicChatCompletionStreamingProcessor((noOp1, noOp2) -> noOp2), item);
+        assertThat(actual, is(instanceOf(IllegalStateException.class)));
+        assertThat(actual.getMessage(), is("Failed to find required field [model] in Anthropic chat completions response"));
+    }
+
+    public void testInvalidTypeModelField() {
+        var item = events(List.of(Pair.of("message_start", """
+            {
+                 "type": "message_start",
+                 "message": {
+                     "model": 2,
+                     "id": "msg_vrtx_01F9nngkx9PojtBCkhj9xP2v",
+                     "type": "message",
+                     "role": "assistant",
+                     "content": [],
+                     "stop_reason": null,
+                     "stop_sequence": null,
+                     "usage": {
+                         "input_tokens": 393,
+                         "cache_creation_input_tokens": 0,
+                         "cache_read_input_tokens": 0,
+                         "output_tokens": 1
+                     }
+                 }
+            }
+            """)));
+        Throwable actual = onError(new AnthropicChatCompletionStreamingProcessor((noOp1, noOp2) -> noOp2), item);
+        assertThat(actual, is(instanceOf(IllegalStateException.class)));
+        assertThat(
+            actual.getMessage(),
+            is("Field [model] in Anthropic chat completions response is of unexpected type [Integer]. Expected type is [String].")
+        );
     }
 }

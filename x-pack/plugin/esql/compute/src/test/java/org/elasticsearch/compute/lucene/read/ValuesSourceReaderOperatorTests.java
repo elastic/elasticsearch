@@ -1585,7 +1585,7 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
             Lucene.KEYWORD_ANALYZER,
             Lucene.KEYWORD_ANALYZER,
             Lucene.KEYWORD_ANALYZER,
-            new KeywordFieldMapper.Builder(name, IndexVersion.current()).docValues(false),
+            new KeywordFieldMapper.Builder(name, defaultIndexSettings()).docValues(false),
             true // TODO randomize - load from stored keyword fields if stored even in synthetic source
         );
     }

@@ -5561,6 +5561,43 @@ public class AnalyzerTests extends ESTestCase {
         assertEquals("sample_data", subqueryIndex.indexPattern());
     }
 
+    public void testLookupJoinOnFieldNotAnywhereElse() {
+        assumeTrue(
+            "requires LOOKUP JOIN ON boolean expression capability",
+            EsqlCapabilities.Cap.LOOKUP_JOIN_WITH_FULL_TEXT_FUNCTION_BUGFIX.isEnabled()
+        );
+
+        String query = "FROM test | LOOKUP JOIN languages_lookup "
+            + "ON languages == language_code AND MATCH(language_name, \"English\")"
+            + "| KEEP languages";
+
+        LogicalPlan analyzedPlan = analyze(query, Analyzer.ESQL_LOOKUP_JOIN_FULL_TEXT_FUNCTION);
+
+        Limit limit = as(analyzedPlan, Limit.class);
+        assertThat(limit.limit(), instanceOf(Literal.class));
+        assertEquals(1000, as(limit.limit(), Literal.class).value());
+
+        EsqlProject project = as(limit.child(), EsqlProject.class);
+        assertEquals(1, project.projections().size());
+
+        LookupJoin lookupJoin = as(project.child(), LookupJoin.class);
+
+        // Verify join condition contains MATCH function
+        assertThat(lookupJoin.config().joinOnConditions(), notNullValue());
+        Expression joinCondition = lookupJoin.config().joinOnConditions();
+        // Check that the join condition contains a MATCH function (it should be an AND expression)
+        assertThat(joinCondition.toString(), containsString("MATCH"));
+
+        // Verify left relation is test index
+        EsRelation leftRelation = as(lookupJoin.left(), EsRelation.class);
+        assertEquals("test", leftRelation.indexPattern());
+
+        // Verify right relation is languages_lookup with LOOKUP mode
+        EsRelation rightRelation = as(lookupJoin.right(), EsRelation.class);
+        assertEquals("languages_lookup", rightRelation.indexPattern());
+        assertEquals(IndexMode.LOOKUP, rightRelation.indexMode());
+    }
+
     private void verifyNameAndTypeAndMultiTypeEsField(
         String actualName,
         DataType actualType,

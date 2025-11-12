@@ -1351,7 +1351,7 @@ public class EsqlCapabilities {
         /**
          * Decay function for custom scoring
          */
-        DECAY_FUNCTION(Build.current().isSnapshot()),
+        DECAY_FUNCTION,
 
         /**
          * FIRST and LAST aggregate functions.
@@ -1423,6 +1423,10 @@ public class EsqlCapabilities {
          * to be applied to the lookup index used
          */
         LOOKUP_JOIN_WITH_FULL_TEXT_FUNCTION,
+        /**
+         * Bugfix for lookup join with Full Text Function
+         */
+        LOOKUP_JOIN_WITH_FULL_TEXT_FUNCTION_BUGFIX,
         /**
          * FORK with remote indices
          */
@@ -1544,6 +1548,11 @@ public class EsqlCapabilities {
         EXPONENTIAL_HISTOGRAM(EXPONENTIAL_HISTOGRAM_FEATURE_FLAG),
 
         /**
+         * Support for exponential_histogram type in TOPN
+         */
+        EXPONENTIAL_HISTOGRAM_TOPN(EXPONENTIAL_HISTOGRAM_FEATURE_FLAG),
+
+        /**
          * Create new block when filtering OrdinalBytesRefBlock
          */
         FIX_FILTER_ORDINALS,
@@ -1630,6 +1639,9 @@ public class EsqlCapabilities {
         VECTOR_SIMILARITY_FUNCTIONS_PUSHDOWN(Build.current().isSnapshot()),
 
         FIX_MV_CONSTANT_COMPARISON_FIELD,
+
+        FULL_TEXT_FUNCTIONS_ACCEPT_NULL_FIELD,
+
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.
         ;

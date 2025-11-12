@@ -52,7 +52,9 @@ import org.elasticsearch.geo.ShapeTestUtils;
 import org.elasticsearch.geometry.utils.Geohash;
 import org.elasticsearch.h3.H3;
 import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.RoutingPathFields;
+import org.elasticsearch.index.mapper.blockloader.BlockLoaderFunctionConfig;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.aggregations.bucket.geogrid.GeoTileUtils;
@@ -346,6 +348,15 @@ public final class EsqlTestUtils {
         @Override
         public boolean hasExactSubfield(FieldName field) {
             return exists(field);
+        }
+
+        @Override
+        public boolean supportsLoaderConfig(
+            FieldName name,
+            BlockLoaderFunctionConfig config,
+            MappedFieldType.FieldExtractPreference preference
+        ) {
+            return true;
         }
 
         @Override
@@ -1035,14 +1046,14 @@ public final class EsqlTestUtils {
             }
             case TSID_DATA_TYPE -> randomTsId().toBytesRef();
             case DENSE_VECTOR -> Arrays.asList(randomArray(10, 10, i -> new Float[10], ESTestCase::randomFloat));
-            case EXPONENTIAL_HISTOGRAM -> new WriteableExponentialHistogram(EsqlTestUtils.randomExponentialHistogram());
+            case EXPONENTIAL_HISTOGRAM -> EsqlTestUtils.randomExponentialHistogram();
             case UNSUPPORTED, OBJECT, DOC_DATA_TYPE, PARTIAL_AGG -> throw new IllegalArgumentException(
                 "can't make random values for [" + type.typeName() + "]"
             );
         }, type);
     }
 
-    private static ExponentialHistogram randomExponentialHistogram() {
+    public static ExponentialHistogram randomExponentialHistogram() {
         // TODO(b/133393): allow (index,scale) based zero thresholds as soon as we support them in the block
         // ideally Replace this with the shared random generation in ExponentialHistogramTestUtils
         boolean hasNegativeValues = randomBoolean();
@@ -1062,7 +1073,8 @@ public final class EsqlTestUtils {
             ExponentialHistogramCircuitBreaker.noop(),
             rawValues
         );
-        return histo;
+        // Make the result histogram writeable to allow usage in Literals for testing
+        return new WriteableExponentialHistogram(histo);
     }
 
     static Version randomVersion() {

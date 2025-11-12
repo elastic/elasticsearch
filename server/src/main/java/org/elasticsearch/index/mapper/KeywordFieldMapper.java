@@ -59,7 +59,9 @@ import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.SourceValueFetcherSortedBinaryIndexFieldData;
 import org.elasticsearch.index.fielddata.StoredFieldSortedBinaryIndexFieldData;
 import org.elasticsearch.index.fielddata.plain.SortedSetOrdinalsIndexFieldData;
+import org.elasticsearch.index.mapper.blockloader.BlockLoaderFunctionConfig;
 import org.elasticsearch.index.mapper.blockloader.docvalues.BytesRefsFromOrdsBlockLoader;
+import org.elasticsearch.index.mapper.blockloader.docvalues.fn.Utf8CodePointsFromOrdsBlockLoader;
 import org.elasticsearch.index.query.AutomatonQueryWithDescription;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.similarity.SimilarityProvider;
@@ -749,7 +751,17 @@ public final class KeywordFieldMapper extends FieldMapper {
         @Override
         public BlockLoader blockLoader(BlockLoaderContext blContext) {
             if (hasDocValues() && (blContext.fieldExtractPreference() != FieldExtractPreference.STORED || isSyntheticSourceEnabled())) {
-                return new BytesRefsFromOrdsBlockLoader(name());
+                BlockLoaderFunctionConfig cfg = blContext.blockLoaderFunctionConfig();
+                if (cfg == null) {
+                    return new BytesRefsFromOrdsBlockLoader(name());
+                }
+                if (cfg.function() == BlockLoaderFunctionConfig.Function.LENGTH) {
+                    return new Utf8CodePointsFromOrdsBlockLoader(((BlockLoaderFunctionConfig.JustWarnings) cfg).warnings(), name());
+                }
+                throw new UnsupportedOperationException("unknown fusion config [" + cfg.function() + "]");
+            }
+            if (blContext.blockLoaderFunctionConfig() != null) {
+                throw new UnsupportedOperationException("function fusing only supported for doc values");
             }
             if (isStored()) {
                 return new BlockStoredFieldsReader.BytesFromBytesRefsBlockLoader(name());
@@ -771,6 +783,14 @@ public final class KeywordFieldMapper extends FieldMapper {
 
             SourceValueFetcher fetcher = sourceValueFetcher(blContext.sourcePaths(name()), blContext.indexSettings());
             return new BlockSourceReader.BytesRefsBlockLoader(fetcher, sourceBlockLoaderLookup(blContext));
+        }
+
+        @Override
+        public boolean supportsBlockLoaderConfig(BlockLoaderFunctionConfig config, FieldExtractPreference preference) {
+            if (hasDocValues() && (preference != FieldExtractPreference.STORED || isSyntheticSourceEnabled())) {
+                return config.function() == BlockLoaderFunctionConfig.Function.LENGTH;
+            }
+            return false;
         }
 
         private FallbackSyntheticSourceBlockLoader.Reader<?> fallbackSyntheticSourceBlockLoaderReader() {

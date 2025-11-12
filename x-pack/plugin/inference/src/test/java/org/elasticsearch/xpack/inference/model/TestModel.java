@@ -54,7 +54,12 @@ public class TestModel extends Model {
 
     public static TestModel createRandomInstance(TaskType taskType, List<SimilarityMeasure> excludedSimilarities, int maxDimensions) {
         if (taskType == TaskType.TEXT_EMBEDDING) {
-            var elementType = randomFrom(DenseVectorFieldMapper.ElementType.values());
+            // TODO: bfloat16
+            var elementType = randomFrom(
+                DenseVectorFieldMapper.ElementType.FLOAT,
+                DenseVectorFieldMapper.ElementType.BYTE,
+                DenseVectorFieldMapper.ElementType.BIT
+            );
             var dimensions = DenseVectorFieldMapperTestUtils.randomCompatibleDimensions(elementType, maxDimensions);
 
             List<SimilarityMeasure> supportedSimilarities = new ArrayList<>(

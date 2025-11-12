@@ -28,7 +28,7 @@ import org.elasticsearch.xpack.inference.services.nvidia.request.embeddings.Nvid
 import org.elasticsearch.xpack.inference.services.nvidia.request.rerank.NvidiaRerankRequest;
 import org.elasticsearch.xpack.inference.services.nvidia.rerank.NvidiaRerankModel;
 import org.elasticsearch.xpack.inference.services.nvidia.rerank.NvidiaRerankResponseHandler;
-import org.elasticsearch.xpack.inference.services.nvidia.response.NvidiaRerankResponseEntity;
+import org.elasticsearch.xpack.inference.services.nvidia.response.rerank.NvidiaRerankResponseEntity;
 import org.elasticsearch.xpack.inference.services.openai.response.OpenAiChatCompletionResponseEntity;
 import org.elasticsearch.xpack.inference.services.openai.response.OpenAiEmbeddingsResponseEntity;
 

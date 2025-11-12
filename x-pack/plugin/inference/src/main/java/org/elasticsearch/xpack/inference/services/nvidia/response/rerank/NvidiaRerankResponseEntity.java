@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.inference.services.nvidia.response;
+package org.elasticsearch.xpack.inference.services.nvidia.response.rerank;
 
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.inference.InferenceServiceResults;
@@ -62,8 +62,7 @@ public class NvidiaRerankResponseEntity {
     /**
      * Parses the Nvidia rerank response.
      * For a request like:
-     * <pre>
-     * <code>
+     * <pre><code>
      * {
      *     "model": "nv-rerank-qa-mistral-4b:1",
      *     "query": {
@@ -78,11 +77,9 @@ public class NvidiaRerankResponseEntity {
      *         }
      *     ]
      * }
-     * </code>
-     * </pre>
+     * </code></pre>
      * The response will look like (without whitespace):
-     * <pre>
-     * <code>
+     * <pre><code>
      * {
      *     "rankings": [
      *         {
@@ -95,8 +92,7 @@ public class NvidiaRerankResponseEntity {
      *         }
      *     ]
      * }
-     * </code>
-     * </pre>
+     * </code></pre>
      * @param response the http response from Nvidia
      * @return the parsed response
      * @throws IOException if there is an error parsing the response

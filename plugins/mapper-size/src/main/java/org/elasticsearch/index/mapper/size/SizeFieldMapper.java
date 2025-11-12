@@ -104,7 +104,7 @@ public class SizeFieldMapper extends MetadataFieldMapper {
             return;
         }
         final int value = context.sourceToParse().source().length();
-        NumberType.INTEGER.addFields(context.doc(), fullPath(), value, true, true, true);
+        NumberType.INTEGER.addFields(context.doc(), fullPath(), value, IndexType.points(true, true), true);
     }
 
     @Override

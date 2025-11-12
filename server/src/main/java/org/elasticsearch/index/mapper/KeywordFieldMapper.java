@@ -314,6 +314,10 @@ public final class KeywordFieldMapper extends FieldMapper {
             return this.hasDocValues.get();
         }
 
+        public SimilarityProvider similarity() {
+            return this.similarity.get();
+        }
+
         public Builder dimension(boolean dimension) {
             this.dimension.setValue(dimension);
             return this;
@@ -529,14 +533,14 @@ public final class KeywordFieldMapper extends FieldMapper {
             this.isDimension = false;
         }
 
-        public KeywordFieldType(String name, FieldType fieldType) {
+        public KeywordFieldType(String name, FieldType fieldType, boolean isSyntheticSource) {
             super(
                 name,
                 IndexType.terms(fieldType.indexOptions() != IndexOptions.NONE, false),
-                false,
+                fieldType.stored(),
                 textSearchInfo(fieldType, null, Lucene.KEYWORD_ANALYZER, Lucene.KEYWORD_ANALYZER),
                 Collections.emptyMap(),
-                false,
+                isSyntheticSource,
                 false
             );
             this.normalizer = Lucene.KEYWORD_ANALYZER;

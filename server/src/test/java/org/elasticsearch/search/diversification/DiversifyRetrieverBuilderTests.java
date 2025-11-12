@@ -57,13 +57,32 @@ public class DiversifyRetrieverBuilderTests extends ESTestCase {
     public void testValidate() {
         SearchSourceBuilder source = new SearchSourceBuilder();
 
+        var retrieverWithLargeSize = new DiversifyRetrieverBuilder(
+            getInnerRetriever(),
+            ResultDiversificationType.MMR,
+            "test_field",
+            10,
+            20,
+            getRandomQueryVector(),
+            0.3f
+        );
+        var validationSize = retrieverWithLargeSize.validate(source, null, false, false);
+        assertEquals(1, validationSize.validationErrors().size());
+        assertEquals(
+            "[diversify] MMR result diversification [size] of 20 cannot be greater than the [rank_window_size] of 10",
+            validationSize.validationErrors().getFirst()
+        );
+
+        int rankWindowSize = randomIntBetween(1, 20);
+        Integer size = randomBoolean() ? null : randomIntBetween(1, rankWindowSize);
+
         // ensure lambda is within range and set
         var retrieverHighLambda = new DiversifyRetrieverBuilder(
             getInnerRetriever(),
             ResultDiversificationType.MMR,
             "test_field",
-            randomIntBetween(1, 20),
-            randomBoolean() ? null : randomIntBetween(1, 20),
+            rankWindowSize,
+            size,
             getRandomQueryVector(),
             2.0f
         );
@@ -78,8 +97,8 @@ public class DiversifyRetrieverBuilderTests extends ESTestCase {
             getInnerRetriever(),
             ResultDiversificationType.MMR,
             "test_field",
-            randomIntBetween(1, 20),
-            randomBoolean() ? null : randomIntBetween(1, 20),
+            rankWindowSize,
+            size,
             getRandomQueryVector(),
             -0.1f
         );
@@ -94,8 +113,8 @@ public class DiversifyRetrieverBuilderTests extends ESTestCase {
             getInnerRetriever(),
             ResultDiversificationType.MMR,
             "test_field",
-            randomIntBetween(1, 20),
-            randomBoolean() ? null : randomIntBetween(1, 20),
+            rankWindowSize,
+            size,
             getRandomQueryVector(),
             null
         );

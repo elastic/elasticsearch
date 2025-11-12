@@ -139,7 +139,7 @@ public final class DiversifyRetrieverBuilder extends CompoundRetrieverBuilder<Di
         this.diversificationField = diversificationField;
         this.queryVector = queryVector;
         this.lambda = lambda;
-        this.size = size;
+        this.size = size == null ? Math.min(DEFAULT_SIZE_VALUE, rankWindowSize) : size;
     }
 
     DiversifyRetrieverBuilder(
@@ -158,7 +158,7 @@ public final class DiversifyRetrieverBuilder extends CompoundRetrieverBuilder<Di
         this.diversificationField = diversificationField;
         this.queryVector = queryVector;
         this.lambda = lambda;
-        this.size = size;
+        this.size = size == null ? Math.min(DEFAULT_SIZE_VALUE, rankWindowSize) : size;
     }
 
     @Override
@@ -189,6 +189,21 @@ public final class DiversifyRetrieverBuilder extends CompoundRetrieverBuilder<Di
     }
 
     private ActionRequestValidationException validateMMRDiversification(ActionRequestValidationException validationException) {
+        if (this.size > this.rankWindowSize) {
+            validationException = addValidationError(
+                String.format(
+                    Locale.ROOT,
+                    "[%s] MMR result diversification [%s] of %d cannot be greater than the [%s] of %d",
+                    getName(),
+                    SIZE_FIELD.getPreferredName(),
+                    this.size,
+                    RANK_WINDOW_SIZE_FIELD.getPreferredName(),
+                    this.rankWindowSize
+                ),
+                validationException
+            );
+        }
+
         // ensure we have a lambda between 0.0 and 1.0
         if (lambda == null || lambda < 0.0 || lambda > 1.0) {
             validationException = addValidationError(

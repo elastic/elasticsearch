@@ -83,7 +83,6 @@ def projectDirectory = project.layout.projectDirectory
 def generatedSourceDir = projectDirectory.dir(generatedPath)
 tasks.named("compileJava").configure {
   options.compilerArgumentProviders.add(new SourceDirectoryCommandLineArgumentProvider(generatedSourceDir))
-  options.compilerArgs -= '-Werror'
   // IntelliJ sticks generated files here and we can't stop it....
   exclude { normalize(it.file.toString()).contains("src/main/generated-src/generated") }
 }

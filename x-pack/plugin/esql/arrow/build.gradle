@@ -29,10 +29,6 @@ dependencies {
   testImplementation("com.fasterxml.jackson.datatype:jackson-datatype-jsr310:${versions.jackson}")
 }
 
-tasks.named("compileJava").configure {
-  options.compilerArgs -= '-Werror'
-}
-
 tasks.named("dependencyLicenses").configure {
   mapping from: /jackson-.*/, to: 'jackson'
   mapping from: /arrow-.*/, to: 'arrow'

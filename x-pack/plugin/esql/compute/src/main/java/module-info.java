@@ -22,7 +22,7 @@ module org.elasticsearch.compute {
     requires org.elasticsearch.xcore;
     requires hppc;
     requires org.elasticsearch.exponentialhistogram;
-    requires jdk.incubator.vector;
+    requires org.elasticsearch.simdvec;
 
     exports org.elasticsearch.compute;
     exports org.elasticsearch.compute.aggregation;

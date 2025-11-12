@@ -14,6 +14,7 @@ dependencies {
   compileOnly project('ann')
   compileOnly project(xpackModule('core'))
   compileOnly project(xpackModule('ml'))
+  compileOnly project(':libs:simdvec')
   annotationProcessor project('gen')
   implementation 'com.carrotsearch:hppc:0.8.1'
   api project(':libs:exponential-histogram')
@@ -37,7 +38,6 @@ def projectDirectory = project.layout.projectDirectory
 def generatedSourceDir = projectDirectory.dir("src/main/generated")
 tasks.named("compileJava").configure {
   options.compilerArgumentProviders.add(new SourceDirectoryCommandLineArgumentProvider(generatedSourceDir))
-  options.compilerArgs -= '-Werror'
 }
 
 tasks.named('checkstyleMain').configure {

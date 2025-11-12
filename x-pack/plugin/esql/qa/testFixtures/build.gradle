@@ -23,10 +23,6 @@ tasks.named("test").configure {
   classpath = classpath - (configurations.resolveableCompileOnly - configurations.runtimeClasspath)
 }
 
-tasks.named("compileJava").configure {
-  options.compilerArgs -= '-Werror'
-}
-
 /**
  * Runs CSV Spec Tests data loader to load data to a running stand-alone instance
  * Accepts an URL as first argument, eg. http://localhost:9200 or http://user:pass@localhost:9200

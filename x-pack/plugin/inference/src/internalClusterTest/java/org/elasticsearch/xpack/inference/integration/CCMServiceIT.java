@@ -9,20 +9,51 @@ package org.elasticsearch.xpack.inference.integration;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.action.support.TestPlainActionFuture;
+import org.elasticsearch.common.settings.SecureString;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.test.http.MockResponse;
+import org.elasticsearch.test.http.MockWebServer;
+import org.elasticsearch.xpack.inference.registry.ModelRegistry;
+import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceSettings;
+import org.elasticsearch.xpack.inference.services.elastic.authorization.AuthorizationTaskExecutor;
 import org.elasticsearch.xpack.inference.services.elastic.ccm.CCMModel;
 import org.elasticsearch.xpack.inference.services.elastic.ccm.CCMService;
+import org.elasticsearch.xpack.inference.services.elastic.ccm.CCMSettings;
+import org.junit.After;
+import org.junit.AfterClass;
 import org.junit.Before;
+import org.junit.BeforeClass;
 
+import java.io.IOException;
 import java.util.concurrent.atomic.AtomicReference;
+
+import static org.elasticsearch.xpack.inference.external.http.Utils.getUrl;
+import static org.elasticsearch.xpack.inference.integration.AuthorizationTaskExecutorIT.AUTHORIZED_RAINBOW_SPRINKLES_RESPONSE;
+import static org.elasticsearch.xpack.inference.integration.AuthorizationTaskExecutorIT.AUTH_TASK_ACTION;
+import static org.elasticsearch.xpack.inference.integration.AuthorizationTaskExecutorIT.EMPTY_AUTH_RESPONSE;
+import static org.elasticsearch.xpack.inference.integration.AuthorizationTaskExecutorIT.assertChatCompletionEndpointExists;
+import static org.elasticsearch.xpack.inference.integration.AuthorizationTaskExecutorIT.getEisEndpoints;
+import static org.elasticsearch.xpack.inference.integration.AuthorizationTaskExecutorIT.removeEisPreconfiguredEndpoints;
+import static org.elasticsearch.xpack.inference.integration.AuthorizationTaskExecutorIT.waitForAuthorizationToComplete;
+import static org.elasticsearch.xpack.inference.integration.AuthorizationTaskExecutorIT.waitForNoTask;
+import static org.hamcrest.Matchers.empty;
 
 public class CCMServiceIT extends CCMSingleNodeIT {
     private static final AtomicReference<CCMService> ccmService = new AtomicReference<>();
+
+    private static final MockWebServer webServer = new MockWebServer();
+    private static String gatewayUrl;
+
+    private AuthorizationTaskExecutor authorizationTaskExecutor;
+    private ModelRegistry modelRegistry;
 
     public CCMServiceIT() {
         super(new Provider() {
             @Override
             public void store(CCMModel ccmModel, ActionListener<Void> listener) {
+                webServer.enqueue(new MockResponse().setResponseCode(200).setBody(EMPTY_AUTH_RESPONSE));
                 ccmService.get().storeConfiguration(ccmModel, listener);
             }
 
@@ -38,9 +69,44 @@ public class CCMServiceIT extends CCMSingleNodeIT {
         });
     }
 
+    @BeforeClass
+    public static void initClass() throws IOException {
+        webServer.start();
+        gatewayUrl = getUrl(webServer);
+        webServer.enqueue(new MockResponse().setResponseCode(200).setBody(EMPTY_AUTH_RESPONSE));
+    }
+
     @Before
     public void createComponents() {
         ccmService.set(node().injector().getInstance(CCMService.class));
+        modelRegistry = node().injector().getInstance(ModelRegistry.class);
+        authorizationTaskExecutor = node().injector().getInstance(AuthorizationTaskExecutor.class);
+    }
+
+    @After
+    public void shutdown() {
+        removeEisPreconfiguredEndpoints(modelRegistry);
+
+        var listener = new PlainActionFuture<Void>();
+        // disable CCM to clean up any stored configuration
+        ccmService.get().disableCCM(listener);
+        listener.actionGet(TimeValue.THIRTY_SECONDS);
+    }
+
+    @AfterClass
+    public static void cleanUpClass() {
+        webServer.close();
+    }
+
+    @Override
+    protected Settings nodeSettings() {
+        return Settings.builder()
+            .put(CCMSettings.ALLOW_CONFIGURING_CCM.getKey(), true)
+            .put(ElasticInferenceServiceSettings.ELASTIC_INFERENCE_SERVICE_URL.getKey(), gatewayUrl)
+            // Ensure that the polling logic only occurs once so we can deterministically control when an authorization response is
+            // received
+            .put(ElasticInferenceServiceSettings.PERIODIC_AUTHORIZATION_ENABLED.getKey(), false)
+            .build();
     }
 
     public void testIsEnabled_ReturnsFalse_WhenNoCCMConfigurationStored() {
@@ -57,5 +123,29 @@ public class CCMServiceIT extends CCMSingleNodeIT {
         ccmService.get().isEnabled(listener);
 
         assertTrue(listener.actionGet(TimeValue.THIRTY_SECONDS));
+    }
+
+    public void testCreatesEisChatCompletionEndpoint() throws Exception {
+        waitForNoTask(AUTH_TASK_ACTION, admin(), authorizationTaskExecutor);
+
+        var eisEndpoints = getEisEndpoints(modelRegistry);
+        assertThat(eisEndpoints, empty());
+
+        webServer.enqueue(new MockResponse().setResponseCode(200).setBody(AUTHORIZED_RAINBOW_SPRINKLES_RESPONSE));
+        var listener = new TestPlainActionFuture<Void>();
+        ccmService.get().storeConfiguration(new CCMModel(new SecureString("secret".toCharArray())), listener);
+        listener.actionGet(TimeValue.THIRTY_SECONDS);
+
+        waitForAuthorizationToComplete(authorizationTaskExecutor);
+
+        assertChatCompletionEndpointExists(modelRegistry);
+    }
+
+    private void waitForCCMConfigurationEnabled() throws Exception {
+        assertBusy(() -> {
+            var listener = new PlainActionFuture<Boolean>();
+            ccmService.get().isEnabled(listener);
+            assertTrue(listener.actionGet(TimeValue.THIRTY_SECONDS));
+        });
     }
 }

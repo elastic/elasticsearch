@@ -76,6 +76,7 @@ public class AuthorizationTaskExecutor extends PersistentTasksExecutor<Authoriza
         // If the EIS url is not configured, then we won't be able to interact with the service, so don't start the task.
         if (registered.get() == false
             && Strings.isNullOrEmpty(pollerParameters.elasticInferenceServiceSettings().getElasticInferenceServiceUrl()) == false) {
+            logger.warn("Initializing authorization task executor");
             registered.set(true);
             clusterService.addListener(this);
         }
@@ -83,6 +84,7 @@ public class AuthorizationTaskExecutor extends PersistentTasksExecutor<Authoriza
 
     public synchronized void shutdown() {
         if (registered.compareAndSet(true, false)) {
+            logger.warn("Shutting down authorization task executor");
             clusterService.removeListener(this);
             abortTask();
         }
@@ -91,6 +93,7 @@ public class AuthorizationTaskExecutor extends PersistentTasksExecutor<Authoriza
     private void abortTask() {
         var task = currentTask.get();
         if (task != null && task.isCancelled() == false) {
+            logger.debug("Aborting task authorization task");
             task.markAsLocallyAborted("executor shutdown");
             currentTask.set(null);
         }
@@ -108,6 +111,7 @@ public class AuthorizationTaskExecutor extends PersistentTasksExecutor<Authoriza
         var authPoller = (AuthorizationPoller) task;
         currentTask.set(authPoller);
         authPoller.start();
+        logger.warn("Created authorization poller task with id {}", task.getId());
     }
 
     @FixForMultiProject(
@@ -136,10 +140,12 @@ public class AuthorizationTaskExecutor extends PersistentTasksExecutor<Authoriza
 
     @Override
     public void clusterChanged(ClusterChangedEvent event) {
+        logger.warn("in cluster changed listener");
         if (authorizationTaskExists(event)) {
             return;
         }
 
+        logger.warn("got here");
         persistentTasksService.sendClusterStartRequest(
             TASK_NAME,
             TASK_NAME,

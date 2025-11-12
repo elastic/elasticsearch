@@ -40,8 +40,10 @@ public class CCMService {
 
     public void storeConfiguration(CCMModel model, ActionListener<Void> listener) {
         // TODO invalidate the cache
-        ccmPersistentStorageService.store(model, listener);
-        authorizationTaskExecutor.init();
+        ccmPersistentStorageService.store(model, listener.delegateFailureIgnoreResponseAndWrap(delegate -> {
+            authorizationTaskExecutor.init();
+            delegate.onResponse(null);
+        }));
     }
 
     public void getConfiguration(ActionListener<CCMModel> listener) {

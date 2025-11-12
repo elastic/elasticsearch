@@ -199,7 +199,8 @@ public class TransportClusterStatsAction extends TransportNodesAction<
                     null,
                     null,
                     null,
-                    Map.of()
+                    Map.of(),
+                    false
                 )
                 : new ClusterStatsResponse(
                     System.currentTimeMillis(),
@@ -211,7 +212,8 @@ public class TransportClusterStatsAction extends TransportNodesAction<
                     additionalStats.analysisStats(),
                     VersionStats.of(clusterService.state().metadata(), responses),
                     additionalStats.clusterSnapshotStats(),
-                    additionalStats.getRemoteStats()
+                    additionalStats.getRemoteStats(),
+                    request.isCPS()
                 )
         ).addListener(listener);
     }
@@ -445,7 +447,7 @@ public class TransportClusterStatsAction extends TransportNodesAction<
     }
 
     private boolean doRemotes(ClusterStatsRequest request) {
-        return SearchService.CCS_COLLECT_TELEMETRY.get(settings) && request.doRemotes();
+        return SearchService.CCS_COLLECT_TELEMETRY.get(settings) && request.doRemotes() && request.isCPS() == false;
     }
 
     private class RemoteStatsFanout extends CancellableFanOut<String, RemoteClusterStatsResponse, Map<String, RemoteClusterStats>> {

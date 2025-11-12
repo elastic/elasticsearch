@@ -13,6 +13,7 @@ import org.apache.logging.log4j.Level;
 import org.elasticsearch.action.support.replication.ClusterStateCreationUtils;
 import org.elasticsearch.cluster.ClusterInfo;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.RoutingChangesObserver;
@@ -125,16 +126,22 @@ public class BalancedShardsAllocatorInvalidWeightsTests extends ESTestCase {
                 balancingWeightsFactory
             );
 
-            final AllocationDecider allocationDecider = spy(AllocationDecider.class);
-            final ClusterState clusterState = ClusterStateCreationUtils.state(3, new String[] { "one", "two", "three" }, 1);
             // Allocator will try and move shards off of node_2
-            when(allocationDecider.canRemain(any(), any(), any(), any())).thenAnswer(iom -> {
-                RoutingNode routingNode = iom.getArgument(2);
-                if (routingNode.node().getId().equals("node_2")) {
-                    return Decision.NO;
+            final AllocationDecider allocationDecider = new AllocationDecider() {
+                @Override
+                public Decision canRemain(
+                    IndexMetadata indexMetadata,
+                    ShardRouting shardRouting,
+                    RoutingNode node,
+                    RoutingAllocation allocation
+                ) {
+                    if (node.nodeId().equals("node_2")) {
+                        return Decision.NO;
+                    }
+                    return Decision.YES;
                 }
-                return Decision.YES;
-            });
+            };
+            final ClusterState clusterState = ClusterStateCreationUtils.state(3, new String[] { "one", "two", "three" }, 1);
             balancingWeightsFactory.returnInvalidWeightsForRandomNodes(clusterState);
             final RoutingAllocation allocation = new RoutingAllocation(
                 new AllocationDeciders(List.of(allocationDecider)),

@@ -69,11 +69,9 @@ public class CodecService implements CodecProvider {
         assert useTsdbSyntheticId == false || mapperService.getIndexSettings().getMode() == IndexMode.TIME_SERIES;
 
         this.codecs = codecs.entrySet().stream().collect(Collectors.toUnmodifiableMap(Map.Entry::getKey, e -> {
-            Codec codec = new DeduplicateFieldInfosCodec(e.getValue().getName(), e.getValue());
-            if (useTsdbSyntheticId && codec instanceof TSDBSyntheticIdCodec == false) {
-                codec = new TSDBSyntheticIdCodec(codec.getName(), codec);
-            }
-            return codec;
+            String name = e.getValue().getName();
+            Codec codec = e.getValue();
+            return useTsdbSyntheticId ? new TSDBSyntheticIdCodec(name, codec) : new DeduplicateFieldInfosCodec(name, codec);
         }));
     }
 

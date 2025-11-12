@@ -18,6 +18,7 @@ import org.apache.lucene.store.IOContext;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.StringLiteralDeduplicator;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
+import org.elasticsearch.index.codec.tsdb.TSDBSyntheticIdCodec;
 import org.elasticsearch.index.mapper.FieldMapper;
 
 import java.io.IOException;
@@ -28,7 +29,7 @@ import java.util.Map;
  * cases attribute maps on read. We use this to reduce the per-field overhead for Elasticsearch instances holding a large number of
  * segments.
  */
-public final class DeduplicatingFieldInfosFormat extends FieldInfosFormat {
+public sealed class DeduplicatingFieldInfosFormat extends FieldInfosFormat permits TSDBSyntheticIdCodec.RewriteFieldInfosFormat {
 
     private static final Map<Map<String, String>, Map<String, String>> attributeDeduplicator = ConcurrentCollections.newConcurrentMap();
 
@@ -43,31 +44,38 @@ public final class DeduplicatingFieldInfosFormat extends FieldInfosFormat {
     @Override
     public FieldInfos read(Directory directory, SegmentInfo segmentInfo, String segmentSuffix, IOContext iocontext) throws IOException {
         final FieldInfos fieldInfos = delegate.read(directory, segmentInfo, segmentSuffix, iocontext);
+        validateFieldInfos(fieldInfos);
         final FieldInfo[] deduplicated = new FieldInfo[fieldInfos.size()];
         int i = 0;
         for (FieldInfo fi : fieldInfos) {
-            deduplicated[i++] = new FieldInfo(
-                FieldMapper.internFieldName(fi.getName()),
-                fi.number,
-                fi.hasTermVectors(),
-                fi.omitsNorms(),
-                fi.hasPayloads(),
-                fi.getIndexOptions(),
-                fi.getDocValuesType(),
-                fi.docValuesSkipIndexType(),
-                fi.getDocValuesGen(),
-                internStringStringMap(fi.attributes()),
-                fi.getPointDimensionCount(),
-                fi.getPointIndexDimensionCount(),
-                fi.getPointNumBytes(),
-                fi.getVectorDimension(),
-                fi.getVectorEncoding(),
-                fi.getVectorSimilarityFunction(),
-                fi.isSoftDeletesField(),
-                fi.isParentField()
-            );
+            deduplicated[i++] = processFieldInfo(fi);
         }
         return new FieldInfosWithUsages(deduplicated);
+    }
+
+    protected void validateFieldInfos(FieldInfos fieldInfos) {}
+
+    protected FieldInfo processFieldInfo(FieldInfo fi) {
+        return new FieldInfo(
+            FieldMapper.internFieldName(fi.getName()),
+            fi.number,
+            fi.hasTermVectors(),
+            fi.omitsNorms(),
+            fi.hasPayloads(),
+            fi.getIndexOptions(),
+            fi.getDocValuesType(),
+            fi.docValuesSkipIndexType(),
+            fi.getDocValuesGen(),
+            internStringStringMap(fi.attributes()),
+            fi.getPointDimensionCount(),
+            fi.getPointIndexDimensionCount(),
+            fi.getPointNumBytes(),
+            fi.getVectorDimension(),
+            fi.getVectorEncoding(),
+            fi.getVectorSimilarityFunction(),
+            fi.isSoftDeletesField(),
+            fi.isParentField()
+        );
     }
 
     private static Map<String, String> internStringStringMap(Map<String, String> m) {
@@ -94,5 +102,4 @@ public final class DeduplicatingFieldInfosFormat extends FieldInfosFormat {
         throws IOException {
         delegate.write(directory, segmentInfo, segmentSuffix, infos, context);
     }
-
 }

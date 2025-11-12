@@ -13,7 +13,6 @@ import org.apache.lucene.codecs.Codec;
 import org.apache.lucene.codecs.FieldInfosFormat;
 import org.apache.lucene.codecs.FieldsConsumer;
 import org.apache.lucene.codecs.FieldsProducer;
-import org.apache.lucene.codecs.FilterCodec;
 import org.apache.lucene.codecs.NormsProducer;
 import org.apache.lucene.codecs.PostingsFormat;
 import org.apache.lucene.codecs.perfield.PerFieldPostingsFormat;
@@ -26,6 +25,8 @@ import org.apache.lucene.index.SegmentReadState;
 import org.apache.lucene.index.SegmentWriteState;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.IOContext;
+import org.elasticsearch.index.codec.DeduplicateFieldInfosCodec;
+import org.elasticsearch.index.codec.DeduplicatingFieldInfosFormat;
 import org.elasticsearch.index.mapper.SyntheticIdField;
 
 import java.io.IOException;
@@ -53,20 +54,17 @@ import static org.elasticsearch.index.codec.tsdb.TSDBSyntheticIdPostingsFormat.T
  *     synthetic _id field.
  * </p>
  */
-public class TSDBSyntheticIdCodec extends FilterCodec {
-
-    private final RewriteFieldInfosFormat fieldInfosFormat;
+public final class TSDBSyntheticIdCodec extends DeduplicateFieldInfosCodec {
     private final EnsureNoPostingsFormat postingsFormat;
 
     public TSDBSyntheticIdCodec(String name, Codec delegate) {
         super(name, delegate);
-        this.fieldInfosFormat = new RewriteFieldInfosFormat(delegate.fieldInfosFormat());
         this.postingsFormat = new EnsureNoPostingsFormat(delegate.postingsFormat());
     }
 
     @Override
-    public final FieldInfosFormat fieldInfosFormat() {
-        return fieldInfosFormat;
+    protected DeduplicatingFieldInfosFormat createFieldInfosFormat(FieldInfosFormat delegate) {
+        return new RewriteFieldInfosFormat(delegate);
     }
 
     @Override
@@ -77,12 +75,10 @@ public class TSDBSyntheticIdCodec extends FilterCodec {
     /**
      * {@link FieldInfosFormat} that overwrites the {@link FieldInfos}.
      */
-    private static class RewriteFieldInfosFormat extends FieldInfosFormat {
+    public static final class RewriteFieldInfosFormat extends DeduplicatingFieldInfosFormat {
 
-        private final FieldInfosFormat delegate;
-
-        private RewriteFieldInfosFormat(FieldInfosFormat delegate) {
-            this.delegate = delegate;
+        RewriteFieldInfosFormat(FieldInfosFormat delegate) {
+            super(delegate);
         }
 
         private void ensureSyntheticIdFields(FieldInfos fieldInfos) {
@@ -126,7 +122,6 @@ public class TSDBSyntheticIdCodec extends FilterCodec {
         @Override
         public void write(Directory directory, SegmentInfo segmentInfo, String segmentSuffix, FieldInfos fieldInfos, IOContext context)
             throws IOException {
-
             // Change the _id field index options from IndexOptions.DOCS to IndexOptions.NONE
             final var infos = new FieldInfo[fieldInfos.size()];
             int i = 0;
@@ -170,56 +165,53 @@ public class TSDBSyntheticIdCodec extends FilterCodec {
 
             fieldInfos = new FieldInfos(infos);
             ensureSyntheticIdFields(fieldInfos);
-            delegate.write(directory, segmentInfo, segmentSuffix, fieldInfos, context);
+            super.write(directory, segmentInfo, segmentSuffix, fieldInfos, context);
         }
 
         @Override
-        public FieldInfos read(Directory directory, SegmentInfo segmentInfo, String segmentSuffix, IOContext iocontext) throws IOException {
-            final var fieldInfos = delegate.read(directory, segmentInfo, segmentSuffix, iocontext);
+        protected void validateFieldInfos(FieldInfos fieldInfos) {
             ensureSyntheticIdFields(fieldInfos);
+        }
 
+        @Override
+        protected FieldInfo processFieldInfo(FieldInfo fi) {
             // Change the _id field index options from IndexOptions.NONE to IndexOptions.DOCS, so that terms and postings work when
             // applying doc values updates in Lucene.
-            final var infos = new FieldInfo[fieldInfos.size()];
-            int i = 0;
-            for (FieldInfo fi : fieldInfos) {
-                if (SYNTHETIC_ID.equals(fi.getName())) {
-                    final var attributes = new HashMap<>(fi.attributes());
+            if (SYNTHETIC_ID.equals(fi.getName())) {
+                final var attributes = new HashMap<>(fi.attributes());
 
-                    // Assert that PerFieldPostingsFormat are not written to field infos on disk
-                    assert attributes.containsKey(PerFieldPostingsFormat.PER_FIELD_FORMAT_KEY) == false;
-                    assert attributes.containsKey(PerFieldPostingsFormat.PER_FIELD_SUFFIX_KEY) == false;
+                // Assert that PerFieldPostingsFormat are not written to field infos on disk
+                assert attributes.containsKey(PerFieldPostingsFormat.PER_FIELD_FORMAT_KEY) == false;
+                assert attributes.containsKey(PerFieldPostingsFormat.PER_FIELD_SUFFIX_KEY) == false;
 
-                    // Inject attributes so that PerFieldPostingsFormat maps the synthetic _id field to the TSDBSyntheticIdPostingsFormat
-                    // This would normally be handled transparently by PerFieldPostingsFormat, but such attributes are only added if terms
-                    // are produced during indexing, which is not the case for the synthetic _id field.
-                    attributes.put(PerFieldPostingsFormat.PER_FIELD_FORMAT_KEY, TSDBSyntheticIdPostingsFormat.FORMAT_NAME);
-                    attributes.put(PerFieldPostingsFormat.PER_FIELD_SUFFIX_KEY, TSDBSyntheticIdPostingsFormat.SUFFIX);
+                // Inject attributes so that PerFieldPostingsFormat maps the synthetic _id field to the TSDBSyntheticIdPostingsFormat
+                // This would normally be handled transparently by PerFieldPostingsFormat, but such attributes are only added if terms
+                // are produced during indexing, which is not the case for the synthetic _id field.
+                attributes.put(PerFieldPostingsFormat.PER_FIELD_FORMAT_KEY, TSDBSyntheticIdPostingsFormat.FORMAT_NAME);
+                attributes.put(PerFieldPostingsFormat.PER_FIELD_SUFFIX_KEY, TSDBSyntheticIdPostingsFormat.SUFFIX);
 
-                    fi = new FieldInfo(
-                        fi.getName(),
-                        fi.getFieldNumber(),
-                        fi.hasTermVectors(),
-                        true,
-                        fi.hasPayloads(),
-                        IndexOptions.DOCS,
-                        fi.getDocValuesType(),
-                        fi.docValuesSkipIndexType(),
-                        fi.getDocValuesGen(),
-                        attributes,
-                        fi.getPointDimensionCount(),
-                        fi.getPointIndexDimensionCount(),
-                        fi.getPointNumBytes(),
-                        fi.getVectorDimension(),
-                        fi.getVectorEncoding(),
-                        fi.getVectorSimilarityFunction(),
-                        fi.isSoftDeletesField(),
-                        fi.isParentField()
-                    );
-                }
-                infos[i++] = fi;
+                fi = new FieldInfo(
+                    fi.getName(),
+                    fi.getFieldNumber(),
+                    fi.hasTermVectors(),
+                    true,
+                    fi.hasPayloads(),
+                    IndexOptions.DOCS,
+                    fi.getDocValuesType(),
+                    fi.docValuesSkipIndexType(),
+                    fi.getDocValuesGen(),
+                    attributes,
+                    fi.getPointDimensionCount(),
+                    fi.getPointIndexDimensionCount(),
+                    fi.getPointNumBytes(),
+                    fi.getVectorDimension(),
+                    fi.getVectorEncoding(),
+                    fi.getVectorSimilarityFunction(),
+                    fi.isSoftDeletesField(),
+                    fi.isParentField()
+                );
             }
-            return new FieldInfos(infos);
+            return super.processFieldInfo(fi);
         }
     }
 

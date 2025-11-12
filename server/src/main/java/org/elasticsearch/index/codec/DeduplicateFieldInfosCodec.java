@@ -12,20 +12,25 @@ package org.elasticsearch.index.codec;
 import org.apache.lucene.codecs.Codec;
 import org.apache.lucene.codecs.FieldInfosFormat;
 import org.apache.lucene.codecs.FilterCodec;
+import org.elasticsearch.index.codec.tsdb.TSDBSyntheticIdCodec;
 
-public final class DeduplicateFieldInfosCodec extends FilterCodec {
+public sealed class DeduplicateFieldInfosCodec extends FilterCodec permits TSDBSyntheticIdCodec {
 
-    private final DeduplicatingFieldInfosFormat deduplicatingFieldInfosFormat;
+    private final DeduplicatingFieldInfosFormat fieldInfosFormat;
 
     @SuppressWarnings("this-escape")
     protected DeduplicateFieldInfosCodec(String name, Codec delegate) {
         super(name, delegate);
-        this.deduplicatingFieldInfosFormat = new DeduplicatingFieldInfosFormat(super.fieldInfosFormat());
+        this.fieldInfosFormat = createFieldInfosFormat(delegate.fieldInfosFormat());
+    }
+
+    protected DeduplicatingFieldInfosFormat createFieldInfosFormat(FieldInfosFormat delegate) {
+        return new DeduplicatingFieldInfosFormat(delegate);
     }
 
     @Override
-    public FieldInfosFormat fieldInfosFormat() {
-        return deduplicatingFieldInfosFormat;
+    public final FieldInfosFormat fieldInfosFormat() {
+        return fieldInfosFormat;
     }
 
     public Codec delegate() {

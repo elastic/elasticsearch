@@ -13,6 +13,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.EqualsHashCodeTestUtils;
 
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -169,6 +170,16 @@ public class LifecycleExecutionStateTests extends ESTestCase {
         final String input = Strings.format(jsonBaseFormat, value);
         final String expectedOutput = Strings.format(jsonBaseFormat, value.substring(0, value.length() - 2) + "... (2 chars truncated)");
         assertEquals(expectedOutput, LifecycleExecutionState.potentiallyTruncateLongJsonWithExplanation(input));
+    }
+
+    public void testPotentiallyTruncateLongJsonWithExplanationEarlyReturn() {
+        List.of(
+            "",
+            "chars truncated)\"}",
+            randomAlphanumericOfLength(LifecycleExecutionState.MAXIMUM_STEP_INFO_STRING_LENGTH) + "chars truncated)\"}"
+        ).forEach(value -> {
+            assertSame(value, LifecycleExecutionState.potentiallyTruncateLongJsonWithExplanation(value));
+        });
     }
 
     private LifecycleExecutionState mutate(LifecycleExecutionState toMutate) {

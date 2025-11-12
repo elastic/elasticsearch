@@ -10,11 +10,10 @@ package org.elasticsearch.xpack.ilm;
 import org.apache.http.entity.ContentType;
 import org.apache.http.entity.StringEntity;
 import org.apache.http.util.EntityUtils;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.LifecycleExecutionState;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
@@ -44,6 +43,7 @@ import static org.elasticsearch.xpack.TimeSeriesRestDriver.explain;
 import static org.elasticsearch.xpack.TimeSeriesRestDriver.explainIndex;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasKey;
@@ -53,7 +53,6 @@ import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
 public class ExplainLifecycleIT extends IlmESRestTestCase {
-    private static final Logger logger = LogManager.getLogger(ExplainLifecycleIT.class);
     private static final String FAILED_STEP_RETRY_COUNT_FIELD = "failed_step_retry_count";
     private static final String IS_AUTO_RETRYABLE_ERROR_FIELD = "is_auto_retryable_error";
 
@@ -318,6 +317,65 @@ public class ExplainLifecycleIT extends IlmESRestTestCase {
                 explainIndex.get("previous_step_info").toString(),
                 containsString("rollover_alias [" + aliasName + "] does not point to index [" + indexName + "]")
             );
+        }, 30, TimeUnit.SECONDS);
+    }
+
+    public void testTruncatedPreviousStepInfoDoesNotBreakExplainJson() throws Exception {
+        final String policyName = "policy-" + randomAlphaOfLength(5).toLowerCase(Locale.ROOT);
+
+        final Request createPolice = new Request("PUT", "_ilm/policy/" + policyName);
+        createPolice.setJsonEntity("""
+            {
+              "policy": {
+                "phases": {
+                  "hot": {
+                    "actions": {
+                      "rollover": {
+                        "max_docs": 1
+                      }
+                    }
+                  }
+                }
+              }
+            }
+            """);
+        assertOK(client().performRequest(createPolice));
+
+        final String indexBase = "my-logs";
+        final String indexName = indexBase + "-" + randomAlphaOfLength(5).toLowerCase(Locale.ROOT);
+        final String longMissingAliasName = randomAlphanumericOfLength(LifecycleExecutionState.MAXIMUM_STEP_INFO_STRING_LENGTH);
+
+        final Request templateRequest = new Request("PUT", "_index_template/template_" + policyName);
+        final String templateBody = Strings.format("""
+            {
+              "index_patterns": ["%s-*"],
+              "template": {
+                "settings": {
+                  "index.lifecycle.name": "%s",
+                  "index.lifecycle.rollover_alias": "%s"
+                }
+              }
+            }
+            """, indexBase, policyName, longMissingAliasName);
+        templateRequest.setJsonEntity(templateBody);
+
+        assertOK(client().performRequest(templateRequest));
+
+        final Request indexRequest = new Request("POST", "/" + indexName + "/_doc/1");
+        indexRequest.setJsonEntity("{\"test\":\"value\"}");
+        assertOK(client().performRequest(indexRequest));
+
+        final String expectedReason = Strings.format(
+            "index.lifecycle.rollover_alias [%s... (122 chars truncated)",
+            longMissingAliasName.substring(0, longMissingAliasName.length() - 81)
+        );
+        final Map<String, Object> expectedStepInfo = Map.of("type", "illegal_argument_exception", "reason", expectedReason);
+        assertBusy(() -> {
+            final Map<String, Object> explainIndex = explainIndex(client(), indexName);
+
+            final String assertionMessage = "Assertion failed for the following response: " + explainIndex;
+            final Object previousStepInfo = explainIndex.get("previous_step_info");
+            assertThat(assertionMessage, previousStepInfo, equalTo(expectedStepInfo));
         }, 30, TimeUnit.SECONDS);
     }
 

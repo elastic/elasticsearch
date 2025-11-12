@@ -291,7 +291,11 @@ public record LifecycleExecutionState(
         if (json == null) {
             return null;
         }
-        if (json.length() <= MAXIMUM_STEP_INFO_STRING_LENGTH) {
+        final boolean jsonWithinLimit = json.length() <= MAXIMUM_STEP_INFO_STRING_LENGTH;
+        final boolean jsonAlreadyTruncated = json.endsWith("chars truncated)\"}");
+        // already-truncated JSON will always be over the limit, since we add the extra `chars truncated` explanation at the end.
+        // hence another check to not 1) double-truncate needlessly 2) lose information (we'll truncate current number of truncated chars)
+        if (jsonWithinLimit || jsonAlreadyTruncated) {
             return json;
         }
         assert json.startsWith("{\"") && json.endsWith("\"}") : "expected more specific JSON format";

@@ -7,20 +7,13 @@
 
 package org.elasticsearch.xpack.ilm.action;
 
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.LifecycleExecutionState;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ParseField;
-import org.elasticsearch.xcontent.ToXContent;
-import org.elasticsearch.xcontent.XContentFactory;
-import org.elasticsearch.xcontent.XContentParser;
-import org.elasticsearch.xcontent.XContentParserConfiguration;
-import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.ilm.ErrorStep;
 import org.elasticsearch.xpack.core.ilm.IndexLifecycleExplainResponse;
 import org.elasticsearch.xpack.core.ilm.IndexLifecycleMetadata;
@@ -38,7 +31,6 @@ import java.util.Map;
 
 import static org.elasticsearch.cluster.metadata.LifecycleExecutionState.ILM_CUSTOM_METADATA_KEY;
 import static org.elasticsearch.xpack.ilm.action.TransportExplainLifecycleAction.getIndexLifecycleExplainResponse;
-import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
@@ -223,84 +215,6 @@ public class TransportExplainLifecycleActionTests extends ESTestCase {
         var rolloverAction = ((RolloverAction) response.getPhaseExecutionInfo().getPhase().getActions().get(RolloverAction.NAME));
         assertThat(rolloverAction, notNullValue());
         assertThat(rolloverAction.getConditions().getMinDocs(), is(1L));
-    }
-
-    public void testPreviousStepInfoTruncationDoesNotBreakExplainJson() throws Exception {
-        final String policyName = "policy";
-        final String indexName = "index";
-
-        final String longReasonMessage = "a".repeat(LifecycleExecutionState.MAXIMUM_STEP_INFO_STRING_LENGTH);
-        final String errorJsonWhichWillBeTruncated = Strings.toString((builder, params) -> {
-            ElasticsearchException.generateThrowableXContent(
-                builder,
-                ToXContent.EMPTY_PARAMS,
-                new IllegalArgumentException(longReasonMessage)
-            );
-            return builder;
-        });
-
-        final LifecycleExecutionState stateWithTruncatedStepInfo = LifecycleExecutionState.builder()
-            .setPhase("hot")
-            .setAction("rollover")
-            .setStep("some_step")
-            .setPhaseDefinition(PHASE_DEFINITION)
-            .setStepInfo(errorJsonWhichWillBeTruncated)
-            .build();
-
-        // Simulate transition to next step where previous_step_info is copied
-        final LifecycleExecutionState stateWithPreviousStepInfo = LifecycleExecutionState.builder(stateWithTruncatedStepInfo)
-            .setPreviousStepInfo(stateWithTruncatedStepInfo.stepInfo())
-            .setStepInfo(null)
-            .build();
-
-        final IndexMetadata indexMetadata = IndexMetadata.builder(indexName)
-            .settings(settings(IndexVersion.current()).put(LifecycleSettings.LIFECYCLE_NAME, policyName))
-            .numberOfShards(1)
-            .numberOfReplicas(0)
-            .putCustom(ILM_CUSTOM_METADATA_KEY, stateWithPreviousStepInfo.asMap())
-            .build();
-
-        final ProjectMetadata project = ProjectMetadata.builder(randomProjectIdOrDefault())
-            .put(indexMetadata, true)
-            .putCustom(
-                IndexLifecycleMetadata.TYPE,
-                new IndexLifecycleMetadata(
-                    Map.of(policyName, LifecyclePolicyMetadataTests.createRandomPolicyMetadata(policyName)),
-                    randomFrom(OperationMode.values())
-                )
-            )
-            .build();
-
-        final IndexLifecycleExplainResponse response = TransportExplainLifecycleAction.getIndexLifecycleExplainResponse(
-            indexName,
-            project,
-            false,
-            true,
-            REGISTRY,
-            randomBoolean()
-        );
-
-        final String serialized = Strings.toString(response);
-        // test we produce valid JSON
-        try (
-            XContentParser p = XContentFactory.xContent(XContentType.JSON)
-                .createParser(XContentParserConfiguration.EMPTY.withRegistry(REGISTRY), serialized)
-        ) {
-            final IndexLifecycleExplainResponse deserialized = IndexLifecycleExplainResponse.PARSER.apply(p, null);
-            assertThat(deserialized.toString(), equalTo(response.toString()));
-            final String actualPreviousStepInfo = deserialized.getPreviousStepInfo().utf8ToString();
-
-            final String expectedPreviousStepInfoFormat = """
-                {"type":"illegal_argument_exception","reason":"%s"}""";
-            final int jsonBaseLength = Strings.format(expectedPreviousStepInfoFormat, "").length();
-            final String expectedReason = Strings.format(
-                "%s... (%d chars truncated)",
-                "a".repeat(LifecycleExecutionState.MAXIMUM_STEP_INFO_STRING_LENGTH - jsonBaseLength),
-                jsonBaseLength
-            );
-            final String expectedPreviousStepInfo = Strings.format(expectedPreviousStepInfoFormat, expectedReason);
-            assertEquals(actualPreviousStepInfo, expectedPreviousStepInfo);
-        }
     }
 
     private static IndexLifecycleMetadata createIndexLifecycleMetadata() {

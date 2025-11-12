@@ -11,6 +11,8 @@ package org.elasticsearch.index.mapper.blockloader;
 
 import org.elasticsearch.index.mapper.MappedFieldType;
 
+import java.util.Objects;
+
 /**
  * Configuration needed to transform loaded values into blocks.
  * {@link MappedFieldType}s will find me in
@@ -24,7 +26,21 @@ public interface BlockLoaderFunctionConfig {
      */
     Function function();
 
-    record JustWarnings(Function function, Warnings warnings) implements BlockLoaderFunctionConfig {}
+    record JustWarnings(Function function, Warnings warnings) implements BlockLoaderFunctionConfig {
+
+        // Consider just the function, as warnings will have Source that differ for different invocations of the same function
+        @Override
+        public boolean equals(Object o) {
+            if (o == null || getClass() != o.getClass()) return false;
+            JustWarnings that = (JustWarnings) o;
+            return function == that.function;
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hashCode(function);
+        }
+    }
 
     enum Function {
         LENGTH,

@@ -74,7 +74,7 @@ public class BalancedShardsAllocatorInvalidWeightsTests extends ESTestCase {
                 System.nanoTime()
             );
             balancingWeightsFactory.returnInvalidWeightsForRandomNodes(clusterState);
-            assertInvalidWeightsMessageLogged(() -> allocator.allocate(allocation));
+            assertInvalidWeightsMessageIsLogged(() -> allocator.allocate(allocation));
 
             // There should have been no changes
             assertFalse(allocation.routingNodesChanged());
@@ -110,7 +110,7 @@ public class BalancedShardsAllocatorInvalidWeightsTests extends ESTestCase {
                 }
                 return iom.callRealMethod();
             }).when(balancingWeightsFactory.getWeightFunction()).calculateNodeWeightWithIndex(any(), any(), any());
-            assertInvalidWeightsMessageLogged(() -> allocator.allocate(allocation));
+            assertInvalidWeightsMessageIsLogged(() -> allocator.allocate(allocation));
             // We should have aborted balancing after that first move
             assertEquals(1, allocation.routingNodes().getRelocatingShardCount());
         }
@@ -144,7 +144,7 @@ public class BalancedShardsAllocatorInvalidWeightsTests extends ESTestCase {
                 null,
                 System.nanoTime()
             );
-            assertInvalidWeightsMessageLogged(() -> allocator.allocate(allocation));
+            assertInvalidWeightsMessageIsLogged(() -> allocator.allocate(allocation));
             // No shards should have moved
             assertFalse(allocation.routingNodesChanged());
         }
@@ -171,7 +171,7 @@ public class BalancedShardsAllocatorInvalidWeightsTests extends ESTestCase {
                 System.nanoTime()
             );
             balancingWeightsFactory.returnInvalidWeightsForRandomNodes(clusterState);
-            assertInvalidWeightsMessageLogged(() -> allocator.allocate(allocation));
+            assertInvalidWeightsMessageIsLogged(() -> allocator.allocate(allocation));
             // No shards should be left unassigned
             assertFalse(allocation.routingNodes().hasUnassignedShards());
         }
@@ -198,7 +198,7 @@ public class BalancedShardsAllocatorInvalidWeightsTests extends ESTestCase {
                 System.nanoTime()
             );
 
-            assertInvalidWeightsMessageLogged(() -> {
+            assertInvalidWeightsMessageIsLogged(() -> {
                 ShardAllocationDecision shardAllocationDecision = allocator.explainShardAllocation(
                     randomFrom(clusterState.routingTable(ProjectId.DEFAULT).allShards().collect(Collectors.toSet())),
                     allocation
@@ -247,7 +247,7 @@ public class BalancedShardsAllocatorInvalidWeightsTests extends ESTestCase {
                 };
             }).when(balancingWeightsFactory.getWeightFunction()).calculateNodeWeightWithIndex(any(), any(), any());
 
-            assertInvalidWeightsMessageLogged(() -> {
+            assertInvalidWeightsMessageIsLogged(() -> {
                 ShardAllocationDecision shardAllocationDecision = allocator.explainShardAllocation(
                     clusterState.getRoutingNodes().node("node_1").copyShards()[0],
                     allocation
@@ -296,7 +296,7 @@ public class BalancedShardsAllocatorInvalidWeightsTests extends ESTestCase {
                 };
             }).when(balancingWeightsFactory.getWeightFunction()).calculateNodeWeightWithIndex(any(), any(), any());
 
-            assertInvalidWeightsMessageLogged(() -> {
+            assertInvalidWeightsMessageIsLogged(() -> {
                 ShardAllocationDecision shardAllocationDecision = allocator.explainShardAllocation(
                     clusterState.getRoutingNodes().node("node_1").copyShards()[0],
                     allocation
@@ -306,7 +306,7 @@ public class BalancedShardsAllocatorInvalidWeightsTests extends ESTestCase {
         }
     }
 
-    private void assertInvalidWeightsMessageLogged(Runnable runnable) {
+    private void assertInvalidWeightsMessageIsLogged(Runnable runnable) {
         assertThatLogger(
             runnable,
             BalancedShardsAllocator.class,

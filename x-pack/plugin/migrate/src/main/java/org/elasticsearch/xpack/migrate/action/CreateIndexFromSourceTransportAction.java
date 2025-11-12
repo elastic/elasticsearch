@@ -16,7 +16,6 @@ import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
-import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.compress.CompressedXContent;
@@ -159,7 +158,6 @@ public class CreateIndexFromSourceTransportAction extends HandledTransportAction
     private Settings filterSettings(IndexMetadata sourceIndex) {
         Settings sourceSettings = sourceIndex.getSettings();
         final Settings.Builder builder = Settings.builder();
-        final boolean isServerless = DiscoveryNode.isStateless(clusterService.getSettings());
         for (final String key : sourceSettings.keySet()) {
             final Setting<?> setting = indexScopedSettings.get(key);
             if (setting == null) {
@@ -173,9 +171,6 @@ public class CreateIndexFromSourceTransportAction extends HandledTransportAction
                 continue;
             }
             if (setting.getProperties().contains(Setting.Property.IndexSettingDeprecatedInV7AndRemovedInV8)) {
-                continue;
-            }
-            if (isServerless && setting.isServerlessPublic() == false) {
                 continue;
             }
             if (SPECIFIC_SETTINGS_TO_REMOVE.contains(key)) {

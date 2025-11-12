@@ -292,7 +292,7 @@ public class AsyncSearchErrorTraceIT extends AsyncSearchIntegTestCase {
 
     private void deleteAsyncSearchIfPresent(Map<String, Object> map) throws IOException {
         String id = (String) map.get("id");
-        if(id == null) {
+        if (id == null) {
             return;
         }
 

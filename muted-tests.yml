@@ -432,18 +432,6 @@ tests:
 - class: org.elasticsearch.indices.mapping.UpdateMappingIntegrationIT
   method: testUpdateMappingConcurrently
   issue: https://github.com/elastic/elasticsearch/issues/137758
-- class: org.elasticsearch.upgrades.WildcardRollingUpgradeIT
-  method: testIndexing {upgradedNodes=0}
-  issue: https://github.com/elastic/elasticsearch/issues/137793
-- class: org.elasticsearch.upgrades.TextRollingUpgradeIT
-  method: testIndexing {upgradedNodes=0}
-  issue: https://github.com/elastic/elasticsearch/issues/137794
-- class: org.elasticsearch.upgrades.WildcardRollingUpgradeIT
-  method: testIndexing {upgradedNodes=1}
-  issue: https://github.com/elastic/elasticsearch/issues/137795
-- class: org.elasticsearch.upgrades.TextRollingUpgradeIT
-  method: testIndexing {upgradedNodes=1}
-  issue: https://github.com/elastic/elasticsearch/issues/137796
 - class: org.elasticsearch.xpack.inference.integration.CCMPersistentStorageServiceIT
   method: testDelete_RemovesCCMConfiguration
   issue: https://github.com/elastic/elasticsearch/issues/137786

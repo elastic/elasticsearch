@@ -1173,11 +1173,10 @@ public class RestoreSnapshotIT extends AbstractSnapshotIntegTestCase {
                 .prepareRestoreSnapshot(TEST_REQUEST_TIMEOUT, repoName, snapshotName)
                 .setIndices(indexName)
                 .setRenamePattern("b")
-                .setRenameReplacement("aa")
+                .setRenameReplacement("a".repeat(255))
                 .setWaitForCompletion(true)
                 .get()
         );
         assertThat(invalidIndexNameException.getMessage(), containsString("Invalid index name"));
-
     }
 }

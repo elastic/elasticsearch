@@ -524,7 +524,7 @@ public class PromqlLogicalPlanBuilder extends PromqlExpressionBuilder {
      */
     public Literal visitSubqueryResolution(PromqlBaseParser.SubqueryResolutionContext ctx) {
         if (ctx == null) {
-            return null;
+            return Literal.NULL;
         }
 
         // Case 1: COLON (resolution=duration)?
@@ -567,6 +567,6 @@ public class PromqlLogicalPlanBuilder extends PromqlExpressionBuilder {
         }
 
         // Just COLON with no resolution - use default
-        return null;
+        return Literal.NULL;
     }
 }

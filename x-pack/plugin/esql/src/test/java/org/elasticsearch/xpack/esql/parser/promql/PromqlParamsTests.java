@@ -69,8 +69,8 @@ public class PromqlParamsTests extends ESTestCase {
 
     public void testValidRangeQueryOnlyStep() {
         PromqlCommand promql = parse("TS test | PROMQL `step` \"1\" (avg(foo))");
-        assertThat(promql.start(), nullValue());
-        assertThat(promql.end(), nullValue());
+        assertThat(promql.start().value(), nullValue());
+        assertThat(promql.end().value(), nullValue());
         assertThat(promql.step().value(), equalTo(Duration.ofSeconds(1)));
         assertThat(promql.isRangeQuery(), equalTo(true));
         assertThat(promql.isInstantQuery(), equalTo(false));
@@ -80,7 +80,7 @@ public class PromqlParamsTests extends ESTestCase {
         PromqlCommand promql = parse("TS test | PROMQL time \"2025-10-31T00:00:00Z\" (avg(foo))");
         assertThat(promql.start().value(), equalTo(Instant.parse("2025-10-31T00:00:00Z")));
         assertThat(promql.end().value(), equalTo(Instant.parse("2025-10-31T00:00:00Z")));
-        assertThat(promql.step(), nullValue());
+        assertThat(promql.step().value(), nullValue());
         assertThat(promql.isInstantQuery(), equalTo(true));
         assertThat(promql.isRangeQuery(), equalTo(false));
     }

@@ -22,7 +22,11 @@ import java.util.Objects;
  * &lt;implicit&gt; offset &lt;optional_offset&gt; @ &lt;optional_at&gt;
  */
 public class Evaluation {
-    public static final Evaluation NONE = new Evaluation(new Literal(Source.EMPTY, Duration.ZERO, DataType.TIME_DURATION), false, null);
+    public static final Evaluation NONE = new Evaluation(
+        new Literal(Source.EMPTY, Duration.ZERO, DataType.TIME_DURATION),
+        false,
+        Literal.NULL
+    );
 
     private final Literal offset;
     private final boolean offsetNegative;

@@ -1412,21 +1412,21 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
 
         public Literal startLiteral() {
             if (start == null) {
-                return null;
+                return Literal.NULL;
             }
             return new Literal(source, start, DataType.DATETIME);
         }
 
         public Literal endLiteral() {
             if (end == null) {
-                return null;
+                return Literal.NULL;
             }
             return new Literal(source, end, DataType.DATETIME);
         }
 
         public Literal stepLiteral() {
             if (step == null) {
-                return null;
+                return Literal.NULL;
             }
             return new Literal(source, step, DataType.TIME_DURATION);
         }

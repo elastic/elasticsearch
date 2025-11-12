@@ -110,11 +110,11 @@ public class PromqlCommand extends UnaryPlan implements TelemetryAware, PostAnal
     }
 
     public boolean isInstantQuery() {
-        return step == null;
+        return step.value() == null;
     }
 
     public boolean isRangeQuery() {
-        return step != null;
+        return step.value() != null;
     }
 
     @Override
@@ -163,10 +163,10 @@ public class PromqlCommand extends UnaryPlan implements TelemetryAware, PostAnal
                     failures.add(fail(s, "regex label selectors on __name__ are not supported at this time [{}]", s.sourceText()));
                 }
                 if (s.evaluation() != null) {
-                    if (s.evaluation().offset() != null && s.evaluation().offsetDuration().isZero() == false) {
+                    if (s.evaluation().offset().value() != null && s.evaluation().offsetDuration().isZero() == false) {
                         failures.add(fail(s, "offset modifiers are not supported at this time [{}]", s.sourceText()));
                     }
-                    if (s.evaluation().at() != null) {
+                    if (s.evaluation().at().value() != null) {
                         failures.add(fail(s, "@ modifiers are not supported at this time [{}]", s.sourceText()));
                     }
                 }
@@ -174,7 +174,7 @@ public class PromqlCommand extends UnaryPlan implements TelemetryAware, PostAnal
             if (lp instanceof Subquery) {
                 failures.add(fail(lp, "subqueries are not supported at this time [{}]", lp.sourceText()));
             }
-            if (step() != null && lp instanceof RangeSelector rs) {
+            if (step().value() != null && lp instanceof RangeSelector rs) {
                 Duration rangeDuration = (Duration) rs.range().fold(null);
                 if (rangeDuration.equals(step().value()) == false) {
                     failures.add(

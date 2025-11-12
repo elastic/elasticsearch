@@ -109,9 +109,9 @@ class PromqlExpressionBuilder extends PromqlIdentifierBuilder {
             return Evaluation.NONE;
         }
 
-        Literal offset = null;
+        Literal offset = Literal.NULL;
         boolean negativeOffset = false;
-        Literal at = null;
+        Literal at = Literal.NULL;
 
         AtContext atCtx = ctx.at();
         if (atCtx != null) {
@@ -153,7 +153,7 @@ class PromqlExpressionBuilder extends PromqlIdentifierBuilder {
     @Override
     public Literal visitDuration(DurationContext ctx) {
         if (ctx == null) {
-            return null;
+            return Literal.NULL;
         }
         Object o = visit(ctx.expression());
 

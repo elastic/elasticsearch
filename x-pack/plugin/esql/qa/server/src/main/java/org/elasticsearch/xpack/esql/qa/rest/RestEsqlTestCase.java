@@ -1856,6 +1856,8 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
 
     @SuppressWarnings("fallthrough")
     public void testRandomTimezoneBuckets() throws IOException {
+        assumeTrue("timezone support for date_trunc is required", EsqlCapabilities.Cap.DATE_TRUNC_TIMEZONE_SUPPORT.isEnabled());
+
         createIndex(testIndexName(), Settings.EMPTY, """
             {
                 "properties": {

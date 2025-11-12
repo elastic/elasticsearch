@@ -29,6 +29,7 @@ import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.OperationRouting;
+import org.elasticsearch.cluster.routing.SplitShardCountSummary;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
@@ -201,11 +202,15 @@ public abstract class TransportBroadcastReplicationAction<
 
         OperationRouting operationRouting = clusterService.operationRouting();
 
-        String[] concreteIndices = indexNameExpressionResolver.concreteIndexNames(projectState.metadata(), request);
+        ProjectMetadata project = projectState.metadata();
+        String[] concreteIndices = indexNameExpressionResolver.concreteIndexNames(project, request);
         for (String index : concreteIndices) {
             Iterator<IndexShardRoutingTable> iterator = operationRouting.allWritableShards(projectState, index);
+            var indexMetadata = project.index(index);
             while (iterator.hasNext()) {
-                shardIds.add(iterator.next().shardId());
+                ShardId shardId = iterator.next().shardId();
+                SplitShardCountSummary reshardSplitShardCountSummary = SplitShardCountSummary.forIndexing(indexMetadata, shardId.getId());
+                shardIds.add(shardId);
             }
         }
         return shardIds;

@@ -150,7 +150,7 @@ FROM k8s-downsampled
 ;
 
 v1:long | v2:long
-null    | 736
+null    | 821
 ;
 
 include_null_in_grouping

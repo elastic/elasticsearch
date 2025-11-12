@@ -7,7 +7,12 @@
 
 package org.elasticsearch.xpack.exponentialhistogram;
 
+import org.apache.lucene.index.IndexableField;
+import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.NumericUtils;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.core.Types;
+import org.elasticsearch.exponentialhistogram.CompressedExponentialHistogram;
 import org.elasticsearch.exponentialhistogram.ExponentialHistogramUtils;
 import org.elasticsearch.exponentialhistogram.ZeroBucket;
 import org.elasticsearch.index.mapper.DocumentMapper;
@@ -15,11 +20,16 @@ import org.elasticsearch.index.mapper.DocumentParsingException;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MapperTestCase;
+import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.analytics.mapper.ExponentialHistogramParser;
+import org.elasticsearch.xpack.analytics.mapper.HistogramParser;
 import org.elasticsearch.xpack.analytics.mapper.IndexWithCount;
+import org.elasticsearch.xpack.analytics.mapper.ParsedHistogramConverter;
 import org.junit.AssumptionViolatedException;
 import org.junit.Before;
 
@@ -35,12 +45,14 @@ import java.util.List;
 import java.util.Map;
 import java.util.OptionalDouble;
 import java.util.Set;
+import java.util.stream.IntStream;
 
 import static org.elasticsearch.exponentialhistogram.ExponentialHistogram.MAX_INDEX;
 import static org.elasticsearch.exponentialhistogram.ExponentialHistogram.MAX_SCALE;
 import static org.elasticsearch.exponentialhistogram.ExponentialHistogram.MIN_INDEX;
 import static org.elasticsearch.exponentialhistogram.ExponentialHistogram.MIN_SCALE;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
 
 public class ExponentialHistogramFieldMapperTests extends MapperTestCase {
 
@@ -98,6 +110,83 @@ public class ExponentialHistogramFieldMapperTests extends MapperTestCase {
     @Override
     protected void registerParameters(ParameterChecker checker) throws IOException {
         checker.registerUpdateCheck(b -> b.field("ignore_malformed", true), m -> assertTrue(m.ignoreMalformed()));
+        checker.registerUpdateCheck(b -> b.field("coerce", false), m -> assertFalse(((ExponentialHistogramFieldMapper) m).coerce()));
+    }
+
+    public void testCoerce() throws IOException {
+        List<Double> centroids = randomDoubles().map(val -> val * 1_000_000 - 500_000)
+            .map(val -> randomBoolean() ? val : 0)
+            .distinct()
+            .limit(randomIntBetween(0, 100))
+            .sorted()
+            .boxed()
+            .toList();
+        List<Long> counts = IntStream.range(0, centroids.size()).mapToLong(i -> randomIntBetween(0, 100)).boxed().toList();
+
+        HistogramParser.ParsedHistogram input = new HistogramParser.ParsedHistogram(centroids, counts);
+
+        XContentBuilder inputJson = XContentFactory.jsonBuilder();
+        inputJson.startObject()
+            .field("field")
+            .startObject()
+            .array("values", centroids.toArray())
+            .array("counts", counts.toArray())
+            .endObject()
+            .endObject();
+        BytesReference inputDocBytes = BytesReference.bytes(inputJson);
+
+        ExponentialHistogramParser.ParsedExponentialHistogram expectedCoerced = ParsedHistogramConverter.tDigestToExponential(input);
+
+        DocumentMapper defaultMapper = createDocumentMapper(fieldMapping(this::minimalMapping));
+
+        ParsedDocument doc = defaultMapper.parse(new SourceToParse("1", inputDocBytes, XContentType.JSON));
+        ExponentialHistogramParser.ParsedExponentialHistogram ingestedHisto = docValueToParsedHistogram(doc, "field");
+        assertThat(ingestedHisto, equalTo(expectedCoerced));
+
+        DocumentMapper coerceDisabledMapper = createDocumentMapper(
+            fieldMapping(b -> b.field("type", "exponential_histogram").field("coerce", false))
+        );
+        ThrowingRunnable runnable = () -> coerceDisabledMapper.parse(new SourceToParse("1", inputDocBytes, XContentType.JSON));
+        DocumentParsingException e = expectThrows(DocumentParsingException.class, runnable);
+        assertThat(e.getCause().getMessage(), containsString("unknown parameter [values]"));
+    }
+
+    private static IndexableField getSingleField(ParsedDocument doc, String fieldName) {
+        List<IndexableField> fields = doc.rootDoc().getFields(fieldName);
+        assertThat(fields.size(), equalTo(1));
+        return fields.getFirst();
+    }
+
+    private static ExponentialHistogramParser.ParsedExponentialHistogram docValueToParsedHistogram(ParsedDocument doc, String fieldName) {
+        BytesRef encodedBytes = getSingleField(doc, fieldName).binaryValue();
+        long valueCount = getSingleField(doc, ExponentialHistogramFieldMapper.valuesCountSubFieldName(fieldName)).numericValue()
+            .longValue();
+        double zeroThreshold = NumericUtils.sortableLongToDouble(
+            getSingleField(doc, ExponentialHistogramFieldMapper.zeroThresholdSubFieldName(fieldName)).numericValue().longValue()
+        );
+
+        // min max and sum are not relevant for these tests, so we use fake ones
+        double min = valueCount == 0 ? Double.NaN : 0.0;
+        double max = valueCount == 0 ? Double.NaN : 0.0;
+        double sum = 0;
+
+        CompressedExponentialHistogram histogram = new CompressedExponentialHistogram();
+        try {
+            histogram.reset(zeroThreshold, valueCount, sum, min, max, encodedBytes);
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
+
+        return new ExponentialHistogramParser.ParsedExponentialHistogram(
+            histogram.scale(),
+            histogram.zeroBucket().zeroThreshold(),
+            histogram.zeroBucket().count(),
+            IndexWithCount.fromIterator(histogram.negativeBuckets().iterator()),
+            IndexWithCount.fromIterator(histogram.positiveBuckets().iterator()),
+            null,
+            null,
+            null
+        );
     }
 
     @Override

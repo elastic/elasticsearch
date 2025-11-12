@@ -28,7 +28,6 @@ import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Supplier;
-import java.util.stream.Stream;
 
 import static org.elasticsearch.test.ReadableMatchers.matchesDateMillis;
 import static org.elasticsearch.test.ReadableMatchers.matchesDateNanos;
@@ -123,7 +122,7 @@ public class DateTruncTests extends AbstractConfigurationFunctionTestCase {
         //
         // For every unit, we test 2 cases: 1 unit, and multiple units.
         // Then, for every case, we check 2 boundaries (↑Bucket1, ↓Bucket2) to ensure the exact size of the buckets.
-        Stream.of(
+        List.of(
             // Milliseconds
             new DurationTestCaseData(Duration.ofMillis(1), "2023-02-17T10:25:33.385", "", "2023-02-17T10:25:33.385"),
             new DurationTestCaseData(Duration.ofMillis(10), "2023-02-17T10:25:33.385", "", "2023-02-17T10:25:33.38"),
@@ -230,7 +229,7 @@ public class DateTruncTests extends AbstractConfigurationFunctionTestCase {
         //
         // For every unit, we test 2 cases: 1 unit, and multiple units.
         // Then, for every case, we check 2 boundaries (↑Bucket1, ↓Bucket2) to ensure the exact size of the buckets.
-        Stream.of(
+        List.of(
             // Days
             new PeriodTestCaseData(Period.ofDays(1), "2023-02-16T23:59:59.99", "", "2023-02-16T00:00:00"),
             new PeriodTestCaseData(Period.ofDays(1), "2023-02-17T00:00:00", "", "2023-02-17T00:00:00"),

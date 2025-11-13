@@ -790,7 +790,7 @@ public class FetchSearchPhaseTests extends ESTestCase {
         ContextIndexSearcher contextIndexSearcher = createSearcher(r);
         try (SearchContext searchContext = createSearchContext(contextIndexSearcher, true)) {
             FetchPhase fetchPhase = createFetchPhase(contextIndexSearcher);
-            fetchPhase.execute(searchContext, new int[] { 0, 1, 2 }, null);
+            fetchPhase.execute(searchContext, new int[] { 0, 1, 2 }, null, i -> {});
             assertTrue(searchContext.queryResult().searchTimedOut());
             assertEquals(1, searchContext.fetchResult().hits().getHits().length);
         } finally {
@@ -811,7 +811,7 @@ public class FetchSearchPhaseTests extends ESTestCase {
 
         try (SearchContext searchContext = createSearchContext(contextIndexSearcher, false)) {
             FetchPhase fetchPhase = createFetchPhase(contextIndexSearcher);
-            expectThrows(SearchTimeoutException.class, () -> fetchPhase.execute(searchContext, new int[] { 0, 1, 2 }, null));
+            expectThrows(SearchTimeoutException.class, () -> fetchPhase.execute(searchContext, new int[] { 0, 1, 2 }, null, i -> {}));
             assertNull(searchContext.fetchResult().hits());
         } finally {
             r.close();
@@ -867,7 +867,7 @@ public class FetchSearchPhaseTests extends ESTestCase {
                     return StoredFieldsSpec.NEEDS_SOURCE;
                 }
             }));
-            fetchPhase.execute(searchContext, IntStream.range(0, 100).toArray(), null);
+            fetchPhase.execute(searchContext, IntStream.range(0, 100).toArray(), null, i -> {});
             assertThat(breakerCalledCount.get(), is(4));
         } finally {
             r.close();
@@ -923,7 +923,7 @@ public class FetchSearchPhaseTests extends ESTestCase {
             }));
             FetchPhaseExecutionException fetchPhaseExecutionException = assertThrows(
                 FetchPhaseExecutionException.class,
-                () -> fetchPhase.execute(searchContext, IntStream.range(0, 100).toArray(), null)
+                () -> fetchPhase.execute(searchContext, IntStream.range(0, 100).toArray(), null, i -> {})// TODO
             );
             assertThat(fetchPhaseExecutionException.getCause().getMessage(), is("bad things"));
         } finally {

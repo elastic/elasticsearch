@@ -47,6 +47,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.function.IntConsumer;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.index.get.ShardGetService.maybeExcludeVectorFields;
@@ -66,7 +67,7 @@ public final class FetchPhase {
         this.fetchSubPhases[fetchSubPhases.size()] = new InnerHitsPhase(this);
     }
 
-    public void execute(SearchContext context, int[] docIdsToLoad, RankDocShardInfo rankDocs) {
+    public void execute(SearchContext context, int[] docIdsToLoad, RankDocShardInfo rankDocs, IntConsumer memoryChecker) {
         if (LOGGER.isTraceEnabled()) {
             LOGGER.trace("{}", new SearchContextSourcePrinter(context));
         }
@@ -88,7 +89,7 @@ public final class FetchPhase {
                 : Profilers.startProfilingFetchPhase();
         SearchHits hits = null;
         try {
-            hits = buildSearchHits(context, docIdsToLoad, profiler, rankDocs);
+            hits = buildSearchHits(context, docIdsToLoad, profiler, rankDocs, memoryChecker);
         } finally {
             try {
                 // Always finish profiling
@@ -116,7 +117,13 @@ public final class FetchPhase {
         }
     }
 
-    private SearchHits buildSearchHits(SearchContext context, int[] docIdsToLoad, Profiler profiler, RankDocShardInfo rankDocs) {
+    private SearchHits buildSearchHits(
+        SearchContext context,
+        int[] docIdsToLoad,
+        Profiler profiler,
+        RankDocShardInfo rankDocs,
+        IntConsumer memoryChecker
+    ) {
         var lookup = context.getSearchExecutionContext().getMappingLookup();
 
         // Optionally remove sparse and dense vector fields early to:
@@ -169,7 +176,7 @@ public final class FetchPhase {
         StoredFieldLoader storedFieldLoader = profiler.storedFields(StoredFieldLoader.fromSpec(storedFieldsSpec));
         IdLoader idLoader = context.newIdLoader();
         boolean requiresSource = storedFieldsSpec.requiresSource();
-        final int[] locallyAccumulatedBytes = new int[1];
+        // final int[] locallyAccumulatedBytes = new int[1];
         NestedDocuments nestedDocuments = context.getSearchExecutionContext().getNestedDocuments();
 
         FetchPhaseDocsIterator docsIterator = new FetchPhaseDocsIterator() {
@@ -206,10 +213,6 @@ public final class FetchPhase {
                 if (context.isCancelled()) {
                     throw new TaskCancelledException("cancelled");
                 }
-                if (context.checkRealMemoryCB(locallyAccumulatedBytes[0], "fetch source")) {
-                    // if we checked the real memory breaker, we restart our local accounting
-                    locallyAccumulatedBytes[0] = 0;
-                }
 
                 HitContext hit = prepareHitContext(
                     context,
@@ -233,7 +236,7 @@ public final class FetchPhase {
 
                     BytesReference sourceRef = hit.hit().getSourceRef();
                     if (sourceRef != null) {
-                        locallyAccumulatedBytes[0] += sourceRef.length();
+                        memoryChecker.accept(sourceRef.length());
                     }
                     success = true;
                     return hit.hit();

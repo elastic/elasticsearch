@@ -10,7 +10,6 @@ package org.elasticsearch.search.aggregations.metrics;
 
 import org.apache.logging.log4j.util.Strings;
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
@@ -44,7 +43,7 @@ import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.notNullValue;
 
 @ESIntegTestCase.SuiteScopeTestCase()
-@LuceneTestCase.AwaitsFix(bugUrl = "TODO")
+// @LuceneTestCase.AwaitsFix(bugUrl = "TODO")
 public class LargeTopHitsIT extends ESIntegTestCase {
 
     private static final String TERMS_AGGS_FIELD_1 = "terms1";
@@ -101,7 +100,7 @@ public class LargeTopHitsIT extends ESIntegTestCase {
         query("small_idx");
     }
 
-    // public void testSmall1000Queries() {
+    // public void test1000SmallQueries() {
     // for (int i = 0; i < 1000; i++) {
     // query("small_idx");
     // }

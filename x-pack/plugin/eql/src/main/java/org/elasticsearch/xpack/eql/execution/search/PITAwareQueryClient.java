@@ -140,6 +140,9 @@ public class PITAwareQueryClient extends BasicQueryClient {
             .keepAlive(keepAlive)
             .allowPartialSearchResults(allowPartialSearchResults);
         request.indexFilter(filter);
+        if (cfg.crossProjectEnabled()) {
+            // TODO project_routing and indices options, as soon as PIT supports it
+        }
         client.execute(TransportOpenPointInTimeAction.TYPE, request, listener.delegateFailureAndWrap((l, r) -> {
             pitId = r.getPointInTimeId();
             runnable.run();

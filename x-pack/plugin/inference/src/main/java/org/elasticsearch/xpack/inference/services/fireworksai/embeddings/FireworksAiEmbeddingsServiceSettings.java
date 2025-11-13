@@ -25,6 +25,8 @@ import org.elasticsearch.xpack.inference.services.fireworksai.FireworksAiService
 import org.elasticsearch.xpack.inference.services.settings.FilteredXContentObject;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 
+import static org.elasticsearch.xpack.inference.services.fireworksai.FireworksAiService.FIREWORKS_AI_SERVICE;
+
 import java.io.IOException;
 import java.net.URI;
 import java.util.Map;
@@ -55,8 +57,8 @@ public class FireworksAiEmbeddingsServiceSettings extends FilteredXContentObject
     public static final String DIMENSIONS_SET_BY_USER = "dimensions_set_by_user";
     private static final String DEFAULT_URL = "https://api.fireworks.ai/inference/v1/embeddings";
 
-    // FireworksAI default rate limit - adjust based on actual limits
-    public static final RateLimitSettings DEFAULT_RATE_LIMIT_SETTINGS = new RateLimitSettings(3000);
+    // FireworksAI default rate limit is 6000 RPM per their documentation
+    public static final RateLimitSettings DEFAULT_RATE_LIMIT_SETTINGS = new RateLimitSettings(6000);
 
     public static FireworksAiEmbeddingsServiceSettings fromMap(Map<String, Object> map, ConfigurationParseContext context) {
         return switch (context) {
@@ -175,7 +177,7 @@ public class FireworksAiEmbeddingsServiceSettings extends FilteredXContentObject
         this.dimensions = in.readOptionalInt();
         this.maxInputTokens = in.readOptionalInt();
         this.dimensionsSetByUser = in.readBoolean();
-        this.rateLimitSettings = Objects.requireNonNullElse(in.readOptionalWriteable(RateLimitSettings::new), DEFAULT_RATE_LIMIT_SETTINGS);
+        this.rateLimitSettings = new RateLimitSettings(in);
     }
 
     public String modelId() {
@@ -284,6 +286,6 @@ public class FireworksAiEmbeddingsServiceSettings extends FilteredXContentObject
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.V_8_15_0;
+        return FIREWORKS_AI_SERVICE;
     }
 }

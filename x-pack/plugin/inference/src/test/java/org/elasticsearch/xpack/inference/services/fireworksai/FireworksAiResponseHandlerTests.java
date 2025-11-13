@@ -54,7 +54,7 @@ public class FireworksAiResponseHandlerTests extends ESTestCase {
         MatcherAssert.assertThat(((ElasticsearchStatusException) exception.getCause()).status(), is(RestStatus.BAD_REQUEST));
     }
 
-    public void testCheckForFailureStatusCode_ThrowsFor429() {
+    public void testCheckForFailureStatusCode_ThrowsFor429_WithShouldRetryTrue() {
         var exception = expectThrows(RetryException.class, () -> callCheckForFailureStatusCode(429, "id"));
         assertTrue(exception.shouldRetry());
         MatcherAssert.assertThat(

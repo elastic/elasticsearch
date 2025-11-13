@@ -135,7 +135,7 @@ public class FireworksAiEmbeddingsTaskSettingsTests extends AbstractBWCWireSeria
             newSettingsMap.put(FireworksAiEmbeddingsTaskSettings.DIMENSIONS, newSettings.dimensions());
         }
         FireworksAiEmbeddingsTaskSettings updatedSettings = (FireworksAiEmbeddingsTaskSettings) initialSettings
-            .updatedTaskSettings(Collections.unmodifiableMap(newSettingsMap));
+            .updatedTaskSettings(newSettingsMap);
         // updatedTaskSettings returns a new instance from the map, not merged
         // So it will use values from the map or null
         if (newSettings.dimensions() == null) {

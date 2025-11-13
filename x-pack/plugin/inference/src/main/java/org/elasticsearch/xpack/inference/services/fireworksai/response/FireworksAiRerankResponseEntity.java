@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.inference.services.fireworksai.response;
 
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentFactory;
@@ -17,6 +18,8 @@ import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.inference.results.RankedDocsResults;
 import org.elasticsearch.xpack.inference.external.http.HttpResult;
+import org.elasticsearch.xpack.inference.external.request.Request;
+import org.elasticsearch.xpack.inference.external.response.BaseResponseEntity;
 import org.elasticsearch.xpack.inference.services.fireworksai.request.FireworksAiRerankRequest;
 
 import java.io.IOException;
@@ -30,17 +33,17 @@ import static org.elasticsearch.xpack.inference.external.response.XContentUtils.
  * FireworksAI returns rerank results in a "data" array (OpenAI-compatible format),
  * with each entry containing "index", "relevance_score", and optional "document" fields.
  */
-public class FireworksAiRerankResponseEntity {
+public class FireworksAiRerankResponseEntity extends BaseResponseEntity {
 
-    /**
-     * Parses the FireworksAI rerank response and converts it to RankedDocsResults.
-     *
-     * @param request  the original rerank request
-     * @param response the HTTP response from FireworksAI API
-     * @return parsed and sorted ranked documents
-     * @throws IOException if parsing fails
-     */
-    public static RankedDocsResults fromResponse(FireworksAiRerankRequest request, HttpResult response) throws IOException {
+    @Override
+    protected InferenceServiceResults fromResponse(Request request, HttpResult response) throws IOException {
+        if (request instanceof FireworksAiRerankRequest rerankRequest) {
+            return parseResponse(rerankRequest, response);
+        }
+        throw new IllegalArgumentException("Unsupported request type: " + request.getClass().getName());
+    }
+
+    private static RankedDocsResults parseResponse(FireworksAiRerankRequest request, HttpResult response) throws IOException {
         var parserConfig = XContentParserConfiguration.EMPTY.withDeprecationHandler(LoggingDeprecationHandler.INSTANCE);
 
         try (XContentParser jsonParser = XContentFactory.xContent(XContentType.JSON).createParser(parserConfig, response.body())) {

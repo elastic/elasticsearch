@@ -69,11 +69,11 @@ public class FireworksAiService extends SenderService implements RerankingInfere
     public static final String NAME = "fireworksai";
     private static final String SERVICE_NAME = "FireworksAI";
 
-    private static final TransportVersion FIREWORKS_AI_SERVICE = TransportVersion.fromName("fireworks_ai_service");
+    public static final TransportVersion FIREWORKS_AI_SERVICE = TransportVersion.fromName("fireworks_ai_service");
 
     private static final EnumSet<TaskType> SUPPORTED_TASK_TYPES = EnumSet.of(TaskType.TEXT_EMBEDDING, TaskType.RERANK);
 
-    // FireworksAI embeddings max batch size (adjust based on actual API limits)
+    // FireworksAI embeddings max batch size - per-user limit varies by plan, 2048 is a safe default
     private static final int EMBEDDING_MAX_BATCH_SIZE = 2048;
 
     public FireworksAiService(
@@ -337,7 +337,7 @@ public class FireworksAiService extends SenderService implements RerankingInfere
                 configurationMap.put(
                     MODEL_ID,
                     new SettingsConfiguration.Builder(SUPPORTED_TASK_TYPES).setDescription(
-                        "The model ID to use for FireworksAI requests. Supports Qwen3 embeddings, Nomic embeddings, and reranker models."
+                        "The model ID to use for FireworksAI requests."
                     )
                         .setLabel("Model ID")
                         .setRequired(true)

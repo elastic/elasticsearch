@@ -44,7 +44,7 @@ public class FireworksAiActionCreator implements FireworksAiActionVisitor {
 
     private static final ResponseHandler RERANK_HANDLER = new FireworksAiResponseHandler(
         "fireworksai rerank",
-        (request, response) -> FireworksAiRerankResponseEntity.fromResponse((FireworksAiRerankRequest) request, response),
+        new FireworksAiRerankResponseEntity(),
         false
     );
 

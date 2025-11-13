@@ -23,6 +23,7 @@ import java.util.Map;
 import java.util.Objects;
 
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalPositiveInteger;
+import static org.elasticsearch.xpack.inference.services.fireworksai.FireworksAiService.FIREWORKS_AI_SERVICE;
 
 /**
  * Defines the task settings for FireworksAI embeddings.
@@ -95,7 +96,7 @@ public class FireworksAiEmbeddingsTaskSettings implements TaskSettings {
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.V_8_15_0;
+        return FIREWORKS_AI_SERVICE;
     }
 
     @Override

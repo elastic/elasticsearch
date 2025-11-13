@@ -66,6 +66,9 @@ public final class CharParser implements Parser {
     private final int allSubTokenBitmask;
     private final int allTokenBitmask;
     private final int allMultiTokenBitmask;
+    private final int maxSubTokensPerMultiToken;
+    private final int maxTokensPerMultiToken;
+    private final int smallIntegerSubTokenUpperBound;
 
     // current subToken state
     private int currentSubTokenStartIndex;
@@ -74,27 +77,35 @@ public final class CharParser implements Parser {
     private boolean isCurSubTokenContainsDigits;
     private int currentSubTokenPrefixEndIndex;
     private int currentSubTokenSuffixStartIndex;
-    private Sign signPrefix;
+    private Sign currentSubTokenSignPrefix;
 
     // current token state
     private int currentTokenBitmask;
-    private int currentSubTokenIndex;
+    private int currentTokenStartIndex;
+    private int currentTokenSubTokenStartIndex;
+    private int currentTokenSubTokenIndex;
+
+    // current multi-token state
+    private int currentMultiTokenStartIndex;
+    private int currentMultiTokenBitmask;
+    private int currentDelimiterPartPosition;
+
+    // sub-token buffers
+    private int bufferedSubTokensIndex;
     private final int[] bufferedSubTokenBitmasks;
     private final int[] bufferedSubTokenIntValues;
     private final Sign[] bufferedSubTokenSigns;
     private final int[] bufferedSubTokenStartIndexes;
     private final int[] bufferedSubTokenLengths;
 
-    // current multi-token state
-    private int currentMultiTokenStartIndex;
-    private int currentMultiTokenBitmask;
-    private int currentTokenIndex;
+    // token buffers
+    private int bufferedTokensIndex;
     private final TokenType[] bufferedTokens;
     private final int[] bufferedTokenStartIndexes;
     private final int[] bufferedTokenLengths;
-    private final int[] currentMultiTokenSubTokenValues;
-    private int currentMultiTokenSubTokenIndex;
-    private int currentDelimiterPartPosition;
+    // the index of the first sub-token and number of sub-tokens for each buffered token
+    private final int[] bufferedTokenSubTokenFirstIndexes;
+    private final int[] bufferedTokenSubTokenLastIndexes;
 
     public CharParser(CompiledSchema compiledSchema) {
         this.compiledSchema = compiledSchema;
@@ -111,47 +122,57 @@ public final class CharParser implements Parser {
         this.allSubTokenBitmask = subTokenBitmaskRegistry.getCombinedBitmask();
         this.allTokenBitmask = tokenBitmaskRegistry.getCombinedBitmask();
         this.allMultiTokenBitmask = multiTokenBitmaskRegistry.getCombinedBitmask();
+        this.maxSubTokensPerMultiToken = compiledSchema.maxSubTokensPerMultiToken;
+        this.maxTokensPerMultiToken = compiledSchema.maxTokensPerMultiToken;
+        this.smallIntegerSubTokenUpperBound = compiledSchema.smallIntegerSubTokenBitmasks.length;
 
-        currentMultiTokenSubTokenValues = new int[compiledSchema.maxSubTokensPerMultiToken];
-        bufferedSubTokenBitmasks = new int[compiledSchema.maxSubTokensPerToken + 1];
-        bufferedSubTokenIntValues = new int[compiledSchema.maxSubTokensPerToken + 1];
-        bufferedSubTokenSigns = new Sign[compiledSchema.maxSubTokensPerToken + 1];
-        bufferedSubTokenStartIndexes = new int[compiledSchema.maxSubTokensPerToken + 1];
-        bufferedSubTokenLengths = new int[compiledSchema.maxSubTokensPerToken + 1];
-        bufferedTokens = new TokenType[compiledSchema.maxTokensPerMultiToken + 1];
-        bufferedTokenStartIndexes = new int[compiledSchema.maxTokensPerMultiToken + 1];
-        bufferedTokenLengths = new int[compiledSchema.maxTokensPerMultiToken + 1];
+        bufferedSubTokenBitmasks = new int[maxSubTokensPerMultiToken];
+        bufferedSubTokenIntValues = new int[maxSubTokensPerMultiToken];
+        bufferedSubTokenSigns = new Sign[maxSubTokensPerMultiToken];
+        bufferedSubTokenStartIndexes = new int[maxSubTokensPerMultiToken];
+        bufferedSubTokenLengths = new int[maxSubTokensPerMultiToken];
+
+        bufferedTokens = new TokenType[maxTokensPerMultiToken];
+        bufferedTokenStartIndexes = new int[maxTokensPerMultiToken];
+        bufferedTokenLengths = new int[maxTokensPerMultiToken];
+        bufferedTokenSubTokenFirstIndexes = new int[maxTokensPerMultiToken];
+        bufferedTokenSubTokenLastIndexes = new int[maxTokensPerMultiToken];
     }
 
     private void resetSubTokenState() {
-        currentSubTokenStartIndex = -1;
         currentSubTokenBitmask = allSubTokenBitmask;
+        currentSubTokenStartIndex = -1;
         currentSubTokenIntValue = 0;
         isCurSubTokenContainsDigits = false;
         currentSubTokenPrefixEndIndex = -1;
         currentSubTokenSuffixStartIndex = -1;
-        signPrefix = null;
+        currentSubTokenSignPrefix = null;
     }
 
     private void resetTokenState() {
         currentTokenBitmask = allTokenBitmask;
-        currentSubTokenIndex = -1;
-        // no need to reset arrays, we access them based on the currentSubTokenIndex anyway
+        currentTokenStartIndex = -1;
+        currentTokenSubTokenStartIndex = -1;
+        currentTokenSubTokenIndex = -1;
     }
 
     private void resetMultiTokenState() {
-        currentMultiTokenStartIndex = -1;
-        currentTokenIndex = -1;
         currentMultiTokenBitmask = allMultiTokenBitmask;
-        currentMultiTokenSubTokenIndex = 0;
+        currentMultiTokenStartIndex = -1;
         currentDelimiterPartPosition = -1;
-        // no need to reset arrays, we access them based on the currentTokenIndex anyway
+    }
+
+    private void resetBuffers() {
+        // no need to actually reset buffers, enough to reset the indexes
+        bufferedSubTokensIndex = -1;
+        bufferedTokensIndex = -1;
     }
 
     private void reset() {
         resetSubTokenState();
         resetTokenState();
         resetMultiTokenState();
+        resetBuffers();
     }
 
     /**
@@ -216,7 +237,7 @@ public final class CharParser implements Parser {
         }
         reset();
         SubstringView substringView = new SubstringView(rawMessage);
-        List<Argument<?>> finalArguments = new ArrayList<>();
+        List<Argument<?>> templateArguments = new ArrayList<>();
         for (int indexWithinRawMessage = 0; indexWithinRawMessage <= rawMessage.length(); indexWithinRawMessage++) {
             byte charType;
             char currentChar;
@@ -249,51 +270,47 @@ public final class CharParser implements Parser {
                     break;
                 case SUBTOKEN_DELIMITER_CHAR_CODE:
                     if (currentChar == '-' && currentSubTokenStartIndex == indexWithinRawMessage) {
-                        signPrefix = Sign.MINUS;
+                        currentSubTokenSignPrefix = Sign.MINUS;
                         // don't treat as a delimiter but as a sign prefix
                         break;
                     } else if (currentChar == '+' && currentSubTokenStartIndex == indexWithinRawMessage) {
-                        signPrefix = Sign.PLUS;
+                        currentSubTokenSignPrefix = Sign.PLUS;
                         // don't treat as a delimiter but as a sign prefix
                         break;
                     }
+
                     // everything we need to do at the end of a sub-token we also must do at the end of a token, so we share the logic
                     // in the next case - fallthrough is intended
                 case TOKEN_DELIMITER_CHAR_CODE:
                     // everything we need to do at the end of a token we also must do at the end of a line, so we share the logic
                     // in the next case - fallthrough is intended
                 case LINE_END_CODE:
+                    boolean flushBufferedInfo = false;
+
                     // whether we are processing a subToken delimiter or a token delimiter, once we encounter a state that invalidates
                     // the current parsed entity, we abort and write all buffered info (tokens and subTokens) to the pattern and/or
                     // as arguments in the right order: multi-token, token, subTokens.
                     // breaking from this case without writing the buffered info should happen only when we are still within a token
                     // parsing, or within a multi-token parsing.
-                    currentSubTokenIndex++;
-                    bufferedSubTokenStartIndexes[currentSubTokenIndex] = currentSubTokenStartIndex;
-                    int currentSubTokenLastIndex = (currentSubTokenSuffixStartIndex >= 0)
+
+                    // currentSubTokenEndIndex is exclusive, meaning it points to the first character after the current subToken
+                    int currentSubTokenEndIndex = (currentSubTokenSuffixStartIndex >= 0)
                         ? currentSubTokenSuffixStartIndex
                         : indexWithinRawMessage;
-                    int currentSubTokenLength = currentSubTokenLastIndex - currentSubTokenStartIndex;
-                    bufferedSubTokenLengths[currentSubTokenIndex] = currentSubTokenLength;
-
-                    boolean flushBufferedInfo = false;
+                    int currentSubTokenLength = currentSubTokenEndIndex - currentSubTokenStartIndex;
 
                     if (currentSubTokenLength == 0) {
                         // empty tokens (for example, just "-") should have a zero bitmask, so we must change from the default non-zero
                         currentSubTokenBitmask = 0;
                     }
 
-                    if (currentSubTokenIndex == compiledSchema.maxSubTokensPerToken) {
-                        // we already passed the maximum number of subTokens for any known token
+                    currentTokenSubTokenIndex++;
+                    if (currentSubTokenBitmask == 0 || currentTokenSubTokenIndex == compiledSchema.maxSubTokensPerToken) {
+                        // we either already passed the maximum number of subTokens for any known token, or the current subToken is
+                        // invalid - both indication that the current token is invalid
                         currentTokenBitmask = 0;
                     }
 
-                    if (currentSubTokenBitmask == 0) {
-                        // a token can only be composed of valid subTokens
-                        currentTokenBitmask = 0;
-                    }
-
-                    bufferedSubTokenBitmasks[currentSubTokenIndex] = currentSubTokenBitmask;
                     CharSpecificParsingInfo delimiterParsingInfo = null;
                     if (currentTokenBitmask == 0) {
                         // no need to evaluate specific subToken types, the generic type would be enough
@@ -303,16 +320,17 @@ public final class CharParser implements Parser {
 
                         // update the current token bitmask to include only valid tokens with the current delimiter character in the
                         // current subToken position
-                        currentTokenBitmask &= delimiterParsingInfo.tokenBitmaskPerDelimiterPosition[currentSubTokenIndex];
+                        currentTokenBitmask &= delimiterParsingInfo.tokenBitmaskPerDelimiterPosition[currentTokenSubTokenIndex];
 
                         // here we enforce subToken specific constraints (numeric or string) to update the current subToken bitmask
                         if ((currentSubTokenBitmask & intSubTokenBitmask) != 0) {
-                            if (signPrefix == Sign.MINUS) {
+                            // integer subToken
+                            if (currentSubTokenSignPrefix == Sign.MINUS) {
                                 currentSubTokenIntValue = -currentSubTokenIntValue;
                             }
 
                             if (currentSubTokenIntValue >= 0
-                                && currentSubTokenIntValue < compiledSchema.smallIntegerSubTokenBitmasks.length) {
+                                && currentSubTokenIntValue < smallIntegerSubTokenUpperBound) {
                                 // faster bitmask lookup for small integers
                                 currentSubTokenBitmask = compiledSchema.smallIntegerSubTokenBitmasks[currentSubTokenIntValue];
                             } else {
@@ -325,9 +343,9 @@ public final class CharParser implements Parser {
                         } else {
                             // general string subToken
                             ToIntFunction<SubstringView> subTokenBitmaskGenerator =
-                                delimiterParsingInfo.bitmaskGeneratorPerPosition[currentSubTokenIndex];
+                                delimiterParsingInfo.bitmaskGeneratorPerPosition[currentTokenSubTokenIndex];
                             if (subTokenBitmaskGenerator != null) {
-                                substringView.set(currentSubTokenStartIndex, currentSubTokenLastIndex);
+                                substringView.set(currentSubTokenStartIndex, currentSubTokenEndIndex);
                                 int substringBitmask = subTokenBitmaskGenerator.applyAsInt(substringView);
                                 if (substringBitmask == 0) {
                                     // not a valid subToken, so we set the bitmask to 0
@@ -343,20 +361,36 @@ public final class CharParser implements Parser {
                                 currentSubTokenBitmask = 0;
                             }
                         }
-                        bufferedSubTokenIntValues[currentSubTokenIndex] = currentSubTokenIntValue;
-                        bufferedSubTokenSigns[currentSubTokenIndex] = signPrefix;
+
+                        if (currentSubTokenBitmask != 0) {
+                            bufferedSubTokensIndex++;
+                            bufferedSubTokenBitmasks[bufferedSubTokensIndex] = currentSubTokenBitmask;
+                            bufferedSubTokenStartIndexes[bufferedSubTokensIndex] = currentSubTokenStartIndex;
+                            bufferedSubTokenIntValues[bufferedSubTokensIndex] = currentSubTokenIntValue;
+                            bufferedSubTokenLengths[bufferedSubTokensIndex] = currentSubTokenLength;
+                            bufferedSubTokenSigns[bufferedSubTokensIndex] = currentSubTokenSignPrefix;
+                            if (bufferedSubTokensIndex == maxSubTokensPerMultiToken - 1) {
+                                // we are at the maximum number of subTokens for any known multi-token so we must flush the buffered info
+                                flushBufferedInfo = true;
+                            }
+                        }
 
                         // update the current token bitmask based on all "on" bits in the current sub-token bitmask
                         currentTokenBitmask &= subTokenBitmaskRegistry.getHigherLevelBitmaskByPosition(
                             currentSubTokenBitmask,
-                            currentSubTokenIndex
+                            currentTokenSubTokenIndex
                         );
+                    }
+
+                    if (currentTokenStartIndex < 0) {
+                        // ending the first sub-token of the current token
+                        currentTokenStartIndex = currentSubTokenStartIndex;
+                        currentTokenSubTokenStartIndex = bufferedSubTokensIndex;
                     }
 
                     boolean finalizeMultiToken = false;
                     if (charType == TOKEN_DELIMITER_CHAR_CODE || charType == LINE_END_CODE) {
-                        int currentTokenStartIndex = bufferedSubTokenStartIndexes[0];
-                        int currentTokenLength = currentSubTokenLastIndex - currentTokenStartIndex;
+                        int currentTokenLength = currentSubTokenEndIndex - currentTokenStartIndex;
                         if (currentTokenLength == 0) {
                             // empty tokens (consecutive white spaces) should have a zero bitmask, so we must change from the default
                             // non-zero
@@ -364,50 +398,31 @@ public final class CharParser implements Parser {
                         }
 
                         // eliminate token types with the wrong number of subTokens/tokens
-                        currentTokenBitmask &= compiledSchema.subTokenCountToTokenBitmask[currentSubTokenIndex];
+                        currentTokenBitmask &= compiledSchema.subTokenCountToTokenBitmask[currentTokenSubTokenIndex];
 
                         if (currentTokenBitmask != 0) {
-                            // end current token and if necessary also the current delimiter part
-
                             TokenType currentToken = tokenBitmaskRegistry.getHighestPriorityType(currentTokenBitmask);
-                            currentTokenIndex++;
-                            bufferedTokens[currentTokenIndex] = currentToken;
-                            bufferedTokenStartIndexes[currentTokenIndex] = currentTokenStartIndex;
-                            bufferedTokenLengths[currentTokenIndex] = currentTokenLength;
+                            bufferedTokensIndex++;
+                            bufferedTokens[bufferedTokensIndex] = currentToken;
+                            bufferedTokenStartIndexes[bufferedTokensIndex] = currentTokenStartIndex;
+                            bufferedTokenLengths[bufferedTokensIndex] = currentTokenLength;
+                            bufferedTokenSubTokenFirstIndexes[bufferedTokensIndex] = currentTokenSubTokenStartIndex;
+                            bufferedTokenSubTokenLastIndexes[bufferedTokensIndex] = bufferedSubTokensIndex;
 
-                            if (currentTokenIndex == 0) {
+                            if (bufferedTokensIndex == 0) {
                                 currentMultiTokenStartIndex = currentTokenStartIndex;
+                            } else if (bufferedTokensIndex == maxTokensPerMultiToken - 1) {
+                                // we reached the maximum number of tokens for any known multi-token, so we must flush the buffered info
+                                flushBufferedInfo = true;
                             }
 
-                            if (currentTokenIndex == compiledSchema.maxTokensPerMultiToken) {
-                                // we already passed the maximum number of tokens for any known multi-token
-                                currentMultiTokenBitmask = 0;
-                            } else {
-                                // update the current multi-token bitmask based on the current token
-                                currentMultiTokenBitmask &= tokenBitmaskRegistry.getHigherLevelBitmaskByPosition(
-                                    currentTokenBitmask,
-                                    currentTokenIndex
-                                );
-                            }
+                            // update the current multi-token bitmask based on the current token
+                            currentMultiTokenBitmask &= tokenBitmaskRegistry.getHigherLevelBitmaskByPosition(
+                                currentTokenBitmask,
+                                bufferedTokensIndex
+                            );
 
                             if (currentMultiTokenBitmask != 0) {
-                                // copy the current subToken values to the multi-token subToken values
-                                int numSubTokens = currentSubTokenIndex + 1;
-                                if (currentSubTokenIndex >= 0) try {
-                                    System.arraycopy(
-                                        bufferedSubTokenIntValues,
-                                        0,
-                                        currentMultiTokenSubTokenValues,
-                                        currentMultiTokenSubTokenIndex,
-                                        numSubTokens
-                                    );
-                                } catch (IndexOutOfBoundsException e) {
-                                    // invalid multi-token, we cannot fit all subTokens into the multi-token subToken values array
-                                    currentMultiTokenBitmask = 0;
-                                    flushBufferedInfo = true;
-                                }
-                                currentMultiTokenSubTokenIndex += numSubTokens;
-
                                 // finalizing the current delimiter part, which would provide the indication whether it is
                                 // time to finalize the current multi-token
                                 int tmpDelimiterPartPosition = currentDelimiterPartPosition;
@@ -447,7 +462,7 @@ public final class CharParser implements Parser {
                                         finalizeMultiToken = true;
                                     }
                                 } else {
-                                    if (currentTokenIndex > 0) {
+                                    if (bufferedTokensIndex > 0) {
                                         // having more that one token buffered and the switch from non-zero multi-token bitmask to zero
                                         // indicates that we should try to finalize the multi-token now
                                         finalizeMultiToken = true;
@@ -457,7 +472,6 @@ public final class CharParser implements Parser {
                             } else {
                                 flushBufferedInfo = true;
                             }
-                            resetTokenState();
                         } else {
                             // todo - calculate floating point numbers if the current token looks like such. we can maintain a bitmask
                             // for floating point numbers that will be invalidated as soon as we encounter a character that
@@ -467,18 +481,16 @@ public final class CharParser implements Parser {
                             currentMultiTokenBitmask = 0;
                             flushBufferedInfo = true;
                         }
+                        resetTokenState();
                     }
 
                     if (flushBufferedInfo || charType == LINE_END_CODE) {
+                        int flushedTokens = 0;
+                        int flushedSubTokens = 0;
                         if (finalizeMultiToken) {
-                            // fix the index of the buffered sub-tokens
-                            currentMultiTokenSubTokenIndex--;
-
                             // eliminate multi-token types with the wrong number of tokens or subTokens
-                            currentMultiTokenBitmask &= compiledSchema.tokenCountToMultiTokenBitmask[currentTokenIndex];
-                            if (currentMultiTokenSubTokenIndex > 0) {
-                                currentMultiTokenBitmask &= compiledSchema.subTokenCountToMultiTokenBitmask[currentMultiTokenSubTokenIndex];
-                            }
+                            currentMultiTokenBitmask &= compiledSchema.tokenCountToMultiTokenBitmask[bufferedTokensIndex];
+                            currentMultiTokenBitmask &= compiledSchema.subTokenCountToMultiTokenBitmask[bufferedSubTokensIndex];
 
                             // eliminate multi-token types with the wrong delimiter parts total length
                             if (currentDelimiterPartPosition < delimiterPartsLengthToMultiTokenBitmask.length) {
@@ -491,35 +503,38 @@ public final class CharParser implements Parser {
                             if (currentMultiTokenBitmask != 0) {
                                 MultiTokenType multiTokenType = multiTokenBitmaskRegistry.getUniqueType(currentMultiTokenBitmask);
                                 if (multiTokenType != null) {
-                                    if (multiTokenType.getNumSubTokens() != currentMultiTokenSubTokenIndex + 1) {
+                                    Argument<?> argument = null;
+                                    if (multiTokenType.getNumSubTokens() != bufferedSubTokensIndex + 1) {
                                         throw new IllegalStateException(
                                             String.format(
                                                 Locale.ROOT,
                                                 "Multi-token type %s expects %d subTokens, but there are only %d buffered subTokens",
                                                 multiTokenType.name(),
                                                 multiTokenType.getNumSubTokens(),
-                                                currentMultiTokenSubTokenIndex + 1
+                                                bufferedSubTokensIndex + 1
                                             )
                                         );
                                     }
                                     if (multiTokenType.encodingType() == EncodingType.TIMESTAMP) {
-                                        int currentMultiTokenEndIndex = bufferedTokenStartIndexes[currentTokenIndex]
-                                            + bufferedTokenLengths[currentTokenIndex];
+                                        int currentMultiTokenEndIndex = bufferedTokenStartIndexes[bufferedTokensIndex]
+                                            + bufferedTokenLengths[bufferedTokensIndex];
                                         int multiTokenLength = currentMultiTokenEndIndex - currentMultiTokenStartIndex;
-                                        long timestampMillis = multiTokenType.getTimestampFormat()
-                                            .toTimestamp(currentMultiTokenSubTokenValues);
-                                        finalArguments.addLast(
-                                            new Timestamp(
-                                                currentMultiTokenStartIndex,
-                                                multiTokenLength,
-                                                timestampMillis,
-                                                multiTokenType.getTimestampFormat().getJavaTimeFormat()
-                                            )
+                                        long timestampMillis = multiTokenType.getTimestampFormat().toTimestamp(bufferedSubTokenIntValues);
+                                        argument = new Timestamp(
+                                            currentMultiTokenStartIndex,
+                                            multiTokenLength,
+                                            timestampMillis,
+                                            multiTokenType.getTimestampFormat().getJavaTimeFormat()
                                         );
                                     } else {
                                         throw new ParseException("Unknown multi-token type: " + multiTokenType.name());
                                     }
-                                    resetMultiTokenState();
+                                    if (argument != null) {
+                                        templateArguments.addLast(argument);
+                                        // multi-token generation consumes all buffered tokens and sub-tokens
+                                        flushedTokens = bufferedTokensIndex + 1;
+                                        flushedSubTokens = bufferedSubTokensIndex + 1;
+                                    }
                                 } else {
                                     throw new ParseException("Ambiguous multi-token type, schema should be changed");
                                 }
@@ -527,102 +542,91 @@ public final class CharParser implements Parser {
                                 // todo - invalid multi-token, we need to recalculate the buffered tokens and check if any sequence
                                 // of them can form a valid multi-token. We should still
                             }
-                        }
-
-                        if (currentTokenIndex >= 0) {
-                            // write each buffered token as a pattern argument
-                            for (int i = 0; i <= currentTokenIndex; i++) {
-                                TokenType tokenType = bufferedTokens[i];
-                                if (tokenType.encodingType == EncodingType.TIMESTAMP) {
-                                    // todo - this actually requires a different handling where we use part of the buffered subTokens
-                                    // for the timestamp argument creation, possibly using a toTimestamp method that accepts array and
-                                    // offset/length parameters
-                                    long timestampMillis = tokenType.getTimestampFormat().toTimestamp(currentMultiTokenSubTokenValues);
-                                    finalArguments.addLast(
-                                        new Timestamp(
-                                            bufferedTokenStartIndexes[i],
-                                            bufferedTokenLengths[i],
-                                            timestampMillis,
-                                            tokenType.getTimestampFormat().getJavaTimeFormat()
-                                        )
-                                    );
-                                } else {
-                                    Argument<?> argument = switch (tokenType.encodingType) {
-                                        // integer and hexadecimal arguments always contain a single subToken
-                                        case INTEGER -> new IntegerArgument(
-                                            bufferedTokenStartIndexes[i],
-                                            bufferedTokenLengths[i],
-                                            bufferedSubTokenIntValues[0],
-                                            signPrefix
-                                        );
-                                        case HEX -> new HexadecimalArgument(
-                                            rawMessage,
-                                            bufferedTokenStartIndexes[i],
-                                            bufferedTokenLengths[i]
-                                        );
-                                        case IPV4 -> {
-                                            if (currentTokenIndex == 0) {
-                                                // IPv4 tokens can only be part of a single token, so we can safely create an IPv4 argument
-                                                yield new IPv4Argument(
-                                                    bufferedTokenStartIndexes[i],
-                                                    bufferedTokenLengths[i],
-                                                    bufferedSubTokenIntValues
-                                                );
-                                            } else {
-                                                throw new ParseException(
-                                                    "IPV4 token cannot be part of a multi-token, but found at position " + i
-                                                );
-                                            }
-                                        }
-                                        // todo - add support for local time arguments, relying on java.time.LocalTime
-                                        case UUID -> new UUIDArgument(rawMessage, bufferedTokenStartIndexes[i], bufferedTokenLengths[i]);
-                                        default -> null;
-                                    };
-                                    if (argument != null) {
-                                        finalArguments.addLast(argument);
-                                    }
-                                }
-                            }
                             resetMultiTokenState();
                         }
 
-                        // write the buffered subTokens
-                        if (currentSubTokenIndex >= 0) {
-                            // for each buffered subToken: if the subToken bitmask is !=0, add placeholder to the pattern and add the
-                            // subToken as an argument,
-                            // else write the subToken as is to the pattern, then add the corresponding delimiter character to the pattern
-                            for (int i = 0; i <= currentSubTokenIndex; i++) {
-                                Argument<?> argument = null;
-                                // this is not about specific subToken types, here we are only dealing with generic subToken types, so we
-                                // must switch off
-                                // all specific subToken types, otherwise they have precedence
-                                int subTokenBitmask = bufferedSubTokenBitmasks[i] & compiledSchema.genericSubTokenTypesBitmask;
-                                if (subTokenBitmask != 0) {
-                                    SubTokenType subTokenType = subTokenBitmaskRegistry.getHighestPriorityType(subTokenBitmask);
-                                    argument = switch (subTokenType.encodingType) {
-                                        case INTEGER -> new IntegerArgument(
-                                            bufferedSubTokenStartIndexes[i],
-                                            bufferedSubTokenLengths[i],
-                                            bufferedSubTokenIntValues[i],
-                                            bufferedSubTokenSigns[i]
+                        // write each buffered token as a pattern argument
+                        for (int i = flushedTokens; i <= bufferedTokensIndex; i++) {
+                            TokenType tokenType = bufferedTokens[i];
+                            Argument<?> argument = switch (tokenType.encodingType) {
+                                case TIMESTAMP -> {
+                                    if (i > 0) {
+                                        // if we are here, it means that a valid multi-token timestamp was not formed and timestamp tokens
+                                        // cannot be non-first in a multi-token
+                                        throw new ParseException(
+                                            "Timestamp token cannot be the non-first in a multi-token, but found at position " + i
                                         );
-                                        case HEX -> new HexadecimalArgument(
-                                            rawMessage,
-                                            bufferedSubTokenStartIndexes[i],
-                                            bufferedSubTokenLengths[i]
-                                        );
-                                        default -> null;
-                                    };
-                                } else if (isCurSubTokenContainsDigits) {
-                                    argument = new KeywordArgument(rawMessage, bufferedSubTokenStartIndexes[i], bufferedSubTokenLengths[i]);
+                                    }
+                                    long timestampMillis = tokenType.getTimestampFormat().toTimestamp(bufferedSubTokenIntValues);
+                                    yield new Timestamp(
+                                        bufferedTokenStartIndexes[i],
+                                        bufferedTokenLengths[i],
+                                        timestampMillis,
+                                        tokenType.getTimestampFormat().getJavaTimeFormat()
+                                    );
                                 }
-
-                                if (argument != null) {
-                                    finalArguments.addLast(argument);
+                                case INTEGER -> {
+                                    int integerSubTokenIndex = bufferedTokenSubTokenFirstIndexes[i];
+                                    yield new IntegerArgument(
+                                        bufferedTokenStartIndexes[i],
+                                        bufferedTokenLengths[i],
+                                        bufferedSubTokenIntValues[integerSubTokenIndex],
+                                        bufferedSubTokenSigns[integerSubTokenIndex]
+                                    );
                                 }
+                                case HEX -> new HexadecimalArgument(rawMessage, bufferedTokenStartIndexes[i], bufferedTokenLengths[i]);
+                                case IPV4 -> new IPv4Argument(
+                                    bufferedTokenStartIndexes[i],
+                                    bufferedTokenLengths[i],
+                                    bufferedSubTokenIntValues,
+                                    bufferedTokenSubTokenFirstIndexes[i]
+                                );
+                                case UUID -> new UUIDArgument(rawMessage, bufferedTokenStartIndexes[i], bufferedTokenLengths[i]);
+                                // todo - add support for local time arguments, relying on java.time.LocalTime
+                                default -> null;
+                            };
+                            if (argument != null) {
+                                templateArguments.addLast(argument);
+                                flushedTokens++;
+                                flushedSubTokens = bufferedTokenSubTokenLastIndexes[i] + 1;
                             }
-                            resetTokenState();
                         }
+
+                        // for each buffered subToken: if the subToken bitmask is !=0, add placeholder to the pattern and add the
+                        // subToken as an argument,
+                        // else write the subToken as is to the pattern, then add the corresponding delimiter character to the pattern
+                        for (int i = flushedSubTokens; i <= bufferedSubTokensIndex; i++) {
+                            Argument<?> argument = null;
+                            // this is not about specific subToken types, here we are only dealing with generic subToken types, so we
+                            // must switch off
+                            // all specific subToken types, otherwise they have precedence
+                            int subTokenBitmask = bufferedSubTokenBitmasks[i] & compiledSchema.genericSubTokenTypesBitmask;
+                            if (subTokenBitmask != 0) {
+                                SubTokenType subTokenType = subTokenBitmaskRegistry.getHighestPriorityType(subTokenBitmask);
+                                argument = switch (subTokenType.encodingType) {
+                                    case INTEGER -> new IntegerArgument(
+                                        bufferedSubTokenStartIndexes[i],
+                                        bufferedSubTokenLengths[i],
+                                        bufferedSubTokenIntValues[i],
+                                        bufferedSubTokenSigns[i]
+                                    );
+                                    case HEX -> new HexadecimalArgument(
+                                        rawMessage,
+                                        bufferedSubTokenStartIndexes[i],
+                                        bufferedSubTokenLengths[i]
+                                    );
+                                    default -> null;
+                                };
+                            } else if (isCurSubTokenContainsDigits) {
+                                argument = new KeywordArgument(rawMessage, bufferedSubTokenStartIndexes[i], bufferedSubTokenLengths[i]);
+                            }
+
+                            if (argument != null) {
+                                templateArguments.addLast(argument);
+                            }
+                        }
+                        resetTokenState();
+                        resetBuffers();
                     }
                     resetSubTokenState();
                     break;
@@ -639,7 +643,7 @@ public final class CharParser implements Parser {
                 default:
             }
         }
-        return finalArguments;
+        return templateArguments;
     }
 
     /**

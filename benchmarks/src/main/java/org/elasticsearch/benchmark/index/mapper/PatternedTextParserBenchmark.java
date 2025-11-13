@@ -178,7 +178,7 @@ public class PatternedTextParserBenchmark {
                     for (int j = 0; j < 4; j++) {
                         octetValues[j] = Integer.parseInt(octets[j]);
                     }
-                    arguments.add(new IPv4Argument(startPos, length, octetValues));
+                    arguments.add(new IPv4Argument(startPos, length, octetValues, 0));
                 }
             }
 

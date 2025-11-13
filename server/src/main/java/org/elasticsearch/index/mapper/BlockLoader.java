@@ -30,10 +30,10 @@ import java.util.Map;
  * Loads values from a chunk of lucene documents into a "Block" for the compute engine.
  * <p>
  *     Think of a Block as an array of values for a sequence of lucene documents. That's
- *     <strong>almost</strong> true. The compute engine operates on arrays because the
- *     good folks that build CPUs have spent our entire lives making them really really
- *     good at running tight loops over arrays of data. So we play along with the CPU
- *     and make arrays.
+ *     almost true! For the purposes of implementing {@link BlockLoader}, it's close enough.
+ *     The compute engine operates on arrays because the good folks that build CPUs have
+ *     spent the past 40 years making them really really good at running tight loops over
+ *     arrays of data. So we play along with the CPU and make arrays.
  * </p>
  * <h2>How to implement</h2>
  * <p>
@@ -56,22 +56,22 @@ import java.util.Map;
  *         compressed with a general purpose compression algorithm like
  *         <a href="https://en.wikipedia.org/wiki/Zstd">Zstd</a>. Blocks of documents are
  *         compressed together to get a better compression ratio. Just like doc values,
- *         we read them in ascending order. Unlike doc values, we read all fields for a
+ *         we read them in non-descending order. Unlike doc values, we read all fields for a
  *         document at once. Because reading one requires decompressing them all. We do
  *         this by returning {@code null} from {@link BlockLoader#columnAtATimeReader}
- *         to signal that we can't load the whole column at once. We {@code stored} fields
- *         only implement a {@link RowStrideReader} which the caller will call once for
- *         each doc. Extend {@link BlockStoredFieldsReader} to implement all this.
+ *         to signal that we can't load the whole column at once. Instead, we implement a
+ *         {@link RowStrideReader} which the caller will call once for each doc. Extend
+ *         {@link BlockStoredFieldsReader} to implement all this.
  *     </li>
  *     <li>
  *         Fields loaded from {@code _source} are an extra special case of {@code stored}
  *         fields. {@code _source} itself is just another stored field, compressed in chunks
- *         with all other stored fields. But it's the original bytes sent when indexing the
+ *         with all the other stored fields. It's the original bytes sent when indexing the
  *         document. Think {@code json} or {@code yaml}. When we need fields from
  *         {@code _source} we get it from the stored fields reader infrastructure and then
- *         explode it into a {@code Map<String, Object>} representing the original json and
- *         the {@link RowStrideReader} implementation grabs the parts of the json it needs.
- *         Extend {@link BlockSourceReader}.
+ *         explode it into a {@link Map} representing the original {@code json} and
+ *         the {@link RowStrideReader} implementation grabs the parts of the {@code json}
+ *         it needs. Extend {@link BlockSourceReader} to implement all this.
  *     </li>
  *     <li>
  *         Synthetic {@code _source} complicates this further by storing fields in somewhat
@@ -85,15 +85,16 @@ import java.util.Map;
  *     and even slower from {@code _source}. If we get to chose, we pick {@code doc_values}.
  *     But we work with what's on disk and that's a product of the field type and what the user's
  *     configured. Picking the optimal choice given what's on disk is the responsibility of each
- *     fields' {@link MappedFieldType#blockLoader} method. The more configurable the field's
+ *     field's {@link MappedFieldType#blockLoader} method. The more configurable the field's
  *     storage strategies the more {@link BlockLoader}s you have to implement to integrate it
  *     with ESQL. It can get to be a lot. Sorry.
  * </p>
  * <p>
  *     For a field to be supported by ESQL fully it has to be loadable if it was configured to be
  *     stored in any way. It's possible to turn off storage entirely by turning off
- *     {@code doc_values} and {@code _source} and {@code stored} fields. In that case, it's acceptable
- *     to return {@link ConstantNullsReader}. They turned the field off, there's nothing you can do.
+ *     {@code doc_values} and {@code _source} and {@code stored} fields. In that case, it's
+ *     acceptable to return {@link ConstantNullsReader}. User turned the field off, best we can do
+ *     is {@code null}.
  * </p>
  * <p>
  *     We also sometimes want to "push" executing some ESQL functions into the block loader itself.
@@ -138,8 +139,15 @@ import java.util.Map;
  *     to use {@link ColumnAtATimeReader}. But some callers don't support reading column-at-a-time
  *     and need to read row-by-row. So we also need an implementation of {@link RowStrideReader}
  *     that reads from {@code doc_values}. Usually it's most convenient to implement both of those
- *     in the same {@code class}. {@link AllReader} is an interface for those sorts of classes and
+ *     in the same {@code class}. {@link AllReader} is an interface for those sorts of classes, and
  *     you'll see it in the {@code doc_values} code frequently.
+ * </p>
+ * <h2>Why is {@link #rowStrideStoredFieldSpec}?</h2>
+ * <p>
+ *     When decompressing {@code stored} fields lucene can skip stored field that aren't used. They
+ *     still have to be decompressed, but they aren't turned into java objects which saves a fair bit
+ *     of work. If you don't need any stored fields return {@link StoredFieldsSpec#NO_REQUIREMENTS}.
+ *     Otherwise, return what you need.
  * </p>
  * <h2>Thread safety</h2>
  * <p>

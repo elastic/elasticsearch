@@ -90,10 +90,9 @@ public class SnapshotShutdownProgressTracker {
     private final AtomicLong pausedCount = new AtomicLong();
 
     /**
-     * Ensure that we only log a periodic progress report while there are in progress snapshots,
-     * and that we do not continue to log after all snapshots have completed
+     * Ensure that we only log the exit message once
      */
-    private boolean shouldLogPeriodicProgressReport = false;
+    private volatile boolean exitLogMessageCompleted = false;
 
     public SnapshotShutdownProgressTracker(
         Supplier<String> localNodeIdSupplier,
@@ -143,9 +142,9 @@ public class SnapshotShutdownProgressTracker {
      * Logs information about shard snapshot progress.
      */
     private void logProgressReport() {
-        assert shouldLogPeriodicProgressReport : "Only log while there are in-progress snapshots";
+        assert exitLogMessageCompleted == false : "We should not log after the exit message";
         // If there are no more snapshots in progress, then stop logging periodic progress reports
-        if (numberOfShardSnapshotsInProgressOnDataNode.get() == 0) {
+        if (numberOfShardSnapshotsInProgressOnDataNode.get() == 0 && shardSnapshotRequests.isEmpty()) {
             logger.info(
                 """
                         All shard snapshots have finished or been paused on data node [{}].\
@@ -164,7 +163,7 @@ public class SnapshotShutdownProgressTracker {
                 pausedCount.get()
             );
             cancelProgressLogger();
-            this.shouldLogPeriodicProgressReport = false;
+            this.exitLogMessageCompleted = true;
         } else {
             logger.info(
                 """
@@ -187,8 +186,6 @@ public class SnapshotShutdownProgressTracker {
                 abortedCount.get(),
                 pausedCount.get()
             );
-            // Use a callback to log the shard snapshot details.
-            // logIndexShardSnapshotStatuses.accept(logger);
         }
         // Use a callback to log the shard snapshot details.
         logIndexShardSnapshotStatuses.accept(logger);
@@ -199,7 +196,6 @@ public class SnapshotShutdownProgressTracker {
      */
     public void onClusterStateAddShutdown() {
         assert this.shutdownStartMillis == -1 : "Expected not to be tracking anything. Call shutdown remove before adding shutdown again";
-        this.shouldLogPeriodicProgressReport = true;
 
         // Reset these values when a new shutdown occurs, to minimize/eliminate chances of racing if shutdown is later removed and async
         // shard snapshots updates continue to occur.
@@ -232,7 +228,6 @@ public class SnapshotShutdownProgressTracker {
      */
     public void onClusterStateRemoveShutdown() {
         assert shutdownStartMillis != -1 : "Expected a call to add shutdown mode before a call to remove shutdown mode.";
-        this.shouldLogPeriodicProgressReport = false;
 
         // Reset the shutdown specific trackers.
         this.shutdownStartMillis = -1;
@@ -240,6 +235,7 @@ public class SnapshotShutdownProgressTracker {
 
         // Turn off the progress logger, which we only want to run during shutdown.
         cancelProgressLogger();
+        this.exitLogMessageCompleted = false;
     }
 
     /**

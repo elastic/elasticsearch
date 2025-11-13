@@ -9,6 +9,8 @@
 
 package org.elasticsearch.cluster.routing.allocation.allocator;
 
+import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
@@ -161,6 +163,14 @@ public class UndesiredAllocationsTracker {
         }
     }
 
+    private boolean shardTierMatchesNodeTier(ShardRouting shardRouting, DiscoveryNode discoveryNode) {
+        return switch (shardRouting.role()) {
+            case INDEX_ONLY -> discoveryNode.getRoles().contains(DiscoveryNodeRole.INDEX_ROLE);
+            case SEARCH_ONLY -> discoveryNode.getRoles().contains(DiscoveryNodeRole.SEARCH_ROLE);
+            default -> true;
+        };
+    }
+
     private void logDecisionsForUndesiredShardsOverThreshold(
         RoutingNodes routingNodes,
         RoutingAllocation routingAllocation,
@@ -203,8 +213,10 @@ public class UndesiredAllocationsTracker {
                 logger.warn("Shard {} has been in an undesired allocation for {}", shardRouting.shardId(), undesiredDuration);
                 for (final var nodeId : assignment.nodeIds()) {
                     if (allocation.nodes().nodeExists(nodeId)) {
-                        final var decision = allocation.deciders().canAllocate(shardRouting, routingNodes.node(nodeId), allocation);
-                        logger.warn("Shard {} allocation decision for node [{}]: {}", shardRouting.shardId(), nodeId, decision);
+                        if (shardTierMatchesNodeTier(shardRouting, allocation.nodes().get(nodeId))) {
+                            final var decision = allocation.deciders().canAllocate(shardRouting, routingNodes.node(nodeId), allocation);
+                            logger.warn("Shard {} allocation decision for node [{}]: {}", shardRouting.shardId(), nodeId, decision);
+                        }
                     } else {
                         logger.warn("Shard {} desired node has left the cluster [{}]", shardRouting.shardId(), nodeId);
                     }

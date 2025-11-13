@@ -33,7 +33,7 @@ public class TDigestParser {
     private static final ParseField MIN_FIELD = new ParseField(MIN_FIELD_NAME);
 
     /**
-     * A parsed histogram field, can represent either a T-Digest
+     * A parsed t-digest field
      * @param centroids the centroids, guaranteed to be distinct and in increasing order
      * @param counts the counts, guaranteed to be non-negative and of the same length as the centroids array
      */
@@ -112,9 +112,9 @@ public class TDigestParser {
             ensureExpectedToken(XContentParser.Token.FIELD_NAME, token, parser);
             String fieldName = parser.currentName();
             if (fieldName.equals(CENTROIDS_FIELD.getPreferredName())) {
-                centroids = getDoubles(mappedFieldName, parser);
+                centroids = getCentroids(mappedFieldName, parser);
             } else if (fieldName.equals(COUNTS_FIELD.getPreferredName())) {
-                counts = getLongs(mappedFieldName, parser);
+                counts = getCounts(mappedFieldName, parser);
             } else if (fieldName.equals(SUM_FIELD.getPreferredName())) {
                 token = parser.nextToken();
                 ensureExpectedToken(XContentParser.Token.VALUE_NUMBER, token, parser);
@@ -177,7 +177,7 @@ public class TDigestParser {
         return new ParsedHistogram(centroids, counts, count, sum, min, max);
     }
 
-    private static ArrayList<Long> getLongs(String mappedFieldName, XContentParser parser) throws IOException {
+    private static ArrayList<Long> getCounts(String mappedFieldName, XContentParser parser) throws IOException {
         ArrayList<Long> counts;
         XContentParser.Token token;
         token = parser.nextToken();
@@ -201,7 +201,7 @@ public class TDigestParser {
         return counts;
     }
 
-    private static ArrayList<Double> getDoubles(String mappedFieldName, XContentParser parser) throws IOException {
+    private static ArrayList<Double> getCentroids(String mappedFieldName, XContentParser parser) throws IOException {
         XContentParser.Token token;
         ArrayList<Double> centroids;
         token = parser.nextToken();

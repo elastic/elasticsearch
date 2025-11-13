@@ -23,7 +23,6 @@ import org.hamcrest.Matcher;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.EnumMap;
-import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.List;
 
@@ -91,13 +90,10 @@ public class AggregateMetricDoublePartialBlockLoaderTests extends ESTestCase {
     }
 
     private void innerTest(LeafReaderContext ctx) throws IOException {
-        EnumSet<AggregateMetricDoubleFieldMapper.Metric> metricsToLoad = generateMetricsToLoad();
-        EnumMap<AggregateMetricDoubleFieldMapper.Metric, NumberFieldMapper.NumberFieldType> metricFields = generateMetricFields();
-        AggregateMetricDoubleBlockLoader aggMetricPartialLoader = new AggregateMetricDoubleBlockLoader(metricsToLoad, metricFields);
-        AggregateMetricDoubleBlockLoader aggMetricAllLoader = new AggregateMetricDoubleBlockLoader(
-            EnumSet.allOf(AggregateMetricDoubleFieldMapper.Metric.class),
-            metricFields
-        );
+        var allMetricFields = generateMetricFields();
+        var metricFieldsToLoad = generateMetricsToLoad(allMetricFields);
+        AggregateMetricDoubleBlockLoader aggMetricPartialLoader = new AggregateMetricDoubleBlockLoader(metricFieldsToLoad);
+        AggregateMetricDoubleBlockLoader aggMetricAllLoader = new AggregateMetricDoubleBlockLoader(allMetricFields);
         var aggMetricPartialReader = aggMetricPartialLoader.reader(ctx);
         var aggMetricAllReader = aggMetricAllLoader.reader(ctx);
         assertThat(aggMetricPartialReader, readerMatcher());
@@ -128,21 +124,37 @@ public class AggregateMetricDoublePartialBlockLoaderTests extends ESTestCase {
         }
     }
 
-    private EnumSet<AggregateMetricDoubleFieldMapper.Metric> generateMetricsToLoad() {
-        EnumSet<AggregateMetricDoubleFieldMapper.Metric> metricsToLoad = EnumSet.noneOf(AggregateMetricDoubleFieldMapper.Metric.class);
+    private EnumMap<AggregateMetricDoubleFieldMapper.Metric, NumberFieldMapper.NumberFieldType> generateMetricsToLoad(
+        EnumMap<AggregateMetricDoubleFieldMapper.Metric, NumberFieldMapper.NumberFieldType> allMetricFields
+    ) {
+        EnumMap<AggregateMetricDoubleFieldMapper.Metric, NumberFieldMapper.NumberFieldType> metricFieldsToLoad = new EnumMap<>(
+            AggregateMetricDoubleFieldMapper.Metric.class
+        );
         if (loadMin) {
-            metricsToLoad.add(AggregateMetricDoubleFieldMapper.Metric.min);
+            metricFieldsToLoad.put(
+                AggregateMetricDoubleFieldMapper.Metric.min,
+                allMetricFields.get(AggregateMetricDoubleFieldMapper.Metric.min)
+            );
         }
         if (loadMax) {
-            metricsToLoad.add(AggregateMetricDoubleFieldMapper.Metric.max);
+            metricFieldsToLoad.put(
+                AggregateMetricDoubleFieldMapper.Metric.max,
+                allMetricFields.get(AggregateMetricDoubleFieldMapper.Metric.max)
+            );
         }
         if (loadSum) {
-            metricsToLoad.add(AggregateMetricDoubleFieldMapper.Metric.sum);
+            metricFieldsToLoad.put(
+                AggregateMetricDoubleFieldMapper.Metric.sum,
+                allMetricFields.get(AggregateMetricDoubleFieldMapper.Metric.sum)
+            );
         }
         if (loadCount) {
-            metricsToLoad.add(AggregateMetricDoubleFieldMapper.Metric.value_count);
+            metricFieldsToLoad.put(
+                AggregateMetricDoubleFieldMapper.Metric.value_count,
+                allMetricFields.get(AggregateMetricDoubleFieldMapper.Metric.value_count)
+            );
         }
-        return metricsToLoad;
+        return metricFieldsToLoad;
     }
 
     private EnumMap<AggregateMetricDoubleFieldMapper.Metric, NumberFieldMapper.NumberFieldType> generateMetricFields() {

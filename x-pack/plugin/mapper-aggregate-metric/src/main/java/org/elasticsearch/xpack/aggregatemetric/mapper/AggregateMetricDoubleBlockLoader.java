@@ -18,30 +18,18 @@ import org.elasticsearch.index.mapper.blockloader.docvalues.BlockDocValuesReader
 
 import java.io.IOException;
 import java.util.EnumMap;
-import java.util.EnumSet;
 
 public class AggregateMetricDoubleBlockLoader extends BlockDocValuesReader.DocValuesBlockLoader {
-    NumberFieldMapper.NumberFieldType minFieldType;
-    NumberFieldMapper.NumberFieldType maxFieldType;
-    NumberFieldMapper.NumberFieldType sumFieldType;
-    NumberFieldMapper.NumberFieldType countFieldType;
+    final NumberFieldMapper.NumberFieldType minFieldType;
+    final NumberFieldMapper.NumberFieldType maxFieldType;
+    final NumberFieldMapper.NumberFieldType sumFieldType;
+    final NumberFieldMapper.NumberFieldType countFieldType;
 
-    AggregateMetricDoubleBlockLoader(
-        EnumSet<AggregateMetricDoubleFieldMapper.Metric> metricsRequested,
-        EnumMap<AggregateMetricDoubleFieldMapper.Metric, NumberFieldMapper.NumberFieldType> metricFields
-    ) {
-        if (metricsRequested.contains(AggregateMetricDoubleFieldMapper.Metric.min)) {
-            minFieldType = metricFields.get(AggregateMetricDoubleFieldMapper.Metric.min);
-        }
-        if (metricsRequested.contains(AggregateMetricDoubleFieldMapper.Metric.max)) {
-            maxFieldType = metricFields.get(AggregateMetricDoubleFieldMapper.Metric.max);
-        }
-        if (metricsRequested.contains(AggregateMetricDoubleFieldMapper.Metric.sum)) {
-            sumFieldType = metricFields.get(AggregateMetricDoubleFieldMapper.Metric.sum);
-        }
-        if (metricsRequested.contains(AggregateMetricDoubleFieldMapper.Metric.value_count)) {
-            countFieldType = metricFields.get(AggregateMetricDoubleFieldMapper.Metric.value_count);
-        }
+    AggregateMetricDoubleBlockLoader(EnumMap<AggregateMetricDoubleFieldMapper.Metric, NumberFieldMapper.NumberFieldType> metricsRequested) {
+        minFieldType = metricsRequested.getOrDefault(AggregateMetricDoubleFieldMapper.Metric.min, null);
+        maxFieldType = metricsRequested.getOrDefault(AggregateMetricDoubleFieldMapper.Metric.max, null);
+        sumFieldType = metricsRequested.getOrDefault(AggregateMetricDoubleFieldMapper.Metric.sum, null);
+        countFieldType = metricsRequested.getOrDefault(AggregateMetricDoubleFieldMapper.Metric.value_count, null);
     }
 
     private static NumericDocValues getNumericDocValues(NumberFieldMapper.NumberFieldType field, LeafReader leafReader) throws IOException {

@@ -508,7 +508,7 @@ public class AggregateMetricDoubleFieldMapper extends FieldMapper {
 
         @Override
         public BlockLoader blockLoader(BlockLoaderContext blContext) {
-            return new AggregateMetricDoubleBlockLoader(EnumSet.allOf(Metric.class), metricFields);
+            return new AggregateMetricDoubleBlockLoader(metricFields);
         }
 
         /**

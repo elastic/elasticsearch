@@ -1852,22 +1852,20 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
         }
     }
 
-// begin 131356
-/*
-}
-class foo {
-*/
+    // begin 131356
+    /*
+    }
+    class foo {
+    */
     public void testParamsWithLike() throws IOException {
         assumeTrue("like parameter support", EsqlCapabilities.Cap.LIKE_PARAMETER_SUPPORT.isEnabled());
         bulkLoadTestData(11);
-        var query = requestObjectBuilder().query(
-            format(null, "from {} | where keyword like ?pattern | keep keyword", testIndexName() )
-        ).params("[{\"pattern\" : \"key*0\"}]");
+        var query = requestObjectBuilder().query(format(null, "from {} | where keyword like ?pattern | keep keyword", testIndexName()))
+            .params("[{\"pattern\" : \"key*0\"}]");
         Map<String, Object> result = runEsql(query);
-        assertEquals(List.of(List.of("keyword0"),List.of("keyword10")), result.get("values"));
+        assertEquals(List.of(List.of("keyword0"), List.of("keyword10")), result.get("values"));
     }
-// end 131356
-
+    // end 131356
 
     protected static Request prepareRequestWithOptions(RequestObjectBuilder requestObject, Mode mode) throws IOException {
         requestObject.build();

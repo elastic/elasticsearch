@@ -820,13 +820,11 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
         }
     }
 
-
-    String stringFromStringOrParameter(Source source, EsqlBaseParser.StringOrParameterContext ctx)
-    {
+    String stringFromStringOrParameter(Source source, EsqlBaseParser.StringOrParameterContext ctx) {
         EsqlBaseParser.StringContext sctx = ctx.string();
         if (sctx != null) {
             Literal lit = visitString(sctx);
-            return BytesRefs.toString( lit.fold(FoldContext.small()) );
+            return BytesRefs.toString(lit.fold(FoldContext.small()));
         }
         EsqlBaseParser.ParameterContext pctx = ctx.parameter();
         if (pctx != null) {
@@ -834,7 +832,7 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
                 Expression e = visitInputParam(ipctx);
                 if (e instanceof Literal lit) {
                     if (lit.dataType() == KEYWORD) {
-                        return BytesRefs.toString( lit.fold(FoldContext.small()) );
+                        return BytesRefs.toString(lit.fold(FoldContext.small()));
                     }
                 }
             }
@@ -842,14 +840,13 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
                 Expression e = visitInputNamedOrPositionalParam(inopctx);
                 if (e instanceof Literal lit) {
                     if (lit.dataType() == KEYWORD) {
-                        return BytesRefs.toString( lit.fold(FoldContext.small()) );
+                        return BytesRefs.toString(lit.fold(FoldContext.small()));
                     }
                 }
             }
         }
         throw new ParsingException(source, "Invalid StringOrParameterContext");
     }
-
 
     @Override
     public Expression visitLikeListExpression(EsqlBaseParser.LikeListExpressionContext ctx) {

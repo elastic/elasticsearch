@@ -5600,12 +5600,11 @@ public class AnalyzerTests extends ESTestCase {
         assertEquals(IndexMode.LOOKUP, rightRelation.indexMode());
     }
 
-
-// begin 131356
-/*
-}
-class foo {
-*/
+    // begin 131356
+    /*
+    }
+    class foo {
+    */
     public void testLikeParameters() {
         if (EsqlCapabilities.Cap.LIKE_PARAMETER_SUPPORT.isEnabled()) {
             var plan = analyze(
@@ -5619,8 +5618,7 @@ class foo {
             assertEquals("Anna*", like.pattern().pattern());
         }
     }
-// end 131356
-
+    // end 131356
 
     private void verifyNameAndTypeAndMultiTypeEsField(
         String actualName,

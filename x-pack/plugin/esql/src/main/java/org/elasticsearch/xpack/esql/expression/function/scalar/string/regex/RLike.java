@@ -31,45 +31,42 @@ public class RLike extends RegexMatch<RLikePattern> {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "RLike", RLike::new);
     public static final String NAME = "RLIKE";
 
-    @FunctionInfo(
-        returnType = "boolean",
-        description = """
-            Use `RLIKE` to filter data based on string patterns using
-            <<regexp-syntax,regular expressions>>. `RLIKE` usually acts on a field placed on
-            the left-hand side of the operator, but it can also act on a constant (literal)
-            expression. The right-hand side of the operator represents the pattern.""",
-        detailedDescription = """
-            Matching special characters (eg. `.`, `*`, `(`...) will require escaping.
-            The escape character is backslash `\\`. Since also backslash is a special character in string literals,
-            it will require further escaping.
+    @FunctionInfo(returnType = "boolean", description = """
+        Use `RLIKE` to filter data based on string patterns using
+        <<regexp-syntax,regular expressions>>. `RLIKE` usually acts on a field placed on
+        the left-hand side of the operator, but it can also act on a constant (literal)
+        expression. The right-hand side of the operator represents the pattern.""", detailedDescription = """
+        Matching special characters (eg. `.`, `*`, `(`...) will require escaping.
+        The escape character is backslash `\\`. Since also backslash is a special character in string literals,
+        it will require further escaping.
 
-            <<load-esql-example, file=string tag=rlikeEscapingSingleQuotes>>
+        <<load-esql-example, file=string tag=rlikeEscapingSingleQuotes>>
 
-            To reduce the overhead of escaping, we suggest using triple quotes strings `\"\"\"`
+        To reduce the overhead of escaping, we suggest using triple quotes strings `\"\"\"`
 
-            <<load-esql-example, file=string tag=rlikeEscapingTripleQuotes>>
-            ```{applies_to}
-            stack: ga 9.2
-            serverless: ga
-            ```
+        <<load-esql-example, file=string tag=rlikeEscapingTripleQuotes>>
+        ```{applies_to}
+        stack: ga 9.2
+        serverless: ga
+        ```
 
-            Both a single pattern or a list of patterns are supported. If a list of patterns is provided,
-            the expression will return true if any of the patterns match.
+        Both a single pattern or a list of patterns are supported. If a list of patterns is provided,
+        the expression will return true if any of the patterns match.
 
-            <<load-esql-example, file=where-like tag=rlikeListDocExample>>
+        <<load-esql-example, file=where-like tag=rlikeListDocExample>>
 
-            Pattens may be specified with ReST query placeholders as well
+        Pattens may be specified with ReST query placeholders as well
 
-            ```esql
-            FROM employees
-            | WHERE first_name RLIKE ?pattern
-            | KEEP first_name, last_name
-            ```
+        ```esql
+        FROM employees
+        | WHERE first_name RLIKE ?pattern
+        | KEEP first_name, last_name
+        ```
 
-            ```{applies_to}
-            stack: ga 9.3
-            ```
-            """, operator = NAME, examples = @Example(file = "docs", tag = "rlike"))
+        ```{applies_to}
+        stack: ga 9.3
+        ```
+        """, operator = NAME, examples = @Example(file = "docs", tag = "rlike"))
     public RLike(
         Source source,
         @Param(name = "str", type = { "keyword", "text" }, description = "A literal value.") Expression value,

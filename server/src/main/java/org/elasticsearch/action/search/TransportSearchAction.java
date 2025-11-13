@@ -1619,6 +1619,10 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             localShardIterators.size() + remoteShardIterators.size(),
             defaultPreFilterShardSize
         );
+        final Map<String, Object> searchRequestAttributes = SearchRequestAttributesExtractor.extractAttributes(
+            searchRequest,
+            concreteLocalIndices
+        );
         searchPhaseProvider.runNewSearchPhase(
             task,
             searchRequest,
@@ -1631,7 +1635,8 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             concreteIndexBoosts,
             preFilterSearchShards,
             threadPool,
-            clusters
+            clusters,
+            searchRequestAttributes
         );
     }
 
@@ -1749,7 +1754,8 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             Map<String, Float> concreteIndexBoosts,
             boolean preFilter,
             ThreadPool threadPool,
-            SearchResponse.Clusters clusters
+            SearchResponse.Clusters clusters,
+            Map<String, Object> searchRequestAttributes
         );
     }
 
@@ -1773,7 +1779,8 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             Map<String, Float> concreteIndexBoosts,
             boolean preFilter,
             ThreadPool threadPool,
-            SearchResponse.Clusters clusters
+            SearchResponse.Clusters clusters,
+            Map<String, Object> searchRequestAttributes
         ) {
             if (preFilter) {
                 // only for aggs we need to contact shards even if there are no matches
@@ -1791,7 +1798,8 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                     task,
                     requireAtLeastOneMatch,
                     searchService.getCoordinatorRewriteContextProvider(timeProvider::absoluteStartMillis),
-                    searchResponseMetrics
+                    searchResponseMetrics,
+                    searchRequestAttributes
                 )
                     .addListener(
                         listener.delegateFailureAndWrap(
@@ -1807,7 +1815,8 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                                 concreteIndexBoosts,
                                 false,
                                 threadPool,
-                                clusters
+                                clusters,
+                                searchRequestAttributes
                             )
                         )
                     );
@@ -1851,7 +1860,8 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                         task,
                         clusters,
                         client,
-                        searchResponseMetrics
+                        searchResponseMetrics,
+                        searchRequestAttributes
                     );
                 } else {
                     assert searchRequest.searchType() == QUERY_THEN_FETCH : searchRequest.searchType();
@@ -1873,7 +1883,8 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                         clusters,
                         client,
                         searchService.batchQueryPhase(),
-                        searchResponseMetrics
+                        searchResponseMetrics,
+                        searchRequestAttributes
                     );
                 }
                 success = true;

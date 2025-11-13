@@ -1,5 +1,0 @@
-pr: 136929
-summary: Handle indices with zero/missing uptime correctly in write-load calculation
-area: Allocation
-type: bug
-issues: []

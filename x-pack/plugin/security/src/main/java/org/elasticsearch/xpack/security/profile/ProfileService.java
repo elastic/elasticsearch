@@ -41,6 +41,8 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeUnit;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.TimeValue;
@@ -109,10 +111,11 @@ import static org.elasticsearch.xpack.security.support.SecuritySystemIndices.SEC
 
 public class ProfileService {
 
-    public static final Setting<Integer> MAX_SIZE_SETTING = Setting.intSetting(
+    public static final Setting<ByteSizeValue> MAX_SIZE_SETTING = Setting.byteSizeSetting(
         "xpack.security.profile.max_size",
-        10 * 1_024 * 1_024,  // default: 10 MB
-        0,  // minimum: 0 bytes
+        ByteSizeValue.of(100, ByteSizeUnit.MB), // default: 10 MB
+        ByteSizeValue.ZERO, // minimum: 0 bytes
+        ByteSizeValue.ofBytes(Integer.MAX_VALUE),
         Setting.Property.NodeScope
     );
 
@@ -128,7 +131,7 @@ public class ProfileService {
     private final SecurityIndexManager profileIndex;
     private final Function<String, DomainConfig> domainConfigLookup;
     private final Function<RealmConfig.RealmIdentifier, Authentication.RealmRef> realmRefLookup;
-    private final int maxProfileSizeInBytes;
+    private final ByteSizeValue maxProfileSize;
 
     public ProfileService(Settings settings, Clock clock, Client client, SecurityIndexManager profileIndex, Realms realms) {
         this.settings = settings;
@@ -137,7 +140,7 @@ public class ProfileService {
         this.profileIndex = profileIndex;
         this.domainConfigLookup = realms::getDomainConfig;
         this.realmRefLookup = realms::getRealmRef;
-        this.maxProfileSizeInBytes = MAX_SIZE_SETTING.get(settings);
+        this.maxProfileSize = MAX_SIZE_SETTING.get(settings);
     }
 
     public void getProfiles(List<String> uids, Set<String> dataKeys, ActionListener<ResultsAndErrors<Profile>> listener) {
@@ -253,7 +256,7 @@ public class ProfileService {
         }
 
         getVersionedDocument(request.getUid(), ActionListener.wrap(doc -> {
-            validateProfileSize(doc, request, maxProfileSizeInBytes);
+            validateProfileSize(doc, request, maxProfileSize);
 
             doUpdate(
                 buildUpdateRequest(request.getUid(), builder, request.getRefreshPolicy(), request.getIfPrimaryTerm(), request.getIfSeqNo()),
@@ -262,21 +265,22 @@ public class ProfileService {
         }, listener::onFailure));
     }
 
-    static void validateProfileSize(VersionedDocument doc, UpdateProfileDataRequest request, int limit) {
+    static void validateProfileSize(VersionedDocument doc, UpdateProfileDataRequest request, ByteSizeValue limit) {
         if (doc == null) {
             return;
         }
         Map<String, Object> labels = combineMaps(doc.doc.labels(), request.getLabels());
         Map<String, Object> data = combineMaps(mapFromBytesReference(doc.doc.applicationData()), request.getData());
-        int actualSize = serializationSize(labels) + serializationSize(data);
-        if (actualSize > limit) {
-            throw new ElasticsearchException(
+        ByteSizeValue actualSize = ByteSizeValue.ofBytes(serializationSize(labels) + serializationSize(data));
+        if (actualSize.compareTo(limit) > 0) {
+            throw new ElasticsearchStatusException(
                 Strings.format(
-                    "cannot update profile [%s] because the combined profile size of [%s] bytes exceeds the maximum of [%s] bytes",
+                    "cannot update profile [%s] because the combined profile size of [%s] exceeds the maximum of [%s]",
                     request.getUid(),
                     actualSize,
                     limit
-                )
+                ),
+                RestStatus.BAD_REQUEST
             );
         }
     }
@@ -292,7 +296,7 @@ public class ProfileService {
 
     static Map<String, Object> mapFromBytesReference(BytesReference bytesRef) {
         if (bytesRef == null || bytesRef.length() == 0) {
-            return new HashMap<>();
+            return Map.of();
         }
         return XContentHelper.convertToMap(bytesRef, false, XContentType.JSON).v2();
     }

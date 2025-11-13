@@ -120,7 +120,7 @@ public class ProfileIntegTests extends AbstractProfileIntegTestCase {
         final Settings.Builder builder = Settings.builder().put(super.nodeSettings(nodeOrdinal, otherSettings));
         // This setting tests that the setting is registered
         builder.put("xpack.security.authc.domains.my_domain.realms", "file");
-        builder.put("xpack.security.profile.max_size", 1_024);
+        builder.put("xpack.security.profile.max_size", "1kb");
         // enable anonymous
         builder.putList(AnonymousUser.ROLES_SETTING.getKey(), ANONYMOUS_ROLE);
         return builder.build();

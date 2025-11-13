@@ -42,6 +42,7 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.hash.MessageDigests;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.set.Sets;
@@ -1368,9 +1369,9 @@ public class ProfileServiceTests extends ESTestCase {
             1L,
             WriteRequest.RefreshPolicy.NONE
         );
-        assertThrows(ElasticsearchException.class, () -> ProfileService.validateProfileSize(vd, up, 0));
-        ProfileService.validateProfileSize(vd, up, 100);
-        ProfileService.validateProfileSize(null, up, 0);
+        assertThrows(ElasticsearchException.class, () -> ProfileService.validateProfileSize(vd, up, ByteSizeValue.ZERO));
+        ProfileService.validateProfileSize(vd, up, ByteSizeValue.ofBytes(100));
+        ProfileService.validateProfileSize(null, up, ByteSizeValue.ZERO);
     }
 
     private static BytesReference newBytesReference(String str) {

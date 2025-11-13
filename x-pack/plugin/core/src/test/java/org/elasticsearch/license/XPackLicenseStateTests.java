@@ -173,7 +173,7 @@ public class XPackLicenseStateTests extends ESTestCase {
     public void testInferenceAckMessageToTrialOrEnterprise() {
         var fromAll = EnumSet.allOf(License.OperationMode.class);
         for (OperationMode from : fromAll) {
-            assertAckMessages(XPackField.ESQL, from, randomFrom(TRIAL, ENTERPRISE), 0);
+            assertAckMessages(XPackField.INFERENCE, from, randomFrom(TRIAL, ENTERPRISE), 0);
         }
     }
 

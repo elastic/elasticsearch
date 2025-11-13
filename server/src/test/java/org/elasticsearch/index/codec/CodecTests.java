@@ -49,13 +49,13 @@ public class CodecTests extends ESTestCase {
     public void testResolveDefaultCodecs() throws Exception {
         assumeTrue("Only when zstd_stored_fields feature flag is enabled", CodecService.ZSTD_STORED_FIELDS_FEATURE_FLAG);
         CodecService codecService = createCodecService();
-        assertThat(codecService.codec("default"), instanceOf(PerFieldMapperCodec.class));
-        assertThat(codecService.codec("default"), instanceOf(Elasticsearch92Lucene103Codec.class));
+        assertThat(unwrappedCodec(codecService, "default"), instanceOf(PerFieldMapperCodec.class));
+        assertThat(unwrappedCodec(codecService, "default"), instanceOf(Elasticsearch92Lucene103Codec.class));
     }
 
     public void testDefault() throws Exception {
         assumeTrue("Only when zstd_stored_fields feature flag is enabled", CodecService.ZSTD_STORED_FIELDS_FEATURE_FLAG);
-        Codec codec = createCodecService().codec("default");
+        Codec codec = unwrappedCodec(createCodecService(), "default");
         assertEquals(
             "Zstd814StoredFieldsFormat(compressionMode=ZSTD(level=1), chunkSize=14336, maxDocsPerChunk=128, blockShift=10)",
             codec.storedFieldsFormat().toString()
@@ -63,7 +63,7 @@ public class CodecTests extends ESTestCase {
     }
 
     public void testBestCompression() throws Exception {
-        Codec codec = createCodecService().codec("best_compression");
+        Codec codec = unwrappedCodec(createCodecService(), "best_compression");
         assertEquals(
             "Zstd814StoredFieldsFormat(compressionMode=ZSTD(level=3), chunkSize=245760, maxDocsPerChunk=2048, blockShift=10)",
             codec.storedFieldsFormat().toString()
@@ -71,7 +71,7 @@ public class CodecTests extends ESTestCase {
     }
 
     public void testLegacyDefault() throws Exception {
-        Codec codec = createCodecService().codec("legacy_default");
+        Codec codec = unwrappedCodec(createCodecService(), "legacy_default");
         assertThat(codec.storedFieldsFormat(), Matchers.instanceOf(Lucene90StoredFieldsFormat.class));
         // Make sure the legacy codec is writable
         try (Directory dir = newDirectory(); IndexWriter w = new IndexWriter(dir, newIndexWriterConfig().setCodec(codec))) {
@@ -84,7 +84,7 @@ public class CodecTests extends ESTestCase {
     }
 
     public void testLegacyBestCompression() throws Exception {
-        Codec codec = createCodecService().codec("legacy_best_compression");
+        Codec codec = unwrappedCodec(createCodecService(), "legacy_best_compression");
         assertThat(codec.storedFieldsFormat(), Matchers.instanceOf(Lucene90StoredFieldsFormat.class));
         // Make sure the legacy codec is writable
         try (Directory dir = newDirectory(); IndexWriter w = new IndexWriter(dir, newIndexWriterConfig().setCodec(codec))) {
@@ -98,7 +98,7 @@ public class CodecTests extends ESTestCase {
 
     public void testCodecRetrievalForUnknownCodec() throws Exception {
         CodecService codecService = createCodecService();
-        IllegalArgumentException exception = assertThrows(IllegalArgumentException.class, () -> codecService.codec("unknown_codec"));
+        IllegalArgumentException exception = assertThrows(IllegalArgumentException.class, () -> unwrappedCodec(codecService, "unknown_codec"));
         assertEquals("failed to find codec [unknown_codec]", exception.getMessage());
     }
 
@@ -148,4 +148,11 @@ public class CodecTests extends ESTestCase {
         return new CodecService(service, BigArrays.NON_RECYCLING_INSTANCE);
     }
 
+    private static Codec unwrappedCodec(CodecService codecService, String codecName) {
+        Codec codec = codecService.codec(codecName);
+        if (codec instanceof DeduplicateFieldInfosCodec deduplicatingCodec) {
+            return deduplicatingCodec.delegate();
+        }
+        return codec;
+    }
 }

@@ -16,17 +16,13 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.inference.ChunkInferenceInput;
 import org.elasticsearch.inference.ChunkedInference;
 import org.elasticsearch.inference.ChunkingSettings;
-import org.elasticsearch.inference.EmptySecretSettings;
-import org.elasticsearch.inference.EmptyTaskSettings;
 import org.elasticsearch.inference.InferenceServiceConfiguration;
 import org.elasticsearch.inference.InferenceServiceExtension;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.InputType;
-import org.elasticsearch.inference.MinimalServiceSettings;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
@@ -48,22 +44,16 @@ import org.elasticsearch.xpack.inference.external.http.sender.EmbeddingsInput;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSender;
 import org.elasticsearch.xpack.inference.external.http.sender.InferenceInputs;
 import org.elasticsearch.xpack.inference.external.http.sender.UnifiedChatInput;
-import org.elasticsearch.xpack.inference.registry.ModelRegistry;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.SenderService;
 import org.elasticsearch.xpack.inference.services.ServiceComponents;
 import org.elasticsearch.xpack.inference.services.ServiceUtils;
 import org.elasticsearch.xpack.inference.services.elastic.action.ElasticInferenceServiceActionCreator;
-import org.elasticsearch.xpack.inference.services.elastic.authorization.ElasticInferenceServiceAuthorizationHandler;
-import org.elasticsearch.xpack.inference.services.elastic.authorization.ElasticInferenceServiceAuthorizationRequestHandler;
 import org.elasticsearch.xpack.inference.services.elastic.completion.ElasticInferenceServiceCompletionModel;
-import org.elasticsearch.xpack.inference.services.elastic.completion.ElasticInferenceServiceCompletionServiceSettings;
 import org.elasticsearch.xpack.inference.services.elastic.densetextembeddings.ElasticInferenceServiceDenseTextEmbeddingsModel;
 import org.elasticsearch.xpack.inference.services.elastic.densetextembeddings.ElasticInferenceServiceDenseTextEmbeddingsServiceSettings;
 import org.elasticsearch.xpack.inference.services.elastic.rerank.ElasticInferenceServiceRerankModel;
-import org.elasticsearch.xpack.inference.services.elastic.rerank.ElasticInferenceServiceRerankServiceSettings;
 import org.elasticsearch.xpack.inference.services.elastic.sparseembeddings.ElasticInferenceServiceSparseEmbeddingsModel;
-import org.elasticsearch.xpack.inference.services.elastic.sparseembeddings.ElasticInferenceServiceSparseEmbeddingsServiceSettings;
 import org.elasticsearch.xpack.inference.telemetry.TraceContext;
 
 import java.util.EnumSet;
@@ -95,7 +85,7 @@ public class ElasticInferenceService extends SenderService {
     // A batch size of 16 provides optimal throughput and stability, especially on lower-tier instance types.
     public static final Integer SPARSE_TEXT_EMBEDDING_MAX_BATCH_SIZE = 16;
 
-    private static final EnumSet<TaskType> IMPLEMENTED_TASK_TYPES = EnumSet.of(
+    public static final EnumSet<TaskType> IMPLEMENTED_TASK_TYPES = EnumSet.of(
         TaskType.SPARSE_EMBEDDING,
         TaskType.CHAT_COMPLETION,
         TaskType.COMPLETION,
@@ -109,22 +99,6 @@ public class ElasticInferenceService extends SenderService {
     // This mirrors the memory constraints observed with sparse embeddings
     private static final Integer DENSE_TEXT_EMBEDDINGS_MAX_BATCH_SIZE = 16;
 
-    // rainbow-sprinkles
-    static final String DEFAULT_CHAT_COMPLETION_MODEL_ID_V1 = "rainbow-sprinkles";
-    static final String DEFAULT_CHAT_COMPLETION_ENDPOINT_ID_V1 = defaultEndpointId(DEFAULT_CHAT_COMPLETION_MODEL_ID_V1);
-
-    // elser-2
-    static final String DEFAULT_ELSER_2_MODEL_ID = "elser_model_2";
-    public static final String DEFAULT_ELSER_ENDPOINT_ID_V2 = defaultEndpointId("elser-2");
-
-    // multilingual-text-embed
-    static final String DEFAULT_MULTILINGUAL_EMBED_MODEL_ID = "jina-embeddings-v3";
-    static final String DEFAULT_MULTILINGUAL_EMBED_ENDPOINT_ID = ".jina-embeddings-v3";
-
-    // rerank-v1
-    static final String DEFAULT_RERANK_MODEL_ID_V1 = "elastic-rerank-v1";
-    static final String DEFAULT_RERANK_ENDPOINT_ID_V1 = ".elastic-rerank-v1";
-
     /**
      * The task types that the {@link InferenceAction.Request} can accept.
      */
@@ -135,129 +109,27 @@ public class ElasticInferenceService extends SenderService {
         TaskType.TEXT_EMBEDDING
     );
 
-    public static String defaultEndpointId(String modelId) {
-        return Strings.format(".%s-elastic", modelId);
-    }
-
     private final ElasticInferenceServiceComponents elasticInferenceServiceComponents;
-    private final ElasticInferenceServiceAuthorizationHandler authorizationHandler;
 
     public ElasticInferenceService(
         HttpRequestSender.Factory factory,
         ServiceComponents serviceComponents,
         ElasticInferenceServiceSettings elasticInferenceServiceSettings,
-        ModelRegistry modelRegistry,
-        ElasticInferenceServiceAuthorizationRequestHandler authorizationRequestHandler,
         InferenceServiceExtension.InferenceServiceFactoryContext context
     ) {
-        this(
-            factory,
-            serviceComponents,
-            elasticInferenceServiceSettings,
-            modelRegistry,
-            authorizationRequestHandler,
-            context.clusterService()
-        );
+        this(factory, serviceComponents, elasticInferenceServiceSettings, context.clusterService());
     }
 
     public ElasticInferenceService(
         HttpRequestSender.Factory factory,
         ServiceComponents serviceComponents,
         ElasticInferenceServiceSettings elasticInferenceServiceSettings,
-        ModelRegistry modelRegistry,
-        ElasticInferenceServiceAuthorizationRequestHandler authorizationRequestHandler,
         ClusterService clusterService
     ) {
         super(factory, serviceComponents, clusterService);
         this.elasticInferenceServiceComponents = new ElasticInferenceServiceComponents(
             elasticInferenceServiceSettings.getElasticInferenceServiceUrl()
         );
-        authorizationHandler = new ElasticInferenceServiceAuthorizationHandler(
-            serviceComponents,
-            modelRegistry,
-            authorizationRequestHandler,
-            initDefaultEndpoints(elasticInferenceServiceComponents),
-            IMPLEMENTED_TASK_TYPES,
-            this,
-            getSender(),
-            elasticInferenceServiceSettings
-        );
-    }
-
-    private static Map<String, DefaultModelConfig> initDefaultEndpoints(
-        ElasticInferenceServiceComponents elasticInferenceServiceComponents
-    ) {
-        return Map.of(
-            DEFAULT_CHAT_COMPLETION_MODEL_ID_V1,
-            new DefaultModelConfig(
-                new ElasticInferenceServiceCompletionModel(
-                    DEFAULT_CHAT_COMPLETION_ENDPOINT_ID_V1,
-                    TaskType.CHAT_COMPLETION,
-                    NAME,
-                    new ElasticInferenceServiceCompletionServiceSettings(DEFAULT_CHAT_COMPLETION_MODEL_ID_V1),
-                    EmptyTaskSettings.INSTANCE,
-                    EmptySecretSettings.INSTANCE,
-                    elasticInferenceServiceComponents
-                ),
-                MinimalServiceSettings.chatCompletion(NAME)
-            ),
-            DEFAULT_ELSER_2_MODEL_ID,
-            new DefaultModelConfig(
-                new ElasticInferenceServiceSparseEmbeddingsModel(
-                    DEFAULT_ELSER_ENDPOINT_ID_V2,
-                    TaskType.SPARSE_EMBEDDING,
-                    NAME,
-                    new ElasticInferenceServiceSparseEmbeddingsServiceSettings(DEFAULT_ELSER_2_MODEL_ID, null),
-                    EmptyTaskSettings.INSTANCE,
-                    EmptySecretSettings.INSTANCE,
-                    elasticInferenceServiceComponents,
-                    ChunkingSettingsBuilder.DEFAULT_SETTINGS
-                ),
-                MinimalServiceSettings.sparseEmbedding(NAME)
-            ),
-            DEFAULT_MULTILINGUAL_EMBED_MODEL_ID,
-            new DefaultModelConfig(
-                new ElasticInferenceServiceDenseTextEmbeddingsModel(
-                    DEFAULT_MULTILINGUAL_EMBED_ENDPOINT_ID,
-                    TaskType.TEXT_EMBEDDING,
-                    NAME,
-                    new ElasticInferenceServiceDenseTextEmbeddingsServiceSettings(
-                        DEFAULT_MULTILINGUAL_EMBED_MODEL_ID,
-                        defaultDenseTextEmbeddingsSimilarity(),
-                        null,
-                        null
-                    ),
-                    EmptyTaskSettings.INSTANCE,
-                    EmptySecretSettings.INSTANCE,
-                    elasticInferenceServiceComponents,
-                    ChunkingSettingsBuilder.DEFAULT_SETTINGS
-                ),
-                MinimalServiceSettings.textEmbedding(
-                    NAME,
-                    DENSE_TEXT_EMBEDDINGS_DIMENSIONS,
-                    defaultDenseTextEmbeddingsSimilarity(),
-                    DenseVectorFieldMapper.ElementType.FLOAT
-                )
-            ),
-            DEFAULT_RERANK_MODEL_ID_V1,
-            new DefaultModelConfig(
-                new ElasticInferenceServiceRerankModel(
-                    DEFAULT_RERANK_ENDPOINT_ID_V1,
-                    TaskType.RERANK,
-                    NAME,
-                    new ElasticInferenceServiceRerankServiceSettings(DEFAULT_RERANK_MODEL_ID_V1),
-                    EmptyTaskSettings.INSTANCE,
-                    EmptySecretSettings.INSTANCE,
-                    elasticInferenceServiceComponents
-                ),
-                MinimalServiceSettings.rerank(NAME)
-            )
-        );
-    }
-
-    @Override
-    public void onNodeStarted() {
-        authorizationHandler.init();
     }
 
     @Override
@@ -272,30 +144,9 @@ public class ElasticInferenceService extends SenderService {
         }
     }
 
-    /**
-     * Only use this in tests.
-     *
-     * Waits the specified amount of time for the authorization call to complete. This is mainly to make testing easier.
-     * @param waitTime the max time to wait
-     * @throws IllegalStateException if the wait time is exceeded or the call receives an {@link InterruptedException}
-     */
-    public void waitForFirstAuthorizationToComplete(TimeValue waitTime) {
-        authorizationHandler.waitForAuthorizationToComplete(waitTime);
-    }
-
     @Override
     public Set<TaskType> supportedStreamingTasks() {
         return EnumSet.of(TaskType.CHAT_COMPLETION);
-    }
-
-    @Override
-    public List<DefaultConfigId> defaultConfigIds() {
-        return authorizationHandler.defaultConfigIds();
-    }
-
-    @Override
-    public void defaultConfigs(ActionListener<List<Model>> defaultsListener) {
-        authorizationHandler.defaultConfigs(defaultsListener);
     }
 
     @Override
@@ -474,7 +325,9 @@ public class ElasticInferenceService extends SenderService {
 
     @Override
     public EnumSet<TaskType> supportedTaskTypes() {
-        return authorizationHandler.supportedTaskTypes();
+        throw new UnsupportedOperationException(
+            "The EIS supported task types change depending on authorization, requests should be made directly to EIS instead"
+        );
     }
 
     @Override

@@ -354,7 +354,12 @@ public class HttpRequestSenderTests extends ESTestCase {
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
             var thrownException = expectThrows(
                 AssertionError.class,
-                () -> sender.send(RequestManagerTests.createMock(), new EmbeddingsInput(List.of(), null), null, listener)
+                () -> sender.send(
+                    RequestManagerTests.createMockWithRateLimitingEnabled(),
+                    new EmbeddingsInput(List.of(), null),
+                    null,
+                    listener
+                )
             );
             assertThat(thrownException.getMessage(), is("call start() before sending a request"));
         }
@@ -375,7 +380,12 @@ public class HttpRequestSenderTests extends ESTestCase {
             sender.startSynchronously();
 
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-            sender.send(RequestManagerTests.createMock(), new EmbeddingsInput(List.of(), null), TimeValue.timeValueNanos(1), listener);
+            sender.send(
+                RequestManagerTests.createMockWithRateLimitingEnabled(),
+                new EmbeddingsInput(List.of(), null),
+                TimeValue.timeValueNanos(1),
+                listener
+            );
 
             var thrownException = expectThrows(ElasticsearchStatusException.class, () -> listener.actionGet(TIMEOUT));
 
@@ -397,7 +407,12 @@ public class HttpRequestSenderTests extends ESTestCase {
             sender.startSynchronously();
 
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-            sender.send(RequestManagerTests.createMock(), new EmbeddingsInput(List.of(), null), TimeValue.timeValueNanos(1), listener);
+            sender.send(
+                RequestManagerTests.createMockWithRateLimitingEnabled(),
+                new EmbeddingsInput(List.of(), null),
+                TimeValue.timeValueNanos(1),
+                listener
+            );
 
             var thrownException = expectThrows(ElasticsearchStatusException.class, () -> listener.actionGet(TIMEOUT));
 

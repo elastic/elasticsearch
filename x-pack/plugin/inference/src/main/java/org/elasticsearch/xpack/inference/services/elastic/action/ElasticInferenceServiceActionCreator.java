@@ -110,7 +110,7 @@ public class ElasticInferenceServiceActionCreator implements ElasticInferenceSer
             DENSE_TEXT_EMBEDDINGS_HANDLER,
             (embeddingsInput) -> new ElasticInferenceServiceDenseTextEmbeddingsRequest(
                 model,
-                embeddingsInput.getInputs(),
+                embeddingsInput.getTextInputs(),
                 traceContext,
                 extractRequestMetadataFromThreadContext(threadPool.getThreadContext()),
                 embeddingsInput.getInputType()

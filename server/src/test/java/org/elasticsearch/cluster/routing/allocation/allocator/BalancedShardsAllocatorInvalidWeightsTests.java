@@ -62,8 +62,8 @@ public class BalancedShardsAllocatorInvalidWeightsTests extends ESTestCase {
 
             final int numberOfNodes = randomIntBetween(3, 5);
             final var originalState = ClusterStateCreationUtils.state(numberOfNodes, new String[] { "one", "two", "three" }, 1);
-            final var nodeToPutAllShardsOn = randomFrom(originalState.nodes());
-            final var unbalancedClusterState = moveAllShardsToNode(originalState, nodeToPutAllShardsOn.getLocalNodeId());
+            final var nodeToPutAllShardsOn = randomFrom(originalState.nodes().getAllNodes());
+            final var unbalancedClusterState = moveAllShardsToNode(originalState, nodeToPutAllShardsOn.getId());
             final var allocation = new RoutingAllocation(
                 new AllocationDeciders(List.of()),
                 unbalancedClusterState.getRoutingNodes().mutableCopy(),
@@ -76,7 +76,7 @@ public class BalancedShardsAllocatorInvalidWeightsTests extends ESTestCase {
             assertInvalidWeightsMessageIsLogged(() -> allocator.allocate(allocation));
 
             Set<String> nodeIdsReturningInvalidWeights = balancingWeightsFactory.nodeIdsReturningInvalidWeights();
-            if (nodeIdsReturningInvalidWeights.contains(nodeToPutAllShardsOn.getLocalNodeId())) {
+            if (nodeIdsReturningInvalidWeights.contains(nodeToPutAllShardsOn.getId())) {
                 // The node with all the shards is returning invalid weights, we can't balance
                 assertFalse(allocation.routingNodesChanged());
             } else if (nodeIdsReturningInvalidWeights.size() == numberOfNodes - 1) {
@@ -98,9 +98,11 @@ public class BalancedShardsAllocatorInvalidWeightsTests extends ESTestCase {
                 balancingWeightsFactory
             );
 
-            // Allocator will try and move shard off of node_2
-            final Decision.Single negativeDecision = randomFrom(Decision.NO, Decision.NOT_PREFERRED);
-            final AllocationDecider allocationDecider = new AllocationDecider() {
+            final int numberOfNodes = randomIntBetween(3, 5);
+            final var clusterState = ClusterStateCreationUtils.state(numberOfNodes, new String[] { "one", "two", "three" }, numberOfNodes);
+            final var negativeDecision = randomFrom(Decision.NO, Decision.NOT_PREFERRED);
+            final var nodeToMoveShardOff = randomFrom(clusterState.nodes().getAllNodes());
+            final var allocationDecider = new AllocationDecider() {
                 @Override
                 public Decision canRemain(
                     IndexMetadata indexMetadata,
@@ -108,18 +110,13 @@ public class BalancedShardsAllocatorInvalidWeightsTests extends ESTestCase {
                     RoutingNode node,
                     RoutingAllocation allocation
                 ) {
-                    if (node.nodeId().equals("node_2")) {
+                    if (nodeToMoveShardOff.equals(node.node())) {
                         return negativeDecision;
                     }
                     return Decision.YES;
                 }
             };
-            final int numberOfNodes = randomIntBetween(3, 5);
-            final ClusterState clusterState = ClusterStateCreationUtils.state(
-                numberOfNodes,
-                new String[] { "one", "two", "three" },
-                numberOfNodes
-            );
+
             balancingWeightsFactory.returnInvalidWeightsForRandomNodes(clusterState);
             final RoutingAllocation allocation = new RoutingAllocation(
                 new AllocationDeciders(List.of(allocationDecider)),
@@ -138,13 +135,13 @@ public class BalancedShardsAllocatorInvalidWeightsTests extends ESTestCase {
                 .findFirst()
                 .orElseThrow(() -> new AssertionError("Couldn't find relocating shard?"));
             // It should be moved to a node returning a valid weight, if there are any
-            boolean allNodesOtherThanNode2AreReturningInvalidValues = Sets.difference(
+            final boolean allOtherNodesAreReturningInvalidWeights = Sets.difference(
                 balancingWeightsFactory.nodeIdsReturningInvalidWeights(),
-                Set.of("node_2")
+                Set.of(nodeToMoveShardOff.getId())
             ).size() + 1 == numberOfNodes;
             assertTrue(
                 balancingWeightsFactory.nodeIsReturningInvalidWeights(relocatingShard.relocatingNodeId()) == false
-                    || allNodesOtherThanNode2AreReturningInvalidValues
+                    || allOtherNodesAreReturningInvalidWeights
             );
         }
     }

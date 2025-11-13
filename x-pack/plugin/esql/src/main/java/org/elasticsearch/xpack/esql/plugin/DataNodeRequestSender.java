@@ -20,6 +20,7 @@ import org.elasticsearch.action.support.TransportActions;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.project.ProjectResolver;
+import org.elasticsearch.cluster.routing.SplitShardCountSummary;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.util.Maps;
@@ -284,7 +285,7 @@ abstract class DataNodeRequestSender {
 
     private void sendOneNodeRequest(TargetShards targetShards, ComputeListener computeListener, NodeRequest request) {
         final ActionListener<DriverCompletionInfo> listener = computeListener.acquireCompute();
-        sendRequest(request.node, request.shardIds, request.aliasFilters, new NodeListener() {
+        sendRequest(request.node, request.shards, request.aliasFilters, new NodeListener() {
 
             void onAfterRequest() {
                 nodePermits.get(request.node).release();
@@ -298,7 +299,8 @@ abstract class DataNodeRequestSender {
             public void onResponse(DataNodeComputeResponse response) {
                 try {
                     // remove failures of successful shards
-                    for (ShardId shardId : request.shardIds()) {
+                    for (var shard : request.shards) {
+                        ShardId shardId = shard.shardId();
                         if (response.shardLevelFailures().containsKey(shardId) == false) {
                             shardFailures.remove(shardId);
                         }
@@ -320,7 +322,8 @@ abstract class DataNodeRequestSender {
             @Override
             public void onFailure(Exception e, boolean receivedData) {
                 try {
-                    for (ShardId shardId : request.shardIds) {
+                    for (var shard : request.shards) {
+                        ShardId shardId = shard.shardId();
                         trackShardLevelFailure(shardId, receivedData, e);
                         pendingShardIds.add(shardId);
                     }
@@ -350,7 +353,12 @@ abstract class DataNodeRequestSender {
         });
     }
 
-    abstract void sendRequest(DiscoveryNode node, List<ShardId> shardIds, Map<Index, AliasFilter> aliasFilters, NodeListener nodeListener);
+    abstract void sendRequest(
+        DiscoveryNode node,
+        List<DataNodeRequest.Shard> shards,
+        Map<Index, AliasFilter> aliasFilters,
+        NodeListener nodeListener
+    );
 
     interface NodeListener {
         void onResponse(DataNodeComputeResponse response);
@@ -403,11 +411,17 @@ abstract class DataNodeRequestSender {
     }
 
     /**
-     * (Remaining) allocated nodes of a given shard id and its alias filter
+     * Information required to send requests for a shard with this shardId.
+     * Note that {@link SplitShardCountSummary} value should never change, it is important for resharding feature to work.
      */
-    record TargetShard(ShardId shardId, List<DiscoveryNode> remainingNodes, AliasFilter aliasFilter) {}
+    record TargetShard(
+        ShardId shardId,
+        List<DiscoveryNode> remainingNodes,
+        AliasFilter aliasFilter,
+        SplitShardCountSummary reshardSplitShardCountSummary
+    ) {}
 
-    record NodeRequest(DiscoveryNode node, List<ShardId> shardIds, Map<Index, AliasFilter> aliasFilters) {}
+    record NodeRequest(DiscoveryNode node, List<DataNodeRequest.Shard> shards, Map<Index, AliasFilter> aliasFilters) {}
 
     private record ShardFailure(boolean fatal, Exception failure) {}
 
@@ -422,7 +436,7 @@ abstract class DataNodeRequestSender {
      */
     private List<NodeRequest> selectNodeRequests(TargetShards targetShards) {
         assert sendingLock.isHeldByCurrentThread();
-        final Map<DiscoveryNode, List<ShardId>> nodeToShardIds = new LinkedHashMap<>();
+        final Map<DiscoveryNode, List<DataNodeRequest.Shard>> nodeToShardMetadata = new LinkedHashMap<>();
         final Iterator<ShardId> shardsIt = pendingShardIds.iterator();
 
         while (shardsIt.hasNext()) {
@@ -436,9 +450,9 @@ abstract class DataNodeRequestSender {
             Iterator<DiscoveryNode> nodesIt = shard.remainingNodes.iterator();
             while (nodesIt.hasNext()) {
                 DiscoveryNode node = nodesIt.next();
-                List<ShardId> pendingRequest = nodeToShardIds.get(node);
+                List<DataNodeRequest.Shard> pendingRequest = nodeToShardMetadata.get(node);
                 if (pendingRequest != null) {
-                    pendingRequest.add(shard.shardId);
+                    pendingRequest.add(new DataNodeRequest.Shard(shard.shardId, shard.reshardSplitShardCountSummary));
                     nodesIt.remove();
                     shardsIt.remove();
                     break;
@@ -447,8 +461,8 @@ abstract class DataNodeRequestSender {
                 if (concurrentRequests == null || concurrentRequests.tryAcquire()) {
                     if (nodePermits.computeIfAbsent(node, n -> new Semaphore(1)).tryAcquire()) {
                         pendingRequest = new ArrayList<>();
-                        pendingRequest.add(shard.shardId);
-                        nodeToShardIds.put(node, pendingRequest);
+                        pendingRequest.add(new DataNodeRequest.Shard(shard.shardId, shard.reshardSplitShardCountSummary));
+                        nodeToShardMetadata.put(node, pendingRequest);
 
                         nodesIt.remove();
                         shardsIt.remove();
@@ -461,18 +475,18 @@ abstract class DataNodeRequestSender {
             }
         }
 
-        final List<NodeRequest> nodeRequests = new ArrayList<>(nodeToShardIds.size());
-        for (var entry : nodeToShardIds.entrySet()) {
+        final List<NodeRequest> nodeRequests = new ArrayList<>(nodeToShardMetadata.size());
+        for (var entry : nodeToShardMetadata.entrySet()) {
             var node = entry.getKey();
-            var shardIds = entry.getValue();
+            var shards = entry.getValue();
             Map<Index, AliasFilter> aliasFilters = new HashMap<>();
-            for (ShardId shardId : shardIds) {
-                var aliasFilter = targetShards.getShard(shardId).aliasFilter;
+            for (DataNodeRequest.Shard shard : shards) {
+                var aliasFilter = targetShards.getShard(shard.shardId()).aliasFilter;
                 if (aliasFilter != null) {
-                    aliasFilters.put(shardId.getIndex(), aliasFilter);
+                    aliasFilters.put(shard.shardId().getIndex(), aliasFilter);
                 }
             }
-            nodeRequests.add(new NodeRequest(node, shardIds, aliasFilters));
+            nodeRequests.add(new NodeRequest(node, shards, aliasFilters));
         }
         return nodeRequests;
     }
@@ -507,7 +521,7 @@ abstract class DataNodeRequestSender {
                     allocatedNodes.add(nodes.get(n));
                 }
                 AliasFilter aliasFilter = resp.getAliasFilters().get(shardId.getIndex().getUUID());
-                shards.put(shardId, new TargetShard(shardId, allocatedNodes, aliasFilter));
+                shards.put(shardId, new TargetShard(shardId, allocatedNodes, aliasFilter, group.reshardSplitShardCountSummary()));
             }
             return new TargetShards(shards, totalShards, skippedShards);
         });

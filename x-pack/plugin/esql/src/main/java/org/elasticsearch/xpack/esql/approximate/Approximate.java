@@ -467,6 +467,7 @@ public class Approximate {
             } else if (queryProperties.canIncreaseRowCount == false && sampleProbability > SAMPLE_PROBABILITY_THRESHOLD) {
                 // If the query cannot increase the number of rows, and the sample probability is large,
                 // we can directly run the original query without sampling.
+                logger.debug("using original plan (too few rows)");
                 runner.run(toPhysicalPlan.apply(logicalPlan), configuration, foldContext, listener);
             } else {
                 // Otherwise, we need to sample the number of rows first to obtain a good sample probability.
@@ -532,6 +533,7 @@ public class Approximate {
             double newSampleProbability = Math.min(1.0, sampleProbability * SAMPLE_ROW_COUNT / Math.max(1, rowCount));
             if (newSampleProbability > SAMPLE_PROBABILITY_THRESHOLD) {
                 // If the new sample probability is large, run the original query.
+                logger.debug("using original plan (too few rows)");
                 runner.run(toPhysicalPlan.apply(logicalPlan), configuration, foldContext, listener);
             } else if (rowCount <= SAMPLE_ROW_COUNT_FOR_COUNT_ESTIMATION / 2) {
                 // Not enough rows are sampled yet; increase the sample probability and try again.

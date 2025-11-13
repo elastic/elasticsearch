@@ -7,30 +7,44 @@
 
 package org.elasticsearch.xpack.inference.services.fireworksai;
 
-import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.threadpool.TestThreadPool;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.inference.InferenceService;
+import org.elasticsearch.inference.RerankingInferenceService;
+import org.elasticsearch.test.http.MockWebServer;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.inference.external.http.HttpClientManager;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSender;
+import org.elasticsearch.xpack.inference.logging.ThrottlerManager;
+import org.elasticsearch.xpack.inference.services.InferenceServiceTestCase;
+import org.junit.After;
+import org.junit.Before;
 
+import java.io.IOException;
+
+import static org.elasticsearch.xpack.inference.Utils.inferenceUtilityExecutors;
 import static org.elasticsearch.xpack.inference.Utils.mockClusterServiceEmpty;
 import static org.elasticsearch.xpack.inference.services.ServiceComponentsTests.createWithEmptySettings;
 import static org.hamcrest.core.Is.is;
 import static org.mockito.Mockito.mock;
 
-public class FireworksAiServiceTests extends ESTestCase {
+public class FireworksAiServiceTests extends InferenceServiceTestCase {
 
+    private final MockWebServer webServer = new MockWebServer();
     private ThreadPool threadPool;
+    private HttpClientManager clientManager;
 
-    @Override
-    public void setUp() throws Exception {
-        super.setUp();
-        threadPool = new TestThreadPool(getTestName());
+    @Before
+    public void init() throws Exception {
+        webServer.start();
+        threadPool = createThreadPool(inferenceUtilityExecutors());
+        clientManager = HttpClientManager.create(Settings.EMPTY, threadPool, mockClusterServiceEmpty(), mock(ThrottlerManager.class));
     }
 
-    @Override
-    public void tearDown() throws Exception {
-        super.tearDown();
+    @After
+    public void shutdown() throws IOException {
+        clientManager.close();
         terminate(threadPool);
+        webServer.close();
     }
 
     public void testRerankerWindowSize() {
@@ -49,5 +63,15 @@ public class FireworksAiServiceTests extends ESTestCase {
             createWithEmptySettings(threadPool),
             mockClusterServiceEmpty()
         );
+    }
+
+    @Override
+    public InferenceService createInferenceService() {
+        return createFireworksAiService();
+    }
+
+    @Override
+    protected void assertRerankerWindowSize(RerankingInferenceService rerankingInferenceService) {
+        assertThat(rerankingInferenceService.rerankerWindowSize("any-model"), is(5500));
     }
 }

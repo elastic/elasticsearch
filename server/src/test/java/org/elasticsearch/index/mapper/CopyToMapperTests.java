@@ -32,6 +32,62 @@ import static org.hamcrest.Matchers.startsWith;
 
 public class CopyToMapperTests extends MapperServiceTestCase {
 
+    public void testCopyToNonExistentFieldWithDynamicFalse() {
+        Exception e = expectThrows(IllegalArgumentException.class, () -> createDocumentMapper(topMapping(b -> {
+            b.field("dynamic", false);
+            b.startObject("properties");
+            {
+                b.startObject("test_field");
+                {
+                    b.field("type", "text");
+                    b.field("copy_to", "missing_field");
+                }
+                b.endObject();
+            }
+            b.endObject();
+        })));
+        assertThat(
+            e.getMessage(),
+            equalTo("Cannot copy to field [missing_field] because it does not exist and dynamic mappings are disabled")
+        );
+    }
+
+    public void testCopyToExistingFieldWithDynamicFalse() throws Exception {
+        // This should succeed as the target field exists
+        DocumentMapper mapper = createDocumentMapper(topMapping(b -> {
+            b.field("dynamic", false);
+            b.startObject("properties");
+            {
+                b.startObject("test_field");
+                {
+                    b.field("type", "text");
+                    b.field("copy_to", "target_field");
+                }
+                b.endObject();
+                b.startObject("target_field");
+                {
+                    b.field("type", "text");
+                }
+                b.endObject();
+            }
+            b.endObject();
+        }));
+        assertNotNull(mapper);
+    }
+
+    public void testCopyToNonExistentFieldWithDynamicTrue() throws Exception {
+        // This should succeed as dynamic is true (default)
+        MapperService mapperService = createMapperService(mapping(b -> {
+            b.startObject("test_field");
+            {
+                b.field("type", "text");
+                b.field("copy_to", "missing_field");
+            }
+            b.endObject();
+        }));
+        assertNotNull(mapperService.documentMapper());
+    }
+
     @SuppressWarnings("unchecked")
     public void testCopyToFieldsParsing() throws Exception {
 

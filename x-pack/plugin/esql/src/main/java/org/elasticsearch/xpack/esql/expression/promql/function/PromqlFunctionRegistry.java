@@ -98,7 +98,6 @@ public class PromqlFunctionRegistry {
                 acrossSeries("stdvar", Variance::new) },
             // Across-series aggregations with parameters
             new FunctionDefinition[] { acrossSeriesBinary("quantile", Percentile::new) }
-            // Note: group, stddev, stdvar, count_values not yet available in ESQL
         };
     }
 
@@ -247,8 +246,6 @@ public class PromqlFunctionRegistry {
         "bottomk",
         "topk",
         "group",
-        "stddev",
-        "stdvar",
         "count_values",
 
         // Range vector functions (not yet implemented)

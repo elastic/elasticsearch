@@ -98,7 +98,7 @@ public class BalancedShardsAllocatorInvalidWeightsTests extends ESTestCase {
 
             final int numberOfNodes = randomIntBetween(3, 5);
             final var clusterState = ClusterStateCreationUtils.state(randomIdentifier(), numberOfNodes, numberOfNodes);
-            final var negativeDecision = randomFrom(Decision.NO);
+            final var negativeDecision = randomFrom(Decision.NO, Decision.NOT_PREFERRED);
             final var nodeToMoveShardOff = randomFrom(
                 clusterState.nodes()
                     .getAllNodes()

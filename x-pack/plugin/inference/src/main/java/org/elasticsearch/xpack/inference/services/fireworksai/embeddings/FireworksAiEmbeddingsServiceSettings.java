@@ -61,42 +61,9 @@ public class FireworksAiEmbeddingsServiceSettings extends FilteredXContentObject
     public static final RateLimitSettings DEFAULT_RATE_LIMIT_SETTINGS = new RateLimitSettings(6000);
 
     public static FireworksAiEmbeddingsServiceSettings fromMap(Map<String, Object> map, ConfigurationParseContext context) {
-        return switch (context) {
-            case REQUEST -> fromRequestMap(map);
-            case PERSISTENT -> fromPersistentMap(map);
-        };
-    }
-
-    private static FireworksAiEmbeddingsServiceSettings fromPersistentMap(Map<String, Object> map) {
         ValidationException validationException = new ValidationException();
 
-        var commonFields = fromMap(map, validationException, ConfigurationParseContext.PERSISTENT);
-
-        Boolean dimensionsSetByUser = removeAsType(map, DIMENSIONS_SET_BY_USER, Boolean.class);
-        if (dimensionsSetByUser == null) {
-            dimensionsSetByUser = Boolean.FALSE;
-        }
-
-        return new FireworksAiEmbeddingsServiceSettings(commonFields, dimensionsSetByUser);
-    }
-
-    private static FireworksAiEmbeddingsServiceSettings fromRequestMap(Map<String, Object> map) {
-        ValidationException validationException = new ValidationException();
-
-        var commonFields = fromMap(map, validationException, ConfigurationParseContext.REQUEST);
-
-        if (validationException.validationErrors().isEmpty() == false) {
-            throw validationException;
-        }
-
-        return new FireworksAiEmbeddingsServiceSettings(commonFields, commonFields.dimensions != null);
-    }
-
-    private static CommonFields fromMap(
-        Map<String, Object> map,
-        ValidationException validationException,
-        ConfigurationParseContext context
-    ) {
+        // Extract common fields
         String url = extractOptionalString(map, URL, ModelConfigurations.SERVICE_SETTINGS, validationException);
         SimilarityMeasure similarity = extractSimilarity(map, ModelConfigurations.SERVICE_SETTINGS, validationException);
         Integer maxInputTokens = extractOptionalPositiveInteger(
@@ -106,7 +73,6 @@ public class FireworksAiEmbeddingsServiceSettings extends FilteredXContentObject
             validationException
         );
         Integer dims = extractOptionalPositiveInteger(map, DIMENSIONS, ModelConfigurations.SERVICE_SETTINGS, validationException);
-        URI uri = convertToUri(url, URL, ModelConfigurations.SERVICE_SETTINGS, validationException);
         String modelId = extractRequiredString(map, MODEL_ID, ModelConfigurations.SERVICE_SETTINGS, validationException);
         RateLimitSettings rateLimitSettings = RateLimitSettings.of(
             map,
@@ -116,21 +82,34 @@ public class FireworksAiEmbeddingsServiceSettings extends FilteredXContentObject
             context
         );
 
-        if (uri == null) {
-            uri = ServiceUtils.createUri(DEFAULT_URL);
+        // Optimize URI conversion - only convert if URL is provided, otherwise use default
+        URI uri = url != null
+            ? convertToUri(url, URL, ModelConfigurations.SERVICE_SETTINGS, validationException)
+            : ServiceUtils.createUri(DEFAULT_URL);
+
+        // Handle dimensionsSetByUser based on context
+        Boolean dimensionsSetByUser = switch (context) {
+            case PERSISTENT -> {
+                Boolean value = removeAsType(map, DIMENSIONS_SET_BY_USER, Boolean.class);
+                yield value != null ? value : Boolean.FALSE;
+            }
+            case REQUEST -> dims != null;
+        };
+
+        if (validationException.validationErrors().isEmpty() == false) {
+            throw validationException;
         }
 
-        return new CommonFields(modelId, uri, similarity, maxInputTokens, dims, rateLimitSettings);
+        return new FireworksAiEmbeddingsServiceSettings(
+            modelId,
+            uri,
+            similarity,
+            dims,
+            maxInputTokens,
+            dimensionsSetByUser,
+            rateLimitSettings
+        );
     }
-
-    private record CommonFields(
-        String modelId,
-        URI uri,
-        @Nullable SimilarityMeasure similarity,
-        @Nullable Integer maxInputTokens,
-        @Nullable Integer dimensions,
-        RateLimitSettings rateLimitSettings
-    ) {}
 
     private final String modelId;
     private final URI uri;
@@ -156,18 +135,6 @@ public class FireworksAiEmbeddingsServiceSettings extends FilteredXContentObject
         this.maxInputTokens = maxInputTokens;
         this.dimensionsSetByUser = Objects.requireNonNull(dimensionsSetByUser);
         this.rateLimitSettings = Objects.requireNonNullElse(rateLimitSettings, DEFAULT_RATE_LIMIT_SETTINGS);
-    }
-
-    private FireworksAiEmbeddingsServiceSettings(CommonFields commonFields, Boolean dimensionsSetByUser) {
-        this(
-            commonFields.modelId,
-            commonFields.uri,
-            commonFields.similarity,
-            commonFields.dimensions,
-            commonFields.maxInputTokens,
-            dimensionsSetByUser,
-            commonFields.rateLimitSettings
-        );
     }
 
     public FireworksAiEmbeddingsServiceSettings(StreamInput in) throws IOException {

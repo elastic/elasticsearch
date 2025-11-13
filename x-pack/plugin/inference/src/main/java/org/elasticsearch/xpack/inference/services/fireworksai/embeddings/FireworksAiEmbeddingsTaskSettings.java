@@ -43,6 +43,10 @@ public class FireworksAiEmbeddingsTaskSettings implements TaskSettings {
 
         ValidationException validationException = new ValidationException();
 
+        // Dimensions can be specified in both service_settings and task_settings:
+        // - service_settings.dimensions: Persistent default for the model (auto-detected from first API call)
+        // - task_settings.dimensions: Optional per-request override for variable-length embeddings
+        // This allows users to dynamically control embedding size per inference request
         Integer dimensions = extractOptionalPositiveInteger(map, DIMENSIONS, ModelConfigurations.TASK_SETTINGS, validationException);
 
         if (validationException.validationErrors().isEmpty() == false) {

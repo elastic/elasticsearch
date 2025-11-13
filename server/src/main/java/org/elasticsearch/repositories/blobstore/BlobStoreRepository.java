@@ -399,6 +399,19 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         Function.identity()
     );
 
+    /**
+     * Parses only the shard count from the IndexMetadata object written by INDEX_METADATA_FORMAT (#131822)
+     */
+    public static final ChecksumBlobStoreFormat<IndexShardCount> INDEX_SHARD_COUNT_FORMAT = new ChecksumBlobStoreFormat<>(
+        "index-metadata",
+        METADATA_NAME_FORMAT,
+        (repoName, parser) -> IndexShardCount.fromIndexMetadata(parser),
+        (ignored) -> {
+            assert false;
+            throw new UnsupportedOperationException();
+        }
+    );
+
     private static final String SNAPSHOT_CODEC = "snapshot";
 
     public static final ChecksumBlobStoreFormat<SnapshotInfo> SNAPSHOT_FORMAT = new ChecksumBlobStoreFormat<>(
@@ -1328,17 +1341,16 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             private void getOneShardCount(String indexMetaGeneration) {
                 try {
                     updateShardCount(
-                        INDEX_METADATA_FORMAT.read(getProjectRepo(), indexContainer, indexMetaGeneration, namedXContentRegistry)
-                            .getNumberOfShards()
+                        INDEX_SHARD_COUNT_FORMAT.read(getProjectRepo(), indexContainer, indexMetaGeneration, namedXContentRegistry).count()
                     );
                 } catch (Exception ex) {
-                    logger.warn(() -> format("[%s] [%s] failed to read metadata for index", indexMetaGeneration, indexId.getName()), ex);
+                    logger.warn(() -> format("[%s] [%s] failed to read shard count for index", indexMetaGeneration, indexId.getName()), ex);
                     // Definitely indicates something fairly badly wrong with the repo, but not immediately fatal here: we might get the
-                    // shard count from another metadata blob, or we might just not process these shards. If we skip these shards then the
-                    // repository will technically enter an invalid state (these shards' index-XXX blobs will refer to snapshots that no
-                    // longer exist) and may contain dangling blobs too. A subsequent delete that hits this index may repair the state if
-                    // the metadata read error is transient, but if not then the stale indices cleanup will eventually remove this index
-                    // and all its extra data anyway.
+                    // shard count from another metadata blob, or we might just not process these shards. If we skip these shards
+                    // then the repository will technically enter an invalid state (these shards' index-XXX blobs will refer to snapshots
+                    // that no longer exist) and may contain dangling blobs too. A subsequent delete that hits this index may repair
+                    // the state if the metadata read error is transient, but if not then the stale indices cleanup will eventually
+                    // remove this index and all its extra data anyway.
                     // TODO: Should we fail the delete here? See https://github.com/elastic/elasticsearch/issues/100569.
                 }
             }

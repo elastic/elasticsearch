@@ -459,11 +459,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
                     logger.trace("skipping rebalance as the partition has single node only");
                     continue;
                 }
-                try {
-                    shardBalanced |= balanceByWeights(nodeSorter);
-                } catch (NodeSorter.InvalidWeightException ex) {
-                    maybeLogInvalidWeightEncountered(ex.node, ex.index, ex.weight);
-                }
+                shardBalanced |= balanceByWeights(nodeSorter);
                 // TODO: We could choose to account shardBalanced separately for each partition since they do not overlap.
                 if (shardBalanced && completeEarlyOnShardAssignmentChange) {
                     return true;
@@ -487,12 +483,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
 
             Decision canRebalance = allocation.deciders().canRebalance(shard, allocation);
 
-            try {
-                sorter.reset(index);
-            } catch (NodeSorter.InvalidWeightException e) {
-                maybeLogInvalidWeightEncountered(e.node, e.index, e.weight);
-                return MoveDecision.NOT_TAKEN;
-            }
+            sorter.reset(index);
 
             ModelNode[] modelNodes = sorter.modelNodes;
             final String currentNodeId = shard.currentNodeId();
@@ -518,7 +509,8 @@ public class BalancedShardsAllocator implements ShardsAllocator {
             List<Tuple<ModelNode, Decision>> betterBalanceNodes = new ArrayList<>();
             List<Tuple<ModelNode, Decision>> sameBalanceNodes = new ArrayList<>();
             List<Tuple<ModelNode, Decision>> worseBalanceNodes = new ArrayList<>();
-            for (ModelNode node : modelNodes) {
+            for (int i = 0; i < sorter.validSortedCount(); i++) {
+                final ModelNode node = sorter.modelNodes[i];
                 if (node == currentNode) {
                     continue; // skip over node we're currently allocated to
                 }
@@ -630,7 +622,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
          * only, or in other words relocations that move the weight delta closer
          * to {@code 0.0}
          */
-        private boolean balanceByWeights(NodeSorter sorter) throws NodeSorter.InvalidWeightException {
+        private boolean balanceByWeights(NodeSorter sorter) {
             boolean shardBalanced = false;
             final AllocationDeciders deciders = allocation.deciders();
             final ModelNode[] modelNodes = sorter.modelNodes;
@@ -656,9 +648,13 @@ public class BalancedShardsAllocator implements ShardsAllocator {
                     continue;
                 }
 
-                sorter.reset(index, 0, relevantNodes);
+                sorter.reset(index, relevantNodes);
+                if (sorter.validSortedCount() < 2) {
+                    continue;
+                }
+
                 int lowIdx = 0;
-                int highIdx = relevantNodes - 1;
+                int highIdx = sorter.validSortedCount() - 1;
                 final float localThreshold = sorter.minWeightDelta() * threshold;
                 while (true) {
                     final ModelNode minNode = modelNodes[lowIdx];
@@ -725,11 +721,14 @@ public class BalancedShardsAllocator implements ShardsAllocator {
                              * we could just find the place to insert linearly but the win might be minor
                              * compared to the added complexity
                              */
-                            weights[lowIdx] = sorter.weight(modelNodes[lowIdx]);
-                            weights[highIdx] = sorter.weight(modelNodes[highIdx]);
-                            sorter.sort(0, relevantNodes);
+                            sorter.recalculateWeightsAndReSort(lowIdx, highIdx);
+                            if (sorter.validSortedCount() < 2) {
+                                // The number of nodes returning valid weights has dropped
+                                // below 2, we can't balance this index any further
+                                break;
+                            }
                             lowIdx = 0;
-                            highIdx = relevantNodes - 1;
+                            highIdx = sorter.validSortedCount() - 1;
 
                             assert allocation.isSimulating() == false || routingNodes.getRelocatingShardCount() == 1
                                 : "unexpected relocation shard count ["
@@ -785,7 +784,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
          * average. To re-balance we need to move shards back eventually likely
          * to the nodes we relocated them from.
          */
-        private ProjectIndex[] buildWeightOrderedIndices(NodeSorter sorter) throws NodeSorter.InvalidWeightException {
+        private ProjectIndex[] buildWeightOrderedIndices(NodeSorter sorter) {
             final ProjectIndex[] indices = allocation.globalRoutingTable()
                 .routingTables()
                 .entrySet()
@@ -982,12 +981,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
                 return MoveDecision.NOT_TAKEN;
             }
 
-            try {
-                sorter.reset(index);
-            } catch (NodeSorter.InvalidWeightException e) {
-                maybeLogInvalidWeightEncountered(e.node, e.index, e.weight);
-                return MoveDecision.NOT_TAKEN;
-            }
+            sorter.reset(index);
 
             /*
              * the sorter holds the minimum weight node first for the shards index.
@@ -1743,6 +1737,9 @@ public class BalancedShardsAllocator implements ShardsAllocator {
      * for that partition. In partitioned cluster topologies there will be one for each partition
      * (e.g. search/indexing in stateless). By default, there is a single partition containing
      * a single weight function that applies to all nodes and shards.
+     * <p>
+     * A lot of this logic depends on the weights being finite, so there is code to protect against
+     * a weight function that returns non-finite values.
      *
      * @see BalancingWeightsFactory
      */
@@ -1755,44 +1752,98 @@ public class BalancedShardsAllocator implements ShardsAllocator {
         private ProjectIndex index;
         private final Balancer balancer;
         private float pivotWeight;
+        private int invalidCount;
+        private int sortedCount;
 
         public NodeSorter(ModelNode[] modelNodes, WeightFunction function, Balancer balancer) {
             this.function = function;
             this.balancer = balancer;
             this.modelNodes = modelNodes;
             weights = new float[modelNodes.length];
+            invalidCount = 0;
+        }
+
+        /**
+         * If the weight function returns a non-finite weight (e.g. {@link Float#NaN}, {@link Float#NEGATIVE_INFINITY},
+         * {@link Float#POSITIVE_INFINITY}). We default the weight to {@link Float#MAX_VALUE}. This method returns
+         * the number of nodes that returned valid weights last time {@link #reset(ProjectIndex)} or {@link #reset(ProjectIndex, int)}
+         * was called. This allows iteration of only those nodes which returned valid weights.
+         *
+         * @return The count of nodes that returned valid weights last time we reset
+         */
+        public int validSortedCount() {
+            return sortedCount - invalidCount;
         }
 
         /**
          * Resets the sorter, recalculates the weights per node and sorts the
          * nodes by weight, with minimal weight first.
-         *
-         * @throws InvalidWeightException if a non-finite weight is encountered when sorting
          */
-        public void reset(ProjectIndex index, int from, int to) throws InvalidWeightException {
+        public void reset(ProjectIndex index, int to) {
+            sortedCount = to;
+            invalidCount = 0;
             this.index = index;
-            for (int i = from; i < to; i++) {
-                weights[i] = weight(modelNodes[i]);
+            for (int i = 0; i < to; i++) {
+                float weight = weight(modelNodes[i]);
+                if (nodeWeightIsInvalid(weight)) {
+                    maybeLogInvalidWeightEncountered(modelNodes[i], index, weight);
+                    weight = Float.MAX_VALUE;
+                    invalidCount++;
+                }
+                weights[i] = weight;
             }
-            sort(from, to);
+            sort(0, to);
         }
 
         /**
-         * @throws InvalidWeightException if a non-finite weight is encountered when sorting
+         * Recalculate the weights of the nodes at the specified indices, incrementing
+         * the invalid count if any become invalid.
+         *
+         * @param nodeIndices The indices of the nodes whose weights should be recalculated
          */
-        public void reset(ProjectIndex index) throws InvalidWeightException {
-            reset(index, 0, modelNodes.length);
+        public void recalculateWeightsAndReSort(int... nodeIndices) {
+            assert nodesHaveCurrentlyValidWeights(nodeIndices)
+                : "We don't expect to recalculate weights when a prior calculation was invalid";
+            for (int nodeIndex : nodeIndices) {
+                recalculateWeight(nodeIndex);
+            }
+            sort(0, sortedCount);
+        }
+
+        private void recalculateWeight(int nodeIndex) {
+            float newWeight = weight(modelNodes[nodeIndex]);
+            if (nodeWeightIsInvalid(newWeight)) {
+                maybeLogInvalidWeightEncountered(modelNodes[nodeIndex], index, newWeight);
+                newWeight = Float.MAX_VALUE;
+                // We assume any existing MAX_VALUE weight is due to being previously invalid
+                if (weights[nodeIndex] != Float.MAX_VALUE) {
+                    invalidCount++;
+                }
+            }
+            weights[nodeIndex] = newWeight;
+        }
+
+        private boolean nodesHaveCurrentlyValidWeights(int... nodeIndices) {
+            for (int nodeIndex : nodeIndices) {
+                if (weights[nodeIndex] == Float.MAX_VALUE) {
+                    return false;
+                }
+            }
+            return true;
+        }
+
+        public void reset(ProjectIndex index) {
+            reset(index, modelNodes.length);
         }
 
         /**
-         * @throws InvalidWeightException if a non-finite weight is returned
+         * Calculate the weight of the specified node according to the weight function.
+         *
+         * @param node The node whose weight should be calculated
+         * @return The weight of the node. It should always be checked for validity with {@link #nodeWeightIsInvalid(float)}
          */
-        public float weight(ModelNode node) throws InvalidWeightException {
-            float weight = function.calculateNodeWeightWithIndex(balancer, node, index);
-            if (nodeWeightIsInvalid(weight)) {
-                throw new InvalidWeightException(node, index, weight);
-            }
-            return weight;
+        private float weight(ModelNode node) {
+            return function.calculateNodeWeightWithIndex(balancer, node, index);
         }
 
         public float minWeightDelta() {
@@ -1828,24 +1879,14 @@ public class BalancedShardsAllocator implements ShardsAllocator {
         }
 
         public float delta() {
-            return weights.length == 0 ? 0.0f : weights[weights.length - 1] - weights[0];
+            if (validSortedCount() == 0) {
+                return 0.0f;
+            }
+            return weights[validSortedCount() - 1] - weights[0];
         }
 
         public WeightFunction getWeightFunction() {
             return function;
-        }
-
-        static class InvalidWeightException extends Exception {
-            private final ModelNode node;
-            private final ProjectIndex index;
-            private final float weight;
-
-            InvalidWeightException(ModelNode node, ProjectIndex index, float weight) {
-                super("Invalid weight encountered");
-                this.node = node;
-                this.index = index;
-                this.weight = weight;
-            }
         }
     }
 

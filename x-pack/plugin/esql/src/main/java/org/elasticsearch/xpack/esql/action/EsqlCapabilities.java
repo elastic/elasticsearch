@@ -315,6 +315,11 @@ public class EsqlCapabilities {
         AGG_TOP_WITH_OPTIONAL_ORDER_FIELD,
 
         /**
+         * Support for the extra "map" field in {@code TOP} aggregation.
+         */
+        AGG_TOP_WITH_OUTPUT_FIELD,
+
+        /**
          * {@code CASE} properly handling multivalue conditions.
          */
         CASE_MV,
@@ -1351,7 +1356,7 @@ public class EsqlCapabilities {
         /**
          * Decay function for custom scoring
          */
-        DECAY_FUNCTION(Build.current().isSnapshot()),
+        DECAY_FUNCTION,
 
         /**
          * FIRST and LAST aggregate functions.
@@ -1641,6 +1646,11 @@ public class EsqlCapabilities {
         FIX_MV_CONSTANT_COMPARISON_FIELD,
 
         FULL_TEXT_FUNCTIONS_ACCEPT_NULL_FIELD,
+
+        /**
+         * Support for exponential_histogram type in PERCENTILES aggregation.
+         */
+        EXPONENTIAL_HISTOGRAM_PERCENTILES_SUPPORT(EXPONENTIAL_HISTOGRAM_FEATURE_FLAG),
 
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.

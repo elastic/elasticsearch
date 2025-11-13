@@ -43,6 +43,11 @@ public class L2Norm extends VectorSimilarityFunction {
         public BlockLoaderFunctionConfig.Function function() {
             return BlockLoaderFunctionConfig.Function.V_L2NORM;
         }
+
+        @Override
+        public String toString() {
+            return "V_L2_NORM";
+        }
     };
 
     @FunctionInfo(

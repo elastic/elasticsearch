@@ -430,10 +430,10 @@ public class ShardSearchPhaseAPMMetricsTests extends ESSingleNodeTestCase {
         LocalDate baseDate = LocalDate.of(2024, 11, 1);
         for (int i = 1; i <= num_primaries * 2; i++) {
             LocalDate docDate = baseDate.plusMonths(i - 1);
-            prepareIndex(indexName)
-                .setId(Integer.toString(i))
+            prepareIndex(indexName).setId(Integer.toString(i))
                 .setSource("body", "doc" + i, "@timestamp", docDate.format(DateTimeFormatter.ISO_LOCAL_DATE))
-                .setRefreshPolicy(IMMEDIATE).get();
+                .setRefreshPolicy(IMMEDIATE)
+                .get();
 
         }
 

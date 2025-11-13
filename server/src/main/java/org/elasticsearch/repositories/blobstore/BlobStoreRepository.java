@@ -94,6 +94,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.SuppressForbidden;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.shard.ShardId;
@@ -4223,11 +4224,12 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 final long uploadTimeInMillis = threadPool.rawRelativeTimeInMillis() - startMillis;
                 blobStoreSnapshotMetrics.incrementCountersForPartUpload(partBytes, uploadTimeInMillis);
                 logger.trace(
-                    "[{}] Writing [{}] of size [{}b] to [{}] took [{}ms]",
+                    "[{}] Writing [{}] of size [{}b] to [{}] took [{}/{}ms]",
                     metadata.name(),
                     partName,
                     partBytes,
                     shardContainer.path(),
+                    new TimeValue(uploadTimeInMillis),
                     uploadTimeInMillis
                 );
             }

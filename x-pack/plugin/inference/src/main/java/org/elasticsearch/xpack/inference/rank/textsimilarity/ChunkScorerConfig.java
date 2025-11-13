@@ -39,7 +39,7 @@ public class ChunkScorerConfig implements Writeable, ToXContentObject {
     public static ChunkingSettings chunkingSettingsFromMap(Map<String, Object> map) {
 
         if (map == null || map.isEmpty()) {
-            return null;
+            return createChunkingSettings(DEFAULT_CHUNK_SIZE);
         }
 
         if (map.size() == 1 && map.containsKey("max_chunk_size")) {

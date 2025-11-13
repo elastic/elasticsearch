@@ -476,9 +476,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.vector.VectorSimilarityFunctionsIT
   method: testSimilarityWithOneDimVector {functionName=v_cosine similarityFunction=V_COSINE elementType=byte}
   issue: https://github.com/elastic/elasticsearch/issues/137975
-- class: org.elasticsearch.search.TelemetryMetrics.ShardSearchPhaseAPMMetricsTests
-  method: testTimeRangeFilterAllResults
-  issue: https://github.com/elastic/elasticsearch/issues/137979
 
 # Examples:
 #

@@ -115,6 +115,10 @@ import org.elasticsearch.xpack.inference.services.openai.completion.OpenAiChatCo
 import org.elasticsearch.xpack.inference.services.openai.completion.OpenAiChatCompletionTaskSettings;
 import org.elasticsearch.xpack.inference.services.openai.embeddings.OpenAiEmbeddingsServiceSettings;
 import org.elasticsearch.xpack.inference.services.openai.embeddings.OpenAiEmbeddingsTaskSettings;
+import org.elasticsearch.xpack.inference.services.openshiftai.completion.OpenShiftAiChatCompletionServiceSettings;
+import org.elasticsearch.xpack.inference.services.openshiftai.embeddings.OpenShiftAiEmbeddingsServiceSettings;
+import org.elasticsearch.xpack.inference.services.openshiftai.rerank.OpenShiftAiRerankServiceSettings;
+import org.elasticsearch.xpack.inference.services.openshiftai.rerank.OpenShiftAiRerankTaskSettings;
 import org.elasticsearch.xpack.inference.services.sagemaker.model.SageMakerModel;
 import org.elasticsearch.xpack.inference.services.sagemaker.schema.SageMakerSchemas;
 import org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettings;
@@ -172,6 +176,7 @@ public class InferenceNamedWriteablesProvider {
         addCustomNamedWriteables(namedWriteables);
         addLlamaNamedWriteables(namedWriteables);
         addAi21NamedWriteables(namedWriteables);
+        addOpenShiftAiNamedWriteables(namedWriteables);
 
         addUnifiedNamedWriteables(namedWriteables);
 
@@ -443,6 +448,33 @@ public class InferenceNamedWriteablesProvider {
                 OpenAiChatCompletionTaskSettings.NAME,
                 OpenAiChatCompletionTaskSettings::new
             )
+        );
+    }
+
+    private static void addOpenShiftAiNamedWriteables(List<NamedWriteableRegistry.Entry> namedWriteables) {
+        namedWriteables.add(
+            new NamedWriteableRegistry.Entry(
+                ServiceSettings.class,
+                OpenShiftAiEmbeddingsServiceSettings.NAME,
+                OpenShiftAiEmbeddingsServiceSettings::new
+            )
+        );
+        namedWriteables.add(
+            new NamedWriteableRegistry.Entry(
+                ServiceSettings.class,
+                OpenShiftAiChatCompletionServiceSettings.NAME,
+                OpenShiftAiChatCompletionServiceSettings::new
+            )
+        );
+        namedWriteables.add(
+            new NamedWriteableRegistry.Entry(
+                ServiceSettings.class,
+                OpenShiftAiRerankServiceSettings.NAME,
+                OpenShiftAiRerankServiceSettings::new
+            )
+        );
+        namedWriteables.add(
+            new NamedWriteableRegistry.Entry(TaskSettings.class, OpenShiftAiRerankTaskSettings.NAME, OpenShiftAiRerankTaskSettings::new)
         );
     }
 

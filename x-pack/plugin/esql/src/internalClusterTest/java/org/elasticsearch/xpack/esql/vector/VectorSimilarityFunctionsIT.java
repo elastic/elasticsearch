@@ -253,7 +253,10 @@ public class VectorSimilarityFunctionsIT extends AbstractEsqlIntegTestCase {
     }
 
     public void testDifferentDimensions() {
-        var randomVector = randomVector(randomValueOtherThan(numDims, () -> randomIntBetween(32, 64) * 2), false);
+        var randomVector = randomVector(
+            randomValueOtherThan(numDims, () -> randomIntBetween(32, 64) * (elementType == ElementType.BIT ? 8 : 2)),
+            false
+        );
         var query = String.format(Locale.ROOT, """
                 FROM test
                 | EVAL similarity = %s(left_vector, %s)

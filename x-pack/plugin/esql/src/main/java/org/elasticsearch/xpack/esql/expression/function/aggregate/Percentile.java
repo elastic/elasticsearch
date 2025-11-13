@@ -24,6 +24,7 @@ import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionType;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDouble;
+import org.elasticsearch.xpack.esql.expression.function.scalar.histogram.HistogramPercentile;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvPercentile;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 
@@ -74,14 +75,14 @@ public class Percentile extends NumericAggregate implements SurrogateExpression 
     )
     public Percentile(
         Source source,
-        @Param(name = "number", type = { "double", "integer", "long" }) Expression field,
+        @Param(name = "number", type = { "double", "integer", "long", "exponential_histogram" }) Expression field,
         @Param(name = "percentile", type = { "double", "integer", "long" }) Expression percentile
     ) {
-        this(source, field, Literal.TRUE, percentile);
+        this(source, field, Literal.TRUE, NO_WINDOW, percentile);
     }
 
-    public Percentile(Source source, Expression field, Expression filter, Expression percentile) {
-        super(source, field, filter, singletonList(percentile));
+    public Percentile(Source source, Expression field, Expression filter, Expression window, Expression percentile) {
+        super(source, field, filter, window, singletonList(percentile));
         this.percentile = percentile;
     }
 
@@ -90,7 +91,8 @@ public class Percentile extends NumericAggregate implements SurrogateExpression 
             Source.readFrom((PlanStreamInput) in),
             in.readNamedWriteable(Expression.class),
             in.readNamedWriteable(Expression.class),
-            in.readNamedWriteableCollectionAsList(Expression.class).get(0)
+            readWindow(in),
+            in.readNamedWriteableCollectionAsList(Expression.class).getFirst()
         );
     }
 
@@ -101,17 +103,17 @@ public class Percentile extends NumericAggregate implements SurrogateExpression 
 
     @Override
     protected NodeInfo<Percentile> info() {
-        return NodeInfo.create(this, Percentile::new, field(), filter(), percentile);
+        return NodeInfo.create(this, Percentile::new, field(), filter(), window(), percentile);
     }
 
     @Override
     public Percentile replaceChildren(List<Expression> newChildren) {
-        return new Percentile(source(), newChildren.get(0), newChildren.get(1), newChildren.get(2));
+        return new Percentile(source(), newChildren.get(0), newChildren.get(1), newChildren.get(2), newChildren.get(3));
     }
 
     @Override
     public Percentile withFilter(Expression filter) {
-        return new Percentile(source(), field(), filter, percentile);
+        return new Percentile(source(), field(), filter, window(), percentile);
     }
 
     public Expression percentile() {
@@ -126,10 +128,10 @@ public class Percentile extends NumericAggregate implements SurrogateExpression 
 
         TypeResolution resolution = isType(
             field(),
-            dt -> dt.isNumeric() && dt != DataType.UNSIGNED_LONG,
+            dt -> (dt.isNumeric() && dt != DataType.UNSIGNED_LONG) || dt == DataType.EXPONENTIAL_HISTOGRAM,
             sourceText(),
             FIRST,
-            "numeric except unsigned_long"
+            "exponential_histogram or numeric except unsigned_long"
         );
         if (resolution.unresolved()) {
             return resolution;
@@ -167,6 +169,9 @@ public class Percentile extends NumericAggregate implements SurrogateExpression 
     public Expression surrogate() {
         var field = field();
 
+        if (field.dataType() == DataType.EXPONENTIAL_HISTOGRAM) {
+            return new HistogramPercentile(source(), new HistogramMerge(source(), field, filter()), percentile());
+        }
         if (field.foldable()) {
             return new MvPercentile(source(), new ToDouble(source(), field), percentile());
         }

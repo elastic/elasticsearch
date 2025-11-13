@@ -51,16 +51,11 @@ public class Delta extends TimeSeriesAggregateFunction implements OptionalArgume
         examples = { @Example(file = "k8s-timeseries-delta", tag = "delta") }
     )
     public Delta(Source source, @Param(name = "field", type = { "long", "integer", "double" }) Expression field, Expression timestamp) {
-        this(source, field, Literal.TRUE, timestamp);
+        this(source, field, Literal.TRUE, NO_WINDOW, timestamp);
     }
 
-    // compatibility constructor used when reading from the stream
-    private Delta(Source source, Expression field, Expression filter, List<Expression> children) {
-        this(source, field, filter, children.getFirst());
-    }
-
-    private Delta(Source source, Expression field, Expression filter, Expression timestamp) {
-        super(source, field, filter, List.of(timestamp));
+    private Delta(Source source, Expression field, Expression filter, Expression window, Expression timestamp) {
+        super(source, field, filter, window, List.of(timestamp));
         this.timestamp = timestamp;
     }
 
@@ -69,7 +64,8 @@ public class Delta extends TimeSeriesAggregateFunction implements OptionalArgume
             Source.readFrom((PlanStreamInput) in),
             in.readNamedWriteable(Expression.class),
             in.readNamedWriteable(Expression.class),
-            in.readNamedWriteableCollectionAsList(Expression.class)
+            readWindow(in),
+            in.readNamedWriteableCollectionAsList(Expression.class).getFirst()
         );
     }
 
@@ -85,16 +81,12 @@ public class Delta extends TimeSeriesAggregateFunction implements OptionalArgume
 
     @Override
     public Delta replaceChildren(List<Expression> newChildren) {
-        if (newChildren.size() != 3) {
-            assert false : "expected 3 children for field, filter, @timestamp; got " + newChildren;
-            throw new IllegalArgumentException("expected 3 children for field, filter, @timestamp; got " + newChildren);
-        }
-        return new Delta(source(), newChildren.get(0), newChildren.get(1), newChildren.get(2));
+        return new Delta(source(), newChildren.get(0), newChildren.get(1), newChildren.get(2), newChildren.get(3));
     }
 
     @Override
     public Delta withFilter(Expression filter) {
-        return new Delta(source(), field(), filter, timestamp);
+        return new Delta(source(), field(), filter, window(), timestamp);
     }
 
     @Override

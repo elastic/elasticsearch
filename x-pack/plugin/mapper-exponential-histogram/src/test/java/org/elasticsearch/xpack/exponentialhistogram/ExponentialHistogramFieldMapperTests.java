@@ -605,4 +605,9 @@ public class ExponentialHistogramFieldMapperTests extends MapperTestCase {
     protected IngestScriptSupport ingestScriptSupport() {
         throw new AssumptionViolatedException("not yet implemented");
     }
+
+    @Override
+    protected List<SortShortcutSupport> getSortShortcutSupport() {
+        return List.of();
+    }
 }

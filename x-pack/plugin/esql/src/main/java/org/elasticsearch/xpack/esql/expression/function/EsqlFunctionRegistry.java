@@ -365,7 +365,7 @@ public class EsqlFunctionRegistry {
                 def(StdDev.class, uni(StdDev::new), "std_dev"),
                 def(Variance.class, uni(Variance::new), "variance", "std_var"),
                 def(Sum.class, uni(Sum::new), "sum"),
-                def(Top.class, tri(Top::new), "top"),
+                def(Top.class, quad(Top::new), "top"),
                 def(Values.class, uni(Values::new), "values"),
                 def(WeightedAvg.class, bi(WeightedAvg::new), "weighted_avg"),
                 def(Present.class, uni(Present::new), "present"),
@@ -531,11 +531,11 @@ public class EsqlFunctionRegistry {
                 def(Score.class, uni(Score::new), "score") },
             // time-series functions
             new FunctionDefinition[] {
-                defTS(Rate.class, Rate::new, "rate"),
-                defTS(Irate.class, Irate::new, "irate"),
-                defTS(Idelta.class, Idelta::new, "idelta"),
-                defTS(Delta.class, Delta::new, "delta"),
-                defTS(Increase.class, Increase::new, "increase"),
+                defTS(Rate.class, bi(Rate::new), "rate"),
+                defTS(Irate.class, bi(Irate::new), "irate"),
+                defTS(Idelta.class, bi(Idelta::new), "idelta"),
+                defTS(Delta.class, bi(Delta::new), "delta"),
+                defTS(Increase.class, bi(Increase::new), "increase"),
                 def(MaxOverTime.class, uni(MaxOverTime::new), "max_over_time"),
                 def(MinOverTime.class, uni(MinOverTime::new), "min_over_time"),
                 def(SumOverTime.class, uni(SumOverTime::new), "sum_over_time"),
@@ -546,8 +546,8 @@ public class EsqlFunctionRegistry {
                 def(PresentOverTime.class, uni(PresentOverTime::new), "present_over_time"),
                 def(AbsentOverTime.class, uni(AbsentOverTime::new), "absent_over_time"),
                 def(AvgOverTime.class, uni(AvgOverTime::new), "avg_over_time"),
-                defTS(LastOverTime.class, LastOverTime::new, "last_over_time"),
-                defTS(FirstOverTime.class, FirstOverTime::new, "first_over_time"),
+                defTS(LastOverTime.class, bi(LastOverTime::new), "last_over_time"),
+                defTS(FirstOverTime.class, bi(FirstOverTime::new), "first_over_time"),
                 def(PercentileOverTime.class, bi(PercentileOverTime::new), "percentile_over_time"),
                 // dense vector function
                 def(TextEmbedding.class, bi(TextEmbedding::new), "text_embedding") } };

@@ -47,11 +47,16 @@ public class AssignmentPlanner {
 
     private final List<Node> nodes;
     private final List<AssignmentPlan.Deployment> deployments;
+    private final List<AssignmentPlan.Deployment> deploymentsWithZeroAllocations;
 
     public AssignmentPlanner(List<Node> nodes, List<AssignmentPlan.Deployment> deployments) {
         this.nodes = nodes.stream().sorted(Comparator.comparing(Node::id)).toList();
         this.deployments = deployments.stream()
             .filter(deployment -> deployment.allocations() > 0)
+            .sorted(Comparator.comparing(AssignmentPlan.Deployment::deploymentId))
+            .toList();
+        this.deploymentsWithZeroAllocations = deployments.stream()
+            .filter(deployment -> deployment.allocations() == 0)
             .sorted(Comparator.comparing(AssignmentPlan.Deployment::deploymentId))
             .toList();
     }
@@ -97,8 +102,11 @@ public class AssignmentPlanner {
             }
         }
 
-        logger.debug(() -> "Best plan =\n" + bestPlan.prettyPrint());
-        logger.debug(() -> prettyPrintOverallStats(bestPlan));
+        bestPlan = bestPlan.withZeroAllocationDeployments(deploymentsWithZeroAllocations);
+        if (logger.isDebugEnabled()) {
+            logger.debug("Best plan =\n{}", bestPlan.prettyPrint());
+            logger.debug("{}", prettyPrintOverallStats(bestPlan));
+        }
         return bestPlan;
     }
 

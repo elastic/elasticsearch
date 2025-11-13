@@ -402,7 +402,7 @@ public class MlDailyMaintenanceService implements Releasable {
         try {
             updated.actionGet();
         } catch (Exception ex) {
-            String message = Strings.format("Failed to rollover ML anomalies index [%s]: %s", index, ex.getMessage());
+            String message = Strings.format("Failed to rollover ML index [%s]: %s", index, ex.getMessage());
             logger.warn(message);
             if (ex instanceof ElasticsearchException elasticsearchException) {
                 failures.add(new ElasticsearchStatusException(message, elasticsearchException.status(), elasticsearchException));
@@ -424,7 +424,14 @@ public class MlDailyMaintenanceService implements Releasable {
     }
 
     // Helper function to check for the "index.lifecycle.name" setting on an index
-    private boolean hasIlm(String indexName) {
+    // public for testing
+
+    /**
+     * Return {@code true} if the index has an ILM policy {@code false} otherwise.
+     * @param indexName The index name to check.
+     * @return {@code true} if the index has an ILM policy {@code false} otherwise.
+     */
+    public boolean hasIlm(String indexName) {
         // If ILM is not enabled at all in the machine learning plugin then return false.
         if (isIlmEnabled == false) {
             return false;

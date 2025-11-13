@@ -7,11 +7,15 @@
 package org.elasticsearch.xpack.ml;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.TransportListTasksAction;
+import org.elasticsearch.action.admin.indices.get.GetIndexResponse;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
+import org.elasticsearch.client.internal.AdminClient;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.client.internal.IndicesAdminClient;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.Metadata;
@@ -41,10 +45,12 @@ import org.mockito.stubbing.Answer;
 
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Supplier;
 
+import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.same;
@@ -289,6 +295,62 @@ public class MlDailyMaintenanceServiceTests extends ESTestCase {
         verify(mlAssignmentNotifier).auditUnassignedMlTasks(eq(Metadata.DEFAULT_PROJECT_ID), any(), any());
         verifyNoMoreInteractions(client, mlAssignmentNotifier);
     }
+
+    public void testHasIlm() {
+        List<IlmTestCase> testCases = List.of(
+            new IlmTestCase(true, true, true, "ILM should be active when both settings are enabled"),
+            new IlmTestCase(false, false, true, "ILM should be inactive when index policy is missing"),
+            new IlmTestCase(false, true, false, "ILM should be inactive when ML setting is disabled"),
+            new IlmTestCase(false, false, false, "ILM should be inactive when both settings are disabled")
+        );
+
+        String indexName = randomAlphaOfLength(10);
+        for (IlmTestCase testCase : testCases) {
+            MlDailyMaintenanceService service = createService(indexName, testCase.hasIlmPolicy, testCase.isIlmEnabled);
+            assertThat(testCase.description, service.hasIlm(indexName), equalTo(testCase.expected));
+        }
+    }
+
+    private MlDailyMaintenanceService createService(String indexName, boolean hasIlmPolicy, boolean isIlmEnabled) {
+        AdminClient adminClient = mock(AdminClient.class);
+        IndicesAdminClient indicesAdminClient = mock(IndicesAdminClient.class);
+        @SuppressWarnings("unchecked")
+        ActionFuture<GetIndexResponse> actionFuture = mock(ActionFuture.class);
+
+        when(client.admin()).thenReturn(adminClient);
+        when(adminClient.indices()).thenReturn(indicesAdminClient);
+        when(indicesAdminClient.getIndex(any())).thenReturn(actionFuture);
+
+        Settings.Builder indexSettings = Settings.builder();
+        if (hasIlmPolicy) {
+            indexSettings.put("index.lifecycle.name", "ml-policy");
+        }
+        GetIndexResponse getIndexResponse = new GetIndexResponse(
+            new String[] { indexName },
+            Map.of(),
+            Map.of(),
+            Map.of(indexName, indexSettings.build()),
+            Map.of(),
+            Map.of()
+        );
+        when(actionFuture.actionGet()).thenReturn(getIndexResponse);
+
+        return new MlDailyMaintenanceService(
+            Settings.EMPTY,
+            threadPool,
+            client,
+            clusterService,
+            mlAssignmentNotifier,
+            () -> TimeValue.timeValueDays(1),
+            TestIndexNameExpressionResolver.newInstance(),
+            true,
+            true,
+            true,
+            isIlmEnabled
+        );
+    }
+
+    private record IlmTestCase(boolean expected, boolean hasIlmPolicy, boolean isIlmEnabled, String description) {}
 
     private void executeMaintenanceTriggers(int triggerCount) throws InterruptedException {
         executeMaintenanceTriggers(triggerCount, true, true, true, true);

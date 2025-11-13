@@ -315,6 +315,11 @@ public class EsqlCapabilities {
         AGG_TOP_WITH_OPTIONAL_ORDER_FIELD,
 
         /**
+         * Support for the extra "map" field in {@code TOP} aggregation.
+         */
+        AGG_TOP_WITH_OUTPUT_FIELD,
+
+        /**
          * {@code CASE} properly handling multivalue conditions.
          */
         CASE_MV,

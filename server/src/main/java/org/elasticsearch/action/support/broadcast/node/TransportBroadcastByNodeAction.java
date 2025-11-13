@@ -40,6 +40,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.FixForMultiProject;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.transport.AbstractTransportRequest;
@@ -70,6 +71,7 @@ import static org.elasticsearch.core.Strings.format;
  * @param <Request>              the underlying client request
  * @param <Response>             the response to the client request
  * @param <ShardOperationResult> per-shard operation results
+ * @param <NodeContext>          the optional node context created by createNodeContext and passed to shardOperation
  */
 public abstract class TransportBroadcastByNodeAction<
     Request extends BroadcastRequest<Request>,
@@ -179,13 +181,14 @@ public abstract class TransportBroadcastByNodeAction<
      * @param request      the node-level request
      * @param shardRouting the shard on which to execute the operation
      * @param task         the task for this node-level request
+     * @param nodeContext  the context created by {{@link #createNodeContext()}}
      * @param listener     the listener to notify with the result of the shard-level operation
      */
     protected abstract void shardOperation(
         Request request,
         ShardRouting shardRouting,
         Task task,
-        NodeContext nodeContext,
+        @Nullable NodeContext nodeContext,
         ActionListener<ShardOperationResult> listener
     );
 

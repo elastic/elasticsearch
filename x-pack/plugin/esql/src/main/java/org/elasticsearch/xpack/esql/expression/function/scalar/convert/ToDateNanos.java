@@ -24,6 +24,7 @@ import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 
 import java.io.IOException;
+import java.time.DateTimeException;
 import java.time.Instant;
 import java.util.List;
 import java.util.Map;
@@ -125,8 +126,13 @@ public class ToDateNanos extends AbstractConvertFunction {
 
     @ConvertEvaluator(extraName = "FromString", warnExceptions = { IllegalArgumentException.class })
     static long fromKeyword(BytesRef in) {
-        Instant parsed = DateFormatters.from(DEFAULT_DATE_NANOS_FORMATTER.parse(in.utf8ToString())).toInstant();
-        return DateUtils.toLong(parsed);
+        try {
+            Instant parsed = DateFormatters.from(DEFAULT_DATE_NANOS_FORMATTER.parse(in.utf8ToString())).toInstant();
+            return DateUtils.toLong(parsed);
+        } catch (DateTimeException e) {
+            throw new IllegalArgumentException(e.getMessage(), e);
+        }
+
     }
 
     @ConvertEvaluator(extraName = "FromDatetime", warnExceptions = { IllegalArgumentException.class })

@@ -74,7 +74,7 @@ public class BalancedShardsAllocatorInvalidWeightsTests extends ESTestCase {
             balancingWeightsFactory.returnInvalidWeightsForRandomNodes(unbalancedClusterState);
             assertInvalidWeightsMessageIsLogged(() -> allocator.allocate(allocation));
 
-            Set<String> nodeIdsReturningInvalidWeights = balancingWeightsFactory.nodeIdsReturningInvalidWeights();
+            final var nodeIdsReturningInvalidWeights = balancingWeightsFactory.nodeIdsReturningInvalidWeights();
             if (nodeIdsReturningInvalidWeights.contains(nodeToPutAllShardsOn.getId())) {
                 // The node with all the shards is returning invalid weights, we can't balance
                 assertFalse(allocation.routingNodesChanged());

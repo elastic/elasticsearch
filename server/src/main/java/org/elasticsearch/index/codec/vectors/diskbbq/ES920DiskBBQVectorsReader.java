@@ -88,10 +88,11 @@ public class ES920DiskBBQVectorsReader extends IVFVectorsReader {
         FieldInfo fieldInfo,
         int numCentroids,
         IndexInput centroids,
-        AcceptDocs acceptDocs,
-        FloatVectorValues values,
         float[] targetQuery,
         IndexInput postingListSlice,
+        AcceptDocs acceptDocs,
+        float approximateCost,
+        FloatVectorValues values,
         float visitRatio
     ) throws IOException {
         final FieldEntry fieldEntry = fields.get(fieldInfo.number);

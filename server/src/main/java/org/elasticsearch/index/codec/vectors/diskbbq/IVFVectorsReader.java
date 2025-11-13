@@ -31,6 +31,7 @@ import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.util.Bits;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.index.codec.vectors.GenericFlatVectorReaders;
+import org.elasticsearch.search.vectors.ESAcceptDocs;
 import org.elasticsearch.search.vectors.IVFKnnSearchStrategy;
 
 import java.io.Closeable;
@@ -112,10 +113,11 @@ public abstract class IVFVectorsReader extends KnnVectorsReader {
         FieldInfo fieldInfo,
         int numCentroids,
         IndexInput centroids,
-        AcceptDocs acceptDocs,
-        FloatVectorValues values,
         float[] target,
         IndexInput postingListSlice,
+        AcceptDocs acceptDocs,
+        float approximateCost,
+        FloatVectorValues values,
         float visitRatio
     ) throws IOException;
 
@@ -285,9 +287,16 @@ public abstract class IVFVectorsReader extends KnnVectorsReader {
                 "vector query dimension: " + target.length + " differs from field dimension: " + fieldInfo.getVectorDimension()
             );
         }
+        final ESAcceptDocs esAcceptDocs;
+        if (acceptDocs instanceof ESAcceptDocs) {
+            esAcceptDocs = (ESAcceptDocs) acceptDocs;
+        } else {
+            esAcceptDocs = null;
+        }
         FloatVectorValues values = getReaderForField(field).getFloatVectorValues(field);
         int numVectors = values.size();
-        float percentFiltered = Math.max(0f, Math.min(1f, (float) acceptDocs.cost() / numVectors));
+        float approximateCost = (float) (esAcceptDocs == null ? acceptDocs.cost() : esAcceptDocs.approximateCost());
+        float percentFiltered = Math.max(0f, Math.min(1f, approximateCost / numVectors));
         float visitRatio = DYNAMIC_VISIT_RATIO;
         // Search strategy may be null if this is being called from checkIndex (e.g. from a test)
         if (knnCollector.getSearchStrategy() instanceof IVFKnnSearchStrategy ivfSearchStrategy) {
@@ -312,10 +321,11 @@ public abstract class IVFVectorsReader extends KnnVectorsReader {
             fieldInfo,
             entry.numCentroids,
             entry.centroidSlice(ivfCentroids),
-            acceptDocs,
-            values,
             target,
             postListSlice,
+            acceptDocs,
+            approximateCost,
+            values,
             visitRatio
         );
         Bits acceptDocsBits = acceptDocs.bits();

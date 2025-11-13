@@ -17,6 +17,8 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 
 import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
 import java.util.List;
 import java.util.TreeMap;
 
@@ -34,9 +36,9 @@ public class TransportGetViewAction extends HandledTransportAction<GetViewAction
     protected void doExecute(Task task, GetViewAction.Request request, ActionListener<GetViewAction.Response> listener) {
         TreeMap<String, View> views = new TreeMap<>();
         List<String> missing = new ArrayList<>();
-        var names = request.names();
+        Collection<String> names = request.names();
         if (names.isEmpty()) {
-            names = new ArrayList<>(viewService.list());
+            names = Collections.unmodifiableSet(viewService.list());
         }
         for (String name : names) {
             View view = viewService.get(name);

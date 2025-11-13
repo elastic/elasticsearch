@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.xpack.esql.view;
 
-import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -47,13 +46,6 @@ public final class View implements Writeable, ToXContentFragment {
     }
 
     public static View fromXContent(XContentParser parser) throws IOException {
-        XContentParser.Token token = parser.currentToken();
-        if (token == null) {
-            token = parser.nextToken();
-        }
-        if (token != XContentParser.Token.START_OBJECT) {
-            throw new ParsingException(parser.getTokenLocation(), "Unexpected token [" + token + "], expected START_OBJECT");
-        }
         return PARSER.parse(parser, null);
     }
 

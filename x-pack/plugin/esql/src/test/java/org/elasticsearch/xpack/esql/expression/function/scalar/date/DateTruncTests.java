@@ -176,6 +176,9 @@ public class DateTruncTests extends AbstractConfigurationFunctionTestCase {
                 new DurationTestCaseData(Duration.ofHours(3), "2025-10-26T02:00:00+01:00", "Europe/Paris", "2025-10-26T00:00:00+02:00"),
                 new DurationTestCaseData(Duration.ofHours(3), "2025-10-26T03:00:00+01:00", "Europe/Paris", "2025-10-26T03:00:00+01:00"),
                 new DurationTestCaseData(Duration.ofHours(3), "2025-10-26T04:00:00+01:00", "Europe/Paris", "2025-10-26T03:00:00+01:00"),
+                // -5 to -4 at 2025-03-09T02:00:00-05, and -4 to -5 at 2025-11-02T02:00:00-04)
+                new DurationTestCaseData(Duration.ofHours(24), "2025-03-09T06:00:00-04:00", "America/New_York", "2025-03-09T00:00:00-05:00"),
+                new DurationTestCaseData(Duration.ofHours(24), "2025-11-02T05:00:00-05:00", "America/New_York", "2025-11-02T00:00:00-04:00"),
                 // Midnight DST (America/Goose_Bay: -3 to -4 at 2010-11-07T00:01:00-03:00)
                 new DurationTestCaseData(
                     Duration.ofMinutes(1),
@@ -213,6 +216,9 @@ public class DateTruncTests extends AbstractConfigurationFunctionTestCase {
                     "America/Goose_Bay",
                     "2010-11-06T20:02:00-03:00"
                 ),
+                new DurationTestCaseData(Duration.ofHours(24), "2010-11-07T00:00:59-03:00", "America/Goose_Bay", "2010-11-07T00:00:00-03:00"),
+                new DurationTestCaseData(Duration.ofHours(24), "2010-11-06T23:01:00-04:00", "America/Goose_Bay", "2010-11-07T00:00:00-03:00"),
+                new DurationTestCaseData(Duration.ofHours(24), "2010-11-07T00:03:00-04:00", "America/Goose_Bay", "2010-11-07T00:00:00-04:00"),
                 // Bigger intervals
                 new DurationTestCaseData(Duration.ofHours(12), "2025-10-26T02:00:00+02:00", "Europe/Rome", "2025-10-26T00:00:00+02:00"),
                 new DurationTestCaseData(Duration.ofHours(24), "2025-10-26T02:00:00+02:00", "Europe/Rome", "2025-10-26T00:00:00+02:00"),
@@ -274,8 +280,10 @@ public class DateTruncTests extends AbstractConfigurationFunctionTestCase {
                 new PeriodTestCaseData(Period.ofDays(1), "2025-11-02T05:00:00-05:00", "America/New_York", "2025-11-02T00:00:00-04:00"),
                 // Midnight DST (America/Goose_Bay: -3 to -4 at 2010-11-07T00:01:00-03:00)
                 new PeriodTestCaseData(Period.ofDays(1), "2010-11-07T00:00:59-03:00", "America/Goose_Bay", "2010-11-07T00:00:00-03:00"),
+                new PeriodTestCaseData(Period.ofDays(1), "2010-11-06T23:01:00-04:00", "America/Goose_Bay", "2010-11-06T00:00:00-03:00"),
                 new PeriodTestCaseData(Period.ofDays(1), "2010-11-07T00:03:00-04:00", "America/Goose_Bay", "2010-11-07T00:00:00-03:00"),
-                new PeriodTestCaseData(Period.ofDays(1), "2010-11-06T23:01:00-04:00", "America/Goose_Bay", "2010-11-06T00:00:00-03:00")
+                new PeriodTestCaseData(Period.ofDays(1), "2010-11-07T23:59:59-04:00", "America/Goose_Bay", "2010-11-07T00:00:00-03:00"),
+                new PeriodTestCaseData(Period.ofDays(1), "2010-11-08T00:00:00-04:00", "America/Goose_Bay", "2010-11-08T00:00:00-04:00")
             )
         );
         return cases;

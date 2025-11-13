@@ -613,11 +613,13 @@ public class IndicesServiceTests extends ESSingleNodeTestCase {
 
                 shardStats.add(successfulShardStats);
 
-                when(mockIndicesService.indexShardStats(mockIndicesService, shard, CommonStatsFlags.ALL, 0L)).thenReturn(
+                when(mockIndicesService.indexShardStats(mockIndicesService, shard, CommonStatsFlags.ALL, () -> 0L)).thenReturn(
                     successfulShardStats
                 );
             } else {
-                when(mockIndicesService.indexShardStats(mockIndicesService, shard, CommonStatsFlags.ALL, 0L)).thenThrow(expectedException);
+                when(mockIndicesService.indexShardStats(mockIndicesService, shard, CommonStatsFlags.ALL, () -> 0L)).thenThrow(
+                    expectedException
+                );
             }
         }
 

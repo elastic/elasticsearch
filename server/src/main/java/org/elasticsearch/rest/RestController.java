@@ -469,6 +469,10 @@ public class RestController implements HttpServerTransport.Dispatcher {
                     if (processRequest) {
                         try {
                             validateRequest(request, handler, client);
+                            String rawPath = request.rawPath();
+                            if (rawPath.contains("kibana") == false && rawPath.contains("security") == false) {
+                                logger.info(request.method() + " " + request.rawPath());
+                            }
                             handler.handleRequest(request, finalChannel, client);
                         } catch (Exception e) {
                             onFailure(e);

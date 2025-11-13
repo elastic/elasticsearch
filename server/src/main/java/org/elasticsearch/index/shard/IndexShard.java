@@ -247,7 +247,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     );
 
     protected volatile ShardRouting shardRouting;
-    protected volatile IndexShardState state;
+    public volatile IndexShardState state;
     // ensure happens-before relation between addRefreshListener() and postRecovery()
     private volatile SubscribableListener<Void> postRecoveryComplete;
     private volatile long pendingPrimaryTerm; // see JavaDocs for getPendingPrimaryTerm

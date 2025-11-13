@@ -9,7 +9,6 @@
 
 package org.elasticsearch.action;
 
-import org.elasticsearch.action.admin.indices.resolve.ResolveIndexAction;
 import org.elasticsearch.action.search.SearchContextId;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -24,14 +23,12 @@ import org.elasticsearch.search.builder.PointInTimeBuilder;
 import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.transport.RemoteClusterService;
 
-import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
-import java.util.stream.Collectors;
-import java.util.stream.Stream;
+import java.util.function.Function;
 
 /**
  * Container for information about results of the resolution of index expression.
@@ -257,34 +254,33 @@ public class ResolvedIndices {
         );
     }
 
-    public static ResolvedIndices resolveFromResponse(
-        ResolveIndexAction.Response resolveIndexAction,
+    public static ResolvedIndices resolveWithIndexExpressions(
+        ResolvedIndexExpressions localExpressions,
+        Map<String, ResolvedIndexExpressions> remoteExpressions,
         IndicesOptions indicesOptions,
         ProjectMetadata projectMetadata,
         IndexNameExpressionResolver indexNameExpressionResolver,
         long startTimeInMillis
     ) {
-        var remoteClusterIndices = Stream.of(
-            resolveIndexAction.getIndices(),
-            resolveIndexAction.getDataStreams(),
-            resolveIndexAction.getAliases()
-        )
-            .flatMap(Collection::stream)
-            .map(ResolveIndexAction.ResolvedIndexAbstraction::getName)
-            .map(RemoteClusterAware::splitIndexName)
-            .collect(
-                Collectors.groupingBy(
-                    clusterAndIndex -> clusterAndIndex[0] != null ? clusterAndIndex[0] : RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY,
-                    Collectors.mapping(clusterAndIndex -> clusterAndIndex[1], Collectors.toList())
-                )
-            )
-            .entrySet()
-            .stream()
-            .collect(
-                Collectors.toMap(Map.Entry::getKey, entry -> new OriginalIndices(entry.getValue().toArray(new String[0]), indicesOptions))
-            );
+        Function<ResolvedIndexExpressions, OriginalIndices> toIndices = resolvedIndexExpressions -> {
+            var indices = resolvedIndexExpressions.expressions().stream().filter(expression -> {
+                var resolvedExpressions = expression.localExpressions();
+                var successfulResolution = resolvedExpressions
+                    .localIndexResolutionResult() == ResolvedIndexExpression.LocalIndexResolutionResult.SUCCESS;
+                // if the expression is a wildcard, it will be successful even if there are no indices, so filter for no indices
+                var hasResolvedIndices = resolvedExpressions.indices().isEmpty() == false;
+                return successfulResolution && hasResolvedIndices;
+            }).map(ResolvedIndexExpression::original).toArray(String[]::new);
+            return indices.length > 0 ? new OriginalIndices(indices, indicesOptions) : null;
+        };
+        Map<String, OriginalIndices> remoteClusterIndices = remoteExpressions.entrySet().stream().collect(HashMap::new, (map, entry) -> {
+            var indices = toIndices.apply(entry.getValue());
+            if (indices != null) {
+                map.put(entry.getKey(), indices);
+            }
+        }, Map::putAll);
 
-        var localIndices = remoteClusterIndices.remove(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY);
+        var localIndices = localExpressions == null ? null : toIndices.apply(localExpressions);
 
         var concreteLocalIndices = localIndices == null
             ? Index.EMPTY_ARRAY

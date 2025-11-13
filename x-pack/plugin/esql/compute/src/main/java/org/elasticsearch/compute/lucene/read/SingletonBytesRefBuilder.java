@@ -30,9 +30,16 @@ public class SingletonBytesRefBuilder implements BlockLoader.SingletonBytesRefBu
     }
 
     @Override
-    public SingletonBytesRefBuilder appendBytesRefs(byte[] bytes, long[] offsets) throws IOException {
+    public SingletonBytesRefBuilder appendBytesRefs(byte[] bytes, long[] offsets) {
         var values = blockFactory.bigArrays().newByteArrayWrapper(bytes);
         bytesRefArray = new BytesRefArray(new LongArrayWrapper(offsets), values, count, blockFactory.bigArrays());
+        return this;
+    }
+
+    @Override
+    public SingletonBytesRefBuilder appendBytesRefs(byte[] bytes, long bytesRefLengths) {
+        var values = blockFactory.bigArrays().newByteArrayWrapper(bytes);
+        bytesRefArray = new BytesRefArray(new ConstantOffsetLongArrayWrapper(bytesRefLengths, count + 1), values, count, blockFactory.bigArrays());
         return this;
     }
 
@@ -58,6 +65,75 @@ public class SingletonBytesRefBuilder implements BlockLoader.SingletonBytesRefBu
 
     @Override
     public void close() {}
+
+    /**
+     * An array wrapper that starts with 0 and has a constant offset between each pair of values.
+     * For an offset of n, the values are: [0, n, 2n, 3n, ..., Xn]
+     * This can be used to provide an "offsets" array for ByteRefs of constant length without the need to allocate an unnecessary array.
+     */
+    static class ConstantOffsetLongArrayWrapper implements LongArray {
+
+        private final long offset;
+        private final long size;
+
+        ConstantOffsetLongArrayWrapper(long offset, long size) {
+            this.offset = offset;
+            this.size = size;
+        }
+
+        @Override
+        public long get(long index) {
+            return index * offset;
+        }
+
+        @Override
+        public long getAndSet(long index, long value) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public void set(long index, long value) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public long increment(long index, long inc) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public void fill(long fromIndex, long toIndex, long value) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public void fillWith(StreamInput in) throws IOException {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public void set(long index, byte[] buf, int offset, int len) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public long size() {
+            return size;
+        }
+
+        @Override
+        public long ramBytesUsed() {
+            return  2 * Long.BYTES; // offset + size
+        }
+
+        @Override
+        public void close() {}
+    }
 
     static class LongArrayWrapper implements LongArray {
 

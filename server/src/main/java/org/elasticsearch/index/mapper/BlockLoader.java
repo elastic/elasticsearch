@@ -587,7 +587,15 @@ public interface BlockLoader {
      * Specialized builder for collecting dense arrays of BytesRef values.
      */
     interface SingletonBytesRefBuilder extends Builder {
+        /**
+         * Append multiple BytesRef. Offsets contains offsets of each BytesRef in the byte array.
+         * The length of the offsets array is one more than the number of BytesRefs.
+         */
         SingletonBytesRefBuilder appendBytesRefs(byte[] bytes, long[] offsets) throws IOException;
+        /**
+         * Append multiple BytesRefs, all with the same length.
+         */
+        SingletonBytesRefBuilder appendBytesRefs(byte[] bytes, long bytesRefLengths) throws IOException;
     }
 
     interface FloatBuilder extends Builder {

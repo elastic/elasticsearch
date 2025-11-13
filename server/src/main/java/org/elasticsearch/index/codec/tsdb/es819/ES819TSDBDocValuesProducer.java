@@ -220,13 +220,27 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
                         boolean toInt
                     ) throws IOException {
                         int count = docs.count() - offset;
-                        try (var builder = factory.bytesRefs(count)) {
-                            for (int i = offset; i < docs.count(); i++) {
-                                doc = docs.get(i);
-                                bytesSlice.readBytes((long) doc * length, bytes.bytes, 0, length);
-                                builder.appendBytesRef(bytes);
+                        int firstDocId = docs.get(offset);
+                        int lastDocId = docs.get(count - 1);
+                        doc = lastDocId;
+
+                        if (isDense(firstDocId, lastDocId, count)) {
+                            try (var builder = factory.singletonBytesRefs(count)) {
+                                int bulkLength = length * count;
+                                byte[] bytes = new byte[bulkLength];
+                                bytesSlice.readBytes((long) firstDocId * length, bytes, 0, bulkLength);
+                                builder.appendBytesRefs(bytes, length);
+                                return builder.build();
                             }
-                            return builder.build();
+                        } else {
+                            try (var builder = factory.bytesRefs(count)) {
+                                for (int i = offset; i < docs.count(); i++) {
+                                    doc = docs.get(i);
+                                    bytesSlice.readBytes((long) doc * length, bytes.bytes, 0, length);
+                                    builder.appendBytesRef(bytes);
+                                }
+                                return builder.build();
+                            }
                         }
                     }
                 };
@@ -256,22 +270,21 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
                     ) throws IOException {
                         int count = docs.count() - offset;
                         int firstDocId = docs.get(offset);
-                        doc = docs.get(count - 1);
+                        int lastDocId = docs.get(count - 1);
+                        doc = lastDocId;
 
-                        if (isDense(firstDocId, doc, count)) {
+                        if (isDense(firstDocId, lastDocId, count)) {
                             try (var builder = factory.singletonBytesRefs(count)) {
                                 long[] offsets = new long[count + 1];
 
-                                // Normalize the offsets to check of bytes that is going to be fetched:
-                                int j = 1;
+                                // Normalize offsets to that first offset is 0
                                 long startOffset = addresses.get(firstDocId);
-                                for (int i = offset; i < docs.count(); i++) {
+                                for (int i = offset, j = 1; i < docs.count(); i++, j++) {
                                     int docId = docs.get(i);
                                     long nextOffset = addresses.get(docId + 1) - startOffset;
-                                    offsets[j++] = nextOffset;
+                                    offsets[j] = nextOffset;
                                 }
 
-                                int lastDocId = docs.get(docs.count() - 1);
                                 int length = Math.toIntExact(addresses.get(lastDocId + 1L) - startOffset);
                                 byte[] bytes = new byte[length];
                                 bytesSlice.readBytes(startOffset, bytes, 0, length);

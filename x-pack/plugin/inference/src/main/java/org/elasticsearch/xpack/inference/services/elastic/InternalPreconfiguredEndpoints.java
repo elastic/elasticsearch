@@ -33,6 +33,10 @@ public class InternalPreconfiguredEndpoints {
     public static final String DEFAULT_CHAT_COMPLETION_MODEL_ID_V1 = "rainbow-sprinkles";
     public static final String DEFAULT_CHAT_COMPLETION_ENDPOINT_ID_V1 = ".rainbow-sprinkles-elastic";
 
+    // gp-llm-v2
+    public static final String DEFAULT_CHAT_COMPLETION_MODEL_ID_V2 = "gp-llm-v2";
+    public static final String DEFAULT_CHAT_COMPLETION_ENDPOINT_ID_V2 = ".gp-llm-v2";
+
     // elser-2
     public static final String DEFAULT_ELSER_2_MODEL_ID = "elser_model_2";
     public static final String DEFAULT_ELSER_ENDPOINT_ID_V2 = ".elser-2-elastic";
@@ -53,6 +57,8 @@ public class InternalPreconfiguredEndpoints {
 
     private static final ElasticInferenceServiceCompletionServiceSettings COMPLETION_SERVICE_SETTINGS =
         new ElasticInferenceServiceCompletionServiceSettings(DEFAULT_CHAT_COMPLETION_MODEL_ID_V1);
+    private static final ElasticInferenceServiceCompletionServiceSettings COMPLETION_SERVICE_SETTINGS_V2 =
+        new ElasticInferenceServiceCompletionServiceSettings(DEFAULT_CHAT_COMPLETION_MODEL_ID_V2);
     private static final ElasticInferenceServiceSparseEmbeddingsServiceSettings SPARSE_EMBEDDINGS_SERVICE_SETTINGS =
         new ElasticInferenceServiceSparseEmbeddingsServiceSettings(DEFAULT_ELSER_2_MODEL_ID, null);
     private static final ElasticInferenceServiceDenseTextEmbeddingsServiceSettings DENSE_TEXT_EMBEDDINGS_SERVICE_SETTINGS =
@@ -79,6 +85,17 @@ public class InternalPreconfiguredEndpoints {
                 ),
                 COMPLETION_SERVICE_SETTINGS
             )
+        ),
+        DEFAULT_CHAT_COMPLETION_MODEL_ID_V2,
+        new MinimalModel(
+            new ModelConfigurations(
+                DEFAULT_CHAT_COMPLETION_ENDPOINT_ID_V2,
+                TaskType.CHAT_COMPLETION,
+                ElasticInferenceService.NAME,
+                COMPLETION_SERVICE_SETTINGS_V2,
+                ChunkingSettingsBuilder.DEFAULT_SETTINGS
+            ),
+            COMPLETION_SERVICE_SETTINGS_V2
         ),
         DEFAULT_ELSER_2_MODEL_ID,
         List.of(

@@ -328,12 +328,12 @@ public class LocalPhysicalPlanOptimizerTests extends AbstractLocalPhysicalPlanOp
             });
 
             String expectedStats = """
-                [Stat[name=salary, type=COUNT, query={
+                BasicStat[name=salary, type=COUNT, query={
                   "exists" : {
                     "field" : "salary",
                     "boost" : 1.0
                   }
-                }]]""";
+                }]""";
             assertNotNull(leaf.get());
             assertThat(leaf.get().stat().toString(), equalTo(expectedStats));
         }

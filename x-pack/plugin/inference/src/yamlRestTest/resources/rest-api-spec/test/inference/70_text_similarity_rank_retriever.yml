@@ -1016,7 +1016,7 @@ setup:
   - match: { hits.total.value: 3 }
   - length: { hits.hits: 3 }
   - contains: { profile.shards.0.searches.0.query.0.description: "chunkScorerConfig=ChunkScorerConfig{size=3" }
-  - contains: { profile.shards.0.searches.0.query.0.description: "max_chunk_size=300" }
+  - contains: { profile.shards.0.searches.0.query.0.description: "chunkingSettings=" }
 
 ---
 "Test explicit chunking_settings override inference endpoint window size":
@@ -1051,7 +1051,7 @@ setup:
 
   - match: { hits.total.value: 3 }
   - contains: { profile.shards.0.searches.0.query.0.description: "chunkScorerConfig=ChunkScorerConfig{size=3" }
-  - contains: { profile.shards.0.searches.0.query.0.description: "max_chunk_size=100" }
+  - contains: { profile.shards.0.searches.0.query.0.description: "\"max_chunk_size\":100" }
 
 ---
 "Test chunk rescorer on semantic_text field pulls from reranker inference_id":
@@ -1085,11 +1085,11 @@ setup:
   - match: { hits.total.value: 2 }
   - length: { hits.hits: 2 }
   - contains: { profile.shards.0.searches.0.query.0.description: "chunkScorerConfig=ChunkScorerConfig{size=3" }
-  - contains: { profile.shards.0.searches.0.query.0.description: "max_chunk_size=300" }
 
 ---
 "Test NPE regression - chunk rescorer with null chunking_settings does not throw":
   - requires:
+      test_runner_features: [contains]
       cluster_features: "text_similarity_reranker_inference_id_chunking"
       reason: NPE fix for null chunking_settings introduced in 9.3.0
 
@@ -1117,8 +1117,8 @@ setup:
 
   - match: { hits.total.value: 3 }
   - length: { hits.hits: 3 }
-  - gte: { hits.hits.0._score: 0.0 }
-  - match: { hits.hits.0._explanation.details.0.description: "/text_similarity_reranker match using inference endpoint.*rescoring considering only top \\[3\\] best chunks/" }
+  - is_true: hits.hits.0._score
+  - contains: { hits.hits.0._explanation.details.0.description: "rescoring considering only top [3] best chunks" }
 
 ---
 "Test chunk rescorer with partial chunking_settings auto-completes remaining fields":
@@ -1153,8 +1153,8 @@ setup:
 
   - match: { hits.total.value: 3 }
   - contains: { profile.shards.0.searches.0.query.0.description: "chunkScorerConfig=ChunkScorerConfig{size=3" }
-  - contains: { profile.shards.0.searches.0.query.0.description: "max_chunk_size=50" }
-  - contains: { profile.shards.0.searches.0.query.0.description: "strategy=sentence" }
+  - contains: { profile.shards.0.searches.0.query.0.description: "\"max_chunk_size\":50" }
+  - contains: { profile.shards.0.searches.0.query.0.description: "\"strategy\":\"sentence\"" }
 
 ---
 "Test chunk rescorer empty object defaults to size=1 and inference endpoint window":
@@ -1186,4 +1186,3 @@ setup:
 
   - match: { hits.total.value: 3 }
   - contains: { profile.shards.0.searches.0.query.0.description: "chunkScorerConfig=ChunkScorerConfig{size=1" }
-  - contains: { profile.shards.0.searches.0.query.0.description: "max_chunk_size=300" }

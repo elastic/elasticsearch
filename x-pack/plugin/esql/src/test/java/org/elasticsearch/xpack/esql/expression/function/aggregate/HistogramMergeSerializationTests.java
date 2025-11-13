@@ -19,6 +19,9 @@ public class HistogramMergeSerializationTests extends AbstractExpressionSerializ
 
     @Override
     protected HistogramMerge mutateInstance(HistogramMerge instance) throws IOException {
-        return new HistogramMerge(instance.source(), randomValueOtherThan(instance.field(), AbstractExpressionSerializationTests::randomChild));
+        return new HistogramMerge(
+            instance.source(),
+            randomValueOtherThan(instance.field(), AbstractExpressionSerializationTests::randomChild)
+        );
     }
 }

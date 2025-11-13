@@ -35,7 +35,11 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isTyp
  * Therefore, it is intentionally not registered in {@link org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry}.
  */
 public class HistogramMerge extends AggregateFunction implements ToAggregator {
-    public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Merge", HistogramMerge::new);
+    public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
+        Expression.class,
+        "Merge",
+        HistogramMerge::new
+    );
 
     @FunctionInfo(returnType = "exponential_histogram", type = FunctionType.AGGREGATE)
     public HistogramMerge(Source source, @Param(name = "histogram", type = { "exponential_histogram" }) Expression field) {

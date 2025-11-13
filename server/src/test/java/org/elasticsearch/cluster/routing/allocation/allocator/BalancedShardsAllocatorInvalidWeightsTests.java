@@ -127,12 +127,12 @@ public class BalancedShardsAllocatorInvalidWeightsTests extends ESTestCase {
             assertInvalidWeightsMessageIsLogged(() -> allocator.allocate(allocation));
             // The shard on the nominated node should have been moved
             assertEquals(1, allocation.routingNodes().getRelocatingShardCount());
-            assertEquals(1, allocation.routingNodes().node(nodeToMoveShardOff.getId()).shardsWithState(ShardRoutingState.STARTED).count());
-            final var relocatingShard = allocation.routingNodes()
-                .stream()
-                .flatMap(rn -> rn.shardsWithState(ShardRoutingState.RELOCATING))
-                .findFirst()
-                .orElseThrow(() -> new AssertionError("Couldn't find relocating shard?"));
+            final var relocatingShardsOnNominatedNode = allocation.routingNodes()
+                .node(nodeToMoveShardOff.getId())
+                .shardsWithState(ShardRoutingState.STARTED)
+                .toList();
+            assertEquals(1, relocatingShardsOnNominatedNode.size());
+            final var relocatingShard = relocatingShardsOnNominatedNode.getFirst();
             // It should be moved to a node returning a valid weight, if there are any
             final boolean allOtherNodesAreReturningInvalidWeights = Sets.difference(
                 balancingWeightsFactory.nodeIdsReturningInvalidWeights(),

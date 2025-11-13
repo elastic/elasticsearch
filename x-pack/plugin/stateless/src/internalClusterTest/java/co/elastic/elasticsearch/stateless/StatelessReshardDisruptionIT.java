@@ -110,9 +110,11 @@ public class StatelessReshardDisruptionIT extends AbstractStatelessIntegTestCase
             refresh(indexName);
 
             // All data movement is done properly.
-            var search = prepareSearch(indexName).setQuery(QueryBuilders.matchAllQuery()).setTrackTotalHits(true).setSize(numDocs * 2);
-
-            assertResponse(search, r -> { assertEquals(numDocs, r.getHits().getTotalHits().value()); });
+            var search = prepareSearch(indexName).setAllowPartialSearchResults(false)
+                .setQuery(QueryBuilders.matchAllQuery())
+                .setTrackTotalHits(true)
+                .setSize(numDocs * 2);
+            assertResponse(search, r -> assertEquals(numDocs, r.getHits().getTotalHits().value()));
         }
     }
 

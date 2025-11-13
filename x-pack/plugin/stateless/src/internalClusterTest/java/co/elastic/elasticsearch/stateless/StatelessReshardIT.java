@@ -2292,6 +2292,56 @@ public class StatelessReshardIT extends AbstractStatelessIntegTestCase {
         assertHitCount(prepareSearch(indexName).setQuery(QueryBuilders.matchAllQuery()).setTrackTotalHits(true), 100);
     }
 
+    public void testMismatchedSourceAndTargetPrimaryTerm() {
+        String indexNode = startMasterAndIndexNode();
+        String indexNodeB = startIndexNode();
+        startSearchNodes(2);
+        ensureStableCluster(4);
+
+        final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
+        createIndex(
+            indexName,
+            indexSettings(1, 1).put(ShardsLimitAllocationDecider.INDEX_TOTAL_SHARDS_PER_NODE_SETTING.getKey(), 1).build()
+        );
+        Index index = resolveIndex(indexName);
+        ensureGreen(indexName);
+
+        checkNumberOfShardsSetting(indexNode, indexName, 1);
+
+        int docs = randomIntBetween(10, 100);
+        indexDocs(indexName, docs);
+        refresh(indexName);
+        assertHitCount(
+            prepareSearch(indexName).setAllowPartialSearchResults(false).setQuery(QueryBuilders.matchAllQuery()).setTrackTotalHits(true),
+            docs
+        );
+
+        // Exclude second node from allocation meaning that it won't be possible to allocate the target shard yet
+        // since we also have shards per node limit.
+        updateClusterSettings(Settings.builder().put("cluster.routing.allocation.exclude._name", indexNodeB));
+
+        client(indexNode).execute(TransportReshardAction.TYPE, new ReshardIndexRequest(indexName, 2)).actionGet();
+
+        awaitClusterState(state -> state.routingTable(state.metadata().projectFor(index).id()).index(index).shard(1) != null);
+
+        // Now fail and recover the source shard
+        IndexShard indexShard = findIndexShard(index, 0);
+        indexShard.failShard("broken", new Exception("boom local"));
+        awaitClusterState(state -> state.metadata().indexMetadata(index).primaryTerm(0) > 1);
+
+        // And unblock recovery of the target shard.
+        // Target shard will initiate a start split request with latest source shard primary term but its own primary term is 1.
+        updateClusterSettings(Settings.builder().put("cluster.routing.allocation.exclude._name", "null"));
+
+        // Split successfully completes.
+        waitForReshardCompletion(indexName);
+        ensureGreen(indexName);
+        assertHitCount(
+            prepareSearch(indexName).setAllowPartialSearchResults(false).setQuery(QueryBuilders.matchAllQuery()).setTrackTotalHits(true),
+            docs
+        );
+    }
+
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         var plugins = new ArrayList<>(super.nodePlugins());

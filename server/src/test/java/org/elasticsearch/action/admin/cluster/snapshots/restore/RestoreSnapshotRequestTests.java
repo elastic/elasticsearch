@@ -184,7 +184,7 @@ public class RestoreSnapshotRequestTests extends AbstractWireSerializingTestCase
         RestoreSnapshotRequest request = new RestoreSnapshotRequest(TimeValue.THIRTY_SECONDS, "repo", "snapshot");
         request.indices("b".repeat(255));
         request.renamePattern("b");
-        request.renameReplacement("1".repeat(10_000_000));
+        request.renameReplacement("1".repeat(randomIntBetween(266, 10_000)));
 
         ActionRequestValidationException validation = request.validate();
         assertNotNull(validation);

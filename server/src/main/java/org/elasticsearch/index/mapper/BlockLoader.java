@@ -592,6 +592,7 @@ public interface BlockLoader {
          * The length of the offsets array is one more than the number of BytesRefs.
          */
         SingletonBytesRefBuilder appendBytesRefs(byte[] bytes, long[] offsets) throws IOException;
+
         /**
          * Append multiple BytesRefs, all with the same length.
          */

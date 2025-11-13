@@ -39,7 +39,12 @@ public class SingletonBytesRefBuilder implements BlockLoader.SingletonBytesRefBu
     @Override
     public SingletonBytesRefBuilder appendBytesRefs(byte[] bytes, long bytesRefLengths) {
         var values = blockFactory.bigArrays().newByteArrayWrapper(bytes);
-        bytesRefArray = new BytesRefArray(new ConstantOffsetLongArrayWrapper(bytesRefLengths, count + 1), values, count, blockFactory.bigArrays());
+        bytesRefArray = new BytesRefArray(
+            new ConstantOffsetLongArrayWrapper(bytesRefLengths, count + 1),
+            values,
+            count,
+            blockFactory.bigArrays()
+        );
         return this;
     }
 
@@ -128,7 +133,7 @@ public class SingletonBytesRefBuilder implements BlockLoader.SingletonBytesRefBu
 
         @Override
         public long ramBytesUsed() {
-            return  2 * Long.BYTES; // offset + size
+            return 2 * Long.BYTES; // offset + size
         }
 
         @Override

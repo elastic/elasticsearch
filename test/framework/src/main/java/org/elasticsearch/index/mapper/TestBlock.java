@@ -117,6 +117,7 @@ public class TestBlock implements BlockLoader.Block {
             public BlockLoader.SingletonBytesRefBuilder singletonBytesRefs(int expectedCount) {
                 class BytesRefsBuilder extends TestBlock.Builder implements BlockLoader.SingletonBytesRefBuilder {
                     private final int count = expectedCount;
+
                     private BytesRefsBuilder() {
                         super(expectedCount);
                     }

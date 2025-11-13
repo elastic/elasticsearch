@@ -13,6 +13,7 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.codec.vectors.BFloat16;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.ElementType;
 import org.elasticsearch.script.field.vectors.DenseVector;
@@ -275,6 +276,15 @@ public class DenseVectorFieldTypeIT extends AbstractEsqlIntegTestCase {
                             }
                             final ByteBuffer buffer = ByteBuffer.allocate(Float.BYTES * numDims);
                             buffer.asFloatBuffer().put(array);
+                            yield Base64.getEncoder().encodeToString(buffer.array());
+                        }
+                        case BFLOAT16 -> {
+                            float[] array = new float[numDims];
+                            for (int k = 0; k < numDims; k++) {
+                                array[k] = vector.get(k).floatValue();
+                            }
+                            final ByteBuffer buffer = ByteBuffer.allocate(BFloat16.BYTES * numDims);
+                            BFloat16.floatToBFloat16(array, buffer.asShortBuffer());
                             yield Base64.getEncoder().encodeToString(buffer.array());
                         }
                         case BYTE, BIT -> {

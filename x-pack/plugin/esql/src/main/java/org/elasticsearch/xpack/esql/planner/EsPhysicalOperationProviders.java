@@ -41,10 +41,13 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.index.mapper.FieldNamesFieldMapper;
+import org.elasticsearch.index.mapper.IndexType;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NestedLookup;
 import org.elasticsearch.index.mapper.SourceLoader;
+import org.elasticsearch.index.mapper.TextSearchInfo;
+import org.elasticsearch.index.mapper.blockloader.BlockLoaderFunctionConfig;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.ConstantScoreQueryBuilder;
 import org.elasticsearch.index.query.ExistsQueryBuilder;
@@ -196,7 +199,7 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
         }
 
         // Apply any block loader function if present
-        MappedFieldType.BlockLoaderFunctionConfig functionConfig = null;
+        BlockLoaderFunctionConfig functionConfig = null;
         if (attr instanceof FieldAttribute fieldAttr && fieldAttr.field() instanceof FunctionEsField functionEsField) {
             functionConfig = functionEsField.functionConfig();
         }
@@ -238,14 +241,13 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
         }
 
         static MappedFieldType createUnmappedFieldType(String name, DefaultShardContext context) {
-            var builder = new KeywordFieldMapper.Builder(name, context.ctx.indexVersionCreated());
+            var builder = new KeywordFieldMapper.Builder(name, context.ctx.getIndexSettings());
             builder.docValues(false);
             builder.indexed(false);
             return new KeywordFieldMapper.KeywordFieldType(
                 name,
-                UNMAPPED_FIELD_TYPE,
-                Lucene.KEYWORD_ANALYZER,
-                Lucene.KEYWORD_ANALYZER,
+                IndexType.terms(false, false),
+                new TextSearchInfo(UNMAPPED_FIELD_TYPE, builder.similarity(), Lucene.KEYWORD_ANALYZER, Lucene.KEYWORD_ANALYZER),
                 Lucene.KEYWORD_ANALYZER,
                 builder,
                 context.ctx.isSourceSynthetic()
@@ -497,7 +499,7 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
             String name,
             boolean asUnsupportedSource,
             MappedFieldType.FieldExtractPreference fieldExtractPreference,
-            MappedFieldType.BlockLoaderFunctionConfig blockLoaderFunctionConfig
+            BlockLoaderFunctionConfig blockLoaderFunctionConfig
         ) {
             if (asUnsupportedSource) {
                 return BlockLoader.CONSTANT_NULLS;
@@ -544,7 +546,7 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
                 }
 
                 @Override
-                public MappedFieldType.BlockLoaderFunctionConfig blockLoaderFunctionConfig() {
+                public BlockLoaderFunctionConfig blockLoaderFunctionConfig() {
                     return blockLoaderFunctionConfig;
                 }
             });

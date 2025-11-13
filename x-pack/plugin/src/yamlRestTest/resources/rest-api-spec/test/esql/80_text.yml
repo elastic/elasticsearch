@@ -645,3 +645,21 @@ setup:
       esql.query:
         body:
           query: 'FROM test | WHERE job RLIKE "(a|b)*a(a|b){13}"'
+
+---
+"like with parameters":
+  - requires:
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: [ capabilities ]
+          capabilities: [ like_parameter_support ]
+      reason: "parameter support for like"
+  - do:
+      esql.query:
+        body:
+          query: 'FROM test | WHERE job LIKE ?like | KEEP job | LIMIT 2'
+          params: [{"like": "IT*"}]
+
+  - length: { values: 1 }
+  - match: { values.0: [ "IT Director" ] }

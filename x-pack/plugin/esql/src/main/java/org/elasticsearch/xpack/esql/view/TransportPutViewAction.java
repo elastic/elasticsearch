@@ -9,10 +9,11 @@ package org.elasticsearch.xpack.esql.view;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
-import org.elasticsearch.action.support.master.AcknowledgedTransportMasterNodeAction;
-import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.action.support.master.AcknowledgedTransportMasterNodeProjectAction;
+import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.injection.guice.Inject;
@@ -20,7 +21,7 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
-public class TransportPutViewAction extends AcknowledgedTransportMasterNodeAction<PutViewAction.Request> {
+public class TransportPutViewAction extends AcknowledgedTransportMasterNodeProjectAction<PutViewAction.Request> {
     private final ClusterViewService viewService;
 
     @Inject
@@ -29,7 +30,8 @@ public class TransportPutViewAction extends AcknowledgedTransportMasterNodeActio
         ClusterService clusterService,
         ThreadPool threadPool,
         ActionFilters actionFilters,
-        ClusterViewService viewService
+        ClusterViewService viewService,
+        ProjectResolver projectResolver
     ) {
         super(
             PutViewAction.NAME,
@@ -38,6 +40,7 @@ public class TransportPutViewAction extends AcknowledgedTransportMasterNodeActio
             threadPool,
             actionFilters,
             PutViewAction.Request::new,
+            projectResolver,
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
         this.viewService = viewService;
@@ -47,14 +50,14 @@ public class TransportPutViewAction extends AcknowledgedTransportMasterNodeActio
     protected void masterOperation(
         Task task,
         PutViewAction.Request request,
-        ClusterState state,
+        ProjectState state,
         ActionListener<AcknowledgedResponse> listener
     ) {
         viewService.put(state.projectId(), request.name(), request.view(), listener.map(v -> AcknowledgedResponse.TRUE));
     }
 
     @Override
-    protected ClusterBlockException checkBlock(PutViewAction.Request request, ClusterState state) {
+    protected ClusterBlockException checkBlock(PutViewAction.Request request, ProjectState state) {
         return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA_WRITE);
     }
 }

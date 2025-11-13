@@ -323,8 +323,8 @@ public class ExplainLifecycleIT extends IlmESRestTestCase {
     public void testTruncatedPreviousStepInfoDoesNotBreakExplainJson() throws Exception {
         final String policyName = "policy-" + randomAlphaOfLength(5).toLowerCase(Locale.ROOT);
 
-        final Request createPolice = new Request("PUT", "_ilm/policy/" + policyName);
-        createPolice.setJsonEntity("""
+        final Request createPolicy = new Request("PUT", "_ilm/policy/" + policyName);
+        createPolicy.setJsonEntity("""
             {
               "policy": {
                 "phases": {
@@ -339,7 +339,7 @@ public class ExplainLifecycleIT extends IlmESRestTestCase {
               }
             }
             """);
-        assertOK(client().performRequest(createPolice));
+        assertOK(client().performRequest(createPolicy));
 
         final String indexBase = "my-logs";
         final String indexName = indexBase + "-" + randomAlphaOfLength(5).toLowerCase(Locale.ROOT);

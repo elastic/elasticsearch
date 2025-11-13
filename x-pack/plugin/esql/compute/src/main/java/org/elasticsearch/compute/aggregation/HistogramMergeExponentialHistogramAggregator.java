@@ -18,7 +18,7 @@ import org.elasticsearch.exponentialhistogram.ExponentialHistogram;
 
 @Aggregator({ @IntermediateState(name = "value", type = "EXPONENTIAL_HISTOGRAM"), })
 @GroupingAggregator
-public class MergeExponentialHistogramAggregator {
+public class HistogramMergeExponentialHistogramAggregator {
 
     public static ExponentialHistogramStates.SingleState initSingle(DriverContext driverContext) {
         return new ExponentialHistogramStates.SingleState(driverContext.breaker());

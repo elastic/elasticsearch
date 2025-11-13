@@ -10,7 +10,7 @@ package org.elasticsearch.xpack.esql.expression.function.aggregate;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.compute.aggregation.AggregatorFunctionSupplier;
-import org.elasticsearch.compute.aggregation.MergeExponentialHistogramAggregatorFunctionSupplier;
+import org.elasticsearch.compute.aggregation.HistogramMergeExponentialHistogramAggregatorFunctionSupplier;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
@@ -34,19 +34,19 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isTyp
  * Note that this function is currently only intended for usage in surrogates and not available as a user-facing function.
  * Therefore, it is intentionally not registered in {@link org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry}.
  */
-public class Merge extends AggregateFunction implements ToAggregator {
-    public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Merge", Merge::new);
+public class HistogramMerge extends AggregateFunction implements ToAggregator {
+    public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Merge", HistogramMerge::new);
 
     @FunctionInfo(returnType = "exponential_histogram", type = FunctionType.AGGREGATE)
-    public Merge(Source source, @Param(name = "histogram", type = { "exponential_histogram" }) Expression field) {
+    public HistogramMerge(Source source, @Param(name = "histogram", type = { "exponential_histogram" }) Expression field) {
         this(source, field, Literal.TRUE);
     }
 
-    public Merge(Source source, Expression field, Expression filter) {
+    public HistogramMerge(Source source, Expression field, Expression filter) {
         super(source, field, filter, NO_WINDOW, emptyList());
     }
 
-    private Merge(StreamInput in) throws IOException {
+    private HistogramMerge(StreamInput in) throws IOException {
         super(in);
     }
 
@@ -66,24 +66,24 @@ public class Merge extends AggregateFunction implements ToAggregator {
     }
 
     @Override
-    protected NodeInfo<Merge> info() {
-        return NodeInfo.create(this, Merge::new, field(), filter());
+    protected NodeInfo<HistogramMerge> info() {
+        return NodeInfo.create(this, HistogramMerge::new, field(), filter());
     }
 
     @Override
-    public Merge replaceChildren(List<Expression> newChildren) {
-        return new Merge(source(), newChildren.get(0), newChildren.get(1));
+    public HistogramMerge replaceChildren(List<Expression> newChildren) {
+        return new HistogramMerge(source(), newChildren.get(0), newChildren.get(1));
     }
 
-    public Merge withFilter(Expression filter) {
-        return new Merge(source(), field(), filter);
+    public HistogramMerge withFilter(Expression filter) {
+        return new HistogramMerge(source(), field(), filter);
     }
 
     @Override
     public final AggregatorFunctionSupplier supplier() {
         DataType type = field().dataType();
         if (type == DataType.EXPONENTIAL_HISTOGRAM) {
-            return new MergeExponentialHistogramAggregatorFunctionSupplier();
+            return new HistogramMergeExponentialHistogramAggregatorFunctionSupplier();
         }
         throw EsqlIllegalArgumentException.illegalDataType(type);
     }

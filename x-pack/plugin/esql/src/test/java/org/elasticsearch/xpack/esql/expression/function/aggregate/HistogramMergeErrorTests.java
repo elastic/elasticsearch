@@ -21,7 +21,7 @@ import java.util.Set;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public class MergeErrorTests extends ErrorsForCasesWithoutExamplesTestCase {
+public class HistogramMergeErrorTests extends ErrorsForCasesWithoutExamplesTestCase {
 
     @Before
     public void setup() {
@@ -33,12 +33,12 @@ public class MergeErrorTests extends ErrorsForCasesWithoutExamplesTestCase {
 
     @Override
     protected List<TestCaseSupplier> cases() {
-        return paramsToSuppliers(MergeTests.parameters());
+        return paramsToSuppliers(HistogramMergeTests.parameters());
     }
 
     @Override
     protected Expression build(Source source, List<Expression> args) {
-        return new Merge(source, args.get(0));
+        return new HistogramMerge(source, args.get(0));
     }
 
     @Override

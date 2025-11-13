@@ -21,10 +21,10 @@ import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.exponentialhistogram.ExponentialHistogram;
 
 /**
- * {@link GroupingAggregatorFunction} implementation for {@link MergeExponentialHistogramAggregator}.
+ * {@link GroupingAggregatorFunction} implementation for {@link HistogramMergeExponentialHistogramAggregator}.
  * This class is generated. Edit {@code GroupingAggregatorImplementer} instead.
  */
-public final class MergeExponentialHistogramGroupingAggregatorFunction implements GroupingAggregatorFunction {
+public final class HistogramMergeExponentialHistogramGroupingAggregatorFunction implements GroupingAggregatorFunction {
   private static final List<IntermediateStateDesc> INTERMEDIATE_STATE_DESC = List.of(
       new IntermediateStateDesc("value", ElementType.EXPONENTIAL_HISTOGRAM)  );
 
@@ -34,16 +34,16 @@ public final class MergeExponentialHistogramGroupingAggregatorFunction implement
 
   private final DriverContext driverContext;
 
-  public MergeExponentialHistogramGroupingAggregatorFunction(List<Integer> channels,
+  public HistogramMergeExponentialHistogramGroupingAggregatorFunction(List<Integer> channels,
       ExponentialHistogramStates.GroupingState state, DriverContext driverContext) {
     this.channels = channels;
     this.state = state;
     this.driverContext = driverContext;
   }
 
-  public static MergeExponentialHistogramGroupingAggregatorFunction create(List<Integer> channels,
-      DriverContext driverContext) {
-    return new MergeExponentialHistogramGroupingAggregatorFunction(channels, MergeExponentialHistogramAggregator.initGrouping(driverContext.bigArrays(), driverContext), driverContext);
+  public static HistogramMergeExponentialHistogramGroupingAggregatorFunction create(
+      List<Integer> channels, DriverContext driverContext) {
+    return new HistogramMergeExponentialHistogramGroupingAggregatorFunction(channels, HistogramMergeExponentialHistogramAggregator.initGrouping(driverContext.bigArrays(), driverContext), driverContext);
   }
 
   public static List<IntermediateStateDesc> intermediateStateDesc() {
@@ -101,7 +101,7 @@ public final class MergeExponentialHistogramGroupingAggregatorFunction implement
         int valueEnd = valueStart + valueBlock.getValueCount(valuesPosition);
         for (int valueOffset = valueStart; valueOffset < valueEnd; valueOffset++) {
           ExponentialHistogram valueValue = valueBlock.getExponentialHistogram(valueOffset, valueScratch);
-          MergeExponentialHistogramAggregator.combine(state, groupId, valueValue);
+          HistogramMergeExponentialHistogramAggregator.combine(state, groupId, valueValue);
         }
       }
     }
@@ -126,7 +126,7 @@ public final class MergeExponentialHistogramGroupingAggregatorFunction implement
       for (int g = groupStart; g < groupEnd; g++) {
         int groupId = groups.getInt(g);
         int valuesPosition = groupPosition + positionOffset;
-        MergeExponentialHistogramAggregator.combineIntermediate(state, groupId, value.getExponentialHistogram(value.getFirstValueIndex(valuesPosition), valueScratch));
+        HistogramMergeExponentialHistogramAggregator.combineIntermediate(state, groupId, value.getExponentialHistogram(value.getFirstValueIndex(valuesPosition), valueScratch));
       }
     }
   }
@@ -150,7 +150,7 @@ public final class MergeExponentialHistogramGroupingAggregatorFunction implement
         int valueEnd = valueStart + valueBlock.getValueCount(valuesPosition);
         for (int valueOffset = valueStart; valueOffset < valueEnd; valueOffset++) {
           ExponentialHistogram valueValue = valueBlock.getExponentialHistogram(valueOffset, valueScratch);
-          MergeExponentialHistogramAggregator.combine(state, groupId, valueValue);
+          HistogramMergeExponentialHistogramAggregator.combine(state, groupId, valueValue);
         }
       }
     }
@@ -175,7 +175,7 @@ public final class MergeExponentialHistogramGroupingAggregatorFunction implement
       for (int g = groupStart; g < groupEnd; g++) {
         int groupId = groups.getInt(g);
         int valuesPosition = groupPosition + positionOffset;
-        MergeExponentialHistogramAggregator.combineIntermediate(state, groupId, value.getExponentialHistogram(value.getFirstValueIndex(valuesPosition), valueScratch));
+        HistogramMergeExponentialHistogramAggregator.combineIntermediate(state, groupId, value.getExponentialHistogram(value.getFirstValueIndex(valuesPosition), valueScratch));
       }
     }
   }
@@ -193,7 +193,7 @@ public final class MergeExponentialHistogramGroupingAggregatorFunction implement
       int valueEnd = valueStart + valueBlock.getValueCount(valuesPosition);
       for (int valueOffset = valueStart; valueOffset < valueEnd; valueOffset++) {
         ExponentialHistogram valueValue = valueBlock.getExponentialHistogram(valueOffset, valueScratch);
-        MergeExponentialHistogramAggregator.combine(state, groupId, valueValue);
+        HistogramMergeExponentialHistogramAggregator.combine(state, groupId, valueValue);
       }
     }
   }
@@ -211,7 +211,7 @@ public final class MergeExponentialHistogramGroupingAggregatorFunction implement
     for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
       int groupId = groups.getInt(groupPosition);
       int valuesPosition = groupPosition + positionOffset;
-      MergeExponentialHistogramAggregator.combineIntermediate(state, groupId, value.getExponentialHistogram(value.getFirstValueIndex(valuesPosition), valueScratch));
+      HistogramMergeExponentialHistogramAggregator.combineIntermediate(state, groupId, value.getExponentialHistogram(value.getFirstValueIndex(valuesPosition), valueScratch));
     }
   }
 
@@ -235,7 +235,7 @@ public final class MergeExponentialHistogramGroupingAggregatorFunction implement
   @Override
   public void evaluateFinal(Block[] blocks, int offset, IntVector selected,
       GroupingAggregatorEvaluationContext ctx) {
-    blocks[offset] = MergeExponentialHistogramAggregator.evaluateFinal(state, selected, ctx);
+    blocks[offset] = HistogramMergeExponentialHistogramAggregator.evaluateFinal(state, selected, ctx);
   }
 
   @Override

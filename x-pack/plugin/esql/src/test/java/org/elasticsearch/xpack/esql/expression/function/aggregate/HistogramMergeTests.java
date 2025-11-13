@@ -33,8 +33,8 @@ import java.util.stream.Stream;
 import static org.elasticsearch.compute.aggregation.ExponentialHistogramStates.MAX_BUCKET_COUNT;
 import static org.hamcrest.Matchers.equalTo;
 
-public class MergeTests extends AbstractAggregationTestCase {
-    public MergeTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
+public class HistogramMergeTests extends AbstractAggregationTestCase {
+    public HistogramMergeTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
         this.testCase = testCaseSupplier.get();
     }
 
@@ -44,7 +44,7 @@ public class MergeTests extends AbstractAggregationTestCase {
 
         Stream.of(MultiRowTestCaseSupplier.exponentialHistogramCases(1, 100))
             .flatMap(List::stream)
-            .map(MergeTests::makeSupplier)
+            .map(HistogramMergeTests::makeSupplier)
             .collect(Collectors.toCollection(() -> suppliers));
 
         return parameterSuppliersFromTypedDataWithDefaultChecks(suppliers, true);
@@ -52,7 +52,7 @@ public class MergeTests extends AbstractAggregationTestCase {
 
     @Override
     protected Expression build(Source source, List<Expression> args) {
-        return new Merge(source, args.get(0));
+        return new HistogramMerge(source, args.get(0));
     }
 
     private static TestCaseSupplier makeSupplier(TestCaseSupplier.TypedDataSupplier fieldSupplier) {
@@ -78,7 +78,7 @@ public class MergeTests extends AbstractAggregationTestCase {
             var expected = anyValuesNonNull ? merger.get() : null;
             return new TestCaseSupplier.TestCase(
                 List.of(fieldTypedData),
-                standardAggregatorName("Merge", fieldSupplier.type()),
+                standardAggregatorName("HistogramMerge", fieldSupplier.type()),
                 DataType.EXPONENTIAL_HISTOGRAM,
                 equalToWithLenientZeroBucket(expected)
             );

@@ -11,14 +11,14 @@ import org.elasticsearch.xpack.esql.expression.AbstractExpressionSerializationTe
 
 import java.io.IOException;
 
-public class MergeSerializationTests extends AbstractExpressionSerializationTests<Merge> {
+public class HistogramMergeSerializationTests extends AbstractExpressionSerializationTests<HistogramMerge> {
     @Override
-    protected Merge createTestInstance() {
-        return new Merge(randomSource(), randomChild());
+    protected HistogramMerge createTestInstance() {
+        return new HistogramMerge(randomSource(), randomChild());
     }
 
     @Override
-    protected Merge mutateInstance(Merge instance) throws IOException {
-        return new Merge(instance.source(), randomValueOtherThan(instance.field(), AbstractExpressionSerializationTests::randomChild));
+    protected HistogramMerge mutateInstance(HistogramMerge instance) throws IOException {
+        return new HistogramMerge(instance.source(), randomValueOtherThan(instance.field(), AbstractExpressionSerializationTests::randomChild));
     }
 }

@@ -52,7 +52,7 @@ public class AggregateWritables {
             Absent.ENTRY,
             AbsentOverTime.ENTRY,
             DimensionValues.ENTRY,
-            Merge.ENTRY
+            HistogramMerge.ENTRY
         );
     }
 }

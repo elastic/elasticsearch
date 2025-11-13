@@ -19,10 +19,10 @@ import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.exponentialhistogram.ExponentialHistogram;
 
 /**
- * {@link AggregatorFunction} implementation for {@link MergeExponentialHistogramAggregator}.
+ * {@link AggregatorFunction} implementation for {@link HistogramMergeExponentialHistogramAggregator}.
  * This class is generated. Edit {@code AggregatorImplementer} instead.
  */
-public final class MergeExponentialHistogramAggregatorFunction implements AggregatorFunction {
+public final class HistogramMergeExponentialHistogramAggregatorFunction implements AggregatorFunction {
   private static final List<IntermediateStateDesc> INTERMEDIATE_STATE_DESC = List.of(
       new IntermediateStateDesc("value", ElementType.EXPONENTIAL_HISTOGRAM)  );
 
@@ -32,16 +32,16 @@ public final class MergeExponentialHistogramAggregatorFunction implements Aggreg
 
   private final List<Integer> channels;
 
-  public MergeExponentialHistogramAggregatorFunction(DriverContext driverContext,
+  public HistogramMergeExponentialHistogramAggregatorFunction(DriverContext driverContext,
       List<Integer> channels, ExponentialHistogramStates.SingleState state) {
     this.driverContext = driverContext;
     this.channels = channels;
     this.state = state;
   }
 
-  public static MergeExponentialHistogramAggregatorFunction create(DriverContext driverContext,
-      List<Integer> channels) {
-    return new MergeExponentialHistogramAggregatorFunction(driverContext, channels, MergeExponentialHistogramAggregator.initSingle(driverContext));
+  public static HistogramMergeExponentialHistogramAggregatorFunction create(
+      DriverContext driverContext, List<Integer> channels) {
+    return new HistogramMergeExponentialHistogramAggregatorFunction(driverContext, channels, HistogramMergeExponentialHistogramAggregator.initSingle(driverContext));
   }
 
   public static List<IntermediateStateDesc> intermediateStateDesc() {
@@ -85,7 +85,7 @@ public final class MergeExponentialHistogramAggregatorFunction implements Aggreg
       int valueEnd = valueStart + valueValueCount;
       for (int valueOffset = valueStart; valueOffset < valueEnd; valueOffset++) {
         ExponentialHistogram valueValue = valueBlock.getExponentialHistogram(valueOffset, valueScratch);
-        MergeExponentialHistogramAggregator.combine(state, valueValue);
+        HistogramMergeExponentialHistogramAggregator.combine(state, valueValue);
       }
     }
   }
@@ -104,7 +104,7 @@ public final class MergeExponentialHistogramAggregatorFunction implements Aggreg
       int valueEnd = valueStart + valueValueCount;
       for (int valueOffset = valueStart; valueOffset < valueEnd; valueOffset++) {
         ExponentialHistogram valueValue = valueBlock.getExponentialHistogram(valueOffset, valueScratch);
-        MergeExponentialHistogramAggregator.combine(state, valueValue);
+        HistogramMergeExponentialHistogramAggregator.combine(state, valueValue);
       }
     }
   }
@@ -120,7 +120,7 @@ public final class MergeExponentialHistogramAggregatorFunction implements Aggreg
     ExponentialHistogramBlock value = (ExponentialHistogramBlock) valueUncast;
     assert value.getPositionCount() == 1;
     ExponentialHistogramScratch valueScratch = new ExponentialHistogramScratch();
-    MergeExponentialHistogramAggregator.combineIntermediate(state, value.getExponentialHistogram(value.getFirstValueIndex(0), valueScratch));
+    HistogramMergeExponentialHistogramAggregator.combineIntermediate(state, value.getExponentialHistogram(value.getFirstValueIndex(0), valueScratch));
   }
 
   @Override
@@ -130,7 +130,7 @@ public final class MergeExponentialHistogramAggregatorFunction implements Aggreg
 
   @Override
   public void evaluateFinal(Block[] blocks, int offset, DriverContext driverContext) {
-    blocks[offset] = MergeExponentialHistogramAggregator.evaluateFinal(state, driverContext);
+    blocks[offset] = HistogramMergeExponentialHistogramAggregator.evaluateFinal(state, driverContext);
   }
 
   @Override

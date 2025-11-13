@@ -1365,6 +1365,29 @@ public class StatementParserTests extends AbstractStatementParserTests {
         );
     }
 
+// begin 131356
+/*
+}
+class foo {
+ */
+    public void testLikeRLikeParam() {
+        LogicalPlan cmd = statement("row a = \"abc\" | where a like ?pattern",
+            new QueryParams( List.of(paramAsConstant("pattern", "a*")) )
+        );
+        assertEquals(Filter.class, cmd.getClass());
+        Filter filter = (Filter) cmd;
+        assertEquals(WildcardLike.class, filter.condition().getClass());
+        WildcardLike like = (WildcardLike) filter.condition();
+        assertEquals("a*", like.pattern().pattern());
+
+        expectError(
+            "row a = \"abc\" | where a like ?pattern",
+            List.of(paramAsConstant("pattern", 1)),
+            "Invalid StringOrParameterContext" // XXX need more specific message
+        );
+    }
+// end 131356
+
     public void testIdentifierPatternTooComplex() {
         // It is incredibly unlikely that we will see this limit hit in practice
         // The repetition value 2450 was a ballpark estimate and validated experimentally

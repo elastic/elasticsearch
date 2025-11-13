@@ -68,6 +68,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToLong;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToString;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Concat;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Substring;
+import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.WildcardLike;
 import org.elasticsearch.xpack.esql.expression.function.vector.Knn;
 import org.elasticsearch.xpack.esql.expression.function.vector.Magnitude;
 import org.elasticsearch.xpack.esql.expression.function.vector.VectorSimilarityFunction;
@@ -5598,6 +5599,27 @@ public class AnalyzerTests extends ESTestCase {
         assertEquals("languages_lookup", rightRelation.indexPattern());
         assertEquals(IndexMode.LOOKUP, rightRelation.indexMode());
     }
+
+
+// begin 131356
+/*
+}
+class foo {
+*/
+    public void testLikeParameters() {
+        // if (EsqlCapabilities.Cap.LIKE_PARAMETER_SUPPORT.isEnabled() == false) { return; }
+        var plan = analyze(
+            String.format(Locale.ROOT, "from test | where first_name like ?pattern"),
+            "mapping-basic.json",
+            new QueryParams(List.of(paramAsConstant("pattern", "Anna*")))
+        );
+        var limit = as(plan, Limit.class);
+        var filter = as(limit.child(), Filter.class);
+        WildcardLike like = as(filter.condition(), WildcardLike.class);
+        assertEquals("Anna*", like.pattern().pattern());
+    }
+// end 131356
+
 
     private void verifyNameAndTypeAndMultiTypeEsField(
         String actualName,

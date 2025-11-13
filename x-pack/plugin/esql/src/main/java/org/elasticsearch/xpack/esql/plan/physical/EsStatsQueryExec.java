@@ -40,12 +40,9 @@ public class EsStatsQueryExec extends LeafExec implements EstimatesRowSize {
 
     public sealed interface Stat {
         List<ElementType> tagTypes();
-
-        QueryBuilder filter(QueryBuilder sourceQuery);
     }
 
     public record BasicStat(String name, StatsType type, QueryBuilder query) implements Stat {
-        @Override
         public QueryBuilder filter(QueryBuilder sourceQuery) {
             return query == null ? sourceQuery : Queries.combine(Queries.Clause.FILTER, asList(sourceQuery, query)).boost(0.0f);
         }
@@ -56,16 +53,11 @@ public class EsStatsQueryExec extends LeafExec implements EstimatesRowSize {
         }
     }
 
-    public record ByStat(AggregateExec aggExec, List<EsQueryExec.QueryBuilderAndTags> queryBuilderAndTags) implements Stat {
+    public record ByStat(List<EsQueryExec.QueryBuilderAndTags> queryBuilderAndTags) implements Stat {
         public ByStat {
             if (queryBuilderAndTags.isEmpty()) {
                 throw new IllegalStateException("ByStat must have at least one queryBuilderAndTags");
             }
-        }
-
-        @Override
-        public QueryBuilder filter(QueryBuilder sourceQuery) {
-            throw new AssertionError("TODO(gal) NOCOMMIT");
         }
 
         @Override
@@ -92,7 +84,7 @@ public class EsStatsQueryExec extends LeafExec implements EstimatesRowSize {
     private final QueryBuilder query;
     private final Expression limit;
     private final List<Attribute> attrs;
-    private final List<Stat> stats;
+    private final Stat stat;
 
     public EsStatsQueryExec(
         Source source,
@@ -100,14 +92,14 @@ public class EsStatsQueryExec extends LeafExec implements EstimatesRowSize {
         @Nullable QueryBuilder query,
         Expression limit,
         List<Attribute> attributes,
-        List<Stat> stats
+        Stat stat
     ) {
         super(source);
         this.indexPattern = indexPattern;
         this.query = query;
         this.limit = limit;
         this.attrs = attributes;
-        this.stats = stats;
+        this.stat = stat;
     }
 
     @Override
@@ -122,23 +114,19 @@ public class EsStatsQueryExec extends LeafExec implements EstimatesRowSize {
 
     @Override
     protected NodeInfo<EsStatsQueryExec> info() {
-        return NodeInfo.create(this, EsStatsQueryExec::new, indexPattern, query, limit, attrs, stats);
+        return NodeInfo.create(this, EsStatsQueryExec::new, indexPattern, query, limit, attrs, stat);
     }
 
     public @Nullable QueryBuilder query() {
         return query;
     }
 
-    public List<Stat> stats() {
-        return stats;
+    public Stat stat() {
+        return stat;
     }
 
     @Override
     public List<Attribute> output() {
-        // FIXME(gal, NOCOMMIT) hack
-        if (stats.size() == 1 && stats.get(0) instanceof ByStat byStat) {
-            return byStat.aggExec.output();
-        }
         return attrs;
     }
 
@@ -157,7 +145,7 @@ public class EsStatsQueryExec extends LeafExec implements EstimatesRowSize {
 
     @Override
     public int hashCode() {
-        return Objects.hash(indexPattern, query, limit, attrs, stats);
+        return Objects.hash(indexPattern, query, limit, attrs, stat);
     }
 
     @Override
@@ -175,7 +163,7 @@ public class EsStatsQueryExec extends LeafExec implements EstimatesRowSize {
             && Objects.equals(attrs, other.attrs)
             && Objects.equals(query, other.query)
             && Objects.equals(limit, other.limit)
-            && Objects.equals(stats, other.stats);
+            && Objects.equals(stat, other.stat);
     }
 
     @Override
@@ -184,7 +172,7 @@ public class EsStatsQueryExec extends LeafExec implements EstimatesRowSize {
             + "["
             + indexPattern
             + "], stats"
-            + stats
+            + stat
             + "], query["
             + (query != null ? Strings.toString(query, false, true) : "")
             + "]"

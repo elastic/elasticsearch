@@ -11,7 +11,6 @@ import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Nullability;
@@ -33,7 +32,6 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.StringJoiner;
 
 import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isFoldable;
@@ -222,19 +220,5 @@ public class RoundTo extends EsqlScalarFunction {
                 .collect(java.util.stream.Collectors.toList());
             default -> throw new IllegalArgumentException("Unsupported data type: " + dataType);
         };
-    }
-
-    // FIXME(gal, NOCOMMIT) Temp to make debugging less of a nightmare
-    @Override
-    public String nodeString() {
-        StringJoiner sj = new StringJoiner(",", functionName() + "(", ")");
-        var args = arguments();
-        var strings = args.size() > 3
-            ? CollectionUtils.appendToCopy(args.stream().limit(3).map(Expression::nodeString).toList(), " ... ")
-            : args.stream().map(Expression::nodeString).toList();
-        for (var string : strings) {
-            sj.add(string);
-        }
-        return sj.toString();
     }
 }

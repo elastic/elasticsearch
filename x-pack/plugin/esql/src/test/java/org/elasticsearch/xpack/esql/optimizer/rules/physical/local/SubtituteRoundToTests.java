@@ -77,11 +77,8 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 
-// FIXME(gal, NOCOMMIT) rename, since it tests both rewrites now
-//@TestLogging(value = "org.elasticsearch.xpack.esql:TRACE", reason = "debug")
-public class ReplaceRoundToWithQueryAndTagsTests extends AbstractLocalPhysicalPlanOptimizerTests {
-
-    public ReplaceRoundToWithQueryAndTagsTests(String name, Configuration config) {
+public class SubtituteRoundToTests extends AbstractLocalPhysicalPlanOptimizerTests {
+    public SubtituteRoundToTests(String name, Configuration config) {
         super(name, config);
     }
 
@@ -475,7 +472,7 @@ public class ReplaceRoundToWithQueryAndTagsTests extends AbstractLocalPhysicalPl
         );
         var left = as(condition.left(), ReferenceAttribute.class);
         assertThat(left.id(), is(statsQueryExec.output().get(1).id()));
-        return as(EsqlTestUtils.singleValue(statsQueryExec.stats()), EsStatsQueryExec.ByStat.class).queryBuilderAndTags();
+        return as(statsQueryExec.stat(), EsStatsQueryExec.ByStat.class).queryBuilderAndTags();
     }
 
     /**
@@ -588,7 +585,7 @@ public class ReplaceRoundToWithQueryAndTagsTests extends AbstractLocalPhysicalPl
 
     private static int statsQueryAndTags(PhysicalPlan plan) {
         EsStatsQueryExec esQuery = (EsStatsQueryExec) plan.collectFirstChildren(EsStatsQueryExec.class::isInstance).getFirst();
-        return ((EsStatsQueryExec.ByStat) EsqlTestUtils.singleValue(esQuery.stats())).queryBuilderAndTags().size();
+        return ((EsStatsQueryExec.ByStat) esQuery.stat()).queryBuilderAndTags().size();
     }
 
     public void testAdjustThresholdForQueries() {

@@ -23,25 +23,35 @@ import org.elasticsearch.xpack.esql.plan.physical.EvalExec;
 import org.elasticsearch.xpack.esql.plan.physical.FilterExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 
-import java.util.List;
-
-// FIXME(gal, NOCOMMIT) document
+/**
+ * Pushes count aggregations on top of query and tags to source.
+ * Will transform:
+ * <pre>
+ *  Aggregate (count(*) by x)
+ *  └── Eval (x = round_to)
+ *      └── Query [query + tags]
+ *  </pre>
+ *  into:
+ *  <pre>
+ *  Filter (count > 0)
+ *  └── StatsQuery [count with query + tags]
+ *  </pre>
+ *  Where the filter is needed since the original Aggregate would not produce buckets with count = 0.
+ */
 public class PushCountQueryAndTagsToSource extends PhysicalOptimizerRules.ParameterizedOptimizerRule<
     AggregateExec,
     LocalPhysicalOptimizerContext> {
 
     @Override
     protected PhysicalPlan rule(AggregateExec aggregateExec, LocalPhysicalOptimizerContext ctx) {
-        // FIXME(gal, NOCOMMIT) Temp documentation, for later
         if (
         // Ensures we are only grouping by one field (2 aggregates: count + group by field).
         aggregateExec.aggregates().size() == 2
-            && aggregateExec.aggregates().get(0) instanceof Alias alias
-            && aggregateExec.child() instanceof EvalExec evalExec
+            && aggregateExec.aggregates().getFirst() instanceof Alias alias
             && alias.child() instanceof Count count
-            // Ensures the eval exec is a filterless count, since we don't support filters yet.
-            && count.hasFilter() == false
-            && count.field() instanceof Literal // Ensures count(*), or count(1), or equivalent.
+            && count.hasFilter() == false // TODO We don't support filters at the moment (but we definitely should!).
+            && count.field() instanceof Literal // Ensures count(*) or equivalent.
+            && aggregateExec.child() instanceof EvalExec evalExec
             && evalExec.child() instanceof EsQueryExec queryExec
             && queryExec.queryBuilderAndTags().size() > 1 // Ensures there are query and tags to push down.
         ) {
@@ -50,16 +60,16 @@ public class PushCountQueryAndTagsToSource extends PhysicalOptimizerRules.Parame
                 queryExec.indexPattern(),
                 null, // query
                 queryExec.limit(),
-                queryExec.attrs(),
-                List.of(new EsStatsQueryExec.ByStat(aggregateExec, queryExec.queryBuilderAndTags()))
+                aggregateExec.output(),
+                new EsStatsQueryExec.ByStat(queryExec.queryBuilderAndTags())
             );
-            // Wrap with FilterExec to remove empty buckets (keep buckets where count > 0)
-            // FIXME(gal, NOCOMMIT) Hacky
-            // FIXME(gal, NOCOMMIT) document better
-            Attribute outputAttr = statsQueryExec.output().get(1);
-            var zero = new Literal(Source.EMPTY, 0L, DataType.LONG);
-            return new FilterExec(Source.EMPTY, statsQueryExec, new GreaterThan(Source.EMPTY, outputAttr, zero));
+            // Wrap with FilterExec to remove empty buckets (keep buckets where count > 0). This was automatically handled by the
+            // AggregateExec, but since we removed it, we need to do it manually.
+            Attribute countAttr = statsQueryExec.output().get(1);
+            return new FilterExec(Source.EMPTY, statsQueryExec, new GreaterThan(Source.EMPTY, countAttr, ZERO));
         }
         return aggregateExec;
     }
+
+    private static final Literal ZERO = new Literal(Source.EMPTY, 0L, DataType.LONG);
 }

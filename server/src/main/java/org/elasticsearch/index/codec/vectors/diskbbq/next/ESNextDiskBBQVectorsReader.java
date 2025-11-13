@@ -13,6 +13,7 @@ import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.SegmentReadState;
 import org.apache.lucene.index.VectorEncoding;
 import org.apache.lucene.index.VectorSimilarityFunction;
+import org.apache.lucene.search.AcceptDocs;
 import org.apache.lucene.search.KnnCollector;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.util.Bits;
@@ -89,6 +90,7 @@ public class ESNextDiskBBQVectorsReader extends IVFVectorsReader {
         IndexInput centroids,
         float[] targetQuery,
         IndexInput postingListSlice,
+        AcceptDocs acceptDocs,
         float visitRatio
     ) throws IOException {
         final FieldEntry fieldEntry = fields.get(fieldInfo.number);
@@ -144,7 +146,7 @@ public class ESNextDiskBBQVectorsReader extends IVFVectorsReader {
         FieldEntry entry = fields.get(fieldInfo.number);
         PreconditioningProvider preconditioningProvider = ((NextFieldEntry) entry).preconditioningProvider();
         // only precondition if during writing preconditioning was enabled
-        if(preconditioningProvider != null) {
+        if (preconditioningProvider != null) {
             // have to copy so we don't modify the original search vector
             float[] tmp = Arrays.copyOf(vector, vector.length);
             preconditioningProvider.applyPreconditioningTransform(tmp);
@@ -170,7 +172,7 @@ public class ESNextDiskBBQVectorsReader extends IVFVectorsReader {
     ) throws IOException {
         ESNextDiskBBQVectorsFormat.QuantEncoding quantEncoding = ESNextDiskBBQVectorsFormat.QuantEncoding.fromId(input.readInt());
         PreconditioningProvider preconditioningProvider = null;
-        if(input.readByte() == (byte) 1) {
+        if (input.readByte() == (byte) 1) {
             preconditioningProvider = PreconditioningProvider.read(input);
         }
         return new NextFieldEntry(
@@ -229,7 +231,10 @@ public class ESNextDiskBBQVectorsReader extends IVFVectorsReader {
         public ESNextDiskBBQVectorsFormat.QuantEncoding quantEncoding() {
             return quantEncoding;
         }
-        public PreconditioningProvider preconditioningProvider() { return preconditioningProvider; }
+
+        public PreconditioningProvider preconditioningProvider() {
+            return preconditioningProvider;
+        }
     }
 
     private static CentroidIterator getCentroidIteratorNoParent(

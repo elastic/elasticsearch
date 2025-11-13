@@ -34,7 +34,7 @@ public class PreconditioningProvider {
         int dim = vectors.dimension();
         blocks = PreconditioningProvider.generateRandomOrthogonalMatrix(dim, blockDim);
         int[] dimBlocks = new int[blocks.length];
-        for(int i = 0; i < blocks.length; i++) {
+        for (int i = 0; i < blocks.length; i++) {
             dimBlocks[i] = blocks[i].length;
         }
         permutationMatrix = PreconditioningProvider.createPermutationMatrix(dimBlocks, vectors);
@@ -51,7 +51,7 @@ public class PreconditioningProvider {
 
         int dim = vector.length;
 
-        if(blocks.length == 1) {
+        if (blocks.length == 1) {
             int blockDim = blocks[0].length;
             float[] tmp = new float[blockDim];
             matrixVectorMultiply(blocks[0], vector, tmp);
@@ -62,15 +62,15 @@ public class PreconditioningProvider {
         int blockIdx = 0;
         float[] x = new float[blockDim];
         float[] out = new float[blockDim];
-        for(int j = 0; j < blocks.length; j++) {
+        for (int j = 0; j < blocks.length; j++) {
             float[][] block = blocks[j];
             int blockDim = blocks[j].length;
             // blockDim is only ever smaller for the tail
-            if(blockDim != this.blockDim) {
+            if (blockDim != this.blockDim) {
                 x = new float[blockDim];
                 out = new float[blockDim];
             }
-            for(int k = 0; k < permutationMatrix[j].length; k++) {
+            for (int k = 0; k < permutationMatrix[j].length; k++) {
                 int idx = permutationMatrix[j][k];
                 x[k] = vector[idx];
             }
@@ -111,22 +111,22 @@ public class PreconditioningProvider {
         float[][][] blocks = new float[blocksLen][][];
         int[][] permutationMatrix = new int[permutationMatrixLen][];
 
-        for(int i = 0; i < blocks.length; i++) {
+        for (int i = 0; i < blocks.length; i++) {
             int blockLen = input.readInt();
             blocks[i] = new float[blockLen][];
-            for(int j = 0; j < blockLen; j++) {
+            for (int j = 0; j < blockLen; j++) {
                 int subBlockLen = input.readInt();
                 blocks[i][j] = new float[subBlockLen];
-                for(int k = 0; k < subBlockLen; k++) {
+                for (int k = 0; k < subBlockLen; k++) {
                     blocks[i][j][k] = Float.intBitsToFloat(input.readInt());
                 }
             }
         }
 
-        for(int i = 0; i < permutationMatrix.length; i++) {
+        for (int i = 0; i < permutationMatrix.length; i++) {
             int permutationMatrixSubLen = input.readInt();
             permutationMatrix[i] = new int[permutationMatrixSubLen];
-            for(int j = 0; j < permutationMatrix[i].length; j++) {
+            for (int j = 0; j < permutationMatrix[i].length; j++) {
                 permutationMatrix[i][j] = input.readInt();
             }
         }
@@ -134,26 +134,25 @@ public class PreconditioningProvider {
         return new PreconditioningProvider(blockDim, blocks, permutationMatrix);
     }
 
-
     private static void modifiedGramSchmidt(float[][] m) {
-        for(int i = 0; i < m.length; i++) {
+        for (int i = 0; i < m.length; i++) {
             double norm = 0.0;
             for (float v : m[i]) {
                 norm += v * v;
             }
             norm = Math.sqrt(norm);
-            if( norm == 0.0f ) {
+            if (norm == 0.0f) {
                 continue;
             }
-            for(int j = 0; j < m[i].length; j++) {
+            for (int j = 0; j < m[i].length; j++) {
                 m[i][j] /= (float) norm;
             }
-            for(int k = i+1; k < m[i].length; k++) {
+            for (int k = i + 1; k < m[i].length; k++) {
                 double dotik = 0.0;
-                for(int j = 0; j < m[k].length; j++) {
+                for (int j = 0; j < m[k].length; j++) {
                     dotik += m[i][j] * m[k][j];
                 }
-                for(int j = 0; j < m[k].length; j++) {
+                for (int j = 0; j < m[k].length; j++) {
                     m[k][j] -= (float) (dotik * m[i][j]);
                 }
             }
@@ -162,7 +161,7 @@ public class PreconditioningProvider {
 
     private static void randomFill(Random gen, float[][] m) {
         for (int i = 0; i < m.length; ++i) {
-            for(int j = 0; j < m[i].length; ++j) {
+            for (int j = 0; j < m[i].length; ++j) {
                 m[i][j] = (float) gen.nextGaussian();
             }
         }
@@ -176,14 +175,14 @@ public class PreconditioningProvider {
         float[][][] blocks = new float[nBlocks + (rem > 0 ? 1 : 0)][][];
         Random random = new Random(42L);
 
-        for(int i = 0; i < nBlocks; i++) {
+        for (int i = 0; i < nBlocks; i++) {
             float[][] m = new float[blockDim][blockDim];
             randomFill(random, m);
             modifiedGramSchmidt(m);
             blocks[i] = m;
         }
 
-        if(rem != 0) {
+        if (rem != 0) {
             float[][] m = new float[rem][rem];
             randomFill(random, m);
             modifiedGramSchmidt(m);
@@ -217,12 +216,12 @@ public class PreconditioningProvider {
     private static int[][] createPermutationMatrix(int[] dimBlocks, FloatVectorValues vectors) throws IOException {
         int dim = vectors.dimension();
 
-        if(dimBlocks.length == 1) {
+        if (dimBlocks.length == 1) {
             int[] indices = new int[dim];
-            for(int i = 0; i < indices.length; i++) {
+            for (int i = 0; i < indices.length; i++) {
                 indices[i] = i;
             }
-            return new int[][] {indices};
+            return new int[][] { indices };
         }
 
         // Use a greedy approach to pick assignments to blocks that equalizes their variance.
@@ -230,9 +229,9 @@ public class PreconditioningProvider {
         float[] variances = new float[dim];
         int[] n = new int[dim];
 
-        for(int i = 0; i < vectors.size(); ++i) {
+        for (int i = 0; i < vectors.size(); ++i) {
             float[] vector = vectors.vectorValue(i);
-            for(int j = 0; j < dim; j++) {
+            for (int j = 0; j < dim; j++) {
                 float value = vector[j];
                 n[j]++;
                 double delta = value - means[j];
@@ -242,24 +241,23 @@ public class PreconditioningProvider {
         }
 
         int[] indices = new int[dim];
-        for(int i = 0; i < indices.length; i++) {
+        for (int i = 0; i < indices.length; i++) {
             indices[i] = i;
         }
         new IntSorter(indices, i -> NumericUtils.floatToSortableInt(variances[i])).sort(0, indices.length);
 
         int[][] permutationMatrix = new int[dimBlocks.length][];
-        for(int i = 0; i < permutationMatrix.length; i++) {
+        for (int i = 0; i < permutationMatrix.length; i++) {
             permutationMatrix[i] = new int[dimBlocks[i]];
         }
         float[] cumulativeVariances = new float[dimBlocks.length];
         int[] jthIdx = new int[permutationMatrix.length];
-        for(int i : indices) {
+        for (int i : indices) {
             int j = minElementIndex(cumulativeVariances);
             permutationMatrix[j][jthIdx[j]++] = i;
-            cumulativeVariances[j] = (jthIdx[j] == dimBlocks[j] ?
-                Float.MAX_VALUE : cumulativeVariances[j] + variances[i]);
+            cumulativeVariances[j] = (jthIdx[j] == dimBlocks[j] ? Float.MAX_VALUE : cumulativeVariances[j] + variances[i]);
         }
-        for(int[] matrix : permutationMatrix) {
+        for (int[] matrix : permutationMatrix) {
             Arrays.sort(matrix);
         }
 

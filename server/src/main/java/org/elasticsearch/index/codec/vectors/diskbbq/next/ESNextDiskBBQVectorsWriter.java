@@ -86,7 +86,7 @@ public class ESNextDiskBBQVectorsWriter extends IVFVectorsWriter {
 
     @Override
     public FloatVectorValues preconditionVectors(FloatVectorValues vectors) throws IOException {
-        if(doPrecondition) {
+        if (doPrecondition) {
             preconditioningProvider = new PreconditioningProvider(preconditioningBlockDimension, vectors);
             return new FloatVectorValues() {
                 float[] vectorValue;
@@ -424,7 +424,7 @@ public class ESNextDiskBBQVectorsWriter extends IVFVectorsWriter {
     @Override
     protected void doWriteMeta(IndexOutput metaOutput, FieldInfo field, int numCentroids) throws IOException {
         metaOutput.writeInt(quantEncoding.id());
-        if(preconditioningProvider != null ) {
+        if (preconditioningProvider != null) {
             metaOutput.writeByte((byte) 1);
             preconditioningProvider.write(metaOutput);
         } else {

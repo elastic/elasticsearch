@@ -9,7 +9,6 @@
 
 package org.elasticsearch.index.codec.vectors.diskbbq;
 
-
 import org.apache.lucene.index.FloatVectorValues;
 import org.apache.lucene.tests.util.LuceneTestCase;
 
@@ -21,10 +20,10 @@ public class PreconditioningProviderTests extends LuceneTestCase {
 
         int corpusLen = random().nextInt(100, 200);
         float[][] corpus = new float[corpusLen][];
-        for(int i = 0; i < corpusLen; i++) {
+        for (int i = 0; i < corpusLen; i++) {
             corpus[i] = new float[dim];
             for (int j = 0; j < dim; j++) {
-                if(j > 320) {
+                if (j > 320) {
                     corpus[i][j] = 0f;
                 } else {
                     corpus[i][j] = random().nextFloat();
@@ -33,48 +32,48 @@ public class PreconditioningProviderTests extends LuceneTestCase {
         }
 
         float[] query = new float[dim];
-        for(int i = 0; i < dim; i++) {
+        for (int i = 0; i < dim; i++) {
             query[i] = random().nextFloat();
         }
 
         int blockDim = random().nextInt(8, 384);
 
-        PreconditioningProvider preconditioningProvider = new PreconditioningProvider(blockDim,
-            new FloatVectorValues() {
-                @Override
-                public int size() {
-                    return corpus.length;
-                }
-
-                @Override
-                public int dimension() {
-                    return dim;
-                }
-
-                @Override
-                public float[] vectorValue(int targetOrd) {
-                    return corpus[targetOrd];
-                }
-
-                @Override
-                public FloatVectorValues copy() {
-                    return this;
-                }
-
-                @Override
-                public DocIndexIterator iterator() {
-                    return createDenseIterator();
-                }
+        PreconditioningProvider preconditioningProvider = new PreconditioningProvider(blockDim, new FloatVectorValues() {
+            @Override
+            public int size() {
+                return corpus.length;
             }
-        );
+
+            @Override
+            public int dimension() {
+                return dim;
+            }
+
+            @Override
+            public float[] vectorValue(int targetOrd) {
+                return corpus[targetOrd];
+            }
+
+            @Override
+            public FloatVectorValues copy() {
+                return this;
+            }
+
+            @Override
+            public DocIndexIterator iterator() {
+                return createDenseIterator();
+            }
+        });
 
         preconditioningProvider.applyPreconditioningTransform(query);
 
         assertEquals(blockDim, preconditioningProvider.blockDim);
         assertEquals(dim / blockDim + 1, preconditioningProvider.permutationMatrix.length);
         assertEquals(Math.min(blockDim, dim), preconditioningProvider.permutationMatrix[0].length);
-        assertEquals(dim - (long) (dim / blockDim) * blockDim,
-            preconditioningProvider.permutationMatrix[preconditioningProvider.permutationMatrix.length-1].length);
+        assertEquals(
+            dim - (long) (dim / blockDim) * blockDim,
+            preconditioningProvider.permutationMatrix[preconditioningProvider.permutationMatrix.length - 1].length
+        );
         assertEquals(dim / blockDim + 1, preconditioningProvider.blocks.length);
         assertEquals(Math.min(blockDim, dim), preconditioningProvider.blocks[0].length);
         assertEquals(Math.min(blockDim, dim), preconditioningProvider.blocks[0][0].length);

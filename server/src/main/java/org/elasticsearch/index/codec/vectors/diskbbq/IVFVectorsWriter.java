@@ -392,11 +392,7 @@ public abstract class IVFVectorsWriter extends KnnVectorsWriter {
             try {
                 centroidTemp = mergeState.segmentInfo.dir.createTempOutput(mergeState.segmentInfo.name, "civf_", IOContext.DEFAULT);
                 centroidTempName = centroidTemp.getName();
-                CentroidAssignments centroidAssignments = calculateCentroids(
-                    fieldInfo,
-                    floatVectorValues,
-                    mergeState
-                );
+                CentroidAssignments centroidAssignments = calculateCentroids(fieldInfo, floatVectorValues, mergeState);
                 // write the centroids to a temporary file so we are not holding them on heap
                 final ByteBuffer buffer = ByteBuffer.allocate(fieldInfo.getVectorDimension() * Float.BYTES).order(ByteOrder.LITTLE_ENDIAN);
                 for (float[] centroid : centroidAssignments.centroids()) {

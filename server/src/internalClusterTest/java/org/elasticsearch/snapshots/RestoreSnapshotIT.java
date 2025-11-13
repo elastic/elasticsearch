@@ -1126,57 +1126,70 @@ public class RestoreSnapshotIT extends AbstractSnapshotIntegTestCase {
                 .prepareRestoreSnapshot(TEST_REQUEST_TIMEOUT, repoName, snapshotName)
                 .setIndices(indexName)
                 .setRenamePattern("b")
-                .setRenameReplacement("1".repeat(randomIntBetween(256, 10_000_000)))
+                .setRenameReplacement("1".repeat(randomIntBetween(266, 10_000)))
                 .setWaitForCompletion(true)
                 .get()
         );
-        assertThat(exception.getMessage(), containsString("rename_replacement"));
-        assertThat(exception.getMessage(), containsString("exceeds maximum"));
+        assertThat(exception.getMessage(), containsString("rename_replacement UTF-8 byte length"));
+        assertThat(exception.getMessage(), containsString("exceeds maximum allowed length"));
 
-        logger.info("--> attempt restore with 256 character rename_replacement (should also fail)");
-        exception = expectThrows(
+        logger.info("--> restore with rename pattern that creates too-long index name (should fail)");
+        IllegalArgumentException exception2 = expectThrows(
             IllegalArgumentException.class,
             () -> client().admin()
                 .cluster()
                 .prepareRestoreSnapshot(TEST_REQUEST_TIMEOUT, repoName, snapshotName)
                 .setIndices(indexName)
                 .setRenamePattern("b")
-                .setRenameReplacement("a".repeat(256))
+                .setRenameReplacement("aa")
                 .setWaitForCompletion(true)
                 .get()
         );
-        assertThat(exception.getMessage(), containsString("rename_replacement"));
+        assertThat(exception2.getMessage(), containsString("index name would exceed"));
+        assertThat(exception2.getMessage(), containsString("bytes after rename"));
 
-        logger.info("--> restore with valid 255 character rename_replacement (should succeed)");
+
+        logger.info("--> restore with valid simple rename (should succeed)");
         RestoreSnapshotResponse restoreResponse = client().admin()
             .cluster()
             .prepareRestoreSnapshot(TEST_REQUEST_TIMEOUT, repoName, snapshotName)
             .setIndices(indexName)
             .setRenamePattern("b+")
-            .setRenameReplacement("a".repeat(255))
+            .setRenameReplacement("restored")
             .setWaitForCompletion(true)
             .get();
         assertThat(restoreResponse.getRestoreInfo().failedShards(), equalTo(0));
+        assertTrue("Renamed index should exist", indexExists("restored"));
+        ensureGreen("restored");
 
-        String expectedIndexName = "a".repeat(255);
-        assertTrue("Renamed index should exist", indexExists(expectedIndexName));
-        ensureGreen(expectedIndexName);
-        assertDocCount(expectedIndexName, 10L);
+        cluster().wipeIndices("restored");
 
-        cluster().wipeIndices(expectedIndexName);
+        logger.info("--> restore with back-reference in replacement (should succeed)");
+        RestoreSnapshotResponse restoreResponseBackRef = client().admin()
+            .cluster()
+            .prepareRestoreSnapshot(TEST_REQUEST_TIMEOUT, repoName, snapshotName)
+            .setIndices(indexName)
+            .setRenamePattern("(b{100}).*")
+            .setRenameReplacement("$1-restored")
+            .setWaitForCompletion(true)
+            .get();
+        assertThat(restoreResponseBackRef.getRestoreInfo().failedShards(), equalTo(0));
+        String backRefIndex = "b".repeat(100) + "-restored";
+        assertTrue("Back-ref index should exist", indexExists(backRefIndex));
+        ensureGreen(backRefIndex);
 
-        logger.info("--> restore with rename pattern that creates too-long index name (should fail)");
-        InvalidIndexNameException invalidIndexNameException = expectThrows(
-            InvalidIndexNameException.class,
-            () -> client().admin()
-                .cluster()
-                .prepareRestoreSnapshot(TEST_REQUEST_TIMEOUT, repoName, snapshotName)
-                .setIndices(indexName)
-                .setRenamePattern("b")
-                .setRenameReplacement("a".repeat(255))
-                .setWaitForCompletion(true)
-                .get()
-        );
-        assertThat(invalidIndexNameException.getMessage(), containsString("Invalid index name"));
+        cluster().wipeIndices(backRefIndex);
+
+        logger.info("--> restore with non-matching pattern (should leave name unchanged)");
+        RestoreSnapshotResponse restoreResponseNoMatch = client().admin()
+            .cluster()
+            .prepareRestoreSnapshot(TEST_REQUEST_TIMEOUT, repoName, snapshotName)
+            .setIndices(indexName)
+            .setRenamePattern("z")
+            .setRenameReplacement("replaced")
+            .setWaitForCompletion(true)
+            .get();
+        assertThat(restoreResponseNoMatch.getRestoreInfo().failedShards(), equalTo(0));
+        assertTrue("Original index name should exist when pattern doesn't match", indexExists(indexName));
     }
 }

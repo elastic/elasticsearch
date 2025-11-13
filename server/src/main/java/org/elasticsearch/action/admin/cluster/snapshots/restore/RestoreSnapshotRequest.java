@@ -157,12 +157,13 @@ public class RestoreSnapshotRequest extends MasterNodeRequest<RestoreSnapshotReq
         if (renameReplacement != null) {
             int byteLength = renameReplacement.getBytes(StandardCharsets.UTF_8).length;
 
-            if (renameReplacement.getBytes(StandardCharsets.UTF_8).length > MAX_INDEX_NAME_BYTES) {
+            // Allow small buffer for cases where back-references or escapes result in shorter output
+            if (renameReplacement.getBytes(StandardCharsets.UTF_8).length > MAX_INDEX_NAME_BYTES + 10) {
                 validationException = addValidationError(
                     "rename_replacement UTF-8 byte length ["
                         + byteLength
                         + "] exceeds maximum allowed length ["
-                        + MAX_INDEX_NAME_BYTES
+                        + (MAX_INDEX_NAME_BYTES + 10)
                         + "] bytes",
                     validationException
                 );

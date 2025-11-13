@@ -22,16 +22,6 @@
             "index": {
               "type": "list",
               "description": "A comma separated list of indices to remove a block from"
-            },
-            "block": {
-              "type": "enum",
-              "description": "The block to remove (one of read, write, read_only or metadata)",
-              "options": [
-                "metadata",
-                "read",
-                "read_only",
-                "write"
-              ]
             }
           },
           "deprecated": {

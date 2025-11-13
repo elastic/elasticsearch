@@ -39,6 +39,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardClosedException;
+import org.elasticsearch.index.shard.IndexShardNotStartedException;
 import org.elasticsearch.index.shard.IndexShardState;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
@@ -143,7 +144,9 @@ public class SplitSourceService {
             throw new IllegalStateException(message);
         }
 
-        long currentSourcePrimaryTerm = indexMetadata.primaryTerm(sourceShardId.getId());
+        var sourceShard = indicesService.indexServiceSafe(index).getShard(sourceShardIndex);
+
+        long currentSourcePrimaryTerm = sourceShard.getOperationPrimaryTerm();
         long currentTargetPrimaryTerm = indexMetadata.primaryTerm(targetShardId.getId());
 
         if (currentTargetPrimaryTerm > targetPrimaryTerm) {
@@ -158,11 +161,10 @@ public class SplitSourceService {
             );
             logger.info(message);
 
-            throw new IllegalStateException(message);
+            throw new StaleSplitRequestException(message);
         }
         if (currentSourcePrimaryTerm > sourcePrimaryTerm) {
-            // We need to keep the invariant that target primary term is >= source primary term.
-            // So if source primary term advanced we need to fail target recovery so that it picks up new primary term.
+            // This request is stale, fail the target recovery process.
             String message = String.format(
                 Locale.ROOT,
                 "Split [%s -> %s]. Source primary term advanced [%s -> %s] before start split request was handled. Failing the request.",
@@ -173,21 +175,41 @@ public class SplitSourceService {
             );
             logger.info(message);
 
-            throw new IllegalStateException(message);
+            throw new StaleSplitRequestException(message);
         }
 
-        var sourceShard = indicesService.indexServiceSafe(index).getShard(sourceShardIndex);
+        // We keep the invariant that targetPrimaryTerm >= sourcePrimaryTerm because this is required for data copying to work.
+        // That is because commits are stored using a key that contains primary term.
+        // If that invariant is not upheld, target shard will miss some of the source shard data.
+        // See IndexMetadataUpdater#splitPrimaryTerm.
+        if (currentSourcePrimaryTerm > targetPrimaryTerm) {
+            // Source shard recovered in between target shard being allocated and target shard sending a start split request.
+            // This request is invalid as per above.
+            String message = String.format(
+                Locale.ROOT,
+                "Split [%s -> %s]. Primary term of the target shard [%s] < primary term [%s] of the source shard. Failing the request.",
+                sourceShardId,
+                targetShardId,
+                targetPrimaryTerm,
+                sourcePrimaryTerm
+            );
+            logger.info(message);
+
+            throw new StaleSplitRequestException(message);
+        }
+
         // Defensive check so that some other process (like recovery) won't interfere with resharding.
-        if (sourceShard.state() != IndexShardState.STARTED) {
+        var sourceShardState = sourceShard.state();
+        if (sourceShardState != IndexShardState.STARTED) {
             String message = String.format(
                 Locale.ROOT,
                 "Split [%s -> %s]. Source shard is not started when processing start split request. Failing the request.",
                 sourceShardId,
                 targetShardId
             );
-            logger.error(message);
+            logger.info(message);
 
-            throw new IllegalStateException(message);
+            throw new IndexShardNotStartedException(sourceShardId, sourceShardState);
         }
 
         if (onGoingSplits.putIfAbsent(sourceShard, new Split(sourceShard)) == null) {
@@ -235,7 +257,9 @@ public class SplitSourceService {
         }
 
         var split = onGoingSplits.get(sourceShard);
-        assert split != null;
+        if (split == null) {
+            throw new AlreadyClosedException("Split source shard " + sourceShard.shardId() + " is closed");
+        }
 
         logger.debug("preparing for handoff to {}", targetShardId);
         SubscribableListener<Releasable> withPermits = SubscribableListener.newForked(split::withPermits)

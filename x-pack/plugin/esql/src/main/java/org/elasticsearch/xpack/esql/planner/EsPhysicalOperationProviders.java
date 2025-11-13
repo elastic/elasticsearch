@@ -63,6 +63,7 @@ import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.search.fetch.StoredFieldsSpec;
 import org.elasticsearch.search.internal.AliasFilter;
+import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.search.lookup.SourceFilter;
 import org.elasticsearch.search.sort.SortAndFormats;
@@ -430,7 +431,7 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
         private final int index;
 
         /**
-         * In production, this will be a {@link org.elasticsearch.search.internal.SearchContext}, but we don't want to drag that huge
+         * In production, this will be a {@link SearchContext}, but we don't want to drag that huge
          * dependency here.
          */
         private final Releasable releasable;

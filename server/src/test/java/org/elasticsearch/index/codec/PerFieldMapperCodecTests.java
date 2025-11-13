@@ -185,10 +185,17 @@ public class PerFieldMapperCodecTests extends ESTestCase {
     }
 
     public void testUseTimeSeriesModeDisabledCodecDisabled() throws IOException {
-        PerFieldFormatSupplier perFieldMapperCodec = createFormatSupplier(true, IndexMode.STANDARD, MAPPING_2);
+        PerFieldFormatSupplier perFieldMapperCodec = createFormatSupplier(IndexMode.STANDARD, MAPPING_2);
         assertThat((perFieldMapperCodec.useTSDBDocValuesFormat("@timestamp")), is(false));
         assertThat((perFieldMapperCodec.useTSDBDocValuesFormat("counter")), is(false));
         assertThat((perFieldMapperCodec.useTSDBDocValuesFormat("gauge")), is(false));
+    }
+
+    public void testUseTimeSeriesDocValuesCodecSetting() throws IOException {
+        PerFieldFormatSupplier perFieldMapperCodec = createFormatSupplier(true, null, IndexMode.STANDARD, MAPPING_2);
+        assertThat((perFieldMapperCodec.useTSDBDocValuesFormat("@timestamp")), is(true));
+        assertThat((perFieldMapperCodec.useTSDBDocValuesFormat("counter")), is(true));
+        assertThat((perFieldMapperCodec.useTSDBDocValuesFormat("gauge")), is(true));
     }
 
     public void testUseTimeSeriesModeAndCodecEnabled() throws IOException {
@@ -199,14 +206,14 @@ public class PerFieldMapperCodecTests extends ESTestCase {
     }
 
     public void testLogsIndexMode() throws IOException {
-        PerFieldFormatSupplier perFieldMapperCodec = createFormatSupplier(true, IndexMode.LOGSDB, MAPPING_3);
+        PerFieldFormatSupplier perFieldMapperCodec = createFormatSupplier(IndexMode.LOGSDB, MAPPING_3);
         assertThat((perFieldMapperCodec.useTSDBDocValuesFormat("@timestamp")), is(true));
         assertThat((perFieldMapperCodec.useTSDBDocValuesFormat("hostname")), is(true));
         assertThat((perFieldMapperCodec.useTSDBDocValuesFormat("response_size")), is(true));
     }
 
     public void testMetaFields() throws IOException {
-        PerFieldFormatSupplier perFieldMapperCodec = createFormatSupplier(true, IndexMode.LOGSDB, MAPPING_3);
+        PerFieldFormatSupplier perFieldMapperCodec = createFormatSupplier(IndexMode.LOGSDB, MAPPING_3);
         assertThat((perFieldMapperCodec.useTSDBDocValuesFormat(TimeSeriesIdFieldMapper.NAME)), is(true));
         assertThat((perFieldMapperCodec.useTSDBDocValuesFormat(TimeSeriesRoutingHashFieldMapper.NAME)), is(true));
         // See: PerFieldFormatSupplier why these fields shouldn't use tsdb codec
@@ -215,17 +222,35 @@ public class PerFieldMapperCodecTests extends ESTestCase {
     }
 
     public void testSeqnoField() throws IOException {
-        PerFieldFormatSupplier perFieldMapperCodec = createFormatSupplier(true, IndexMode.LOGSDB, MAPPING_3);
+        PerFieldFormatSupplier perFieldMapperCodec = createFormatSupplier(IndexMode.LOGSDB, MAPPING_3);
         assertThat((perFieldMapperCodec.useTSDBDocValuesFormat(SeqNoFieldMapper.NAME)), is(true));
     }
 
-    private PerFieldFormatSupplier createFormatSupplier(boolean enableES87TSDBCodec, IndexMode mode, String mapping) throws IOException {
+    private PerFieldFormatSupplier createFormatSupplier(IndexMode mode, String mapping) throws IOException {
+        return createFormatSupplier(null, mode, mapping);
+    }
+
+    private PerFieldFormatSupplier createFormatSupplier(Boolean enableES87TSDBCodec, IndexMode mode, String mapping) throws IOException {
+        return createFormatSupplier(null, enableES87TSDBCodec, mode, mapping);
+    }
+
+    private PerFieldFormatSupplier createFormatSupplier(
+        Boolean useTimeSeriesDocValuesFormatSetting,
+        Boolean enableES87TSDBCodec,
+        IndexMode mode,
+        String mapping
+    ) throws IOException {
         Settings.Builder settings = Settings.builder();
         settings.put(IndexSettings.MODE.getKey(), mode);
         if (mode == IndexMode.TIME_SERIES) {
             settings.put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "field");
         }
-        settings.put(IndexSettings.TIME_SERIES_ES87TSDB_CODEC_ENABLED_SETTING.getKey(), enableES87TSDBCodec);
+        if (enableES87TSDBCodec != null) {
+            settings.put(IndexSettings.TIME_SERIES_ES87TSDB_CODEC_ENABLED_SETTING.getKey(), enableES87TSDBCodec);
+        }
+        if (useTimeSeriesDocValuesFormatSetting != null) {
+            settings.put(IndexSettings.USE_TIME_SERIES_DOC_VALUES_FORMAT_SETTING.getKey(), useTimeSeriesDocValuesFormatSetting);
+        }
         MapperService mapperService = MapperTestUtils.newMapperService(xContentRegistry(), createTempDir(), settings.build(), "test");
         mapperService.merge("type", new CompressedXContent(mapping), MapperService.MergeReason.MAPPING_UPDATE);
         return new PerFieldFormatSupplier(mapperService, BigArrays.NON_RECYCLING_INSTANCE);

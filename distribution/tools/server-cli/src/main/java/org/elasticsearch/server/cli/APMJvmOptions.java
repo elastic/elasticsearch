@@ -81,7 +81,10 @@ class APMJvmOptions {
         "metrics_interval", "120s",
         "breakdown_metrics", "false",
         "central_config", "false",
-        "transaction_sample_rate", "0.2"
+        "transaction_sample_rate", "0.2",
+        // Don't collect stacktraces for spans, typically these are of little use as
+        // always pointing to APMTracer.stopTrace invoked from TaskManager
+        "stack_trace_limit", "0"
         );
     // end::noformat
 

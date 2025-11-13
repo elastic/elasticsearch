@@ -2051,7 +2051,7 @@ public class AnalyzerTests extends ESTestCase {
              found value [x] type [unsigned_long]
             line 2:58: argument of [median_absolute_deviation(x)] must be [numeric except unsigned_long or counter types],\
              found value [x] type [unsigned_long]
-            line 2:96: first argument of [percentile(x, 10)] must be [numeric except unsigned_long],\
+            line 2:96: first argument of [percentile(x, 10)] must be [exponential_histogram or numeric except unsigned_long],\
              found value [x] type [unsigned_long]
             line 2:115: argument of [sum(x)] must be [aggregate_metric_double or numeric except unsigned_long or counter types],\
              found value [x] type [unsigned_long]""");
@@ -2067,7 +2067,8 @@ public class AnalyzerTests extends ESTestCase {
              found value [x] type [version]
             line 2:29: argument of [median_absolute_deviation(x)] must be [numeric except unsigned_long or counter types],\
              found value [x] type [version]
-            line 2:59: first argument of [percentile(x, 10)] must be [numeric except unsigned_long], found value [x] type [version]
+            line 2:59: first argument of [percentile(x, 10)] must be [exponential_histogram or numeric except unsigned_long],\
+             found value [x] type [version]
             line 2:78: argument of [sum(x)] must be [aggregate_metric_double or numeric except unsigned_long or counter types],\
              found value [x] type [version]""");
     }
@@ -3317,10 +3318,11 @@ public class AnalyzerTests extends ESTestCase {
     }
 
     public void testResolveDenseVector() {
-        FieldCapabilitiesResponse caps = new FieldCapabilitiesResponse(
-            List.of(fieldCapabilitiesIndexResponse("foo", Map.of("v", new IndexFieldCapabilitiesBuilder("v", "dense_vector").build()))),
-            List.of()
-        );
+        FieldCapabilitiesResponse caps = FieldCapabilitiesResponse.builder()
+            .withIndexResponses(
+                List.of(fieldCapabilitiesIndexResponse("foo", Map.of("v", new IndexFieldCapabilitiesBuilder("v", "dense_vector").build())))
+            )
+            .build();
         {
             IndexResolution resolution = IndexResolver.mergedMappings(
                 "foo",
@@ -3342,15 +3344,16 @@ public class AnalyzerTests extends ESTestCase {
     }
 
     public void testResolveAggregateMetricDouble() {
-        FieldCapabilitiesResponse caps = new FieldCapabilitiesResponse(
-            List.of(
-                fieldCapabilitiesIndexResponse(
-                    "foo",
-                    Map.of("v", new IndexFieldCapabilitiesBuilder("v", "aggregate_metric_double").build())
+        FieldCapabilitiesResponse caps = FieldCapabilitiesResponse.builder()
+            .withIndexResponses(
+                List.of(
+                    fieldCapabilitiesIndexResponse(
+                        "foo",
+                        Map.of("v", new IndexFieldCapabilitiesBuilder("v", "aggregate_metric_double").build())
+                    )
                 )
-            ),
-            List.of()
-        );
+            )
+            .build();
         {
             IndexResolution resolution = IndexResolver.mergedMappings(
                 "foo",
@@ -5557,6 +5560,43 @@ public class AnalyzerTests extends ESTestCase {
         assertEquals(new BytesRef("error"), literal.value());
         subqueryIndex = as(subqueryFilter.child(), EsRelation.class);
         assertEquals("sample_data", subqueryIndex.indexPattern());
+    }
+
+    public void testLookupJoinOnFieldNotAnywhereElse() {
+        assumeTrue(
+            "requires LOOKUP JOIN ON boolean expression capability",
+            EsqlCapabilities.Cap.LOOKUP_JOIN_WITH_FULL_TEXT_FUNCTION_BUGFIX.isEnabled()
+        );
+
+        String query = "FROM test | LOOKUP JOIN languages_lookup "
+            + "ON languages == language_code AND MATCH(language_name, \"English\")"
+            + "| KEEP languages";
+
+        LogicalPlan analyzedPlan = analyze(query, Analyzer.ESQL_LOOKUP_JOIN_FULL_TEXT_FUNCTION);
+
+        Limit limit = as(analyzedPlan, Limit.class);
+        assertThat(limit.limit(), instanceOf(Literal.class));
+        assertEquals(1000, as(limit.limit(), Literal.class).value());
+
+        EsqlProject project = as(limit.child(), EsqlProject.class);
+        assertEquals(1, project.projections().size());
+
+        LookupJoin lookupJoin = as(project.child(), LookupJoin.class);
+
+        // Verify join condition contains MATCH function
+        assertThat(lookupJoin.config().joinOnConditions(), notNullValue());
+        Expression joinCondition = lookupJoin.config().joinOnConditions();
+        // Check that the join condition contains a MATCH function (it should be an AND expression)
+        assertThat(joinCondition.toString(), containsString("MATCH"));
+
+        // Verify left relation is test index
+        EsRelation leftRelation = as(lookupJoin.left(), EsRelation.class);
+        assertEquals("test", leftRelation.indexPattern());
+
+        // Verify right relation is languages_lookup with LOOKUP mode
+        EsRelation rightRelation = as(lookupJoin.right(), EsRelation.class);
+        assertEquals("languages_lookup", rightRelation.indexPattern());
+        assertEquals(IndexMode.LOOKUP, rightRelation.indexMode());
     }
 
     private void verifyNameAndTypeAndMultiTypeEsField(

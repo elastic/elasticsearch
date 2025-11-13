@@ -139,20 +139,12 @@ public class PerFieldFormatSupplier {
         }
 
         return mapperService != null
-            && (isTimeSeriesModeIndex() || isLogsModeIndex())
+            && mapperService.getIndexSettings().useTimeSeriesDocValuesFormat()
             && mapperService.getIndexSettings().isES87TSDBCodecEnabled();
     }
 
     private boolean excludeFields(String fieldName) {
         return fieldName.startsWith("_") && INCLUDE_META_FIELDS.contains(fieldName) == false;
-    }
-
-    private boolean isTimeSeriesModeIndex() {
-        return mapperService != null && IndexMode.TIME_SERIES == mapperService.getIndexSettings().getMode();
-    }
-
-    private boolean isLogsModeIndex() {
-        return mapperService != null && IndexMode.LOGSDB == mapperService.getIndexSettings().getMode();
     }
 
 }

@@ -45,17 +45,22 @@ import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.exponentialhistogram.ExponentialHistogram;
+import org.elasticsearch.exponentialhistogram.ExponentialHistogramBuilder;
 import org.elasticsearch.exponentialhistogram.ExponentialHistogramCircuitBreaker;
 import org.elasticsearch.exponentialhistogram.ReleasableExponentialHistogram;
+import org.elasticsearch.exponentialhistogram.ZeroBucket;
 import org.elasticsearch.geo.GeometryTestUtils;
 import org.elasticsearch.geo.ShapeTestUtils;
 import org.elasticsearch.geometry.utils.Geohash;
 import org.elasticsearch.h3.H3;
 import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.RoutingPathFields;
+import org.elasticsearch.index.mapper.blockloader.BlockLoaderFunctionConfig;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.aggregations.bucket.geogrid.GeoTileUtils;
+import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
 import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.TransportVersionUtils;
@@ -164,6 +169,7 @@ import java.util.Set;
 import java.util.TreeMap;
 import java.util.function.Predicate;
 import java.util.jar.JarInputStream;
+import java.util.stream.DoubleStream;
 import java.util.stream.IntStream;
 import java.util.zip.ZipEntry;
 
@@ -345,6 +351,15 @@ public final class EsqlTestUtils {
         @Override
         public boolean hasExactSubfield(FieldName field) {
             return exists(field);
+        }
+
+        @Override
+        public boolean supportsLoaderConfig(
+            FieldName name,
+            BlockLoaderFunctionConfig config,
+            MappedFieldType.FieldExtractPreference preference
+        ) {
+            return true;
         }
 
         @Override
@@ -541,7 +556,8 @@ public final class EsqlTestUtils {
         null,
         new InferenceService(mock(Client.class)),
         new BlockFactoryProvider(PlannerUtils.NON_BREAKING_BLOCK_FACTORY),
-        TEST_PLANNER_SETTINGS
+        TEST_PLANNER_SETTINGS,
+        new CrossProjectModeDecider(Settings.EMPTY)
     );
 
     private static ClusterService createMockClusterService() {
@@ -1033,16 +1049,17 @@ public final class EsqlTestUtils {
             }
             case TSID_DATA_TYPE -> randomTsId().toBytesRef();
             case DENSE_VECTOR -> Arrays.asList(randomArray(10, 10, i -> new Float[10], ESTestCase::randomFloat));
-            case EXPONENTIAL_HISTOGRAM -> new WriteableExponentialHistogram(EsqlTestUtils.randomExponentialHistogram());
+            case EXPONENTIAL_HISTOGRAM -> EsqlTestUtils.randomExponentialHistogram();
             case UNSUPPORTED, OBJECT, DOC_DATA_TYPE, PARTIAL_AGG -> throw new IllegalArgumentException(
                 "can't make random values for [" + type.typeName() + "]"
             );
         }, type);
     }
 
-    private static ExponentialHistogram randomExponentialHistogram() {
+    public static ExponentialHistogram randomExponentialHistogram() {
         // TODO(b/133393): allow (index,scale) based zero thresholds as soon as we support them in the block
         // ideally Replace this with the shared random generation in ExponentialHistogramTestUtils
+        int numBuckets = randomIntBetween(4, 300);
         boolean hasNegativeValues = randomBoolean();
         boolean hasPositiveValues = randomBoolean();
         boolean hasZeroValues = randomBoolean();
@@ -1054,13 +1071,24 @@ public final class EsqlTestUtils {
             hasZeroValues ? IntStream.range(0, randomIntBetween(1, 100)).map(i1 -> 0) : IntStream.empty()
         ).mapToDouble(sign -> sign * (Math.pow(1_000_000, randomDouble()))).toArray();
 
-        int numBuckets = randomIntBetween(4, 300);
         ReleasableExponentialHistogram histo = ExponentialHistogram.create(
             numBuckets,
             ExponentialHistogramCircuitBreaker.noop(),
             rawValues
         );
-        return histo;
+        // Setup a proper zeroThreshold based on a random chance
+        if (histo.zeroBucket().count() > 0 && randomBoolean()) {
+            double smallestNonZeroValue = DoubleStream.of(rawValues).map(Math::abs).filter(val -> val != 0).min().orElse(0.0);
+            double zeroThreshold = smallestNonZeroValue * randomDouble();
+            try (ReleasableExponentialHistogram releaseAfterCopy = histo) {
+                ZeroBucket zeroBucket = ZeroBucket.create(zeroThreshold, histo.zeroBucket().count());
+                ExponentialHistogramBuilder builder = ExponentialHistogram.builder(histo, ExponentialHistogramCircuitBreaker.noop())
+                    .zeroBucket(zeroBucket);
+                histo = builder.build();
+            }
+        }
+        // Make the result histogram writeable to allow usage in Literals for testing
+        return new WriteableExponentialHistogram(histo);
     }
 
     static Version randomVersion() {

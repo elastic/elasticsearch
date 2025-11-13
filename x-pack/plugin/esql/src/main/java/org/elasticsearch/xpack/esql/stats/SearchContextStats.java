@@ -423,6 +423,11 @@ public class SearchContextStats implements SearchStats {
         return val;
     }
 
+    @Override
+    public MappedFieldType fieldType(FieldName field) {
+        return cache.computeIfAbsent(field.string(), this::makeFieldStats).config.fieldType;
+    }
+
     private interface DocCountTester {
         Boolean test(LeafReader leafReader) throws IOException;
     }

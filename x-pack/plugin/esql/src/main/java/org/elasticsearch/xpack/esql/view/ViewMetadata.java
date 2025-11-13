@@ -32,7 +32,11 @@ import java.util.Objects;
  */
 public final class ViewMetadata extends AbstractNamedDiffable<Metadata.ProjectCustom> implements Metadata.ProjectCustom {
     public static final String TYPE = "esql_view";
-    public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(ViewMetadata.class, TYPE, ViewMetadata::new);
+    public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
+        Metadata.ProjectCustom.class,
+        TYPE,
+        ViewMetadata::new
+    );
     private static final TransportVersion ESQL_VIEWS = TransportVersion.fromName("esql_views");
 
     static final ParseField VIEWS = new ParseField("views");

@@ -1148,7 +1148,6 @@ public class RestoreSnapshotIT extends AbstractSnapshotIntegTestCase {
         assertThat(exception2.getMessage(), containsString("index name would exceed"));
         assertThat(exception2.getMessage(), containsString("bytes after rename"));
 
-
         logger.info("--> restore with valid simple rename (should succeed)");
         RestoreSnapshotResponse restoreResponse = client().admin()
             .cluster()

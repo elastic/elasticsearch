@@ -1981,8 +1981,7 @@ public final class RestoreService implements ClusterStateApplier {
             } while (found && sb.length() <= MAX_INDEX_NAME_BYTES);
 
             if (sb.length() > MAX_INDEX_NAME_BYTES) {
-                throw new IllegalArgumentException(
-                    "index name would exceed " + MAX_INDEX_NAME_BYTES + " bytes after rename");
+                throw new IllegalArgumentException("index name would exceed " + MAX_INDEX_NAME_BYTES + " bytes after rename");
             }
             matcher.appendTail(sb);
             return sb.toString();

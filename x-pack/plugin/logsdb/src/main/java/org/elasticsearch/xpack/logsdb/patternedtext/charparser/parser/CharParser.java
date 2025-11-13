@@ -329,8 +329,7 @@ public final class CharParser implements Parser {
                                 currentSubTokenIntValue = -currentSubTokenIntValue;
                             }
 
-                            if (currentSubTokenIntValue >= 0
-                                && currentSubTokenIntValue < smallIntegerSubTokenUpperBound) {
+                            if (currentSubTokenIntValue >= 0 && currentSubTokenIntValue < smallIntegerSubTokenUpperBound) {
                                 // faster bitmask lookup for small integers
                                 currentSubTokenBitmask = compiledSchema.smallIntegerSubTokenBitmasks[currentSubTokenIntValue];
                             } else {

@@ -79,7 +79,8 @@ public class NvidiaEmbeddingsTaskSettings implements TaskSettings {
     }
 
     /**
-     * Creates a new instance of {@link NvidiaEmbeddingsTaskSettings} by using non-null fields from the request settings over the original settings.
+     * Creates a new instance of {@link NvidiaEmbeddingsTaskSettings}
+     * by using non-null fields from the request settings over the original settings.
      *
      * @param originalSettings the settings stored as part of the inference entity configuration
      * @param requestTaskSettings the settings passed in within the task_settings field of the request

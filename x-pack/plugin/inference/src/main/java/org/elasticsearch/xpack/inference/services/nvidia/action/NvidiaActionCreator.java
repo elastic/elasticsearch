@@ -86,7 +86,7 @@ public class NvidiaActionCreator implements NvidiaActionVisitor {
             EMBEDDINGS_HANDLER,
             embeddingsInput -> new NvidiaEmbeddingsRequest(
                 serviceComponents.truncator(),
-                truncate(embeddingsInput.getInputs(), overriddenModel.getServiceSettings().maxInputTokens()),
+                truncate(embeddingsInput.getTextInputs(), overriddenModel.getServiceSettings().maxInputTokens()),
                 overriddenModel,
                 embeddingsInput.getInputType()
             ),

@@ -69,6 +69,7 @@ public class InferenceGetServicesIT extends BaseMockEISAuthServerTest {
                     "jinaai",
                     "llama",
                     "mistral",
+                    "nvidia",
                     "openai",
                     "streaming_completion_test_service",
                     "completion_test_service",
@@ -115,6 +116,7 @@ public class InferenceGetServicesIT extends BaseMockEISAuthServerTest {
                     "jinaai",
                     "llama",
                     "mistral",
+                    "nvidia",
                     "openai",
                     "text_embedding_test_service",
                     "voyageai",
@@ -140,6 +142,7 @@ public class InferenceGetServicesIT extends BaseMockEISAuthServerTest {
                     "elasticsearch",
                     "googlevertexai",
                     "jinaai",
+                    "nvidia",
                     "test_reranking_service",
                     "voyageai",
                     "hugging_face",
@@ -172,6 +175,7 @@ public class InferenceGetServicesIT extends BaseMockEISAuthServerTest {
                     "hugging_face",
                     "amazon_sagemaker",
                     "mistral",
+                    "nvidia",
                     "watsonxai"
                 ).toArray()
             )
@@ -193,6 +197,7 @@ public class InferenceGetServicesIT extends BaseMockEISAuthServerTest {
                     "amazon_sagemaker",
                     "googlevertexai",
                     "mistral",
+                    "nvidia",
                     "watsonxai"
                 ).toArray()
             )

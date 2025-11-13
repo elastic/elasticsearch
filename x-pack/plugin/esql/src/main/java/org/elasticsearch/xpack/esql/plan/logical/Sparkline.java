@@ -31,11 +31,7 @@ import java.util.Objects;
 import static org.elasticsearch.xpack.esql.SupportsObservabilityTier.ObservabilityTier.COMPLETE;
 
 @SupportsObservabilityTier(tier = COMPLETE)
-public class Sparkline extends UnaryPlan
-    implements
-        SurrogateLogicalPlan,
-        PostAnalysisVerificationAware,
-        ExecutesOn.Coordinator {
+public class Sparkline extends UnaryPlan implements SurrogateLogicalPlan, PostAnalysisVerificationAware, ExecutesOn.Coordinator {
 
     private final Attribute key;
     private final Attribute value;
@@ -45,7 +41,15 @@ public class Sparkline extends UnaryPlan
 
     private List<Attribute> output;
 
-    public Sparkline(Source source, LogicalPlan child, Attribute key, Attribute value, Attribute group, Attribute trend, Attribute timestamps) {
+    public Sparkline(
+        Source source,
+        LogicalPlan child,
+        Attribute key,
+        Attribute value,
+        Attribute group,
+        Attribute trend,
+        Attribute timestamps
+    ) {
         super(source, child);
         this.key = key;
         this.value = value;
@@ -131,6 +135,5 @@ public class Sparkline extends UnaryPlan
     }
 
     @Override
-    public void postAnalysisVerification(Failures failures) {
-    }
+    public void postAnalysisVerification(Failures failures) {}
 }

@@ -237,8 +237,16 @@ public class Approximate {
      */
     private static final Set<Class<? extends EsqlScalarFunction>> MULTIVALUED_OUTPUT_FUNCTIONS = Set.of(MvAppend.class);
 
+    /**
+     * The target number of sampled rows to estimate the total number of rows
+     * reaching the STATS function. This is only relevant when there are commands
+     * that can change the number of rows. This value leads to an error of about
+     * 1% in the estimated count.
+     */
+    private static final int SAMPLE_ROW_COUNT_FOR_COUNT_ESTIMATION = 10_000;
+
     // TODO: set via a query setting; and find a good default value
-    private static final int SAMPLE_ROW_COUNT = 100000;
+    private static final int SAMPLE_ROW_COUNT = 100_000;
 
     // TODO: set via a query setting
     private static final double CONFIDENCE_LEVEL = 0.90;
@@ -447,16 +455,22 @@ public class Approximate {
         return listener.delegateFailureAndWrap((countListener, countResult) -> {
             sourceRowCount = rowCount(countResult);
             logger.debug("sourceCountPlan result: {} rows", sourceRowCount);
-            double sampleProbability = sourceRowCount <= SAMPLE_ROW_COUNT ? 1.0 : (double) SAMPLE_ROW_COUNT / sourceRowCount;
-            if (queryProperties.canIncreaseRowCount == false && sampleProbability > SAMPLE_PROBABILITY_THRESHOLD) {
+            if (sourceRowCount == 0) {
+                // If there are no rows, run the original query.
+                runner.run(toPhysicalPlan.apply(logicalPlan), configuration, foldContext, listener);
+                return;
+            }
+            double sampleProbability = Math.min(1.0, (double) SAMPLE_ROW_COUNT / sourceRowCount);
+            if (queryProperties.canIncreaseRowCount == false && queryProperties.canDecreaseRowCount == false) {
+                // If the query preserves all rows, we can directly approximate with the sample probability.
+                runner.run(toPhysicalPlan.apply(approximatePlan(sampleProbability)), configuration, foldContext, listener);
+            } else if (queryProperties.canIncreaseRowCount == false && sampleProbability > SAMPLE_PROBABILITY_THRESHOLD) {
                 // If the query cannot increase the number of rows, and the sample probability is large,
                 // we can directly run the original query without sampling.
                 runner.run(toPhysicalPlan.apply(logicalPlan), configuration, foldContext, listener);
-            } else if (queryProperties.canIncreaseRowCount == false && queryProperties.canDecreaseRowCount == false) {
-                // If the query preserves all rows, we can directly approximate with the sample probability.
-                runner.run(toPhysicalPlan.apply(approximatePlan(sampleProbability)), configuration, foldContext, listener);
             } else {
                 // Otherwise, we need to sample the number of rows first to obtain a good sample probability.
+                sampleProbability = Math.min(1.0, (double) SAMPLE_ROW_COUNT_FOR_COUNT_ESTIMATION / sourceRowCount);
                 runner.run(
                     toPhysicalPlan.apply(countPlan(sampleProbability)),
                     configuration,
@@ -515,8 +529,12 @@ public class Approximate {
         return listener.delegateFailureAndWrap((countListener, countResult) -> {
             long rowCount = rowCount(countResult);
             logger.debug("countPlan result (p={}): {} rows", sampleProbability, rowCount);
-            double newSampleProbability = Math.min(1.0, sampleProbability * SAMPLE_ROW_COUNT / Math.max(1, rowCount));
-            if (rowCount <= SAMPLE_ROW_COUNT / 2 && newSampleProbability < SAMPLE_PROBABILITY_THRESHOLD) {
+            if (rowCount <= SAMPLE_ROW_COUNT_FOR_COUNT_ESTIMATION / 2 && sampleProbability < 1.0) {
+                // Not enough rows are sampled yet; increase the sample probability and try again.
+                double newSampleProbability = Math.min(
+                    1.0,
+                    sampleProbability * SAMPLE_ROW_COUNT_FOR_COUNT_ESTIMATION / Math.max(1, rowCount)
+                );
                 runner.run(
                     toPhysicalPlan.apply(countPlan(newSampleProbability)),
                     configuration,
@@ -524,6 +542,7 @@ public class Approximate {
                     countListener(newSampleProbability, listener)
                 );
             } else {
+                double newSampleProbability = Math.min(1.0, sampleProbability * SAMPLE_ROW_COUNT / rowCount);
                 runner.run(toPhysicalPlan.apply(approximatePlan(newSampleProbability)), configuration, foldContext, listener);
             }
         });

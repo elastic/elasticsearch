@@ -928,7 +928,7 @@ public class FetchSearchPhaseTests extends ESTestCase {
             }));
             FetchPhaseExecutionException fetchPhaseExecutionException = assertThrows(
                 FetchPhaseExecutionException.class,
-                () -> fetchPhase.execute(searchContext, IntStream.range(0, 100).toArray(), null, i -> {})// TODO
+                () -> fetchPhase.execute(searchContext, IntStream.range(0, 100).toArray(), null, i -> {})
             );
             assertThat(fetchPhaseExecutionException.getCause().getMessage(), is("bad things"));
         } finally {

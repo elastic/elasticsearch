@@ -948,6 +948,7 @@ cityInCityBoundary
 required_capability: st_intersects
 
 FROM airport_city_boundaries
+| WHERE city_boundary IS NOT NULL
 | EVAL in_city = ST_INTERSECTS(city_location, city_boundary)
 | STATS count=COUNT(*) BY in_city
 | SORT count ASC
@@ -955,9 +956,9 @@ FROM airport_city_boundaries
 | KEEP cardinality, in_city
 ;
 
-cardinality:k  |  in_city:boolean
-"few"          |  false
-"many"         |  true
+cardinality:k | in_city:boolean
+"few"         | false
+"many"        | true
 ;
 
 cityNotInCityBoundaryBiggest
@@ -2175,6 +2176,7 @@ stExtentCartesianShapesGrouping
 required_capability: st_extent_agg
 
 FROM cartesian_multipolygons
+| WHERE shape IS NOT NULL
 | EVAL key = SUBSTRING(name,1,3)
 | STATS extent = ST_EXTENT_AGG(shape), count = COUNT() BY key
 | KEEP count, key, extent
@@ -2200,6 +2202,7 @@ stExtentCartesianShapesGroupingNoDocValues
 required_capability: st_extent_agg
 
 FROM cartesian_multipolygons_no_doc_values
+| WHERE shape IS NOT NULL
 | EVAL key = SUBSTRING(name,1,3)
 | STATS extent = ST_EXTENT_AGG(shape), count = COUNT() BY key
 | KEEP count, key, extent
@@ -3023,4 +3026,70 @@ wkt:keyword                |pt:cartesian_point
 "POINT(7580.93 2272.77)"   |POINT(7580.93 2272.77)
 "POINT(111)"               |null
 // end::to_cartesianpoint-str-parse-error-result[]
+;
+
+cityInCityBoundaryOnNulls
+required_capability: st_intersects
+
+FROM airport_city_boundaries
+| WHERE city_boundary IS NULL
+| EVAL in_city = ST_INTERSECTS(city_location, city_boundary)
+| STATS count=COUNT(*) BY in_city
+| SORT count ASC
+;
+
+count:long | in_city:boolean
+1          | null
+;
+
+stExtentCartesianShapesGroupingOnNulls
+# this test ensures that the non-grouping ST_EXTENT_AGG is able to gracefully handle missing cartesian shapes
+
+required_capability: st_extent_agg
+required_capability: st_extent_agg_null_support
+
+FROM cartesian_multipolygons
+| WHERE shape IS NULL
+| EVAL key = SUBSTRING(name,1,3)
+| STATS extent = ST_EXTENT_AGG(shape), count = COUNT() BY key
+| KEEP count, key, extent
+| SORT count DESC, key ASC
+;
+
+count:long | key:keyword | extent:cartesian_shape
+1          | Mis         | null
+;
+
+stExtentCartesianShapesGroupingNoDocValuesOnNulls
+# this test ensures that the non-grouping ST_EXTENT_AGG is able to gracefully handle missing cartesian shapes
+
+required_capability: st_extent_agg
+required_capability: st_extent_agg_null_support
+
+FROM cartesian_multipolygons_no_doc_values
+| WHERE shape IS NULL
+| EVAL key = SUBSTRING(name,1,3)
+| STATS extent = ST_EXTENT_AGG(shape), count = COUNT() BY key
+| KEEP count, key, extent
+| SORT count DESC, key ASC
+;
+
+count:long | key:keyword | extent:cartesian_shape
+1          | Mis         | null
+;
+
+stExtentCartesianShapesNonGroupingOnNulls
+# this test ensures that the non-grouping ST_EXTENT_AGG is able to gracefully handle missing cartesian shapes
+
+required_capability: st_extent_agg
+required_capability: st_extent_agg_null_support
+
+FROM cartesian_multipolygons
+| WHERE shape IS NULL
+| STATS extent = ST_EXTENT_AGG(shape), count = COUNT()
+| KEEP count, extent
+;
+
+count:long | extent:cartesian_shape
+1          | null
 ;

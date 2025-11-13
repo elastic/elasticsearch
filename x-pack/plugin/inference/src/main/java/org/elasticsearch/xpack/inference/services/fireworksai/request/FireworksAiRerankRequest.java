@@ -71,20 +71,17 @@ public class FireworksAiRerankRequest implements Request {
     }
 
     void decorateWithAuth(HttpPost httpPost) {
-        SecureString apiKey = model.apiKey();
-        if (apiKey != null) {
-            httpPost.setHeader(createAuthBearerHeader(apiKey));
-        }
+        httpPost.setHeader(createAuthBearerHeader(model.apiKey()));
     }
 
     @Override
     public String getInferenceEntityId() {
-        return model != null ? model.getInferenceEntityId() : "unknown";
+        return model.getInferenceEntityId();
     }
 
     @Override
     public URI getURI() {
-        return model != null ? model.uri() : null;
+        return model.uri();
     }
 
     public Integer getTopN() {

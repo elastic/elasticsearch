@@ -236,13 +236,6 @@ public class FireworksAiService extends SenderService implements RerankingInfere
         TimeValue timeout,
         ActionListener<List<ChunkedInference>> listener
     ) {
-        if (model.getTaskType() == TaskType.RERANK) {
-            listener.onFailure(
-                new ElasticsearchStatusException("Chunked inference is not supported for rerank task", RestStatus.BAD_REQUEST)
-            );
-            return;
-        }
-
         if (model instanceof FireworksAiEmbeddingsModel == false) {
             listener.onFailure(createInvalidModelException(model));
             return;
@@ -288,8 +281,11 @@ public class FireworksAiService extends SenderService implements RerankingInfere
 
     @Override
     public int rerankerWindowSize(String modelId) {
-        // FireworksAI rerank models have a context window (adjust based on actual model limits)
-        // Using a conservative estimate similar to ContextualAI
+        // FireworksAI rerank API supports various rerank models with different context windows.
+        // Common rerank models (e.g., based on Jina rerank v2) typically support 8k tokens per document.
+        // Using 1 token ≈ 0.75 words as a rough estimate: 8000 tokens ≈ 6000 words.
+        // Setting window size to 5500 words to allow headroom for document processing and API overhead.
+        // This conservative estimate ensures compatibility across different rerank model variants.
         return 5500;
     }
 

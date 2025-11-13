@@ -27,24 +27,9 @@ import static org.elasticsearch.xpack.inference.external.response.XContentUtils.
 
 /**
  * Parses the FireworksAI rerank API response.
- *
- * Expected response format:
- * <pre>
- * {
- *   "results": [
- *     {
- *       "index": 0,
- *       "relevance_score": 0.95,
- *       "document": "original document text if return_documents=true"
- *     },
- *     {
- *       "index": 1,
- *       "relevance_score": 0.85,
- *       "document": "original document text if return_documents=true"
- *     }
- *   ]
- * }
- * </pre>
+ * Note: This uses the same response format as ContextualAI rerank API.
+ * Both services follow the common rerank API standard with "results" containing
+ * objects with "index", "relevance_score", and optional "document" fields.
  */
 public class FireworksAiRerankResponseEntity {
 

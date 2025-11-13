@@ -38,7 +38,7 @@ public class FireworksAiActionCreator implements FireworksAiActionVisitor {
 
     private static final ResponseHandler EMBEDDINGS_HANDLER = new FireworksAiResponseHandler(
         "fireworksai embeddings",
-        FireworksAiEmbeddingsResponseEntity::fromResponse,
+        new FireworksAiEmbeddingsResponseEntity(),
         false
     );
 

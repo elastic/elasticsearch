@@ -30,11 +30,8 @@ import org.apache.lucene.util.Accountable;
 import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.IOUtils;
-import org.elasticsearch.core.Tuple;
-import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.cache.query.QueryCacheStats;
 import org.elasticsearch.index.cache.query.TrivialQueryCachingPolicy;
-import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ESTestCase;
 
@@ -47,8 +44,6 @@ import java.util.concurrent.atomic.AtomicReference;
 import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.lessThan;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
 
 public class IndicesQueryCacheTests extends ESTestCase {
 
@@ -59,6 +54,10 @@ public class IndicesQueryCacheTests extends ESTestCase {
 
         DummyQuery(int id) {
             this(Integer.toString(id), 10);
+        }
+
+        DummyQuery(String id) {
+            this(id, 10);
         }
 
         DummyQuery(String id, long sizeInCache) {
@@ -87,7 +86,7 @@ public class IndicesQueryCacheTests extends ESTestCase {
         }
 
         @Override
-        public Weight createWeight(IndexSearcher searcher, ScoreMode scoreMode, float boost) {
+        public Weight createWeight(IndexSearcher searcher, ScoreMode scoreMode, float boost) throws IOException {
             return new ConstantScoreWeight(this, boost) {
                 @Override
                 public Scorer scorer(LeafReaderContext context) throws IOException {
@@ -125,7 +124,7 @@ public class IndicesQueryCacheTests extends ESTestCase {
         IndicesQueryCache cache = new IndicesQueryCache(settings);
         s.setQueryCache(cache);
 
-        QueryCacheStats stats = cache.getStats(shard, 0L);
+        QueryCacheStats stats = cache.getStats(shard);
         assertEquals(0L, stats.getCacheSize());
         assertEquals(0L, stats.getCacheCount());
         assertEquals(0L, stats.getHitCount());
@@ -133,7 +132,7 @@ public class IndicesQueryCacheTests extends ESTestCase {
 
         assertEquals(1, s.count(new DummyQuery(0)));
 
-        stats = cache.getStats(shard, 0L);
+        stats = cache.getStats(shard);
         assertEquals(1L, stats.getCacheSize());
         assertEquals(1L, stats.getCacheCount());
         assertEquals(0L, stats.getHitCount());
@@ -143,7 +142,7 @@ public class IndicesQueryCacheTests extends ESTestCase {
             assertEquals(1, s.count(new DummyQuery(i)));
         }
 
-        stats = cache.getStats(shard, 0L);
+        stats = cache.getStats(shard);
         assertEquals(10L, stats.getCacheSize());
         assertEquals(20L, stats.getCacheCount());
         assertEquals(0L, stats.getHitCount());
@@ -151,7 +150,7 @@ public class IndicesQueryCacheTests extends ESTestCase {
 
         s.count(new DummyQuery(10));
 
-        stats = cache.getStats(shard, 0L);
+        stats = cache.getStats(shard);
         assertEquals(10L, stats.getCacheSize());
         assertEquals(20L, stats.getCacheCount());
         assertEquals(1L, stats.getHitCount());
@@ -160,7 +159,7 @@ public class IndicesQueryCacheTests extends ESTestCase {
         IOUtils.close(r, dir);
 
         // got emptied, but no changes to other metrics
-        stats = cache.getStats(shard, 0L);
+        stats = cache.getStats(shard);
         assertEquals(0L, stats.getCacheSize());
         assertEquals(20L, stats.getCacheCount());
         assertEquals(1L, stats.getHitCount());
@@ -169,7 +168,7 @@ public class IndicesQueryCacheTests extends ESTestCase {
         cache.onClose(shard);
 
         // forgot everything
-        stats = cache.getStats(shard, 0L);
+        stats = cache.getStats(shard);
         assertEquals(0L, stats.getCacheSize());
         assertEquals(0L, stats.getCacheCount());
         assertEquals(0L, stats.getHitCount());
@@ -209,13 +208,13 @@ public class IndicesQueryCacheTests extends ESTestCase {
 
         assertEquals(1, s1.count(new DummyQuery(0)));
 
-        QueryCacheStats stats1 = cache.getStats(shard1, 0L);
+        QueryCacheStats stats1 = cache.getStats(shard1);
         assertEquals(1L, stats1.getCacheSize());
         assertEquals(1L, stats1.getCacheCount());
         assertEquals(0L, stats1.getHitCount());
         assertEquals(2L, stats1.getMissCount());
 
-        QueryCacheStats stats2 = cache.getStats(shard2, 0L);
+        QueryCacheStats stats2 = cache.getStats(shard2);
         assertEquals(0L, stats2.getCacheSize());
         assertEquals(0L, stats2.getCacheCount());
         assertEquals(0L, stats2.getHitCount());
@@ -223,13 +222,13 @@ public class IndicesQueryCacheTests extends ESTestCase {
 
         assertEquals(1, s2.count(new DummyQuery(0)));
 
-        stats1 = cache.getStats(shard1, 0L);
+        stats1 = cache.getStats(shard1);
         assertEquals(1L, stats1.getCacheSize());
         assertEquals(1L, stats1.getCacheCount());
         assertEquals(0L, stats1.getHitCount());
         assertEquals(2L, stats1.getMissCount());
 
-        stats2 = cache.getStats(shard2, 0L);
+        stats2 = cache.getStats(shard2);
         assertEquals(1L, stats2.getCacheSize());
         assertEquals(1L, stats2.getCacheCount());
         assertEquals(0L, stats2.getHitCount());
@@ -239,13 +238,13 @@ public class IndicesQueryCacheTests extends ESTestCase {
             assertEquals(1, s2.count(new DummyQuery(i)));
         }
 
-        stats1 = cache.getStats(shard1, 0L);
+        stats1 = cache.getStats(shard1);
         assertEquals(0L, stats1.getCacheSize()); // evicted
         assertEquals(1L, stats1.getCacheCount());
         assertEquals(0L, stats1.getHitCount());
         assertEquals(2L, stats1.getMissCount());
 
-        stats2 = cache.getStats(shard2, 0L);
+        stats2 = cache.getStats(shard2);
         assertEquals(10L, stats2.getCacheSize());
         assertEquals(20L, stats2.getCacheCount());
         assertEquals(1L, stats2.getHitCount());
@@ -254,13 +253,13 @@ public class IndicesQueryCacheTests extends ESTestCase {
         IOUtils.close(r1, dir1);
 
         // no changes
-        stats1 = cache.getStats(shard1, 0L);
+        stats1 = cache.getStats(shard1);
         assertEquals(0L, stats1.getCacheSize());
         assertEquals(1L, stats1.getCacheCount());
         assertEquals(0L, stats1.getHitCount());
         assertEquals(2L, stats1.getMissCount());
 
-        stats2 = cache.getStats(shard2, 0L);
+        stats2 = cache.getStats(shard2);
         assertEquals(10L, stats2.getCacheSize());
         assertEquals(20L, stats2.getCacheCount());
         assertEquals(1L, stats2.getHitCount());
@@ -269,13 +268,13 @@ public class IndicesQueryCacheTests extends ESTestCase {
         cache.onClose(shard1);
 
         // forgot everything about shard1
-        stats1 = cache.getStats(shard1, 0L);
+        stats1 = cache.getStats(shard1);
         assertEquals(0L, stats1.getCacheSize());
         assertEquals(0L, stats1.getCacheCount());
         assertEquals(0L, stats1.getHitCount());
         assertEquals(0L, stats1.getMissCount());
 
-        stats2 = cache.getStats(shard2, 0L);
+        stats2 = cache.getStats(shard2);
         assertEquals(10L, stats2.getCacheSize());
         assertEquals(20L, stats2.getCacheCount());
         assertEquals(1L, stats2.getHitCount());
@@ -285,14 +284,14 @@ public class IndicesQueryCacheTests extends ESTestCase {
         cache.onClose(shard2);
 
         // forgot everything about shard2
-        stats1 = cache.getStats(shard1, 0L);
+        stats1 = cache.getStats(shard1);
         assertEquals(0L, stats1.getCacheSize());
         assertEquals(0L, stats1.getCacheCount());
         assertEquals(0L, stats1.getHitCount());
         assertEquals(0L, stats1.getMissCount());
         assertEquals(0L, stats1.getMemorySizeInBytes());
 
-        stats2 = cache.getStats(shard2, 0L);
+        stats2 = cache.getStats(shard2);
         assertEquals(0L, stats2.getCacheSize());
         assertEquals(0L, stats2.getCacheCount());
         assertEquals(0L, stats2.getHitCount());
@@ -341,7 +340,7 @@ public class IndicesQueryCacheTests extends ESTestCase {
             assertEquals(1, s2.count(new DummyQuery(i)));
         }
 
-        QueryCacheStats stats1 = cache.getStats(shard1, 0L);
+        QueryCacheStats stats1 = cache.getStats(shard1);
         assertEquals(0L, stats1.getCacheSize());
         assertEquals(1L, stats1.getCacheCount());
 
@@ -422,49 +421,6 @@ public class IndicesQueryCacheTests extends ESTestCase {
         cache.close();
     }
 
-    public void testGetSharedRamSizeForShard() {
-        ShardId shardId1 = new ShardId("index", "_na_", 0);
-        ShardId shardId2 = new ShardId("index", "_na_", 1);
-        IndexShard shard1 = mock(IndexShard.class);
-        IndexShard shard2 = mock(IndexShard.class);
-        when(shard1.shardId()).thenReturn(shardId1);
-        when(shard2.shardId()).thenReturn(shardId2);
-
-        // Case 1: sharedRamBytesUsed = 0
-        IndicesService indicesService = getTestIndicesService(List.of(Tuple.tuple(shard1, 100L), Tuple.tuple(shard2, 200L)), 0);
-        long sharedRam = IndicesQueryCache.getSharedRamSizeForShard(indicesService, shardId1);
-        assertEquals(0L, sharedRam);
-        // Case 2: sharedRamBytesUsed > 0, totalSize > 0, proportional
-        indicesService = getTestIndicesService(List.of(Tuple.tuple(shard1, 100L), Tuple.tuple(shard2, 200L)), 600);
-        long sharedRam1 = IndicesQueryCache.getSharedRamSizeForShard(indicesService, shardId1);
-        assertEquals(200L, sharedRam1);
-        long sharedRam2 = IndicesQueryCache.getSharedRamSizeForShard(indicesService, shardId2);
-        assertEquals(400L, sharedRam2);
-        // Case 3: totalSize == 0, shared equally
-        indicesService = getTestIndicesService(List.of(Tuple.tuple(shard1, 0L), Tuple.tuple(shard2, 0L)), 600);
-        long sharedRamEq = IndicesQueryCache.getSharedRamSizeForShard(indicesService, shardId1);
-        assertEquals(300L, sharedRamEq);
-    }
-
-    private IndicesService getTestIndicesService(List<Tuple<IndexShard, Long>> shardsAndSizes, long sharedRamBytesUsed) {
-        IndicesQueryCache queryCache = mock(IndicesQueryCache.class);
-        for (Tuple<IndexShard, Long> shardAndSize : shardsAndSizes) {
-            when(queryCache.getCacheSizeForShard(shardAndSize.v1().shardId())).thenReturn(shardAndSize.v2());
-        }
-        when(queryCache.getSharedRamBytesUsed()).thenReturn(sharedRamBytesUsed);
-        return getTestIndicesService(shardsAndSizes.stream().map(Tuple::v1).toList(), queryCache);
-    }
-
-    private IndicesService getTestIndicesService(List<IndexShard> shards, IndicesQueryCache queryCache) {
-        IndexService indexService = mock(IndexService.class);
-        when(indexService.iterator()).thenAnswer(ignored -> shards.iterator());
-        IndicesService indicesService = mock(IndicesService.class);
-        when(indicesService.iterator()).thenAnswer(ignored -> List.of(indexService).iterator());
-        when(indicesService.getIndicesQueryCache()).thenReturn(queryCache);
-        when(indicesService.getIndicesQueryCache()).thenReturn(queryCache);
-        return indicesService;
-    }
-
     public void testGetStatsMemory() throws Exception {
         /*
          * This test creates 2 shards, one with two segments and one with one. It makes unique queries against all 3 segments (so that each
@@ -495,7 +451,7 @@ public class IndicesQueryCacheTests extends ESTestCase {
         shard1Segment2Searcher.setQueryCache(cache);
         shard2Searcher.setQueryCache(cache);
 
-        assertEquals(0L, cache.getStats(shard1, 0).getMemorySizeInBytes());
+        assertEquals(0L, cache.getStats(shard1).getMemorySizeInBytes());
 
         final long largeQuerySize = randomIntBetween(100, 1000);
         final long smallQuerySize = randomIntBetween(10, 50);
@@ -506,16 +462,9 @@ public class IndicesQueryCacheTests extends ESTestCase {
         for (int i = 0; i < shard1Queries; ++i) {
             shard1Segment1Searcher.count(new DummyQuery("ingest1-" + i, largeQuerySize));
         }
-        IndexShard indexShard1 = mock(IndexShard.class);
-        when(indexShard1.shardId()).thenReturn(shard1);
-        IndexShard indexShard2 = mock(IndexShard.class);
-        when(indexShard2.shardId()).thenReturn(shard2);
-        IndicesService indicesService = getTestIndicesService(List.of(indexShard1), cache);
-        long sharedRamSizeShard1 = IndicesQueryCache.getSharedRamSizeForShard(indicesService, shard1);
-        long sharedRamSizeShard2 = IndicesQueryCache.getSharedRamSizeForShard(indicesService, shard2);
         long shard1Segment1CacheMemory = calculateActualCacheMemoryForSegment(shard1Queries, largeQuerySize, shard1Segment1Docs);
-        assertThat(cache.getStats(shard1, sharedRamSizeShard1).getMemorySizeInBytes(), equalTo(shard1Segment1CacheMemory));
-        assertThat(cache.getStats(shard2, sharedRamSizeShard2).getMemorySizeInBytes(), equalTo(0L));
+        assertThat(cache.getStats(shard1).getMemorySizeInBytes(), equalTo(shard1Segment1CacheMemory));
+        assertThat(cache.getStats(shard2).getMemorySizeInBytes(), equalTo(0L));
         for (int i = 0; i < shard2Queries; ++i) {
             shard2Searcher.count(new DummyQuery("ingest2-" + i, smallQuerySize));
         }
@@ -524,12 +473,9 @@ public class IndicesQueryCacheTests extends ESTestCase {
          * report cache memory proportional to the number of segments for each shard, ignoring the number of documents or the actual
          * document sizes. Since the shard2 requests were smaller, the average cache memory size per segment has now gone down.
          */
-        indicesService = getTestIndicesService(List.of(indexShard1, indexShard2), cache);
-        sharedRamSizeShard1 = IndicesQueryCache.getSharedRamSizeForShard(indicesService, shard1);
-        sharedRamSizeShard2 = IndicesQueryCache.getSharedRamSizeForShard(indicesService, shard2);
-        assertThat(cache.getStats(shard1, sharedRamSizeShard1).getMemorySizeInBytes(), lessThan(shard1Segment1CacheMemory));
-        long shard1CacheBytes = cache.getStats(shard1, sharedRamSizeShard1).getMemorySizeInBytes();
-        long shard2CacheBytes = cache.getStats(shard2, sharedRamSizeShard2).getMemorySizeInBytes();
+        assertThat(cache.getStats(shard1).getMemorySizeInBytes(), lessThan(shard1Segment1CacheMemory));
+        long shard1CacheBytes = cache.getStats(shard1).getMemorySizeInBytes();
+        long shard2CacheBytes = cache.getStats(shard2).getMemorySizeInBytes();
         long shard2Segment1CacheMemory = calculateActualCacheMemoryForSegment(shard2Queries, smallQuerySize, shard2Segment1Docs);
 
         long totalMemory = shard1Segment1CacheMemory + shard2Segment1CacheMemory;
@@ -563,21 +509,16 @@ public class IndicesQueryCacheTests extends ESTestCase {
          */
         shard1Segment1CacheMemoryShare = ((double) (2 * shard1Queries) / ((2 * shard1Queries) + shard2Queries)) * (totalMemoryMinusOverhead)
             + shard1Overhead;
-        indicesService = getTestIndicesService(List.of(indexShard1, indexShard2), cache);
-        sharedRamSizeShard1 = IndicesQueryCache.getSharedRamSizeForShard(indicesService, shard1);
-        shard1CacheBytes = cache.getStats(shard1, sharedRamSizeShard1).getMemorySizeInBytes();
+        shard1CacheBytes = cache.getStats(shard1).getMemorySizeInBytes();
         assertThat((double) shard1CacheBytes, closeTo(shard1Segment1CacheMemoryShare, 1)); // accounting for rounding
 
         // Now make sure the cache only has items for shard2:
         for (int i = 0; i < (maxCacheSize * 2); ++i) {
             shard2Searcher.count(new DummyQuery("ingest4-" + i, smallQuerySize));
         }
-        indicesService = getTestIndicesService(List.of(indexShard2), cache);
-        sharedRamSizeShard1 = IndicesQueryCache.getSharedRamSizeForShard(indicesService, shard1);
-        sharedRamSizeShard2 = IndicesQueryCache.getSharedRamSizeForShard(indicesService, shard2);
-        assertThat(cache.getStats(shard1, sharedRamSizeShard1).getMemorySizeInBytes(), equalTo(0L));
+        assertThat(cache.getStats(shard1).getMemorySizeInBytes(), equalTo(0L));
         assertThat(
-            cache.getStats(shard2, sharedRamSizeShard2).getMemorySizeInBytes(),
+            cache.getStats(shard2).getMemorySizeInBytes(),
             equalTo(calculateActualCacheMemoryForSegment(maxCacheSize, smallQuerySize, shard2Segment1Docs))
         );
 

@@ -453,27 +453,25 @@ public class TDigestFieldMapperTests extends MapperTestCase {
 
     private static Map<String, Object> generateRandomFieldValues(int maxVals) {
         Map<String, Object> value = new LinkedHashMap<>();
-        long total_count = 0;
-        double sum = 0.0;
-        double min = Double.POSITIVE_INFINITY;
-        double max = Double.NEGATIVE_INFINITY;
         int size = between(1, maxVals);
         TDigestState digest = TDigestState.createWithoutCircuitBreaking(100);
         for (int i = 0; i < size; i++) {
             double sample = randomGaussianDouble();
             int count = randomIntBetween(1, Integer.MAX_VALUE);
-            sum += sample * count;
-            total_count += count;
-            min = Math.min(min, sample);
-            max = Math.max(max, sample);
             digest.add(sample, count);
         }
         List<Double> centroids = new ArrayList<>();
         List<Long> counts = new ArrayList<>();
+        long total_count = 0;
+        double sum = 0.0;
         for (Centroid c : digest.centroids()) {
             centroids.add(c.mean());
             counts.add(c.count());
+            total_count += c.count();
+            sum += c.mean() * c.count();
         }
+        double min = digest.getMin();
+        double max = digest.getMax();
         value.put("min", min);
         value.put("max", max);
         value.put("sum", sum);

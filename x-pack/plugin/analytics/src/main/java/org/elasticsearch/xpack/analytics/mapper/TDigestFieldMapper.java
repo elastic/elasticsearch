@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.analytics.mapper;
 
 import org.apache.lucene.document.BinaryDocValuesField;
 import org.apache.lucene.document.Field;
+import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.index.BinaryDocValues;
 import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.LeafReader;
@@ -15,6 +16,7 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.io.stream.ByteArrayStreamInput;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
@@ -54,6 +56,8 @@ import org.elasticsearch.xpack.analytics.aggregations.support.AnalyticsValuesSou
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
@@ -344,11 +348,6 @@ public class TDigestFieldMapper extends FieldMapper {
 
             BytesStreamOutput streamOutput = new BytesStreamOutput();
 
-            streamOutput.writeDouble(parsedTDigest.min());
-            streamOutput.writeDouble(parsedTDigest.max());
-            streamOutput.writeDouble(parsedTDigest.sum());
-            streamOutput.writeLong(parsedTDigest.count());
-
             for (int i = 0; i < parsedTDigest.centroids().size(); i++) {
                 long count = parsedTDigest.counts().get(i);
                 assert count >= 0;
@@ -360,7 +359,29 @@ public class TDigestFieldMapper extends FieldMapper {
             }
 
             BytesRef docValue = streamOutput.bytes().toBytesRef();
-            Field field = new BinaryDocValuesField(fullPath(), docValue);
+            Field digestField = new BinaryDocValuesField(fullPath(), docValue);
+
+            // Add numeric doc values fields for the summary data
+            NumericDocValuesField maxField = null;
+            if (Double.isNaN(parsedTDigest.max()) == false) {
+                maxField = new NumericDocValuesField(
+                    valuesMaxSubFieldName(fullPath()),
+                    NumericUtils.doubleToSortableLong(parsedTDigest.max())
+                );
+            }
+
+            NumericDocValuesField minField = null;
+            if (Double.isNaN(parsedTDigest.min()) == false) {
+                minField = new NumericDocValuesField(
+                    valuesMinSubFieldName(fullPath()),
+                    NumericUtils.doubleToSortableLong(parsedTDigest.min())
+                );
+            }
+            NumericDocValuesField countField = new NumericDocValuesField(valuesCountSubFieldName(fullPath()), parsedTDigest.count());
+            NumericDocValuesField sumField = new NumericDocValuesField(
+                valuesSumSubFieldName(fullPath()),
+                NumericUtils.doubleToSortableLong(parsedTDigest.sum())
+            );
             if (context.doc().getByKey(fieldType().name()) != null) {
                 throw new IllegalArgumentException(
                     "Field ["
@@ -370,7 +391,15 @@ public class TDigestFieldMapper extends FieldMapper {
                         + "] doesn't support indexing multiple values for the same field in the same document"
                 );
             }
-            context.doc().addWithKey(fieldType().name(), field);
+            context.doc().addWithKey(fieldType().name(), digestField);
+            context.doc().add(countField);
+            context.doc().add(sumField);
+            if (maxField != null) {
+                context.doc().add(maxField);
+            }
+            if (minField != null) {
+                context.doc().add(minField);
+            }
 
         } catch (Exception ex) {
             if (ignoreMalformed.value() == false) {
@@ -400,6 +429,22 @@ public class TDigestFieldMapper extends FieldMapper {
         context.path().remove();
     }
 
+    private static String valuesCountSubFieldName(String fullPath) {
+        return fullPath + "._values_count";
+    }
+
+    private static String valuesSumSubFieldName(String fullPath) {
+        return fullPath + "._values_sum";
+    }
+
+    private static String valuesMinSubFieldName(String fullPath) {
+        return fullPath + "._values_min";
+    }
+
+    private static String valuesMaxSubFieldName(String fullPath) {
+        return fullPath + "._values_max";
+    }
+
     /** re-usable {@link HistogramValue} implementation */
     private static class InternalTDigestValue extends HistogramValue {
         double value;
@@ -422,11 +467,6 @@ public class TDigestFieldMapper extends FieldMapper {
             isExhausted = false;
             value = 0;
             count = 0;
-
-            min = streamInput.readDouble();
-            max = streamInput.readDouble();
-            sum = streamInput.readDouble();
-            totalCount = streamInput.readLong();
         }
 
         @Override
@@ -502,22 +542,39 @@ public class TDigestFieldMapper extends FieldMapper {
                 return;
             }
             value.reset(binaryValue);
+            List<Double> centroids = new ArrayList<>();
+            List<Long> counts = new ArrayList<>();
+
+            while (value.next()) {
+                centroids.add(value.value());
+                counts.add(value.count());
+            }
+            double sum = 0;
+            long count = 0;
+            for (int i = 0; i < counts.size(); i++) {
+                sum += centroids.get(i) * counts.get(i);
+                count += counts.get(i);
+            }
 
             b.startObject();
-            b.field(MIN_FIELD_NAME, value.min);
-            b.field(MAX_FIELD_NAME, value.max);
-            b.field(SUM_FIELD_NAME, value.sum);
-            b.field(TOTAL_COUNT_FIELD_NAME, value.totalCount);
+
+            // TODO: Load the summary values out of the sub-fields, if they exist
+            if (centroids.isEmpty() == false) {
+                b.field(MIN_FIELD_NAME, centroids.get(0));
+                b.field(MAX_FIELD_NAME, centroids.get(centroids.size() - 1));
+            }
+            b.field(SUM_FIELD_NAME, sum);
+            b.field(TOTAL_COUNT_FIELD_NAME, count);
+
             b.startArray(CENTROIDS_NAME);
-            while (value.next()) {
-                b.value(value.value());
+            for (Double val : centroids) {
+                b.value(val);
             }
             b.endArray();
 
-            value.reset(binaryValue);
             b.startArray(COUNTS_NAME);
-            while (value.next()) {
-                b.value(value.count());
+            for (Long val : counts) {
+                b.value(val);
             }
             b.endArray();
 

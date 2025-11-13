@@ -1,0 +1,6 @@
+pr: 137702
+summary: Handle index deletion while querying in ES|QL
+area: ES|QL
+type: bug
+issues:
+ - 135863

@@ -126,8 +126,9 @@ public class BalancedShardsAllocatorInvalidWeightsTests extends ESTestCase {
                 System.nanoTime()
             );
             assertInvalidWeightsMessageIsLogged(() -> allocator.allocate(allocation));
-            // The shard on node 2 should have been moved
+            // The shard on the nominated node should have been moved
             assertEquals(1, allocation.routingNodes().getRelocatingShardCount());
+            assertEquals(1, allocation.routingNodes().node(nodeToMoveShardOff.getId()).shardsWithState(ShardRoutingState.STARTED).count());
             final var relocatingShard = allocation.routingNodes()
                 .stream()
                 .flatMap(rn -> rn.shardsWithState(ShardRoutingState.RELOCATING))

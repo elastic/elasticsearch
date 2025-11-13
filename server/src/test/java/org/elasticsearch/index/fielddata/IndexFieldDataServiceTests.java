@@ -341,7 +341,16 @@ public class IndexFieldDataServiceTests extends ESSingleNodeTestCase {
     public void testRequireDocValuesOnBools() {
         doTestRequireDocValues(new BooleanFieldMapper.BooleanFieldType("field"));
         doTestRequireDocValues(
-            new BooleanFieldMapper.BooleanFieldType("field", true, false, false, null, null, Collections.emptyMap(), false, false)
+            new BooleanFieldMapper.BooleanFieldType(
+                "field",
+                IndexType.terms(true, false),
+                false,
+                null,
+                null,
+                Collections.emptyMap(),
+                false,
+                false
+            )
         );
     }
 

@@ -549,5 +549,7 @@ public class RankSearchContext extends SearchContext {
     }
 
     @Override
-    public IndexService indexService() { return parent.indexService(); }
+    public IndexService indexService() {
+        return parent.indexService();
+    }
 }

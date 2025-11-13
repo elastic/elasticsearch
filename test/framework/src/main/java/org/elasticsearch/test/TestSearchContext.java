@@ -564,5 +564,7 @@ public class TestSearchContext extends SearchContext {
     }
 
     @Override
-    public IndexService indexService() { return indexService; }
+    public IndexService indexService() {
+        return indexService;
+    }
 }

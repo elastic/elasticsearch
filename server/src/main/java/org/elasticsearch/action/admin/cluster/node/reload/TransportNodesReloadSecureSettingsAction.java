@@ -32,6 +32,9 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.attribute.BasicFileAttributes;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -113,7 +116,9 @@ public class TransportNodesReloadSecureSettingsAction extends TransportNodesActi
             if (keystore == null) {
                 return new NodesReloadSecureSettingsResponse.NodeResponse(
                     clusterService.localNode(),
-                    new IllegalStateException("Keystore is missing")
+                    new IllegalStateException("Keystore is missing"),
+                    null,
+                    null
                 );
             }
             // decrypt the keystore using the password from the request
@@ -134,9 +139,22 @@ public class TransportNodesReloadSecureSettingsAction extends TransportNodesActi
                 }
             });
             ExceptionsHelper.rethrowAndSuppress(exceptions);
-            return new NodesReloadSecureSettingsResponse.NodeResponse(clusterService.localNode(), null);
+            return new NodesReloadSecureSettingsResponse.NodeResponse(
+                clusterService.localNode(),
+                null,
+                keystore.getSettingNames(),
+                failsafeLastModifiedTime(KeyStoreWrapper.keystorePath(environment.configDir()))
+            );
         } catch (final Exception e) {
-            return new NodesReloadSecureSettingsResponse.NodeResponse(clusterService.localNode(), e);
+            return new NodesReloadSecureSettingsResponse.NodeResponse(clusterService.localNode(), e, null, null);
+        }
+    }
+
+    private static Long failsafeLastModifiedTime(Path path) {
+        try {
+            return Files.readAttributes(path, BasicFileAttributes.class).lastModifiedTime().toMillis();
+        } catch (IOException e) {
+            return null; // fallback to null if we can't read the time
         }
     }
 

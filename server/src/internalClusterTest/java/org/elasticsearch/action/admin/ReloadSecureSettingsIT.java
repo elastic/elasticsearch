@@ -41,6 +41,7 @@ import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicReference;
 
+import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
@@ -412,6 +413,8 @@ public class ReloadSecureSettingsIT extends ESIntegTestCase {
                     assertThat(nodesMap.size(), equalTo(cluster().size()));
                     for (final NodesReloadSecureSettingsResponse.NodeResponse nodeResponse : nodesReloadResponse.getNodes()) {
                         assertThat(nodeResponse.reloadException(), nullValue());
+                        assertThat(nodeResponse.keystoreLastModifiedTime(), notNullValue());
+                        assertThat(nodeResponse.secureSettingNames(), contains("keystore.seed"));
                     }
                 } catch (final AssertionError e) {
                     reloadSettingsError.set(e);

@@ -10,6 +10,7 @@
 package org.elasticsearch.action.admin.cluster.node.reload;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.action.support.nodes.BaseNodeResponse;
@@ -23,7 +24,10 @@ import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
+import java.time.Instant;
+import java.util.Collection;
 import java.util.List;
+import java.util.Objects;
 
 /**
  * The response for the reload secure settings action
@@ -58,6 +62,16 @@ public class NodesReloadSecureSettingsResponse extends BaseNodesResponse<NodesRe
                 ElasticsearchException.generateThrowableXContent(builder, params, e);
                 builder.endObject();
             }
+            if (node.secureSettingNames() != null) {
+                builder.array("secure_setting_names", b -> {
+                    for (String settingName : node.secureSettingNames()) {
+                        b.value(settingName);
+                    }
+                });
+            }
+            if (node.keystoreLastModifiedTime() != null) {
+                builder.field("keystore_last_modified_time", Instant.ofEpochMilli(node.keystoreLastModifiedTime()));
+            }
             builder.endObject();
         }
         builder.endObject();
@@ -71,32 +85,55 @@ public class NodesReloadSecureSettingsResponse extends BaseNodesResponse<NodesRe
 
     public static class NodeResponse extends BaseNodeResponse {
 
-        private Exception reloadException = null;
+        private static final TransportVersion KEYSTORE_DETAILS = TransportVersion.fromName("keystore_details_in_reload_response");
+
+        private final Exception reloadException;
+        private final Collection<String> secureSettingNames;
+        private final Long keystoreLastModifiedTime;
 
         public NodeResponse(StreamInput in) throws IOException {
             super(in);
-            if (in.readBoolean()) {
-                reloadException = in.readException();
+            reloadException = in.readOptionalException();
+            if (in.getTransportVersion().onOrAfter(KEYSTORE_DETAILS)) {
+                secureSettingNames = in.readOptionalStringCollectionAsList();
+                keystoreLastModifiedTime = in.readOptionalLong();
+            } else {
+                secureSettingNames = null;
+                keystoreLastModifiedTime = null;
             }
         }
 
-        public NodeResponse(DiscoveryNode node, Exception reloadException) {
+        public NodeResponse(
+            DiscoveryNode node,
+            Exception reloadException,
+            Collection<String> secureSettingNames,
+            Long keystoreLastModifiedTime
+        ) {
             super(node);
             this.reloadException = reloadException;
+            this.secureSettingNames = secureSettingNames;
+            this.keystoreLastModifiedTime = keystoreLastModifiedTime;
         }
 
         public Exception reloadException() {
             return this.reloadException;
         }
 
+        public Collection<String> secureSettingNames() {
+            return this.secureSettingNames;
+        }
+
+        public Long keystoreLastModifiedTime() {
+            return this.keystoreLastModifiedTime;
+        }
+
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
-            if (reloadException != null) {
-                out.writeBoolean(true);
-                out.writeException(reloadException);
-            } else {
-                out.writeBoolean(false);
+            out.writeOptionalException(reloadException);
+            if (out.getTransportVersion().onOrAfter(KEYSTORE_DETAILS)) {
+                out.writeOptionalStringCollection(secureSettingNames);
+                out.writeOptionalLong(keystoreLastModifiedTime);
             }
         }
 
@@ -109,12 +146,14 @@ public class NodesReloadSecureSettingsResponse extends BaseNodesResponse<NodesRe
                 return false;
             }
             final NodesReloadSecureSettingsResponse.NodeResponse that = (NodesReloadSecureSettingsResponse.NodeResponse) o;
-            return reloadException != null ? reloadException.equals(that.reloadException) : that.reloadException == null;
+            return Objects.equals(reloadException, that.reloadException)
+                && Objects.equals(secureSettingNames, that.secureSettingNames)
+                && Objects.equals(keystoreLastModifiedTime, that.keystoreLastModifiedTime);
         }
 
         @Override
         public int hashCode() {
-            return reloadException != null ? reloadException.hashCode() : 0;
+            return Objects.hash(reloadException, secureSettingNames, keystoreLastModifiedTime);
         }
     }
 }

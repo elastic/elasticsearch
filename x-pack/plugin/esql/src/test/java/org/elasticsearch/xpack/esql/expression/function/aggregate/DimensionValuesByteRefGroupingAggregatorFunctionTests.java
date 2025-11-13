@@ -86,6 +86,7 @@ public class DimensionValuesByteRefGroupingAggregatorFunctionTests extends Compu
             groupSpecs = List.of(new BlockHash.GroupSpec(1, ElementType.INT), new BlockHash.GroupSpec(1, ElementType.INT));
         }
         HashAggregationOperator hashAggregationOperator = new HashAggregationOperator(
+            groupSpecs,
             List.of(aggregatorFactory),
             () -> BlockHash.build(groupSpecs, driverContext.blockFactory(), randomIntBetween(1, 1024), randomBoolean()),
             driverContext

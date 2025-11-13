@@ -87,7 +87,7 @@ public class TBucket extends GroupingFunction.EvaluatableGroupingFunction implem
 
     @Override
     public Expression surrogate() {
-        return new Bucket(source(), timestamp, buckets, null, null);
+        return new Bucket(source(), timestamp, buckets, null, null, null);
     }
 
     @Override

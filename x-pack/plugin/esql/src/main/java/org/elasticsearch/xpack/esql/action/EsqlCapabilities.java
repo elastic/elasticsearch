@@ -708,6 +708,11 @@ public class EsqlCapabilities {
         BUCKET_WHOLE_NUMBER_AS_SPAN,
 
         /**
+         * Support for the BUCKET function emitting empty buckets.
+         */
+        BUCKET_EMIT_EMPTY(Build.current().isSnapshot()),
+
+        /**
          * Allow mixed numeric types in coalesce
          */
         MIXED_NUMERIC_TYPES_IN_COALESCE,

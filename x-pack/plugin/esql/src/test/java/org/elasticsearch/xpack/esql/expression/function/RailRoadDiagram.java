@@ -79,6 +79,29 @@ public class RailRoadDiagram {
                     List<Expression> currentExpressions;
                     if (arg.optional) {
                         currentExpressions = repetitionExpressions;
+                        if (definition.name().equals("bucket")) {
+                            // BUCKET requires optional args to be optional together, so we need custom code to do that.
+                            // After "from", we expect 2 more optional args: "to" and "emitEmptyBuckets".
+                            var toArg = args.get(++i);
+                            assert toArg.optional();
+                            var emitEmptyBucketsArg = args.get(++i);
+                            assert emitEmptyBucketsArg.optional();
+                            // TODO: Should it be possible to be able to specify "emitEmptyBuckets" but not "from" and "to"?
+                            Sequence seq = new Sequence(
+                                new Literal(argName),
+                                new Syntax(","),
+                                new Literal(toArg.name),
+                                new Syntax(","),
+                                new Literal(emitEmptyBucketsArg.name)
+                            );
+                            argExpressions.add(new Repetition(seq, 0, 1));
+                        } else if (i < args.size() - 1 && args.get(i + 1).optional() == false) {
+                            // Special case with leading optional args
+                            Sequence seq = new Sequence(new Literal(argName), new Syntax(","));
+                            argExpressions.add(new Repetition(seq, 0, 1));
+                        } else {
+                            argExpressions.add(new Repetition(new Literal(argName), 0, 1));
+                        }
                     } else {
                         currentExpressions = argExpressions;
                         if (i > 0 && args.get(i - 1).optional) {

@@ -97,8 +97,7 @@ public class PromqlFunctionRegistry {
                 acrossSeries("stddev", StdDev::new),
                 acrossSeries("stdvar", Variance::new) },
             // Across-series aggregations with parameters
-            new FunctionDefinition[] { acrossSeriesBinary("quantile", Percentile::new) }
-        };
+            new FunctionDefinition[] { acrossSeriesBinary("quantile", Percentile::new) } };
     }
 
     /**

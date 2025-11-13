@@ -27,9 +27,8 @@ import static org.elasticsearch.xpack.inference.external.response.XContentUtils.
 
 /**
  * Parses the FireworksAI rerank API response.
- * Note: This uses the same response format as ContextualAI rerank API.
- * Both services follow the common rerank API standard with "results" containing
- * objects with "index", "relevance_score", and optional "document" fields.
+ * FireworksAI returns rerank results in a "data" array (OpenAI-compatible format),
+ * with each entry containing "index", "relevance_score", and optional "document" fields.
  */
 public class FireworksAiRerankResponseEntity {
 
@@ -59,25 +58,25 @@ public class FireworksAiRerankResponseEntity {
     private static List<RankedDocsResults.RankedDoc> doParse(XContentParser parser) throws IOException {
         var responseParser = ResponseParser.PARSER;
         var responseObject = responseParser.apply(parser, null);
-        return responseObject.results.stream()
+        return responseObject.data.stream()
             .map(result -> new RankedDocsResults.RankedDoc(result.index, result.relevanceScore, result.document))
             .toList();
     }
 
-    private record ResponseObject(List<RankedDocEntry> results) {
-        private static final ParseField RESULTS = new ParseField("results");
+    private record ResponseObject(List<RankedDocEntry> data) {
+        private static final ParseField DATA = new ParseField("data");
         private static final ConstructingObjectParser<ResponseObject, Void> PARSER = new ConstructingObjectParser<>(
             "fireworksai_rerank_response",
             true,
             args -> {
                 @SuppressWarnings("unchecked")
-                List<RankedDocEntry> results = (List<RankedDocEntry>) args[0];
-                return new ResponseObject(results);
+                List<RankedDocEntry> data = (List<RankedDocEntry>) args[0];
+                return new ResponseObject(data);
             }
         );
 
         static {
-            PARSER.declareObjectArray(ConstructingObjectParser.constructorArg(), RankedDocEntry.PARSER, RESULTS);
+            PARSER.declareObjectArray(ConstructingObjectParser.constructorArg(), RankedDocEntry.PARSER, DATA);
         }
     }
 

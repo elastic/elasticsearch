@@ -27,6 +27,7 @@ import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
 import org.elasticsearch.inference.RerankingInferenceService;
 import org.elasticsearch.inference.SettingsConfiguration;
+import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.inference.configuration.SettingsConfigurationFieldType;
 import org.elasticsearch.rest.RestStatus;
@@ -42,6 +43,7 @@ import org.elasticsearch.xpack.inference.services.ServiceComponents;
 import org.elasticsearch.xpack.inference.services.ServiceUtils;
 import org.elasticsearch.xpack.inference.services.fireworksai.action.FireworksAiActionCreator;
 import org.elasticsearch.xpack.inference.services.fireworksai.embeddings.FireworksAiEmbeddingsModel;
+import org.elasticsearch.xpack.inference.services.fireworksai.embeddings.FireworksAiEmbeddingsServiceSettings;
 import org.elasticsearch.xpack.inference.services.fireworksai.rerank.FireworksAiRerankModel;
 import org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettings;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
@@ -287,6 +289,30 @@ public class FireworksAiService extends SenderService implements RerankingInfere
         // Setting window size to 5500 words to allow headroom for document processing and API overhead.
         // This conservative estimate ensures compatibility across different rerank model variants.
         return 5500;
+    }
+
+    @Override
+    public Model updateModelWithEmbeddingDetails(Model model, int embeddingSize) {
+        if (model instanceof FireworksAiEmbeddingsModel embeddingsModel) {
+            var serviceSettings = embeddingsModel.getServiceSettings();
+            var similarityFromModel = serviceSettings.similarity();
+            // FireworksAI embeddings use cosine similarity by default
+            var similarityToUse = similarityFromModel == null ? SimilarityMeasure.COSINE : similarityFromModel;
+
+            var updatedServiceSettings = new FireworksAiEmbeddingsServiceSettings(
+                serviceSettings.modelId(),
+                serviceSettings.uri(),
+                similarityToUse,
+                embeddingSize,
+                serviceSettings.maxInputTokens(),
+                serviceSettings.dimensionsSetByUser(),
+                serviceSettings.rateLimitSettings()
+            );
+
+            return new FireworksAiEmbeddingsModel(embeddingsModel, updatedServiceSettings);
+        } else {
+            throw ServiceUtils.invalidModelTypeForUpdateModelWithEmbeddingDetails(model.getClass());
+        }
     }
 
     @Override

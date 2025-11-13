@@ -275,7 +275,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
      * Deprecated - this will be made private in a future update
      */
     @Deprecated
-    protected AggregationContext createAggregationContext(IndexReader indexReader, Query query, MappedFieldType... fieldTypes)
+    public AggregationContext createAggregationContext(IndexReader indexReader, Query query, MappedFieldType... fieldTypes)
         throws IOException {
         return createAggregationContext(
             indexReader,

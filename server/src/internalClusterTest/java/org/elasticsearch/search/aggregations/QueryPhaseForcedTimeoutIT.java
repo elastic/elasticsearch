@@ -55,9 +55,7 @@ public class QueryPhaseForcedTimeoutIT extends ESIntegTestCase {
 
     @Override
     public Settings indexSettings() {
-        return Settings.builder()
-            .put(super.indexSettings())
-            .build();
+        return Settings.builder().put(super.indexSettings()).build();
     }
 
     @Before
@@ -72,12 +70,9 @@ public class QueryPhaseForcedTimeoutIT extends ESIntegTestCase {
             """));
 
         for (int i = 0; i < 10; i++) {
-            IndexRequest ir = new IndexRequest(INDEX)
-                .source(jsonBuilder()
-                    .startObject()
-                    .field("kwd", "value" + i)
-                    .field("txt", "text " + i)
-                    .endObject());
+            IndexRequest ir = new IndexRequest(INDEX).source(
+                jsonBuilder().startObject().field("kwd", "value" + i).field("txt", "text " + i).endObject()
+            );
             client().index(ir).actionGet();
         }
         indicesAdmin().prepareRefresh(INDEX).get();
@@ -99,13 +94,12 @@ public class QueryPhaseForcedTimeoutIT extends ESIntegTestCase {
     public void testTimeoutDuringCollectorPreparationReturnsTimedOutEmptyResult() {
         SearchResponse resp = null;
         try {
-           resp = client().prepareSearch(INDEX)
+            resp = client().prepareSearch(INDEX)
                 .setQuery(QueryBuilders.matchAllQuery())
                 .setSize(0)
                 .setAllowPartialSearchResults(true)
                 .addAggregation(new ForceTimeoutAggregationBuilder("force_timeout"))
                 .get();
-
 
             assertThat(resp, notNullValue());
             assertThat("search should be marked timed_out", resp.isTimedOut(), is(true));
@@ -129,13 +123,7 @@ public class QueryPhaseForcedTimeoutIT extends ESIntegTestCase {
 
         @Override
         public List<AggregationSpec> getAggregations() {
-            return List.of(
-                new AggregationSpec(
-                    NAME,
-                    ForceTimeoutAggregationBuilder::new,
-                    ForceTimeoutAggregationBuilder::parse
-                )
-            );
+            return List.of(new AggregationSpec(NAME, ForceTimeoutAggregationBuilder::new, ForceTimeoutAggregationBuilder::parse));
         }
     }
 
@@ -199,14 +187,40 @@ public class QueryPhaseForcedTimeoutIT extends ESIntegTestCase {
             return this;
         }
 
-        @Override public Map<String, Object> getMetadata() { return metadata == null ? Map.of() : metadata; }
-        @Override public BucketCardinality bucketCardinality() { return BucketCardinality.ONE; }
-        @Override public String getWriteableName() { return TYPE; }
-        @Override public TransportVersion getMinimalSupportedVersion() { return TransportVersion.current(); }
-        @Override public void writeTo(StreamOutput out) throws IOException { out.writeString(getName()); }
-        @Override public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException { return builder; }
-        @Override public String getType() { return TYPE; }
+        @Override
+        public Map<String, Object> getMetadata() {
+            return metadata == null ? Map.of() : metadata;
+        }
 
+        @Override
+        public BucketCardinality bucketCardinality() {
+            return BucketCardinality.ONE;
+        }
+
+        @Override
+        public String getWriteableName() {
+            return TYPE;
+        }
+
+        @Override
+        public TransportVersion getMinimalSupportedVersion() {
+            return TransportVersion.current();
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeString(getName());
+        }
+
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            return builder;
+        }
+
+        @Override
+        public String getType() {
+            return TYPE;
+        }
 
         /**
          * Factory implementation for ForceTimeoutAggregationBuilder.
@@ -227,7 +241,7 @@ public class QueryPhaseForcedTimeoutIT extends ESIntegTestCase {
 
             @Override
             protected Aggregator createInternal(Aggregator parent, CardinalityUpperBound cardinality, Map<String, Object> metadata) {
-                if(context.searcher() instanceof ContextIndexSearcher cis) {
+                if (context.searcher() instanceof ContextIndexSearcher cis) {
                     cis.throwTimeExceededException();
                 }
                 throw new AssertionError("unreachable");

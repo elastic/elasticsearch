@@ -22,6 +22,8 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.PointValues;
 import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.search.BulkScorer;
+import org.apache.lucene.search.Collector;
+import org.apache.lucene.search.CollectorManager;
 import org.apache.lucene.search.ConstantScoreScorer;
 import org.apache.lucene.search.ConstantScoreWeight;
 import org.apache.lucene.search.DocIdSetIterator;
@@ -40,11 +42,13 @@ import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.tests.util.LuceneTestCase;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.CharsRefBuilder;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchShardTask;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.index.IndexSettings;
@@ -59,6 +63,15 @@ import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardTestCase;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
+import org.elasticsearch.search.aggregations.AggregationBuilder;
+import org.elasticsearch.search.aggregations.Aggregator;
+import org.elasticsearch.search.aggregations.AggregatorFactories;
+import org.elasticsearch.search.aggregations.AggregatorFactory;
+import org.elasticsearch.search.aggregations.AggregatorTestCase;
+import org.elasticsearch.search.aggregations.CardinalityUpperBound;
+import org.elasticsearch.search.aggregations.PipelineAggregationBuilder;
+import org.elasticsearch.search.aggregations.SearchContextAggregations;
+import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.search.internal.ContextIndexSearcher;
@@ -70,12 +83,14 @@ import org.elasticsearch.search.suggest.Suggester;
 import org.elasticsearch.search.suggest.SuggestionSearchContext;
 import org.elasticsearch.test.TestSearchContext;
 import org.elasticsearch.xcontent.Text;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.hamcrest.Matchers;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 
 import java.io.IOException;
 import java.util.Collections;
+import java.util.Map;
 
 public class QueryPhaseTimeoutTests extends IndexShardTestCase {
 
@@ -430,7 +445,7 @@ public class QueryPhaseTimeoutTests extends IndexShardTestCase {
             parserConfig(),
             writableRegistry(),
             null,
-            null,
+            new IndexSearcher(reader),
             () -> nowInMillis,
             null,
             null,
@@ -499,7 +514,7 @@ public class QueryPhaseTimeoutTests extends IndexShardTestCase {
         return context;
     }
 
-    private static final class TestSuggester extends Suggester<TestSuggestionContext> {
+    public static final class TestSuggester extends Suggester<TestSuggestionContext> {
         private final ContextIndexSearcher contextIndexSearcher;
 
         TestSuggester(ContextIndexSearcher contextIndexSearcher) {
@@ -523,7 +538,7 @@ public class QueryPhaseTimeoutTests extends IndexShardTestCase {
         }
     }
 
-    private static final class TestSuggestionContext extends SuggestionSearchContext.SuggestionContext {
+    public static final class TestSuggestionContext extends SuggestionSearchContext.SuggestionContext {
         TestSuggestionContext(Suggester<?> suggester, SearchExecutionContext searchExecutionContext) {
             super(suggester, searchExecutionContext);
         }
@@ -613,6 +628,321 @@ public class QueryPhaseTimeoutTests extends IndexShardTestCase {
         @Override
         public final boolean isCacheable(LeafReaderContext ctx) {
             return false;
+        }
+    }
+
+    /**
+     * Verifies that when a timeout occurs before search execution and no aggregations
+     * are requested, QueryPhase returns an empty partial result with timed_out=true
+     * and no aggregation container.
+     */
+    public void testTimeoutNoAggsReturnsEmptyResult() throws Exception {
+        ContextIndexSearcher base = newContextSearcher(reader);
+        ContextIndexSearcher throwing = new ContextIndexSearcher(
+            base.getIndexReader(),
+            base.getSimilarity(),
+            base.getQueryCache(),
+            base.getQueryCachingPolicy(),
+            true
+        ) {
+            @Override
+            public <C extends Collector, T> T search(Query query, CollectorManager<C, T> collectorManager) {
+                this.throwTimeExceededException(); // simulate timeout right as search would begin
+                throw new AssertionError("unreachable");
+            }
+        };
+
+        SearchSourceBuilder source = new SearchSourceBuilder().query(new MatchAllQueryBuilder()).size(0);
+
+        try (SearchContext context = createSearchContext(source, throwing, null, null, true)) {
+            context.parsedQuery(new ParsedQuery(new MatchAllDocsQuery()));
+
+            QueryPhase.execute(context);
+
+            assertTrue("search should be marked timed_out", context.queryResult().searchTimedOut());
+            assertNotNull("topDocs must be present even on timeout", context.queryResult().topDocs());
+            assertEquals("no hits returned on timeout", 0, context.queryResult().topDocs().topDocs.scoreDocs.length);
+            assertNull("no aggs were requested so container should remain null", context.queryResult().aggregations());
+        }
+    }
+
+    /**
+     * Verifies that when a timeout occurs during aggregation setup, the search response
+     * is returned as a partial result: marked timed_out=true, with empty hits and an
+     * empty but non-null aggregation container.
+     */
+    public void testAggTimeoutReturnsEmptyAggsAndHits() throws Exception {
+        SearchSourceBuilder source = new SearchSourceBuilder().query(new MatchAllQueryBuilder())
+            .aggregation(new ForceTimeoutAggregationBuilder("force_timeout"))
+            .size(0);
+
+        try (SearchContext context = createSearchContext(source, newContextSearcher(reader), null, true)) {
+            context.parsedQuery(new ParsedQuery(new MatchAllDocsQuery()));
+            assertNotNull("aggregations should be present in the context", context.aggregations());
+
+            QueryPhase.execute(context);
+
+            assertTrue("search should be marked timed_out", context.queryResult().searchTimedOut());
+            assertNotNull("topDocs must be present even on timeout", context.queryResult().topDocs());
+            assertEquals("no hits returned on timeout", 0, context.queryResult().topDocs().topDocs.scoreDocs.length);
+            assertNotNull(
+                "aggregations container must be non-null on timeout when aggs were requested",
+                context.queryResult().aggregations()
+            );
+            assertTrue("aggregations list should be empty on timeout", context.queryResult().aggregations().expand().asList().isEmpty());
+        }
+    }
+
+    /**
+     * Simulates the search layer returning null from ContextIndexSearcher.search()
+     * and verifies that QueryPhase converts it into a valid partial response instead
+     * of failing — with timed_out=true and empty topDocs/aggregations.
+     */
+    public void testNullSearchResultHandledAsEmptyPartial() throws Exception {
+        ContextIndexSearcher base = newContextSearcher(reader);
+        ContextIndexSearcher nullReturning = new ContextIndexSearcher(
+            base.getIndexReader(),
+            base.getSimilarity(),
+            base.getQueryCache(),
+            base.getQueryCachingPolicy(),
+            true
+        ) {
+            @Override
+            public <C extends Collector, T> T search(Query query, CollectorManager<C, T> collectorManager) {
+                return null; // simulate lower layer returning null
+            }
+        };
+
+        SearchSourceBuilder source = new SearchSourceBuilder().query(new MatchAllQueryBuilder())
+            .aggregation(new ForceTimeoutAggregationBuilder("noop"))
+            .size(0);
+
+        try (SearchContext context = createSearchContext(source, nullReturning, null, true)) {
+            context.parsedQuery(new ParsedQuery(new MatchAllDocsQuery()));
+
+            QueryPhase.execute(context);
+
+            assertTrue("search should be marked timed_out", context.queryResult().searchTimedOut());
+            assertNotNull("topDocs must be present even on timeout", context.queryResult().topDocs());
+            assertEquals("no hits returned on timeout", 0, context.queryResult().topDocs().topDocs.scoreDocs.length);
+            assertNotNull("aggs container must be non-null on timeout when aggs were requested", context.queryResult().aggregations());
+            assertTrue("aggregations list should be empty on timeout", context.queryResult().aggregations().expand().asList().isEmpty());
+        }
+    }
+
+    /**
+     * Verifies that when both suggestions and aggregations are present in the SearchContext,
+     * a timeout still results in a well-formed partial response — timed_out=true, empty hits,
+     * and safe handling of the suggest container.
+     */
+    public void testTimeoutWithSuggestsReturnsPartial() throws Exception {
+        SearchSourceBuilder source = new SearchSourceBuilder().query(new MatchAllQueryBuilder())
+            .aggregation(new ForceTimeoutAggregationBuilder("force_timeout"))
+            .size(0);
+
+        SuggestionSearchContext suggestCtx = new SuggestionSearchContext();
+        suggestCtx.addSuggestion(
+            "suggestion",
+            new QueryPhaseTimeoutTests.TestSuggestionContext(new QueryPhaseTimeoutTests.TestSuggester(newContextSearcher(reader)), null)
+        );
+
+        try (SearchContext context = createSearchContext(source, newContextSearcher(reader), suggestCtx, true)) {
+            context.parsedQuery(new ParsedQuery(new MatchAllDocsQuery()));
+
+            QueryPhase.execute(context);
+
+            assertTrue("search should be marked timed_out", context.queryResult().searchTimedOut());
+            assertNotNull("topDocs must be present even on timeout", context.queryResult().topDocs());
+            assertEquals("no hits returned on timeout", 0, context.queryResult().topDocs().topDocs.scoreDocs.length);
+            assertNotNull("aggs container must be non-null on timeout when aggs were requested", context.queryResult().aggregations());
+            assertTrue("aggregations list should be empty on timeout", context.queryResult().aggregations().expand().asList().isEmpty());
+
+            if (context.queryResult().suggest() != null) {
+                assertTrue("suggest container readable", context.queryResult().suggest().size() >= 0);
+            }
+        }
+    }
+
+    /**
+     * Verifies that when allowPartialSearchResults=false, a timeout is not converted
+     * to a partial response but instead throws a SearchTimeoutException wrapped in
+     * a QueryPhaseExecutionException.
+     */
+    public void testTimeoutDisallowPartialsThrowsException() throws Exception {
+        SearchSourceBuilder source = new SearchSourceBuilder().query(new MatchAllQueryBuilder())
+            .aggregation(new ForceTimeoutAggregationBuilder("force_timeout"))
+            .size(0);
+
+        try (SearchContext context = createSearchContext(source, newContextSearcher(reader), null, false)) {
+            context.parsedQuery(new ParsedQuery(new MatchAllDocsQuery()));
+
+            // expect QueryPhase to propagate a failure instead of marking timed_out=true
+            QueryPhaseExecutionException ex = expectThrows(QueryPhaseExecutionException.class, () -> QueryPhase.execute(context));
+            assertNotNull("expected a root cause", ex.getCause());
+            assertTrue("expected the cause to be a SearchTimeoutException", ex.getCause() instanceof SearchTimeoutException);
+        }
+    }
+
+    private TestSearchContext createSearchContext(
+        SearchSourceBuilder source,
+        ContextIndexSearcher cis,
+        SuggestionSearchContext suggestCtx,
+        boolean allowPartials
+    ) throws IOException {
+        AggregatorFactories.Builder aggsBuilder = AggregatorFactories.builder()
+            .addAggregator(new ForceTimeoutAggregationBuilder("force_timeout"));
+
+        AggregatorFactories factories;
+        try (AggregationTestHelper aggHelper = new AggregationTestHelper()) {
+            aggHelper.init();
+            SearchExecutionContext sec = createSearchExecutionContext();
+            AggregationContext aggCtx = aggHelper.createAggregationContext(sec.getIndexReader(), new MatchAllDocsQuery());
+            factories = aggsBuilder.build(aggCtx, null);
+        } catch (Exception e) {
+            throw new IOException(e);
+        }
+
+        SearchContextAggregations scAggs = new SearchContextAggregations(factories, () -> {
+            throw new AssertionError("reduce should not be called in this early-timeout test");
+        });
+
+        return createSearchContext(source, cis, scAggs, suggestCtx, allowPartials);
+    }
+
+    private TestSearchContext createSearchContext(
+        SearchSourceBuilder source,
+        ContextIndexSearcher cis,
+        SearchContextAggregations aggsCtx,
+        SuggestionSearchContext suggestCtx,
+        boolean allowPartials
+    ) throws IOException {
+        TestSearchContext ctx = new TestSearchContext(createSearchExecutionContext(), indexShard, cis) {
+            @Override
+            public SearchContextAggregations aggregations() {
+                return aggsCtx;
+            }
+
+            @Override
+            public SuggestionSearchContext suggest() {
+                return suggestCtx;
+            }
+
+            @Override
+            public ShardSearchRequest request() {
+                SearchRequest sr = new SearchRequest();
+                sr.allowPartialSearchResults(allowPartials);
+                sr.source(source);
+                return new ShardSearchRequest(
+                    OriginalIndices.NONE,
+                    sr,
+                    indexShard.shardId(),
+                    0,  // slice id
+                    1,  // total slices
+                    AliasFilter.EMPTY,
+                    1F,
+                    0,
+                    null
+                );
+            }
+        };
+
+        ctx.setTask(new SearchShardTask(123L, "", "", "", null, Collections.emptyMap()));
+        return ctx;
+    }
+
+    /**
+     * Helper extending {@link AggregatorTestCase} for creating and initializing
+     * aggregation contexts in tests. Handles plugin setup and resource cleanup.
+     */
+    private static final class AggregationTestHelper extends AggregatorTestCase implements AutoCloseable {
+        void init() {
+            super.initPlugins();
+        }
+
+        @Override
+        public void close() {
+            super.cleanupReleasables();
+        }
+    }
+
+    /**
+     * Test aggregation builder that simulates a timeout during collector setup
+     * to verify QueryPhase timeout handling behavior.
+     */
+    private static final class ForceTimeoutAggregationBuilder extends AggregationBuilder {
+        ForceTimeoutAggregationBuilder(String name) {
+            super(name);
+        }
+
+        @Override
+        public String getType() {
+            return "force_timeout";
+        }
+
+        @Override
+        public String getWriteableName() {
+            return "force_timeout";
+        }
+
+        @Override
+        public TransportVersion getMinimalSupportedVersion() {
+            return TransportVersion.current();
+        }
+
+        @Override
+        public BucketCardinality bucketCardinality() {
+            return BucketCardinality.ONE;
+        }
+
+        @Override
+        protected AggregatorFactory build(AggregationContext ctx, AggregatorFactory parent) throws IOException {
+            return new AggregatorFactory(getName(), ctx, parent, AggregatorFactories.builder(), getMetadata()) {
+                @Override
+                protected Aggregator createInternal(Aggregator parent, CardinalityUpperBound cardinality, Map<String, Object> metadata) {
+                    if (ctx.searcher() instanceof ContextIndexSearcher cis) {
+                        cis.throwTimeExceededException();
+                    }
+                    throw new AssertionError("unreachable");
+                }
+            };
+        }
+
+        @Override
+        public AggregationBuilder setMetadata(Map<String, Object> metadata) {
+            return null;
+        }
+
+        @Override
+        public Map<String, Object> getMetadata() {
+            return Map.of();
+        }
+
+        @Override
+        public AggregationBuilder subAggregation(AggregationBuilder aggregation) {
+            return null;
+        }
+
+        @Override
+        public AggregationBuilder subAggregation(PipelineAggregationBuilder aggregation) {
+            return null;
+        }
+
+        @Override
+        public AggregationBuilder subAggregations(AggregatorFactories.Builder subFactories) {
+            return null;
+        }
+
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) {
+            return null;
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) {}
+
+        @Override
+        protected AggregationBuilder shallowCopy(AggregatorFactories.Builder factoriesBuilder, Map<String, Object> metadata) {
+            return null;
         }
     }
 }

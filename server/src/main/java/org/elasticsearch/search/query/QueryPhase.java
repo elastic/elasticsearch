@@ -205,12 +205,13 @@ public class QueryPhase {
             }
 
             try {
-                CollectorManager<Collector, QueryPhaseResult> collectorManager = QueryPhaseCollectorManager.createQueryPhaseCollectorManager(
-                    postFilterWeight,
-                    searchContext.aggregations() == null ? null : searchContext.aggregations().getAggsCollectorManager(),
-                    searchContext,
-                    hasFilterCollector
-                );
+                CollectorManager<Collector, QueryPhaseResult> collectorManager = QueryPhaseCollectorManager
+                    .createQueryPhaseCollectorManager(
+                        postFilterWeight,
+                        searchContext.aggregations() == null ? null : searchContext.aggregations().getAggsCollectorManager(),
+                        searchContext,
+                        hasFilterCollector
+                    );
 
                 QueryPhaseResult queryPhaseResult = searcher.search(query, collectorManager);
 
@@ -260,11 +261,7 @@ public class QueryPhase {
      */
     private static void finalizeAsTimedOutResult(SearchContext searchContext) {
         QuerySearchResult queryResult = searchContext.queryResult();
-        SearchTimeoutException.handleTimeout(
-            searchContext.request().allowPartialSearchResults(),
-            searchContext.shardTarget(),
-            queryResult
-        );
+        SearchTimeoutException.handleTimeout(searchContext.request().allowPartialSearchResults(), searchContext.shardTarget(), queryResult);
 
         queryResult.topDocs(new TopDocsAndMaxScore(Lucene.EMPTY_TOP_DOCS, Float.NaN), new DocValueFormat[0]);
 

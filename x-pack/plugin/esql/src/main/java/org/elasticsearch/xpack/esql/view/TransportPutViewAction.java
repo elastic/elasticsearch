@@ -58,6 +58,6 @@ public class TransportPutViewAction extends AcknowledgedTransportMasterNodeProje
 
     @Override
     protected ClusterBlockException checkBlock(PutViewAction.Request request, ProjectState state) {
-        return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA_WRITE);
+        return state.blocks().globalBlockedException(state.projectId(), ClusterBlockLevel.METADATA_WRITE);
     }
 }

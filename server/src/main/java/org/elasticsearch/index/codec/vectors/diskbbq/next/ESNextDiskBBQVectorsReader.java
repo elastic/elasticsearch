@@ -16,6 +16,7 @@ import org.apache.lucene.index.SegmentReadState;
 import org.apache.lucene.index.VectorEncoding;
 import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.search.AcceptDocs;
+import org.apache.lucene.search.ConjunctionUtils;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.KnnCollector;
 import org.apache.lucene.store.IndexInput;
@@ -35,6 +36,7 @@ import org.elasticsearch.simdvec.ESNextOSQVectorsScorer;
 import org.elasticsearch.simdvec.ESVectorUtil;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.Map;
 
 import static org.apache.lucene.index.VectorSimilarityFunction.COSINE;
@@ -119,31 +121,22 @@ public class ESNextDiskBBQVectorsReader extends IVFVectorsReader {
     ) throws IOException {
         final FieldEntry fieldEntry = fields.get(fieldInfo.number);
         final float approximateDocsPerCentroid = approximateCost / numCentroids;
-        // we only want to compute the exact number if we are close to the range
-        final float expectedDocsPerCentroid = approximateDocsPerCentroid < 2.0
-            ? (float) acceptDocs.cost() / numCentroids
-            : approximateDocsPerCentroid;
         final int bitsRequired = DirectWriter.bitsRequired(numCentroids);
         final long sizeLookup = directWriterSizeOnDisk(values.size(), bitsRequired);
         final long fp = centroids.getFilePointer();
         final FixedBitSet acceptCentroids;
-        if (expectedDocsPerCentroid > 1.25 || numCentroids == 1) {
+        if (approximateDocsPerCentroid > 1.25 || numCentroids == 1) {
             // only apply centroid filtering when we expect some / many centroids will not have
             // any matching document.
             acceptCentroids = null;
         } else {
             acceptCentroids = new FixedBitSet(numCentroids);
-            final DocIdSetIterator iterator = acceptDocs.iterator();
             final KnnVectorValues.DocIndexIterator docIndexIterator = values.iterator();
+            final DocIdSetIterator iterator = ConjunctionUtils.intersectIterators(List.of(acceptDocs.iterator(), docIndexIterator));
             final LongValues longValues = DirectReader.getInstance(centroids.randomAccessSlice(fp, sizeLookup), bitsRequired);
             int doc = iterator.nextDoc();
             for (; doc != DocIdSetIterator.NO_MORE_DOCS; doc = iterator.nextDoc()) {
-                if (docIndexIterator.docID() < doc) {
-                    docIndexIterator.advance(doc); // get the vector ordinal
-                }
-                if (docIndexIterator.docID() == doc) {
-                    acceptCentroids.set((int) longValues.get(docIndexIterator.index()));
-                }
+                acceptCentroids.set((int) longValues.get(docIndexIterator.index()));
             }
         }
         final OptimizedScalarQuantizer scalarQuantizer = new OptimizedScalarQuantizer(fieldInfo.getVectorSimilarityFunction());

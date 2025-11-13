@@ -1806,7 +1806,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
          * @param nodeIndices The indices of the nodes whose weights should be recalculated
          */
         public void recalculateWeightsAndReSort(int... nodeIndices) {
-            assert nodesHaveCurrentlyValidWeights(nodeIndices)
+            assert nodesCurrentlyHaveValidWeights(nodeIndices)
                 : "We don't expect to recalculate weights when a prior calculation was invalid";
             for (int nodeIndex : nodeIndices) {
                 recalculateWeight(nodeIndex);
@@ -1827,7 +1827,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
             weights[nodeIndex] = newWeight;
         }
 
-        private boolean nodesHaveCurrentlyValidWeights(int... nodeIndices) {
+        private boolean nodesCurrentlyHaveValidWeights(int... nodeIndices) {
             for (int nodeIndex : nodeIndices) {
                 if (weights[nodeIndex] == Float.MAX_VALUE) {
                     return false;

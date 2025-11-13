@@ -529,12 +529,13 @@ public class Approximate {
         return listener.delegateFailureAndWrap((countListener, countResult) -> {
             long rowCount = rowCount(countResult);
             logger.debug("countPlan result (p={}): {} rows", sampleProbability, rowCount);
-            if (rowCount <= SAMPLE_ROW_COUNT_FOR_COUNT_ESTIMATION / 2 && sampleProbability < 1.0) {
+            double newSampleProbability = Math.min(1.0, sampleProbability * SAMPLE_ROW_COUNT / Math.max(1, rowCount));
+            if (newSampleProbability > SAMPLE_PROBABILITY_THRESHOLD) {
+                // If the new sample probability is large, run the original query.
+                runner.run(toPhysicalPlan.apply(logicalPlan), configuration, foldContext, listener);
+            } else if (rowCount <= SAMPLE_ROW_COUNT_FOR_COUNT_ESTIMATION / 2) {
                 // Not enough rows are sampled yet; increase the sample probability and try again.
-                double newSampleProbability = Math.min(
-                    1.0,
-                    sampleProbability * SAMPLE_ROW_COUNT_FOR_COUNT_ESTIMATION / Math.max(1, rowCount)
-                );
+                newSampleProbability = Math.min(1.0, sampleProbability * SAMPLE_ROW_COUNT_FOR_COUNT_ESTIMATION / Math.max(1, rowCount));
                 runner.run(
                     toPhysicalPlan.apply(countPlan(newSampleProbability)),
                     configuration,
@@ -542,7 +543,6 @@ public class Approximate {
                     countListener(newSampleProbability, listener)
                 );
             } else {
-                double newSampleProbability = Math.min(1.0, sampleProbability * SAMPLE_ROW_COUNT / rowCount);
                 runner.run(toPhysicalPlan.apply(approximatePlan(newSampleProbability)), configuration, foldContext, listener);
             }
         });

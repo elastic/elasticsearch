@@ -19,8 +19,8 @@ public sealed class DeduplicateFieldInfosCodec extends FilterCodec permits TSDBS
     private final DeduplicatingFieldInfosFormat fieldInfosFormat;
 
     @SuppressWarnings("this-escape")
-    protected DeduplicateFieldInfosCodec(String name, Codec delegate) {
-        super(name, delegate);
+    protected DeduplicateFieldInfosCodec(Codec delegate) {
+        super(delegate.getName(), delegate);
         this.fieldInfosFormat = createFieldInfosFormat(delegate.fieldInfosFormat());
     }
 

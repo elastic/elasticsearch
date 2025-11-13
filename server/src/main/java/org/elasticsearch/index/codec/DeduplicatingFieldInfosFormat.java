@@ -48,14 +48,14 @@ public sealed class DeduplicatingFieldInfosFormat extends FieldInfosFormat permi
         final FieldInfo[] deduplicated = new FieldInfo[fieldInfos.size()];
         int i = 0;
         for (FieldInfo fi : fieldInfos) {
-            deduplicated[i++] = processFieldInfo(fi);
+            deduplicated[i++] = wrapFieldInfo(fi);
         }
         return new FieldInfosWithUsages(deduplicated);
     }
 
     protected void validateFieldInfos(FieldInfos fieldInfos) {}
 
-    protected FieldInfo processFieldInfo(FieldInfo fi) {
+    protected FieldInfo wrapFieldInfo(FieldInfo fi) {
         return new FieldInfo(
             FieldMapper.internFieldName(fi.getName()),
             fi.number,

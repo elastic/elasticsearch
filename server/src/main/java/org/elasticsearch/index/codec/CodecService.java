@@ -71,7 +71,7 @@ public class CodecService implements CodecProvider {
         this.codecs = codecs.entrySet().stream().collect(Collectors.toUnmodifiableMap(Map.Entry::getKey, e -> {
             String name = e.getValue().getName();
             Codec codec = e.getValue();
-            return useTsdbSyntheticId ? new TSDBSyntheticIdCodec(name, codec) : new DeduplicateFieldInfosCodec(name, codec);
+            return useTsdbSyntheticId ? new TSDBSyntheticIdCodec(codec) : new DeduplicateFieldInfosCodec(codec);
         }));
     }
 

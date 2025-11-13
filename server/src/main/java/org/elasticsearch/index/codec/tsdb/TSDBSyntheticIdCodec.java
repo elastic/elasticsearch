@@ -57,8 +57,8 @@ import static org.elasticsearch.index.codec.tsdb.TSDBSyntheticIdPostingsFormat.T
 public final class TSDBSyntheticIdCodec extends DeduplicateFieldInfosCodec {
     private final EnsureNoPostingsFormat postingsFormat;
 
-    public TSDBSyntheticIdCodec(String name, Codec delegate) {
-        super(name, delegate);
+    public TSDBSyntheticIdCodec(Codec delegate) {
+        super(delegate);
         this.postingsFormat = new EnsureNoPostingsFormat(delegate.postingsFormat());
     }
 
@@ -174,7 +174,7 @@ public final class TSDBSyntheticIdCodec extends DeduplicateFieldInfosCodec {
         }
 
         @Override
-        protected FieldInfo processFieldInfo(FieldInfo fi) {
+        protected FieldInfo wrapFieldInfo(FieldInfo fi) {
             // Change the _id field index options from IndexOptions.NONE to IndexOptions.DOCS, so that terms and postings work when
             // applying doc values updates in Lucene.
             if (SYNTHETIC_ID.equals(fi.getName())) {
@@ -211,7 +211,7 @@ public final class TSDBSyntheticIdCodec extends DeduplicateFieldInfosCodec {
                     fi.isParentField()
                 );
             }
-            return super.processFieldInfo(fi);
+            return super.wrapFieldInfo(fi);
         }
     }
 

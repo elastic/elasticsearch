@@ -77,12 +77,7 @@ public class FirstDocIdGroupingAggregatorFunctionTests extends ComputeTestCase {
         HashAggregationOperator hashAggregationOperator = new HashAggregationOperator(
             groupSpecs,
             List.of(aggregatorFactory),
-            () -> BlockHash.build(
-                groupSpecs,
-                driverContext.blockFactory(),
-                randomIntBetween(1, 1024),
-                randomBoolean()
-            ),
+            () -> BlockHash.build(groupSpecs, driverContext.blockFactory(), randomIntBetween(1, 1024), randomBoolean()),
             driverContext
         );
         List<Page> outputPages = new ArrayList<>();

@@ -83,7 +83,15 @@ public class ReplaceDateTruncBucketWithRoundTo extends ParameterizedRule<Logical
                 bucket.buckets(),
                 searchStats,
                 eval,
-                (interval, minValue, maxValue) -> Bucket.getDateRounding(bucket.field(), bucket.buckets(), bucket.from(), bucket.to(), FoldContext.small(), minValue, maxValue)
+                (interval, minValue, maxValue) -> Bucket.getDateRounding(
+                    bucket.field(),
+                    bucket.buckets(),
+                    bucket.from(),
+                    bucket.to(),
+                    FoldContext.small(),
+                    minValue,
+                    maxValue
+                )
             );
         }
         return roundTo != null ? roundTo : e;

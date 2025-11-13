@@ -97,8 +97,8 @@ public class TransportForgetFollowerAction extends TransportBroadcastByNodeActio
         final ForgetFollowerAction.Request request,
         final ShardRouting shardRouting,
         Task task,
-        ActionListener<EmptyResult> listener,
-        Void nodeContext
+        Void nodeContext,
+        ActionListener<EmptyResult> listener
     ) {
         final Index followerIndex = new Index(request.followerIndex(), request.followerIndexUUID());
         final Index leaderIndex = clusterService.state().metadata().getProject().index(request.leaderIndex()).getIndex();

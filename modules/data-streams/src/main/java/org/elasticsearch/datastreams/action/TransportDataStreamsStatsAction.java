@@ -115,8 +115,8 @@ public class TransportDataStreamsStatsAction extends TransportBroadcastByNodeAct
         DataStreamsStatsAction.Request request,
         ShardRouting shardRouting,
         Task task,
-        ActionListener<DataStreamsStatsAction.DataStreamShardStats> listener,
-        Void nodeContext
+        Void nodeContext,
+        ActionListener<DataStreamsStatsAction.DataStreamShardStats> listener
     ) {
         ActionListener.completeWith(listener, () -> {
             assert shardRouting.isSearchable() : "shard routing is not searchable: " + shardRouting;

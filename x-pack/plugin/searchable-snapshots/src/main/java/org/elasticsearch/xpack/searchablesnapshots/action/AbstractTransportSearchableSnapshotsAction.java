@@ -110,8 +110,8 @@ public abstract class AbstractTransportSearchableSnapshotsAction<
         Request request,
         ShardRouting shardRouting,
         Task task,
-        ActionListener<ShardOperationResult> listener,
-        Void nodeContext
+        Void nodeContext,
+        ActionListener<ShardOperationResult> listener
     ) {
         ActionListener.completeWith(listener, () -> {
             SearchableSnapshots.ensureValidLicense(licenseState);

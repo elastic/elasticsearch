@@ -95,8 +95,8 @@ public class TransportForceMergeAction extends TransportBroadcastByNodeAction<
         ForceMergeRequest request,
         ShardRouting shardRouting,
         Task task,
-        ActionListener<TransportBroadcastByNodeAction.EmptyResult> listener,
-        Void nodeContext
+        Void nodeContext,
+        ActionListener<EmptyResult> listener
     ) {
         assert (task instanceof CancellableTask) == false; // TODO: add cancellation handling here once the task supports it
         SubscribableListener.<IndexShard>newForked(l -> {

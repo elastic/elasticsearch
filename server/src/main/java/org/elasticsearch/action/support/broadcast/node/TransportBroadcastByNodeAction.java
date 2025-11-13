@@ -185,8 +185,8 @@ public abstract class TransportBroadcastByNodeAction<
         Request request,
         ShardRouting shardRouting,
         Task task,
-        ActionListener<ShardOperationResult> listener,
-        NodeContext nodeContext
+        NodeContext nodeContext,
+        ActionListener<ShardOperationResult> listener
     );
 
     protected NodeContext createNodeContext() {
@@ -430,7 +430,7 @@ public abstract class TransportBroadcastByNodeAction<
             @Override
             protected void sendItemRequest(ShardRouting shardRouting, ActionListener<ShardOperationResult> listener) {
                 logger.trace(() -> format("[%s] executing operation for shard [%s]", actionName, shardRouting.shortSummary()));
-                ActionRunnable.wrap(listener, l -> shardOperation(request, shardRouting, task, l, nodeContext)).run();
+                ActionRunnable.wrap(listener, l -> shardOperation(request, shardRouting, task, nodeContext, l)).run();
             }
 
             @Override
@@ -616,7 +616,8 @@ public abstract class TransportBroadcastByNodeAction<
     }
 
     /**
-     * Can be used for implementations of {@link #shardOperation(BroadcastRequest, ShardRouting, Task, ActionListener, NodeContext) shardOperation} for
+     * Can be used for implementations of
+     * {@linkTransportBroadcastByNodeAction#shardOperation(BroadcastRequest, ShardRouting, Task, Object, ActionListener) shardOperation} for
      * which there is no shard-level return value.
      */
     public static final class EmptyResult implements Writeable {

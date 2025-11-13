@@ -95,8 +95,8 @@ public class TransportClearIndicesCacheAction extends TransportBroadcastByNodeAc
         ClearIndicesCacheRequest request,
         ShardRouting shardRouting,
         Task task,
-        ActionListener<EmptyResult> listener,
-        Void nodeContext
+        Void nodeContext,
+        ActionListener<EmptyResult> listener
     ) {
         ActionListener.completeWith(listener, () -> {
             indicesService.clearIndexShardCache(

@@ -95,8 +95,8 @@ public class TransportFieldUsageAction extends TransportBroadcastByNodeAction<
         FieldUsageStatsRequest request,
         ShardRouting shardRouting,
         Task task,
-        ActionListener<FieldUsageShardResponse> listener,
-        Void nodeContext
+        Void nodeContext,
+        ActionListener<FieldUsageShardResponse> listener
     ) {
         ActionListener.completeWith(listener, () -> {
             final ShardId shardId = shardRouting.shardId();

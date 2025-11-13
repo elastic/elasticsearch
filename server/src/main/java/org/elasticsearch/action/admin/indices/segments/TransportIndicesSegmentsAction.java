@@ -110,8 +110,8 @@ public class TransportIndicesSegmentsAction extends TransportBroadcastByNodeActi
         IndicesSegmentsRequest request,
         ShardRouting shardRouting,
         Task task,
-        ActionListener<ShardSegments> listener,
-        Void nodeContext
+        Void nodeContext,
+        ActionListener<ShardSegments> listener
     ) {
         ActionListener.completeWith(listener, () -> {
             assert task instanceof CancellableTask;

@@ -117,8 +117,8 @@ public class TransportIndicesStatsAction extends TransportBroadcastByNodeAction<
         IndicesStatsRequest request,
         ShardRouting shardRouting,
         Task task,
-        ActionListener<ShardStats> listener,
-        Void nodeContext
+        Void nodeContext,
+        ActionListener<ShardStats> listener
     ) {
         ActionListener.completeWith(listener, () -> {
             assert task instanceof CancellableTask;

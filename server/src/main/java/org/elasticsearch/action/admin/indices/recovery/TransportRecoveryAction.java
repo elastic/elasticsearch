@@ -107,8 +107,8 @@ public class TransportRecoveryAction extends TransportBroadcastByNodeAction<Reco
         RecoveryRequest request,
         ShardRouting shardRouting,
         Task task,
-        ActionListener<RecoveryState> listener,
-        Void nodeContext
+        Void nodeContext,
+        ActionListener<RecoveryState> listener
     ) {
         ActionListener.completeWith(listener, () -> {
             assert task instanceof CancellableTask;

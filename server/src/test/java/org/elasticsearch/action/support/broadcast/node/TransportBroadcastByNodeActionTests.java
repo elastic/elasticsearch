@@ -216,8 +216,8 @@ public class TransportBroadcastByNodeActionTests extends ESTestCase {
             Request request,
             ShardRouting shardRouting,
             Task task,
-            ActionListener<ShardResult> listener,
-            Integer nodeContext
+            Integer nodeContext,
+            ActionListener<ShardResult> listener
         ) {
             assertThat(expectedNodeContext, not(nullValue()));
             assertThat(nodeContext, equalTo(expectedNodeContext));
@@ -666,8 +666,8 @@ public class TransportBroadcastByNodeActionTests extends ESTestCase {
                 Request request,
                 ShardRouting shardRouting,
                 Task task,
-                ActionListener<ShardResult> listener,
-                Integer nodeContext
+                Integer nodeContext,
+                ActionListener<ShardResult> listener
             ) {
                 // this test runs a node-level operation on three shards, cancelling the task some time during the execution on the second
                 if (task instanceof CancellableTask cancellableTask) {
@@ -726,8 +726,8 @@ public class TransportBroadcastByNodeActionTests extends ESTestCase {
                 Request request,
                 ShardRouting shardRouting,
                 Task task,
-                ActionListener<ShardResult> listener,
-                Integer nodeContext
+                Integer nodeContext,
+                ActionListener<ShardResult> listener
             ) {
                 listeners.add(listener);
             }

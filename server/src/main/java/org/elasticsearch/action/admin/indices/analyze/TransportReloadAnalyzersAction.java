@@ -123,8 +123,8 @@ public class TransportReloadAnalyzersAction extends TransportBroadcastByNodeActi
         ReloadAnalyzersRequest request,
         ShardRouting shardRouting,
         Task task,
-        ActionListener<ReloadResult> listener,
-        Void nodeContext
+        Void nodeContext,
+        ActionListener<ReloadResult> listener
     ) {
         ActionListener.completeWith(listener, () -> {
             logger.info("reloading analyzers for index shard " + shardRouting);

@@ -113,8 +113,7 @@ The following global settings are used on the remote cluster to verify signature
 
 ### Request signing settings [remote-cluster-request-signing]
 
-The following per-cluster settings are used on the local cluster to sign outgoing cross-cluster requests per-cluster alias. A 
-private key and certificate must be configured for each remote cluster that requires signature verification.
+The following per-cluster settings are used on the local cluster to sign outgoing cross-cluster requests per-cluster alias. A private key and certificate must be configured for each remote cluster that requires signing requests.
 
 
 ### PEM encoded files [remote-cluster-signing-pem-files]

@@ -42,6 +42,7 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.AbstractMultiClustersTestCase;
+import org.elasticsearch.transport.NoSuchRemoteClusterException;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
@@ -60,6 +61,7 @@ import java.util.stream.Collectors;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
+import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.is;
 
@@ -121,7 +123,12 @@ public class QueryRewriteContextRemoteAsyncActionIT extends AbstractMultiCluster
     }
 
     public void testInvalidClusterAlias() {
-        // TODO: Implement
+        SearchRequestBuilder request = buildSearchRequest(
+            List.of(INDEX_1, INDEX_2),
+            List.of(REMOTE_CLUSTER_A, REMOTE_CLUSTER_B, "missing-cluster-alias")
+        );
+        assertSearchFailure(request, NoSuchRemoteClusterException.class, "no such remote cluster: [missing-cluster-alias]");
+        assertInstrumentedActionCalls(0, 0);
     }
 
     public void testRemoteClusterUnavailable() {
@@ -175,11 +182,28 @@ public class QueryRewriteContextRemoteAsyncActionIT extends AbstractMultiCluster
         });
     }
 
+    private static <T extends Exception> void assertSearchFailure(
+        SearchRequestBuilder searchRequest,
+        Class<T> expectedExceptionClass,
+        String expectedMessage
+    ) {
+        T actualException = assertThrows(expectedExceptionClass, () -> assertResponse(searchRequest, response -> {}));
+        assertThat(actualException.getMessage(), containsString(expectedMessage));
+    }
+
     private static void assertInstrumentedActionCalls(int expectedClusterACalls, int expectedClusterBCalls) {
-        Map<String, Integer> expected = Map.of(REMOTE_CLUSTER_A, expectedClusterACalls, REMOTE_CLUSTER_B, expectedClusterBCalls);
+        Map<String, Integer> expected = new HashMap<>();
+        if (expectedClusterACalls > 0) {
+            expected.put(REMOTE_CLUSTER_A, expectedClusterACalls);
+        }
+        if (expectedClusterBCalls > 0) {
+            expected.put(REMOTE_CLUSTER_B, expectedClusterBCalls);
+        }
+
         Map<String, Integer> actual = INSTRUMENTED_ACTION_CALL_MAP.entrySet()
             .stream()
             .collect(Collectors.toMap(Map.Entry::getKey, e -> e.getValue().get()));
+
         assertThat(actual, equalTo(expected));
     }
 

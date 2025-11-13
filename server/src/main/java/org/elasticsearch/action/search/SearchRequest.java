@@ -116,7 +116,11 @@ public class SearchRequest extends LegacyActionRequest implements IndicesRequest
      * enabling synthetic source natively in the index.
      */
     private boolean forceSyntheticSource = false;
+
+    @Nullable
     private String projectRouting;
+
+    private static final TransportVersion SEARCH_PROJECT_ROUTING = TransportVersion.fromName("search_project_routing");
 
     public SearchRequest() {
         this.localClusterAlias = null;
@@ -293,6 +297,11 @@ public class SearchRequest extends LegacyActionRequest implements IndicesRequest
         } else {
             forceSyntheticSource = false;
         }
+        if (in.getTransportVersion().supports(SEARCH_PROJECT_ROUTING)) {
+            this.projectRouting = in.readOptionalString();
+        } else {
+            this.projectRouting = null;
+        }
     }
 
     @Override
@@ -338,6 +347,9 @@ public class SearchRequest extends LegacyActionRequest implements IndicesRequest
             if (forceSyntheticSource) {
                 throw new IllegalArgumentException("force_synthetic_source is not supported before 8.4.0");
             }
+        }
+        if (out.getTransportVersion().supports(SEARCH_PROJECT_ROUTING)) {
+            out.writeOptionalString(this.projectRouting);
         }
     }
 

@@ -118,7 +118,7 @@ public class ESNextDiskBBQVectorsReader extends IVFVectorsReader {
         float visitRatio
     ) throws IOException {
         final FieldEntry fieldEntry = fields.get(fieldInfo.number);
-        final float approximateDocsPerCentroid = (float) acceptDocs.cost() / numCentroids;
+        final float approximateDocsPerCentroid = approximateCost / numCentroids;
         // we only want to compute the exact number if we are close to the range
         final float expectedDocsPerCentroid = approximateDocsPerCentroid < 2.0
             ? (float) acceptDocs.cost() / numCentroids
@@ -127,7 +127,7 @@ public class ESNextDiskBBQVectorsReader extends IVFVectorsReader {
         final long sizeLookup = directWriterSizeOnDisk(values.size(), bitsRequired);
         final long fp = centroids.getFilePointer();
         final FixedBitSet acceptCentroids;
-        if (expectedDocsPerCentroid > 1.25) {
+        if (expectedDocsPerCentroid > 1.25 || numCentroids == 1) {
             // only apply centroid filtering when we expect some / many centroids will not have
             // any matching document.
             acceptCentroids = null;

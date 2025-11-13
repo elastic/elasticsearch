@@ -295,7 +295,10 @@ public abstract class IVFVectorsReader extends KnnVectorsReader {
         }
         FloatVectorValues values = getReaderForField(field).getFloatVectorValues(field);
         int numVectors = values.size();
-        float approximateCost = (float) (esAcceptDocs == null ? acceptDocs.cost() : esAcceptDocs.approximateCost());
+        // TODO returning cost 0 in ESAcceptDocs.ESAcceptDocsAll feels wrong? cost is related to the number of matching documents?
+        float approximateCost = (float) (esAcceptDocs == null ? acceptDocs.cost()
+            : esAcceptDocs instanceof ESAcceptDocs.ESAcceptDocsAll ? numVectors
+            : esAcceptDocs.approximateCost());
         float percentFiltered = Math.max(0f, Math.min(1f, approximateCost / numVectors));
         float visitRatio = DYNAMIC_VISIT_RATIO;
         // Search strategy may be null if this is being called from checkIndex (e.g. from a test)

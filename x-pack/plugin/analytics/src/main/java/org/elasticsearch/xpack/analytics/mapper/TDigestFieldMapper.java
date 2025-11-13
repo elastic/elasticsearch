@@ -340,22 +340,22 @@ public class TDigestFieldMapper extends FieldMapper {
             }
             subParser.nextToken();
             // TODO: Here we should build a t-digest out of the input, based on the settings on the field
-            TDigestParser.ParsedHistogram parsedHistogram = TDigestParser.parse(fullPath(), subParser);
+            TDigestParser.ParsedTDigest parsedTDigest = TDigestParser.parse(fullPath(), subParser);
 
             BytesStreamOutput streamOutput = new BytesStreamOutput();
 
-            streamOutput.writeDouble(parsedHistogram.min());
-            streamOutput.writeDouble(parsedHistogram.max());
-            streamOutput.writeDouble(parsedHistogram.sum());
-            streamOutput.writeLong(parsedHistogram.count());
+            streamOutput.writeDouble(parsedTDigest.min());
+            streamOutput.writeDouble(parsedTDigest.max());
+            streamOutput.writeDouble(parsedTDigest.sum());
+            streamOutput.writeLong(parsedTDigest.count());
 
-            for (int i = 0; i < parsedHistogram.centroids().size(); i++) {
-                long count = parsedHistogram.counts().get(i);
+            for (int i = 0; i < parsedTDigest.centroids().size(); i++) {
+                long count = parsedTDigest.counts().get(i);
                 assert count >= 0;
                 // we do not add elements with count == 0
                 if (count > 0) {
                     streamOutput.writeVLong(count);
-                    streamOutput.writeDouble(parsedHistogram.centroids().get(i));
+                    streamOutput.writeDouble(parsedTDigest.centroids().get(i));
                 }
             }
 

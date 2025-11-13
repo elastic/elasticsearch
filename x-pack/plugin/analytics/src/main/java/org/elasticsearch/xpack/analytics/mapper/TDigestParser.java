@@ -37,7 +37,7 @@ public class TDigestParser {
      * @param centroids the centroids, guaranteed to be distinct and in increasing order
      * @param counts the counts, guaranteed to be non-negative and of the same length as the centroids array
      */
-    public record ParsedHistogram(List<Double> centroids, List<Long> counts, Long count, Double sum, Double min, Double max) {
+    public record ParsedTDigest(List<Double> centroids, List<Long> counts, Long count, Double sum, Double min, Double max) {
         @Override
         public Double max() {
             if (max != null) {
@@ -99,7 +99,7 @@ public class TDigestParser {
      * @param parser the parser to use
      * @return the parsed histogram
      */
-    public static ParsedHistogram parse(String mappedFieldName, XContentParser parser) throws IOException {
+    public static ParsedTDigest parse(String mappedFieldName, XContentParser parser) throws IOException {
         ArrayList<Double> centroids = null;
         ArrayList<Long> counts = null;
         Long count = null;
@@ -174,7 +174,7 @@ public class TDigestParser {
             min = null;
             max = null;
         }
-        return new ParsedHistogram(centroids, counts, count, sum, min, max);
+        return new ParsedTDigest(centroids, counts, count, sum, min, max);
     }
 
     private static ArrayList<Long> getCounts(String mappedFieldName, XContentParser parser) throws IOException {

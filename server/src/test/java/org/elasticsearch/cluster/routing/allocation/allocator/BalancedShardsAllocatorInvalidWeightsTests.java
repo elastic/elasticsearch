@@ -203,8 +203,10 @@ public class BalancedShardsAllocatorInvalidWeightsTests extends ESTestCase {
             assertInvalidWeightsMessageIsLogged(() -> {
                 final var shard = randomFrom(clusterState.routingTable(ProjectId.DEFAULT).allShards().collect(Collectors.toSet()));
                 final var shardAllocationDecision = allocator.explainShardAllocation(shard, allocation);
-                boolean currentNodeReturningInvalidWeight = balancingWeightsFactory.nodeIsReturningInvalidWeights(shard.currentNodeId());
-                boolean allOtherNodesReturningInvalidWeights = Sets.difference(
+                final boolean currentNodeReturningInvalidWeight = balancingWeightsFactory.nodeIsReturningInvalidWeights(
+                    shard.currentNodeId()
+                );
+                final boolean allOtherNodesReturningInvalidWeights = Sets.difference(
                     balancingWeightsFactory.nodeIdsReturningInvalidWeights(),
                     Set.of(shard.currentNodeId())
                 ).size() + 1 == numberOfNodes;

@@ -55,7 +55,6 @@ emp_no:integer | x:keyword                     | y:keyword
 10061          | 1985-09-17T00:00:00.000Z      | 1985-09-17                  
 ;
 
-
 compareToString
 from employees | where hire_date < "1985-03-01T00:00:00Z" | keep emp_no, hire_date;
 ignoreOrder:true
@@ -1085,6 +1084,33 @@ date:date                 | year:long
 2022-05-06T00:00:00.000Z  | 2022
 ;
 
+dateExtractSetTimezoneFrom
+required_capability: global_timezone_parameter
+
+set time_zone="+07:00"\;
+from employees
+| sort hire_date
+| eval hour = date_extract("hour_of_day", hire_date)
+| keep emp_no, hire_date, hour
+| limit 2;
+
+emp_no:integer | hire_date:date           | hour:long
+10009          | 1985-02-18T00:00:00.000Z | 7
+10048          | 1985-02-24T00:00:00.000Z | 7
+;
+
+dateExtractSetTimezoneRow
+required_capability: global_timezone_parameter
+
+set time_zone="+07:00"\;
+ROW hire_date = "2020-02-28T23:00:00.000Z"::date
+| EVAL hour = date_extract("hour_of_day", hire_date)
+| KEEP hour;
+
+hour:long
+6
+;
+
 docsDateExtractBusinessHours
 // tag::docsDateExtractBusinessHours[]
 FROM sample_data
@@ -1971,6 +1997,30 @@ emp_no:integer | birth_date:date                     | hire_date:date           
 10040          | null                                | 1993-02-14T00:00:00.000Z   | null  
 ;
 
+dayNameSetTimezoneRow
+required_capability: global_timezone_parameter
+
+set time_zone="-02:00"\;
+row dt = to_datetime("1953-09-02T00:00:00.000Z")
+| eval weekday = day_name(dt);
+
+dt:date   | weekday:keyword
+1953-09-02T00:00:00.000Z | Tuesday
+;
+
+dayNameSetTimezoneFrom
+required_capability: global_timezone_parameter
+
+set time_zone="-02:00"\;
+from employees
+| sort emp_no
+| keep emp_no, hire_date
+| eval day = day_name(hire_date)
+| limit 1;
+
+emp_no:integer | hire_date:date             | day:keyword
+10001          | 1986-06-26T00:00:00.000Z   | Wednesday
+;
 
 monthNameRowTest
 required_capability:fn_month_name
@@ -2067,4 +2117,29 @@ from employees
 
 emp_no:integer | birth_date:date                     | hire_date:date             | monthName:keyword
 10040          | null                                | 1993-02-14T00:00:00.000Z   | null  
+;
+
+monthNameSetTimezoneRow
+required_capability: global_timezone_parameter
+
+set time_zone="Europe/Paris"\;
+row dt = to_datetime("1996-01-31T23:00:00.000Z")
+| eval monthName = MONTH_NAME(dt);
+
+dt:date                  | monthName:keyword
+1996-01-31T23:00:00.000Z | February
+;
+
+monthNameSetTimezoneFrom
+required_capability: global_timezone_parameter
+
+set time_zone="-10:00"\;
+from employees 
+| WHERE emp_no == 10004 
+| keep emp_no, hire_date
+| eval monthName = month_name(hire_date) 
+| limit 1;
+
+emp_no:integer | hire_date:date             | monthName:keyword
+10004          | 1986-12-01T00:00:00.000Z   | November
 ;

@@ -17,6 +17,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.ml.AbstractBWCWireSerializationTestCase;
+import org.elasticsearch.xpack.inference.Utils;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.ServiceFields;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
@@ -47,7 +48,19 @@ public class ElasticInferenceServiceDenseTextEmbeddingsServiceSettingsTests exte
     protected ElasticInferenceServiceDenseTextEmbeddingsServiceSettings mutateInstance(
         ElasticInferenceServiceDenseTextEmbeddingsServiceSettings instance
     ) throws IOException {
-        return randomValueOtherThan(instance, ElasticInferenceServiceDenseTextEmbeddingsServiceSettingsTests::createRandom);
+        var modelId = instance.modelId();
+        var similarity = instance.similarity();
+        var dimensions = instance.dimensions();
+        var maxInputTokens = instance.maxInputTokens();
+        switch (randomInt(3)) {
+            case 0 -> modelId = randomValueOtherThan(modelId, () -> randomAlphaOfLength(10));
+            case 1 -> similarity = randomValueOtherThan(similarity, Utils::randomSimilarityMeasure);
+            case 2 -> dimensions = randomValueOtherThan(dimensions, () -> randomFrom(randomIntBetween(1, 1024), null));
+            case 3 -> maxInputTokens = randomValueOtherThan(maxInputTokens, () -> randomFrom(randomIntBetween(128, 256), null));
+            default -> throw new AssertionError("Illegal randomisation branch");
+        }
+
+        return new ElasticInferenceServiceDenseTextEmbeddingsServiceSettings(modelId, similarity, dimensions, maxInputTokens);
     }
 
     public void testFromMap_Request_WithAllSettings() {

@@ -78,6 +78,7 @@ import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.mockito.Mockito.mock;
 
+//@TestLogging(value = "org.elasticsearch.xpack.esql:TRACE", reason = "debug")
 public class PushDownAndCombineFiltersTests extends AbstractLogicalPlanOptimizerTests {
 
     private final LogicalOptimizerContext optimizerContext = new LogicalOptimizerContext(null, FoldContext.small(), randomMinimumVersion());

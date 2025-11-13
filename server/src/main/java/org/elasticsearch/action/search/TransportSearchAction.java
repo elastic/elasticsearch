@@ -11,6 +11,7 @@ package org.elasticsearch.action.search;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
@@ -20,6 +21,8 @@ import org.elasticsearch.action.DelegatingActionListener;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.RemoteClusterActionType;
+import org.elasticsearch.action.ResolvedIndexExpression;
+import org.elasticsearch.action.ResolvedIndexExpressions;
 import org.elasticsearch.action.ResolvedIndices;
 import org.elasticsearch.action.ShardOperationFailedException;
 import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsRequest;
@@ -81,6 +84,8 @@ import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.aggregations.AggregationReduceContext;
 import org.elasticsearch.search.builder.PointInTimeBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.search.crossproject.CrossProjectIndexResolutionValidator;
+import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
 import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.internal.ShardSearchContextId;
@@ -122,6 +127,7 @@ import java.util.stream.Collectors;
 import static org.elasticsearch.action.search.SearchType.DFS_QUERY_THEN_FETCH;
 import static org.elasticsearch.action.search.SearchType.QUERY_THEN_FETCH;
 import static org.elasticsearch.action.search.TransportSearchHelper.checkCCSVersionCompatibility;
+import static org.elasticsearch.search.crossproject.CrossProjectIndexResolutionValidator.indicesOptionsForCrossProjectFanout;
 import static org.elasticsearch.search.sort.FieldSortBuilder.hasPrimaryFieldSort;
 import static org.elasticsearch.threadpool.ThreadPool.Names.SYSTEM_CRITICAL_READ;
 import static org.elasticsearch.threadpool.ThreadPool.Names.SYSTEM_READ;
@@ -172,6 +178,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
     private final UsageService usageService;
     private final boolean collectCCSTelemetry;
     private final TimeValue forceConnectTimeoutSecs;
+    private final CrossProjectModeDecider crossProjectModeDecider;
 
     @Inject
     public TransportSearchAction(
@@ -220,7 +227,8 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         this.searchResponseMetrics = searchResponseMetrics;
         this.client = client;
         this.usageService = usageService;
-        forceConnectTimeoutSecs = settings.getAsTime("search.ccs.force_connect_timeout", null);
+        this.forceConnectTimeoutSecs = settings.getAsTime("search.ccs.force_connect_timeout", null);
+        this.crossProjectModeDecider = new CrossProjectModeDecider(settings);
     }
 
     private Map<String, OriginalIndices> buildPerIndexOriginalIndices(
@@ -355,6 +363,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         Function<ActionListener<SearchResponse>, SearchPhaseProvider> searchPhaseProvider,
         boolean collectSearchTelemetry
     ) {
+        boolean resolvesCrossProject = crossProjectModeDecider.resolvesCrossProject(original);
         final long relativeStartNanos = System.nanoTime();
         final SearchTimeProvider timeProvider = new SearchTimeProvider(
             original.getOrCreateAbsoluteStartMillis(),
@@ -367,16 +376,31 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
 
         ProjectState projectState = projectResolver.getProjectState(clusterState);
         final ResolvedIndices resolvedIndices;
+
+        /*
+         * If this search request is originating from a search endpoint that is CPS compatible, and,
+         * CPS is enabled, i.e. resolvesCrossProject() returns true, we need to modify and relax the
+         * indices options. This is to:
+         *   a) Prevent the downstream code from throwing an error if an index is not found since in
+         *      CPS, an index can exist anywhere.
+         *   b) Prevent the linked projects from re-interpreting the index expressions as CPS expressions
+         *      and rather treat them as canonical/standard ones.
+         */
+        IndicesOptions resolutionIdxOpts = resolvesCrossProject
+            ? indicesOptionsForCrossProjectFanout(original.indicesOptions())
+            : original.indicesOptions();
+
         if (original.pointInTimeBuilder() != null) {
             resolvedIndices = ResolvedIndices.resolveWithPIT(
                 original.pointInTimeBuilder(),
-                original.indicesOptions(),
+                resolutionIdxOpts,
                 projectState.metadata(),
                 namedWriteableRegistry
             );
         } else {
-            resolvedIndices = ResolvedIndices.resolveWithIndicesRequest(
-                original,
+            resolvedIndices = ResolvedIndices.resolveWithIndexNamesAndOptions(
+                original.indices(),
+                resolutionIdxOpts,
                 projectState.metadata(),
                 indexNameExpressionResolver,
                 remoteClusterService,
@@ -423,12 +447,6 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         ActionListener<SearchRequest> rewriteListener = originalListener.delegateFailureAndWrap((delegate, rewritten) -> {
             if (ccsCheckCompatibility) {
                 checkCCSVersionCompatibility(rewritten);
-            }
-            if (rewritten.indicesOptions().resolveCrossProjectIndexExpression()) {
-                IndicesOptions indicesOptions = IndicesOptions.builder(rewritten.indicesOptions())
-                    .crossProjectModeOptions(IndicesOptions.CrossProjectModeOptions.DEFAULT)
-                    .build();
-                rewritten.indicesOptions(indicesOptions);
             }
 
             final ActionListener<SearchResponse> searchResponseActionListener;
@@ -554,6 +572,15 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                         timeProvider,
                         transportService,
                         searchResponseActionListener.delegateFailureAndWrap((finalDelegate, searchShardsResponses) -> {
+                            SearchResponse.Clusters participatingProjects = clusters;
+                            if (resolvesCrossProject && rewritten.getResolvedIndexExpressions() != null) {
+                                participatingProjects = reconcileProjects(
+                                    rewritten.getResolvedIndexExpressions(),
+                                    searchShardsResponses,
+                                    participatingProjects
+                                );
+                            }
+
                             final BiFunction<String, String, DiscoveryNode> clusterNodeLookup = getRemoteClusterNodeLookup(
                                 searchShardsResponses
                             );
@@ -587,17 +614,21 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                                 clusterNodeLookup,
                                 projectState,
                                 remoteAliasFilters,
-                                clusters,
+                                participatingProjects,
                                 searchPhaseProvider.apply(finalDelegate)
                             );
                         }),
-                        forceConnectTimeoutSecs
+                        forceConnectTimeoutSecs,
+                        resolvesCrossProject,
+                        rewritten.getResolvedIndexExpressions(),
+                        rewritten.getProjectRouting()
                     );
                 }
             }
         });
 
         final boolean isExplain = source != null && source.explain() != null && source.explain();
+        final boolean isProfile = source != null && source.profile();
         Rewriteable.rewriteAndFetch(
             original,
             searchService.getRewriteContext(
@@ -607,7 +638,8 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                 resolvedIndices,
                 original.pointInTimeBuilder(),
                 shouldMinimizeRoundtrips(original),
-                isExplain
+                isExplain,
+                isProfile
             ),
             rewriteListener
         );
@@ -937,11 +969,91 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
     }
 
     /**
+     * Reconciliation is only done when Cross Project Search is enabled and requests originate from a CPS
+     * compatible endpoints. Outside CPS, we're sure of projects involved and their corresponding indices.
+     * However, in CPS, it may be possible that indices can exist anywhere:
+     * <ul>
+     *     <li>Only on the origin</li>
+     *     <li>Only on the linked project(s)</li>
+     *     <li>Both on the origin and the linked project(s), and,</li>
+     *     <li>Nowhere</li>
+     * </ul>
+     *
+     * Therefore, we only need to include the details of those projects hosting our indices and participating
+     * in the search. Otherwise, we risk unnecessarily including them in the execution metadata and marking
+     * their statuses as "successful", potentially misleading users into believing that they returned results
+     * and participated in the search.
+     *
+     * Note that this code runs after the SearchShards API's responses have been pieced back and the CPS index
+     * validation is complete.
+     * @param originResolvedIdxExpressions The resolution result from origin's Security Action Filter.
+     * @param shardResponses Responses pieced back from SearchShards API.
+     * @param projects The clusters originally in scope for the query.
+     * @return A new Clusters object containing only the Search-participating projects.
+     */
+    static SearchResponse.Clusters reconcileProjects(
+        ResolvedIndexExpressions originResolvedIdxExpressions,
+        Map<String, SearchShardsResponse> shardResponses,
+        SearchResponse.Clusters projects
+    ) {
+        /*
+         * We only fire a SearchShards API call for a project if it needs to be searched. This can either mean that it was
+         * part of the search due to the flatworld behaviour, or that it was targeted specifically. If it returns an
+         * empty response, it's because the project does not host any of our specified indices.
+         */
+        Set<String> linkedProjectsWithResponses = shardResponses.entrySet()
+            .stream()
+            .filter(ssr -> ssr.getValue().getGroups().isEmpty() == false)
+            .map(Map.Entry::getKey)
+            .collect(Collectors.toSet());
+
+        /*
+         * We don't show any metadata in the response if there are no linked projects to search.
+         * In that case, it's alright to return `Clusters.EMPTY` and is in fact what we do in
+         * stateful, i.e. outside CPS.
+         */
+        if (linkedProjectsWithResponses.isEmpty()) {
+            return SearchResponse.Clusters.EMPTY;
+        }
+
+        boolean shouldIncludeOrigin = originResolvedIdxExpressions.expressions()
+            .stream()
+            .anyMatch(
+                expr -> expr.localExpressions().localIndexResolutionResult() == ResolvedIndexExpression.LocalIndexResolutionResult.SUCCESS
+            );
+
+        Map<String, SearchResponse.Cluster> reconciledMap = new HashMap<>();
+        for (String project : projects.getClusterAliases()) {
+            SearchResponse.Cluster computedProjectInfo = projects.getCluster(project);
+            /*
+             * Selection criteria for a `project` to be included in the metadata:
+             *   - This is the origin project, and there was a "success"ful resolution by the Security Action Filter,
+             *   - This is a linked project with a non-empty response from SearchShards API, or,
+             *   - There was an issue with this project, so let's carry over the failures and reporting them.
+             */
+            boolean shouldAdd = false;
+            if (shouldIncludeOrigin && project.equals(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY)) {
+                shouldAdd = true;
+            } else if (linkedProjectsWithResponses.contains(project)) {
+                shouldAdd = true;
+            } else if (computedProjectInfo.getFailures().isEmpty() == false) {
+                shouldAdd = true;
+            }
+
+            if (shouldAdd) {
+                reconciledMap.put(project, computedProjectInfo);
+            }
+        }
+
+        return new SearchResponse.Clusters(reconciledMap, false);
+    }
+
+    /**
      * Collect remote search shards that we need to search for potential matches.
      * Used for ccs_minimize_roundtrips=false
      */
     static void collectSearchShards(
-        IndicesOptions indicesOptions,
+        IndicesOptions originalIdxOpts,
         String preference,
         String routing,
         QueryBuilder query,
@@ -952,7 +1064,10 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         SearchTimeProvider timeProvider,
         TransportService transportService,
         ActionListener<Map<String, SearchShardsResponse>> listener,
-        TimeValue forceConnectTimeoutSecs
+        TimeValue forceConnectTimeoutSecs,
+        boolean resolvesCrossProject,
+        ResolvedIndexExpressions originResolvedIdxExpressions,
+        String projectRouting
     ) {
         RemoteClusterService remoteClusterService = transportService.getRemoteClusterService();
         final CountDown responsesCountDown = new CountDown(remoteIndicesByCluster.size());
@@ -978,6 +1093,27 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
 
                 @Override
                 Map<String, SearchShardsResponse> createFinalResponse() {
+                    if (resolvesCrossProject && originResolvedIdxExpressions != null) {
+                        Map<String, ResolvedIndexExpressions> resolvedIndexExpressions = new HashMap<>();
+                        for (Map.Entry<String, SearchShardsResponse> entry : searchShardsResponses.entrySet()) {
+                            if (entry.getValue().getResolvedIndexExpressions() == null) {
+                                throw new IllegalArgumentException(
+                                    "Failed to get resolved index expressions for cluster [" + entry.getKey() + "]"
+                                );
+                            }
+                            resolvedIndexExpressions.put(entry.getKey(), entry.getValue().getResolvedIndexExpressions());
+                        }
+                        // We do not use the relaxed index options here when validating indices' existence.
+                        ElasticsearchException validationEx = CrossProjectIndexResolutionValidator.validate(
+                            originalIdxOpts,
+                            projectRouting,
+                            originResolvedIdxExpressions,
+                            resolvedIndexExpressions
+                        );
+                        if (validationEx != null) {
+                            throw validationEx;
+                        }
+                    }
                     return searchShardsResponses;
                 }
             };
@@ -990,13 +1126,24 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             );
 
             connectionListener.addListener(singleListener.delegateFailure((responseListener, connection) -> {
+                /*
+                 * It may be possible that indices do not exist on the project that SearchShards API is targeting.
+                 * In such cases, it throws an error because it calls the index resolution APIs underneath. We relax
+                 * the index options to prevent this from happening, iff this is a CPS request and CPS is enabled.
+                 * Also, it's fine to pass in these relaxed options to it because SearchShardsRequest#allowsCrossProject()
+                 * returns false anyway and the index rewriting does not happen downstream.
+                 */
+                IndicesOptions searchShardsIdxOpts = resolvesCrossProject
+                    ? indicesOptionsForCrossProjectFanout(originalIdxOpts)
+                    : originalIdxOpts;
+
                 final String[] indices = entry.getValue().indices();
                 final Executor responseExecutor = transportService.getThreadPool().executor(ThreadPool.Names.SEARCH_COORDINATION);
                 // TODO: support point-in-time
                 if (searchContext == null && connection.getTransportVersion().onOrAfter(TransportVersions.V_8_9_X)) {
                     SearchShardsRequest searchShardsRequest = new SearchShardsRequest(
                         indices,
-                        indicesOptions,
+                        searchShardsIdxOpts,
                         query,
                         routing,
                         preference,
@@ -1015,7 +1162,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                     ClusterSearchShardsRequest searchShardsRequest = new ClusterSearchShardsRequest(
                         MasterNodeRequest.INFINITE_MASTER_NODE_TIMEOUT,
                         indices
-                    ).indicesOptions(indicesOptions).local(true).preference(preference).routing(routing);
+                    ).indicesOptions(searchShardsIdxOpts).local(true).preference(preference).routing(routing);
                     transportService.sendRequest(
                         connection,
                         TransportClusterSearchShardsAction.TYPE.name(),
@@ -1472,6 +1619,10 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             localShardIterators.size() + remoteShardIterators.size(),
             defaultPreFilterShardSize
         );
+        final Map<String, Object> searchRequestAttributes = SearchRequestAttributesExtractor.extractAttributes(
+            searchRequest,
+            concreteLocalIndices
+        );
         searchPhaseProvider.runNewSearchPhase(
             task,
             searchRequest,
@@ -1484,7 +1635,8 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             concreteIndexBoosts,
             preFilterSearchShards,
             threadPool,
-            clusters
+            clusters,
+            searchRequestAttributes
         );
     }
 
@@ -1602,7 +1754,8 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             Map<String, Float> concreteIndexBoosts,
             boolean preFilter,
             ThreadPool threadPool,
-            SearchResponse.Clusters clusters
+            SearchResponse.Clusters clusters,
+            Map<String, Object> searchRequestAttributes
         );
     }
 
@@ -1626,7 +1779,8 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             Map<String, Float> concreteIndexBoosts,
             boolean preFilter,
             ThreadPool threadPool,
-            SearchResponse.Clusters clusters
+            SearchResponse.Clusters clusters,
+            Map<String, Object> searchRequestAttributes
         ) {
             if (preFilter) {
                 // only for aggs we need to contact shards even if there are no matches
@@ -1643,7 +1797,9 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                     timeProvider,
                     task,
                     requireAtLeastOneMatch,
-                    searchService.getCoordinatorRewriteContextProvider(timeProvider::absoluteStartMillis)
+                    searchService.getCoordinatorRewriteContextProvider(timeProvider::absoluteStartMillis),
+                    searchResponseMetrics,
+                    searchRequestAttributes
                 )
                     .addListener(
                         listener.delegateFailureAndWrap(
@@ -1659,7 +1815,8 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                                 concreteIndexBoosts,
                                 false,
                                 threadPool,
-                                clusters
+                                clusters,
+                                searchRequestAttributes
                             )
                         )
                     );
@@ -1703,7 +1860,8 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                         task,
                         clusters,
                         client,
-                        searchResponseMetrics
+                        searchResponseMetrics,
+                        searchRequestAttributes
                     );
                 } else {
                     assert searchRequest.searchType() == QUERY_THEN_FETCH : searchRequest.searchType();
@@ -1725,7 +1883,8 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                         clusters,
                         client,
                         searchService.batchQueryPhase(),
-                        searchResponseMetrics
+                        searchResponseMetrics,
+                        searchRequestAttributes
                     );
                 }
                 success = true;
@@ -1970,6 +2129,12 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                         // Prefer executing shard requests on nodes that are part of PIT first.
                         if (projectState.cluster().nodes().nodeExists(perNode.getNode())) {
                             targetNodes.add(perNode.getNode());
+                        } else {
+                            logger.debug(
+                                "Node [{}] referenced in PIT context id [{}] no longer exists.",
+                                perNode.getNode(),
+                                perNode.getSearchContextId()
+                            );
                         }
                         ShardSearchContextId shardSearchContextId = perNode.getSearchContextId();
                         if (shardSearchContextId.isRetryable()) {

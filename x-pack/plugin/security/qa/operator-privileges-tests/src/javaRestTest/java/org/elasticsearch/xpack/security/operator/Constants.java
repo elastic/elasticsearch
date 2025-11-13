@@ -174,7 +174,8 @@ public class Constants {
         "cluster:admin/xpack/enrich/get",
         "cluster:admin/xpack/enrich/put",
         "cluster:admin/xpack/enrich/reindex",
-        "cluster:internal/xpack/inference/clear_inference_endpoint_cache",
+        "cluster:admin/xpack/inference/ccm/delete",
+        "cluster:admin/xpack/inference/ccm/put",
         "cluster:admin/xpack/inference/delete",
         "cluster:admin/xpack/inference/put",
         "cluster:admin/xpack/inference/update",
@@ -327,6 +328,9 @@ public class Constants {
         "cluster:admin/xpack/watcher/watch/put",
         "cluster:internal/remote_cluster/nodes",
         "cluster:internal/xpack/inference",
+        "cluster:internal/xpack/inference/clear_inference_ccm_cache",
+        "cluster:internal/xpack/inference/clear_inference_endpoint_cache",
+        "cluster:internal/xpack/inference/create_endpoints",
         "cluster:internal/xpack/inference/rerankwindowsize/get",
         "cluster:internal/xpack/inference/unified",
         "cluster:internal/xpack/ml/auditor/reset",
@@ -394,6 +398,7 @@ public class Constants {
         "cluster:monitor/xpack/esql/stats/dist",
         "cluster:monitor/xpack/inference/post",
         "cluster:monitor/xpack/inference/get",
+        "cluster:monitor/xpack/inference/ccm/get",
         "cluster:monitor/xpack/inference/diagnostics/get",
         "cluster:monitor/xpack/inference/services/get",
         "cluster:monitor/xpack/info",
@@ -663,6 +668,7 @@ public class Constants {
         "indices:admin/sample/config/update",
         "indices:admin/sample/stats",
         "indices:admin/sample/config/delete",
-        "indices:monitor/sample/config/get"
+        "indices:monitor/sample/config/get",
+        "indices:monitor/sample/config/get_all"
     ).filter(Objects::nonNull).collect(Collectors.toUnmodifiableSet());
 }

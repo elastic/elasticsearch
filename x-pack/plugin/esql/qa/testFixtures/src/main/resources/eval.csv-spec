@@ -805,3 +805,28 @@ year:integer
 12
 12
 ;
+
+// Bugfixes for ReplaceAliasingEvalWithProject not accounting for shadowing
+chainOfAliases
+required_capability: fix_replace_aliasing_eval_with_project_shadowing
+
+row x = 1
+| eval y = x, z = y, x = 2, y = 3
+| keep *
+;
+
+z:integer | x:integer | y:integer
+1         | 2         | 3
+;
+
+shadowingOfAliases
+required_capability: fix_replace_aliasing_eval_with_project_shadowing
+
+row x = 1
+| eval  y = "foo", z = x, x = 9
+| rename y as a
+;
+
+a:keyword | z:integer | x:integer
+foo       | 1         | 9
+;

@@ -254,7 +254,7 @@ public final class TranslateTimeSeriesAggregate extends OptimizerRules.Parameter
                         throw new IllegalArgumentException("expected at most one time bucket");
                     }
                     timeBucketRef.set(e);
-                } else if (child instanceof TBucket tbucket && tbucket.field().equals(timestamp.get())) {
+                } else if (child instanceof TBucket tbucket && tbucket.timestamp().equals(timestamp.get())) {
                     if (timeBucketRef.get() != null) {
                         throw new IllegalArgumentException("expected at most one time tbucket");
                     }

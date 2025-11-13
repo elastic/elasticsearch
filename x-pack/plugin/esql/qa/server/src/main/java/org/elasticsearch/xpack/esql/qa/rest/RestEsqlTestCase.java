@@ -1336,6 +1336,89 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
         }
     }
 
+    public void testTopLevelFilterWithSubqueriesInFromCommand() throws IOException {
+        assumeTrue("subqueries in from command", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
+
+        bulkLoadTestData(10);
+
+        String query = format(null, "FROM {} , (FROM {} | WHERE integer < 8) | STATS count(*)", testIndexName(), testIndexName());
+
+        RequestObjectBuilder builder = requestObjectBuilder().filter(b -> {
+            b.startObject("range");
+            {
+                b.startObject("integer").field("gte", "5").endObject();
+            }
+            b.endObject();
+        }).query(query);
+
+        Map<String, Object> result = runEsql(builder);
+        assertResultMap(result, matchesList().item(matchesMap().entry("name", "count(*)").entry("type", "long")), List.of(List.of(8)));
+    }
+
+    public void testNestedSubqueries() throws IOException {
+        assumeTrue("subqueries in from command", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
+
+        bulkLoadTestData(10);
+
+        ResponseException re = expectThrows(
+            ResponseException.class,
+            () -> runEsqlSync(
+                requestObjectBuilder().query(
+                    format(
+                        null,
+                        "from {}, (from {}, (from {} | where integer > 1) | where integer < 8) | stats count(*)",
+                        testIndexName(),
+                        testIndexName(),
+                        testIndexName()
+                    )
+                )
+            )
+        );
+        String error = re.getMessage().replaceAll("\\\\\n\s+\\\\", "");
+        assertThat(error, containsString("VerificationException"));
+        assertThat(error, containsString("Nested subqueries are not supported"));
+    }
+
+    public void testSubqueryWithFork() throws IOException {
+        assumeTrue("subqueries in from command", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
+
+        bulkLoadTestData(10);
+
+        ResponseException re = expectThrows(
+            ResponseException.class,
+            () -> runEsqlSync(
+                requestObjectBuilder().query(
+                    format(
+                        null,
+                        "from {}, (from {} | where integer > 1) | fork (where long > 2) (where ip == \"127.0.0.1\") | stats count(*)",
+                        testIndexName(),
+                        testIndexName()
+                    )
+                )
+            )
+        );
+        String error = re.getMessage().replaceAll("\\\\\n\s+\\\\", "");
+        assertThat(error, containsString("VerificationException"));
+        assertThat(error, containsString("FORK after subquery is not supported"));
+
+        re = expectThrows(
+            ResponseException.class,
+            () -> runEsqlSync(
+                requestObjectBuilder().query(
+                    format(
+                        null,
+                        "from {}, (from {} | where integer > 1 | fork (where long > 2) ( where ip == \"127.0.0.1\")) | stats count(*)",
+                        testIndexName(),
+                        testIndexName()
+                    )
+                )
+            )
+        );
+        error = re.getMessage().replaceAll("\\\\\n\s+\\\\", "");
+        assertThat(error, containsString("VerificationException"));
+        assertThat(error, containsString("FORK inside subquery is not supported"));
+    }
+
     private static String queryWithComplexFieldNames(int field) {
         StringBuilder query = new StringBuilder();
         query.append(" | keep ").append(randomAlphaOfLength(10)).append(1);
@@ -1700,6 +1783,73 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
         query = "FROM " + testIndexName() + " | WHERE field RLIKE \".*\\\\#.*\" | SORT field";
         answer = runEsql(requestObjectBuilder().query(query));
         assertThat(answer.get("values"), equalTo(List.of(List.of("#"), List.of("foo#bar"))));
+    }
+
+    public void testMatchFunctionAcrossMultipleIndicesWithMissingField() throws IOException {
+        int numberOfIndicesWithField = randomIntBetween(11, 20);
+        int numberOfIndicesWithoutField = randomIntBetween(1, 10);
+        int totalIndices = numberOfIndicesWithField + numberOfIndicesWithoutField;
+
+        int indexNum = 0;
+        for (int i = 0; i < numberOfIndicesWithField; i++) {
+            String indexName = testIndexName() + indexNum++;
+            // Create index with the text field
+            createIndex(indexName, Settings.EMPTY, """
+                {
+                    "properties": {
+                        "message": {
+                            "type": "text"
+                        }
+                    }
+                }
+                """);
+            Request doc = new Request("POST", indexName + "/_doc?refresh=true");
+            doc.setJsonEntity("""
+                {
+                    "message": "elasticsearch"
+                }
+                """);
+            client().performRequest(doc);
+        }
+        for (int i = 0; i < numberOfIndicesWithoutField; i++) {
+            String indexName = testIndexName() + indexNum++;
+            // Create index without the text field
+            createIndex(indexName, Settings.EMPTY, """
+                {
+                    "properties": {
+                        "other_field": {
+                            "type": "keyword"
+                        }
+                    }
+                }
+                """);
+
+            // Index a document in each index
+            Request doc = new Request("POST", indexName + "/_doc?refresh=true");
+            doc.setJsonEntity("""
+                {
+                    "other_field": "elasticsearch"
+                }
+                """);
+            client().performRequest(doc);
+        }
+
+        // Query using MATCH function across all indices
+        String query = "FROM " + testIndexName() + "* | WHERE MATCH(message, \"elasticsearch\")";
+        Map<String, Object> result = runEsql(requestObjectBuilder().query(query));
+
+        // Verify the number of results equals the number of indices that have the field
+        var values = as(result.get("values"), ArrayList.class);
+        assertEquals(
+            "Expected " + numberOfIndicesWithField + " results from indices with the 'message' field",
+            numberOfIndicesWithField,
+            values.size()
+        );
+
+        // Clean up - delete all created indices
+        for (int i = 0; i < totalIndices; i++) {
+            assertTrue(deleteIndex(testIndexName() + i).isAcknowledged());
+        }
     }
 
     protected static Request prepareRequestWithOptions(RequestObjectBuilder requestObject, Mode mode) throws IOException {

@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.core.ilm;
 
+import org.elasticsearch.action.downsample.DownsampleConfig;
 import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
@@ -34,7 +35,12 @@ public class DownsampleActionTests extends AbstractActionTestCase<DownsampleActi
     public static final TimeValue WAIT_TIMEOUT = new TimeValue(1, TimeUnit.MINUTES);
 
     static DownsampleAction randomInstance() {
-        return new DownsampleAction(ConfigTestHelpers.randomInterval(), WAIT_TIMEOUT, randomBoolean() ? null : randomBoolean());
+        return new DownsampleAction(
+            ConfigTestHelpers.randomInterval(),
+            WAIT_TIMEOUT,
+            randomBoolean() ? null : randomBoolean(),
+            randomSamplingMethod()
+        );
     }
 
     @Override
@@ -52,14 +58,16 @@ public class DownsampleActionTests extends AbstractActionTestCase<DownsampleActi
         var interval = instance.fixedInterval();
         var waitTimeout = instance.waitTimeout();
         var forceMerge = instance.forceMergeIndex();
-        switch (between(0, 2)) {
+        var samplingMethod = instance.samplingMethod();
+        switch (between(0, 3)) {
             case 0 -> interval = randomValueOtherThan(interval, ConfigTestHelpers::randomInterval);
             case 1 -> waitTimeout = TimeValue.timeValueMillis(
                 randomValueOtherThan(waitTimeout.millis(), () -> randomLongBetween(1, 10000))
             );
             case 2 -> forceMerge = forceMerge == null ? randomBoolean() : forceMerge == false;
+            case 3 -> samplingMethod = randomValueOtherThan(samplingMethod, DownsampleActionTests::randomSamplingMethod);
         }
-        return new DownsampleAction(interval, waitTimeout, forceMerge);
+        return new DownsampleAction(interval, waitTimeout, forceMerge, samplingMethod);
     }
 
     @Override
@@ -74,7 +82,12 @@ public class DownsampleActionTests extends AbstractActionTestCase<DownsampleActi
 
     @Override
     public void testToSteps() {
-        DownsampleAction action = new DownsampleAction(ConfigTestHelpers.randomInterval(), WAIT_TIMEOUT, randomBoolean() ? null : true);
+        DownsampleAction action = new DownsampleAction(
+            ConfigTestHelpers.randomInterval(),
+            WAIT_TIMEOUT,
+            randomBoolean() ? null : true,
+            randomSamplingMethod()
+        );
         String phase = randomAlphaOfLengthBetween(1, 10);
         StepKey nextStepKey = new StepKey(
             randomAlphaOfLengthBetween(1, 10),
@@ -159,7 +172,7 @@ public class DownsampleActionTests extends AbstractActionTestCase<DownsampleActi
     }
 
     public void testToStepsWithoutForceMerge() {
-        DownsampleAction action = new DownsampleAction(ConfigTestHelpers.randomInterval(), WAIT_TIMEOUT, false);
+        DownsampleAction action = new DownsampleAction(ConfigTestHelpers.randomInterval(), WAIT_TIMEOUT, false, randomSamplingMethod());
         String phase = randomAlphaOfLengthBetween(1, 10);
         StepKey nextStepKey = new StepKey(
             randomAlphaOfLengthBetween(1, 10),
@@ -238,7 +251,7 @@ public class DownsampleActionTests extends AbstractActionTestCase<DownsampleActi
     public void testDownsamplingPrerequisitesStep() {
         DateHistogramInterval fixedInterval = ConfigTestHelpers.randomInterval();
         boolean withForceMerge = randomBoolean();
-        DownsampleAction action = new DownsampleAction(fixedInterval, WAIT_TIMEOUT, withForceMerge);
+        DownsampleAction action = new DownsampleAction(fixedInterval, WAIT_TIMEOUT, withForceMerge, randomSamplingMethod());
         String phase = randomAlphaOfLengthBetween(1, 10);
         StepKey nextStepKey = new StepKey(
             randomAlphaOfLengthBetween(1, 10),
@@ -312,5 +325,13 @@ public class DownsampleActionTests extends AbstractActionTestCase<DownsampleActi
 
     public static IndexMetadata newIndexMeta(String name, Settings indexSettings) {
         return IndexMetadata.builder(name).settings(indexSettings(IndexVersion.current(), 1, 1).put(indexSettings)).build();
+    }
+
+    public static DownsampleConfig.SamplingMethod randomSamplingMethod() {
+        if (between(0, DownsampleConfig.SamplingMethod.values().length) == 0) {
+            return null;
+        } else {
+            return randomFrom(DownsampleConfig.SamplingMethod.values());
+        }
     }
 }

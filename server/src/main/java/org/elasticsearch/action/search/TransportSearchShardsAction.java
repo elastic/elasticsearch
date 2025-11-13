@@ -25,6 +25,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.query.Rewriteable;
 import org.elasticsearch.injection.guice.Inject;
+import org.elasticsearch.rest.action.search.SearchResponseMetrics;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.internal.AliasFilter;
@@ -60,6 +61,7 @@ public class TransportSearchShardsAction extends HandledTransportAction<SearchSh
     private final ProjectResolver projectResolver;
     private final IndexNameExpressionResolver indexNameExpressionResolver;
     private final ThreadPool threadPool;
+    private final SearchResponseMetrics searchResponseMetrics;
 
     @Inject
     public TransportSearchShardsAction(
@@ -70,7 +72,8 @@ public class TransportSearchShardsAction extends HandledTransportAction<SearchSh
         TransportSearchAction transportSearchAction,
         SearchTransportService searchTransportService,
         ProjectResolver projectResolver,
-        IndexNameExpressionResolver indexNameExpressionResolver
+        IndexNameExpressionResolver indexNameExpressionResolver,
+        SearchResponseMetrics searchResponseMetrics
     ) {
         super(
             TYPE.name(),
@@ -88,6 +91,7 @@ public class TransportSearchShardsAction extends HandledTransportAction<SearchSh
         this.projectResolver = projectResolver;
         this.indexNameExpressionResolver = indexNameExpressionResolver;
         this.threadPool = transportService.getThreadPool();
+        this.searchResponseMetrics = searchResponseMetrics;
     }
 
     @Override
@@ -160,9 +164,18 @@ public class TransportSearchShardsAction extends HandledTransportAction<SearchSh
                 CollectionUtil.timSort(shardIts);
                 if (SearchService.canRewriteToMatchNone(searchRequest.source()) == false) {
                     delegate.onResponse(
-                        new SearchShardsResponse(toGroups(shardIts), project.cluster().nodes().getAllNodes(), aliasFilters)
+                        new SearchShardsResponse(
+                            toGroups(shardIts),
+                            project.cluster().nodes().getAllNodes(),
+                            aliasFilters,
+                            searchShardsRequest.getResolvedIndexExpressions()
+                        )
                     );
                 } else {
+                    final Map<String, Object> searchRequestAttributes = SearchRequestAttributesExtractor.extractAttributes(
+                        searchRequest,
+                        concreteIndexNames
+                    );
                     CanMatchPreFilterSearchPhase.execute(logger, searchTransportService, (clusterAlias, node) -> {
                         assert Objects.equals(clusterAlias, searchShardsRequest.clusterAlias());
                         return transportService.getConnection(project.cluster().nodes().get(node));
@@ -175,11 +188,18 @@ public class TransportSearchShardsAction extends HandledTransportAction<SearchSh
                         timeProvider,
                         (SearchTask) task,
                         false,
-                        searchService.getCoordinatorRewriteContextProvider(timeProvider::absoluteStartMillis)
+                        searchService.getCoordinatorRewriteContextProvider(timeProvider::absoluteStartMillis),
+                        searchResponseMetrics,
+                        searchRequestAttributes
                     )
                         .addListener(
                             delegate.map(
-                                its -> new SearchShardsResponse(toGroups(its), project.cluster().nodes().getAllNodes(), aliasFilters)
+                                its -> new SearchShardsResponse(
+                                    toGroups(its),
+                                    project.cluster().nodes().getAllNodes(),
+                                    aliasFilters,
+                                    searchShardsRequest.getResolvedIndexExpressions()
+                                )
                             )
                         );
                 }
@@ -190,7 +210,14 @@ public class TransportSearchShardsAction extends HandledTransportAction<SearchSh
     private static List<SearchShardsGroup> toGroups(List<SearchShardIterator> shardIts) {
         List<SearchShardsGroup> groups = new ArrayList<>(shardIts.size());
         for (SearchShardIterator shardIt : shardIts) {
-            groups.add(new SearchShardsGroup(shardIt.shardId(), shardIt.getTargetNodeIds(), shardIt.skip()));
+            groups.add(
+                new SearchShardsGroup(
+                    shardIt.shardId(),
+                    shardIt.getTargetNodeIds(),
+                    shardIt.skip(),
+                    shardIt.getReshardSplitShardCountSummary()
+                )
+            );
         }
         return groups;
     }

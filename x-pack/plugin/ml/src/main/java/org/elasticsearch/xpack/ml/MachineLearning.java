@@ -39,6 +39,7 @@ import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.common.settings.SettingsModule;
+import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.Processors;
 import org.elasticsearch.common.util.FeatureFlag;
@@ -718,6 +719,15 @@ public class MachineLearning extends Plugin
         Property.NodeScope
     );
 
+    public static final Setting<ByteSizeValue> RESULTS_INDEX_ROLLOVER_MAX_SIZE = Setting.byteSizeSetting(
+        "xpack.ml.results_index_rollover_max_size",
+        ByteSizeValue.of(50, ByteSizeUnit.GB),
+        ByteSizeValue.ofBytes(-1L),
+        ByteSizeValue.ofBytes(Long.MAX_VALUE),
+        Property.OperatorDynamic,
+        Property.NodeScope
+    );
+
     /**
      * This is the maximum possible node size for a machine learning node. It is useful when determining if a job could ever be opened
      * on the cluster.
@@ -841,6 +851,7 @@ public class MachineLearning extends Plugin
             ModelLoadingService.INFERENCE_MODEL_CACHE_TTL,
             ResultsPersisterService.PERSIST_RESULTS_MAX_RETRIES,
             NIGHTLY_MAINTENANCE_REQUESTS_PER_SECOND,
+            RESULTS_INDEX_ROLLOVER_MAX_SIZE,
             MachineLearningField.USE_AUTO_MACHINE_MEMORY_PERCENT,
             MAX_ML_NODE_SIZE,
             DELAYED_DATA_CHECK_FREQ,
@@ -1348,6 +1359,7 @@ public class MachineLearning extends Plugin
             client,
             adaptiveAllocationsScalerService,
             mlAssignmentNotifier,
+            indexNameExpressionResolver,
             machineLearningExtension.get().isAnomalyDetectionEnabled(),
             machineLearningExtension.get().isDataFrameAnalyticsEnabled(),
             machineLearningExtension.get().isNlpEnabled()
@@ -1527,7 +1539,7 @@ public class MachineLearning extends Plugin
             restHandlers.add(new RestDeleteTrainedModelAliasAction());
             restHandlers.add(new RestPutTrainedModelDefinitionPartAction());
             restHandlers.add(new RestInferTrainedModelAction());
-            restHandlers.add(new RestCatTrainedModelsAction());
+            restHandlers.add(new RestCatTrainedModelsAction(machineLearningExtension.get().isDataFrameAnalyticsEnabled()));
             if (machineLearningExtension.get().isDataFrameAnalyticsEnabled()) {
                 restHandlers.add(new RestGetDataFrameAnalyticsAction());
                 restHandlers.add(new RestGetDataFrameAnalyticsStatsAction());
@@ -2057,7 +2069,11 @@ public class MachineLearning extends Plugin
         Client originClient = new OriginSettingClient(client, ML_ORIGIN);
         originClient.execute(
             SetUpgradeModeAction.INSTANCE,
-            new SetUpgradeModeAction.Request(true),
+            new SetUpgradeModeAction.Request(
+                MachineLearning.HARD_CODED_MACHINE_LEARNING_MASTER_NODE_TIMEOUT,
+                MachineLearning.HARD_CODED_MACHINE_LEARNING_MASTER_NODE_TIMEOUT,
+                true
+            ),
             listener.delegateFailureAndWrap((l, r) -> l.onResponse(Collections.singletonMap("already_in_upgrade_mode", false)))
         );
     }
@@ -2074,7 +2090,11 @@ public class MachineLearning extends Plugin
         Client originClient = new OriginSettingClient(client, ML_ORIGIN);
         originClient.execute(
             SetUpgradeModeAction.INSTANCE,
-            new SetUpgradeModeAction.Request(false),
+            new SetUpgradeModeAction.Request(
+                MachineLearning.HARD_CODED_MACHINE_LEARNING_MASTER_NODE_TIMEOUT,
+                MachineLearning.HARD_CODED_MACHINE_LEARNING_MASTER_NODE_TIMEOUT,
+                false
+            ),
             listener.delegateFailureAndWrap((l, r) -> l.onResponse(r.isAcknowledged()))
         );
     }
@@ -2153,23 +2173,27 @@ public class MachineLearning extends Plugin
 
         ActionListener<ResetFeatureStateResponse.ResetFeatureStateStatus> unsetResetModeListener = ActionListener.wrap(success -> {
 
-            client.execute(SetResetModeAction.INSTANCE, SetResetModeActionRequest.disabled(true), ActionListener.wrap(resetSuccess -> {
-                finalListener.onResponse(success);
-                logger.info("Finished machine learning feature reset");
-            }, resetFailure -> {
-                logger.error("failed to disable reset mode after state otherwise successful machine learning reset", resetFailure);
-                finalListener.onFailure(
-                    ExceptionsHelper.serverError(
-                        "failed to disable reset mode after state otherwise successful machine learning reset",
-                        resetFailure
-                    )
-                );
-            }));
+            client.execute(
+                SetResetModeAction.INSTANCE,
+                SetResetModeActionRequest.disabled(masterNodeTimeout, true),
+                ActionListener.wrap(resetSuccess -> {
+                    finalListener.onResponse(success);
+                    logger.info("Finished machine learning feature reset");
+                }, resetFailure -> {
+                    logger.error("failed to disable reset mode after state otherwise successful machine learning reset", resetFailure);
+                    finalListener.onFailure(
+                        ExceptionsHelper.serverError(
+                            "failed to disable reset mode after state otherwise successful machine learning reset",
+                            resetFailure
+                        )
+                    );
+                })
+            );
         }, failure -> {
             logger.error("failed to reset machine learning", failure);
             client.execute(
                 SetResetModeAction.INSTANCE,
-                SetResetModeActionRequest.disabled(false),
+                SetResetModeActionRequest.disabled(masterNodeTimeout, false),
                 ActionListener.wrap(resetSuccess -> finalListener.onFailure(failure), resetFailure -> {
                     logger.error("failed to disable reset mode after state clean up failure", resetFailure);
                     finalListener.onFailure(failure);
@@ -2353,7 +2377,7 @@ public class MachineLearning extends Plugin
         }, finalListener::onFailure);
 
         // Indicate that a reset is now in progress
-        client.execute(SetResetModeAction.INSTANCE, SetResetModeActionRequest.enabled(), afterResetModeSet);
+        client.execute(SetResetModeAction.INSTANCE, SetResetModeActionRequest.enabled(masterNodeTimeout), afterResetModeSet);
     }
 
     @Override

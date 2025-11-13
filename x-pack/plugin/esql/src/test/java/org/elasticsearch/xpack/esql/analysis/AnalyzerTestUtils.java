@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.analysis;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.test.ESTestCase;
@@ -112,7 +113,7 @@ public final class AnalyzerTestUtils {
         );
     }
 
-    private static Map<IndexPattern, IndexResolution> mergeIndexResolutions(
+    public static Map<IndexPattern, IndexResolution> mergeIndexResolutions(
         Map<IndexPattern, IndexResolution> indexResolutions,
         Map<IndexPattern, IndexResolution> more
     ) {
@@ -154,6 +155,17 @@ public final class AnalyzerTestUtils {
         var analyzed = analyzer.analyze(plan);
         // System.out.println(analyzed);
         return analyzed;
+    }
+
+    public static LogicalPlan analyze(String query, TransportVersion transportVersion) {
+        Analyzer baseAnalyzer = expandedDefaultAnalyzer();
+        if (baseAnalyzer.context() instanceof MutableAnalyzerContext mutableContext) {
+            try (var restore = mutableContext.setTemporaryTransportVersionOnOrAfter(transportVersion)) {
+                return analyze(query, baseAnalyzer);
+            }
+        } else {
+            throw new UnsupportedOperationException("Analyzer Context is not mutable");
+        }
     }
 
     private static final Pattern indexFromPattern = Pattern.compile("(?i)FROM\\s+([\\w-]+)");
@@ -309,7 +321,9 @@ public final class AnalyzerTestUtils {
             new IndexPattern(Source.EMPTY, "sample_data"),
             loadMapping("mapping-sample_data.json", "sample_data"),
             new IndexPattern(Source.EMPTY, "test_mixed_types"),
-            loadMapping("mapping-default-incompatible.json", "test_mixed_types")
+            loadMapping("mapping-default-incompatible.json", "test_mixed_types"),
+            new IndexPattern(Source.EMPTY, "k8s"),
+            loadMapping("k8s-downsampled-mappings.json", "k8s", IndexMode.TIME_SERIES)
         );
     }
 

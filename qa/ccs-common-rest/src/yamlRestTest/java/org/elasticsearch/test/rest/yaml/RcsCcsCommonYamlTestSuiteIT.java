@@ -30,7 +30,6 @@ import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.FeatureFlag;
 import org.elasticsearch.test.cluster.local.LocalClusterConfigProvider;
 import org.elasticsearch.test.cluster.util.resource.Resource;
-import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.test.rest.ObjectPath;
 import org.elasticsearch.test.rest.TestFeatureService;
 import org.elasticsearch.test.rest.yaml.CcsCommonYamlTestSuiteIT.TestCandidateAwareClient;
@@ -45,7 +44,6 @@ import java.io.UncheckedIOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
@@ -97,8 +95,8 @@ public class RcsCcsCommonYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
         .setting("xpack.security.remote_cluster_server.ssl.enabled", "false")
         .setting("xpack.security.remote_cluster_client.ssl.enabled", "false")
         .feature(FeatureFlag.TIME_SERIES_MODE)
-        .feature(FeatureFlag.SUB_OBJECTS_AUTO_ENABLED)
         .feature(FeatureFlag.SYNTHETIC_VECTORS)
+        .feature(FeatureFlag.GENERIC_VECTOR_FORMAT)
         .user("test_admin", "x-pack-test-password");
 
     private static ElasticsearchCluster fulfillingCluster = ElasticsearchCluster.local()
@@ -298,14 +296,9 @@ public class RcsCcsCommonYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
                 var searchOs = readOsFromNodesInfo(adminSearchClient);
                 var searchNodeVersions = readVersionsFromNodesInfo(adminSearchClient);
 
-                var semanticNodeVersions = searchNodeVersions.stream()
-                    .map(ESRestTestCase::parseLegacyVersion)
-                    .flatMap(Optional::stream)
-                    .collect(Collectors.toSet());
-
                 final TestFeatureService searchTestFeatureService = createTestFeatureService(
                     getClusterStateFeatures(adminSearchClient),
-                    semanticNodeVersions
+                    fromSemanticVersions(searchNodeVersions)
                 );
 
                 final TestFeatureService combinedTestFeatureService = (featureId, any) -> {

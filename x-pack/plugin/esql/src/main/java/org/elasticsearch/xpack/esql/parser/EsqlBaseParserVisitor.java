@@ -118,6 +118,18 @@ public interface EsqlBaseParserVisitor<T> extends ParseTreeVisitor<T> {
    */
   T visitIndexPatternAndMetadataFields(EsqlBaseParser.IndexPatternAndMetadataFieldsContext ctx);
   /**
+   * Visit a parse tree produced by {@link EsqlBaseParser#indexPatternOrSubquery}.
+   * @param ctx the parse tree
+   * @return the visitor result
+   */
+  T visitIndexPatternOrSubquery(EsqlBaseParser.IndexPatternOrSubqueryContext ctx);
+  /**
+   * Visit a parse tree produced by {@link EsqlBaseParser#subquery}.
+   * @param ctx the parse tree
+   * @return the visitor result
+   */
+  T visitSubquery(EsqlBaseParser.SubqueryContext ctx);
+  /**
    * Visit a parse tree produced by {@link EsqlBaseParser#indexPattern}.
    * @param ctx the parse tree
    * @return the visitor result

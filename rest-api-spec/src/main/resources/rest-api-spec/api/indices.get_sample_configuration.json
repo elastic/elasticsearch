@@ -5,7 +5,8 @@
       "description": "Get sampling configuration for an index or data stream"
     },
     "stability": "experimental",
-    "visibility": "public",
+    "visibility": "feature_flag",
+    "feature_flag": "random_sampling",
     "headers": {
       "accept": [
         "application/json"

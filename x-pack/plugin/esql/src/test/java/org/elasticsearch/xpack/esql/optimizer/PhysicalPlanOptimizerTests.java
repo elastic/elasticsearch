@@ -88,6 +88,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StDistanc
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.ToLower;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.ToUpper;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.WildcardLike;
+import org.elasticsearch.xpack.esql.expression.function.vector.DotProduct;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.And;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.Not;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.Or;
@@ -251,6 +252,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
     private TestDataSource countriesBbox;       // geo_shape field tests
     private TestDataSource countriesBboxWeb;    // cartesian_shape field tests
     private TestDataSource metricsData; // k8s metrics index with time-series fields
+    private TestDataSource testAllMapping; // k8s metrics index with time-series fields
 
     private final Configuration config;
     private PlannerSettings plannerSettings;
@@ -385,6 +387,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         );
         this.metricsData = makeTestDataSource("k8s", "k8s-mappings.json", functionRegistry, enrichResolution);
         this.plannerSettings = TEST_PLANNER_SETTINGS;
+        this.testAllMapping = makeTestDataSource("test_all", "mapping-all-types.json", functionRegistry, enrichResolution);
     }
 
     TestDataSource makeTestDataSource(
@@ -683,8 +686,6 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
      *              [[QueryBuilderAndTags{queryBuilder=[null], tags=[]}]]
     */
     public void testEvalWithScoreImplicitLimit() {
-        assumeTrue("[SCORE] function is only available in snapshot builds", EsqlCapabilities.Cap.SCORE_FUNCTION.isEnabled());
-
         var plan = physicalPlan("""
             FROM test
             | EVAL s = SCORE(MATCH(first_name, "foo"))
@@ -717,8 +718,6 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
      *              [[QueryBuilderAndTags{queryBuilder=[null], tags=[]}]]
      */
     public void testEvalWithScoreExplicitLimit() {
-        assumeTrue("[SCORE] function is only available in snapshot builds", EsqlCapabilities.Cap.SCORE_FUNCTION.isEnabled());
-
         var plan = physicalPlan("""
             FROM test
             | EVAL s = SCORE(MATCH(first_name, "foo"))
@@ -760,8 +759,6 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
      * }], tags=[]}]]
      **/
     public void testEvalWithScoreAndFilterOnEval() {
-        assumeTrue("[SCORE] function is only available in snapshot builds", EsqlCapabilities.Cap.SCORE_FUNCTION.isEnabled());
-
         var plan = physicalPlan("""
             FROM test
             | EVAL s = SCORE(MATCH(first_name, "foo"))
@@ -815,8 +812,6 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
      * }], tags=[]}]]
      **/
     public void testEvalWithScoreAndGenericFilter() {
-        assumeTrue("[SCORE] function is only available in snapshot builds", EsqlCapabilities.Cap.SCORE_FUNCTION.isEnabled());
-
         var plan = physicalPlan("""
             FROM test
             | EVAL s = SCORE(MATCH(first_name, "foo"))
@@ -868,8 +863,6 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
      * }], tags=[]}]]
      */
     public void testEvalWithScoreForTopN() {
-        assumeTrue("[SCORE] function is only available in snapshot builds", EsqlCapabilities.Cap.SCORE_FUNCTION.isEnabled());
-
         var plan = physicalPlan("""
             FROM test
             | EVAL s = SCORE(MATCH(first_name, "foo"))
@@ -8095,6 +8088,41 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         AggregateExec first = as(second.child(), AggregateExec.class);
         assertThat(first.getMode(), equalTo(FINAL));
         as(first.child(), ExchangeExec.class);
+    }
+
+    public void testVectorFunctionsNotPushedInCoordinator() {
+        assumeTrue("requires similarity functions", EsqlCapabilities.Cap.VECTOR_SIMILARITY_FUNCTIONS_PUSHDOWN.isEnabled());
+        String query = """
+            from test_all
+            | sort long
+            | limit 10
+            | eval s = v_dot_product(dense_vector, [1.0, 2.0, 3.0])
+            | keep s
+            """;
+
+        PhysicalPlan plan = physicalPlan(query, testAllMapping);
+        PhysicalPlan optimized = testData.physicalOptimizer().optimize(plan);
+
+        // ProjectExec[[s{r}#6]]
+        var project = as(optimized, ProjectExec.class);
+        assertThat(Expressions.names(project.projections()), contains("s"));
+
+        // Eval uses DotProduct for calculating the value, not pushed down as a field extraction
+        var eval = as(project.child(), EvalExec.class);
+        assertThat(eval.fields(), hasSize(1));
+        var alias = eval.fields().get(0);
+        assertThat(alias.name(), equalTo("s"));
+        assertThat(alias.child(), instanceOf(DotProduct.class));
+
+        var topN = as(eval.child(), TopNExec.class);
+        // ExchangeExec has dense_vector instead of pushed down field extraction
+        var exchange = asRemoteExchange(topN.child());
+        assertThat(Expressions.names(exchange.output()), containsInAnyOrder("dense_vector", "long"));
+
+        var fragment = as(exchange.child(), FragmentExec.class);
+        var fragmentPlan = fragment.fragment();
+        var fragmentProject = as(fragmentPlan, Project.class);
+        assertThat(Expressions.names(fragmentProject.projections()), containsInAnyOrder("dense_vector", "long"));
     }
 
     private void assertLookupJoinFieldNames(String query, TestDataSource data, List<Set<String>> expectedFieldNames) {

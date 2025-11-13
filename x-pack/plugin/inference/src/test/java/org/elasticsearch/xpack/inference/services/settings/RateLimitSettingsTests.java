@@ -188,7 +188,17 @@ public class RateLimitSettingsTests extends AbstractBWCWireSerializationTestCase
 
     @Override
     protected RateLimitSettings mutateInstance(RateLimitSettings instance) throws IOException {
-        return randomValueOtherThan(instance, RateLimitSettingsTests::createRandom);
+        var requestsPerTimeUnit = instance.requestsPerTimeUnit();
+        var timeUnit = instance.timeUnit();
+        var enabled = instance.isEnabled();
+        switch (randomInt(2)) {
+            case 0 -> requestsPerTimeUnit = randomValueOtherThan(requestsPerTimeUnit, () -> randomLongBetween(1, 1000000));
+            case 1 -> timeUnit = randomValueOtherThan(timeUnit, () -> randomFrom(TimeUnit.values()));
+            case 2 -> enabled = enabled == false;
+            default -> throw new AssertionError("Illegal randomisation branch");
+        }
+
+        return new RateLimitSettings(requestsPerTimeUnit, timeUnit, enabled);
     }
 
     @Override

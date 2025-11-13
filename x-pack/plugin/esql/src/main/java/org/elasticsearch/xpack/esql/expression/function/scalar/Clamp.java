@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.expression.function.scalar;
 
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
+import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
@@ -22,7 +23,9 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.Clamp
 import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.ClampMin;
 
 import java.io.IOException;
+import java.util.Comparator;
 import java.util.List;
+import java.util.stream.Stream;
 
 import static org.elasticsearch.xpack.esql.core.type.DataType.NULL;
 
@@ -33,6 +36,7 @@ public class Clamp extends EsqlScalarFunction implements SurrogateExpression {
     private final Expression field;
     private final Expression min;
     private final Expression max;
+    private DataType resolvedType;
 
     @FunctionInfo(
         returnType = { "double", "integer", "long", "double", "unsigned_long", "keyword", "ip", "boolean", "date", "version" },
@@ -75,6 +79,8 @@ public class Clamp extends EsqlScalarFunction implements SurrogateExpression {
         }
 
         var field = children().get(0);
+        var max = children().get(1);
+        var min = children().get(2);
         var fieldDataType = field.dataType().noText();
         TypeResolution resolution = TypeResolutions.isType(
             field,
@@ -89,24 +95,44 @@ public class Clamp extends EsqlScalarFunction implements SurrogateExpression {
         if (fieldDataType == NULL) {
             return new TypeResolution("'field' must not be null in clamp()");
         }
-        for (Expression child : List.of(children().get(1), children().get(2))) {
-            var childRes = TypeResolutions.isType(
-                child,
-                t -> t.isNumeric() ? fieldDataType.isNumeric() : t.noText() == fieldDataType,
-                sourceText(),
-                child == children().get(1) ? TypeResolutions.ParamOrdinal.SECOND : TypeResolutions.ParamOrdinal.THIRD,
-                fieldDataType.typeName()
-            );
-            if (childRes.unresolved()) {
-                return childRes;
-            }
+        resolution = TypeResolutions.isType(
+            max,
+            t -> t.isNumeric() ? fieldDataType.isNumeric() : t.noText() == fieldDataType.noText(),
+            sourceText(),
+            TypeResolutions.ParamOrdinal.SECOND,
+            fieldDataType.typeName()
+        );
+        if (resolution.unresolved()) {
+            return resolution;
+        }
+        resolution = TypeResolutions.isType(
+            min,
+            t -> t.isNumeric() ? fieldDataType.isNumeric() : t.noText() == fieldDataType.noText(),
+            sourceText(),
+            TypeResolutions.ParamOrdinal.THIRD,
+            fieldDataType.typeName()
+        );
+        if (resolution.unresolved()) {
+            return resolution;
+        }
+        if (fieldDataType.isNumeric() == false) {
+            resolvedType = fieldDataType;
+        } else {
+            // When the types are equally wide, prefer rational numbers
+            resolvedType = Stream.of(fieldDataType, max.dataType(), min.dataType())
+                .sorted(Comparator.comparingInt(DataType::estimatedSize).thenComparing(DataType::isRationalNumber))
+                .toList()
+                .getLast();
         }
         return TypeResolution.TYPE_RESOLVED;
     }
 
     @Override
     public DataType dataType() {
-        return field.dataType();
+        if (resolvedType == null && resolveType().resolved() == false) {
+            throw new EsqlIllegalArgumentException("Unable to resolve data type for clamp_max");
+        }
+        return resolvedType;
     }
 
     @Override

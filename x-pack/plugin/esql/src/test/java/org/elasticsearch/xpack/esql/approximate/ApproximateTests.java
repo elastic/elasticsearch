@@ -28,6 +28,7 @@ import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.expression.Foldables;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.Sum;
 import org.elasticsearch.xpack.esql.inference.InferenceService;
 import org.elasticsearch.xpack.esql.optimizer.LogicalOptimizerContext;
 import org.elasticsearch.xpack.esql.optimizer.LogicalPlanOptimizer;
@@ -35,6 +36,7 @@ import org.elasticsearch.xpack.esql.optimizer.LogicalPlanPreOptimizer;
 import org.elasticsearch.xpack.esql.optimizer.LogicalPreOptimizerContext;
 import org.elasticsearch.xpack.esql.parser.EsqlParser;
 import org.elasticsearch.xpack.esql.parser.QueryParams;
+import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
@@ -233,9 +235,9 @@ public class ApproximateTests extends ESTestCase {
         // - one pass to get the total number of rows (which is zero)
         // - one pass to execute the original query
         assertThat(runner.invocations, hasSize(3));
-        assertThat(runner.invocations.get(0), allOf(not(hasSample())));
-        assertThat(runner.invocations.get(1), allOf(not(hasSample())));
-        assertThat(runner.invocations.get(2), allOf(not(hasSample())));
+        assertThat(runner.invocations.get(0), allOf(not(hasSample()), hasSum()));
+        assertThat(runner.invocations.get(1), allOf(not(hasSample()), not(hasSum())));
+        assertThat(runner.invocations.get(2), allOf(not(hasSample()), hasSum()));
     }
 
     public void testCountPlan_largeDataNoFilters() throws Exception {
@@ -247,9 +249,9 @@ public class ApproximateTests extends ESTestCase {
         // - one pass to get the total number of rows (which determines the sample probability)
         // - one pass to approximate the query
         assertThat(runner.invocations, hasSize(3));
-        assertThat(runner.invocations.get(0), allOf(not(hasSample())));
-        assertThat(runner.invocations.get(1), allOf(not(hasSample())));
-        assertThat(runner.invocations.get(2), allOf(hasSample(1e-4)));
+        assertThat(runner.invocations.get(0), allOf(not(hasSample()), hasSum()));
+        assertThat(runner.invocations.get(1), allOf(not(hasSample()), not(hasSum())));
+        assertThat(runner.invocations.get(2), allOf(hasSample(1e-4), hasSum()));
     }
 
     public void testCountPlan_smallDataNoFilters() throws Exception {
@@ -261,9 +263,9 @@ public class ApproximateTests extends ESTestCase {
         // - one pass to get the total number of rows (which is small)
         // - one pass to execute the original query
         assertThat(runner.invocations, hasSize(3));
-        assertThat(runner.invocations.get(0), allOf(not(hasSample())));
-        assertThat(runner.invocations.get(1), allOf(not(hasSample())));
-        assertThat(runner.invocations.get(2), allOf(not(hasSample())));
+        assertThat(runner.invocations.get(0), allOf(not(hasSample()), hasSum()));
+        assertThat(runner.invocations.get(1), allOf(not(hasSample()), not(hasSum())));
+        assertThat(runner.invocations.get(2), allOf(not(hasSample()), hasSum()));
     }
 
     public void testCountPlan_largeDataAfterFiltering() throws Exception {
@@ -276,11 +278,11 @@ public class ApproximateTests extends ESTestCase {
         // - two passes to get the number of filtered rows (which determines the sample probability)
         // - one pass to approximate the query
         assertThat(runner.invocations, hasSize(5));
-        assertThat(runner.invocations.get(0), allOf(hasFilter("emp_no"), not(hasSample())));
-        assertThat(runner.invocations.get(1), allOf(not(hasFilter("emp_no")), not(hasSample())));
-        assertThat(runner.invocations.get(2), allOf(hasFilter("emp_no"), hasSample(1e-8)));
-        assertThat(runner.invocations.get(3), allOf(hasFilter("emp_no"), hasSample(1e-5)));
-        assertThat(runner.invocations.get(4), allOf(hasFilter("emp_no"), hasSample(1e-4)));
+        assertThat(runner.invocations.get(0), allOf(hasFilter("emp_no"), not(hasSample()), hasSum()));
+        assertThat(runner.invocations.get(1), allOf(not(hasFilter("emp_no")), not(hasSample()), not(hasSum())));
+        assertThat(runner.invocations.get(2), allOf(hasFilter("emp_no"), hasSample(1e-8), not(hasSum())));
+        assertThat(runner.invocations.get(3), allOf(hasFilter("emp_no"), hasSample(1e-5), not(hasSum())));
+        assertThat(runner.invocations.get(4), allOf(hasFilter("emp_no"), hasSample(1e-4), hasSum()));
     }
 
     public void testCountPlan_smallDataAfterFiltering() throws Exception {
@@ -293,14 +295,14 @@ public class ApproximateTests extends ESTestCase {
         // - three passes to get the number of filtered rows (which is small)
         // - one pass to execute the original query
         assertThat(runner.invocations, hasSize(8));
-        assertThat(runner.invocations.get(0), allOf(hasFilter("emp_no"), not(hasSample())));
-        assertThat(runner.invocations.get(1), allOf(not(hasFilter("emp_no")), not(hasSample())));
-        assertThat(runner.invocations.get(2), allOf(hasFilter("emp_no"), hasSample(1e-14)));
-        assertThat(runner.invocations.get(3), allOf(hasFilter("emp_no"), hasSample(1e-10)));
-        assertThat(runner.invocations.get(4), allOf(hasFilter("emp_no"), hasSample(1e-6)));
-        assertThat(runner.invocations.get(5), allOf(hasFilter("emp_no"), hasSample(1e-2)));
-        assertThat(runner.invocations.get(6), allOf(hasFilter("emp_no"), not(hasSample())));
-        assertThat(runner.invocations.get(7), allOf(hasFilter("emp_no"), not(hasSample())));
+        assertThat(runner.invocations.get(0), allOf(hasFilter("emp_no"), not(hasSample()), hasSum()));
+        assertThat(runner.invocations.get(1), allOf(not(hasFilter("emp_no")), not(hasSample()), not(hasSum())));
+        assertThat(runner.invocations.get(2), allOf(hasFilter("emp_no"), hasSample(1e-14), not(hasSum())));
+        assertThat(runner.invocations.get(3), allOf(hasFilter("emp_no"), hasSample(1e-10), not(hasSum())));
+        assertThat(runner.invocations.get(4), allOf(hasFilter("emp_no"), hasSample(1e-6), not(hasSum())));
+        assertThat(runner.invocations.get(5), allOf(hasFilter("emp_no"), hasSample(1e-2), not(hasSum())));
+        assertThat(runner.invocations.get(6), allOf(hasFilter("emp_no"), not(hasSample()), not(hasSum())));
+        assertThat(runner.invocations.get(7), allOf(hasFilter("emp_no"), not(hasSample()), hasSum()));
     }
 
     public void testCountPlan_smallDataBeforeFiltering() throws Exception {
@@ -312,9 +314,9 @@ public class ApproximateTests extends ESTestCase {
         // - one pass to get the total number of rows (which is small)
         // - one pass to execute the original query
         assertThat(runner.invocations, hasSize(3));
-        assertThat(runner.invocations.get(0), allOf(hasFilter("gender"), not(hasSample())));
-        assertThat(runner.invocations.get(1), allOf(not(hasFilter("gender")), not(hasSample())));
-        assertThat(runner.invocations.get(2), allOf(hasFilter("gender"), not(hasSample())));
+        assertThat(runner.invocations.get(0), allOf(hasFilter("gender"), not(hasSample()), hasSum()));
+        assertThat(runner.invocations.get(1), allOf(not(hasFilter("gender")), not(hasSample()), not(hasSum())));
+        assertThat(runner.invocations.get(2), allOf(hasFilter("gender"), not(hasSample()), hasSum()));
     }
 
     public void testCountPlan_smallDataAfterMvExpanding() throws Exception {
@@ -327,10 +329,10 @@ public class ApproximateTests extends ESTestCase {
         // - one pass to get the number of expanded rows (which determines the sample probability)
         // - one pass to execute the original query
         assertThat(runner.invocations, hasSize(4));
-        assertThat(runner.invocations.get(0), allOf(hasMvExpand("emp_no"), not(hasSample())));
-        assertThat(runner.invocations.get(1), allOf(not(hasMvExpand("emp_no")), not(hasSample())));
-        assertThat(runner.invocations.get(2), allOf(hasMvExpand("emp_no"), not(hasSample())));
-        assertThat(runner.invocations.get(3), allOf(hasMvExpand("emp_no"), not(hasSample())));
+        assertThat(runner.invocations.get(0), allOf(hasMvExpand("emp_no"), not(hasSample()), hasSum()));
+        assertThat(runner.invocations.get(1), allOf(not(hasMvExpand("emp_no")), not(hasSample()), not(hasSum())));
+        assertThat(runner.invocations.get(2), allOf(hasMvExpand("emp_no"), not(hasSample()), not(hasSum())));
+        assertThat(runner.invocations.get(3), allOf(hasMvExpand("emp_no"), not(hasSample()), hasSum()));
     }
 
     public void testCountPlan_largeDataAfterMvExpanding() throws Exception {
@@ -343,10 +345,10 @@ public class ApproximateTests extends ESTestCase {
         // - one pass to get the number of expanded rows (which determines the sample probability)
         // - one pass to approximate the query
         assertThat(runner.invocations, hasSize(4));
-        assertThat(runner.invocations.get(0), allOf(hasMvExpand("emp_no"), not(hasSample())));
-        assertThat(runner.invocations.get(1), allOf(not(hasMvExpand("emp_no")), not(hasSample())));
-        assertThat(runner.invocations.get(2), allOf(hasMvExpand("emp_no"), not(hasSample())));
-        assertThat(runner.invocations.get(3), allOf(hasMvExpand("emp_no"), hasSample(1e-4)));
+        assertThat(runner.invocations.get(0), allOf(hasMvExpand("emp_no"), not(hasSample()), hasSum()));
+        assertThat(runner.invocations.get(1), allOf(not(hasMvExpand("emp_no")), not(hasSample()), not(hasSum()), not(hasSum())));
+        assertThat(runner.invocations.get(2), allOf(hasMvExpand("emp_no"), not(hasSample()), not(hasSum()), not(hasSum())));
+        assertThat(runner.invocations.get(3), allOf(hasMvExpand("emp_no"), hasSample(1e-4), hasSum()));
     }
 
     public void testCountPlan_largeDataBeforeMvExpanding() throws Exception {
@@ -359,10 +361,10 @@ public class ApproximateTests extends ESTestCase {
         // - one pass to sample the number of expanded rows (which determines the sample probability)
         // - one pass to approximate the query
         assertThat(runner.invocations, hasSize(4));
-        assertThat(runner.invocations.get(0), allOf(hasMvExpand("emp_no")));
-        assertThat(runner.invocations.get(1), allOf(not(hasMvExpand("emp_no")), not(hasSample())));
-        assertThat(runner.invocations.get(2), allOf(hasMvExpand("emp_no"), hasSample(1e-5)));
-        assertThat(runner.invocations.get(3), allOf(hasMvExpand("emp_no"), hasSample(1e-7)));
+        assertThat(runner.invocations.get(0), allOf(hasMvExpand("emp_no"), hasSum()));
+        assertThat(runner.invocations.get(1), allOf(not(hasMvExpand("emp_no")), not(hasSample()), not(hasSum())));
+        assertThat(runner.invocations.get(2), allOf(hasMvExpand("emp_no"), hasSample(1e-5), not(hasSum())));
+        assertThat(runner.invocations.get(3), allOf(hasMvExpand("emp_no"), hasSample(1e-7), hasSum()));
     }
 
     public void testCountPlan_sampleProbabilityThreshold_noFilter() throws Exception {
@@ -374,9 +376,9 @@ public class ApproximateTests extends ESTestCase {
         // - one pass to get the total number of rows
         // - one pass to execute the original query (because the sample probability is 20%)
         assertThat(runner.invocations, hasSize(3));
-        assertThat(runner.invocations.get(0), allOf(not(hasSample())));
-        assertThat(runner.invocations.get(1), allOf(not(hasSample())));
-        assertThat(runner.invocations.get(1), allOf(not(hasSample())));
+        assertThat(runner.invocations.get(0), allOf(not(hasSample()), hasSum()));
+        assertThat(runner.invocations.get(1), allOf(not(hasSample()), not(hasSum())));
+        assertThat(runner.invocations.get(2), allOf(not(hasSample()), hasSum()));
     }
 
     public void testCountPlan_sampleProbabilityThreshold_withFilter() throws Exception {
@@ -389,12 +391,12 @@ public class ApproximateTests extends ESTestCase {
         // - two passes to get the number of filtered rows (which determines the sample probability)
         // - one pass to execute the original query (because the sample probability is 50%)
         assertThat(runner.invocations, hasSize(6));
-        assertThat(runner.invocations.get(0), allOf(not(hasSample()), hasFilter("emp_no")));
-        assertThat(runner.invocations.get(1), allOf(not(hasSample()), not(hasFilter("emp_no"))));
-        assertThat(runner.invocations.get(2), allOf(hasSample(1e-8), hasFilter("emp_no")));
-        assertThat(runner.invocations.get(3), allOf(hasSample(1e-4), hasFilter("emp_no")));
-        assertThat(runner.invocations.get(4), allOf(hasSample(0.05), hasFilter("emp_no")));
-        assertThat(runner.invocations.get(5), allOf(not(hasSample()), hasFilter("emp_no")));
+        assertThat(runner.invocations.get(0), allOf(not(hasSample()), hasFilter("emp_no"), hasSum()));
+        assertThat(runner.invocations.get(1), allOf(not(hasSample()), not(hasFilter("emp_no")), not(hasSum())));
+        assertThat(runner.invocations.get(2), allOf(hasSample(1e-8), hasFilter("emp_no"), not(hasSum())));
+        assertThat(runner.invocations.get(3), allOf(hasSample(1e-4), hasFilter("emp_no"), not(hasSum())));
+        assertThat(runner.invocations.get(4), allOf(hasSample(0.05), hasFilter("emp_no"), not(hasSum())));
+        assertThat(runner.invocations.get(5), allOf(not(hasSample()), hasFilter("emp_no"), hasSum()));
     }
 
     public void testApproximatePlan_createsConfidenceInterval_withoutGrouping() throws Exception {
@@ -484,6 +486,10 @@ public class ApproximateTests extends ESTestCase {
 
     private Matcher<? super LogicalPlan> hasSample(Double probability) {
         return hasPlan(Sample.class, sample -> sample.probability().equals(Literal.fromDouble(Source.EMPTY, probability)));
+    }
+
+    private Matcher<? super LogicalPlan> hasSum() {
+        return hasPlan(Aggregate.class, aggr -> aggr.aggregates().stream().anyMatch(named -> named.anyMatch(expr -> expr instanceof Sum)));
     }
 
     private <E extends LogicalPlan> Matcher<? super LogicalPlan> hasPlan(Class<E> typeToken, Predicate<? super E> predicate) {

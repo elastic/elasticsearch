@@ -1768,7 +1768,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
         }
 
         /**
-         * If the weight function returns a non-finite weight (see {@link #nodeWeightIsInvalid(float)}). We default the weight
+         * If the weight function returns an invalid weight (see {@link #nodeWeightIsInvalid(float)}). We default the weight
          * to {@link Float#MAX_VALUE}. This method returns the number of nodes that returned valid weights last time
          * {@link #reset(ProjectIndex)} or {@link #reset(ProjectIndex, int)} was called. This allows iteration of only those
          * nodes which returned valid weights.

@@ -106,7 +106,6 @@ public abstract class TransportBroadcastReplicationAction<
                 final ProjectState projectState = projectResolver.getProjectState(clusterState);
                 final ProjectMetadata project = projectState.metadata();
                 final List<ShardRecord> shards = shards(request, projectState);
-                //final List<Tuple<ShardId, SplitShardCountSummary>> shards = shards(request, projectState);
                 final Map<String, IndexMetadata> indexMetadataByName = project.indices();
 
                 try (var refs = new RefCountingRunnable(() -> finish(listener))) {
@@ -216,8 +215,7 @@ public abstract class TransportBroadcastReplicationAction<
 
             while (iterator.hasNext()) {
                 ShardId shardId = iterator.next().shardId();
-                SplitShardCountSummary splitSummary =
-                    SplitShardCountSummary.forIndexing(indexMetadata, shardId.getId());
+                SplitShardCountSummary splitSummary = SplitShardCountSummary.forIndexing(indexMetadata, shardId.getId());
                 shards.add(new ShardRecord(shardId, splitSummary));
             }
         }

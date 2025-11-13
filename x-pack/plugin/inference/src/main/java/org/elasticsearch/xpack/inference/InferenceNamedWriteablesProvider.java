@@ -21,6 +21,8 @@ import org.elasticsearch.inference.UnifiedCompletionRequest;
 import org.elasticsearch.xpack.core.inference.results.ChatCompletionResults;
 import org.elasticsearch.xpack.core.inference.results.DenseEmbeddingByteResults;
 import org.elasticsearch.xpack.core.inference.results.DenseEmbeddingFloatResults;
+import org.elasticsearch.xpack.core.inference.results.GenericDenseEmbeddingByteResults;
+import org.elasticsearch.xpack.core.inference.results.GenericDenseEmbeddingFloatResults;
 import org.elasticsearch.xpack.core.inference.results.RankedDocsResults;
 import org.elasticsearch.xpack.core.inference.results.SparseEmbeddingResults;
 import org.elasticsearch.xpack.core.inference.results.StreamingChatCompletionResults;
@@ -666,7 +668,21 @@ public class InferenceNamedWriteablesProvider {
             )
         );
         namedWriteables.add(
+            new NamedWriteableRegistry.Entry(
+                InferenceServiceResults.class,
+                GenericDenseEmbeddingFloatResults.NAME,
+                GenericDenseEmbeddingFloatResults::new
+            )
+        );
+        namedWriteables.add(
             new NamedWriteableRegistry.Entry(InferenceServiceResults.class, DenseEmbeddingByteResults.NAME, DenseEmbeddingByteResults::new)
+        );
+        namedWriteables.add(
+            new NamedWriteableRegistry.Entry(
+                InferenceServiceResults.class,
+                GenericDenseEmbeddingByteResults.NAME,
+                GenericDenseEmbeddingByteResults::new
+            )
         );
         namedWriteables.add(
             new NamedWriteableRegistry.Entry(InferenceServiceResults.class, ChatCompletionResults.NAME, ChatCompletionResults::new)

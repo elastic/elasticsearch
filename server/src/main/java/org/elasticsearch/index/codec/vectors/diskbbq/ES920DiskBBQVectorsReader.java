@@ -169,6 +169,12 @@ public class ES920DiskBBQVectorsReader extends IVFVectorsReader {
         );
     }
 
+    @Override
+    protected float[] preconditionVector(FieldInfo fieldInfo, float[] vector) {
+        // no-op
+        return vector;
+    }
+
     private static CentroidIterator getCentroidIteratorNoParent(
         FieldInfo fieldInfo,
         IndexInput centroids,

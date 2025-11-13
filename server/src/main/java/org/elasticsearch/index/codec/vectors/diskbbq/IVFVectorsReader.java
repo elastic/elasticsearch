@@ -271,6 +271,8 @@ public abstract class IVFVectorsReader extends KnnVectorsReader {
         return getReaderForField(field).getByteVectorValues(field);
     }
 
+    protected abstract float[] preconditionVector(FieldInfo fieldInfo, float[] vector);
+
     @Override
     public final void search(String field, float[] target, KnnCollector knnCollector, AcceptDocs acceptDocs) throws IOException {
         final FieldInfo fieldInfo = state.fieldInfos.fieldInfo(field);
@@ -302,6 +304,10 @@ public abstract class IVFVectorsReader extends KnnVectorsReader {
             // clip so we visit at least one vector
             visitRatio = estimated / numVectors;
         }
+
+        // precondition the query vector if necessary
+        target = preconditionVector(fieldInfo, target);
+
         // we account for soar vectors here. We can potentially visit a vector twice so we multiply by 2 here.
         long maxVectorVisited = (long) (2.0 * visitRatio * numVectors);
         IndexInput postListSlice = entry.postingListSlice(ivfClusters);
@@ -314,6 +320,7 @@ public abstract class IVFVectorsReader extends KnnVectorsReader {
             visitRatio
         );
         Bits acceptDocsBits = acceptDocs.bits();
+
         PostingVisitor scorer = getPostingVisitor(fieldInfo, postListSlice, target, acceptDocsBits);
         long expectedDocs = 0;
         long actualDocs = 0;

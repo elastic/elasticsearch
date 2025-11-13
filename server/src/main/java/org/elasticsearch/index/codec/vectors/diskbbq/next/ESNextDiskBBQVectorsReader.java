@@ -22,11 +22,13 @@ import org.elasticsearch.index.codec.vectors.OptimizedScalarQuantizer;
 import org.elasticsearch.index.codec.vectors.cluster.NeighborQueue;
 import org.elasticsearch.index.codec.vectors.diskbbq.DocIdsWriter;
 import org.elasticsearch.index.codec.vectors.diskbbq.IVFVectorsReader;
+import org.elasticsearch.index.codec.vectors.diskbbq.PreconditioningProvider;
 import org.elasticsearch.simdvec.ES92Int7VectorsScorer;
 import org.elasticsearch.simdvec.ESNextOSQVectorsScorer;
 import org.elasticsearch.simdvec.ESVectorUtil;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.Map;
 
 import static org.apache.lucene.index.VectorSimilarityFunction.COSINE;
@@ -138,6 +140,20 @@ public class ESNextDiskBBQVectorsReader extends IVFVectorsReader {
     }
 
     @Override
+    protected float[] preconditionVector(FieldInfo fieldInfo, float[] vector) {
+        FieldEntry entry = fields.get(fieldInfo.number);
+        PreconditioningProvider preconditioningProvider = ((NextFieldEntry) entry).preconditioningProvider();
+        // only precondition if during writing preconditioning was enabled
+        if(preconditioningProvider != null) {
+            // have to copy so we don't modify the original search vector
+            float[] tmp = Arrays.copyOf(vector, vector.length);
+            preconditioningProvider.applyPreconditioningTransform(tmp);
+            return tmp;
+        }
+        return vector;
+    }
+
+    @Override
     protected FieldEntry doReadField(
         IndexInput input,
         String rawVectorFormat,
@@ -153,6 +169,10 @@ public class ESNextDiskBBQVectorsReader extends IVFVectorsReader {
         float globalCentroidDp
     ) throws IOException {
         ESNextDiskBBQVectorsFormat.QuantEncoding quantEncoding = ESNextDiskBBQVectorsFormat.QuantEncoding.fromId(input.readInt());
+        PreconditioningProvider preconditioningProvider = null;
+        if(input.readByte() == (byte) 1) {
+            preconditioningProvider = PreconditioningProvider.read(input);
+        }
         return new NextFieldEntry(
             rawVectorFormat,
             useDirectIOReads,
@@ -165,12 +185,14 @@ public class ESNextDiskBBQVectorsReader extends IVFVectorsReader {
             postingListLength,
             globalCentroid,
             globalCentroidDp,
-            quantEncoding
+            quantEncoding,
+            preconditioningProvider
         );
     }
 
     static class NextFieldEntry extends FieldEntry {
         private final ESNextDiskBBQVectorsFormat.QuantEncoding quantEncoding;
+        private final PreconditioningProvider preconditioningProvider;
 
         NextFieldEntry(
             String rawVectorFormat,
@@ -184,7 +206,8 @@ public class ESNextDiskBBQVectorsReader extends IVFVectorsReader {
             long postingListLength,
             float[] globalCentroid,
             float globalCentroidDp,
-            ESNextDiskBBQVectorsFormat.QuantEncoding quantEncoding
+            ESNextDiskBBQVectorsFormat.QuantEncoding quantEncoding,
+            PreconditioningProvider preconditioningProvider
         ) {
             super(
                 rawVectorFormat,
@@ -200,11 +223,13 @@ public class ESNextDiskBBQVectorsReader extends IVFVectorsReader {
                 globalCentroidDp
             );
             this.quantEncoding = quantEncoding;
+            this.preconditioningProvider = preconditioningProvider;
         }
 
         public ESNextDiskBBQVectorsFormat.QuantEncoding quantEncoding() {
             return quantEncoding;
         }
+        public PreconditioningProvider preconditioningProvider() { return preconditioningProvider; }
     }
 
     private static CentroidIterator getCentroidIteratorNoParent(

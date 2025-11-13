@@ -1,0 +1,82 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
+ */
+
+package org.elasticsearch.index.codec.vectors.diskbbq;
+
+
+import org.apache.lucene.index.FloatVectorValues;
+import org.apache.lucene.tests.util.LuceneTestCase;
+
+import java.io.IOException;
+
+public class PreconditioningProviderTests extends LuceneTestCase {
+    public void testRandomProviderConfigurations() throws IOException {
+        int dim = random().nextInt(128, 1024);
+
+        int corpusLen = random().nextInt(100, 200);
+        float[][] corpus = new float[corpusLen][];
+        for(int i = 0; i < corpusLen; i++) {
+            corpus[i] = new float[dim];
+            for (int j = 0; j < dim; j++) {
+                if(j > 320) {
+                    corpus[i][j] = 0f;
+                } else {
+                    corpus[i][j] = random().nextFloat();
+                }
+            }
+        }
+
+        float[] query = new float[dim];
+        for(int i = 0; i < dim; i++) {
+            query[i] = random().nextFloat();
+        }
+
+        int blockDim = random().nextInt(8, 384);
+
+        PreconditioningProvider preconditioningProvider = new PreconditioningProvider(blockDim,
+            new FloatVectorValues() {
+                @Override
+                public int size() {
+                    return corpus.length;
+                }
+
+                @Override
+                public int dimension() {
+                    return dim;
+                }
+
+                @Override
+                public float[] vectorValue(int targetOrd) {
+                    return corpus[targetOrd];
+                }
+
+                @Override
+                public FloatVectorValues copy() {
+                    return this;
+                }
+
+                @Override
+                public DocIndexIterator iterator() {
+                    return createDenseIterator();
+                }
+            }
+        );
+
+        preconditioningProvider.applyPreconditioningTransform(query);
+
+        assertEquals(blockDim, preconditioningProvider.blockDim);
+        assertEquals(dim / blockDim + 1, preconditioningProvider.permutationMatrix.length);
+        assertEquals(Math.min(blockDim, dim), preconditioningProvider.permutationMatrix[0].length);
+        assertEquals(dim - (long) (dim / blockDim) * blockDim,
+            preconditioningProvider.permutationMatrix[preconditioningProvider.permutationMatrix.length-1].length);
+        assertEquals(dim / blockDim + 1, preconditioningProvider.blocks.length);
+        assertEquals(Math.min(blockDim, dim), preconditioningProvider.blocks[0].length);
+        assertEquals(Math.min(blockDim, dim), preconditioningProvider.blocks[0][0].length);
+    }
+}

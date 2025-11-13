@@ -379,6 +379,12 @@ public class ES920DiskBBQVectorsWriter extends IVFVectorsWriter {
     }
 
     @Override
+    public FloatVectorValues preconditionVectors(FloatVectorValues floatVectorValues) throws IOException {
+        // no-op
+        return floatVectorValues;
+    }
+
+    @Override
     public void writeCentroids(
         FieldInfo fieldInfo,
         CentroidSupplier centroidSupplier,

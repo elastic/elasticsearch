@@ -32,6 +32,7 @@ import org.elasticsearch.index.codec.vectors.diskbbq.DocIdsWriter;
 import org.elasticsearch.index.codec.vectors.diskbbq.IVFVectorsWriter;
 import org.elasticsearch.index.codec.vectors.diskbbq.IntSorter;
 import org.elasticsearch.index.codec.vectors.diskbbq.IntToBooleanFunction;
+import org.elasticsearch.index.codec.vectors.diskbbq.PreconditioningProvider;
 import org.elasticsearch.index.codec.vectors.diskbbq.QuantizedVectorValues;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
@@ -59,6 +60,8 @@ public class ESNextDiskBBQVectorsWriter extends IVFVectorsWriter {
     private final int vectorPerCluster;
     private final int centroidsPerParentCluster;
     private final ESNextDiskBBQVectorsFormat.QuantEncoding quantEncoding;
+    private final boolean doPrecondition;
+    private final int preconditioningBlockDimension;
 
     public ESNextDiskBBQVectorsWriter(
         SegmentWriteState state,
@@ -67,12 +70,60 @@ public class ESNextDiskBBQVectorsWriter extends IVFVectorsWriter {
         FlatVectorsWriter rawVectorDelegate,
         ESNextDiskBBQVectorsFormat.QuantEncoding encoding,
         int vectorPerCluster,
-        int centroidsPerParentCluster
+        int centroidsPerParentCluster,
+        boolean doPrecondition,
+        int preconditioningBlockDimension
     ) throws IOException {
         super(state, rawVectorFormatName, useDirectIOReads, rawVectorDelegate, ESNextDiskBBQVectorsFormat.VERSION_CURRENT);
         this.vectorPerCluster = vectorPerCluster;
         this.centroidsPerParentCluster = centroidsPerParentCluster;
         this.quantEncoding = encoding;
+        this.doPrecondition = doPrecondition;
+        this.preconditioningBlockDimension = preconditioningBlockDimension;
+    }
+
+    private PreconditioningProvider preconditioningProvider;
+
+    @Override
+    public FloatVectorValues preconditionVectors(FloatVectorValues vectors) throws IOException {
+        if(doPrecondition) {
+            preconditioningProvider = new PreconditioningProvider(preconditioningBlockDimension, vectors);
+            return new FloatVectorValues() {
+                float[] vectorValue;
+                int cachedOrd = -1;
+
+                @Override
+                public float[] vectorValue(int ord) throws IOException {
+                    assert ord != -1;
+                    if (ord != cachedOrd) {
+                        float[] vectorValue = vectors.vectorValue(ord);
+                        // since vectorValue will get reused copy it before mutating it
+                        float[] tmp = Arrays.copyOf(vectorValue, vectorValue.length);
+                        preconditioningProvider.applyPreconditioningTransform(tmp);
+                        cachedOrd = ord;
+                        this.vectorValue = tmp;
+                    }
+                    return this.vectorValue;
+                }
+
+                @Override
+                public FloatVectorValues copy() throws IOException {
+                    return vectors.copy();
+                }
+
+                @Override
+                public int dimension() {
+                    return vectors.dimension();
+                }
+
+                @Override
+                public int size() {
+                    return vectors.size();
+                }
+            };
+        } else {
+            return vectors;
+        }
     }
 
     @Override
@@ -373,6 +424,12 @@ public class ESNextDiskBBQVectorsWriter extends IVFVectorsWriter {
     @Override
     protected void doWriteMeta(IndexOutput metaOutput, FieldInfo field, int numCentroids) throws IOException {
         metaOutput.writeInt(quantEncoding.id());
+        if(preconditioningProvider != null ) {
+            metaOutput.writeByte((byte) 1);
+            preconditioningProvider.write(metaOutput);
+        } else {
+            metaOutput.writeByte((byte) 0);
+        }
     }
 
     @Override

@@ -329,6 +329,7 @@ public class Constants {
         "cluster:internal/xpack/inference",
         "cluster:internal/xpack/inference/rerankwindowsize/get",
         "cluster:internal/xpack/inference/unified",
+        "cluster:internal/xpack/ml/auditor/reset",
         "cluster:internal/xpack/ml/coordinatedinference",
         "cluster:internal/xpack/ml/datafeed/isolate",
         "cluster:internal/xpack/ml/datafeed/running_state",

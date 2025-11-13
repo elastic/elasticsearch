@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.transform.integration;
 import org.apache.http.HttpHost;
 import org.apache.http.entity.ContentType;
 import org.apache.http.entity.StringEntity;
+import org.apache.http.util.EntityUtils;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
@@ -19,6 +20,7 @@ import org.elasticsearch.client.RestClientBuilder;
 import org.elasticsearch.client.WarningsHandler;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.junit.Before;
@@ -1884,6 +1886,110 @@ public class TransformPivotRestIT extends TransformRestTestCase {
         assertThat(coordinates.get(2), hasSize(2));
         assertThat(coordinates.get(3), hasSize(2));
         assertThat(coordinates.get(4), hasSize(2));
+    }
+
+    // https://github.com/elastic/elasticsearch/issues/126591
+    @SuppressWarnings("unchecked")
+    public void testGeotileWithMissingBuckets() throws IOException {
+        var sourceIndex = "geotile_with_missing_buckets_source";
+        setupDataAccessRole(DATA_ACCESS_ROLE, sourceIndex);
+        createIndex(client(), sourceIndex, Settings.EMPTY, """
+            {
+              "properties": {
+                "username": {
+                  "type": "keyword"
+                },
+                "date": {
+                  "type": "date"
+                },
+                "location": {
+                  "type": "geo_point"
+                }
+              }
+            }
+            """);
+        doBulk(Strings.format("""
+            {"create":{"_index":"%s"}}
+            { "username": "bob", "date": "2025-12-25", "location": "50.62096405029297,5.5580315589904785" }
+            {"create":{"_index":"%s"}}
+            { "username": "bob", "date": "2024-12-25", "location": "50.62096405029297,5.5580315589904785" }
+            {"create":{"_index":"%s"}}
+            { "username": "bob", "date": "2023-12-25" }
+            """, sourceIndex, sourceIndex, sourceIndex), true);
+
+        var createPreviewRequest = createRequestWithAuth("POST", getTransformEndpoint() + "_preview", null);
+        createPreviewRequest.setJsonEntity(Strings.format("""
+            {
+              "source": {
+                "index": "%s"
+              },
+              "pivot": {
+                "group_by": {
+                  "user": {
+                    "terms": {
+                      "field": "username"
+                    }
+                  },
+                  "pings": {
+                    "geotile_grid": {
+                      "field": "location",
+                      "precision": 1,
+                      "missing_bucket": true
+                    }
+                  }
+                },
+                "aggregations": {
+                  "seen_first": {
+                    "min": {
+                      "field": "date"
+                    }
+                  }
+                }
+              }
+            }
+            """, sourceIndex));
+        var previewTransformResponse = EntityUtils.toString(client().performRequest(createPreviewRequest).getEntity());
+
+        assertNotNull(previewTransformResponse);
+        assertThat(previewTransformResponse, containsString(XContentHelper.stripWhitespace("""
+            {
+                  "seen_first": "2023-12-25T00:00:00.000Z",
+                  "pings": null,
+                  "user": "bob"
+                },
+                {
+                  "seen_first": "2024-12-25T00:00:00.000Z",
+                  "pings": {
+                    "type": "polygon",
+                    "coordinates": [
+                      [
+                        [
+                          180.0,
+                          0.0
+                        ],
+                        [
+                          0.0,
+                          0.0
+                        ],
+                        [
+                          0.0,
+                          85.0511287798066
+                        ],
+                        [
+                          180.0,
+                          85.0511287798066
+                        ],
+                        [
+                          180.0,
+                          0.0
+                        ]
+                      ]
+                    ]
+                  },
+                  "user": "bob"
+                }
+            """)));
+        deleteIndex(sourceIndex);
     }
 
     public void testPivotWithWeightedAvgAgg() throws Exception {

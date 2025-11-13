@@ -7,26 +7,20 @@
 
 package org.elasticsearch.xpack.esql.expression.function.fulltext;
 
-import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.index.query.QueryBuilder;
-import org.elasticsearch.xpack.esql.capabilities.PostAnalysisPlanVerificationAware;
-import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.InvalidArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
-import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.MapExpression;
 import org.elasticsearch.xpack.esql.core.querydsl.query.Query;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.Check;
-import org.elasticsearch.xpack.esql.core.util.NumericUtils;
-import org.elasticsearch.xpack.esql.expression.Foldables;
 import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
@@ -37,18 +31,14 @@ import org.elasticsearch.xpack.esql.expression.function.Options;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.LucenePushdownPredicates;
-import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.planner.TranslatorHandler;
 import org.elasticsearch.xpack.esql.querydsl.query.MatchQuery;
-import org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter;
 
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Set;
-import java.util.function.BiConsumer;
 
 import static java.util.Map.entry;
 import static org.elasticsearch.index.query.AbstractQueryBuilder.BOOST_FIELD;
@@ -62,11 +52,7 @@ import static org.elasticsearch.index.query.MatchQueryBuilder.MINIMUM_SHOULD_MAT
 import static org.elasticsearch.index.query.MatchQueryBuilder.OPERATOR_FIELD;
 import static org.elasticsearch.index.query.MatchQueryBuilder.PREFIX_LENGTH_FIELD;
 import static org.elasticsearch.index.query.MatchQueryBuilder.ZERO_TERMS_QUERY_FIELD;
-import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.FIRST;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.SECOND;
-import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.THIRD;
-import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isNotNull;
-import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
 import static org.elasticsearch.xpack.esql.core.type.DataType.BOOLEAN;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DATETIME;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DATE_NANOS;
@@ -76,20 +62,20 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
 import static org.elasticsearch.xpack.esql.core.type.DataType.IP;
 import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
 import static org.elasticsearch.xpack.esql.core.type.DataType.LONG;
+import static org.elasticsearch.xpack.esql.core.type.DataType.NULL;
 import static org.elasticsearch.xpack.esql.core.type.DataType.TEXT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.UNSIGNED_LONG;
 import static org.elasticsearch.xpack.esql.core.type.DataType.VERSION;
-import static org.elasticsearch.xpack.esql.expression.Foldables.TypeResolutionValidator.forPreOptimizationValidation;
-import static org.elasticsearch.xpack.esql.expression.Foldables.resolveTypeQuery;
 import static org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.EsqlBinaryComparison.formatIncompatibleTypesMessage;
 
 /**
  * Full text function that performs a {@link org.elasticsearch.xpack.esql.querydsl.query.MatchQuery} .
  */
-public class Match extends FullTextFunction implements OptionalArgument, PostAnalysisPlanVerificationAware {
+public class Match extends SingleFieldFullTextFunction implements OptionalArgument {
 
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Match", Match::readFrom);
     public static final Set<DataType> FIELD_DATA_TYPES = Set.of(
+        NULL,
         KEYWORD,
         TEXT,
         BOOLEAN,
@@ -114,11 +100,6 @@ public class Match extends FullTextFunction implements OptionalArgument, PostAna
         UNSIGNED_LONG,
         VERSION
     );
-
-    protected final Expression field;
-
-    // Options for match function. They don’t need to be serialized as the data nodes will retrieve them from the query builder
-    private final transient Expression options;
 
     public static final Map<String, DataType> ALLOWED_OPTIONS = Map.ofEntries(
         entry(ANALYZER_FIELD.getPreferredName(), KEYWORD),
@@ -266,9 +247,14 @@ public class Match extends FullTextFunction implements OptionalArgument, PostAna
     }
 
     public Match(Source source, Expression field, Expression matchQuery, Expression options, QueryBuilder queryBuilder) {
-        super(source, matchQuery, options == null ? List.of(field, matchQuery) : List.of(field, matchQuery, options), queryBuilder);
-        this.field = field;
-        this.options = options;
+        super(
+            source,
+            field,
+            matchQuery,
+            options,
+            options == null ? List.of(field, matchQuery) : List.of(field, matchQuery, options),
+            queryBuilder
+        );
     }
 
     @Override
@@ -300,39 +286,7 @@ public class Match extends FullTextFunction implements OptionalArgument, PostAna
 
     @Override
     protected TypeResolution resolveParams() {
-        return resolveField().and(resolveQuery())
-            .and(Options.resolve(options(), source(), THIRD, ALLOWED_OPTIONS))
-            .and(checkParamCompatibility());
-    }
-
-    private TypeResolution resolveField() {
-        return isNotNull(field, sourceText(), FIRST).and(
-            isType(
-                field,
-                FIELD_DATA_TYPES::contains,
-                sourceText(),
-                FIRST,
-                "keyword, text, boolean, date, date_nanos, double, integer, ip, long, unsigned_long, version"
-            )
-        );
-    }
-
-    private TypeResolution resolveQuery() {
-        TypeResolution result = isType(
-            query(),
-            QUERY_DATA_TYPES::contains,
-            sourceText(),
-            SECOND,
-            "keyword, boolean, date, date_nanos, double, integer, ip, long, unsigned_long, version"
-        ).and(isNotNull(query(), sourceText(), SECOND));
-        if (result.unresolved()) {
-            return result;
-        }
-        result = resolveTypeQuery(query(), sourceText(), forPreOptimizationValidation(query()));
-        if (result.equals(TypeResolution.TYPE_RESOLVED) == false) {
-            return result;
-        }
-        return TypeResolution.TYPE_RESOLVED;
+        return super.resolveParams().and(checkParamCompatibility());
     }
 
     private TypeResolution checkParamCompatibility() {
@@ -340,7 +294,8 @@ public class Match extends FullTextFunction implements OptionalArgument, PostAna
         DataType queryType = query().dataType();
 
         // Field and query types should match. If the query is a string, then it can match any field type.
-        if ((fieldType == queryType) || (queryType == KEYWORD)) {
+        // If the field is null, it will be folded to null.
+        if ((fieldType == queryType) || (queryType == KEYWORD) || fieldType == NULL) {
             return TypeResolution.TYPE_RESOLVED;
         }
 
@@ -354,6 +309,21 @@ public class Match extends FullTextFunction implements OptionalArgument, PostAna
         return new TypeResolution(formatIncompatibleTypesMessage(fieldType, queryType, sourceText()));
     }
 
+    @Override
+    protected Set<DataType> getFieldDataTypes() {
+        return FIELD_DATA_TYPES;
+    }
+
+    @Override
+    protected Set<DataType> getQueryDataTypes() {
+        return QUERY_DATA_TYPES;
+    }
+
+    @Override
+    protected Map<String, DataType> getAllowedOptions() {
+        return ALLOWED_OPTIONS;
+    }
+
     private Map<String, Object> matchQueryOptions() throws InvalidArgumentException {
         if (options() == null) {
             return Map.of(LENIENT_FIELD.getPreferredName(), true);
@@ -365,14 +335,6 @@ public class Match extends FullTextFunction implements OptionalArgument, PostAna
 
         Options.populateMap((MapExpression) options(), matchOptions, source(), SECOND, ALLOWED_OPTIONS);
         return matchOptions;
-    }
-
-    public Expression field() {
-        return field;
-    }
-
-    public Expression options() {
-        return options;
     }
 
     @Override
@@ -397,64 +359,11 @@ public class Match extends FullTextFunction implements OptionalArgument, PostAna
     }
 
     @Override
-    public BiConsumer<LogicalPlan, Failures> postAnalysisPlanVerification() {
-        return (plan, failures) -> {
-            super.postAnalysisPlanVerification().accept(plan, failures);
-            fieldVerifier(plan, this, field, failures);
-        };
-    }
-
-    public Object queryAsObject() {
-        Object queryAsObject = Foldables.queryAsObject(query(), sourceText());
-
-        // Convert BytesRef to string for string-based values
-        if (queryAsObject instanceof BytesRef bytesRef) {
-            return switch (query().dataType()) {
-                case IP -> EsqlDataTypeConverter.ipToString(bytesRef);
-                case VERSION -> EsqlDataTypeConverter.versionToString(bytesRef);
-                default -> bytesRef.utf8ToString();
-            };
-        }
-
-        // Converts specific types to the correct type for the query
-        if (query().dataType() == DataType.UNSIGNED_LONG) {
-            return NumericUtils.unsignedLongAsBigInteger((Long) queryAsObject);
-        } else if (query().dataType() == DataType.DATETIME && queryAsObject instanceof Long) {
-            // When casting to date and datetime, we get a long back. But Match query needs a date string
-            return EsqlDataTypeConverter.dateTimeToString((Long) queryAsObject);
-        } else if (query().dataType() == DATE_NANOS && queryAsObject instanceof Long) {
-            return EsqlDataTypeConverter.nanoTimeToString((Long) queryAsObject);
-        }
-
-        return queryAsObject;
-    }
-
-    @Override
     protected Query translate(LucenePushdownPredicates pushdownPredicates, TranslatorHandler handler) {
         var fieldAttribute = fieldAsFieldAttribute();
         Check.notNull(fieldAttribute, "Match must have a field attribute as the first argument");
         String fieldName = getNameFromFieldAttribute(fieldAttribute);
         // Make query lenient so mixed field types can be queried when a field type is incompatible with the value provided
         return new MatchQuery(source(), fieldName, queryAsObject(), matchQueryOptions());
-    }
-
-    private FieldAttribute fieldAsFieldAttribute() {
-        return fieldAsFieldAttribute(field);
-    }
-
-    @Override
-    public boolean equals(Object o) {
-        // Match does not serialize options, as they get included in the query builder. We need to override equals and hashcode to
-        // ignore options when comparing two Match functions
-        if (o == null || getClass() != o.getClass()) return false;
-        Match match = (Match) o;
-        return Objects.equals(field(), match.field())
-            && Objects.equals(query(), match.query())
-            && Objects.equals(queryBuilder(), match.queryBuilder());
-    }
-
-    @Override
-    public int hashCode() {
-        return Objects.hash(field(), query(), queryBuilder());
     }
 }

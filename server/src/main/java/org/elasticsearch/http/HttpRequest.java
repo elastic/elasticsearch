@@ -13,6 +13,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.rest.ChunkedRestResponseBodyPart;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.telemetry.tracing.Traceable;
 
 import java.util.List;
 
@@ -21,7 +22,7 @@ import java.util.List;
  * server package's rest handling. This interface exposes the request's content as well as methods to be used
  * to generate a response.
  */
-public interface HttpRequest extends HttpPreRequest {
+public interface HttpRequest extends HttpPreRequest, Traceable {
 
     enum HttpVersion {
         HTTP_1_0,

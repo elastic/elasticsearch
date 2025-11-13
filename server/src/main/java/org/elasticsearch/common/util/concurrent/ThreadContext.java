@@ -225,6 +225,9 @@ public final class ThreadContext implements Writeable, TraceContext {
                 newTransientHeaders.put(Task.PARENT_APM_TRACE_CONTEXT, previousTraceContext);
             }
 
+            // this start time was set when we started the parent, the child may not need this or wish to set another time
+            final Object previousStartTime = newTransientHeaders.remove(Task.TRACE_START_TIME);
+
             newContext = new ThreadContextStruct(
                 newRequestHeaders,
                 originalContext.responseHeaders,

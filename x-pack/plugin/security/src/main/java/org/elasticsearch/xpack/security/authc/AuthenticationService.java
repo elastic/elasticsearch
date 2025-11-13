@@ -22,7 +22,9 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.http.HttpPreRequest;
 import org.elasticsearch.node.Node;
+import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
+import org.elasticsearch.telemetry.tracing.Tracer;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
@@ -93,7 +95,7 @@ public class AuthenticationService {
         ServiceAccountService serviceAccountService,
         OperatorPrivilegesService operatorPrivilegesService,
         PluggableAuthenticatorChain pluggableAuthenticatorChain,
-        MeterRegistry meterRegistry
+        TelemetryProvider telemetryProvider
     ) {
         this.realms = realms;
         this.auditTrailService = auditTrailService;
@@ -107,14 +109,15 @@ public class AuthenticationService {
         } else {
             this.lastSuccessfulAuthCache = null;
         }
-
+        MeterRegistry meterRegistry = telemetryProvider.getMeterRegistry();
+        Tracer tracer = telemetryProvider.getTracer();
         final String nodeName = Node.NODE_NAME_SETTING.get(settings);
-
         this.authenticatorChain = new AuthenticatorChain(
             settings,
             operatorPrivilegesService,
             anonymousUser,
             new AuthenticationContextSerializer(),
+            tracer,
             pluggableAuthenticatorChain,
             new ServiceAccountAuthenticator(serviceAccountService, nodeName, meterRegistry),
             new OAuth2TokenAuthenticator(tokenService, meterRegistry),

@@ -68,6 +68,7 @@ import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.http.HttpPreRequest;
 import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.http.netty4.Netty4HttpServerTransport;
+import org.elasticsearch.http.netty4.TraceableHttpRequest;
 import org.elasticsearch.http.netty4.internal.HttpHeadersAuthenticatorUtils;
 import org.elasticsearch.http.netty4.internal.HttpValidator;
 import org.elasticsearch.index.IndexModule;
@@ -105,7 +106,9 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
 import org.elasticsearch.search.internal.ShardSearchRequest;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.telemetry.TelemetryProvider;
+import org.elasticsearch.telemetry.tracing.Tracer;
 import org.elasticsearch.threadpool.ExecutorBuilder;
 import org.elasticsearch.threadpool.FixedExecutorBuilder;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -1117,7 +1120,7 @@ public class Security extends Plugin
                 serviceAccountService,
                 operatorPrivilegesService.get(),
                 pluggableAuthenticatorChain,
-                telemetryProvider.getMeterRegistry()
+                telemetryProvider
             )
         );
         components.add(authcService.get());
@@ -2199,6 +2202,9 @@ public class Security extends Plugin
                     // step 1: Populate the thread context with credentials and any other HTTP request header values (eg run-as) that the
                     // authentication process looks for while doing its duty.
                     perRequestThreadContext.accept(httpPreRequest, threadContext);
+                    Tracer tracer = telemetryProvider.getTracer();
+                    assert httpRequest instanceof TraceableHttpRequest;
+                    tracer.startTrace(threadContext, (TraceableHttpRequest) httpRequest, httpRequest.uri(), new HashMap<>());
                     populateClientCertificate.accept(channel, threadContext);
                     RemoteHostHeader.process(channel, threadContext);
                     // step 2: Run authentication on the now properly prepared thread-context.
@@ -2300,6 +2306,13 @@ public class Security extends Plugin
                 );
                 if (authenticationThreadContext != null) {
                     authenticationThreadContext.restore();
+                    // We can rely on the fact that by this point, the "authenticate" trace has been ended.
+                    // the restore has brought back some headers related to the "authenticate" trace that we don't want,
+                    // however we do want to still keep the parent going. so we need to remove some trace headers but keep others
+                    threadContext.newStoredContext(
+                        List.of(Task.APM_TRACE_CONTEXT),
+                        List.of(Task.TRACE_PARENT_HTTP_HEADER, Task.TRACE_STATE)
+                    );
                 } else {
                     // this is an unexpected internal error condition where {@code Netty4HttpHeaderValidator} does not work correctly
                     throw new ElasticsearchSecurityException("Request is not authenticated");

@@ -51,7 +51,9 @@ import org.elasticsearch.license.MockLicenseState;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
+import org.elasticsearch.telemetry.tracing.Tracer;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.MockLog;
@@ -187,6 +189,7 @@ public class AuthenticationServiceTests extends ESTestCase {
     private ThreadContext threadContext;
     private TokenService tokenService;
     private ApiKeyService apiKeyService;
+    private TelemetryProvider telemetryProvider;
     private ServiceAccountService serviceAccountService;
     private SecurityIndexManager securityIndex;
     private SecurityIndexManager.IndexState projectIndex;
@@ -210,6 +213,10 @@ public class AuthenticationServiceTests extends ESTestCase {
         transportRequest.remoteAddress(remoteAddress);
         restRequest = new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY).withRemoteAddress(remoteAddress).build();
         threadContext = new ThreadContext(Settings.EMPTY);
+
+        telemetryProvider = mock(TelemetryProvider.class);
+        when(telemetryProvider.getTracer()).thenReturn(Tracer.NOOP);
+        when(telemetryProvider.getMeterRegistry()).thenReturn(MeterRegistry.NOOP);
 
         firstDomain = randomFrom(new RealmDomain("firstDomain", Set.of()), null);
         firstRealm = mock(Realm.class);
@@ -375,7 +382,7 @@ public class AuthenticationServiceTests extends ESTestCase {
             serviceAccountService,
             operatorPrivilegesService,
             mock(),
-            MeterRegistry.NOOP
+            telemetryProvider
         );
     }
 
@@ -669,7 +676,7 @@ public class AuthenticationServiceTests extends ESTestCase {
             serviceAccountService,
             operatorPrivilegesService,
             mock(),
-            MeterRegistry.NOOP
+            telemetryProvider
         );
         User user = new User("_username", "r1");
         when(firstRealm.supports(token)).thenReturn(true);
@@ -1054,7 +1061,7 @@ public class AuthenticationServiceTests extends ESTestCase {
                 serviceAccountService,
                 operatorPrivilegesService,
                 mock(),
-                MeterRegistry.NOOP
+                telemetryProvider
             );
             boolean requestIdAlreadyPresent = randomBoolean();
             SetOnce<String> reqId = new SetOnce<>();
@@ -1106,7 +1113,7 @@ public class AuthenticationServiceTests extends ESTestCase {
                     serviceAccountService,
                     operatorPrivilegesService,
                     mock(),
-                    MeterRegistry.NOOP
+                    telemetryProvider
                 );
                 threadContext2.putHeader(AuthenticationField.AUTHENTICATION_KEY, authHeaderRef.get());
 
@@ -1131,7 +1138,7 @@ public class AuthenticationServiceTests extends ESTestCase {
                 serviceAccountService,
                 operatorPrivilegesService,
                 mock(),
-                MeterRegistry.NOOP
+                telemetryProvider
             );
             service.authenticate("_action", new InternalRequest(), InternalUsers.SYSTEM_USER, ActionListener.wrap(result -> {
                 if (requestIdAlreadyPresent) {
@@ -1195,7 +1202,7 @@ public class AuthenticationServiceTests extends ESTestCase {
             serviceAccountService,
             operatorPrivilegesService,
             mock(),
-            MeterRegistry.NOOP
+            telemetryProvider
         );
 
         try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
@@ -1241,7 +1248,7 @@ public class AuthenticationServiceTests extends ESTestCase {
             serviceAccountService,
             operatorPrivilegesService,
             mock(),
-            MeterRegistry.NOOP
+            telemetryProvider
         );
         doAnswer(invocationOnMock -> {
             final GetRequest request = (GetRequest) invocationOnMock.getArguments()[0];
@@ -1307,7 +1314,7 @@ public class AuthenticationServiceTests extends ESTestCase {
             serviceAccountService,
             operatorPrivilegesService,
             mock(),
-            MeterRegistry.NOOP
+            telemetryProvider
         );
         RestRequest request = new FakeRestRequest();
 
@@ -1345,7 +1352,7 @@ public class AuthenticationServiceTests extends ESTestCase {
             serviceAccountService,
             operatorPrivilegesService,
             mock(),
-            MeterRegistry.NOOP
+            telemetryProvider
         );
         RestRequest request = new FakeRestRequest();
 
@@ -1378,7 +1385,7 @@ public class AuthenticationServiceTests extends ESTestCase {
             serviceAccountService,
             operatorPrivilegesService,
             mock(),
-            MeterRegistry.NOOP
+            telemetryProvider
         );
         InternalRequest message = new InternalRequest();
         boolean requestIdAlreadyPresent = randomBoolean();
@@ -1415,7 +1422,7 @@ public class AuthenticationServiceTests extends ESTestCase {
             serviceAccountService,
             operatorPrivilegesService,
             mock(),
-            MeterRegistry.NOOP
+            telemetryProvider
         );
 
         InternalRequest message = new InternalRequest();

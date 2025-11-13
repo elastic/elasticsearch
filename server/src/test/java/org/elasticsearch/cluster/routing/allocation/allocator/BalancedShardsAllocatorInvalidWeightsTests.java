@@ -151,7 +151,7 @@ public class BalancedShardsAllocatorInvalidWeightsTests extends ESTestCase {
         }
     }
 
-    public void testUnallocatedShardsAreStillAllocatedWhenSomeOrAllNodesReturningInvalidWeights() {
+    public void testUnallocatedShardsAreStillAllocatedWhenOneOrMoreNodesReturnInvalidWeights() {
         try (var ignored = BalancedShardsAllocator.disableInvalidWeightsAssertionsAndRemoveLogRateLimiting()) {
             final var balancingWeightsFactory = new InvalidWeightsBalancingWeightsFactory();
             final var allocator = new BalancedShardsAllocator(

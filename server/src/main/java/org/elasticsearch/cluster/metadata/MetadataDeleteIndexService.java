@@ -147,8 +147,10 @@ public class MetadataDeleteIndexService {
         final Map<ProjectId, Set<Index>> byProject = new HashMap<>();
         for (Index index : indices) {
             final Optional<ProjectMetadata> project = clusterState.metadata().lookupProject(index);
-            // In some cases, the index may have already been deleted by the time we process the deletion task. In that case, we can simply
-            // skip it. Index name resolution will have failed in the transport action (or in security) if the index never existed.
+            // In some cases, the index may have already been deleted by the time we process the deletion task. For example, if multiple
+            // delete requests are made concurrently for the same index (or a wildcard), and they all resolve the index and then run this
+            // cluster state update task. In that case, we can simply skip it. Index name resolution will have failed in the transport
+            // action (or in security) if the index never existed.
             if (project.isEmpty()) {
                 continue;
             }

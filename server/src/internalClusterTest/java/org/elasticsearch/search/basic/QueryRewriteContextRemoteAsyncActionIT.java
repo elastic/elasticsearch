@@ -11,15 +11,19 @@ package org.elasticsearch.search.basic;
 
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionType;
+import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.RemoteClusterActionType;
+import org.elasticsearch.action.ResolvedIndices;
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.action.support.GroupedActionListener;
 import org.elasticsearch.action.support.HandledTransportAction;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -27,6 +31,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.plugins.ActionPlugin;
@@ -40,12 +45,16 @@ import org.elasticsearch.xcontent.XContentParser;
 import org.junit.Before;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Collection;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
+
+import static org.hamcrest.CoreMatchers.is;
 
 public class QueryRewriteContextRemoteAsyncActionIT extends AbstractMultiClustersTestCase {
     private static final String REMOTE_CLUSTER_A = "cluster-a";
@@ -83,22 +92,27 @@ public class QueryRewriteContextRemoteAsyncActionIT extends AbstractMultiCluster
     private static class TestQueryBuilder extends AbstractQueryBuilder<TestQueryBuilder> {
         private static final String NAME = "test";
 
-        private final boolean actionAcknowledged;
-        private final SetOnce<Boolean> actionAcknowledgedSupplier;
+        private final Boolean actionAcknowledged;
+        private final ActionFuture<Boolean> actionAcknowledgedSupplier;
 
         private static TestQueryBuilder fromXContent(XContentParser parser) {
             return new TestQueryBuilder();
         }
 
         private TestQueryBuilder() {
-            this.actionAcknowledged = false;
+            this.actionAcknowledged = null;
             this.actionAcknowledgedSupplier = null;
         }
 
         private TestQueryBuilder(StreamInput in) throws IOException {
             super(in);
-            this.actionAcknowledged = in.readBoolean();
+            this.actionAcknowledged = in.readOptionalBoolean();
             this.actionAcknowledgedSupplier = null;
+        }
+
+        private TestQueryBuilder(Boolean actionAcknowledged, ActionFuture<Boolean> actionAcknowledgedSupplier) {
+            this.actionAcknowledged = actionAcknowledged;
+            this.actionAcknowledgedSupplier = actionAcknowledgedSupplier;
         }
 
         @Override
@@ -109,7 +123,7 @@ public class QueryRewriteContextRemoteAsyncActionIT extends AbstractMultiCluster
                 );
             }
 
-            out.writeBoolean(this.actionAcknowledged);
+            out.writeOptionalBoolean(this.actionAcknowledged);
         }
 
         @Override
@@ -119,7 +133,30 @@ public class QueryRewriteContextRemoteAsyncActionIT extends AbstractMultiCluster
         }
 
         @Override
+        protected QueryBuilder doRewrite(QueryRewriteContext queryRewriteContext) throws IOException {
+            ResolvedIndices resolvedIndices = queryRewriteContext.getResolvedIndices();
+            if (resolvedIndices != null) {
+                TestQueryBuilder rewritten = this;
+
+                if (actionAcknowledgedSupplier != null) {
+                    Boolean actionAcknowledged = actionAcknowledgedSupplier.isDone() ? actionAcknowledgedSupplier.actionGet() : null;
+                    if (actionAcknowledged != null) {
+                        rewritten = new TestQueryBuilder(actionAcknowledged, null);
+                    }
+                } else if (actionAcknowledged == null) {
+                    ActionFuture<Boolean> actionAcknowledgedSupplier = registerActions(queryRewriteContext);
+                    rewritten = new TestQueryBuilder(null, actionAcknowledgedSupplier);
+                }
+
+                return rewritten;
+            }
+
+            return this;
+        }
+
+        @Override
         protected Query doToQuery(SearchExecutionContext context) {
+            assertThat(actionAcknowledged, is(true));
             return new MatchNoDocsQuery();
         }
 
@@ -142,6 +179,52 @@ public class QueryRewriteContextRemoteAsyncActionIT extends AbstractMultiCluster
         @Override
         protected int doHashCode() {
             return Objects.hash(actionAcknowledged, actionAcknowledgedSupplier);
+        }
+
+        private static ActionFuture<Boolean> registerActions(QueryRewriteContext queryRewriteContext) {
+            var remoteClusterIndices = queryRewriteContext.getResolvedIndices().getRemoteClusterIndices();
+
+            int requestCount = 0;
+            Map<String, List<InstrumentedAction.Request>> clusterRequestMap = new HashMap<>();
+            for (var entry : remoteClusterIndices.entrySet()) {
+                String clusterAlias = entry.getKey();
+                OriginalIndices originalIndices = entry.getValue();
+
+                int indicesCount = originalIndices.indices().length;
+                List<InstrumentedAction.Request> clusterRequestList = new ArrayList<>(indicesCount);
+                for (int i = 0; i < indicesCount; i++) {
+                    clusterRequestList.add(new InstrumentedAction.Request());
+                }
+
+                requestCount += indicesCount;
+                clusterRequestMap.put(clusterAlias, clusterRequestList);
+            }
+
+            PlainActionFuture<Boolean> actionAcknowledgedSupplier = new PlainActionFuture<>();
+            GroupedActionListener<Void> gal = new GroupedActionListener<>(
+                requestCount,
+                ActionListener.wrap(c -> actionAcknowledgedSupplier.onResponse(true), actionAcknowledgedSupplier::onFailure)
+            );
+
+            for (var entry : clusterRequestMap.entrySet()) {
+                String clusterAlias = entry.getKey();
+                List<InstrumentedAction.Request> clusterRequestList = clusterRequestMap.get(clusterAlias);
+
+                for (InstrumentedAction.Request clusterRequest : clusterRequestList) {
+                    queryRewriteContext.registerRemoteAsyncAction(clusterAlias, (client, listener) -> {
+                        client.execute(InstrumentedAction.REMOTE_TYPE, clusterRequest, listener.delegateFailureAndWrap((l, r) -> {
+                            if (r.isAcknowledged()) {
+                                gal.onResponse(null);
+                                l.onResponse(null);
+                            } else {
+                                l.onFailure(new IllegalStateException("Unacknowledged response from cluster [" + clusterAlias + "]"));
+                            }
+                        }));
+                    });
+                }
+            }
+
+            return actionAcknowledgedSupplier;
         }
     }
 

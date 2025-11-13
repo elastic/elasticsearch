@@ -12,7 +12,7 @@ package org.elasticsearch.cluster.metadata;
 import org.elasticsearch.action.admin.indices.rollover.RolloverConditions;
 import org.elasticsearch.action.admin.indices.rollover.RolloverConfiguration;
 import org.elasticsearch.action.admin.indices.rollover.RolloverConfigurationTests;
-import org.elasticsearch.action.downsample.DownsampleConfig;
+import org.elasticsearch.action.downsample.DownsampleConfigTests;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.ClusterSettings;
@@ -64,14 +64,16 @@ public class DataStreamLifecycleTests extends AbstractWireSerializingTestCase<Da
             : DataStreamLifecycle.LifecycleType.DATA;
         var enabled = instance.enabled();
         var retention = instance.dataRetention();
-        var downsampling = instance.downsampling();
-        switch (randomInt(3)) {
+        var downsamplingRounds = instance.downsamplingRounds();
+        var downsamplingMethod = instance.downsamplingMethod();
+        switch (randomInt(4)) {
             case 0 -> {
                 if (instance.targetsFailureStore()) {
                     lifecycleTarget = DataStreamLifecycle.LifecycleType.DATA;
                 } else {
                     lifecycleTarget = DataStreamLifecycle.LifecycleType.FAILURES;
-                    downsampling = null;
+                    downsamplingRounds = null;
+                    downsamplingMethod = null;
                 }
             }
             case 1 -> {
@@ -82,20 +84,31 @@ public class DataStreamLifecycleTests extends AbstractWireSerializingTestCase<Da
                 }
             }
             case 2 -> {
-                if (downsampling == null) {
-                    downsampling = randomDownsampling();
+                if (downsamplingRounds == null) {
+                    downsamplingRounds = randomDownsamplingRounds();
                     if (lifecycleTarget == DataStreamLifecycle.LifecycleType.FAILURES) {
                         lifecycleTarget = DataStreamLifecycle.LifecycleType.DATA;
                     }
                 } else {
-                    downsampling = randomBoolean()
+                    downsamplingRounds = randomBoolean()
                         ? null
-                        : randomValueOtherThan(downsampling, DataStreamLifecycleTests::randomDownsampling);
+                        : randomValueOtherThan(downsamplingRounds, DataStreamLifecycleTests::randomDownsamplingRounds);
+                    if (downsamplingRounds == null) {
+                        downsamplingMethod = null;
+                    }
+                }
+            }
+            case 3 -> {
+                // We need to enable downsampling in order to add a non-value downsampling method
+                downsamplingMethod = randomValueOtherThan(downsamplingMethod, DownsampleConfigTests::randomSamplingMethod);
+                if (downsamplingMethod != null && downsamplingRounds == null) {
+                    downsamplingRounds = randomDownsamplingRounds();
+                    lifecycleTarget = DataStreamLifecycle.LifecycleType.DATA;
                 }
             }
             default -> enabled = enabled == false;
         }
-        return new DataStreamLifecycle(lifecycleTarget, enabled, retention, downsampling);
+        return new DataStreamLifecycle(lifecycleTarget, enabled, retention, downsamplingRounds, downsamplingMethod);
     }
 
     public void testDataLifecycleXContentSerialization() throws IOException {
@@ -215,16 +228,10 @@ public class DataStreamLifecycleTests extends AbstractWireSerializingTestCase<Da
             IllegalArgumentException exception = expectThrows(
                 IllegalArgumentException.class,
                 () -> DataStreamLifecycle.dataLifecycleBuilder()
-                    .downsampling(
+                    .downsamplingRounds(
                         List.of(
-                            new DataStreamLifecycle.DownsamplingRound(
-                                TimeValue.timeValueDays(10),
-                                new DownsampleConfig(new DateHistogramInterval("2h"))
-                            ),
-                            new DataStreamLifecycle.DownsamplingRound(
-                                TimeValue.timeValueDays(3),
-                                new DownsampleConfig(new DateHistogramInterval("2h"))
-                            )
+                            new DataStreamLifecycle.DownsamplingRound(TimeValue.timeValueDays(10), new DateHistogramInterval("2h")),
+                            new DataStreamLifecycle.DownsamplingRound(TimeValue.timeValueDays(3), new DateHistogramInterval("2h"))
                         )
                     )
                     .build()
@@ -238,16 +245,10 @@ public class DataStreamLifecycleTests extends AbstractWireSerializingTestCase<Da
             IllegalArgumentException exception = expectThrows(
                 IllegalArgumentException.class,
                 () -> DataStreamLifecycle.dataLifecycleBuilder()
-                    .downsampling(
+                    .downsamplingRounds(
                         List.of(
-                            new DataStreamLifecycle.DownsamplingRound(
-                                TimeValue.timeValueDays(10),
-                                new DownsampleConfig(new DateHistogramInterval("2h"))
-                            ),
-                            new DataStreamLifecycle.DownsamplingRound(
-                                TimeValue.timeValueDays(30),
-                                new DownsampleConfig(new DateHistogramInterval("2h"))
-                            )
+                            new DataStreamLifecycle.DownsamplingRound(TimeValue.timeValueDays(10), new DateHistogramInterval("2h")),
+                            new DataStreamLifecycle.DownsamplingRound(TimeValue.timeValueDays(30), new DateHistogramInterval("2h"))
                         )
                     )
                     .build()
@@ -258,16 +259,10 @@ public class DataStreamLifecycleTests extends AbstractWireSerializingTestCase<Da
             IllegalArgumentException exception = expectThrows(
                 IllegalArgumentException.class,
                 () -> DataStreamLifecycle.dataLifecycleBuilder()
-                    .downsampling(
+                    .downsamplingRounds(
                         List.of(
-                            new DataStreamLifecycle.DownsamplingRound(
-                                TimeValue.timeValueDays(10),
-                                new DownsampleConfig(new DateHistogramInterval("2h"))
-                            ),
-                            new DataStreamLifecycle.DownsamplingRound(
-                                TimeValue.timeValueDays(30),
-                                new DownsampleConfig(new DateHistogramInterval("3h"))
-                            )
+                            new DataStreamLifecycle.DownsamplingRound(TimeValue.timeValueDays(10), new DateHistogramInterval("2h")),
+                            new DataStreamLifecycle.DownsamplingRound(TimeValue.timeValueDays(30), new DateHistogramInterval("3h"))
                         )
                     )
                     .build()
@@ -277,7 +272,7 @@ public class DataStreamLifecycleTests extends AbstractWireSerializingTestCase<Da
         {
             IllegalArgumentException exception = expectThrows(
                 IllegalArgumentException.class,
-                () -> DataStreamLifecycle.dataLifecycleBuilder().downsampling((List.of())).build()
+                () -> DataStreamLifecycle.dataLifecycleBuilder().downsamplingRounds((List.of())).build()
             );
             assertThat(exception.getMessage(), equalTo("Downsampling configuration should have at least one round configured."));
         }
@@ -285,13 +280,13 @@ public class DataStreamLifecycleTests extends AbstractWireSerializingTestCase<Da
             IllegalArgumentException exception = expectThrows(
                 IllegalArgumentException.class,
                 () -> DataStreamLifecycle.dataLifecycleBuilder()
-                    .downsampling(
+                    .downsamplingRounds(
                         Stream.iterate(1, i -> i * 2)
                             .limit(12)
                             .map(
                                 i -> new DataStreamLifecycle.DownsamplingRound(
                                     TimeValue.timeValueDays(i),
-                                    new DownsampleConfig(new DateHistogramInterval(i + "h"))
+                                    new DateHistogramInterval(i + "h")
                                 )
                             )
                             .toList()
@@ -305,13 +300,8 @@ public class DataStreamLifecycleTests extends AbstractWireSerializingTestCase<Da
             IllegalArgumentException exception = expectThrows(
                 IllegalArgumentException.class,
                 () -> DataStreamLifecycle.dataLifecycleBuilder()
-                    .downsampling(
-                        List.of(
-                            new DataStreamLifecycle.DownsamplingRound(
-                                TimeValue.timeValueDays(10),
-                                new DownsampleConfig(new DateHistogramInterval("2m"))
-                            )
-                        )
+                    .downsamplingRounds(
+                        List.of(new DataStreamLifecycle.DownsamplingRound(TimeValue.timeValueDays(10), new DateHistogramInterval("2m")))
                     )
                     .build()
             );
@@ -326,7 +316,7 @@ public class DataStreamLifecycleTests extends AbstractWireSerializingTestCase<Da
         // No retention in the data stream lifecycle
         {
             DataStreamLifecycle noDataRetentionLifecycle = DataStreamLifecycle.dataLifecycleBuilder()
-                .downsampling(randomDownsampling())
+                .downsamplingRounds(randomDownsamplingRounds())
                 .build();
             DataStreamLifecycle noFailuresRetentionLifecycle = DataStreamLifecycle.failuresLifecycleBuilder().build();
             TimeValue maxRetention = TimeValue.timeValueDays(randomIntBetween(50, 100));
@@ -381,7 +371,7 @@ public class DataStreamLifecycleTests extends AbstractWireSerializingTestCase<Da
             TimeValue dataStreamRetention = TimeValue.timeValueDays(randomIntBetween(5, 100));
             DataStreamLifecycle dataLifecycleRetention = DataStreamLifecycle.dataLifecycleBuilder()
                 .dataRetention(dataStreamRetention)
-                .downsampling(randomDownsampling())
+                .downsamplingRounds(randomDownsamplingRounds())
                 .build();
             DataStreamLifecycle failuresLifecycleRetention = DataStreamLifecycle.failuresLifecycleBuilder()
                 .dataRetention(dataStreamRetention)
@@ -510,9 +500,11 @@ public class DataStreamLifecycleTests extends AbstractWireSerializingTestCase<Da
     }
 
     public static DataStreamLifecycle randomDataLifecycle() {
+        List<DataStreamLifecycle.DownsamplingRound> downsamplingRounds = randomBoolean() ? null : randomDownsamplingRounds();
         return DataStreamLifecycle.dataLifecycleBuilder()
             .dataRetention(randomBoolean() ? null : randomTimeValue(1, 365, TimeUnit.DAYS))
-            .downsampling(randomBoolean() ? null : randomDownsampling())
+            .downsamplingRounds(downsamplingRounds)
+            .downsamplingMethod(downsamplingRounds == null ? null : DownsampleConfigTests.randomSamplingMethod())
             .enabled(randomBoolean())
             .build();
     }
@@ -528,12 +520,12 @@ public class DataStreamLifecycleTests extends AbstractWireSerializingTestCase<Da
             .build();
     }
 
-    static List<DataStreamLifecycle.DownsamplingRound> randomDownsampling() {
+    static List<DataStreamLifecycle.DownsamplingRound> randomDownsamplingRounds() {
         var count = randomIntBetween(0, 9);
         List<DataStreamLifecycle.DownsamplingRound> rounds = new ArrayList<>();
         var previous = new DataStreamLifecycle.DownsamplingRound(
             randomTimeValue(1, 365, TimeUnit.DAYS),
-            new DownsampleConfig(new DateHistogramInterval(randomIntBetween(1, 24) + "h"))
+            new DateHistogramInterval(randomIntBetween(1, 24) + "h")
         );
         rounds.add(previous);
         for (int i = 0; i < count; i++) {
@@ -546,9 +538,7 @@ public class DataStreamLifecycleTests extends AbstractWireSerializingTestCase<Da
 
     private static DataStreamLifecycle.DownsamplingRound nextRound(DataStreamLifecycle.DownsamplingRound previous) {
         var after = TimeValue.timeValueDays(previous.after().days() + randomIntBetween(1, 10));
-        var fixedInterval = new DownsampleConfig(
-            new DateHistogramInterval((previous.config().getFixedInterval().estimateMillis() * randomIntBetween(2, 5)) + "ms")
-        );
+        var fixedInterval = new DateHistogramInterval((previous.fixedInterval().estimateMillis() * randomIntBetween(2, 5)) + "ms");
         return new DataStreamLifecycle.DownsamplingRound(after, fixedInterval);
     }
 
@@ -561,7 +551,8 @@ public class DataStreamLifecycleTests extends AbstractWireSerializingTestCase<Da
                     DataStreamLifecycle.LifecycleType.FAILURES,
                     null,
                     null,
-                    DataStreamLifecycleTests.randomDownsampling()
+                    DataStreamLifecycleTests.randomDownsamplingRounds(),
+                    DownsampleConfigTests.randomSamplingMethod()
                 )
             )
         );

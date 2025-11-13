@@ -12,9 +12,10 @@ package org.elasticsearch.cluster.routing.allocation.decider;
 import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteUtils;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResponse;
+import org.elasticsearch.action.admin.indices.ResizeIndexTestUtils;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
-import org.elasticsearch.action.admin.indices.shrink.ResizeRequest;
 import org.elasticsearch.action.admin.indices.shrink.ResizeType;
+import org.elasticsearch.action.admin.indices.shrink.TransportResizeAction;
 import org.elasticsearch.action.admin.indices.stats.ShardStats;
 import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.action.support.ActiveShardCount;
@@ -23,7 +24,6 @@ import org.elasticsearch.cluster.ClusterInfoService;
 import org.elasticsearch.cluster.ClusterInfoServiceUtils;
 import org.elasticsearch.cluster.DiskUsageIntegTestCase;
 import org.elasticsearch.cluster.InternalClusterInfoService;
-import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -143,18 +143,16 @@ public class DiskThresholdDeciderIT extends DiskUsageIntegTestCase {
         refreshDiskUsage();
 
         final var targetIndexName = "target-" + randomIdentifier();
-        final var resizeRequest = new ResizeRequest(targetIndexName, sourceIndexName);
-        resizeRequest.setResizeType(ResizeType.CLONE);
-        resizeRequest.masterNodeTimeout(TEST_REQUEST_TIMEOUT);
-        resizeRequest.ackTimeout(TEST_REQUEST_TIMEOUT);
+        final var resizeRequest = ResizeIndexTestUtils.resizeRequest(
+            ResizeType.CLONE,
+            sourceIndexName,
+            targetIndexName,
+            indexSettings(1, 0)
+        );
         resizeRequest.setWaitForActiveShards(ActiveShardCount.ALL);
-        resizeRequest.getTargetIndexRequest()
-            .settings(
-                Settings.builder().put(resizeRequest.getTargetIndexRequest().settings()).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-            );
 
         safeAwait(
-            SubscribableListener.<CreateIndexResponse>newForked(l -> indicesAdmin().resizeIndex(resizeRequest, l))
+            SubscribableListener.<CreateIndexResponse>newForked(l -> client().execute(TransportResizeAction.TYPE, resizeRequest, l))
                 .andThenAccept(
                     createIndexResponse -> assertThat(
                         true,

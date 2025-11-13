@@ -205,7 +205,7 @@ public class TransportPutSampleConfigurationActionTests extends ESTestCase {
         return new SamplingConfiguration(
             randomDoubleBetween(0.0, 1.0, true),
             randomBoolean() ? null : randomIntBetween(1, SamplingConfiguration.MAX_SAMPLES_LIMIT),
-            randomBoolean() ? null : ByteSizeValue.ofGb(randomLongBetween(1, SamplingConfiguration.MAX_SIZE_LIMIT_GIGABYTES)),
+            randomBoolean() ? null : ByteSizeValue.ofMb(randomLongBetween(1, 100)),
             randomBoolean() ? null : TimeValue.timeValueDays(randomLongBetween(1, SamplingConfiguration.MAX_TIME_TO_LIVE_DAYS)),
             randomBoolean() ? null : randomAlphaOfLength(10)
         );

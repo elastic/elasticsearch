@@ -28,6 +28,7 @@ import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NumberFieldMapper.NumberFieldType;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.index.mapper.TextFieldMapper;
+import org.elasticsearch.index.mapper.blockloader.BlockLoaderFunctionConfig;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
@@ -156,6 +157,31 @@ public class SearchContextStats implements SearchStats {
     @Override
     public boolean hasDocValues(FieldName field) {
         return cache.computeIfAbsent(field.string(), this::makeFieldStats).config.hasDocValues;
+    }
+
+    @Override
+    public boolean supportsLoaderConfig(
+        FieldName name,
+        BlockLoaderFunctionConfig config,
+        MappedFieldType.FieldExtractPreference preference
+    ) {
+        for (SearchExecutionContext context : contexts) {
+            MappedFieldType ft = context.getFieldType(name.string());
+            if (ft == null) {
+                /*
+                 * Missing fields are always null no matter what we try to push so they
+                 * should work, but we need this check here to prevent actually pushing
+                 * to a LOOKUP JOIN. If the field comes from a LOOKUP JOIN  then it'll
+                 * show up as missing here. And we can't push to those fields. Yet.
+                 */
+                return false;
+            }
+            if (ft.supportsBlockLoaderConfig(config, preference) == false) {
+                // If any one field doesn't support the loader config we'll disable pushing the expression to the field
+                return false;
+            }
+        }
+        return true;
     }
 
     @Override
@@ -395,6 +421,11 @@ public class SearchContextStats implements SearchStats {
             }
         }
         return val;
+    }
+
+    @Override
+    public MappedFieldType fieldType(FieldName field) {
+        return cache.computeIfAbsent(field.string(), this::makeFieldStats).config.fieldType;
     }
 
     private interface DocCountTester {

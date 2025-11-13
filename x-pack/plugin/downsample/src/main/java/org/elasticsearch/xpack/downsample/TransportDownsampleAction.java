@@ -868,15 +868,16 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
 
         Map<String, String> meta = timestampFieldType.meta();
         if (meta.isEmpty() == false) {
-            String interval = meta.get(config.getIntervalType());
-            DownsampleConfig.SamplingMethod sourceSamplingMethod = DownsampleConfig.SamplingMethod.fromIndexMetadata(sourceIndexMetadata);
-            if (interval != null) {
+            String sourceInterval = meta.get(config.getIntervalType());
+            if (sourceInterval != null) {
                 try {
-                    DownsampleConfig sourceConfig = new DownsampleConfig(new DateHistogramInterval(interval), sourceSamplingMethod);
-                    DownsampleConfig.validateSourceAndTargetIntervals(sourceConfig, config);
+                    DownsampleConfig.validateSourceAndTargetIntervals(new DateHistogramInterval(sourceInterval), config.getFixedInterval());
                 } catch (IllegalArgumentException exception) {
                     e.addValidationError("Source index is a downsampled index. " + exception.getMessage());
                 }
+                DownsampleConfig.SamplingMethod sourceSamplingMethod = DownsampleConfig.SamplingMethod.fromIndexMetadata(
+                    sourceIndexMetadata
+                );
                 if (Objects.equals(sourceSamplingMethod, config.getSamplingMethodOrDefault()) == false) {
                     e.addValidationError(
                         "Source index is a downsampled index. Downsampling method ["

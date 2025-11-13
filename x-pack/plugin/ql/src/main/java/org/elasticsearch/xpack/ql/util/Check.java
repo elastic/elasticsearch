@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.ql.util;
 
+import org.elasticsearch.xpack.ql.InvalidArgumentException;
 import org.elasticsearch.xpack.ql.QlIllegalArgumentException;
 
 /**
@@ -13,27 +14,27 @@ import org.elasticsearch.xpack.ql.QlIllegalArgumentException;
  */
 public abstract class Check {
 
-    public static void isTrue(boolean expression, String message, Object... values) {
+    public static void isTrueInternal(boolean expression, String message, Object... values) {
         if (expression == false) {
             throw new QlIllegalArgumentException(message, values);
         }
     }
 
-    public static void isTrue(boolean expression, String message) {
+    public static void isTrue(boolean expression, String message, Object... values) {
         if (expression == false) {
-            throw new QlIllegalArgumentException(message);
+            throw new InvalidArgumentException(message, values);
         }
     }
 
-    public static void notNull(Object object, String message) {
+    public static void notNullInternal(Object object, String message, Object... values) {
         if (object == null) {
-            throw new QlIllegalArgumentException(message);
+            throw new QlIllegalArgumentException(message, values);
         }
     }
 
     public static void notNull(Object object, String message, Object... values) {
         if (object == null) {
-            throw new QlIllegalArgumentException(message, values);
+            throw new InvalidArgumentException(message, values);
         }
     }
 

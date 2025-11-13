@@ -69,7 +69,7 @@ teardown:
 
   - do:
       ingest.get_geoip_database: {}
-  - length: { databases: 6 }
+  - length: { databases: 7 }
 
   - do:
       ingest.get_geoip_database:
@@ -95,7 +95,7 @@ teardown:
 
   - do:
       ingest.get_geoip_database: {}
-  - length: { databases: 5 }
+  - length: { databases: 6 }
 
   - do:
       ingest.get_geoip_database:

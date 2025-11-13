@@ -15,6 +15,7 @@ import org.elasticsearch.action.ResultDeduplicator;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.shard.ShardId;
@@ -44,6 +45,7 @@ public class SnapshotShutdownProgressTracker {
     );
 
     private static final Logger logger = LogManager.getLogger(SnapshotShutdownProgressTracker.class);
+    private static final DateFormatter DATE_TIME_FORMATTER = DateFormatter.forPattern("strict_date_optional_time");
 
     private final Supplier<String> getLocalNodeId;
     private final Consumer<Logger> logIndexShardSnapshotStatuses;
@@ -136,15 +138,17 @@ public class SnapshotShutdownProgressTracker {
         logger.info(
             """
                 Current active shard snapshot stats on data node [{}]. \
-                Node shutdown cluster state update received at [{} millis]. \
-                Finished signalling shard snapshots to pause at [{} millis]. \
+                Node shutdown cluster state update received at [{} UTC]. \
+                Finished signalling shard snapshots to pause at [{} UTC]. \
+                Time between the node shutdown cluster state update and signalling shard snapshots to pause is [{} millis]. \
                 Number shard snapshots running [{}]. \
                 Number shard snapshots waiting for master node reply to status update request [{}] \
                 Shard snapshot completion stats since shutdown began: Done [{}]; Failed [{}]; Aborted [{}]; Paused [{}]\
                 """,
             getLocalNodeId.get(),
-            shutdownStartMillis,
-            shutdownFinishedSignallingPausingMillis,
+            DATE_TIME_FORMATTER.formatMillis(shutdownStartMillis),
+            DATE_TIME_FORMATTER.formatMillis(shutdownFinishedSignallingPausingMillis),
+            shutdownFinishedSignallingPausingMillis - shutdownStartMillis,
             numberOfShardSnapshotsInProgressOnDataNode.get(),
             shardSnapshotRequests.size(),
             doneCount.get(),

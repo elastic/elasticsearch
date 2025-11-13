@@ -10,7 +10,6 @@
 package org.elasticsearch.index.mapper;
 
 import org.elasticsearch.common.Explicit;
-import org.elasticsearch.index.IndexVersion;
 
 import java.io.IOException;
 import java.util.List;
@@ -190,7 +189,7 @@ public class PassThroughObjectMapperTests extends MapperServiceTestCase {
         var passThroughMapper = new RootObjectMapper.Builder("_doc").add(new PassThroughObjectMapper.Builder("metrics").setPriority(10))
             .build(MapperBuilderContext.root(isSourceSynthetic, true));
         var objectMapper = new RootObjectMapper.Builder("_doc").add(
-            new ObjectMapper.Builder("metrics").add(new KeywordFieldMapper.Builder("cpu_usage", IndexVersion.current()))
+            new ObjectMapper.Builder("metrics").add(new KeywordFieldMapper.Builder("cpu_usage", defaultIndexSettings()))
         ).build(MapperBuilderContext.root(isSourceSynthetic, true));
 
         RootObjectMapper merged = passThroughMapper.merge(
@@ -201,7 +200,7 @@ public class PassThroughObjectMapperTests extends MapperServiceTestCase {
 
         var objectMapperWithSubObjectTrue = new RootObjectMapper.Builder("_doc").add(
             new ObjectMapper.Builder("metrics", Explicit.of(ObjectMapper.Subobjects.ENABLED)).add(
-                new KeywordFieldMapper.Builder("cpu_usage", IndexVersion.current())
+                new KeywordFieldMapper.Builder("cpu_usage", defaultIndexSettings())
             )
         ).build(MapperBuilderContext.root(isSourceSynthetic, true));
 
@@ -218,7 +217,7 @@ public class PassThroughObjectMapperTests extends MapperServiceTestCase {
         );
 
         var rootObjectMapper = new RootObjectMapper.Builder("metrics").add(
-            new KeywordFieldMapper.Builder("cpu_usage", IndexVersion.current())
+            new KeywordFieldMapper.Builder("cpu_usage", defaultIndexSettings())
         ).build(MapperBuilderContext.root(isSourceSynthetic, true));
 
         error = expectThrows(

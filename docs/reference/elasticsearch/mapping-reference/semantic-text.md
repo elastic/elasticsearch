@@ -48,7 +48,7 @@ the field mappings.
 
 :::::::{tab-set}
 
-::::::{tab-item} Using the default ELSER on EIS endpoint on Serverless
+::::::{tab-item} Default ELSER on EIS endpoint on {{serverless-short}}
 
 ```{applies_to}
 serverless: ga
@@ -72,7 +72,7 @@ PUT my-index-000001
 
 ::::::
 
-::::::{tab-item} Using the preconfigured ELSER on EIS endpoint in Cloud
+::::::{tab-item} Preconfigured ELSER on EIS endpoint in Cloud
 
 ```{applies_to}
 stack: ga 9.2
@@ -98,7 +98,7 @@ PUT my-index-000001
 
 ::::::
 
-::::::{tab-item} Using the default ELSER endpoint
+::::::{tab-item} Default ELSER endpoint
 
 If you use the preconfigured `.elser-2-elasticsearch` endpoint, you can set up `semantic_text` with the following API request:
 
@@ -280,24 +280,7 @@ endpoint associated with `inference_id`.
 If chunking settings are updated, they will not be applied to existing documents
 until they are reindexed.
 To completely disable chunking, use the `none` chunking strategy.
-
-    **Valid values for `chunking_settings`**:
-
-    `strategy`
-    :   Indicates the strategy of chunking strategy to use. Valid values are `none`, `word` or
-    `sentence`. Required.
-
-    `max_chunk_size`
-    :   The maximum number of words in a chunk. Required for `word` and `sentence` strategies.
-
-    `overlap`
-    :   The number of overlapping words allowed in chunks. This cannot be defined as
-    more than half of the `max_chunk_size`. Required for `word` type chunking
-    settings.
-
-    `sentence_overlap`
-    :   The number of overlapping sentences allowed in chunks. Valid values are `0`
-    or `1`. Required for `sentence` type chunking settings
+Defaults to the optimal chunking settings for [Elastic Rerank](docs-content:///explore-analyze/machine-learning/nlp/ml-nlp-rerank.md). Refer to the [Inference API documentation](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-inference-put#operation-inference-put-body-application-json-chunking_settings) for valid values for `chunking_settings`. 
 
 ::::{warning}
 When using the `none` chunking strategy, if the input exceeds the maximum token
@@ -544,9 +527,14 @@ stack: ga 9.2
 serverless: ga
 ```
 
+:::{important}
+Starting with {{es}} 9.2, the recommended method for retrieving embeddings has changed from that used in previous versions.
+For instructions on retrieving embeddings in versions earlier than 9.2, refer to [Returning semantic field embeddings using `fields`](#return-embeddings-fields).
+:::
+
 By default, the embeddings generated for `semantic_text` fields are stored internally and **not included in `_source`** when retrieving documents.
 
-To include the full inference fields, including their embeddings, in `_source`, set the `_source.exclude_vectors` option to `false`.
+To include the full {{infer}} fields, including their embeddings, in `_source`, set the `_source.exclude_vectors` option to `false`.
 This works with the
 [Get](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-get),
 [Search](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-search),
@@ -565,11 +553,12 @@ POST my-index/_search
   }
 }
 ```
-% TEST[skip:Requires inference endpoint]
+% TEST[skip:Requires {{infer}} endpoint]
 
 The embeddings will appear under `_inference_fields` in `_source`.
 
 **Use cases**
+
 Including embeddings in `_source` is useful when you want to:
 
 * Reindex documents into another index **with the same `inference_id`** without re-running inference.
@@ -577,6 +566,10 @@ Including embeddings in `_source` is useful when you want to:
 * Inspect or debug the raw embeddings generated for your content.
 
 ### Example: Reindex while preserving embeddings
+```{applies_to}
+stack: ga 9.2
+serverless: ga
+```
 
 ```console
 POST _reindex
@@ -592,7 +585,7 @@ POST _reindex
   }
 }
 ```
-% TEST[skip:Requires inference endpoint]
+% TEST[skip:Requires {{infer}} endpoint]
 
 1. Sends the source documents with their stored embeddings to the destination index.
 
@@ -602,16 +595,110 @@ the documents will **fail the reindex task**.
 Matching `inference_id` values are required to reuse the existing embeddings.
 ::::
 
-This allows documents to be re-indexed without triggering inference again, **as long as the target `semantic_text` field uses the same `inference_id` as the source**.
+This allows documents to be re-indexed without triggering {{infer}} again, **as long as the target `semantic_text` field uses the same `inference_id` as the source**.
 
-::::{note}
-**For versions prior to 9.2.0**
+### Example: Troubleshooting semantic_text fields [troubleshooting-semantic-text-fields]
+```{applies_to}
+stack: ga 9.2
+serverless: ga
+```
 
-Older versions do not support the `exclude_vectors` option to retrieve the embeddings of the semantic text fields.
-To return the `_inference_fields`, use the `fields` option in a search request instead:
+To verify that your embeddings look correct, you can retrieve the {{infer}} data that `semantic_text` normally hides from search results.
+
+To retrieve the stored embeddings in {{es}} 9.2 and later, set the `exclude_vectors` parameter to `false` in the `_source` field. This ensures that the vector data, which is excluded by default, is included in the search response.
 
 ```console
 POST test-index/_search
+{
+  "_source": {
+    "exclude_vectors": false
+  },
+  "query": {
+    "match": {
+      "my_semantic_field": "Which country is Paris in?"
+    }
+  }
+}
+```
+% TEST[skip:Requires {{infer}} endpoint]
+
+This will return verbose chunked embeddings content that is used to perform
+semantic search for `semantic_text` fields:
+
+```console-response
+{
+  "took": 18,
+  "timed_out": false,
+  "_shards": {
+    "total": 1,
+    "successful": 1,
+    "skipped": 0,
+    "failed": 0
+  },
+  "hits": {
+    "total": { "value": 1, "relation": "eq" },
+    "max_score": 16.532316,
+    "hits": [
+      {
+        "_index": "test-index",
+        "_id": "1",
+        "_score": 16.532316,
+        "_source": {
+          "my_semantic_field": "Paris is the capital of France.",
+          "_inference_fields": {
+            "my_semantic_field": {
+              "inference": {
+                "inference_id": ".elser-2-elasticsearch", <1>
+                "model_settings": { <2>
+                  "service": "elasticsearch",
+                  "task_type": "sparse_embedding"
+                },
+                "chunks": {
+                  "my_semantic_field": [
+                    {
+                      "start_offset": 0,
+                      "end_offset": 31,
+                      "embeddings": { <3>
+                        "airport": 0.12011719,
+                        "brussels": 0.032836914,
+                        "capital": 2.1328125,
+                        "capitals": 0.6386719,
+                        "capitol": 1.2890625,
+                        "cities": 0.78125,
+                        "city": 1.265625,
+                        "continent": 0.26953125,
+                        "country": 0.59765625,
+                        ...
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    ]
+  }
+}
+```
+% TEST[skip:Requires {{infer}} endpoint]
+1. The {{infer}} endpoint used to generate embeddings.
+2. Lists details about the model used to generate embeddings, such as the service name and task type.
+3. The embeddings generated for this chunk.
+
+## Returning semantic field embeddings using `fields` [return-embeddings-fields]
+
+:::{important}
+This method for returning semantic field embeddings is recommended only for {{es}} versions earlier than 9.2.
+For version 9.2 and later, use the [`exclude_vectors`](#troubleshooting-semantic-text-fields) parameter instead.
+:::
+
+To retrieve stored embeddings, use the `fields` parameter with `_inference_fields`. This lets you include the vector data that is not shown by default in the response.
+The `fields` parameter only works with the `_search` endpoint.  
+
+```console
+POST my-index/_search
 {
   "query": {
     "match": {
@@ -623,11 +710,7 @@ POST test-index/_search
   ]
 }
 ```
-% TEST[skip:Requires inference endpoint]
-
-This returns the chunked embeddings used for semantic search under `_inference_fields` in `_source`.
-Note that the `fields` option is **not** available for the Reindex API.
-::::
+% TEST[skip:Requires {{infer}} endpoint]
 
 ## Customizing `semantic_text` indexing [custom-indexing]
 
@@ -740,30 +823,6 @@ You can query `semantic_text` fields using the following query types:
 - Sparse vector query: Executes searches using sparse vectors generated by a sparse retrieval model such as [ELSER](docs-content://explore-analyze/machine-learning/nlp/ml-nlp-elser.md). You can use it with [Query DSL](/reference/query-languages/query-dsl/query-dsl-sparse-vector-query.md) syntax. To learn how to run sparse vector queries on `semantic_text` fields, refer to this [example](/reference/query-languages/query-dsl/query-dsl-sparse-vector-query.md#example-query-on-a-semantic_text-field).
 
 - [Semantic query](/reference/query-languages/query-dsl/query-dsl-semantic-query.md): We don't recommend this legacy query type for _new_ projects, because the alternatives in this list enable more flexibility and customization. The `semantic` query remains available to support existing implementations.
-
-
-## Troubleshooting semantic_text fields [troubleshooting-semantic-text-fields]
-
-If you want to verify that your embeddings look correct, you can view the
-inference data that `semantic_text` typically hides using `fields`.
-
-```console
-POST test-index/_search
-{
-  "query": {
-    "match": {
-      "my_semantic_field": "Which country is Paris in?"
-    }
-  },
-  "fields": [
-    "_inference_fields"
-  ]
-}
-```
-% TEST[skip:Requires inference endpoint]
-
-This will return verbose chunked embeddings content that is used to perform
-semantic search for `semantic_text` fields.
 
 ### Document count discrepancy in `_cat/indices`
 

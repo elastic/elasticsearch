@@ -35,7 +35,6 @@ public class CrossProjectIndexExpressionsRewriter {
     public static TransportVersion NO_MATCHING_PROJECT_EXCEPTION_VERSION = TransportVersion.fromName("no_matching_project_exception");
 
     private static final Logger logger = LogManager.getLogger(CrossProjectIndexExpressionsRewriter.class);
-    private static final String ORIGIN_PROJECT_KEY = "_origin";
     private static final String[] MATCH_ALL = new String[] { Metadata.ALL };
     private static final String EXCLUSION = "-";
     private static final String DATE_MATH = "<";
@@ -161,12 +160,12 @@ public class CrossProjectIndexExpressionsRewriter {
         String indexExpression = splitResource[1];
         maybeThrowOnUnsupportedResource(indexExpression);
 
-        if (originProjectAlias != null && ORIGIN_PROJECT_KEY.equals(requestedProjectAlias)) {
+        if (originProjectAlias != null && ProjectRoutingResolver.ORIGIN.equals(requestedProjectAlias)) {
             // handling case where we have a qualified expression like: _origin:indexName
             return new IndexRewriteResult(indexExpression);
         }
 
-        if (originProjectAlias == null && ORIGIN_PROJECT_KEY.equals(requestedProjectAlias)) {
+        if (originProjectAlias == null && ProjectRoutingResolver.ORIGIN.equals(requestedProjectAlias)) {
             // handling case where we have a qualified expression like: _origin:indexName but no _origin project is set
             throw new NoMatchingProjectException(requestedProjectAlias);
         }

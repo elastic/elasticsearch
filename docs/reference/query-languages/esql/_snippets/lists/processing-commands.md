@@ -1,4 +1,4 @@
-* [`CHANGE_POINT`](/reference/query-languages/esql/commands/change-point.md) {applies_to}`stack: preview` {applies_to}`serverless: preview`
+* [`CHANGE_POINT`](/reference/query-languages/esql/commands/change-point.md)
 * [`COMPLETION`](/reference/query-languages/esql/commands/completion.md) {applies_to}`stack: preview` {applies_to}`serverless: preview`
 * [`DISSECT`](/reference/query-languages/esql/commands/dissect.md)
 * [`DROP`](/reference/query-languages/esql/commands/drop.md)

@@ -147,7 +147,7 @@ public final class SampleBooleanAggregatorFunction implements AggregatorFunction
     }
     BytesRefBlock sample = (BytesRefBlock) sampleUncast;
     assert sample.getPositionCount() == 1;
-    BytesRef scratch = new BytesRef();
+    BytesRef sampleScratch = new BytesRef();
     SampleBooleanAggregator.combineIntermediate(state, sample);
   }
 

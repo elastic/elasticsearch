@@ -484,7 +484,6 @@ public class BalancedShardsAllocator implements ShardsAllocator {
             Decision canRebalance = allocation.deciders().canRebalance(shard, allocation);
 
             sorter.reset(index);
-
             ModelNode[] modelNodes = sorter.modelNodes;
             final String currentNodeId = shard.currentNodeId();
             // find currently assigned node
@@ -982,7 +981,6 @@ public class BalancedShardsAllocator implements ShardsAllocator {
             }
 
             sorter.reset(index);
-
             /*
              * the sorter holds the minimum weight node first for the shards index.
              * We now walk through the nodes until we find a node to allocate the shard.
@@ -1573,8 +1571,17 @@ public class BalancedShardsAllocator implements ShardsAllocator {
         }
     }
 
-    private static boolean nodeWeightIsInvalid(float currentWeight) {
-        return Float.isFinite(currentWeight) == false;
+    /**
+     * Checks that the node weight is "valid" (i.e. not {@link Float#NaN}, {@link Float#NEGATIVE_INFINITY},
+     * or {@link Float#POSITIVE_INFINITY}). Much of the balancing logic uses logical comparisons that don't
+     * cope well with these values (especially NaN). We expect the weight function to always return a finite
+     * value, so we check the values it returns and avoid making impactful decisions based on invalid values.
+     *
+     * @param nodeWeight The node weight to check
+     * @return true if it is invalid, false if it is valid
+     */
+    private static boolean nodeWeightIsInvalid(float nodeWeight) {
+        return Float.isFinite(nodeWeight) == false;
     }
 
     public static class ModelNode implements Iterable<ModelIndex> {
@@ -1737,9 +1744,6 @@ public class BalancedShardsAllocator implements ShardsAllocator {
      * for that partition. In partitioned cluster topologies there will be one for each partition
      * (e.g. search/indexing in stateless). By default, there is a single partition containing
      * a single weight function that applies to all nodes and shards.
-     * <p>
-     * A lot of this logic depends on the weights being finite, so there is code to protect against
-     * a weight function that returns non-finite values.
      *
      * @see BalancingWeightsFactory
      */
@@ -1764,12 +1768,12 @@ public class BalancedShardsAllocator implements ShardsAllocator {
         }
 
         /**
-         * If the weight function returns a non-finite weight (e.g. {@link Float#NaN}, {@link Float#NEGATIVE_INFINITY},
-         * {@link Float#POSITIVE_INFINITY}). We default the weight to {@link Float#MAX_VALUE}. This method returns
-         * the number of nodes that returned valid weights last time {@link #reset(ProjectIndex)} or {@link #reset(ProjectIndex, int)}
-         * was called. This allows iteration of only those nodes which returned valid weights.
+         * If the weight function returns a non-finite weight (see {@link #nodeWeightIsInvalid(float)}). We default the weight
+         * to {@link Float#MAX_VALUE}. This method returns the number of nodes that returned valid weights last time
+         * {@link #reset(ProjectIndex)} or {@link #reset(ProjectIndex, int)} was called. This allows iteration of only those
+         * nodes which returned valid weights.
          *
-         * @return The count of nodes that returned valid weights last time we reset
+         * @return The count of nodes that returned valid weights the last time reset was called
          */
         public int validSortedCount() {
             return sortedCount - invalidCount;

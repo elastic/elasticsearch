@@ -10,6 +10,7 @@ package org.elasticsearch.benchmark.bytes;
 
 import org.elasticsearch.common.logging.LogConfigurator;
 import org.elasticsearch.simdvec.VectorByteUtils;
+import org.elasticsearch.simdvec.internal.vectorization.DefaultVectorByteUtils;
 import org.elasticsearch.simdvec.internal.vectorization.ESVectorizationProvider;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
@@ -38,6 +39,7 @@ public class VectorByteUtilsBenchmark {
         LogConfigurator.configureESLogging(); // native access requires logging to be initialized
     }
 
+    final VectorByteUtils defDefaultVectorByteUtils = DefaultVectorByteUtils.INSTANCE;
     final VectorByteUtils vectorByteUtils = ESVectorizationProvider.getInstance().getVectorUtilSupport().getVectorByteUtils();
 
     @Param(value = { "64", "127", "128", "4096", "16384", "65536", "1048576" })
@@ -61,13 +63,37 @@ public class VectorByteUtilsBenchmark {
 
     @Benchmark
     @Fork(jvmArgsPrepend = { "--add-modules=jdk.incubator.vector" })
-    public int vectorByteUtilsBench() {
+    public int panamaBench() {
         int ret = 0;
         final int len = vectorByteUtils.vectorLength();
         final int bound = VectorByteUtils.loopBound(data.length, len);
         int i = 0;
         for (; i < bound; i += len) {
             long mask = vectorByteUtils.equalMask(data, i, target);
+            int pos = VectorByteUtils.firstSet(mask);
+            while (pos >= 0) {
+                int idx = i + pos;
+                ret += idx;
+                pos = VectorByteUtils.nextSet(mask, pos);
+            }
+        }
+        // scalar tail
+        for (; i < data.length; i++) {
+            if (data[i] == target) {
+                ret += i;
+            }
+        }
+        return ret;
+    }
+
+    @Benchmark
+    public int defaultBench() {
+        int ret = 0;
+        final int len = defDefaultVectorByteUtils.vectorLength();
+        final int bound = VectorByteUtils.loopBound(data.length, len);
+        int i = 0;
+        for (; i < bound; i += len) {
+            long mask = defDefaultVectorByteUtils.equalMask(data, i, target);
             int pos = VectorByteUtils.firstSet(mask);
             while (pos >= 0) {
                 int idx = i + pos;

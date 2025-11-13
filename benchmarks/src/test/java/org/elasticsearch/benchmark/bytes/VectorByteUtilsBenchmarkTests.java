@@ -31,8 +31,8 @@ public class VectorByteUtilsBenchmarkTests extends ESTestCase {
         bench.size = size;
         bench.setup();
 
-        assertThat(bench.scalarBench(), equalTo(bench.vectorByteUtilsBench()));
-        // assertThat(bench.panamaDirectBench(), equalTo(bench.vectorByteUtilsBench()));
+        assertThat(bench.scalarBench(), equalTo(bench.defaultBench()));
+        assertThat(bench.scalarBench(), equalTo(bench.panamaBench()));
     }
 
     @ParametersFactory

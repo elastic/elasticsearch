@@ -19,23 +19,23 @@ import static org.mockito.Mockito.when;
 
 public class FireworksAiErrorResponseEntityTests extends ESTestCase {
 
-    public void testFromResponse() {
-        var statusLine = mock(StatusLine.class);
-        when(statusLine.toString()).thenReturn("HTTP/1.1 400 Bad Request");
+    // Common status line strings
+    private static final String BAD_REQUEST_STATUS = "HTTP/1.1 400 Bad Request";
+    private static final String UNAUTHORIZED_STATUS = "HTTP/1.1 401 Unauthorized";
+    private static final String RATE_LIMIT_STATUS = "HTTP/1.1 429 Too Many Requests";
+    private static final String SERVER_ERROR_STATUS = "HTTP/1.1 500 Internal Server Error";
 
-        var httpResponse = mock(HttpResponse.class);
-        when(httpResponse.getStatusLine()).thenReturn(statusLine);
-
-        var httpResult = new HttpResult(httpResponse, new byte[0]);
-
-        ErrorResponse errorResponse = FireworksAiErrorResponseEntity.fromResponse(httpResult);
-
-        assertThat(errorResponse.getErrorMessage(), is("HTTP/1.1 400 Bad Request"));
+    public void testFromResponse_ReturnsStatusLineAsErrorMessage() {
+        // Test that various HTTP error status lines are correctly returned as error messages
+        assertErrorMessage(BAD_REQUEST_STATUS);
+        assertErrorMessage(UNAUTHORIZED_STATUS);
+        assertErrorMessage(RATE_LIMIT_STATUS);
+        assertErrorMessage(SERVER_ERROR_STATUS);
     }
 
-    public void testFromResponse_ServerError() {
+    private void assertErrorMessage(String expectedStatusLine) {
         var statusLine = mock(StatusLine.class);
-        when(statusLine.toString()).thenReturn("HTTP/1.1 500 Internal Server Error");
+        when(statusLine.toString()).thenReturn(expectedStatusLine);
 
         var httpResponse = mock(HttpResponse.class);
         when(httpResponse.getStatusLine()).thenReturn(statusLine);
@@ -44,34 +44,6 @@ public class FireworksAiErrorResponseEntityTests extends ESTestCase {
 
         ErrorResponse errorResponse = FireworksAiErrorResponseEntity.fromResponse(httpResult);
 
-        assertThat(errorResponse.getErrorMessage(), is("HTTP/1.1 500 Internal Server Error"));
-    }
-
-    public void testFromResponse_RateLimitError() {
-        var statusLine = mock(StatusLine.class);
-        when(statusLine.toString()).thenReturn("HTTP/1.1 429 Too Many Requests");
-
-        var httpResponse = mock(HttpResponse.class);
-        when(httpResponse.getStatusLine()).thenReturn(statusLine);
-
-        var httpResult = new HttpResult(httpResponse, new byte[0]);
-
-        ErrorResponse errorResponse = FireworksAiErrorResponseEntity.fromResponse(httpResult);
-
-        assertThat(errorResponse.getErrorMessage(), is("HTTP/1.1 429 Too Many Requests"));
-    }
-
-    public void testFromResponse_AuthenticationError() {
-        var statusLine = mock(StatusLine.class);
-        when(statusLine.toString()).thenReturn("HTTP/1.1 401 Unauthorized");
-
-        var httpResponse = mock(HttpResponse.class);
-        when(httpResponse.getStatusLine()).thenReturn(statusLine);
-
-        var httpResult = new HttpResult(httpResponse, new byte[0]);
-
-        ErrorResponse errorResponse = FireworksAiErrorResponseEntity.fromResponse(httpResult);
-
-        assertThat(errorResponse.getErrorMessage(), is("HTTP/1.1 401 Unauthorized"));
+        assertThat(errorResponse.getErrorMessage(), is(expectedStatusLine));
     }
 }

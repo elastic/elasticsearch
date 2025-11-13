@@ -148,7 +148,6 @@ public class FireworksAiService extends SenderService implements RerankingInfere
         return switch (taskType) {
             case TEXT_EMBEDDING -> new FireworksAiEmbeddingsModel(
                 inferenceEntityId,
-                taskType,
                 NAME,
                 serviceSettings,
                 taskSettings,

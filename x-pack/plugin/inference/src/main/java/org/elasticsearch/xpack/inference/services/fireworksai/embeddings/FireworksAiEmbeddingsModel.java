@@ -37,7 +37,6 @@ public class FireworksAiEmbeddingsModel extends FireworksAiModel {
 
     public FireworksAiEmbeddingsModel(
         String inferenceEntityId,
-        TaskType taskType,
         String service,
         Map<String, Object> serviceSettings,
         Map<String, Object> taskSettings,
@@ -47,7 +46,6 @@ public class FireworksAiEmbeddingsModel extends FireworksAiModel {
     ) {
         this(
             inferenceEntityId,
-            taskType,
             service,
             FireworksAiEmbeddingsServiceSettings.fromMap(serviceSettings, context),
             FireworksAiEmbeddingsTaskSettings.fromMap(taskSettings),
@@ -59,7 +57,6 @@ public class FireworksAiEmbeddingsModel extends FireworksAiModel {
     // Should only be used directly for testing
     public FireworksAiEmbeddingsModel(
         String inferenceEntityId,
-        TaskType taskType,
         String service,
         FireworksAiEmbeddingsServiceSettings serviceSettings,
         FireworksAiEmbeddingsTaskSettings taskSettings,
@@ -67,7 +64,7 @@ public class FireworksAiEmbeddingsModel extends FireworksAiModel {
         @Nullable DefaultSecretSettings secrets
     ) {
         super(
-            new ModelConfigurations(inferenceEntityId, taskType, service, serviceSettings, taskSettings, chunkingSettings),
+            new ModelConfigurations(inferenceEntityId, TaskType.TEXT_EMBEDDING, service, serviceSettings, taskSettings, chunkingSettings),
             new ModelSecrets(secrets),
             secrets,
             serviceSettings

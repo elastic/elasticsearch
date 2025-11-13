@@ -191,7 +191,7 @@ public final class TranslatePromqlToTimeSeriesAggregate extends OptimizerRules.O
                 timeBucketSize = promqlCommand.step();
             } else {
                 // use default lookback for instant queries
-                timeBucketSize = new Literal(promqlCommand.source(), DEFAULT_LOOKBACK, DataType.TIME_DURATION);
+                timeBucketSize = Literal.timeDuration(promqlCommand.source(), DEFAULT_LOOKBACK);
             }
             Bucket b = new Bucket(promqlCommand.source(), promqlCommand.timestamp(), timeBucketSize, null, null);
             Alias tbucket = new Alias(b.source(), "TBUCKET", b);
@@ -261,18 +261,18 @@ public final class TranslatePromqlToTimeSeriesAggregate extends OptimizerRules.O
     private static Expression translateLabelMatcher(Source source, Expression field, LabelMatcher matcher) {
         // Check for universal matchers
         if (matcher.matchesAll()) {
-            return new Literal(source, true, DataType.BOOLEAN); // No filter needed (matches everything)
+            return Literal.fromBoolean(source, true); // No filter needed (matches everything)
         }
 
         if (matcher.matchesNone()) {
             // This is effectively FALSE - could use a constant false expression
-            return new Literal(source, false, DataType.BOOLEAN);
+            return Literal.fromBoolean(source, false);
         }
 
         // Try to extract exact match
         String exactMatch = AutomatonUtils.matchesExact(matcher.automaton());
         if (exactMatch != null) {
-            return new Equals(source, field, new Literal(source, exactMatch, DataType.KEYWORD));
+            return new Equals(source, field, Literal.keyword(source, exactMatch));
         }
 
         // Try to extract disjoint patterns (handles mixed prefix/suffix/exact)
@@ -327,7 +327,7 @@ public final class TranslatePromqlToTimeSeriesAggregate extends OptimizerRules.O
             // Optimize to IN clause
             List<Expression> values = new ArrayList<>(sortedFragments.size());
             for (AutomatonUtils.PatternFragment fragment : sortedFragments) {
-                values.add(new Literal(source, fragment.value(), DataType.KEYWORD));
+                values.add(Literal.keyword(source, fragment.value()));
             }
             return new In(source, field, values);
         }
@@ -347,7 +347,7 @@ public final class TranslatePromqlToTimeSeriesAggregate extends OptimizerRules.O
      * Translates a single pattern fragment into an ESQL expression.
      */
     private static Expression translatePatternFragment(Source source, Expression field, AutomatonUtils.PatternFragment fragment) {
-        Literal value = new Literal(source, fragment.value(), DataType.KEYWORD);
+        Literal value = Literal.keyword(source, fragment.value());
 
         return switch (fragment.type()) {
             case EXACT -> new Equals(source, field, value);

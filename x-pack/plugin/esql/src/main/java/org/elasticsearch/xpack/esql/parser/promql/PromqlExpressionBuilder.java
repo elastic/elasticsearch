@@ -139,7 +139,7 @@ class PromqlExpressionBuilder extends PromqlIdentifierBuilder {
                     seconds = -seconds;
                     nanos = -nanos;
                 }
-                at = new Literal(source, Instant.ofEpochSecond(seconds, nanos), DataType.DATETIME);
+                at = Literal.dateTime(source, Instant.ofEpochSecond(seconds, nanos));
             }
         }
         OffsetContext offsetContext = ctx.offset();
@@ -193,7 +193,7 @@ class PromqlExpressionBuilder extends PromqlIdentifierBuilder {
             }
             default -> throw new ParsingException(source(ctx), "Expected a duration, got [{}]", source(ctx).text());
         };
-        return new Literal(source(ctx), d, DataType.TIME_DURATION);
+        return Literal.timeDuration(source(ctx), d);
     }
 
     @Override
@@ -261,7 +261,7 @@ class PromqlExpressionBuilder extends PromqlIdentifierBuilder {
             } else {
                 value = Double.parseDouble(text);
             }
-            return new Literal(source, value, DataType.DOUBLE);
+            return Literal.fromDouble(source, value);
         } catch (NumberFormatException ne) {
             throw new ParsingException(source, "Cannot parse number [{}]", text);
         }
@@ -280,7 +280,7 @@ class PromqlExpressionBuilder extends PromqlIdentifierBuilder {
             // if it's too large, then quietly try to parse as a float instead
             try {
                 // use DataTypes.DOUBLE for precise type
-                return new Literal(source, StringUtils.parseDouble(text), DataType.DOUBLE);
+                return Literal.fromDouble(source, StringUtils.parseDouble(text));
             } catch (QlIllegalArgumentException ignored) {}
 
             throw new ParsingException(source, siae.getMessage());
@@ -319,7 +319,7 @@ class PromqlExpressionBuilder extends PromqlIdentifierBuilder {
     @Override
     public Literal visitString(StringContext ctx) {
         Source source = source(ctx);
-        return new Literal(source, string(ctx.STRING()), DataType.KEYWORD);
+        return Literal.keyword(source, string(ctx.STRING()));
     }
 
     private static Duration parseTimeValue(Source source, String text) {

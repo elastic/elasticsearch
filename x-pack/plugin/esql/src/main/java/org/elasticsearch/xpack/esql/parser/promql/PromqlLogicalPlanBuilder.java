@@ -107,7 +107,7 @@ public class PromqlLogicalPlanBuilder extends PromqlExpressionBuilder {
         return switch (result) {
             case LogicalPlan plan -> plan;
             case Literal literal -> new LiteralSelector(source, literal);
-            case Duration duration -> new LiteralSelector(source, new Literal(source, duration, DataType.TIME_DURATION));
+            case Duration duration -> new LiteralSelector(source, Literal.timeDuration(source, duration));
             case Expression expr -> throw new ParsingException(
                 source,
                 "Expected a plan or literal, got expression [{}]",
@@ -329,7 +329,7 @@ public class PromqlLogicalPlanBuilder extends PromqlExpressionBuilder {
             // comparisons
             if (binaryOperator instanceof ComparisonOp compOp) {
                 int result = PromqlFoldingUtils.evaluate(source, leftValue, rightValue, compOp) ? 1 : 0;
-                return new LiteralSelector(source, new Literal(source, result, DataType.INTEGER));
+                return new LiteralSelector(source, Literal.integer(source, result));
             }
 
             // Set operations fall through to vector handling
@@ -514,7 +514,7 @@ public class PromqlLogicalPlanBuilder extends PromqlExpressionBuilder {
         Literal resolution = visitSubqueryResolution(ctx.subqueryResolution());
 
         if (resolution == null) {
-            resolution = new Literal(Source.EMPTY, GLOBAL_EVALUATION_INTERVAL, DataType.TIME_DURATION);
+            resolution = Literal.timeDuration(Source.EMPTY, GLOBAL_EVALUATION_INTERVAL);
         }
         return new Subquery(source(ctx), plan, rangeEx, resolution, evaluation);
     }
@@ -544,7 +544,7 @@ public class PromqlLogicalPlanBuilder extends PromqlExpressionBuilder {
             Duration baseValue = PromqlParserUtils.parseDuration(timeSource, timeString);
 
             if (ctx.op == null || ctx.expression() == null) {
-                return new Literal(source(timeCtx), baseValue, DataType.TIME_DURATION);
+                return Literal.timeDuration(source(timeCtx), baseValue);
             }
 
             // Evaluate right expression
@@ -560,7 +560,7 @@ public class PromqlLogicalPlanBuilder extends PromqlExpressionBuilder {
             }
             // Result should be Duration
             if (result instanceof Duration duration) {
-                return new Literal(source(timeCtx), duration, DataType.TIME_DURATION);
+                return Literal.timeDuration(source(timeCtx), duration);
             }
 
             throw new ParsingException(source(ctx), "Expected duration result, got [{}]", result.getClass().getSimpleName());

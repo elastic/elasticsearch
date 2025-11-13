@@ -136,7 +136,7 @@ tasks.register('buildSharedLibraryAndCopy') {
   if (System.getenv("LOCAL_VEC_BINARY_OS") == null){
     throw new GradleException("LOCAL_VEC_BINARY_OS is set, skipping copy to prevent overwriting local binary.")
   }
-  dependsOn tasks.buildSharedLibrary
+  dependsOn "buildSharedLibrary"
   doLast {
     // output dir is lowercased System.getenv("LOCAL_VEC_BINARY_OS") and arch
     // we must translate platformName to match expected arch naming

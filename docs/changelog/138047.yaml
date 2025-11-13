@@ -1,0 +1,6 @@
+pr: 138047
+summary: Add configurable `max_batch_size` for `GoogleVertexAI` embedding service
+  settings
+area: Machine Learning
+type: bug
+issues: []

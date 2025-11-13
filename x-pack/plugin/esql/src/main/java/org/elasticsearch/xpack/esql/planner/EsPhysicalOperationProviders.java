@@ -41,10 +41,12 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.index.mapper.FieldNamesFieldMapper;
+import org.elasticsearch.index.mapper.IndexType;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NestedLookup;
 import org.elasticsearch.index.mapper.SourceLoader;
+import org.elasticsearch.index.mapper.TextSearchInfo;
 import org.elasticsearch.index.mapper.blockloader.BlockLoaderFunctionConfig;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.ConstantScoreQueryBuilder;
@@ -242,9 +244,8 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
             builder.indexed(false);
             return new KeywordFieldMapper.KeywordFieldType(
                 name,
-                UNMAPPED_FIELD_TYPE,
-                Lucene.KEYWORD_ANALYZER,
-                Lucene.KEYWORD_ANALYZER,
+                IndexType.terms(false, false),
+                new TextSearchInfo(UNMAPPED_FIELD_TYPE, builder.similarity(), Lucene.KEYWORD_ANALYZER, Lucene.KEYWORD_ANALYZER),
                 Lucene.KEYWORD_ANALYZER,
                 builder,
                 context.ctx.isSourceSynthetic()

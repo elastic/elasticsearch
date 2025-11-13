@@ -516,16 +516,4 @@ public class TDigestFieldMapperTests extends MapperTestCase {
     public void testSyntheticSourceKeepArrays() {
         // The mapper expects to parse an array of values by default, it's not compatible with array of arrays.
     }
-    /*
-    - org.elasticsearch.xpack.analytics.mapper.TDigestFieldMapperTests.testSyntheticSourceWithTranslogSnapshot
-    - org.elasticsearch.xpack.analytics.mapper.TDigestFieldMapperTests.testSyntheticEmptyList
-    - org.elasticsearch.xpack.analytics.mapper.TDigestFieldMapperTests.testSyntheticSourceInNestedObject
-    - org.elasticsearch.xpack.analytics.mapper.TDigestFieldMapperTests.testSyntheticSourceKeepNone
-    - org.elasticsearch.xpack.analytics.mapper.TDigestFieldMapperTests.testSyntheticEmptyListNoDocValuesLoader
-    - org.elasticsearch.xpack.analytics.mapper.TDigestFieldMapperTests.testSyntheticSource
-    - org.elasticsearch.xpack.analytics.mapper.TDigestFieldMapperTests.testEmptyDocumentNoDocValueLoader
-    - org.elasticsearch.xpack.analytics.mapper.TDigestFieldMapperTests.testSyntheticSourceKeepAll
-    - org.elasticsearch.xpack.analytics.mapper.TDigestFieldMapperTests.testSyntheticSourceInObject
-    - org.elasticsearch.xpack.analytics.mapper.TDigestFieldMapperTests.testSyntheticSourceMany
-     */
 }

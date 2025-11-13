@@ -11,6 +11,7 @@ import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.admin.cluster.remote.RemoteInfoResponse;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.Task;
@@ -34,14 +35,15 @@ public class TransportGetViewAction extends HandledTransportAction<GetViewAction
 
     @Override
     protected void doExecute(Task task, GetViewAction.Request request, ActionListener<GetViewAction.Response> listener) {
+        ProjectId projectId = viewService.getProjectId();
         TreeMap<String, View> views = new TreeMap<>();
         List<String> missing = new ArrayList<>();
         Collection<String> names = request.names();
         if (names.isEmpty()) {
-            names = Collections.unmodifiableSet(viewService.list());
+            names = Collections.unmodifiableSet(viewService.list(projectId));
         }
         for (String name : names) {
-            View view = viewService.get(name);
+            View view = viewService.get(projectId, name);
             if (view == null) {
                 missing.add(name);
             } else {

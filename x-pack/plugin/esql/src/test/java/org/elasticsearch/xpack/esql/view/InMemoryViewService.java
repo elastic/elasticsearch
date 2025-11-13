@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.view;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 
 import java.util.Map;
@@ -36,7 +37,16 @@ public class InMemoryViewService extends ViewService {
     }
 
     @Override
-    protected void updateViewMetadata(ActionListener<Void> callback, Function<ViewMetadata, Map<String, View>> function) {
+    protected ViewMetadata getMetadata(ProjectId projectId) {
+        return metadata;
+    }
+
+    @Override
+    protected void updateViewMetadata(
+        ProjectId projectId,
+        ActionListener<Void> callback,
+        Function<ViewMetadata, Map<String, View>> function
+    ) {
         Map<String, View> updated = function.apply(metadata);
         this.metadata = new ViewMetadata(updated);
     }

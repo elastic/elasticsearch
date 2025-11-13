@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.view;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.parser.AbstractStatementParserTests;
@@ -23,14 +24,15 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
     EsqlFunctionRegistry functionRegistry = new EsqlFunctionRegistry();
     InMemoryViewService viewService = new InMemoryViewService(functionRegistry);
     PlanTelemetry telemetry = new PlanTelemetry(functionRegistry);
+    ProjectId projectId = ProjectId.fromId("1");
 
     public void testPutGet() throws Exception {
         addView("view1", "from emp");
         addView("view2", "from view1");
         addView("view3", "from view2");
-        assertThat(viewService.get("view1").query(), equalTo("from emp"));
-        assertThat(viewService.get("view2").query(), equalTo("from view1"));
-        assertThat(viewService.get("view3").query(), equalTo("from view2"));
+        assertThat(viewService.get(projectId, "view1").query(), equalTo("from emp"));
+        assertThat(viewService.get(projectId, "view2").query(), equalTo("from view1"));
+        assertThat(viewService.get(projectId, "view3").query(), equalTo("from view2"));
     }
 
     public void testReplaceView() throws Exception {
@@ -166,7 +168,7 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
     }
 
     private void addView(String name, String query, ViewService viewService) {
-        viewService.put(name, new View(query), ActionListener.noop());
+        viewService.put(projectId, name, new View(query), ActionListener.noop());
     }
 
 }

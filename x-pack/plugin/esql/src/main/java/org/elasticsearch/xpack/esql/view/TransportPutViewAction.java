@@ -50,7 +50,7 @@ public class TransportPutViewAction extends AcknowledgedTransportMasterNodeActio
         ClusterState state,
         ActionListener<AcknowledgedResponse> listener
     ) {
-        viewService.put(request.name(), request.view(), listener.map(v -> AcknowledgedResponse.TRUE));
+        viewService.put(state.projectId(), request.name(), request.view(), listener.map(v -> AcknowledgedResponse.TRUE));
     }
 
     @Override

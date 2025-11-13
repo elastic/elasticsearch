@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.esql.view;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.core.TimeValue;
@@ -32,27 +33,33 @@ public abstract class AbstractViewTestCase extends ESSingleNodeTestCase {
         return List.of(LocalStateView.class);
     }
 
-    protected ViewService viewService() {
+    protected ViewService viewService(ProjectResolver projectResolver) {
         ClusterService clusterService = getInstanceFromNode(ClusterService.class);
         FeatureService featureService = getInstanceFromNode(FeatureService.class);
-        ProjectResolver projectResolver = getInstanceFromNode(ProjectResolver.class);
         return new ClusterViewService(new EsqlFunctionRegistry(), clusterService, featureService, projectResolver, DEFAULT);
     }
 
     protected class TestViewsApi {
-        protected ViewService viewService = viewService();
+        protected final ViewService viewService;
+        protected final ProjectId projectId;
+
+        public TestViewsApi() {
+            ProjectResolver projectResolver = getInstanceFromNode(ProjectResolver.class);
+            this.viewService = viewService(projectResolver);
+            this.projectId = projectResolver.getProjectId();
+        }
 
         protected AtomicReference<Exception> save(String name, View policy) throws InterruptedException {
             IndexNameExpressionResolver resolver = TestIndexNameExpressionResolver.newInstance();
             TestResponseCapture<Void> responseCapture = new TestResponseCapture<>();
-            viewService.put(name, policy, responseCapture);
+            viewService.put(projectId, name, policy, responseCapture);
             responseCapture.latch.await();
             return responseCapture.error;
         }
 
         protected void delete(String name) throws Exception {
             TestResponseCapture<Void> responseCapture = new TestResponseCapture<>();
-            viewService.delete(name, responseCapture);
+            viewService.delete(projectId, name, responseCapture);
             responseCapture.latch.await();
             if (responseCapture.error.get() != null) {
                 throw responseCapture.error.get();

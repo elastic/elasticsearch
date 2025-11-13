@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.view;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -42,25 +43,38 @@ public class ClusterViewService extends ViewService {
         this.projectResolver = projectResolver;
     }
 
+    public ProjectId getProjectId() {
+        return projectResolver.getProjectId();
+    }
+
     @Override
     protected ViewMetadata getMetadata() {
-        return getMetadata(clusterService.state());
-    }
-
-    protected ViewMetadata getMetadata(ClusterState clusterState) {
-        return getProjectMetadata(clusterState).custom(ViewMetadata.TYPE, ViewMetadata.EMPTY);
-    }
-
-    protected ProjectMetadata getProjectMetadata(ClusterState clusterState) {
-        return projectResolver.getProjectMetadata(clusterService.state());
+        return getMetadata(getProjectId());
     }
 
     @Override
-    protected void updateViewMetadata(ActionListener<Void> callback, Function<ViewMetadata, Map<String, View>> function) {
+    protected ViewMetadata getMetadata(ProjectId projectId) {
+        return getMetadata(clusterService.state().metadata().getProject(projectId));
+    }
+
+    protected ViewMetadata getMetadata(ProjectMetadata projectMetadata) {
+        return projectMetadata.custom(ViewMetadata.TYPE, ViewMetadata.EMPTY);
+    }
+
+    protected ProjectMetadata getProjectMetadata(ProjectId projectId) {
+        return clusterService.state().metadata().getProject(projectId);
+    }
+
+    @Override
+    protected void updateViewMetadata(
+        ProjectId projectId,
+        ActionListener<Void> callback,
+        Function<ViewMetadata, Map<String, View>> function
+    ) {
         submitUnbatchedTask("update-esql-view-metadata", new ClusterStateUpdateTask() {
             @Override
             public ClusterState execute(ClusterState currentState) {
-                var project = getProjectMetadata(currentState);
+                var project = getProjectMetadata(projectId);
                 var views = project.custom(ViewMetadata.TYPE, ViewMetadata.EMPTY);
                 Map<String, View> policies = function.apply(views);
                 var metadata = ProjectMetadata.builder(project).putCustom(ViewMetadata.TYPE, new ViewMetadata(policies));

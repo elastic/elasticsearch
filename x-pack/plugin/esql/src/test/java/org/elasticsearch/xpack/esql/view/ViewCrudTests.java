@@ -34,7 +34,7 @@ public class ViewCrudTests extends AbstractViewTestCase {
 
     @After
     public void tearDown() throws Exception {
-        for (String name : this.viewsApi.viewService.list()) {
+        for (String name : this.viewsApi.viewService.list(viewsApi.projectId)) {
             viewsApi.delete(name);
         }
         super.tearDown();

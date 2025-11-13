@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.view;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.metadata.MetadataCreateIndexService;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.xpack.esql.VerificationException;
@@ -56,6 +57,8 @@ public abstract class ViewService {
     }
 
     protected abstract ViewMetadata getMetadata();
+
+    protected abstract ViewMetadata getMetadata(ProjectId projectId);
 
     public LogicalPlan replaceViews(LogicalPlan plan, PlanTelemetry telemetry) {
         if (viewsFeatureEnabled() == false) {
@@ -142,12 +145,12 @@ public abstract class ViewService {
     /**
      * Adds or modifies a view by name. This method can only be invoked on the master node.
      */
-    public void put(String name, View view, ActionListener<Void> callback) {
+    public void put(ProjectId projectId, String name, View view, ActionListener<Void> callback) {
         assertMasterNode();
         if (viewsFeatureEnabled()) {
-            validatePutView(name, view);
-            updateViewMetadata(callback, current -> {
-                Map<String, View> original = getMetadata().views();
+            validatePutView(projectId, name, view);
+            updateViewMetadata(projectId, callback, current -> {
+                Map<String, View> original = getMetadata(projectId).views();
                 Map<String, View> updated = new HashMap<>(original);
                 updated.put(name, view);
                 return updated;
@@ -155,7 +158,7 @@ public abstract class ViewService {
         }
     }
 
-    private void validatePutView(String name, View view) {
+    private void validatePutView(ProjectId projectId, String name, View view) {
         if (Strings.isNullOrEmpty(name)) {
             throw new IllegalArgumentException("name is missing or empty");
         }
@@ -178,7 +181,8 @@ public abstract class ViewService {
                 "view query is too large: " + view.query().length() + " characters, the maximum allowed is " + config.maxViewSize
             );
         }
-        if (getMetadata().views().containsKey(name) == false && getMetadata().views().size() >= config.maxViews) {
+        Map<String, View> views = getMetadata(projectId).views();
+        if (views.containsKey(name) == false && views.size() >= config.maxViews) {
             throw new IllegalArgumentException("cannot add view, the maximum number of views is reached: " + config.maxViews);
         }
         new EsqlParser().createStatement(view.query(), new QueryParams(), new PlanTelemetry(functionRegistry));
@@ -189,31 +193,31 @@ public abstract class ViewService {
     /**
      * Gets the view by name.
      */
-    public View get(String name) {
+    public View get(ProjectId projectId, String name) {
         if (Strings.isNullOrEmpty(name)) {
             throw new IllegalArgumentException("name is missing or empty");
         }
-        return viewsFeatureEnabled() ? getMetadata().views().get(name) : null;
+        return viewsFeatureEnabled() ? getMetadata(projectId).views().get(name) : null;
     }
 
     /**
      * List current view names.
      */
-    public Set<String> list() {
-        return viewsFeatureEnabled() ? getMetadata().views().keySet() : Set.of();
+    public Set<String> list(ProjectId projectId) {
+        return viewsFeatureEnabled() ? getMetadata(projectId).views().keySet() : Set.of();
     }
 
     /**
      * Removes a view from the cluster state. This method can only be invoked on the master node.
      */
-    public void delete(String name, ActionListener<Void> callback) {
+    public void delete(ProjectId projectId, String name, ActionListener<Void> callback) {
         assertMasterNode();
         if (Strings.isNullOrEmpty(name)) {
             throw new IllegalArgumentException("name is missing or empty");
         }
 
         if (viewsFeatureEnabled()) {
-            updateViewMetadata(callback, current -> {
+            updateViewMetadata(projectId, callback, current -> {
                 Map<String, View> original = current.views();
                 if (original.containsKey(name) == false) {
                     throw new ResourceNotFoundException("view [{}] not found", name);
@@ -231,5 +235,9 @@ public abstract class ViewService {
         return true;
     }
 
-    protected abstract void updateViewMetadata(ActionListener<Void> callback, Function<ViewMetadata, Map<String, View>> function);
+    protected abstract void updateViewMetadata(
+        ProjectId projectId,
+        ActionListener<Void> callback,
+        Function<ViewMetadata, Map<String, View>> function
+    );
 }

@@ -34,7 +34,6 @@ import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.core.SimpleRefCounted;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.node.Node;
 import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.SearchShardTarget;
@@ -75,7 +74,6 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiFunction;
 
 import static org.elasticsearch.action.search.SearchPhaseController.getTopDocsSize;
-import static org.elasticsearch.action.search.SearchPhaseController.merge;
 
 public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<SearchPhaseResult> {
 
@@ -767,8 +765,8 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
 
                         @Override
                         public void onFailure(Exception e) {
-                            // Note: this shard won't be retried until it returns to the coordinating node where the shard iterator lives
-                            // TODO: consider alternatives that don't wait for the entire batch to complete before retrying the shard
+                            // TODO: count down fully and just respond with an exception if partial results aren't allowed as an
+                            // optimization
                             setFailure(state, dataNodeLocalIdx, e);
                             doneFuture.onResponse(null);
                         }

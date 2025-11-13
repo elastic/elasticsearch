@@ -8,34 +8,41 @@
 package org.elasticsearch.xpack.esql.expression.function.aggregate;
 
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.plugin.EsqlCorePlugin;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.ErrorsForCasesWithoutExamplesTestCase;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 import org.hamcrest.Matcher;
+import org.junit.Before;
 
 import java.util.List;
 import java.util.Set;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public class PercentileErrorTests extends ErrorsForCasesWithoutExamplesTestCase {
+public class HistogramMergeErrorTests extends ErrorsForCasesWithoutExamplesTestCase {
+
+    @Before
+    public void setup() {
+        assumeTrue(
+            "Only when esql_exponential_histogram feature flag is enabled",
+            EsqlCorePlugin.EXPONENTIAL_HISTOGRAM_FEATURE_FLAG.isEnabled()
+        );
+    }
+
     @Override
     protected List<TestCaseSupplier> cases() {
-        return paramsToSuppliers(PercentileTests.parameters());
+        return paramsToSuppliers(HistogramMergeTests.parameters());
     }
 
     @Override
     protected Expression build(Source source, List<Expression> args) {
-        return new Percentile(source, args.get(0), args.get(1));
+        return new HistogramMerge(source, args.get(0));
     }
 
     @Override
     protected Matcher<String> expectedTypeErrorMatcher(List<Set<DataType>> validPerPosition, List<DataType> signature) {
-        return equalTo(typeErrorMessage(true, validPerPosition, signature, (v, p) -> switch (p) {
-            case 0 -> "exponential_histogram or numeric except unsigned_long";
-            case 1 -> "numeric except unsigned_long";
-            default -> throw new IllegalStateException("Unexpected argument index " + p);
-        }));
+        return equalTo(typeErrorMessage(false, validPerPosition, signature, (v, p) -> "exponential_histogram"));
     }
 }

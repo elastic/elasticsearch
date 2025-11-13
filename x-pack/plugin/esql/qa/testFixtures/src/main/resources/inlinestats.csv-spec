@@ -4394,6 +4394,8 @@ c:long
 ;
 
 pushDown_OneGroupingFilter_PastInlineJoin
+required_capability: inline_stats
+
 FROM employees
 | INLINE STATS avg = ROUND(AVG(salary)) BY languages
 | WHERE languages > 2
@@ -4416,6 +4418,8 @@ FROM employees
 ;
 
 pushDown_SelectiveGroupingAndFilters_PastInlineJoin
+required_capability: inline_stats
+
 FROM employees
 | INLINE STATS avg = ROUND(AVG(salary), 1) BY languages, gender
 | WHERE languages > 2 AND gender IS NOT NULL AND emp_no > 10050
@@ -4438,6 +4442,8 @@ FROM employees
 ;
 
 pushDown_SelectiveGroupingOrFilters_PastInlineJoin
+required_capability: inline_stats
+
 FROM employees
 | INLINE STATS avg = AVG(salary) BY languages, gender
 | WHERE languages > 2 AND (gender IS NOT NULL OR emp_no > 10050)
@@ -4460,6 +4466,8 @@ FROM employees
 ;
 
 pushDown_ComplexFiltering_CombinedWithLeftFiltering_PastInlineJoin
+required_capability: inline_stats
+
 FROM employees
 | WHERE emp_no < 10075 AND salary < 60000
 | INLINE STATS avg = AVG(salary) BY languages, gender
@@ -4479,6 +4487,8 @@ FROM employees
 ;
 
 pushDown_ImpossibleFilter_PastInlineJoin
+required_capability: inline_stats
+
 FROM employees
 | WHERE salary < 10000
 | INLINE STATS salary = AVG(salary) BY salary
@@ -4491,6 +4501,8 @@ warning:Line 3:16: Field 'salary' shadowed by field at line 3:40
 ;
 
 dontPushDown_A_SimpleFilter_PastInlineJoin
+required_capability: inline_stats
+
 FROM employees
 | INLINE STATS a = ROUND(AVG(salary), 2) BY gender
 | WHERE languages > 2
@@ -4513,6 +4525,8 @@ FROM employees
 ;
 
 partiallyPushDown_GroupingFilters_PastTwoInlineJoins1
+required_capability: inline_stats
+
 FROM employees
 | INLINE STATS avgByL = ROUND(AVG(salary)) BY languages
 | INLINE STATS avgByG = ROUND(AVG(salary)) BY gender
@@ -4536,6 +4550,8 @@ FROM employees
 ;
 
 partiallyPushDown_GroupingFilters_PastTwoInlineJoins2
+required_capability: inline_stats
+
 FROM employees
 | INLINE STATS avgByL = ROUND(AVG(salary)) BY languages
 | INLINE STATS avgByG = ROUND(AVG(salary)) BY gender, languages
@@ -4570,6 +4586,8 @@ FROM employees
 ;
 
 partiallyPushDown_GroupingFilters_PastTwoInlineJoins_ExcludeAggFilters
+required_capability: inline_stats
+
 FROM employees
 | INLINE STATS avgByL = ROUND(AVG(salary)) BY languages
 | INLINE STATS avgByG = ROUND(AVG(salary)) BY gender, languages
@@ -4593,6 +4611,8 @@ FROM employees
 ;
 
 partiallyPushDown_RenamedGroupingFilters_PastTwoInlineJoins
+required_capability: inline_stats
+
 FROM employees
 | INLINE STATS avgByL = ROUND(AVG(salary)) BY languages
 | RENAME languages AS lang

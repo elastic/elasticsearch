@@ -18,7 +18,6 @@ import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.RoutingChangesObserver;
 import org.elasticsearch.cluster.routing.RoutingNode;
-import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
@@ -117,7 +116,7 @@ public class BalancedShardsAllocatorInvalidWeightsTests extends ESTestCase {
             };
 
             balancingWeightsFactory.returnInvalidWeightsForRandomNodes(clusterState);
-            final RoutingAllocation allocation = new RoutingAllocation(
+            final var allocation = new RoutingAllocation(
                 new AllocationDeciders(List.of(allocationDecider)),
                 clusterState.getRoutingNodes().mutableCopy(),
                 clusterState,
@@ -158,7 +157,7 @@ public class BalancedShardsAllocatorInvalidWeightsTests extends ESTestCase {
             final ClusterState clusterState = failAllShards(ClusterStateCreationUtils.state(3, new String[] { "one", "two", "three" }, 1));
 
             balancingWeightsFactory.returnInvalidWeightsForRandomNodes(clusterState);
-            final RoutingAllocation allocation = new RoutingAllocation(
+            final var allocation = new RoutingAllocation(
                 new AllocationDeciders(List.of()),
                 clusterState.getRoutingNodes().mutableCopy(),
                 clusterState,
@@ -183,10 +182,10 @@ public class BalancedShardsAllocatorInvalidWeightsTests extends ESTestCase {
             );
 
             final int numberOfNodes = randomIntBetween(3, 5);
-            final ClusterState clusterState = ClusterStateCreationUtils.state(numberOfNodes, new String[] { "one", "two", "three" }, 1);
+            final var clusterState = ClusterStateCreationUtils.state(numberOfNodes, new String[] { "one", "two", "three" }, 1);
             balancingWeightsFactory.returnInvalidWeightsForRandomNodes(clusterState);
 
-            final RoutingAllocation allocation = new RoutingAllocation(
+            final var allocation = new RoutingAllocation(
                 new AllocationDeciders(List.of()),
                 clusterState.getRoutingNodes().mutableCopy(),
                 clusterState,
@@ -245,7 +244,7 @@ public class BalancedShardsAllocatorInvalidWeightsTests extends ESTestCase {
      * Fail all the shards, this should make them all unassigned
      */
     private ClusterState failAllShards(ClusterState clusterState) {
-        RoutingNodes routingNodes = clusterState.getRoutingNodes().mutableCopy();
+        final var routingNodes = clusterState.getRoutingNodes().mutableCopy();
         for (RoutingNode routingNode : routingNodes) {
             for (ShardRouting shardRouting : routingNode) {
                 routingNodes.failShard(

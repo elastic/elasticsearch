@@ -3529,7 +3529,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
 
         @Override
         public int hashCode() {
-            return Objects.hash(similarityFunction, Arrays.hashCode(vector));
+            return Objects.hash(similarityFunction, Arrays.hashCode(vector), Arrays.hashCode(vectorAsBytes));
         }
     }
 }

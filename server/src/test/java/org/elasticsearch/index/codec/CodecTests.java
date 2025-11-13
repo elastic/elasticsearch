@@ -98,7 +98,10 @@ public class CodecTests extends ESTestCase {
 
     public void testCodecRetrievalForUnknownCodec() throws Exception {
         CodecService codecService = createCodecService();
-        IllegalArgumentException exception = assertThrows(IllegalArgumentException.class, () -> unwrappedCodec(codecService, "unknown_codec"));
+        IllegalArgumentException exception = assertThrows(
+            IllegalArgumentException.class,
+            () -> unwrappedCodec(codecService, "unknown_codec")
+        );
         assertEquals("failed to find codec [unknown_codec]", exception.getMessage());
     }
 

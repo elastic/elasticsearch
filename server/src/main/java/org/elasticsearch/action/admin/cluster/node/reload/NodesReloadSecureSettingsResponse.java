@@ -64,7 +64,7 @@ public class NodesReloadSecureSettingsResponse extends BaseNodesResponse<NodesRe
             }
             if (node.secureSettingNames() != null) {
                 builder.array("secure_setting_names", b -> {
-                    for (String settingName : node.secureSettingNames()) {
+                    for (String settingName : node.secureSettingNames().stream().sorted().toList()) {
                         b.value(settingName);
                     }
                 });

@@ -294,15 +294,14 @@ public class ApproximateTests extends ESTestCase {
         // - one pass to get the total number of rows
         // - three passes to get the number of filtered rows (which is small)
         // - one pass to execute the original query
-        assertThat(runner.invocations, hasSize(8));
+        assertThat(runner.invocations, hasSize(7));
         assertThat(runner.invocations.get(0), allOf(hasFilter("emp_no"), not(hasSample()), hasSum()));
         assertThat(runner.invocations.get(1), allOf(not(hasFilter("emp_no")), not(hasSample()), not(hasSum())));
         assertThat(runner.invocations.get(2), allOf(hasFilter("emp_no"), hasSample(1e-14), not(hasSum())));
         assertThat(runner.invocations.get(3), allOf(hasFilter("emp_no"), hasSample(1e-10), not(hasSum())));
         assertThat(runner.invocations.get(4), allOf(hasFilter("emp_no"), hasSample(1e-6), not(hasSum())));
         assertThat(runner.invocations.get(5), allOf(hasFilter("emp_no"), hasSample(1e-2), not(hasSum())));
-        assertThat(runner.invocations.get(6), allOf(hasFilter("emp_no"), not(hasSample()), not(hasSum())));
-        assertThat(runner.invocations.get(7), allOf(hasFilter("emp_no"), not(hasSample()), hasSum()));
+        assertThat(runner.invocations.get(6), allOf(hasFilter("emp_no"), not(hasSample()), hasSum()));
     }
 
     public void testCountPlan_smallDataBeforeFiltering() throws Exception {
@@ -390,13 +389,12 @@ public class ApproximateTests extends ESTestCase {
         // - one pass to get the total number of rows
         // - two passes to get the number of filtered rows (which determines the sample probability)
         // - one pass to execute the original query (because the sample probability is 50%)
-        assertThat(runner.invocations, hasSize(6));
+        assertThat(runner.invocations, hasSize(5));
         assertThat(runner.invocations.get(0), allOf(not(hasSample()), hasFilter("emp_no"), hasSum()));
         assertThat(runner.invocations.get(1), allOf(not(hasSample()), not(hasFilter("emp_no")), not(hasSum())));
         assertThat(runner.invocations.get(2), allOf(hasSample(1e-8), hasFilter("emp_no"), not(hasSum())));
         assertThat(runner.invocations.get(3), allOf(hasSample(1e-4), hasFilter("emp_no"), not(hasSum())));
-        assertThat(runner.invocations.get(4), allOf(hasSample(0.05), hasFilter("emp_no"), not(hasSum())));
-        assertThat(runner.invocations.get(5), allOf(not(hasSample()), hasFilter("emp_no"), hasSum()));
+        assertThat(runner.invocations.get(4), allOf(not(hasSample()), hasFilter("emp_no"), hasSum()));
     }
 
     public void testApproximatePlan_createsConfidenceInterval_withoutGrouping() throws Exception {

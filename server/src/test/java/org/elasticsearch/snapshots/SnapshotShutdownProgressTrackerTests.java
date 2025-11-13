@@ -261,8 +261,7 @@ public class SnapshotShutdownProgressTrackerTests extends ESTestCase {
 
             int numberOfInProgressSnapshots = randomIntBetween(1, 8);
 
-            // Adds in-progress snapshots so that the tracker doesn't immediately exit on seeing that all snapshots are finished,
-            // and should begin logging the periodic progress report
+            // Adds in-progress snapshots so that the tracker doesn't immediately exit on seeing that all snapshots are finished
             setInFlightSnapshots(tracker, numberOfInProgressSnapshots);
 
             // Simulate starting shutdown -- should reset the completion stats and start logging as there are snapshots in-flight
@@ -273,8 +272,8 @@ public class SnapshotShutdownProgressTrackerTests extends ESTestCase {
             deterministicTaskQueue.runAllRunnableTasks();
             mockLog.awaitAllExpectationsMatched();
 
-            // In the tracker we use a callback to log the shard snapshot details. Here, we have mocked that with a dummy message,
-            // but we expect this dummy message to still be logged with each periodic report.
+            // The tracker uses a callback to log the shard snapshot details
+            // This is mocked with a dummy message. This dummy message should be logged with each periodic report.
             mockLog.addExpectation(
                 new MockLog.SeenEventExpectation(
                     "index shard snapshot statuses",

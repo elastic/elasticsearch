@@ -620,7 +620,7 @@ public class EsqlDataTypeConverter {
         try {
             return DEFAULT_DATE_TIME_FORMATTER.parseMillis(dateTime);
         } catch (DateTimeException e) {
-            throw new IllegalArgumentException(e);
+            throw new IllegalArgumentException(e.getMessage(), e);
         }
     }
 
@@ -628,7 +628,7 @@ public class EsqlDataTypeConverter {
         try {
             return formatter == null ? dateTimeToLong(dateTime) : formatter.parseMillis(dateTime);
         } catch (DateTimeException e) {
-            throw new IllegalArgumentException(e);
+            throw new IllegalArgumentException(e.getMessage(), e);
         }
     }
 
@@ -636,7 +636,7 @@ public class EsqlDataTypeConverter {
         try {
             return dateNanosToLong(dateNano, DEFAULT_DATE_NANOS_FORMATTER);
         } catch (DateTimeException e) {
-            throw new IllegalArgumentException(e);
+            throw new IllegalArgumentException(e.getMessage(), e);
         }
     }
 
@@ -645,7 +645,7 @@ public class EsqlDataTypeConverter {
             Instant parsed = DateFormatters.from(formatter.parse(dateNano)).toInstant();
             return DateUtils.toLong(parsed);
         } catch (DateTimeException e) {
-            throw new IllegalArgumentException(e);
+            throw new IllegalArgumentException(e.getMessage(), e);
         }
     }
 

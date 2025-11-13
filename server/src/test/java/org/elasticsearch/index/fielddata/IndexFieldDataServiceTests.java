@@ -24,7 +24,6 @@ import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexService;
-import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.fielddata.plain.SortedDoublesIndexFieldData;
 import org.elasticsearch.index.fielddata.plain.SortedNumericIndexFieldData;
 import org.elasticsearch.index.fielddata.plain.SortedSetOrdinalsIndexFieldData;
@@ -79,21 +78,16 @@ public class IndexFieldDataServiceTests extends ESSingleNodeTestCase {
             indicesService.getCircuitBreakerService()
         );
         MapperBuilderContext context = MapperBuilderContext.root(false, false);
-        final MappedFieldType stringMapper = new KeywordFieldMapper.Builder("string", IndexVersion.current()).build(context).fieldType();
+        final MappedFieldType stringMapper = new KeywordFieldMapper.Builder("string", defaultIndexSettings()).build(context).fieldType();
         ifdService.clear();
         IndexFieldData<?> fd = ifdService.getForField(stringMapper, FieldDataContext.noRuntimeFields("test"));
         assertTrue(fd instanceof SortedSetOrdinalsIndexFieldData);
 
         for (MappedFieldType mapper : Arrays.asList(
-            new NumberFieldMapper.Builder("int", BYTE, ScriptCompiler.NONE, false, true, IndexVersion.current(), null, null).build(context)
-                .fieldType(),
-            new NumberFieldMapper.Builder("int", SHORT, ScriptCompiler.NONE, false, true, IndexVersion.current(), null, null).build(context)
-                .fieldType(),
-            new NumberFieldMapper.Builder("int", INTEGER, ScriptCompiler.NONE, false, true, IndexVersion.current(), null, null).build(
-                context
-            ).fieldType(),
-            new NumberFieldMapper.Builder("long", LONG, ScriptCompiler.NONE, false, true, IndexVersion.current(), null, null).build(context)
-                .fieldType()
+            new NumberFieldMapper.Builder("int", BYTE, ScriptCompiler.NONE, defaultIndexSettings()).build(context).fieldType(),
+            new NumberFieldMapper.Builder("int", SHORT, ScriptCompiler.NONE, defaultIndexSettings()).build(context).fieldType(),
+            new NumberFieldMapper.Builder("int", INTEGER, ScriptCompiler.NONE, defaultIndexSettings()).build(context).fieldType(),
+            new NumberFieldMapper.Builder("long", LONG, ScriptCompiler.NONE, defaultIndexSettings()).build(context).fieldType()
         )) {
             ifdService.clear();
             fd = ifdService.getForField(mapper, FieldDataContext.noRuntimeFields("test"));
@@ -104,26 +98,15 @@ public class IndexFieldDataServiceTests extends ESSingleNodeTestCase {
             "float",
             NumberType.FLOAT,
             ScriptCompiler.NONE,
-            false,
-            true,
-            IndexVersion.current(),
-            null,
-            null
+            defaultIndexSettings()
         ).build(context).fieldType();
         ifdService.clear();
         fd = ifdService.getForField(floatMapper, FieldDataContext.noRuntimeFields("test"));
         assertTrue(fd instanceof SortedDoublesIndexFieldData);
 
-        final MappedFieldType doubleMapper = new NumberFieldMapper.Builder(
-            "double",
-            DOUBLE,
-            ScriptCompiler.NONE,
-            false,
-            true,
-            IndexVersion.current(),
-            null,
-            null
-        ).build(context).fieldType();
+        final MappedFieldType doubleMapper = new NumberFieldMapper.Builder("double", DOUBLE, ScriptCompiler.NONE, defaultIndexSettings())
+            .build(context)
+            .fieldType();
         ifdService.clear();
         fd = ifdService.getForField(doubleMapper, FieldDataContext.noRuntimeFields("test"));
         assertTrue(fd instanceof SortedDoublesIndexFieldData);
@@ -358,7 +341,16 @@ public class IndexFieldDataServiceTests extends ESSingleNodeTestCase {
     public void testRequireDocValuesOnBools() {
         doTestRequireDocValues(new BooleanFieldMapper.BooleanFieldType("field"));
         doTestRequireDocValues(
-            new BooleanFieldMapper.BooleanFieldType("field", true, false, false, null, null, Collections.emptyMap(), false, false)
+            new BooleanFieldMapper.BooleanFieldType(
+                "field",
+                IndexType.terms(true, false),
+                false,
+                null,
+                null,
+                Collections.emptyMap(),
+                false,
+                false
+            )
         );
     }
 

@@ -245,7 +245,7 @@ public class RestSearchAction extends BaseRestHandler {
         searchRequest.routing(request.param("routing"));
         searchRequest.preference(request.param("preference"));
         IndicesOptions indicesOptions = IndicesOptions.fromRequest(request, searchRequest.indicesOptions());
-        if (crossProjectEnabled && searchRequest.allowsCrossProject()) {
+        if (crossProjectEnabled && searchRequest.allowsCrossProject() && searchRequest.pointInTimeBuilder() == null) {
             indicesOptions = IndicesOptions.builder(indicesOptions)
                 .crossProjectModeOptions(new IndicesOptions.CrossProjectModeOptions(true))
                 .build();

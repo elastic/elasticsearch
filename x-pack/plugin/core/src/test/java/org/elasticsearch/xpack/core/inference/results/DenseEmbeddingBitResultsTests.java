@@ -141,7 +141,7 @@ public class DenseEmbeddingBitResultsTests extends AbstractWireSerializingTestCa
     public static Map<String, Object> buildExpectationByte(List<List<Byte>> embeddings) {
         return Map.of(
             DenseEmbeddingBitResults.TEXT_EMBEDDING_BITS,
-            embeddings.stream().map(embedding -> Map.of(DenseEmbeddingByteResults.Embedding.EMBEDDING, embedding)).toList()
+            embeddings.stream().map(embedding -> Map.of(EmbeddingResults.EMBEDDING, embedding)).toList()
         );
     }
 }

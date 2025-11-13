@@ -16,6 +16,7 @@ import org.elasticsearch.action.admin.indices.flush.FlushRequest;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.common.hash.MessageDigests;
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.io.BufferedInputStream;
@@ -39,6 +40,7 @@ import java.util.zip.GZIPOutputStream;
 
 import static org.hamcrest.Matchers.equalTo;
 
+@ESTestCase.WithoutEntitlements // some tests with geo use command line
 public class DatabaseNodeServiceIT extends AbstractGeoIpIT {
     /*
      * This test makes sure that if we index an ordinary mmdb file into the .geoip_databases index, it is correctly handled upon retrieval.

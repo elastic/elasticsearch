@@ -51,11 +51,11 @@
         "description": "If true overall buckets that include interim buckets will be excluded"
       },
       "start": {
-        "type": "string",
+        "type": "date",
         "description": "Returns overall buckets with timestamps after this time"
       },
       "end": {
-        "type": "string",
+        "type": "date",
         "description": "Returns overall buckets with timestamps earlier than this time"
       },
       "allow_no_match": {

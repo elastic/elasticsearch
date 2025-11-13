@@ -92,6 +92,11 @@ public class ReservedRepositoryAction implements ReservedClusterStateHandler<Lis
     }
 
     @Override
+    public ClusterState remove(TransformState prevState) throws Exception {
+        return transform(List.of(), prevState).state();
+    }
+
+    @Override
     public List<PutRepositoryRequest> fromXContent(XContentParser parser) throws IOException {
         List<PutRepositoryRequest> result = new ArrayList<>();
 

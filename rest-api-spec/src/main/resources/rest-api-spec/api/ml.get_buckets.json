@@ -70,12 +70,12 @@
         "description": "specifies a max number of buckets to get"
       },
       "start": {
-        "type": "string",
+        "type": "date",
         "default": "-1",
         "description": "Start time filter for buckets"
       },
       "end": {
-        "type": "string",
+        "type": "date",
         "default": "-1",
         "description": "End time filter for buckets"
       },

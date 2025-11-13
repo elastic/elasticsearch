@@ -1,5 +1,5 @@
 pr: 138013
 summary: ES|QL - Remove vectors from `_source` when applicable
-area: "ES|QL, Relevance, ES|QL"
+area: "ES|QL"
 type: enhancement
 issues: []

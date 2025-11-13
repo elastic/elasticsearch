@@ -315,6 +315,11 @@ public class EsqlCapabilities {
         AGG_TOP_WITH_OPTIONAL_ORDER_FIELD,
 
         /**
+         * Support for the extra "map" field in {@code TOP} aggregation.
+         */
+        AGG_TOP_WITH_OUTPUT_FIELD,
+
+        /**
          * {@code CASE} properly handling multivalue conditions.
          */
         CASE_MV,
@@ -1641,6 +1646,11 @@ public class EsqlCapabilities {
         FIX_MV_CONSTANT_COMPARISON_FIELD,
 
         FULL_TEXT_FUNCTIONS_ACCEPT_NULL_FIELD,
+
+        /**
+         * Support for exponential_histogram type in PERCENTILES aggregation.
+         */
+        EXPONENTIAL_HISTOGRAM_PERCENTILES_SUPPORT(EXPONENTIAL_HISTOGRAM_FEATURE_FLAG),
 
         /**
          * Support for the temporary work to eventually allow FIRST to work with null and multi-value fields, among other things.

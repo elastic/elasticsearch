@@ -16,7 +16,7 @@ import java.util.List;
  * Writes a dense embedding result in the following json format.
  * <pre>
  * {
- *     "text_embedding_bits": [
+ *     "embeddings_bits": [
  *         {
  *             "embedding": [
  *                 23
@@ -31,17 +31,16 @@ import java.util.List;
  * }
  * </pre>
  */
-public final class DenseEmbeddingBitResults extends EmbeddingBitResults {
-    // This name is a holdover from before this class was renamed
-    public static final String NAME = "text_embedding_service_bit_results";
-    public static final String TEXT_EMBEDDING_BITS = "text_embedding_bits";
+public final class GenericDenseEmbeddingBitResults extends EmbeddingBitResults {
+    public static final String NAME = "embedding_bit_results";
+    public static final String EMBEDDINGS_BITS = "embeddings_bits";
 
-    public DenseEmbeddingBitResults(List<EmbeddingByteResults.Embedding> embeddings) {
-        super(embeddings, TEXT_EMBEDDING_BITS);
+    public GenericDenseEmbeddingBitResults(List<EmbeddingByteResults.Embedding> embeddings) {
+        super(embeddings, EMBEDDINGS_BITS);
     }
 
-    public DenseEmbeddingBitResults(StreamInput in) throws IOException {
-        super(in, TEXT_EMBEDDING_BITS);
+    public GenericDenseEmbeddingBitResults(StreamInput in) throws IOException {
+        super(in, EMBEDDINGS_BITS);
     }
 
     @Override

@@ -17,7 +17,7 @@ import java.util.List;
  * Writes a dense embedding result in the following json format
  * <pre>
  * {
- *     "text_embedding": [
+ *     "embeddings": [
  *         {
  *             "embedding": [
  *                 0.1
@@ -32,21 +32,20 @@ import java.util.List;
  * }
  * </pre>
  */
-public final class DenseEmbeddingFloatResults extends EmbeddingFloatResults {
-    // This name is a holdover from before this class was renamed
-    public static final String NAME = "text_embedding_service_results";
-    public static final String TEXT_EMBEDDING = "text_embedding";
+public final class GenericDenseEmbeddingFloatResults extends EmbeddingFloatResults {
+    public static final String NAME = "embedding_float_results";
+    public static final String EMBEDDINGS = "embeddings";
 
-    public DenseEmbeddingFloatResults(List<EmbeddingFloatResults.Embedding> embeddings) {
-        super(embeddings, TEXT_EMBEDDING);
+    public GenericDenseEmbeddingFloatResults(List<Embedding> embeddings) {
+        super(embeddings, EMBEDDINGS);
     }
 
-    public DenseEmbeddingFloatResults(StreamInput in) throws IOException {
-        super(in, TEXT_EMBEDDING);
+    public GenericDenseEmbeddingFloatResults(StreamInput in) throws IOException {
+        super(in, EMBEDDINGS);
     }
 
-    public static DenseEmbeddingFloatResults of(List<? extends InferenceResults> results) {
-        return new DenseEmbeddingFloatResults(getEmbeddingsFromResults(results));
+    public static GenericDenseEmbeddingFloatResults of(List<? extends InferenceResults> results) {
+        return new GenericDenseEmbeddingFloatResults(getEmbeddingsFromResults(results));
     }
 
     @Override

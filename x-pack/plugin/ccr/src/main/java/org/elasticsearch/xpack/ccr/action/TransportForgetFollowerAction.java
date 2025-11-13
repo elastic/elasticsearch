@@ -44,7 +44,8 @@ import java.util.Objects;
 public class TransportForgetFollowerAction extends TransportBroadcastByNodeAction<
     ForgetFollowerAction.Request,
     BroadcastResponse,
-    TransportBroadcastByNodeAction.EmptyResult> {
+    TransportBroadcastByNodeAction.EmptyResult,
+    Void> {
 
     private final IndicesService indicesService;
 
@@ -96,7 +97,8 @@ public class TransportForgetFollowerAction extends TransportBroadcastByNodeActio
         final ForgetFollowerAction.Request request,
         final ShardRouting shardRouting,
         Task task,
-        ActionListener<EmptyResult> listener
+        ActionListener<EmptyResult> listener,
+        Void nodeContext
     ) {
         final Index followerIndex = new Index(request.followerIndex(), request.followerIndexUUID());
         final Index leaderIndex = clusterService.state().metadata().getProject().index(request.leaderIndex()).getIndex();

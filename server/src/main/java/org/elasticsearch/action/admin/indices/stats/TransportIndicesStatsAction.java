@@ -36,7 +36,11 @@ import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
 
-public class TransportIndicesStatsAction extends TransportBroadcastByNodeAction<IndicesStatsRequest, IndicesStatsResponse, ShardStats> {
+public class TransportIndicesStatsAction extends TransportBroadcastByNodeAction<
+    IndicesStatsRequest,
+    IndicesStatsResponse,
+    ShardStats,
+    Void> {
 
     private final IndicesService indicesService;
     private final ProjectResolver projectResolver;
@@ -109,7 +113,13 @@ public class TransportIndicesStatsAction extends TransportBroadcastByNodeAction<
     }
 
     @Override
-    protected void shardOperation(IndicesStatsRequest request, ShardRouting shardRouting, Task task, ActionListener<ShardStats> listener) {
+    protected void shardOperation(
+        IndicesStatsRequest request,
+        ShardRouting shardRouting,
+        Task task,
+        ActionListener<ShardStats> listener,
+        Void nodeContext
+    ) {
         ActionListener.completeWith(listener, () -> {
             assert task instanceof CancellableTask;
             IndexService indexService = indicesService.indexServiceSafe(shardRouting.shardId().getIndex());

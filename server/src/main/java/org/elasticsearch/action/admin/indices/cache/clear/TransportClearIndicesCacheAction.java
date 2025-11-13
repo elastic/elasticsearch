@@ -37,7 +37,8 @@ import java.io.IOException;
 public class TransportClearIndicesCacheAction extends TransportBroadcastByNodeAction<
     ClearIndicesCacheRequest,
     BroadcastResponse,
-    TransportBroadcastByNodeAction.EmptyResult> {
+    TransportBroadcastByNodeAction.EmptyResult,
+    Void> {
 
     public static final ActionType<BroadcastResponse> TYPE = new ActionType<>("indices:admin/cache/clear");
     private final IndicesService indicesService;
@@ -94,7 +95,8 @@ public class TransportClearIndicesCacheAction extends TransportBroadcastByNodeAc
         ClearIndicesCacheRequest request,
         ShardRouting shardRouting,
         Task task,
-        ActionListener<EmptyResult> listener
+        ActionListener<EmptyResult> listener,
+        Void nodeContext
     ) {
         ActionListener.completeWith(listener, () -> {
             indicesService.clearIndexShardCache(

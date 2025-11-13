@@ -74,7 +74,8 @@ import static org.elasticsearch.core.Strings.format;
 public abstract class TransportBroadcastByNodeAction<
     Request extends BroadcastRequest<Request>,
     Response extends BaseBroadcastResponse,
-    ShardOperationResult extends Writeable> extends HandledTransportAction<Request, Response> {
+    ShardOperationResult extends Writeable,
+    NodeContext> extends HandledTransportAction<Request, Response> {
 
     private static final Logger logger = LogManager.getLogger(TransportBroadcastByNodeAction.class);
 
@@ -184,8 +185,13 @@ public abstract class TransportBroadcastByNodeAction<
         Request request,
         ShardRouting shardRouting,
         Task task,
-        ActionListener<ShardOperationResult> listener
+        ActionListener<ShardOperationResult> listener,
+        NodeContext nodeContext
     );
+
+    protected NodeContext createNodeContext() {
+        return null;
+    }
 
     /**
      * Determines the shards on which this operation will be executed on. The operation is executed once per shard.
@@ -415,7 +421,7 @@ public abstract class TransportBroadcastByNodeAction<
     ) {
         assert Transports.assertNotTransportThread("O(#shards) work must always fork to an appropriate executor");
         logger.trace("[{}] executing operation on [{}] shards", actionName, shards.size());
-
+        NodeContext nodeContext = createNodeContext();
         new CancellableFanOut<ShardRouting, ShardOperationResult, NodeResponse>() {
 
             final ArrayList<ShardOperationResult> results = new ArrayList<>(shards.size());
@@ -424,7 +430,7 @@ public abstract class TransportBroadcastByNodeAction<
             @Override
             protected void sendItemRequest(ShardRouting shardRouting, ActionListener<ShardOperationResult> listener) {
                 logger.trace(() -> format("[%s] executing operation for shard [%s]", actionName, shardRouting.shortSummary()));
-                ActionRunnable.wrap(listener, l -> shardOperation(request, shardRouting, task, l)).run();
+                ActionRunnable.wrap(listener, l -> shardOperation(request, shardRouting, task, l, nodeContext)).run();
             }
 
             @Override
@@ -610,7 +616,7 @@ public abstract class TransportBroadcastByNodeAction<
     }
 
     /**
-     * Can be used for implementations of {@link #shardOperation(BroadcastRequest, ShardRouting, Task, ActionListener) shardOperation} for
+     * Can be used for implementations of {@link #shardOperation(BroadcastRequest, ShardRouting, Task, ActionListener, NodeContext) shardOperation} for
      * which there is no shard-level return value.
      */
     public static final class EmptyResult implements Writeable {

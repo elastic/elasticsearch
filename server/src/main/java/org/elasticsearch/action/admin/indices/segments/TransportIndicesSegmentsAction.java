@@ -35,7 +35,8 @@ import java.io.IOException;
 public class TransportIndicesSegmentsAction extends TransportBroadcastByNodeAction<
     IndicesSegmentsRequest,
     IndicesSegmentResponse,
-    ShardSegments> {
+    ShardSegments,
+    Void> {
 
     private final IndicesService indicesService;
     private final ProjectResolver projectResolver;
@@ -109,7 +110,8 @@ public class TransportIndicesSegmentsAction extends TransportBroadcastByNodeActi
         IndicesSegmentsRequest request,
         ShardRouting shardRouting,
         Task task,
-        ActionListener<ShardSegments> listener
+        ActionListener<ShardSegments> listener,
+        Void nodeContext
     ) {
         ActionListener.completeWith(listener, () -> {
             assert task instanceof CancellableTask;

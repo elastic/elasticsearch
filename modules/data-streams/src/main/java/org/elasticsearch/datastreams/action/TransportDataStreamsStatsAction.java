@@ -52,7 +52,8 @@ import java.util.SortedMap;
 public class TransportDataStreamsStatsAction extends TransportBroadcastByNodeAction<
     DataStreamsStatsAction.Request,
     DataStreamsStatsAction.Response,
-    DataStreamsStatsAction.DataStreamShardStats> {
+    DataStreamsStatsAction.DataStreamShardStats,
+    Void> {
 
     private final IndicesService indicesService;
     private final ProjectResolver projectResolver;
@@ -114,7 +115,8 @@ public class TransportDataStreamsStatsAction extends TransportBroadcastByNodeAct
         DataStreamsStatsAction.Request request,
         ShardRouting shardRouting,
         Task task,
-        ActionListener<DataStreamsStatsAction.DataStreamShardStats> listener
+        ActionListener<DataStreamsStatsAction.DataStreamShardStats> listener,
+        Void nodeContext
     ) {
         ActionListener.completeWith(listener, () -> {
             assert shardRouting.isSearchable() : "shard routing is not searchable: " + shardRouting;

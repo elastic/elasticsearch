@@ -20,11 +20,14 @@ import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.RemoteClusterActionType;
 import org.elasticsearch.action.ResolvedIndices;
+import org.elasticsearch.action.search.SearchRequestBuilder;
+import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.GroupedActionListener;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -53,14 +56,28 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.stream.Collectors;
 
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
+import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.is;
 
 public class QueryRewriteContextRemoteAsyncActionIT extends AbstractMultiClustersTestCase {
     private static final String REMOTE_CLUSTER_A = "cluster-a";
     private static final String REMOTE_CLUSTER_B = "cluster-b";
 
+    private static final String INDEX_1 = "index-1";
+    private static final String INDEX_2 = "index-2";
+
     private static final ConcurrentHashMap<String, AtomicInteger> INSTRUMENTED_ACTION_CALL_MAP = new ConcurrentHashMap<>();
+
+    private boolean clustersConfigured = false;
+
+    @Override
+    protected List<String> remoteClusterAlias() {
+        return List.of(REMOTE_CLUSTER_A, REMOTE_CLUSTER_B);
+    }
 
     @Override
     protected Map<String, Boolean> skipUnavailableForRemoteClusters() {
@@ -73,12 +90,34 @@ public class QueryRewriteContextRemoteAsyncActionIT extends AbstractMultiCluster
     }
 
     @Before
-    public void clearInstrumentedActionCallMap() {
+    @Override
+    public void setUp() throws Exception {
+        super.setUp();
         INSTRUMENTED_ACTION_CALL_MAP.clear();
+        if (clustersConfigured == false) {
+            setupClusters();
+            clustersConfigured = true;
+        }
     }
 
     public void testCallRemoteAsyncAction() {
-        // TODO: Implement
+        SearchRequestBuilder allClustersAllIndicesRequest = buildSearchRequest(
+            List.of(INDEX_1, INDEX_2),
+            List.of(REMOTE_CLUSTER_A, REMOTE_CLUSTER_B)
+        );
+        assertSearchResponse(allClustersAllIndicesRequest);
+        assertInstrumentedActionCalls(2, 2);
+
+        SearchRequestBuilder allClustersSingleIndexRequest = buildSearchRequest(
+            List.of(INDEX_1),
+            List.of(REMOTE_CLUSTER_A, REMOTE_CLUSTER_B)
+        );
+        assertSearchResponse(allClustersSingleIndexRequest);
+        assertInstrumentedActionCalls(3, 3);
+
+        SearchRequestBuilder singleClusterSingleIndexRequest = buildSearchRequest(List.of(INDEX_1), List.of(REMOTE_CLUSTER_A));
+        assertSearchResponse(singleClusterSingleIndexRequest);
+        assertInstrumentedActionCalls(4, 3);
     }
 
     public void testInvalidClusterAlias() {
@@ -87,6 +126,61 @@ public class QueryRewriteContextRemoteAsyncActionIT extends AbstractMultiCluster
 
     public void testRemoteClusterUnavailable() {
         // TODO: Implement
+    }
+
+    private void setupClusters() {
+        setupCluster(LOCAL_CLUSTER);
+        setupCluster(REMOTE_CLUSTER_A);
+        setupCluster(REMOTE_CLUSTER_B);
+    }
+
+    private void setupCluster(String clusterAlias) {
+        final Client client = client(clusterAlias);
+        assertAcked(client.admin().indices().prepareCreate(INDEX_1));
+        assertAcked(client.admin().indices().prepareCreate(INDEX_2));
+    }
+
+    private SearchRequestBuilder buildSearchRequest(List<String> indices, List<String> clusterAliases) {
+        return client().prepareSearch(generateFullyQualifiedIndices(indices, clusterAliases)).setQuery(new TestQueryBuilder());
+    }
+
+    private static String[] generateFullyQualifiedIndices(List<String> indices, List<String> clusterAliases) {
+        String[] fullyQualifiedIndices = new String[indices.size() * clusterAliases.size()];
+
+        int idx = 0;
+        for (String clusterAlias : clusterAliases) {
+            for (String index : indices) {
+                StringBuilder fullyQualifiedIndex = new StringBuilder();
+                if (LOCAL_CLUSTER.equals(clusterAlias) == false) {
+                    fullyQualifiedIndex.append(clusterAlias);
+                    fullyQualifiedIndex.append(":");
+                }
+                fullyQualifiedIndex.append(index);
+
+                fullyQualifiedIndices[idx++] = fullyQualifiedIndex.toString();
+            }
+        }
+
+        return fullyQualifiedIndices;
+    }
+
+    private static void assertSearchResponse(SearchRequestBuilder searchRequest) {
+        assertResponse(searchRequest, response -> {
+            assertThat(response.getHits().getTotalHits().value(), equalTo(0L));
+            assertThat(response.getSuccessfulShards(), equalTo(response.getTotalShards()));
+            assertThat(
+                response.getClusters().getClusterStateCount(SearchResponse.Cluster.Status.SUCCESSFUL),
+                equalTo(response.getClusters().getTotal())
+            );
+        });
+    }
+
+    private static void assertInstrumentedActionCalls(int expectedClusterACalls, int expectedClusterBCalls) {
+        Map<String, Integer> expected = Map.of(REMOTE_CLUSTER_A, expectedClusterACalls, REMOTE_CLUSTER_B, expectedClusterBCalls);
+        Map<String, Integer> actual = INSTRUMENTED_ACTION_CALL_MAP.entrySet()
+            .stream()
+            .collect(Collectors.toMap(Map.Entry::getKey, e -> e.getValue().get()));
+        assertThat(actual, equalTo(expected));
     }
 
     private static class TestQueryBuilder extends AbstractQueryBuilder<TestQueryBuilder> {

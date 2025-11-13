@@ -55,7 +55,7 @@ import java.util.function.LongSupplier;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.common.util.concurrent.EsExecutors.DIRECT_EXECUTOR_SERVICE;
+import static org.elasticsearch.threadpool.ThreadPool.Names.SEARCH_COORDINATION;
 
 /**
  * Context object used to rewrite {@link QueryBuilder} instances into simplified version.
@@ -422,7 +422,7 @@ public class QueryRewriteContext {
 
                 RemoteClusterClient remoteClient = client.getRemoteClusterClient(
                     clusterAlias,
-                    DIRECT_EXECUTOR_SERVICE,
+                    client.threadPool().executor(SEARCH_COORDINATION), // TODO: Is this the right thread pool for remote async actions?
                     RemoteClusterService.DisconnectedStrategy.RECONNECT_UNLESS_SKIP_UNAVAILABLE
                 );
                 for (var action : remoteBiConsumers) {

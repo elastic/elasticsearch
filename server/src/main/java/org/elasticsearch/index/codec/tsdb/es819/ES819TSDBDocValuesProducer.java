@@ -232,16 +232,8 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
                                 builder.appendBytesRefs(bytes, length);
                                 return builder.build();
                             }
-                        } else {
-                            try (var builder = factory.bytesRefs(count)) {
-                                for (int i = offset; i < docs.count(); i++) {
-                                    doc = docs.get(i);
-                                    bytesSlice.readBytes((long) doc * length, bytes.bytes, 0, length);
-                                    builder.appendBytesRef(bytes);
-                                }
-                                return builder.build();
-                            }
                         }
+                        return null;
                     }
                 };
             } else {
@@ -291,18 +283,8 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
                                 builder.appendBytesRefs(bytes, offsets);
                                 return builder.build();
                             }
-                        } else {
-                            try (var builder = factory.bytesRefs(count)) {
-                                for (int i = offset; i < docs.count(); i++) {
-                                    int docId = docs.get(i);
-                                    long startOffset = addresses.get(docId);
-                                    bytes.length = (int) (addresses.get(docId + 1L) - startOffset);
-                                    bytesSlice.readBytes(startOffset, bytes.bytes, 0, bytes.length);
-                                    builder.appendBytesRef(bytes);
-                                }
-                                return builder.build();
-                            }
                         }
+                        return null;
                     }
                 };
             }

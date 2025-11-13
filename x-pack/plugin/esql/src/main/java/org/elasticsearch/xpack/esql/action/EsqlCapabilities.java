@@ -1642,6 +1642,11 @@ public class EsqlCapabilities {
 
         FULL_TEXT_FUNCTIONS_ACCEPT_NULL_FIELD,
 
+        /**
+         * Support for exponential_histogram type in PERCENTILES aggregation.
+         */
+        EXPONENTIAL_HISTOGRAM_PERCENTILES_SUPPORT(EXPONENTIAL_HISTOGRAM_FEATURE_FLAG),
+
         PROMQL_V0(Build.current().isSnapshot()),
 
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)

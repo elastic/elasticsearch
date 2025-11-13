@@ -133,7 +133,6 @@ public class DatafeedCcsIT extends AbstractMultiClustersTestCase {
         }
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/84268")
     public void testDatafeedWithCcsRemoteUnavailable() throws Exception {
         setSkipUnavailable(randomBoolean());
         String jobId = "ccs-unavailable-job";
@@ -169,6 +168,15 @@ public class DatafeedCcsIT extends AbstractMultiClustersTestCase {
         } finally {
             client(LOCAL_CLUSTER).execute(StopDatafeedAction.INSTANCE, new StopDatafeedAction.Request(datafeedId)).actionGet();
             client(LOCAL_CLUSTER).execute(CloseJobAction.INSTANCE, new CloseJobAction.Request(jobId)).actionGet();
+            // Wait a bit to allow scroll contexts to be cleaned up after stopping the datafeed.
+            // This is especially important after network disruption when scroll contexts on the remote
+            // cluster may have been created but couldn't be cleared until connectivity was restored.
+            // The wait gives time for the destroy() cleanup to complete.
+            try {
+                Thread.sleep(2000); // 2 seconds should be sufficient for cleanup to propagate
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            }
             clearSkipUnavailable();
         }
     }

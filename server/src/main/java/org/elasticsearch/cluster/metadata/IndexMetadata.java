@@ -587,7 +587,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
     static final String KEY_SETTINGS_VERSION = "settings_version";
     static final String KEY_ALIASES_VERSION = "aliases_version";
     static final String KEY_ROUTING_NUM_SHARDS = "routing_num_shards";
-    static final String KEY_SETTINGS = "settings";
+    public static final String KEY_SETTINGS = "settings";
     static final String KEY_STATE = "state";
     static final String KEY_MAPPINGS = "mappings";
     static final String KEY_MAPPINGS_HASH = "mappings_hash";
@@ -596,7 +596,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
     static final String KEY_MAPPINGS_UPDATED_VERSION = "mappings_updated_version";
     static final String KEY_SYSTEM = "system";
     static final String KEY_TIMESTAMP_RANGE = "timestamp_range";
-    static final String KEY_EVENT_INGESTED_RANGE = "event_ingested_range";
+    public static final String KEY_EVENT_INGESTED_RANGE = "event_ingested_range";
     public static final String KEY_PRIMARY_TERMS = "primary_terms";
     public static final String KEY_STATS = "stats";
 

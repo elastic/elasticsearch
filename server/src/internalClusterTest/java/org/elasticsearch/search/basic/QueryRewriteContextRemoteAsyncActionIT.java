@@ -92,38 +92,38 @@ public class QueryRewriteContextRemoteAsyncActionIT extends AbstractMultiCluster
     private static class TestQueryBuilder extends AbstractQueryBuilder<TestQueryBuilder> {
         private static final String NAME = "test";
 
-        private final Boolean actionAcknowledged;
-        private final ActionFuture<Boolean> actionAcknowledgedSupplier;
+        private final Boolean actionsAcknowledged;
+        private final ActionFuture<Boolean> actionsAcknowledgedSupplier;
 
         private static TestQueryBuilder fromXContent(XContentParser parser) {
             return new TestQueryBuilder();
         }
 
         private TestQueryBuilder() {
-            this.actionAcknowledged = null;
-            this.actionAcknowledgedSupplier = null;
+            this.actionsAcknowledged = null;
+            this.actionsAcknowledgedSupplier = null;
         }
 
         private TestQueryBuilder(StreamInput in) throws IOException {
             super(in);
-            this.actionAcknowledged = in.readOptionalBoolean();
-            this.actionAcknowledgedSupplier = null;
+            this.actionsAcknowledged = in.readOptionalBoolean();
+            this.actionsAcknowledgedSupplier = null;
         }
 
-        private TestQueryBuilder(Boolean actionAcknowledged, ActionFuture<Boolean> actionAcknowledgedSupplier) {
-            this.actionAcknowledged = actionAcknowledged;
-            this.actionAcknowledgedSupplier = actionAcknowledgedSupplier;
+        private TestQueryBuilder(Boolean actionsAcknowledged, ActionFuture<Boolean> actionsAcknowledgedSupplier) {
+            this.actionsAcknowledged = actionsAcknowledged;
+            this.actionsAcknowledgedSupplier = actionsAcknowledgedSupplier;
         }
 
         @Override
         protected void doWriteTo(StreamOutput out) throws IOException {
-            if (actionAcknowledgedSupplier != null) {
+            if (actionsAcknowledgedSupplier != null) {
                 throw new IllegalStateException(
-                    "actionAcknowledgedSupplier must be null, can't serialize suppliers, missing a rewriteAndFetch?"
+                    "actionsAcknowledgedSupplier must be null, can't serialize suppliers, missing a rewriteAndFetch?"
                 );
             }
 
-            out.writeOptionalBoolean(this.actionAcknowledged);
+            out.writeOptionalBoolean(this.actionsAcknowledged);
         }
 
         @Override
@@ -138,14 +138,14 @@ public class QueryRewriteContextRemoteAsyncActionIT extends AbstractMultiCluster
             if (resolvedIndices != null) {
                 TestQueryBuilder rewritten = this;
 
-                if (actionAcknowledgedSupplier != null) {
-                    Boolean actionAcknowledged = actionAcknowledgedSupplier.isDone() ? actionAcknowledgedSupplier.actionGet() : null;
-                    if (actionAcknowledged != null) {
-                        rewritten = new TestQueryBuilder(actionAcknowledged, null);
+                if (actionsAcknowledgedSupplier != null) {
+                    Boolean actionsAcknowledged = actionsAcknowledgedSupplier.isDone() ? actionsAcknowledgedSupplier.actionGet() : null;
+                    if (actionsAcknowledged != null) {
+                        rewritten = new TestQueryBuilder(actionsAcknowledged, null);
                     }
-                } else if (actionAcknowledged == null) {
-                    ActionFuture<Boolean> actionAcknowledgedSupplier = registerActions(queryRewriteContext);
-                    rewritten = new TestQueryBuilder(null, actionAcknowledgedSupplier);
+                } else if (actionsAcknowledged == null) {
+                    ActionFuture<Boolean> actionsAcknowledgedSupplier = registerActions(queryRewriteContext);
+                    rewritten = new TestQueryBuilder(null, actionsAcknowledgedSupplier);
                 }
 
                 return rewritten;
@@ -156,7 +156,7 @@ public class QueryRewriteContextRemoteAsyncActionIT extends AbstractMultiCluster
 
         @Override
         protected Query doToQuery(SearchExecutionContext context) {
-            assertThat(actionAcknowledged, is(true));
+            assertThat(actionsAcknowledged, is(true));
             return new MatchNoDocsQuery();
         }
 
@@ -172,13 +172,13 @@ public class QueryRewriteContextRemoteAsyncActionIT extends AbstractMultiCluster
 
         @Override
         protected boolean doEquals(TestQueryBuilder other) {
-            return Objects.equals(this.actionAcknowledged, other.actionAcknowledged)
-                && Objects.equals(this.actionAcknowledgedSupplier, other.actionAcknowledgedSupplier);
+            return Objects.equals(this.actionsAcknowledged, other.actionsAcknowledged)
+                && Objects.equals(this.actionsAcknowledgedSupplier, other.actionsAcknowledgedSupplier);
         }
 
         @Override
         protected int doHashCode() {
-            return Objects.hash(actionAcknowledged, actionAcknowledgedSupplier);
+            return Objects.hash(actionsAcknowledged, actionsAcknowledgedSupplier);
         }
 
         private static ActionFuture<Boolean> registerActions(QueryRewriteContext queryRewriteContext) {
@@ -200,10 +200,10 @@ public class QueryRewriteContextRemoteAsyncActionIT extends AbstractMultiCluster
                 clusterRequestMap.put(clusterAlias, clusterRequestList);
             }
 
-            PlainActionFuture<Boolean> actionAcknowledgedSupplier = new PlainActionFuture<>();
+            PlainActionFuture<Boolean> actionsAcknowledgedSupplier = new PlainActionFuture<>();
             GroupedActionListener<Void> gal = new GroupedActionListener<>(
                 requestCount,
-                ActionListener.wrap(c -> actionAcknowledgedSupplier.onResponse(true), actionAcknowledgedSupplier::onFailure)
+                ActionListener.wrap(c -> actionsAcknowledgedSupplier.onResponse(true), actionsAcknowledgedSupplier::onFailure)
             );
 
             for (var entry : clusterRequestMap.entrySet()) {
@@ -224,7 +224,7 @@ public class QueryRewriteContextRemoteAsyncActionIT extends AbstractMultiCluster
                 }
             }
 
-            return actionAcknowledgedSupplier;
+            return actionsAcknowledgedSupplier;
         }
     }
 

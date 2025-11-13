@@ -21,7 +21,10 @@ import org.apache.lucene.search.KnnCollector;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.FixedBitSet;
+import org.apache.lucene.util.LongValues;
 import org.apache.lucene.util.VectorUtil;
+import org.apache.lucene.util.packed.DirectReader;
+import org.apache.lucene.util.packed.DirectWriter;
 import org.elasticsearch.index.codec.vectors.GenericFlatVectorReaders;
 import org.elasticsearch.index.codec.vectors.OptimizedScalarQuantizer;
 import org.elasticsearch.index.codec.vectors.cluster.NeighborQueue;
@@ -85,6 +88,23 @@ public class ESNextDiskBBQVectorsReader extends IVFVectorsReader {
         };
     }
 
+    static long directWriterSizeOnDisk(long numValues, int bitsPerValue) {
+        // TODO: use method in https://github.com/apache/lucene/pull/15422 when/if merged.
+        long bytes = (numValues * bitsPerValue + Byte.SIZE - 1) / 8;
+        int paddingBitsNeeded;
+        if (bitsPerValue > Integer.SIZE) {
+            paddingBitsNeeded = Long.SIZE - bitsPerValue;
+        } else if (bitsPerValue > Short.SIZE) {
+            paddingBitsNeeded = Integer.SIZE - bitsPerValue;
+        } else if (bitsPerValue > Byte.SIZE) {
+            paddingBitsNeeded = Short.SIZE - bitsPerValue;
+        } else {
+            paddingBitsNeeded = 0;
+        }
+        final int paddingBytesNeeded = (paddingBitsNeeded + Byte.SIZE - 1) / Byte.SIZE;
+        return bytes + paddingBytesNeeded;
+    }
+
     @Override
     public CentroidIterator getCentroidIterator(
         FieldInfo fieldInfo,
@@ -98,6 +118,9 @@ public class ESNextDiskBBQVectorsReader extends IVFVectorsReader {
     ) throws IOException {
         final FieldEntry fieldEntry = fields.get(fieldInfo.number);
         final float expectedDocsPerCentroid = (float) acceptDocs.cost() / numCentroids;
+        final int bitsRequired = DirectWriter.bitsRequired(numCentroids);
+        final long sizeLookup = directWriterSizeOnDisk(values.size(), bitsRequired);
+        final long fp = centroids.getFilePointer();
         final FixedBitSet acceptCentroids;
         if (expectedDocsPerCentroid > 1.25) {
             // only apply centroid filtering when we expect some / many centroids will not have
@@ -105,16 +128,16 @@ public class ESNextDiskBBQVectorsReader extends IVFVectorsReader {
             acceptCentroids = null;
         } else {
             acceptCentroids = new FixedBitSet(numCentroids);
-            DocIdSetIterator iterator = acceptDocs.iterator();
-            KnnVectorValues.DocIndexIterator docIndexIterator = values.iterator();
+            final DocIdSetIterator iterator = acceptDocs.iterator();
+            final KnnVectorValues.DocIndexIterator docIndexIterator = values.iterator();
+            final LongValues longValues = DirectReader.getInstance(centroids.randomAccessSlice(fp, sizeLookup), bitsRequired);
             int doc = iterator.nextDoc();
             for (; doc != DocIdSetIterator.NO_MORE_DOCS; doc = iterator.nextDoc()) {
                 if (docIndexIterator.docID() < doc) {
                     docIndexIterator.advance(doc); // get the vector ordinal
                 }
                 if (docIndexIterator.docID() == doc) {
-                    centroids.seek((long) docIndexIterator.index() * Integer.BYTES);
-                    acceptCentroids.set(centroids.readInt());
+                    acceptCentroids.set((int) longValues.get(docIndexIterator.index()));
                 }
             }
         }
@@ -132,7 +155,7 @@ public class ESNextDiskBBQVectorsReader extends IVFVectorsReader {
             quantized[i] = (byte) scratch[i];
         }
         final ES92Int7VectorsScorer scorer = ESVectorUtil.getES92Int7VectorsScorer(centroids, fieldInfo.getVectorDimension());
-        centroids.seek((long) values.size() * Integer.BYTES);
+        centroids.seek(fp + sizeLookup);
         int numParents = centroids.readVInt();
 
         CentroidIterator centroidIterator;

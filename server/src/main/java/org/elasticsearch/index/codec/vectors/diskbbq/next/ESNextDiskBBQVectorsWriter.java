@@ -14,11 +14,13 @@ import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.FloatVectorValues;
 import org.apache.lucene.index.MergeState;
 import org.apache.lucene.index.SegmentWriteState;
+import org.apache.lucene.store.ByteBuffersDataOutput;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.util.VectorUtil;
 import org.apache.lucene.util.hnsw.IntToIntFunction;
+import org.apache.lucene.util.packed.DirectWriter;
 import org.apache.lucene.util.packed.PackedInts;
 import org.apache.lucene.util.packed.PackedLongValues;
 import org.elasticsearch.core.SuppressForbidden;
@@ -45,6 +47,7 @@ import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.util.AbstractList;
 import java.util.Arrays;
+import java.util.function.IntUnaryOperator;
 
 import static org.elasticsearch.index.codec.vectors.cluster.HierarchicalKMeans.NO_SOAR_ASSIGNMENT;
 
@@ -401,22 +404,26 @@ public class ESNextDiskBBQVectorsWriter extends IVFVectorsWriter {
                     }
                 }
                 assert idx == centroidSupplier.size() : "Expected [" + centroidSupplier.size() + "], got [" + idx + "]";
-                // TODO: write ordinal to centroid map in a packed format?
-                for (int centroidAssignment : centroidAssignments) {
-                    centroidOutput.writeInt(centroidOrdinalMap[centroidAssignment]);
-                }
+                writeCentroidLookup(centroidOutput, centroidAssignments, i -> centroidOrdinalMap[i], centroidSupplier.size());
             }
             writeCentroidsWithParents(fieldInfo, centroidSupplier, globalCentroid, centroidOffsetAndLength, centroidOutput, centroidGroups);
         } else {
-            {
-                // write vector ord -> centroid lookup table.
-                // TODO: write ordinal to centroid map in a packed format?
-                for (int centroidAssignment : centroidAssignments) {
-                    centroidOutput.writeInt(centroidAssignment);
-                }
-            }
+            writeCentroidLookup(centroidOutput, centroidAssignments, IntUnaryOperator.identity(), centroidSupplier.size());
             writeCentroidsWithoutParents(fieldInfo, centroidSupplier, globalCentroid, centroidOffsetAndLength, centroidOutput);
         }
+    }
+
+    private void writeCentroidLookup(IndexOutput out, int[] centroidAssignments, IntUnaryOperator OrdinalMap, int numberCentroids)
+        throws IOException {
+        final int bitsRequired = DirectWriter.bitsRequired(numberCentroids);
+        final long bytesRequired = ESNextDiskBBQVectorsReader.directWriterSizeOnDisk(centroidAssignments.length, bitsRequired);
+        final ByteBuffersDataOutput memory = new ByteBuffersDataOutput(bytesRequired);
+        final DirectWriter writer = DirectWriter.getInstance(memory, centroidAssignments.length, bitsRequired);
+        for (int centroidAssignment : centroidAssignments) {
+            writer.add(OrdinalMap.applyAsInt(centroidAssignment));
+        }
+        writer.finish();
+        out.copyBytes(memory.toDataInput(), memory.size());
     }
 
     private void writeCentroidsWithParents(

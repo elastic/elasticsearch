@@ -516,6 +516,7 @@ null
 ;
 
 evalDateParseInvalidDate
+required_capability: date_time_exceptions_handled
 row a = "2026-02-29 foo" | eval b = date_parse("yyyy-MM-dd", a) | keep b;
 warning:Line 1:37: evaluation of [date_parse(\"yyyy-MM-dd\", a)] failed, treating result as null. Only first 20 failures recorded.
 warning:Line 1:37: java.lang.IllegalArgumentException: Invalid date 'February 29' as '2026' is not a leap year
@@ -1620,21 +1621,24 @@ null
 ;
 
 evalInvalidDate
+required_capability: date_time_exceptions_handled
 ROW x = ["2026-04-31"]::DATE | KEEP x;
 warning:Line 1:37: evaluation of [date_parse(\"yyyy-MM-dd\", a)] failed, treating result as null. Only first 20 failures recorded.
-warning:Line 1:37: java.lang.IllegalArgumentException: Invalid date 'February 29' as '2026' is not a leap year
+warning:Line 1:37: java.lang.IllegalArgumentException: Invalid date 'APRIL 31'
 ;
 
-evalInvalidDateTime
+evalInvalidDateNanos
+required_capability: date_time_exceptions_handled
 ROW x = ["2026-04-31"]::DATE_NANOS | KEEP x;
 warning:Line 1:37: evaluation of [date_parse(\"yyyy-MM-dd\", a)] failed, treating result as null. Only first 20 failures recorded.
-warning:Line 1:37: java.lang.IllegalArgumentException: Invalid date 'February 29' as '2026' is not a leap year
+warning:Line 1:37: java.lang.IllegalArgumentException: Invalid date 'APRIL 31'
 ;
 
 evalInvalidDateTime
+required_capability: date_time_exceptions_handled
 ROW x = ["2026-04-31"]::DATETIME | KEEP x;
 warning:Line 1:37: evaluation of [date_parse(\"yyyy-MM-dd\", a)] failed, treating result as null. Only first 20 failures recorded.
-warning:Line 1:37: java.lang.IllegalArgumentException: Invalid date 'February 29' as '2026' is not a leap year
+warning:Line 1:37: java.lang.IllegalArgumentException: Invalid date 'APRIL 31'
 ;
 
 evalDateTruncYearInArbitraryIntervals

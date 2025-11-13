@@ -228,7 +228,7 @@ public class QueryRewriteContextRemoteAsyncActionIT extends AbstractMultiCluster
         }
     }
 
-    private static class InstrumentedAction extends ActionType<InstrumentedAction.Response> {
+    public static class InstrumentedAction extends ActionType<InstrumentedAction.Response> {
         private static final InstrumentedAction INSTANCE = new InstrumentedAction();
         private static final RemoteClusterActionType<Response> REMOTE_TYPE = new RemoteClusterActionType<>(INSTANCE.name(), Response::new);
 
@@ -238,10 +238,10 @@ public class QueryRewriteContextRemoteAsyncActionIT extends AbstractMultiCluster
             super(NAME);
         }
 
-        private static class Request extends ActionRequest {
-            private Request() {}
+        public static class Request extends ActionRequest {
+            public Request() {}
 
-            private Request(StreamInput in) throws IOException {
+            public Request(StreamInput in) throws IOException {
                 super(in);
             }
 
@@ -268,12 +268,12 @@ public class QueryRewriteContextRemoteAsyncActionIT extends AbstractMultiCluster
             }
         }
 
-        private static class Response extends AcknowledgedResponse {
-            private Response() {
+        public static class Response extends AcknowledgedResponse {
+            public Response() {
                 super(true);
             }
 
-            private Response(StreamInput in) throws IOException {
+            public Response(StreamInput in) throws IOException {
                 super(in);
             }
         }

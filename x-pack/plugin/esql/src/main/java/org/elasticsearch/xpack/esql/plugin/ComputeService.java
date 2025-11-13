@@ -334,12 +334,6 @@ public class ComputeService {
         QueryPragmas queryPragmas = configuration.pragmas();
         Runnable cancelQueryOnFailure = cancelQueryOnFailure(rootTask);
         if (dataNodePlan == null) {
-            if (clusterToConcreteIndices.values().stream().allMatch(v -> v.indices().length == 0) == false) {
-                String error = "expected no concrete indices without data node plan; got " + clusterToConcreteIndices;
-                assert false : error;
-                listener.onFailure(new IllegalStateException(error));
-                return;
-            }
             var computeContext = new ComputeContext(
                 newChildSession(sessionId),
                 profileDescription(profileQualifier, "single"),
@@ -365,13 +359,13 @@ public class ComputeService {
                 runCompute(rootTask, computeContext, coordinatorPlan, computeListener.acquireCompute());
                 return;
             }
-        } else {
-            if (clusterToConcreteIndices.values().stream().allMatch(v -> v.indices().length == 0)) {
-                var error = "expected concrete indices with data node plan but got empty; data node plan " + dataNodePlan;
-                assert false : error;
-                listener.onFailure(new IllegalStateException(error));
-                return;
-            }
+        }
+
+        if (clusterToConcreteIndices.values().stream().allMatch(v -> v.indices().length == 0)) {
+            var error = "expected concrete indices with data node plan but got empty; data node plan " + dataNodePlan;
+            assert false : error;
+            listener.onFailure(new IllegalStateException(error));
+            return;
         }
         // Gets the original indices specified in the FROM command of the query. We need the original query to resolve alias filters.
         Map<String, OriginalIndices> clusterToOriginalIndices = getIndices(execInfo, EsqlExecutionInfo.Cluster::getOriginalIndices);

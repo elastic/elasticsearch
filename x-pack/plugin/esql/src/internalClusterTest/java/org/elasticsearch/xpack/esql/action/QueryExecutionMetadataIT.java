@@ -29,7 +29,7 @@ public class QueryExecutionMetadataIT extends AbstractCrossClusterTestCase {
     }
 
     protected void assertClusterInfoSuccess(EsqlExecutionInfo.Cluster clusterInfo, int numShards, long overallTookMillis) {
-        assertThat(clusterInfo.getIndexExpression(), equalTo("logs-*"));
+        assertThat(clusterInfo.getOriginalIndices(), equalTo("logs-*"));
         assertThat(clusterInfo.getTook().millis(), lessThanOrEqualTo(overallTookMillis));
         super.assertClusterInfoSuccess(clusterInfo, numShards);
     }

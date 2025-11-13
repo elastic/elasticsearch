@@ -12,6 +12,7 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterChangedEvent;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
@@ -76,27 +77,57 @@ public class AuthorizationTaskExecutor extends PersistentTasksExecutor<Authoriza
         // If the EIS url is not configured, then we won't be able to interact with the service, so don't start the task.
         if (registered.get() == false
             && Strings.isNullOrEmpty(pollerParameters.elasticInferenceServiceSettings().getElasticInferenceServiceUrl()) == false) {
-            logger.warn("Initializing authorization task executor");
+            logger.info("Initializing authorization task executor");
             registered.set(true);
+
+            // For integration tests, it can take some time before we get a cluster state update, so ensure that we attempt to
+            // create the task immediately
+            sendStartRequest(clusterService.state());
             clusterService.addListener(this);
         }
     }
 
+    private void sendStartRequest(ClusterState state) {
+        if (authorizationTaskExists(state)) {
+            return;
+        }
+
+        logger.info("Creating authorization poller task");
+        persistentTasksService.sendClusterStartRequest(
+            TASK_NAME,
+            TASK_NAME,
+            new AuthorizationTaskParams(),
+            TimeValue.THIRTY_SECONDS,
+            ActionListener.wrap(
+                persistentTask -> logger.info("Finished creating authorization poller task, id {}", persistentTask.getId()),
+                exception -> {
+                    var thrownException = exception instanceof RemoteTransportException ? exception.getCause() : exception;
+                    if (thrownException instanceof ResourceAlreadyExistsException == false) {
+                        logger.error("Failed to create authorization poller task", exception);
+                    }
+                }
+            )
+        );
+    }
+
     public synchronized void shutdown() {
         if (registered.compareAndSet(true, false)) {
-            logger.warn("Shutting down authorization task executor");
+            logger.info("Shutting down authorization task executor");
             clusterService.removeListener(this);
-            abortTask();
+            throw new IllegalArgumentException("fix me");
+            // abortTask();
         }
     }
 
+    // TODO I think we can remove this, we don't want to mark as locally aborted, we need the task to complete
+    // it's ugly if we do that here
     private void abortTask() {
         var task = currentTask.get();
         if (task != null && task.isCancelled() == false) {
-            logger.debug("Aborting task authorization task");
+            logger.info("Aborting task authorization task");
             task.markAsLocallyAborted("executor shutdown");
-            currentTask.set(null);
         }
+        currentTask.set(null);
     }
 
     /**
@@ -111,7 +142,7 @@ public class AuthorizationTaskExecutor extends PersistentTasksExecutor<Authoriza
         var authPoller = (AuthorizationPoller) task;
         currentTask.set(authPoller);
         authPoller.start();
-        logger.warn("Created authorization poller task with id {}", task.getId());
+        logger.info("Started authorization poller task with id {}", task.getId());
     }
 
     @FixForMultiProject(
@@ -140,28 +171,11 @@ public class AuthorizationTaskExecutor extends PersistentTasksExecutor<Authoriza
 
     @Override
     public void clusterChanged(ClusterChangedEvent event) {
-        logger.warn("in cluster changed listener");
-        if (authorizationTaskExists(event)) {
-            return;
-        }
-
-        logger.warn("got here");
-        persistentTasksService.sendClusterStartRequest(
-            TASK_NAME,
-            TASK_NAME,
-            new AuthorizationTaskParams(),
-            TimeValue.THIRTY_SECONDS,
-            ActionListener.wrap(persistentTask -> logger.debug("Created authorization poller task"), exception -> {
-                var thrownException = exception instanceof RemoteTransportException ? exception.getCause() : exception;
-                if (thrownException instanceof ResourceAlreadyExistsException == false) {
-                    logger.error("Failed to create authorization poller task", exception);
-                }
-            })
-        );
+        sendStartRequest(event.state());
     }
 
-    private static boolean authorizationTaskExists(ClusterChangedEvent event) {
-        return ClusterPersistentTasksCustomMetadata.getTaskWithId(event.state(), TASK_NAME) != null;
+    private static boolean authorizationTaskExists(ClusterState state) {
+        return ClusterPersistentTasksCustomMetadata.getTaskWithId(state, TASK_NAME) != null;
     }
 
     public static List<NamedXContentRegistry.Entry> getNamedXContentParsers() {

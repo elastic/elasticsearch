@@ -241,9 +241,12 @@ public class AuthorizationPoller extends AllocatedPersistentTask {
     }
 
     private Set<String> getNewInferenceEndpointsToStore(ElasticInferenceServiceAuthorizationModel authModel) {
+        logger.debug("Received authorization response, {}", authModel);
         var scopedAuthModel = authModel.newLimitedToTaskTypes(EnumSet.copyOf(IMPLEMENTED_TASK_TYPES));
+        logger.debug("Authorization entity limited to service task types, {}", scopedAuthModel);
 
         var authorizedModelIds = scopedAuthModel.getAuthorizedModelIds();
+        logger.debug("Authorized model IDs from EIS: {}", authorizedModelIds);
         var existingInferenceIds = modelRegistry.getInferenceIds();
 
         var newInferenceIds = authorizedModelIds.stream()

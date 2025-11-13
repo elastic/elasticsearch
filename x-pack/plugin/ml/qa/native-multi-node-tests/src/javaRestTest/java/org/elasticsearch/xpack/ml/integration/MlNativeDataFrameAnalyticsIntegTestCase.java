@@ -56,7 +56,6 @@ import org.elasticsearch.xpack.core.ml.utils.PhaseProgress;
 import org.elasticsearch.xpack.core.ml.utils.QueryProvider;
 import org.elasticsearch.xpack.ml.dataframe.StoredProgress;
 import org.hamcrest.Matcher;
-import org.hamcrest.Matchers;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -78,7 +77,6 @@ import static org.hamcrest.Matchers.arrayWithSize;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
-import static org.hamcrest.Matchers.hasItems;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
@@ -359,9 +357,9 @@ abstract class MlNativeDataFrameAnalyticsIntegTestCase extends MlNativeIntegTest
     /**
      * Asserts whether the audit messages fetched from index match provided prefixes.
      * More specifically, in order to pass:
-     * 1. the number of fetched messages must equal the number of provided prefixes
+     * 1. ALL expected message prefixes must be found in the fetched messages
      * AND
-     * 2. each fetched message must start with the corresponding prefix
+     * 2. each fetched message that matches must start with the corresponding prefix
      */
     protected static void assertThatAuditMessagesMatch(String configId, String... expectedAuditMessagePrefixes) throws Exception {
         // Make sure we wrote to the audit
@@ -369,13 +367,39 @@ abstract class MlNativeDataFrameAnalyticsIntegTestCase extends MlNativeIntegTest
         // finished the job (as this is a very short analytics job), all without the audit being fully written.
         awaitIndexExists(NotificationsIndex.NOTIFICATIONS_INDEX);
 
-        @SuppressWarnings("unchecked")
-        Matcher<String>[] itemMatchers = Arrays.stream(expectedAuditMessagePrefixes).map(Matchers::startsWith).toArray(Matcher[]::new);
         assertBusy(() -> {
+            // Refresh the notifications index to ensure latest writes are visible
+            RefreshRequest refreshRequest = new RefreshRequest(NotificationsIndex.NOTIFICATIONS_INDEX);
+            BroadcastResponse refreshResponse = client().execute(RefreshAction.INSTANCE, refreshRequest).actionGet();
+            assertThat(refreshResponse.getStatus().getStatus(), anyOf(equalTo(200), equalTo(201)));
+
             List<String> allAuditMessages = fetchAllAuditMessages(configId);
-            assertThat(allAuditMessages, hasItems(itemMatchers));
-            // TODO: Consider restoring this assertion when we are sure all the audit messages are available at this point.
-            // assertThat("Messages: " + allAuditMessages, allAuditMessages, hasSize(expectedAuditMessagePrefixes.length));
+
+            // Track which expected prefixes have been found
+            Set<String> foundPrefixes = new HashSet<>();
+            for (String message : allAuditMessages) {
+                for (String expectedPrefix : expectedAuditMessagePrefixes) {
+                    if (message.startsWith(expectedPrefix)) {
+                        foundPrefixes.add(expectedPrefix);
+                        break; // Each message can only match one prefix
+                    }
+                }
+            }
+
+            // Ensure all expected prefixes were found
+            Set<String> missingPrefixes = new HashSet<>(Arrays.asList(expectedAuditMessagePrefixes));
+            missingPrefixes.removeAll(foundPrefixes);
+
+            if (missingPrefixes.isEmpty() == false) {
+                fail(
+                    "Expected audit messages not found for config ["
+                        + configId
+                        + "]. Missing prefixes: "
+                        + missingPrefixes
+                        + ". Found messages: "
+                        + allAuditMessages
+                );
+            }
         });
     }
 

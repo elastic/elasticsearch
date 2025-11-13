@@ -620,8 +620,8 @@ public abstract class TransportBroadcastByNodeAction<
 
     /**
      * Can be used for implementations of
-     * {@linkTransportBroadcastByNodeAction#shardOperation(BroadcastRequest, ShardRouting, Task, Object, ActionListener) shardOperation} for
-     * which there is no shard-level return value.
+     * {@link #shardOperation(BroadcastRequest, ShardRouting, Task, Object, ActionListener) shardOperation} for which there is no
+     * shard-level return value.
      */
     public static final class EmptyResult implements Writeable {
         public static final EmptyResult INSTANCE = new EmptyResult();

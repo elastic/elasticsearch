@@ -1,62 +1,60 @@
- # Tests for cosine similarity function
- 
- similarityWithVectorField
- required_capability: cosine_vector_similarity_function
- required_capability: dense_vector_field_type_released
- 
+# Tests for cosine similarity function
+
+similarityWithVectorField
+required_capability: vector_similarity_functions_pushdown
+
+
 // tag::vector-cosine-similarity[]
- from colors
- | where color != "black" 
- | eval similarity = v_cosine(rgb_vector, [0, 255, 255]) 
- | sort similarity desc, color asc 
+from colors
+| where color != "black" 
+| eval similarity = v_cosine(rgb_vector, [0, 255, 255]) 
+| sort similarity desc, color asc 
 // end::vector-cosine-similarity[]
- | limit 10
- | keep color, similarity
- ;
+| limit 10
+| keep color, similarity
+;
  
 // tag::vector-cosine-similarity-result[]
-color:text     | similarity:double
-cyan           | 1.0
-teal           | 1.0
-turquoise      | 0.9890533685684204
-aqua marine    | 0.964962363243103
-azure          | 0.916246771812439
-lavender       | 0.9136701822280884
-mint cream     | 0.9122757911682129
-honeydew       | 0.9122424125671387
-gainsboro      | 0.9082483053207397
-gray           | 0.9082483053207397  
+color:text  | similarity:double
+cyan        | 1.0
+teal        | 1.0
+turquoise   | 0.9781067967414856
+aqua marine | 0.929924726486206
+azure       | 0.8324936032295227
+lavender    | 0.827340304851532
+mint cream  | 0.8245516419410706
+honeydew    | 0.8244848847389221
+gainsboro   | 0.8164966106414795
+gray        | 0.8164966106414795
 // end::vector-cosine-similarity-result[] 
 ;
 
- similarityAsPartOfExpression
- required_capability: cosine_vector_similarity_function
- required_capability: dense_vector_field_type_released
- 
- from colors
- | where color != "black" 
- | eval score = round((1 + v_cosine(rgb_vector, [0, 255, 255]) / 2), 3) 
- | sort score desc, color asc 
- | limit 10
- | keep color, score
- ;
+similarityAsPartOfExpression
+required_capability: vector_similarity_functions_pushdown
 
-color:text   | score:double
-cyan         | 1.5
-teal         | 1.5
-turquoise    | 1.495
-aqua marine  | 1.482
-azure        | 1.458
-lavender     | 1.457
-honeydew     | 1.456
-mint cream   | 1.456
-gainsboro    | 1.454
-gray         | 1.454  
+from colors
+| where color != "black" 
+| eval score = round((1 + v_cosine(rgb_vector, [0, 255, 255]) / 2), 3) 
+| sort score desc, color asc 
+| limit 10
+| keep color, score
+;
+
+color:text  | score:double
+cyan        | 1.5
+teal        | 1.5
+turquoise   | 1.489
+aqua marine | 1.465
+azure       | 1.416
+lavender    | 1.414
+honeydew    | 1.412
+mint cream  | 1.412
+gainsboro   | 1.408
+gray        | 1.408
 ;
 
 similarityWithLiteralVectors
-required_capability: cosine_vector_similarity_function
-required_capability: dense_vector_field_type_released
+required_capability: vector_similarity_functions_pushdown
  
 row a = 1
 | eval similarity = round(v_cosine([1, 2, 3], [0, 1, 2]), 3) 
@@ -64,27 +62,24 @@ row a = 1
 ;
 
 similarity:double
-0.978  
+0.956
 ;
 
- similarityWithStats
- required_capability: cosine_vector_similarity_function
- required_capability: dense_vector_field_type_released
+similarityWithStats
+required_capability: vector_similarity_functions_pushdown
  
- from colors
- | where color != "black" 
- | eval similarity = round(v_cosine(rgb_vector, [0, 255, 255]), 3) 
- | stats avg = round(avg(similarity), 3), min = min(similarity), max = max(similarity)
- ;
+from colors
+| where color != "black" 
+| eval similarity = round(v_cosine(rgb_vector, [0, 255, 255]), 3) 
+| stats avg = round(avg(similarity), 3), min = min(similarity), max = max(similarity)
+;
 
 avg:double | min:double | max:double
-0.832      | 0.5        | 1.0
+0.664      | 0.0        | 1.0
 ; 
 
 similarityWithNull
-required_capability: cosine_vector_similarity_function
-required_capability: vector_similarity_functions_support_null
-required_capability: dense_vector_field_type_released
+required_capability: vector_similarity_functions_pushdown
 
 from colors
 | eval similarity = v_cosine(rgb_vector, null) 
@@ -96,41 +91,112 @@ total_null:long
 ;
 
 similarityWithRow
-required_capability: cosine_vector_similarity_function
-required_capability: to_dense_vector_function
-required_capability: dense_vector_field_type_released
+required_capability: vector_similarity_functions_pushdown
  
 row vector = to_dense_vector([1, 2, 3]) 
 | eval similarity = round(v_cosine(vector, [0, 1, 2]), 3) 
 ;
 
-vector: dense_vector | similarity:double
-[1.0, 2.0, 3.0]      | 0.978  
+vector:dense_vector | similarity:double
+[1.0, 2.0, 3.0]     | 0.956
 ;
 
-similarityWithVectorField
-required_capability: cosine_vector_similarity_function
-required_capability: to_dense_vector_function
-required_capability: dense_vector_field_type_released
+multipleEvalSimilarityWithVectorFields
+required_capability: vector_similarity_functions_pushdown
 
 from colors
 | where color != "black" 
-| eval query = to_dense_vector([0, 255, 255])
-| eval similarity = v_cosine(rgb_vector, query) 
+| eval similarity1 = v_cosine(rgb_vector, [0, 255, 255]), similarity2 = v_cosine(rgb_vector, [255, 0, 255]) / 2 + 1
+| sort similarity1 desc, similarity2 desc, color asc 
+| limit 10
+| keep color, similarity1, similarity2
+;
+
+color:text  | similarity1:double | similarity2:double
+cyan        | 1.0                | 1.25
+teal        | 1.0                | 1.25
+turquoise   | 0.9781067967414856 | 1.307922512292862
+aqua marine | 0.929924726486206  | 1.3375208377838135
+azure       | 0.8324936032295227 | 1.4040042459964752
+lavender    | 0.827340304851532  | 1.413670152425766
+mint cream  | 0.8245516419410706 | 1.404111921787262
+honeydew    | 0.8244848847389221 | 1.3997502326965332
+gainsboro   | 0.8164966106414795 | 1.4082483053207397
+gray        | 0.8164966106414795 | 1.4082483053207397
+;
+
+multipleSimilarityWithVectorFields
+required_capability: vector_similarity_functions_pushdown
+
+from colors
+| where color != "black" 
+| eval similarity = v_cosine(rgb_vector, [0, 255, 255]) / 2 + v_cosine(rgb_vector, [255, 0, 255]) / 2 + 1
 | sort similarity desc, color asc 
 | limit 10
 | keep color, similarity
 ;
 
-color:text     | similarity:double
-cyan           | 1.0
-teal           | 1.0
-turquoise      | 0.9890533685684204
-aqua marine    | 0.964962363243103
-azure          | 0.916246771812439
-lavender       | 0.9136701822280884
-mint cream     | 0.9122757911682129
-honeydew       | 0.9122424125671387
-gainsboro      | 0.9082483053207397
-gray           | 0.9082483053207397  
+color:text | similarity:double
+plum       | 1.8287146389484406
+lavender   | 1.827340304851532
+violet     | 1.8270123302936554
+orchid     | 1.8236639499664307
+thistle    | 1.8233629763126373
+azure      | 1.8202510476112366
+gainsboro  | 1.8164966106414795
+gray       | 1.8164966106414795
+silver     | 1.8164966106414795
+white      | 1.8164966106414795
+;
+
+cosineSimilarityWithLookupJoin
+required_capability: vector_similarity_functions_pushdown
+required_capability: join_lookup_v12
+
+from colors
+| where color != "black" 
+| eval s = v_cosine(rgb_vector, [1, 2, 3])
+| lookup join colors_cmyk on id
+| keep color, s, cmyk_vector
+| sort s desc, color asc
+| limit 10
+;
+
+color:text  | s:double           | cmyk_vector:dense_vector
+turquoise   | 0.9721468091011047 | [71.0, 0.0, 7.0, 12.0]
+aqua marine | 0.9580987691879272 | [50.0, 0.0, 17.0, 0.0]
+cyan        | 0.9449111819267273 | [100.0, 0.0, 0.0, 0.0]
+teal        | 0.9449111819267273 | [100.0, 0.0, 0.0, 50.0]
+lavender    | 0.9381157159805298 | [8.0, 8.0, 0.0, 2.0]
+azure       | 0.9347044825553894 | [6.0, 0.0, 0.0, 0.0]
+mint cream  | 0.9287823438644409 | [4.0, 0.0, 2.0, 0.0]
+gainsboro   | 0.9258201122283936 | [0.0, 0.0, 0.0, 14.0]
+gray        | 0.9258201122283936 | [0.0, 0.0, 0.0, 50.0]
+silver      | 0.9258201122283936 | [0.0, 0.0, 0.0, 25.0]
+;
+
+cosineSimilarityWithEnrich
+required_capability: vector_similarity_functions_pushdown
+required_capability: enrich_load
+
+from colors
+| where color != "black" 
+| eval s = v_cosine(rgb_vector, [1, 2, 3])
+| enrich colors_policy
+| keep color_name, s
+| sort s desc, color_name asc
+| limit 10
+;
+
+color_name:text | s:double
+turquoise       | 0.9721468091011047
+aqua marine     | 0.9580987691879272
+cyan            | 0.9449111819267273
+teal            | 0.9449111819267273
+lavender        | 0.9381157159805298
+azure           | 0.9347044825553894
+mint cream      | 0.9287823438644409
+gainsboro       | 0.9258201122283936
+gray            | 0.9258201122283936
+silver          | 0.9258201122283936
 ;

@@ -43,11 +43,11 @@ public class VarianceOverTime extends TimeSeriesAggregateFunction {
             description = "Expression for which to calculate the variance over time."
         ) Expression field
     ) {
-        this(source, field, Literal.TRUE);
+        this(source, field, Literal.TRUE, NO_WINDOW);
     }
 
-    public VarianceOverTime(Source source, Expression field, Expression filter) {
-        super(source, field, filter, emptyList());
+    public VarianceOverTime(Source source, Expression field, Expression filter, Expression window) {
+        super(source, field, filter, window, emptyList());
     }
 
     @Override
@@ -67,21 +67,21 @@ public class VarianceOverTime extends TimeSeriesAggregateFunction {
 
     @Override
     protected NodeInfo<VarianceOverTime> info() {
-        return NodeInfo.create(this, VarianceOverTime::new, field(), filter());
+        return NodeInfo.create(this, VarianceOverTime::new, field(), filter(), window());
     }
 
     @Override
     public VarianceOverTime replaceChildren(List<Expression> newChildren) {
-        return new VarianceOverTime(source(), newChildren.get(0), newChildren.get(1));
+        return new VarianceOverTime(source(), newChildren.get(0), newChildren.get(1), newChildren.get(2));
     }
 
     @Override
     public VarianceOverTime withFilter(Expression filter) {
-        return new VarianceOverTime(source(), field(), filter);
+        return new VarianceOverTime(source(), field(), filter, window());
     }
 
     @Override
     public AggregateFunction perTimeSeriesAggregation() {
-        return new Variance(source(), field(), filter());
+        return new Variance(source(), field(), filter(), window());
     }
 }

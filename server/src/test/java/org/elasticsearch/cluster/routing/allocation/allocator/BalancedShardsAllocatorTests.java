@@ -102,7 +102,7 @@ public class BalancedShardsAllocatorTests extends ESAllocationTestCase {
     };
     private static final Settings WITH_DISK_BALANCING = Settings.builder().put(DISK_USAGE_BALANCE_FACTOR_SETTING.getKey(), "1e-9").build();
 
-    public void testDecideShardAllocation() {
+    public void testExplainShardAllocation() {
         BalancedShardsAllocator allocator = new BalancedShardsAllocator(Settings.EMPTY);
         ClusterState clusterState = ClusterStateCreationUtils.state("idx", false, ShardRoutingState.STARTED);
         assertEquals(clusterState.nodes().getSize(), 3);
@@ -125,9 +125,9 @@ public class BalancedShardsAllocatorTests extends ESAllocationTestCase {
         RoutingAllocation allocation = createRoutingAllocation(clusterState);
 
         allocation.debugDecision(false);
-        AllocateUnassignedDecision allocateDecision = allocator.decideShardAllocation(shard, allocation).getAllocateDecision();
+        AllocateUnassignedDecision allocateDecision = allocator.explainShardAllocation(shard, allocation).getAllocateDecision();
         allocation.debugDecision(true);
-        AllocateUnassignedDecision allocateDecisionWithExplain = allocator.decideShardAllocation(shard, allocation).getAllocateDecision();
+        AllocateUnassignedDecision allocateDecisionWithExplain = allocator.explainShardAllocation(shard, allocation).getAllocateDecision();
         // the allocation decision should have same target node no matter the debug is on or off
         assertEquals(allocateDecision.getTargetNode().getId(), allocateDecisionWithExplain.getTargetNode().getId());
 
@@ -138,7 +138,7 @@ public class BalancedShardsAllocatorTests extends ESAllocationTestCase {
         assertEquals(allocateDecision.getTargetNode().getId(), assignedShards.get(0).currentNodeId());
     }
 
-    public void testDecideShardAllocationWhenThereAreMultipleProjects() {
+    public void testExplainShardAllocationWhenThereAreMultipleProjects() {
         final int numberOfNodes = randomIntBetween(3, 8);
         final int numberOfProjects = randomIntBetween(3, 8);
 
@@ -222,7 +222,7 @@ public class BalancedShardsAllocatorTests extends ESAllocationTestCase {
             .index(indexName)
             .shard(0)
             .primaryShard();
-        AllocateUnassignedDecision allocateDecision = allocator.decideShardAllocation(shard, allocation).getAllocateDecision();
+        AllocateUnassignedDecision allocateDecision = allocator.explainShardAllocation(shard, allocation).getAllocateDecision();
         final DiscoveryNode targetNode = allocateDecision.getTargetNode();
         assertThat(targetNode, notNullValue());
         assertThat(nodes.get(targetNode.getId()), sameInstance(targetNode));

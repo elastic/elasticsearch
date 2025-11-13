@@ -98,6 +98,7 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
         private IndicesOptions indicesOptions = DEFAULT_INDICES_OPTIONS;
         private EnumSet<IndexMode> indexModes = EnumSet.noneOf(IndexMode.class);
         private ResolvedIndexExpressions resolvedIndexExpressions = null;
+        private String projectRouting;
 
         public Request(String[] names) {
             this.names = names;
@@ -109,11 +110,21 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
         }
 
         public Request(String[] names, IndicesOptions indicesOptions, @Nullable EnumSet<IndexMode> indexModes) {
+            this(names, indicesOptions, indexModes, null);
+        }
+
+        public Request(
+            String[] names,
+            IndicesOptions indicesOptions,
+            @Nullable EnumSet<IndexMode> indexModes,
+            @Nullable String projectRouting
+        ) {
             this.names = names;
             this.indicesOptions = indicesOptions;
             if (indexModes != null) {
                 this.indexModes = indexModes;
             }
+            this.projectRouting = projectRouting;
         }
 
         @Override
@@ -195,6 +206,11 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
         public boolean includeDataStreams() {
             // request must allow data streams because the index name expression resolver for the action handler assumes it
             return true;
+        }
+
+        @Override
+        public String getProjectRouting() {
+            return projectRouting;
         }
     }
 
@@ -631,6 +647,7 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
                             }
                             final Exception ex = CrossProjectIndexResolutionValidator.validate(
                                 originalIndicesOptions,
+                                request.getProjectRouting(),
                                 localResolvedIndexExpressions,
                                 getResolvedExpressionsByRemote(remoteResponses)
                             );
@@ -668,6 +685,7 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
                     // `<alias-pattern-matching-origin-only>:index` also get deferred validation
                     final Exception ex = CrossProjectIndexResolutionValidator.validate(
                         originalIndicesOptions,
+                        request.getProjectRouting(),
                         localResolvedIndexExpressions,
                         Map.of()
                     );

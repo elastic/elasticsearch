@@ -16,7 +16,6 @@ import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.ServiceFields;
-import org.elasticsearch.xpack.inference.services.ServiceUtils;
 import org.elasticsearch.xpack.inference.services.openai.OpenAiServiceFields;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettingsTests;
@@ -26,6 +25,7 @@ import java.net.URI;
 import java.util.HashMap;
 import java.util.Map;
 
+import static org.elasticsearch.xpack.inference.services.ServiceUtils.createUri;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
 
@@ -53,10 +53,7 @@ public class OpenAiChatCompletionServiceSettingsTests extends AbstractWireSerial
             ConfigurationParseContext.PERSISTENT
         );
 
-        assertThat(
-            serviceSettings,
-            is(new OpenAiChatCompletionServiceSettings(modelId, ServiceUtils.createUri(url), org, maxInputTokens, null))
-        );
+        assertThat(serviceSettings, is(new OpenAiChatCompletionServiceSettings(modelId, createUri(url), org, maxInputTokens, null)));
     }
 
     public void testFromMap_Request_CreatesSettingsCorrectly_WithRateLimit() {
@@ -85,7 +82,7 @@ public class OpenAiChatCompletionServiceSettingsTests extends AbstractWireSerial
 
         assertThat(
             serviceSettings,
-            is(new OpenAiChatCompletionServiceSettings(modelId, ServiceUtils.createUri(url), org, maxInputTokens, new RateLimitSettings(2)))
+            is(new OpenAiChatCompletionServiceSettings(modelId, createUri(url), org, maxInputTokens, new RateLimitSettings(2)))
         );
     }
 
@@ -235,7 +232,21 @@ public class OpenAiChatCompletionServiceSettingsTests extends AbstractWireSerial
 
     @Override
     protected OpenAiChatCompletionServiceSettings mutateInstance(OpenAiChatCompletionServiceSettings instance) throws IOException {
-        return randomValueOtherThan(instance, OpenAiChatCompletionServiceSettingsTests::createRandomWithNonNullUrl);
+        var modelId = instance.modelId();
+        var uri = instance.uri();
+        var organizationId = instance.organizationId();
+        var maxInputTokens = instance.maxInputTokens();
+        var rateLimitSettings = instance.rateLimitSettings();
+        switch (randomInt(4)) {
+            case 0 -> modelId = randomValueOtherThan(modelId, () -> randomAlphaOfLength(8));
+            case 1 -> uri = randomValueOtherThan(uri, () -> createUri(randomAlphaOfLength(15)));
+            case 2 -> organizationId = randomValueOtherThan(organizationId, () -> randomAlphaOfLengthOrNull(15));
+            case 3 -> maxInputTokens = randomValueOtherThan(maxInputTokens, () -> randomFrom(randomIntBetween(128, 4096), null));
+            case 4 -> rateLimitSettings = randomValueOtherThan(rateLimitSettings, RateLimitSettingsTests::createRandom);
+            default -> throw new AssertionError("Illegal randomisation branch");
+        }
+
+        return new OpenAiChatCompletionServiceSettings(modelId, uri, organizationId, maxInputTokens, rateLimitSettings);
     }
 
     private static OpenAiChatCompletionServiceSettings createRandomWithNonNullUrl() {
@@ -249,7 +260,7 @@ public class OpenAiChatCompletionServiceSettingsTests extends AbstractWireSerial
 
         return new OpenAiChatCompletionServiceSettings(
             modelId,
-            ServiceUtils.createUri(url),
+            createUri(url),
             organizationId,
             maxInputTokens,
             RateLimitSettingsTests.createRandom()

@@ -80,6 +80,102 @@
       "params" : [
         {
           "name" : "field",
+          "type" : "double",
+          "optional" : false,
+          "description" : "Numeric expression. If `null`, the function returns `null`."
+        },
+        {
+          "name" : "min",
+          "type" : "integer",
+          "optional" : false,
+          "description" : "The min value to clamp data into."
+        },
+        {
+          "name" : "max",
+          "type" : "integer",
+          "optional" : false,
+          "description" : "The max value to clamp data into."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "double"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
+          "type" : "double",
+          "optional" : false,
+          "description" : "Numeric expression. If `null`, the function returns `null`."
+        },
+        {
+          "name" : "min",
+          "type" : "long",
+          "optional" : false,
+          "description" : "The min value to clamp data into."
+        },
+        {
+          "name" : "max",
+          "type" : "long",
+          "optional" : false,
+          "description" : "The max value to clamp data into."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "double"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
+          "type" : "double",
+          "optional" : false,
+          "description" : "Numeric expression. If `null`, the function returns `null`."
+        },
+        {
+          "name" : "min",
+          "type" : "unsigned_long",
+          "optional" : false,
+          "description" : "The min value to clamp data into."
+        },
+        {
+          "name" : "max",
+          "type" : "unsigned_long",
+          "optional" : false,
+          "description" : "The max value to clamp data into."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "double"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
+          "type" : "integer",
+          "optional" : false,
+          "description" : "Numeric expression. If `null`, the function returns `null`."
+        },
+        {
+          "name" : "min",
+          "type" : "double",
+          "optional" : false,
+          "description" : "The min value to clamp data into."
+        },
+        {
+          "name" : "max",
+          "type" : "double",
+          "optional" : false,
+          "description" : "The max value to clamp data into."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "double"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
           "type" : "integer",
           "optional" : false,
           "description" : "Numeric expression. If `null`, the function returns `null`."
@@ -99,6 +195,54 @@
       ],
       "variadic" : false,
       "returnType" : "integer"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
+          "type" : "integer",
+          "optional" : false,
+          "description" : "Numeric expression. If `null`, the function returns `null`."
+        },
+        {
+          "name" : "min",
+          "type" : "long",
+          "optional" : false,
+          "description" : "The min value to clamp data into."
+        },
+        {
+          "name" : "max",
+          "type" : "long",
+          "optional" : false,
+          "description" : "The max value to clamp data into."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "long"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
+          "type" : "integer",
+          "optional" : false,
+          "description" : "Numeric expression. If `null`, the function returns `null`."
+        },
+        {
+          "name" : "min",
+          "type" : "unsigned_long",
+          "optional" : false,
+          "description" : "The min value to clamp data into."
+        },
+        {
+          "name" : "max",
+          "type" : "unsigned_long",
+          "optional" : false,
+          "description" : "The max value to clamp data into."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "unsigned_long"
     },
     {
       "params" : [
@@ -153,6 +297,150 @@
         {
           "name" : "field",
           "type" : "long",
+          "optional" : false,
+          "description" : "Numeric expression. If `null`, the function returns `null`."
+        },
+        {
+          "name" : "min",
+          "type" : "double",
+          "optional" : false,
+          "description" : "The min value to clamp data into."
+        },
+        {
+          "name" : "max",
+          "type" : "double",
+          "optional" : false,
+          "description" : "The max value to clamp data into."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "double"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
+          "type" : "long",
+          "optional" : false,
+          "description" : "Numeric expression. If `null`, the function returns `null`."
+        },
+        {
+          "name" : "min",
+          "type" : "integer",
+          "optional" : false,
+          "description" : "The min value to clamp data into."
+        },
+        {
+          "name" : "max",
+          "type" : "integer",
+          "optional" : false,
+          "description" : "The max value to clamp data into."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "long"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
+          "type" : "long",
+          "optional" : false,
+          "description" : "Numeric expression. If `null`, the function returns `null`."
+        },
+        {
+          "name" : "min",
+          "type" : "long",
+          "optional" : false,
+          "description" : "The min value to clamp data into."
+        },
+        {
+          "name" : "max",
+          "type" : "long",
+          "optional" : false,
+          "description" : "The max value to clamp data into."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "long"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
+          "type" : "long",
+          "optional" : false,
+          "description" : "Numeric expression. If `null`, the function returns `null`."
+        },
+        {
+          "name" : "min",
+          "type" : "unsigned_long",
+          "optional" : false,
+          "description" : "The min value to clamp data into."
+        },
+        {
+          "name" : "max",
+          "type" : "unsigned_long",
+          "optional" : false,
+          "description" : "The max value to clamp data into."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "unsigned_long"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
+          "type" : "unsigned_long",
+          "optional" : false,
+          "description" : "Numeric expression. If `null`, the function returns `null`."
+        },
+        {
+          "name" : "min",
+          "type" : "double",
+          "optional" : false,
+          "description" : "The min value to clamp data into."
+        },
+        {
+          "name" : "max",
+          "type" : "double",
+          "optional" : false,
+          "description" : "The max value to clamp data into."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "double"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
+          "type" : "unsigned_long",
+          "optional" : false,
+          "description" : "Numeric expression. If `null`, the function returns `null`."
+        },
+        {
+          "name" : "min",
+          "type" : "integer",
+          "optional" : false,
+          "description" : "The min value to clamp data into."
+        },
+        {
+          "name" : "max",
+          "type" : "integer",
+          "optional" : false,
+          "description" : "The max value to clamp data into."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "unsigned_long"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
+          "type" : "unsigned_long",
           "optional" : false,
           "description" : "Numeric expression. If `null`, the function returns `null`."
         },

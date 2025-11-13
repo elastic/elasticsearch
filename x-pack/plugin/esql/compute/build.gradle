@@ -16,6 +16,7 @@ dependencies {
   compileOnly project(xpackModule('ml'))
   annotationProcessor project('gen')
   implementation 'com.carrotsearch:hppc:0.8.1'
+  api project(':libs:exponential-histogram')
 
   testImplementation(project(':modules:analysis-common'))
   testImplementation(project(':test:framework'))

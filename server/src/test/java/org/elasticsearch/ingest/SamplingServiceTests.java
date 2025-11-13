@@ -59,6 +59,7 @@ public class SamplingServiceTests extends ESTestCase {
         ProjectMetadata.Builder projectBuilder = ProjectMetadata.builder(ProjectId.DEFAULT);
         final ProjectId projectId = projectBuilder.getId();
         ProjectMetadata projectMetadata = projectBuilder.build();
+        ClusterState originalClusterState = ClusterState.builder(ClusterState.EMPTY_STATE).putProjectMetadata(projectMetadata).build();
         Map<String, Object> inputRawDocSource = randomMap(1, 100, () -> Tuple.tuple(randomAlphaOfLength(10), randomAlphaOfLength(10)));
         final IndexRequest indexRequest = new IndexRequest(indexName).id("_id").source(inputRawDocSource);
         samplingService.maybeSample(projectMetadata, indexRequest);
@@ -70,10 +71,30 @@ public class SamplingServiceTests extends ESTestCase {
             .putCustom(
                 SamplingMetadata.TYPE,
                 new SamplingMetadata(
-                    Map.of(indexName, new SamplingConfiguration(1.0, maxSize, ByteSizeValue.ofMb(100), TimeValue.timeValueDays(3), null))
+                    Map.of(indexName, new SamplingConfiguration(1.0, maxSize, ByteSizeValue.ofKb(500), TimeValue.timeValueDays(3), null))
                 )
             );
         projectMetadata = projectBuilder.build();
+        {
+            /*
+             * First we ingest some docs without notifying samplingService of the cluster state change. It will have cached the fact that
+             * there is no config for this index, and so it will not store any samples.
+             */
+            int docsToSample = randomIntBetween(1, maxSize);
+            for (int i = 0; i < docsToSample; i++) {
+                samplingService.maybeSample(projectMetadata, indexRequest);
+            }
+            List<SamplingService.RawDocument> sample = samplingService.getLocalSample(projectId, indexName);
+            assertThat(sample, empty());
+        }
+        // Now we notify samplingService that the cluster state has changed, and it will pick up the new sampling config
+        samplingService.clusterChanged(
+            new ClusterChangedEvent(
+                "test",
+                ClusterState.builder(ClusterState.EMPTY_STATE).putProjectMetadata(projectMetadata).build(),
+                originalClusterState
+            )
+        );
         int docsToSample = randomIntBetween(1, maxSize);
         for (int i = 0; i < docsToSample; i++) {
             samplingService.maybeSample(projectMetadata, indexRequest);
@@ -117,7 +138,7 @@ public class SamplingServiceTests extends ESTestCase {
                 new SamplingMetadata(
                     Map.of(
                         indexName,
-                        new SamplingConfiguration(1.0, 100, ByteSizeValue.ofMb(100), TimeValue.timeValueDays(3), TEST_CONDITIONAL_SCRIPT)
+                        new SamplingConfiguration(1.0, 100, ByteSizeValue.ofMb(5), TimeValue.timeValueDays(3), TEST_CONDITIONAL_SCRIPT)
                     )
                 )
             );
@@ -162,7 +183,7 @@ public class SamplingServiceTests extends ESTestCase {
             .putCustom(
                 SamplingMetadata.TYPE,
                 new SamplingMetadata(
-                    Map.of(indexName, new SamplingConfiguration(0.001, 100, ByteSizeValue.ofMb(100), TimeValue.timeValueDays(3), null))
+                    Map.of(indexName, new SamplingConfiguration(0.001, 100, ByteSizeValue.ofMb(5), TimeValue.timeValueDays(3), null))
                 )
             );
         final ProjectId projectId = projectBuilder.getId();
@@ -202,7 +223,7 @@ public class SamplingServiceTests extends ESTestCase {
             .putCustom(
                 SamplingMetadata.TYPE,
                 new SamplingMetadata(
-                    Map.of(indexName, new SamplingConfiguration(1.0, maxSamples, ByteSizeValue.ofMb(100), TimeValue.timeValueDays(3), null))
+                    Map.of(indexName, new SamplingConfiguration(1.0, maxSamples, ByteSizeValue.ofMb(5), TimeValue.timeValueDays(3), null))
                 )
             );
         final ProjectId projectId = projectBuilder.getId();

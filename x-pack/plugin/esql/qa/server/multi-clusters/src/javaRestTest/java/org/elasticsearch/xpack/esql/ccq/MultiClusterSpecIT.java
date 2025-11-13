@@ -25,7 +25,9 @@ import org.elasticsearch.xpack.esql.CsvSpecReader;
 import org.elasticsearch.xpack.esql.CsvSpecReader.CsvTestCase;
 import org.elasticsearch.xpack.esql.CsvTestsDataLoader;
 import org.elasticsearch.xpack.esql.SpecReader;
+import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.qa.rest.EsqlSpecTestCase;
+import org.elasticsearch.xpack.esql.qa.rest.RestEsqlTestCase;
 import org.junit.AfterClass;
 import org.junit.ClassRule;
 import org.junit.rules.RuleChain;
@@ -301,7 +303,15 @@ public class MultiClusterSpecIT extends EsqlSpecTestCase {
         String first = commands[0].trim();
         // If true, we're using *:index, otherwise we're using *:index,index
         boolean onlyRemotes = canUseRemoteIndicesOnly() && randomBoolean();
-        String[] commandParts = first.split("\\s+", 2);
+
+        // Split "SET a=b; FROM x" into "SET a=b" and "FROM x"
+        int lastSetDelimiterPosition = first.lastIndexOf(';');
+        String setStatements = lastSetDelimiterPosition == -1 ? "" : first.substring(0, lastSetDelimiterPosition + 1);
+        String afterSetStatements = lastSetDelimiterPosition == -1 ? first : first.substring(lastSetDelimiterPosition + 1);
+
+        // Split "FROM a, b, c" into "FROM" and "a, b, c"
+        String[] commandParts = afterSetStatements.trim().split("\\s+", 2);
+
         String command = commandParts[0].trim();
         if (command.equalsIgnoreCase("from") || command.equalsIgnoreCase("ts")) {
             String[] indexMetadataParts = commandParts[1].split("(?i)\\bmetadata\\b", 2);
@@ -323,7 +333,7 @@ public class MultiClusterSpecIT extends EsqlSpecTestCase {
                     + remoteIndices
                     + " "
                     + (indexMetadataParts.length == 1 ? "" : "metadata " + indexMetadataParts[1]);
-                testCase.query = newFirstCommand + query.substring(first.length());
+                testCase.query = setStatements + newFirstCommand + query.substring(first.length());
             }
         }
 
@@ -413,5 +423,18 @@ public class MultiClusterSpecIT extends EsqlSpecTestCase {
     protected boolean supportsTook() throws IOException {
         // We don't read took properly in multi-cluster tests.
         return false;
+    }
+
+    @Override
+    protected boolean supportsExponentialHistograms() {
+        try {
+            return RestEsqlTestCase.hasCapabilities(client(), List.of(EsqlCapabilities.Cap.EXPONENTIAL_HISTOGRAM.capabilityName()))
+                && RestEsqlTestCase.hasCapabilities(
+                    remoteClusterClient(),
+                    List.of(EsqlCapabilities.Cap.EXPONENTIAL_HISTOGRAM.capabilityName())
+                );
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
     }
 }

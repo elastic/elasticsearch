@@ -55,11 +55,11 @@ public class WeightedAvg extends AggregateFunction implements SurrogateExpressio
         @Param(name = "number", type = { "double", "integer", "long" }, description = "A numeric value.") Expression field,
         @Param(name = "weight", type = { "double", "integer", "long" }, description = "A numeric weight.") Expression weight
     ) {
-        this(source, field, Literal.TRUE, weight);
+        this(source, field, Literal.TRUE, NO_WINDOW, weight);
     }
 
-    public WeightedAvg(Source source, Expression field, Expression filter, Expression weight) {
-        super(source, field, filter, List.of(weight));
+    public WeightedAvg(Source source, Expression field, Expression filter, Expression window, Expression weight) {
+        super(source, field, filter, window, List.of(weight));
         this.weight = weight;
     }
 
@@ -68,6 +68,7 @@ public class WeightedAvg extends AggregateFunction implements SurrogateExpressio
             Source.readFrom((PlanStreamInput) in),
             in.readNamedWriteable(Expression.class),
             in.readNamedWriteable(Expression.class),
+            readWindow(in),
             in.readNamedWriteableCollectionAsList(Expression.class).get(0)
         );
     }
@@ -128,17 +129,17 @@ public class WeightedAvg extends AggregateFunction implements SurrogateExpressio
 
     @Override
     protected NodeInfo<WeightedAvg> info() {
-        return NodeInfo.create(this, WeightedAvg::new, field(), filter(), weight);
+        return NodeInfo.create(this, WeightedAvg::new, field(), filter(), window(), weight);
     }
 
     @Override
     public WeightedAvg replaceChildren(List<Expression> newChildren) {
-        return new WeightedAvg(source(), newChildren.get(0), newChildren.get(1), newChildren.get(2));
+        return new WeightedAvg(source(), newChildren.get(0), newChildren.get(1), newChildren.get(2), newChildren.get(3));
     }
 
     @Override
     public WeightedAvg withFilter(Expression filter) {
-        return new WeightedAvg(source(), field(), filter, weight());
+        return new WeightedAvg(source(), field(), filter, window(), weight());
     }
 
     @Override
@@ -151,9 +152,19 @@ public class WeightedAvg extends AggregateFunction implements SurrogateExpressio
             return new MvAvg(s, field);
         }
         if (weight.foldable()) {
-            return new Div(s, new Sum(s, field, filter()), new Count(s, field, filter()), dataType());
+            return new Div(
+                s,
+                new Sum(s, field, filter(), window(), SummationMode.COMPENSATED_LITERAL),
+                new Count(s, field, filter(), window()),
+                dataType()
+            );
         } else {
-            return new Div(s, new Sum(s, new Mul(s, field, weight), filter()), new Sum(s, weight, filter()), dataType());
+            return new Div(
+                s,
+                new Sum(s, new Mul(s, field, weight), filter(), window(), SummationMode.COMPENSATED_LITERAL),
+                new Sum(s, weight, filter(), window(), SummationMode.COMPENSATED_LITERAL),
+                dataType()
+            );
         }
     }
 

@@ -1080,13 +1080,19 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             Expression aggFilter = new Literal(source, true, DataType.BOOLEAN);
 
             List<NamedExpression> aggregates = new ArrayList<>();
-            aggregates.add(new Alias(source, score.name(), new Sum(source, score, aggFilter, SummationMode.COMPENSATED_LITERAL)));
+            aggregates.add(
+                new Alias(
+                    source,
+                    score.name(),
+                    new Sum(source, score, aggFilter, AggregateFunction.NO_WINDOW, SummationMode.COMPENSATED_LITERAL)
+                )
+            );
 
             for (Attribute attr : childrenOutput) {
                 if (attr.name().equals(score.name())) {
                     continue;
                 }
-                var valuesAgg = new Values(source, attr, aggFilter);
+                var valuesAgg = new Values(source, attr, aggFilter, AggregateFunction.NO_WINDOW);
                 // Use VALUES only on supported fields.
                 // FuseScoreEval will check that the input contains only columns with supported data types
                 // and will fail with an appropriate error message if it doesn't.

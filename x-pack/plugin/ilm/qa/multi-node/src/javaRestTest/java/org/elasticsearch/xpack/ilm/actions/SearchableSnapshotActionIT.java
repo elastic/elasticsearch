@@ -111,7 +111,7 @@ public class SearchableSnapshotActionIT extends IlmESRestTestCase {
         assertThat(backingIndices.size(), equalTo(2));
         String backingIndexName = backingIndices.getFirst();
         String restoredIndexName = SearchableSnapshotAction.FULL_RESTORED_INDEX_PREFIX + backingIndexName;
-        awaitIndexExists(restoredIndexName);
+        awaitIndexExists(restoredIndexName, TimeValue.timeValueSeconds(20));
 
         TimeSeriesRestDriver.awaitStepKey(client(), restoredIndexName, null, null, PhaseCompleteStep.NAME);
         // Wait for the original index to be deleted, to ensure ILM has finished
@@ -159,11 +159,29 @@ public class SearchableSnapshotActionIT extends IlmESRestTestCase {
      * we perform the force merge on the _source_ index and snapshot the source index.
      */
     public void testSearchableSnapshotForceMergesSourceIndex() throws Exception {
-        // Data streams have 1 primary shard by default.
-        // The test suite runs with 4 nodes, so we can have up to 3 (allocated) replicas.
         final String phase = randomBoolean() ? "cold" : "frozen";
-        final int numberOfPrimaries = 1;
+        final int numberOfPrimaries = randomIntBetween(1, 3);
         final String backingIndexName = prepareDataStreamWithDocs(phase, numberOfPrimaries, 0);
+
+        // Enable/start ILM on the data stream.
+        updateIndexSettings(dataStream, Settings.builder().put(LifecycleSettings.LIFECYCLE_NAME, policy));
+
+        assertForceMergedSnapshotDone(phase, backingIndexName, numberOfPrimaries, false);
+    }
+
+    /**
+     * Test that when we have a searchable snapshot action with force merge enabled, the source index has _at least one_ replica,
+     * and we opt out of performing the force-merge on a zero-replica clone (through {@link SearchableSnapshotAction#forceMergeOnClone}),
+     * we perform the force merge on the _source_ index and snapshot the source index.
+     */
+    public void testSearchableSnapshotForceMergeOnCloneOptOut() throws Exception {
+        final String phase = randomBoolean() ? "cold" : "frozen";
+        final int numberOfPrimaries = randomIntBetween(1, 3);
+        // The test suite runs with 4 nodes, so we can have up to 3 (allocated) replicas.
+        final int numberOfReplicas = randomIntBetween(1, 3);
+        final String backingIndexName = prepareDataStreamWithDocs(phase, numberOfPrimaries, numberOfReplicas);
+        // Update the policy to set `forceMergeOnClone` false in the SearchableSnapshotAction.
+        createNewSingletonPolicy(client(), policy, phase, new SearchableSnapshotAction(snapshotRepo, true, null, null, false));
 
         // Enable/start ILM on the data stream.
         updateIndexSettings(dataStream, Settings.builder().put(LifecycleSettings.LIFECYCLE_NAME, policy));
@@ -215,7 +233,7 @@ public class SearchableSnapshotActionIT extends IlmESRestTestCase {
         Map<String, LifecycleAction> coldActions = Map.of(SearchableSnapshotAction.NAME, new SearchableSnapshotAction(snapshotRepo));
         Map<String, Phase> phases = new HashMap<>();
         phases.put("cold", new Phase("cold", TimeValue.ZERO, coldActions));
-        phases.put("delete", new Phase("delete", TimeValue.timeValueMillis(10000), Map.of(DeleteAction.NAME, WITH_SNAPSHOT_DELETE)));
+        phases.put("delete", new Phase("delete", TimeValue.ZERO, Map.of(DeleteAction.NAME, WITH_SNAPSHOT_DELETE)));
         LifecyclePolicy lifecyclePolicy = new LifecyclePolicy(policy, phases);
         // PUT policy
         XContentBuilder builder = jsonBuilder();
@@ -243,7 +261,7 @@ public class SearchableSnapshotActionIT extends IlmESRestTestCase {
         String restoredIndexName = SearchableSnapshotAction.FULL_RESTORED_INDEX_PREFIX + backingIndexName;
 
         // let's wait for ILM to finish
-        awaitIndexDoesNotExist(backingIndexName);
+        awaitIndexDoesNotExist(backingIndexName, TimeValue.timeValueSeconds(20));
         awaitIndexDoesNotExist(restoredIndexName);
 
         List<Map<String, Object>> snapshots = getSnapshots();
@@ -329,7 +347,7 @@ public class SearchableSnapshotActionIT extends IlmESRestTestCase {
 
         String backingIndexName = backingIndices.getFirst();
         String restoredIndexName = SearchableSnapshotAction.FULL_RESTORED_INDEX_PREFIX + backingIndexName;
-        awaitIndexExists(restoredIndexName);
+        awaitIndexExists(restoredIndexName, TimeValue.timeValueSeconds(20));
         TimeSeriesRestDriver.awaitStepKey(client(), restoredIndexName, "hot", null, PhaseCompleteStep.NAME);
         // Wait for the original index to be deleted, to ensure ILM has finished
         awaitIndexDoesNotExist(backingIndexName);
@@ -399,7 +417,7 @@ public class SearchableSnapshotActionIT extends IlmESRestTestCase {
 
         String backingIndexName = backingIndices.getFirst();
         String searchableSnapMountedIndexName = SearchableSnapshotAction.FULL_RESTORED_INDEX_PREFIX + backingIndexName;
-        awaitIndexExists(searchableSnapMountedIndexName);
+        awaitIndexExists(searchableSnapMountedIndexName, TimeValue.timeValueSeconds(20));
         TimeSeriesRestDriver.awaitStepKey(client(), searchableSnapMountedIndexName, "hot", null, PhaseCompleteStep.NAME);
         // Wait for the original index to be deleted, to ensure ILM has finished
         awaitIndexDoesNotExist(backingIndexName);
@@ -441,7 +459,7 @@ public class SearchableSnapshotActionIT extends IlmESRestTestCase {
         restoreSnapshot.setJsonEntity("{\"indices\": \"" + dataStream + "\", \"include_global_state\": false}");
         assertOK(client().performRequest(restoreSnapshot));
 
-        assertThat(indexExists(searchableSnapMountedIndexName), is(true));
+        awaitIndexExists(searchableSnapMountedIndexName);
         ensureGreen(searchableSnapMountedIndexName);
 
         // the restored index is now managed by the now updated ILM policy and needs to go through the warm and cold phase
@@ -505,7 +523,7 @@ public class SearchableSnapshotActionIT extends IlmESRestTestCase {
         final String searchableSnapMountedIndexName = SearchableSnapshotAction.FULL_RESTORED_INDEX_PREFIX + index;
 
         logger.info("--> waiting for [{}] to exist...", searchableSnapMountedIndexName);
-        awaitIndexExists(searchableSnapMountedIndexName);
+        awaitIndexExists(searchableSnapMountedIndexName, TimeValue.timeValueSeconds(20));
         TimeSeriesRestDriver.awaitStepKey(client(), searchableSnapMountedIndexName, "cold", null, PhaseCompleteStep.NAME);
         // Wait for the original index to be deleted, to ensure ILM has finished
         awaitIndexDoesNotExist(index);
@@ -551,7 +569,7 @@ public class SearchableSnapshotActionIT extends IlmESRestTestCase {
             + SearchableSnapshotAction.FULL_RESTORED_INDEX_PREFIX + index;
 
         logger.info("--> waiting for [{}] to exist...", searchableSnapMountedIndexName);
-        awaitIndexExists(searchableSnapMountedIndexName);
+        awaitIndexExists(searchableSnapMountedIndexName, TimeValue.timeValueSeconds(20));
         TimeSeriesRestDriver.awaitStepKey(client(), searchableSnapMountedIndexName, "frozen", null, PhaseCompleteStep.NAME);
         // Wait for the original index to be deleted, to ensure ILM has finished
         awaitIndexDoesNotExist(index);
@@ -617,7 +635,7 @@ public class SearchableSnapshotActionIT extends IlmESRestTestCase {
 
         final String fullMountedIndexName = SearchableSnapshotAction.FULL_RESTORED_INDEX_PREFIX + index;
         logger.info("--> waiting for [{}] to exist...", fullMountedIndexName);
-        awaitIndexExists(fullMountedIndexName);
+        awaitIndexExists(fullMountedIndexName, TimeValue.timeValueSeconds(20));
         TimeSeriesRestDriver.awaitStepKey(client(), fullMountedIndexName, "cold", null, PhaseCompleteStep.NAME);
         // Wait for the original index to be deleted, to ensure ILM has finished
         awaitIndexDoesNotExist(index);
@@ -633,7 +651,7 @@ public class SearchableSnapshotActionIT extends IlmESRestTestCase {
 
         String partiallyMountedIndexName = SearchableSnapshotAction.PARTIAL_RESTORED_INDEX_PREFIX + fullMountedIndexName;
         logger.info("--> waiting for [{}] to exist...", partiallyMountedIndexName);
-        awaitIndexExists(partiallyMountedIndexName);
+        awaitIndexExists(partiallyMountedIndexName, TimeValue.timeValueSeconds(20));
         TimeSeriesRestDriver.awaitStepKey(client(), partiallyMountedIndexName, "frozen", null, PhaseCompleteStep.NAME);
 
         // Ensure the searchable snapshot is not deleted when the index was deleted because it was not created by this
@@ -709,7 +727,7 @@ public class SearchableSnapshotActionIT extends IlmESRestTestCase {
         final String fullMountedIndexName = SearchableSnapshotAction.FULL_RESTORED_INDEX_PREFIX + index;
         final String partialMountedIndexName = SearchableSnapshotAction.PARTIAL_RESTORED_INDEX_PREFIX + fullMountedIndexName;
         logger.info("--> waiting for [{}] to exist...", partialMountedIndexName);
-        awaitIndexExists(partialMountedIndexName);
+        awaitIndexExists(partialMountedIndexName, TimeValue.timeValueSeconds(20));
         TimeSeriesRestDriver.awaitStepKey(client(), partialMountedIndexName, "frozen", null, PhaseCompleteStep.NAME);
         // Wait for the original index to be deleted, to ensure ILM has finished
         awaitIndexDoesNotExist(index);
@@ -725,7 +743,7 @@ public class SearchableSnapshotActionIT extends IlmESRestTestCase {
 
         String restoredPartiallyMountedIndexName = SearchableSnapshotAction.FULL_RESTORED_INDEX_PREFIX + partialMountedIndexName;
         logger.info("--> waiting for [{}] to exist...", restoredPartiallyMountedIndexName);
-        awaitIndexExists(restoredPartiallyMountedIndexName);
+        awaitIndexExists(restoredPartiallyMountedIndexName, TimeValue.timeValueSeconds(20));
         TimeSeriesRestDriver.awaitStepKey(client(), restoredPartiallyMountedIndexName, "cold", null, PhaseCompleteStep.NAME);
 
         // Ensure the searchable snapshot is not deleted when the index was deleted because it was not created by this
@@ -830,7 +848,7 @@ public class SearchableSnapshotActionIT extends IlmESRestTestCase {
 
         final String restoredIndex = SearchableSnapshotAction.FULL_RESTORED_INDEX_PREFIX + firstGenIndex;
         logger.info("--> waiting for [{}] to exist...", restoredIndex);
-        awaitIndexExists(restoredIndex);
+        awaitIndexExists(restoredIndex, TimeValue.timeValueSeconds(20));
         TimeSeriesRestDriver.awaitStepKey(client(), restoredIndex, "hot", PhaseCompleteStep.NAME, PhaseCompleteStep.NAME);
 
         Map<String, Object> hotIndexSettings = getIndexSettingsAsMap(restoredIndex);
@@ -869,7 +887,7 @@ public class SearchableSnapshotActionIT extends IlmESRestTestCase {
         assertThat(backingIndices.size(), equalTo(2));
         String backingIndexName = backingIndices.getFirst();
         String restoredIndexName = SearchableSnapshotAction.FULL_RESTORED_INDEX_PREFIX + backingIndexName;
-        awaitIndexExists(restoredIndexName);
+        awaitIndexExists(restoredIndexName, TimeValue.timeValueSeconds(20));
 
         TimeSeriesRestDriver.awaitStepKey(client(), restoredIndexName, null, null, PhaseCompleteStep.NAME);
         // Wait for the original index to be deleted, to ensure ILM has finished
@@ -893,7 +911,10 @@ public class SearchableSnapshotActionIT extends IlmESRestTestCase {
             new Phase(
                 "frozen",
                 TimeValue.ZERO,
-                Map.of(SearchableSnapshotAction.NAME, new SearchableSnapshotAction(snapshotRepo, randomBoolean(), totalShardsPerNode, null))
+                Map.of(
+                    SearchableSnapshotAction.NAME,
+                    new SearchableSnapshotAction(snapshotRepo, randomBoolean(), totalShardsPerNode, null, null)
+                )
             ),
             null
         );
@@ -910,7 +931,7 @@ public class SearchableSnapshotActionIT extends IlmESRestTestCase {
         final String searchableSnapMountedIndexName = SearchableSnapshotAction.PARTIAL_RESTORED_INDEX_PREFIX
             + SearchableSnapshotAction.FULL_RESTORED_INDEX_PREFIX + index;
         logger.info("--> waiting for [{}] to exist...", searchableSnapMountedIndexName);
-        awaitIndexExists(searchableSnapMountedIndexName);
+        awaitIndexExists(searchableSnapMountedIndexName, TimeValue.timeValueSeconds(20));
         TimeSeriesRestDriver.awaitStepKey(client(), searchableSnapMountedIndexName, "frozen", null, PhaseCompleteStep.NAME);
         // Wait for the original index to be deleted, to ensure ILM has finished
         awaitIndexDoesNotExist(index);
@@ -941,7 +962,7 @@ public class SearchableSnapshotActionIT extends IlmESRestTestCase {
                 TimeValue.ZERO,
                 Map.of(
                     SearchableSnapshotAction.NAME,
-                    new SearchableSnapshotAction(snapshotRepo, forceMergeIndex, null, TimeValue.timeValueHours(2))
+                    new SearchableSnapshotAction(snapshotRepo, forceMergeIndex, null, TimeValue.timeValueHours(2), null)
                 )
             ),
             new Phase("delete", TimeValue.timeValueDays(1), Map.of(DeleteAction.NAME, WITH_SNAPSHOT_DELETE))
@@ -963,7 +984,7 @@ public class SearchableSnapshotActionIT extends IlmESRestTestCase {
         assertThat(backingIndices.size(), equalTo(2));
         String backingIndexName = backingIndices.getFirst();
         String restoredIndexName = SearchableSnapshotAction.FULL_RESTORED_INDEX_PREFIX + backingIndexName;
-        awaitIndexExists(restoredIndexName);
+        awaitIndexExists(restoredIndexName, TimeValue.timeValueSeconds(20));
 
         // check that the index is in the expected step and has the expected step_info.message
         assertBusy(() -> {
@@ -998,7 +1019,7 @@ public class SearchableSnapshotActionIT extends IlmESRestTestCase {
                 TimeValue.ZERO,
                 Map.of(
                     SearchableSnapshotAction.NAME,
-                    new SearchableSnapshotAction(snapshotRepo, forceMergeIndex, null, TimeValue.timeValueSeconds(10))
+                    new SearchableSnapshotAction(snapshotRepo, forceMergeIndex, null, TimeValue.timeValueSeconds(10), null)
                 )
             ),
             new Phase("delete", TimeValue.timeValueDays(1), Map.of(DeleteAction.NAME, WITH_SNAPSHOT_DELETE))
@@ -1112,7 +1133,7 @@ public class SearchableSnapshotActionIT extends IlmESRestTestCase {
             ? SearchableSnapshotAction.FULL_RESTORED_INDEX_PREFIX
             : SearchableSnapshotAction.PARTIAL_RESTORED_INDEX_PREFIX;
         final String restoredIndexName = prefix + backingIndexName;
-        awaitIndexExists(restoredIndexName);
+        awaitIndexExists(restoredIndexName, TimeValue.timeValueSeconds(20));
 
         assertBusy(() -> assertThat(explainIndex(client(), restoredIndexName).get("step"), is(PhaseCompleteStep.NAME)));
         // Wait for the original index to be deleted, to ensure ILM has finished

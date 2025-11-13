@@ -627,6 +627,7 @@ public class MetadataCreateIndexService {
         final IndexMetadata.Builder tmpImdBuilder = IndexMetadata.builder(request.index());
         tmpImdBuilder.setRoutingNumShards(routingNumShards);
         tmpImdBuilder.settings(indexSettings);
+        tmpImdBuilder.transportVersion(TransportVersion.current());
         tmpImdBuilder.system(isSystem);
 
         // Set up everything, now locally create the index to see that things are ok, and apply
@@ -1223,9 +1224,6 @@ public class MetadataCreateIndexService {
         }
 
         indexSettingsBuilder.put(IndexMetadata.SETTING_VERSION_CREATED, createdVersion);
-        if (indexSettingsBuilder.get(IndexMetadata.SETTING_TRANSPORT_VERSION_CREATED) == null) {
-            indexSettingsBuilder.put(IndexMetadata.SETTING_TRANSPORT_VERSION_CREATED, TransportVersion.current());
-        }
         if (INDEX_NUMBER_OF_SHARDS_SETTING.exists(indexSettingsBuilder) == false) {
             indexSettingsBuilder.put(SETTING_NUMBER_OF_SHARDS, INDEX_NUMBER_OF_SHARDS_SETTING.get(settings));
         }

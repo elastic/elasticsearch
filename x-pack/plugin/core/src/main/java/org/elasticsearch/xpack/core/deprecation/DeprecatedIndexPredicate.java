@@ -139,9 +139,7 @@ public class DeprecatedIndexPredicate {
 
     private static boolean transportVersionBeforeCurrentMinorRelease(IndexMetadata indexMetadata) {
         // We divide each transport version by 1000 to get the base id.
-        return IndexMetadata.SETTING_INDEX_TRANSPORT_VERSION_CREATED.get(indexMetadata.getSettings()).id() / 1000 < TransportVersion
-            .current()
-            .id() / 1000;
+        return indexMetadata.getTransportVersion().id() / 1000 < TransportVersion.current().id() / 1000;
     }
 
     /**

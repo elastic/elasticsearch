@@ -9585,7 +9585,8 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         Attribute attribute = relation.output().get(0);
         assertThat(attribute.name(), equalTo("@timestamp"));
     }
-  /**
+
+    /**
      * EsqlProject[[to_long{r}#5]]
      * \_Eval[[TOLONG(string{f}#8) AS to_long#5]]
      *         ┗━━━━┛

@@ -542,39 +542,19 @@ public class TDigestFieldMapper extends FieldMapper {
                 return;
             }
             value.reset(binaryValue);
-            List<Double> centroids = new ArrayList<>();
-            List<Long> counts = new ArrayList<>();
-
-            while (value.next()) {
-                centroids.add(value.value());
-                counts.add(value.count());
-            }
-            double sum = 0;
-            long count = 0;
-            for (int i = 0; i < counts.size(); i++) {
-                sum += centroids.get(i) * counts.get(i);
-                count += counts.get(i);
-            }
 
             b.startObject();
-
             // TODO: Load the summary values out of the sub-fields, if they exist
-            if (centroids.isEmpty() == false) {
-                b.field(MIN_FIELD_NAME, centroids.get(0));
-                b.field(MAX_FIELD_NAME, centroids.get(centroids.size() - 1));
-            }
-            b.field(SUM_FIELD_NAME, sum);
-            b.field(TOTAL_COUNT_FIELD_NAME, count);
-
             b.startArray(CENTROIDS_NAME);
-            for (Double val : centroids) {
-                b.value(val);
+            while (value.next()) {
+                b.value(value.value());
             }
             b.endArray();
 
+            value.reset(binaryValue);
             b.startArray(COUNTS_NAME);
-            for (Long val : counts) {
-                b.value(val);
+            while (value.next()) {
+                b.value(value.count());
             }
             b.endArray();
 

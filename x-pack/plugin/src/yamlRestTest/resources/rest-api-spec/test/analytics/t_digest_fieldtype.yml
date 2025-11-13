@@ -10,16 +10,16 @@ setup:
               latency:
                 type: "tdigest"
   - do:
-      headers:
-        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
       bulk:
         index: test
         refresh: true
         body:
-          - '{"index": {}}'
+          - '{"index": {"_id": 1}}'
           - '{"latency": {"centroids" : [0.1, 0.2, 0.3, 0.4, 0.5], "counts" : [3, 7, 23, 12, 6]}}'
-          - '{"index": {}}'
+          - '{"index": {"_id": 2}}'
           - '{"latency": {"centroids" : [0, 0.1, 0.2, 0.3, 0.4, 0.5], "counts" : [3, 2, 5, 10, 1, 8]}}'
+          - '{"index": {"_id": 3}}'
+          - '{"latency": {"sum": 8.6, "count": 29, "min": 0, "max": 0.5, "centroids" : [0, 0.1, 0.2, 0.3, 0.4, 0.5], "counts" : [3, 2, 5, 10, 1, 8]}}'
 ---
 "TDigest requires values in increasing order":
   - do:
@@ -27,6 +27,33 @@ setup:
       index:
         index: test
         body: { "latency": { "centroids": [ 1.0, 0.2, 0.3, 0.4, 0.5 ], "counts": [ 3, 7, 23, 12, 6 ] } }
+---
+TDigest get:
+  - do:
+      get:
+        index: test
+        id: 1
+  - match:
+      _source:
+        latency:
+          # Note that in this case, we don't get the summary fields, because they weren't in the original source.
+          centroids: [ 0.1, 0.2, 0.3, 0.4, 0.5 ]
+          counts: [ 3, 7, 23, 12, 6 ]
+
+  - do:
+      get:
+        index: test
+        id: 3
+  - match:
+      _source:
+        latency:
+          min: 0
+          max: 0.5
+          sum: 8.6
+          count: 29
+          centroids: [ 0, 0.1, 0.2, 0.3, 0.4, 0.5 ]
+          counts: [ 3, 2, 5, 10, 1, 8 ]
+
 ---
 TDigest with synthetic source:
   - requires:
@@ -79,6 +106,45 @@ TDigest with synthetic source:
           max: 0.5
           # $%#@! floating points...
           sum: 8.600000000000001
+          count: 29
+          centroids: [ 0.0, 0.1, 0.2, 0.3, 0.4, 0.5 ]
+          counts: [ 3, 2, 5, 10, 1, 8 ]
+---
+TDigest with synthetic source and explicit summary fields:
+  - requires:
+      cluster_features: [ "mapper.source.mode_from_index_setting" ]
+      reason: "Source mode configured through index setting"
+
+  - do:
+      indices.create:
+        index: tdigest_synthetic
+        body:
+          settings:
+            index:
+              mapping.source.mode: synthetic
+          mappings:
+            properties:
+              latency:
+                type: tdigest
+  - do:
+      bulk:
+        index: tdigest_synthetic
+        refresh: true
+        body:
+          - '{"index": {"_id": 1}}'
+          - '{"latency": {"sum": 8.6, "count": 29, "min": 0, "max": 0.5, "centroids" : [0, 0.1, 0.2, 0.3, 0.4, 0.5], "counts" : [3, 2, 5, 10, 1, 8]}}'
+
+  - do:
+      get:
+        index: tdigest_synthetic
+        id: 1
+  - match:
+      _source:
+        latency:
+          # Note that unlike the stored source case, we get back a float here
+          min: 0.0
+          max: 0.5
+          sum: 8.6
           count: 29
           centroids: [ 0.0, 0.1, 0.2, 0.3, 0.4, 0.5 ]
           counts: [ 3, 2, 5, 10, 1, 8 ]

@@ -224,7 +224,7 @@ public class BooleanFieldMapper extends FieldMapper {
             boolean isDimension,
             boolean isSyntheticSource
         ) {
-            super(name, isIndexed, isStored, hasDocValues, TextSearchInfo.SIMPLE_MATCH_ONLY, meta);
+            super(name, IndexType.terms(isIndexed, hasDocValues), isStored, TextSearchInfo.SIMPLE_MATCH_ONLY, meta);
             this.nullValue = nullValue;
             this.scriptValues = scriptValues;
             this.isDimension = isDimension;

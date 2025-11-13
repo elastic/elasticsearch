@@ -1371,20 +1371,22 @@ public class StatementParserTests extends AbstractStatementParserTests {
 class foo {
  */
     public void testLikeRLikeParam() {
-        LogicalPlan cmd = statement("row a = \"abc\" | where a like ?pattern",
-            new QueryParams( List.of(paramAsConstant("pattern", "a*")) )
-        );
-        assertEquals(Filter.class, cmd.getClass());
-        Filter filter = (Filter) cmd;
-        assertEquals(WildcardLike.class, filter.condition().getClass());
-        WildcardLike like = (WildcardLike) filter.condition();
-        assertEquals("a*", like.pattern().pattern());
-
-        expectError(
-            "row a = \"abc\" | where a like ?pattern",
-            List.of(paramAsConstant("pattern", 1)),
-            "Invalid StringOrParameterContext" // XXX need more specific message
-        );
+        if (EsqlCapabilities.Cap.LIKE_PARAMETER_SUPPORT.isEnabled()) {
+            LogicalPlan cmd = statement("row a = \"abc\" | where a like ?pattern",
+                new QueryParams( List.of(paramAsConstant("pattern", "a*")) )
+            );
+            assertEquals(Filter.class, cmd.getClass());
+            Filter filter = (Filter) cmd;
+            assertEquals(WildcardLike.class, filter.condition().getClass());
+            WildcardLike like = (WildcardLike) filter.condition();
+            assertEquals("a*", like.pattern().pattern());
+    
+            expectError(
+                "row a = \"abc\" | where a like ?pattern",
+                List.of(paramAsConstant("pattern", 1)),
+                "Invalid StringOrParameterContext" // XXX need more specific message
+            );
+        }
     }
 // end 131356
 

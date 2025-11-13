@@ -1857,9 +1857,8 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
 }
 class foo {
 */
-
     public void testParamsWithLike() throws IOException {
-        //assumeTrue("like parameter support", EsqlCapabilities.Cap.LIKE_PARAMETER_SUPPORT.isEnabled());
+        assumeTrue("like parameter support", EsqlCapabilities.Cap.LIKE_PARAMETER_SUPPORT.isEnabled());
         bulkLoadTestData(11);
         var query = requestObjectBuilder().query(
             format(null, "from {} | where keyword like ?pattern | keep keyword", testIndexName() )

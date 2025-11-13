@@ -5607,16 +5607,17 @@ public class AnalyzerTests extends ESTestCase {
 class foo {
 */
     public void testLikeParameters() {
-        // if (EsqlCapabilities.Cap.LIKE_PARAMETER_SUPPORT.isEnabled() == false) { return; }
-        var plan = analyze(
-            String.format(Locale.ROOT, "from test | where first_name like ?pattern"),
-            "mapping-basic.json",
-            new QueryParams(List.of(paramAsConstant("pattern", "Anna*")))
-        );
-        var limit = as(plan, Limit.class);
-        var filter = as(limit.child(), Filter.class);
-        WildcardLike like = as(filter.condition(), WildcardLike.class);
-        assertEquals("Anna*", like.pattern().pattern());
+        if (EsqlCapabilities.Cap.LIKE_PARAMETER_SUPPORT.isEnabled()) {
+            var plan = analyze(
+                String.format(Locale.ROOT, "from test | where first_name like ?pattern"),
+                "mapping-basic.json",
+                new QueryParams(List.of(paramAsConstant("pattern", "Anna*")))
+            );
+            var limit = as(plan, Limit.class);
+            var filter = as(limit.child(), Filter.class);
+            WildcardLike like = as(filter.condition(), WildcardLike.class);
+            assertEquals("Anna*", like.pattern().pattern());
+        }
     }
 // end 131356
 

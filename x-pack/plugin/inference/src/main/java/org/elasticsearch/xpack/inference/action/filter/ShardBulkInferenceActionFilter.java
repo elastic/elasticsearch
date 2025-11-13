@@ -43,6 +43,7 @@ import org.elasticsearch.inference.ChunkedInference;
 import org.elasticsearch.inference.ChunkingSettings;
 import org.elasticsearch.inference.InferenceService;
 import org.elasticsearch.inference.InferenceServiceRegistry;
+import org.elasticsearch.inference.InferenceString;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.MinimalServiceSettings;
 import org.elasticsearch.inference.Model;
@@ -76,6 +77,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.inference.InferenceString.DataType.TEXT;
 import static org.elasticsearch.inference.telemetry.InferenceStats.serviceAndResponseAttributes;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.toSemanticTextFieldChunks;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.toSemanticTextFieldChunksLegacy;
@@ -393,7 +395,7 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
             }
 
             final List<ChunkInferenceInput> inputs = requests.stream()
-                .map(r -> new ChunkInferenceInput(r.input, r.chunkingSettings))
+                .map(r -> new ChunkInferenceInput(new InferenceString(r.input, TEXT), r.chunkingSettings))
                 .collect(Collectors.toList());
 
             ActionListener<List<ChunkedInference>> completionListener = new ActionListener<>() {

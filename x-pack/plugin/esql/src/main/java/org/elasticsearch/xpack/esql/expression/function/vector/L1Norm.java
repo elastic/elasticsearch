@@ -55,6 +55,11 @@ public class L1Norm extends VectorSimilarityFunction {
         public BlockLoaderFunctionConfig.Function function() {
             return BlockLoaderFunctionConfig.Function.V_L1NORM;
         }
+
+        @Override
+        public String toString() {
+            return "V_L1_NORM";
+        }
     };
 
     @FunctionInfo(

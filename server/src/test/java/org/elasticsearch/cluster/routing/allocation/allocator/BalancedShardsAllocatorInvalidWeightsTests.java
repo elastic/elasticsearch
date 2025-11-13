@@ -20,13 +20,14 @@ import org.elasticsearch.cluster.routing.RoutingChangesObserver;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
-import org.elasticsearch.cluster.routing.allocation.ShardAllocationDecision;
 import org.elasticsearch.cluster.routing.allocation.WriteLoadForecaster;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.MockLog;
@@ -36,15 +37,12 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Objects;
 import java.util.Set;
-import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.test.MockLog.assertThatLogger;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.spy;
-import static org.mockito.Mockito.when;
 
 /**
  * Tests for how the balanced shards allocator will behave when the weight function
@@ -53,7 +51,7 @@ import static org.mockito.Mockito.when;
  */
 public class BalancedShardsAllocatorInvalidWeightsTests extends ESTestCase {
 
-    public void testBalanceIsSkippedWhenInvalidWeightsAreEncounteredDuringSorting() {
+    public void testBalanceWillBePerformedForAnyNodesReturningValidWeights() {
         try (var ignored = BalancedShardsAllocator.disableInvalidWeightsAssertionsAndRemoveLogRateLimiting()) {
             final var balancingWeightsFactory = new InvalidWeightsBalancingWeightsFactory();
             final var allocator = new BalancedShardsAllocator(
@@ -62,8 +60,9 @@ public class BalancedShardsAllocatorInvalidWeightsTests extends ESTestCase {
                 balancingWeightsFactory
             );
 
+            final int numberOfNodes = randomIntBetween(3, 5);
             final ClusterState clusterState = moveAllShardsToNode(
-                ClusterStateCreationUtils.state(3, new String[] { "one", "two", "three" }, 1),
+                ClusterStateCreationUtils.state(numberOfNodes, new String[] { "one", "two", "three" }, 1),
                 "node_0"
             );
             final RoutingAllocation allocation = new RoutingAllocation(
@@ -77,12 +76,21 @@ public class BalancedShardsAllocatorInvalidWeightsTests extends ESTestCase {
             balancingWeightsFactory.returnInvalidWeightsForRandomNodes(clusterState);
             assertInvalidWeightsMessageIsLogged(() -> allocator.allocate(allocation));
 
-            // There should have been no changes
-            assertFalse(allocation.routingNodesChanged());
+            Set<String> nodeIdsReturningInvalidWeights = balancingWeightsFactory.nodeIdsReturningInvalidWeights();
+            if (nodeIdsReturningInvalidWeights.contains("node_0")) {
+                // The node with all the shards is returning invalid weights, we can't balance
+                assertFalse(allocation.routingNodesChanged());
+            } else if (nodeIdsReturningInvalidWeights.size() == numberOfNodes - 1) {
+                // All the other nodes are returning invalid weights, we can't balance
+                assertFalse(allocation.routingNodesChanged());
+            } else {
+                // Some balancing should have been done
+                assertTrue(allocation.routingNodesChanged());
+            }
         }
     }
 
-    public void testNodesBalancingIsAbortedWhenWeFirstSeeAnInvalidWeight() {
+    public void testShardThatNeedsMovingWillAlwaysBeMoved() {
         try (var ignored = BalancedShardsAllocator.disableInvalidWeightsAssertionsAndRemoveLogRateLimiting()) {
             final var balancingWeightsFactory = new InvalidWeightsBalancingWeightsFactory();
             final var allocator = new BalancedShardsAllocator(
@@ -91,42 +99,8 @@ public class BalancedShardsAllocatorInvalidWeightsTests extends ESTestCase {
                 balancingWeightsFactory
             );
 
-            final ClusterState clusterState = moveAllShardsToNode(
-                ClusterStateCreationUtils.state(3, new String[] { "one", "two", "three" }, randomIntBetween(1, 2)),
-                "node_0"
-            );
-            final RoutingAllocation allocation = new RoutingAllocation(
-                new AllocationDeciders(List.of()),
-                clusterState.getRoutingNodes().mutableCopy(),
-                clusterState,
-                ClusterInfo.EMPTY,
-                null,
-                System.nanoTime()
-            );
-
-            // Start returning invalid weights after we've seen a shard move
-            doAnswer(iom -> {
-                if (allocation.routingNodes().getRelocatingShardCount() > 0) {
-                    return randomFrom(Float.POSITIVE_INFINITY, Float.NEGATIVE_INFINITY, Float.NaN);
-                }
-                return iom.callRealMethod();
-            }).when(balancingWeightsFactory.getWeightFunction()).calculateNodeWeightWithIndex(any(), any(), any());
-            assertInvalidWeightsMessageIsLogged(() -> allocator.allocate(allocation));
-            // We should have aborted balancing after that first move
-            assertEquals(1, allocation.routingNodes().getRelocatingShardCount());
-        }
-    }
-
-    public void testMoveShardsIsSkippedWhenInvalidWeightsAreEncounteredDuringSorting() {
-        try (var ignored = BalancedShardsAllocator.disableInvalidWeightsAssertionsAndRemoveLogRateLimiting()) {
-            final var balancingWeightsFactory = new InvalidWeightsBalancingWeightsFactory();
-            final var allocator = new BalancedShardsAllocator(
-                BalancerSettings.DEFAULT,
-                WriteLoadForecaster.DEFAULT,
-                balancingWeightsFactory
-            );
-
-            // Allocator will try and move shards off of node_2
+            // Allocator will try and move shard off of node_2
+            final Decision.Single negativeDecision = randomFrom(Decision.NO, Decision.NOT_PREFERRED);
             final AllocationDecider allocationDecider = new AllocationDecider() {
                 @Override
                 public Decision canRemain(
@@ -136,12 +110,17 @@ public class BalancedShardsAllocatorInvalidWeightsTests extends ESTestCase {
                     RoutingAllocation allocation
                 ) {
                     if (node.nodeId().equals("node_2")) {
-                        return Decision.NO;
+                        return negativeDecision;
                     }
                     return Decision.YES;
                 }
             };
-            final ClusterState clusterState = ClusterStateCreationUtils.state(3, new String[] { "one", "two", "three" }, 1);
+            final int numberOfNodes = randomIntBetween(3, 5);
+            final ClusterState clusterState = ClusterStateCreationUtils.state(
+                numberOfNodes,
+                new String[] { "one", "two", "three" },
+                numberOfNodes
+            );
             balancingWeightsFactory.returnInvalidWeightsForRandomNodes(clusterState);
             final RoutingAllocation allocation = new RoutingAllocation(
                 new AllocationDeciders(List.of(allocationDecider)),
@@ -152,8 +131,22 @@ public class BalancedShardsAllocatorInvalidWeightsTests extends ESTestCase {
                 System.nanoTime()
             );
             assertInvalidWeightsMessageIsLogged(() -> allocator.allocate(allocation));
-            // No shards should have moved
-            assertFalse(allocation.routingNodesChanged());
+            // The shard on node 2 should have been moved
+            assertEquals(1, allocation.routingNodes().getRelocatingShardCount());
+            final var relocatingShard = allocation.routingNodes()
+                .stream()
+                .flatMap(rn -> rn.shardsWithState(ShardRoutingState.RELOCATING))
+                .findFirst()
+                .orElseThrow(() -> new AssertionError("Couldn't find relocating shard?"));
+            // It should be moved to a node returning a valid weight, if there are any
+            boolean allNodesOtherThanNode2AreReturningInvalidValues = Sets.difference(
+                balancingWeightsFactory.nodeIdsReturningInvalidWeights(),
+                Set.of("node_2")
+            ).size() + 1 == numberOfNodes;
+            assertTrue(
+                balancingWeightsFactory.nodeIsReturningInvalidWeights(relocatingShard.relocatingNodeId()) == false
+                    || allNodesOtherThanNode2AreReturningInvalidValues
+            );
         }
     }
 
@@ -184,7 +177,7 @@ public class BalancedShardsAllocatorInvalidWeightsTests extends ESTestCase {
         }
     }
 
-    public void testExplainRebalanceIsSkippedWhenInvalidWeightsAreEncounteredDuringSorting() {
+    public void testExplainRebalanceExcludesNodesReturningInvalidWeights() {
         try (var ignored = BalancedShardsAllocator.disableInvalidWeightsAssertionsAndRemoveLogRateLimiting()) {
             final var balancingWeightsFactory = new InvalidWeightsBalancingWeightsFactory();
             final var allocator = new BalancedShardsAllocator(
@@ -193,7 +186,8 @@ public class BalancedShardsAllocatorInvalidWeightsTests extends ESTestCase {
                 balancingWeightsFactory
             );
 
-            final ClusterState clusterState = ClusterStateCreationUtils.state(3, new String[] { "one", "two", "three" }, 1);
+            final int numberOfNodes = randomIntBetween(3, 5);
+            final ClusterState clusterState = ClusterStateCreationUtils.state(numberOfNodes, new String[] { "one", "two", "three" }, 1);
             balancingWeightsFactory.returnInvalidWeightsForRandomNodes(clusterState);
 
             final RoutingAllocation allocation = new RoutingAllocation(
@@ -206,109 +200,34 @@ public class BalancedShardsAllocatorInvalidWeightsTests extends ESTestCase {
             );
 
             assertInvalidWeightsMessageIsLogged(() -> {
-                ShardAllocationDecision shardAllocationDecision = allocator.explainShardAllocation(
-                    randomFrom(clusterState.routingTable(ProjectId.DEFAULT).allShards().collect(Collectors.toSet())),
-                    allocation
+                final var shard = randomFrom(clusterState.routingTable(ProjectId.DEFAULT).allShards().collect(Collectors.toSet()));
+                final var shardAllocationDecision = allocator.explainShardAllocation(shard, allocation);
+                boolean currentNodeReturningInvalidWeight = balancingWeightsFactory.nodeIsReturningInvalidWeights(shard.currentNodeId());
+                boolean allOtherNodesReturningInvalidWeights = Sets.difference(
+                    balancingWeightsFactory.nodeIdsReturningInvalidWeights(),
+                    Set.of(shard.currentNodeId())
+                ).size() + 1 == numberOfNodes;
+                // If the current node and/or all other nodes are returning invalid weights, we can't return a decision
+                assertTrue(
+                    "Decision: "
+                        + shardAllocationDecision
+                        + ", currentNodeId: "
+                        + shard.currentNodeId()
+                        + ", invalidNodes: "
+                        + balancingWeightsFactory.nodeIdsReturningInvalidWeights()
+                        + ", nodes: "
+                        + numberOfNodes,
+                    shardAllocationDecision.isDecisionTaken() || allOtherNodesReturningInvalidWeights || currentNodeReturningInvalidWeight
                 );
-                assertFalse(shardAllocationDecision.isDecisionTaken());
-            });
-        }
-    }
-
-    public void testExplainRebalanceWillNotConsiderNodesReturningInvalidWeights() {
-        try (var ignored = BalancedShardsAllocator.disableInvalidWeightsAssertionsAndRemoveLogRateLimiting()) {
-            final var balancingWeightsFactory = new InvalidWeightsBalancingWeightsFactory();
-            final var allocator = new BalancedShardsAllocator(
-                BalancerSettings.DEFAULT,
-                WriteLoadForecaster.DEFAULT,
-                balancingWeightsFactory
-            );
-
-            final ClusterState clusterState = ClusterStateCreationUtils.state(3, new String[] { "one", "two", "three" }, 1);
-            balancingWeightsFactory.returnInvalidWeightsForRandomNodes(clusterState);
-
-            final AllocationDecider allocationDecider = spy(AllocationDecider.class);
-            final RoutingAllocation allocation = new RoutingAllocation(
-                new AllocationDeciders(List.of(allocationDecider)),
-                clusterState.getRoutingNodes().mutableCopy(),
-                clusterState,
-                ClusterInfo.EMPTY,
-                null,
-                System.nanoTime()
-            );
-            final AtomicBoolean decidersBeingCalled = new AtomicBoolean(false);
-            when(allocationDecider.canAllocate(any(ShardRouting.class), any(), any())).thenAnswer(iom -> {
-                decidersBeingCalled.set(true);
-                return Decision.YES;
-            });
-            doAnswer(iom -> {
-                final BalancedShardsAllocator.ModelNode node = iom.getArgument(1);
-                final var nodeId = node.getRoutingNode().nodeId();
-                return switch (nodeId) {
-                    case "node_1" -> 10f;
-                    case "node_2" -> decidersBeingCalled.get()
-                        ? randomFrom(Float.POSITIVE_INFINITY, Float.NEGATIVE_INFINITY, Float.NaN)
-                        : 1f;
-                    case "node_0" -> 5f;
-                    default -> throw new AssertionError("Unexpected node: " + nodeId);
-                };
-            }).when(balancingWeightsFactory.getWeightFunction()).calculateNodeWeightWithIndex(any(), any(), any());
-
-            assertInvalidWeightsMessageIsLogged(() -> {
-                ShardAllocationDecision shardAllocationDecision = allocator.explainShardAllocation(
-                    clusterState.getRoutingNodes().node("node_1").copyShards()[0],
-                    allocation
-                );
-                assertTrue(shardAllocationDecision.isDecisionTaken());
-                assertEquals(1, shardAllocationDecision.getMoveDecision().getNodeDecisions().size());
-                assertTrue(shardAllocationDecision.getMoveDecision().getNodeDecisions().get(0).getNode().getId().equals("node_0"));
-            });
-        }
-    }
-
-    public void testExplainRebalanceWillAbortIfCurrentNodeReturnsInvalidWeight() {
-        try (var ignored = BalancedShardsAllocator.disableInvalidWeightsAssertionsAndRemoveLogRateLimiting()) {
-            final var balancingWeightsFactory = new InvalidWeightsBalancingWeightsFactory();
-            final var allocator = new BalancedShardsAllocator(
-                BalancerSettings.DEFAULT,
-                WriteLoadForecaster.DEFAULT,
-                balancingWeightsFactory
-            );
-
-            final ClusterState clusterState = ClusterStateCreationUtils.state(3, new String[] { "one", "two", "three" }, 1);
-            balancingWeightsFactory.returnInvalidWeightsForRandomNodes(clusterState);
-
-            final RoutingAllocation allocation = new RoutingAllocation(
-                new AllocationDeciders(List.of()),
-                clusterState.getRoutingNodes().mutableCopy(),
-                clusterState,
-                ClusterInfo.EMPTY,
-                null,
-                System.nanoTime()
-            );
-            // This is a fairly brittle way of allowing the weight function through the sort
-            // only to fail when determining the current node's weight. Also seems unlikely
-            // to actually occur in the real-world
-            final AtomicInteger weightsCalculatedCount = new AtomicInteger(0);
-            doAnswer(iom -> {
-                final BalancedShardsAllocator.ModelNode node = iom.getArgument(1);
-                final var nodeId = node.getRoutingNode().nodeId();
-                return switch (nodeId) {
-                    case "node_0" -> 5f;
-                    case "node_1" -> weightsCalculatedCount.incrementAndGet() >= 2
-                        ? randomFrom(Float.POSITIVE_INFINITY, Float.NEGATIVE_INFINITY, Float.NaN)
-                        : 10f;
-                    case "node_2" -> 1f;
-                    default -> throw new AssertionError("Unexpected node: " + nodeId);
-                };
-            }).when(balancingWeightsFactory.getWeightFunction()).calculateNodeWeightWithIndex(any(), any(), any());
-
-            assertInvalidWeightsMessageIsLogged(() -> {
-                ShardAllocationDecision shardAllocationDecision = allocator.explainShardAllocation(
-                    clusterState.getRoutingNodes().node("node_1").copyShards()[0],
-                    allocation
-                );
-                assertFalse(shardAllocationDecision.isDecisionTaken());
+                // If we did return results, they should all be from nodes returning valid weights
+                if (shardAllocationDecision.isDecisionTaken()) {
+                    assertTrue(
+                        shardAllocationDecision.getMoveDecision()
+                            .getNodeDecisions()
+                            .stream()
+                            .noneMatch(result -> balancingWeightsFactory.nodeIsReturningInvalidWeights(result.getNode().getId()))
+                    );
+                }
             });
         }
     }
@@ -399,8 +318,12 @@ public class BalancedShardsAllocatorInvalidWeightsTests extends ESTestCase {
             nodesToReturnInvalidWeightsFor = Set.copyOf(randomSubsetOf(randomIntBetween(1, allNodes.size()), allNodes));
         }
 
-        public WeightFunction getWeightFunction() {
-            return weightFunction;
+        public boolean nodeIsReturningInvalidWeights(String nodeId) {
+            return nodesToReturnInvalidWeightsFor.stream().anyMatch(node -> node.getId().equals(nodeId));
+        }
+
+        public Set<String> nodeIdsReturningInvalidWeights() {
+            return nodesToReturnInvalidWeightsFor.stream().map(DiscoveryNode::getId).collect(Collectors.toSet());
         }
 
         @Override

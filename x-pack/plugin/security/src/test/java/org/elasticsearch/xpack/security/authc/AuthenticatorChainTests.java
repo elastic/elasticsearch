@@ -40,6 +40,7 @@ import org.junit.Before;
 import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
+import java.util.regex.Pattern;
 
 import static org.elasticsearch.test.ActionListenerUtils.anyActionListener;
 import static org.hamcrest.Matchers.containsString;
@@ -322,7 +323,7 @@ public class AuthenticatorChainTests extends ESTestCase {
 
     public void testContextWithDirectWrongTokenFailsAuthn() {
         final AuthenticationToken token = mock(AuthenticationToken.class);
-        when(token.toString()).thenReturn("MOCK_AUTHENTICATION_TOKEN");
+        when(token.principal()).thenReturn("MOCK_USER");
         final Authenticator.Context context = createAuthenticatorContext(token);
         doCallRealMethod().when(serviceAccountAuthenticator).authenticate(eq(context), anyActionListener());
         doCallRealMethod().when(oAuth2TokenAuthenticator).authenticate(eq(context), anyActionListener());
@@ -341,11 +342,13 @@ public class AuthenticatorChainTests extends ESTestCase {
         Loggers.setLevel(LogManager.getLogger(AuthenticatorChain.class), Level.DEBUG);
         final MockLog mockLog = MockLog.capture(AuthenticatorChain.class);
         mockLog.addExpectation(
-            new MockLog.SeenEventExpectation(
+            new MockLog.PatternSeenEventExpectation(
                 "debug-failure",
                 AuthenticatorChain.class.getName(),
                 Level.DEBUG,
-                "Authentication for context [Context{tokens=[MOCK_AUTHENTICATION_TOKEN], messages=[]}] failed"
+                Pattern.quote("Authentication for context [Context{tokens=[")
+                    + "AuthenticationToken\\$.*:MOCK_USER"
+                    + Pattern.quote("], messages=[]}] failed")
             )
         );
 

@@ -131,7 +131,7 @@ public class ElasticInferenceServiceActionCreator implements ElasticInferenceSer
             model,
             COMPLETION_HANDLER,
             (chatCompletionInput) -> new ElasticInferenceServiceUnifiedChatCompletionRequest(
-                new UnifiedChatInput(chatCompletionInput.getInputs(), USER_ROLE, false),
+                new UnifiedChatInput(chatCompletionInput.getInputs(), USER_ROLE, chatCompletionInput.stream()),
                 model,
                 traceContext,
                 extractRequestMetadataFromThreadContext(threadPool.getThreadContext())

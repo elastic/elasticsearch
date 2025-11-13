@@ -994,15 +994,15 @@ tasks.named('stringTemplates').configure {
     it.outputFile = "org/elasticsearch/compute/aggregation/RateLongGroupingAggregatorFunction.java"
   }
 
-  File derivAggregatorInputFile = file("src/main/java/org/elasticsearch/compute/aggregation/X-DerivGroupingAggregatorFunction.java.st")
-  template {
-    it.properties = doubleProperties
-    it.inputFile = derivAggregatorInputFile
-    it.outputFile = "org/elasticsearch/compute/aggregation/DerivDoubleGroupingAggregatorFunction.java"
-  }
-  template {
-    it.properties = longProperties
-    it.inputFile = derivAggregatorInputFile
-    it.outputFile = "org/elasticsearch/compute/aggregation/DerivLongGroupingAggregatorFunction.java"
-  }
+//  File derivAggregatorInputFile = file("src/main/java/org/elasticsearch/compute/aggregation/X-DerivGroupingAggregatorFunction.java.st")
+//  template {
+//    it.properties = doubleProperties
+//    it.inputFile = derivAggregatorInputFile
+//    it.outputFile = "org/elasticsearch/compute/aggregation/DerivDoubleGroupingAggregatorFunction.java"
+//  }
+//  template {
+//    it.properties = longProperties
+//    it.inputFile = derivAggregatorInputFile
+//    it.outputFile = "org/elasticsearch/compute/aggregation/DerivLongGroupingAggregatorFunction.java"
+//  }
 }

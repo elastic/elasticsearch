@@ -6,7 +6,24 @@
  */
 package org.elasticsearch.compute.aggregation;
 
-class SimpleLinearRegressionWithTimeseries {
+import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.operator.DriverContext;
+
+class SimpleLinearRegressionWithTimeseries implements AggregatorState {
+    @Override
+    public void toIntermediate(Block[] blocks, int offset, DriverContext driverContext) {
+        blocks[offset + 0] = driverContext.blockFactory().newConstantLongBlockWith(count, 1);
+        blocks[offset + 1] = driverContext.blockFactory().newConstantDoubleBlockWith(sumVal, 1);
+        blocks[offset + 2] = driverContext.blockFactory().newConstantLongBlockWith(sumTs, 1);
+        blocks[offset + 3] = driverContext.blockFactory().newConstantDoubleBlockWith(sumTsVal, 1);
+        blocks[offset + 4] = driverContext.blockFactory().newConstantLongBlockWith(sumTsSq, 1);
+    }
+
+    @Override
+    public void close() {
+
+    }
+
     long count;
     double sumVal;
     long sumTs;

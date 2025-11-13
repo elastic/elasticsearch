@@ -2001,6 +2001,7 @@ public class SearchServiceSingleNodeTests extends ESSingleNodeTestCase {
             clusterAlias
         );
         try (SearchContext searchContext = service.createSearchContext(request, new TimeValue(System.currentTimeMillis()))) {
+            assertTrue(searchContext.searcher().hasExecutor());
             SearchShardTarget searchShardTarget = searchContext.shardTarget();
             SearchExecutionContext searchExecutionContext = searchContext.getSearchExecutionContext();
             String expectedIndexName = clusterAlias == null ? index : clusterAlias + ":" + index;

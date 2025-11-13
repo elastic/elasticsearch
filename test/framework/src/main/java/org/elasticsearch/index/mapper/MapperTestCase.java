@@ -12,6 +12,7 @@ package org.elasticsearch.index.mapper;
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.DocValuesSkipIndexType;
 import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexWriterConfig;
@@ -389,6 +390,32 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
         @SuppressWarnings("unchecked") // Syntactic sugar in tests
         T fieldType = (T) mapperService.fieldType("field");
         assertThat(checker.apply(fieldType), equalTo(isDimension));
+
+        Settings settings = Settings.builder().put(IndexSettings.USE_DOC_VALUES_SKIPPER.getKey(), true).build();
+        mapperService = createMapperService(settings, fieldMapping(b -> {
+            minimalMapping(b);
+            b.field("time_series_dimension", isDimension);
+        }));
+
+        assertThat(
+            mapperService.fieldType("field").indexType().hasDocValuesSkipper(),
+            equalTo(mapperService.getIndexSettings().useDocValuesSkipper() && isDimension)
+        );
+    }
+
+    public void assertDimensionIndexing() throws IOException {
+        Settings settings = Settings.builder().put(IndexSettings.USE_DOC_VALUES_SKIPPER.getKey(), true).build();
+        MapperService mapperService = createMapperService(settings, fieldMapping(b -> {
+            minimalMapping(b);
+            b.field("time_series_dimension", true);
+        }));
+        assumeTrue("Skippers disabled by feature flag", mapperService.getIndexSettings().useDocValuesSkipper());
+
+        ParsedDocument doc = mapperService.documentMapper().parse(source(this::writeField));
+        IndexableField field = doc.rootDoc().getField("field");
+        assertSame(DocValuesSkipIndexType.RANGE, field.fieldType().docValuesSkipIndexType());
+        assertSame(IndexOptions.NONE, field.fieldType().indexOptions());
+        assertEquals(0, field.fieldType().pointDimensionCount());
     }
 
     protected <T> void assertMetricType(String metricType, Function<T, Enum<TimeSeriesParams.MetricType>> checker) throws IOException {

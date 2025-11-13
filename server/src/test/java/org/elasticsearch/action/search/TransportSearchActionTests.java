@@ -1104,6 +1104,7 @@ public class TransportSearchActionTests extends ESTestCase {
                     new LatchedActionListener<>(ActionTestUtils.assertNoFailureListener(response::set), latch),
                     null,
                     false,
+                    null,
                     null
                 );
                 awaitLatch(latch, 5, TimeUnit.SECONDS);
@@ -1136,6 +1137,7 @@ public class TransportSearchActionTests extends ESTestCase {
                     new LatchedActionListener<>(ActionListener.wrap(r -> fail("no response expected"), failure::set), latch),
                     null,
                     false,
+                    null,
                     null
                 );
                 awaitLatch(latch, 5, TimeUnit.SECONDS);
@@ -1191,6 +1193,7 @@ public class TransportSearchActionTests extends ESTestCase {
                     new LatchedActionListener<>(ActionListener.wrap(r -> fail("no response expected"), failure::set), latch),
                     null,
                     false,
+                    null,
                     null
                 );
                 awaitLatch(latch, 5, TimeUnit.SECONDS);
@@ -1224,6 +1227,7 @@ public class TransportSearchActionTests extends ESTestCase {
                     new LatchedActionListener<>(ActionTestUtils.assertNoFailureListener(response::set), latch),
                     null,
                     false,
+                    null,
                     null
                 );
                 awaitLatch(latch, 5, TimeUnit.SECONDS);
@@ -1273,6 +1277,7 @@ public class TransportSearchActionTests extends ESTestCase {
                     new LatchedActionListener<>(ActionTestUtils.assertNoFailureListener(response::set), latch),
                     null,
                     false,
+                    null,
                     null
                 );
                 awaitLatch(latch, 5, TimeUnit.SECONDS);

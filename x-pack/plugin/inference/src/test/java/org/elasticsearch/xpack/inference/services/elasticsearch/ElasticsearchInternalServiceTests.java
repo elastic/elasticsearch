@@ -1443,7 +1443,7 @@ public class ElasticsearchInternalServiceTests extends InferenceServiceTestCase 
         // build a doc with enough words to make numChunks of chunks
         int wordsPerChunk = 10;
         int numWords = numChunks * wordsPerChunk;
-        var input = new ChunkInferenceInput("word ".repeat(numWords), null);
+        var input = new ChunkInferenceInput("word ".repeat(numWords));
 
         Client client = mock(Client.class);
         when(client.threadPool()).thenReturn(threadPool);

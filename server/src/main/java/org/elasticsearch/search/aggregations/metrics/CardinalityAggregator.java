@@ -14,6 +14,7 @@ import com.carrotsearch.hppc.BitMixer;
 import org.apache.lucene.index.BinaryDocValues;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SortedSetDocValues;
+import org.apache.lucene.search.DoubleValues;
 import org.apache.lucene.search.LongValues;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.util.BytesRef;
@@ -27,7 +28,6 @@ import org.elasticsearch.common.util.ObjectArray;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.fielddata.FieldData;
-import org.elasticsearch.index.fielddata.NumericDoubleValues;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
 import org.elasticsearch.index.fielddata.SortedNumericLongValues;
@@ -95,7 +95,7 @@ public class CardinalityAggregator extends NumericMetricsAggregator.SingleValue 
             numericCollectorsUsed++;
             if (source.isFloatingPoint()) {
                 SortedNumericDoubleValues values = source.doubleValues(ctx);
-                NumericDoubleValues singleton = FieldData.unwrapSingleton(values);
+                DoubleValues singleton = FieldData.unwrapSingleton(values);
                 if (singleton != null) {
                     return new DirectSingleValuesCollector(counts, MurmurHash3SingleValues.hash(singleton));
                 } else {
@@ -485,7 +485,7 @@ public class CardinalityAggregator extends NumericMetricsAggregator.SingleValue 
         /**
          * Return a {@link MurmurHash3MultiValues} instance that computes hashes on the fly for each double value.
          */
-        public static MurmurHash3SingleValues hash(NumericDoubleValues values) {
+        public static MurmurHash3SingleValues hash(DoubleValues values) {
             return new Double(values);
         }
 
@@ -524,9 +524,9 @@ public class CardinalityAggregator extends NumericMetricsAggregator.SingleValue 
 
         private static class Double extends MurmurHash3SingleValues {
 
-            private final NumericDoubleValues values;
+            private final DoubleValues values;
 
-            Double(NumericDoubleValues values) {
+            Double(DoubleValues values) {
                 this.values = values;
             }
 

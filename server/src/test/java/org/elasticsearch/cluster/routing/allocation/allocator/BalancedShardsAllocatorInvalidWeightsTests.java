@@ -35,7 +35,6 @@ import org.mockito.invocation.InvocationOnMock;
 
 import java.util.Iterator;
 import java.util.List;
-import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -63,7 +62,7 @@ public class BalancedShardsAllocatorInvalidWeightsTests extends ESTestCase {
             final int numberOfNodes = randomIntBetween(3, 5);
             final var originalState = ClusterStateCreationUtils.state(numberOfNodes, new String[] { "one", "two", "three" }, 1);
             final var nodeToPutAllShardsOn = randomFrom(originalState.nodes().getAllNodes());
-            final var unbalancedClusterState = moveAllShardsToNode(originalState, nodeToPutAllShardsOn.getId());
+            final var unbalancedClusterState = moveAllShardsToNode(originalState, nodeToPutAllShardsOn);
             final var allocation = new RoutingAllocation(
                 new AllocationDeciders(List.of()),
                 unbalancedClusterState.getRoutingNodes().mutableCopy(),
@@ -264,9 +263,8 @@ public class BalancedShardsAllocatorInvalidWeightsTests extends ESTestCase {
      * Move all the shards to the specified node, the balancer should make some movement on a routing table
      * in this state
      */
-    private ClusterState moveAllShardsToNode(ClusterState clusterState, String nodeId) {
+    private ClusterState moveAllShardsToNode(ClusterState clusterState, DiscoveryNode targetNode) {
         final var routingNodes = clusterState.getRoutingNodes().mutableCopy();
-        final var targetNode = Objects.requireNonNull(clusterState.nodes().get(nodeId), "Unknown node specified: " + nodeId);
         for (RoutingNode routingNode : routingNodes) {
             if (targetNode.equals(routingNode.node())) {
                 continue;

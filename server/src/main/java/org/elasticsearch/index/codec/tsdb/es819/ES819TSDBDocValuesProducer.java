@@ -268,7 +268,7 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
                             try (var builder = factory.singletonBytesRefs(count)) {
                                 long[] offsets = new long[count + 1];
 
-                                // Normalize offsets to that first offset is 0
+                                // Normalize offsets so that first offset is 0
                                 long startOffset = addresses.get(firstDocId);
                                 for (int i = offset, j = 1; i < docs.count(); i++, j++) {
                                     int docId = docs.get(i);

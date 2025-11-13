@@ -27,11 +27,16 @@ import org.elasticsearch.xpack.esql.expression.function.aggregate.MaxOverTime;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Min;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.MinOverTime;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Percentile;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.PercentileOverTime;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.PresentOverTime;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Rate;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.StdDev;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.StdDevOverTime;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Sum;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.SumOverTime;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.TimeSeriesAggregateFunction;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.Variance;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.VarianceOverTime;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
 
 import java.util.HashMap;
@@ -69,7 +74,9 @@ public class PromqlFunctionRegistry {
                 withinSeriesOverTime("count_over_time", CountOverTime::new),
                 withinSeriesOverTime("max_over_time", MaxOverTime::new),
                 withinSeriesOverTime("min_over_time", MinOverTime::new),
-                withinSeriesOverTime("sum_over_time", SumOverTime::new) },
+                withinSeriesOverTime("sum_over_time", SumOverTime::new),
+                withinSeriesOverTime("stddev_over_time", StdDevOverTime::new),
+                withinSeriesOverTime("stdvar_over_time", VarianceOverTime::new) },
             // Selection range functions (require timestamp)
             new FunctionDefinition[] {
                 withinSeries("first_over_time", FirstOverTime::new),
@@ -78,13 +85,17 @@ public class PromqlFunctionRegistry {
             new FunctionDefinition[] {
                 withinSeriesOverTime("absent_over_time", AbsentOverTime::new),
                 withinSeriesOverTime("present_over_time", PresentOverTime::new) },
+            // Range functions with parameters
+            new FunctionDefinition[] { withinSeriesOverTimeBinary("quantile_over_time", PercentileOverTime::new) },
             // Across-series aggregations (basic - single field parameter)
             new FunctionDefinition[] {
                 acrossSeries("avg", Avg::new),
                 acrossSeries("count", Count::new),
                 acrossSeries("max", Max::new),
                 acrossSeries("min", Min::new),
-                acrossSeries("sum", Sum::new) },
+                acrossSeries("sum", Sum::new),
+                acrossSeries("stddev", StdDev::new),
+                acrossSeries("stdvar", Variance::new) },
             // Across-series aggregations with parameters
             new FunctionDefinition[] { acrossSeriesBinary("quantile", Percentile::new) }
             // Note: group, stddev, stdvar, count_values not yet available in ESQL
@@ -164,6 +175,11 @@ public class PromqlFunctionRegistry {
     }
 
     @FunctionalInterface
+    protected interface OverTimeWithinSeriesBinary<T extends TimeSeriesAggregateFunction> {
+        T build(Source source, Expression valueField, Expression param);
+    }
+
+    @FunctionalInterface
     protected interface AcrossSeriesUnary<T extends AggregateFunction> {
         T build(Source source, Expression field);
     }
@@ -179,6 +195,15 @@ public class PromqlFunctionRegistry {
             FunctionType.WITHIN_SERIES_AGGREGATION,
             Arity.ONE,
             (source, params) -> builder.build(source, params.get(0))
+        );
+    }
+
+    private static FunctionDefinition withinSeriesOverTimeBinary(String name, OverTimeWithinSeriesBinary<?> builder) {
+        return new FunctionDefinition(
+            name,
+            FunctionType.WITHIN_SERIES_AGGREGATION,
+            Arity.TWO,
+            (source, params) -> builder.build(source, params.get(0), params.get(1))
         );
     }
 
@@ -232,10 +257,7 @@ public class PromqlFunctionRegistry {
         "holt_winters",
         "mad_over_time",
         "predict_linear",
-        "quantile_over_time",
         "resets",
-        "stddev_over_time",
-        "stdvar_over_time",
 
         // Instant vector functions
         "abs",

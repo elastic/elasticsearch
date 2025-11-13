@@ -10,15 +10,22 @@ package org.elasticsearch.xpack.inference.services.elastic.authorization;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ResourceAlreadyExistsException;
+import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionType;
+import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.FixForMultiProject;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.persistent.AllocatedPersistentTask;
 import org.elasticsearch.persistent.ClusterPersistentTasksCustomMetadata;
 import org.elasticsearch.persistent.PersistentTaskParams;
@@ -28,9 +35,12 @@ import org.elasticsearch.persistent.PersistentTasksExecutor;
 import org.elasticsearch.persistent.PersistentTasksService;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.transport.RemoteTransportException;
+import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xpack.inference.common.BroadcastMessageAction;
 
+import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -48,7 +58,7 @@ public class AuthorizationTaskExecutor extends PersistentTasksExecutor<Authoriza
     private final PersistentTasksService persistentTasksService;
     private final AuthorizationPoller.Parameters pollerParameters;
     private final AtomicReference<AuthorizationPoller> currentTask = new AtomicReference<>();
-    private final AtomicBoolean registered = new AtomicBoolean(false);
+    private final AtomicBoolean running = new AtomicBoolean(false);
 
     public static AuthorizationTaskExecutor create(ClusterService clusterService, AuthorizationPoller.Parameters parameters) {
         Objects.requireNonNull(clusterService);
@@ -73,12 +83,12 @@ public class AuthorizationTaskExecutor extends PersistentTasksExecutor<Authoriza
         this.pollerParameters = Objects.requireNonNull(pollerParameters);
     }
 
-    public synchronized void init() {
+    public synchronized void start() {
         // If the EIS url is not configured, then we won't be able to interact with the service, so don't start the task.
-        if (registered.get() == false
+        if (running.get() == false
             && Strings.isNullOrEmpty(pollerParameters.elasticInferenceServiceSettings().getElasticInferenceServiceUrl()) == false) {
-            logger.info("Initializing authorization task executor");
-            registered.set(true);
+            logger.info("Starting authorization task executor");
+            running.set(true);
 
             // For integration tests, it can take some time before we get a cluster state update, so ensure that we attempt to
             // create the task immediately
@@ -110,24 +120,33 @@ public class AuthorizationTaskExecutor extends PersistentTasksExecutor<Authoriza
         );
     }
 
-    public synchronized void shutdown() {
-        if (registered.compareAndSet(true, false)) {
+    private static boolean authorizationTaskExists(ClusterState state) {
+        return ClusterPersistentTasksCustomMetadata.getTaskWithId(state, TASK_NAME) != null;
+    }
+
+    public synchronized void stop() {
+        if (running.compareAndSet(true, false)) {
             logger.info("Shutting down authorization task executor");
             clusterService.removeListener(this);
-            throw new IllegalArgumentException("fix me");
-            // abortTask();
+
+            sendStopRequest();
         }
     }
 
-    // TODO I think we can remove this, we don't want to mark as locally aborted, we need the task to complete
-    // it's ugly if we do that here
-    private void abortTask() {
-        var task = currentTask.get();
-        if (task != null && task.isCancelled() == false) {
-            logger.info("Aborting task authorization task");
-            task.markAsLocallyAborted("executor shutdown");
-        }
-        currentTask.set(null);
+    private void sendStopRequest() {
+        persistentTasksService.sendClusterRemoveRequest(
+            TASK_NAME,
+            TimeValue.THIRTY_SECONDS,
+            ActionListener.wrap(
+                persistentTask -> logger.info("Stopped authorization poller task, id {}", persistentTask.getId()),
+                exception -> {
+                    var thrownException = exception instanceof RemoteTransportException ? exception.getCause() : exception;
+                    if (thrownException instanceof ResourceNotFoundException == false) {
+                        logger.error("Failed to stop authorization poller task", exception);
+                    }
+                }
+            )
+        );
     }
 
     /**
@@ -174,10 +193,6 @@ public class AuthorizationTaskExecutor extends PersistentTasksExecutor<Authoriza
         sendStartRequest(event.state());
     }
 
-    private static boolean authorizationTaskExists(ClusterState state) {
-        return ClusterPersistentTasksCustomMetadata.getTaskWithId(state, TASK_NAME) != null;
-    }
-
     public static List<NamedXContentRegistry.Entry> getNamedXContentParsers() {
         return List.of(
             new NamedXContentRegistry.Entry(
@@ -192,5 +207,46 @@ public class AuthorizationTaskExecutor extends PersistentTasksExecutor<Authoriza
         return List.of(
             new NamedWriteableRegistry.Entry(PersistentTaskParams.class, AuthorizationPoller.TASK_NAME, AuthorizationTaskParams::new)
         );
+    }
+
+    public static class Action extends BroadcastMessageAction<Message> {
+        private static final String NAME = "cluster:internal/xpack/inference/update_authorization_task";
+        public static final ActionType<Response> INSTANCE = new ActionType<>(NAME);
+
+        private final AuthorizationTaskExecutor authorizationTaskExecutor;
+
+        @Inject
+        public Action(
+            TransportService transportService,
+            ClusterService clusterService,
+            ActionFilters actionFilters,
+            AuthorizationTaskExecutor authorizationTaskExecutor
+        ) {
+            super(NAME, clusterService, transportService, actionFilters, Message::new);
+            this.authorizationTaskExecutor = authorizationTaskExecutor;
+        }
+
+        @Override
+        protected void receiveMessage(Message message) {
+            if (message.enable()) {
+                authorizationTaskExecutor.start();
+            } else {
+                authorizationTaskExecutor.stop();
+            }
+        }
+    }
+
+    public record Message(boolean enable) implements Writeable {
+        public static final Message ENABLE_MESSAGE = new Message(true);
+        public static final Message DISABLE_MESSAGE = new Message(false);
+
+        public Message(StreamInput in) throws IOException {
+            this(in.readBoolean());
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeBoolean(enable);
+        }
     }
 }

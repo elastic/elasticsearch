@@ -280,7 +280,8 @@ public class InferencePlugin extends Plugin
             new ActionHandler(GetCCMConfigurationAction.INSTANCE, TransportGetCCMConfigurationAction.class),
             new ActionHandler(PutCCMConfigurationAction.INSTANCE, TransportPutCCMConfigurationAction.class),
             new ActionHandler(DeleteCCMConfigurationAction.INSTANCE, TransportDeleteCCMConfigurationAction.class),
-            new ActionHandler(CCMCache.ClearCCMCacheAction.INSTANCE, CCMCache.ClearCCMCacheAction.class)
+            new ActionHandler(CCMCache.ClearCCMCacheAction.INSTANCE, CCMCache.ClearCCMCacheAction.class),
+            new ActionHandler(AuthorizationTaskExecutor.Action.INSTANCE, AuthorizationTaskExecutor.Action.class)
         );
     }
 
@@ -458,10 +459,16 @@ public class InferencePlugin extends Plugin
         ModelRegistry modelRegistry,
         CCMFeature ccmFeature
     ) {
+        var ccmPersistentStorageService = new CCMPersistentStorageService(services.client());
+        var ccmService = new CCMService(ccmPersistentStorageService, services.client());
+        var ccmAuthApplierFactory = new CCMAuthenticationApplierFactory(ccmFeature, ccmService);
+
         var authorizationHandler = new ElasticInferenceServiceAuthorizationRequestHandler(
             inferenceServiceSettings.getElasticInferenceServiceUrl(),
             services.threadPool()
         );
+        // TODO see if we can move this to the class constructor
+        authorizationHandler.init(ccmAuthApplierFactory);
 
         var authTaskExecutor = AuthorizationTaskExecutor.create(
             services.clusterService(),
@@ -471,21 +478,18 @@ public class InferencePlugin extends Plugin
                 sender,
                 inferenceServiceSettings,
                 modelRegistry,
-                services.client()
+                services.client(),
+                ccmFeature,
+                ccmService
             )
         );
         authorizationTaskExecutorRef.set(authTaskExecutor);
-
-        var ccmPersistentStorageService = new CCMPersistentStorageService(services.client());
-        var ccmService = new CCMService(ccmPersistentStorageService, authTaskExecutor);
-        var ccmAuthApplierFactory = new CCMAuthenticationApplierFactory(ccmFeature, ccmService);
-        authorizationHandler.init(ccmAuthApplierFactory);
 
         // If CCM is not allowed in this environment then we can initialize the auth poller task because
         // authentication with EIS will be through certs that are already configured. If CCM configuration is allowed,
         // we need to wait for the user to provide an API key before we can start polling EIS
         if (ccmFeature.allowConfiguringCcm() == false) {
-            authTaskExecutor.init();
+            authTaskExecutor.start();
         }
 
         return new CCMRelatedComponents(

@@ -37,6 +37,8 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.xpack.inference.services.ServiceComponentsTests.createWithEmptySettings;
+import static org.elasticsearch.xpack.inference.services.elastic.ccm.CCMFeatureTests.createMockCCMFeature;
+import static org.elasticsearch.xpack.inference.services.elastic.ccm.CCMServiceTests.createMockCCMService;
 import static org.hamcrest.Matchers.is;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
@@ -69,6 +71,32 @@ public class AuthorizationPollerTests extends ESTestCase {
             ElasticInferenceServiceSettingsTests.create("", TimeValue.timeValueMillis(1), TimeValue.timeValueMillis(1), true),
             mockRegistry,
             mock(Client.class),
+            createMockCCMFeature(false),
+            createMockCCMService(false),
+            null
+        );
+
+        poller.sendAuthorizationRequest();
+
+        verify(authorizationRequestHandler, never()).getAuthorization(any(), any());
+    }
+
+    public void testDoesNotSendAuthorizationRequest_WhenCCMIsDisabled() {
+        var mockRegistry = mock(ModelRegistry.class);
+        when(mockRegistry.isReady()).thenReturn(true);
+
+        var authorizationRequestHandler = mock(ElasticInferenceServiceAuthorizationRequestHandler.class);
+
+        var poller = new AuthorizationPoller(
+            new AuthorizationPoller.TaskFields(0, "abc", "abc", "abc", new TaskId("abc", 0), Map.of()),
+            createWithEmptySettings(taskQueue.getThreadPool()),
+            authorizationRequestHandler,
+            mock(Sender.class),
+            ElasticInferenceServiceSettingsTests.create("", TimeValue.timeValueMillis(1), TimeValue.timeValueMillis(1), true),
+            mockRegistry,
+            mock(Client.class),
+            createMockCCMFeature(true),
+            createMockCCMService(false),
             null
         );
 
@@ -111,6 +139,66 @@ public class AuthorizationPollerTests extends ESTestCase {
             ElasticInferenceServiceSettingsTests.create("", TimeValue.timeValueMillis(1), TimeValue.timeValueMillis(1), true),
             mockRegistry,
             mockClient,
+            createMockCCMFeature(true),
+            createMockCCMService(true),
+            null
+        );
+
+        var requestArgCaptor = ArgumentCaptor.forClass(StoreInferenceEndpointsAction.Request.class);
+
+        poller.sendAuthorizationRequest();
+        verify(mockClient).execute(eq(StoreInferenceEndpointsAction.INSTANCE), requestArgCaptor.capture(), any());
+        var capturedRequest = requestArgCaptor.getValue();
+        assertThat(
+            capturedRequest.getModels(),
+            is(
+                List.of(
+                    PreconfiguredEndpointModelAdapter.createModel(
+                        InternalPreconfiguredEndpoints.getWithInferenceId(InternalPreconfiguredEndpoints.DEFAULT_ELSER_ENDPOINT_ID_V2),
+                        new ElasticInferenceServiceComponents("")
+                    )
+                )
+            )
+        );
+    }
+
+    public void testSendsAuthorizationRequest_WhenCCMIsNotConfigurable() {
+        var mockRegistry = mock(ModelRegistry.class);
+        when(mockRegistry.isReady()).thenReturn(true);
+        when(mockRegistry.getInferenceIds()).thenReturn(Set.of("id1", "id2"));
+
+        var mockAuthHandler = mock(ElasticInferenceServiceAuthorizationRequestHandler.class);
+        doAnswer(invocation -> {
+            ActionListener<ElasticInferenceServiceAuthorizationModel> listener = invocation.getArgument(0);
+            listener.onResponse(
+                ElasticInferenceServiceAuthorizationModel.of(
+                    new ElasticInferenceServiceAuthorizationResponseEntity(
+                        List.of(
+                            new ElasticInferenceServiceAuthorizationResponseEntity.AuthorizedModel(
+                                InternalPreconfiguredEndpoints.DEFAULT_ELSER_2_MODEL_ID,
+                                EnumSet.of(TaskType.SPARSE_EMBEDDING)
+                            )
+                        )
+                    )
+                )
+            );
+            return Void.TYPE;
+        }).when(mockAuthHandler).getAuthorization(any(), any());
+
+        var mockClient = mock(Client.class);
+        when(mockClient.threadPool()).thenReturn(taskQueue.getThreadPool());
+
+        var poller = new AuthorizationPoller(
+            new AuthorizationPoller.TaskFields(0, "abc", "abc", "abc", new TaskId("abc", 0), Map.of()),
+            createWithEmptySettings(taskQueue.getThreadPool()),
+            mockAuthHandler,
+            mock(Sender.class),
+            ElasticInferenceServiceSettingsTests.create("", TimeValue.timeValueMillis(1), TimeValue.timeValueMillis(1), true),
+            mockRegistry,
+            mockClient,
+            // CCM is not configurable so we should send the request because it doesn't depend on an api key
+            createMockCCMFeature(false),
+            createMockCCMService(false),
             null
         );
 
@@ -166,6 +254,8 @@ public class AuthorizationPollerTests extends ESTestCase {
             ElasticInferenceServiceSettingsTests.create("", TimeValue.timeValueMillis(1), TimeValue.timeValueMillis(1), true),
             mockRegistry,
             mockClient,
+            createMockCCMFeature(true),
+            createMockCCMService(true),
             null
         );
 
@@ -208,6 +298,8 @@ public class AuthorizationPollerTests extends ESTestCase {
             ElasticInferenceServiceSettingsTests.create("", TimeValue.timeValueMillis(1), TimeValue.timeValueMillis(1), true),
             mockRegistry,
             mockClient,
+            createMockCCMFeature(true),
+            createMockCCMService(true),
             null
         );
 
@@ -250,6 +342,8 @@ public class AuthorizationPollerTests extends ESTestCase {
             ElasticInferenceServiceSettingsTests.create("", TimeValue.timeValueMillis(1), TimeValue.timeValueMillis(1), true),
             mockRegistry,
             mockClient,
+            createMockCCMFeature(true),
+            createMockCCMService(true),
             null
         );
 
@@ -309,6 +403,8 @@ public class AuthorizationPollerTests extends ESTestCase {
             ElasticInferenceServiceSettingsTests.create("", TimeValue.timeValueMillis(1), TimeValue.timeValueMillis(1), true),
             mockRegistry,
             mockClient,
+            createMockCCMFeature(true),
+            createMockCCMService(true),
             callback
         );
         pollerRef.set(poller);
@@ -369,6 +465,8 @@ public class AuthorizationPollerTests extends ESTestCase {
             settingsMock,
             mockRegistry,
             mockClient,
+            createMockCCMFeature(true),
+            createMockCCMService(true),
             callback
         );
 

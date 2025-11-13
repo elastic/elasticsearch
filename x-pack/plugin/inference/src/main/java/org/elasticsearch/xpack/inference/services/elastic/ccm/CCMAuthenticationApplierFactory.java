@@ -44,7 +44,7 @@ public class CCMAuthenticationApplierFactory {
         }
 
         SubscribableListener.newForked(ccmService::isEnabled).<CCMModel>andThen((ccmModelListener, enabled) -> {
-            if (enabled == false) {
+            if (enabled == null || enabled == false) {
                 listener.onFailure(
                     new ElasticsearchStatusException(
                         "Cloud connected mode is not configured, please configure it using PUT {} "

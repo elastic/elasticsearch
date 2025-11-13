@@ -33,6 +33,8 @@ import static org.elasticsearch.persistent.PersistentTasksExecutor.NO_NODE_FOUND
 import static org.elasticsearch.test.ClusterServiceUtils.createClusterService;
 import static org.elasticsearch.xpack.inference.Utils.inferenceUtilityExecutors;
 import static org.elasticsearch.xpack.inference.services.ServiceComponentsTests.createWithEmptySettings;
+import static org.elasticsearch.xpack.inference.services.elastic.ccm.CCMFeatureTests.createMockCCMFeature;
+import static org.elasticsearch.xpack.inference.services.elastic.ccm.CCMServiceTests.createMockCCMService;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
@@ -63,7 +65,7 @@ public class AuthorizationTaskExecutorTests extends ESTestCase {
         terminate(threadPool);
     }
 
-    public void testMultipleCallsToInit_OnlyRegistersOnce() {
+    public void testMultipleCallsToStart_OnlyRegistersOnce() {
         var eisUrl = "abc";
         var mockClusterService = mock(ClusterService.class);
         var executor = new AuthorizationTaskExecutor(
@@ -75,11 +77,13 @@ public class AuthorizationTaskExecutorTests extends ESTestCase {
                 mock(Sender.class),
                 ElasticInferenceServiceSettingsTests.create(eisUrl, TimeValue.timeValueMillis(1), TimeValue.timeValueMillis(1), true),
                 mock(ModelRegistry.class),
-                mock(Client.class)
+                mock(Client.class),
+                createMockCCMFeature(false),
+                createMockCCMService(false)
             )
         );
-        executor.init();
-        executor.init();
+        executor.start();
+        executor.start();
 
         verify(mockClusterService, times(1)).addListener(executor);
     }
@@ -96,16 +100,18 @@ public class AuthorizationTaskExecutorTests extends ESTestCase {
                 mock(Sender.class),
                 ElasticInferenceServiceSettingsTests.create(eisUrl, TimeValue.timeValueMillis(1), TimeValue.timeValueMillis(1), true),
                 mock(ModelRegistry.class),
-                mock(Client.class)
+                mock(Client.class),
+                createMockCCMFeature(false),
+                createMockCCMService(false)
             )
         );
-        executor.init();
-        executor.init();
+        executor.start();
+        executor.start();
 
         verify(mockClusterService, never()).addListener(executor);
     }
 
-    public void testMultipleCallsToInit_AndShutdown() {
+    public void testMultipleCallsToStart_AndStop() {
         var eisUrl = "abc";
         var mockClusterService = mock(ClusterService.class);
         var executor = new AuthorizationTaskExecutor(
@@ -117,18 +123,20 @@ public class AuthorizationTaskExecutorTests extends ESTestCase {
                 mock(Sender.class),
                 ElasticInferenceServiceSettingsTests.create(eisUrl, TimeValue.timeValueMillis(1), TimeValue.timeValueMillis(1), true),
                 mock(ModelRegistry.class),
-                mock(Client.class)
+                mock(Client.class),
+                createMockCCMFeature(false),
+                createMockCCMService(false)
             )
         );
-        executor.init();
-        executor.init();
-        executor.shutdown();
-        executor.shutdown();
+        executor.start();
+        executor.start();
+        executor.stop();
+        executor.stop();
         verify(mockClusterService, times(1)).addListener(executor);
         verify(mockClusterService, times(1)).removeListener(executor);
 
-        executor.init();
-        executor.shutdown();
+        executor.start();
+        executor.stop();
         verify(mockClusterService, times(2)).addListener(executor);
         verify(mockClusterService, times(2)).removeListener(executor);
     }
@@ -145,10 +153,12 @@ public class AuthorizationTaskExecutorTests extends ESTestCase {
                 mock(Sender.class),
                 ElasticInferenceServiceSettingsTests.create(eisUrl, TimeValue.timeValueMillis(1), TimeValue.timeValueMillis(1), true),
                 mock(ModelRegistry.class),
-                mock(Client.class)
+                mock(Client.class),
+                createMockCCMFeature(false),
+                createMockCCMService(false)
             )
         );
-        executor.init();
+        executor.start();
 
         var listener1 = new PlainActionFuture<Void>();
         clusterService.getClusterApplierService().onNewClusterState("initialization", this::initialState, listener1);
@@ -194,10 +204,12 @@ public class AuthorizationTaskExecutorTests extends ESTestCase {
                 mock(Sender.class),
                 ElasticInferenceServiceSettingsTests.create("", TimeValue.timeValueMillis(1), TimeValue.timeValueMillis(1), true),
                 mock(ModelRegistry.class),
-                mock(Client.class)
+                mock(Client.class),
+                createMockCCMFeature(false),
+                createMockCCMService(false)
             )
         );
-        executor.init();
+        executor.start();
 
         var listener = new PlainActionFuture<Void>();
         clusterService.getClusterApplierService().onNewClusterState("initialization", this::initialState, listener);
@@ -221,10 +233,12 @@ public class AuthorizationTaskExecutorTests extends ESTestCase {
                 mock(Sender.class),
                 ElasticInferenceServiceSettingsTests.create(null, TimeValue.timeValueMillis(1), TimeValue.timeValueMillis(1), true),
                 mock(ModelRegistry.class),
-                mock(Client.class)
+                mock(Client.class),
+                createMockCCMFeature(false),
+                createMockCCMService(false)
             )
         );
-        executor.init();
+        executor.start();
 
         var listener = new PlainActionFuture<Void>();
         clusterService.getClusterApplierService().onNewClusterState("initialization", this::initialState, listener);
@@ -271,10 +285,12 @@ public class AuthorizationTaskExecutorTests extends ESTestCase {
                 mock(Sender.class),
                 ElasticInferenceServiceSettingsTests.create(eisUrl, TimeValue.timeValueMillis(1), TimeValue.timeValueMillis(1), true),
                 mock(ModelRegistry.class),
-                mock(Client.class)
+                mock(Client.class),
+                createMockCCMFeature(false),
+                createMockCCMService(false)
             )
         );
-        executor.init();
+        executor.start();
 
         executor.clusterChanged(event);
         verify(persistentTasksService, never()).sendClusterStartRequest(

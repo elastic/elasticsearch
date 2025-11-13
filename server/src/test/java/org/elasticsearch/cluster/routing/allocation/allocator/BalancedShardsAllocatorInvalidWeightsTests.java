@@ -61,23 +61,22 @@ public class BalancedShardsAllocatorInvalidWeightsTests extends ESTestCase {
             );
 
             final int numberOfNodes = randomIntBetween(3, 5);
-            final ClusterState clusterState = moveAllShardsToNode(
-                ClusterStateCreationUtils.state(numberOfNodes, new String[] { "one", "two", "three" }, 1),
-                "node_0"
-            );
-            final RoutingAllocation allocation = new RoutingAllocation(
+            final var originalState = ClusterStateCreationUtils.state(numberOfNodes, new String[] { "one", "two", "three" }, 1);
+            final var nodeToPutAllShardsOn = randomFrom(originalState.nodes());
+            final var unbalancedClusterState = moveAllShardsToNode(originalState, nodeToPutAllShardsOn.getLocalNodeId());
+            final var allocation = new RoutingAllocation(
                 new AllocationDeciders(List.of()),
-                clusterState.getRoutingNodes().mutableCopy(),
-                clusterState,
+                unbalancedClusterState.getRoutingNodes().mutableCopy(),
+                unbalancedClusterState,
                 ClusterInfo.EMPTY,
                 null,
                 System.nanoTime()
             );
-            balancingWeightsFactory.returnInvalidWeightsForRandomNodes(clusterState);
+            balancingWeightsFactory.returnInvalidWeightsForRandomNodes(unbalancedClusterState);
             assertInvalidWeightsMessageIsLogged(() -> allocator.allocate(allocation));
 
             Set<String> nodeIdsReturningInvalidWeights = balancingWeightsFactory.nodeIdsReturningInvalidWeights();
-            if (nodeIdsReturningInvalidWeights.contains("node_0")) {
+            if (nodeIdsReturningInvalidWeights.contains(nodeToPutAllShardsOn.getLocalNodeId())) {
                 // The node with all the shards is returning invalid weights, we can't balance
                 assertFalse(allocation.routingNodesChanged());
             } else if (nodeIdsReturningInvalidWeights.size() == numberOfNodes - 1) {

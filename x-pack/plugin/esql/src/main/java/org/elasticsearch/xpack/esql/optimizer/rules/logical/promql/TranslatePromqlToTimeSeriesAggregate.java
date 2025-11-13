@@ -25,7 +25,9 @@ import org.elasticsearch.xpack.esql.expression.predicate.Predicates;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.And;
 import org.elasticsearch.xpack.esql.expression.predicate.nulls.IsNotNull;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThanOrEqual;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.In;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThanOrEqual;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.NotEquals;
 import org.elasticsearch.xpack.esql.expression.promql.function.PromqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.OptimizerRules;
@@ -93,7 +95,7 @@ public final class TranslatePromqlToTimeSeriesAggregate extends OptimizerRules.O
         LogicalPlan promqlPlan = promqlCommand.promqlPlan();
 
         // first replace the Placeholder relation with the child plan
-        promqlPlan = promqlPlan.transformUp(PlaceholderRelation.class, pr -> promqlCommand.child());
+        promqlPlan = promqlPlan.transformUp(PlaceholderRelation.class, pr -> withTimestampFilter(promqlCommand, promqlCommand.child()));
 
         // Translate based on plan type
         return translate(promqlCommand, promqlPlan);
@@ -101,8 +103,26 @@ public final class TranslatePromqlToTimeSeriesAggregate extends OptimizerRules.O
 
     private LogicalPlan translate(PromqlCommand promqlCommand, LogicalPlan promqlPlan) {
         // convert the plan bottom-up
-        MapResult result = map(promqlCommand, promqlPlan);
-        return result.plan();
+        promqlPlan = map(promqlCommand, promqlPlan).plan();
+
+        return promqlPlan;
+    }
+
+    private static LogicalPlan withTimestampFilter(PromqlCommand promqlCommand, LogicalPlan plan) {
+        if (promqlCommand.start().value() != null && promqlCommand.end().value() != null) {
+            Source promqlSource = promqlCommand.source();
+            Expression timestamp = promqlCommand.timestamp();
+            plan = new Filter(
+                promqlSource,
+                plan,
+                new And(
+                    promqlSource,
+                    new GreaterThanOrEqual(promqlSource, timestamp, promqlCommand.start()),
+                    new LessThanOrEqual(promqlSource, timestamp, promqlCommand.end())
+                )
+            );
+        }
+        return plan;
     }
 
     private record MapResult(LogicalPlan plan, Map<String, Expression> extras) {}

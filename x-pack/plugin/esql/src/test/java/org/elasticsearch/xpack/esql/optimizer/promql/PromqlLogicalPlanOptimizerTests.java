@@ -16,7 +16,6 @@ import org.elasticsearch.xpack.esql.analysis.AnalyzerContext;
 import org.elasticsearch.xpack.esql.core.expression.predicate.regex.RegexMatch;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
-import org.elasticsearch.xpack.esql.expression.function.grouping.Bucket;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.StartsWith;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.In;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.NotEquals;
@@ -30,7 +29,6 @@ import org.junit.BeforeClass;
 
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
-import java.util.List;
 import java.util.Map;
 
 import static java.util.Collections.emptyMap;
@@ -39,12 +37,9 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.emptyInferenceResolutio
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.loadMapping;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
-import static org.junit.Assume.assumeTrue;
 
 // @TestLogging(value = "org.elasticsearch.xpack.esql:TRACE", reason = "debug tests")
 public class PromqlLogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests {
-
-    private static final String PARAM_FORMATTING = "%1$s";
 
     private static Analyzer tsAnalyzer;
 
@@ -80,7 +75,6 @@ public class PromqlLogicalPlanOptimizerTests extends AbstractLogicalPlanOptimize
             )
             """);
 
-        logger.info(plan);
     }
 
     public void testExplainPromqlSimple() {
@@ -93,7 +87,6 @@ public class PromqlLogicalPlanOptimizerTests extends AbstractLogicalPlanOptimize
             | STATS AVG(AVG_OVER_TIME(network.bytes_in)) BY TBUCKET(1h)
             """);
 
-        logger.info(plan);
     }
 
     public void testAvgAvgOverTimeOutput() {
@@ -106,7 +99,6 @@ public class PromqlLogicalPlanOptimizerTests extends AbstractLogicalPlanOptimize
             | LIMIT 1000
             """);
 
-        logger.info(plan);
     }
 
     public void testTSAvgAvgOverTimeOutput() {
@@ -118,7 +110,6 @@ public class PromqlLogicalPlanOptimizerTests extends AbstractLogicalPlanOptimize
             | LIMIT 1000
             """);
 
-        logger.info(plan);
     }
 
     public void testTSAvgWithoutByDimension() {
@@ -129,8 +120,6 @@ public class PromqlLogicalPlanOptimizerTests extends AbstractLogicalPlanOptimize
             | STATS avg(avg_over_time(network.bytes_in)) BY TBUCKET(1h)
             | LIMIT 1000
             """);
-
-        logger.info(plan);
     }
 
     public void testPromqlAvgWithoutByDimension() {
@@ -144,7 +133,6 @@ public class PromqlLogicalPlanOptimizerTests extends AbstractLogicalPlanOptimize
             | LIMIT 1000
             """);
 
-        logger.info(plan);
     }
 
     public void testRangeSelector() {
@@ -156,7 +144,6 @@ public class PromqlLogicalPlanOptimizerTests extends AbstractLogicalPlanOptimize
             | promql step 1h ( max by (pod) (avg_over_time(network.bytes_in[1h])) )
             """);
 
-        logger.info(plan);
     }
 
     @AwaitsFix(bugUrl = "Invalid call to dataType on an unresolved object ?RATE_$1")
@@ -172,7 +159,6 @@ public class PromqlLogicalPlanOptimizerTests extends AbstractLogicalPlanOptimize
             """;
 
         var plan = planPromql(testQuery);
-        logger.info(plan);
     }
 
     public void testStartEndStep() {
@@ -184,8 +170,6 @@ public class PromqlLogicalPlanOptimizerTests extends AbstractLogicalPlanOptimize
             """;
 
         var plan = planPromql(testQuery);
-        List<LogicalPlan> collect = plan.collect(Bucket.class::isInstance);
-        logger.info(plan);
     }
 
     public void testLabelSelector() {
@@ -205,7 +189,6 @@ public class PromqlLogicalPlanOptimizerTests extends AbstractLogicalPlanOptimize
         assertThat(filters, hasSize(1));
         var filter = (Filter) filters.getFirst();
         assertThat(filter.condition().anyMatch(In.class::isInstance), equalTo(true));
-        logger.info(plan);
     }
 
     public void testLabelSelectorPrefix() {
@@ -226,7 +209,6 @@ public class PromqlLogicalPlanOptimizerTests extends AbstractLogicalPlanOptimize
         var filter = (Filter) filters.getFirst();
         assertThat(filter.condition().anyMatch(StartsWith.class::isInstance), equalTo(true));
         assertThat(filter.condition().anyMatch(NotEquals.class::isInstance), equalTo(false));
-        logger.info(plan);
     }
 
     public void testLabelSelectorProperPrefix() {
@@ -276,7 +258,6 @@ public class PromqlLogicalPlanOptimizerTests extends AbstractLogicalPlanOptimize
             """;
 
         var plan = planPromql(testQuery);
-        logger.info(plan);
     }
 
     @AwaitsFix(bugUrl = "only aggregations across timeseries are supported at this time (found [foo or bar])")
@@ -297,7 +278,6 @@ public class PromqlLogicalPlanOptimizerTests extends AbstractLogicalPlanOptimize
             """;
 
         var plan = planPromql(testQuery);
-        logger.info(plan);
     }
 
     // public void testPromqlArithmetricOperators() {
@@ -325,9 +305,9 @@ public class PromqlLogicalPlanOptimizerTests extends AbstractLogicalPlanOptimize
         query = query.replace("$now-1h", '"' + Instant.now().minus(1, ChronoUnit.HOURS).toString() + '"');
         query = query.replace("$now", '"' + Instant.now().toString() + '"');
         var analyzed = tsAnalyzer.analyze(parser.createStatement(query));
-        logger.info(analyzed);
+        logger.info("analyzed plan:\n{}", analyzed);
         var optimized = logicalOptimizer.optimize(analyzed);
-        logger.info(optimized);
+        logger.info("optimized plan:\n{}", optimized);
         return optimized;
     }
 }

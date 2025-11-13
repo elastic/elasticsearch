@@ -134,6 +134,12 @@ public class LongValuesComparatorSource extends IndexFieldData.XFieldComparatorS
                         if (primaryFieldSkipper == null || skipper.docCount() != maxDoc || primaryFieldSkipper.docCount() != maxDoc) {
                             return super.buildCompetitiveDISIBuilder(context);
                         }
+                        var superBuilder = super.buildCompetitiveDISIBuilder(context);
+                        if (superBuilder.getCompetitiveIterator().docIDRunEnd() == 0) {
+                            // If docIdRunEnd is zero, then super competitiveDISIBuilder built an empty iterator, so
+                            // we should use that over SecondarySortIterator
+                            return superBuilder;
+                        }
                         return new CompetitiveDISIBuilder(this) {
                             @Override
                             protected int docCount() {

@@ -296,6 +296,10 @@ public abstract class XNumericComparator<T extends Number> extends FieldComparat
             // by default competitive
             return true;
         }
+
+        public DocIdSetIterator getCompetitiveIterator() {
+            return competitiveIterator;
+        }
     }
 
     private class PointsCompetitiveDISIBuilder extends CompetitiveDISIBuilder {

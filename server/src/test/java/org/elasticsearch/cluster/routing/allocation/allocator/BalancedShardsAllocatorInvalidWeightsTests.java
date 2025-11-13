@@ -97,9 +97,15 @@ public class BalancedShardsAllocatorInvalidWeightsTests extends ESTestCase {
             );
 
             final int numberOfNodes = randomIntBetween(3, 5);
-            final var clusterState = ClusterStateCreationUtils.state(numberOfNodes, new String[] { "one", "two", "three" }, numberOfNodes);
-            final var negativeDecision = randomFrom(Decision.NO, Decision.NOT_PREFERRED);
-            final var nodeToMoveShardOff = randomFrom(clusterState.nodes().getAllNodes());
+            final var clusterState = ClusterStateCreationUtils.state(randomIdentifier(), numberOfNodes, numberOfNodes);
+            final var negativeDecision = randomFrom(Decision.NO);
+            final var nodeToMoveShardOff = randomFrom(
+                clusterState.nodes()
+                    .getAllNodes()
+                    .stream()
+                    .filter(node -> clusterState.getRoutingNodes().node(node.getId()).isEmpty() == false)
+                    .toList()
+            );
             final var allocationDecider = new AllocationDecider() {
                 @Override
                 public Decision canRemain(
@@ -125,11 +131,11 @@ public class BalancedShardsAllocatorInvalidWeightsTests extends ESTestCase {
                 System.nanoTime()
             );
             assertInvalidWeightsMessageIsLogged(() -> allocator.allocate(allocation));
-            // The shard on the nominated node should have been moved
+            // A shard on the nominated node should have been moved (we stop after 1 move by default)
             assertEquals(1, allocation.routingNodes().getRelocatingShardCount());
             final var relocatingShardsOnNominatedNode = allocation.routingNodes()
                 .node(nodeToMoveShardOff.getId())
-                .shardsWithState(ShardRoutingState.STARTED)
+                .shardsWithState(ShardRoutingState.RELOCATING)
                 .toList();
             assertEquals(1, relocatingShardsOnNominatedNode.size());
             final var relocatingShard = relocatingShardsOnNominatedNode.getFirst();

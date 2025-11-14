@@ -14,8 +14,6 @@ import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.WriteRequest;
-import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchHit;
@@ -362,31 +360,10 @@ public class RegressionIT extends MlNativeDataFrameAnalyticsIntegTestCase {
 
     public void testTwoJobsWithSameRandomizeSeedUseSameTrainingSet() throws Exception {
         String sourceIndex = "regression_two_jobs_with_same_randomize_seed_source";
-        // Create index with 1 shard to ensure deterministic document ordering during reindexing
-        String mapping = Strings.format("""
-            {
-              "properties": {
-                "@timestamp": {
-                  "type": "date"
-                },
-                "%s": {
-                  "type": "double"
-                },
-                "%s": {
-                  "type": "unsigned_long"
-                },
-                "%s": {
-                  "type": "double"
-                }
-              }
-            }""", NUMERICAL_FEATURE_FIELD, DISCRETE_NUMERICAL_FEATURE_FIELD, DEPENDENT_VARIABLE_FIELD);
-        client().admin()
-            .indices()
-            .prepareCreate(sourceIndex)
-            .setSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1))
-            .setMapping(mapping)
-            .get();
         indexData(sourceIndex, 100, 0);
+        // Force merge to single segment to ensure deterministic _doc sort order during reindexing
+        // Without this, multiple segments or segment merges can cause non-deterministic document processing order
+        client().admin().indices().prepareForceMerge(sourceIndex).setMaxNumSegments(1).setFlush(true).get();
 
         String firstJobId = "regression_two_jobs_with_same_randomize_seed_1";
         String firstJobDestIndex = firstJobId + "_dest";
@@ -934,10 +911,7 @@ public class RegressionIT extends MlNativeDataFrameAnalyticsIntegTestCase {
                 throw new ElasticsearchException(ex);
             }
         } else {
-            // Only create index if it doesn't already exist (allows test to create it with custom settings)
-            if (client().admin().indices().prepareExists(sourceIndex).get().isExists() == false) {
-                client().admin().indices().prepareCreate(sourceIndex).setMapping(mapping).get();
-            }
+            client().admin().indices().prepareCreate(sourceIndex).setMapping(mapping).get();
         }
 
         BulkRequestBuilder bulkRequestBuilder = client().prepareBulk().setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);

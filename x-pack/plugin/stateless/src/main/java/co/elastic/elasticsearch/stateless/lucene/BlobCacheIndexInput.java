@@ -55,6 +55,25 @@ public final class BlobCacheIndexInput extends BlobCacheBufferedIndexInput {
     private final Releasable releasable;
     private final IOContext context;
     private final long offset;
+    private final String sliceDescription;
+
+    public BlobCacheIndexInput(
+        String name,
+        IOContext context,
+        CacheFileReader cacheFileReader,
+        Releasable releasable,
+        long length,
+        long offset,
+        String sliceDescription
+    ) {
+        super(name, context, length);
+        this.cacheFileReader = cacheFileReader;
+        this.closed = new AtomicBoolean(false);
+        this.releasable = releasable;
+        this.context = context;
+        this.offset = offset;
+        this.sliceDescription = sliceDescription;
+    }
 
     public BlobCacheIndexInput(
         String name,
@@ -64,12 +83,7 @@ public final class BlobCacheIndexInput extends BlobCacheBufferedIndexInput {
         long length,
         long offset
     ) {
-        super(name, context, length);
-        this.cacheFileReader = cacheFileReader;
-        this.closed = new AtomicBoolean(false);
-        this.releasable = releasable;
-        this.context = context;
-        this.offset = offset;
+        this(name, context, cacheFileReader, releasable, length, offset, null);
     }
 
     @Override
@@ -101,7 +115,8 @@ public final class BlobCacheIndexInput extends BlobCacheBufferedIndexInput {
             cacheFileReader.copy(),
             null,
             length,
-            this.offset + offset
+            this.offset + offset,
+            sliceDescription
         );
     }
 
@@ -111,7 +126,15 @@ public final class BlobCacheIndexInput extends BlobCacheBufferedIndexInput {
         if (bufferClone != null) {
             return bufferClone;
         }
-        var clone = new BlobCacheIndexInput(super.toString(), context, cacheFileReader.copy(), null, length(), offset);
+        var clone = new BlobCacheIndexInput(
+            super.toString(),
+            context,
+            cacheFileReader.copy(),
+            null,
+            length(),
+            offset,
+            sliceDescription != null ? sliceDescription : super.toString()
+        );
         try {
             clone.seek(getFilePointer());
         } catch (IOException e) {
@@ -123,6 +146,10 @@ public final class BlobCacheIndexInput extends BlobCacheBufferedIndexInput {
 
     private long getAbsolutePosition() {
         return getFilePointer() + offset;
+    }
+
+    String getSliceDescription() {
+        return sliceDescription;
     }
 
     @Override
@@ -172,7 +199,14 @@ public final class BlobCacheIndexInput extends BlobCacheBufferedIndexInput {
     }
 
     private void readInternalSlow(ByteBuffer b, long position, int length) throws Exception {
-        cacheFileReader.read(this, b, position, length, this.offset + length(), super.toString());
+        cacheFileReader.read(
+            this,
+            b,
+            position,
+            length,
+            this.offset + length(),
+            sliceDescription != null ? sliceDescription : super.toString()
+        );
     }
 
     // package-private for testing
@@ -192,6 +226,8 @@ public final class BlobCacheIndexInput extends BlobCacheBufferedIndexInput {
             + length()
             + ", offset="
             + offset
+            + ", sliceDescription='="
+            + sliceDescription
             + '}';
     }
 }

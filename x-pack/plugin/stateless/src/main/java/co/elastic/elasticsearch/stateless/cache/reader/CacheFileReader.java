@@ -110,6 +110,7 @@ public class CacheFileReader {
      * @param position      the starting position to read from
      * @param length        the length of bytes to read
      * @param endOfInput    the length of the {@link BlobCacheIndexInput} that triggers the read (used for assertions)
+     * @param resourceDescription the underlying {@link BlobCacheIndexInput} resource description
      * @throws Exception    if an error occurs
      */
     public void read(Object initiator, ByteBuffer b, long position, int length, long endOfInput, String resourceDescription)

@@ -5740,11 +5740,11 @@ public class EsqlBaseParser extends ParserConfig {
     }
     public TerminalNode LIKE() { return getToken(EsqlBaseParser.LIKE, 0); }
     public TerminalNode LP() { return getToken(EsqlBaseParser.LP, 0); }
-    public List<StringContext> string() {
-      return getRuleContexts(StringContext.class);
+    public List<StringOrParameterContext> stringOrParameter() {
+      return getRuleContexts(StringOrParameterContext.class);
     }
-    public StringContext string(int i) {
-      return getRuleContext(StringContext.class,i);
+    public StringOrParameterContext stringOrParameter(int i) {
+      return getRuleContext(StringOrParameterContext.class,i);
     }
     public TerminalNode RP() { return getToken(EsqlBaseParser.RP, 0); }
     public TerminalNode NOT() { return getToken(EsqlBaseParser.NOT, 0); }
@@ -5774,8 +5774,8 @@ public class EsqlBaseParser extends ParserConfig {
       return getRuleContext(ValueExpressionContext.class,0);
     }
     public TerminalNode RLIKE() { return getToken(EsqlBaseParser.RLIKE, 0); }
-    public StringContext string() {
-      return getRuleContext(StringContext.class,0);
+    public StringOrParameterContext stringOrParameter() {
+      return getRuleContext(StringOrParameterContext.class,0);
     }
     public TerminalNode NOT() { return getToken(EsqlBaseParser.NOT, 0); }
     @SuppressWarnings("this-escape")
@@ -5801,11 +5801,11 @@ public class EsqlBaseParser extends ParserConfig {
     }
     public TerminalNode RLIKE() { return getToken(EsqlBaseParser.RLIKE, 0); }
     public TerminalNode LP() { return getToken(EsqlBaseParser.LP, 0); }
-    public List<StringContext> string() {
-      return getRuleContexts(StringContext.class);
+    public List<StringOrParameterContext> stringOrParameter() {
+      return getRuleContexts(StringOrParameterContext.class);
     }
-    public StringContext string(int i) {
-      return getRuleContext(StringContext.class,i);
+    public StringOrParameterContext stringOrParameter(int i) {
+      return getRuleContext(StringOrParameterContext.class,i);
     }
     public TerminalNode RP() { return getToken(EsqlBaseParser.RP, 0); }
     public TerminalNode NOT() { return getToken(EsqlBaseParser.NOT, 0); }
@@ -5879,7 +5879,7 @@ public class EsqlBaseParser extends ParserConfig {
         setState(722);
         match(RLIKE);
         setState(723);
-        string();
+        stringOrParameter();
         }
         break;
       case 3:
@@ -5903,7 +5903,7 @@ public class EsqlBaseParser extends ParserConfig {
         setState(730);
         match(LP);
         setState(731);
-        string();
+        stringOrParameter();
         setState(736);
         _errHandler.sync(this);
         _la = _input.LA(1);
@@ -5913,7 +5913,7 @@ public class EsqlBaseParser extends ParserConfig {
           setState(732);
           match(COMMA);
           setState(733);
-          string();
+          stringOrParameter();
           }
           }
           setState(738);
@@ -5945,7 +5945,7 @@ public class EsqlBaseParser extends ParserConfig {
         setState(746);
         match(LP);
         setState(747);
-        string();
+        stringOrParameter();
         setState(752);
         _errHandler.sync(this);
         _la = _input.LA(1);
@@ -5955,7 +5955,7 @@ public class EsqlBaseParser extends ParserConfig {
           setState(748);
           match(COMMA);
           setState(749);
-          string();
+          stringOrParameter();
           }
           }
           setState(754);
@@ -8620,20 +8620,20 @@ public class EsqlBaseParser extends ParserConfig {
     "\u0000\u02ce\u02d0\u0003\u0098L\u0000\u02cf\u02d1\u0005F\u0000\u0000\u02d0"+
     "\u02cf\u0001\u0000\u0000\u0000\u02d0\u02d1\u0001\u0000\u0000\u0000\u02d1"+
     "\u02d2\u0001\u0000\u0000\u0000\u02d2\u02d3\u0005L\u0000\u0000\u02d3\u02d4"+
-    "\u0003\u00b2Y\u0000\u02d4\u02f6\u0001\u0000\u0000\u0000\u02d5\u02d7\u0003"+
+    "\u0003\u0094J\u0000\u02d4\u02f6\u0001\u0000\u0000\u0000\u02d5\u02d7\u0003"+
     "\u0098L\u0000\u02d6\u02d8\u0005F\u0000\u0000\u02d7\u02d6\u0001\u0000\u0000"+
     "\u0000\u02d7\u02d8\u0001\u0000\u0000\u0000\u02d8\u02d9\u0001\u0000\u0000"+
     "\u0000\u02d9\u02da\u0005E\u0000\u0000\u02da\u02db\u0005b\u0000\u0000\u02db"+
-    "\u02e0\u0003\u00b2Y\u0000\u02dc\u02dd\u0005=\u0000\u0000\u02dd\u02df\u0003"+
-    "\u00b2Y\u0000\u02de\u02dc\u0001\u0000\u0000\u0000\u02df\u02e2\u0001\u0000"+
+    "\u02e0\u0003\u0094J\u0000\u02dc\u02dd\u0005=\u0000\u0000\u02dd\u02df\u0003"+
+    "\u0094J\u0000\u02de\u02dc\u0001\u0000\u0000\u0000\u02df\u02e2\u0001\u0000"+
     "\u0000\u0000\u02e0\u02de\u0001\u0000\u0000\u0000\u02e0\u02e1\u0001\u0000"+
     "\u0000\u0000\u02e1\u02e3\u0001\u0000\u0000\u0000\u02e2\u02e0\u0001\u0000"+
     "\u0000\u0000\u02e3\u02e4\u0005c\u0000\u0000\u02e4\u02f6\u0001\u0000\u0000"+
     "\u0000\u02e5\u02e7\u0003\u0098L\u0000\u02e6\u02e8\u0005F\u0000\u0000\u02e7"+
     "\u02e6\u0001\u0000\u0000\u0000\u02e7\u02e8\u0001\u0000\u0000\u0000\u02e8"+
     "\u02e9\u0001\u0000\u0000\u0000\u02e9\u02ea\u0005L\u0000\u0000\u02ea\u02eb"+
-    "\u0005b\u0000\u0000\u02eb\u02f0\u0003\u00b2Y\u0000\u02ec\u02ed\u0005="+
-    "\u0000\u0000\u02ed\u02ef\u0003\u00b2Y\u0000\u02ee\u02ec\u0001\u0000\u0000"+
+    "\u0005b\u0000\u0000\u02eb\u02f0\u0003\u0094J\u0000\u02ec\u02ed\u0005="+
+    "\u0000\u0000\u02ed\u02ef\u0003\u0094J\u0000\u02ee\u02ec\u0001\u0000\u0000"+
     "\u0000\u02ef\u02f2\u0001\u0000\u0000\u0000\u02f0\u02ee\u0001\u0000\u0000"+
     "\u0000\u02f0\u02f1\u0001\u0000\u0000\u0000\u02f1\u02f3\u0001\u0000\u0000"+
     "\u0000\u02f2\u02f0\u0001\u0000\u0000\u0000\u02f3\u02f4\u0005c\u0000\u0000"+

@@ -31,7 +31,7 @@ ROW message = "foobar"
 ```
 
 
-Pattens may be specified with ReST query placeholders as well
+Patterns may be specified with ReST query placeholders as well
 
 ```esql
 FROM employees

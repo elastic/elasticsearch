@@ -33,7 +33,10 @@
             "type": {
               "type": "string",
               "description": "Default document type for items which don't provide one",
-              "deprecated": true
+              "deprecated": {
+                "version": "7.0.0",
+                "description": "Specifying types in urls has been deprecated"
+              }
             }
           },
           "deprecated": {

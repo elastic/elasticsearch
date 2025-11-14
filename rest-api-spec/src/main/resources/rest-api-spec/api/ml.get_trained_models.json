@@ -54,7 +54,10 @@
         "type": "boolean",
         "description": "Should the full model definition be included in the results. These definitions can be large. So be cautious when including them. Defaults to false.",
         "default": false,
-        "deprecated": true
+        "deprecated": {
+          "version": "7.10.0",
+          "description": "This paramater is deprecated in favor of ?include=definition"
+        }
       },
       "decompress_definition": {
         "type": "boolean",

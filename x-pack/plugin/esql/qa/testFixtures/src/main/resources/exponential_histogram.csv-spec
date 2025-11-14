@@ -24,13 +24,14 @@ FROM exp_histo_sample
  | STATS min = MIN(responseTime), max = MAX(responseTime), p75 = PERCENTILE(responseTime,75) BY instance
  | EVAL p75 = ROUND(p75, 7) // rounding to avoid floating point precision issues
  | KEEP instance, min, max, p75
+ | SORT instance
 ;
 
 instance:keyword | min:double | max:double | p75:double
 dummy-grouped    | -100.0     | 50.0       | 8.3457089
-instance-2       | 2.2E-4     | 2.744054   | 0.0016068
 instance-0       | 2.4E-4     | 6.786232   | 0.2608237
 instance-1       | 2.17E-4    | 3.190723   | 0.0016068
+instance-2       | 2.2E-4     | 2.744054   | 0.0016068
 ;
 
 
@@ -42,24 +43,25 @@ FROM exp_histo_sample
  | INLINE STATS min = MIN(responseTime), max = MAX(responseTime), p75 = PERCENTILE(responseTime,75) BY instance
  | EVAL p75 = ROUND(p75, 7) // rounding to avoid floating point precision issues
  | KEEP instance, min, max, p75
+ | SORT instance
  | Limit 15
 ;
 
 instance:keyword          | min:double | max:double | p75:double
 dummy-empty               | null       | null       | null
 dummy-full                | -100.0     | 50.0       | 10.6666667
+dummy-negative_only       | -50.0      | -1.0       | -12.8729318
 dummy-no_zero_bucket      | -100.0     | 50.0       | 10.6666667
 dummy-positive_only       | 1.0        | 50.0       | 34.7656715
-dummy-negative_only       | -50.0      | -1.0       | -12.8729318
-dummy-zero_threshold_only | null       | null       | null
 dummy-zero_count_only     | 0.0        | 0.0        | 0.0
-instance-2                | 2.2E-4     | 2.744054   | 0.0016068
+dummy-zero_threshold_only | null       | null       | null
 instance-0                | 2.4E-4     | 6.786232   | 0.2608237
-instance-1                | 2.17E-4    | 3.190723   | 0.0016068
-instance-2                | 2.2E-4     | 2.744054   | 0.0016068
 instance-0                | 2.4E-4     | 6.786232   | 0.2608237
-instance-1                | 2.17E-4    | 3.190723   | 0.0016068
-instance-2                | 2.2E-4     | 2.744054   | 0.0016068
+instance-0                | 2.4E-4     | 6.786232   | 0.2608237
+instance-0                | 2.4E-4     | 6.786232   | 0.2608237
+instance-0                | 2.4E-4     | 6.786232   | 0.2608237
+instance-0                | 2.4E-4     | 6.786232   | 0.2608237
+instance-0                | 2.4E-4     | 6.786232   | 0.2608237
 instance-0                | 2.4E-4     | 6.786232   | 0.2608237
 ;
 

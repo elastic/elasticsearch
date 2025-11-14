@@ -1481,6 +1481,16 @@ public abstract class FieldMapper extends Mapper {
          */
         protected abstract Parameter<?>[] getParameters();
 
+        protected boolean useTimeSeriesDocValuesSkippers(IndexSettings indexSettings) {
+            if (indexSettings.useDocValuesSkipper() == false) {
+                return false;
+            }
+            if (indexSettings.getMode() == IndexMode.TIME_SERIES) {
+                return indexSettings.getIndexVersionCreated().onOrAfter(IndexVersions.TIME_SERIES_ALL_FIELDS_USE_SKIPPERS);
+            }
+            return false;
+        }
+
         @Override
         public abstract FieldMapper build(MapperBuilderContext context);
 

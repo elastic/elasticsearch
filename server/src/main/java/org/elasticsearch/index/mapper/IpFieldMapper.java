@@ -175,9 +175,7 @@ public class IpFieldMapper extends FieldMapper {
             if (indexSettings.getIndexVersionCreated().isLegacyIndexVersion()) {
                 return hasDocValues.get() ? IndexType.archivedPoints() : IndexType.NONE;
             }
-            if (dimension.get()
-                && indexSettings.useDocValuesSkipper()
-                && indexSettings.getIndexVersionCreated().onOrAfter(IndexVersions.TIME_SERIES_DIMENSIONS_USE_SKIPPERS)) {
+            if (useTimeSeriesDocValuesSkippers(indexSettings)) {
                 return IndexType.skippers();
             }
             return IndexType.points(indexed.get(), hasDocValues.get());

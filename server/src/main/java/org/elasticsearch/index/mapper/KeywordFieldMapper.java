@@ -435,7 +435,7 @@ public final class KeywordFieldMapper extends FieldMapper {
 
         private FieldType resolveFieldType(final boolean forceDocValuesSkipper, final String fullFieldName) {
             FieldType fieldtype = new FieldType(Defaults.FIELD_TYPE);
-            if (forceDocValuesSkipper || shouldUseHostnameSkipper(fullFieldName) || shouldUseDimensionSkipper()) {
+            if (forceDocValuesSkipper || shouldUseHostnameSkipper(fullFieldName) || shouldUseTimeSeriesSkipper()) {
                 fieldtype = new FieldType(Defaults.FIELD_TYPE_WITH_SKIP_DOC_VALUES);
             }
             fieldtype.setOmitNorms(this.hasNorms.getValue() == false);
@@ -455,12 +455,8 @@ public final class KeywordFieldMapper extends FieldMapper {
             return fieldtype;
         }
 
-        private boolean shouldUseDimensionSkipper() {
-            return hasDocValues.get()
-                && dimension.get()
-                && indexed.get() == false
-                && indexSettings.useDocValuesSkipper()
-                && indexSettings.getIndexVersionCreated().onOrAfter(IndexVersions.TIME_SERIES_DIMENSIONS_USE_SKIPPERS);
+        private boolean shouldUseTimeSeriesSkipper() {
+            return hasDocValues.get() && indexed.get() == false && useTimeSeriesDocValuesSkippers(indexSettings);
         }
 
         private boolean shouldUseHostnameSkipper(final String fullFieldName) {

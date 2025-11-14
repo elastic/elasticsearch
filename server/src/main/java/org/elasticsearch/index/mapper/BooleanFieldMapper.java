@@ -148,12 +148,7 @@ public class BooleanFieldMapper extends FieldMapper {
             if (docValues.get() == false) {
                 return IndexType.NONE;
             }
-            if (dimension.get()
-                && indexSettings.useDocValuesSkipper()
-                && indexSettings.getIndexVersionCreated().onOrAfter(IndexVersions.TIME_SERIES_DIMENSIONS_USE_SKIPPERS)) {
-                return IndexType.skippers();
-            }
-            return IndexType.docValuesOnly();
+            return useTimeSeriesDocValuesSkippers(indexSettings) ? IndexType.skippers() : IndexType.docValuesOnly();
         }
 
         @Override

@@ -46,6 +46,8 @@ public class BaseMockEISAuthServerTest extends ESRestTestCase {
         // calls which would result in a test failure because the webserver is only expecting a single request
         // So to ensure we avoid that all together, this flag indicates that we'll only perform a single authorization request
         .setting("xpack.inference.elastic.periodic_authorization_enabled", "false")
+        // Setting to false so that the CCM logic will be skipped when running the tests, the authorization logic skip trying to determine
+        // if CCM is enabled
         .setting("xpack.inference.elastic.allow_configuring_ccm", "false")
         // This plugin is located in the inference/qa/test-service-plugin package, look for TestInferenceServicePlugin
         .plugin("inference-service-test")

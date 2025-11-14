@@ -43,6 +43,7 @@ import static org.elasticsearch.xpack.inference.external.http.Utils.getUrl;
 import static org.elasticsearch.xpack.inference.external.http.retry.RetryingHttpSender.MAX_RETIES;
 import static org.elasticsearch.xpack.inference.external.request.RequestUtils.bearerToken;
 import static org.elasticsearch.xpack.inference.services.SenderServiceTests.createMockSender;
+import static org.elasticsearch.xpack.inference.services.elastic.ccm.CCMAuthenticationApplierFactoryTests.createApplierFactory;
 import static org.elasticsearch.xpack.inference.services.elastic.ccm.CCMAuthenticationApplierFactoryTests.createNoopApplierFactory;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.instanceOf;
@@ -219,16 +220,17 @@ public class ElasticInferenceServiceAuthorizationRequestHandlerTests extends EST
     }
 
     public void testGetAuthorization_ReturnsAValidResponse_WithAuthHeader() throws IOException {
+        var secret = "secret-token";
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
         var eisGatewayUrl = getUrl(webServer);
         var logger = mock(Logger.class);
+
         var authHandler = new ElasticInferenceServiceAuthorizationRequestHandler(
             eisGatewayUrl,
             threadPool,
             logger,
-            createNoopApplierFactory()
+            createApplierFactory(secret)
         );
-        var secret = "secret-token";
 
         try (var sender = senderFactory.createSender()) {
             String responseJson = """

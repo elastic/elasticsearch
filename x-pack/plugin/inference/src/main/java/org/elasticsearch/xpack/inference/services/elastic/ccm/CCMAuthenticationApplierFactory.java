@@ -60,6 +60,9 @@ public class CCMAuthenticationApplierFactory {
         }).<AuthApplier>andThenApply(ccmModel -> new AuthenticationHeaderApplier(ccmModel.apiKey())).addListener(listener);
     }
 
+    /**
+     * If CCM is configured and enabled this class will apply the appropriate authentication header to the request.
+     */
     public record AuthenticationHeaderApplier(SecureString apiKey) implements AuthApplier {
         public AuthenticationHeaderApplier(String apiKey) {
             this(new SecureString(Objects.requireNonNull(apiKey).toCharArray()));
@@ -72,6 +75,9 @@ public class CCMAuthenticationApplierFactory {
         }
     }
 
+    /**
+     * If CCM is not configured this class will not modify the request because no authentication is necessary since mTLS certs are used.
+     */
     public record NoopApplier() implements AuthApplier {
         @Override
         public HttpRequestBase apply(HttpRequestBase request) {

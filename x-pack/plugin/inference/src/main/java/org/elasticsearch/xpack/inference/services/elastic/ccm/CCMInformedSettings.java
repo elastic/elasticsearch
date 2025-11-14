@@ -13,6 +13,10 @@ import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServic
 
 import java.util.Objects;
 
+/**
+ * Wraps the settings to default to a static URL if the user hasn't already set one using the
+ * {@link ElasticInferenceServiceSettings#ELASTIC_INFERENCE_SERVICE_URL} setting.
+ */
 public class CCMInformedSettings extends ElasticInferenceServiceSettings {
     static final String DEFAULT_CCM_URL = "https://inference.us-east-1.aws.svc.elastic.cloud";
 

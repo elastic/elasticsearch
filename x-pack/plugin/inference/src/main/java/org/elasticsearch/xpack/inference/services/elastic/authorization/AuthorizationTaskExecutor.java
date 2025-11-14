@@ -52,6 +52,13 @@ import java.util.concurrent.atomic.AtomicReference;
 import static org.elasticsearch.xpack.inference.InferencePlugin.UTILITY_THREAD_POOL_NAME;
 import static org.elasticsearch.xpack.inference.services.elastic.authorization.AuthorizationPoller.TASK_NAME;
 
+/**
+ * Handles creating a persistent task that will periodically poll the Elastic Inference Service for which models are authorized.
+ * A cluster state listener is run on each node to ensure that the persistent task is created. Only one task will exist within the cluster.
+ * The task will only be created if CCM cannot be configured or if CCM is configurable (for an on-prem cluster) and is enabled.
+ * When a user enables CCM the logic will immediately try to create the persistent task
+ * to avoid having to wait for the next cluster update.
+ */
 public class AuthorizationTaskExecutor extends PersistentTasksExecutor<AuthorizationTaskParams> implements ClusterStateListener {
 
     private static final Logger logger = LogManager.getLogger(AuthorizationTaskExecutor.class);
@@ -154,7 +161,6 @@ public class AuthorizationTaskExecutor extends PersistentTasksExecutor<Authoriza
         return ClusterPersistentTasksCustomMetadata.getTaskWithId(state, TASK_NAME) != null;
     }
 
-    // TODO test the stop behavior
     public synchronized void stop() {
         if (running.compareAndSet(true, false)) {
             logger.info("Shutting down authorization task executor");

@@ -200,12 +200,11 @@ public class HttpClientManager implements Closeable {
             .register("https", SSLIOSessionStrategy.getDefaultStrategy())
             .build();
 
+        // -1 is used as the default within the PoolingNHttpClientConnectionManager to indicate no TTL
         var connectionTtlMillis = connectionTtl == null ? -1 : connectionTtl.getMillis();
 
         /*
-          The max time to live for open connections in the pool will not be set because we don't specify a ttl in the constructor.
-          This meaning that there should not be a limit.
-          We can control the TTL dynamically using the IdleConnectionEvictor and keep-alive strategy.
+          If the connection TTL is not set, the TTL will be controlled using the IdleConnectionEvictor and keep-alive strategy.
           The max idle time cluster setting will dictate how much time an open connection can be unused for before it can be closed.
          */
         return new PoolingNHttpClientConnectionManager(

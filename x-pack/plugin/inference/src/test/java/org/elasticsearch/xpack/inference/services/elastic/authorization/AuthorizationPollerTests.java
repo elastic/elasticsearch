@@ -42,6 +42,7 @@ import static org.elasticsearch.xpack.inference.services.elastic.ccm.CCMServiceT
 import static org.hamcrest.Matchers.is;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
@@ -76,9 +77,23 @@ public class AuthorizationPollerTests extends ESTestCase {
             null
         );
 
+        var persistentTaskId = "id";
+        var allocationId = 0L;
+
+        var mockPersistentTasksService = mock(PersistentTasksService.class);
+        poller.init(mockPersistentTasksService, mock(TaskManager.class), persistentTaskId, allocationId);
+
         poller.sendAuthorizationRequest();
 
         verify(authorizationRequestHandler, never()).getAuthorization(any(), any());
+        verify(mockPersistentTasksService, never()).sendCompletionRequest(
+            eq(persistentTaskId),
+            eq(allocationId),
+            isNull(),
+            isNull(),
+            any(),
+            any()
+        );
     }
 
     public void testDoesNotSendAuthorizationRequest_WhenCCMIsDisabled() {
@@ -100,9 +115,62 @@ public class AuthorizationPollerTests extends ESTestCase {
             null
         );
 
+        var persistentTaskId = "id";
+        var allocationId = 0L;
+
+        var mockPersistentTasksService = mock(PersistentTasksService.class);
+        poller.init(mockPersistentTasksService, mock(TaskManager.class), persistentTaskId, allocationId);
+
         poller.sendAuthorizationRequest();
 
         verify(authorizationRequestHandler, never()).getAuthorization(any(), any());
+        verify(mockPersistentTasksService, times(1)).sendCompletionRequest(
+            eq(persistentTaskId),
+            eq(allocationId),
+            isNull(),
+            isNull(),
+            any(),
+            any()
+        );
+    }
+
+    public void testOnlyMarksCompletedOnce() {
+        var mockRegistry = mock(ModelRegistry.class);
+        when(mockRegistry.isReady()).thenReturn(true);
+
+        var authorizationRequestHandler = mock(ElasticInferenceServiceAuthorizationRequestHandler.class);
+
+        var poller = new AuthorizationPoller(
+            new AuthorizationPoller.TaskFields(0, "abc", "abc", "abc", new TaskId("abc", 0), Map.of()),
+            createWithEmptySettings(taskQueue.getThreadPool()),
+            authorizationRequestHandler,
+            mock(Sender.class),
+            ElasticInferenceServiceSettingsTests.create("", TimeValue.timeValueMillis(1), TimeValue.timeValueMillis(1), true),
+            mockRegistry,
+            mock(Client.class),
+            createMockCCMFeature(true),
+            createMockCCMService(false),
+            null
+        );
+
+        var persistentTaskId = "id";
+        var allocationId = 0L;
+
+        var mockPersistentTasksService = mock(PersistentTasksService.class);
+        poller.init(mockPersistentTasksService, mock(TaskManager.class), persistentTaskId, allocationId);
+
+        poller.sendAuthorizationRequest();
+        poller.sendAuthorizationRequest();
+
+        verify(authorizationRequestHandler, never()).getAuthorization(any(), any());
+        verify(mockPersistentTasksService, times(1)).sendCompletionRequest(
+            eq(persistentTaskId),
+            eq(allocationId),
+            isNull(),
+            isNull(),
+            any(),
+            any()
+        );
     }
 
     public void testSendsAuthorizationRequest_WhenModelRegistryIsReady() {
@@ -144,6 +212,12 @@ public class AuthorizationPollerTests extends ESTestCase {
             null
         );
 
+        var persistentTaskId = "id";
+        var allocationId = 0L;
+
+        var mockPersistentTasksService = mock(PersistentTasksService.class);
+        poller.init(mockPersistentTasksService, mock(TaskManager.class), persistentTaskId, allocationId);
+
         var requestArgCaptor = ArgumentCaptor.forClass(StoreInferenceEndpointsAction.Request.class);
 
         poller.sendAuthorizationRequest();
@@ -159,6 +233,15 @@ public class AuthorizationPollerTests extends ESTestCase {
                     )
                 )
             )
+        );
+
+        verify(mockPersistentTasksService, never()).sendCompletionRequest(
+            eq(persistentTaskId),
+            eq(allocationId),
+            any(),
+            any(),
+            any(),
+            any()
         );
     }
 
@@ -202,6 +285,12 @@ public class AuthorizationPollerTests extends ESTestCase {
             null
         );
 
+        var persistentTaskId = "id";
+        var allocationId = 0L;
+
+        var mockPersistentTasksService = mock(PersistentTasksService.class);
+        poller.init(mockPersistentTasksService, mock(TaskManager.class), persistentTaskId, allocationId);
+
         var requestArgCaptor = ArgumentCaptor.forClass(StoreInferenceEndpointsAction.Request.class);
 
         poller.sendAuthorizationRequest();
@@ -217,6 +306,15 @@ public class AuthorizationPollerTests extends ESTestCase {
                     )
                 )
             )
+        );
+
+        verify(mockPersistentTasksService, never()).sendCompletionRequest(
+            eq(persistentTaskId),
+            eq(allocationId),
+            any(),
+            any(),
+            any(),
+            any()
         );
     }
 
@@ -490,5 +588,15 @@ public class AuthorizationPollerTests extends ESTestCase {
             any()
         );
         verify(mockClient, never()).execute(eq(StoreInferenceEndpointsAction.INSTANCE), any(), any());
+
+        poller.waitForAuthorizationToComplete(TimeValue.THIRTY_SECONDS);
+        verify(mockPersistentTasksService, never()).sendCompletionRequest(
+            eq(persistentTaskId),
+            eq(allocationId),
+            isNull(),
+            isNull(),
+            any(),
+            any()
+        );
     }
 }

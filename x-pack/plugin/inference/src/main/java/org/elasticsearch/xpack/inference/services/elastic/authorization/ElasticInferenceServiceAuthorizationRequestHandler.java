@@ -57,18 +57,29 @@ public class ElasticInferenceServiceAuthorizationRequestHandler {
     private final CountDownLatch requestCompleteLatch = new CountDownLatch(1);
     private CCMAuthenticationApplierFactory authFactory;
 
-    public ElasticInferenceServiceAuthorizationRequestHandler(@Nullable String baseUrl, ThreadPool threadPool) {
-        this(baseUrl, Objects.requireNonNull(threadPool), LogManager.getLogger(ElasticInferenceServiceAuthorizationRequestHandler.class));
+    public ElasticInferenceServiceAuthorizationRequestHandler(
+        @Nullable String baseUrl,
+        ThreadPool threadPool,
+        CCMAuthenticationApplierFactory authFactory
+    ) {
+        this(
+            baseUrl,
+            Objects.requireNonNull(threadPool),
+            LogManager.getLogger(ElasticInferenceServiceAuthorizationRequestHandler.class),
+            authFactory
+        );
     }
 
     // only use for testing
-    ElasticInferenceServiceAuthorizationRequestHandler(@Nullable String baseUrl, ThreadPool threadPool, Logger logger) {
+    ElasticInferenceServiceAuthorizationRequestHandler(
+        @Nullable String baseUrl,
+        ThreadPool threadPool,
+        Logger logger,
+        CCMAuthenticationApplierFactory authFactory
+    ) {
         this.baseUrl = baseUrl;
         this.threadPool = Objects.requireNonNull(threadPool);
         this.logger = Objects.requireNonNull(logger);
-    }
-
-    public void init(CCMAuthenticationApplierFactory authFactory) {
         this.authFactory = Objects.requireNonNull(authFactory);
     }
 

@@ -86,11 +86,12 @@ public class AuthorizationTaskExecutor extends PersistentTasksExecutor<Authoriza
     }
 
     /**
-     * Starts the authorization task executor without starting the persistent task. This is needed because we can't start the persistent task
-     * until after the plugin has finished initializing. Otherwise we'll get an error indicating that it isn't aware of whether the task
-     * is a cluster scoped task.
+     * Starts the authorization task executor without starting the persistent task. The persistent task will be created
+     * when the next cluster state change event occurs. This is needed because
+     * we can't start the persistent task until after the plugin has finished initializing. Otherwise, we'll
+     * get an error indicating that it isn't aware of whether the task is a cluster scoped task.
      */
-    public synchronized void startWithoutPersistentTask() {
+    public synchronized void startAndLazyCreateTask() {
         startInternal(false);
     }
 
@@ -98,16 +99,19 @@ public class AuthorizationTaskExecutor extends PersistentTasksExecutor<Authoriza
      * Starts the authorization task executor and creates the persistent task if it doesn't already exist. This should only be called from
      * a context where the cluster state is already initialized. Don't call this from the plugin
      * {@link org.elasticsearch.xpack.inference.InferencePlugin#createComponents(Plugin.PluginServices)}. Use
-     * {@link #startWithoutPersistentTask()} instead.
+     * {@link #startAndLazyCreateTask()} instead.
      */
-    public synchronized void start() {
+    public synchronized void startAndImmediatelyCreateTask() {
         startInternal(true);
     }
 
     private void startInternal(boolean createPersistentTask) {
+        var eisUrl = pollerParameters.elasticInferenceServiceSettings().getElasticInferenceServiceUrl();
+
+        logger.info("Authorization task executor EIS URL: [{}]", eisUrl);
+
         // If the EIS url is not configured, then we won't be able to interact with the service, so don't start the task.
-        if (running.get() == false
-            && Strings.isNullOrEmpty(pollerParameters.elasticInferenceServiceSettings().getElasticInferenceServiceUrl()) == false) {
+        if (running.get() == false && Strings.isNullOrEmpty(eisUrl) == false) {
             logger.info("Starting authorization task executor");
             running.set(true);
 
@@ -150,6 +154,7 @@ public class AuthorizationTaskExecutor extends PersistentTasksExecutor<Authoriza
         return ClusterPersistentTasksCustomMetadata.getTaskWithId(state, TASK_NAME) != null;
     }
 
+    // TODO test the stop behavior
     public synchronized void stop() {
         if (running.compareAndSet(true, false)) {
             logger.info("Shutting down authorization task executor");
@@ -235,6 +240,11 @@ public class AuthorizationTaskExecutor extends PersistentTasksExecutor<Authoriza
         );
     }
 
+    /**
+     * This action is used to broadcast to all the nodes that the authorization task executor should start or stop.
+     * This is specifically useful for CCM, since whether to do the polling depends on the CCM
+     * configuration to exist first.
+     */
     public static class Action extends BroadcastMessageAction<Message> {
         public static final String NAME = "cluster:internal/xpack/inference/update_authorization_task";
         public static final ActionType<Response> INSTANCE = new ActionType<>(NAME);
@@ -255,7 +265,7 @@ public class AuthorizationTaskExecutor extends PersistentTasksExecutor<Authoriza
         @Override
         protected void receiveMessage(Message message) {
             if (message.enable()) {
-                authorizationTaskExecutor.start();
+                authorizationTaskExecutor.startAndImmediatelyCreateTask();
             } else {
                 authorizationTaskExecutor.stop();
             }

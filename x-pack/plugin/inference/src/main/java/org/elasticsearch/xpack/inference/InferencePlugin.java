@@ -461,10 +461,9 @@ public class InferencePlugin extends Plugin
 
         var authorizationHandler = new ElasticInferenceServiceAuthorizationRequestHandler(
             inferenceServiceSettings.getElasticInferenceServiceUrl(),
-            services.threadPool()
+            services.threadPool(),
+            ccmAuthApplierFactory
         );
-        // TODO see if we can move this to the class constructor
-        authorizationHandler.init(ccmAuthApplierFactory);
 
         var authTaskExecutor = AuthorizationTaskExecutor.create(
             services.clusterService(),
@@ -486,7 +485,7 @@ public class InferencePlugin extends Plugin
         // we need to wait for the user to provide an API key before we can start polling EIS
         if (ccmFeature.allowConfiguringCcm() == false) {
             logger.info("CCM configuration is not permitted - starting EIS authorization task executor");
-            authTaskExecutor.startWithoutPersistentTask();
+            authTaskExecutor.startAndLazyCreateTask();
         }
 
         return new CCMRelatedComponents(

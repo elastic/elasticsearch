@@ -32,7 +32,7 @@ import org.elasticsearch.xpack.inference.telemetry.TraceContext;
 import static org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceService.ELASTIC_INFERENCE_SERVICE_IDENTIFIER;
 import static org.elasticsearch.xpack.inference.services.elastic.request.ElasticInferenceServiceRequest.extractRequestMetadataFromThreadContext;
 
-public record ModelStrategyFactory(ServiceComponents serviceComponents) {
+record ModelStrategyFactory(ServiceComponents serviceComponents) {
 
     public interface Strategy<T extends ElasticInferenceServiceModel> {
         RequestManager createRequestManager(

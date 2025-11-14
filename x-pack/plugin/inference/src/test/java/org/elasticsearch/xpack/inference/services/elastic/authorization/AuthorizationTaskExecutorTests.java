@@ -83,10 +83,47 @@ public class AuthorizationTaskExecutorTests extends ESTestCase {
                 createMockCCMService(false)
             )
         );
-        executor.start();
-        executor.start();
+        executor.startAndImmediatelyCreateTask();
+        executor.startAndImmediatelyCreateTask();
 
         verify(mockClusterService, times(1)).addListener(executor);
+        verify(persistentTasksService, times(1)).sendClusterStartRequest(
+            eq(AuthorizationPoller.TASK_NAME),
+            eq(AuthorizationPoller.TASK_NAME),
+            eq(AuthorizationTaskParams.INSTANCE),
+            any(),
+            any()
+        );
+    }
+
+    public void testStartLazy_OnlyRegistersOnce_NeverCallsPersistentTaskService() {
+        var eisUrl = "abc";
+        var mockClusterService = createMockEmptyClusterService();
+        var executor = new AuthorizationTaskExecutor(
+            mockClusterService,
+            persistentTasksService,
+            new AuthorizationPoller.Parameters(
+                createWithEmptySettings(threadPool),
+                mock(ElasticInferenceServiceAuthorizationRequestHandler.class),
+                mock(Sender.class),
+                ElasticInferenceServiceSettingsTests.create(eisUrl, TimeValue.timeValueMillis(1), TimeValue.timeValueMillis(1), true),
+                mock(ModelRegistry.class),
+                mock(Client.class),
+                createMockCCMFeature(false),
+                createMockCCMService(false)
+            )
+        );
+        executor.startAndLazyCreateTask();
+        executor.startAndLazyCreateTask();
+
+        verify(mockClusterService, times(1)).addListener(executor);
+        verify(persistentTasksService, never()).sendClusterStartRequest(
+            eq(AuthorizationPoller.TASK_NAME),
+            eq(AuthorizationPoller.TASK_NAME),
+            eq(AuthorizationTaskParams.INSTANCE),
+            any(),
+            any()
+        );
     }
 
     private static ClusterService createMockEmptyClusterService() {
@@ -112,10 +149,17 @@ public class AuthorizationTaskExecutorTests extends ESTestCase {
                 createMockCCMService(false)
             )
         );
-        executor.start();
-        executor.start();
+        executor.startAndImmediatelyCreateTask();
+        executor.startAndImmediatelyCreateTask();
 
         verify(mockClusterService, never()).addListener(executor);
+        verify(persistentTasksService, never()).sendClusterStartRequest(
+            eq(AuthorizationPoller.TASK_NAME),
+            eq(AuthorizationPoller.TASK_NAME),
+            eq(AuthorizationTaskParams.INSTANCE),
+            any(),
+            any()
+        );
     }
 
     public void testMultipleCallsToStart_AndStop() {
@@ -135,17 +179,33 @@ public class AuthorizationTaskExecutorTests extends ESTestCase {
                 createMockCCMService(false)
             )
         );
-        executor.start();
-        executor.start();
+        executor.startAndImmediatelyCreateTask();
+        executor.startAndImmediatelyCreateTask();
         executor.stop();
         executor.stop();
         verify(mockClusterService, times(1)).addListener(executor);
+        verify(persistentTasksService, times(1)).sendClusterStartRequest(
+            eq(AuthorizationPoller.TASK_NAME),
+            eq(AuthorizationPoller.TASK_NAME),
+            eq(AuthorizationTaskParams.INSTANCE),
+            any(),
+            any()
+        );
         verify(mockClusterService, times(1)).removeListener(executor);
+        verify(persistentTasksService, times(1)).sendClusterRemoveRequest(eq(AuthorizationPoller.TASK_NAME), any(), any());
 
-        executor.start();
+        executor.startAndImmediatelyCreateTask();
         executor.stop();
         verify(mockClusterService, times(2)).addListener(executor);
+        verify(persistentTasksService, times(2)).sendClusterStartRequest(
+            eq(AuthorizationPoller.TASK_NAME),
+            eq(AuthorizationPoller.TASK_NAME),
+            eq(AuthorizationTaskParams.INSTANCE),
+            any(),
+            any()
+        );
         verify(mockClusterService, times(2)).removeListener(executor);
+        verify(persistentTasksService, times(2)).sendClusterRemoveRequest(eq(AuthorizationPoller.TASK_NAME), any(), any());
     }
 
     public void testCallsSendClusterStartRequest_WhenStartIsCalled() {
@@ -165,7 +225,7 @@ public class AuthorizationTaskExecutorTests extends ESTestCase {
                 createMockCCMService(false)
             )
         );
-        executor.start();
+        executor.startAndImmediatelyCreateTask();
 
         verify(mockClusterService, times(1)).addListener(executor);
         verify(persistentTasksService, times(1)).sendClusterStartRequest(
@@ -214,7 +274,7 @@ public class AuthorizationTaskExecutorTests extends ESTestCase {
                 createMockCCMService(false)
             )
         );
-        executor.start();
+        executor.startAndImmediatelyCreateTask();
 
         verify(mockClusterService, times(1)).addListener(executor);
         verify(persistentTasksService, never()).sendClusterStartRequest(
@@ -243,7 +303,7 @@ public class AuthorizationTaskExecutorTests extends ESTestCase {
                 createMockCCMService(false)
             )
         );
-        executor.start();
+        executor.startAndImmediatelyCreateTask();
 
         var listener1 = new PlainActionFuture<Void>();
         clusterService.getClusterApplierService().onNewClusterState("initialization", this::initialState, listener1);
@@ -295,7 +355,7 @@ public class AuthorizationTaskExecutorTests extends ESTestCase {
                 createMockCCMService(false)
             )
         );
-        executor.start();
+        executor.startAndImmediatelyCreateTask();
 
         var listener = new PlainActionFuture<Void>();
         clusterService.getClusterApplierService().onNewClusterState("initialization", this::initialState, listener);
@@ -324,7 +384,7 @@ public class AuthorizationTaskExecutorTests extends ESTestCase {
                 createMockCCMService(false)
             )
         );
-        executor.start();
+        executor.startAndImmediatelyCreateTask();
 
         var listener = new PlainActionFuture<Void>();
         clusterService.getClusterApplierService().onNewClusterState("initialization", this::initialState, listener);
@@ -376,7 +436,7 @@ public class AuthorizationTaskExecutorTests extends ESTestCase {
                 createMockCCMService(false)
             )
         );
-        executor.start();
+        executor.startAndImmediatelyCreateTask();
 
         executor.clusterChanged(event);
         verify(persistentTasksService, never()).sendClusterStartRequest(

@@ -161,18 +161,24 @@ public class AuthorizationPoller extends AllocatedPersistentTask {
 
     @Override
     protected void onCancelled() {
-        shutdown();
-        markAsCompleted();
+        shutdownInternal(this::markAsCompleted);
     }
 
     private void shutdownAndMarkTaskAsFailed(Exception e) {
-        shutdown();
-        markAsFailed(e);
+        shutdownInternal(() -> markAsFailed(e));
     }
 
     // default for testing
     void shutdown() {
-        shutdown.set(true);
+        shutdownInternal(() -> {});
+    }
+
+    private void shutdownInternal(Runnable completionRunnable) {
+        if (shutdown.compareAndSet(false, true)) {
+            // Marking a task as completed and then failed (or vice versa) results in an exception,
+            // so we need to ensure only one is called.
+            completionRunnable.run();
+        }
 
         var authTask = lastAuthTask.get();
         if (authTask != null) {
@@ -251,7 +257,8 @@ public class AuthorizationPoller extends AllocatedPersistentTask {
         @Override
         public void accept(ActionListener<Void> listener) {
             logger.info("Skipping sending authorization request and completing task, because poller is shutting down");
-            markAsCompleted();
+            // We should already be shutdown, so this should just be a noop
+            shutdownInternal(AuthorizationPoller.this::markAsCompleted);
             listener.onResponse(null);
         }
     }
@@ -275,7 +282,7 @@ public class AuthorizationPoller extends AllocatedPersistentTask {
         @Override
         public void accept(ActionListener<Void> listener) {
             logger.info("Skipping sending authorization request and completing task, because CCM is not enabled");
-            markAsCompleted();
+            shutdownInternal(AuthorizationPoller.this::markAsCompleted);
             listener.onResponse(null);
         }
     }

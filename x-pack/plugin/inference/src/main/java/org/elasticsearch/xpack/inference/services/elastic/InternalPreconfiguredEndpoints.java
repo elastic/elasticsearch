@@ -87,15 +87,17 @@ public class InternalPreconfiguredEndpoints {
             )
         ),
         GP_LLM_V2_MODEL_ID,
-        new MinimalModel(
-            new ModelConfigurations(
-                GP_LLM_V2_CHAT_COMPLETION_ENDPOINT_ID,
-                TaskType.CHAT_COMPLETION,
-                ElasticInferenceService.NAME,
-                GP_LLM_V2_COMPLETION_SERVICE_SETTINGS,
-                ChunkingSettingsBuilder.DEFAULT_SETTINGS
-            ),
-            GP_LLM_V2_COMPLETION_SERVICE_SETTINGS
+        List.of(
+            new MinimalModel(
+                new ModelConfigurations(
+                    GP_LLM_V2_CHAT_COMPLETION_ENDPOINT_ID,
+                    TaskType.CHAT_COMPLETION,
+                    ElasticInferenceService.NAME,
+                    GP_LLM_V2_COMPLETION_SERVICE_SETTINGS,
+                    ChunkingSettingsBuilder.DEFAULT_SETTINGS
+                ),
+                GP_LLM_V2_COMPLETION_SERVICE_SETTINGS
+            )
         ),
         DEFAULT_ELSER_2_MODEL_ID,
         List.of(

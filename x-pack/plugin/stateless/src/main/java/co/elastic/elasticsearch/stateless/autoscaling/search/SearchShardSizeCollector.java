@@ -307,8 +307,8 @@ public class SearchShardSizeCollector extends AbstractLifecycleComponent
     }
 
     private void completeTasks(long batchSize) {
-        assert threadPool.getThreadContext().hasTraceContext() == false && threadPool.getThreadContext().hasParentTraceContext() == false
-            : "Self-rescheduling background task should not be traced";
+        assert threadPool.getThreadContext().hasApmTraceContext() == false
+            && threadPool.getThreadContext().hasParentApmTraceContext() == false : "Self-rescheduling background task should not be traced";
         if (0L < publishTaskQueueLength.addAndGet(-batchSize)) {
             executor.execute(publishTask);
         } else {

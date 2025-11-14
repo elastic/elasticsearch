@@ -218,7 +218,7 @@ public class UndesiredAllocationsTracker {
                             logger.warn("Shard {} allocation decision for node [{}]: {}", shardRouting.shardId(), nodeId, decision);
                         }
                     } else {
-                        logger.warn("Shard {} desired node has left the cluster [{}]", shardRouting.shardId(), nodeId);
+                        logger.warn("Shard {} desired node [{}] has left the cluster", shardRouting.shardId(), nodeId);
                     }
                 }
             }

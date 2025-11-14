@@ -45,7 +45,7 @@ public class MockFieldMapper extends FieldMapper {
 
     public static class FakeFieldType extends TermBasedFieldType {
         public FakeFieldType(String name) {
-            super(name, true, false, false, TextSearchInfo.SIMPLE_MATCH_ONLY, Collections.emptyMap());
+            super(name, IndexType.terms(true, false), false, TextSearchInfo.SIMPLE_MATCH_ONLY, Collections.emptyMap());
         }
 
         @Override

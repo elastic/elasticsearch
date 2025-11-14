@@ -140,6 +140,9 @@ public class ReplaceAggregateAggExpressionWithEval extends OptimizerRules.Optimi
                     Alias alias = as.replaceChild(aggExpression);
                     newEvals.add(alias);
                     newProjections.add(alias.toAttribute());
+                } else {
+                    newAggs.add(agg);
+                    newProjections.add(agg.toAttribute());
                 }
             }
             // not an alias (e.g. grouping field)

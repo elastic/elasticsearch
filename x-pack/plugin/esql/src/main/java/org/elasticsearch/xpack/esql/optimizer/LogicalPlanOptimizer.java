@@ -179,7 +179,13 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
             new SplitInWithFoldableValue(),
             new PropagateEvalFoldables(),
             new ConstantFolding(),
-            // then extract nested aggs top-level
+            /* Then deduplicate aggregations
+               We need this after the constant folding
+               because we could have expressions like
+                    count_distinct(_, 9 + 1)
+                    count_distinct(_, 10)
+               which are semantically identical
+             */
             new DeduplicateAggs(),
             new PartiallyFoldCase(),
             // boolean

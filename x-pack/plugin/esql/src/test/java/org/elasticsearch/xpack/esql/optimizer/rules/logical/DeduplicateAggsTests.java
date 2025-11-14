@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.esql.optimizer.rules.logical;
 
 import org.elasticsearch.common.lucene.BytesRefs;
-import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
@@ -338,7 +337,6 @@ public class DeduplicateAggsTests extends AbstractLogicalPlanOptimizerTests {
      * }</pre>
      */
     public void testAggsDeduplication() {
-        assumeTrue("requires FIX FOR CLASSCAST exception to be enabled", EsqlCapabilities.Cap.FIX_STATS_CLASSCAST_EXCEPTION.isEnabled());
         String query = """
                 FROM airports
                 | rename scalerank AS x
@@ -395,10 +393,9 @@ public class DeduplicateAggsTests extends AbstractLogicalPlanOptimizerTests {
      * }</pre>
      */
     public void testAggsDeduplicationWithComplicatedAliasChains() {
-        assumeTrue("requires FIX FOR CLASSCAST exception to be enabled", EsqlCapabilities.Cap.FIX_STATS_CLASSCAST_EXCEPTION.isEnabled());
         String query = """
                 FROM airports
-                | rename scalerank AS x
+                | RENAME scalerank AS x
                 | EVAL y = x, z = x
                 | RENAME z AS a
                 | STATS MAX(y), 2* MAX(a)
@@ -446,7 +443,6 @@ public class DeduplicateAggsTests extends AbstractLogicalPlanOptimizerTests {
      * }</pre>
      */
     public void testAggsDeduplicationInByClauses() {
-        assumeTrue("requires FIX FOR CLASSCAST exception to be enabled", EsqlCapabilities.Cap.FIX_STATS_CLASSCAST_EXCEPTION.isEnabled());
         String query = """
                 FROM airports
                 | STATS COUNT(y), 2 * COUNT(scalerank) BY y = scalerank
@@ -491,7 +487,6 @@ public class DeduplicateAggsTests extends AbstractLogicalPlanOptimizerTests {
      * }</pre>
      */
     public void testDuplicatedAggsWithSameCannonicalizationInWhereCondition() {
-        assumeTrue("requires FIX FOR CLASSCAST exception to be enabled", EsqlCapabilities.Cap.FIX_STATS_CLASSCAST_EXCEPTION.isEnabled());
         String query = """
                 FROM airports
                 | STATS a = COUNT(scalerank) WHERE scalerank  > 7,
@@ -542,12 +537,11 @@ public class DeduplicateAggsTests extends AbstractLogicalPlanOptimizerTests {
      *       \_EsRelation[airports][abbrev{f}#12, city{f}#18, city_location{f}#19, coun..]
      */
     public void testDuplicatedAggWithFoldableIdenticalExpressions() {
-        assumeTrue("requires FIX FOR CLASSCAST exception to be enabled", EsqlCapabilities.Cap.FIX_STATS_CLASSCAST_EXCEPTION.isEnabled());
         String query = """
                 FROM airports
                 | STATS a = 2*COUNT_DISTINCT(scalerank, 100),
-                b = 2*COUNT_DISTINCT(scalerank, 220 - 150 + 30),
-                c = 2*COUNT_DISTINCT(scalerank, 1 + 200 - 80 - 20 - 1)
+                        b = 2*COUNT_DISTINCT(scalerank, 220 - 150 + 30),
+                        c = 2*COUNT_DISTINCT(scalerank, 1 + 200 - 80 - 20 - 1)
             """;
 
         LogicalPlan plan = planAirports(query);
@@ -587,7 +581,6 @@ public class DeduplicateAggsTests extends AbstractLogicalPlanOptimizerTests {
      * pe{f}#15]]
      */
     public void testDuplicatedInlineAggWithFoldableIdenticalExpressions() {
-        assumeTrue("requires FIX FOR CLASSCAST exception to be enabled", EsqlCapabilities.Cap.FIX_STATS_CLASSCAST_EXCEPTION.isEnabled());
         String query = """
                 FROM airports
                 | INLINE STATS a = 2*COUNT_DISTINCT(scalerank, 100),

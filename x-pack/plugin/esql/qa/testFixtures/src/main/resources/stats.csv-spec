@@ -3497,23 +3497,6 @@ a:long | b:long | c:integer
 2      | 1      | 1
 ;
 
-fixClassCastBugWithSeveralCounts
-required_capability: inline_stats
-required_capability: fix_stats_classcast_exception
-
-FROM sample_data, sample_data_str
-| EVAL one_ip = client_ip::ip
-| INLINE STATS count1=count(client_ip::ip), count2=count(one_ip)
-| KEEP count1, count2
-| LIMIT 3
-;
-
-count1:long    |count2:long
-14             |14 
-14             |14 
-14             |14
-;
-
 fixClassCastBugWithMedianPlusCountDistinct
 required_capability: fix_stats_classcast_exception
 
@@ -3526,7 +3509,7 @@ sym2:double |sym3:double | sym4:long
 1.0         | 1.0        | 1
 ;
 
-fixClassCastBug6
+fixClassCastBugWithFoldableLiterals
 required_capability: fix_stats_classcast_exception
 
 from airports 

@@ -191,12 +191,6 @@ public class TaskManager implements ClusterStateApplier {
         tracer.startTrace(threadContext, task, task.getAction(), attributes);
     }
 
-    void maybeStopTrace(ThreadContext threadContext, Task task) {
-        if (threadContext.hasApmTraceContext()) {
-            tracer.stopTrace(task);
-        }
-    }
-
     public <Request extends ActionRequest, Response extends ActionResponse> Task registerAndExecute(
         String type,
         TransportAction<Request, Response> action,
@@ -358,7 +352,7 @@ public class TaskManager implements ClusterStateApplier {
                 return removedTask;
             }
         } finally {
-            maybeStopTrace(threadPool.getThreadContext(), task);
+            tracer.stopTrace(task); // stop trace if started / known by tracer
             for (RemovedTaskListener listener : removedTaskListeners) {
                 listener.onRemoved(task);
             }

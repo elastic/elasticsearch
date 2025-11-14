@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.analytics.topmetrics;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SortedSetDocValues;
+import org.apache.lucene.search.DoubleValues;
 import org.apache.lucene.search.LongValues;
 import org.apache.lucene.search.Scorable;
 import org.apache.lucene.search.ScoreMode;
@@ -20,7 +21,6 @@ import org.elasticsearch.common.util.LongArray;
 import org.elasticsearch.common.util.ObjectArray;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
-import org.elasticsearch.index.fielddata.NumericDoubleValues;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.MultiValueMode;
 import org.elasticsearch.search.aggregations.AggregationExecutionContext;
@@ -313,7 +313,7 @@ class TopMetricsAggregator extends NumericMetricsAggregator.MultiValue {
         @Override
         public Loader loader(LeafReaderContext ctx) throws IOException {
             // TODO allow configuration of value mode
-            NumericDoubleValues metricValues = MultiValueMode.AVG.select(valuesSource.doubleValues(ctx));
+            DoubleValues metricValues = MultiValueMode.AVG.select(valuesSource.doubleValues(ctx));
             return (index, doc) -> {
                 if (index >= values.size()) {
                     values = bigArrays.grow(values, index + 1);

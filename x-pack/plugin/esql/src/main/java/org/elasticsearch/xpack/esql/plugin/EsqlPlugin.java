@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.esql.plugin;
 
+import org.elasticsearch.Build;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
@@ -280,7 +281,7 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
 
     @Override
     public List<ActionHandler> getActions() {
-        return List.of(
+        List<ActionHandler> releasedActions = List.of(
             new ActionHandler(EsqlQueryAction.INSTANCE, TransportEsqlQueryAction.class),
             new ActionHandler(EsqlAsyncGetResultAction.INSTANCE, TransportEsqlAsyncGetResultsAction.class),
             new ActionHandler(EsqlStatsAction.INSTANCE, TransportEsqlStatsAction.class),
@@ -290,11 +291,20 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
             new ActionHandler(EsqlSearchShardsAction.TYPE, EsqlSearchShardsAction.class),
             new ActionHandler(EsqlAsyncStopAction.INSTANCE, TransportEsqlAsyncStopAction.class),
             new ActionHandler(EsqlListQueriesAction.INSTANCE, TransportEsqlListQueriesAction.class),
-            new ActionHandler(EsqlGetQueryAction.INSTANCE, TransportEsqlGetQueryAction.class),
-            new ActionHandler(PutViewAction.INSTANCE, TransportPutViewAction.class),
-            new ActionHandler(DeleteViewAction.INSTANCE, TransportDeleteViewAction.class),
-            new ActionHandler(GetViewAction.INSTANCE, TransportGetViewAction.class)
+            new ActionHandler(EsqlGetQueryAction.INSTANCE, TransportEsqlGetQueryAction.class)
         );
+        if (Build.current().isSnapshot()) {
+            List<ActionHandler> actions = new ArrayList<>(releasedActions);
+            actions.addAll(
+                List.of(
+                    new ActionHandler(PutViewAction.INSTANCE, TransportPutViewAction.class),
+                    new ActionHandler(DeleteViewAction.INSTANCE, TransportDeleteViewAction.class),
+                    new ActionHandler(GetViewAction.INSTANCE, TransportGetViewAction.class)
+                )
+            );
+            return actions;
+        }
+        return releasedActions;
     }
 
     @Override
@@ -309,17 +319,20 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
         Supplier<DiscoveryNodes> nodesInCluster,
         Predicate<NodeFeature> clusterSupportsFeature
     ) {
-        return List.of(
+        List<RestHandler> releasedRestHandlers = List.of(
             new RestEsqlQueryAction(),
             new RestEsqlAsyncQueryAction(),
             new RestEsqlGetAsyncResultAction(),
             new RestEsqlStopAsyncAction(),
             new RestEsqlDeleteAsyncResultAction(),
-            new RestEsqlListQueriesAction(),
-            new RestPutViewAction(),
-            new RestDeleteViewAction(),
-            new RestGetViewAction()
+            new RestEsqlListQueriesAction()
         );
+        if (Build.current().isSnapshot()) {
+            List<RestHandler> restHandlers = new ArrayList<>(releasedRestHandlers);
+            restHandlers.addAll(List.of(new RestPutViewAction(), new RestDeleteViewAction(), new RestGetViewAction()));
+            return restHandlers;
+        }
+        return releasedRestHandlers;
     }
 
     @Override
@@ -347,7 +360,9 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
 
         entries.add(ExpressionQueryBuilder.ENTRY);
         entries.add(PlanStreamWrapperQueryBuilder.ENTRY);
-        entries.addAll(ViewMetadata.ENTRIES);
+        if (Build.current().isSnapshot()) {
+            entries.addAll(ViewMetadata.ENTRIES);
+        }
 
         entries.addAll(ExpressionWritables.getNamedWriteables());
         entries.addAll(PlanWritables.getNamedWriteables());
@@ -357,9 +372,11 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
     @Override
     public List<NamedXContentRegistry.Entry> getNamedXContent() {
         List<NamedXContentRegistry.Entry> namedXContent = new ArrayList<>();
-        namedXContent.add(
-            new NamedXContentRegistry.Entry(Metadata.ProjectCustom.class, new ParseField(ViewMetadata.TYPE), ViewMetadata::fromXContent)
-        );
+        if (Build.current().isSnapshot()) {
+            namedXContent.add(
+                new NamedXContentRegistry.Entry(Metadata.ProjectCustom.class, new ParseField(ViewMetadata.TYPE), ViewMetadata::fromXContent)
+            );
+        }
         return namedXContent;
     }
 

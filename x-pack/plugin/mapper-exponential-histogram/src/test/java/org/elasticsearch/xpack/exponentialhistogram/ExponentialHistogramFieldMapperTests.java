@@ -11,10 +11,6 @@ import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.index.LogDocMergePolicy;
-import org.apache.lucene.search.Sort;
-import org.apache.lucene.search.SortField;
-import org.apache.lucene.search.SortedNumericSortField;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.analysis.MockAnalyzer;
 import org.apache.lucene.tests.index.RandomIndexWriter;
@@ -25,16 +21,13 @@ import org.elasticsearch.exponentialhistogram.ExponentialHistogramCircuitBreaker
 import org.elasticsearch.exponentialhistogram.ExponentialHistogramTestUtils;
 import org.elasticsearch.exponentialhistogram.ExponentialHistogramUtils;
 import org.elasticsearch.exponentialhistogram.ZeroBucket;
-import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.fielddata.FormattedDocValues;
-import org.elasticsearch.index.mapper.DataStreamTimestampFieldMapper;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.DocumentParsingException;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MapperTestCase;
 import org.elasticsearch.index.mapper.SourceToParse;
-import org.elasticsearch.index.mapper.TimeSeriesIdFieldMapper;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.analytics.mapper.ExponentialHistogramParser;
@@ -624,10 +617,12 @@ public class ExponentialHistogramFieldMapperTests extends MapperTestCase {
 
             List<? extends ExponentialHistogram> inputHistograms = IntStream.range(0, randomIntBetween(1, 100))
                 .mapToObj(i -> ExponentialHistogramTestUtils.randomHistogram(noopBreaker))
-                .map(histo -> ExponentialHistogram.builder(histo, noopBreaker)
-                    // make sure we have a double-based zero bucket, as we can only serialize those exactly
-                    .zeroBucket(ZeroBucket.create(histo.zeroBucket().zeroThreshold(), histo.zeroBucket().count()))
-                    .build())
+                .map(
+                    histo -> ExponentialHistogram.builder(histo, noopBreaker)
+                        // make sure we have a double-based zero bucket, as we can only serialize those exactly
+                        .zeroBucket(ZeroBucket.create(histo.zeroBucket().zeroThreshold(), histo.zeroBucket().count()))
+                        .build()
+                )
                 .map(histogram -> randomBoolean() ? null : histogram)
                 .toList();
 
@@ -636,9 +631,7 @@ public class ExponentialHistogramFieldMapperTests extends MapperTestCase {
             inputHistograms.forEach(histo -> ExponentialHistogramAggregatorTestCase.addHistogramDoc(indexWriter, "field", histo));
             indexWriter.close();
 
-            try (
-                DirectoryReader reader = DirectoryReader.open(directory)
-            ) {
+            try (DirectoryReader reader = DirectoryReader.open(directory)) {
                 for (int i = 0; i < reader.leaves().size(); i++) {
                     LeafReaderContext leaf = reader.leaves().get(i);
                     int docBase = leaf.docBase;

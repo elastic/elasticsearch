@@ -260,7 +260,7 @@ public class ExponentialHistogramFieldMapper extends FieldMapper {
                         }
 
                         @Override
-                        public FormattedDocValues getFormattedValues(DocValueFormat format){
+                        public FormattedDocValues getFormattedValues(DocValueFormat format) {
                             return createFormattedDocValues(context.reader(), fieldName);
                         }
 

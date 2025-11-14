@@ -147,6 +147,18 @@ public class DownsampleIT extends DownsamplingIntegTestCase {
                 "metrics.cpu_usage": {
                   "type": "double",
                   "time_series_metric": "gauge"
+                },
+                "my_labels": {
+                  "properties": {
+                    "my_histogram": {
+                      "type": "histogram"
+                    },
+                    "my_aggregate": {
+                      "type": "aggregate_metric_double",
+                      "metrics": [ "min", "max", "sum", "value_count" ],
+                      "default_metric": "max"
+                    }
+                  }
                 }
               }
             }
@@ -163,6 +175,18 @@ public class DownsampleIT extends DownsamplingIntegTestCase {
                     .field("attributes.host.name", randomFrom("host1", "host2", "host3"))
                     .field("attributes.os.name", randomFrom("linux", "windows", "macos"))
                     .field("metrics.cpu_usage", randomDouble())
+
+                    .startObject("my_labels.my_histogram")
+                    .array("values", 0.1, 0.25, 0.35, 0.4, 0.45, 0.5)
+                    .array("counts", 8, 17, 8, 7, 6, 2)
+                    .endObject()
+
+                    .startObject("my_labels.my_aggregate")
+                    .field("min", 0.1)
+                    .field("max", 0.5)
+                    .field("sum", 1.5)
+                    .field("value_count", randomIntBetween(1, 10))
+                    .endObject()
                     .endObject();
             } catch (IOException e) {
                 throw new RuntimeException(e);

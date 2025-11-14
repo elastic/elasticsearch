@@ -17,7 +17,7 @@ Refer to [*Retrievers*](docs-content://solutions/search/retrievers-overview.md) 
 
 The following retrievers are available:
 
-`diversify` {applies_to}`serverless: ga` {applies_to}`stack: ga 9.3`
+`diversify` {applies_to}`serverless: preview` {applies_to}`stack: preview 9.3`
 :   The [diversify](retrievers/diversify-retriever.md) retriever reduces the results from another retriever by applying a diversification strategy to the top-N results.
 
 `knn`

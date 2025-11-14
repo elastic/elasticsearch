@@ -276,6 +276,81 @@ teardown:
   - match: { hits.hits.2._source.textbody: "sixth text" }
 
 ---
+"Test MMR result diversification with query vector parameter":
+
+  - do:
+      search:
+        index: test-result-diversification-index
+        body:
+          retriever:
+            knn:
+              field: "textvector"
+              query_vector: [ 0.5, 0.2, 0.4, 0.4 ]
+              k: 10
+              num_candidates: 10
+
+  - match: { hits.total.value: 10 }
+  - length: { hits.hits: 10 }
+  - match: { hits.hits.0._source.textbody: "second text" }
+  - match: { hits.hits.1._source.textbody: "second text duplicate" }
+  - match: { hits.hits.2._source.textbody: "third text" }
+  - match: { hits.hits.3._source.textbody: "third text duplicate" }
+  - match: { hits.hits.4._source.textbody: "first text" }
+  - match: { hits.hits.5._source.textbody: "sixth text" }
+  - match: { hits.hits.6._source.textbody: "ninth text" }
+  - match: { hits.hits.7._source.textbody: "fourth text" }
+  - match: { hits.hits.8._source.textbody: "fifth text" }
+  - match: { hits.hits.9._source.textbody: "seventh text" }
+
+  - do:
+      search:
+        index: test-result-diversification-index
+        body:
+          retriever:
+            diversify:
+              type: "mmr"
+              field: "textvector"
+              lambda: 0.3
+              query_vector: [ 0.4, 0.2, 0.3, 0.3 ]
+              size: 3
+              retriever:
+                knn:
+                  field: "textvector"
+                  query_vector: [ 0.5, 0.2, 0.4, 0.4 ]
+                  k: 10
+                  num_candidates: 10
+
+  - match: { hits.total.value: 10 }
+  - length: { hits.hits: 3 }
+  - match: { hits.hits.0._source.textbody: "second text" }
+  - match: { hits.hits.1._source.textbody: "sixth text" }
+  - match: { hits.hits.2._source.textbody: "ninth text" }
+
+  - do:
+      search:
+        index: test-result-diversification-index
+        body:
+          retriever:
+            diversify:
+              type: "mmr"
+              field: "textvector"
+              lambda: 1.0
+              query_vector: [ 0.4, 0.2, 0.3, 0.3 ]
+              size: 3
+              retriever:
+                knn:
+                  field: "textvector"
+                  query_vector: [ 0.5, 0.2, 0.4, 0.4 ]
+                  k: 10
+                  num_candidates: 10
+
+  - match: { hits.total.value: 10 }
+  - length: { hits.hits: 3 }
+  - match: { hits.hits.0._source.textbody: "second text" }
+  - match: { hits.hits.1._source.textbody: "fourth text" }
+  - match: { hits.hits.2._source.textbody: "fifth text" }
+
+---
 "Test MMR result diversification byte vector type":
   - do:
       search:

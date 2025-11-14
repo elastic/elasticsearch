@@ -1,7 +1,7 @@
 ---
 applies_to:
-  stack: ga 9.3
-  serverless: ga
+  stack: preview 9.3
+  serverless: preview
 ---
 
 # Diversify retriever [diversify-retriever]

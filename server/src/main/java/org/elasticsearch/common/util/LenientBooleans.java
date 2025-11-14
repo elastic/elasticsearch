@@ -27,7 +27,8 @@ public class LenientBooleans {
      */
     public enum Category {
         SYSTEM_PROPERTY("system property"),
-        INDEX_METADATA("index metadata");
+        INDEX_METADATA("index metadata"),
+        SETTING("setting");
 
         private final String displayValue;
 
@@ -50,8 +51,7 @@ public class LenientBooleans {
     @SuppressForbidden(reason = "wrap lenient parsing of booleans for deprecation logging.")
     public static boolean parseAndCheckForDeprecatedUsage(String value, Category category, String name) {
         if (Booleans.isBoolean(value) == false) {
-            final String method = "Boolean#parseBoolean";
-            String key = String.format(Locale.ROOT, "%s.%s", method, category);
+            String key = String.format(Locale.ROOT, "lenient.%s.%s", category, name);
             deprecationLogger.warn(DeprecationCategory.PARSING, key, DEPRECATED_MESSAGE_TEMPLATE, value, category.displayValue(), name);
         }
         return Boolean.parseBoolean(value);

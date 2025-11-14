@@ -58,7 +58,7 @@ public class SettingsInvocationHandler implements InvocationHandler {
             return getValue(Long::valueOf, setting.path(), setting.defaultValue());
         } else if (annotation instanceof BooleanSetting setting) {
             return getValue(
-                v -> LenientBooleans.parseAndCheckForDeprecatedUsage(v, LenientBooleans.Category.INDEX_METADATA, setting.path()),
+                v -> LenientBooleans.parseAndCheckForDeprecatedUsage(v, LenientBooleans.Category.SETTING, setting.path()),
                 setting.path(),
                 setting.defaultValue()
             );

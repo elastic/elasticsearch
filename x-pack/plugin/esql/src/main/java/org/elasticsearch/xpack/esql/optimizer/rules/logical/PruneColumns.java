@@ -193,7 +193,7 @@ public final class PruneColumns extends Rule<LogicalPlan, LogicalPlan> {
             // it works differently as we extract all fields (other than the join key) that the EsRelation has.
             var remaining = pruneUnusedAndAddReferences(esr.output(), used);
             if (remaining != null) {
-                p = new EsRelation(esr.source(), esr.indexPattern(), esr.indexMode(), esr.indexNameWithModes(), remaining);
+                p = esr.withAttributes(remaining);
             }
         }
 

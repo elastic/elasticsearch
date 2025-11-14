@@ -19,6 +19,7 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.time.TimeProvider;
 import org.elasticsearch.common.util.FeatureFlag;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.logging.LogManager;
@@ -84,6 +85,7 @@ public class UndesiredAllocationsTracker {
     private final FrequencyCappedAction undesiredAllocationDurationLogInterval;
     private volatile TimeValue undesiredAllocationDurationLoggingThreshold;
     private volatile int maxUndesiredAllocationsToTrack;
+    private boolean missingAllocationAssertionsEnabled = true;
 
     UndesiredAllocationsTracker(ClusterSettings clusterSettings, TimeProvider timeProvider) {
         this.timeProvider = timeProvider;
@@ -222,7 +224,8 @@ public class UndesiredAllocationsTracker {
                     }
                 }
             } else {
-                assert false : "Shard " + shardRouting + " was missing an assignment, this shouldn't be possible. " + desiredBalance;
+                assert missingAllocationAssertionsEnabled == false
+                    : "Shard " + shardRouting + " was missing an assignment, this shouldn't be possible. " + desiredBalance;
             }
         } finally {
             allocation.setDebugMode(originalDebugMode);
@@ -259,4 +262,10 @@ public class UndesiredAllocationsTracker {
      * @param undesiredSince The timestamp when the shard was first observed in an undesired allocation
      */
     record UndesiredAllocation(ShardId shardId, long undesiredSince) {}
+
+    // Exposed for testing
+    public Releasable disableMissingAllocationAssertions() {
+        missingAllocationAssertionsEnabled = false;
+        return () -> missingAllocationAssertionsEnabled = true;
+    }
 }

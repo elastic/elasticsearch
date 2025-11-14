@@ -34,6 +34,7 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.AdvancingTimeProvider;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
@@ -312,7 +313,7 @@ public class UndesiredAllocationsTrackerTests extends ESTestCase {
                 "no decision for other node",
                 UndesiredAllocationsTracker.class.getName(),
                 Level.WARN,
-                "Shard * desired node has left the cluster [" + absentDesiredNodeId + "]"
+                "Shard * desired node [" + absentDesiredNodeId + "] has left the cluster"
             )
         );
 
@@ -320,17 +321,23 @@ public class UndesiredAllocationsTrackerTests extends ESTestCase {
         advancingTimeProvider.advanceByMillis(randomLongBetween(logInterval.millis() + 1, logInterval.millis() * 2));
 
         // Test logging is skipped where there is no desired balance for the shard (not sure if this can happen, but just to be safe)
-        final var desiredBalanceWithNoEntryForShard = new DesiredBalance(randomNonNegativeInt(), Map.of());
-        MockLog.assertThatLogger(
-            () -> undesiredAllocationsTracker.maybeLogUndesiredShardsWarning(routingNodes, allocation, desiredBalanceWithNoEntryForShard),
-            UndesiredAllocationsTracker.class,
-            new MockLog.UnseenEventExpectation(
-                "undesired allocation log",
-                UndesiredAllocationsTracker.class.getName(),
-                Level.WARN,
-                shardInUndesiredLocationLogString
-            )
-        );
+        try (Releasable ignored = undesiredAllocationsTracker.disableMissingAllocationAssertions()) {
+            final var desiredBalanceWithNoEntryForShard = new DesiredBalance(randomNonNegativeInt(), Map.of());
+            MockLog.assertThatLogger(
+                () -> undesiredAllocationsTracker.maybeLogUndesiredShardsWarning(
+                    routingNodes,
+                    allocation,
+                    desiredBalanceWithNoEntryForShard
+                ),
+                UndesiredAllocationsTracker.class,
+                new MockLog.UnseenEventExpectation(
+                    "undesired allocation log",
+                    UndesiredAllocationsTracker.class.getName(),
+                    Level.WARN,
+                    shardInUndesiredLocationLogString
+                )
+            );
+        }
     }
 
     public void testMaybeLogUndesiredAllocationsWillNotLogWhenNodeAndShardRolesAreMismatched() {

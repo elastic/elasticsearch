@@ -31,7 +31,7 @@ import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 import static org.elasticsearch.compute.data.BlockUtils.toJavaObject;
-import static org.elasticsearch.xpack.esql.expression.function.scalar.string.Chunk.CHUNK_SIZE;
+import static org.elasticsearch.xpack.esql.expression.function.scalar.string.Chunk.CHUNKING_SETTINGS;
 import static org.elasticsearch.xpack.esql.expression.function.scalar.string.Chunk.NUM_CHUNKS;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -102,7 +102,7 @@ public class ChunkTests extends AbstractScalarFunctionTestCase {
         );
     }
 
-    private static MapExpression createOptionsMap(Integer numChunks, Integer chunkSize) {
+    private static MapExpression createOptionsMap(Integer numChunks, ChunkingSettings chunkingSettings) {
         List<Expression> keyValuePairs = new ArrayList<>();
 
         if (Objects.nonNull(numChunks)) {
@@ -110,9 +110,9 @@ public class ChunkTests extends AbstractScalarFunctionTestCase {
             keyValuePairs.add(new Literal(Source.EMPTY, numChunks, DataType.INTEGER));
         }
 
-        if (Objects.nonNull(chunkSize)) {
-            keyValuePairs.add(Literal.keyword(Source.EMPTY, CHUNK_SIZE));
-            keyValuePairs.add(new Literal(Source.EMPTY, chunkSize, DataType.INTEGER));
+        if (Objects.nonNull(chunkingSettings)) {
+            keyValuePairs.add(Literal.keyword(Source.EMPTY, CHUNKING_SETTINGS));
+            keyValuePairs.add(new Literal(Source.EMPTY, chunkingSettings.asMap(), DataType.INTEGER));
         }
 
         return new MapExpression(Source.EMPTY, keyValuePairs);
@@ -156,13 +156,14 @@ public class ChunkTests extends AbstractScalarFunctionTestCase {
         ChunkingSettings settings = new SentenceBoundaryChunkingSettings(chunkSizeOrDefault, 0);
         List<String> expected = Chunk.chunkText(PARAGRAPH_INPUT, settings, numChunksOrDefault).stream().map(String::trim).toList();
 
-        List<String> result = process(PARAGRAPH_INPUT, numChunksOrDefault, chunkSizeOrDefault);
+        List<String> result = process(PARAGRAPH_INPUT, numChunksOrDefault, settings);
         assertThat(result.size(), equalTo(expectedNumChunksReturned));
         assertThat(result, equalTo(expected));
     }
 
-    private List<String> process(String str, Integer numChunks, Integer chunkSize) {
-        MapExpression optionsMap = (numChunks == null && chunkSize == null) ? null : createOptionsMap(numChunks, chunkSize);
+    private List<String> process(String str, Integer numChunks, ChunkingSettings chunkingSettings) {
+        MapExpression optionsMap = (numChunks == null && chunkingSettings == null) ? null :
+                                   createOptionsMap(numChunks, chunkingSettings);
 
         try (
             EvalOperator.ExpressionEvaluator eval = evaluator(new Chunk(Source.EMPTY, field("str", DataType.KEYWORD), optionsMap)).get(

@@ -26,6 +26,8 @@ import org.elasticsearch.xpack.esql.core.expression.MapExpression;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.esql.core.expression.predicate.operator.comparison.BinaryComparison;
+import org.elasticsearch.xpack.esql.core.expression.predicate.regex.RLikePatternList;
+import org.elasticsearch.xpack.esql.core.expression.predicate.regex.WildcardPatternList;
 import org.elasticsearch.xpack.esql.expression.Order;
 import org.elasticsearch.xpack.esql.expression.UnresolvedNamePattern;
 import org.elasticsearch.xpack.esql.expression.function.UnresolvedFunction;
@@ -33,7 +35,9 @@ import org.elasticsearch.xpack.esql.expression.function.aggregate.FilteredExpres
 import org.elasticsearch.xpack.esql.expression.function.fulltext.MatchOperator;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToInteger;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.RLike;
+import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.RLikeList;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.WildcardLike;
+import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.WildcardLikeList;
 import org.elasticsearch.xpack.esql.expression.predicate.Predicates;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.And;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.Not;
@@ -1365,31 +1369,99 @@ public class StatementParserTests extends AbstractStatementParserTests {
         );
     }
 
-    // begin 131356
-    /*
-    }
-    class foo {
-     */
-    public void testLikeRLikeParam() {
+    public void testLikeParam() {
         if (EsqlCapabilities.Cap.LIKE_PARAMETER_SUPPORT.isEnabled()) {
             LogicalPlan cmd = statement(
                 "row a = \"abc\" | where a like ?pattern",
                 new QueryParams(List.of(paramAsConstant("pattern", "a*")))
             );
-            assertEquals(Filter.class, cmd.getClass());
-            Filter filter = (Filter) cmd;
-            assertEquals(WildcardLike.class, filter.condition().getClass());
-            WildcardLike like = (WildcardLike) filter.condition();
+            Filter filter = as(cmd, Filter.class);
+            WildcardLike like = as(filter.condition(), WildcardLike.class);
             assertEquals("a*", like.pattern().pattern());
 
             expectError(
                 "row a = \"abc\" | where a like ?pattern",
                 List.of(paramAsConstant("pattern", 1)),
-                "Invalid StringOrParameterContext" // XXX need more specific message
+                "Invalid pattern parameter type for LIKE [?pattern]: expected string, found integer"
+            );
+            expectError(
+                "row a = \"abc\" | where a like ?pattern1",
+                List.of(paramAsConstant("pattern", 1)),
+                "Invalid pattern for LIKE [?pattern1]: parameter not found"
             );
         }
     }
-    // end 131356
+
+    public void testLikeListParam() {
+        if (EsqlCapabilities.Cap.LIKE_PARAMETER_SUPPORT.isEnabled()) {
+            LogicalPlan cmd = statement(
+                "row a = \"abc\" | where a like ( ?p1, ?p2 )",
+                new QueryParams(List.of(paramAsConstant("p1", "a*"), paramAsConstant("p2", "b*")))
+            );
+            Filter filter = as(cmd, Filter.class);
+            WildcardLikeList likelist = as(filter.condition(), WildcardLikeList.class);
+            WildcardPatternList patternlist = as(likelist.pattern(), WildcardPatternList.class);
+            assertEquals("(\"a*\", \"b*\")", patternlist.pattern());
+
+            expectError(
+                "row a = \"abc\" | where a like ( ?p1, ?p2 )",
+                List.of(paramAsConstant("p1", "a*"), paramAsConstant("p2", 1)),
+                "Invalid pattern parameter type for LIKE [?p2]: expected string, found integer"
+            );
+            expectError(
+                "row a = \"abc\" | where a like ( ?p1, ?p3 )",
+                List.of(paramAsConstant("p1", "a*"), paramAsConstant("p2", 1)),
+                "Invalid pattern for LIKE [?p3]: parameter not found"
+            );
+        }
+    }
+
+    public void testRLikeParam() {
+        if (EsqlCapabilities.Cap.LIKE_PARAMETER_SUPPORT.isEnabled()) {
+            LogicalPlan cmd = statement(
+                "row a = \"abc\" | where a rlike ?pattern",
+                new QueryParams(List.of(paramAsConstant("pattern", "a*")))
+            );
+            Filter filter = as(cmd, Filter.class);
+            RLike rlike = as(filter.condition(), RLike.class);
+            assertEquals("a*", rlike.pattern().pattern());
+
+            expectError(
+                "row a = \"abc\" | where a rlike ?pattern",
+                List.of(paramAsConstant("pattern", 1)),
+                "Invalid pattern parameter type for RLIKE [?pattern]: expected string, found integer"
+            );
+            expectError(
+                "row a = \"abc\" | where a rlike ?pattern1",
+                List.of(paramAsConstant("pattern", 1)),
+                "Invalid pattern for RLIKE [?pattern1]: parameter not found"
+            );
+        }
+    }
+
+    public void testRLikeListParam() {
+        if (EsqlCapabilities.Cap.LIKE_PARAMETER_SUPPORT.isEnabled()) {
+            LogicalPlan cmd = statement(
+                "row a = \"abc\" | where a rlike ( ?p1, ?p2 )",
+                new QueryParams(List.of(paramAsConstant("p1", "a*"), paramAsConstant("p2", "b*")))
+            );
+            Filter filter = as(cmd, Filter.class);
+            RLikeList rlikelist = as(filter.condition(), RLikeList.class);
+            RLikePatternList patternlist = as(rlikelist.pattern(), RLikePatternList.class);
+            assertEquals("(\"a*\", \"b*\")", patternlist.pattern());
+
+            expectError(
+                "row a = \"abc\" | where a rlike ( ?p1, ?p2 )",
+                List.of(paramAsConstant("p1", "a*"), paramAsConstant("p2", 1)),
+                "Invalid pattern parameter type for RLIKE [?p2]: expected string, found integer"
+            );
+            expectError(
+                "row a = \"abc\" | where a rlike ( ?p1, ?p3 )",
+                List.of(paramAsConstant("p1", "a*"), paramAsConstant("p2", 1)),
+                "Invalid pattern for RLIKE [?p3]: parameter not found"
+            );
+        }
+    }
 
     public void testIdentifierPatternTooComplex() {
         // It is incredibly unlikely that we will see this limit hit in practice

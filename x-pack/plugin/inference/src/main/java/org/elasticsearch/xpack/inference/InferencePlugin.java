@@ -348,22 +348,14 @@ public class InferencePlugin extends Plugin
         var inferenceServiceSettings = new CCMInformedSettings(settings, ccmFeature.get());
         inferenceServiceSettings.init(services.clusterService());
 
-        // Create a separate instance of HTTPClientManager with its own SSL configuration (`xpack.inference.elastic.http.ssl.*`).
-        var elasticInferenceServiceHttpClientManager = HttpClientManager.create(
-            settings,
-            services.threadPool(),
-            services.clusterService(),
+        var eisRequestSenderFactoryComponents = createEisRequestSenderFactory(
+            services,
             throttlerManager,
-            getSslService(),
-            inferenceServiceSettings.getConnectionTtl()
+            inferenceServiceSettings,
+            ccmFeature.get()
         );
-
-        var elasticInferenceServiceRequestSenderFactory = new HttpRequestSender.Factory(
-            serviceComponents.get(),
-            elasticInferenceServiceHttpClientManager,
-            services.clusterService()
-        );
-        elasticInferenceServiceFactory.set(elasticInferenceServiceRequestSenderFactory);
+        var elasticInferenceServiceHttpClientManager = eisRequestSenderFactoryComponents.httpClientManager();
+        elasticInferenceServiceFactory.set(eisRequestSenderFactoryComponents.factory());
 
         var sageMakerSchemas = new SageMakerSchemas();
         var sageMakerConfigurations = new LazyInitializable<>(new SageMakerConfiguration(sageMakerSchemas));
@@ -512,6 +504,42 @@ public class InferencePlugin extends Plugin
                 )
             ),
             ccmAuthApplierFactory
+        );
+    }
+
+    private record EisRequestSenderComponents(HttpRequestSender.Factory factory, HttpClientManager httpClientManager) {}
+
+    private EisRequestSenderComponents createEisRequestSenderFactory(
+        PluginServices services,
+        ThrottlerManager throttlerManager,
+        ElasticInferenceServiceSettings inferenceServiceSettings,
+        CCMFeature ccmFeature
+    ) {
+        // Create a separate instance of HTTPClientManager with its own SSL configuration (`xpack.inference.elastic.http.ssl.*`).
+        HttpClientManager manager;
+        if (ccmFeature.allowConfiguringCcm()) {
+            // If ccm is configurable then we aren't using mTLS so ignore the ssl service
+            manager = HttpClientManager.create(
+                settings,
+                services.threadPool(),
+                services.clusterService(),
+                throttlerManager,
+                inferenceServiceSettings.getConnectionTtl()
+            );
+        } else {
+            manager = HttpClientManager.create(
+                settings,
+                services.threadPool(),
+                services.clusterService(),
+                throttlerManager,
+                getSslService(),
+                inferenceServiceSettings.getConnectionTtl()
+            );
+        }
+
+        return new EisRequestSenderComponents(
+            new HttpRequestSender.Factory(serviceComponents.get(), manager, services.clusterService()),
+            manager
         );
     }
 

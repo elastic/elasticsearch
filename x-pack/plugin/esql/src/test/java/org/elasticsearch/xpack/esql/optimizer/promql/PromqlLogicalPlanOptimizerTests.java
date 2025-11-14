@@ -14,15 +14,14 @@ import org.elasticsearch.xpack.esql.action.PromqlFeatures;
 import org.elasticsearch.xpack.esql.analysis.Analyzer;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerContext;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
-import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.predicate.regex.RegexMatch;
 import org.elasticsearch.xpack.esql.core.tree.Source;
-import org.elasticsearch.xpack.esql.expression.predicate.logical.And;
-import org.elasticsearch.xpack.esql.expression.predicate.nulls.IsNotNull;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.expression.function.grouping.Bucket;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.StartsWith;
+import org.elasticsearch.xpack.esql.expression.predicate.logical.And;
+import org.elasticsearch.xpack.esql.expression.predicate.nulls.IsNotNull;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.In;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.NotEquals;
 import org.elasticsearch.xpack.esql.index.EsIndex;
@@ -53,7 +52,6 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.loadMapping;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
-import static org.junit.Assert.assertNotNull;
 import static org.junit.Assume.assumeTrue;
 
 // @TestLogging(value = "org.elasticsearch.xpack.esql:TRACE", reason = "debug tests")
@@ -158,7 +156,7 @@ public class PromqlLogicalPlanOptimizerTests extends AbstractLogicalPlanOptimize
         var tsAggregate = as(evalMiddle.child(), TimeSeriesAggregate.class);
         assertThat(tsAggregate.groupings(), hasSize(2));
 
-        // verify TBUCKET  duration plus reuse
+        // verify TBUCKET duration plus reuse
         var evalBucket = as(tsAggregate.child(), Eval.class);
         assertThat(evalBucket.fields(), hasSize(1));
         var bucketAlias = as(evalBucket.fields().get(0), Alias.class);
@@ -172,18 +170,18 @@ public class PromqlLogicalPlanOptimizerTests extends AbstractLogicalPlanOptimize
         // Verify TBUCKET is used as timeBucket in TimeSeriesAggregate
         // FIXME: looks like we're creating multiple time buckets (one in Eval, one in TSAggregate)
 
-//        var timeBucket = tsAggregate.timeBucket();
-//        assertNotNull(timeBucket);
-//        assertThat(Expressions.attribute(timeBucket).id(), equalTo(tbucketId));
+        // var timeBucket = tsAggregate.timeBucket();
+        // assertNotNull(timeBucket);
+        // assertThat(Expressions.attribute(timeBucket).id(), equalTo(tbucketId));
 
-//        assertThat(Expressions.attribute(tsAggregate.groupings().get(0)).id(), equalTo(tbucketId));
+        // assertThat(Expressions.attribute(tsAggregate.groupings().get(0)).id(), equalTo(tbucketId));
 
-//        assertThat(Expressions.attribute(aggregate.groupings().get(1)).id(), equalTo(tbucketId));
+        // assertThat(Expressions.attribute(aggregate.groupings().get(1)).id(), equalTo(tbucketId));
 
-//        var orderAttr = Expressions.attribute(topN.order().get(0).child());
-//        assertThat(orderAttr.id(), equalTo(tbucketId));
+        // var orderAttr = Expressions.attribute(topN.order().get(0).child());
+        // assertThat(orderAttr.id(), equalTo(tbucketId));
 
-//        assertThat(Expressions.attribute(project.projections().get(2)).id(), equalTo(tbucketId));
+        // assertThat(Expressions.attribute(project.projections().get(2)).id(), equalTo(tbucketId));
 
         // Filter should contain: ISNOTNULL(network.bytes_in) AND IN(host-0, host-1, host-2, pod)
         var filter = as(evalBucket.child(), Filter.class);

@@ -116,13 +116,19 @@ public class PromqlLogicalPlanOptimizerTests extends AbstractLogicalPlanOptimize
      * 73]]
      * \_TopN[[Order[TBUCKET{r}#73,ASC,FIRST]],1000[INTEGER],false]
      *   \_Eval[[$$SUM$avg by (pod) (avg_over_time(network.bytes_in{pod=~"host-0|host-1|host-2"}[1h]))$0{r$}#81 / $$COUNT$avg
-     * by (pod) (avg_over_time(network.bytes_in{pod=~"host-0|host-1|host-2"}[1h]))$1{r$}#82 AS avg by (pod) (avg_over_time(network.bytes_in{pod=~"host-0|host-1|host-2"}[1h]))#72, UNPACKDIMENSION(grouppod_$1{r}#78) AS pod#48]]
+     * by (pod) (avg_over_time(network.bytes_in{pod=~"host-0|host-1|host-2"}[1h]))$1{r$}#82 AS avg by (pod)
+     *              (avg_over_time(network.bytes_in{pod=~"host-0|host-1|host-2"}[1h]))#72, UNPACKDIMENSION(grouppod_$1{r}#78) AS pod#48]]
      *     \_Aggregate[[packpod_$1{r}#77, TBUCKET{r}#73],[SUM(AVGOVERTIME_$1{r}#75,true[BOOLEAN],PT0S[TIME_DURATION],compensated[KEYWO
-     * RD]) AS $$SUM$avg by (pod) (avg_over_time(network.bytes_in{pod=~"host-0|host-1|host-2"}[1h]))$0#81, COUNT(AVGOVERTIME_$1{r}#75,true[BOOLEAN],PT0S[TIME_DURATION]) AS $$COUNT$avg by (pod) (avg_over_time(network.bytes_in{pod=~"host-0|host-1|host-2"}[1h]))$1#82, packpod_$1{r}#77 AS grouppod_$1#78, TBUCKET{r}#73 AS TBUCKET#73]]
+     * RD]) AS $$SUM$avg by (pod) (avg_over_time(network.bytes_in{pod=~"host-0|host-1|host-2"}[1h]))$0#81,
+     *          COUNT(AVGOVERTIME_$1{r}#75,true[BOOLEAN],PT0S[TIME_DURATION]) AS $$COUNT$avg by (pod)
+     *         (avg_over_time(network.bytes_in{pod=~"host-0|host-1|host-2"}[1h]))$1#82, packpod_$1{r}#77 AS grouppod_$1#78,
+     *         TBUCKET{r}#73 AS TBUCKET#73]]
      *       \_Eval[[$$SUM$AVGOVERTIME_$1$0{r$}#79 / $$COUNT$AVGOVERTIME_$1$1{r$}#80 AS AVGOVERTIME_$1#75, PACKDIMENSION(pod{r}#76
      * ) AS packpod_$1#77]]
-     *         \_TimeSeriesAggregate[[_tsid{m}#74, TBUCKET{r}#73],[SUM(network.bytes_in{f}#60,true[BOOLEAN],PT0S[TIME_DURATION],lossy[KEYWORD]) AS $
-     * $SUM$AVGOVERTIME_$1$0#79, COUNT(network.bytes_in{f}#60,true[BOOLEAN],PT0S[TIME_DURATION]) AS $$COUNT$AVGOVERTIME_$1$1#80, VALUES(pod{f}#48,true[BOOLEAN],PT0S[TIME_DURATION]) AS pod#76, TBUCKET{r}#73],
+     *         \_TimeSeriesAggregate[[_tsid{m}#74, TBUCKET{r}#73],
+     *             [SUM(network.bytes_in{f}#60,true[BOOLEAN],PT0S[TIME_DURATION],lossy[KEYWORD]) AS $
+     * $SUM$AVGOVERTIME_$1$0#79, COUNT(network.bytes_in{f}#60,true[BOOLEAN],PT0S[TIME_DURATION]) AS $$COUNT$AVGOVERTIME_$1$1#80,
+     * VALUES(pod{f}#48,true[BOOLEAN],PT0S[TIME_DURATION]) AS pod#76, TBUCKET{r}#73],
      * BUCKET(@timestamp{f}#46,PT1H[TIME_DURATION])]
      *           \_Eval[[BUCKET(@timestamp{f}#46,PT1H[TIME_DURATION]) AS TBUCKET#73]]
      *             \_Filter[ISNOTNULL(network.bytes_in{f}#60) AND IN(host-0[KEYWORD],host-1[KEYWORD],host-2[KEYWORD],pod{f}#48)]
@@ -213,11 +219,14 @@ public class PromqlLogicalPlanOptimizerTests extends AbstractLogicalPlanOptimize
      * $AVG(AVG_OVER_TIME(network.bytes_in))$1{r$}#116 AS AVG(AVG_OVER_TIME(network.bytes_in))#86]]
      *   \_Limit[1000[INTEGER],false,false]
      *     \_Aggregate[[packpod_$1{r}#120, BUCKET{r}#84],[SUM(AVGOVERTIME_$1{r}#118,true[BOOLEAN],PT0S[TIME_DURATION],compensated[KEYW
-     * ORD]) AS $$SUM$AVG(AVG_OVER_TIME(network.bytes_in))$0#115, COUNT(AVGOVERTIME_$1{r}#118,true[BOOLEAN],PT0S[TIME_DURATION]) AS $$COUNT$AVG(AVG_OVER_TIME(network.bytes_in))$1#116, packpod_$1{r}#120 AS grouppod_$1#121, BUCKET{r}#84 AS TBUCKET(1h)#84]]
+     * ORD]) AS $$SUM$AVG(AVG_OVER_TIME(network.bytes_in))$0#115, COUNT(AVGOVERTIME_$1{r}#118,true[BOOLEAN],PT0S[TIME_DURATION]) AS
+     *          $$COUNT$AVG(AVG_OVER_TIME(network.bytes_in))$1#116, packpod_$1{r}#120 AS grouppod_$1#121, BUCKET{r}#84 AS TBUCKET(1h)#84]]
      *       \_Eval[[$$SUM$AVGOVERTIME_$1$0{r$}#122 / $$COUNT$AVGOVERTIME_$1$1{r$}#123 AS AVGOVERTIME_$1#118, PACKDIMENSION(pod{r}
      * #119) AS packpod_$1#120]]
-     *         \_TimeSeriesAggregate[[_tsid{m}#117, BUCKET{r}#84],[SUM(network.bytes_in{f}#102,true[BOOLEAN],PT0S[TIME_DURATION],lossy[KEYWORD]) AS
-     * $$SUM$AVGOVERTIME_$1$0#122, COUNT(network.bytes_in{f}#102,true[BOOLEAN],PT0S[TIME_DURATION]) AS $$COUNT$AVGOVERTIME_$1$1#123, VALUES(pod{f}#90,true[BOOLEAN],PT0S[TIME_DURATION]) AS pod#119, BUCKET{r}#84],
+     *         \_TimeSeriesAggregate[[_tsid{m}#117, BUCKET{r}#84],[SUM(network.bytes_in{f}#102,true[BOOLEAN],
+     *                                  PT0S[TIME_DURATION],lossy[KEYWORD]) AS
+     * $$SUM$AVGOVERTIME_$1$0#122, COUNT(network.bytes_in{f}#102,true[BOOLEAN],PT0S[TIME_DURATION]) AS $$COUNT$AVGOVERTIME_$1$1#123,
+     *              VALUES(pod{f}#90,true[BOOLEAN],PT0S[TIME_DURATION]) AS pod#119, BUCKET{r}#84],
      * BUCKET(@timestamp{f}#88,PT1H[TIME_DURATION])]
      *           \_Eval[[BUCKET(@timestamp{f}#88,PT1H[TIME_DURATION]) AS TBUCKET(1h)#84]]
      *             \_EsRelation[k8s][@timestamp{f}#88, client.ip{f}#92, cluster{f}#89, e..]
@@ -242,10 +251,13 @@ public class PromqlLogicalPlanOptimizerTests extends AbstractLogicalPlanOptimize
      *  AS avg(avg_over_time(network.bytes_in))#353]]
      *   \_Limit[1000[INTEGER],false,false]
      *     \_Aggregate[[BUCKET{r}#351],[SUM(AVGOVERTIME_$1{r}#385,true[BOOLEAN],PT0S[TIME_DURATION],compensated[KEYWORD]) AS $$SUM$avg
-     * (avg_over_time(network.bytes_in))$0#382, COUNT(AVGOVERTIME_$1{r}#385,true[BOOLEAN],PT0S[TIME_DURATION]) AS $$COUNT$avg(avg_over_time(network.bytes_in))$1#383, BUCKET{r}#351 AS TBUCKET(1h)#351]]
+     * (avg_over_time(network.bytes_in))$0#382, COUNT(AVGOVERTIME_$1{r}#385,true[BOOLEAN],PT0S[TIME_DURATION]) AS
+     *          $$COUNT$avg(avg_over_time(network.bytes_in))$1#383, BUCKET{r}#351 AS TBUCKET(1h)#351]]
      *       \_Eval[[$$SUM$AVGOVERTIME_$1$0{r$}#386 / $$COUNT$AVGOVERTIME_$1$1{r$}#387 AS AVGOVERTIME_$1#385]]
-     *         \_TimeSeriesAggregate[[_tsid{m}#384, BUCKET{r}#351],[SUM(network.bytes_in{f}#369,true[BOOLEAN],PT0S[TIME_DURATION],lossy[KEYWORD]) AS
-     *  $$SUM$AVGOVERTIME_$1$0#386, COUNT(network.bytes_in{f}#369,true[BOOLEAN],PT0S[TIME_DURATION]) AS $$COUNT$AVGOVERTIME_$1$1#387, BUCKET{r}#351],
+     *         \_TimeSeriesAggregate[[_tsid{m}#384, BUCKET{r}#351],[SUM(network.bytes_in{f}#369,true[BOOLEAN],PT0S[TIME_DURATION],
+     *         lossy[KEYWORD]) AS
+     *  $$SUM$AVGOVERTIME_$1$0#386, COUNT(network.bytes_in{f}#369,true[BOOLEAN],PT0S[TIME_DURATION]) AS $$COUNT$AVGOVERTIME_$1$1#387,
+     *  BUCKET{r}#351],
      * BUCKET(@timestamp{f}#355,PT1H[TIME_DURATION])]
      *           \_Eval[[BUCKET(@timestamp{f}#355,PT1H[TIME_DURATION]) AS TBUCKET(1h)#351]]
      *             \_EsRelation[k8s][@timestamp{f}#355, client.ip{f}#359, cluster{f}#356, ..]
@@ -271,10 +283,13 @@ public class PromqlLogicalPlanOptimizerTests extends AbstractLogicalPlanOptimize
      *   \_Eval[[$$SUM$avg(avg_over_time(network.bytes_in[1h]))$0{r$}#196 / $$COUNT$avg(avg_over_time(network.bytes_in[1h]))$1
      * {r$}#197 AS avg(avg_over_time(network.bytes_in[1h]))#190]]
      *     \_Aggregate[[TBUCKET{r}#191],[SUM(AVGOVERTIME_$1{r}#193,true[BOOLEAN],PT0S[TIME_DURATION],compensated[KEYWORD]) AS $$SUM$av
-     * g(avg_over_time(network.bytes_in[1h]))$0#196, COUNT(AVGOVERTIME_$1{r}#193,true[BOOLEAN],PT0S[TIME_DURATION]) AS $$COUNT$avg(avg_over_time(network.bytes_in[1h]))$1#197, TBUCKET{r}#191 AS TBUCKET#191]]
+     * g(avg_over_time(network.bytes_in[1h]))$0#196, COUNT(AVGOVERTIME_$1{r}#193,true[BOOLEAN],PT0S[TIME_DURATION]) AS
+     *          $$COUNT$avg(avg_over_time(network.bytes_in[1h]))$1#197, TBUCKET{r}#191 AS TBUCKET#191]]
      *       \_Eval[[$$SUM$AVGOVERTIME_$1$0{r$}#194 / $$COUNT$AVGOVERTIME_$1$1{r$}#195 AS AVGOVERTIME_$1#193]]
-     *         \_TimeSeriesAggregate[[_tsid{m}#192, TBUCKET{r}#191],[SUM(network.bytes_in{f}#178,true[BOOLEAN],PT0S[TIME_DURATION],lossy[KEYWORD]) A
-     * S $$SUM$AVGOVERTIME_$1$0#194, COUNT(network.bytes_in{f}#178,true[BOOLEAN],PT0S[TIME_DURATION]) AS $$COUNT$AVGOVERTIME_$1$1#195, TBUCKET{r}#191],
+     *         \_TimeSeriesAggregate[[_tsid{m}#192, TBUCKET{r}#191],
+     *                      [SUM(network.bytes_in{f}#178,true[BOOLEAN],PT0S[TIME_DURATION],lossy[KEYWORD]) A
+     * S $$SUM$AVGOVERTIME_$1$0#194, COUNT(network.bytes_in{f}#178,true[BOOLEAN],PT0S[TIME_DURATION]) AS
+     *              $$COUNT$AVGOVERTIME_$1$1#195, TBUCKET{r}#191],
      * BUCKET(@timestamp{f}#164,PT1H[TIME_DURATION])]
      *           \_Eval[[BUCKET(@timestamp{f}#164,PT1H[TIME_DURATION]) AS TBUCKET#191]]
      *             \_Filter[ISNOTNULL(network.bytes_in{f}#178)]
@@ -304,8 +319,10 @@ public class PromqlLogicalPlanOptimizerTests extends AbstractLogicalPlanOptimize
      * d) (avg_over_time(network.bytes_in[1h]))#342, packpod_$1{r}#347 AS grouppod_$1#348, TBUCKET{r}#343 AS TBUCKET#343]]
      *       \_Eval[[$$SUM$AVGOVERTIME_$1$0{r$}#349 / $$COUNT$AVGOVERTIME_$1$1{r$}#350 AS AVGOVERTIME_$1#345, PACKDIMENSION(pod{r}
      * #346) AS packpod_$1#347]]
-     *         \_TimeSeriesAggregate[[_tsid{m}#344, TBUCKET{r}#343],[SUM(network.bytes_in{f}#330,true[BOOLEAN],PT0S[TIME_DURATION],lossy[KEYWORD]) A
-     * S $$SUM$AVGOVERTIME_$1$0#349, COUNT(network.bytes_in{f}#330,true[BOOLEAN],PT0S[TIME_DURATION]) AS $$COUNT$AVGOVERTIME_$1$1#350, VALUES(pod{f}#318,true[BOOLEAN],PT0S[TIME_DURATION]) AS pod#346, TBUCKET{r}#343],
+     *         \_TimeSeriesAggregate[[_tsid{m}#344, TBUCKET{r}#343],
+     *          [SUM(network.bytes_in{f}#330,true[BOOLEAN],PT0S[TIME_DURATION],lossy[KEYWORD]) A
+     * S $$SUM$AVGOVERTIME_$1$0#349, COUNT(network.bytes_in{f}#330,true[BOOLEAN],PT0S[TIME_DURATION]) AS $$COUNT$AVGOVERTIME_$1$1#350,
+     *                          VALUES(pod{f}#318,true[BOOLEAN],PT0S[TIME_DURATION]) AS pod#346, TBUCKET{r}#343],
      * BUCKET(@timestamp{f}#316,PT1H[TIME_DURATION])]
      *           \_Eval[[BUCKET(@timestamp{f}#316,PT1H[TIME_DURATION]) AS TBUCKET#343]]
      *             \_Filter[ISNOTNULL(network.bytes_in{f}#330)]
@@ -347,10 +364,13 @@ public class PromqlLogicalPlanOptimizerTests extends AbstractLogicalPlanOptimize
      *   \_Eval[[$$SUM$avg(avg_over_time(network.bytes_in[5m]))$0{r$}#429 / $$COUNT$avg(avg_over_time(network.bytes_in[5m]))$1
      * {r$}#430 AS avg(avg_over_time(network.bytes_in[5m]))#423]]
      *     \_Aggregate[[TBUCKET{r}#424],[SUM(AVGOVERTIME_$1{r}#426,true[BOOLEAN],PT0S[TIME_DURATION],compensated[KEYWORD]) AS $$SUM$av
-     * g(avg_over_time(network.bytes_in[5m]))$0#429, COUNT(AVGOVERTIME_$1{r}#426,true[BOOLEAN],PT0S[TIME_DURATION]) AS $$COUNT$avg(avg_over_time(network.bytes_in[5m]))$1#430, TBUCKET{r}#424 AS TBUCKET#424]]
+     * g(avg_over_time(network.bytes_in[5m]))$0#429, COUNT(AVGOVERTIME_$1{r}#426,true[BOOLEAN],PT0S[TIME_DURATION]) AS
+     *              $$COUNT$avg(avg_over_time(network.bytes_in[5m]))$1#430, TBUCKET{r}#424 AS TBUCKET#424]]
      *       \_Eval[[$$SUM$AVGOVERTIME_$1$0{r$}#427 / $$COUNT$AVGOVERTIME_$1$1{r$}#428 AS AVGOVERTIME_$1#426]]
-     *         \_TimeSeriesAggregate[[_tsid{m}#425, TBUCKET{r}#424],[SUM(network.bytes_in{f}#411,true[BOOLEAN],PT0S[TIME_DURATION],lossy[KEYWORD]) A
-     * S $$SUM$AVGOVERTIME_$1$0#427, COUNT(network.bytes_in{f}#411,true[BOOLEAN],PT0S[TIME_DURATION]) AS $$COUNT$AVGOVERTIME_$1$1#428, TBUCKET{r}#424],
+     *         \_TimeSeriesAggregate[[_tsid{m}#425, TBUCKET{r}#424],
+     *              [SUM(network.bytes_in{f}#411,true[BOOLEAN],PT0S[TIME_DURATION],lossy[KEYWORD]) A
+     * S $$SUM$AVGOVERTIME_$1$0#427, COUNT(network.bytes_in{f}#411,true[BOOLEAN],PT0S[TIME_DURATION]) AS
+     *                  $$COUNT$AVGOVERTIME_$1$1#428, TBUCKET{r}#424],
      * BUCKET(@timestamp{f}#397,PT5M[TIME_DURATION])]
      *           \_Eval[[BUCKET(@timestamp{f}#397,PT5M[TIME_DURATION]) AS TBUCKET#424]]
      *             \_Filter[ISNOTNULL(network.bytes_in{f}#411)]
@@ -377,11 +397,14 @@ public class PromqlLogicalPlanOptimizerTests extends AbstractLogicalPlanOptimize
      * \_TopN[[Order[TBUCKET{r}#34,ASC,FIRST]],1000[INTEGER],false]
      *   \_Eval[[UNPACKDIMENSION(grouppod_$1{r}#39) AS pod#9]]
      *     \_Aggregate[[packpod_$1{r}#38, TBUCKET{r}#34],[MAX(AVGOVERTIME_$1{r}#36,true[BOOLEAN],PT0S[TIME_DURATION]) AS max by (pod)
-     * (avg_over_time(network.bytes_in{pod=~"host-0|host-1|host-2"}[5m]))#33, packpod_$1{r}#38 AS grouppod_$1#39, TBUCKET{r}#34 AS TBUCKET#34]]
+     * (avg_over_time(network.bytes_in{pod=~"host-0|host-1|host-2"}[5m]))#33, packpod_$1{r}#38 AS grouppod_$1#39,
+     *                              TBUCKET{r}#34 AS TBUCKET#34]]
      *       \_Eval[[$$SUM$AVGOVERTIME_$1$0{r$}#40 / $$COUNT$AVGOVERTIME_$1$1{r$}#41 AS AVGOVERTIME_$1#36, PACKDIMENSION(pod{r}#37
      * ) AS packpod_$1#38]]
-     *         \_TimeSeriesAggregate[[_tsid{m}#35, TBUCKET{r}#34],[SUM(network.bytes_in{f}#21,true[BOOLEAN],PT0S[TIME_DURATION],lossy[KEYWORD]) AS $
-     * $SUM$AVGOVERTIME_$1$0#40, COUNT(network.bytes_in{f}#21,true[BOOLEAN],PT0S[TIME_DURATION]) AS $$COUNT$AVGOVERTIME_$1$1#41, VALUES(pod{f}#9,true[BOOLEAN],PT0S[TIME_DURATION]) AS pod#37, TBUCKET{r}#34],
+     *         \_TimeSeriesAggregate[[_tsid{m}#35, TBUCKET{r}#34],
+     *                              [SUM(network.bytes_in{f}#21,true[BOOLEAN],PT0S[TIME_DURATION],lossy[KEYWORD]) AS $
+     * $SUM$AVGOVERTIME_$1$0#40, COUNT(network.bytes_in{f}#21,true[BOOLEAN],PT0S[TIME_DURATION]) AS $$COUNT$AVGOVERTIME_$1$1#41,
+     *                                      VALUES(pod{f}#9,true[BOOLEAN],PT0S[TIME_DURATION]) AS pod#37, TBUCKET{r}#34],
      * BUCKET(@timestamp{f}#7,PT5M[TIME_DURATION])]
      *           \_Eval[[BUCKET(@timestamp{f}#7,PT5M[TIME_DURATION]) AS TBUCKET#34]]
      *             \_Filter[ISNOTNULL(network.bytes_in{f}#21) AND IN(host-0[KEYWORD],host-1[KEYWORD],host-2[KEYWORD],pod{f}#9)]
@@ -451,10 +474,13 @@ public class PromqlLogicalPlanOptimizerTests extends AbstractLogicalPlanOptimize
      *   \_Eval[[$$SUM$avg(avg_over_time(network.bytes_in{pod=~"[a-z]+"}[1h]))$0{r$}#311 / $$COUNT$avg(avg_over_time(network.b
      * ytes_in{pod=~"[a-z]+"}[1h]))$1{r$}#312 AS avg(avg_over_time(network.bytes_in{pod=~"[a-z]+"}[1h]))#305]]
      *     \_Aggregate[[TBUCKET{r}#306],[SUM(AVGOVERTIME_$1{r}#308,true[BOOLEAN],PT0S[TIME_DURATION],compensated[KEYWORD]) AS $$SUM$av
-     * g(avg_over_time(network.bytes_in{pod=~"[a-z]+"}[1h]))$0#311, COUNT(AVGOVERTIME_$1{r}#308,true[BOOLEAN],PT0S[TIME_DURATION]) AS $$COUNT$avg(avg_over_time(network.bytes_in{pod=~"[a-z]+"}[1h]))$1#312, TBUCKET{r}#306 AS TBUCKET#306]]
+     * g(avg_over_time(network.bytes_in{pod=~"[a-z]+"}[1h]))$0#311, COUNT(AVGOVERTIME_$1{r}#308,true[BOOLEAN],PT0S[TIME_DURATION]) AS
+     *                          $$COUNT$avg(avg_over_time(network.bytes_in{pod=~"[a-z]+"}[1h]))$1#312, TBUCKET{r}#306 AS TBUCKET#306]]
      *       \_Eval[[$$SUM$AVGOVERTIME_$1$0{r$}#309 / $$COUNT$AVGOVERTIME_$1$1{r$}#310 AS AVGOVERTIME_$1#308]]
-     *         \_TimeSeriesAggregate[[_tsid{m}#307, TBUCKET{r}#306],[SUM(network.bytes_in{f}#293,true[BOOLEAN],PT0S[TIME_DURATION],lossy[KEYWORD]) A
-     * S $$SUM$AVGOVERTIME_$1$0#309, COUNT(network.bytes_in{f}#293,true[BOOLEAN],PT0S[TIME_DURATION]) AS $$COUNT$AVGOVERTIME_$1$1#310, TBUCKET{r}#306],
+     *         \_TimeSeriesAggregate[[_tsid{m}#307, TBUCKET{r}#306],
+     *                              [SUM(network.bytes_in{f}#293,true[BOOLEAN],PT0S[TIME_DURATION],lossy[KEYWORD]) A
+     * S $$SUM$AVGOVERTIME_$1$0#309, COUNT(network.bytes_in{f}#293,true[BOOLEAN],PT0S[TIME_DURATION]) AS
+     *                          $$COUNT$AVGOVERTIME_$1$1#310, TBUCKET{r}#306],
      * BUCKET(@timestamp{f}#279,PT5M[TIME_DURATION])]
      *           \_Eval[[BUCKET(@timestamp{f}#279,PT5M[TIME_DURATION]) AS TBUCKET#306]]
      *             \_Filter[ISNOTNULL(network.bytes_in{f}#293) AND RLIKE(pod{f}#281, "[a-z]+", false)]

@@ -81,6 +81,8 @@ public class ES819TSDBDocValuesFormatTests extends ES87TSDBDocValuesFormatTests 
 
     private final Codec codec = new Elasticsearch92Lucene103Codec() {
 
+
+
         final ES819TSDBDocValuesFormat docValuesFormat = new ES819TSDBDocValuesFormat(
             ESTestCase.randomIntBetween(2, 4096),
             ESTestCase.randomIntBetween(1, 512),
@@ -981,7 +983,8 @@ public class ES819TSDBDocValuesFormatTests extends ES87TSDBDocValuesFormatTests 
                             }
                         }
 
-                        {
+                        // TODO add bulk loading to compressed values so this is not necessary
+                        if (isCompressed(config, binaryFixedField) == false){
                             // bulk loading binary fixed length field:
                             var block = (TestBlock) binaryFixedDV.tryRead(factory, docs, 0, random().nextBoolean(), null, false);
                             assertNotNull(block);
@@ -993,7 +996,8 @@ public class ES819TSDBDocValuesFormatTests extends ES87TSDBDocValuesFormatTests 
                             }
                         }
 
-                        {
+                        // TODO add bulk loading to compressed values so this is not necessary
+                        if (isCompressed(config, binaryVariableField) == false){
                             // bulk loading binary variable length field:
                             var block = (TestBlock) binaryVariableDV.tryRead(factory, docs, 0, random().nextBoolean(), null, false);
                             assertNotNull(block);
@@ -1737,6 +1741,15 @@ public class ES819TSDBDocValuesFormatTests extends ES87TSDBDocValuesFormatTests 
     public static BinaryDVCompressionMode randomBinaryCompressionMode() {
         BinaryDVCompressionMode[] modes = BinaryDVCompressionMode.values();
         return modes[random().nextInt(modes.length)];
+    }
+
+    private boolean isCompressed(IndexWriterConfig config, String field) {
+        if (config.getCodec() instanceof Elasticsearch92Lucene103Codec codec) {
+            if (codec.getDocValuesFormatForField(field) instanceof ES819TSDBDocValuesFormat format) {
+                return format.binaryDVCompressionMode != BinaryDVCompressionMode.NO_COMPRESS;
+            }
+        }
+        return false;
     }
 
 }

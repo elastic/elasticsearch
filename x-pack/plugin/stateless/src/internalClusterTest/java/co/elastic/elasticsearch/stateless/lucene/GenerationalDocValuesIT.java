@@ -1165,21 +1165,23 @@ public class GenerationalDocValuesIT extends AbstractStatelessIntegTestCase {
         // (see the flush in StatelessIndexEventListener#afterIndexShardRecovery()) 9. Therefore, even if we have segments_9,
         // the generational files will be on generation 8.
         // * In the hollow relocation, the source shard forces a flush (see IndexEngine#prepareForEngineReset()). Creating commit 9
-        // on the source node (along with copies of the generational files). Therefore, the target node will recovers commit 9,
+        // on the source node (along with copies of the generational files). Therefore, the target node will recover commit 9,
         // and because it's a hollow commit, will not flush a new commit. So the indexing node opens the generational files from
         // the recovered commit 9.
         long generationalFilesGen = hollowEnabled ? 9L : 8L;
 
+        // In a hollow relocation, .si files are replicated in the hollow commit's extra content, and they will be opened on the
+        // target node from the hollow commit's generation.
         filesLocations = Map.ofEntries(
             entry("segments_9", 9L),
             // referenced segment core _0
             entry("_0.cfe", 4L),
             entry("_0.cfs", 4L),
-            entry("_0.si", 4L),
+            entry("_0.si", hollowEnabled ? 9L : 4L),
             // referenced segment core _4
             entry("_4.cfe", 8L),
             entry("_4.cfs", 8L),
-            entry("_4.si", 8L),
+            entry("_4.si", hollowEnabled ? 9L : 8L),
             entry("_0_1.fnm", generationalFilesGen),
             entry("_0_1_Lucene90_0.dvd", generationalFilesGen),
             entry("_0_1_Lucene90_0.dvm", generationalFilesGen)

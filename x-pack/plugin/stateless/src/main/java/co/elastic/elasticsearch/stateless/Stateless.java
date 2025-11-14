@@ -1395,7 +1395,8 @@ public class Stateless extends Plugin
                 splitTargetService.get(),
                 splitSourceService.get(),
                 projectResolver.get(),
-                bccHeaderReadExecutor.get()
+                bccHeaderReadExecutor.get(),
+                getStatelessSharedBlobCacheService()
             )
         );
         indexModule.addIndexEventListener(recoveryMetricsCollector.get());

@@ -20,6 +20,7 @@
 package co.elastic.elasticsearch.stateless;
 
 import co.elastic.elasticsearch.stateless.cache.SharedBlobCacheWarmingService;
+import co.elastic.elasticsearch.stateless.cache.StatelessSharedBlobCacheService;
 import co.elastic.elasticsearch.stateless.commits.BatchedCompoundCommit;
 import co.elastic.elasticsearch.stateless.commits.HollowShardsService;
 import co.elastic.elasticsearch.stateless.commits.StatelessCommitService;
@@ -91,6 +92,7 @@ class StatelessIndexEventListener implements IndexEventListener {
     private final SplitSourceService splitSourceService;
     private final ProjectResolver projectResolver;
     private final Executor bccHeaderReadExecutor;
+    private final StatelessSharedBlobCacheService cacheService;
 
     StatelessIndexEventListener(
         ThreadPool threadPool,
@@ -103,7 +105,8 @@ class StatelessIndexEventListener implements IndexEventListener {
         SplitTargetService splitTargetService,
         SplitSourceService splitSourceService,
         ProjectResolver projectResolver,
-        Executor bccHeaderReadExecutor
+        Executor bccHeaderReadExecutor,
+        StatelessSharedBlobCacheService cacheService
     ) {
         this.threadPool = threadPool;
         this.statelessCommitService = statelessCommitService;
@@ -116,6 +119,7 @@ class StatelessIndexEventListener implements IndexEventListener {
         this.splitSourceService = splitSourceService;
         this.projectResolver = projectResolver;
         this.bccHeaderReadExecutor = bccHeaderReadExecutor;
+        this.cacheService = cacheService;
     }
 
     @Override
@@ -230,6 +234,7 @@ class StatelessIndexEventListener implements IndexEventListener {
                 threadPool,
                 statelessCommitService.useReplicatedRanges(),
                 bccHeaderReadExecutor,
+                true,
                 l
             );
         }).<Void>andThen((l, state) -> recoverBatchedCompoundCommitOnIndexShard(indexShard, state, l)).addListener(listener);
@@ -261,10 +266,12 @@ class StatelessIndexEventListener implements IndexEventListener {
                     recoveryCommit.getAllFilesSizeInBytes(),
                     blobFileRanges
                 );
-                // We must use a copied instance for warming as the index directory will move forward with new commits
-                var warmingDirectory = indexDirectory.createNewInstance();
-                warmingDirectory.updateMetadata(blobFileRanges, recoveryCommit.getAllFilesSizeInBytes());
-                warmingService.warmCacheForShardRecovery(INDEXING, indexShard, recoveryCommit, warmingDirectory);
+                if (recoveryCommit.hollow() == false) {
+                    // We must use a copied instance for warming as the index directory will move forward with new commits
+                    var warmingDirectory = indexDirectory.createNewInstance();
+                    warmingDirectory.updateMetadata(blobFileRanges, recoveryCommit.getAllFilesSizeInBytes());
+                    warmingService.warmCacheForShardRecovery(INDEXING, indexShard, recoveryCommit, warmingDirectory);
+                }
             }
             final var segmentInfos = SegmentInfos.readLatestCommit(indexDirectory);
             final var translogUUID = segmentInfos.userData.get(Translog.TRANSLOG_UUID_KEY);

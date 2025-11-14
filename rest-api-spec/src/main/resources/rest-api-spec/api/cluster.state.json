@@ -30,6 +30,7 @@
               "options": [
                 "_all",
                 "blocks",
+                "customs",
                 "metadata",
                 "nodes",
                 "routing_table",
@@ -56,6 +57,7 @@
               "options": [
                 "_all",
                 "blocks",
+                "customs",
                 "metadata",
                 "nodes",
                 "routing_table",

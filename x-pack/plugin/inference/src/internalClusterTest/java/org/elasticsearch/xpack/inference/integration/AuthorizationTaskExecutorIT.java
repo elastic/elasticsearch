@@ -54,7 +54,7 @@ public class AuthorizationTaskExecutorIT extends ESSingleNodeTestCase {
             ]
         }
         """;
-    // Should we add gp-llm-v2 to the response?
+
     public static final String AUTHORIZED_RAINBOW_SPRINKLES_RESPONSE = """
         {
             "models": [
@@ -203,17 +203,12 @@ public class AuthorizationTaskExecutorIT extends ESSingleNodeTestCase {
 
     private void assertChatCompletionEndpointExists() {
         var eisEndpoints = getEisEndpoints();
-        assertThat(eisEndpoints.size(), is(2));
+        assertThat(eisEndpoints.size(), is(1));
 
         var rainbowSprinklesModel = eisEndpoints.get(0);
         assertChatCompletionUnparsedModel(rainbowSprinklesModel);
         assertTrue(
             modelRegistry.containsPreconfiguredInferenceEndpointId(InternalPreconfiguredEndpoints.DEFAULT_CHAT_COMPLETION_ENDPOINT_ID_V1)
-        );
-        var gpLlmV2Model = eisEndpoints.get(1);
-        assertChatCompletionUnparsedModel(gpLlmV2Model);
-        assertTrue(
-            modelRegistry.containsPreconfiguredInferenceEndpointId(InternalPreconfiguredEndpoints.DEFAULT_CHAT_COMPLETION_ENDPOINT_ID_V2)
         );
     }
 
@@ -221,12 +216,6 @@ public class AuthorizationTaskExecutorIT extends ESSingleNodeTestCase {
         assertThat(rainbowSprinklesModel.taskType(), is(TaskType.CHAT_COMPLETION));
         assertThat(rainbowSprinklesModel.service(), is(ElasticInferenceService.NAME));
         assertThat(rainbowSprinklesModel.inferenceEntityId(), is(InternalPreconfiguredEndpoints.DEFAULT_CHAT_COMPLETION_ENDPOINT_ID_V1));
-    }
-
-    private void assertChatCompletionUnparsedModel(UnparsedModel gpLlmV2Model) {
-        assertThat(gpLlmV2Model.taskType(), is(TaskType.CHAT_COMPLETION));
-        assertThat(gpLlmV2Model.service(), is(ElasticInferenceService.NAME));
-        assertThat(gpLlmV2Model.inferenceEntityId(), is(InternalPreconfiguredEndpoints.DEFAULT_CHAT_COMPLETION_ENDPOINT_ID_V2));
     }
 
     public void testCreatesChatCompletion_AndThenCreatesTextEmbedding() throws Exception {

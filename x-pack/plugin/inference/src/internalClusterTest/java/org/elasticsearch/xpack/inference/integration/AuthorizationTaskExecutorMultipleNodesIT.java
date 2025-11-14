@@ -123,7 +123,7 @@ public class AuthorizationTaskExecutorMultipleNodesIT extends ESIntegTestCase {
                 .stream()
                 .filter(endpoint -> endpoint.getService().equals(ElasticInferenceService.NAME))
                 .toList();
-            assertThat(eisEndpoints.size(), is(2));
+            assertThat(eisEndpoints.size(), is(1));
 
             var rainbowSprinklesEndpoint = eisEndpoints.get(0);
             assertThat(rainbowSprinklesEndpoint.getService(), is(ElasticInferenceService.NAME));
@@ -132,11 +132,6 @@ public class AuthorizationTaskExecutorMultipleNodesIT extends ESIntegTestCase {
                 is(InternalPreconfiguredEndpoints.DEFAULT_CHAT_COMPLETION_ENDPOINT_ID_V1)
             );
             assertThat(rainbowSprinklesEndpoint.getTaskType(), is(TaskType.CHAT_COMPLETION));
-
-            var gpLlmV2Endpoint = eisEndpoints.get(1);
-            assertThat(gpLlmV2Endpoint.getService(), is(ElasticInferenceService.NAME));
-            assertThat(gpLlmV2Endpoint.getInferenceEntityId(), is(InternalPreconfiguredEndpoints.DEFAULT_CHAT_COMPLETION_ENDPOINT_ID_V2));
-            assertThat(gpLlmV2Endpoint.getTaskType(), is(TaskType.CHAT_COMPLETION));
         });
     }
 

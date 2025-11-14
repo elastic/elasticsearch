@@ -1065,7 +1065,7 @@ public class ElasticInferenceServiceTests extends ESSingleNodeTestCase {
         }
     }
 
-    // Should we add another test for gp-llm-v2?
+
     public void testUnifiedCompletionError() {
         var e = assertThrows(UnifiedChatCompletionException.class, () -> testUnifiedStream(404, """
             {

@@ -26,9 +26,9 @@ import java.util.List;
 import java.util.Set;
 
 import static org.elasticsearch.xpack.inference.services.elastic.InternalPreconfiguredEndpoints.DEFAULT_CHAT_COMPLETION_ENDPOINT_ID_V1;
-import static org.elasticsearch.xpack.inference.services.elastic.InternalPreconfiguredEndpoints.DEFAULT_CHAT_COMPLETION_ENDPOINT_ID_V2;
+import static org.elasticsearch.xpack.inference.services.elastic.InternalPreconfiguredEndpoints.GP_LLM_V2_ENDPOINT_ID;
 import static org.elasticsearch.xpack.inference.services.elastic.InternalPreconfiguredEndpoints.DEFAULT_CHAT_COMPLETION_MODEL_ID_V1;
-import static org.elasticsearch.xpack.inference.services.elastic.InternalPreconfiguredEndpoints.DEFAULT_CHAT_COMPLETION_MODEL_ID_V2;
+import static org.elasticsearch.xpack.inference.services.elastic.InternalPreconfiguredEndpoints.GP_LLM_V2_MODEL_ID;
 import static org.elasticsearch.xpack.inference.services.elastic.InternalPreconfiguredEndpoints.DEFAULT_ELSER_2_MODEL_ID;
 import static org.elasticsearch.xpack.inference.services.elastic.InternalPreconfiguredEndpoints.DEFAULT_ELSER_ENDPOINT_ID_V2;
 import static org.elasticsearch.xpack.inference.services.elastic.InternalPreconfiguredEndpoints.DEFAULT_MULTILINGUAL_EMBED_ENDPOINT_ID;
@@ -48,7 +48,7 @@ public class PreconfiguredEndpointModelAdapterTests extends ESTestCase {
     private static final ElasticInferenceServiceCompletionServiceSettings COMPLETION_SETTINGS =
         new ElasticInferenceServiceCompletionServiceSettings(DEFAULT_CHAT_COMPLETION_MODEL_ID_V1);
     private static final ElasticInferenceServiceCompletionServiceSettings COMPLETION_SETTINGS_V2 =
-        new ElasticInferenceServiceCompletionServiceSettings(DEFAULT_CHAT_COMPLETION_MODEL_ID_V2);
+        new ElasticInferenceServiceCompletionServiceSettings(GP_LLM_V2_MODEL_ID);
     private static final ElasticInferenceServiceDenseTextEmbeddingsServiceSettings DENSE_SETTINGS =
         new ElasticInferenceServiceDenseTextEmbeddingsServiceSettings(
             DEFAULT_MULTILINGUAL_EMBED_MODEL_ID,
@@ -64,7 +64,7 @@ public class PreconfiguredEndpointModelAdapterTests extends ESTestCase {
     public void testGetModelsWithValidId() {
         var endpointIds = Set.of(
             DEFAULT_CHAT_COMPLETION_ENDPOINT_ID_V1,
-            DEFAULT_CHAT_COMPLETION_ENDPOINT_ID_V2,
+            GP_LLM_V2_ENDPOINT_ID,
             DEFAULT_ELSER_ENDPOINT_ID_V2,
             DEFAULT_RERANK_ENDPOINT_ID_V1,
             DEFAULT_MULTILINGUAL_EMBED_ENDPOINT_ID
@@ -101,7 +101,7 @@ public class PreconfiguredEndpointModelAdapterTests extends ESTestCase {
                 ),
                 new ElasticInferenceServiceModel(
                     new ModelConfigurations(
-                        DEFAULT_CHAT_COMPLETION_ENDPOINT_ID_V2,
+                        GP_LLM_V2_ENDPOINT_ID,
                         TaskType.CHAT_COMPLETION,
                         ElasticInferenceService.NAME,
                         COMPLETION_SETTINGS_V2,

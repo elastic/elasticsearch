@@ -55,6 +55,13 @@ public interface SearchStats {
     }
 
     /**
+     * Returns the mapped field type for the given field name, or null if the field is not found.
+     */
+    default MappedFieldType fieldType(FieldName name) {
+        return null;
+    }
+
+    /**
      * When there are no search stats available, for example when there are no search contexts, we have static results.
      */
     record EmptySearchStats() implements SearchStats {

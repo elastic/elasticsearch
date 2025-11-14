@@ -638,7 +638,8 @@ public class BalancedShardsAllocatorTests extends ESAllocationTestCase {
                 TEST_WRITE_LOAD_FORECASTER,
                 new PrefixBalancingWeightsFactory(
                     Map.of("shardsOnly", new WeightFunction(1, 0, 0, 0), "weightsOnly", new WeightFunction(0, 0, 1, 0))
-                )
+                ),
+                System::currentTimeMillis
             ),
             EmptyClusterInfoService.INSTANCE,
             SNAPSHOT_INFO_SERVICE_WITH_NO_SHARD_SIZES
@@ -742,7 +743,8 @@ public class BalancedShardsAllocatorTests extends ESAllocationTestCase {
                 public boolean diskUsageIgnored() {
                     return true; // This makes the computation ignore disk usage
                 }
-            }
+            },
+            System::currentTimeMillis
         );
 
         final String indexName = randomIdentifier();
@@ -1128,7 +1130,12 @@ public class BalancedShardsAllocatorTests extends ESAllocationTestCase {
         final var allocationService = new MockAllocationService(
             new AllocationDeciders(List.of(notPreferredDecider)),
             new TestGatewayAllocator(),
-            new BalancedShardsAllocator(BalancerSettings.DEFAULT, TEST_WRITE_LOAD_FORECASTER, new NodeNameDrivenBalancingWeightsFactory()),
+            new BalancedShardsAllocator(
+                BalancerSettings.DEFAULT,
+                TEST_WRITE_LOAD_FORECASTER,
+                new NodeNameDrivenBalancingWeightsFactory(),
+                System::currentTimeMillis
+            ),
             () -> ClusterInfo.EMPTY,
             SNAPSHOT_INFO_SERVICE_WITH_NO_SHARD_SIZES
         );

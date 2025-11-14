@@ -20,6 +20,7 @@ import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.WriteLoadConstraintSettings;
 import org.elasticsearch.common.FrequencyCappedAction;
 import org.elasticsearch.common.settings.ClusterSettings;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -152,14 +153,16 @@ public class WriteLoadConstraintDecider extends AllocationDecider {
         var nodeWriteThreadPoolQueueLatencyThreshold = writeLoadConstraintSettings.getQueueLatencyThreshold();
         if (nodeWriteThreadPoolStats.maxThreadPoolQueueLatencyMillis() >= nodeWriteThreadPoolQueueLatencyThreshold.millis()) {
             if (logger.isDebugEnabled() || allocation.debugDecision()) {
+                final Double shardWriteLoad = getShardWriteLoad(allocation, shardRouting);
                 final String explain = Strings.format(
                     """
                         Node [%s] has a queue latency of [%d] millis that exceeds the queue latency threshold of [%s]. This node is \
-                        hot-spotting. Current thread pool utilization [%f]. Moving shard(s) away.""",
+                        hot-spotting. Current thread pool utilization [%f]. Shard write load [%s]. Moving shard(s) away.""",
                     node.nodeId(),
                     nodeWriteThreadPoolStats.maxThreadPoolQueueLatencyMillis(),
                     nodeWriteThreadPoolQueueLatencyThreshold.toHumanReadableString(2),
-                    nodeWriteThreadPoolStats.averageThreadPoolUtilization()
+                    nodeWriteThreadPoolStats.averageThreadPoolUtilization(),
+                    shardWriteLoad == null ? "unknown" : shardWriteLoad
                 );
                 if (logger.isDebugEnabled()) {
                     logInterventionMessage.maybeExecute(() -> logger.debug(explain));
@@ -178,6 +181,11 @@ public class WriteLoadConstraintDecider extends AllocationDecider {
             nodeWriteThreadPoolStats.maxThreadPoolQueueLatencyMillis(),
             nodeWriteThreadPoolQueueLatencyThreshold.toHumanReadableString(2)
         );
+    }
+
+    @Nullable
+    private Double getShardWriteLoad(RoutingAllocation allocation, ShardRouting shardRouting) {
+        return allocation.clusterInfo().getShardWriteLoads().get(shardRouting.shardId());
     }
 
     /**

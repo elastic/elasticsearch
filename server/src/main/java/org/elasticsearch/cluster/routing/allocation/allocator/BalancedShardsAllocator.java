@@ -35,12 +35,14 @@ import org.elasticsearch.cluster.routing.allocation.WriteLoadForecaster;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision.Type;
+import org.elasticsearch.common.FrequencyCappedAction;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.gateway.PriorityComparator;
 import org.elasticsearch.index.shard.ShardId;
@@ -56,6 +58,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.BiFunction;
+import java.util.function.LongSupplier;
 import java.util.function.Predicate;
 
 import static org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata.Type.REPLACE;
@@ -77,6 +80,7 @@ import static org.elasticsearch.cluster.routing.ShardRoutingState.RELOCATING;
 public class BalancedShardsAllocator implements ShardsAllocator {
 
     private static final Logger logger = LogManager.getLogger(BalancedShardsAllocator.class);
+    private static final Logger notPreferredLogger = LogManager.getLogger(BalancedShardsAllocator.class.getName() + ".not-preferred");
 
     public static final Setting<Float> SHARD_BALANCE_FACTOR_SETTING = Setting.floatSetting(
         "cluster.routing.allocation.balance.shard",
@@ -113,10 +117,18 @@ public class BalancedShardsAllocator implements ShardsAllocator {
         Property.Dynamic,
         Property.NodeScope
     );
+    public static final Setting<TimeValue> MOVE_NOT_PREFERRED_MINIMUM_LOGGING_INTERVAL = Setting.timeSetting(
+        "cluster.routing.allocation.balance.move_not_preferred_logging_interval",
+        TimeValue.ONE_MINUTE,
+        TimeValue.THIRTY_SECONDS,
+        Property.Dynamic,
+        Property.NodeScope
+    );
 
     private final BalancerSettings balancerSettings;
     private final WriteLoadForecaster writeLoadForecaster;
     private final BalancingWeightsFactory balancingWeightsFactory;
+    private final FrequencyCappedAction logMoveNotPreferred;
 
     public BalancedShardsAllocator() {
         this(Settings.EMPTY);
@@ -127,18 +139,20 @@ public class BalancedShardsAllocator implements ShardsAllocator {
     }
 
     public BalancedShardsAllocator(BalancerSettings balancerSettings, WriteLoadForecaster writeLoadForecaster) {
-        this(balancerSettings, writeLoadForecaster, new GlobalBalancingWeightsFactory(balancerSettings));
+        this(balancerSettings, writeLoadForecaster, new GlobalBalancingWeightsFactory(balancerSettings), System::currentTimeMillis);
     }
 
     @Inject
     public BalancedShardsAllocator(
         BalancerSettings balancerSettings,
         WriteLoadForecaster writeLoadForecaster,
-        BalancingWeightsFactory balancingWeightsFactory
+        BalancingWeightsFactory balancingWeightsFactory,
+        LongSupplier relativeTimeInMillisProvider
     ) {
         this.balancerSettings = balancerSettings;
         this.writeLoadForecaster = writeLoadForecaster;
         this.balancingWeightsFactory = balancingWeightsFactory;
+        this.logMoveNotPreferred = new FrequencyCappedAction(relativeTimeInMillisProvider, TimeValue.ZERO);
     }
 
     @Override
@@ -866,6 +880,13 @@ public class BalancedShardsAllocator implements ShardsAllocator {
                 // can use the cached decision.
                 final var moveDecision = shardMoved ? decideMove(index, shardRouting) : storedShardMovement.moveDecision();
                 if (moveDecision.isDecisionTaken() && moveDecision.cannotRemainAndCanMove()) {
+                    if (notPreferredLogger.isDebugEnabled()) {
+                        notPreferredLogger.debug(
+                            "Moving shard [{}] from a NOT_PREFERRED allocation, explanation is {}",
+                            shardRouting,
+                            moveDecision.getCanRemainDecision().getExplanation()
+                        );
+                    }
                     executeMove(shardRouting, index, moveDecision, "move-non-preferred");
                     // Return after a single move so that the change can be simulated before further moves are made.
                     return true;

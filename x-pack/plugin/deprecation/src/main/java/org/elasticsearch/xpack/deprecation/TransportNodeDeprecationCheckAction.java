@@ -27,6 +27,7 @@ import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.deprecation.DeprecationIssue;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
@@ -95,11 +96,10 @@ public class TransportNodeDeprecationCheckAction extends TransportNodesAction<
 
     @Override
     protected NodesDeprecationCheckAction.NodeResponse nodeOperation(NodesDeprecationCheckAction.NodeRequest request, Task task) {
-        return nodeOperation(request, NodeDeprecationChecks.SINGLE_NODE_CHECKS);
+        return nodeOperation(NodeDeprecationChecks.SINGLE_NODE_CHECKS);
     }
 
     NodesDeprecationCheckAction.NodeResponse nodeOperation(
-        NodesDeprecationCheckAction.NodeRequest request,
         List<
             NodeDeprecationChecks.NodeDeprecationCheck<
                 Settings,

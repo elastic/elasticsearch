@@ -1,0 +1,19 @@
+{
+    "properties" : {
+        "group" : {
+            "type" : "integer"
+        },
+        "string" : {
+            "type" : "keyword"
+        },
+        "base" : {
+            "type" : "integer"
+        },
+        "expect_long" : {
+            "type" : "long"
+        },
+        "notes": {
+            "type": "keyword"
+        }
+    }
+}

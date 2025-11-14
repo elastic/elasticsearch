@@ -1243,21 +1243,25 @@ public class ES819TSDBDocValuesFormatTests extends ES87TSDBDocValuesFormatTests 
                     // Bulk binary loader can only handle sparse queries over dense documents
                     List<Integer> testDocs = IntStream.range(0, numDocs - 1).filter(i -> randomBoolean()).boxed().toList();
                     if (testDocs.isEmpty() == false) {
-                        docs = TestBlock.docs(testDocs.stream().mapToInt(n -> n).toArray());
-                        var dv = getDenseBinaryValues(leafReader, binaryFixedField);
-                        var block = (TestBlock) dv.tryRead(factory, docs, 0, random().nextBoolean(), null, false);
-                        assertNotNull(block);
-                        for (int i = 0; i < testDocs.size(); i++) {
-                            assertThat(block.get(i), equalTo(binaryFixed[testDocs.get(i)]));
+                        {
+                            // fixed length
+                            docs = TestBlock.docs(testDocs.stream().mapToInt(n -> n).toArray());
+                            var dv = getDenseBinaryValues(leafReader, binaryFixedField);
+                            var block = (TestBlock) dv.tryRead(factory, docs, 0, random().nextBoolean(), null, false);
+                            assertNotNull(block);
+                            for (int i = 0; i < testDocs.size(); i++) {
+                                assertThat(block.get(i), equalTo(binaryFixed[testDocs.get(i)]));
+                            }
                         }
-                    }
-                    if (testDocs.isEmpty() == false) {
-                        docs = TestBlock.docs(testDocs.stream().mapToInt(n -> n).toArray());
-                        var dv = getDenseBinaryValues(leafReader, binaryVariableField);
-                        var block = (TestBlock) dv.tryRead(factory, docs, 0, random().nextBoolean(), null, false);
-                        assertNotNull(block);
-                        for (int i = 0; i < testDocs.size(); i++) {
-                            assertThat(block.get(i), equalTo(binaryVariable[testDocs.get(i)]));
+                        {
+                            // variable length
+                            docs = TestBlock.docs(testDocs.stream().mapToInt(n -> n).toArray());
+                            var dv = getDenseBinaryValues(leafReader, binaryVariableField);
+                            var block = (TestBlock) dv.tryRead(factory, docs, 0, random().nextBoolean(), null, false);
+                            assertNotNull(block);
+                            for (int i = 0; i < testDocs.size(); i++) {
+                                assertThat(block.get(i), equalTo(binaryVariable[testDocs.get(i)]));
+                            }
                         }
                     }
                 }

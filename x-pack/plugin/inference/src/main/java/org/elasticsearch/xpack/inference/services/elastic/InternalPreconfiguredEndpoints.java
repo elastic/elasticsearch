@@ -57,7 +57,7 @@ public class InternalPreconfiguredEndpoints {
 
     private static final ElasticInferenceServiceCompletionServiceSettings COMPLETION_SERVICE_SETTINGS =
         new ElasticInferenceServiceCompletionServiceSettings(DEFAULT_CHAT_COMPLETION_MODEL_ID_V1);
-    private static final ElasticInferenceServiceCompletionServiceSettings COMPLETION_SERVICE_SETTINGS_V2 =
+    private static final ElasticInferenceServiceCompletionServiceSettings GP_LLM_V2_COMPLETION_SERVICE_SETTINGS =
         new ElasticInferenceServiceCompletionServiceSettings(GP_LLM_V2_MODEL_ID);
     private static final ElasticInferenceServiceSparseEmbeddingsServiceSettings SPARSE_EMBEDDINGS_SERVICE_SETTINGS =
         new ElasticInferenceServiceSparseEmbeddingsServiceSettings(DEFAULT_ELSER_2_MODEL_ID, null);
@@ -92,10 +92,10 @@ public class InternalPreconfiguredEndpoints {
                 GP_LLM_V2_ENDPOINT_ID,
                 TaskType.CHAT_COMPLETION,
                 ElasticInferenceService.NAME,
-                COMPLETION_SERVICE_SETTINGS_V2,
+                GP_LLM_V2_COMPLETION_SERVICE_SETTINGS,
                 ChunkingSettingsBuilder.DEFAULT_SETTINGS
             ),
-            COMPLETION_SERVICE_SETTINGS_V2
+            GP_LLM_V2_COMPLETION_SERVICE_SETTINGS
         ),
         DEFAULT_ELSER_2_MODEL_ID,
         List.of(

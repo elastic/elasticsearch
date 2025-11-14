@@ -100,7 +100,7 @@ public class IngestMetricsService implements ClusterStateListener {
 
     public static final Setting<TimeValue> LOAD_ADJUSTMENT_AFTER_SCALING_WINDOW = Setting.timeSetting(
         "serverless.autoscaling.ingest_metrics.load_adjustment_after_scaling_window",
-        TimeValue.THIRTY_SECONDS,
+        TimeValue.timeValueSeconds(90),  // TODO: consider lowering this to 75s or 60s
         Setting.Property.NodeScope,
         Setting.Property.Dynamic
     );
@@ -160,8 +160,7 @@ public class IngestMetricsService implements ClusterStateListener {
     private volatile double lowIngestionLoadWeightDuringScaling;
     private volatile double inexactMetricsUndesiredShardsProportion;
     /**
-     * The period of time (defaults to 30s, configurable) to keep adjusting ingest load after all shutting down
-     * indexing nodes have left the cluster.
+     * The period of time to keep adjusting ingest load after all shutting down indexing nodes have left the cluster.
      */
     private volatile long loadAdjustmentAfterScalingWindowInNanos;
     /**

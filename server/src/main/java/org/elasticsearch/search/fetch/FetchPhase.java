@@ -235,7 +235,9 @@ public final class FetchPhase {
 
                     BytesReference sourceRef = hit.hit().getSourceRef();
                     if (sourceRef != null) {
-                        memoryChecker.accept(sourceRef.length());
+                        // This is an empirical value that seems to work well.
+                        // Deserializing a large source would also mean serializing it to HTTP response later on, so x2 seems reasonable
+                        memoryChecker.accept(sourceRef.length() * 2);
                     }
                     success = true;
                     return hit.hit();

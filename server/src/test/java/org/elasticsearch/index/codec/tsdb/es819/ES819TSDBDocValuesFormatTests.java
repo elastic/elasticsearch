@@ -68,10 +68,10 @@ import java.util.stream.IntStream;
 
 import static org.elasticsearch.index.codec.tsdb.es819.ES819TSDBDocValuesFormat.BLOCK_BYTES_THRESHOLD;
 import static org.elasticsearch.index.codec.tsdb.es819.ES819TSDBDocValuesFormat.BLOCK_COUNT_THRESHOLD;
-import static org.elasticsearch.test.ESTestCase.randomAlphaOfLengthBetween;
-import static org.elasticsearch.test.ESTestCase.randomBoolean;
 import static org.elasticsearch.test.ESTestCase.between;
 import static org.elasticsearch.test.ESTestCase.randomAlphaOfLength;
+import static org.elasticsearch.test.ESTestCase.randomAlphaOfLengthBetween;
+import static org.elasticsearch.test.ESTestCase.randomBoolean;
 import static org.elasticsearch.test.ESTestCase.randomFrom;
 import static org.elasticsearch.test.ESTestCase.randomIntBetween;
 import static org.hamcrest.Matchers.equalTo;
@@ -80,8 +80,6 @@ import static org.hamcrest.Matchers.instanceOf;
 public class ES819TSDBDocValuesFormatTests extends ES87TSDBDocValuesFormatTests {
 
     private final Codec codec = new Elasticsearch92Lucene103Codec() {
-
-
 
         final ES819TSDBDocValuesFormat docValuesFormat = new ES819TSDBDocValuesFormat(
             ESTestCase.randomIntBetween(2, 4096),
@@ -984,7 +982,7 @@ public class ES819TSDBDocValuesFormatTests extends ES87TSDBDocValuesFormatTests 
                         }
 
                         // TODO add bulk loading to compressed values so this is not necessary
-                        if (isCompressed(config, binaryFixedField) == false){
+                        if (isCompressed(config, binaryFixedField) == false) {
                             // bulk loading binary fixed length field:
                             var block = (TestBlock) binaryFixedDV.tryRead(factory, docs, 0, random().nextBoolean(), null, false);
                             assertNotNull(block);
@@ -997,7 +995,7 @@ public class ES819TSDBDocValuesFormatTests extends ES87TSDBDocValuesFormatTests 
                         }
 
                         // TODO add bulk loading to compressed values so this is not necessary
-                        if (isCompressed(config, binaryVariableField) == false){
+                        if (isCompressed(config, binaryVariableField) == false) {
                             // bulk loading binary variable length field:
                             var block = (TestBlock) binaryVariableDV.tryRead(factory, docs, 0, random().nextBoolean(), null, false);
                             assertNotNull(block);

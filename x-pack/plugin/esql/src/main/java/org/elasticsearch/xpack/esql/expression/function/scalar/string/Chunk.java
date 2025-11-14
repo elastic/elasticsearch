@@ -126,10 +126,10 @@ public class Chunk extends EsqlScalarFunction implements OptionalArgument {
             return fieldResolution;
         }
 
-        if (options == null) {
-            return TypeResolution.TYPE_RESOLVED;
-        }
+        return options == null ? TypeResolution.TYPE_RESOLVED : validateOptions();
+    }
 
+    private TypeResolution validateOptions() {
         // TODO - Options#resolve should play nicely with nested MapExpressions, doing a hacky manual evaluation for now
         if (options instanceof MapExpression == false) {
             return new TypeResolution("second argument of [" + sourceText() + "] must be a map");

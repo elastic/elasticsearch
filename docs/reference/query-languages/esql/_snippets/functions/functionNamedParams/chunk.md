@@ -2,9 +2,9 @@
 
 **Supported function named parameters**
 
+`chunking_settings`
+:   (object) The chunking settings with which to apply to the field. If no chunking settings are specified, defaults to sentence-based chunks of size 300
+
 `num_chunks`
 :   (integer) The number of chunks to return. Defaults to return all chunks.
-
-`chunk_size`
-:   (integer) The size of sentence-based chunks to use. Defaults to 300
 

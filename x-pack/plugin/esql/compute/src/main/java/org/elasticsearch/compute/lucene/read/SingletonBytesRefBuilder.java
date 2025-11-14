@@ -17,7 +17,7 @@ import org.elasticsearch.index.mapper.BlockLoader;
 
 import java.io.IOException;
 
-public class SingletonBytesRefBuilder implements BlockLoader.SingletonBytesRefBuilder {
+public final class SingletonBytesRefBuilder implements BlockLoader.SingletonBytesRefBuilder {
 
     private final int count;
     private final BlockFactory blockFactory;
@@ -76,7 +76,7 @@ public class SingletonBytesRefBuilder implements BlockLoader.SingletonBytesRefBu
      * For an offset of n, the values are: [0, n, 2n, 3n, ..., Xn]
      * This can be used to provide an "offsets" array for ByteRefs of constant length without the need to allocate an unnecessary array.
      */
-    static class ConstantOffsetLongArrayWrapper implements LongArray {
+    static final class ConstantOffsetLongArrayWrapper implements LongArray {
 
         private final long offset;
         private final long size;
@@ -88,6 +88,7 @@ public class SingletonBytesRefBuilder implements BlockLoader.SingletonBytesRefBu
 
         @Override
         public long get(long index) {
+            assert index >= 0 && index < size;
             return index * offset;
         }
 

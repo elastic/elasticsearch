@@ -222,6 +222,7 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
                         int count = docs.count() - offset;
                         int firstDocId = docs.get(offset);
                         int lastDocId = docs.get(count - 1);
+                        doc = lastDocId;
 
                         if (isDense(firstDocId, lastDocId, count)) {
                             try (var builder = factory.singletonBytesRefs(count)) {
@@ -229,11 +230,18 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
                                 byte[] bytes = new byte[bulkLength];
                                 bytesSlice.readBytes((long) firstDocId * length, bytes, 0, bulkLength);
                                 builder.appendBytesRefs(bytes, length);
-                                doc = lastDocId;
+                                return builder.build();
+                            }
+                        } else {
+                            try (var builder = factory.bytesRefs(count)) {
+                                for (int i = offset; i < docs.count(); i++) {
+                                    int docId = docs.get(i);
+                                    bytesSlice.readBytes((long) docId * length, bytes.bytes, 0, length);
+                                    builder.appendBytesRef(bytes);
+                                }
                                 return builder.build();
                             }
                         }
-                        return null;
                     }
                 };
             } else {
@@ -263,6 +271,7 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
                         int count = docs.count() - offset;
                         int firstDocId = docs.get(offset);
                         int lastDocId = docs.get(count - 1);
+                        doc = lastDocId;
 
                         if (isDense(firstDocId, lastDocId, count)) {
                             try (var builder = factory.singletonBytesRefs(count)) {
@@ -280,11 +289,20 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
                                 byte[] bytes = new byte[length];
                                 bytesSlice.readBytes(startOffset, bytes, 0, length);
                                 builder.appendBytesRefs(bytes, offsets);
-                                doc = lastDocId;
+                                return builder.build();
+                            }
+                        } else {
+                            try (var builder = factory.bytesRefs(count)) {
+                                for (int i = offset; i < docs.count(); i++) {
+                                    int docId = docs.get(i);
+                                    long startOffset = addresses.get(docId);
+                                    bytes.length = (int) (addresses.get(docId + 1L) - startOffset);
+                                    bytesSlice.readBytes(startOffset, bytes.bytes, 0, bytes.length);
+                                    builder.appendBytesRef(bytes);
+                                }
                                 return builder.build();
                             }
                         }
-                        return null;
                     }
                 };
             }

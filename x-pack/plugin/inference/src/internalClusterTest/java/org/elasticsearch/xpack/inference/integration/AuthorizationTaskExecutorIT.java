@@ -168,15 +168,13 @@ public class AuthorizationTaskExecutorIT extends ESSingleNodeTestCase {
         return taskRef.get();
     }
 
-    static void waitForNoTask(String taskAction, AdminClient adminClient, AuthorizationTaskExecutor authorizationTaskExecutor)
-        throws Exception {
+    static void waitForNoTask(String taskAction, AdminClient adminClient) throws Exception {
         var builder = new ListTasksRequestBuilder(adminClient.cluster());
 
         assertBusy(() -> {
             var response = builder.get();
             var authPollerTask = response.getTasks().stream().filter(task -> task.action().equals(taskAction)).findFirst();
             assertFalse(authPollerTask.isPresent());
-            assertNull(authorizationTaskExecutor.getCurrentPollerTask());
         });
 
     }

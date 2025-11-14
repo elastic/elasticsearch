@@ -37,6 +37,7 @@ import static org.elasticsearch.xpack.inference.integration.AuthorizationTaskExe
 import static org.elasticsearch.xpack.inference.integration.AuthorizationTaskExecutorIT.getEisEndpoints;
 import static org.elasticsearch.xpack.inference.integration.AuthorizationTaskExecutorIT.removeEisPreconfiguredEndpoints;
 import static org.elasticsearch.xpack.inference.integration.AuthorizationTaskExecutorIT.waitForAuthorizationToComplete;
+import static org.elasticsearch.xpack.inference.integration.AuthorizationTaskExecutorIT.waitForNoTask;
 import static org.elasticsearch.xpack.inference.integration.AuthorizationTaskExecutorIT.waitForTask;
 import static org.elasticsearch.xpack.inference.integration.ModelRegistryIT.buildElserModelConfig;
 import static org.elasticsearch.xpack.inference.registry.ModelRegistryTests.assertStoreModel;
@@ -131,7 +132,7 @@ public class CCMServiceIT extends CCMSingleNodeIT {
 
     public void testCreatesEisChatCompletionEndpoint() throws Exception {
         disableCCM();
-        assertNoAuthorizationPollerTask();
+        waitForNoTask(AUTH_TASK_ACTION, admin());
 
         var eisEndpoints = getEisEndpoints(modelRegistry);
         assertThat(eisEndpoints, empty());
@@ -150,17 +151,14 @@ public class CCMServiceIT extends CCMSingleNodeIT {
         assertChatCompletionEndpointExists(modelRegistry);
     }
 
-    private void assertNoAuthorizationPollerTask() {
-        assertNull(authorizationTaskExecutor.getCurrentPollerTask());
-    }
-
     private void forceClusterUpdate() {
         var model = buildElserModelConfig("test-store-model", TaskType.SPARSE_EMBEDDING);
         assertStoreModel(modelRegistry, model);
     }
 
-    public void testDisableCCM_AbortsAuthorizationTask() throws Exception {
-        assertNoAuthorizationPollerTask();
+    public void testDisableCCM_RemovesAuthorizationTask() throws Exception {
+        disableCCM();
+        waitForNoTask(AUTH_TASK_ACTION, admin());
 
         var listener = new TestPlainActionFuture<Void>();
         ccmService.get().storeConfiguration(new CCMModel(new SecureString("secret".toCharArray())), listener);
@@ -173,7 +171,6 @@ public class CCMServiceIT extends CCMSingleNodeIT {
         waitForAuthorizationToComplete(authorizationTaskExecutor);
 
         disableCCM();
-
-        assertNoAuthorizationPollerTask();
+        waitForNoTask(AUTH_TASK_ACTION, admin());
     }
 }

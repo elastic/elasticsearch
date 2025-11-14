@@ -24,6 +24,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.FixForMultiProject;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.persistent.AllocatedPersistentTask;
@@ -33,6 +34,7 @@ import org.elasticsearch.persistent.PersistentTaskState;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.persistent.PersistentTasksExecutor;
 import org.elasticsearch.persistent.PersistentTasksService;
+import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.transport.RemoteTransportException;
 import org.elasticsearch.transport.TransportService;
@@ -83,21 +85,41 @@ public class AuthorizationTaskExecutor extends PersistentTasksExecutor<Authoriza
         this.pollerParameters = Objects.requireNonNull(pollerParameters);
     }
 
+    /**
+     * Starts the authorization task executor without starting the persistent task. This is needed because we can't start the persistent task
+     * until after the plugin has finished initializing. Otherwise we'll get an error indicating that it isn't aware of whether the task
+     * is a cluster scoped task.
+     */
+    public synchronized void startWithoutPersistentTask() {
+        startInternal(false);
+    }
+
+    /**
+     * Starts the authorization task executor and creates the persistent task if it doesn't already exist. This should only be called from
+     * a context where the cluster state is already initialized. Don't call this from the plugin
+     * {@link org.elasticsearch.xpack.inference.InferencePlugin#createComponents(Plugin.PluginServices)}. Use
+     * {@link #startWithoutPersistentTask()} instead.
+     */
     public synchronized void start() {
+        startInternal(true);
+    }
+
+    private void startInternal(boolean createPersistentTask) {
         // If the EIS url is not configured, then we won't be able to interact with the service, so don't start the task.
         if (running.get() == false
             && Strings.isNullOrEmpty(pollerParameters.elasticInferenceServiceSettings().getElasticInferenceServiceUrl()) == false) {
             logger.info("Starting authorization task executor");
             running.set(true);
 
-            // For integration tests, it can take some time before we get a cluster state update, so ensure that we attempt to
-            // create the task immediately
-            sendStartRequest(clusterService.state());
+            if (createPersistentTask) {
+                sendStartRequest(clusterService.state());
+            }
+
             clusterService.addListener(this);
         }
     }
 
-    private void sendStartRequest(ClusterState state) {
+    private void sendStartRequest(@Nullable ClusterState state) {
         if (authorizationTaskExists(state)) {
             return;
         }
@@ -120,7 +142,11 @@ public class AuthorizationTaskExecutor extends PersistentTasksExecutor<Authoriza
         );
     }
 
-    private static boolean authorizationTaskExists(ClusterState state) {
+    private static boolean authorizationTaskExists(@Nullable ClusterState state) {
+        if (state == null) {
+            return false;
+        }
+
         return ClusterPersistentTasksCustomMetadata.getTaskWithId(state, TASK_NAME) != null;
     }
 
@@ -210,7 +236,7 @@ public class AuthorizationTaskExecutor extends PersistentTasksExecutor<Authoriza
     }
 
     public static class Action extends BroadcastMessageAction<Message> {
-        private static final String NAME = "cluster:internal/xpack/inference/update_authorization_task";
+        public static final String NAME = "cluster:internal/xpack/inference/update_authorization_task";
         public static final ActionType<Response> INSTANCE = new ActionType<>(NAME);
 
         private final AuthorizationTaskExecutor authorizationTaskExecutor;

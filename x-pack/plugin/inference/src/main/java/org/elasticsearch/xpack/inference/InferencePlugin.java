@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.inference;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.action.support.MappedActionFilter;
 import org.elasticsearch.client.internal.Client;
@@ -199,6 +201,8 @@ public class InferencePlugin extends Plugin
         InternalSearchPlugin,
         ClusterPlugin,
         PersistentTaskPlugin {
+
+    private static final Logger logger = LogManager.getLogger(InferencePlugin.class);
 
     /**
      * When this setting is true the verification check that
@@ -489,7 +493,8 @@ public class InferencePlugin extends Plugin
         // authentication with EIS will be through certs that are already configured. If CCM configuration is allowed,
         // we need to wait for the user to provide an API key before we can start polling EIS
         if (ccmFeature.allowConfiguringCcm() == false) {
-            authTaskExecutor.start();
+            logger.info("CCM configuration is not permitted - starting EIS authorization task executor");
+            authTaskExecutor.startWithoutPersistentTask();
         }
 
         return new CCMRelatedComponents(

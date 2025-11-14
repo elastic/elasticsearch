@@ -139,22 +139,30 @@ public class NodeDeprecationChecks {
         String additionalDetailMessage,
         DeprecationIssue.Level deprecationLevel
     ) {
-        if (removedSetting.exists(clusterSettings) == false && removedSetting.exists(nodeSettings) == false) {
+        boolean existsInClusterSettings = removedSetting.exists(clusterSettings);
+        boolean existsInNodeSettings = removedSetting.exists(nodeSettings);
+        if (existsInClusterSettings == false && existsInNodeSettings == false) {
             return null;
         }
         final String removedSettingKey = removedSetting.getKey();
         // read setting to force the deprecation warning
-        if (removedSetting.exists(clusterSettings)) {
-            removedSetting.get(clusterSettings);
+        Settings settings;
+        if (existsInClusterSettings) {
+            settings = clusterSettings;
         } else {
-            removedSetting.get(nodeSettings);
+            settings = nodeSettings;
+        }
+        if (removedSetting instanceof Setting.AffixSetting<?> affixSetting) {
+            affixSetting.getAsMap(settings);
+        } else {
+            removedSetting.get(settings);
         }
 
         final String message = String.format(Locale.ROOT, "Setting [%s] is deprecated", removedSettingKey);
         final String details = additionalDetailMessage == null
             ? String.format(Locale.ROOT, "Remove the [%s] setting.", removedSettingKey)
             : String.format(Locale.ROOT, "Remove the [%s] setting. %s", removedSettingKey, additionalDetailMessage);
-        boolean canAutoRemoveSetting = removedSetting.exists(clusterSettings) && removedSetting.exists(nodeSettings) == false;
+        boolean canAutoRemoveSetting = existsInClusterSettings && existsInNodeSettings == false;
         Map<String, Object> meta = createMetaMapForRemovableSettings(canAutoRemoveSetting, removedSettingKey);
         return new DeprecationIssue(deprecationLevel, message, url, details, false, meta);
     }

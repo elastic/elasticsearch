@@ -15,6 +15,11 @@ package org.elasticsearch.search.crossproject;
 public interface ProjectRoutingResolver {
 
     /**
+     * The reserved term for representing the origin project in project routing.
+     */
+    String ORIGIN = "_origin";
+
+    /**
      * Filters the specified TargetProjects based on the provided project routing string
      * @param projectRouting the project_routing specified in the request object
      * @param targetProjects The target projects to be filtered

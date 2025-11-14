@@ -1,6 +1,0 @@
-pr: 134359
-summary: Make `MutableSearchResponse` ref-counted to prevent use-after-close in async
-  search
-area: Search
-type: bug
-issues: []

@@ -9,6 +9,8 @@
 
 package org.elasticsearch.repositories.s3;
 
+import com.carrotsearch.randomizedtesting.annotations.SuppressForbidden;
+
 import fixture.s3.S3HttpFixture;
 
 import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
@@ -65,6 +67,7 @@ public class RepositoryS3TimeoutRestIT extends ESRestTestCase {
         fixedAccessKey(ACCESS_KEY, ANY_REGION, "s3")
     ) {
         @Override
+        @SuppressForbidden("HttpExchange and Headers are ok here")
         protected HttpHandler createHandler() {
             final var delegate = super.createHandler();
             return exchange -> {

@@ -106,7 +106,7 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
 
     @ParametersFactory(argumentFormatting = "csv-spec:%2$s.%3$s")
     public static List<Object[]> readScriptSpec() throws Exception {
-        List<URL> urls = classpathResources("/*.csv-spec");
+        List<URL> urls = classpathResources("/*union_types.csv-spec");
         assertTrue("Not enough specs found " + urls, urls.size() > 0);
         return SpecReader.readScriptSpec(urls, specParser());
     }

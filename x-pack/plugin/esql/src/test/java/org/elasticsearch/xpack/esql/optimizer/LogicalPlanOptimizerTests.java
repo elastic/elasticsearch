@@ -219,14 +219,14 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
 
     public void testPruneColumnsWhenFork() {
         var query = """
-                ROW x = [1, 2, 3, 4, 5]
-                | MV_EXPAND x
-                | EVAL agg_metric = TO_AGGREGATE_METRIC_DOUBLE(x)
-                | STATS avg1 = AVG(x) WHERE x <= 3,
-                    avg2 = AVG(x),
-                    avg3 = AVG(agg_metric) WHERE x <=3,
-                    avg4 = AVG(agg_metric)
-                 | FORK (WHERE true) (WHERE true) | WHERE _fork == "fork1" | DROP _fork
+                FROM employees
+                | WHERE emp_no == 10048 OR emp_no == 10081
+                | FORK (EVAL a = CONCAT(first_name, " ", emp_no::keyword, " ", last_name)
+                        | GROK a "%{WORD:x} %{WORD:y} %{WORD:z}" )
+                       (EVAL b = CONCAT(last_name, " ", emp_no::keyword, " ", first_name)
+                        | GROK b "%{WORD:x} %{WORD:y} %{WORD:z}" )
+                | KEEP _fork, emp_no, x, y, z
+                | SORT _fork, emp_no
             """;
         var plan = plan(query);
         assertNotNull(plan);

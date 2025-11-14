@@ -50,6 +50,7 @@ public final class PruneColumns extends Rule<LogicalPlan, LogicalPlan> {
     }
 
     static LogicalPlan pruneColumns(LogicalPlan plan, AttributeSet.Builder used, boolean inlineJoin) {
+        Holder<Boolean> forkFound = new Holder<>(false);
         // while going top-to-bottom (upstream)
         return plan.transformDown(p -> {
             // Note: It is NOT required to do anything special for binary plans like JOINs, except INLINE STATS. It is perfectly fine that
@@ -59,12 +60,15 @@ public final class PruneColumns extends Rule<LogicalPlan, LogicalPlan> {
             // same index fields will have different name ids in the left and right hand sides - as in the extreme example
             // `FROM lookup_idx | LOOKUP JOIN lookup_idx ON key_field`.
 
+//            if (forkFound.get()) {
+//                return p;
+//            }
+
             // TODO: revisit with every new command
             // skip nodes that simply pass the input through and use no references
             if (p instanceof Limit || p instanceof Sample) {
                 return p;
             }
-
             var recheck = new Holder<Boolean>();
             // analyze the unused items against dedicated 'producer' nodes such as Eval and Aggregate
             // perform a loop to retry checking if the current node is completely eliminated
@@ -76,7 +80,10 @@ public final class PruneColumns extends Rule<LogicalPlan, LogicalPlan> {
                     case Eval eval -> pruneColumnsInEval(eval, used, recheck);
                     case Project project -> inlineJoin ? pruneColumnsInProject(project, used) : p;
                     case EsRelation esr -> pruneColumnsInEsRelation(esr, used);
-                    case Fork fork -> pruneColumnsInFork(fork, used);
+                    case Fork fork -> {
+                        forkFound.set(true);
+                        yield pruneColumnsInFork(fork, used);
+                    }
                     default -> p;
                 };
             } while (recheck.get());
@@ -88,7 +95,7 @@ public final class PruneColumns extends Rule<LogicalPlan, LogicalPlan> {
         });
     }
 
-    private static LogicalPlan pruneColumnsInAggregate(Aggregate aggregate, AttributeSet.Builder used, boolean inlineJoin) {
+    static LogicalPlan pruneColumnsInAggregate(Aggregate aggregate, AttributeSet.Builder used, boolean inlineJoin) {
         LogicalPlan p = aggregate;
 
         var remaining = pruneUnusedAndAddReferences(aggregate.aggregates(), used);
@@ -128,7 +135,7 @@ public final class PruneColumns extends Rule<LogicalPlan, LogicalPlan> {
         return p;
     }
 
-    private static LogicalPlan pruneColumnsInInlineJoinRight(InlineJoin ij, AttributeSet.Builder used, Holder<Boolean> recheck) {
+    static LogicalPlan pruneColumnsInInlineJoinRight(InlineJoin ij, AttributeSet.Builder used, Holder<Boolean> recheck) {
         LogicalPlan p = ij;
 
         used.addAll(ij.references());
@@ -149,7 +156,7 @@ public final class PruneColumns extends Rule<LogicalPlan, LogicalPlan> {
         return p;
     }
 
-    private static LogicalPlan pruneColumnsInEval(Eval eval, AttributeSet.Builder used, Holder<Boolean> recheck) {
+    static LogicalPlan pruneColumnsInEval(Eval eval, AttributeSet.Builder used, Holder<Boolean> recheck) {
         LogicalPlan p = eval;
 
         var remaining = pruneUnusedAndAddReferences(eval.fields(), used);
@@ -167,7 +174,7 @@ public final class PruneColumns extends Rule<LogicalPlan, LogicalPlan> {
     }
 
     // Note: only run when the Project is a descendent of an InlineJoin.
-    private static LogicalPlan pruneColumnsInProject(Project project, AttributeSet.Builder used) {
+    static LogicalPlan pruneColumnsInProject(Project project, AttributeSet.Builder used) {
         LogicalPlan p = project;
 
         var remaining = pruneUnusedAndAddReferences(project.projections(), used);
@@ -178,7 +185,7 @@ public final class PruneColumns extends Rule<LogicalPlan, LogicalPlan> {
         return p;
     }
 
-    private static LogicalPlan pruneColumnsInEsRelation(EsRelation esr, AttributeSet.Builder used) {
+    static LogicalPlan pruneColumnsInEsRelation(EsRelation esr, AttributeSet.Builder used) {
         LogicalPlan p = esr;
 
         if (esr.indexMode() == IndexMode.LOOKUP) {
@@ -195,13 +202,19 @@ public final class PruneColumns extends Rule<LogicalPlan, LogicalPlan> {
     }
 
     private static LogicalPlan pruneColumnsInFork(Fork fork, AttributeSet.Builder used) {
+        // prune the output attributes of fork based on usage from the rest of the plan
+        // this does not consider the inner usage within each branch of the fork
+        // as those will be handled when traversing down each branch in PruneColumnsInForkBranches
         LogicalPlan p = fork;
 
-        if (fork instanceof UnionAll) {
+        // should exit early for UnionAll
+        if (fork instanceof Fork) {
             return p;
         }
         boolean changed = false;
         AttributeSet.Builder builder = AttributeSet.builder();
+        // if any of the fork outputs are used, keep them
+        // otherwise, prune them based on the rest of the plan's usage
         Set<String> names = new HashSet<>(used.build().names());
         for (var attr : fork.output()) {
             if (names.contains(attr.name())) {

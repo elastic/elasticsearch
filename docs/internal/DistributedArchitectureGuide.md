@@ -12,6 +12,214 @@ A guide to the general Elasticsearch components can be found [here](https://gith
 
 # Networking
 
+Every elasticsearch node maintains various networking clients and servers,
+protocols, and syncrounous/asyncrounous handling.
+
+## HTTP Transport
+
+Every node has an HTTP Transport Server (simply HTTP Transport) and it is a
+single entry point for all external clients (except cross-cluster). Management,
+ingestion, search, and everything else passes through HTTP server.
+
+Elasticsearch works over HTTP 1.1 and supports HTTP features such as: TLS,
+chunked transfer encoding, content compression, pipelining. Although we try to
+be HTTP spec compliant, Elastic is not a webserver. We support GET requests with
+payload (some old proxies might drop content), requests cannot be cached by
+middle boxes.
+
+By default HTTP server binds to the first available port in range
+9200-9300. There is no connections limit, but there is a limit on payload
+size. Default maximum payload is 100mb after compression. It's a very large
+number and almost never a good target that client should approach.
+
+Security is not enabled by default, meaning no TLS and authentication. These
+features are available in the x-pack/security module.
+
+HTTP transport provides two options for content processing: aggregate fully and
+incremental. Aggregated content is a preferable choice for a small messages that
+cannot be parsed incrementally (like JSON). But aggregation has drawbacks, it
+requires more memory, and memory is reserved until all bytes are received. If
+client sends all but the last byte, memory still in use until the client
+disconnects. If this happens concurrently then memory starts to grow
+unbounded. Large delimited content, like bulk indexing, takes advantage of
+incremental content processing, chunks of bytes. It's more complicated for
+application code, but provides better control over memory usage.
+
+Incremental bulk indexing has a back-pressure feature. When memory pressure
+grows high we stop reading bytes from TCP sockets for some connections and allow
+only few to proceed, until pressure is resolved. This feature protects from
+unbounded memory usage and OOMs.
+
+ES supports multiple Content-Types for payload: CBOR, JSON, SMILE, YAML, and
+their versioned types. Internally we call it XContentType. When a class
+implements `toXContent` that means it can be sent(serialized) over HTTP/REST.
+
+HTTP routing is based on a combination of Method and URI. For example,
+`RestCreateIndexAction` handler uses ("PUT", "/{index}"), where curly braces
+indicate path variables. `RestBulkAction` specifies a list of routes
+
+```java
+    @Override
+    public List<Route> routes() {
+        return List.of(
+            new Route(POST, "/_bulk"),
+            new Route(PUT, "/_bulk"),
+            new Route(POST, "/{index}/_bulk"),
+            new Route(PUT, "/{index}/_bulk")
+        );
+    }
+```
+
+Every REST handler must be declared in `ActionModule` class in the
+`initRestHandlers` method. Plugins that implements `ActionPlugin` can extend
+list of handlers through `getRestHandlers` override. Every REST handler should
+extend `BaseRestHandler`.
+
+The job of the REST handler is to parse and validate HTTP request and construct
+typed version of request, often Transport request (see Transport section below).
+
+Request handling flow from Java classes view goes as:
+
+```
+(if security enabled) Security.getHttpServerTransportWithHeadersValidator
+  -> `Netty4HttpServerTransport`
+  -> `AbstractHttpServerTransport`
+  -> `RestController`
+  -> `BaseRestHandler`
+  -> `Rest{Some}Action`
+```
+
+Where `Netty4HttpServerTransport` is a single implementation of
+`AbstractHttpServerTransport` that lives in a `transport-netty4` module. And
+security module injects SSL and headers validator.
+
+## Transport
+
+`Transport` is an umbrella term for a node-to-node communication. It's a
+TCP-based custom binary protocol. Every node in a cluster is a client and server
+at the same time. Node-to-node communication never uses HTTP transport.
+
+`Netty4Transport` is the only implementation of TCP transport and initialize
+Transport client and server. X-pack/security plugin provides secure version of
+transport with TLS and authentication - `SecurityNetty4Transport`.
+
+Once node discovers cluster it will open a pool of connections to every other
+node in a cluster, and every other node will open a pool of connections
+back. That means a connection between nodes A and B is A->B pool + B->A pool. A
+node sends requests only on connections it opens (as a client).
+
+A default connection pool is around 13 connections, a pool has sub-pools of
+connections for different purposes: ping, node-state, bulks, etc. Pool structure
+is defined in `ConnectionProfile` class.
+
+ES has resilience to disconnects, frequent reconnects, but in general we assume
+network should be stable between nodes. Nevertheless, connectivity problems
+never stop coming from SDH's and Serverless. Not every cluster has enough
+redundancy to survive prolonged network interruptions.
+
+Request timeouts are discouraged. Transport request can take all the time they
+need to finish. SO_KEEPALIVE helps to detect and tear down dead connections.
+When connection is closed with error, we close entire pool of connections and
+fail outstanding requests. Then reconnect the pool again.
+
+There are no retries on the Transport layer. Application layer should decide how
+and when to retry. Some requests don't retry, and some retry with
+`RetryableAction` or `TransportMasterNodeAction`. We might have retries in the
+Transport framework in the future with [#95100](https://github.com/elastic/elasticsearch/issues/95100).
+
+Transport does not support multiplexing. Each transport message has to be
+dispatched fully before the next message can be sent. It's recommended to
+properly size/chunk messages at application layer to provide fairness of
+delivery across many senders. There is no strict guideline for transport message
+size. Use your judgement based on: how critical message is, how often it needs
+to be delivered, is it necessary to deliver as a single large piece. Almost
+always it can be chunked.
+
+`TransportMessage` has a tall family tree. There are simple node-to-node
+messages, broadcast messages, messages that has to be acknowledge by master
+node, etc. These are important for the transport infrastructure to dispatch
+message to the right place and return response back when it's truly successful.
+
+## Snapshots
+
+Another area of different networking clients is snapshotting. ES supports
+snapshotting to remote repositories. These repositories usually come with their
+own SDK and networking stack. For example AWS SDK comes with tomcat or netty,
+Azure with netty-based project-reactor, GCP uses default java HTTP
+client. Depending on the SDK underlying client might be reused between
+repositories.  Some provide better control over networking settings, others
+less.
+
+## Sync/Async IO and threading
+
+Elasticsearch does a lot of IO - disk, HTTP server, Transport client/server,
+repositories. Unfortunately not everything fits into synchronous or asynchronous
+style. As a result we have a bag of everything.
+
+HTTP and Transport use asynchronous IO. Disk and repositories synchronous IO.
+
+Asynchronous IO utilize a small set of threads by running small tasks,
+minimizing context switch. Synchronous IO uses many threads and let scheduler
+decide what to run. As a result ES runs at 100+ threads where Async threads
+co-exist(compete) with Sync threads.
+
+## Netty
+
+Netty is a networking framework/toolkit. It's a collection of building blocks
+that provide great control and foot-shooters to build networking applications.
+
+We use netty extensively in our HTTP and Transport networks. It's not a guide
+for netty, but covers major interaction with rest of ES.
+
+### Event-Loop or Transport-Tread
+
+Netty is an Async IO framework. So it runs with a few threads. An event-loop is
+a thread that processes events for one or many connections. Every connection has
+exactly one event-loop that never changes. With this guaranty there is no need
+to synchronize events that happen within the connection/pipeline.
+
+To take full advantage of async IO we have a single Transport ThreadPool that
+serves HTTP and Transport servers and clients. The pool size is CPU bound, for
+example 4 cores would have 4 threads. These 4 threads would serve hundreds or
+thousands of connections.
+
+Event-loop threads serve many connections each, so it's absolutely critical to
+not block thread for a long time. Any blocking operation or heavy compute has to
+be forked to another thread pool. But forking comes with overhead, doing forking
+on every tiny request is a wasted CPU work. As a rule of thumb: don't fork
+simple requests that can be served from memory and does not require heavy
+computations (seconds), otherwise fork.
+
+Transport threads are monitored by `ThreadWatchdog`. When thread runs single
+task longer than 5 seconds we would see warning logs. There are many reasons for
+slowness, not only lack of forking. For example GC pauses, CPU starvation from
+other thread-pools.
+
+### ByteBuf - byte buffers and reference counting
+
+One of the performance edges of netty is controlled memory allocation. Netty
+manages byte buffer pools and reuse them heavily. This performance gain comes
+with a cost. And cost is reference counting on developer's shoulders. Netty
+reads socket bytes into pooled byte-buffers and passes them to application. Then
+application is responsible to release this buffer when work is done.
+
+Reference counting creates two new problems:
+1. use after release (free)
+2. never release (leak).
+
+Unfortunately the compiler won’t help here. These cases has to be carefully
+tested using netty's LeakDetector with Paranoid level. Be aware.
+
+### Async methods return futures
+
+Every async operation in netty returns future. It's easy to miss or forget, The
+compiler won't help. `ctx.write(message)` always succeeds. Always check result
+of async operation:
+
+```
+ctx.write(message).addListener(f -> { if (f.isSuccess() ...)});
+```
+
 ### ThreadPool
 
 (We have many thread pools, what and why)
@@ -27,8 +235,6 @@ See the [Javadocs for `ActionListener`](https://github.com/elastic/elasticsearch
 #### XContent
 
 ### Performance
-
-### Netty
 
 (long running actions should be forked off of the Netty thread. Keep short operations to avoid forking costs)
 

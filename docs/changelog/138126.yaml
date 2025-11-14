@@ -1,0 +1,6 @@
+pr: 138126
+summary: Fix stats performance
+area: Stats
+type: bug
+issues:
+ - 97222

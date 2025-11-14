@@ -71,7 +71,8 @@ import static org.elasticsearch.core.Strings.format;
  * @param <Request>              the underlying client request
  * @param <Response>             the response to the client request
  * @param <ShardOperationResult> per-shard operation results
- * @param <NodeContext>          the optional node context created by createNodeContext and passed to shardOperation
+ * @param <NodeContext>          an (optional) node context created by {@link #createNodeContext} on each node and passed to each call
+ *                               to {@link #shardOperation}
  */
 public abstract class TransportBroadcastByNodeAction<
     Request extends BroadcastRequest<Request>,
@@ -192,6 +193,14 @@ public abstract class TransportBroadcastByNodeAction<
         ActionListener<ShardOperationResult> listener
     );
 
+    protected NodeContext createNodeContext() {
+        return null;
+    }
+
+    /**
+     * @return an (optional) node-level context for this operation, passed to each call to {@link #shardOperation}.
+     */
+    @Nullable
     protected NodeContext createNodeContext() {
         return null;
     }
@@ -424,7 +433,7 @@ public abstract class TransportBroadcastByNodeAction<
     ) {
         assert Transports.assertNotTransportThread("O(#shards) work must always fork to an appropriate executor");
         logger.trace("[{}] executing operation on [{}] shards", actionName, shards.size());
-        NodeContext nodeContext = createNodeContext();
+        final NodeContext nodeContext = createNodeContext();
         new CancellableFanOut<ShardRouting, ShardOperationResult, NodeResponse>() {
 
             final ArrayList<ShardOperationResult> results = new ArrayList<>(shards.size());
@@ -619,9 +628,7 @@ public abstract class TransportBroadcastByNodeAction<
     }
 
     /**
-     * Can be used for implementations of
-     * {@linkTransportBroadcastByNodeAction#shardOperation(BroadcastRequest, ShardRouting, Task, Object, ActionListener) shardOperation} for
-     * which there is no shard-level return value.
+     * Can be used for implementations of {@link #shardOperation} for which there is no shard-level return value.
      */
     public static final class EmptyResult implements Writeable {
         public static final EmptyResult INSTANCE = new EmptyResult();

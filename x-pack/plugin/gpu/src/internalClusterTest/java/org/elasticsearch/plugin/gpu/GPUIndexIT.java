@@ -39,7 +39,7 @@ public class GPUIndexIT extends ESIntegTestCase {
 
     @BeforeClass
     public static void checkGPUSupport() {
-        assumeTrue("cuvs not supported", GPUSupport.isSupported(false));
+        assumeTrue("cuvs not supported", GPUSupport.isSupported());
     }
 
     public void testBasic() {

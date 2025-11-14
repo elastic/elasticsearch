@@ -113,7 +113,7 @@ public class ExponentialHistogramParser {
 
     /**
      * Parses an XContent object into an exponential histogram.
-     * The parse is expected to point at the next token after {@link XContentParser.Token#START_OBJECT}.
+     * The parser is expected to point at the next token after {@link XContentParser.Token#START_OBJECT}.
      *
      * @param mappedFieldName the name of the field being parsed, used for error messages
      * @param parser the parser to use

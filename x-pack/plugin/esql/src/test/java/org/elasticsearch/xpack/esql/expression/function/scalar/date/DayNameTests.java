@@ -14,7 +14,6 @@ import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerSettings;
-import org.elasticsearch.xpack.esql.common.matchers.StringBytesRefMatcher;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
@@ -35,6 +34,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.function.Supplier;
 
+import static org.elasticsearch.test.ReadableMatchers.matchesBytesRef;
 import static org.hamcrest.Matchers.equalTo;
 
 public class DayNameTests extends AbstractConfigurationFunctionTestCase {
@@ -89,7 +89,7 @@ public class DayNameTests extends AbstractConfigurationFunctionTestCase {
                     List.of(new TestCaseSupplier.TypedData(toMillis(dateTime), DataType.DATETIME, "date")),
                     Matchers.startsWith("DayNameMillisEvaluator[val=Attribute[channel=0], zoneId=" + zoneId + ", locale=" + locale + "]"),
                     DataType.KEYWORD,
-                    new StringBytesRefMatcher(expectedWeekDay)
+                    matchesBytesRef(expectedWeekDay)
                 ).withConfiguration(TestCaseSupplier.TEST_SOURCE, configurationForTimezoneAndLocale(zoneId, locale))
             ),
             new TestCaseSupplier(
@@ -99,7 +99,7 @@ public class DayNameTests extends AbstractConfigurationFunctionTestCase {
                     List.of(new TestCaseSupplier.TypedData(toNanos(dateTime), DataType.DATE_NANOS, "date")),
                     Matchers.is("DayNameNanosEvaluator[val=Attribute[channel=0], zoneId=" + zoneId + ", locale=" + locale + "]"),
                     DataType.KEYWORD,
-                    new StringBytesRefMatcher(expectedWeekDay)
+                    matchesBytesRef(expectedWeekDay)
                 ).withConfiguration(TestCaseSupplier.TEST_SOURCE, configurationForTimezoneAndLocale(zoneId, locale))
             )
         );

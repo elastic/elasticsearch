@@ -13,7 +13,6 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.time.DateUtils;
-import org.elasticsearch.xpack.esql.common.matchers.StringBytesRefMatcher;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -28,6 +27,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.function.Supplier;
 
+import static org.elasticsearch.test.ReadableMatchers.matchesBytesRef;
 import static org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier.TEST_SOURCE;
 import static org.hamcrest.Matchers.matchesPattern;
 
@@ -114,7 +114,7 @@ public class DateFormatTests extends AbstractConfigurationFunctionTestCase {
                             + "]"
                     ),
                     DataType.KEYWORD,
-                    new StringBytesRefMatcher(expectedString)
+                    matchesBytesRef(expectedString)
                 ).withConfiguration(TEST_SOURCE, configurationForLocale(locale))
             ),
             new TestCaseSupplier(
@@ -131,7 +131,7 @@ public class DateFormatTests extends AbstractConfigurationFunctionTestCase {
                             + "]"
                     ),
                     DataType.KEYWORD,
-                    new StringBytesRefMatcher(expectedString)
+                    matchesBytesRef(expectedString)
                 ).withConfiguration(TEST_SOURCE, configurationForLocale(locale))
             )
         );

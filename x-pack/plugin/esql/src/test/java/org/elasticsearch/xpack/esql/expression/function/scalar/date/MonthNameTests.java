@@ -14,7 +14,6 @@ import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerSettings;
-import org.elasticsearch.xpack.esql.common.matchers.StringBytesRefMatcher;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
@@ -35,6 +34,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.function.Supplier;
 
+import static org.elasticsearch.test.ReadableMatchers.matchesBytesRef;
 import static org.hamcrest.Matchers.equalTo;
 
 public class MonthNameTests extends AbstractConfigurationFunctionTestCase {
@@ -97,7 +97,7 @@ public class MonthNameTests extends AbstractConfigurationFunctionTestCase {
                     List.of(new TestCaseSupplier.TypedData(toMillis(dateTime), DataType.DATETIME, "date")),
                     Matchers.startsWith("MonthNameMillisEvaluator[val=Attribute[channel=0], zoneId=" + zoneId + ", locale=" + locale + "]"),
                     DataType.KEYWORD,
-                    new StringBytesRefMatcher(expectedMonthName)
+                    matchesBytesRef(expectedMonthName)
                 ).withConfiguration(TestCaseSupplier.TEST_SOURCE, configurationForTimezoneAndLocale(zoneId, locale))
             ),
             new TestCaseSupplier(
@@ -107,7 +107,7 @@ public class MonthNameTests extends AbstractConfigurationFunctionTestCase {
                     List.of(new TestCaseSupplier.TypedData(toNanos(dateTime), DataType.DATE_NANOS, "date")),
                     Matchers.is("MonthNameNanosEvaluator[val=Attribute[channel=0], zoneId=" + zoneId + ", locale=" + locale + "]"),
                     DataType.KEYWORD,
-                    new StringBytesRefMatcher(expectedMonthName)
+                    matchesBytesRef(expectedMonthName)
                 ).withConfiguration(TestCaseSupplier.TEST_SOURCE, configurationForTimezoneAndLocale(zoneId, locale))
             )
         );

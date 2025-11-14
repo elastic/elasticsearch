@@ -27,7 +27,7 @@
           "parts": {
             "filter_id": {
               "type": "list",
-              "description": "A string that uniquely identifies a filter."
+              "description": "Comma-separated list of strings that uniquely identify a filter."
             }
           }
         }

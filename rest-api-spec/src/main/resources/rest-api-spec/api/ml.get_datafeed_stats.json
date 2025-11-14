@@ -21,7 +21,7 @@
           "parts": {
             "datafeed_id": {
               "type": "list",
-              "description": "Identifier for the datafeed. It can be a datafeed identifier or a wildcard expression. If you do not specify one of these options, the API returns information about all datafeeds."
+              "description": "Comma-separated list of datafeed identifiers or wildcard expressions. If you do not specify one of these options, the API returns information about all datafeeds."
             }
           }
         },

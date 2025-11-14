@@ -43,7 +43,7 @@
             },
             "name": {
               "type": "list",
-              "description": "The name of the privilege. If you do not specify this parameter, the API returns information about all privileges for the requested application."
+              "description": "Comma-separated list of privilege names. If you do not specify this parameter, the API returns information about all privileges for the requested application."
             }
           }
         }

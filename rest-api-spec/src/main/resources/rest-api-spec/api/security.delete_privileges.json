@@ -25,7 +25,7 @@
             },
             "name": {
               "type": "list",
-              "description": "The name of the privilege."
+              "description": "Comma-separated list of privilege names."
             }
           }
         }

@@ -21,7 +21,7 @@
           "parts": {
             "transform_id": {
               "type": "list",
-              "description": "Identifier for the transform. It can be a transform identifier or a wildcard expression. You can get information for all transforms by using `_all`, by specifying `*` as the `<transform_id>`, or by omitting the `<transform_id>`."
+              "description": "Comma-separated list of transform identifiers or wildcard expressions. You can get information for all transforms by using `_all`, by specifying `*` as the `<transform_id>`, or by omitting the `<transform_id>`."
             }
           }
         }

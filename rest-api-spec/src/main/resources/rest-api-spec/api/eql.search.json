@@ -25,7 +25,7 @@
           "parts": {
             "index": {
               "type": "list",
-              "description": "The name of the index to scope the operation"
+              "description": "Comma-separated list of index names to scope the operation"
             }
           }
         }

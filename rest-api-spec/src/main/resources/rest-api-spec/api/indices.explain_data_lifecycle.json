@@ -21,7 +21,7 @@
           "parts": {
             "index": {
               "type": "list",
-              "description": "The name of the index to explain"
+              "description": "Comma-separated list of index names to explain"
             }
           }
         }

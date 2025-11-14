@@ -24,7 +24,7 @@
           "parts": {
             "index": {
               "type": "list",
-              "description": "The index or data stream name."
+              "description": "Comma-separated list of index or data stream names."
             }
           }
         }

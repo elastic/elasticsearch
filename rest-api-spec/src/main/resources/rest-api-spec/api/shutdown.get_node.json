@@ -30,7 +30,7 @@
           "parts": {
             "node_id": {
               "type": "list",
-              "description": "Which node for which to retrieve the shutdown status"
+              "description": "Comma-separated list of nodes for which to retrieve the shutdown status"
             }
           }
         }

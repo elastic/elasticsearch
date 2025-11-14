@@ -21,7 +21,7 @@
           "parts": {
             "index": {
               "type": "list",
-              "description": "Data stream or index to check for rollup capabilities. Wildcard (`*`) expressions are supported."
+              "description": "Comma-separated list of data streams or indices to check for rollup capabilities. Wildcard (`*`) expressions are supported."
             }
           }
         }

@@ -58,6 +58,22 @@ setup:
                 element_type: bit
 
   - do:
+      indices.create:
+        index: any-shards-test-result-diversification-index
+        body:
+          mappings:
+            properties:
+              textbody:
+                type: text
+              keywordfield:
+                type: keyword
+              textvector:
+                type: dense_vector
+                dims: 4
+              rankfield:
+                type: integer
+
+  - do:
       headers:
         Content-Type: application/json
       bulk:
@@ -132,6 +148,30 @@ setup:
           {"textbody": "fourth text", "textvector": "2112", "keywordfield": "test4"}
           {"index":{}}
           {"textbody": "fifth text", "textvector": "5051", "keywordfield": "test5"}
+
+  - do:
+      headers:
+        Content-Type: application/json
+      bulk:
+        index: any-shards-test-result-diversification-index
+        refresh: true
+        body: |
+          {"index":{}}
+          {"textbody": "first text", "textvector": [0.4, 0.2, 0.4, 0.4], "keywordfield": "test1", "rankfield": 1}
+          {"index":{}}
+          {"textbody": "second text", "textvector": [0.4, 0.2, 0.3, 0.3], "keywordfield": "test2", "rankfield": 2}
+          {"index":{}}
+          {"textbody": "second text duplicate", "textvector": [0.4, 0.2, 0.3, 0.3], "keywordfield": "test2_dup", "rankfield": 3}
+          {"index":{}}
+          {"textbody": "another first text", "textvector": [0.4, 0.1, 0.3, 0.3], "keywordfield": "test1_another", "rankfield": 4}
+          {"index":{}}
+          {"textbody": "another first text duplicate", "textvector": [0.4, 0.1, 0.3, 0.3], "keywordfield": "test1_another_dup", "rankfield": 5}
+          {"index":{}}
+          {"textbody": "third and fourth first text duplicate", "textvector": [0.4, 0.1, 0.3, 0.3], "keywordfield": "test3_4_1_dup", "rankfield": 6}
+          {"index":{}}
+          {"textbody": "fourth text", "textvector": [0.1, 0.9, 0.5, 0.9], "keywordfield": "test4", "rankfield": 7}
+          {"index":{}}
+          {"textbody": "more first text to add additional results text", "textvector": [0.1, 0.9, 0.5, 0.9], "keywordfield": "test1_more", "rankfield": 8}
 
 ---
 teardown:
@@ -276,6 +316,35 @@ teardown:
   - match: { hits.hits.0._source.textbody: "first text" }
   - match: { hits.hits.1._source.textbody: "fourth text" }
   - match: { hits.hits.2._source.textbody: "fifth text" }
+
+---
+"Test MMR diversification with arbitrary shards":
+  - do:
+      search:
+        index: any-shards-test-result-diversification-index
+        body:
+          retriever:
+            diversify:
+              type: "mmr"
+              field: "textvector"
+              lambda: 0.9
+              size: 3
+              retriever:
+                standard:
+                  query:
+                    function_score:
+                      field_value_factor:
+                        field: "rankfield"
+                        factor: 1.0
+                        missing: 1.0
+                  sort:
+                    _score: "desc"
+
+  - match: { hits.total.value: 8 }
+  - length: { hits.hits: 3 }
+  - match: { hits.hits.0._source.keywordfield: "test1_more" }
+  - match: { hits.hits.1._source.keywordfield: "test3_4_1_dup" }
+  - match: { hits.hits.2._source.keywordfield: "test1_another_dup" }
 
 ---
 "Test MMR result diversification multiple indexes":

@@ -119,12 +119,13 @@ public class SamlUtils {
 
     /**
      * Constructs exception for a specific case where the in-response-to value in the SAML content does not match any of the values
-     * provided by the client. One example situation when this can happen is when user spent too much time on the IdP site and the
-     * initial SAML request has expired. In that case the IdP would send a SAML response which content includes an in-response-to value
-     * matching the initial request, however that initial request is now gone, so the client sends an empty in-response-to parameter causing
-     * a mismatch between the two.
+     * provided by the client. One example situation when this can happen is when user spent too much time on the IdP site, and meanwhile
+     * the cookie storing the initial request id has expired (the default timeout is 2 minutes; this is the time in which browsers by
+     * default allow sending cookies on requests originating from a different domain, which in this case means callback from IdP). In that
+     * case the IdP would send a SAML response which content includes an in-response-to value matching the initial request id, however that
+     * initial request id is now gone, so the client sends an empty in-response-to parameter causing a mismatch between the two.
      */
-    public static ElasticsearchSecurityException samlUnsolicitedInResponseToException(
+    static ElasticsearchSecurityException samlUnsolicitedInResponseToException(
         String samlContentInResponseTo,
         Collection<String> expectedInResponseTos
     ) {

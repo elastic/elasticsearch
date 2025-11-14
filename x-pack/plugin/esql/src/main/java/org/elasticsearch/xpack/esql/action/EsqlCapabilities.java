@@ -1558,6 +1558,16 @@ public class EsqlCapabilities {
         EXPONENTIAL_HISTOGRAM_TOPN(EXPONENTIAL_HISTOGRAM_FEATURE_FLAG),
 
         /**
+         * Support for exponential_histogram type in PERCENTILES aggregation.
+         */
+        EXPONENTIAL_HISTOGRAM_PERCENTILES_SUPPORT(EXPONENTIAL_HISTOGRAM_FEATURE_FLAG),
+
+        /**
+         * Support for exponential_histogram type in MIN/MAX aggregation.
+         */
+        EXPONENTIAL_HISTOGRAM_MINMAX_SUPPORT(EXPONENTIAL_HISTOGRAM_FEATURE_FLAG),
+
+        /**
          * Create new block when filtering OrdinalBytesRefBlock
          */
         FIX_FILTER_ORDINALS,
@@ -1646,11 +1656,6 @@ public class EsqlCapabilities {
         FIX_MV_CONSTANT_COMPARISON_FIELD,
 
         FULL_TEXT_FUNCTIONS_ACCEPT_NULL_FIELD,
-
-        /**
-         * Support for exponential_histogram type in PERCENTILES aggregation.
-         */
-        EXPONENTIAL_HISTOGRAM_PERCENTILES_SUPPORT(EXPONENTIAL_HISTOGRAM_FEATURE_FLAG),
 
         /**
          * Support for the temporary work to eventually allow FIRST to work with null and multi-value fields, among other things.

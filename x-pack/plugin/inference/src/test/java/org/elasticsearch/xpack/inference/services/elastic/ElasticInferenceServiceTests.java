@@ -1065,7 +1065,6 @@ public class ElasticInferenceServiceTests extends ESSingleNodeTestCase {
         }
     }
 
-
     public void testUnifiedCompletionError() {
         var e = assertThrows(UnifiedChatCompletionException.class, () -> testUnifiedStream(404, """
             {

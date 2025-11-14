@@ -26,9 +26,7 @@ import java.util.List;
 import java.util.Set;
 
 import static org.elasticsearch.xpack.inference.services.elastic.InternalPreconfiguredEndpoints.DEFAULT_CHAT_COMPLETION_ENDPOINT_ID_V1;
-import static org.elasticsearch.xpack.inference.services.elastic.InternalPreconfiguredEndpoints.GP_LLM_V2_ENDPOINT_ID;
 import static org.elasticsearch.xpack.inference.services.elastic.InternalPreconfiguredEndpoints.DEFAULT_CHAT_COMPLETION_MODEL_ID_V1;
-import static org.elasticsearch.xpack.inference.services.elastic.InternalPreconfiguredEndpoints.GP_LLM_V2_MODEL_ID;
 import static org.elasticsearch.xpack.inference.services.elastic.InternalPreconfiguredEndpoints.DEFAULT_ELSER_2_MODEL_ID;
 import static org.elasticsearch.xpack.inference.services.elastic.InternalPreconfiguredEndpoints.DEFAULT_ELSER_ENDPOINT_ID_V2;
 import static org.elasticsearch.xpack.inference.services.elastic.InternalPreconfiguredEndpoints.DEFAULT_MULTILINGUAL_EMBED_ENDPOINT_ID;
@@ -36,6 +34,8 @@ import static org.elasticsearch.xpack.inference.services.elastic.InternalPreconf
 import static org.elasticsearch.xpack.inference.services.elastic.InternalPreconfiguredEndpoints.DEFAULT_RERANK_ENDPOINT_ID_V1;
 import static org.elasticsearch.xpack.inference.services.elastic.InternalPreconfiguredEndpoints.DEFAULT_RERANK_MODEL_ID_V1;
 import static org.elasticsearch.xpack.inference.services.elastic.InternalPreconfiguredEndpoints.DENSE_TEXT_EMBEDDINGS_DIMENSIONS;
+import static org.elasticsearch.xpack.inference.services.elastic.InternalPreconfiguredEndpoints.GP_LLM_V2_ENDPOINT_ID;
+import static org.elasticsearch.xpack.inference.services.elastic.InternalPreconfiguredEndpoints.GP_LLM_V2_MODEL_ID;
 import static org.elasticsearch.xpack.inference.services.elastic.InternalPreconfiguredEndpoints.defaultDenseTextEmbeddingsSimilarity;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.hasSize;

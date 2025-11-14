@@ -221,6 +221,8 @@ public class UndesiredAllocationsTracker {
                         logger.warn("Shard {} desired node [{}] has left the cluster", shardRouting.shardId(), nodeId);
                     }
                 }
+            } else {
+                assert false : "Shard " + shardRouting + " was missing an assignment, this shouldn't be possible. " + desiredBalance;
             }
         } finally {
             allocation.setDebugMode(originalDebugMode);

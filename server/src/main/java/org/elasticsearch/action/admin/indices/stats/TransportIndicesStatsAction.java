@@ -22,6 +22,7 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardsIterator;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.util.CachedSupplier;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.engine.CommitStats;
 import org.elasticsearch.index.seqno.RetentionLeaseStats;
@@ -36,12 +37,13 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
+import java.util.function.Supplier;
 
 public class TransportIndicesStatsAction extends TransportBroadcastByNodeAction<
     IndicesStatsRequest,
     IndicesStatsResponse,
     ShardStats,
-    Void> {
+    Supplier<IndicesQueryCache.CacheTotals>> {
 
     private final IndicesService indicesService;
     private final ProjectResolver projectResolver;
@@ -114,11 +116,16 @@ public class TransportIndicesStatsAction extends TransportBroadcastByNodeAction<
     }
 
     @Override
+    protected Supplier<IndicesQueryCache.CacheTotals> createNodeContext() {
+        return CachedSupplier.wrap(() -> IndicesQueryCache.getCacheTotalsForAllShards(indicesService));
+    }
+
+    @Override
     protected void shardOperation(
         IndicesStatsRequest request,
         ShardRouting shardRouting,
         Task task,
-        Void nodeContext,
+        Supplier<IndicesQueryCache.CacheTotals> context,
         ActionListener<ShardStats> listener
     ) {
         ActionListener.completeWith(listener, () -> {
@@ -129,7 +136,10 @@ public class TransportIndicesStatsAction extends TransportBroadcastByNodeAction<
                 indicesService.getIndicesQueryCache(),
                 indexShard,
                 request.flags(),
-                () -> IndicesQueryCache.getSharedRamSizeForShard(indicesService, indexShard.shardId())
+                () -> {
+                    final IndicesQueryCache queryCache = indicesService.getIndicesQueryCache();
+                    return (queryCache == null) ? 0L : queryCache.getSharedRamSizeForShard(indexShard.shardId(), context.get());
+                }
             );
             CommitStats commitStats;
             SeqNoStats seqNoStats;

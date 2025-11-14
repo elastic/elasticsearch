@@ -38,6 +38,7 @@ import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteRequest;
 import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteResponse;
+import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteUtils;
 import org.elasticsearch.action.admin.cluster.reroute.TransportClusterRerouteAction;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResponse;
@@ -57,6 +58,7 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.WriteRequest;
+import org.elasticsearch.blobcache.shared.SharedBlobCacheService;
 import org.elasticsearch.client.internal.Requests;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterStateListener;
@@ -73,7 +75,9 @@ import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.routing.allocation.command.MoveAllocationCommand;
+import org.elasticsearch.cluster.routing.allocation.decider.MaxRetryAllocationDecider;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.common.compress.CompressedXContent;
@@ -114,6 +118,8 @@ import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.hamcrest.Matchers;
 
+import java.io.IOException;
+import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -576,6 +582,84 @@ public class StatelessHollowIndexShardsIT extends AbstractStatelessIntegTestCase
                 }
             }
         }
+    }
+
+    public void testRecoverHollowShardReadsSingleRegion() throws Exception {
+        // large cache and region to ensure that all commits we generate can be read in a single region BCC read
+        final var regionSize = ByteSizeValue.ofMb(10);
+        final var nodeSettings = Settings.builder()
+            .put(SharedBlobCacheService.SHARED_CACHE_REGION_SIZE_SETTING.getKey(), regionSize)
+            .put(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), "100m")
+            // max 2 commits per BCC, so that there are .si files in referenced blobs
+            .put(StatelessCommitService.STATELESS_UPLOAD_MAX_AMOUNT_COMMITS.getKey(), 2)
+            .build();
+        // more commits than 2, so that there are .si files in referenced blobs
+        var clusterInfo = startNodesAndHollowShards(nodeSettings, randomIntBetween(3, 8));
+
+        logger.info("--> stopping node A");
+        internalCluster().stopNode(clusterInfo.indexNodeA);
+        ensureGreen(clusterInfo.indexName);
+
+        // Infrastructure to count blob accesses
+        final var bccAccesses = new AtomicInteger(0);
+        setNodeRepositoryStrategy(clusterInfo.indexNodeB, new StatelessMockRepositoryStrategy() {
+            @Override
+            public InputStream blobContainerReadBlob(
+                CheckedSupplier<InputStream, IOException> originalSupplier,
+                OperationPurpose purpose,
+                String blobName,
+                long position,
+                long length
+            ) throws IOException {
+                if (StatelessCompoundCommit.startsWithBlobPrefix(blobName)) {
+                    logger.debug("--> reading BCC {} at position {} for length {}", blobName, position, length);
+                    bccAccesses.incrementAndGet();
+                }
+                return super.blobContainerReadBlob(originalSupplier, purpose, blobName, position, length);
+            }
+        });
+
+        // We evict the cache to ensure that recovery actually accesses the blob store, and we count the blob accesses.
+        clusterInfo.indexNodeBCacheService.forceEvict((key) -> true);
+
+        final Runnable failShardsAndEnsureGreen = () -> {
+            // We do not simply restart node B to recover the hollow shard, because the repository strategy above may be lost.
+            // We simply fail the shards in order to re-assign them and recover them on the same node B.
+            updateIndexSettings(
+                Settings.builder().put(MaxRetryAllocationDecider.SETTING_ALLOCATION_MAX_RETRY.getKey(), 0),
+                clusterInfo.indexName
+            );
+            for (int i = 0; i < clusterInfo.numberOfShards; i++) {
+                final var indexShard = findIndexShard(clusterInfo.index, i);
+                indexShard.failShard("reassign", new Exception("test wants to recover hollow shard"));
+            }
+            ensureRed(clusterInfo.indexName);
+            updateIndexSettings(
+                Settings.builder().put(MaxRetryAllocationDecider.SETTING_ALLOCATION_MAX_RETRY.getKey(), 1),
+                clusterInfo.indexName
+            );
+            ClusterRerouteUtils.rerouteRetryFailed(client());
+            ensureGreen(clusterInfo.indexName);
+        };
+
+        failShardsAndEnsureGreen.run();
+
+        // assert that blob accesses were just the number of shards
+        assertThat(bccAccesses.get(), equalTo(clusterInfo.numberOfShards));
+        bccAccesses.set(0);
+
+        // We evict the cache to ensure that unhollowing actually accesses the blob store, and we count the blob accesses.
+        clusterInfo.indexNodeBCacheService.forceEvict((key) -> true);
+
+        // Check that unhollowing works correctly
+        final int moreDocs = randomIntBetween(clusterInfo.numDocs * 2, clusterInfo.numDocs * 4);
+        indexDocsAndRefresh(clusterInfo.indexName, moreDocs);
+        startSearchNode();
+        setReplicaCount(1, clusterInfo.indexName);
+        ensureGreen(clusterInfo.indexName);
+        assertHitCount(client().prepareSearch(clusterInfo.indexName).setSize(0).setTrackTotalHits(true), clusterInfo.numDocs + moreDocs);
+        // We expect more blob accesses that just the shards, since unhollowing prewarms/reads referenced blobs as well
+        assertThat(bccAccesses.get(), greaterThan(clusterInfo.numberOfShards));
     }
 
     public void testSnapshotHollowShardsAndRestore() throws Exception {

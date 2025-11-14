@@ -109,6 +109,8 @@ public class IndexShardCacheWarmer {
                 prewarmingDirectory.setBlobContainer(
                     primaryTerm -> blobStore.blobContainer(shardBasePath.add(String.valueOf(primaryTerm)))
                 );
+                // During unhollowing, we want to read referenced blobs with replicated ranges as well
+                boolean readSingleBlobIfHollow = warmingType != SharedBlobCacheWarmingService.Type.UNHOLLOWING;
                 ObjectStoreService.readIndexingShardState(
                     prewarmingDirectory,
                     BlobCacheIndexInput.WARMING,
@@ -117,6 +119,7 @@ public class IndexShardCacheWarmer {
                     threadPool,
                     useReplicatedRanges,
                     bccHeaderReadExecutor,
+                    readSingleBlobIfHollow,
                     ActionListener.releaseAfter(ActionListener.wrap(state -> {
                         assert ThreadPool.assertCurrentThreadPool(ThreadPool.Names.GENERIC);
 
@@ -128,7 +131,9 @@ public class IndexShardCacheWarmer {
                             // makes progress before this task gets executed, for that reason we reuse the copied directory
                             // instance that will be used _only_ during pre-warming.
                             prewarmingDirectory.updateMetadata(state.blobFileRanges(), last.getAllFilesSizeInBytes());
-                            warmingService.warmCacheForShardRecovery(warmingType, indexShard, last, prewarmingDirectory);
+                            if (last.hollow() == false || readSingleBlobIfHollow == false) {
+                                warmingService.warmCacheForShardRecovery(warmingType, indexShard, last, prewarmingDirectory);
+                            }
                         }
                     }, e -> logException(indexShard.shardId(), e)), store::decRef)
                 );

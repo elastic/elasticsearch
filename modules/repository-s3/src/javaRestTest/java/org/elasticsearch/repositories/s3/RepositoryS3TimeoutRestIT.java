@@ -9,10 +9,9 @@
 
 package org.elasticsearch.repositories.s3;
 
-import com.carrotsearch.randomizedtesting.annotations.SuppressForbidden;
-
 import fixture.s3.S3HttpFixture;
 
+import com.carrotsearch.randomizedtesting.annotations.SuppressForbidden;
 import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
 import com.carrotsearch.randomizedtesting.annotations.ThreadLeakScope;
 import com.sun.net.httpserver.HttpHandler;

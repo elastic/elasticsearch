@@ -30,6 +30,12 @@
         }
       ]
     },
+    "params": {
+      "timeout": {
+        "default": "30m",
+        "type": "time"
+      }
+    },
     "body": {
       "description": "Query parameters can be specified in the body",
       "required": false

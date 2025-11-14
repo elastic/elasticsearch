@@ -38,7 +38,7 @@
         "description": "The number of top job bucket scores to be used in the overall_score calculation"
       },
       "bucket_span": {
-        "type": "string",
+        "type": "time",
         "description": "The span of the overall buckets. Defaults to the longest job bucket_span"
       },
       "overall_score": {

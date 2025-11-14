@@ -57,7 +57,7 @@ public abstract class AbstractXPackRestTest extends ESClientYamlSuiteTestCase {
 
     @Before
     public void setMlModelRepository() throws IOException {
-        assertOK(mlModelServer.setMlModelRepository(client()));
+        assertOK(mlModelServer.setMlModelRepository(adminClient()));
     }
 
     public AbstractXPackRestTest(ClientYamlTestCandidate testCandidate) {

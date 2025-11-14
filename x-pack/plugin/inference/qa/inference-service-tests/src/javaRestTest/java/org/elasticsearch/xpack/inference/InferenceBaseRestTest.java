@@ -60,7 +60,7 @@ public class InferenceBaseRestTest extends ESRestTestCase {
 
     @Before
     public void setMlModelRepository() throws IOException {
-        assertOK(mlModelServer.setMlModelRepository(client()));
+        assertOK(mlModelServer.setMlModelRepository(adminClient()));
     }
 
     @Override

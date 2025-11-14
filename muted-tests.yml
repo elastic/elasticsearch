@@ -465,6 +465,9 @@ tests:
 - class: org.elasticsearch.xpack.inference.integration.AuthorizationTaskExecutorMultipleNodesIT
   method: testCancellingAuthorizationTaskRestartsIt
   issue: https://github.com/elastic/elasticsearch/issues/138099
+- class: org.elasticsearch.index.store.DirectIOIT
+  method: testDirectIONotUsed {p0=bbq_disk}
+  issue: https://github.com/elastic/elasticsearch/issues/138102
 
 # Examples:
 #

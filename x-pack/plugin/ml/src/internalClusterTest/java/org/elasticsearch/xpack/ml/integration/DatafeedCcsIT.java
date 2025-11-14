@@ -21,6 +21,7 @@ import org.elasticsearch.ingest.common.IngestCommonPlugin;
 import org.elasticsearch.license.LicenseSettings;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.reindex.ReindexPlugin;
+import org.elasticsearch.search.SearchService;
 import org.elasticsearch.test.AbstractMultiClustersTestCase;
 import org.elasticsearch.test.disruption.NetworkDisruption;
 import org.elasticsearch.xpack.core.XPackSettings;
@@ -45,7 +46,9 @@ import org.elasticsearch.xpack.shutdown.ShutdownPlugin;
 import org.elasticsearch.xpack.wildcard.Wildcard;
 
 import java.util.Collection;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
@@ -139,44 +142,14 @@ public class DatafeedCcsIT extends AbstractMultiClustersTestCase {
         String datafeedId = jobId;
         long numDocs = randomIntBetween(32, 2048);
         indexRemoteDocs(numDocs);
+
+        ContextBaseline baseline = captureContextBaseline();
         setupJobAndDatafeed(jobId, datafeedId, null);
         try {
-            NetworkDisruption networkDisruption = new NetworkDisruption(
-                new NetworkDisruption.IsolateAllNodes(Set.of(cluster(REMOTE_CLUSTER).getNodeNames())),
-                NetworkDisruption.DISCONNECT
-            );
-            cluster(REMOTE_CLUSTER).setDisruptionScheme(networkDisruption);
-            networkDisruption.startDisrupting();
-            // Wait until the datafeed suffers from the disruption OR processes all the documents.
-            // (Sometimes this test won't actually test the desired functionality, as it's possible
-            // that the datafeed processes all data before the disruption starts.)
-            assertBusy(() -> {
-                if (doesLocalAuditMessageExist("Datafeed is encountering errors extracting data") == false) {
-                    JobStats jobStats = getJobStats(jobId);
-                    assertThat(jobStats.getDataCounts().getProcessedRecordCount(), is(numDocs));
-                }
-            });
-            networkDisruption.removeAndEnsureHealthy(cluster(REMOTE_CLUSTER));
-            // Datafeed should eventually read all the docs.
-            // Use a 3 minute timeout because multiple suites run in parallel in CI which slows things down a lot.
-            // (Usually the test completes within 1 minute and much faster than that if run locally with nothing major running in parallel.)
-            assertBusy(() -> {
-                JobStats jobStats = getJobStats(jobId);
-                assertThat(jobStats.getState(), is(JobState.OPENED));
-                assertThat(jobStats.getDataCounts().getProcessedRecordCount(), is(numDocs));
-            }, 3, TimeUnit.MINUTES);
+            disruptNetworkAndWaitForRecovery(jobId, numDocs);
         } finally {
-            client(LOCAL_CLUSTER).execute(StopDatafeedAction.INSTANCE, new StopDatafeedAction.Request(datafeedId)).actionGet();
-            client(LOCAL_CLUSTER).execute(CloseJobAction.INSTANCE, new CloseJobAction.Request(jobId)).actionGet();
-            // Wait a bit to allow scroll contexts to be cleaned up after stopping the datafeed.
-            // This is especially important after network disruption when scroll contexts on the remote
-            // cluster may have been created but couldn't be cleared until connectivity was restored.
-            // The wait gives time for the destroy() cleanup to complete.
-            try {
-                Thread.sleep(2000); // 2 seconds should be sufficient for cleanup to propagate
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
-            }
+            stopDatafeedAndJob(datafeedId, jobId);
+            waitForContextsToReturnToBaseline(baseline);
             clearSkipUnavailable();
         }
     }
@@ -263,5 +236,106 @@ public class DatafeedCcsIT extends AbstractMultiClustersTestCase {
             .prepareUpdateSettings(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT)
             .setPersistentSettings(Settings.builder().putNull("cluster.remote." + REMOTE_CLUSTER + ".skip_unavailable").build())
             .get();
+    }
+
+    /**
+     * Captures baseline context counts before starting the datafeed to avoid false positives
+     * from contexts created by other operations or previous tests.
+     */
+    private ContextBaseline captureContextBaseline() {
+        Map<String, Integer> scrollContexts = new HashMap<>();
+        Map<String, Integer> activeContexts = new HashMap<>();
+        for (String clusterAlias : List.of(LOCAL_CLUSTER, REMOTE_CLUSTER)) {
+            ContextCounts counts = getContextCounts(clusterAlias);
+            scrollContexts.put(clusterAlias, counts.scroll);
+            activeContexts.put(clusterAlias, counts.active);
+        }
+        return new ContextBaseline(scrollContexts, activeContexts);
+    }
+
+    /**
+     * Waits for scroll contexts to return to baseline after stopping the datafeed.
+     * This is especially important after network disruption when scroll contexts on the remote
+     * cluster may have been created but couldn't be cleared until connectivity was restored.
+     */
+    private void waitForContextsToReturnToBaseline(ContextBaseline baseline) {
+        assertBusy(() -> {
+            for (String clusterAlias : List.of(LOCAL_CLUSTER, REMOTE_CLUSTER)) {
+                ContextCounts current = getContextCounts(clusterAlias);
+                int expectedScroll = baseline.scrollContexts.get(clusterAlias);
+                int expectedActive = baseline.activeContexts.get(clusterAlias);
+
+                assertThat(
+                    "Scroll contexts not released on " + clusterAlias + ". Expected " + expectedScroll + " but got " + current.scroll,
+                    current.scroll,
+                    is(expectedScroll)
+                );
+                assertThat(
+                    "Active contexts not released on " + clusterAlias + ". Expected " + expectedActive + " but got " + current.active,
+                    current.active,
+                    is(expectedActive)
+                );
+            }
+        }, 5, TimeUnit.SECONDS);
+    }
+
+    private ContextCounts getContextCounts(String clusterAlias) {
+        int scroll = 0;
+        int active = 0;
+        for (SearchService searchService : cluster(clusterAlias).getInstances(SearchService.class)) {
+            scroll += searchService.getOpenScrollContexts();
+            active += searchService.getActiveContexts();
+        }
+        return new ContextCounts(scroll, active);
+    }
+
+    private record ContextCounts(int scroll, int active) {}
+
+    private void disruptNetworkAndWaitForRecovery(String jobId, long numDocs) throws Exception {
+        NetworkDisruption networkDisruption = new NetworkDisruption(
+            new NetworkDisruption.IsolateAllNodes(Set.of(cluster(REMOTE_CLUSTER).getNodeNames())),
+            NetworkDisruption.DISCONNECT
+        );
+        cluster(REMOTE_CLUSTER).setDisruptionScheme(networkDisruption);
+        networkDisruption.startDisrupting();
+
+        // Wait until the datafeed suffers from the disruption OR processes all the documents.
+        // (Sometimes this test won't actually test the desired functionality, as it's possible
+        // that the datafeed processes all data before the disruption starts.)
+        assertBusy(() -> {
+            if (doesLocalAuditMessageExist("Datafeed is encountering errors extracting data") == false) {
+                JobStats jobStats = getJobStats(jobId);
+                assertThat(jobStats.getDataCounts().getProcessedRecordCount(), is(numDocs));
+            }
+        });
+
+        networkDisruption.removeAndEnsureHealthy(cluster(REMOTE_CLUSTER));
+
+        // Datafeed should eventually read all the docs.
+        // Use a 3 minute timeout because multiple suites run in parallel in CI which slows things down a lot.
+        // (Usually the test completes within 1 minute and much faster than that if run locally with nothing major running in parallel.)
+        assertBusy(() -> {
+            JobStats jobStats = getJobStats(jobId);
+            assertThat(jobStats.getState(), is(JobState.OPENED));
+            assertThat(jobStats.getDataCounts().getProcessedRecordCount(), is(numDocs));
+        }, 3, TimeUnit.MINUTES);
+    }
+
+    private void stopDatafeedAndJob(String datafeedId, String jobId) {
+        client(LOCAL_CLUSTER).execute(StopDatafeedAction.INSTANCE, new StopDatafeedAction.Request(datafeedId)).actionGet();
+        client(LOCAL_CLUSTER).execute(CloseJobAction.INSTANCE, new CloseJobAction.Request(jobId)).actionGet();
+    }
+
+    /**
+     * Holds baseline context counts per cluster to compare against after test cleanup.
+     */
+    private static class ContextBaseline {
+        final Map<String, Integer> scrollContexts;
+        final Map<String, Integer> activeContexts;
+
+        ContextBaseline(Map<String, Integer> scrollContexts, Map<String, Integer> activeContexts) {
+            this.scrollContexts = scrollContexts;
+            this.activeContexts = activeContexts;
+        }
     }
 }

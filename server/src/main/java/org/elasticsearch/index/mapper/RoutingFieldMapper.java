@@ -62,7 +62,7 @@ public class RoutingFieldMapper extends MetadataFieldMapper {
     static final class RoutingFieldType extends StringFieldType {
 
         private RoutingFieldType() {
-            super(NAME, true, true, false, TextSearchInfo.SIMPLE_MATCH_ONLY, Collections.emptyMap());
+            super(NAME, IndexType.terms(true, false), true, TextSearchInfo.SIMPLE_MATCH_ONLY, Collections.emptyMap());
         }
 
         @Override

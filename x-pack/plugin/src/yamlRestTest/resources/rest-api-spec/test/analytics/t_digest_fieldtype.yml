@@ -19,7 +19,7 @@ setup:
           - '{"index": {"_id": 2}}'
           - '{"latency": {"centroids" : [0, 0.1, 0.2, 0.3, 0.4, 0.5], "counts" : [3, 2, 5, 10, 1, 8]}}'
           - '{"index": {"_id": 3}}'
-          - '{"latency": {"sum": 8.6, "count": 29, "min": 0, "max": 0.5, "centroids" : [0, 0.1, 0.2, 0.3, 0.4, 0.5], "counts" : [3, 2, 5, 10, 1, 8]}}'
+          - '{"latency": {"sum": 8.6, "min": 0, "max": 0.5, "centroids" : [0, 0.1, 0.2, 0.3, 0.4, 0.5], "counts" : [3, 2, 5, 10, 1, 8]}}'
 ---
 "TDigest requires values in increasing order":
   - do:
@@ -50,7 +50,6 @@ TDigest get:
           min: 0
           max: 0.5
           sum: 8.6
-          count: 29
           centroids: [ 0, 0.1, 0.2, 0.3, 0.4, 0.5 ]
           counts: [ 3, 2, 5, 10, 1, 8 ]
 
@@ -91,7 +90,6 @@ TDigest with synthetic source:
           min: 0.1
           max: 0.5
           sum: 16.4
-          count: 51
           centroids: [ 0.1, 0.2, 0.3, 0.4, 0.5 ]
           counts: [ 3, 7, 23, 12, 6 ]
 
@@ -106,7 +104,6 @@ TDigest with synthetic source:
           max: 0.5
           # $%#@! floating points...
           sum: 8.600000000000001
-          count: 29
           centroids: [ 0.0, 0.1, 0.2, 0.3, 0.4, 0.5 ]
           counts: [ 3, 2, 5, 10, 1, 8 ]
 ---
@@ -132,7 +129,7 @@ TDigest with synthetic source and explicit summary fields:
         refresh: true
         body:
           - '{"index": {"_id": 1}}'
-          - '{"latency": {"sum": 8.6, "count": 29, "min": 0, "max": 0.5, "centroids" : [0, 0.1, 0.2, 0.3, 0.4, 0.5], "counts" : [3, 2, 5, 10, 1, 8]}}'
+          - '{"latency": {"sum": 8.6, "min": 0, "max": 0.5, "centroids" : [0, 0.1, 0.2, 0.3, 0.4, 0.5], "counts" : [3, 2, 5, 10, 1, 8]}}'
 
   - do:
       get:
@@ -145,7 +142,6 @@ TDigest with synthetic source and explicit summary fields:
           min: 0.0
           max: 0.5
           sum: 8.6
-          count: 29
           centroids: [ 0.0, 0.1, 0.2, 0.3, 0.4, 0.5 ]
           counts: [ 3, 2, 5, 10, 1, 8 ]
 
@@ -185,7 +181,6 @@ TDigest with synthetic source and zero counts:
           min: 0.1
           max: 0.5
           sum: 3.8000000000000007
-          count: 13
           centroids: [ 0.2, 0.4 ]
           counts: [ 7, 6 ]
 
@@ -244,7 +239,6 @@ histogram with synthetic source and ignore_malformed:
           min: 2.0,
           max: 2.0,
           sum: 4.0,
-          count: 2,
           "centroids": [ 2.0 ],
           "counts": [ 2 ]
         },
@@ -285,7 +279,6 @@ TDigest with synthetic source and empty digest:
           min: NaN
           max: NaN
           sum: 0.0
-          count: 0
           centroids: [ ]
           counts: [ ]
 

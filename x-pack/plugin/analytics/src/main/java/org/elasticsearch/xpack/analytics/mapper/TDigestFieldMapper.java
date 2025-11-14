@@ -510,7 +510,6 @@ public class TDigestFieldMapper extends FieldMapper {
         private double min;
         private double max;
         private double sum;
-        private long count;
 
         @Override
         public DocValuesLoader docValuesLoader(LeafReader leafReader, int[] docIdsInLeaf) throws IOException {
@@ -518,7 +517,6 @@ public class TDigestFieldMapper extends FieldMapper {
             NumericDocValues minValues = leafReader.getNumericDocValues(valuesMinSubFieldName(fullPath()));
             NumericDocValues maxValues = leafReader.getNumericDocValues(valuesMaxSubFieldName(fullPath()));
             NumericDocValues sumValues = leafReader.getNumericDocValues(valuesSumSubFieldName(fullPath()));
-            NumericDocValues countValues = leafReader.getNumericDocValues(valuesCountSubFieldName(fullPath()));
             if (docValues == null) {
                 // No values in this leaf
                 binaryValue = null;
@@ -543,9 +541,6 @@ public class TDigestFieldMapper extends FieldMapper {
 
                     sumValues.advanceExact(docId);
                     sum = NumericUtils.sortableLongToDouble(sumValues.longValue());
-
-                    countValues.advanceExact(docId);
-                    count = countValues.longValue();
 
                     binaryValue = docValues.binaryValue();
                     return true;
@@ -572,7 +567,6 @@ public class TDigestFieldMapper extends FieldMapper {
             b.field("min", min);
             b.field("max", max);
             b.field("sum", sum);
-            b.field("count", count);
 
             b.startArray(CENTROIDS_NAME);
             while (value.next()) {

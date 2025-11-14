@@ -4,10 +4,10 @@ import org.elasticsearch.gradle.internal.info.BuildParams
 import org.elasticsearch.gradle.testclusters.StandaloneRestIntegTestTask
 import org.elasticsearch.gradle.util.GradleUtils
 
+apply plugin: 'elasticsearch.internal-test-artifact'
 apply plugin: 'elasticsearch.internal-yaml-rest-test'
 apply plugin: 'elasticsearch.yaml-rest-compat-test'
 apply plugin: 'elasticsearch.validate-rest-spec'
-apply plugin: 'elasticsearch.internal-test-artifact'
 
 base {
   archivesName = 'x-pack'

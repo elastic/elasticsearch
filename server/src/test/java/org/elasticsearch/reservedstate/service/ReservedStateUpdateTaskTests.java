@@ -9,6 +9,7 @@
 
 package org.elasticsearch.reservedstate.service;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
@@ -25,7 +26,7 @@ public class ReservedStateUpdateTaskTests extends ESTestCase {
     public void testBlockedClusterState() {
         var task = new ReservedStateUpdateTask(
             "dummy",
-            null,
+            new ReservedStateChunk(Map.of(), new ReservedStateVersion(1L, Version.CURRENT)),
             ReservedStateVersionCheck.HIGHER_VERSION_ONLY,
             Map.of(),
             List.of(),

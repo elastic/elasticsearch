@@ -9,6 +9,7 @@
 
 package org.elasticsearch.cluster.routing.allocation.allocator;
 
+import org.apache.logging.log4j.Level;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.replication.ClusterStateCreationUtils;
 import org.elasticsearch.cluster.ClusterInfo;
@@ -51,11 +52,14 @@ import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Strings;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.snapshots.SnapshotShardSizeInfo;
+import org.elasticsearch.test.MockLog;
 import org.elasticsearch.test.gateway.TestGatewayAllocator;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.hamcrest.Matchers;
 
 import java.util.ArrayList;
@@ -66,6 +70,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.DoubleSupplier;
 import java.util.function.Function;
@@ -1004,6 +1009,75 @@ public class BalancedShardsAllocatorTests extends ESAllocationTestCase {
 
         // Ensure allocate to the balancer eventually stop after sufficient iterations
         applyStartedShardsUntilNoChange(clusterState, allocationService);
+    }
+
+    @TestLogging(
+        value = "org.elasticsearch.cluster.routing.allocation.allocator.BalancedShardsAllocator.not-preferred:DEBUG",
+        reason = "debug logging for test"
+    )
+    public void testNotPreferredMovementIsLoggedAtDebugLevel() {
+        final var clusterState = ClusterStateCreationUtils.state(randomIdentifier(), 3, 3);
+        final var minimumLogInterval = TimeValue.timeValueMinutes(randomIntBetween(1, 10));
+        final var balancerSettings = new BalancerSettings(
+            Settings.builder().put(BalancedShardsAllocator.MOVE_NOT_PREFERRED_MINIMUM_LOGGING_INTERVAL.getKey(), minimumLogInterval).build()
+        );
+        final var relativeTimeMillis = new AtomicLong();
+        final var balancedShardsAllocator = new BalancedShardsAllocator(
+            balancerSettings,
+            TEST_WRITE_LOAD_FORECASTER,
+            new GlobalBalancingWeightsFactory(balancerSettings),
+            relativeTimeMillis::get
+        );
+
+        final var allocation = new RoutingAllocation(new AllocationDeciders(List.<AllocationDecider>of(new AllocationDecider() {
+            @Override
+            public Decision canRemain(
+                IndexMetadata indexMetadata,
+                ShardRouting shardRouting,
+                RoutingNode node,
+                RoutingAllocation allocation
+            ) {
+                return new Decision.Single(Decision.Type.NOT_PREFERRED, "test_decider", "Always NOT_PREFERRED");
+            }
+        })), clusterState.getRoutingNodes().mutableCopy(), clusterState, ClusterInfo.EMPTY, SnapshotShardSizeInfo.EMPTY, 0L);
+
+        final var notPreferredLoggerName = BalancedShardsAllocator.class.getName() + ".not-preferred";
+        MockLog.assertThatLogger(
+            () -> balancedShardsAllocator.allocate(allocation),
+            notPreferredLoggerName,
+            new MockLog.SeenEventExpectation(
+                "moved a NOT_PREFERRED allocation",
+                notPreferredLoggerName,
+                Level.DEBUG,
+                "Moving shard [*] from a NOT_PREFERRED allocation, explanation is [Always NOT_PREFERRED]"
+            )
+        );
+
+        // We shouldn't log again before the log interval
+        relativeTimeMillis.addAndGet(randomLongBetween(1, minimumLogInterval.millis() - 1));
+        MockLog.assertThatLogger(
+            () -> balancedShardsAllocator.allocate(allocation),
+            notPreferredLoggerName,
+            new MockLog.UnseenEventExpectation(
+                "moved a NOT_PREFERRED allocation",
+                notPreferredLoggerName,
+                Level.DEBUG,
+                "Moving shard [*] from a NOT_PREFERRED allocation, explanation is [Always NOT_PREFERRED]"
+            )
+        );
+
+        // We should log again once the interval has passed
+        relativeTimeMillis.addAndGet(minimumLogInterval.millis());
+        MockLog.assertThatLogger(
+            () -> balancedShardsAllocator.allocate(allocation),
+            notPreferredLoggerName,
+            new MockLog.SeenEventExpectation(
+                "moved a NOT_PREFERRED allocation",
+                notPreferredLoggerName,
+                Level.DEBUG,
+                "Moving shard [*] from a NOT_PREFERRED allocation, explanation is [Always NOT_PREFERRED]"
+            )
+        );
     }
 
     /**

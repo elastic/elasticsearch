@@ -153,6 +153,8 @@ public class BalancedShardsAllocator implements ShardsAllocator {
         this.writeLoadForecaster = writeLoadForecaster;
         this.balancingWeightsFactory = balancingWeightsFactory;
         this.logMoveNotPreferred = new FrequencyCappedAction(relativeTimeInMillisProvider, TimeValue.ZERO);
+        balancerSettings.getClusterSettings()
+            .initializeAndWatch(MOVE_NOT_PREFERRED_MINIMUM_LOGGING_INTERVAL, logMoveNotPreferred::setMinInterval);
     }
 
     @Override
@@ -184,7 +186,8 @@ public class BalancedShardsAllocator implements ShardsAllocator {
             allocation,
             balancerSettings.getThreshold(),
             balancingWeights,
-            balancerSettings.completeEarlyOnShardAssignmentChange()
+            balancerSettings.completeEarlyOnShardAssignmentChange(),
+            logMoveNotPreferred
         );
 
         boolean shardAssigned = false, shardMoved = false, shardBalanced = false;
@@ -263,7 +266,8 @@ public class BalancedShardsAllocator implements ShardsAllocator {
             allocation,
             balancerSettings.getThreshold(),
             balancingWeightsFactory.create(),
-            balancerSettings.completeEarlyOnShardAssignmentChange()
+            balancerSettings.completeEarlyOnShardAssignmentChange(),
+            logMoveNotPreferred
         );
         AllocateUnassignedDecision allocateUnassignedDecision = AllocateUnassignedDecision.NOT_TAKEN;
         MoveDecision moveDecision = MoveDecision.NOT_TAKEN;
@@ -324,13 +328,15 @@ public class BalancedShardsAllocator implements ShardsAllocator {
         private final BalancingWeights balancingWeights;
         private final NodeSorters nodeSorters;
         private final boolean completeEarlyOnShardAssignmentChange;
+        private final FrequencyCappedAction logMoveNotPreferred;
 
         private Balancer(
             WriteLoadForecaster writeLoadForecaster,
             RoutingAllocation allocation,
             float threshold,
             BalancingWeights balancingWeights,
-            boolean completeEarlyOnShardAssignmentChange
+            boolean completeEarlyOnShardAssignmentChange,
+            FrequencyCappedAction logMoveNotPreferred
         ) {
             this.writeLoadForecaster = writeLoadForecaster;
             this.allocation = allocation;
@@ -346,6 +352,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
             this.nodeSorters = balancingWeights.createNodeSorters(nodesArray(), this);
             this.balancingWeights = balancingWeights;
             this.completeEarlyOnShardAssignmentChange = completeEarlyOnShardAssignmentChange;
+            this.logMoveNotPreferred = logMoveNotPreferred;
         }
 
         private static long getShardDiskUsageInBytes(ShardRouting shardRouting, IndexMetadata indexMetadata, ClusterInfo clusterInfo) {
@@ -881,10 +888,12 @@ public class BalancedShardsAllocator implements ShardsAllocator {
                 final var moveDecision = shardMoved ? decideMove(index, shardRouting) : storedShardMovement.moveDecision();
                 if (moveDecision.isDecisionTaken() && moveDecision.cannotRemainAndCanMove()) {
                     if (notPreferredLogger.isDebugEnabled()) {
-                        notPreferredLogger.debug(
-                            "Moving shard [{}] from a NOT_PREFERRED allocation, explanation is [{}]",
-                            shardRouting,
-                            moveDecision.getCanRemainDecision().getExplanation()
+                        logMoveNotPreferred.maybeExecute(
+                            () -> notPreferredLogger.debug(
+                                "Moving shard [{}] from a NOT_PREFERRED allocation, explanation is [{}]",
+                                shardRouting,
+                                moveDecision.getCanRemainDecision().getExplanation()
+                            )
                         );
                     }
                     executeMove(shardRouting, index, moveDecision, "move-non-preferred");

@@ -126,7 +126,7 @@ public class Rate extends TimeSeriesAggregateFunction implements OptionalArgumen
 
     @Override
     public String toString() {
-        return "rate(" + field() + ")";
+        return "rate(" + field() + ", " + timestamp() + ")";
     }
 
     @Override

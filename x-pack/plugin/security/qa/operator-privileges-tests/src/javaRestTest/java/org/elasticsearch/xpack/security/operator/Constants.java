@@ -331,6 +331,7 @@ public class Constants {
         "cluster:admin/xpack/watcher/watch/put",
         "cluster:internal/remote_cluster/nodes",
         "cluster:internal/xpack/inference",
+        "cluster:internal/xpack/inference/clear_inference_ccm_cache",
         "cluster:internal/xpack/inference/clear_inference_endpoint_cache",
         "cluster:internal/xpack/inference/create_endpoints",
         "cluster:internal/xpack/inference/rerankwindowsize/get",

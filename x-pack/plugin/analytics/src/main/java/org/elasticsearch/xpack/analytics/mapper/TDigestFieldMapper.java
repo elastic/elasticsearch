@@ -449,10 +449,6 @@ public class TDigestFieldMapper extends FieldMapper {
     private static class InternalTDigestValue extends HistogramValue {
         double value;
         long count;
-        double min;
-        double max;
-        double sum;
-        long totalCount;
         boolean isExhausted;
 
         final ByteArrayStreamInput streamInput;

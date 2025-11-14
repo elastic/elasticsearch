@@ -12,6 +12,7 @@ package org.elasticsearch.index.mapper;
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.DocValuesSkipIndexType;
 import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexWriterConfig;
@@ -20,6 +21,7 @@ import org.apache.lucene.index.IndexableFieldType;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.NoMergePolicy;
+import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.FieldExistsQuery;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Pruning;
@@ -76,6 +78,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.hamcrest.Matcher;
+import org.junit.Assert;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -387,6 +390,32 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
         @SuppressWarnings("unchecked") // Syntactic sugar in tests
         T fieldType = (T) mapperService.fieldType("field");
         assertThat(checker.apply(fieldType), equalTo(isDimension));
+
+        Settings settings = Settings.builder().put(IndexSettings.USE_DOC_VALUES_SKIPPER.getKey(), true).build();
+        mapperService = createMapperService(settings, fieldMapping(b -> {
+            minimalMapping(b);
+            b.field("time_series_dimension", isDimension);
+        }));
+
+        assertThat(
+            mapperService.fieldType("field").indexType().hasDocValuesSkipper(),
+            equalTo(mapperService.getIndexSettings().useDocValuesSkipper() && isDimension)
+        );
+    }
+
+    public void assertDimensionIndexing() throws IOException {
+        Settings settings = Settings.builder().put(IndexSettings.USE_DOC_VALUES_SKIPPER.getKey(), true).build();
+        MapperService mapperService = createMapperService(settings, fieldMapping(b -> {
+            minimalMapping(b);
+            b.field("time_series_dimension", true);
+        }));
+        assumeTrue("Skippers disabled by feature flag", mapperService.getIndexSettings().useDocValuesSkipper());
+
+        ParsedDocument doc = mapperService.documentMapper().parse(source(this::writeField));
+        IndexableField field = doc.rootDoc().getField("field");
+        assertSame(DocValuesSkipIndexType.RANGE, field.fieldType().docValuesSkipIndexType());
+        assertSame(IndexOptions.NONE, field.fieldType().indexOptions());
+        assertEquals(0, field.fieldType().pointDimensionCount());
     }
 
     protected <T> void assertMetricType(String metricType, Function<T, Enum<TimeSeriesParams.MetricType>> checker) throws IOException {
@@ -1536,12 +1565,12 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
 
     public void testSingletonLongBulkBlockReading() throws IOException {
         assumeTrue("field type supports bulk singleton long reading", supportsBulkLongBlockReading());
-        testSingletonBulkBlockReading(columnAtATimeReader -> (LongsBlockLoader.SingletonLongs) columnAtATimeReader);
+        testSingletonBulkBlockReading(columnAtATimeReader -> (LongsBlockLoader.Singleton) columnAtATimeReader);
     }
 
     public void testSingletonDoubleBulkBlockReading() throws IOException {
         assumeTrue("field type supports bulk singleton double reading", supportsBulkDoubleBlockReading());
-        testSingletonBulkBlockReading(columnAtATimeReader -> (DoublesBlockLoader.SingletonDoubles) columnAtATimeReader);
+        testSingletonBulkBlockReading(columnAtATimeReader -> (DoublesBlockLoader.Singleton) columnAtATimeReader);
     }
 
     private void testSingletonBulkBlockReading(Function<BlockLoader.ColumnAtATimeReader, BlockDocValuesReader> readerCast)
@@ -1645,8 +1674,8 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
                 assertThat(
                     columnReader,
                     anyOf(
-                        instanceOf(LongsBlockLoader.Longs.class),
-                        instanceOf(DoublesBlockLoader.Doubles.class),
+                        instanceOf(LongsBlockLoader.Sorted.class),
+                        instanceOf(DoublesBlockLoader.Sorted.class),
                         instanceOf(AbstractIntsFromDocValuesBlockLoader.Singleton.class)
                     )
                 );
@@ -1709,6 +1738,14 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
      */
     protected abstract List<SortShortcutSupport> getSortShortcutSupport();
 
+    private static Consumer<DocIdSetIterator> checkNotNull(boolean supportsShortcut) {
+        if (supportsShortcut) {
+            return Assert::assertNotNull;
+        } else {
+            return Assert::assertNull;
+        }
+    }
+
     public record SortShortcutSupport(
         IndexVersion indexVersion,
         Settings settings,
@@ -1716,14 +1753,14 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
         CheckedConsumer<XContentBuilder, IOException> fieldMapping,
         CheckedConsumer<XContentBuilder, IOException> additionalMappings,
         CheckedConsumer<XContentBuilder, IOException> document,
-        boolean supportsShortcut
+        Consumer<DocIdSetIterator> competitiveIteratorCheck
     ) {
         public SortShortcutSupport(
             CheckedConsumer<XContentBuilder, IOException> mappings,
             CheckedConsumer<XContentBuilder, IOException> document,
             boolean supportsShortcut
         ) {
-            this(IndexVersion.current(), SETTINGS, "field", mappings, b -> {}, document, supportsShortcut);
+            this(IndexVersion.current(), SETTINGS, "field", mappings, b -> {}, document, checkNotNull(supportsShortcut));
         }
 
         public SortShortcutSupport(
@@ -1732,7 +1769,7 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
             CheckedConsumer<XContentBuilder, IOException> document,
             boolean supportsShortcut
         ) {
-            this(indexVersion, SETTINGS, "field", mappings, b -> {}, document, supportsShortcut);
+            this(indexVersion, SETTINGS, "field", mappings, b -> {}, document, checkNotNull(supportsShortcut));
         }
     }
 
@@ -1750,7 +1787,7 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
                         Set::of,
                         MappedFieldType.FielddataOperation.SEARCH
                     )
-                ).build(null, null).sortField(IndexVersion.current(), null, MultiValueMode.MIN, null, false);
+                ).build(null, null).sortField(false, IndexVersion.current(), null, MultiValueMode.MIN, null, false);
             });
         } else {
             for (SortShortcutSupport sortShortcutSupport : tests) {
@@ -1778,14 +1815,12 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
                         throw new UnsupportedOperationException();
                     }, Set::of, MappedFieldType.FielddataOperation.SEARCH))
                         .build(null, null)
-                        .sortField(getVersion(), null, MultiValueMode.MIN, null, false);
-                    var comparator = sortField.getComparator(10, Pruning.GREATER_THAN_OR_EQUAL_TO);
+                        .sortField(false, getVersion(), null, MultiValueMode.MIN, null, false);
+                    var comparator = sortField.getComparator(1, Pruning.GREATER_THAN_OR_EQUAL_TO);
                     var leafComparator = comparator.getLeafComparator(searcher.getLeafContexts().getFirst());
-                    if (sortShortcutSupport.supportsShortcut) {
-                        assertNotNull(leafComparator.competitiveIterator());
-                    } else {
-                        assertNull(leafComparator.competitiveIterator());
-                    }
+                    leafComparator.setHitsThresholdReached();
+                    leafComparator.setBottom(0);
+                    sortShortcutSupport.competitiveIteratorCheck.accept(leafComparator.competitiveIterator());
                 });
             }
         }

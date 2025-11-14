@@ -34,16 +34,18 @@ public class WriteLoadConstraintDecider extends AllocationDecider {
 
     public static final String NAME = "write_load";
 
-    private final FrequencyCappedAction logInterventionMessage;
+    private final FrequencyCappedAction logCanRemainMessage;
+    private final FrequencyCappedAction logCanAllocateMessage;
     private final WriteLoadConstraintSettings writeLoadConstraintSettings;
 
     public WriteLoadConstraintDecider(ClusterSettings clusterSettings) {
         this.writeLoadConstraintSettings = new WriteLoadConstraintSettings(clusterSettings);
-        logInterventionMessage = new FrequencyCappedAction(System::currentTimeMillis, TimeValue.ZERO);
-        clusterSettings.initializeAndWatch(
-            WriteLoadConstraintSettings.WRITE_LOAD_DECIDER_MINIMUM_LOGGING_INTERVAL,
-            logInterventionMessage::setMinInterval
-        );
+        logCanRemainMessage = new FrequencyCappedAction(System::currentTimeMillis, TimeValue.ZERO);
+        logCanAllocateMessage = new FrequencyCappedAction(System::currentTimeMillis, TimeValue.ZERO);
+        clusterSettings.initializeAndWatch(WriteLoadConstraintSettings.WRITE_LOAD_DECIDER_MINIMUM_LOGGING_INTERVAL, timeValue -> {
+            logCanRemainMessage.setMinInterval(timeValue);
+            logCanAllocateMessage.setMinInterval(timeValue);
+        });
     }
 
     @Override
@@ -88,7 +90,7 @@ public class WriteLoadConstraintDecider extends AllocationDecider {
                     shardRouting.shardId()
                 );
                 if (logger.isDebugEnabled()) {
-                    logInterventionMessage.maybeExecute(() -> logger.debug(explain));
+                    logCanAllocateMessage.maybeExecute(() -> logger.debug(explain));
                 }
                 return allocation.decision(Decision.NOT_PREFERRED, NAME, explain);
             } else {
@@ -114,7 +116,7 @@ public class WriteLoadConstraintDecider extends AllocationDecider {
                     nodeWriteThreadPoolStats.totalThreadPoolThreads()
                 );
                 if (logger.isDebugEnabled()) {
-                    logInterventionMessage.maybeExecute(() -> logger.debug(explain));
+                    logCanAllocateMessage.maybeExecute(() -> logger.debug(explain));
                 }
                 return allocation.decision(Decision.NOT_PREFERRED, NAME, explain);
             } else {
@@ -165,7 +167,7 @@ public class WriteLoadConstraintDecider extends AllocationDecider {
                     shardWriteLoad == null ? "unknown" : shardWriteLoad
                 );
                 if (logger.isDebugEnabled()) {
-                    logInterventionMessage.maybeExecute(() -> logger.debug(explain));
+                    logCanRemainMessage.maybeExecute(() -> logger.debug(explain));
                 }
                 return allocation.decision(Decision.NOT_PREFERRED, NAME, explain);
             } else {

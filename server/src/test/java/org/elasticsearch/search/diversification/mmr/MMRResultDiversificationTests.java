@@ -36,6 +36,11 @@ public class MMRResultDiversificationTests extends ESTestCase {
                 new RankDoc(5, 0.8f, 1),
                 new RankDoc(6, 0.8f, 1) };
 
+            int rankIndex = 1;
+            for (RankDoc doc : docs) {
+                doc.rank = rankIndex++;
+            }
+
             MMRResultDiversification resultDiversification = new MMRResultDiversification(diversificationContext);
             RankDoc[] diversifiedTopDocs = resultDiversification.diversify(docs);
             assertNotSame(docs, diversifiedTopDocs);

@@ -301,7 +301,7 @@ public final class DiversifyRetrieverBuilder extends CompoundRetrieverBuilder<Di
             if (field != null) {
                 var fieldValue = field.getValue();
                 if (fieldValue != null) {
-                    extractFieldVectorData(asRankDoc.doc, fieldValue, fieldVectors);
+                    extractFieldVectorData(asRankDoc.rank, fieldValue, fieldVectors);
                 }
             }
         }

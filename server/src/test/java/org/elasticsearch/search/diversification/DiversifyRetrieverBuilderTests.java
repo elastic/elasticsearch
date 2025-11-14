@@ -184,9 +184,9 @@ public class DiversifyRetrieverBuilderTests extends ESTestCase {
         var result = retriever.combineInnerRetrieverResults(docs, false);
 
         assertEquals(3, result.length);
-        assertEquals(1, result[0].doc);
-        assertEquals(3, result[1].doc);
-        assertEquals(6, result[2].doc);
+        assertEquals(1, result[0].rank);
+        assertEquals(3, result[1].rank);
+        assertEquals(6, result[2].rank);
 
         var retrieverWithoutRewrite = new DiversifyRetrieverBuilder(
             getInnerRetriever(),
@@ -278,44 +278,50 @@ public class DiversifyRetrieverBuilderTests extends ESTestCase {
 
     private ScoreDoc[] getTestSearchHits() {
         return new DiversifyRetrieverBuilder.RankDocWithSearchHit[] {
-            getTestSearchHit(1, 2.0f, new float[] { 0.4f, 0.2f, 0.4f, 0.4f }),
-            getTestSearchHit(2, 1.8f, new float[] { 0.4f, 0.2f, 0.3f, 0.3f }),
-            getTestSearchHit(3, 1.8f, new float[] { 0.4f, 0.1f, 0.3f, 0.3f }),
-            getTestSearchHit(4, 1.0f, new float[] { 0.1f, 0.9f, 0.5f, 0.9f }),
-            getTestSearchHit(5, 0.8f, new float[] { 0.1f, 0.9f, 0.5f, 0.9f }),
-            getTestSearchHit(6, 0.8f, new float[] { 0.05f, 0.05f, 0.05f, 0.05f }) };
+            getTestSearchHit(1, 1, 2.0f, new float[] { 0.4f, 0.2f, 0.4f, 0.4f }),
+            getTestSearchHit(2, 2, 1.8f, new float[] { 0.4f, 0.2f, 0.3f, 0.3f }),
+            getTestSearchHit(3, 0, 1.8f, new float[] { 0.4f, 0.1f, 0.3f, 0.3f }),
+            getTestSearchHit(4, 0, 1.0f, new float[] { 0.1f, 0.9f, 0.5f, 0.9f }),
+            getTestSearchHit(5, 1, 0.8f, new float[] { 0.1f, 0.9f, 0.5f, 0.9f }),
+            getTestSearchHit(6, 1, 0.8f, new float[] { 0.05f, 0.05f, 0.05f, 0.05f }) };
     }
 
     private ScoreDoc[] getTestNonVectorSearchHits() {
         return new DiversifyRetrieverBuilder.RankDocWithSearchHit[] {
-            getTestNonVectorSearchHit(1, 2.0f),
-            getTestNonVectorSearchHit(2, 1.8f),
-            getTestNonVectorSearchHit(3, 1.8f) };
+            getTestNonVectorSearchHit(1, 1, 2.0f),
+            getTestNonVectorSearchHit(2, 2, 1.8f),
+            getTestNonVectorSearchHit(3, 1, 1.8f) };
     }
 
     private ScoreDoc[] getTestSearchHitsWithNoValues() {
         return new DiversifyRetrieverBuilder.RankDocWithSearchHit[] {
-            getTestSearchHitWithNoValue(1, 2.0f),
-            getTestSearchHitWithNoValue(2, 1.8f),
-            getTestSearchHitWithNoValue(3, 1.8f) };
+            getTestSearchHitWithNoValue(1, 1, 2.0f),
+            getTestSearchHitWithNoValue(2, 1, 1.8f),
+            getTestSearchHitWithNoValue(3, 1, 1.8f) };
     }
 
-    private DiversifyRetrieverBuilder.RankDocWithSearchHit getTestSearchHit(int docId, float score, float[] value) {
+    private DiversifyRetrieverBuilder.RankDocWithSearchHit getTestSearchHit(int rank, int docId, float score, float[] value) {
         SearchHit hit = new SearchHit(docId);
         hit.setDocumentField(new DocumentField("dense_vector_field", List.of(value)));
-        return new DiversifyRetrieverBuilder.RankDocWithSearchHit(docId, score, 1, hit);
+        DiversifyRetrieverBuilder.RankDocWithSearchHit doc = new DiversifyRetrieverBuilder.RankDocWithSearchHit(docId, score, 1, hit);
+        doc.rank = rank;
+        return doc;
     }
 
-    private DiversifyRetrieverBuilder.RankDocWithSearchHit getTestNonVectorSearchHit(int docId, float score) {
+    private DiversifyRetrieverBuilder.RankDocWithSearchHit getTestNonVectorSearchHit(int rank, int docId, float score) {
         SearchHit hit = new SearchHit(docId);
         Object value = randomBoolean() ? randomAlphanumericOfLength(16) : generateRandomStringArray(8, 16, false);
         hit.setDocumentField(new DocumentField("dense_vector_field", List.of(value)));
-        return new DiversifyRetrieverBuilder.RankDocWithSearchHit(docId, score, 1, hit);
+        DiversifyRetrieverBuilder.RankDocWithSearchHit doc = new DiversifyRetrieverBuilder.RankDocWithSearchHit(docId, score, 1, hit);
+        doc.rank = rank;
+        return doc;
     }
 
-    private DiversifyRetrieverBuilder.RankDocWithSearchHit getTestSearchHitWithNoValue(int docId, float score) {
+    private DiversifyRetrieverBuilder.RankDocWithSearchHit getTestSearchHitWithNoValue(int rank, int docId, float score) {
         SearchHit hit = new SearchHit(docId);
-        return new DiversifyRetrieverBuilder.RankDocWithSearchHit(docId, score, 1, hit);
+        DiversifyRetrieverBuilder.RankDocWithSearchHit doc = new DiversifyRetrieverBuilder.RankDocWithSearchHit(docId, score, 1, hit);
+        doc.rank = rank;
+        return doc;
     }
 
     protected void assertCompoundRetriever(DiversifyRetrieverBuilder originalRetriever, RetrieverBuilder rewrittenRetriever) {

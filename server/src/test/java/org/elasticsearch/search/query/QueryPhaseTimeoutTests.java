@@ -93,6 +93,8 @@ import java.io.IOException;
 import java.util.Collections;
 import java.util.Map;
 
+import static org.elasticsearch.test.InternalAggregationTestCase.DEFAULT_MAX_BUCKETS;
+
 public class QueryPhaseTimeoutTests extends IndexShardTestCase {
 
     private static Directory dir;
@@ -765,7 +767,7 @@ public class QueryPhaseTimeoutTests extends IndexShardTestCase {
         try (AggregationTestHelper aggHelper = new AggregationTestHelper()) {
             aggHelper.initPlugins();
             SearchExecutionContext sec = createSearchExecutionContext();
-            AggregationContext aggCtx = aggHelper.createAggregationContext(sec.getIndexReader(), new MatchAllDocsQuery());
+            AggregationContext aggCtx = aggHelper.createDefaultAggregationContext(sec.getIndexReader(), new MatchAllDocsQuery());
             factories = source.aggregations().build(aggCtx, null);
         } catch (Exception e) {
             throw new IOException(e);
@@ -831,6 +833,19 @@ public class QueryPhaseTimeoutTests extends IndexShardTestCase {
         @Override
         public void close() {
             super.cleanupReleasables();
+        }
+
+        AggregationContext createDefaultAggregationContext(IndexReader reader, Query query) throws IOException {
+            return createAggregationContext(
+                reader,
+                createIndexSettings(),
+                query,
+                new NoneCircuitBreakerService(),
+                AggregationBuilder.DEFAULT_PREALLOCATION * 5,
+                DEFAULT_MAX_BUCKETS,
+                false,
+                false
+            );
         }
     }
 

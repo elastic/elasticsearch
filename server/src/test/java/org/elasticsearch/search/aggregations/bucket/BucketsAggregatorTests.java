@@ -37,7 +37,7 @@ public class BucketsAggregatorTests extends AggregatorTestCase {
     private List<AggregationContext> toRelease = new ArrayList<>();
 
     @Override
-    public AggregationContext createAggregationContext(IndexReader indexSearcher, Query query, MappedFieldType... fieldTypes)
+    protected AggregationContext createAggregationContext(IndexReader indexSearcher, Query query, MappedFieldType... fieldTypes)
         throws IOException {
         AggregationContext context = super.createAggregationContext(indexSearcher, query, fieldTypes);
         // Generally, we should avoid doing this, but this test doesn't do anything with reduction, so it should be safe here

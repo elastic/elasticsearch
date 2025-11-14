@@ -145,7 +145,7 @@ public class PromqlLogicalPlanBuilder extends PromqlExpressionBuilder {
 
         if (id != null) {
             labels.add(new LabelMatcher(NAME, id, LabelMatcher.Matcher.EQ));
-            // TODO: this can be missing and thus
+            // TODO: metric/ts name can be missing (e.g. {label=~"value"})
             series = new UnresolvedAttribute(source(seriesMatcher.identifier()), id);
         }
 

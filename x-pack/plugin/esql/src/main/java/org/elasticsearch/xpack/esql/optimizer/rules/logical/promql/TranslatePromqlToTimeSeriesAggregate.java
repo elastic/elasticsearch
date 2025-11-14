@@ -17,6 +17,7 @@ import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.function.Function;
 import org.elasticsearch.xpack.esql.core.expression.predicate.regex.RLikePattern;
 import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.expression.Order;
 import org.elasticsearch.xpack.esql.expression.function.grouping.Bucket;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.EndsWith;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.StartsWith;
@@ -35,6 +36,7 @@ import org.elasticsearch.xpack.esql.optimizer.rules.logical.TranslateTimeSeriesA
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
 import org.elasticsearch.xpack.esql.plan.logical.promql.AcrossSeriesAggregate;
 import org.elasticsearch.xpack.esql.plan.logical.promql.PlaceholderRelation;
@@ -51,6 +53,8 @@ import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+
+import static java.util.Arrays.asList;
 
 /**
  * Translates PromQL logical plans into ESQL TimeSeriesAggregate nodes.
@@ -213,13 +217,20 @@ public final class TranslatePromqlToTimeSeriesAggregate extends OptimizerRules.O
                 timeBucketSize = Literal.timeDuration(promqlCommand.source(), DEFAULT_LOOKBACK);
             }
             Bucket b = new Bucket(promqlCommand.source(), promqlCommand.timestamp(), timeBucketSize, null, null);
-            Alias tbucket = new Alias(b.source(), "TBUCKET", b);
+            String bucketName = "TBUCKET";
+            Alias tbucket = new Alias(b.source(), bucketName, b);
             aggs.add(tbucket.toAttribute());
             groupings.add(tbucket.toAttribute());
 
             LogicalPlan p = childResult.plan;
             p = new Eval(tbucket.source(), p, List.of(tbucket));
             p = new TimeSeriesAggregate(acrossAggregate.source(), p, groupings, aggs, null);
+            // sort the data ascending by time bucket
+            p = new OrderBy(
+                acrossAggregate.source(),
+                p,
+                asList(new Order(acrossAggregate.source(), tbucket.toAttribute(), Order.OrderDirection.ASC, Order.NullsPosition.FIRST))
+            );
             result = new MapResult(p, extras);
         } else {
             throw new QlIllegalArgumentException("Unsupported PromQL function call: {}", functionCall);

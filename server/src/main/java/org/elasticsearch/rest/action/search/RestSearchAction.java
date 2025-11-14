@@ -16,6 +16,7 @@ import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.Nullable;
@@ -287,6 +288,9 @@ public class RestSearchAction extends BaseRestHandler {
                  * effect, we can safely drop it.
                  */
                 if (request.hasParam("ccs_minimize_roundtrips")) {
+                    String warning = "ccs_minimize_roundtrips always defaults to true in Cross Project Search context."
+                        + " Setting it explicitly has no effect irrespective of the value specified and is ignored.";
+                    HeaderWarning.addWarning(warning);
                     request.param("ccs_minimize_roundtrips");
                 }
             } else {

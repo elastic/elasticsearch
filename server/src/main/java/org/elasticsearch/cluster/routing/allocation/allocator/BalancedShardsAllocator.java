@@ -890,8 +890,9 @@ public class BalancedShardsAllocator implements ShardsAllocator {
                     if (notPreferredLogger.isDebugEnabled()) {
                         logMoveNotPreferred.maybeExecute(
                             () -> notPreferredLogger.debug(
-                                "Moving shard [{}] from a NOT_PREFERRED allocation, explanation is [{}]",
+                                "Moving shard [{}] to [{}] from a NOT_PREFERRED allocation, explanation is [{}]",
                                 shardRouting,
+                                moveDecision.getTargetNode().getName(),
                                 moveDecision.getCanRemainDecision().getExplanation()
                             )
                         );

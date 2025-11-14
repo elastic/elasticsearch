@@ -35,7 +35,7 @@ public class InternalPreconfiguredEndpoints {
 
     // gp-llm-v2
     public static final String DEFAULT_CHAT_COMPLETION_MODEL_ID_V2 = "gp-llm-v2";
-    public static final String DEFAULT_CHAT_COMPLETION_ENDPOINT_ID_V2 = ".gp-llm-v2";
+    public static final String DEFAULT_CHAT_COMPLETION_ENDPOINT_ID_V2 = ".gp-llm-v2-chat_completion";
 
     // elser-2
     public static final String DEFAULT_ELSER_2_MODEL_ID = "elser_model_2";

@@ -130,14 +130,14 @@ public class Chunk extends EsqlScalarFunction implements OptionalArgument {
             return TypeResolution.TYPE_RESOLVED;
         }
 
-        // Custom validation for options since we need to handle nested MapExpression for chunking_settings
+        // TODO - Options#resolve should play nicely with nested MapExpressions, doing a hacky manual evaluation for now
         if (options instanceof MapExpression == false) {
             return new TypeResolution("second argument of [" + sourceText() + "] must be a map");
         }
 
         MapExpression mapExpr = (MapExpression) options;
         for (EntryExpression entry : mapExpr.entryExpressions()) {
-            if (entry.key() instanceof Literal == false || ((Literal) entry.key()).foldable() == false) {
+            if (entry.key() instanceof Literal == false || entry.key().foldable() == false) {
                 return new TypeResolution("option names must be constants in [" + sourceText() + "]");
             }
 
@@ -161,7 +161,6 @@ public class Chunk extends EsqlScalarFunction implements OptionalArgument {
                     return new TypeResolution(
                         "[" + CHUNKING_SETTINGS + "] must be a map, found [" + entry.value().getClass().getSimpleName() + "]");
                 }
-                // Validate the nested map has valid keys/values
                 TypeResolution chunkingSettingsResolution = validateChunkingSettings((MapExpression) entry.value());
                 if (chunkingSettingsResolution.unresolved()) {
                     return chunkingSettingsResolution;
@@ -176,13 +175,12 @@ public class Chunk extends EsqlScalarFunction implements OptionalArgument {
     }
 
     private TypeResolution validateChunkingSettings(MapExpression chunkingSettingsMap) {
-        // Basic validation - just ensure all keys are literals and all values are literals
-        // The actual validation will be done by ChunkingSettingsBuilder.fromMap() at evaluation time
+        // Just ensure all keys and values are literals - defer valid chunking settings for validation later
         for (EntryExpression entry : chunkingSettingsMap.entryExpressions()) {
-            if (entry.key() instanceof Literal == false || ((Literal) entry.key()).foldable() == false) {
+            if (entry.key() instanceof Literal == false || (entry.key()).foldable() == false) {
                 return new TypeResolution("chunking_settings keys must be constants");
             }
-            if (entry.value() instanceof Literal == false || ((Literal) entry.value()).foldable() == false) {
+            if (entry.value() instanceof Literal == false || (entry.value()).foldable() == false) {
                 return new TypeResolution("chunking_settings values must be constants");
             }
         }

@@ -67,6 +67,7 @@ import java.util.stream.IntStream;
 
 import static org.elasticsearch.test.ESTestCase.between;
 import static org.elasticsearch.test.ESTestCase.randomAlphaOfLength;
+import static org.elasticsearch.test.ESTestCase.randomBoolean;
 import static org.elasticsearch.test.ESTestCase.randomFrom;
 import static org.elasticsearch.test.ESTestCase.randomIntBetween;
 import static org.hamcrest.Matchers.equalTo;
@@ -1086,6 +1087,7 @@ public class ES819TSDBDocValuesFormatTests extends ES87TSDBDocValuesFormatTests 
         final String binaryFixedField = "binary_variable";
         final String binaryVariableField = "binary_fixed";
         final int binaryFieldMaxLength = randomIntBetween(1, 20);
+
         long currentTimestamp = 1704067200000L;
         long currentCounter = 10_000_000;
 
@@ -1094,6 +1096,8 @@ public class ES819TSDBDocValuesFormatTests extends ES87TSDBDocValuesFormatTests 
             int numDocsPerQValue = 120;
             int numDocs = numDocsPerQValue * (1 + random().nextInt(40));
             Long[] temperatureValues = new Long[numDocs];
+            BytesRef[] binaryFixed = new BytesRef[numDocs];
+            BytesRef[] binaryVariable = new BytesRef[numDocs];
             long q = 1;
             for (int i = 1; i <= numDocs; i++) {
                 var d = new Document();
@@ -1103,8 +1107,11 @@ public class ES819TSDBDocValuesFormatTests extends ES87TSDBDocValuesFormatTests 
                 d.add(new SortedNumericDocValuesField(counterField, currentCounter));
                 d.add(new SortedDocValuesField(counterAsStringField, new BytesRef(Long.toString(currentCounter))));
                 d.add(new SortedNumericDocValuesField(queryField, q));
-                d.add(new BinaryDocValuesField(binaryFixedField, new BytesRef(randomAlphaOfLength(binaryFieldMaxLength))));
-                d.add(new BinaryDocValuesField(binaryVariableField, new BytesRef(randomAlphaOfLength(between(0, binaryFieldMaxLength)))));
+
+                binaryFixed[numDocs - i] = new BytesRef(randomAlphaOfLength(binaryFieldMaxLength));
+                d.add(new BinaryDocValuesField(binaryFixedField, binaryFixed[numDocs - i]));
+                binaryVariable[numDocs - i] = new BytesRef(randomAlphaOfLength(between(0, binaryFieldMaxLength)));
+                d.add(new BinaryDocValuesField(binaryVariableField, binaryVariable[numDocs - i]));
 
                 if (i % 120 == 0) {
                     q++;
@@ -1147,10 +1154,6 @@ public class ES819TSDBDocValuesFormatTests extends ES87TSDBDocValuesFormatTests 
                     long[] expectedCounters = new long[numDocsPerQValue];
                     var counterAsStringDV = getBaseSortedDocValues(leafReader, counterAsStringField);
                     String[] expectedCounterAsStrings = new String[numDocsPerQValue];
-                    var binaryFixedDV = getDenseBinaryValues(leafReader, binaryFixedField);
-                    String[] expectedBinaryFixed = new String[numDocsPerQValue];
-                    var binaryVariableDV = getDenseBinaryValues(leafReader, binaryVariableField);
-                    String[] expectedBinaryVariable = new String[numDocsPerQValue];
 
                     int[] docIds = new int[numDocsPerQValue];
                     for (int i = 0; i < topDocs.scoreDocs.length; i++) {
@@ -1165,12 +1168,6 @@ public class ES819TSDBDocValuesFormatTests extends ES87TSDBDocValuesFormatTests 
 
                         assertTrue(counterAsStringDV.advanceExact(scoreDoc.doc));
                         expectedCounterAsStrings[i] = counterAsStringDV.lookupOrd(counterAsStringDV.ordValue()).utf8ToString();
-
-                        assertTrue(binaryFixedDV.advanceExact(scoreDoc.doc));
-                        expectedBinaryFixed[i] = binaryFixedDV.binaryValue().utf8ToString();
-
-                        assertTrue(binaryVariableDV.advanceExact(scoreDoc.doc));
-                        expectedBinaryVariable[i] = binaryVariableDV.binaryValue().utf8ToString();
                     }
 
                     var docs = TestBlock.docs(docIds);
@@ -1207,57 +1204,60 @@ public class ES819TSDBDocValuesFormatTests extends ES87TSDBDocValuesFormatTests 
                             assertEquals(expectedCounter, actualCounter);
                         }
                     }
-                    {
-                        binaryFixedDV = getDenseBinaryValues(leafReader, binaryFixedField);
-                        var block = (TestBlock) binaryFixedDV.tryRead(factory, docs, 0, random().nextBoolean(), null, false);
-                        assertNotNull(block);
-                        assertEquals(numDocsPerQValue, block.size());
-                        for (int j = 0; j < block.size(); j++) {
-                            var actual = ((BytesRef) block.get(j)).utf8ToString();
-                            var expected = expectedBinaryFixed[j];
-                            assertEquals(expected, actual);
+                }
+
+                BlockLoader.Docs docs;
+                {
+                    int startIndex = ESTestCase.between(0, temperatureValues.length - 1);
+                    int endIndex = ESTestCase.between(startIndex + 1, temperatureValues.length);
+                    List<Integer> testDocs = new ArrayList<>();
+                    for (int i = startIndex; i < endIndex; i++) {
+                        if (temperatureValues[i] != null) {
+                            testDocs.add(i);
                         }
                     }
-                    {
-                        binaryVariableDV = getDenseBinaryValues(leafReader, binaryVariableField);
-                        var block = (TestBlock) binaryVariableDV.tryRead(factory, docs, 0, random().nextBoolean(), null, false);
+                    if (testDocs.isEmpty() == false) {
+                        NumericDocValues dv = leafReader.getNumericDocValues(temperatureField);
+                        assertThat(dv, instanceOf(OptionalColumnAtATimeReader.class));
+                        OptionalColumnAtATimeReader directReader = (OptionalColumnAtATimeReader) dv;
+                        docs = TestBlock.docs(testDocs.stream().mapToInt(n -> n).toArray());
+                        assertNull(directReader.tryRead(factory, docs, 0, false, null, false));
+                        TestBlock block = (TestBlock) directReader.tryRead(factory, docs, 0, true, null, false);
                         assertNotNull(block);
-                        assertEquals(numDocsPerQValue, block.size());
-                        for (int j = 0; j < block.size(); j++) {
-                            var actual = ((BytesRef) block.get(j)).utf8ToString();
-                            var expected = expectedBinaryVariable[j];
-                            assertEquals(expected, actual);
+                        for (int i = 0; i < testDocs.size(); i++) {
+                            assertThat(block.get(i), equalTo(temperatureValues[testDocs.get(i)]));
                         }
                     }
-                    {
-                        int startIndex = ESTestCase.between(0, temperatureValues.length - 1);
-                        int endIndex = ESTestCase.between(startIndex + 1, temperatureValues.length);
-                        List<Integer> testDocs = new ArrayList<>();
-                        for (int i = startIndex; i < endIndex; i++) {
-                            if (temperatureValues[i] != null) {
-                                testDocs.add(i);
-                            }
+                    if (testDocs.size() > 2) {
+                        // currently bulk loading is disabled with gaps
+                        testDocs.remove(ESTestCase.between(1, testDocs.size() - 2));
+                        docs = TestBlock.docs(testDocs.stream().mapToInt(n -> n).toArray());
+                        NumericDocValues dv = leafReader.getNumericDocValues(temperatureField);
+                        OptionalColumnAtATimeReader directReader = (OptionalColumnAtATimeReader) dv;
+                        assertNull(directReader.tryRead(factory, docs, 0, false, null, false));
+                        assertNull(directReader.tryRead(factory, docs, 0, true, null, false));
+                    }
+                }
+
+                {
+                    // Bulk binary loader can only handle sparse queries over dense documents
+                    List<Integer> testDocs = IntStream.range(0, numDocs - 1).filter(i -> randomBoolean()).boxed().toList();
+                    if (testDocs.isEmpty() == false) {
+                        docs = TestBlock.docs(testDocs.stream().mapToInt(n -> n).toArray());
+                        var dv = getDenseBinaryValues(leafReader, binaryFixedField);
+                        var block = (TestBlock) dv.tryRead(factory, docs, 0, random().nextBoolean(), null, false);
+                        assertNotNull(block);
+                        for (int i = 0; i < testDocs.size(); i++) {
+                            assertThat(block.get(i), equalTo(binaryFixed[testDocs.get(i)]));
                         }
-                        if (testDocs.isEmpty() == false) {
-                            NumericDocValues dv = leafReader.getNumericDocValues(temperatureField);
-                            assertThat(dv, instanceOf(OptionalColumnAtATimeReader.class));
-                            OptionalColumnAtATimeReader directReader = (OptionalColumnAtATimeReader) dv;
-                            docs = TestBlock.docs(testDocs.stream().mapToInt(n -> n).toArray());
-                            assertNull(directReader.tryRead(factory, docs, 0, false, null, false));
-                            TestBlock block = (TestBlock) directReader.tryRead(factory, docs, 0, true, null, false);
-                            assertNotNull(block);
-                            for (int i = 0; i < testDocs.size(); i++) {
-                                assertThat(block.get(i), equalTo(temperatureValues[testDocs.get(i)]));
-                            }
-                        }
-                        if (testDocs.size() > 2) {
-                            // currently bulk loading is disabled with gaps
-                            testDocs.remove(ESTestCase.between(1, testDocs.size() - 2));
-                            docs = TestBlock.docs(testDocs.stream().mapToInt(n -> n).toArray());
-                            NumericDocValues dv = leafReader.getNumericDocValues(temperatureField);
-                            OptionalColumnAtATimeReader directReader = (OptionalColumnAtATimeReader) dv;
-                            assertNull(directReader.tryRead(factory, docs, 0, false, null, false));
-                            assertNull(directReader.tryRead(factory, docs, 0, true, null, false));
+                    }
+                    if (testDocs.isEmpty() == false) {
+                        docs = TestBlock.docs(testDocs.stream().mapToInt(n -> n).toArray());
+                        var dv = getDenseBinaryValues(leafReader, binaryVariableField);
+                        var block = (TestBlock) dv.tryRead(factory, docs, 0, random().nextBoolean(), null, false);
+                        assertNotNull(block);
+                        for (int i = 0; i < testDocs.size(); i++) {
+                            assertThat(block.get(i), equalTo(binaryVariable[testDocs.get(i)]));
                         }
                     }
                 }

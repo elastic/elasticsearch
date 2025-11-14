@@ -47,7 +47,7 @@
         "description": "Ignore indices that are marked as throttled (default: true). Only set if datafeed_config is provided."
       },
       "expand_wildcards": {
-        "type": "enum",
+        "type": "list",
         "options": [
           "open",
           "closed",

@@ -253,10 +253,9 @@ public class VectorSimilarityFunctionsIT extends AbstractEsqlIntegTestCase {
     }
 
     public void testDifferentDimensions() {
-        // edge case where this might not throw is if all `left_vector` are null, but the chance is (hopefully!) low enough to ignore
-        var randomVector = randomValueOtherThan(
-            null,
-            () -> randomVector(randomValueOtherThan(numDims, () -> randomIntBetween(32, 64) * (elementType == ElementType.BIT ? 8 : 2)))
+        var randomVector = randomVector(
+            randomValueOtherThan(numDims, () -> randomIntBetween(32, 64) * (elementType == ElementType.BIT ? 8 : 2)),
+            false
         );
         var query = String.format(Locale.ROOT, """
                 FROM test
@@ -329,8 +328,12 @@ public class VectorSimilarityFunctionsIT extends AbstractEsqlIntegTestCase {
     }
 
     private List<Number> randomVector(int numDims) {
+        return randomVector(numDims, true);
+    }
+
+    private List<Number> randomVector(int numDims, boolean allowNull) {
         assert numDims != 0 : "numDims must be set before calling randomVector()";
-        if (rarely()) {
+        if (allowNull && rarely()) {
             return null;
         }
         int dimensions = numDims;

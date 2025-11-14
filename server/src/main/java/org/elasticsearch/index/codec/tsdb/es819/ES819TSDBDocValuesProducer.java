@@ -40,6 +40,7 @@ import org.apache.lucene.store.DataInput;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.RandomAccessInput;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.GroupVIntUtil;
 import org.apache.lucene.util.LongValues;
 import org.apache.lucene.util.compress.LZ4;
 import org.apache.lucene.util.packed.DirectMonotonicReader;
@@ -54,7 +55,6 @@ import org.elasticsearch.index.mapper.blockloader.docvalues.BlockDocValuesReader
 
 import java.io.IOException;
 
-import static org.elasticsearch.index.codec.tsdb.es819.ES819TSDBDocValuesFormat.NUMERIC_BLOCK_SIZE;
 import static org.elasticsearch.index.codec.tsdb.es819.ES819TSDBDocValuesFormat.SKIP_INDEX_JUMP_LENGTH_PER_LEVEL;
 import static org.elasticsearch.index.codec.tsdb.es819.ES819TSDBDocValuesFormat.SKIP_INDEX_MAX_LEVEL;
 import static org.elasticsearch.index.codec.tsdb.es819.ES819TSDBDocValuesFormat.TERMS_DICT_BLOCK_LZ4_SHIFT;
@@ -380,13 +380,11 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
     // Decompresses blocks of binary values to retrieve content
     static final class BinaryDecoder {
 
-        private final TSDBDocValuesEncoder decoder = new TSDBDocValuesEncoder(ES819TSDBDocValuesFormat.NUMERIC_BLOCK_SIZE);
         private final LongValues addresses;
         private final DirectMonotonicReader docRanges;
         private final IndexInput compressedData;
         // Cache of last uncompressed block
         private long lastBlockId = -1;
-        private final long[] docRangesDecompBuffer = new long[NUMERIC_BLOCK_SIZE];
         private final int[] uncompressedDocStarts;
         private final byte[] uncompressedBlock;
         private final BytesRef uncompressedBytesRef;
@@ -423,7 +421,7 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
                 return;
             }
 
-            decompressDocRanges(numDocsInBlock, compressedData);
+            decompressDocOffsets(numDocsInBlock, compressedData);
 
             assert uncompressedBlockLength <= uncompressedBlock.length;
             uncompressedBytesRef.offset = 0;
@@ -431,16 +429,13 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
             decompressor.decompress(compressedData, uncompressedBlockLength, 0, uncompressedBlockLength, uncompressedBytesRef);
         }
 
-        void decompressDocRanges(int numDocsInBlock, DataInput input) throws IOException {
-            int batchStart = 0;
+        void decompressDocOffsets(int numDocsInBlock, DataInput input) throws IOException {
             int numOffsets = numDocsInBlock + 1;
-            while (batchStart < numOffsets) {
-                decoder.decode(input, docRangesDecompBuffer);
-                int lenToCopy = Math.min(numOffsets - batchStart, NUMERIC_BLOCK_SIZE);
-                for (int i = 0; i < lenToCopy; i++) {
-                    uncompressedDocStarts[batchStart + i] = (int) docRangesDecompBuffer[i];
-                }
-                batchStart += NUMERIC_BLOCK_SIZE;
+            GroupVIntUtil.readGroupVInts(input, uncompressedDocStarts, numOffsets);
+
+            // decode deltas
+            for (int i = 1; i < numOffsets; ++i) {
+                uncompressedDocStarts[i] += uncompressedDocStarts[i - 1];
             }
         }
 

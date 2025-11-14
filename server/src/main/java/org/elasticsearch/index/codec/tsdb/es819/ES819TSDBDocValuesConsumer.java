@@ -522,9 +522,7 @@ final class ES819TSDBDocValuesConsumer extends XDocValuesConsumer {
 
         final Compressor compressor;
 
-        final TSDBDocValuesEncoder encoder = new TSDBDocValuesEncoder(ES819TSDBDocValuesFormat.NUMERIC_BLOCK_SIZE);
-        final long[] docRangesBuffer = new long[ES819TSDBDocValuesFormat.NUMERIC_BLOCK_SIZE];
-        int[] docRanges = new int[START_BLOCK_DOCS];
+        int[] docOffsets = new int[START_BLOCK_DOCS];
 
         int uncompressedBlockLength = 0;
         int maxUncompressedBlockLength = 0;
@@ -549,8 +547,8 @@ final class ES819TSDBDocValuesConsumer extends XDocValuesConsumer {
             uncompressedBlockLength += v.length;
 
             numDocsInCurrentBlock++;
-            docRanges = ArrayUtil.grow(docRanges, numDocsInCurrentBlock + 1); // need one extra since writing start for next block
-            docRanges[numDocsInCurrentBlock] = uncompressedBlockLength;
+            docOffsets = ArrayUtil.grow(docOffsets, numDocsInCurrentBlock + 1); // need one extra since writing start for next block
+            docOffsets[numDocsInCurrentBlock] = uncompressedBlockLength;
 
             if (uncompressedBlockLength >= BLOCK_BYTES_THRESHOLD || numDocsInCurrentBlock >= BLOCK_COUNT_THRESHOLD) {
                 flushData();
@@ -581,19 +579,12 @@ final class ES819TSDBDocValuesConsumer extends XDocValuesConsumer {
         }
 
         void compressOffsets(DataOutput output, int numDocsInCurrentBlock) throws IOException {
-            int batchStart = 0;
             int numOffsets = numDocsInCurrentBlock + 1;
-            while (batchStart < numOffsets) {
-                int batchLength = Math.min(numOffsets - batchStart, NUMERIC_BLOCK_SIZE);
-                for (int i = 0; i < batchLength; i++) {
-                    docRangesBuffer[i] = docRanges[batchStart + i];
-                }
-                if (batchLength < docRangesBuffer.length) {
-                    Arrays.fill(docRangesBuffer, batchLength, docRangesBuffer.length, 0);
-                }
-                encoder.encode(docRangesBuffer, output);
-                batchStart += batchLength;
+            // delta encode
+            for (int i = numOffsets - 1; i > 0; i--) {
+                docOffsets[i] -= docOffsets[i - 1];
             }
+            output.writeGroupVInts(docOffsets, numOffsets);
         }
 
         void compress(byte[] data, int uncompressedLength, DataOutput output) throws IOException {

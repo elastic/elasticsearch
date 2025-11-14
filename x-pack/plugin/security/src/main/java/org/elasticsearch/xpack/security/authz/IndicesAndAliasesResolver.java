@@ -345,7 +345,7 @@ class IndicesAndAliasesResolver {
                     var unprefixed = crossProjectModeDecider.resolvesCrossProject(replaceable)
                         ? RemoteClusterAware.splitIndexName(expr)[1]
                         : expr;
-                    final Tuple<String, String> nameAndSelector = IndexNameExpressionResolver.splitSelectorExpression(unprefixed);
+                    final var nameAndSelector = IndexNameExpressionResolver.splitSelectorExpression(unprefixed);
                     selector[0] = nameAndSelector.v2();
                     return nameAndSelector.v1();
                 });

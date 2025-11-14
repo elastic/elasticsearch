@@ -222,6 +222,7 @@ public class AuthorizationTaskExecutorIT extends ESSingleNodeTestCase {
         assertThat(rainbowSprinklesModel.service(), is(ElasticInferenceService.NAME));
         assertThat(rainbowSprinklesModel.inferenceEntityId(), is(InternalPreconfiguredEndpoints.DEFAULT_CHAT_COMPLETION_ENDPOINT_ID_V1));
     }
+
     private void assertChatCompletionUnparsedModel(UnparsedModel gpLlmV2Model) {
         assertThat(gpLlmV2Model.taskType(), is(TaskType.CHAT_COMPLETION));
         assertThat(gpLlmV2Model.service(), is(ElasticInferenceService.NAME));

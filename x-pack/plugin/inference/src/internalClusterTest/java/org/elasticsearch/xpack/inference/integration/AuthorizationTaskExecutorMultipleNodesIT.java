@@ -135,10 +135,7 @@ public class AuthorizationTaskExecutorMultipleNodesIT extends ESIntegTestCase {
 
             var gpLlmV2Endpoint = eisEndpoints.get(1);
             assertThat(gpLlmV2Endpoint.getService(), is(ElasticInferenceService.NAME));
-            assertThat(
-                gpLlmV2Endpoint.getInferenceEntityId(),
-                is(InternalPreconfiguredEndpoints.DEFAULT_CHAT_COMPLETION_ENDPOINT_ID_V2)
-            );
+            assertThat(gpLlmV2Endpoint.getInferenceEntityId(), is(InternalPreconfiguredEndpoints.DEFAULT_CHAT_COMPLETION_ENDPOINT_ID_V2));
             assertThat(gpLlmV2Endpoint.getTaskType(), is(TaskType.CHAT_COMPLETION));
         });
     }

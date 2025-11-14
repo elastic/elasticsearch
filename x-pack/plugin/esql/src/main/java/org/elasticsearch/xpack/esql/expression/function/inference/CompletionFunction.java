@@ -34,11 +34,7 @@ public class CompletionFunction extends InferenceFunction<CompletionFunction> {
     private final Expression inferenceId;
     private final Expression prompt;
 
-    public CompletionFunction(
-        Source source,
-        Expression prompt,
-        Expression inferenceId
-    ) {
+    public CompletionFunction(Source source, Expression prompt, Expression inferenceId) {
         super(source, List.of(prompt, inferenceId));
         this.inferenceId = inferenceId;
         this.prompt = prompt;

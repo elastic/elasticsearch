@@ -11,6 +11,7 @@ package org.elasticsearch.action.admin.indices.sampling;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.monitor.jvm.JvmInfo;
 import org.elasticsearch.test.AbstractXContentSerializingTestCase;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentParser;
@@ -40,10 +41,12 @@ public class SamplingConfigurationTests extends AbstractXContentSerializingTestC
 
     @Override
     protected SamplingConfiguration createTestInstance() {
+        long maxHeap = JvmInfo.jvmInfo().getConfiguredMaxHeapSize();
+        long maxSizeLimit = (long) (SamplingConfiguration.MAX_SIZE_HEAP_PERCENTAGE_LIMIT * maxHeap);
         return new SamplingConfiguration(
             randomDoubleBetween(0.0, 1.0, true),
             randomBoolean() ? null : randomIntBetween(1, SamplingConfiguration.MAX_SAMPLES_LIMIT),
-            randomBoolean() ? null : ByteSizeValue.ofGb(randomLongBetween(1, SamplingConfiguration.MAX_SIZE_LIMIT_GIGABYTES)),
+            randomBoolean() ? null : ByteSizeValue.ofBytes(randomLongBetween(1, maxSizeLimit)),
             randomBoolean() ? null : TimeValue.timeValueDays(randomLongBetween(1, SamplingConfiguration.MAX_TIME_TO_LIVE_DAYS)),
             randomBoolean() ? null : randomAlphaOfLength(10)
         );
@@ -51,6 +54,8 @@ public class SamplingConfigurationTests extends AbstractXContentSerializingTestC
 
     @Override
     protected SamplingConfiguration mutateInstance(SamplingConfiguration instance) {
+        long maxHeap = JvmInfo.jvmInfo().getConfiguredMaxHeapSize();
+        long maxSizeLimit = (long) (SamplingConfiguration.MAX_SIZE_HEAP_PERCENTAGE_LIMIT * maxHeap);
         return switch (randomIntBetween(0, 4)) {
             case 0 -> new SamplingConfiguration(
                 randomValueOtherThan(instance.rate(), () -> randomDoubleBetween(0.0, 1.0, true)),
@@ -69,10 +74,7 @@ public class SamplingConfigurationTests extends AbstractXContentSerializingTestC
             case 2 -> new SamplingConfiguration(
                 instance.rate(),
                 instance.maxSamples(),
-                randomValueOtherThan(
-                    instance.maxSize(),
-                    () -> ByteSizeValue.ofGb(randomLongBetween(1, SamplingConfiguration.MAX_SIZE_LIMIT_GIGABYTES))
-                ),
+                randomValueOtherThan(instance.maxSize(), () -> ByteSizeValue.ofBytes(randomLongBetween(1, maxSizeLimit))),
                 instance.timeToLive(),
                 instance.condition()
             );
@@ -101,7 +103,11 @@ public class SamplingConfigurationTests extends AbstractXContentSerializingTestC
         SamplingConfiguration config = new SamplingConfiguration(0.5, null, null, null, null);
         assertThat(config.rate(), equalTo(0.5));
         assertThat(config.maxSamples(), equalTo(SamplingConfiguration.DEFAULT_MAX_SAMPLES));
-        assertThat(config.maxSize(), equalTo(ByteSizeValue.ofGb(SamplingConfiguration.DEFAULT_MAX_SIZE_GIGABYTES)));
+        long expectedDefaultMaxSize = Math.max(
+            (long) (SamplingConfiguration.DEFAULT_MAX_SIZE_HEAP_PERCENTAGE * JvmInfo.jvmInfo().getConfiguredMaxHeapSize()),
+            SamplingConfiguration.DEFAULT_MAX_SIZE_FLOOR.getBytes()
+        );
+        assertThat(config.maxSize(), equalTo(ByteSizeValue.ofBytes(expectedDefaultMaxSize)));
         assertThat(config.timeToLive(), equalTo(TimeValue.timeValueDays(SamplingConfiguration.DEFAULT_TIME_TO_LIVE_DAYS)));
         assertThat(config.condition(), nullValue());
     }
@@ -157,12 +163,15 @@ public class SamplingConfigurationTests extends AbstractXContentSerializingTestC
             }
             """, SamplingConfiguration.INVALID_MAX_SIZE_MIN_MESSAGE);
 
+        // Test max size exceeding heap-based limit
+        long maxHeap = JvmInfo.jvmInfo().getConfiguredMaxHeapSize();
+        long maxSizeLimit = (long) (SamplingConfiguration.MAX_SIZE_HEAP_PERCENTAGE_LIMIT * maxHeap);
         assertValidationError(String.format(Locale.ROOT, """
             {
               "rate": 0.5,
-              "max_size": "%dgb"
+              "max_size_in_bytes": %d
             }
-            """, SamplingConfiguration.MAX_SIZE_LIMIT_GIGABYTES + 1), SamplingConfiguration.INVALID_MAX_SIZE_MAX_MESSAGE);
+            """, maxSizeLimit + 1), SamplingConfiguration.INVALID_MAX_SIZE_MAX_MESSAGE);
 
         // Test invalid timeToLive
         assertValidationError("""
@@ -234,24 +243,17 @@ public class SamplingConfigurationTests extends AbstractXContentSerializingTestC
         assertThat(config.maxSamples(), equalTo(1));
 
         // Test boundary conditions - maximum values
-        parser = createParser(
-            JsonXContent.jsonXContent,
-            String.format(
-                Locale.ROOT,
-                """
-                    {
-                      "rate": 1.0,
-                      "max_samples": %d,
-                      "max_size": "%dgb",
-                      "time_to_live": "%dd",
-                      "if": "test_condition"
-                    }
-                    """,
-                SamplingConfiguration.MAX_SAMPLES_LIMIT,
-                SamplingConfiguration.MAX_SIZE_LIMIT_GIGABYTES,
-                SamplingConfiguration.MAX_TIME_TO_LIVE_DAYS
-            )
-        );
+        long maxHeap = JvmInfo.jvmInfo().getConfiguredMaxHeapSize();
+        long maxSizeLimit = (long) (SamplingConfiguration.MAX_SIZE_HEAP_PERCENTAGE_LIMIT * maxHeap);
+        parser = createParser(JsonXContent.jsonXContent, String.format(Locale.ROOT, """
+            {
+              "rate": 1.0,
+              "max_samples": %d,
+              "max_size_in_bytes": %d,
+              "time_to_live": "%dd",
+              "if": "test_condition"
+            }
+            """, SamplingConfiguration.MAX_SAMPLES_LIMIT, maxSizeLimit, SamplingConfiguration.MAX_TIME_TO_LIVE_DAYS));
         config = SamplingConfiguration.fromXContent(parser);
         assertThat(config.rate(), equalTo(1.0));
         assertThat(config.maxSamples(), equalTo(SamplingConfiguration.MAX_SAMPLES_LIMIT));
@@ -331,5 +333,21 @@ public class SamplingConfigurationTests extends AbstractXContentSerializingTestC
         }
         assertNotNull("Expected IllegalArgumentException with creation_time_in_millis message", cause);
         assertThat(cause.getMessage(), equalTo("Creation time cannot be set by user (field: creation_time_in_millis)"));
+    }
+
+    public void testMinimumDefaultMaxSize() {
+        // Test that the minimum default max size is enforced
+        SamplingConfiguration config = new SamplingConfiguration(0.5, null, null, null, null);
+
+        // Calculate what the heap percentage would give us
+        long heapBasedSize = (long) (SamplingConfiguration.DEFAULT_MAX_SIZE_HEAP_PERCENTAGE * JvmInfo.jvmInfo().getConfiguredMaxHeapSize());
+        long minSize = SamplingConfiguration.DEFAULT_MAX_SIZE_FLOOR.getBytes();
+
+        // The actual default should be the larger of the two
+        long expectedSize = Math.max(heapBasedSize, minSize);
+        assertThat(config.maxSize().getBytes(), equalTo(expectedSize));
+
+        // Verify it's at least the minimum
+        assertThat(config.maxSize().getBytes(), greaterThanOrEqualTo(minSize));
     }
 }

@@ -65,6 +65,7 @@ public final class RemoteClusterService extends RemoteClusterAware
     private static final Logger logger = LogManager.getLogger(RemoteClusterService.class);
 
     public static final String REMOTE_CLUSTER_HANDSHAKE_ACTION_NAME = "cluster:internal/remote_cluster/handshake";
+    public static final String CONNECTION_ATTEMPT_FAILURES_COUNTER_NAME = "es.projects.linked.connections.error.total";
 
     private final boolean isRemoteClusterClient;
     private final boolean isSearchNode;
@@ -101,6 +102,9 @@ public final class RemoteClusterService extends RemoteClusterAware
          *  the functionality to do it the right way is not yet ready -- replace this code when it's ready.
          */
         this.crossProjectEnabled = settings.getAsBoolean("serverless.cross_project.enabled", false);
+        transportService.getTelemetryProvider()
+            .getMeterRegistry()
+            .registerLongCounter(CONNECTION_ATTEMPT_FAILURES_COUNTER_NAME, "linked project connection attempt failure count", "count");
     }
 
     public RemoteClusterCredentialsManager getRemoteClusterCredentialsManager() {

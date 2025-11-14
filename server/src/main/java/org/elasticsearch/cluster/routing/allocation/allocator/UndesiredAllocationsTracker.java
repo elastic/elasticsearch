@@ -9,6 +9,8 @@
 
 package org.elasticsearch.cluster.routing.allocation.allocator;
 
+import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
@@ -16,6 +18,8 @@ import org.elasticsearch.common.FrequencyCappedAction;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.time.TimeProvider;
+import org.elasticsearch.common.util.FeatureFlag;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.logging.LogManager;
@@ -40,6 +44,7 @@ public class UndesiredAllocationsTracker {
     private static final Logger logger = LogManager.getLogger(UndesiredAllocationsTracker.class);
 
     private static final TimeValue FIVE_MINUTES = timeValueMinutes(5);
+    private static final FeatureFlag UNDESIRED_ALLOCATION_TRACKER_ENABLED = new FeatureFlag("undesired_allocation_tracker");
 
     /**
      * Warning logs will be periodically written if we see a shard that's been in an undesired allocation for this long
@@ -68,7 +73,7 @@ public class UndesiredAllocationsTracker {
      */
     public static final Setting<Integer> MAX_UNDESIRED_ALLOCATIONS_TO_TRACK = Setting.intSetting(
         "cluster.routing.allocation.desired_balance.undesired_duration_logging.max_to_track",
-        0,
+        UNDESIRED_ALLOCATION_TRACKER_ENABLED.isEnabled() ? 10 : 0,
         0,
         100,
         Setting.Property.Dynamic,
@@ -80,6 +85,7 @@ public class UndesiredAllocationsTracker {
     private final FrequencyCappedAction undesiredAllocationDurationLogInterval;
     private volatile TimeValue undesiredAllocationDurationLoggingThreshold;
     private volatile int maxUndesiredAllocationsToTrack;
+    private boolean missingAllocationAssertionsEnabled = true;
 
     UndesiredAllocationsTracker(ClusterSettings clusterSettings, TimeProvider timeProvider) {
         this.timeProvider = timeProvider;
@@ -159,6 +165,14 @@ public class UndesiredAllocationsTracker {
         }
     }
 
+    private boolean shardTierMatchesNodeTier(ShardRouting shardRouting, DiscoveryNode discoveryNode) {
+        return switch (shardRouting.role()) {
+            case INDEX_ONLY -> discoveryNode.getRoles().contains(DiscoveryNodeRole.INDEX_ROLE);
+            case SEARCH_ONLY -> discoveryNode.getRoles().contains(DiscoveryNodeRole.SEARCH_ROLE);
+            default -> true;
+        };
+    }
+
     private void logDecisionsForUndesiredShardsOverThreshold(
         RoutingNodes routingNodes,
         RoutingAllocation routingAllocation,
@@ -197,10 +211,21 @@ public class UndesiredAllocationsTracker {
         allocation.setDebugMode(RoutingAllocation.DebugMode.EXCLUDE_YES_DECISIONS);
         try {
             final var assignment = desiredBalance.getAssignment(shardRouting.shardId());
-            logger.warn("Shard {} has been in an undesired allocation for {}", shardRouting.shardId(), undesiredDuration);
-            for (final var nodeId : assignment.nodeIds()) {
-                final var decision = allocation.deciders().canAllocate(shardRouting, routingNodes.node(nodeId), allocation);
-                logger.warn("Shard {} allocation decision for node [{}]: {}", shardRouting.shardId(), nodeId, decision);
+            if (assignment != null) {
+                logger.warn("Shard {} has been in an undesired allocation for {}", shardRouting.shardId(), undesiredDuration);
+                for (final var nodeId : assignment.nodeIds()) {
+                    if (allocation.nodes().nodeExists(nodeId)) {
+                        if (shardTierMatchesNodeTier(shardRouting, allocation.nodes().get(nodeId))) {
+                            final var decision = allocation.deciders().canAllocate(shardRouting, routingNodes.node(nodeId), allocation);
+                            logger.warn("Shard {} allocation decision for node [{}]: {}", shardRouting.shardId(), nodeId, decision);
+                        }
+                    } else {
+                        logger.warn("Shard {} desired node [{}] has left the cluster", shardRouting.shardId(), nodeId);
+                    }
+                }
+            } else {
+                assert missingAllocationAssertionsEnabled == false
+                    : "Shard " + shardRouting + " was missing an assignment, this shouldn't be possible. " + desiredBalance;
             }
         } finally {
             allocation.setDebugMode(originalDebugMode);
@@ -237,4 +262,10 @@ public class UndesiredAllocationsTracker {
      * @param undesiredSince The timestamp when the shard was first observed in an undesired allocation
      */
     record UndesiredAllocation(ShardId shardId, long undesiredSince) {}
+
+    // Exposed for testing
+    public Releasable disableMissingAllocationAssertions() {
+        missingAllocationAssertionsEnabled = false;
+        return () -> missingAllocationAssertionsEnabled = true;
+    }
 }

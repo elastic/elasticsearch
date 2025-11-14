@@ -126,7 +126,7 @@ public class Increase extends TimeSeriesAggregateFunction implements OptionalArg
 
     @Override
     public String toString() {
-        return "increase(" + field() + ")";
+        return "increase(" + field() + ", " + timestamp() + ")";
     }
 
     @Override

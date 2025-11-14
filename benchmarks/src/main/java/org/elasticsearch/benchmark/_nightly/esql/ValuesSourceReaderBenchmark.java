@@ -23,9 +23,9 @@ import org.apache.lucene.store.ByteBuffersDirectory;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.NumericUtils;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.logging.LogConfigurator;
-import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
@@ -110,6 +110,15 @@ public class ValuesSourceReaderBenchmark {
         new NoopCircuitBreaker("noop"),
         BigArrays.NON_RECYCLING_INSTANCE
     );
+
+    public static IndexSettings defaultIndexSettings() {
+        IndexMetadata INDEX_METADATA = IndexMetadata.builder("index")
+            .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current()))
+            .numberOfShards(1)
+            .numberOfReplicas(0)
+            .build();
+        return new IndexSettings(INDEX_METADATA, Settings.EMPTY);
+    }
 
     static {
         // Smoke test all the expected values and force loading subclasses more like prod
@@ -217,50 +226,44 @@ public class ValuesSourceReaderBenchmark {
                     break;
             }
             ft.freeze();
-            return new KeywordFieldMapper.KeywordFieldType(
-                w.name,
-                ft,
-                Lucene.KEYWORD_ANALYZER,
-                Lucene.KEYWORD_ANALYZER,
-                Lucene.KEYWORD_ANALYZER,
-                new KeywordFieldMapper.Builder(name, IndexVersion.current()).docValues(ft.docValuesType() != DocValuesType.NONE),
-                syntheticSource
-            ).blockLoader(new MappedFieldType.BlockLoaderContext() {
-                @Override
-                public String indexName() {
-                    return "benchmark";
-                }
+            return new KeywordFieldMapper.KeywordFieldType(w.name, ft, syntheticSource).blockLoader(
+                new MappedFieldType.BlockLoaderContext() {
+                    @Override
+                    public String indexName() {
+                        return "benchmark";
+                    }
 
-                @Override
-                public IndexSettings indexSettings() {
-                    throw new UnsupportedOperationException();
-                }
+                    @Override
+                    public IndexSettings indexSettings() {
+                        throw new UnsupportedOperationException();
+                    }
 
-                @Override
-                public MappedFieldType.FieldExtractPreference fieldExtractPreference() {
-                    return MappedFieldType.FieldExtractPreference.NONE;
-                }
+                    @Override
+                    public MappedFieldType.FieldExtractPreference fieldExtractPreference() {
+                        return MappedFieldType.FieldExtractPreference.NONE;
+                    }
 
-                @Override
-                public SearchLookup lookup() {
-                    throw new UnsupportedOperationException();
-                }
+                    @Override
+                    public SearchLookup lookup() {
+                        throw new UnsupportedOperationException();
+                    }
 
-                @Override
-                public Set<String> sourcePaths(String name) {
-                    return Set.of(name);
-                }
+                    @Override
+                    public Set<String> sourcePaths(String name) {
+                        return Set.of(name);
+                    }
 
-                @Override
-                public String parentField(String field) {
-                    throw new UnsupportedOperationException();
-                }
+                    @Override
+                    public String parentField(String field) {
+                        throw new UnsupportedOperationException();
+                    }
 
-                @Override
-                public FieldNamesFieldMapper.FieldNamesFieldType fieldNames() {
-                    return FieldNamesFieldMapper.FieldNamesFieldType.get(true);
+                    @Override
+                    public FieldNamesFieldMapper.FieldNamesFieldType fieldNames() {
+                        return FieldNamesFieldMapper.FieldNamesFieldType.get(true);
+                    }
                 }
-            });
+            );
         }
         throw new IllegalArgumentException("can't read [" + name + "]");
     }

@@ -96,9 +96,9 @@ public class FoldNullTests extends ESTestCase {
         assertNullLiteral(foldNull(new Add(EMPTY, L(randomInt()), Literal.NULL)));
         assertNullLiteral(foldNull(new Round(EMPTY, Literal.NULL, null)));
         assertNullLiteral(foldNull(new Pow(EMPTY, Literal.NULL, Literal.NULL)));
-        assertNullLiteral(foldNull(new DateFormat(EMPTY, Literal.NULL, Literal.NULL, null)));
+        assertNullLiteral(foldNull(new DateFormat(EMPTY, Literal.NULL, Literal.NULL, TEST_CFG)));
         assertNullLiteral(foldNull(new DateParse(EMPTY, Literal.NULL, Literal.NULL, NULL)));
-        assertNullLiteral(foldNull(new DateTrunc(EMPTY, Literal.NULL, Literal.NULL, null)));
+        assertNullLiteral(foldNull(new DateTrunc(EMPTY, Literal.NULL, Literal.NULL, TEST_CFG)));
         assertNullLiteral(foldNull(new Substring(EMPTY, Literal.NULL, Literal.NULL, Literal.NULL)));
     }
 

@@ -55,10 +55,10 @@ final class AggregateMetricFieldSerializer implements DownsampleFieldSerializer 
                     } else {
                         throw new IllegalStateException();
                     }
-                } else if (fieldProducer instanceof LabelFieldProducer labelFieldProducer) {
-                    LabelFieldProducer.Label label = labelFieldProducer.label();
-                    if (label.get() != null) {
-                        builder.field(label.name(), label.get());
+                } else if (fieldProducer instanceof LastValueFieldProducer lastValueFieldProducer) {
+                    Object lastValue = lastValueFieldProducer.lastValue();
+                    if (lastValue != null) {
+                        builder.field(lastValueFieldProducer.sampleLabel(), lastValue);
                     }
                 }
             }

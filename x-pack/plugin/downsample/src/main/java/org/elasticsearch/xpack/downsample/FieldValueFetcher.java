@@ -78,11 +78,11 @@ class FieldValueFetcher {
         } else {
             // If field is not a metric, we downsample it as a label
             if ("histogram".equals(fieldType.typeName())) {
-                return new LabelFieldProducer.HistogramLastLabelFieldProducer(name());
+                return new LastValueFieldProducer.HistogramLastLastValueFieldProducer(name());
             } else if ("flattened".equals(fieldType.typeName())) {
-                return new LabelFieldProducer.FlattenedLastValueFieldProducer(name());
+                return new LastValueFieldProducer.FlattenedLastValueFieldProducer(name());
             }
-            return new LabelFieldProducer.LabelLastValueFieldProducer(name());
+            return LastValueFieldProducer.createForLabel(name());
         }
     }
 

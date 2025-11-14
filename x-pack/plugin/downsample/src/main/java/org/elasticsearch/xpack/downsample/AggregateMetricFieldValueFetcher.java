@@ -56,7 +56,7 @@ public final class AggregateMetricFieldValueFetcher extends FieldValueFetcher {
             }
         } else {
             // If field is not a metric, we downsample it as a label
-            return new LabelFieldProducer.AggregateMetricFieldProducer.AggregateMetricFieldProducer(aggMetricFieldType.name(), metric);
+            return new LastValueFieldProducer.AggregateMetricFieldProducer.AggregateMetricFieldProducer(aggMetricFieldType.name(), metric);
         }
     }
 }

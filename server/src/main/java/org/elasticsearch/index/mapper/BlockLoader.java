@@ -512,6 +512,8 @@ public interface BlockLoader {
 
         AggregateMetricDoubleBuilder aggregateMetricDoubleBuilder(int count);
 
+        Block buildAggregateMetricDoubleDirect(Block minBlock, Block maxBlock, Block sumBlock, Block countBlock);
+
         ExponentialHistogramBuilder exponentialHistogramBlockBuilder(int count);
 
         Block buildExponentialHistogramBlockDirect(

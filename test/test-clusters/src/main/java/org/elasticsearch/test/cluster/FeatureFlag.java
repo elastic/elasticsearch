@@ -28,6 +28,8 @@ public enum FeatureFlag {
     ),
     RANDOM_SAMPLING("es.random_sampling_feature_flag_enabled=true", Version.fromString("9.2.0"), null),
     INFERENCE_API_CCM("es.inference_api_ccm_feature_flag_enabled=true", Version.fromString("9.3.0"), null),
+    GENERIC_VECTOR_FORMAT("es.generic_vector_format_feature_flag_enabled=true", Version.fromString("9.3.0"), null),
+    INFERENCE_API_CCM("es.inference_api_ccm_feature_flag_enabled=true", Version.fromString("9.3.0"), null),
     BINARY_DOC_VALUE_COMPRESSION("es.binary_dv_compression_feature_flag_enabled=true", Version.fromString("9.3.0"), null);
 
     public final String systemProperty;

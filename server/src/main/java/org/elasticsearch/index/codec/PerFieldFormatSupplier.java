@@ -145,7 +145,7 @@ public class PerFieldFormatSupplier {
         }
 
         return mapperService != null
-            && (isTimeSeriesModeIndex() || isLogsModeIndex())
+            && mapperService.getIndexSettings().useTimeSeriesDocValuesFormat()
             && mapperService.getIndexSettings().isES87TSDBCodecEnabled();
     }
 

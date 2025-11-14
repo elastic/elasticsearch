@@ -47,7 +47,7 @@ public class PreconfiguredEndpointModelAdapterTests extends ESTestCase {
         new ElasticInferenceServiceSparseEmbeddingsServiceSettings(DEFAULT_ELSER_2_MODEL_ID, null);
     private static final ElasticInferenceServiceCompletionServiceSettings COMPLETION_SETTINGS =
         new ElasticInferenceServiceCompletionServiceSettings(DEFAULT_CHAT_COMPLETION_MODEL_ID_V1);
-    private static final ElasticInferenceServiceCompletionServiceSettings COMPLETION_SETTINGS_V2 =
+    private static final ElasticInferenceServiceCompletionServiceSettings GP_LLM_V2_COMPLETION_SETTINGS =
         new ElasticInferenceServiceCompletionServiceSettings(GP_LLM_V2_MODEL_ID);
     private static final ElasticInferenceServiceDenseTextEmbeddingsServiceSettings DENSE_SETTINGS =
         new ElasticInferenceServiceDenseTextEmbeddingsServiceSettings(
@@ -104,11 +104,11 @@ public class PreconfiguredEndpointModelAdapterTests extends ESTestCase {
                         GP_LLM_V2_ENDPOINT_ID,
                         TaskType.CHAT_COMPLETION,
                         ElasticInferenceService.NAME,
-                        COMPLETION_SETTINGS_V2,
+                        GP_LLM_V2_COMPLETION_SETTINGS,
                         ChunkingSettingsBuilder.DEFAULT_SETTINGS
                     ),
                     new ModelSecrets(EmptySecretSettings.INSTANCE),
-                    COMPLETION_SETTINGS_V2,
+                    GP_LLM_V2_COMPLETION_SETTINGS,
                     EIS_COMPONENTS
                 ),
                 new ElasticInferenceServiceModel(

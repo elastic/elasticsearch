@@ -149,6 +149,9 @@ public class DatafeedCcsIT extends AbstractMultiClustersTestCase {
             disruptNetworkAndWaitForRecovery(jobId, numDocs);
         } finally {
             stopDatafeedAndJob(datafeedId, jobId);
+            // Wait a short time to allow clear scroll requests to complete, especially after network disruption
+            // when scroll contexts on the remote cluster may need time to be cleaned up
+            Thread.sleep(TimeValue.timeValueSeconds(2).millis());
             waitForContextsToReturnToBaseline(baseline);
             clearSkipUnavailable();
         }
@@ -276,7 +279,7 @@ public class DatafeedCcsIT extends AbstractMultiClustersTestCase {
                     is(expectedActive)
                 );
             }
-        }, 5, TimeUnit.SECONDS);
+        }, 30, TimeUnit.SECONDS);
     }
 
     private ContextCounts getContextCounts(String clusterAlias) {

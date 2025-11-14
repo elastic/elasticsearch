@@ -685,8 +685,7 @@ public class Stateless extends Plugin
                 threadPool,
                 writeLoadSampler,
                 ingestLoadPublisher,
-                ingestLoadProbe::getIngestionLoad,
-                ingestLoadProbe::getExecutorIngestionLoad,
+                ingestLoadProbe::getNodeIngestionLoad,
                 EsExecutors.nodeProcessors(settings).count(),
                 clusterService.getClusterSettings(),
                 services.telemetryProvider().getMeterRegistry()

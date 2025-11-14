@@ -2298,6 +2298,11 @@ public class StatelessReshardIT extends AbstractStatelessIntegTestCase {
         startSearchNodes(2);
         ensureStableCluster(4);
 
+        // Exclude second node from allocation meaning that it won't be possible to allocate the source shard
+        // and later the target shard on this node (since we also have shards per node limit).
+        // This is needed to delay the recovery of the target shard until source shard primary term advances.
+        updateClusterSettings(Settings.builder().put("cluster.routing.allocation.exclude._name", indexNodeB));
+
         final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
         createIndex(
             indexName,
@@ -2315,10 +2320,6 @@ public class StatelessReshardIT extends AbstractStatelessIntegTestCase {
             prepareSearch(indexName).setAllowPartialSearchResults(false).setQuery(QueryBuilders.matchAllQuery()).setTrackTotalHits(true),
             docs
         );
-
-        // Exclude second node from allocation meaning that it won't be possible to allocate the target shard yet
-        // since we also have shards per node limit.
-        updateClusterSettings(Settings.builder().put("cluster.routing.allocation.exclude._name", indexNodeB));
 
         client(indexNode).execute(TransportReshardAction.TYPE, new ReshardIndexRequest(indexName, 2)).actionGet();
 

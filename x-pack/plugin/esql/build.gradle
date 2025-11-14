@@ -333,9 +333,7 @@ pluginManager.withPlugin('com.diffplug.spotless') {
       targetExclude "src/main/java/org/elasticsearch/xpack/esql/parser/EsqlBaseLexer*.java",
         "src/main/java/org/elasticsearch/xpack/esql/parser/EsqlBaseParser*.java",
         "src/main/generated/**/*.java",
-        "src/main/generated-src/generated/**/*.java",
-        // This file contains too long lines for spotless, but we don't want to mess with the template unnecessarily
-        "src/main/generated-src/org/elasticsearch/xpack/esql/expression/function/scalar/nulls/CoalesceExponentialHistogramEvaluator.java"
+        "src/main/generated-src/generated/**/*.java"
       toggleOffOn('begin generated imports', 'end generated imports')
     }
   }

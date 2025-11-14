@@ -40,7 +40,11 @@ abstract sealed class CoalesceExponentialHistogramEvaluator implements EvalOpera
             return new ExpressionEvaluator.Factory() {
                 @Override
                 public ExpressionEvaluator get(DriverContext context) {
-                    return new CoalesceExponentialHistogramEagerEvaluator(context, childEvaluators.stream().map(x -> x.get(context)).toList());
+                    return new CoalesceExponentialHistogramEagerEvaluator(
+                        // comment to make spotless happy about line breaks
+                        context,
+                        childEvaluators.stream().map(x -> x.get(context)).toList()
+                    );
                 }
 
                 @Override
@@ -52,7 +56,11 @@ abstract sealed class CoalesceExponentialHistogramEvaluator implements EvalOpera
         return new ExpressionEvaluator.Factory() {
             @Override
             public ExpressionEvaluator get(DriverContext context) {
-                return new CoalesceExponentialHistogramLazyEvaluator(context, childEvaluators.stream().map(x -> x.get(context)).toList());
+                return new CoalesceExponentialHistogramLazyEvaluator(
+                    // comment to make spotless happy about line breaks
+                    context,
+                    childEvaluators.stream().map(x -> x.get(context)).toList()
+                );
             }
 
             @Override
@@ -170,7 +178,10 @@ abstract sealed class CoalesceExponentialHistogramEvaluator implements EvalOpera
                 for (int f = 1; f < flatten.length; f++) {
                     flatten[f] = (ExponentialHistogramBlock) evaluators.get(firstToEvaluate + f - 1).eval(page);
                 }
-                try (ExponentialHistogramBlock.Builder result = driverContext.blockFactory().newExponentialHistogramBlockBuilder(positionCount)) {
+                try (
+                    ExponentialHistogramBlock.Builder result = driverContext.blockFactory() //
+                        .newExponentialHistogramBlockBuilder(positionCount)
+                ) {
                     position: for (int p = 0; p < positionCount; p++) {
                         for (ExponentialHistogramBlock f : flatten) {
                             if (false == f.isNull(p)) {
@@ -207,7 +218,10 @@ abstract sealed class CoalesceExponentialHistogramEvaluator implements EvalOpera
         @Override
         protected ExponentialHistogramBlock perPosition(Page page, ExponentialHistogramBlock lastFullBlock, int firstToEvaluate) {
             int positionCount = page.getPositionCount();
-            try (ExponentialHistogramBlock.Builder result = driverContext.blockFactory().newExponentialHistogramBlockBuilder(positionCount)) {
+            try (
+                ExponentialHistogramBlock.Builder result = driverContext.blockFactory() //
+                    .newExponentialHistogramBlockBuilder(positionCount)
+            ) {
                 position: for (int p = 0; p < positionCount; p++) {
                     if (lastFullBlock.isNull(p) == false) {
                         result.copyFrom(lastFullBlock, p, p + 1);

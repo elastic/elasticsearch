@@ -86,6 +86,7 @@ import org.elasticsearch.xcontent.Text;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.hamcrest.Matchers;
 import org.junit.AfterClass;
+import org.junit.Assert;
 import org.junit.BeforeClass;
 
 import java.io.IOException;
@@ -514,7 +515,7 @@ public class QueryPhaseTimeoutTests extends IndexShardTestCase {
         return context;
     }
 
-    public static final class TestSuggester extends Suggester<TestSuggestionContext> {
+    private static final class TestSuggester extends Suggester<TestSuggestionContext> {
         private final ContextIndexSearcher contextIndexSearcher;
 
         TestSuggester(ContextIndexSearcher contextIndexSearcher) {
@@ -538,7 +539,7 @@ public class QueryPhaseTimeoutTests extends IndexShardTestCase {
         }
     }
 
-    public static final class TestSuggestionContext extends SuggestionSearchContext.SuggestionContext {
+    private static final class TestSuggestionContext extends SuggestionSearchContext.SuggestionContext {
         TestSuggestionContext(Suggester<?> suggester, SearchExecutionContext searchExecutionContext) {
             super(suggester, searchExecutionContext);
         }
@@ -637,6 +638,8 @@ public class QueryPhaseTimeoutTests extends IndexShardTestCase {
      * and no aggregation container.
      */
     public void testTimeoutNoAggsReturnsEmptyResult() throws Exception {
+        SearchSourceBuilder source = new SearchSourceBuilder().query(new MatchAllQueryBuilder()).size(10);
+
         ContextIndexSearcher base = newContextSearcher(reader);
         ContextIndexSearcher throwing = new ContextIndexSearcher(
             base.getIndexReader(),
@@ -652,8 +655,6 @@ public class QueryPhaseTimeoutTests extends IndexShardTestCase {
             }
         };
 
-        SearchSourceBuilder source = new SearchSourceBuilder().query(new MatchAllQueryBuilder()).size(0);
-
         try (SearchContext context = createSearchContext(source, throwing, null, null, true)) {
             context.parsedQuery(new ParsedQuery(new MatchAllDocsQuery()));
 
@@ -667,78 +668,15 @@ public class QueryPhaseTimeoutTests extends IndexShardTestCase {
     }
 
     /**
-     * Verifies that when a timeout occurs during aggregation setup, the search response
-     * is returned as a partial result: marked timed_out=true, with empty hits and an
-     * empty but non-null aggregation container.
-     */
-    public void testAggTimeoutReturnsEmptyAggsAndHits() throws Exception {
-        SearchSourceBuilder source = new SearchSourceBuilder().query(new MatchAllQueryBuilder())
-            .aggregation(new ForceTimeoutAggregationBuilder("force_timeout"))
-            .size(0);
-
-        try (SearchContext context = createSearchContext(source, newContextSearcher(reader), null, true)) {
-            context.parsedQuery(new ParsedQuery(new MatchAllDocsQuery()));
-            assertNotNull("aggregations should be present in the context", context.aggregations());
-
-            QueryPhase.execute(context);
-
-            assertTrue("search should be marked timed_out", context.queryResult().searchTimedOut());
-            assertNotNull("topDocs must be present even on timeout", context.queryResult().topDocs());
-            assertEquals("no hits returned on timeout", 0, context.queryResult().topDocs().topDocs.scoreDocs.length);
-            assertNotNull(
-                "aggregations container must be non-null on timeout when aggs were requested",
-                context.queryResult().aggregations()
-            );
-            assertTrue("aggregations list should be empty on timeout", context.queryResult().aggregations().expand().asList().isEmpty());
-        }
-    }
-
-    /**
-     * Simulates the search layer returning null from ContextIndexSearcher.search()
-     * and verifies that QueryPhase converts it into a valid partial response instead
-     * of failing — with timed_out=true and empty topDocs/aggregations.
-     */
-    public void testNullSearchResultHandledAsEmptyPartial() throws Exception {
-        ContextIndexSearcher base = newContextSearcher(reader);
-        ContextIndexSearcher nullReturning = new ContextIndexSearcher(
-            base.getIndexReader(),
-            base.getSimilarity(),
-            base.getQueryCache(),
-            base.getQueryCachingPolicy(),
-            true
-        ) {
-            @Override
-            public <C extends Collector, T> T search(Query query, CollectorManager<C, T> collectorManager) {
-                return null; // simulate lower layer returning null
-            }
-        };
-
-        SearchSourceBuilder source = new SearchSourceBuilder().query(new MatchAllQueryBuilder())
-            .aggregation(new ForceTimeoutAggregationBuilder("noop"))
-            .size(0);
-
-        try (SearchContext context = createSearchContext(source, nullReturning, null, true)) {
-            context.parsedQuery(new ParsedQuery(new MatchAllDocsQuery()));
-
-            QueryPhase.execute(context);
-
-            assertTrue("search should be marked timed_out", context.queryResult().searchTimedOut());
-            assertNotNull("topDocs must be present even on timeout", context.queryResult().topDocs());
-            assertEquals("no hits returned on timeout", 0, context.queryResult().topDocs().topDocs.scoreDocs.length);
-            assertNotNull("aggs container must be non-null on timeout when aggs were requested", context.queryResult().aggregations());
-            assertTrue("aggregations list should be empty on timeout", context.queryResult().aggregations().expand().asList().isEmpty());
-        }
-    }
-
-    /**
      * Verifies that when both suggestions and aggregations are present in the SearchContext,
-     * a timeout still results in a well-formed partial response — timed_out=true, empty hits,
-     * and safe handling of the suggest container.
+     * and a timeout occurs during aggregation setup, QueryPhase returns a well-formed partial
+     * result: marked timed_out=true, with empty hits, an empty but non-null aggregation container,
+     * and a safely accessible suggest container.
      */
-    public void testTimeoutWithSuggestsReturnsPartial() throws Exception {
+    public void testTimeoutWithAggsAndSuggestsReturnsPartial() throws Exception {
         SearchSourceBuilder source = new SearchSourceBuilder().query(new MatchAllQueryBuilder())
             .aggregation(new ForceTimeoutAggregationBuilder("force_timeout"))
-            .size(0);
+            .size(10);
 
         SuggestionSearchContext suggestCtx = new SuggestionSearchContext();
         suggestCtx.addSuggestion(
@@ -756,10 +694,44 @@ public class QueryPhaseTimeoutTests extends IndexShardTestCase {
             assertEquals("no hits returned on timeout", 0, context.queryResult().topDocs().topDocs.scoreDocs.length);
             assertNotNull("aggs container must be non-null on timeout when aggs were requested", context.queryResult().aggregations());
             assertTrue("aggregations list should be empty on timeout", context.queryResult().aggregations().expand().asList().isEmpty());
+            context.queryResult().suggest().iterator().forEachRemaining(Assert::assertNotNull);
+        }
+    }
 
-            if (context.queryResult().suggest() != null) {
-                assertTrue("suggest container readable", context.queryResult().suggest().size() >= 0);
+    /**
+     * Simulates the search layer returning null from ContextIndexSearcher.search()
+     * and verifies that QueryPhase converts it into a valid partial response instead
+     * of failing — with timed_out=true and empty topDocs/aggregations.
+     */
+    public void testNullSearchResultHandledAsEmptyPartial() throws Exception {
+        SearchSourceBuilder source = new SearchSourceBuilder().query(new MatchAllQueryBuilder())
+            .aggregation(new ForceTimeoutAggregationBuilder("force_timeout"))
+            .size(10);
+
+        ContextIndexSearcher base = newContextSearcher(reader);
+        ContextIndexSearcher nullReturning = new ContextIndexSearcher(
+            base.getIndexReader(),
+            base.getSimilarity(),
+            base.getQueryCache(),
+            base.getQueryCachingPolicy(),
+            true
+        ) {
+            @Override
+            public <C extends Collector, T> T search(Query query, CollectorManager<C, T> collectorManager) {
+                return null; // simulate lower layer returning null
             }
+        };
+
+        try (SearchContext context = createSearchContext(source, nullReturning, null, true)) {
+            context.parsedQuery(new ParsedQuery(new MatchAllDocsQuery()));
+
+            QueryPhase.execute(context);
+
+            assertTrue("search should be marked timed_out", context.queryResult().searchTimedOut());
+            assertNotNull("topDocs must be present even on timeout", context.queryResult().topDocs());
+            assertEquals("no hits returned on timeout", 0, context.queryResult().topDocs().topDocs.scoreDocs.length);
+            assertNotNull("aggs container must be non-null on timeout when aggs were requested", context.queryResult().aggregations());
+            assertTrue("aggregations list should be empty on timeout", context.queryResult().aggregations().expand().asList().isEmpty());
         }
     }
 
@@ -771,7 +743,7 @@ public class QueryPhaseTimeoutTests extends IndexShardTestCase {
     public void testTimeoutDisallowPartialsThrowsException() throws Exception {
         SearchSourceBuilder source = new SearchSourceBuilder().query(new MatchAllQueryBuilder())
             .aggregation(new ForceTimeoutAggregationBuilder("force_timeout"))
-            .size(0);
+            .size(10);
 
         try (SearchContext context = createSearchContext(source, newContextSearcher(reader), null, false)) {
             context.parsedQuery(new ParsedQuery(new MatchAllDocsQuery()));
@@ -789,15 +761,12 @@ public class QueryPhaseTimeoutTests extends IndexShardTestCase {
         SuggestionSearchContext suggestCtx,
         boolean allowPartials
     ) throws IOException {
-        AggregatorFactories.Builder aggsBuilder = AggregatorFactories.builder()
-            .addAggregator(new ForceTimeoutAggregationBuilder("force_timeout"));
-
         AggregatorFactories factories;
         try (AggregationTestHelper aggHelper = new AggregationTestHelper()) {
-            aggHelper.init();
+            aggHelper.initPlugins();
             SearchExecutionContext sec = createSearchExecutionContext();
             AggregationContext aggCtx = aggHelper.createAggregationContext(sec.getIndexReader(), new MatchAllDocsQuery());
-            factories = aggsBuilder.build(aggCtx, null);
+            factories = source.aggregations().build(aggCtx, null);
         } catch (Exception e) {
             throw new IOException(e);
         }
@@ -855,7 +824,7 @@ public class QueryPhaseTimeoutTests extends IndexShardTestCase {
      * aggregation contexts in tests. Handles plugin setup and resource cleanup.
      */
     private static final class AggregationTestHelper extends AggregatorTestCase implements AutoCloseable {
-        void init() {
+        void intiPlugins() {
             super.initPlugins();
         }
 
@@ -870,28 +839,10 @@ public class QueryPhaseTimeoutTests extends IndexShardTestCase {
      * to verify QueryPhase timeout handling behavior.
      */
     private static final class ForceTimeoutAggregationBuilder extends AggregationBuilder {
+        private Map<String, Object> metadata;
+
         ForceTimeoutAggregationBuilder(String name) {
             super(name);
-        }
-
-        @Override
-        public String getType() {
-            return "force_timeout";
-        }
-
-        @Override
-        public String getWriteableName() {
-            return "force_timeout";
-        }
-
-        @Override
-        public TransportVersion getMinimalSupportedVersion() {
-            return TransportVersion.current();
-        }
-
-        @Override
-        public BucketCardinality bucketCardinality() {
-            return BucketCardinality.ONE;
         }
 
         @Override
@@ -908,41 +859,70 @@ public class QueryPhaseTimeoutTests extends IndexShardTestCase {
         }
 
         @Override
-        public AggregationBuilder setMetadata(Map<String, Object> metadata) {
-            return null;
-        }
-
-        @Override
-        public Map<String, Object> getMetadata() {
-            return Map.of();
-        }
-
-        @Override
         public AggregationBuilder subAggregation(AggregationBuilder aggregation) {
-            return null;
+            this.factoriesBuilder.addAggregator(aggregation);
+            return this;
         }
 
         @Override
         public AggregationBuilder subAggregation(PipelineAggregationBuilder aggregation) {
-            return null;
+            this.factoriesBuilder.addPipelineAggregator(aggregation);
+            return this;
         }
 
         @Override
         public AggregationBuilder subAggregations(AggregatorFactories.Builder subFactories) {
-            return null;
+            this.factoriesBuilder = subFactories;
+            return this;
         }
-
-        @Override
-        public XContentBuilder toXContent(XContentBuilder builder, Params params) {
-            return null;
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) {}
 
         @Override
         protected AggregationBuilder shallowCopy(AggregatorFactories.Builder factoriesBuilder, Map<String, Object> metadata) {
-            return null;
+            ForceTimeoutAggregationBuilder copy = new ForceTimeoutAggregationBuilder(getName());
+            copy.factoriesBuilder = factoriesBuilder;
+            copy.setMetadata(metadata);
+            return copy;
+        }
+
+        @Override
+        public AggregationBuilder setMetadata(Map<String, Object> metadata) {
+            this.metadata = metadata;
+            return this;
+        }
+
+        @Override
+        public Map<String, Object> getMetadata() {
+            return metadata;
+        }
+
+        @Override
+        public BucketCardinality bucketCardinality() {
+            return BucketCardinality.ONE;
+        }
+
+        @Override
+        public String getWriteableName() {
+            return "force-timeout`";
+        }
+
+        @Override
+        public TransportVersion getMinimalSupportedVersion() {
+            return TransportVersion.current();
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeString(getName());
+        }
+
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            return builder;
+        }
+
+        @Override
+        public String getType() {
+            return "force-timeout`";
         }
     }
 }

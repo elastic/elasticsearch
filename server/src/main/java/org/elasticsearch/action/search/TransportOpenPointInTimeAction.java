@@ -166,7 +166,8 @@ public class TransportOpenPointInTimeAction extends HandledTransportAction<OpenP
             Map<String, Float> concreteIndexBoosts,
             boolean preFilter,
             ThreadPool threadPool,
-            SearchResponse.Clusters clusters
+            SearchResponse.Clusters clusters,
+            Map<String, Object> searchRequestAttributes
         ) {
             // Note: remote shards are prefiltered via can match as part of search shards. They don't need additional pre-filtering and
             // that is signaled to the local can match through the SearchShardIterator#prefiltered flag. Local shards do need to go
@@ -185,7 +186,8 @@ public class TransportOpenPointInTimeAction extends HandledTransportAction<OpenP
                     task,
                     false,
                     searchService.getCoordinatorRewriteContextProvider(timeProvider::absoluteStartMillis),
-                    searchResponseMetrics
+                    searchResponseMetrics,
+                    searchRequestAttributes
                 )
                     .addListener(
                         listener.delegateFailureAndWrap(
@@ -199,7 +201,8 @@ public class TransportOpenPointInTimeAction extends HandledTransportAction<OpenP
                                 clusterState,
                                 aliasFilter,
                                 concreteIndexBoosts,
-                                clusters
+                                clusters,
+                                searchRequestAttributes
                             )
                         )
                     );
@@ -214,7 +217,8 @@ public class TransportOpenPointInTimeAction extends HandledTransportAction<OpenP
                     clusterState,
                     aliasFilter,
                     concreteIndexBoosts,
-                    clusters
+                    clusters,
+                    searchRequestAttributes
                 );
             }
         }
@@ -229,7 +233,8 @@ public class TransportOpenPointInTimeAction extends HandledTransportAction<OpenP
             ClusterState clusterState,
             Map<String, AliasFilter> aliasFilter,
             Map<String, Float> concreteIndexBoosts,
-            SearchResponse.Clusters clusters
+            SearchResponse.Clusters clusters,
+            Map<String, Object> searchRequestAttributes
         ) {
             assert searchRequest.getMaxConcurrentShardRequests() == pitRequest.maxConcurrentShardRequests()
                 : searchRequest.getMaxConcurrentShardRequests() + " != " + pitRequest.maxConcurrentShardRequests();
@@ -252,7 +257,8 @@ public class TransportOpenPointInTimeAction extends HandledTransportAction<OpenP
                 new ArraySearchPhaseResults<>(shardIterators.size()),
                 searchRequest.getMaxConcurrentShardRequests(),
                 clusters,
-                searchResponseMetrics
+                searchResponseMetrics,
+                searchRequestAttributes
             ) {
                 @Override
                 protected void executePhaseOnShard(

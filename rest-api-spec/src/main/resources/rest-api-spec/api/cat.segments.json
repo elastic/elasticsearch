@@ -110,8 +110,14 @@
         "description": "Whether to ignore if a wildcard indices expression resolves into no concrete indices. (This includes `_all` string or when no indices have been specified). Only allowed when providing an index expression."
       },
       "expand_wildcards": {
-        "type": "enum",
-        "options": ["open", "closed", "hidden", "none", "all"],
+        "type": "list",
+        "options": [
+          "open",
+          "closed",
+          "hidden",
+          "none",
+          "all"
+        ],
         "default": "open",
         "description": "Whether to expand wildcard expression to concrete indices that are open, closed or both."
       },

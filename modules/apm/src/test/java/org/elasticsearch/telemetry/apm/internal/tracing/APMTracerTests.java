@@ -98,7 +98,8 @@ public class APMTracerTests extends ESTestCase {
     }
 
     /**
-     * Check that when a root trace is started, but it is not recorded, e.g. due to sampling, the tracer tracks it but doesn't start tracing.
+     * Check that when a root trace is started, but it is not recorded, e.g. due to sampling,
+     * the tracer tracks it but doesn't start tracing.
      */
     public void test_onTraceStarted_ifNotRecorded_doesNotStartTracing() {
         Settings settings = Settings.builder().put(APMAgentSettings.TELEMETRY_TRACING_ENABLED_SETTING.getKey(), true).build();

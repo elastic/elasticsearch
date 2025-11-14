@@ -60,7 +60,6 @@ import org.hamcrest.Matcher;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
@@ -69,6 +68,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.common.xcontent.support.XContentMapValues.extractValue;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
@@ -367,6 +367,7 @@ abstract class MlNativeDataFrameAnalyticsIntegTestCase extends MlNativeIntegTest
         // finished the job (as this is a very short analytics job), all without the audit being fully written.
         awaitIndexExists(NotificationsIndex.NOTIFICATIONS_INDEX);
 
+        Set<String> expectedPrefixes = Set.of(expectedAuditMessagePrefixes);
         assertBusy(() -> {
             // Refresh the notifications index to ensure latest writes are visible
             RefreshRequest refreshRequest = new RefreshRequest(NotificationsIndex.NOTIFICATIONS_INDEX);
@@ -375,29 +376,22 @@ abstract class MlNativeDataFrameAnalyticsIntegTestCase extends MlNativeIntegTest
 
             List<String> allAuditMessages = fetchAllAuditMessages(configId);
 
-            // Track which expected prefixes have been found
-            Set<String> foundPrefixes = new HashSet<>();
-            for (String message : allAuditMessages) {
-                for (String expectedPrefix : expectedAuditMessagePrefixes) {
-                    if (message.startsWith(expectedPrefix)) {
-                        foundPrefixes.add(expectedPrefix);
-                        break; // Each message can only match one prefix
-                    }
-                }
-            }
+            // Find which expected prefixes match any of the audit messages
+            Set<String> foundPrefixes = expectedPrefixes.stream()
+                .filter(prefix -> allAuditMessages.stream().anyMatch(msg -> msg.startsWith(prefix)))
+                .collect(Collectors.toSet());
 
-            // Ensure all expected prefixes were found
-            Set<String> missingPrefixes = new HashSet<>(Arrays.asList(expectedAuditMessagePrefixes));
-            missingPrefixes.removeAll(foundPrefixes);
-
-            if (missingPrefixes.isEmpty() == false) {
+            // Only calculate missing prefixes if not all were found
+            if (foundPrefixes.size() != expectedPrefixes.size()) {
+                Set<String> missingPrefixes = new HashSet<>(expectedPrefixes);
+                missingPrefixes.removeAll(foundPrefixes);
                 fail(
-                    "Expected audit messages not found for config ["
-                        + configId
-                        + "]. Missing prefixes: "
-                        + missingPrefixes
-                        + ". Found messages: "
-                        + allAuditMessages
+                    String.format(
+                        "Expected audit messages not found for config [%s]. Missing prefixes: %s. Found messages: %s",
+                        configId,
+                        missingPrefixes,
+                        allAuditMessages
+                    )
                 );
             }
         });

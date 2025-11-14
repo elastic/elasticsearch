@@ -1481,11 +1481,14 @@ public abstract class FieldMapper extends Mapper {
          */
         protected abstract Parameter<?>[] getParameters();
 
-        protected boolean useTimeSeriesDocValuesSkippers(IndexSettings indexSettings) {
+        protected boolean useTimeSeriesDocValuesSkippers(IndexSettings indexSettings, boolean isDimension) {
             if (indexSettings.useDocValuesSkipper() == false) {
                 return false;
             }
             if (indexSettings.getMode() == IndexMode.TIME_SERIES) {
+                if (isDimension) {
+                    return indexSettings.getIndexVersionCreated().onOrAfter(IndexVersions.TIME_SERIES_DIMENSIONS_USE_SKIPPERS);
+                }
                 return indexSettings.getIndexVersionCreated().onOrAfter(IndexVersions.TIME_SERIES_ALL_FIELDS_USE_SKIPPERS);
             }
             return false;

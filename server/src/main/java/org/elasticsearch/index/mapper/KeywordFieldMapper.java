@@ -456,7 +456,7 @@ public final class KeywordFieldMapper extends FieldMapper {
         }
 
         private boolean shouldUseTimeSeriesSkipper() {
-            return hasDocValues.get() && indexed.get() == false && useTimeSeriesDocValuesSkippers(indexSettings);
+            return hasDocValues.get() && indexed.get() == false && useTimeSeriesDocValuesSkippers(indexSettings, dimension.get());
         }
 
         private boolean shouldUseHostnameSkipper(final String fullFieldName) {

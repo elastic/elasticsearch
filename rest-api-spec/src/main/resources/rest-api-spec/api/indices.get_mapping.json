@@ -63,7 +63,10 @@
       },
       "local": {
         "type": "boolean",
-        "deprecated": true,
+        "deprecated": {
+          "version": "7.8.0",
+          "description": "This parameter is a no-op and field mappings are always retrieved locally."
+        },
         "default": false,
         "description": "Return local information, do not retrieve the state from master node (default: false)"
       }

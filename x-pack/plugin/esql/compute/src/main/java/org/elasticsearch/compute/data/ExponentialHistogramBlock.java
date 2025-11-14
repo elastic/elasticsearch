@@ -7,12 +7,41 @@
 
 package org.elasticsearch.compute.data;
 
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.exponentialhistogram.ExponentialHistogram;
 
 /**
  * A block that holds {@link ExponentialHistogram} values.
  */
 public sealed interface ExponentialHistogramBlock extends Block permits ConstantNullBlock, ExponentialHistogramArrayBlock {
+
+    /**
+     * Exponential histograms are composite data types. This enum defines the components
+     * that can be directly accessed, potentially avoiding loading the entire histogram from disk.
+     * <br>
+     * This enum can be safely serialized via {@link org.elasticsearch.common.io.stream.StreamOutput#writeEnum(Enum)}.
+     */
+    enum Component {
+        /**
+         * The minimum of all values summarized by the histogram, null if the histogram is empty.
+         */
+        MIN,
+
+        /**
+         * The maximum of all values summarized by the histogram, null if the histogram is empty.
+         */
+        MAX,
+
+        /**
+         * The sum of all values summarized by the histogram, 0.0 if the histogram is empty.
+         */
+        SUM,
+
+        /**
+         * The number of all values summarized by the histogram, 0 if the histogram is empty.
+         */
+        COUNT
+    }
 
     /**
      * Returns the {@link ExponentialHistogram} value at the given index.
@@ -27,6 +56,28 @@ public sealed interface ExponentialHistogramBlock extends Block permits Constant
      */
     ExponentialHistogram getExponentialHistogram(int valueIndex, ExponentialHistogramScratch scratch);
 
+    /**
+     * Returns a block holding the specified component of the exponential histogram at each position.
+     * The number of positions in the returned block will be exactly equal to the number of positions in this block.
+     * If a position is null in this block, it will also be null in the returned block.
+     * <br>
+     * The caller is responsible for closing the returned block.
+     *
+     * @param component the component to extract
+     * @return the block containing the specified component
+     */
+    Block buildExponentialHistogramComponentBlock(Component component);
+
+    /**
+     * Serializes the exponential histogram at the given index into the provided output, so that it can be read back
+     *  via {@link ExponentialHistogramBlockBuilder#deserializeAndAppend(SerializedInput)}.
+     *
+     * @param valueIndex
+     * @param out
+     * @param scratch
+     */
+    void serializeExponentialHistogram(int valueIndex, SerializedOutput out, BytesRef scratch);
+
     static boolean equals(ExponentialHistogramBlock blockA, ExponentialHistogramBlock blockB) {
         if (blockA == blockB) {
             return true;
@@ -40,6 +91,29 @@ public sealed interface ExponentialHistogramBlock extends Block permits Constant
                 case ExponentialHistogramArrayBlock b -> a.equalsAfterTypeCheck(b);
             };
         };
+    }
+
+    /**
+     * Abstraction to use for writing individual values via {@link #serializeExponentialHistogram(int, SerializedOutput, BytesRef)}.
+     */
+    interface SerializedOutput {
+        void appendDouble(double value);
+
+        void appendLong(long value);
+
+        void appendBytesRef(BytesRef bytesRef);
+    }
+
+    /**
+     * Abstraction to use for reading individual serialized via
+     * {@link ExponentialHistogramBlockBuilder#deserializeAndAppend(SerializedInput)}.
+     */
+    interface SerializedInput {
+        double readDouble();
+
+        long readLong();
+
+        BytesRef readBytesRef(BytesRef scratch);
     }
 
 }

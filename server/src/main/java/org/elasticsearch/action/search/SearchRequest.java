@@ -117,6 +117,11 @@ public class SearchRequest extends LegacyActionRequest implements IndicesRequest
      */
     private boolean forceSyntheticSource = false;
 
+    @Nullable
+    private String projectRouting;
+
+    private static final TransportVersion SEARCH_PROJECT_ROUTING = TransportVersion.fromName("search_project_routing");
+
     public SearchRequest() {
         this.localClusterAlias = null;
         this.absoluteStartMillis = DEFAULT_ABSOLUTE_START_MILLIS;
@@ -166,6 +171,19 @@ public class SearchRequest extends LegacyActionRequest implements IndicesRequest
     @Override
     public boolean allowsCrossProject() {
         return true;
+    }
+
+    @Override
+    public String getProjectRouting() {
+        return projectRouting;
+    }
+
+    public void setProjectRouting(@Nullable String projectRouting) {
+        if (this.projectRouting != null) {
+            throw new IllegalArgumentException("project_routing is already set to [" + this.projectRouting + "]");
+        }
+
+        this.projectRouting = projectRouting;
     }
 
     /**
@@ -231,6 +249,7 @@ public class SearchRequest extends LegacyActionRequest implements IndicesRequest
         this.waitForCheckpoints = searchRequest.waitForCheckpoints;
         this.waitForCheckpointsTimeout = searchRequest.waitForCheckpointsTimeout;
         this.forceSyntheticSource = searchRequest.forceSyntheticSource;
+        this.projectRouting = searchRequest.projectRouting;
     }
 
     /**
@@ -281,6 +300,11 @@ public class SearchRequest extends LegacyActionRequest implements IndicesRequest
         } else {
             forceSyntheticSource = false;
         }
+        if (in.getTransportVersion().supports(SEARCH_PROJECT_ROUTING)) {
+            this.projectRouting = in.readOptionalString();
+        } else {
+            this.projectRouting = null;
+        }
     }
 
     @Override
@@ -326,6 +350,9 @@ public class SearchRequest extends LegacyActionRequest implements IndicesRequest
             if (forceSyntheticSource) {
                 throw new IllegalArgumentException("force_synthetic_source is not supported before 8.4.0");
             }
+        }
+        if (out.getTransportVersion().supports(SEARCH_PROJECT_ROUTING)) {
+            out.writeOptionalString(this.projectRouting);
         }
     }
 

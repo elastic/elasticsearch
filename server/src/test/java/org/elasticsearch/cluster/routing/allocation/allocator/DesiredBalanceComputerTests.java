@@ -51,6 +51,7 @@ import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.cluster.routing.allocation.decider.ThrottlingAllocationDecider;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.UUIDs;
+import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.TimeProvider;
@@ -103,10 +104,10 @@ import static org.elasticsearch.test.MockLog.assertThatLogger;
 import static org.hamcrest.Matchers.aMapWithSize;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.anyOf;
-import static org.hamcrest.Matchers.arrayWithSize;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.everyItem;
 import static org.hamcrest.Matchers.hasEntry;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.mockito.Mockito.mock;
@@ -581,7 +582,7 @@ public class DesiredBalanceComputerTests extends ESAllocationTestCase {
                     allocation.routingNodes().getRelocatingShardCount(),
                     equalTo(0)
                 );
-                assertThat(allocation.routingNodes().node("node-2").started(), arrayWithSize(2));
+                assertThat(Iterators.toList(allocation.routingNodes().node("node-2").started().iterator()), hasSize(2));
             }
 
             @Override

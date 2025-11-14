@@ -1889,7 +1889,9 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         Builder builder = new Builder(in.readString());
         builder.version(in.readLong());
         builder.transportVersion(
-            in.getTransportVersion().supports(INDEX_CREATED_TRANSPORT_VERSION) ? TransportVersion.readVersion(in) : TransportVersion.fromId(0)
+            in.getTransportVersion().supports(INDEX_CREATED_TRANSPORT_VERSION)
+                ? TransportVersion.readVersion(in)
+                : TransportVersion.fromId(0)
         );
         builder.mappingVersion(in.readVLong());
         builder.settingsVersion(in.readVLong());

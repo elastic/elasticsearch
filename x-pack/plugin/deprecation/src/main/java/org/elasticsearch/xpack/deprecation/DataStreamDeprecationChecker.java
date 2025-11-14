@@ -94,8 +94,8 @@ public class DataStreamDeprecationChecker implements ResourceDeprecationChecker 
                 DeprecationIssue.Level.CRITICAL,
                 "Field mappings with incompatible percolator type",
                 "https://www.elastic.co/docs/reference/elasticsearch/mapping-reference/percolator#_reindexing_your_percolator_queries",
-                "The data stream was created before 9.latest and contains mappings that must be reindexed due to containing percolator " +
-                    "fields.",
+                "The data stream was created before 9.latest and contains mappings that must be reindexed due to containing percolator "
+                    + "fields.",
                 false,
                 ofEntries(
                     entry("reindex_required", true),
@@ -134,8 +134,8 @@ public class DataStreamDeprecationChecker implements ResourceDeprecationChecker 
                 DeprecationIssue.Level.CRITICAL,
                 "Field mappings with incompatible percolator type",
                 "https://www.elastic.co/docs/reference/elasticsearch/mapping-reference/percolator#_reindexing_your_percolator_queries",
-                "The data stream was created before 9.latest and contains mappings that must be reindexed due to containing percolator " +
-                    "fields.",
+                "The data stream was created before 9.latest and contains mappings that must be reindexed due to containing percolator "
+                    + "fields.",
                 false,
                 ofEntries(
                     entry("reindex_required", true),

@@ -83,10 +83,20 @@ public class DataStreamDeprecationCheckerTests extends ESTestCase {
         Map<String, IndexMetadata> nameToIndexMetadata = new HashMap<>();
         Set<String> expectedIndices = new HashSet<>();
 
-        MappingMetadata mappingMetadata = new MappingMetadata(MapperService.SINGLE_MAPPING_NAME,
-            Map.of("properties", Map.of("query", Map.of("type", "percolator"), "field", Map.of("type", "text"))));
-        DataStream dataStream = createTestDataStream(oldIndexCount, 0, newIndexCount, 0, nameToIndexMetadata, expectedIndices,
-            mappingMetadata, randomBoolean() ? TransportVersion.fromId(0) : TransportVersion.fromId(9000019));
+        MappingMetadata mappingMetadata = new MappingMetadata(
+            MapperService.SINGLE_MAPPING_NAME,
+            Map.of("properties", Map.of("query", Map.of("type", "percolator"), "field", Map.of("type", "text")))
+        );
+        DataStream dataStream = createTestDataStream(
+            oldIndexCount,
+            0,
+            newIndexCount,
+            0,
+            nameToIndexMetadata,
+            expectedIndices,
+            mappingMetadata,
+            randomBoolean() ? TransportVersion.fromId(0) : TransportVersion.fromId(9000019)
+        );
 
         ProjectMetadata project = ProjectMetadata.builder(randomProjectIdOrDefault())
             .indices(nameToIndexMetadata)
@@ -97,8 +107,8 @@ public class DataStreamDeprecationCheckerTests extends ESTestCase {
             DeprecationIssue.Level.CRITICAL,
             "Field mappings with incompatible percolator type",
             "https://www.elastic.co/docs/reference/elasticsearch/mapping-reference/percolator#_reindexing_your_percolator_queries",
-            "The data stream was created before 9.latest and contains mappings that must be reindexed due to containing percolator " +
-                "fields.",
+            "The data stream was created before 9.latest and contains mappings that must be reindexed due to containing percolator "
+                + "fields.",
             false,
             ofEntries(
                 entry("reindex_required", true),
@@ -147,8 +157,10 @@ public class DataStreamDeprecationCheckerTests extends ESTestCase {
         Map<String, IndexMetadata> nameToIndexMetadata = new HashMap<>();
         Set<String> expectedIndices = new HashSet<>();
 
-        MappingMetadata mappingMetadata = new MappingMetadata(MapperService.SINGLE_MAPPING_NAME,
-            Map.of("properties", Map.of("query", Map.of("type", "percolator"), "field", Map.of("type", "text"))));
+        MappingMetadata mappingMetadata = new MappingMetadata(
+            MapperService.SINGLE_MAPPING_NAME,
+            Map.of("properties", Map.of("query", Map.of("type", "percolator"), "field", Map.of("type", "text")))
+        );
         DataStream dataStream = createTestDataStream(
             oldOpenIndexCount,
             oldClosedIndexCount,
@@ -190,8 +202,16 @@ public class DataStreamDeprecationCheckerTests extends ESTestCase {
         Map<String, IndexMetadata> nameToIndexMetadata,
         Set<String> expectedIndices
     ) {
-        return createTestDataStream(oldOpenIndexCount, oldClosedIndexCount, newOpenIndexCount, newClosedIndexCount, nameToIndexMetadata,
-            expectedIndices, MappingMetadata.EMPTY_MAPPINGS, TransportVersion.fromId(0));
+        return createTestDataStream(
+            oldOpenIndexCount,
+            oldClosedIndexCount,
+            newOpenIndexCount,
+            newClosedIndexCount,
+            nameToIndexMetadata,
+            expectedIndices,
+            MappingMetadata.EMPTY_MAPPINGS,
+            TransportVersion.fromId(0)
+        );
     }
 
     /*
@@ -253,8 +273,12 @@ public class DataStreamDeprecationCheckerTests extends ESTestCase {
         return createIndex(true, suffix, isClosed, nameToIndexMetadata, expectedIndices, mappingMetadata, transportVersion);
     }
 
-    private Index createNewIndex(int suffix, boolean isClosed, Map<String, IndexMetadata> nameToIndexMetadata,
-                                 MappingMetadata mappingMetadata) {
+    private Index createNewIndex(
+        int suffix,
+        boolean isClosed,
+        Map<String, IndexMetadata> nameToIndexMetadata,
+        MappingMetadata mappingMetadata
+    ) {
         return createIndex(false, suffix, isClosed, nameToIndexMetadata, null, mappingMetadata, TransportVersion.current());
     }
 
@@ -371,8 +395,10 @@ public class DataStreamDeprecationCheckerTests extends ESTestCase {
         Map<String, IndexMetadata> nameToIndexMetadata = new HashMap<>();
         Set<String> expectedIndices = new HashSet<>();
 
-        MappingMetadata mappingMetadata = new MappingMetadata(MapperService.SINGLE_MAPPING_NAME,
-            Map.of("properties", Map.of("query", Map.of("type", "percolator"), "field", Map.of("type", "text"))));
+        MappingMetadata mappingMetadata = new MappingMetadata(
+            MapperService.SINGLE_MAPPING_NAME,
+            Map.of("properties", Map.of("query", Map.of("type", "percolator"), "field", Map.of("type", "text")))
+        );
 
         for (int i = 0; i < oldIndexCount; i++) {
             Settings.Builder settings = settings(IndexVersion.fromId(9000019));
@@ -424,8 +450,8 @@ public class DataStreamDeprecationCheckerTests extends ESTestCase {
             DeprecationIssue.Level.CRITICAL,
             "Field mappings with incompatible percolator type",
             "https://www.elastic.co/docs/reference/elasticsearch/mapping-reference/percolator#_reindexing_your_percolator_queries",
-            "The data stream was created before 9.latest and contains mappings that must be reindexed due to containing percolator " +
-                "fields.",
+            "The data stream was created before 9.latest and contains mappings that must be reindexed due to containing percolator "
+                + "fields.",
             false,
             ofEntries(
                 entry("reindex_required", true),

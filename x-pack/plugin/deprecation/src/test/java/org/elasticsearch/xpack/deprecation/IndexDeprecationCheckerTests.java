@@ -17,7 +17,6 @@ import org.elasticsearch.cluster.metadata.DataStreamMetadata;
 import org.elasticsearch.cluster.metadata.DataStreamOptions;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.cluster.metadata.MetadataIndexStateService;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
@@ -44,8 +43,6 @@ import static org.elasticsearch.index.IndexModule.INDEX_STORE_TYPE_SETTING;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
-import static org.hamcrest.Matchers.nullValue;
-import static org.mockito.ArgumentMatchers.isNull;
 
 public class IndexDeprecationCheckerTests extends ESTestCase {
 
@@ -202,8 +199,7 @@ public class IndexDeprecationCheckerTests extends ESTestCase {
             .numberOfShards(1)
             .numberOfReplicas(0)
             .state(indexMetdataState)
-            .putMapping(
-                """
+            .putMapping("""
                 {
                     "properties": {
                         "query": {
@@ -214,8 +210,7 @@ public class IndexDeprecationCheckerTests extends ESTestCase {
                         }
                     }
                 }
-                """
-            )
+                """)
             .transportVersion(randomBoolean() ? TransportVersion.fromId(0) : TransportVersion.fromId(9000019))
             .build();
         ProjectMetadata project = ProjectMetadata.builder(randomProjectIdOrDefault()).put(indexMetadata, true).build();
@@ -223,8 +218,8 @@ public class IndexDeprecationCheckerTests extends ESTestCase {
             DeprecationIssue.Level.CRITICAL,
             "Field mappings with incompatible percolator type",
             "https://www.elastic.co/docs/reference/elasticsearch/mapping-reference/percolator#_reindexing_your_percolator_queries",
-            "The index was created before 9.latest and contains mappings that must be reindexed due to containing percolator fields. " +
-                "Field [query] is of type [_doc]",
+            "The index was created before 9.latest and contains mappings that must be reindexed due to containing percolator fields. "
+                + "Field [query] is of type [_doc]",
             false,
             Map.of("reindex_required", true, "excluded_actions", List.of("readOnly"))
         );
@@ -244,8 +239,7 @@ public class IndexDeprecationCheckerTests extends ESTestCase {
             .numberOfShards(1)
             .numberOfReplicas(0)
             .state(indexMetdataState)
-            .putMapping(
-                """
+            .putMapping("""
                 {
                     "properties": {
                         "query": {
@@ -256,8 +250,7 @@ public class IndexDeprecationCheckerTests extends ESTestCase {
                         }
                     }
                 }
-                """
-            )
+                """)
             .transportVersion(TransportVersion.current())
             .build();
         ProjectMetadata project = ProjectMetadata.builder(randomProjectIdOrDefault()).put(indexMetadata, true).build();
@@ -490,8 +483,7 @@ public class IndexDeprecationCheckerTests extends ESTestCase {
             .numberOfShards(1)
             .numberOfReplicas(0)
             .state(indexMetdataState)
-            .putMapping(
-                """
+            .putMapping("""
                 {
                     "properties": {
                         "query": {
@@ -502,8 +494,7 @@ public class IndexDeprecationCheckerTests extends ESTestCase {
                         }
                     }
                 }
-                """
-            )
+                """)
             .transportVersion(TransportVersion.fromId(9000019))
             .build();
         ProjectMetadata project = ProjectMetadata.builder(randomProjectIdOrDefault()).put(indexMetadata, true).build();
@@ -511,8 +502,8 @@ public class IndexDeprecationCheckerTests extends ESTestCase {
             DeprecationIssue.Level.CRITICAL,
             "Field mappings with incompatible percolator type",
             "https://www.elastic.co/docs/reference/elasticsearch/mapping-reference/percolator#_reindexing_your_percolator_queries",
-            "The index was created before 9.latest and contains mappings that must be reindexed due to containing percolator fields. " +
-                "Field [query] is of type [_doc]",
+            "The index was created before 9.latest and contains mappings that must be reindexed due to containing percolator fields. "
+                + "Field [query] is of type [_doc]",
             false,
             Map.of("reindex_required", true, "excluded_actions", List.of("readOnly"))
         );

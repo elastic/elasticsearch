@@ -149,6 +149,7 @@ import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServic
 import org.elasticsearch.xpack.inference.services.elastic.authorization.AuthorizationPoller;
 import org.elasticsearch.xpack.inference.services.elastic.authorization.AuthorizationTaskExecutor;
 import org.elasticsearch.xpack.inference.services.elastic.authorization.ElasticInferenceServiceAuthorizationRequestHandler;
+import org.elasticsearch.xpack.inference.services.elastic.ccm.CCMCache;
 import org.elasticsearch.xpack.inference.services.elastic.ccm.CCMFeature;
 import org.elasticsearch.xpack.inference.services.elastic.ccm.CCMIndex;
 import org.elasticsearch.xpack.inference.services.elastic.ccm.CCMPersistentStorageService;
@@ -164,6 +165,7 @@ import org.elasticsearch.xpack.inference.services.jinaai.JinaAIService;
 import org.elasticsearch.xpack.inference.services.llama.LlamaService;
 import org.elasticsearch.xpack.inference.services.mistral.MistralService;
 import org.elasticsearch.xpack.inference.services.openai.OpenAiService;
+import org.elasticsearch.xpack.inference.services.openshiftai.OpenShiftAiService;
 import org.elasticsearch.xpack.inference.services.sagemaker.SageMakerClient;
 import org.elasticsearch.xpack.inference.services.sagemaker.SageMakerService;
 import org.elasticsearch.xpack.inference.services.sagemaker.model.SageMakerConfiguration;
@@ -275,7 +277,8 @@ public class InferencePlugin extends Plugin
             new ActionHandler(StoreInferenceEndpointsAction.INSTANCE, TransportStoreEndpointsAction.class),
             new ActionHandler(GetCCMConfigurationAction.INSTANCE, TransportGetCCMConfigurationAction.class),
             new ActionHandler(PutCCMConfigurationAction.INSTANCE, TransportPutCCMConfigurationAction.class),
-            new ActionHandler(DeleteCCMConfigurationAction.INSTANCE, TransportDeleteCCMConfigurationAction.class)
+            new ActionHandler(DeleteCCMConfigurationAction.INSTANCE, TransportDeleteCCMConfigurationAction.class),
+            new ActionHandler(CCMCache.ClearCCMCacheAction.INSTANCE, CCMCache.ClearCCMCacheAction.class)
         );
     }
 
@@ -452,7 +455,19 @@ public class InferencePlugin extends Plugin
     private Collection<?> createCCMComponents(PluginServices services) {
         ccmFeature.set(new CCMFeature(settings));
         var ccmPersistentStorageService = new CCMPersistentStorageService(services.client());
-        return List.of(new CCMService(ccmPersistentStorageService), ccmFeature.get(), ccmPersistentStorageService);
+        return List.of(
+            new CCMService(ccmPersistentStorageService),
+            ccmFeature.get(),
+            ccmPersistentStorageService,
+            new CCMCache(
+                ccmPersistentStorageService,
+                services.clusterService(),
+                settings,
+                services.featureService(),
+                services.projectResolver(),
+                services.client()
+            )
+        );
     }
 
     @Override
@@ -492,6 +507,7 @@ public class InferencePlugin extends Plugin
             context -> new DeepSeekService(httpFactory.get(), serviceComponents.get(), context),
             context -> new LlamaService(httpFactory.get(), serviceComponents.get(), context),
             context -> new Ai21Service(httpFactory.get(), serviceComponents.get(), context),
+            context -> new OpenShiftAiService(httpFactory.get(), serviceComponents.get(), context),
             ElasticsearchInternalService::new,
             context -> new CustomService(httpFactory.get(), serviceComponents.get(), context)
         );
@@ -651,6 +667,7 @@ public class InferencePlugin extends Plugin
         settings.addAll(InferenceEndpointRegistry.getSettingsDefinitions());
         settings.addAll(ElasticInferenceServiceSettings.getSettingsDefinitions());
         settings.addAll(CCMSettings.getSettingsDefinitions());
+        settings.addAll(CCMCache.getSettingsDefinitions());
         return Collections.unmodifiableSet(settings);
     }
 

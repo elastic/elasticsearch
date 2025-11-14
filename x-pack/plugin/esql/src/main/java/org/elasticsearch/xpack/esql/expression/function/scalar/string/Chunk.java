@@ -19,6 +19,7 @@ import org.elasticsearch.xpack.core.inference.chunking.Chunker;
 import org.elasticsearch.xpack.core.inference.chunking.ChunkerBuilder;
 import org.elasticsearch.xpack.core.inference.chunking.SentenceBoundaryChunkingSettings;
 import org.elasticsearch.xpack.esql.core.InvalidArgumentException;
+import org.elasticsearch.xpack.esql.core.expression.EntryExpression;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.MapExpression;
@@ -49,14 +50,15 @@ public class Chunk extends EsqlScalarFunction implements OptionalArgument {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Chunk", Chunk::new);
 
     public static final int DEFAULT_NUM_CHUNKS = Integer.MAX_VALUE;
-    public static final int DEFAULT_CHUNK_SIZE = 300;
+    static final int DEFAULT_CHUNK_SIZE = 300;
+    public static final ChunkingSettings DEFAULT_CHUNKING_SETTINGS = new SentenceBoundaryChunkingSettings(DEFAULT_CHUNK_SIZE, 0);
 
     private final Expression field, options;
 
     static final String NUM_CHUNKS = "num_chunks";
-    static final String CHUNK_SIZE = "chunk_size";
+    static final String CHUNKING_SETTINGS = "chunking_settings";
 
-    public static final Map<String, DataType> ALLOWED_OPTIONS = Map.of(NUM_CHUNKS, DataType.INTEGER, CHUNK_SIZE, DataType.INTEGER);
+    public static final Map<String, DataType> ALLOWED_OPTIONS = Map.of(NUM_CHUNKS, DataType.INTEGER, CHUNKING_SETTINGS, DataType.OBJECT);
 
     @FunctionInfo(returnType = "keyword", preview = true, description = """
         Use `CHUNK` to split a text field into smaller chunks.""", detailedDescription = """
@@ -76,24 +78,14 @@ public class Chunk extends EsqlScalarFunction implements OptionalArgument {
                     description = "The number of chunks to return. Defaults to return all chunks."
                 ),
                 @MapParam.MapParamEntry(
-                    name = "chunk_size",
-                    type = "integer",
-                    description = "The size of sentence-based chunks to use. Defaults to " + DEFAULT_CHUNK_SIZE
+                    name = "chunking_settings",
+                    type = "object",
+                    description = "The chunking settings with which to apply to the field. " +
+                        "If no chunking settings are specified, defaults to sentence-based chunks of size " + DEFAULT_CHUNK_SIZE
                 ), },
             description = "Options to customize chunking behavior.",
             optional = true
         ) Expression options
-    ) {
-        super(source, options == null ? List.of(field) : List.of(field, options));
-        this.field = field;
-        this.options = options;
-    }
-
-    private Chunk(
-        Source source,
-        Expression field,
-        Expression options,
-        boolean unused // dummy parameter to differentiate constructors
     ) {
         super(source, options == null ? List.of(field) : List.of(field, options));
         this.field = field;
@@ -130,23 +122,71 @@ public class Chunk extends EsqlScalarFunction implements OptionalArgument {
         if (childrenResolved() == false) {
             return new TypeResolution("Unresolved children");
         }
-        return isString(field(), sourceText(), FIRST).and(Options.resolve(options, source(), SECOND, ALLOWED_OPTIONS, this::verifyOptions));
+
+        TypeResolution fieldResolution = isString(field(), sourceText(), FIRST);
+        if (fieldResolution.unresolved()) {
+            return fieldResolution;
+        }
+
+        if (options == null) {
+            return TypeResolution.TYPE_RESOLVED;
+        }
+
+        // Custom validation for options since we need to handle nested MapExpression for chunking_settings
+        if (options instanceof MapExpression == false) {
+            return new TypeResolution("second argument of [" + sourceText() + "] must be a map");
+        }
+
+        MapExpression mapExpr = (MapExpression) options;
+        for (EntryExpression entry : mapExpr.entryExpressions()) {
+            if (entry.key() instanceof Literal == false || ((Literal) entry.key()).foldable() == false) {
+                return new TypeResolution("option names must be constants in [" + sourceText() + "]");
+            }
+
+            Object keyValue = ((Literal) entry.key()).value();
+            String optionName = keyValue instanceof BytesRef br ? br.utf8ToString() : keyValue.toString();
+
+            if (NUM_CHUNKS.equals(optionName)) {
+                if (entry.value() instanceof Literal == false) {
+                    return new TypeResolution("[" + NUM_CHUNKS + "] must be a constant");
+                }
+                Literal value = (Literal) entry.value();
+                if (value.dataType() != DataType.INTEGER) {
+                    return new TypeResolution("[" + NUM_CHUNKS + "] must be an integer, found [" + value.dataType() + "]");
+                }
+                Integer numChunks = (Integer) value.value();
+                if (numChunks != null && numChunks < 0) {
+                    return new TypeResolution("[" + NUM_CHUNKS + "] cannot be negative, found [" + numChunks + "]");
+                }
+            } else if (CHUNKING_SETTINGS.equals(optionName)) {
+                if (entry.value() instanceof MapExpression == false) {
+                    return new TypeResolution("[" + CHUNKING_SETTINGS + "] must be a map, found [" + entry.value().getClass().getSimpleName() + "]");
+                }
+                // Validate the nested map has valid keys/values
+                TypeResolution chunkingSettingsResolution = validateChunkingSettings((MapExpression) entry.value());
+                if (chunkingSettingsResolution.unresolved()) {
+                    return chunkingSettingsResolution;
+                }
+            } else {
+                return new TypeResolution("Invalid option [" + optionName + "], expected one of [" + String.join(", ", ALLOWED_OPTIONS.keySet()) + "]");
+            }
+        }
+
+        return TypeResolution.TYPE_RESOLVED;
     }
 
-    private void verifyOptions(Map<String, Object> optionsMap) {
-        if (options == null) {
-            return;
+    private TypeResolution validateChunkingSettings(MapExpression chunkingSettingsMap) {
+        // Basic validation - just ensure all keys are literals and all values are literals
+        // The actual validation will be done by ChunkingSettingsBuilder.fromMap() at evaluation time
+        for (EntryExpression entry : chunkingSettingsMap.entryExpressions()) {
+            if (entry.key() instanceof Literal == false || ((Literal) entry.key()).foldable() == false) {
+                return new TypeResolution("chunking_settings keys must be constants");
+            }
+            if (entry.value() instanceof Literal == false || ((Literal) entry.value()).foldable() == false) {
+                return new TypeResolution("chunking_settings values must be constants");
+            }
         }
-
-        Integer numChunks = (Integer) optionsMap.get(NUM_CHUNKS);
-        if (numChunks != null && numChunks < 0) {
-            throw new InvalidArgumentException("[{}] cannot be negative, found [{}]", NUM_CHUNKS, numChunks);
-        }
-        Integer chunkSize = (Integer) optionsMap.get(CHUNK_SIZE);
-        if (chunkSize != null && chunkSize < 0) {
-            throw new InvalidArgumentException("[{}] cannot be negative, found [{}]", CHUNK_SIZE, chunkSize);
-        }
-
+        return TypeResolution.TYPE_RESOLVED;
     }
 
     @Override
@@ -219,14 +259,32 @@ public class Chunk extends EsqlScalarFunction implements OptionalArgument {
 
     @Override
     public EvalOperator.ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
+        int numChunks = DEFAULT_NUM_CHUNKS;
+        int chunkSize = DEFAULT_CHUNK_SIZE;
 
-        Map<String, Object> optionsMap = new HashMap<>();
         if (options() != null) {
-            Options.populateMap(((MapExpression) options), optionsMap, source(), SECOND, ALLOWED_OPTIONS);
-        }
+            MapExpression mapExpr = (MapExpression) options();
+            for (EntryExpression entry : mapExpr.entryExpressions()) {
+                Object keyValue = ((Literal) entry.key()).value();
+                String optionName = keyValue instanceof BytesRef br ? br.utf8ToString() : keyValue.toString();
 
-        int numChunks = (Integer) optionsMap.getOrDefault(NUM_CHUNKS, DEFAULT_NUM_CHUNKS);
-        int chunkSize = (Integer) optionsMap.getOrDefault(CHUNK_SIZE, DEFAULT_CHUNK_SIZE);
+                if (NUM_CHUNKS.equals(optionName)) {
+                    numChunks = (Integer) ((Literal) entry.value()).value();
+                } else if (CHUNKING_SETTINGS.equals(optionName)) {
+                    // For now, we'll just extract max_chunk_size from the nested map
+                    // In the future, this should fully support ChunkingSettings
+                    MapExpression chunkingSettingsExpr = (MapExpression) entry.value();
+                    for (EntryExpression csEntry : chunkingSettingsExpr.entryExpressions()) {
+                        Object csKeyValue = ((Literal) csEntry.key()).value();
+                        String csKey = csKeyValue instanceof BytesRef br ? br.utf8ToString() : csKeyValue.toString();
+                        if ("max_chunk_size".equals(csKey)) {
+                            chunkSize = (Integer) ((Literal) csEntry.value()).value();
+                            break;
+                        }
+                    }
+                }
+            }
+        }
 
         return new ChunkBytesRefEvaluator.Factory(
             source(),

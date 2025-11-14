@@ -57,6 +57,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -439,6 +440,7 @@ public class TransportDeprecationInfoAction extends TransportMasterNodeReadActio
             .filter(e -> exceedsLowWatermark(clusterSettings, e.getValue()))
             .map(Map.Entry::getKey)
             .map(discoveryNodes::get)
+            .filter(Objects::nonNull)
             .map(DiscoveryNode::getName)
             .sorted()
             .toList();

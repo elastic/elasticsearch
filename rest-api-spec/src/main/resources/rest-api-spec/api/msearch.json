@@ -85,7 +85,10 @@
       },
       "ignore_throttled": {
         "type": "boolean",
-        "deprecated": true,
+        "deprecated": {
+          "version": "7.16.0",
+          "description": "This parameter is deprecated because frozen indices have been deprecated."
+        },
         "default": false,
         "description": "Whether specified concrete, expanded or aliased indices should be ignored when throttled"
       },

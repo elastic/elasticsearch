@@ -19,9 +19,34 @@ import java.util.List;
 
 final class ExponentialHistogramArrayBlock extends AbstractNonThreadSafeRefCounted implements ExponentialHistogramBlock {
 
+    // Exponential histograms consist of several components that we store in separate blocks
+    // due to (a) better compression in the field mapper for disk storage and (b) faster computations if only one sub-component is needed
+    // What are the semantics of positions, multi-value counts and nulls in the exponential histogram block and
+    // how do they relate to the sub-blocks?
+    // ExponentialHistogramBlock need to adhere to the contract of Blocks for the access patterns:
+    //
+    // for (int position = 0; position < block.getPositionCount(); position++) {
+    // ...int valueCount = block.getValueCount(position);
+    // ...for (int valueIndex = 0; valueIndex < valueCount; valueIndex++) {
+    // ......ExponentialHistogram histo = block.getExponentialHistogram(valueIndex, scratch);
+    // ...}
+    // }
+    //
+    // That implies that given only a value-index, we need to be able to retrieve all components of the histogram.
+    // Because we can't make any assumptions on how value indices are laid out in the sub-blocks for multi-values,
+    // we enforce that the sub-blocks have at most one value per position (i.e., no multi-values).
+    // Based on this, we can define the valueIndex for ExponentialHistogramArrayBlock to correspond to positions in the sub-blocks.
+    // So basically the sub-blocks are the "flattened" components of the histograms.
+    // If we later add multi-value support to ExponentialHistogramArrayBlock,
+    // we can't use the multi-value support of the sub-blocks to implement that.
+    // Instead, we need to maintain a firstValueIndex array ourselves in ExponentialHistogramArrayBlock.
+
     private final DoubleBlock minima;
     private final DoubleBlock maxima;
     private final DoubleBlock sums;
+    /**
+     Holds the number of values in each histogram. Note that this is a different concept from getValueCount(position)!
+     */
     private final LongBlock valueCounts;
     private final DoubleBlock zeroThresholds;
     private final BytesRefBlock encodedHistograms;
@@ -92,6 +117,37 @@ final class ExponentialHistogramArrayBlock extends AbstractNonThreadSafeRefCount
         } catch (IOException e) {
             throw new IllegalStateException("error loading histogram", e);
         }
+    }
+
+    @Override
+    public Block buildExponentialHistogramComponentBlock(Component component) {
+        // as soon as we support multi-values, we need to implement this differently,
+        // as the sub-blocks will be flattened and the position count won't match anymore
+        // we'll likely have to return a "view" on the sub-blocks that implements the multi-value logic
+        Block result = switch (component) {
+            case MIN -> minima;
+            case MAX -> maxima;
+            case SUM -> sums;
+            case COUNT -> valueCounts;
+        };
+        result.incRef();
+        return result;
+    }
+
+    @Override
+    public void serializeExponentialHistogram(int valueIndex, SerializedOutput out, BytesRef scratch) {
+        // not that this value count is different from getValueCount(position)!
+        // this value count represents the number of individual samples the histogram was computed for
+        long valueCount = valueCounts.getLong(valueCounts.getFirstValueIndex(valueIndex));
+        out.appendLong(valueCounts.getLong(valueCounts.getFirstValueIndex(valueIndex)));
+        out.appendDouble(sums.getDouble(sums.getFirstValueIndex(valueIndex)));
+        out.appendDouble(zeroThresholds.getDouble(zeroThresholds.getFirstValueIndex(valueIndex)));
+        if (valueCount > 0) {
+            // min / max are only non-null for non-empty histograms
+            out.appendDouble(minima.getDouble(minima.getFirstValueIndex(valueIndex)));
+            out.appendDouble(maxima.getDouble(maxima.getFirstValueIndex(valueIndex)));
+        }
+        out.appendBytesRef(encodedHistograms.getBytesRef(encodedHistograms.getFirstValueIndex(valueIndex), scratch));
     }
 
     @Override
@@ -376,5 +432,4 @@ final class ExponentialHistogramArrayBlock extends AbstractNonThreadSafeRefCount
         // this ensures proper equality with null blocks and should be unique enough for practical purposes
         return encodedHistograms.hashCode();
     }
-
 }

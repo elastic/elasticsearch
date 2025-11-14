@@ -15,26 +15,36 @@ import org.elasticsearch.xpack.inference.external.http.retry.ResponseHandler;
 import org.elasticsearch.xpack.inference.external.request.RequestTests;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 
+import java.util.concurrent.TimeUnit;
+
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 public class RequestManagerTests {
-    public static RequestManager createMock() {
-        return createMock(mock(RequestSender.class));
+    public static RequestManager createMockWithRateLimitingDisabled(RequestSender requestSender, String inferenceEntityId) {
+        return createMock(requestSender, inferenceEntityId, new RateLimitSettings(1, TimeUnit.MINUTES, false));
     }
 
-    public static RequestManager createMock(String inferenceEntityId) {
-        return createMock(mock(RequestSender.class), inferenceEntityId);
+    public static RequestManager createMockWithRateLimitingDisabled(String inferenceEntityId) {
+        return createMock(mock(RequestSender.class), inferenceEntityId, new RateLimitSettings(1, TimeUnit.MINUTES, false));
     }
 
-    public static RequestManager createMock(RequestSender requestSender) {
-        return createMock(requestSender, "id", new RateLimitSettings(1));
+    public static RequestManager createMockWithRateLimitingEnabled() {
+        return createMockWithRateLimitingEnabled(mock(RequestSender.class));
     }
 
-    public static RequestManager createMock(RequestSender requestSender, String inferenceEntityId) {
-        return createMock(requestSender, inferenceEntityId, new RateLimitSettings(1));
+    public static RequestManager createMockWithRateLimitingEnabled(String inferenceEntityId) {
+        return createMockWithRateLimitingEnabled(mock(RequestSender.class), inferenceEntityId);
+    }
+
+    public static RequestManager createMockWithRateLimitingEnabled(RequestSender requestSender) {
+        return createMock(requestSender, "id", new RateLimitSettings(1, TimeUnit.MINUTES, true));
+    }
+
+    public static RequestManager createMockWithRateLimitingEnabled(RequestSender requestSender, String inferenceEntityId) {
+        return createMock(requestSender, inferenceEntityId, new RateLimitSettings(1, TimeUnit.MINUTES, true));
     }
 
     public static RequestManager createMock(RequestSender requestSender, String inferenceEntityId, RateLimitSettings settings) {

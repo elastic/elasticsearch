@@ -90,15 +90,15 @@ public class ModelRegistryTests extends ESSingleNodeTestCase {
         assertFalse(matched.isPresent());
     }
 
-    public void testContainsDefaultConfigId() {
+    public void testContainsPreconfiguredInferenceEndpointId() {
         registry.addDefaultIds(
             new InferenceService.DefaultConfigId("foo", MinimalServiceSettings.sparseEmbedding("my_service"), mock(InferenceService.class))
         );
         registry.addDefaultIds(
             new InferenceService.DefaultConfigId("bar", MinimalServiceSettings.sparseEmbedding("my_service"), mock(InferenceService.class))
         );
-        assertTrue(registry.containsDefaultConfigId("foo"));
-        assertFalse(registry.containsDefaultConfigId("baz"));
+        assertTrue(registry.containsPreconfiguredInferenceEndpointId("foo"));
+        assertFalse(registry.containsPreconfiguredInferenceEndpointId("baz"));
     }
 
     public void testTaskTypeMatchedDefaults() {

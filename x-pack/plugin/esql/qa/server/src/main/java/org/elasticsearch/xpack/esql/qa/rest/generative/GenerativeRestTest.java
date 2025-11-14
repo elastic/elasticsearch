@@ -81,7 +81,9 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
         "time_series aggregate.* can only be used with the TS command",
         "implicit time-series aggregation function .* doesn't support type .*",
         "INLINE STATS .* can only be used after STATS when used with TS command",
-        "cannot group by a metric field .* in a time-series aggregation"
+        "cannot group by a metric field .* in a time-series aggregation",
+        "a @timestamp field of type date or date_nanos to be present when run with the TS command, but it was not present",
+        "Output has changed from \\[.*\\] to \\[.*\\]" // https://github.com/elastic/elasticsearch/issues/134794
     );
 
     public static final Set<Pattern> ALLOWED_ERROR_PATTERNS = ALLOWED_ERRORS.stream()
@@ -262,7 +264,7 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
     }
 
     private List<String> availableIndices() throws IOException {
-        return availableDatasetsForEs(true, supportsSourceFieldMapping(), false, requiresTimeSeries()).stream()
+        return availableDatasetsForEs(true, supportsSourceFieldMapping(), false, requiresTimeSeries(), false).stream()
             .filter(x -> x.requiresInferenceEndpoint() == false)
             .map(x -> x.indexName())
             .toList();

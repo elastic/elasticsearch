@@ -40,6 +40,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Predicate;
+import java.util.function.Supplier;
 
 public class IndicesQueryCache implements QueryCache, Closeable {
 
@@ -199,9 +200,9 @@ public class IndicesQueryCache implements QueryCache, Closeable {
     private record CacheTotals(long totalItemsInCache, int shardCount) {}
 
     /** Get usage statistics for the given shard. */
-    public QueryCacheStats getStats(ShardId shard, long precomputedSharedRamBytesUsed) {
+    public QueryCacheStats getStats(ShardId shard, Supplier<Long> precomputedSharedRamBytesUsed) {
         final QueryCacheStats queryCacheStats = toQueryCacheStatsSafe(shardStats.get(shard));
-        queryCacheStats.addRamBytesUsed(precomputedSharedRamBytesUsed);
+        queryCacheStats.addRamBytesUsed(precomputedSharedRamBytesUsed.get());
         return queryCacheStats;
     }
 

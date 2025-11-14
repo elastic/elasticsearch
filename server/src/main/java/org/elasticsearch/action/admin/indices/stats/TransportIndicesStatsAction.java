@@ -125,12 +125,11 @@ public class TransportIndicesStatsAction extends TransportBroadcastByNodeAction<
             assert task instanceof CancellableTask;
             IndexService indexService = indicesService.indexServiceSafe(shardRouting.shardId().getIndex());
             IndexShard indexShard = indexService.getShard(shardRouting.shardId().id());
-            long sharedRam = IndicesQueryCache.getSharedRamSizeForShard(indicesService, indexShard.shardId());
             CommonStats commonStats = CommonStats.getShardLevelStats(
                 indicesService.getIndicesQueryCache(),
                 indexShard,
                 request.flags(),
-                sharedRam
+                () -> IndicesQueryCache.getSharedRamSizeForShard(indicesService, indexShard.shardId())
             );
             CommitStats commitStats;
             SeqNoStats seqNoStats;

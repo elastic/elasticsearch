@@ -14,6 +14,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.json.JsonXContent;
+import org.hamcrest.Matcher;
 import org.junit.ClassRule;
 import org.junit.rules.RuleChain;
 import org.junit.rules.TestRule;
@@ -27,6 +28,8 @@ import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.is;
+import static org.hamcrest.Matchers.allOf;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 
@@ -82,7 +85,7 @@ public class CrossClusterEsqlRCS1MissingIndicesIT extends AbstractRemoteClusterS
     }
 
     @SuppressWarnings("unchecked")
-    void assertExpectedClustersForMissingIndicesTests(Map<String, Object> responseMap, List<ExpectedCluster> expected) {
+    private static void assertExpectedClustersForMissingIndicesTests(Map<String, Object> responseMap, List<ExpectedCluster> expected) {
         boolean hasPartial = false;
         Map<String, ?> clusters = (Map<String, ?>) responseMap.get("_clusters");
         assertThat((int) responseMap.get("took"), greaterThan(0));
@@ -135,6 +138,13 @@ public class CrossClusterEsqlRCS1MissingIndicesIT extends AbstractRemoteClusterS
         assertThat((boolean) responseMap.get("is_partial"), is(hasPartial));
     }
 
+    private static void assertResult(Response response, Matcher<Integer> values, List<ExpectedCluster> clusters) throws IOException {
+        var result = responseAsMap(assertOK(response));
+        assertThat(((ArrayList<?>) result.get("columns")).size(), greaterThanOrEqualTo(1));
+        assertThat(((ArrayList<?>) result.get("values")).size(), values);
+        assertExpectedClustersForMissingIndicesTests(result, clusters);
+    }
+
     @SuppressWarnings("unchecked")
     public void testSearchesAgainstNonMatchingIndices() throws Exception {
         setupRolesAndPrivileges();
@@ -170,35 +180,19 @@ public class CrossClusterEsqlRCS1MissingIndicesIT extends AbstractRemoteClusterS
 
         // since there is at least one matching index in the query, the missing wildcarded local index is not an error
         {
-            String q = Strings.format("FROM nomatch*,%s:%s", REMOTE_CLUSTER_ALIAS, INDEX2);
-
-            String limit1 = q + " | LIMIT 1";
-            Response response = client().performRequest(esqlRequest(limit1));
-            assertOK(response);
-
-            Map<String, Object> map = responseAsMap(response);
-            assertThat(((ArrayList<?>) map.get("columns")).size(), greaterThanOrEqualTo(1));
-            assertThat(((ArrayList<?>) map.get("values")).size(), greaterThanOrEqualTo(1));
-
-            assertExpectedClustersForMissingIndicesTests(
-                map,
+            String q = "FROM nomatch*," + REMOTE_CLUSTER_ALIAS + ":" + INDEX2;
+            assertResult(
+                client().performRequest(esqlRequest(q + " | LIMIT 1")),
+                greaterThanOrEqualTo(1),
                 List.of(
                     // local cluster is never marked as SKIPPED even when no matching indices - just marked as 0 shards searched
                     new ExpectedCluster("(local)", "nomatch*", "successful", 0),
                     new ExpectedCluster(REMOTE_CLUSTER_ALIAS, INDEX2, "successful", null)
                 )
             );
-
-            String limit0 = q + " | LIMIT 0";
-            response = client().performRequest(esqlRequest(limit0));
-            assertOK(response);
-
-            map = responseAsMap(response);
-            assertThat(((ArrayList<?>) map.get("columns")).size(), greaterThanOrEqualTo(1));
-            assertThat(((ArrayList<?>) map.get("values")).size(), is(0));
-
-            assertExpectedClustersForMissingIndicesTests(
-                map,
+            assertResult(
+                client().performRequest(esqlRequest(q + " | LIMIT 0")),
+                equalTo(0),
                 List.of(
                     // local cluster is never marked as SKIPPED even when no matching indices - just marked as 0 shards searched
                     new ExpectedCluster("(local)", "nomatch*", "successful", 0),
@@ -207,49 +201,67 @@ public class CrossClusterEsqlRCS1MissingIndicesIT extends AbstractRemoteClusterS
             );
         }
 
-        // an error is thrown if there are no matching indices at all
+        // empty result with pattern matching no indices
         {
-            String q = Strings.format("FROM %s:nomatch*", REMOTE_CLUSTER_ALIAS);
-
-            String limit1 = q + " | LIMIT 1";
-            ResponseException e = expectThrows(ResponseException.class, () -> client().performRequest(esqlRequest(limit1)));
-            assertThat(e.getMessage(), containsString(Strings.format("Unknown index [%s:nomatch*]", REMOTE_CLUSTER_ALIAS)));
-
-            String limit0 = q + " | LIMIT 0";
-            e = expectThrows(ResponseException.class, () -> client().performRequest(esqlRequest(limit0)));
-            assertThat(e.getMessage(), containsString(Strings.format("Unknown index [%s:nomatch*]", REMOTE_CLUSTER_ALIAS)));
+            String q = "FROM " + REMOTE_CLUSTER_ALIAS + ":nomatch*";
+            assertResult(
+                client().performRequest(esqlRequest(q + " | LIMIT 1")),
+                equalTo(0),
+                List.of(new ExpectedCluster(REMOTE_CLUSTER_ALIAS, "nomatch*", "successful", 0))
+            );
+            assertResult(
+                client().performRequest(esqlRequest(q + " | LIMIT 0")),
+                equalTo(0),
+                List.of(new ExpectedCluster(REMOTE_CLUSTER_ALIAS, "nomatch*", "successful", 0))
+            );
         }
 
-        // an error is thrown if there are no matching indices at all (2 clusters)
+        // empty result with pattern matching no indices (2 clusters)
         {
-            String localExpr = "nomatch*";
-            String remoteExpr = "nomatch*";
-            String q = Strings.format("FROM %s,%s:%s", localExpr, REMOTE_CLUSTER_ALIAS, remoteExpr);
-
-            String limit1 = q + " | LIMIT 1";
-            ResponseException e = expectThrows(ResponseException.class, () -> client().performRequest(esqlRequest(limit1)));
-            assertThat(e.getMessage(), containsString("Unknown index"));
-            assertThat(e.getMessage(), containsString(Strings.format("%s:%s", REMOTE_CLUSTER_ALIAS, remoteExpr)));
-
-            String limit0 = q + " | LIMIT 0";
-            e = expectThrows(ResponseException.class, () -> client().performRequest(esqlRequest(limit0)));
-            assertThat(e.getMessage(), containsString("Unknown index"));
-            assertThat(e.getMessage(), containsString(Strings.format("%s:%s", REMOTE_CLUSTER_ALIAS, remoteExpr)));
+            String q = "FROM nomatch*," + REMOTE_CLUSTER_ALIAS + ":nomatch*";
+            assertResult(
+                client().performRequest(esqlRequest(q + " | LIMIT 1")),
+                equalTo(0),
+                List.of(
+                    new ExpectedCluster("(local)", "nomatch*", "successful", 0),
+                    new ExpectedCluster(REMOTE_CLUSTER_ALIAS, "nomatch*", "successful", 0)
+                )
+            );
+            assertResult(
+                client().performRequest(esqlRequest(q + " | LIMIT 0")),
+                equalTo(0),
+                List.of(
+                    new ExpectedCluster("(local)", "nomatch*", "successful", 0),
+                    new ExpectedCluster(REMOTE_CLUSTER_ALIAS, "nomatch*", "successful", 0)
+                )
+            );
         }
 
         // error since the remote cluster specified a concrete index that is not found
         {
-            String q = Strings.format("FROM %s,%s:nomatch,%s:%s*", INDEX1, REMOTE_CLUSTER_ALIAS, REMOTE_CLUSTER_ALIAS, INDEX2);
+            String q = "FROM "
+                + (INDEX1 + ",") // local existing
+                + (REMOTE_CLUSTER_ALIAS + ":nomatch,") // missing remote concrete index
+                + (REMOTE_CLUSTER_ALIAS + ":" + INDEX2 + "*"); // remote pattern
 
-            String limit1 = q + " | LIMIT 1";
-            ResponseException e = expectThrows(ResponseException.class, () -> client().performRequest(esqlRequest(limit1)));
-            assertThat(e.getMessage(), containsString(Strings.format("no such index [nomatch]", REMOTE_CLUSTER_ALIAS)));
-            assertThat(e.getMessage(), containsString(Strings.format("index_not_found_exception", REMOTE_CLUSTER_ALIAS)));
-
-            // TODO: in follow on PR, add support for throwing a VerificationException from this scenario
-            // String limit0 = q + " | LIMIT 0";
-            // e = expectThrows(ResponseException.class, () -> client().performRequest(esqlRequest(limit0)));
-            // assertThat(e.getMessage(), containsString(Strings.format("Unknown index [%s:nomatch]", REMOTE_CLUSTER_ALIAS)));
+            expectThrows(
+                ResponseException.class,
+                allOf(
+                    containsString("Unknown index"),
+                    containsString(REMOTE_CLUSTER_ALIAS + ":nomatch"),
+                    containsString("verification_exception")
+                ),
+                () -> client().performRequest(esqlRequest(q + " | LIMIT 1"))
+            );
+            expectThrows(
+                ResponseException.class,
+                allOf(
+                    containsString("Unknown index"),
+                    containsString(REMOTE_CLUSTER_ALIAS + ":nomatch"),
+                    containsString("verification_exception")
+                ),
+                () -> client().performRequest(esqlRequest(q + " | LIMIT 0"))
+            );
         }
     }
 
@@ -260,7 +272,6 @@ public class CrossClusterEsqlRCS1MissingIndicesIT extends AbstractRemoteClusterS
         configureRemoteCluster(REMOTE_CLUSTER_ALIAS, fulfillingCluster, true, randomBoolean(), true);
 
         // missing concrete local index is an error
-        // TODO: this may change soon
         {
             String q = Strings.format("FROM nomatch,%s:%s | STATS count(*)", REMOTE_CLUSTER_ALIAS, INDEX2);
 
@@ -273,50 +284,36 @@ public class CrossClusterEsqlRCS1MissingIndicesIT extends AbstractRemoteClusterS
             assertThat(e.getMessage(), containsString("Unknown index [nomatch]"));
         }
 
-        // missing concrete index on remote cluster is a failure if it's alone
+        // missing concrete index on a remote cluster could be skipped
         {
-            String q = Strings.format("FROM %s:nomatch", REMOTE_CLUSTER_ALIAS);
-
-            String limit1 = q + " | LIMIT 1";
-            ResponseException e = expectThrows(ResponseException.class, () -> client().performRequest(esqlRequest(limit1)));
-            assertThat(e.getMessage(), containsString(Strings.format("Unknown index [%s:nomatch]", REMOTE_CLUSTER_ALIAS)));
-
-            String limit0 = q + " | LIMIT 0";
-            e = expectThrows(ResponseException.class, () -> client().performRequest(esqlRequest(limit0)));
-            assertThat(e.getMessage(), containsString(Strings.format("Unknown index [%s:nomatch]", REMOTE_CLUSTER_ALIAS)));
+            String q = "FROM " + REMOTE_CLUSTER_ALIAS + ":nomatch";
+            assertResult(
+                client().performRequest(esqlRequest(q + " | LIMIT 1")),
+                equalTo(0),
+                List.of(new ExpectedCluster(REMOTE_CLUSTER_ALIAS, "nomatch", "skipped", 0))
+            );
+            assertResult(
+                client().performRequest(esqlRequest(q + " | LIMIT 0")),
+                equalTo(0),
+                List.of(new ExpectedCluster(REMOTE_CLUSTER_ALIAS, "nomatch", "skipped", 0))
+            );
         }
 
         // since there is at least one matching index in the query, the missing wildcarded local index is not an error
         {
-            String q = Strings.format("FROM nomatch*,%s:%s", REMOTE_CLUSTER_ALIAS, INDEX2);
-
-            String limit1 = q + " | LIMIT 1";
-            Response response = client().performRequest(esqlRequest(limit1));
-            assertOK(response);
-
-            Map<String, Object> map = responseAsMap(response);
-            assertThat(((ArrayList<?>) map.get("columns")).size(), greaterThanOrEqualTo(1));
-            assertThat(((ArrayList<?>) map.get("values")).size(), greaterThanOrEqualTo(1));
-
-            assertExpectedClustersForMissingIndicesTests(
-                map,
+            String q = "FROM nomatch*," + REMOTE_CLUSTER_ALIAS + ":" + INDEX2;
+            assertResult(
+                client().performRequest(esqlRequest(q + " | LIMIT 1")),
+                greaterThanOrEqualTo(1),
                 List.of(
                     // local cluster is never marked as SKIPPED even when no matching indices - just marked as 0 shards searched
                     new ExpectedCluster("(local)", "nomatch*", "successful", 0),
                     new ExpectedCluster(REMOTE_CLUSTER_ALIAS, INDEX2, "successful", null)
                 )
             );
-
-            String limit0 = q + " | LIMIT 0";
-            response = client().performRequest(esqlRequest(limit0));
-            assertOK(response);
-
-            map = responseAsMap(response);
-            assertThat(((ArrayList<?>) map.get("columns")).size(), greaterThanOrEqualTo(1));
-            assertThat(((ArrayList<?>) map.get("values")).size(), is(0));
-
-            assertExpectedClustersForMissingIndicesTests(
-                map,
+            assertResult(
+                client().performRequest(esqlRequest(q + " | LIMIT 0")),
+                equalTo(0),
                 List.of(
                     // local cluster is never marked as SKIPPED even when no matching indices - just marked as 0 shards searched
                     new ExpectedCluster("(local)", "nomatch*", "successful", 0),
@@ -325,76 +322,71 @@ public class CrossClusterEsqlRCS1MissingIndicesIT extends AbstractRemoteClusterS
             );
         }
 
-        // an error is thrown if there are no matching indices at all
+        // remote pattern could be resolved to empty indices
         {
-            String q = Strings.format("FROM %s:nomatch*", REMOTE_CLUSTER_ALIAS);
-
-            String limit1 = q + " | LIMIT 1";
-            ResponseException e = expectThrows(ResponseException.class, () -> client().performRequest(esqlRequest(limit1)));
-            assertThat(e.getMessage(), containsString(Strings.format("Unknown index [%s:nomatch*]", REMOTE_CLUSTER_ALIAS)));
-
-            String limit0 = q + " | LIMIT 0";
-            e = expectThrows(ResponseException.class, () -> client().performRequest(esqlRequest(limit0)));
-            assertThat(e.getMessage(), containsString(Strings.format("Unknown index [%s:nomatch*]", REMOTE_CLUSTER_ALIAS)));
+            String q = "FROM " + REMOTE_CLUSTER_ALIAS + ":nomatch*";
+            assertResult(
+                client().performRequest(esqlRequest(q + " | LIMIT 1")),
+                equalTo(0),
+                List.of(new ExpectedCluster(REMOTE_CLUSTER_ALIAS, "nomatch*", "successful", 0))
+            );
+            assertResult(
+                client().performRequest(esqlRequest(q + " | LIMIT 0")),
+                equalTo(0),
+                List.of(new ExpectedCluster(REMOTE_CLUSTER_ALIAS, "nomatch*", "successful", 0))
+            );
         }
 
-        // an error is thrown if there are no matching indices at all (2 clusters)
+        // multiple patterns could be resolved to empty
         {
-            String localExpr = "nomatch*";
-            String remoteExpr = "nomatch*";
-            String q = Strings.format("FROM %s,%s:%s", localExpr, REMOTE_CLUSTER_ALIAS, remoteExpr);
-
-            String limit1 = q + " | LIMIT 1";
-            ResponseException e = expectThrows(ResponseException.class, () -> client().performRequest(esqlRequest(limit1)));
-            assertThat(e.getMessage(), containsString("Unknown index"));
-            assertThat(e.getMessage(), containsString(Strings.format("%s:%s", REMOTE_CLUSTER_ALIAS, remoteExpr)));
-
-            String limit0 = q + " | LIMIT 0";
-            e = expectThrows(ResponseException.class, () -> client().performRequest(esqlRequest(limit0)));
-            assertThat(e.getMessage(), containsString("Unknown index"));
-            assertThat(e.getMessage(), containsString(Strings.format("%s:%s", REMOTE_CLUSTER_ALIAS, remoteExpr)));
+            String q = "FROM nomatch*," + REMOTE_CLUSTER_ALIAS + ":nomatch*";
+            assertResult(
+                client().performRequest(esqlRequest(q + " | LIMIT 1")),
+                equalTo(0),
+                List.of(
+                    new ExpectedCluster("(local)", "nomatch*", "successful", 0),
+                    new ExpectedCluster(REMOTE_CLUSTER_ALIAS, "nomatch*", "successful", 0)
+                )
+            );
+            assertResult(
+                client().performRequest(esqlRequest(q + " | LIMIT 0")),
+                equalTo(0),
+                List.of(
+                    new ExpectedCluster("(local)", "nomatch*", "successful", 0),
+                    new ExpectedCluster(REMOTE_CLUSTER_ALIAS, "nomatch*", "successful", 0)
+                )
+            );
         }
 
         // the remote cluster specified a concrete index that is not found - skip
         {
             String q = Strings.format("FROM %s,%s:nomatch,%s:%s*", INDEX1, REMOTE_CLUSTER_ALIAS, REMOTE_CLUSTER_ALIAS, INDEX2);
-
-            String limit1 = q + " | LIMIT 1";
-            Response response = client().performRequest(esqlRequest(limit1));
-            assertOK(response);
-
-            Map<String, Object> map = responseAsMap(response);
-            assertThat(((ArrayList<?>) map.get("columns")).size(), greaterThanOrEqualTo(1));
-            assertThat(((ArrayList<?>) map.get("values")).size(), greaterThanOrEqualTo(1));
-
-            assertExpectedClustersForMissingIndicesTests(
-                map,
+            assertResult(
+                client().performRequest(esqlRequest(q + " | LIMIT 1")),
+                greaterThanOrEqualTo(1),
                 List.of(
                     new ExpectedCluster("(local)", INDEX1, "successful", null),
-                    // TODO: this will eventually be SUCCESS
                     new ExpectedCluster(
                         REMOTE_CLUSTER_ALIAS,
                         "nomatch," + INDEX2,
                         "skipped",
                         0,
-                        new ExpectedFailure("index_not_found_exception", List.of("no such index", "nomatch"))
+                        new ExpectedFailure("verification_exception", List.of("Unknown index", "nomatch"))
                     )
                 )
             );
-
-            String limit0 = q + " | LIMIT 0";
-            response = client().performRequest(esqlRequest(limit0));
-            assertOK(response);
-
-            map = responseAsMap(response);
-            assertThat(((ArrayList<?>) map.get("columns")).size(), greaterThanOrEqualTo(1));
-            assertThat(((ArrayList<?>) map.get("values")).size(), greaterThanOrEqualTo(0));
-
-            assertExpectedClustersForMissingIndicesTests(
-                map,
+            assertResult(
+                client().performRequest(esqlRequest(q + " | LIMIT 0")),
+                greaterThanOrEqualTo(0),
                 List.of(
                     new ExpectedCluster("(local)", INDEX1, "successful", 0),
-                    new ExpectedCluster(REMOTE_CLUSTER_ALIAS, "nomatch," + INDEX2, "successful", 0)
+                    new ExpectedCluster(
+                        REMOTE_CLUSTER_ALIAS,
+                        "nomatch," + INDEX2,
+                        "skipped",
+                        0,
+                        new ExpectedFailure("verification_exception", List.of("Unknown index", "nomatch"))
+                    )
                 )
             );
         }

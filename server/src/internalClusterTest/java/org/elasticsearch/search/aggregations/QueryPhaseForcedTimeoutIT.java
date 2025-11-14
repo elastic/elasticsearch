@@ -53,11 +53,6 @@ public class QueryPhaseForcedTimeoutIT extends ESIntegTestCase {
         return List.of(ForceTimeoutAggPlugin.class);
     }
 
-    @Override
-    public Settings indexSettings() {
-        return Settings.builder().put(super.indexSettings()).build();
-    }
-
     @Before
     public void setupIndex() throws Exception {
         assertAcked(prepareCreate(INDEX).setMapping("""
@@ -76,6 +71,7 @@ public class QueryPhaseForcedTimeoutIT extends ESIntegTestCase {
             client().index(ir).actionGet();
         }
         indicesAdmin().prepareRefresh(INDEX).get();
+        ensureGreen(INDEX);
     }
 
     @After
@@ -96,7 +92,7 @@ public class QueryPhaseForcedTimeoutIT extends ESIntegTestCase {
         try {
             resp = client().prepareSearch(INDEX)
                 .setQuery(QueryBuilders.matchAllQuery())
-                .setSize(0)
+                .setSize(10)
                 .setAllowPartialSearchResults(true)
                 .addAggregation(new ForceTimeoutAggregationBuilder("force_timeout"))
                 .get();
@@ -136,7 +132,7 @@ public class QueryPhaseForcedTimeoutIT extends ESIntegTestCase {
 
         public static final String TYPE = ForceTimeoutAggPlugin.NAME;
 
-        protected Map<String, Object> metadata;
+        private Map<String, Object> metadata;
 
         ForceTimeoutAggregationBuilder(String name) {
             super(name);
@@ -146,7 +142,7 @@ public class QueryPhaseForcedTimeoutIT extends ESIntegTestCase {
             super(in.readString());
         }
 
-        public static ForceTimeoutAggregationBuilder parse(XContentParser parser, String name) {
+        static ForceTimeoutAggregationBuilder parse(XContentParser parser, String name) {
             return new ForceTimeoutAggregationBuilder(name);
         }
 
@@ -189,7 +185,7 @@ public class QueryPhaseForcedTimeoutIT extends ESIntegTestCase {
 
         @Override
         public Map<String, Object> getMetadata() {
-            return metadata == null ? Map.of() : metadata;
+            return metadata;
         }
 
         @Override

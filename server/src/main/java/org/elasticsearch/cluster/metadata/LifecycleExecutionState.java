@@ -213,7 +213,11 @@ public record LifecycleExecutionState(
     }
 
     private static boolean parseIsAutoRetryableError(String isAutoRetryableError) {
-        return LenientBooleans.parseAndCheckForDeprecatedUsage(isAutoRetryableError, LenientBooleans.Category.INDEX_METADATA);
+        return LenientBooleans.parseAndCheckForDeprecatedUsage(
+            isAutoRetryableError,
+            LenientBooleans.Category.INDEX_METADATA,
+            IS_AUTO_RETRYABLE_ERROR
+        );
     }
 
     /**

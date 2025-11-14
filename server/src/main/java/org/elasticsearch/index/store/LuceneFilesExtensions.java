@@ -99,7 +99,8 @@ public enum LuceneFilesExtensions {
     private static boolean allowUnknownLuceneFileExtensions() {
         return LenientBooleans.parseAndCheckForDeprecatedUsage(
             System.getProperty("es.allow_unknown_lucene_file_extensions", "false"),
-            LenientBooleans.Category.SYSTEM_PROPERTY
+            LenientBooleans.Category.SYSTEM_PROPERTY,
+            "es.allow_unknown_lucene_file_extensions"
         );
     }
 

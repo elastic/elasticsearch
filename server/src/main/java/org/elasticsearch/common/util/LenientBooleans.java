@@ -27,7 +27,6 @@ public class LenientBooleans {
      */
     public enum Category {
         SYSTEM_PROPERTY("system property"),
-        COMPILER_OPTION("compiler option"),
         INDEX_METADATA("index metadata");
 
         private final String displayValue;
@@ -41,7 +40,7 @@ public class LenientBooleans {
         }
     }
 
-    private static final String DEPRECATED_MESSAGE_TEMPLATE = "Lenient usage of [{}] to parse a [{}] value of [{}] was deprecated. "
+    private static final String DEPRECATED_MESSAGE_TEMPLATE = "Usage of lenient boolean value [{}] for {} [{}] was deprecated. "
         + "Future releases of Elasticsearch may only accept `true` or `false`.";
 
     static class DeprecationLoggerHolder {
@@ -49,11 +48,11 @@ public class LenientBooleans {
     }
 
     @SuppressForbidden(reason = "wrap lenient parsing of booleans for deprecation logging.")
-    public static boolean parseAndCheckForDeprecatedUsage(String value, Category category) {
+    public static boolean parseAndCheckForDeprecatedUsage(String value, Category category, String name) {
         if (Booleans.isBoolean(value) == false) {
             final String method = "Boolean#parseBoolean";
-            String key = String.format(Locale.ROOT, "%s.%s", method, category.displayValue());
-            deprecationLogger.warn(DeprecationCategory.PARSING, key, DEPRECATED_MESSAGE_TEMPLATE, method, category.displayValue(), value);
+            String key = String.format(Locale.ROOT, "%s.%s", method, category);
+            deprecationLogger.warn(DeprecationCategory.PARSING, key, DEPRECATED_MESSAGE_TEMPLATE, value, category.displayValue(), name);
         }
         return Boolean.parseBoolean(value);
     }

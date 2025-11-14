@@ -39,6 +39,8 @@ import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute;
+import org.elasticsearch.xpack.esql.core.expression.predicate.regex.RLikePatternList;
+import org.elasticsearch.xpack.esql.core.expression.predicate.regex.WildcardPatternList;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
@@ -68,7 +70,10 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToLong;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToString;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Concat;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Substring;
+import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.RLike;
+import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.RLikeList;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.WildcardLike;
+import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.WildcardLikeList;
 import org.elasticsearch.xpack.esql.expression.function.vector.Knn;
 import org.elasticsearch.xpack.esql.expression.function.vector.Magnitude;
 import org.elasticsearch.xpack.esql.expression.function.vector.VectorSimilarityFunction;
@@ -5600,11 +5605,6 @@ public class AnalyzerTests extends ESTestCase {
         assertEquals(IndexMode.LOOKUP, rightRelation.indexMode());
     }
 
-    // begin 131356
-    /*
-    }
-    class foo {
-    */
     public void testLikeParameters() {
         if (EsqlCapabilities.Cap.LIKE_PARAMETER_SUPPORT.isEnabled()) {
             var plan = analyze(
@@ -5618,7 +5618,50 @@ public class AnalyzerTests extends ESTestCase {
             assertEquals("Anna*", like.pattern().pattern());
         }
     }
-    // end 131356
+
+    public void testLikeListParameters() {
+        if (EsqlCapabilities.Cap.LIKE_PARAMETER_SUPPORT.isEnabled()) {
+            var plan = analyze(
+                String.format(Locale.ROOT, "from test | where first_name like (?p1, ?p2)"),
+                "mapping-basic.json",
+                new QueryParams(List.of(paramAsConstant("p1", "Anna*"), paramAsConstant("p2", "Chris*")))
+            );
+            var limit = as(plan, Limit.class);
+            var filter = as(limit.child(), Filter.class);
+            var likelist = as(filter.condition(), WildcardLikeList.class);
+            var patternlist = as(likelist.pattern(), WildcardPatternList.class);
+            assertEquals("(\"Anna*\", \"Chris*\")", patternlist.pattern());
+        }
+    }
+
+    public void testRLikeParameters() {
+        if (EsqlCapabilities.Cap.LIKE_PARAMETER_SUPPORT.isEnabled()) {
+            var plan = analyze(
+                String.format(Locale.ROOT, "from test | where first_name rlike ?pattern"),
+                "mapping-basic.json",
+                new QueryParams(List.of(paramAsConstant("pattern", "Anna*")))
+            );
+            var limit = as(plan, Limit.class);
+            var filter = as(limit.child(), Filter.class);
+            RLike rlike = as(filter.condition(), RLike.class);
+            assertEquals("Anna*", rlike.pattern().pattern());
+        }
+    }
+
+    public void testRLikeListParameters() {
+        if (EsqlCapabilities.Cap.LIKE_PARAMETER_SUPPORT.isEnabled()) {
+            var plan = analyze(
+                String.format(Locale.ROOT, "from test | where first_name rlike (?p1, ?p2)"),
+                "mapping-basic.json",
+                new QueryParams(List.of(paramAsConstant("p1", "Anna*"), paramAsConstant("p2", "Chris*")))
+            );
+            var limit = as(plan, Limit.class);
+            var filter = as(limit.child(), Filter.class);
+            RLikeList rlikelist = as(filter.condition(), RLikeList.class);
+            RLikePatternList patternlist = as(rlikelist.pattern(), RLikePatternList.class);
+            assertEquals("(\"Anna*\", \"Chris*\")", patternlist.pattern());
+        }
+    }
 
     private void verifyNameAndTypeAndMultiTypeEsField(
         String actualName,

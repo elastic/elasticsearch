@@ -7,9 +7,9 @@
 
 package org.elasticsearch.xpack.inference.rank.textsimilarity;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.inference.ChunkingSettings;
 import org.elasticsearch.xcontent.ToXContentObject;
@@ -80,9 +80,7 @@ public class ChunkScorerConfig implements Writeable, ToXContentObject {
         if (out.getTransportVersion().supports(NULLABLE_CHUNK_SETTINGS_VERSION)) {
             out.writeGenericMap(chunkingSettings != null ? chunkingSettings.asMap() : Map.of());
         } else {
-            out.writeGenericMap(
-                chunkingSettings != null ? chunkingSettings.asMap() : defaultChunkingSettings(DEFAULT_CHUNK_SIZE).asMap()
-            );
+            out.writeGenericMap(chunkingSettings != null ? chunkingSettings.asMap() : defaultChunkingSettings(DEFAULT_CHUNK_SIZE).asMap());
         }
     }
 

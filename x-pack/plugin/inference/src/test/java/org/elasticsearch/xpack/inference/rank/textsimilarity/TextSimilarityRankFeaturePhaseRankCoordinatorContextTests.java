@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.inference.rank.textsimilarity;
 
 import org.elasticsearch.client.internal.Client;
-import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.search.rank.feature.RankFeatureDoc;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.inference.action.GetRerankerWindowSizeAction;
@@ -50,8 +49,6 @@ public class TextSimilarityRankFeaturePhaseRankCoordinatorContextTests extends E
         false,
         new ChunkScorerConfig(2, "some query", null)
     );
-
-
 
     public void testExtractScoresFromRankedDocs() {
         List<RankedDocsResults.RankedDoc> rankedDocs = List.of(

@@ -434,6 +434,10 @@ public class TDigestFieldMapperTests extends MapperTestCase {
         {
             expected.startArray("field");
             expected.startObject();
+            expected.field("min", 1.0d);
+            expected.field("max", 3.0d);
+            expected.field("sum", 14.0d);
+            expected.field("count", 6L);
             expected.field("centroids", new double[] { 1, 2, 3 });
             expected.field("counts", new int[] { 1, 2, 3 });
             expected.endObject();
@@ -458,10 +462,20 @@ public class TDigestFieldMapperTests extends MapperTestCase {
         }
         List<Double> centroids = new ArrayList<>();
         List<Long> counts = new ArrayList<>();
+        long total_count = 0;
+        double sum = 0.0;
         for (Centroid c : digest.centroids()) {
             centroids.add(c.mean());
             counts.add(c.count());
+            total_count += c.count();
+            sum += c.mean() * c.count();
         }
+        double min = digest.getMin();
+        double max = digest.getMax();
+        value.put("min", min);
+        value.put("max", max);
+        value.put("sum", sum);
+        value.put("count", total_count);
         value.put("centroids", centroids);
         value.put("counts", counts);
 

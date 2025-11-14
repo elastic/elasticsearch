@@ -17,20 +17,20 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.inference.external.http.retry.RequestSender;
+import org.elasticsearch.xpack.inference.external.http.sender.ChatCompletionInput;
 import org.elasticsearch.xpack.inference.external.http.sender.InferenceInputs;
-import org.elasticsearch.xpack.inference.external.http.sender.UnifiedChatInput;
 import org.elasticsearch.xpack.inference.services.amazonbedrock.completion.AmazonBedrockChatCompletionModel;
-import org.elasticsearch.xpack.inference.services.amazonbedrock.request.completion.AmazonBedrockUnifiedChatCompletionEntityFactory;
-import org.elasticsearch.xpack.inference.services.amazonbedrock.request.completion.AmazonBedrockUnifiedChatCompletionRequest;
+import org.elasticsearch.xpack.inference.services.amazonbedrock.request.completion.AmazonBedrockChatCompletionEntityFactory;
+import org.elasticsearch.xpack.inference.services.amazonbedrock.request.completion.AmazonBedrockChatCompletionRequest;
 import org.elasticsearch.xpack.inference.services.amazonbedrock.response.completion.AmazonBedrockChatCompletionResponseHandler;
 
 import java.util.function.Supplier;
 
-public class AmazonBedrockUnifiedChatCompletionRequestManager extends AmazonBedrockRequestManager {
-    private static final Logger logger = LogManager.getLogger(AmazonBedrockUnifiedChatCompletionRequestManager.class);
+public class AmazonBedrockCompletionRequestManager extends AmazonBedrockRequestManager {
+    private static final Logger logger = LogManager.getLogger(AmazonBedrockCompletionRequestManager.class);
     private final AmazonBedrockChatCompletionModel model;
 
-    public AmazonBedrockUnifiedChatCompletionRequestManager(
+    public AmazonBedrockCompletionRequestManager(
         AmazonBedrockChatCompletionModel model,
         ThreadPool threadPool,
         @Nullable TimeValue timeout
@@ -46,11 +46,11 @@ public class AmazonBedrockUnifiedChatCompletionRequestManager extends AmazonBedr
         Supplier<Boolean> hasRequestCompletedFunction,
         ActionListener<InferenceServiceResults> listener
     ) {
-        var chatCompletionInput = inferenceInputs.castTo(UnifiedChatInput.class);
-        var inputs = chatCompletionInput.getRequest();
+        var chatCompletionInput = inferenceInputs.castTo(ChatCompletionInput.class);
+        var inputs = chatCompletionInput.getInputs();
         var stream = chatCompletionInput.stream();
-        var requestEntity = AmazonBedrockUnifiedChatCompletionEntityFactory.createEntity(model, inputs);
-        var request = new AmazonBedrockUnifiedChatCompletionRequest(model, requestEntity, timeout, stream);
+        var requestEntity = AmazonBedrockChatCompletionEntityFactory.createEntity(model, inputs);
+        var request = new AmazonBedrockChatCompletionRequest(model, requestEntity, timeout, stream);
         var responseHandler = new AmazonBedrockChatCompletionResponseHandler();
 
         try {

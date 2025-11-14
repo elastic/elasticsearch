@@ -122,7 +122,7 @@ class AmazonBedrockUnifiedStreamingChatProcessor
         } catch (Exception e) {
             logger.warn("Failed to parse message start event from Amazon Bedrock provider: {}", event);
         }
-        if (!chunks.isEmpty() && downstream != null) {
+        if (chunks.isEmpty() == false && downstream != null) {
             downstream.onNext(new StreamingUnifiedChatCompletionResults.Results(chunks));
         }
     }
@@ -138,7 +138,7 @@ class AmazonBedrockUnifiedStreamingChatProcessor
         } catch (Exception e) {
             logger.warn("Failed to parse block start event from Amazon Bedrock provider: {}", event);
         }
-        if (!chunks.isEmpty() && downstream != null) {
+        if (chunks.isEmpty() == false && downstream != null) {
             downstream.onNext(new StreamingUnifiedChatCompletionResults.Results(chunks));
         }
     }
@@ -155,7 +155,7 @@ class AmazonBedrockUnifiedStreamingChatProcessor
             } catch (Exception e) {
                 logger.warn("Failed to parse content block delta event from Amazon Bedrock provider: {}", event);
             }
-            if (!chunks.isEmpty() && downstream != null) {
+            if (chunks.isEmpty() == false && downstream != null) {
                 downstream.onNext(new StreamingUnifiedChatCompletionResults.Results(chunks));
             }
         });
@@ -223,7 +223,7 @@ class AmazonBedrockUnifiedStreamingChatProcessor
             return;
         }
 
-        if (!chunks.isEmpty() && downstream != null && demand.get() > 0 && !isDone.get()) {
+        if (chunks.isEmpty() == false && downstream != null && demand.get() > 0 && isDone.get() == false) {
             long prev = demand.getAndUpdate(d -> {
                 if (d == Long.MAX_VALUE) {
                     return d;
@@ -383,7 +383,7 @@ class AmazonBedrockUnifiedStreamingChatProcessor
     }
 
     /**
-     * processes a tool initialization event from Bedrock
+     * Processes a tool initialization event from Bedrock
      * This occurs when the model first decides to use a tool, providing its name and ID.
      * Parse a MessageStartEvent into a ToolCall stream
      * @param start the ContentBlockStart data
@@ -403,7 +403,7 @@ class AmazonBedrockUnifiedStreamingChatProcessor
     }
 
     /**
-     * processes incremental updates to a tool call
+     * Processes incremental updates to a tool call
      * This typically contains the arguments that the model wants to pass to the tool.
      * Parse a ContentBlockDelta into a ToolCall stream
      * @param delta the ContentBlockDelta data
@@ -427,16 +427,14 @@ class AmazonBedrockUnifiedStreamingChatProcessor
         var index = event.contentBlockIndex();
         var type = event.start().type();
 
-        switch (type) {
-            case ContentBlockStart.Type.TOOL_USE -> {
-                var toolCall = handleToolUseStart(event.start());
-                var role = "assistant";
-                var delta = new StreamingUnifiedChatCompletionResults.ChatCompletionChunk.Choice.Delta(null, null, role, List.of(toolCall));
-                var choice = new StreamingUnifiedChatCompletionResults.ChatCompletionChunk.Choice(delta, null, index);
-                var chunk = new StreamingUnifiedChatCompletionResults.ChatCompletionChunk(null, List.of(choice), null, null, null);
-                return Stream.of(chunk);
-            }
-            default -> logger.debug("unhandled content block start type [{}].", type);
+        if (ContentBlockStart.Type.TOOL_USE == type) {
+            var toolCall = handleToolUseStart(event.start());
+            var delta = new StreamingUnifiedChatCompletionResults.ChatCompletionChunk.Choice.Delta(null, null, null, List.of(toolCall));
+            var choice = new StreamingUnifiedChatCompletionResults.ChatCompletionChunk.Choice(delta, null, index);
+            var chunk = new StreamingUnifiedChatCompletionResults.ChatCompletionChunk(null, List.of(choice), null, null, null);
+            return Stream.of(chunk);
+        } else {
+            logger.debug("unhandled content block start type [{}].", type);
         }
         var delta = new StreamingUnifiedChatCompletionResults.ChatCompletionChunk.Choice.Delta(null, null, null, null);
         var choice = new StreamingUnifiedChatCompletionResults.ChatCompletionChunk.Choice(delta, null, index);
@@ -445,7 +443,7 @@ class AmazonBedrockUnifiedStreamingChatProcessor
     }
 
     /**
-     * processes incremental content updates
+     * Processes incremental content updates
      * Parse a ContentBlockDeltaEvent into a ChatCompletionChunk stream
      * @param event the event data
      * @return a stream of ChatCompletionChunk
@@ -471,7 +469,7 @@ class AmazonBedrockUnifiedStreamingChatProcessor
     }
 
     /**
-     * processes usage statistics
+     * Processes usage statistics
      * Parse a ConverseStreamMetadataEvent into a ChatCompletionChunk stream
      * @param event the event data
      * @return a stream of ChatCompletionChunk
@@ -491,7 +489,7 @@ class AmazonBedrockUnifiedStreamingChatProcessor
     }
 
     /**
-     * processes usage statistics
+     * Processes usage statistics
      * Parse a ContentBlockStopEvent into a ChatCompletionChunk stream
      * @param event the event data
      * @return a stream of ChatCompletionChunk

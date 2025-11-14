@@ -7,7 +7,18 @@
 
 package org.elasticsearch.xpack.inference.services.amazonbedrock.client;
 
-import software.amazon.awssdk.services.bedrockruntime.model.*;
+import software.amazon.awssdk.services.bedrockruntime.model.BedrockRuntimeException;
+import software.amazon.awssdk.services.bedrockruntime.model.ContentBlockDelta;
+import software.amazon.awssdk.services.bedrockruntime.model.ContentBlockDeltaEvent;
+import software.amazon.awssdk.services.bedrockruntime.model.ContentBlockStart;
+import software.amazon.awssdk.services.bedrockruntime.model.ContentBlockStartEvent;
+import software.amazon.awssdk.services.bedrockruntime.model.ContentBlockStopEvent;
+import software.amazon.awssdk.services.bedrockruntime.model.ConverseStreamMetadataEvent;
+import software.amazon.awssdk.services.bedrockruntime.model.ConverseStreamOutput;
+import software.amazon.awssdk.services.bedrockruntime.model.ConverseStreamResponseHandler;
+import software.amazon.awssdk.services.bedrockruntime.model.MessageStartEvent;
+import software.amazon.awssdk.services.bedrockruntime.model.MessageStopEvent;
+import software.amazon.awssdk.services.bedrockruntime.model.ToolUseBlockStart;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
@@ -17,13 +28,24 @@ import org.elasticsearch.xpack.core.inference.results.StreamingUnifiedChatComple
 import org.junit.Before;
 import org.mockito.ArgumentCaptor;
 
+import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Flow;
 
 import static org.elasticsearch.xpack.inference.InferencePlugin.UTILITY_THREAD_POOL_NAME;
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.isA;
+import static org.hamcrest.Matchers.notNullValue;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.*;
+import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.assertArg;
+import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoMoreInteractions;
+import static org.mockito.Mockito.when;
 
 public class AmazonBedrockUnifiedStreamingChatProcessorTests extends ESTestCase {
     private AmazonBedrockUnifiedStreamingChatProcessor processor;
@@ -87,12 +109,89 @@ public class AmazonBedrockUnifiedStreamingChatProcessorTests extends ESTestCase 
         }));
     }
 
-    private ConverseStreamOutput output(String text) {
+    public void testForwardsDownstream() {
+        var expectedMessageStartRole = "assistant";
+        ExecutorService executorService = mock();
+        ThreadPool threadPool = mock();
+        when(threadPool.executor(UTILITY_THREAD_POOL_NAME)).thenReturn(executorService);
+        processor = new AmazonBedrockUnifiedStreamingChatProcessor(threadPool);
+        doAnswer(ans -> {
+            Runnable command = ans.getArgument(0);
+            command.run();
+            return null;
+        }).when(executorService).execute(any());
+
+        Flow.Subscription upstream = mock();
+        processor.onSubscribe(upstream);
+        Flow.Subscriber<StreamingUnifiedChatCompletionResults.Results> downstream = mock();
+        processor.subscribe(downstream);
+
+        ConverseStreamOutput messageStartOutput = messageStartOutput(expectedMessageStartRole);
+        ConverseStreamOutput contentBlockStartOutput = contentBlockStartOutput();
+        ConverseStreamOutput contentBlockDeltaOutput = contentBlockDeltaOutput();
+        ConverseStreamOutput contentBlockStopOutput = contentBlockStopOutput();
+        ConverseStreamOutput messageStopOutput = messageStopOutput();
+        ConverseStreamOutput metadata = metadataOutput();
+
+        processor.onNext(messageStartOutput);
+        processor.onNext(contentBlockStartOutput);
+        processor.onNext(contentBlockDeltaOutput);
+
+        verifyMessageStart(downstream, expectedMessageStartRole);
+        verifyContentBlockStart(downstream);
+        verifyContentBlockDelta(downstream);
+
+        verify(executorService, times(1)).execute(any());
+        verify(upstream, times(0)).request(anyLong());
+
+        processor.onNext(contentBlockStopOutput);
+        processor.onNext(messageStopOutput);
+        processor.onNext(metadata);
+        verifyContentBlockStop(downstream);
+        verifyMessageStop(downstream);
+        verifyMetadata(downstream);
+    }
+
+    private void verifyMessageStart(Flow.Subscriber<StreamingUnifiedChatCompletionResults.Results> downstream, String expectedText) {
+        verify(downstream, times(1)).onNext(assertArg(results -> {
+            assertThat(results, notNullValue());
+            assertThat(results.chunks().size(), equalTo(1));
+            assertThat(results.chunks().getFirst().choices().getFirst().delta().role(), equalTo(expectedText));
+        }));
+    }
+
+    private ConverseStreamOutput messageStartOutput(String role) {
+        ConverseStreamOutput output = mock();
+        when(output.sdkEventType()).thenReturn(ConverseStreamOutput.EventType.MESSAGE_START);
+        doAnswer(ans -> {
+            ConverseStreamResponseHandler.Visitor visitor = ans.getArgument(0);
+            MessageStartEvent event = MessageStartEvent.builder().role(role).build();
+            visitor.visitMessageStart(event);
+            return null;
+        }).when(output).accept(any());
+        return output;
+    }
+
+    private ConverseStreamOutput contentBlockStartOutput() {
+        ConverseStreamOutput output = mock();
+        when(output.sdkEventType()).thenReturn(ConverseStreamOutput.EventType.CONTENT_BLOCK_START);
+        doAnswer(ans -> {
+            ConverseStreamResponseHandler.Visitor visitor = ans.getArgument(0);
+            ContentBlockStartEvent event = ContentBlockStartEvent.builder()
+                .start(ContentBlockStart.builder().toolUse(ToolUseBlockStart.builder().build()).build())
+                .build();
+            visitor.visitContentBlockStart(event);
+            return null;
+        }).when(output).accept(any());
+        return output;
+    }
+
+    private ConverseStreamOutput contentBlockDeltaOutput() {
         ConverseStreamOutput output = mock();
         when(output.sdkEventType()).thenReturn(ConverseStreamOutput.EventType.CONTENT_BLOCK_DELTA);
         doAnswer(ans -> {
             ConverseStreamResponseHandler.Visitor visitor = ans.getArgument(0);
-            ContentBlockDelta delta = ContentBlockDelta.fromText(text);
+            ContentBlockDelta delta = ContentBlockDelta.builder().build();
             ContentBlockDeltaEvent event = ContentBlockDeltaEvent.builder().delta(delta).build();
             visitor.visitContentBlockDelta(event);
             return null;
@@ -100,11 +199,66 @@ public class AmazonBedrockUnifiedStreamingChatProcessorTests extends ESTestCase 
         return output;
     }
 
-    private void verifyText(Flow.Subscriber<StreamingUnifiedChatCompletionResults.Results> downstream, String expectedText) {
+    private ConverseStreamOutput contentBlockStopOutput() {
+        ConverseStreamOutput output = mock();
+        when(output.sdkEventType()).thenReturn(ConverseStreamOutput.EventType.CONTENT_BLOCK_STOP);
+        doAnswer(ans -> {
+            ConverseStreamResponseHandler.Visitor visitor = ans.getArgument(0);
+            ContentBlockStopEvent event = ContentBlockStopEvent.builder().build();
+            visitor.visitContentBlockStop(event);
+            return null;
+        }).when(output).accept(any());
+        return output;
+    }
+
+    private ConverseStreamOutput messageStopOutput() {
+        ConverseStreamOutput output = mock();
+        when(output.sdkEventType()).thenReturn(ConverseStreamOutput.EventType.MESSAGE_STOP);
+        doAnswer(ans -> {
+            ConverseStreamResponseHandler.Visitor visitor = ans.getArgument(0);
+            MessageStopEvent event = MessageStopEvent.builder().build();
+            visitor.visitMessageStop(event);
+            return null;
+        }).when(output).accept(any());
+        return output;
+    }
+
+    private ConverseStreamOutput metadataOutput() {
+        ConverseStreamOutput output = mock();
+        when(output.sdkEventType()).thenReturn(ConverseStreamOutput.EventType.METADATA);
+        doAnswer(ans -> {
+            ConverseStreamResponseHandler.Visitor visitor = ans.getArgument(0);
+            ConverseStreamMetadataEvent event = ConverseStreamMetadataEvent.builder().build();
+            visitor.visitMetadata(event);
+            return null;
+        }).when(output).accept(any());
+        return output;
+    }
+
+    private void verifyContentBlockStart(Flow.Subscriber<StreamingUnifiedChatCompletionResults.Results> downstream) {
+        verifyDownstream(downstream);
+    }
+
+    private void verifyContentBlockDelta(Flow.Subscriber<StreamingUnifiedChatCompletionResults.Results> downstream) {
+        verifyDownstream(downstream);
+    }
+
+    private void verifyContentBlockStop(Flow.Subscriber<StreamingUnifiedChatCompletionResults.Results> downstream) {
+        verifyDownstream(downstream);
+    }
+
+    private void verifyMessageStop(Flow.Subscriber<StreamingUnifiedChatCompletionResults.Results> downstream) {
+        verifyDownstream(downstream);
+    }
+
+    private void verifyMetadata(Flow.Subscriber<StreamingUnifiedChatCompletionResults.Results> downstream) {
+        verifyDownstream(downstream);
+    }
+
+    private static void verifyDownstream(Flow.Subscriber<StreamingUnifiedChatCompletionResults.Results> downstream) {
         verify(downstream, times(1)).onNext(assertArg(results -> {
             assertThat(results, notNullValue());
             assertThat(results.chunks().size(), equalTo(1));
-            // assertThat(results.chunks().getFirst().choices().getFirst(), equalTo(expectedText));
         }));
     }
 
@@ -183,7 +337,12 @@ public class AmazonBedrockUnifiedStreamingChatProcessorTests extends ESTestCase 
     private void mockUpstream() {
         Flow.Subscription upstream = mock();
         doAnswer(ans -> {
-            processor.onNext(output(randomIdentifier()));
+            processor.onNext(messageStartOutput(randomIdentifier()));
+            processor.onNext(contentBlockStartOutput());
+            processor.onNext(contentBlockDeltaOutput());
+            processor.onNext(contentBlockStopOutput());
+            processor.onNext(messageStopOutput());
+            processor.onNext(metadataOutput());
             return null;
         }).when(upstream).request(anyLong());
         processor.onSubscribe(upstream);

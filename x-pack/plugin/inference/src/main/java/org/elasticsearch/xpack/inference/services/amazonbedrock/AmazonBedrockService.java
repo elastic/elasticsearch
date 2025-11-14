@@ -49,7 +49,6 @@ import org.elasticsearch.xpack.inference.services.amazonbedrock.client.AmazonBed
 import org.elasticsearch.xpack.inference.services.amazonbedrock.completion.AmazonBedrockChatCompletionModel;
 import org.elasticsearch.xpack.inference.services.amazonbedrock.embeddings.AmazonBedrockEmbeddingsModel;
 import org.elasticsearch.xpack.inference.services.amazonbedrock.embeddings.AmazonBedrockEmbeddingsServiceSettings;
-import org.elasticsearch.xpack.inference.services.amazonbedrock.request.completion.AmazonBedrockUnifiedChatCompletionEntityFactory;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 
 import java.io.IOException;
@@ -84,10 +83,8 @@ import static org.elasticsearch.xpack.inference.services.amazonbedrock.AmazonBed
 public class AmazonBedrockService extends SenderService {
     public static final String NAME = "amazonbedrock";
     private static final String SERVICE_NAME = "Amazon Bedrock";
-    public static final String COMPLETION_ERROR_PREFIX = "Amazon Bedrock chat completion";
 
     private final Sender amazonBedrockSender;
-    AmazonBedrockUnifiedChatCompletionEntityFactory entityFactory;
 
     private static final EnumSet<TaskType> supportedTaskTypes = EnumSet.of(
         TaskType.TEXT_EMBEDDING,

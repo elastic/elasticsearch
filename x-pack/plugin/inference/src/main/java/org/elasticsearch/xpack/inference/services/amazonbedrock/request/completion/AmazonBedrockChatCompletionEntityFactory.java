@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.inference.services.amazonbedrock.request.completion;
 
+import org.elasticsearch.inference.UnifiedCompletionRequest;
 import org.elasticsearch.xpack.inference.services.amazonbedrock.completion.AmazonBedrockChatCompletionModel;
 
 import java.util.List;
@@ -42,5 +43,48 @@ public final class AmazonBedrockChatCompletionEntityFactory {
                 return null;
             }
         }
+    }
+
+    public static AmazonBedrockUnifiedConverseRequestEntity createEntity(
+        AmazonBedrockChatCompletionModel model,
+        UnifiedCompletionRequest request
+    ) {
+        Objects.requireNonNull(model);
+        Objects.requireNonNull(request);
+        var serviceSettings = model.getServiceSettings();
+
+        var messages = request.messages()
+            .stream()
+            .map(
+                message -> new UnifiedCompletionRequest.Message(
+                    message.content(),
+                    toBedrockRole(message.role()),
+                    message.toolCallId(),
+                    message.toolCalls()
+                )
+            )
+            .toList();
+
+        switch (serviceSettings.provider()) {
+            case ANTHROPIC, AI21LABS, AMAZONTITAN, COHERE, META, MISTRAL -> {
+                return new AmazonBedrockUnifiedConverseRequestEntity(
+                    messages,
+                    request.model(),
+                    request.maxCompletionTokens(),
+                    request.stop(),
+                    request.temperature(),
+                    request.toolChoice(),
+                    request.tools(),
+                    request.topP()
+                );
+            }
+            default -> {
+                return null;
+            }
+        }
+    }
+
+    private static String toBedrockRole(String role) {
+        return role == null ? "user" : role;
     }
 }

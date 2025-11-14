@@ -149,9 +149,6 @@ public class DatafeedCcsIT extends AbstractMultiClustersTestCase {
             disruptNetworkAndWaitForRecovery(jobId, numDocs);
         } finally {
             stopDatafeedAndJob(datafeedId, jobId);
-            // Wait a short time to allow clear scroll requests to complete, especially after network disruption
-            // when scroll contexts on the remote cluster may need time to be cleaned up
-            Thread.sleep(TimeValue.timeValueSeconds(2).millis());
             waitForContextsToReturnToBaseline(baseline);
             clearSkipUnavailable();
         }
@@ -260,6 +257,9 @@ public class DatafeedCcsIT extends AbstractMultiClustersTestCase {
      * Waits for scroll contexts to return to baseline after stopping the datafeed.
      * This is especially important after network disruption when scroll contexts on the remote
      * cluster may have been created but couldn't be cleared until connectivity was restored.
+     * The datafeed's cleanup mechanism (via ScrollDataExtractor.destroy()) should handle this
+     * once connectivity is restored, but it may take time for the clear scroll requests to
+     * complete, especially after network recovery.
      */
     private void waitForContextsToReturnToBaseline(ContextBaseline baseline) throws Exception {
         assertBusy(() -> {
@@ -279,7 +279,7 @@ public class DatafeedCcsIT extends AbstractMultiClustersTestCase {
                     is(expectedActive)
                 );
             }
-        }, 30, TimeUnit.SECONDS);
+        }, 60, TimeUnit.SECONDS);
     }
 
     private ContextCounts getContextCounts(String clusterAlias) {

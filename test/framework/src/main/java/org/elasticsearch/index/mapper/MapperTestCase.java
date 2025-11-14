@@ -43,6 +43,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.CheckedConsumer;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
@@ -390,32 +391,34 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
         @SuppressWarnings("unchecked") // Syntactic sugar in tests
         T fieldType = (T) mapperService.fieldType("field");
         assertThat(checker.apply(fieldType), equalTo(isDimension));
-
-        Settings settings = Settings.builder().put(IndexSettings.USE_DOC_VALUES_SKIPPER.getKey(), true).build();
-        mapperService = createMapperService(settings, fieldMapping(b -> {
-            minimalMapping(b);
-            b.field("time_series_dimension", isDimension);
-        }));
-
-        assertThat(
-            mapperService.fieldType("field").indexType().hasDocValuesSkipper(),
-            equalTo(mapperService.getIndexSettings().useDocValuesSkipper() && isDimension)
-        );
     }
 
-    public void assertDimensionIndexing() throws IOException {
-        Settings settings = Settings.builder().put(IndexSettings.USE_DOC_VALUES_SKIPPER.getKey(), true).build();
+    public void assertTimeSeriesIndexing() throws IOException {
+
+        // In time series mode, index=false and skippers=true for all fields,
+        // regardless of their dimension status
+
+        Settings settings = Settings.builder()
+            .put(IndexSettings.USE_DOC_VALUES_SKIPPER.getKey(), true)
+            .put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES.getName())
+            .put("index.routing_path", "field")
+            .build();
         MapperService mapperService = createMapperService(settings, fieldMapping(b -> {
             minimalMapping(b);
             b.field("time_series_dimension", true);
         }));
         assumeTrue("Skippers disabled by feature flag", mapperService.getIndexSettings().useDocValuesSkipper());
 
-        ParsedDocument doc = mapperService.documentMapper().parse(source(this::writeField));
+        ParsedDocument doc = mapperService.documentMapper().parse(source(TimeSeriesRoutingHashFieldMapper.DUMMY_ENCODED_VALUE, b -> {
+            writeField(b);
+            b.field("@timestamp", "2025-11-14T12:00:00.000Z");
+        }, null));
         IndexableField field = doc.rootDoc().getField("field");
         assertSame(DocValuesSkipIndexType.RANGE, field.fieldType().docValuesSkipIndexType());
         assertSame(IndexOptions.NONE, field.fieldType().indexOptions());
         assertEquals(0, field.fieldType().pointDimensionCount());
+
+        assertEquals(IndexType.skippers(), mapperService.fieldType("field").indexType());
     }
 
     protected <T> void assertMetricType(String metricType, Function<T, Enum<TimeSeriesParams.MetricType>> checker) throws IOException {

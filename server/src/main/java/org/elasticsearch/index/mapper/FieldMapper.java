@@ -1314,16 +1314,12 @@ public abstract class FieldMapper extends Mapper {
             return Parameter.boolParam("index", false, initializer, defaultValue);
         }
 
-        public static Parameter<Boolean> indexParam(
-            Function<FieldMapper, Boolean> initializer,
-            IndexSettings indexSettings,
-            Supplier<Boolean> isDimension
-        ) {
+        public static Parameter<Boolean> indexParam(Function<FieldMapper, Boolean> initializer, IndexSettings indexSettings) {
             return Parameter.boolParam(
                 "index",
                 false,
                 initializer,
-                () -> isDimension.get() == false
+                () -> indexSettings.getMode() != IndexMode.TIME_SERIES
                     || indexSettings.useDocValuesSkipper() == false
                     || indexSettings.getIndexVersionCreated().before(IndexVersions.TIME_SERIES_DIMENSIONS_USE_SKIPPERS)
             );

@@ -106,7 +106,7 @@ public class IpFieldMapper extends FieldMapper {
             );
             this.script.precludesParameters(nullValue, ignoreMalformed);
             this.dimension = TimeSeriesParams.dimensionParam(m -> toType(m).dimension, hasDocValues::get);
-            this.indexed = Parameter.indexParam(m -> toType(m).indexed, indexSettings, dimension);
+            this.indexed = Parameter.indexParam(m -> toType(m).indexed, indexSettings);
             addScriptValidation(script, indexed, hasDocValues);
         }
 

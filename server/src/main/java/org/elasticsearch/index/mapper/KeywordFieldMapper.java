@@ -258,7 +258,7 @@ public final class KeywordFieldMapper extends FieldMapper {
 
             this.dimension = TimeSeriesParams.dimensionParam(m -> toType(m).fieldType().isDimension(), hasDocValues::get)
                 .precludesParameters(normalizer);
-            this.indexed = Parameter.indexParam(m -> toType(m).indexed, indexSettings, dimension);
+            this.indexed = Parameter.indexParam(m -> toType(m).indexed, indexSettings);
             addScriptValidation(script, indexed, hasDocValues);
 
             this.ignoreAbove = Parameter.ignoreAboveParam(

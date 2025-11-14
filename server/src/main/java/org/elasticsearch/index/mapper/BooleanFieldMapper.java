@@ -118,7 +118,7 @@ public class BooleanFieldMapper extends FieldMapper {
             );
             this.script.precludesParameters(ignoreMalformed, nullValue);
             this.dimension = TimeSeriesParams.dimensionParam(m -> toType(m).fieldType().isDimension(), docValues::get);
-            this.indexed = Parameter.indexParam(m -> toType(m).indexed, indexSettings, dimension);
+            this.indexed = Parameter.indexParam(m -> toType(m).indexed, indexSettings);
             addScriptValidation(script, indexed, docValues);
         }
 

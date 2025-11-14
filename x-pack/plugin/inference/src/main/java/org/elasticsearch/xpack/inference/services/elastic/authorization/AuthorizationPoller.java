@@ -33,6 +33,7 @@ import org.elasticsearch.xpack.inference.services.elastic.ccm.CCMFeature;
 import org.elasticsearch.xpack.inference.services.elastic.ccm.CCMService;
 
 import java.util.EnumSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
@@ -330,7 +331,7 @@ public class AuthorizationPoller extends AllocatedPersistentTask {
 
         var newInferenceIds = authorizedModelIds.stream()
             .map(InternalPreconfiguredEndpoints::getWithModelName)
-            .filter(Objects::nonNull)
+            .flatMap(List::stream)
             .map(model -> model.configurations().getInferenceEntityId())
             .collect(Collectors.toSet());
 

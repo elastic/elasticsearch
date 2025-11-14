@@ -25,8 +25,10 @@ import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
 import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndexFields;
 import org.elasticsearch.xpack.core.ml.notifications.NotificationsIndex;
 import org.elasticsearch.xpack.core.rollup.job.RollupJob;
+import org.elasticsearch.xpack.inference.MlModelServer;
 import org.junit.After;
 import org.junit.Before;
+import org.junit.ClassRule;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -37,8 +39,6 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
-import org.elasticsearch.xpack.inference.MlModelServer;
-import org.junit.ClassRule;
 
 import static java.util.Collections.emptyList;
 import static java.util.Collections.singletonMap;

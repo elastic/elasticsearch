@@ -564,8 +564,12 @@ public class TDigestFieldMapper extends FieldMapper {
             b.startObject();
 
             // TODO: Load the summary values out of the sub-fields, if they exist
-            b.field("min", min);
-            b.field("max", max);
+            if (Double.isNaN(min) == false) {
+                b.field("min", min);
+            }
+            if (Double.isNaN(max) == false) {
+                b.field("max", max);
+            }
             b.field("sum", sum);
 
             b.startArray(CENTROIDS_NAME);

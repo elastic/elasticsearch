@@ -276,8 +276,6 @@ TDigest with synthetic source and empty digest:
   - match:
       _source:
         latency:
-          min: NaN
-          max: NaN
           sum: 0.0
           centroids: [ ]
           counts: [ ]

@@ -71,7 +71,7 @@ class FieldValueFetcher {
         if (fieldType.getMetricType() != null) {
             return switch (fieldType.getMetricType()) {
                 case GAUGE -> MetricFieldProducer.createFieldProducerForGauge(name(), samplingMethod);
-                case COUNTER -> MetricFieldProducer.createFieldProducerForCounter(name());
+                case COUNTER -> LastValueFieldProducer.createForMetric(name());
                 // TODO: Support POSITION in downsampling
                 case POSITION -> throw new IllegalArgumentException("Unsupported metric type [position] for down-sampling");
             };

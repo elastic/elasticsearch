@@ -43,8 +43,6 @@ final class AggregateMetricFieldSerializer implements DownsampleFieldSerializer 
                         builder.field("min", gaugeProducer.min);
                         builder.field("sum", gaugeProducer.sum.value());
                         builder.field("value_count", gaugeProducer.count);
-                    } else if (metricFieldProducer instanceof MetricFieldProducer.LastValueScalarMetricFieldProducer lastValueProducer) {
-                        builder.field(lastValueProducer.sampleLabel(), lastValueProducer.lastValue);
                     } else if (metricFieldProducer instanceof MetricFieldProducer.AggregatePreAggregatedMetricFieldProducer producer) {
                         switch (producer.metric) {
                             case max -> builder.field("max", producer.max);

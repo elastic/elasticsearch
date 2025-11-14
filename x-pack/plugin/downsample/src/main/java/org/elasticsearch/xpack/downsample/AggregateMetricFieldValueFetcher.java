@@ -52,7 +52,7 @@ public final class AggregateMetricFieldValueFetcher extends FieldValueFetcher {
                 // for each aggregation. This is a downsample-of-downsample case
                 return new MetricFieldProducer.AggregatePreAggregatedMetricFieldProducer(aggMetricFieldType.name(), metric);
             } else {
-                return new MetricFieldProducer.LastValueScalarMetricFieldProducer(aggMetricFieldType.name(), metric);
+                return new LastValueFieldProducer.AggregateMetricFieldProducer(aggMetricFieldType.name(), metric);
             }
         } else {
             // If field is not a metric, we downsample it as a label

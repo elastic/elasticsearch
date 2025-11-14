@@ -258,7 +258,7 @@ public class DatafeedCcsIT extends AbstractMultiClustersTestCase {
      * This is especially important after network disruption when scroll contexts on the remote
      * cluster may have been created but couldn't be cleared until connectivity was restored.
      */
-    private void waitForContextsToReturnToBaseline(ContextBaseline baseline) {
+    private void waitForContextsToReturnToBaseline(ContextBaseline baseline) throws Exception {
         assertBusy(() -> {
             for (String clusterAlias : List.of(LOCAL_CLUSTER, REMOTE_CLUSTER)) {
                 ContextCounts current = getContextCounts(clusterAlias);

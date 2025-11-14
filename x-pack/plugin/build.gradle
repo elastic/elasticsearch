@@ -21,6 +21,7 @@ dependencies {
   testImplementation project(xpackModule('core'))
   testImplementation(testArtifact(project(xpackModule('core'))))
   testImplementation(testArtifact(project(":x-pack:plugin:security:qa:service-account"), "javaRestTest"))
+  testImplementation(testArtifact(project(':x-pack:plugin:inference:qa:inference-service-tests'), "javaRestTest"))
   testImplementation project(':test:yaml-rest-runner')
 }
 

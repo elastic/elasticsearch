@@ -37,6 +37,8 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
+import org.elasticsearch.xpack.inference.MlModelServer;
+import org.junit.ClassRule;
 
 import static java.util.Collections.emptyList;
 import static java.util.Collections.singletonMap;
@@ -49,6 +51,14 @@ public abstract class AbstractXPackRestTest extends ESClientYamlSuiteTestCase {
         "x_pack_rest_user",
         SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING
     );
+
+    @ClassRule
+    public static MlModelServer mlModelServer = new MlModelServer();
+
+    @Before
+    public void setMlModelRepository() throws IOException {
+        assertOK(mlModelServer.setMlModelRepository(client()));
+    }
 
     public AbstractXPackRestTest(ClientYamlTestCandidate testCandidate) {
         super(testCandidate);

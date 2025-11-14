@@ -29,6 +29,7 @@ import co.elastic.elasticsearch.stateless.engine.PrimaryTermAndGeneration;
 import co.elastic.elasticsearch.stateless.lucene.BlobStoreCacheDirectory;
 import co.elastic.elasticsearch.stateless.lucene.IndexBlobStoreCacheDirectory;
 
+import org.apache.lucene.index.IndexFileNames;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.IOContext;
 import org.elasticsearch.action.ActionListener;
@@ -71,6 +72,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.index.store.LuceneFilesExtensions;
 import org.elasticsearch.logging.Level;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
@@ -912,6 +914,7 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
         ThreadPool threadPool,
         boolean useReplicatedRanges,
         Executor bccHeaderReadExecutor,
+        boolean readSingleBlobIfHollow,
         ActionListener<IndexingShardState> listener
     ) {
         assert ThreadPool.assertCurrentThreadPool(ThreadPool.Names.GENERIC);
@@ -981,21 +984,50 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
                     )
                 );
 
-                // Map of blobs used as location in commit files (including the latest bcc). The key is the blob's term/generation and the
-                // value is a tuple of the blob's max length that includes the set of commit files in that blob (used later to stop reading
-                // the blob's commit headers early) and the set of commit files that are contained in the blob.
-                var referencedBlobs = computedReferencedBlobs(latestBcc);
+                // If the last CC is hollow, we do not need to read any other blobs than the last CC itself.
+                if (readSingleBlobIfHollow && latestBcc.lastCompoundCommit().hollow()) {
+                    ActionListener.completeWith(l, () -> {
+                        // We re-calculate the blob locations of all commit's files, by replacing the referenced blob location for
+                        // replicated .si files in the CC's extra content with their extra content blob location instead.
+                        // We do not calculate blob file ranges for internal files using replicated headers/footers, since we do not
+                        // expect replicated content to exist (all hollow files should be in first region typically), and we do not
+                        // expect reading of any other files than .si files.
+                        final var hollowCC = latestBcc.lastCompoundCommit();
+                        assert hollowCC.extraContent()
+                            .keySet()
+                            .stream()
+                            .allMatch(
+                                filename -> Objects.equals(IndexFileNames.getExtension(filename), LuceneFilesExtensions.SI.getExtension())
+                            )
+                            : "currently only segment info ."
+                                + LuceneFilesExtensions.SI.getExtension()
+                                + " files are expected to be in extra content files, and found "
+                                + hollowCC.extraContent().keySet();
+                        // When combining the replicated files with the commit files, the replicated .si files should override the
+                        // referenced .si files in commit files, so that only the replicated .si files' locations stay.
+                        final Map<String, BlobFileRanges> hollowCommitBlobFileRanges = Stream.concat(
+                            hollowCC.commitFiles().entrySet().stream(),
+                            hollowCC.extraContent().entrySet().stream()
+                        ).collect(Collectors.toUnmodifiableMap(Map.Entry::getKey, e -> new BlobFileRanges(e.getValue()), (v1, v2) -> v2));
+                        return new IndexingShardState(latestBcc, otherBlobs, hollowCommitBlobFileRanges);
+                    });
+                } else {
+                    // Map of blobs used as location in commit files (including the latest bcc). The key is the blob's term/generation and
+                    // the value is a tuple of the blob's max length that includes the set of commit files in that blob (used later to stop
+                    // reading the blob's commit headers early) and the set of commit files that are contained in the blob.
+                    var referencedBlobs = computedReferencedBlobs(latestBcc);
 
-                // Read/Warm header(s) of every referenced blob and compute BlobFileRanges
-                readBlobsAndComputeBlobFileRanges(
-                    directory,
-                    context,
-                    latestBcc,
-                    referencedBlobs,
-                    useReplicatedRanges,
-                    bccHeaderReadExecutor,
-                    l.map(blobFileRanges -> new IndexingShardState(latestBcc, otherBlobs, Map.copyOf(blobFileRanges)))
-                );
+                    // Read/Warm header(s) of every referenced blob and compute BlobFileRanges
+                    readBlobsAndComputeBlobFileRanges(
+                        directory,
+                        context,
+                        latestBcc,
+                        referencedBlobs,
+                        useReplicatedRanges,
+                        bccHeaderReadExecutor,
+                        l.map(blobFileRanges -> new IndexingShardState(latestBcc, otherBlobs, Map.copyOf(blobFileRanges)))
+                    );
+                }
             })
             .addListener(listener);
     }

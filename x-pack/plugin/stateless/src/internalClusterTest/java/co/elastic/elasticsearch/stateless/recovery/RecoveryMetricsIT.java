@@ -35,6 +35,7 @@ import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.snapshots.mockstore.MockRepository;
 import org.elasticsearch.telemetry.Measurement;
 import org.elasticsearch.telemetry.TestTelemetryPlugin;
+import org.elasticsearch.test.transport.MockTransportService;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -43,6 +44,8 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 
+import static co.elastic.elasticsearch.stateless.commits.HollowShardsService.STATELESS_HOLLOW_INDEX_SHARDS_ENABLED;
+import static co.elastic.elasticsearch.stateless.recovery.TransportStatelessPrimaryRelocationAction.START_RELOCATION_ACTION_NAME;
 import static org.elasticsearch.blobcache.shared.SharedBytes.PAGE_SIZE;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
@@ -280,7 +283,7 @@ public class RecoveryMetricsIT extends AbstractStatelessIntegTestCase {
         });
     }
 
-    public void testRecoveryMetricPublicationBytesReadToCache() {
+    public void testRecoveryMetricPublicationBytesReadToCache() throws Exception {
         startMasterOnlyNode();
         // in scenarios where cache is disabled (see AbstractStatelessIntegTestCase#settingsForRoles)
         // nothing is copied to cache and so metric in SharedBlobCacheWarmingService is not incremented
@@ -289,8 +292,12 @@ public class RecoveryMetricsIT extends AbstractStatelessIntegTestCase {
             .put(SharedBlobCacheService.SHARED_CACHE_REGION_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(2L * PAGE_SIZE).getStringRep())
             .build();
 
-        var indexingNode1 = startIndexNode(cacheSettings);
-        var indexingNode2 = startIndexNode(cacheSettings);
+        final var hollowSettings = randomHollowIndexNodeSettings();
+        final var hollowEnabled = STATELESS_HOLLOW_INDEX_SHARDS_ENABLED.get(hollowSettings);
+        final var indexingNodeSettings = Settings.builder().put(cacheSettings).put(hollowSettings).build();
+
+        var indexingNode1 = startIndexNode(indexingNodeSettings);
+        var indexingNode2 = startIndexNode(indexingNodeSettings);
 
         var indexName = randomIdentifier();
         // ensure that index shard is allocated on `indexingNode1` and not on `indexingNode2`
@@ -306,12 +313,23 @@ public class RecoveryMetricsIT extends AbstractStatelessIntegTestCase {
         int numDocs = randomIntBetween(100, 1000);
         indexDocs(indexName, numDocs);
         refresh(indexName);
+        if (hollowEnabled) {
+            // Flush so that the IndexShardCacheWarmer on the target node can prewarm some bytes
+            flush(indexName);
+        }
 
         var plugin = internalCluster().getInstance(PluginsService.class, indexingNode2)
             .filterPlugins(TestTelemetryPlugin.class)
             .findFirst()
             .orElseThrow();
         plugin.resetMeter();
+
+        CountDownLatch warmingDone = new CountDownLatch(1);
+        MockTransportService.getInstance(indexingNode1)
+            .addRequestHandlingBehavior(START_RELOCATION_ACTION_NAME, (handler, request, channel, task) -> {
+                safeAwait(warmingDone);
+                handler.messageReceived(request, channel, task);
+            });
 
         // trigger primary relocation from `indexingNode1` to `indexingNode2`
         // hence start recovery of the shard on a new node
@@ -320,6 +338,16 @@ public class RecoveryMetricsIT extends AbstractStatelessIntegTestCase {
                 .prepareUpdateSettings(indexName)
                 .setSettings(Settings.builder().put(IndexMetadata.INDEX_ROUTING_EXCLUDE_GROUP_PREFIX + "._name", indexingNode1))
         );
+
+        // Wait until the IndexShardCacheWarmer warms the commit (the non-hollow one, in case hollowing is enabled)
+        // to ensure that it reads some bytes (otherwise it could race with recovery getting bytes into the cache first).
+        assertBusy(
+            () -> assertThat(
+                plugin.getLongCounterMeasurement(SharedBlobCacheWarmingService.BLOB_CACHE_WARMING_PAGE_ALIGNED_BYTES_TOTAL_METRIC).size(),
+                greaterThan(0)
+            )
+        );
+        warmingDone.countDown();
 
         ensureGreen(indexName);
 
@@ -347,21 +375,24 @@ public class RecoveryMetricsIT extends AbstractStatelessIntegTestCase {
             greaterThan(0L)
         );
 
-        {
-            final List<Measurement> measurements = plugin.getLongCounterMeasurement(
-                SharedBlobCacheWarmingService.BLOB_CACHE_WARMING_PAGE_ALIGNED_BYTES_TOTAL_METRIC
-            );
-            // One from IndexShardCacheWarmer and the other from StatelessIndexEventListener
-            assertThat(measurements.size(), equalTo(2));
-            long totalBytesWarmed = 0;
-            for (final Measurement metric : measurements) {
-                final long bytesWarmed = metric.getLong();
-                assertThat(bytesWarmed, greaterThanOrEqualTo(0L));
-                totalBytesWarmed += bytesWarmed;
-                assertMetricAttributes(metric, true);
-            }
-            assertThat(totalBytesWarmed, greaterThan(0L));
+        final List<Measurement> measurements = plugin.getLongCounterMeasurement(
+            SharedBlobCacheWarmingService.BLOB_CACHE_WARMING_PAGE_ALIGNED_BYTES_TOTAL_METRIC
+        );
+        if (hollowEnabled) {
+            // One from the IndexShardCacheWarmer for the non-hollow commit
+            assertThat(measurements.size(), equalTo(1));
+        } else {
+            // One from IndexShardCacheWarmer and the other from StatelessIndexEventListener (which we may need to wait for it to appear)
+            assertBusy(() -> assertThat(measurements.size(), equalTo(2)));
         }
+        long totalBytesWarmed = 0;
+        for (final Measurement metric : measurements) {
+            final long bytesWarmed = metric.getLong();
+            assertThat(bytesWarmed, greaterThanOrEqualTo(0L));
+            totalBytesWarmed += bytesWarmed;
+            assertMetricAttributes(metric, true);
+        }
+        assertThat(totalBytesWarmed, greaterThan(0L));
     }
 
     public void testRecoveryMetricPublicationBytesReadToCacheFromIndexing() {

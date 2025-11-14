@@ -95,6 +95,7 @@ import java.util.function.Consumer;
 import java.util.function.Function;
 
 import static co.elastic.elasticsearch.stateless.cache.reader.CacheBlobReaderService.TRANSPORT_BLOB_READER_CHUNK_SIZE_SETTING;
+import static co.elastic.elasticsearch.stateless.commits.HollowShardsService.STATELESS_HOLLOW_INDEX_SHARDS_ENABLED;
 import static co.elastic.elasticsearch.stateless.objectstore.ObjectStoreTestUtils.getObjectStoreMockRepository;
 import static org.elasticsearch.blobcache.shared.SharedBytes.PAGE_SIZE;
 import static org.elasticsearch.cluster.coordination.FollowersChecker.FOLLOWER_CHECK_INTERVAL_SETTING;
@@ -190,6 +191,8 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessIntegTestC
     public void testCacheIsWarmedBeforeIndexingShardRelocation_AfterHandoff() {
         startMasterOnlyNode();
 
+        final var hollowSettings = randomHollowIndexNodeSettings();
+        final var hollowEnabled = STATELESS_HOLLOW_INDEX_SHARDS_ENABLED.get(hollowSettings);
         var nodeSettings = Settings.builder()
             .put(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), CACHE_SIZE.getStringRep())
             .put(SharedBlobCacheService.SHARED_CACHE_REGION_SIZE_SETTING.getKey(), REGION_SIZE.getStringRep())
@@ -199,6 +202,7 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessIntegTestC
                 ByteSizeValue.ofBytes((long) (REGION_SIZE.getBytes() * 0.06d)).getStringRep()
             )
             .put(StatelessCommitService.STATELESS_COMMIT_USE_INTERNAL_FILES_REPLICATED_CONTENT.getKey(), randomBoolean())
+            .put(hollowSettings)
             .build();
         var indexNodeA = startIndexNode(nodeSettings);
 
@@ -220,7 +224,7 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessIntegTestC
         var indexNodeB = startIndexNode(nodeSettings);
         ensureStableCluster(3);
 
-        // wait for INDEXING_EARLY and INDEXING to be completed before blokcing access to the latest BCC.
+        // wait for INDEXING_EARLY and INDEXING to be completed before blocking access to the latest BCC.
         final var waitForWarmingsCompleted = new CountDownLatch(1);
         final long generationToBlock = findIndexShard(indexName).commitStats().getGeneration();
         try (var refs = new RefCountingListener(ActionListener.runAfter(ActionListener.running(() -> {
@@ -239,9 +243,20 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessIntegTestC
             });
         }), waitForWarmingsCompleted::countDown))) {
             runOnWarmingComplete(indexNodeB, Type.INDEXING_EARLY, refs.acquire().map(ignored -> null));
-            runOnWarmingComplete(indexNodeB, Type.INDEXING, refs.acquire().map(ignored -> null));
+            if (hollowEnabled) {
+                runOnWarmingComplete(indexNodeA, Type.HOLLOWING, refs.acquire().map(ignored -> null));
+            } else {
+                runOnWarmingComplete(indexNodeB, Type.INDEXING, refs.acquire().map(ignored -> null));
+            }
         }
 
+        final MockLog.LoggingExpectation[] loggingExpectations = hollowEnabled
+            ? new MockLog.LoggingExpectation[] {
+                expectCacheWarmingCompleteEvent(Type.INDEXING_EARLY),
+                expectCacheWarmingCompleteEvent(Type.HOLLOWING) }
+            : new MockLog.LoggingExpectation[] {
+                expectCacheWarmingCompleteEvent(Type.INDEXING_EARLY),
+                expectCacheWarmingCompleteEvent(Type.INDEXING) };
         assertThatLogger(() -> {
             var shutdownNodeId = client().admin()
                 .cluster()
@@ -269,18 +284,14 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessIntegTestC
             ensureGreen(indexName);
             assertThat(findIndexShard(resolveIndex(indexName), 0).routingEntry().currentNodeId(), equalTo(getNodeId(indexNodeB)));
             safeAwait(waitForWarmingsCompleted);
-        },
-            SharedBlobCacheWarmingService.class,
-            expectCacheWarmingCompleteEvent(Type.INDEXING_EARLY),
-            expectCacheWarmingCompleteEvent(Type.INDEXING)
-        );
+        }, SharedBlobCacheWarmingService.class, loggingExpectations);
     }
 
     @TestLogging(value = "co.elastic.elasticsearch.stateless.cache.SharedBlobCacheWarmingService:DEBUG", reason = "verify debug output")
     public void testCacheIsWarmedBeforeIndexingShardRelocation_Initial() {
         startMasterOnlyNode();
 
-        var nodeSettings = Settings.builder()
+        final var cacheSettings = Settings.builder()
             .put(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), CACHE_SIZE.getStringRep())
             .put(SharedBlobCacheService.SHARED_CACHE_REGION_SIZE_SETTING.getKey(), REGION_SIZE.getStringRep())
             .put(SharedBlobCacheService.SHARED_CACHE_RANGE_SIZE_SETTING.getKey(), REGION_SIZE.getStringRep())
@@ -290,6 +301,9 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessIntegTestC
             )
             .put(StatelessCommitService.STATELESS_COMMIT_USE_INTERNAL_FILES_REPLICATED_CONTENT.getKey(), randomBoolean())
             .build();
+        final var hollowSettings = randomHollowIndexNodeSettings();
+        final var hollowEnabled = STATELESS_HOLLOW_INDEX_SHARDS_ENABLED.get(hollowSettings);
+        final var nodeSettings = Settings.builder().put(cacheSettings).put(hollowSettings).build();
         var indexNodeA = startIndexNode(nodeSettings);
 
         final String indexName = randomIdentifier();
@@ -324,6 +338,13 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessIntegTestC
 
         PlainActionFuture<CompletedWarmingDetails> earlyWarmingIsComplete = new PlainActionFuture<>();
         runOnWarmingComplete(indexNodeB, Type.INDEXING_EARLY, earlyWarmingIsComplete);
+        final MockLog.LoggingExpectation[] loggingExpectations = hollowEnabled
+            ? new MockLog.LoggingExpectation[] {
+                expectCacheWarmingCompleteEvent(Type.INDEXING_EARLY),
+                expectCacheWarmingCompleteEvent(Type.HOLLOWING) }
+            : new MockLog.LoggingExpectation[] {
+                expectCacheWarmingCompleteEvent(Type.INDEXING_EARLY),
+                expectCacheWarmingCompleteEvent(Type.INDEXING) };
         assertThatLogger(() -> {
             var shutdownNodeId = client().admin()
                 .cluster()
@@ -359,11 +380,7 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessIntegTestC
             // Now the relocation should complete successfully
             ensureGreen(indexName);
             assertThat(findIndexShard(resolveIndex(indexName), 0).routingEntry().currentNodeId(), equalTo(getNodeId(indexNodeB)));
-        },
-            SharedBlobCacheWarmingService.class,
-            expectCacheWarmingCompleteEvent(Type.INDEXING_EARLY),
-            expectCacheWarmingCompleteEvent(Type.INDEXING)
-        );
+        }, SharedBlobCacheWarmingService.class, loggingExpectations);
     }
 
     @TestLogging(value = "co.elastic.elasticsearch.stateless.cache.SharedBlobCacheWarmingService:DEBUG", reason = "verify debug output")

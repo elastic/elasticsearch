@@ -120,7 +120,8 @@ public class SecurityMigrations {
         @Override
         public void migrate(SecurityIndexManager indexManager, Client client, ActionListener<Void> listener) {
             BoolQueryBuilder filterQuery = new BoolQueryBuilder().filter(QueryBuilders.termQuery("type", "role"))
-                .mustNot(QueryBuilders.existsQuery("metadata_flattened"));
+                .mustNot(QueryBuilders.existsQuery("metadata_flattened"))
+                .must(QueryBuilders.existsQuery("metadata"));
             SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder().query(filterQuery).size(0).trackTotalHits(true);
             SearchRequest countRequest = new SearchRequest(indexManager.forCurrentProject().getConcreteIndexName());
             countRequest.source(searchSourceBuilder);

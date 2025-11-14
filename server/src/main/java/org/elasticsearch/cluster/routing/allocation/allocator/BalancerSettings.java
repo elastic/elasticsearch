@@ -28,7 +28,6 @@ public class BalancerSettings {
     private volatile float diskUsageBalanceFactor;
     private volatile float threshold;
     private final boolean completeEarlyOnShardAssignmentChange;
-    private final ClusterSettings clusterSettings;
 
     public BalancerSettings(Settings settings) {
         this(ClusterSettings.createBuiltInClusterSettings(settings));
@@ -43,11 +42,6 @@ public class BalancerSettings {
         this.completeEarlyOnShardAssignmentChange = ClusterModule.DESIRED_BALANCE_ALLOCATOR.equals(
             clusterSettings.get(ClusterModule.SHARDS_ALLOCATOR_TYPE_SETTING)
         );
-        this.clusterSettings = clusterSettings;
-    }
-
-    public ClusterSettings getClusterSettings() {
-        return clusterSettings;
     }
 
     /**

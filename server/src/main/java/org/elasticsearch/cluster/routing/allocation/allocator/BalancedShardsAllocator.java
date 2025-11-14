@@ -41,7 +41,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.gateway.PriorityComparator;
 import org.elasticsearch.index.shard.ShardId;
@@ -112,13 +111,6 @@ public class BalancedShardsAllocator implements ShardsAllocator {
         "cluster.routing.allocation.balance.threshold",
         1.0f,
         1.0f,
-        Property.Dynamic,
-        Property.NodeScope
-    );
-    public static final Setting<TimeValue> MOVE_NOT_PREFERRED_MINIMUM_LOGGING_INTERVAL = Setting.timeSetting(
-        "cluster.routing.allocation.balance.move_not_preferred_logging_interval",
-        TimeValue.ONE_MINUTE,
-        TimeValue.THIRTY_SECONDS,
         Property.Dynamic,
         Property.NodeScope
     );

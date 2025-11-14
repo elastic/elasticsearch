@@ -52,7 +52,6 @@ import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Strings;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.shard.ShardId;
@@ -70,7 +69,6 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.DoubleSupplier;
 import java.util.function.Function;
@@ -1015,15 +1013,10 @@ public class BalancedShardsAllocatorTests extends ESAllocationTestCase {
     )
     public void testNotPreferredMovementIsLoggedAtDebugLevel() {
         final var clusterState = ClusterStateCreationUtils.state(randomIdentifier(), 3, 3);
-        final var minimumLogInterval = TimeValue.timeValueMinutes(randomIntBetween(1, 10));
-        final var balancerSettings = new BalancerSettings(
-            Settings.builder().put(BalancedShardsAllocator.MOVE_NOT_PREFERRED_MINIMUM_LOGGING_INTERVAL.getKey(), minimumLogInterval).build()
-        );
-        final var relativeTimeMillis = new AtomicLong();
         final var balancedShardsAllocator = new BalancedShardsAllocator(
-            balancerSettings,
+            BalancerSettings.DEFAULT,
             TEST_WRITE_LOAD_FORECASTER,
-            new GlobalBalancingWeightsFactory(balancerSettings)
+            new GlobalBalancingWeightsFactory(BalancerSettings.DEFAULT)
         );
 
         final var allocation = new RoutingAllocation(new AllocationDeciders(List.<AllocationDecider>of(new AllocationDecider() {
@@ -1039,32 +1032,6 @@ public class BalancedShardsAllocatorTests extends ESAllocationTestCase {
         })), clusterState.getRoutingNodes().mutableCopy(), clusterState, ClusterInfo.EMPTY, SnapshotShardSizeInfo.EMPTY, 0L);
 
         final var notPreferredLoggerName = BalancedShardsAllocator.class.getName() + ".not-preferred";
-        MockLog.assertThatLogger(
-            () -> balancedShardsAllocator.allocate(allocation),
-            notPreferredLoggerName,
-            new MockLog.SeenEventExpectation(
-                "moved a NOT_PREFERRED allocation",
-                notPreferredLoggerName,
-                Level.DEBUG,
-                "Moving shard [*] from a NOT_PREFERRED allocation, explanation is [Always NOT_PREFERRED]"
-            )
-        );
-
-        // We shouldn't log again before the log interval
-        relativeTimeMillis.addAndGet(randomLongBetween(1, minimumLogInterval.millis() - 1));
-        MockLog.assertThatLogger(
-            () -> balancedShardsAllocator.allocate(allocation),
-            notPreferredLoggerName,
-            new MockLog.UnseenEventExpectation(
-                "moved a NOT_PREFERRED allocation",
-                notPreferredLoggerName,
-                Level.DEBUG,
-                "Moving shard [*] from a NOT_PREFERRED allocation, explanation is [Always NOT_PREFERRED]"
-            )
-        );
-
-        // We should log again once the interval has passed
-        relativeTimeMillis.addAndGet(minimumLogInterval.millis());
         MockLog.assertThatLogger(
             () -> balancedShardsAllocator.allocate(allocation),
             notPreferredLoggerName,

@@ -258,7 +258,6 @@ public class CrossProjectIndexExpressionsRewriterTests extends ESTestCase {
     }
 
     public void testRewritingShouldThrowOnIndexSelectors() {
-        // This will fail when we implement index exclusions
         ProjectRoutingInfo origin = createRandomProjectWithAlias("P0");
         List<ProjectRoutingInfo> linked = List.of(
             createRandomProjectWithAlias("P1"),
@@ -268,9 +267,12 @@ public class CrossProjectIndexExpressionsRewriterTests extends ESTestCase {
         );
         String[] requestedResources = new String[] { "index::data" };
 
-        expectThrows(
-            IllegalArgumentException.class,
-            () -> CrossProjectIndexExpressionsRewriter.rewriteIndexExpressions(origin, linked, requestedResources)
+        var actual = CrossProjectIndexExpressionsRewriter.rewriteIndexExpressions(origin, linked, requestedResources);
+
+        assertThat(actual.keySet(), containsInAnyOrder("index::data"));
+        assertIndexRewriteResultsContains(
+            actual.get("index::data"),
+            containsInAnyOrder("index::data", "P1:index::data", "P2:index::data", "Q1:index::data", "Q2:index::data")
         );
     }
 

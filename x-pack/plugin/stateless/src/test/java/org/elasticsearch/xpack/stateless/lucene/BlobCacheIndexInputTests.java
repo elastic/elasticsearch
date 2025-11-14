@@ -33,6 +33,8 @@ import co.elastic.elasticsearch.stateless.cache.reader.SwitchingCacheBlobReader;
 import co.elastic.elasticsearch.stateless.commits.StatelessCompoundCommit;
 import co.elastic.elasticsearch.stateless.engine.PrimaryTermAndGeneration;
 
+import org.apache.lucene.store.IndexInput;
+import org.apache.lucene.store.RandomAccessInput;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
@@ -552,6 +554,61 @@ public class BlobCacheIndexInputTests extends ESIndexInputTestCase {
             }
         }
         safeAwait(exceptionSeen);
+    }
+
+    public void testSlicing() throws IOException {
+        final var settings = sharedCacheSettings(ByteSizeValue.ofBytes(randomLongBetween(0, 10_000_000)));
+        try (
+            NodeEnvironment nodeEnvironment = new NodeEnvironment(settings, TestEnvironment.newEnvironment(settings));
+            StatelessSharedBlobCacheService sharedBlobCacheService = newCacheService(nodeEnvironment, settings, threadPool)
+        ) {
+            final ShardId shardId = new ShardId(new Index("_index_name", "_index_id"), 0);
+            final byte[] input = randomByteArrayOfLength(randomIntBetween(1, 100_000));
+            final String fileName = randomAlphaOfLength(5) + randomFileExtension();
+            final long primaryTerm = randomNonNegativeLong();
+            final BlobCacheIndexInput indexInput = new BlobCacheIndexInput(
+                fileName,
+                randomIOContext(),
+                new CacheFileReader(
+                    sharedBlobCacheService.getCacheFile(new FileCacheKey(shardId, primaryTerm, fileName), input.length),
+                    createBlobReader(fileName, input, sharedBlobCacheService),
+                    createBlobFileRanges(primaryTerm, 0L, 0, input.length),
+                    null,
+                    System::currentTimeMillis
+                ),
+                null,
+                input.length,
+                0
+            );
+
+            assertNull(indexInput.getSliceDescription());
+
+            long pos = randomLongBetween(0, input.length - 1);
+            IndexInput slice = indexInput.slice("fake", 0, pos);
+            BlobCacheIndexInput blobCacheIndexInputSlice = asInstanceOf(BlobCacheIndexInput.class, slice);
+            assertThat(getCacheFile(blobCacheIndexInputSlice), not(equalTo(getCacheFile(indexInput))));
+            assertThat(blobCacheIndexInputSlice.getFilePointer(), equalTo(indexInput.getFilePointer()));
+            assertEquals("fake", blobCacheIndexInputSlice.getSliceDescription());
+
+            long secondPos = randomLongBetween(0, input.length - 1);
+            IndexInput secondSlice = indexInput.slice("fake.nmv", 0, secondPos);
+            BlobCacheIndexInput secondBlobCacheIndexInputSlice = asInstanceOf(BlobCacheIndexInput.class, secondSlice);
+            assertThat(getCacheFile(secondBlobCacheIndexInputSlice), not(equalTo(getCacheFile(indexInput))));
+            assertThat(secondBlobCacheIndexInputSlice.getFilePointer(), equalTo(indexInput.getFilePointer()));
+            assertEquals("fake.nmv", secondBlobCacheIndexInputSlice.getSliceDescription());
+
+            RandomAccessInput randomAccessSlice = indexInput.randomAccessSlice(0, pos);
+            BlobCacheIndexInput randomAccessBlobCacheIndexInputSlice = asInstanceOf(BlobCacheIndexInput.class, randomAccessSlice);
+            assertThat(getCacheFile(randomAccessBlobCacheIndexInputSlice), not(equalTo(getCacheFile(indexInput))));
+            assertThat(randomAccessBlobCacheIndexInputSlice.getFilePointer(), equalTo(indexInput.getFilePointer()));
+            assertEquals("randomaccess", randomAccessBlobCacheIndexInputSlice.getSliceDescription());
+
+            RandomAccessInput randomAccessSliceSlice = secondSlice.randomAccessSlice(0, secondPos);
+            BlobCacheIndexInput randomAccessSliceBlobCacheIndexInputSlice = asInstanceOf(BlobCacheIndexInput.class, randomAccessSliceSlice);
+            assertThat(getCacheFile(randomAccessSliceBlobCacheIndexInputSlice), not(equalTo(getCacheFile(indexInput))));
+            assertThat(randomAccessSliceBlobCacheIndexInputSlice.getFilePointer(), equalTo(indexInput.getFilePointer()));
+            assertEquals("randomaccess", randomAccessSliceBlobCacheIndexInputSlice.getSliceDescription());
+        }
     }
 
     private SparseFileTracker.Gap mockGap(long start, long end) {

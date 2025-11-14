@@ -7,11 +7,15 @@
 
 package org.elasticsearch.xpack.esql.view;
 
+import org.elasticsearch.Build;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
 import org.junit.After;
 import org.junit.Before;
+import org.junit.Rule;
+import org.junit.rules.TestRule;
+import org.junit.runners.model.Statement;
 
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
@@ -25,6 +29,16 @@ import static org.hamcrest.Matchers.nullValue;
 public class ViewCrudTests extends AbstractViewTestCase {
 
     private TestViewsApi viewsApi;
+
+    @Rule
+    // TODO: Remove this once we make ViewMetadata no longer snapshot-only
+    public TestRule skipIfNotSnapshot = (base, description) -> new Statement() {
+        @Override
+        public void evaluate() throws Throwable {
+            assumeTrue("These tests only work in SNAPSHOT builds", Build.current().isSnapshot());
+            base.evaluate();
+        }
+    };
 
     @Before
     public void setup() throws Exception {

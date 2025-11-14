@@ -6,14 +6,13 @@
  */
 package org.elasticsearch.xpack.esql.view;
 
+import org.elasticsearch.Build;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.features.FeatureService;
-import org.elasticsearch.indices.TestIndexNameExpressionResolver;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
@@ -44,13 +43,16 @@ public abstract class AbstractViewTestCase extends ESSingleNodeTestCase {
         protected final ProjectId projectId;
 
         public TestViewsApi() {
+            if (Build.current().isSnapshot() == false) {
+                // The TestResponseCapture implementation waits forever if views are not enabled, so lets rather fail early
+                throw new IllegalStateException("Views tests cannot run in release mode yet");
+            }
             ProjectResolver projectResolver = getInstanceFromNode(ProjectResolver.class);
             this.viewService = viewService(projectResolver);
             this.projectId = projectResolver.getProjectId();
         }
 
         protected AtomicReference<Exception> save(String name, View policy) throws InterruptedException {
-            IndexNameExpressionResolver resolver = TestIndexNameExpressionResolver.newInstance();
             TestResponseCapture<Void> responseCapture = new TestResponseCapture<>();
             viewService.put(projectId, name, policy, responseCapture);
             responseCapture.latch.await();

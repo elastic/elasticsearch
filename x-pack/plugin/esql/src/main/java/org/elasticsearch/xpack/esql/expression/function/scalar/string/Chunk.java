@@ -159,12 +159,9 @@ public class Chunk extends EsqlScalarFunction implements OptionalArgument {
             } else if (CHUNKING_SETTINGS.equals(optionName)) {
                 if (entry.value() instanceof MapExpression == false) {
                     return new TypeResolution(
-                        "[" + CHUNKING_SETTINGS + "] must be a map, found [" + entry.value().getClass().getSimpleName() + "]");
+                        "[" + CHUNKING_SETTINGS + "] must be a map, found [" + entry.value().dataType() + "]");
                 }
-                TypeResolution chunkingSettingsResolution = validateChunkingSettings((MapExpression) entry.value());
-                if (chunkingSettingsResolution.unresolved()) {
-                    return chunkingSettingsResolution;
-                }
+                return validateChunkingSettings(entry.value());
             } else {
                 return new TypeResolution(
                     "Invalid option [" + optionName + "], expected one of [" + String.join(", ", ALLOWED_OPTIONS.keySet()) + "]");
@@ -174,8 +171,10 @@ public class Chunk extends EsqlScalarFunction implements OptionalArgument {
         return TypeResolution.TYPE_RESOLVED;
     }
 
-    private TypeResolution validateChunkingSettings(MapExpression chunkingSettingsMap) {
+    private TypeResolution validateChunkingSettings(Expression chunkingSettings) {
         // Just ensure all keys and values are literals - defer valid chunking settings for validation later
+        assert chunkingSettings instanceof MapExpression;
+        MapExpression chunkingSettingsMap = (MapExpression) chunkingSettings;
         for (EntryExpression entry : chunkingSettingsMap.entryExpressions()) {
             if (entry.key() instanceof Literal == false || (entry.key()).foldable() == false) {
                 return new TypeResolution("chunking_settings keys must be constants");
@@ -269,7 +268,7 @@ public class Chunk extends EsqlScalarFunction implements OptionalArgument {
                     numChunks = (Integer) ((Literal) entry.value()).value();
                 } else if (CHUNKING_SETTINGS.equals(optionName)) {
                     // Convert the nested MapExpression to Map<String, Object> and build ChunkingSettings
-                    Map<String, Object> chunkingSettingsMap = mapExpressionToMap((MapExpression) entry.value());
+                    Map<String, Object> chunkingSettingsMap = toMap((MapExpression) entry.value());
                     chunkingSettings = ChunkingSettingsBuilder.fromMap(chunkingSettingsMap);
                 }
             }
@@ -283,14 +282,13 @@ public class Chunk extends EsqlScalarFunction implements OptionalArgument {
         );
     }
 
-    private static Map<String, Object> mapExpressionToMap(MapExpression mapExpr) {
+    private static Map<String, Object> toMap(MapExpression mapExpr) {
         Map<String, Object> result = new java.util.HashMap<>();
         for (EntryExpression entry : mapExpr.entryExpressions()) {
             Object keyValue = ((Literal) entry.key()).value();
             String key = keyValue instanceof BytesRef br ? br.utf8ToString() : keyValue.toString();
 
             Object value = ((Literal) entry.value()).value();
-            // Convert BytesRef to String for proper handling by ChunkingSettingsBuilder
             if (value instanceof BytesRef br) {
                 value = br.utf8ToString();
             }

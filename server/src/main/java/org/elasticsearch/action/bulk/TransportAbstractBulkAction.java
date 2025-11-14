@@ -476,7 +476,16 @@ public abstract class TransportAbstractBulkAction extends HandledTransportAction
                             + "] stream instead"
                     );
                 }
-
+                if (e == null && streamType.getStreamName().equals(ir.index()) && ir.getPipeline() != null) {
+                    e = new IllegalArgumentException(
+                        "Cannot provide a pipeline when writing to a stream "
+                            + "however the ["
+                            + ir.getPipeline()
+                            + "] pipeline was provided when writing to the ["
+                            + streamType.getStreamName()
+                            + "] stream"
+                    );
+                }
                 if (e == null && streamsRestrictedParamsUsed(bulkRequest) && req.index().equals(streamType.getStreamName())) {
                     e = new IllegalArgumentException(
                         "When writing to a stream, only the following parameters are allowed: ["

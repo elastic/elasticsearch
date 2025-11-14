@@ -79,6 +79,7 @@ import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.mapper.DocumentParserContext;
+import org.elasticsearch.index.mapper.IndexType;
 import org.elasticsearch.index.mapper.LuceneDocument;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
@@ -301,7 +302,7 @@ public class CandidateQueryTests extends ESSingleNodeTestCase {
                 document.add(new TextField(entry.getKey(), value, Field.Store.NO));
             }
             for (Integer intValue : intValues) {
-                NumberFieldMapper.NumberType.INTEGER.addFields(document, "int_field", intValue, true, true, false);
+                NumberFieldMapper.NumberType.INTEGER.addFields(document, "int_field", intValue, IndexType.points(true, true), false);
             }
             MemoryIndex memoryIndex = MemoryIndex.fromDocument(document, new WhitespaceAnalyzer());
             duelRun(queryStore, memoryIndex, shardSearcher);
@@ -424,7 +425,13 @@ public class CandidateQueryTests extends ESSingleNodeTestCase {
             }
 
             for (int[] range : ranges) {
-                NumberFieldMapper.NumberType.INTEGER.addFields(document, "int_field", between(range[0], range[1]), true, true, false);
+                NumberFieldMapper.NumberType.INTEGER.addFields(
+                    document,
+                    "int_field",
+                    between(range[0], range[1]),
+                    IndexType.points(true, true),
+                    false
+                );
                 logger.info("Test with document: {}" + document);
                 MemoryIndex memoryIndex = MemoryIndex.fromDocument(document, new WhitespaceAnalyzer());
                 duelRun(queryStore, memoryIndex, shardSearcher);

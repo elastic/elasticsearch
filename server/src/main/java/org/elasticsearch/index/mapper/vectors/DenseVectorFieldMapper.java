@@ -40,6 +40,7 @@ import org.apache.lucene.search.knn.KnnSearchStrategy;
 import org.apache.lucene.util.BitUtil;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.VectorUtil;
+import org.elasticsearch.Build;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
@@ -54,6 +55,7 @@ import org.elasticsearch.index.codec.vectors.ES814HnswScalarQuantizedVectorsForm
 import org.elasticsearch.index.codec.vectors.ES815BitFlatVectorFormat;
 import org.elasticsearch.index.codec.vectors.ES815HnswBitVectorsFormat;
 import org.elasticsearch.index.codec.vectors.diskbbq.ES920DiskBBQVectorsFormat;
+import org.elasticsearch.index.codec.vectors.diskbbq.next.ESNextDiskBBQVectorsFormat;
 import org.elasticsearch.index.codec.vectors.es818.ES818BinaryQuantizedVectorsFormat;
 import org.elasticsearch.index.codec.vectors.es818.ES818HnswBinaryQuantizedVectorsFormat;
 import org.elasticsearch.index.codec.vectors.es93.ES93BinaryQuantizedVectorsFormat;
@@ -2377,6 +2379,16 @@ public class DenseVectorFieldMapper extends FieldMapper {
 
         @Override
         KnnVectorsFormat getVectorsFormat(ElementType elementType) {
+            assert elementType == ElementType.FLOAT || elementType == ElementType.BFLOAT16;
+            if (Build.current().isSnapshot()) {
+                return new ESNextDiskBBQVectorsFormat(
+                    ESNextDiskBBQVectorsFormat.QuantEncoding.ONE_BIT_4BIT_QUERY,
+                    clusterSize,
+                    ES920DiskBBQVectorsFormat.DEFAULT_CENTROIDS_PER_PARENT_CLUSTER,
+                    elementType,
+                    onDiskRescore
+                );
+            }
             return new ES920DiskBBQVectorsFormat(
                 clusterSize,
                 ES920DiskBBQVectorsFormat.DEFAULT_CENTROIDS_PER_PARENT_CLUSTER,
@@ -2937,9 +2949,6 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 return switch (cfg.function()) {
                     case V_COSINE, V_DOT_PRODUCT, V_HAMMING, V_L1NORM, V_L2NORM -> {
                         VectorSimilarityFunctionConfig similarityConfig = (VectorSimilarityFunctionConfig) cfg;
-                        if (getElementType() == ElementType.BYTE || getElementType() == ElementType.BIT) {
-                            similarityConfig = similarityConfig.forByteVector();
-                        }
                         yield new DenseVectorBlockLoader<>(
                             name(),
                             dims,
@@ -3474,22 +3483,18 @@ public class DenseVectorFieldMapper extends FieldMapper {
 
         private final SimilarityFunction similarityFunction;
         private final float[] vector;
-        private byte[] vectorAsBytes;
+        private final byte[] vectorAsBytes;
 
         public VectorSimilarityFunctionConfig(SimilarityFunction similarityFunction, float[] vector) {
             this.similarityFunction = similarityFunction;
             this.vector = vector;
+            this.vectorAsBytes = null;
         }
 
-        /**
-         * Call before calculating byte vector similarities
-         */
-        public VectorSimilarityFunctionConfig forByteVector() {
-            vectorAsBytes = new byte[vector.length];
-            for (int i = 0; i < vector.length; i++) {
-                vectorAsBytes[i] = (byte) vector[i];
-            }
-            return this;
+        public VectorSimilarityFunctionConfig(SimilarityFunction similarityFunction, byte[] vectorAsBytes) {
+            this.similarityFunction = similarityFunction;
+            this.vector = null;
+            this.vectorAsBytes = vectorAsBytes;
         }
 
         @Override
@@ -3498,11 +3503,12 @@ public class DenseVectorFieldMapper extends FieldMapper {
         }
 
         public byte[] vectorAsBytes() {
-            assert vectorAsBytes != null : "vectorAsBytes is null, call forByteVector() first";
+            assert vectorAsBytes != null : "vectorAsBytes is null, maybe incorrect element type during construction?";
             return vectorAsBytes;
         }
 
         public float[] vector() {
+            assert vector != null : "vector is null, maybe incorrect element type during construction?";
             return vector;
         }
 

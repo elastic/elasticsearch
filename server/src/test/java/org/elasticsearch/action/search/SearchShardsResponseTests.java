@@ -17,6 +17,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
+import org.elasticsearch.cluster.routing.SplitShardCountSummary;
 import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
@@ -72,7 +73,9 @@ public class SearchShardsResponseTests extends AbstractWireSerializingTestCase<S
             for (int j = 0; j < numOfAllocatedNodes; j++) {
                 allocatedNodes.add(UUIDs.randomBase64UUID());
             }
-            groups.add(new SearchShardsGroup(shardId, allocatedNodes, randomBoolean()));
+            groups.add(
+                new SearchShardsGroup(shardId, allocatedNodes, randomBoolean(), SplitShardCountSummary.fromInt(randomIntBetween(0, 1024)))
+            );
         }
         Map<String, AliasFilter> aliasFilters = new HashMap<>();
         for (SearchShardsGroup g : groups) {
@@ -93,7 +96,9 @@ public class SearchShardsResponseTests extends AbstractWireSerializingTestCase<S
             case 0 -> {
                 List<SearchShardsGroup> groups = new ArrayList<>(r.getGroups());
                 ShardId shardId = new ShardId(randomAlphaOfLengthBetween(5, 10), UUIDs.randomBase64UUID(), randomInt(2));
-                groups.add(new SearchShardsGroup(shardId, List.of(), randomBoolean()));
+                groups.add(
+                    new SearchShardsGroup(shardId, List.of(), randomBoolean(), SplitShardCountSummary.fromInt(randomIntBetween(0, 1024)))
+                );
                 return new SearchShardsResponse(groups, r.getNodes(), r.getAliasFilters());
             }
             case 1 -> {
@@ -143,12 +148,14 @@ public class SearchShardsResponseTests extends AbstractWireSerializingTestCase<S
         assertThat(group1.shardId(), equalTo(new ShardId("index-1", "uuid-1", 0)));
         assertThat(group1.allocatedNodes(), equalTo(List.of("node-1", "node-2")));
         assertFalse(group1.skipped());
+        assertThat(group1.reshardSplitShardCountSummary(), equalTo(SplitShardCountSummary.UNSET));
         assertFalse(group1.preFiltered());
 
         SearchShardsGroup group2 = Iterables.get(newResponse.getGroups(), 1);
         assertThat(group2.shardId(), equalTo(new ShardId("index-2", "uuid-2", 7)));
         assertThat(group2.allocatedNodes(), equalTo(List.of("node-1")));
         assertFalse(group2.skipped());
+        assertThat(group2.reshardSplitShardCountSummary(), equalTo(SplitShardCountSummary.UNSET));
         assertFalse(group2.preFiltered());
 
         TransportVersion version = TransportVersionUtils.randomCompatibleVersion(random());

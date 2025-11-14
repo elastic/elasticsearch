@@ -51,7 +51,7 @@
         "description": "Ignore indices that are marked as throttled (default: true)"
       },
       "expand_wildcards": {
-        "type": "enum",
+        "type": "list",
         "options": [
           "open",
           "closed",

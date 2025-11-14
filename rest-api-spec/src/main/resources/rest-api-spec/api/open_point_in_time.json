@@ -45,7 +45,7 @@
         "description": "Whether specified concrete indices should be ignored when unavailable (missing or closed)"
       },
       "expand_wildcards": {
-        "type": "enum",
+        "type": "list",
         "options": [
           "open",
           "closed",

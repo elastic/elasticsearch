@@ -9,7 +9,7 @@
 
 package org.elasticsearch.simdvec.internal.vectorization;
 
-import org.elasticsearch.simdvec.VectorByteUtils;
+import org.elasticsearch.simdvec.VectorComparisonUtils;
 
 public interface ESVectorUtilSupport {
 
@@ -74,6 +74,6 @@ public interface ESVectorUtilSupport {
 
     int indexOf(byte[] bytes, int offset, int length, byte marker);
 
-    VectorByteUtils getVectorByteUtils();
+    VectorComparisonUtils getVectorComparisonUtils();
 
 }

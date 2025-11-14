@@ -9,14 +9,14 @@
 
 package org.elasticsearch.simdvec.internal.vectorization;
 
-import org.elasticsearch.simdvec.VectorByteUtils;
+import org.elasticsearch.simdvec.VectorComparisonUtils;
 
 /** Noddy implementation, you likely do not want to use this in production, check that vectorLength > 1. */
-public class DefaultVectorByteUtils implements VectorByteUtils {
+public class DefaultVectorComparisonUtils implements VectorComparisonUtils {
 
-    public static DefaultVectorByteUtils INSTANCE = new DefaultVectorByteUtils();
+    public static DefaultVectorComparisonUtils INSTANCE = new DefaultVectorComparisonUtils();
 
-    private DefaultVectorByteUtils() {}
+    private DefaultVectorComparisonUtils() {}
 
     @Override
     public long equalMask(byte[] array, int offset, byte value) {
@@ -24,7 +24,17 @@ public class DefaultVectorByteUtils implements VectorByteUtils {
     }
 
     @Override
-    public int vectorLength() {
+    public int byteVectorLanes() {
+        return 1;
+    }
+
+    @Override
+    public long equalMask(long[] array, int offset, long value) {
+        return array[offset] == value ? 1L : 0L;
+    }
+
+    @Override
+    public int longVectorLanes() {
         return 1;
     }
 }

@@ -12,7 +12,7 @@ package org.elasticsearch.simdvec.internal.vectorization;
 import org.apache.lucene.util.BitUtil;
 import org.apache.lucene.util.Constants;
 import org.apache.lucene.util.VectorUtil;
-import org.elasticsearch.simdvec.VectorByteUtils;
+import org.elasticsearch.simdvec.VectorComparisonUtils;
 
 final class DefaultESVectorUtilSupport implements ESVectorUtilSupport {
 
@@ -458,7 +458,7 @@ final class DefaultESVectorUtilSupport implements ESVectorUtilSupport {
     }
 
     @Override
-    public VectorByteUtils getVectorByteUtils() {
-        return DefaultVectorByteUtils.INSTANCE;
+    public VectorComparisonUtils getVectorComparisonUtils() {
+        return DefaultVectorComparisonUtils.INSTANCE;
     }
 }

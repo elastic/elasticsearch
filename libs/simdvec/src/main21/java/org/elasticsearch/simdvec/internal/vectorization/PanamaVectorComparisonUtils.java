@@ -10,9 +10,10 @@
 package org.elasticsearch.simdvec.internal.vectorization;
 
 import jdk.incubator.vector.ByteVector;
+import jdk.incubator.vector.LongVector;
 import jdk.incubator.vector.VectorSpecies;
 
-import org.elasticsearch.simdvec.VectorByteUtils;
+import org.elasticsearch.simdvec.VectorComparisonUtils;
 
 /**
  * Utility class providing vectorized byte comparison operations using
@@ -28,20 +29,26 @@ import org.elasticsearch.simdvec.VectorByteUtils;
  * byte[] data = ...;
  * byte target = 0x1F;
  *
- * for (int i = 0; i < data.length; i += VectorByteUtils.vectorLength()) {
- *     long mask = VectorByteUtils.equalMask(data, i, target);
+ * for (int i = 0; i < data.length; i += VectorComparisonUtils.vectorLength()) {
+ *     long mask = VectorComparisonUtils.equalMask(data, i, target);
  *     // Process mask...
  * }
  * }</pre>
  */
-public final class PanamaVectorByteUtils implements VectorByteUtils {
+public final class PanamaVectorComparisonUtils implements VectorComparisonUtils {
 
-    public static PanamaVectorByteUtils INSTANCE = new PanamaVectorByteUtils();
+    public static PanamaVectorComparisonUtils INSTANCE = new PanamaVectorComparisonUtils();
 
     /** The preferred byte vector species for the current platform. */
     private static final VectorSpecies<Byte> BS = ByteVector.SPECIES_PREFERRED;
+    private static final VectorSpecies<Long> LS = LongVector.SPECIES_PREFERRED;
 
-    private PanamaVectorByteUtils() {}
+    private PanamaVectorComparisonUtils() {}
+
+    @Override
+    public int byteVectorLanes() {
+        return BS.length();
+    }
 
     @Override
     public long equalMask(byte[] array, int offset, byte value) {
@@ -49,7 +56,12 @@ public final class PanamaVectorByteUtils implements VectorByteUtils {
     }
 
     @Override
-    public int vectorLength() {
-        return BS.length();
+    public int longVectorLanes() {
+        return LS.length();
+    }
+
+    @Override
+    public long equalMask(long[] array, int offset, long value) {
+        return LongVector.fromArray(LS, array, offset).eq(value).toLong();
     }
 }

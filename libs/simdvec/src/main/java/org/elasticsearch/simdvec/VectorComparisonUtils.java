@@ -10,8 +10,8 @@
 package org.elasticsearch.simdvec;
 
 /**
- * Utility class providing vectorized byte comparison operations using
- * the Panama Vector API (Incubator).
+ * Utility class providing vectorized comparison operations using the
+ * Panama Vector API (Incubator).
  *
  * <p>This class offers methods to perform efficient byte-wise comparisons
  * on arrays using SIMD instructions. It can produce bitmasks indicating
@@ -23,11 +23,11 @@ package org.elasticsearch.simdvec;
  * byte[] data = ...;
  * byte target = 0x1F;
  *
- * final int len = vectorByteUtils.vectorLength();
+ * final int len = vectorComparisonUtils.byteVectorLanes();
  * final int bound = loopBound(length, len);
  * int i = 0;
  * for (; i < bound; i += len) {
- *     long mask = vectorByteUtils.equalMask(data, i, target);
+ *     long mask = vectorComparisonUtils.equalMask(data, i, target);
  *     // Process mask...
  * }
  * // tail
@@ -36,7 +36,7 @@ package org.elasticsearch.simdvec;
  * }
  * }</pre>
  */
-public interface VectorByteUtils {
+public interface VectorComparisonUtils {
 
     /**
      * Compares a block of bytes in the given array to a specified value,
@@ -56,16 +56,45 @@ public interface VectorByteUtils {
     long equalMask(byte[] array, int offset, byte value);
 
     /**
-     * Returns the number of bytes processed by the current byte vector species.
+     * Returns the number of bytes processed by each {@link #equalMask(byte[],int,byte)}
+     * invocation.
      *
      * <p>This corresponds to the number of lanes in the vector and represents
      * how many bytes are compared in each vectorized operation.
      *
-     * @return the vector length in bytes
+     * @return the vector length
      */
-    int vectorLength();
+    int byteVectorLanes();
 
-    // Convenience utility methods to help with the masks(as a long).
+    /**
+     * Returns the number of longs processed by each {@link #equalMask(long[],int,long)}
+     * invocation.
+     *
+     * <p>This corresponds to the number of lanes in the vector and represents
+     * how many long values are compared in each vectorized operation.
+     *
+     * @return the vector length
+     */
+    int longVectorLanes();
+
+    /**
+     * Compares a block of longs in the given array to a specified value,
+     * producing a bitmask of the positions that are equal.
+     *
+     * <p>This method loads a vector of longs starting at the specified offset,
+     * compares each element to {@code value}, and returns a {@code long} mask
+     * where each bit represents the result of the comparison for one lane.
+     * A bit is set to 1 if the corresponding long is equal to {@code value},
+     * and 0 otherwise.
+     *
+     * @param array  the source long array containing the data to test
+     * @param offset the starting index in the array
+     * @param value  the byte value to compare each lane against
+     * @return a bitmask representing which longs in the vector are equal to {@code value}
+     */
+    long equalMask(long[] array, int offset, long value);
+
+    // Convenience utility methods to help with the masks (as a long).
 
     /**
      * Returns whether any bits are set in the given mask.
@@ -105,13 +134,13 @@ public interface VectorByteUtils {
      *
      * <p>Example usage, iterate over all bytes in the vector that matched the comparison:
      * <pre>{@code
-     * long mask = VectorByteUtils.equalMask(data, offset, target);
+     * long mask = VectorComparisonUtils.equalMask(data, offset, target);
      *
-     * int pos = VectorByteUtils.firstSet(mask);
+     * int pos = VectorComparisonUtils.firstSet(mask);
      * while (pos >= 0) {
      *     int absoluteIndex = offset + pos;
      *     System.out.println("Match found at byte index: " + absoluteIndex);
-     *     pos = VectorByteUtils.nextSet(mask, pos);
+     *     pos = VectorComparisonUtils.nextSet(mask, pos);
      * }
      * }</pre>
      *
@@ -131,7 +160,7 @@ public interface VectorByteUtils {
     /**
      * Loop control function which returns the largest multiple of laneCount that is less
      * than or equal to the given length value. In typical usage, length is the result of
-     * an array.length, and laneCount is {@link #vectorLength()}. This is analogous to
+     * an array.length, and laneCount is {@code xxxVectorLanes()}. This is analogous to
      * jdk.incubator.vector.ByteVector::loopBound.
      */
     static int loopBound(int length, int laneCount) {

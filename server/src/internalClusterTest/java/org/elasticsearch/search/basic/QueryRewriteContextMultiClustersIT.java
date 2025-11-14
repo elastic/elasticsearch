@@ -131,10 +131,6 @@ public class QueryRewriteContextMultiClustersIT extends AbstractMultiClustersTes
         assertInstrumentedActionCalls(0, 0);
     }
 
-    public void testRemoteClusterUnavailable() {
-        // TODO: Implement
-    }
-
     private void setupClusters() {
         setupCluster(LOCAL_CLUSTER);
         setupCluster(REMOTE_CLUSTER_A);

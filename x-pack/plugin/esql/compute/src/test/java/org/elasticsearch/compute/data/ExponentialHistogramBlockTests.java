@@ -66,7 +66,7 @@ public class ExponentialHistogramBlockTests extends ComputeTestCase {
         }
         ExponentialHistogramScratch scratch = new ExponentialHistogramScratch();
         for (ExponentialHistogramBlock.Component component : ExponentialHistogramBlock.Component.values()) {
-            Block componentBlock = block.getExponentialHistogramComponent(component);
+            Block componentBlock = block.buildExponentialHistogramComponentBlock(component);
             assertThat(componentBlock.getPositionCount(), equalTo(block.getPositionCount()));
             for (int i = 0; i < block.getPositionCount(); i++) {
                 if (block.isNull(i)) {

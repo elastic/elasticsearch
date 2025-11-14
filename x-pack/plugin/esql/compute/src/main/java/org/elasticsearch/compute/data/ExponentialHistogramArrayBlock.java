@@ -120,7 +120,7 @@ final class ExponentialHistogramArrayBlock extends AbstractNonThreadSafeRefCount
     }
 
     @Override
-    public Block getExponentialHistogramComponent(Component component) {
+    public Block buildExponentialHistogramComponentBlock(Component component) {
         // as soon as we support multi-values, we need to implement this differently,
         // as the sub-blocks will be flattened and the position count won't match anymore
         // we'll likely have to return a "view" on the sub-blocks that implements the multi-value logic

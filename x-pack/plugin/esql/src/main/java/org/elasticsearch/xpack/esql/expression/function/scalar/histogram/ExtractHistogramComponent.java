@@ -174,7 +174,7 @@ public class ExtractHistogramComponent extends EsqlScalarFunction {
         @Override
         public Block eval(Page page) {
             try (Block block = fieldEvaluator.eval(page)) {
-                return ((ExponentialHistogramBlock) block).getExponentialHistogramComponent(componentToExtract);
+                return ((ExponentialHistogramBlock) block).buildExponentialHistogramComponentBlock(componentToExtract);
             }
         }
 

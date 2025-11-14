@@ -66,7 +66,7 @@ public sealed interface ExponentialHistogramBlock extends Block permits Constant
      * @param component the component to extract
      * @return the block containing the specified component
      */
-    Block getExponentialHistogramComponent(Component component);
+    Block buildExponentialHistogramComponentBlock(Component component);
 
     /**
      * Serializes the exponential histogram at the given index into the provided output, so that it can be read back

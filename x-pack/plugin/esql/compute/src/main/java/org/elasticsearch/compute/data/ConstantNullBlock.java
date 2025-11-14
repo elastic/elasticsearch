@@ -301,7 +301,7 @@ public final class ConstantNullBlock extends AbstractNonThreadSafeRefCounted
     }
 
     @Override
-    public Block getExponentialHistogramComponent(Component component) {
+    public Block buildExponentialHistogramComponentBlock(Component component) {
         // if all histograms are null, the component block is also a constant null block with the same position count
         this.incRef();
         return this;

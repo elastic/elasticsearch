@@ -17,6 +17,10 @@
 
 package co.elastic.elasticsearch.stateless.autoscaling.indexing;
 
+import co.elastic.elasticsearch.stateless.autoscaling.indexing.IngestionLoad.ExecutorIngestionLoad;
+import co.elastic.elasticsearch.stateless.autoscaling.indexing.IngestionLoad.ExecutorStats;
+import co.elastic.elasticsearch.stateless.autoscaling.indexing.IngestionLoad.NodeIngestionLoad;
+
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
@@ -29,8 +33,8 @@ import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.threadpool.ThreadPool;
 
+import java.util.HashMap;
 import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Function;
 
 /**
@@ -103,7 +107,6 @@ public class IngestLoadProbe implements IndexEventListener {
     );
 
     private final Function<String, ExecutorStats> executorStatsProvider;
-    private final Map<String, ExecutorIngestionLoad> ingestionLoadPerExecutor;
     private final TimeProvider timeProvider;
     private volatile TimeValue maxTimeToClearQueue;
     private volatile float maxQueueContributionFactor;
@@ -128,8 +131,6 @@ public class IngestLoadProbe implements IndexEventListener {
             value -> this.initialIntervalToIgnoreQueueContribution = value
         );
         clusterSettings.initializeAndWatch(MAX_MANAGEABLE_QUEUED_WORK, value -> this.maxManageableQueuedWork = value);
-        ingestionLoadPerExecutor = new ConcurrentHashMap<>(AverageWriteLoadSampler.WRITE_EXECUTORS.size());
-        AverageWriteLoadSampler.WRITE_EXECUTORS.forEach(name -> ingestionLoadPerExecutor.put(name, new ExecutorIngestionLoad(0.0, 0.0)));
     }
 
     private void setMaxQueueContributionFactor(float maxQueueContributionFactor) {
@@ -140,16 +141,11 @@ public class IngestLoadProbe implements IndexEventListener {
         this.includeWriteCoordinationExecutors = enabled;
     }
 
-    /**
-     * Returns the current ingestion load (number of WRITE threads needed to cope with the current ingestion workload).
-     * <p>
-     * The ingestion load is calculated as (averageWriteLoad + queueThreadsNeeded) for each write threadpool.
-     * queueThreadsNeeded is the number of threads need to handle the current queued tasks, taking into account
-     * MAX_TIME_TO_CLEAR_QUEUE.
-     */
-    public double getIngestionLoad() {
+    public NodeIngestionLoad getNodeIngestionLoad() {
         long currentTimeInMillis = timeProvider.relativeTimeInMillis();
         double totalIngestionLoad = 0.0;
+        Map<String, ExecutorStats> nodeExecutorStats = new HashMap<>(AverageWriteLoadSampler.WRITE_EXECUTORS.size());
+        Map<String, ExecutorIngestionLoad> nodeExecutorIngestionLoads = new HashMap<>(AverageWriteLoadSampler.WRITE_EXECUTORS.size());
         for (String executorName : AverageWriteLoadSampler.WRITE_EXECUTORS) {
             var executorStats = executorStatsProvider.apply(executorName);
             var ingestionLoadForExecutor = calculateIngestionLoadForExecutor(
@@ -162,7 +158,7 @@ public class IngestLoadProbe implements IndexEventListener {
                 maxManageableQueuedWork,
                 maxQueueContributionFactor * executorStats.maxThreads()
             );
-            if (ingestionLoadForExecutor.queueThreadsNeeded > 0.0
+            if (ingestionLoadForExecutor.queueThreadsNeeded() > 0.0
                 && (firstShardRecoveryTimeInMillis == 0
                     || currentTimeInMillis - firstShardRecoveryTimeInMillis < initialIntervalToIgnoreQueueContribution.millis())) {
                 // This is a newly started node as defined by the INITIAL_INTERVAL_TO_IGNORE_QUEUE_CONTRIBUTION
@@ -174,29 +170,18 @@ public class IngestLoadProbe implements IndexEventListener {
                     executorName,
                     initialIntervalToIgnoreQueueContribution.seconds()
                 );
-                ingestionLoadForExecutor = new ExecutorIngestionLoad(ingestionLoadForExecutor.averageWriteLoad, 0.0);
+                ingestionLoadForExecutor = new ExecutorIngestionLoad(ingestionLoadForExecutor.averageWriteLoad(), 0.0);
             }
-            ingestionLoadPerExecutor.put(executorName, ingestionLoadForExecutor);
-            // Do not include ingestion load from write coordination executors if disabled. But they are still recorded
-            // in the above ingestionLoadPerExecutor for metrics purpose.
+            nodeExecutorStats.put(executorName, executorStats);
+            nodeExecutorIngestionLoads.put(executorName, ingestionLoadForExecutor);
+            // Do not include ingestion load from write coordination executors if disabled (they are still recorded for metrics purpose).
             if (includeWriteCoordinationExecutors
                 || (ThreadPool.Names.WRITE_COORDINATION.equals(executorName) == false
                     && ThreadPool.Names.SYSTEM_WRITE_COORDINATION.equals(executorName) == false)) {
-                totalIngestionLoad += ingestionLoadForExecutor.total();
+                totalIngestionLoad += nodeExecutorIngestionLoads.get(executorName).total();
             }
         }
-        return totalIngestionLoad;
-    }
-
-    public record ExecutorIngestionLoad(double averageWriteLoad, double queueThreadsNeeded) {
-        public double total() {
-            return averageWriteLoad + queueThreadsNeeded;
-        }
-    }
-
-    public ExecutorIngestionLoad getExecutorIngestionLoad(String executor) {
-        assert AverageWriteLoadSampler.WRITE_EXECUTORS.contains(executor);
-        return ingestionLoadPerExecutor.get(executor);
+        return new NodeIngestionLoad(nodeExecutorStats, nodeExecutorIngestionLoads, totalIngestionLoad);
     }
 
     static ExecutorIngestionLoad calculateIngestionLoadForExecutor(

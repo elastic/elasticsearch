@@ -17,7 +17,8 @@
 
 package co.elastic.elasticsearch.stateless.autoscaling.indexing;
 
-import co.elastic.elasticsearch.stateless.autoscaling.indexing.IngestLoadProbe.ExecutorIngestionLoad;
+import co.elastic.elasticsearch.stateless.autoscaling.indexing.IngestionLoad.ExecutorIngestionLoad;
+import co.elastic.elasticsearch.stateless.autoscaling.indexing.IngestionLoad.NodeIngestionLoad;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterChangedEvent;
@@ -34,12 +35,13 @@ import org.elasticsearch.telemetry.metric.LongWithAttributes;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.threadpool.ThreadPool;
 
+import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.function.DoubleSupplier;
-import java.util.function.Function;
+import java.util.function.Supplier;
 
 import static co.elastic.elasticsearch.stateless.autoscaling.AutoscalingDataTransmissionLogging.getExceptionLogLevel;
 
@@ -75,7 +77,7 @@ public class IngestLoadSampler extends AbstractLifecycleComponent implements Clu
     private final Executor executor;
     private final AverageWriteLoadSampler writeLoadSampler;
     private final IngestLoadPublisher ingestionLoadPublisher;
-    private final DoubleSupplier currentIndexLoadSupplier;
+    private final Supplier<NodeIngestionLoad> nodeIngestionLoadSupplier;
     private final double numProcessors;
 
     private volatile double minSensitivityRatio;
@@ -87,14 +89,13 @@ public class IngestLoadSampler extends AbstractLifecycleComponent implements Clu
     private final AtomicLong lastPublicationRelativeTimeInMillis = new AtomicLong();
     private final AtomicReference<Object> inFlightPublicationTicket = new AtomicReference<>();
     private volatile DiscoveryNode localNode;
-    private final Function<String, ExecutorIngestionLoad> executorIngestionLoadProvider;
+    private final Map<String, ExecutorIngestionLoad> ingestionLoadPerExecutor;
 
     public IngestLoadSampler(
         ThreadPool threadPool,
         AverageWriteLoadSampler writeLoadSampler,
         IngestLoadPublisher ingestionLoadPublisher,
-        DoubleSupplier currentIndexLoadSupplier,
-        Function<String, ExecutorIngestionLoad> executorIngestionLoadProvider,
+        Supplier<NodeIngestionLoad> nodeIngestionLoadSupplier,
         double numProcessors,
         ClusterSettings clusterSettings,
         MeterRegistry meterRegistry
@@ -107,14 +108,15 @@ public class IngestLoadSampler extends AbstractLifecycleComponent implements Clu
         clusterSettings.initializeAndWatch(SAMPLING_FREQUENCY_SETTING, value -> this.samplingFrequency = value);
         clusterSettings.initializeAndWatch(MAX_TIME_BETWEEN_METRIC_PUBLICATIONS_SETTING, value -> this.maxTimeBetweenPublications = value);
         this.numProcessors = numProcessors;
-        this.executorIngestionLoadProvider = executorIngestionLoadProvider;
         this.threadPool = threadPool;
         this.executor = threadPool.generic();
         this.writeLoadSampler = writeLoadSampler;
         this.ingestionLoadPublisher = ingestionLoadPublisher;
-        this.currentIndexLoadSupplier = currentIndexLoadSupplier;
+        this.nodeIngestionLoadSupplier = nodeIngestionLoadSupplier;
         // To ensure that the first sample is published right away
         lastPublicationRelativeTimeInMillis.set(threadPool.relativeTimeInMillis() - maxTimeBetweenPublications.getMillis());
+        ingestionLoadPerExecutor = new ConcurrentHashMap<>(AverageWriteLoadSampler.WRITE_EXECUTORS.size());
+        AverageWriteLoadSampler.WRITE_EXECUTORS.forEach(name -> ingestionLoadPerExecutor.put(name, new ExecutorIngestionLoad(0.0, 0.0)));
         setupMetrics(meterRegistry, AverageWriteLoadSampler.WRITE_EXECUTORS);
     }
 
@@ -125,7 +127,7 @@ public class IngestLoadSampler extends AbstractLifecycleComponent implements Clu
                 "The last sampled average number of busy threads for the executor",
                 "threads",
                 () -> {
-                    var ingestionLoad = executorIngestionLoadProvider.apply(executor);
+                    var ingestionLoad = ingestionLoadPerExecutor.get(executor);
                     return new DoubleWithAttributes(ingestionLoad.averageWriteLoad());
                 }
             );
@@ -161,7 +163,7 @@ public class IngestLoadSampler extends AbstractLifecycleComponent implements Clu
                 "The estimated number of threads needed to handle queued tasks",
                 "threads",
                 () -> {
-                    var ingestionLoad = executorIngestionLoadProvider.apply(executor);
+                    var ingestionLoad = ingestionLoadPerExecutor.get(executor);
                     return new DoubleWithAttributes(ingestionLoad.queueThreadsNeeded());
                 }
             );
@@ -202,7 +204,9 @@ public class IngestLoadSampler extends AbstractLifecycleComponent implements Clu
 
     private void sampleIngestionLoad(DiscoveryNode node) {
         double previousReading = latestPublishedIngestionLoad;
-        double currentReading = currentIndexLoadSupplier.getAsDouble();
+        NodeIngestionLoad currentIngestionLoad = nodeIngestionLoadSupplier.get();
+        ingestionLoadPerExecutor.putAll(currentIngestionLoad.executorIngestionLoads());
+        double currentReading = currentIngestionLoad.totalIngestionLoad();
         this.ingestionLoad = currentReading;
 
         var previousRatio = previousReading / numProcessors;

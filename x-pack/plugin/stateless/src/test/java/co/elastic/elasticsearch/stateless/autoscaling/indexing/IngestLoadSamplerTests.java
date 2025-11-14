@@ -17,6 +17,9 @@
 
 package co.elastic.elasticsearch.stateless.autoscaling.indexing;
 
+import co.elastic.elasticsearch.stateless.autoscaling.indexing.IngestionLoad.ExecutorStats;
+import co.elastic.elasticsearch.stateless.autoscaling.indexing.IngestionLoad.NodeIngestionLoad;
+
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.common.settings.ClusterSettings;
@@ -30,10 +33,11 @@ import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.function.DoubleSupplier;
+import java.util.function.Supplier;
 import java.util.stream.IntStream;
 
 import static org.hamcrest.Matchers.empty;
@@ -75,7 +79,6 @@ public class IngestLoadSamplerTests extends ESTestCase {
             writeLoadSampler,
             ingestLoadPublisher,
             () -> nodeIngestLoad,
-            executor -> new IngestLoadProbe.ExecutorIngestionLoad(0.0, 0.0),
             numProcessors,
             clusterSettings,
             MeterRegistry.NOOP
@@ -87,7 +90,14 @@ public class IngestLoadSamplerTests extends ESTestCase {
 
         assertThat(
             publishedMetrics,
-            is(equalTo(List.of(Tuple.tuple(0L, nodeIngestLoad), Tuple.tuple(maxTimeBetweenMetricPublications.millis(), nodeIngestLoad))))
+            is(
+                equalTo(
+                    List.of(
+                        Tuple.tuple(0L, nodeIngestLoad.totalIngestionLoad()),
+                        Tuple.tuple(maxTimeBetweenMetricPublications.millis(), nodeIngestLoad.totalIngestionLoad())
+                    )
+                )
+            )
         );
     }
 
@@ -109,7 +119,7 @@ public class IngestLoadSamplerTests extends ESTestCase {
         var numProcessors = randomIntBetween(2, 32);
 
         // Increasing load
-        var indexLoadOverTime = IntStream.range(0, 32).mapToDouble(l -> l).boxed().toList();
+        var indexLoadOverTime = IntStream.range(0, 32).mapToObj(this::mockedNodeIngestionLoad).toList();
         var currentIndexLoadSupplier = indexLoadOverTime.iterator();
 
         var publishedMetrics = new ArrayList<Double>();
@@ -127,7 +137,6 @@ public class IngestLoadSamplerTests extends ESTestCase {
             writeLoadSampler,
             ingestLoadPublisher,
             currentIndexLoadSupplier::next,
-            executor -> new IngestLoadProbe.ExecutorIngestionLoad(0.0, 0.0),
             numProcessors,
             clusterSettings,
             MeterRegistry.NOOP
@@ -139,7 +148,10 @@ public class IngestLoadSamplerTests extends ESTestCase {
 
         // The sampler publishes the first reading + publishes 1 reading per second until 10 second elapses
         assertThat(publishedMetrics, hasSize(11));
-        assertThat(publishedMetrics, is(equalTo(indexLoadOverTime.subList(0, 11))));
+        assertThat(
+            publishedMetrics,
+            is(equalTo(indexLoadOverTime.subList(0, 11).stream().map(NodeIngestionLoad::totalIngestionLoad).toList()))
+        );
     }
 
     public void testMetricsArePublishedWhenChangeIsAboveSensitivity() {
@@ -161,7 +173,7 @@ public class IngestLoadSamplerTests extends ESTestCase {
 
         var changesAboveMinSensitivity = new AtomicInteger();
         var publishedMetrics = new ArrayList<Double>();
-        DoubleSupplier ingestLoadProbe = () -> {
+        Supplier<NodeIngestionLoad> ingestLoadProbe = () -> {
             // First reading
             if (publishedMetrics.isEmpty()) {
                 changesAboveMinSensitivity.incrementAndGet();
@@ -174,12 +186,12 @@ public class IngestLoadSamplerTests extends ESTestCase {
 
                 if (randomBoolean()) {
                     changesAboveMinSensitivity.incrementAndGet();
-                    return latestPublishedMetric + loadChangeAboveSensitivity;
+                    return mockedNodeIngestionLoad(latestPublishedMetric + loadChangeAboveSensitivity);
                 } else {
-                    return Math.max(latestPublishedMetric - loadChangeAboveSensitivity, 0);
+                    return mockedNodeIngestionLoad(Math.max(latestPublishedMetric - loadChangeAboveSensitivity, 0));
                 }
             }
-            return latestPublishedMetric;
+            return mockedNodeIngestionLoad(latestPublishedMetric);
         };
 
         var ingestLoadPublisher = new IngestLoadPublisher(null, null) {
@@ -196,7 +208,6 @@ public class IngestLoadSamplerTests extends ESTestCase {
             writeLoadSampler,
             ingestLoadPublisher,
             ingestLoadProbe,
-            executor -> new IngestLoadProbe.ExecutorIngestionLoad(0.0, 0.0),
             numProcessors,
             clusterSettings,
             MeterRegistry.NOOP
@@ -228,7 +239,9 @@ public class IngestLoadSamplerTests extends ESTestCase {
         );
         int numProcessors = 32;
 
-        var ingestLoadsOverTime = IntStream.range(0, 15).mapToObj(n -> n * numProcessors * (minSensitivityRatio - 0.01)).toList();
+        var ingestLoadsOverTime = IntStream.range(0, 15)
+            .mapToObj(n -> mockedNodeIngestionLoad(n * numProcessors * (minSensitivityRatio - 0.01)))
+            .toList();
         var readingIter = ingestLoadsOverTime.iterator();
 
         var publishedMetrics = new ArrayList<Double>();
@@ -246,7 +259,6 @@ public class IngestLoadSamplerTests extends ESTestCase {
             writeLoadSampler,
             ingestLoadPublisher,
             readingIter::next,
-            executor -> new IngestLoadProbe.ExecutorIngestionLoad(0.0, 0.0),
             numProcessors,
             clusterSettings,
             MeterRegistry.NOOP
@@ -290,7 +302,7 @@ public class IngestLoadSamplerTests extends ESTestCase {
         var publishedMetrics = new ArrayList<Double>();
         var significantLoadChangeCount = new AtomicInteger();
 
-        DoubleSupplier currentIndexLoadSupplier = () -> {
+        Supplier<NodeIngestionLoad> currentIndexLoadSupplier = () -> {
             // first sample
             if (publishedMetrics.isEmpty()) {
                 significantLoadChangeCount.incrementAndGet();
@@ -302,12 +314,13 @@ public class IngestLoadSamplerTests extends ESTestCase {
             double loadChangeBelowSensitivity = randomDoubleBetween(0, numProcessors * (0.1 - Math.ulp(numProcessors * 0.1)), true);
 
             if (previousReading == 0) {
-                return loadChangeBelowSensitivity;
+                return mockedNodeIngestionLoad(loadChangeBelowSensitivity);
             }
 
-            return randomBoolean()
+            double totalLoad = randomBoolean()
                 ? previousReading + loadChangeBelowSensitivity
                 : Math.max(previousReading - loadChangeBelowSensitivity, 0);
+            return mockedNodeIngestionLoad(totalLoad);
         };
 
         var ingestLoadPublisher = new IngestLoadPublisher(null, null) {
@@ -324,7 +337,6 @@ public class IngestLoadSamplerTests extends ESTestCase {
             writeLoadSampler,
             ingestLoadPublisher,
             currentIndexLoadSupplier,
-            executor -> new IngestLoadProbe.ExecutorIngestionLoad(0.0, 0.0),
             numProcessors,
             clusterSettings,
             MeterRegistry.NOOP
@@ -359,7 +371,6 @@ public class IngestLoadSamplerTests extends ESTestCase {
             writeLoadSampler,
             ingestLoadPublisher,
             () -> indexLoad,
-            executor -> new IngestLoadProbe.ExecutorIngestionLoad(0.0, 0.0),
             8,
             clusterSettings,
             MeterRegistry.NOOP
@@ -373,7 +384,7 @@ public class IngestLoadSamplerTests extends ESTestCase {
         sampler.start();
 
         // It publishes the first reading and schedules the next sampling task
-        assertThat(publishedMetrics, is(equalTo(List.of(indexLoad))));
+        assertThat(publishedMetrics, is(equalTo(List.of(indexLoad.totalIngestionLoad()))));
         assertThat(deterministicTaskQueue.hasDeferredTasks(), is(true));
 
         sampler.stop();
@@ -383,7 +394,7 @@ public class IngestLoadSamplerTests extends ESTestCase {
         deterministicTaskQueue.runRandomTask();
         assertThat(deterministicTaskQueue.hasDeferredTasks(), is(false));
 
-        assertThat(publishedMetrics, is(equalTo(List.of(indexLoad))));
+        assertThat(publishedMetrics, is(equalTo(List.of(indexLoad.totalIngestionLoad()))));
     }
 
     public void testMetricsArePublishedAfterFailures() {
@@ -404,7 +415,7 @@ public class IngestLoadSamplerTests extends ESTestCase {
         var numProcessors = randomIntBetween(2, 32);
 
         // Increasing load
-        var indexLoadOverTime = IntStream.range(0, 32).mapToDouble(l -> l).boxed().toList();
+        var indexLoadOverTime = IntStream.range(0, 32).mapToObj(this::mockedNodeIngestionLoad).toList();
         var currentIndexLoadSupplier = indexLoadOverTime.iterator();
 
         var publishedMetrics = new ArrayList<Double>();
@@ -429,7 +440,6 @@ public class IngestLoadSamplerTests extends ESTestCase {
             writeLoadSampler,
             ingestLoadPublisher,
             currentIndexLoadSupplier::next,
-            executor -> new IngestLoadProbe.ExecutorIngestionLoad(0.0, 0.0),
             numProcessors,
             clusterSettings,
             MeterRegistry.NOOP
@@ -445,7 +455,8 @@ public class IngestLoadSamplerTests extends ESTestCase {
         runFor(deterministicTaskQueue, maxTimeBetweenMetricPublications.millis());
         // The sampler publishes the first reading + publishes 1 reading per second until 10 second elapses
         assertThat(publishedMetrics, hasSize(11));
-        assertThat(publishedMetrics, is(equalTo(indexLoadOverTime.subList(2, 13))));
+        var published = indexLoadOverTime.subList(2, 13).stream().map(NodeIngestionLoad::totalIngestionLoad).toList();
+        assertThat(publishedMetrics, is(equalTo(published)));
     }
 
     private void runFor(DeterministicTaskQueue deterministicTaskQueue, long runDurationMillis) {
@@ -461,8 +472,13 @@ public class IngestLoadSamplerTests extends ESTestCase {
         }
     }
 
-    private double randomIngestionLoad(int bound) {
-        return randomDoubleBetween(0, bound, true);
+    private NodeIngestionLoad randomIngestionLoad(int bound) {
+        return mockedNodeIngestionLoad(randomDoubleBetween(0, bound, true));
+
+    }
+
+    private NodeIngestionLoad mockedNodeIngestionLoad(double totalIngestionLoad) {
+        return new NodeIngestionLoad(Map.of(), Map.of(), totalIngestionLoad);
     }
 
     // A mocked sampler that returns random values

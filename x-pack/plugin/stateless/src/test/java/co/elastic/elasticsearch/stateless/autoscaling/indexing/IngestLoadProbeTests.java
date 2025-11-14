@@ -17,6 +17,8 @@
 
 package co.elastic.elasticsearch.stateless.autoscaling.indexing;
 
+import co.elastic.elasticsearch.stateless.autoscaling.indexing.IngestionLoad.ExecutorStats;
+
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
@@ -171,13 +173,19 @@ public class IngestLoadProbeTests extends ESTestCase {
         statsPerExecutor.put(Names.SYSTEM_CRITICAL_WRITE, new ExecutorStats(1.0, timeValueMillis(25).nanos(), 0, 0.0, between(1, 10)));
         statsPerExecutor.put(Names.WRITE_COORDINATION, new ExecutorStats(3.0, timeValueMillis(200).nanos(), 0, 0.0, between(1, 10)));
         statsPerExecutor.put(Names.SYSTEM_WRITE_COORDINATION, new ExecutorStats(2.0, timeValueMillis(70).nanos(), 0, 0.0, between(1, 10)));
-        assertThat(ingestLoadProbe.getIngestionLoad(), closeTo(11.0, 1e-3));
+        assertThat(ingestLoadProbe.getNodeIngestionLoad().totalIngestionLoad(), closeTo(11.0, 1e-3));
         // Exclude coordination executors and the reported total should drop
         clusterSettings.applySettings(Settings.builder().put(INCLUDE_WRITE_COORDINATION_EXECUTORS_ENABLED.getKey(), false).build());
-        assertThat(ingestLoadProbe.getIngestionLoad(), closeTo(6.0, 1e-3));
+        assertThat(ingestLoadProbe.getNodeIngestionLoad().totalIngestionLoad(), closeTo(6.0, 1e-3));
         // The individual executor stats are recorded regardless
-        assertThat(ingestLoadProbe.getExecutorIngestionLoad(Names.WRITE_COORDINATION).total(), closeTo(3.0, 1e-3));
-        assertThat(ingestLoadProbe.getExecutorIngestionLoad(Names.SYSTEM_WRITE_COORDINATION).total(), closeTo(2.0, 1e-3));
+        assertThat(
+            ingestLoadProbe.getNodeIngestionLoad().executorIngestionLoads().get(Names.WRITE_COORDINATION).total(),
+            closeTo(3.0, 1e-3)
+        );
+        assertThat(
+            ingestLoadProbe.getNodeIngestionLoad().executorIngestionLoads().get(Names.SYSTEM_WRITE_COORDINATION).total(),
+            closeTo(2.0, 1e-3)
+        );
 
         statsPerExecutor.clear();
         // With 200ms per task each thread can do 5 tasks per second
@@ -191,16 +199,22 @@ public class IngestLoadProbeTests extends ESTestCase {
         var expectedExtraThreads = queueEmpty ? 0.0 : 1.0;
         // No contribution to total ingestion load from queueing (since we're within the
         // DEFAULT_INITIAL_INTERVAL_TO_IGNORE_QUEUE_CONTRIBUTION) and no contribution from coordination executors since they are excluded
-        assertThat(ingestLoadProbe.getIngestionLoad(), closeTo(6.0, 1e-3));
+        assertThat(ingestLoadProbe.getNodeIngestionLoad().totalIngestionLoad(), closeTo(6.0, 1e-3));
         nowInMillis.addAndGet(DEFAULT_INITIAL_INTERVAL_TO_IGNORE_QUEUE_CONTRIBUTION.millis() + randomNonNegativeLong());
         // Queue contribution is now included for non-coordination write executors
-        assertThat(ingestLoadProbe.getIngestionLoad(), closeTo(6.0 + expectedExtraThreads, 1e-3));
+        assertThat(ingestLoadProbe.getNodeIngestionLoad().totalIngestionLoad(), closeTo(6.0 + expectedExtraThreads, 1e-3));
         // The individual executor stats are recorded regardless
-        assertThat(ingestLoadProbe.getExecutorIngestionLoad(Names.WRITE_COORDINATION).total(), closeTo(3.0 + expectedExtraThreads, 1e-3));
-        assertThat(ingestLoadProbe.getExecutorIngestionLoad(Names.SYSTEM_WRITE_COORDINATION).total(), closeTo(2.0, 1e-3));
+        assertThat(
+            ingestLoadProbe.getNodeIngestionLoad().executorIngestionLoads().get(Names.WRITE_COORDINATION).total(),
+            closeTo(3.0 + expectedExtraThreads, 1e-3)
+        );
+        assertThat(
+            ingestLoadProbe.getNodeIngestionLoad().executorIngestionLoads().get(Names.SYSTEM_WRITE_COORDINATION).total(),
+            closeTo(2.0, 1e-3)
+        );
         // Include coordination executors and the reported total should rise
         clusterSettings.applySettings(Settings.builder().put(INCLUDE_WRITE_COORDINATION_EXECUTORS_ENABLED.getKey(), true).build());
-        assertThat(ingestLoadProbe.getIngestionLoad(), closeTo(11.0 + expectedExtraThreads * 2, 1e-3));
+        assertThat(ingestLoadProbe.getNodeIngestionLoad().totalIngestionLoad(), closeTo(11.0 + expectedExtraThreads * 2, 1e-3));
 
         final var maxManageableQueuedWork = timeValueSeconds(between(5, 10));
         var averageTaskExecutionTime = timeValueMillis(200);
@@ -219,10 +233,10 @@ public class IngestLoadProbeTests extends ESTestCase {
         statsPerExecutor.put(Names.SYSTEM_CRITICAL_WRITE, new ExecutorStats(1.0, timeValueMillis(25).nanos(), 0, 0.0, between(1, 10)));
         statsPerExecutor.put(Names.SYSTEM_WRITE_COORDINATION, new ExecutorStats(2.0, timeValueMillis(70).nanos(), 0, 0.0, between(1, 10)));
         var queueThreadsNeeded = queueSize / ((double) DEFAULT_MAX_TIME_TO_CLEAR_QUEUE.millis() / averageTaskExecutionTime.millis());
-        assertThat(ingestLoadProbe.getIngestionLoad(), closeTo(10.0 + 2 * queueThreadsNeeded, 1e-3));
+        assertThat(ingestLoadProbe.getNodeIngestionLoad().totalIngestionLoad(), closeTo(10.0 + 2 * queueThreadsNeeded, 1e-3));
 
         clusterSettings.applySettings(Settings.builder().put(MAX_MANAGEABLE_QUEUED_WORK.getKey(), maxManageableQueuedWork).build());
-        assertThat(ingestLoadProbe.getIngestionLoad(), closeTo(10.0, 1e-3));
+        assertThat(ingestLoadProbe.getNodeIngestionLoad().totalIngestionLoad(), closeTo(10.0, 1e-3));
     }
 
     public void testQueueReportedAfterFirstShardAssignment() {
@@ -244,10 +258,10 @@ public class IngestLoadProbeTests extends ESTestCase {
         statsPerExecutor.put(Names.WRITE_COORDINATION, emptyStats);
         statsPerExecutor.put(Names.SYSTEM_WRITE_COORDINATION, emptyStats);
         // Initially, we ignore queue contribution
-        assertThat(ingestLoadProbe.getIngestionLoad(), closeTo(3.0, 1e-3));
+        assertThat(ingestLoadProbe.getNodeIngestionLoad().totalIngestionLoad(), closeTo(3.0, 1e-3));
         // After the initial interval, if the node has seen its first shard assignment, we include queue contribution
         nowInMillis.addAndGet(DEFAULT_INITIAL_INTERVAL_TO_IGNORE_QUEUE_CONTRIBUTION.millis() + randomNonNegativeLong());
-        assertThat(ingestLoadProbe.getIngestionLoad(), closeTo(3.0 + (nodeHasItsFirstShard ? 1.0 : 0.0), 1e-3));
+        assertThat(ingestLoadProbe.getNodeIngestionLoad().totalIngestionLoad(), closeTo(3.0 + (nodeHasItsFirstShard ? 1.0 : 0.0), 1e-3));
     }
 
     private static ClusterSettings createClusterSettings() {

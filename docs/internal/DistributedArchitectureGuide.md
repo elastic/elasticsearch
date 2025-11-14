@@ -13,7 +13,7 @@ A guide to the general Elasticsearch components can be found [here](https://gith
 # Networking
 
 Every elasticsearch node maintains various networking clients and servers,
-protocols, and syncrounous/asyncrounous handling.
+protocols, and synchronous/asynchronous handling.
 
 ## HTTP Transport
 
@@ -55,7 +55,7 @@ their versioned types. Internally we call it XContentType. When a class
 implements `toXContent` that means it can be sent(serialized) over HTTP/REST.
 
 HTTP routing is based on a combination of Method and URI. For example,
-`RestCreateIndexAction` handler uses ("PUT", "/{index}"), where curly braces
+`RestCreateIndexAction` handler uses `("PUT", "/{index}")`, where curly braces
 indicate path variables. `RestBulkAction` specifies a list of routes
 
 ```java
@@ -147,7 +147,7 @@ snapshotting to remote repositories. These repositories usually come with their
 own SDK and networking stack. For example AWS SDK comes with tomcat or netty,
 Azure with netty-based project-reactor, GCP uses default java HTTP
 client. Depending on the SDK underlying client might be reused between
-repositories.  Some provide better control over networking settings, others
+repositories. Some provide better control over networking settings, others
 less.
 
 ## Sync/Async IO and threading
@@ -166,12 +166,12 @@ co-exist(compete) with Sync threads.
 ## Netty
 
 Netty is a networking framework/toolkit. It's a collection of building blocks
-that provide great control and foot-shooters to build networking applications.
+that provides great control and foot-shooters to build networking applications.
 
 We use netty extensively in our HTTP and Transport networks. It's not a guide
 for netty, but covers major interaction with rest of ES.
 
-### Event-Loop or Transport-Tread
+### Event-Loop or Transport-Thread
 
 Netty is an Async IO framework. So it runs with a few threads. An event-loop is
 a thread that processes events for one or many connections. Every connection has
@@ -187,11 +187,11 @@ Event-loop threads serve many connections each, so it's absolutely critical to
 not block thread for a long time. Any blocking operation or heavy compute has to
 be forked to another thread pool. But forking comes with overhead, doing forking
 on every tiny request is a wasted CPU work. As a rule of thumb: don't fork
-simple requests that can be served from memory and does not require heavy
+simple requests that can be served from memory and do not require heavy
 computations (seconds), otherwise fork.
 
 Transport threads are monitored by `ThreadWatchdog`. When thread runs single
-task longer than 5 seconds we would see warning logs. There are many reasons for
+task longer than 5 seconds warning logs appears. There are many reasons for
 slowness, not only lack of forking. For example GC pauses, CPU starvation from
 other thread-pools.
 

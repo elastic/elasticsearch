@@ -1195,8 +1195,8 @@ public class ThreadContextTests extends ESTestCase {
         var responseValue = randomAlphaOfLength(10);
 
         threadContext.putHeader(rootTraceContext);
-        threadContext.putTransient(Task.APM_TRACE_CONTEXT, apmTraceContext);
         threadContext.putTransient(Task.TRACE_START_TIME, traceStartTime);
+        threadContext.putTransient(Task.APM_TRACE_CONTEXT, apmTraceContext);
 
         assertThat(threadContext.hasApmTraceContext(), equalTo(true));
         assertThat(threadContext.hasParentApmTraceContext(), equalTo(false));

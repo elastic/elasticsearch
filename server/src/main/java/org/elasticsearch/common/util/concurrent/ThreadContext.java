@@ -256,11 +256,11 @@ public final class ThreadContext implements Writeable, TraceContext {
     }
 
     public boolean hasApmTraceContext() {
-        return threadLocal.get().transientHeaders.containsKey(Task.APM_TRACE_CONTEXT);
+        return threadLocal.get().hasApmTraceContext();
     }
 
     public boolean hasParentApmTraceContext() {
-        return threadLocal.get().transientHeaders.containsKey(Task.PARENT_APM_TRACE_CONTEXT);
+        return threadLocal.get().hasParentApmTraceContext();
     }
 
     /**
@@ -964,7 +964,18 @@ public final class ThreadContext implements Writeable, TraceContext {
             return new ThreadContextStruct(requestHeaders, newResponseHeaders, transientHeaders, isSystemContext, newWarningHeaderSize);
         }
 
+        private boolean hasApmTraceContext() {
+            return transientHeaders.containsKey(Task.APM_TRACE_CONTEXT);
+        }
+
+        private boolean hasParentApmTraceContext() {
+            return transientHeaders.containsKey(Task.PARENT_APM_TRACE_CONTEXT);
+        }
+
         private ThreadContextStruct putTransient(String key, Object value) {
+            assert key != Task.TRACE_START_TIME || (hasApmTraceContext() || hasParentApmTraceContext()) == false
+                : "trace.starttime cannot be set after a trace context is present";
+
             Map<String, Object> newTransient = new HashMap<>(this.transientHeaders);
             putSingleHeader(key, value, newTransient);
             return new ThreadContextStruct(requestHeaders, responseHeaders, newTransient, isSystemContext);

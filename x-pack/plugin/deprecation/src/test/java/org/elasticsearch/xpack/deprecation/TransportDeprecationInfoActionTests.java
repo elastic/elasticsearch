@@ -331,10 +331,16 @@ public class TransportDeprecationInfoActionTests extends ESTestCase {
         long totalBytesOnMachine = 100;
         long totalBytesFree = 70;
         ClusterInfo clusterInfo = ClusterInfo.builder()
-            .mostAvailableSpaceUsage(Map.of(
-                nodeId1, new DiskUsage(nodeId1, "", "", totalBytesOnMachine, totalBytesFree),
-                nodeId2, new DiskUsage(nodeId2, "", "", totalBytesOnMachine, totalBytesFree),
-                nodeId3, new DiskUsage(nodeId2, "", "", totalBytesOnMachine, totalBytesOnMachine)))
+            .mostAvailableSpaceUsage(
+                Map.of(
+                    nodeId1,
+                    new DiskUsage(nodeId1, "", "", totalBytesOnMachine, totalBytesFree),
+                    nodeId2,
+                    new DiskUsage(nodeId2, "", "", totalBytesOnMachine, totalBytesFree),
+                    nodeId3,
+                    new DiskUsage(nodeId2, "", "", totalBytesOnMachine, totalBytesOnMachine)
+                )
+            )
             .build();
         DiscoveryNode node1 = mock(DiscoveryNode.class);
         when(node1.getId()).thenReturn(nodeId1);
@@ -351,30 +357,18 @@ public class TransportDeprecationInfoActionTests extends ESTestCase {
         when(discoveryNodes.get(nodeId3)).thenReturn(node3);
 
         clusterSettings.applySettings(settingsWithLowWatermark);
-        DeprecationIssue issue = TransportDeprecationInfoAction.checkDiskLowWatermark(
-            clusterSettings,
-            clusterInfo,
-            discoveryNodes
-        );
+        DeprecationIssue issue = TransportDeprecationInfoAction.checkDiskLowWatermark(clusterSettings, clusterInfo, discoveryNodes);
         assertNotNull(issue);
         assertEquals("Disk usage exceeds low watermark", issue.getMessage());
 
         // Making sure there's no warning when we clear out the cluster settings:
         clusterSettings.applySettings(Settings.EMPTY);
-        issue = TransportDeprecationInfoAction.checkDiskLowWatermark(
-            clusterSettings,
-            clusterInfo,
-            discoveryNodes
-        );
+        issue = TransportDeprecationInfoAction.checkDiskLowWatermark(clusterSettings, clusterInfo, discoveryNodes);
         assertNull(issue);
 
         // And make sure there is a warning when the setting is in the node settings but not the cluster settings:
         clusterSettings = new ClusterSettings(settingsWithLowWatermark, BUILT_IN_CLUSTER_SETTINGS);
-        issue = TransportDeprecationInfoAction.checkDiskLowWatermark(
-            clusterSettings,
-            clusterInfo,
-            discoveryNodes
-        );
+        issue = TransportDeprecationInfoAction.checkDiskLowWatermark(clusterSettings, clusterInfo, discoveryNodes);
         assertNotNull(issue);
         assertEquals("Disk usage exceeds low watermark", issue.getMessage());
         assertThat(issue.getDetails(), containsString("(nodes impacted: [node1, node2])"));

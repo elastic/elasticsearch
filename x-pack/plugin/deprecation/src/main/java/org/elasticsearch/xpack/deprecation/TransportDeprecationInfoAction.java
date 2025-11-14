@@ -143,7 +143,11 @@ public class TransportDeprecationInfoAction extends TransportMasterNodeReadActio
         final ActionListener<DeprecationInfoAction.Response> listener
     ) {
         PrecomputedData precomputedData = new PrecomputedData();
-        DeprecationIssue lowWatermarkIssue = checkDiskLowWatermark(clusterService.getClusterSettings(), clusterInfoService.getClusterInfo(), state.nodes());
+        DeprecationIssue lowWatermarkIssue = checkDiskLowWatermark(
+            clusterService.getClusterSettings(),
+            clusterInfoService.getClusterInfo(),
+            state.nodes()
+        );
         if (lowWatermarkIssue != null) {
             precomputedData.setOnceDiskWatermarkIssue(lowWatermarkIssue);
         }
@@ -430,7 +434,8 @@ public class TransportDeprecationInfoAction extends TransportMasterNodeReadActio
     static DeprecationIssue checkDiskLowWatermark(ClusterSettings clusterSettings, ClusterInfo clusterInfo, DiscoveryNodes discoveryNodes) {
         Map<String, DiskUsage> nodeMostAvailableDiskUsages = clusterInfo.getNodeMostAvailableDiskUsages();
 
-        List<String> impactedNodeNames = nodeMostAvailableDiskUsages.entrySet().stream()
+        List<String> impactedNodeNames = nodeMostAvailableDiskUsages.entrySet()
+            .stream()
             .filter(e -> exceedsLowWatermark(clusterSettings, e.getValue()))
             .map(Map.Entry::getKey)
             .map(discoveryNodes::get)
@@ -461,7 +466,7 @@ public class TransportDeprecationInfoAction extends TransportMasterNodeReadActio
     private static boolean exceedsLowWatermark(ClusterSettings clusterSettings, DiskUsage usage) {
         long freeBytes = usage.freeBytes();
         long totalBytes = usage.totalBytes();
-        return freeBytes <
-            DiskThresholdSettings.getFreeBytesThresholdLowStage(ByteSizeValue.ofBytes(totalBytes), clusterSettings).getBytes();
+        return freeBytes < DiskThresholdSettings.getFreeBytesThresholdLowStage(ByteSizeValue.ofBytes(totalBytes), clusterSettings)
+            .getBytes();
     }
 }

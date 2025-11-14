@@ -9,7 +9,9 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.date;
 
 import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
+import com.carrotsearch.randomizedtesting.annotations.TimeoutSuite;
 
+import org.apache.lucene.tests.util.TimeUnits;
 import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
@@ -37,6 +39,8 @@ import static org.hamcrest.Matchers.equalTo;
 /**
  * Parameterized testing for {@link DateTrunc}.  See also {@link DateTruncRoundingTests} for non-parametrized tests.
  */
+// The amount of date trunc cases sometimes exceed the 20 minutes
+@TimeoutSuite(millis = 60 * TimeUnits.MINUTE)
 public class DateTruncTests extends AbstractConfigurationFunctionTestCase {
 
     public DateTruncTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {

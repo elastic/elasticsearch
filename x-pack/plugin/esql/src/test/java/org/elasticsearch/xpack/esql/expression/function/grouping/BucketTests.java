@@ -9,7 +9,9 @@ package org.elasticsearch.xpack.esql.expression.function.grouping;
 
 import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
+import com.carrotsearch.randomizedtesting.annotations.TimeoutSuite;
 
+import org.apache.lucene.tests.util.TimeUnits;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Rounding;
 import org.elasticsearch.common.time.DateUtils;
@@ -40,6 +42,8 @@ import static org.elasticsearch.xpack.esql.expression.function.scalar.date.DateT
 import static org.elasticsearch.xpack.esql.expression.function.scalar.date.DateTruncTests.makeTruncPeriodTestCases;
 import static org.hamcrest.Matchers.equalTo;
 
+// The amount of date trunc cases sometimes exceed the 20 minutes
+@TimeoutSuite(millis = 60 * TimeUnits.MINUTE)
 public class BucketTests extends AbstractConfigurationFunctionTestCase {
     public BucketTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
         this.testCase = testCaseSupplier.get();

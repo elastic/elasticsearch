@@ -17,8 +17,8 @@ import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.inference.ChunkingSettings;
 import org.elasticsearch.xpack.core.inference.chunking.Chunker;
 import org.elasticsearch.xpack.core.inference.chunking.ChunkerBuilder;
+import org.elasticsearch.xpack.core.inference.chunking.ChunkingSettingsBuilder;
 import org.elasticsearch.xpack.core.inference.chunking.SentenceBoundaryChunkingSettings;
-import org.elasticsearch.xpack.esql.core.InvalidArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.EntryExpression;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
@@ -30,19 +30,16 @@ import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.MapParam;
 import org.elasticsearch.xpack.esql.expression.function.OptionalArgument;
-import org.elasticsearch.xpack.esql.expression.function.Options;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlScalarFunction;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 
 import java.io.IOException;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.FIRST;
-import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.SECOND;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isString;
 
 public class Chunk extends EsqlScalarFunction implements OptionalArgument {
@@ -160,7 +157,8 @@ public class Chunk extends EsqlScalarFunction implements OptionalArgument {
                 }
             } else if (CHUNKING_SETTINGS.equals(optionName)) {
                 if (entry.value() instanceof MapExpression == false) {
-                    return new TypeResolution("[" + CHUNKING_SETTINGS + "] must be a map, found [" + entry.value().getClass().getSimpleName() + "]");
+                    return new TypeResolution(
+                        "[" + CHUNKING_SETTINGS + "] must be a map, found [" + entry.value().getClass().getSimpleName() + "]");
                 }
                 // Validate the nested map has valid keys/values
                 TypeResolution chunkingSettingsResolution = validateChunkingSettings((MapExpression) entry.value());
@@ -168,7 +166,8 @@ public class Chunk extends EsqlScalarFunction implements OptionalArgument {
                     return chunkingSettingsResolution;
                 }
             } else {
-                return new TypeResolution("Invalid option [" + optionName + "], expected one of [" + String.join(", ", ALLOWED_OPTIONS.keySet()) + "]");
+                return new TypeResolution(
+                    "Invalid option [" + optionName + "], expected one of [" + String.join(", ", ALLOWED_OPTIONS.keySet()) + "]");
             }
         }
 
@@ -217,11 +216,11 @@ public class Chunk extends EsqlScalarFunction implements OptionalArgument {
     }
 
     @Evaluator(extraName = "BytesRef")
-    static void process(BytesRefBlock.Builder builder, BytesRef str, int numChunks, int chunkSize) {
+    static void process(BytesRefBlock.Builder builder, BytesRef str, int numChunks, Map<String,Object> chunkingSettingsMap) {
         String content = str.utf8ToString();
 
-        ChunkingSettings settings = new SentenceBoundaryChunkingSettings(chunkSize, 0);
-        List<String> chunks = chunkText(content, settings, numChunks);
+        ChunkingSettings chunkingSettings = ChunkingSettingsBuilder.fromMap(chunkingSettingsMap);
+        List<String> chunks = chunkText(content, chunkingSettings, numChunks);
 
         boolean multivalued = chunks.size() > 1;
         if (multivalued) {

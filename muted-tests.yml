@@ -417,9 +417,6 @@ tests:
 - class: org.elasticsearch.xpack.ilm.CCRIndexLifecycleIT
   method: testTsdbLeaderIndexRolloverAndSyncAfterWaitUntilEndTime {targetCluster=FOLLOWER}
   issue: https://github.com/elastic/elasticsearch/issues/137565
-- class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeMetricsIT
-  method: test
-  issue: https://github.com/elastic/elasticsearch/issues/137655
 - class: org.elasticsearch.xpack.inference.action.filter.ShardBulkInferenceActionFilterBasicLicenseIT
   method: testLicenseInvalidForInference {p0=true}
   issue: https://github.com/elastic/elasticsearch/issues/137690

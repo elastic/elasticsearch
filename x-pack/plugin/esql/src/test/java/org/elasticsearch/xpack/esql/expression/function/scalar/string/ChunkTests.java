@@ -144,15 +144,13 @@ public class ChunkTests extends AbstractScalarFunctionTestCase {
     public void testSpecifiedOptions() {
         int numChunks = randomIntBetween(2, 4);
         int chunkSize = randomIntBetween(20, 30);
-        ChunkingSettings chunkingSettings = new SentenceBoundaryChunkingSettings(chunkSize, randomIntBetween(0,1));
+        ChunkingSettings chunkingSettings = new SentenceBoundaryChunkingSettings(chunkSize, randomIntBetween(0, 1));
         verifyChunks(numChunks, chunkingSettings, numChunks);
     }
 
     private void verifyChunks(Integer numChunks, ChunkingSettings chunkingSettings, int expectedNumChunksReturned) {
         int numChunksOrDefault = numChunks != null ? numChunks : Chunk.DEFAULT_NUM_CHUNKS;
-        ChunkingSettings chunkingSettingsOrDefault = chunkingSettings != null
-            ? chunkingSettings
-            : Chunk.DEFAULT_CHUNKING_SETTINGS;
+        ChunkingSettings chunkingSettingsOrDefault = chunkingSettings != null ? chunkingSettings : Chunk.DEFAULT_CHUNKING_SETTINGS;
         List<String> expected = Chunk.chunkText(PARAGRAPH_INPUT, chunkingSettingsOrDefault, numChunksOrDefault)
             .stream()
             .map(String::trim)
@@ -164,8 +162,7 @@ public class ChunkTests extends AbstractScalarFunctionTestCase {
     }
 
     private List<String> process(String str, Integer numChunks, ChunkingSettings chunkingSettings) {
-        MapExpression optionsMap = (numChunks == null && chunkingSettings == null) ? null :
-                                   createOptions(numChunks, chunkingSettings);
+        MapExpression optionsMap = (numChunks == null && chunkingSettings == null) ? null : createOptions(numChunks, chunkingSettings);
 
         try (
             EvalOperator.ExpressionEvaluator eval = evaluator(new Chunk(Source.EMPTY, field("str", DataType.KEYWORD), optionsMap)).get(

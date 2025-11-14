@@ -78,8 +78,9 @@ public class Chunk extends EsqlScalarFunction implements OptionalArgument {
                 @MapParam.MapParamEntry(
                     name = "chunking_settings",
                     type = "object",
-                    description = "The chunking settings with which to apply to the field. " +
-                        "If no chunking settings are specified, defaults to sentence-based chunks of size " + DEFAULT_CHUNK_SIZE
+                    description = "The chunking settings with which to apply to the field. "
+                        + "If no chunking settings are specified, defaults to sentence-based chunks of size "
+                        + DEFAULT_CHUNK_SIZE
                 ), },
             description = "Options to customize chunking behavior.",
             optional = true
@@ -158,13 +159,13 @@ public class Chunk extends EsqlScalarFunction implements OptionalArgument {
                 }
             } else if (CHUNKING_SETTINGS.equals(optionName)) {
                 if (entry.value() instanceof MapExpression == false) {
-                    return new TypeResolution(
-                        "[" + CHUNKING_SETTINGS + "] must be a map, found [" + entry.value().dataType() + "]");
+                    return new TypeResolution("[" + CHUNKING_SETTINGS + "] must be a map, found [" + entry.value().dataType() + "]");
                 }
                 return validateChunkingSettings(entry.value());
             } else {
                 return new TypeResolution(
-                    "Invalid option [" + optionName + "], expected one of [" + String.join(", ", ALLOWED_OPTIONS.keySet()) + "]");
+                    "Invalid option [" + optionName + "], expected one of [" + String.join(", ", ALLOWED_OPTIONS.keySet()) + "]"
+                );
             }
         }
 

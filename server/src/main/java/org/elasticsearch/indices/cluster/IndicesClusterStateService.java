@@ -1054,6 +1054,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
                     sourceShardRouting.shardId(),
                     sourceShardRouting.relocatingNodeId()
                 );
+                return null;
             }
             return sourceNode;
         }
@@ -1064,6 +1065,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
                 "can't find reshard split source node because source shard {} is assigned to an unknown node.",
                 sourceShardRouting.shortSummary()
             );
+            return null;
         }
         return sourceNode;
     }

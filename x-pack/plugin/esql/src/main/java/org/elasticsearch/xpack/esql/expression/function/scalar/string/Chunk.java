@@ -12,6 +12,7 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.compute.ann.Evaluator;
+import org.elasticsearch.compute.ann.Fixed;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.inference.ChunkingSettings;
@@ -216,10 +217,9 @@ public class Chunk extends EsqlScalarFunction implements OptionalArgument {
     }
 
     @Evaluator(extraName = "BytesRef")
-    static void process(BytesRefBlock.Builder builder, BytesRef str, int numChunks, Map<String,Object> chunkingSettingsMap) {
+    static void process(BytesRefBlock.Builder builder, BytesRef str, int numChunks, @Fixed ChunkingSettings chunkingSettings) {
         String content = str.utf8ToString();
 
-        ChunkingSettings chunkingSettings = ChunkingSettingsBuilder.fromMap(chunkingSettingsMap);
         List<String> chunks = chunkText(content, chunkingSettings, numChunks);
 
         boolean multivalued = chunks.size() > 1;
@@ -259,7 +259,7 @@ public class Chunk extends EsqlScalarFunction implements OptionalArgument {
     @Override
     public EvalOperator.ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
         int numChunks = DEFAULT_NUM_CHUNKS;
-        int chunkSize = DEFAULT_CHUNK_SIZE;
+        ChunkingSettings chunkingSettings = DEFAULT_CHUNKING_SETTINGS;
 
         if (options() != null) {
             MapExpression mapExpr = (MapExpression) options();
@@ -270,17 +270,9 @@ public class Chunk extends EsqlScalarFunction implements OptionalArgument {
                 if (NUM_CHUNKS.equals(optionName)) {
                     numChunks = (Integer) ((Literal) entry.value()).value();
                 } else if (CHUNKING_SETTINGS.equals(optionName)) {
-                    // For now, we'll just extract max_chunk_size from the nested map
-                    // In the future, this should fully support ChunkingSettings
-                    MapExpression chunkingSettingsExpr = (MapExpression) entry.value();
-                    for (EntryExpression csEntry : chunkingSettingsExpr.entryExpressions()) {
-                        Object csKeyValue = ((Literal) csEntry.key()).value();
-                        String csKey = csKeyValue instanceof BytesRef br ? br.utf8ToString() : csKeyValue.toString();
-                        if ("max_chunk_size".equals(csKey)) {
-                            chunkSize = (Integer) ((Literal) csEntry.value()).value();
-                            break;
-                        }
-                    }
+                    // Convert the nested MapExpression to Map<String, Object> and build ChunkingSettings
+                    Map<String, Object> chunkingSettingsMap = mapExpressionToMap((MapExpression) entry.value());
+                    chunkingSettings = ChunkingSettingsBuilder.fromMap(chunkingSettingsMap);
                 }
             }
         }
@@ -289,7 +281,23 @@ public class Chunk extends EsqlScalarFunction implements OptionalArgument {
             source(),
             toEvaluator.apply(field),
             toEvaluator.apply(new Literal(source(), numChunks, DataType.INTEGER)),
-            toEvaluator.apply(new Literal(source(), chunkSize, DataType.INTEGER))
+            chunkingSettings
         );
+    }
+
+    private static Map<String, Object> mapExpressionToMap(MapExpression mapExpr) {
+        Map<String, Object> result = new java.util.HashMap<>();
+        for (EntryExpression entry : mapExpr.entryExpressions()) {
+            Object keyValue = ((Literal) entry.key()).value();
+            String key = keyValue instanceof BytesRef br ? br.utf8ToString() : keyValue.toString();
+
+            Object value = ((Literal) entry.value()).value();
+            // Convert BytesRef to String for proper handling by ChunkingSettingsBuilder
+            if (value instanceof BytesRef br) {
+                value = br.utf8ToString();
+            }
+            result.put(key, value);
+        }
+        return result;
     }
 }

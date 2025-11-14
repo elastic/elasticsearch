@@ -257,7 +257,10 @@ public final class TranslateTimeSeriesAggregate extends OptimizerRules.Parameter
                         + "["
                         + String.join(", ", timestampAwareFunctions.subList(0, Math.min(size, 3)))
                         + (size > 3 ? ", ..." : "")
-                        + "] requires a @timestamp field of type date to be present when run with the TS command, but it was not present."
+                        + "] require"
+                        + (size > 1 ? " " : "s ")
+                        + "a @timestamp field of type date or date_nanos to be present when run with the TS command, "
+                        + "but it was not present."
                 );
             }
         }

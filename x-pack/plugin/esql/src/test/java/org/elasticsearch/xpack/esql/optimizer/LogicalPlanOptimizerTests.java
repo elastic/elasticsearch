@@ -9685,7 +9685,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
                     """)))
             ).getMessage(),
             containsString("""
-                Functions [count(network.eth0.rx), max(network.cost)] requires a @timestamp field of type date \
+                Functions [count(network.eth0.rx), max(network.cost)] require a @timestamp field of type date or date_nanos \
                 to be present when run with the TS command, but it was not present.""")
         );
 
@@ -9699,7 +9699,22 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
                     """)))
             ).getMessage(),
             containsString("""
-                Function [avg(network.eth0.currently_connected_clients)] requires a @timestamp field of type date \
+                Function [avg(network.eth0.currently_connected_clients)] requires a @timestamp field of type date or date_nanos \
+                to be present when run with the TS command, but it was not present.""")
+        );
+
+        // we may want to allow this later
+        assertThat(
+            expectThrows(
+                IllegalArgumentException.class,
+                () -> logicalOptimizerWithLatestVersion.optimize(metricsAnalyzer.analyze(parser.createStatement("""
+                    TS k8s |
+                    EVAL `@timestamp` = @timestamp + 1day |
+                    STATS std_dev(network.eth0.currently_connected_clients)
+                    """)))
+            ).getMessage(),
+            containsString("""
+                Function [std_dev(network.eth0.currently_connected_clients)] requires a @timestamp field of type date or date_nanos \
                 to be present when run with the TS command, but it was not present.""")
         );
     }

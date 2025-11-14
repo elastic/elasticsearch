@@ -37,7 +37,7 @@ public class TextSimilarityRerankingRankFeaturePhaseRankShardContext extends Rer
         if (chunkScorerConfig != null) {
             this.chunkingSettings = (chunkScorerConfig.chunkingSettings() != null)
                 ? chunkScorerConfig.chunkingSettings()
-                : ChunkScorerConfig.createChunkingSettings(ChunkScorerConfig.DEFAULT_CHUNK_SIZE);
+                : ChunkScorerConfig.defaultChunkingSettings(ChunkScorerConfig.DEFAULT_CHUNK_SIZE);
 
             this.chunker = ChunkerBuilder.fromChunkingStrategy(chunkingSettings.getChunkingStrategy());
         } else {

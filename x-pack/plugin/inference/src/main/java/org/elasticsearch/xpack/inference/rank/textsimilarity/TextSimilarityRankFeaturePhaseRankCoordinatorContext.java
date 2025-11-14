@@ -16,7 +16,7 @@ import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.search.rank.context.RankFeaturePhaseRankCoordinatorContext;
 import org.elasticsearch.search.rank.feature.RankFeatureDoc;
-import org.elasticsearch.xpack.core.inference.action.GetInferenceModelAction;
+import org.elasticsearch.xpack.core.inference.action.GetRerankerWindowSizeAction;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.core.inference.results.RankedDocsResults;
 import org.elasticsearch.xpack.inference.services.cohere.rerank.CohereRerankTaskSettings;
@@ -65,38 +65,9 @@ public class TextSimilarityRankFeaturePhaseRankCoordinatorContext extends RankFe
     @Override
     protected void computeScores(RankFeatureDoc[] featureDocs, ActionListener<float[]> scoreListener) {
 
-        // top N listener
-        ActionListener<GetInferenceModelAction.Response> topNListener = scoreListener.delegateFailureAndWrap((l, r) -> {
-            // The rerank inference endpoint may have an override to return top N documents only, in that case let's fail fast to avoid
-            // assigning scores to the wrong input
-            Integer configuredTopN = null;
-            if (r.getEndpoints().isEmpty() == false
-                && r.getEndpoints().get(0).getTaskSettings() instanceof CohereRerankTaskSettings cohereTaskSettings) {
-                configuredTopN = cohereTaskSettings.getTopNDocumentsOnly();
-            } else if (r.getEndpoints().isEmpty() == false
-                && r.getEndpoints().get(0).getTaskSettings() instanceof GoogleVertexAiRerankTaskSettings googleVertexAiTaskSettings) {
-                    configuredTopN = googleVertexAiTaskSettings.topN();
-                } else if (r.getEndpoints().isEmpty() == false
-                    && r.getEndpoints().get(0).getTaskSettings() instanceof HuggingFaceRerankTaskSettings huggingFaceRerankTaskSettings) {
-                        configuredTopN = huggingFaceRerankTaskSettings.getTopNDocumentsOnly();
-                    }
-            if (configuredTopN != null && configuredTopN < rankWindowSize) {
-                l.onFailure(
-                    new IllegalArgumentException(
-                        "Inference endpoint ["
-                            + inferenceId
-                            + "] is configured to return the top ["
-                            + configuredTopN
-                            + "] results, but rank_window_size is ["
-                            + rankWindowSize
-                            + "]. Reduce rank_window_size to be less than or equal to the configured top N value."
-                    )
-                );
-                return;
-            }
-
+        ActionListener<GetRerankerWindowSizeAction.Response> windowSizeListener = scoreListener.delegateFailureAndWrap((l, r) -> {
             // Resolve chunking settings if needed
-            final ChunkScorerConfig resolvedChunkScorerConfig = resolveChunkingSettings(r);
+            final ChunkScorerConfig resolvedChunkScorerConfig = resolveChunkingSettings(r.getWindowSize());
 
             // Wrap the provided rankListener to an ActionListener that would handle the response from the inference service
             // and then pass the results
@@ -154,8 +125,12 @@ public class TextSimilarityRankFeaturePhaseRankCoordinatorContext extends RankFe
             }
         });
 
-        GetInferenceModelAction.Request getModelRequest = new GetInferenceModelAction.Request(inferenceId, TaskType.RERANK);
-        client.execute(GetInferenceModelAction.INSTANCE, getModelRequest, topNListener);
+        if (chunkScorerConfig != null && chunkScorerConfig.chunkingSettings() == null) {
+            GetRerankerWindowSizeAction.Request getWindowSizeRequest = new GetRerankerWindowSizeAction.Request(inferenceId);
+            client.execute(GetRerankerWindowSizeAction.INSTANCE, getWindowSizeRequest, windowSizeListener);
+        } else {
+            windowSizeListener.onResponse(new GetRerankerWindowSizeAction.Response(-1));
+        }
     }
 
     /**
@@ -240,7 +215,7 @@ public class TextSimilarityRankFeaturePhaseRankCoordinatorContext extends RankFe
         return Math.max(score, 0) + Math.min((float) Math.exp(score), 1);
     }
 
-    private ChunkScorerConfig resolveChunkingSettings(GetInferenceModelAction.Response response) {
+    private ChunkScorerConfig resolveChunkingSettings(int windowSize) {
         if (chunkScorerConfig == null) {
             return null;
         }
@@ -249,7 +224,7 @@ public class TextSimilarityRankFeaturePhaseRankCoordinatorContext extends RankFe
             return chunkScorerConfig;
         }
 
-        ChunkingSettings endpointSettings = extractChunkingSettingsFromResponse(response);
+        ChunkingSettings endpointSettings = windowSize > 0 ? ChunkScorerConfig.defaultChunkingSettings(windowSize) : null;
 
         if (endpointSettings != null) {
             return new ChunkScorerConfig(chunkScorerConfig.size(), chunkScorerConfig.inferenceText(), endpointSettings);
@@ -258,17 +233,7 @@ public class TextSimilarityRankFeaturePhaseRankCoordinatorContext extends RankFe
         return new ChunkScorerConfig(
             chunkScorerConfig.size(),
             chunkScorerConfig.inferenceText(),
-            ChunkScorerConfig.createChunkingSettings(ChunkScorerConfig.DEFAULT_CHUNK_SIZE)
+            ChunkScorerConfig.defaultChunkingSettings(ChunkScorerConfig.DEFAULT_CHUNK_SIZE)
         );
-    }
-
-    private ChunkingSettings extractChunkingSettingsFromResponse(GetInferenceModelAction.Response response) {
-        for (var endpoint : response.getEndpoints()) {
-            ChunkingSettings settings = endpoint.getChunkingSettings();
-            if (settings != null) {
-                return settings;
-            }
-        }
-        return null;
     }
 }

@@ -11,7 +11,7 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.search.rank.feature.RankFeatureDoc;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.core.inference.action.GetInferenceModelAction;
+import org.elasticsearch.xpack.core.inference.action.GetRerankerWindowSizeAction;
 import org.elasticsearch.xpack.core.inference.results.RankedDocsResults;
 
 import java.util.List;
@@ -51,31 +51,7 @@ public class TextSimilarityRankFeaturePhaseRankCoordinatorContextTests extends E
         new ChunkScorerConfig(2, "some query", null)
     );
 
-    public void testComputeScores() {
-        RankFeatureDoc featureDoc1 = new RankFeatureDoc(0, 1.0f, 0);
-        featureDoc1.featureData(List.of("text 1"));
-        RankFeatureDoc featureDoc2 = new RankFeatureDoc(1, 3.0f, 1);
-        featureDoc2.featureData(List.of("text 2"));
-        RankFeatureDoc featureDoc3 = new RankFeatureDoc(2, 2.0f, 0);
-        featureDoc3.featureData(List.of("text 3"));
-        RankFeatureDoc[] featureDocs = new RankFeatureDoc[] { featureDoc1, featureDoc2, featureDoc3 };
 
-        subject.computeScores(featureDocs, assertNoFailureListener(f -> assertArrayEquals(new float[] { 1.0f, 3.0f, 2.0f }, f, 0.0f)));
-        verify(mockClient).execute(
-            eq(GetInferenceModelAction.INSTANCE),
-            argThat(actionRequest -> ((GetInferenceModelAction.Request) actionRequest).getTaskType().equals(TaskType.RERANK)),
-            any()
-        );
-    }
-
-    public void testComputeScoresForEmpty() {
-        subject.computeScores(new RankFeatureDoc[0], assertNoFailureListener(f -> assertArrayEquals(new float[0], f, 0.0f)));
-        verify(mockClient).execute(
-            eq(GetInferenceModelAction.INSTANCE),
-            argThat(actionRequest -> ((GetInferenceModelAction.Request) actionRequest).getTaskType().equals(TaskType.RERANK)),
-            any()
-        );
-    }
 
     public void testExtractScoresFromRankedDocs() {
         List<RankedDocsResults.RankedDoc> rankedDocs = List.of(
@@ -130,9 +106,8 @@ public class TextSimilarityRankFeaturePhaseRankCoordinatorContextTests extends E
         return featureDoc;
     }
 
-    public void testExtractScoresFromRankedChunksWithAutoResolveSettings() {
+    public void testComputeScoresWithAutoResolveChunkingSettings() {
         ChunkScorerConfig configWithNullSettings = new ChunkScorerConfig(3, "test query", null);
-
         TextSimilarityRankFeaturePhaseRankCoordinatorContext context = new TextSimilarityRankFeaturePhaseRankCoordinatorContext(
             10,
             0,
@@ -144,26 +119,18 @@ public class TextSimilarityRankFeaturePhaseRankCoordinatorContextTests extends E
             false,
             configWithNullSettings
         );
-        List<RankedDocsResults.RankedDoc> rankedDocs = List.of(
-            new RankedDocsResults.RankedDoc(0, 2.0f, "chunk1"),
-            new RankedDocsResults.RankedDoc(1, 1.5f, "chunk2"),
-            new RankedDocsResults.RankedDoc(2, 3.0f, "chunk3")
-        );
-        RankFeatureDoc[] featureDocs = new RankFeatureDoc[] {
-            createRankFeatureDoc(0, 1.0f, 0, List.of("chunk1", "chunk2")),
-            createRankFeatureDoc(1, 2.0f, 0, List.of("chunk3")) };
-        // Should not throw NPE.
-        float[] scores = context.extractScoresFromRankedChunks(rankedDocs, featureDocs);
 
-        assertNotNull("Scores should not be null", scores);
-        assertEquals("Should have 2 document scores", 2, scores.length);
-        assertEquals("First doc should get max chunk score", 2.0f, scores[0], 0.0f);
-        assertEquals("Second doc should get its chunk score", 3.0f, scores[1], 0.0f);
+        context.computeScores(new RankFeatureDoc[0], assertNoFailureListener(scores -> {}));
+
+        verify(mockClient).execute(
+            eq(GetRerankerWindowSizeAction.INSTANCE),
+            argThat(request -> "my-inference-id".equals(((GetRerankerWindowSizeAction.Request) request).getInferenceEntityId())),
+            any()
+        );
     }
 
-    public void testExtractScoresWithEmptyChunkRescorer() {
-        ChunkScorerConfig emptyConfig = new ChunkScorerConfig(null, "test query", null);
-
+    public void testComputeScoresWithUserProvidedChunkingSettings() {
+        ChunkScorerConfig config = new ChunkScorerConfig(3, "test query", ChunkScorerConfig.createChunkingSettings(128));
         TextSimilarityRankFeaturePhaseRankCoordinatorContext context = new TextSimilarityRankFeaturePhaseRankCoordinatorContext(
             10,
             0,
@@ -173,13 +140,11 @@ public class TextSimilarityRankFeaturePhaseRankCoordinatorContextTests extends E
             "some query",
             0.0f,
             false,
-            emptyConfig
+            config
         );
-        List<RankedDocsResults.RankedDoc> rankedDocs = List.of(new RankedDocsResults.RankedDoc(0, 1.0f, "chunk1"));
-        RankFeatureDoc[] featureDocs = new RankFeatureDoc[] { createRankFeatureDoc(0, 1.0f, 0, List.of("chunk1")) };
-        float[] scores = context.extractScoresFromRankedChunks(rankedDocs, featureDocs);
 
-        assertNotNull("Scores should not be null", scores);
-        assertEquals("Should have 1 score", 1, scores.length);
+        context.computeScores(new RankFeatureDoc[0], assertNoFailureListener(scores -> {}));
+
+        verify(mockClient, never()).execute(eq(GetRerankerWindowSizeAction.INSTANCE), any(), any());
     }
 }

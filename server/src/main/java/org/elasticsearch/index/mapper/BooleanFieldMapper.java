@@ -59,6 +59,7 @@ import java.util.Objects;
 import java.util.Set;
 
 import static org.elasticsearch.index.mapper.FieldArrayContext.getOffsetsFieldName;
+import static org.elasticsearch.index.mapper.FieldMapper.Parameter.useTimeSeriesDocValuesSkippers;
 
 /**
  * A field mapper for boolean fields.
@@ -118,7 +119,7 @@ public class BooleanFieldMapper extends FieldMapper {
             );
             this.script.precludesParameters(ignoreMalformed, nullValue);
             this.dimension = TimeSeriesParams.dimensionParam(m -> toType(m).fieldType().isDimension(), docValues::get);
-            this.indexed = Parameter.indexParam(m -> toType(m).indexed, indexSettings);
+            this.indexed = Parameter.indexParam(m -> toType(m).indexed, indexSettings, dimension);
             addScriptValidation(script, indexed, docValues);
         }
 

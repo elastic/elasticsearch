@@ -57,6 +57,7 @@ import java.util.Objects;
 import java.util.function.BiFunction;
 
 import static org.elasticsearch.index.mapper.FieldArrayContext.getOffsetsFieldName;
+import static org.elasticsearch.index.mapper.FieldMapper.Parameter.useTimeSeriesDocValuesSkippers;
 import static org.elasticsearch.index.mapper.IpPrefixAutomatonUtil.buildIpPrefixAutomaton;
 
 /**
@@ -106,7 +107,7 @@ public class IpFieldMapper extends FieldMapper {
             );
             this.script.precludesParameters(nullValue, ignoreMalformed);
             this.dimension = TimeSeriesParams.dimensionParam(m -> toType(m).dimension, hasDocValues::get);
-            this.indexed = Parameter.indexParam(m -> toType(m).indexed, indexSettings);
+            this.indexed = Parameter.indexParam(m -> toType(m).indexed, indexSettings, dimension);
             addScriptValidation(script, indexed, hasDocValues);
         }
 
@@ -638,11 +639,11 @@ public class IpFieldMapper extends FieldMapper {
             context.getRoutingFields().addIp(fieldType().name(), address.getInetAddress());
         }
         LuceneDocument doc = context.doc();
-        if (indexed) {
+        if (fieldType().indexType.hasPoints()) {
             doc.add(address);
         }
-        if (hasDocValues) {
-            if (indexed == false) {
+        if (fieldType().indexType.hasDocValues()) {
+            if (fieldType().indexType.hasDocValuesSkipper()) {
                 doc.add(SortedSetDocValuesField.indexedField(fieldType().name(), address.binaryValue()));
             } else {
                 doc.add(new SortedSetDocValuesField(fieldType().name(), address.binaryValue()));

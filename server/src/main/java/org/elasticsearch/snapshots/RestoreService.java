@@ -1970,7 +1970,8 @@ public final class RestoreService implements ClusterStateApplier {
         createIndexService.validateIndexSettings(renamedIndexName, snapshotIndexMetadata.getSettings(), false);
     }
 
-    private static String safeRenameIndex(String index, String renamePattern, String renameReplacement) {
+    // package-private for unit testing
+    static String safeRenameIndex(String index, String renamePattern, String renameReplacement) {
         final var matcher = Pattern.compile(renamePattern).matcher(index);
         var found = matcher.find();
         if (found) {

@@ -319,10 +319,7 @@ public class RestoreServiceTests extends ESTestCase {
         assertEquals("test_123", result);
 
         // Test back-reference that would be too long
-        e = expectThrows(
-            IllegalArgumentException.class,
-            () -> RestoreService.safeRenameIndex("a".repeat(200), "(a+)", "$1$1")
-        );
+        e = expectThrows(IllegalArgumentException.class, () -> RestoreService.safeRenameIndex("a".repeat(200), "(a+)", "$1$1"));
         assertThat(e.getMessage(), containsString("exceed"));
 
         // Test no match - returns original

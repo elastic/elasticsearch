@@ -518,13 +518,11 @@ final class ES819TSDBDocValuesConsumer extends XDocValuesConsumer {
     }
 
     private final class CompressedBinaryBlockWriter implements BinaryWriter {
-        static final int START_BLOCK_DOCS = 1024;
-
         final Compressor compressor;
 
         final TSDBDocValuesEncoder encoder = new TSDBDocValuesEncoder(ES819TSDBDocValuesFormat.NUMERIC_BLOCK_SIZE);
         final long[] docOffsetsBuffer = new long[ES819TSDBDocValuesFormat.NUMERIC_BLOCK_SIZE];
-        int[] docOffsets = new int[START_BLOCK_DOCS];
+        final int[] docOffsets = new int[BLOCK_COUNT_THRESHOLD + 1]; // start for each doc plus start of doc that would be after last
 
         int uncompressedBlockLength = 0;
         int maxUncompressedBlockLength = 0;
@@ -549,7 +547,6 @@ final class ES819TSDBDocValuesConsumer extends XDocValuesConsumer {
             uncompressedBlockLength += v.length;
 
             numDocsInCurrentBlock++;
-            docOffsets = ArrayUtil.grow(docOffsets, numDocsInCurrentBlock + 1); // need one extra since writing start for next block
             docOffsets[numDocsInCurrentBlock] = uncompressedBlockLength;
 
             if (uncompressedBlockLength >= BLOCK_BYTES_THRESHOLD || numDocsInCurrentBlock >= BLOCK_COUNT_THRESHOLD) {

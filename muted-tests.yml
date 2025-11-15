@@ -474,9 +474,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.single_node.PushQueriesIT
   method: testEqualityAndOther {SEMANTIC_TEXT_WITH_KEYWORD}
   issue: https://github.com/elastic/elasticsearch/issues/135333
-- class: org.elasticsearch.search.sort.FieldSortIT
-  method: testSortMixedFieldTypes
-  issue: https://github.com/elastic/elasticsearch/issues/129445
 - class: org.elasticsearch.xpack.esql.expression.function.scalar.score.DecayTests
   method: "testEvaluateInManyThreads {TestCase=<double>, <double>, <double>, <_source> #17}"
   issue: https://github.com/elastic/elasticsearch/issues/135357
@@ -555,12 +552,6 @@ tests:
 - class: org.elasticsearch.datastreams.DataStreamIndexSettingsProviderTests
   method: testGetAdditionalIndexSettings
   issue: https://github.com/elastic/elasticsearch/issues/135972
-- class: org.elasticsearch.upgrades.SearchStatesIT
-  method: testCanMatch
-  issue: https://github.com/elastic/elasticsearch/issues/137687
-- class: org.elasticsearch.upgrades.SearchStatesIT
-  method: testBWCSearchStates
-  issue: https://github.com/elastic/elasticsearch/issues/137681
 - class: org.elasticsearch.xpack.inference.InferenceRestIT
   method: test {p0=inference/70_text_similarity_rank_retriever/Text similarity reranker with min_score zero includes all docs}
   issue: https://github.com/elastic/elasticsearch/issues/137732

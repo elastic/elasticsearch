@@ -493,6 +493,7 @@ public class InferencePlugin extends Plugin
                 authorizationHandler,
                 authTaskExecutor,
                 ccmService,
+                ccmPersistentStorageService,
                 new CCMCache(
                     ccmPersistentStorageService,
                     services.clusterService(),

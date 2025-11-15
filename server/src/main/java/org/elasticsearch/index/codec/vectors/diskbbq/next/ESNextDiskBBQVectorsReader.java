@@ -29,7 +29,6 @@ import org.elasticsearch.simdvec.ESNextOSQVectorsScorer;
 import org.elasticsearch.simdvec.ESVectorUtil;
 
 import java.io.IOException;
-import java.util.Arrays;
 import java.util.Map;
 
 import static org.apache.lucene.index.VectorSimilarityFunction.COSINE;
@@ -148,9 +147,7 @@ public class ESNextDiskBBQVectorsReader extends IVFVectorsReader {
         // only precondition if during writing preconditioning was enabled
         if (preconditioningProvider != null) {
             // have to copy so we don't modify the original search vector
-            float[] tmp = Arrays.copyOf(vector, vector.length);
-            preconditioningProvider.applyPreconditioningTransform(tmp);
-            return tmp;
+            return preconditioningProvider.applyPreconditioningTransform(vector);
         }
         return vector;
     }

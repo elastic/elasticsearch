@@ -16,12 +16,17 @@ import org.apache.lucene.util.NumericUtils;
 import org.apache.lucene.util.VectorUtil;
 
 import java.io.IOException;
+import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
+import java.nio.FloatBuffer;
 import java.util.Arrays;
 import java.util.Random;
 
 // FIXME: recall drops to 0; fix this
 // TODO: add in random permutation matrix instead of variance based and compare
 // TODO: apply to other formats
+// TODO: instead of manually having to indicate preconditioning add the ability to decide when to use it given the data on the segment
+// TODO: consider global version of preconditioning?
 
 public class PreconditioningProvider {
 
@@ -46,96 +51,99 @@ public class PreconditioningProvider {
         this.blocks = blocks;
     }
 
-    public void applyPreconditioningTransform(float[] vector) {
+    public float[] applyPreconditioningTransform(float[] vector) {
         assert vector != null;
 
-        int dim = vector.length;
+        float[] out = new float[vector.length];
 
         if (blocks.length == 1) {
-            int blockDim = blocks[0].length;
-            float[] tmp = new float[blockDim];
-            matrixVectorMultiply(blocks[0], vector, tmp);
-            System.arraycopy(tmp, 0, vector, 0, dim);
-            return;
+            matrixVectorMultiply(blocks[0], vector, out);
+            return out;
         }
 
         int blockIdx = 0;
         float[] x = new float[blockDim];
-        float[] out = new float[blockDim];
+        float[] blockOut = new float[blockDim];
         for (int j = 0; j < blocks.length; j++) {
             float[][] block = blocks[j];
             int blockDim = blocks[j].length;
             // blockDim is only ever smaller for the tail
             if (blockDim != this.blockDim) {
                 x = new float[blockDim];
-                out = new float[blockDim];
+                blockOut = new float[blockDim];
             }
             for (int k = 0; k < permutationMatrix[j].length; k++) {
                 int idx = permutationMatrix[j][k];
                 x[k] = vector[idx];
             }
-            matrixVectorMultiply(block, x, out);
-            System.arraycopy(out, 0, vector, blockIdx, out.length);
+            matrixVectorMultiply(block, x, blockOut);
+            System.arraycopy(blockOut, 0, out, blockIdx, blockDim);
             blockIdx += blockDim;
         }
+
+        return out;
     }
 
     public void write(IndexOutput out) throws IOException {
-        out.writeInt(blockDim);
-        out.writeInt(blocks.length);
-        out.writeInt(permutationMatrix.length);
-
-        for (float[][] block : blocks) {
-            out.writeInt(block.length);
-            for (int j = 0; j < block.length; j++) {
-                out.writeInt(block[j].length);
-                for (int k = 0; k < block[j].length; k++) {
-                    out.writeInt(Float.floatToIntBits(block[k][j]));
-                }
-            }
+        int rem = blockDim;
+        if (blocks[blocks.length - 1].length != blockDim) {
+            rem = blocks[blocks.length - 1].length;
         }
 
-        for (int[] matrix : permutationMatrix) {
-            out.writeInt(matrix.length);
-            for (int i : matrix) {
-                out.writeInt(i);
+        out.writeInt(blocks.length);
+        out.writeInt(blockDim);
+        out.writeInt(rem);
+        out.writeInt(permutationMatrix.length);
+
+        final ByteBuffer blockBuffer = ByteBuffer.allocate(
+            (blocks.length - 1) * blockDim * blockDim * Float.BYTES + rem * rem * Float.BYTES
+        ).order(ByteOrder.LITTLE_ENDIAN);
+        FloatBuffer floatBuffer = blockBuffer.asFloatBuffer();
+        for (int i = 0; i < blocks.length; i++) {
+            for (int j = 0; j < blocks[i].length; j++) {
+                floatBuffer.put(blocks[i][j]);
             }
+        }
+        out.writeBytes(blockBuffer.array(), blockBuffer.array().length);
+
+        for (int i = 0; i < permutationMatrix.length; i++) {
+            out.writeInt(permutationMatrix[i].length);
+            final ByteBuffer permBuffer = ByteBuffer.allocate(permutationMatrix[i].length * Integer.BYTES).order(ByteOrder.LITTLE_ENDIAN);
+            permBuffer.asIntBuffer().put(permutationMatrix[i]);
+            out.writeBytes(permBuffer.array(), permBuffer.array().length);
         }
     }
 
     public static PreconditioningProvider read(IndexInput input) throws IOException {
-        int blockDim = input.readInt();
         int blocksLen = input.readInt();
+        int blockDim = input.readInt();
+        int rem = input.readInt();
         int permutationMatrixLen = input.readInt();
 
         float[][][] blocks = new float[blocksLen][][];
         int[][] permutationMatrix = new int[permutationMatrixLen][];
 
-        for (int i = 0; i < blocks.length; i++) {
-            int blockLen = input.readInt();
-            blocks[i] = new float[blockLen][];
+        for (int i = 0; i < blocksLen; i++) {
+            int blockLen = blocksLen - 1 == i ? rem : blockDim;
+            blocks[i] = new float[blockLen][blockLen];
             for (int j = 0; j < blockLen; j++) {
-                int subBlockLen = input.readInt();
-                blocks[i][j] = new float[subBlockLen];
-                for (int k = 0; k < subBlockLen; k++) {
-                    blocks[i][j][k] = Float.intBitsToFloat(input.readInt());
-                }
+                input.readFloats(blocks[i][j], 0, blockLen);
             }
         }
 
         for (int i = 0; i < permutationMatrix.length; i++) {
             int permutationMatrixSubLen = input.readInt();
             permutationMatrix[i] = new int[permutationMatrixSubLen];
-            for (int j = 0; j < permutationMatrix[i].length; j++) {
-                permutationMatrix[i][j] = input.readInt();
-            }
+            input.readInts(permutationMatrix[i], 0, permutationMatrixSubLen);
         }
 
         return new PreconditioningProvider(blockDim, blocks, permutationMatrix);
     }
 
-    private static void modifiedGramSchmidt(float[][] m) {
-        for (int i = 0; i < m.length; i++) {
+    static void modifiedGramSchmidt(float[][] m) {
+        assert m.length == m[0].length;
+        int dim = m.length;
+        for (int i = 0; i < dim; i++) {
             double norm = 0.0;
             for (float v : m[i]) {
                 norm += v * v;
@@ -144,15 +152,15 @@ public class PreconditioningProvider {
             if (norm == 0.0f) {
                 continue;
             }
-            for (int j = 0; j < m[i].length; j++) {
+            for (int j = 0; j < dim; j++) {
                 m[i][j] /= (float) norm;
             }
-            for (int k = i + 1; k < m[i].length; k++) {
+            for (int k = i + 1; k < dim; k++) {
                 double dotik = 0.0;
-                for (int j = 0; j < m[k].length; j++) {
+                for (int j = 0; j < dim; j++) {
                     dotik += m[i][j] * m[k][j];
                 }
-                for (int j = 0; j < m[k].length; j++) {
+                for (int j = 0; j < dim; j++) {
                     m[k][j] -= (float) (dotik * m[i][j]);
                 }
             }

@@ -97,11 +97,8 @@ public class ESNextDiskBBQVectorsWriter extends IVFVectorsWriter {
                     assert ord != -1;
                     if (ord != cachedOrd) {
                         float[] vectorValue = vectors.vectorValue(ord);
-                        // since vectorValue will get reused copy it before mutating it
-                        float[] tmp = Arrays.copyOf(vectorValue, vectorValue.length);
-                        preconditioningProvider.applyPreconditioningTransform(tmp);
+                        this.vectorValue = preconditioningProvider.applyPreconditioningTransform(vectorValue);
                         cachedOrd = ord;
-                        this.vectorValue = tmp;
                     }
                     return this.vectorValue;
                 }

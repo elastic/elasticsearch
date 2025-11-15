@@ -315,7 +315,6 @@ public abstract class IVFVectorsReader extends KnnVectorsReader {
             // clip so we visit at least one vector
             visitRatio = estimated / numVectors;
         }
-
         // precondition the query vector if necessary
         target = preconditionVector(fieldInfo, target);
 

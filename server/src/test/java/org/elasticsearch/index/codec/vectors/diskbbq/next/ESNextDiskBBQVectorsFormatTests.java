@@ -16,6 +16,8 @@ import org.apache.lucene.codecs.KnnVectorsFormat;
 import org.apache.lucene.codecs.KnnVectorsReader;
 import org.apache.lucene.codecs.perfield.PerFieldKnnVectorsFormat;
 import org.apache.lucene.document.Document;
+import org.apache.lucene.document.Field;
+import org.apache.lucene.document.KeywordField;
 import org.apache.lucene.document.KnnFloatVectorField;
 import org.apache.lucene.index.CodecReader;
 import org.apache.lucene.index.DirectoryReader;
@@ -23,6 +25,7 @@ import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.index.Term;
 import org.apache.lucene.index.VectorEncoding;
 import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.search.AcceptDocs;
@@ -30,13 +33,16 @@ import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.BaseKnnVectorsFormatTestCase;
 import org.apache.lucene.tests.util.TestUtil;
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.logging.LogConfigurator;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.junit.Before;
 
 import java.io.IOException;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import static java.lang.String.format;
@@ -305,6 +311,77 @@ public class ESNextDiskBBQVectorsFormatTests extends BaseKnnVectorsFormatTestCas
                 for (Thread t : threads) {
                     t.join();
                 }
+            }
+        }
+    }
+
+    public void testRestrictiveFilterDense() throws IOException {
+        doRestrictiveFilter(true);
+    }
+
+    public void testRestrictiveFilterSparse() throws IOException {
+        doRestrictiveFilter(false);
+    }
+
+    private void doRestrictiveFilter(boolean dense) throws IOException {
+        int dimensions = random().nextInt(12, 500);
+        int maxMatchingDocs = random().nextInt(1, 10);
+        int matchingDocs = 0;
+        int numDocs = random().nextInt(100, 3_000);
+        try (Directory dir = newDirectory(); IndexWriter w = new IndexWriter(dir, newIndexWriterConfig())) {
+            for (int i = 0; i < numDocs; i++) {
+                Document doc = new Document();
+                if (dense || rarely() == false) {
+                    float[] vector = randomVector(dimensions);
+                    doc.add(new KnnFloatVectorField("f", vector, VectorSimilarityFunction.EUCLIDEAN));
+                }
+                doc.add(new KeywordField("k", new BytesRef("B"), Field.Store.NO));
+                w.addDocument(doc);
+                if (matchingDocs < maxMatchingDocs && rarely()) {
+                    matchingDocs++;
+                    doc = new Document();
+                    doc.add(new KnnFloatVectorField("f", randomVector(dimensions), VectorSimilarityFunction.EUCLIDEAN));
+                    doc.add(new KeywordField("k", new BytesRef("A"), Field.Store.NO));
+                    w.addDocument(doc);
+                }
+                if (dense == false && rarely()) {
+                    doc = new Document();
+                    doc.add(new KeywordField("k", new BytesRef("A"), Field.Store.NO));
+                    w.addDocument(doc);
+                }
+            }
+            if (matchingDocs == 0) {
+                // make sure we have at least one matching doc with a vector
+                matchingDocs++;
+                float[] vector = randomVector(dimensions);
+                Document doc = new Document();
+                doc.add(new KnnFloatVectorField("f", vector, VectorSimilarityFunction.EUCLIDEAN));
+                doc.add(new KeywordField("k", new BytesRef("A"), Field.Store.NO));
+                w.addDocument(doc);
+            }
+            w.commit();
+            // force one leave
+            w.forceMerge(1);
+            try (IndexReader reader = DirectoryReader.open(w)) {
+                LeafReader leafReader = getOnlyLeafReader(reader);
+                float[] vector = randomVector(dimensions);
+                // we might collect the same document twice because of soar assignments
+                TopDocs topDocs = leafReader.searchNearestVectors(
+                    "f",
+                    vector,
+                    random().nextInt(2 * matchingDocs, 3 * matchingDocs),
+                    AcceptDocs.fromIteratorSupplier(
+                        () -> leafReader.postings(new Term("k", new BytesRef("A"))),
+                        leafReader.getLiveDocs(),
+                        leafReader.maxDoc()
+                    ),
+                    Integer.MAX_VALUE
+                );
+                Set<Integer> uniqueDocIds = new HashSet<>();
+                for (int i = 0; i < topDocs.scoreDocs.length; i++) {
+                    uniqueDocIds.add(topDocs.scoreDocs[i].doc);
+                }
+                assertEquals(matchingDocs, uniqueDocIds.size());
             }
         }
     }

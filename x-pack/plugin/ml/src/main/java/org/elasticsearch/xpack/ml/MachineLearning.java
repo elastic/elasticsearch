@@ -1362,7 +1362,8 @@ public class MachineLearning extends Plugin
             indexNameExpressionResolver,
             machineLearningExtension.get().isAnomalyDetectionEnabled(),
             machineLearningExtension.get().isDataFrameAnalyticsEnabled(),
-            machineLearningExtension.get().isNlpEnabled()
+            machineLearningExtension.get().isNlpEnabled(),
+            machineLearningExtension.get().useIlm()
         );
 
         MlMetrics mlMetrics = new MlMetrics(

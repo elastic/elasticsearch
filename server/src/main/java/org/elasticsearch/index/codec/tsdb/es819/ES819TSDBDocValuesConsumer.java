@@ -523,8 +523,8 @@ final class ES819TSDBDocValuesConsumer extends XDocValuesConsumer {
         final Compressor compressor;
 
         final TSDBDocValuesEncoder encoder = new TSDBDocValuesEncoder(ES819TSDBDocValuesFormat.NUMERIC_BLOCK_SIZE);
-        final long[] docRangesBuffer = new long[ES819TSDBDocValuesFormat.NUMERIC_BLOCK_SIZE];
-        int[] docRanges = new int[START_BLOCK_DOCS];
+        final long[] docOffsetsBuffer = new long[ES819TSDBDocValuesFormat.NUMERIC_BLOCK_SIZE];
+        int[] docOffsets = new int[START_BLOCK_DOCS];
 
         int uncompressedBlockLength = 0;
         int maxUncompressedBlockLength = 0;
@@ -549,8 +549,8 @@ final class ES819TSDBDocValuesConsumer extends XDocValuesConsumer {
             uncompressedBlockLength += v.length;
 
             numDocsInCurrentBlock++;
-            docRanges = ArrayUtil.grow(docRanges, numDocsInCurrentBlock + 1); // need one extra since writing start for next block
-            docRanges[numDocsInCurrentBlock] = uncompressedBlockLength;
+            docOffsets = ArrayUtil.grow(docOffsets, numDocsInCurrentBlock + 1); // need one extra since writing start for next block
+            docOffsets[numDocsInCurrentBlock] = uncompressedBlockLength;
 
             if (uncompressedBlockLength >= BLOCK_BYTES_THRESHOLD || numDocsInCurrentBlock >= BLOCK_COUNT_THRESHOLD) {
                 flushData();
@@ -586,12 +586,13 @@ final class ES819TSDBDocValuesConsumer extends XDocValuesConsumer {
             while (batchStart < numOffsets) {
                 int batchLength = Math.min(numOffsets - batchStart, NUMERIC_BLOCK_SIZE);
                 for (int i = 0; i < batchLength; i++) {
-                    docRangesBuffer[i] = docRanges[batchStart + i];
+                    docOffsetsBuffer[i] = docOffsets[batchStart + i];
                 }
-                if (batchLength < docRangesBuffer.length) {
-                    Arrays.fill(docRangesBuffer, batchLength, docRangesBuffer.length, 0);
+                if (batchLength < docOffsetsBuffer.length) {
+                    // fill with last offset so a negative delta doesn't reduce compression ratio
+                    Arrays.fill(docOffsetsBuffer, batchLength, docOffsetsBuffer.length, docOffsetsBuffer[batchLength - 1]);
                 }
-                encoder.encode(docRangesBuffer, output);
+                encoder.encode(docOffsetsBuffer, output);
                 batchStart += batchLength;
             }
         }

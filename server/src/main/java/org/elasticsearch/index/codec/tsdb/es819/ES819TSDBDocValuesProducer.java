@@ -386,7 +386,7 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
         private final IndexInput compressedData;
         // Cache of last uncompressed block
         private long lastBlockId = -1;
-        private final long[] docRangesDecompBuffer = new long[NUMERIC_BLOCK_SIZE];
+        private final long[] docOffsetsDecompBuffer = new long[NUMERIC_BLOCK_SIZE];
         private final int[] uncompressedDocStarts;
         private final byte[] uncompressedBlock;
         private final BytesRef uncompressedBytesRef;
@@ -435,10 +435,10 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
             int batchStart = 0;
             int numOffsets = numDocsInBlock + 1;
             while (batchStart < numOffsets) {
-                decoder.decode(input, docRangesDecompBuffer);
+                decoder.decode(input, docOffsetsDecompBuffer);
                 int lenToCopy = Math.min(numOffsets - batchStart, NUMERIC_BLOCK_SIZE);
                 for (int i = 0; i < lenToCopy; i++) {
-                    uncompressedDocStarts[batchStart + i] = (int) docRangesDecompBuffer[i];
+                    uncompressedDocStarts[batchStart + i] = (int) docOffsetsDecompBuffer[i];
                 }
                 batchStart += NUMERIC_BLOCK_SIZE;
             }

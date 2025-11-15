@@ -81,7 +81,7 @@ public class CCMService {
                     disableAuthExecutorListener.onResponse(null);
                 }, e -> {
                     logger.atDebug().withThrowable(e).log("Failed to disable authorization task executor");
-                    listener.onFailure(e);
+                    disableAuthExecutorListener.onFailure(e);
                 })
             )
         ).andThen(ccmPersistentStorageService::delete).addListener(listener);

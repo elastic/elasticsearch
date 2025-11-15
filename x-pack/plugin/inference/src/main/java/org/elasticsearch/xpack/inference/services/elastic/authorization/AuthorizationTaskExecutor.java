@@ -118,9 +118,8 @@ public class AuthorizationTaskExecutor extends PersistentTasksExecutor<Authoriza
         logger.info("Authorization task executor EIS URL: [{}]", eisUrl);
 
         // If the EIS url is not configured, then we won't be able to interact with the service, so don't start the task.
-        if (running.get() == false && Strings.isNullOrEmpty(eisUrl) == false) {
+        if (Strings.isNullOrEmpty(eisUrl) == false && running.compareAndSet(false, true)) {
             logger.info("Starting authorization task executor");
-            running.set(true);
 
             if (createPersistentTask) {
                 sendStartRequest(clusterService.state());
@@ -131,7 +130,7 @@ public class AuthorizationTaskExecutor extends PersistentTasksExecutor<Authoriza
     }
 
     private void sendStartRequest(@Nullable ClusterState state) {
-        if (authorizationTaskExists(state)) {
+        if (running.get() == false || authorizationTaskExists(state)) {
             return;
         }
 

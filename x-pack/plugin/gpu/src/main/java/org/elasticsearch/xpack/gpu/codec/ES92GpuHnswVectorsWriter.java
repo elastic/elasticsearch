@@ -1,8 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0; you may not use this file except in compliance with the Elastic License
- * 2.0.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.xpack.gpu.codec;
@@ -42,6 +44,7 @@ import org.elasticsearch.index.codec.vectors.ES814ScalarQuantizedVectorsFormat;
 import org.elasticsearch.index.codec.vectors.reflect.VectorsFormatReflectionUtils;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
+import org.elasticsearch.xpack.gpu.GPUSupport;
 
 import java.io.IOException;
 import java.lang.foreign.Arena;
@@ -70,6 +73,9 @@ final class ES92GpuHnswVectorsWriter extends KnnVectorsWriter {
     private static final long SHALLOW_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(ES92GpuHnswVectorsWriter.class);
     private static final int LUCENE99_HNSW_DIRECT_MONOTONIC_BLOCK_SHIFT = 16;
     private static final long DIRECT_COPY_THRESHOLD_IN_BYTES = 128 * 1024 * 1024; // 128MB
+
+    // TODO: lower the numVectors threshold when to switch to IVF_PQ based on more benchmarks
+    private static final long MAX_NUM_VECTORS_FOR_NN_DESCENT = 5_000_000L;
 
     private final CuVSResourceManager cuVSResourceManager;
     private final SegmentWriteState segmentWriteState;
@@ -178,17 +184,15 @@ final class ES92GpuHnswVectorsWriter extends KnnVectorsWriter {
             var started = System.nanoTime();
             var fieldInfo = field.fieldInfo;
 
-            CagraIndexParams cagraIndexParams = createCagraIndexParams(fieldInfo.getVectorSimilarityFunction());
-
             var numVectors = field.flatFieldVectorsWriter.getVectors().size();
+            CagraIndexParams cagraIndexParams = createCagraIndexParams(
+                fieldInfo.getVectorSimilarityFunction(),
+                numVectors,
+                fieldInfo.getVectorDimension()
+            );
+
             if (numVectors < MIN_NUM_VECTORS_FOR_GPU_BUILD) {
-                if (logger.isDebugEnabled()) {
-                    logger.debug(
-                        "Skip building carga index; vectors length {} < {} (min for GPU)",
-                        numVectors,
-                        MIN_NUM_VECTORS_FOR_GPU_BUILD
-                    );
-                }
+                logger.debug("Skip building carga index; vectors length {} < {} (min for GPU)", numVectors, MIN_NUM_VECTORS_FOR_GPU_BUILD);
                 // Will not be indexed on the GPU
                 flushFieldWithMockGraph(fieldInfo, numVectors, sortMap);
             } else {
@@ -334,7 +338,7 @@ final class ES92GpuHnswVectorsWriter extends KnnVectorsWriter {
         return index;
     }
 
-    private CagraIndexParams createCagraIndexParams(VectorSimilarityFunction similarityFunction) {
+    private CagraIndexParams createCagraIndexParams(VectorSimilarityFunction similarityFunction, int numVectors, int dims) {
         CagraIndexParams.CuvsDistanceType distanceType = switch (similarityFunction) {
             case COSINE -> CagraIndexParams.CuvsDistanceType.CosineExpanded;
             case EUCLIDEAN -> CagraIndexParams.CuvsDistanceType.L2Expanded;
@@ -350,14 +354,50 @@ final class ES92GpuHnswVectorsWriter extends KnnVectorsWriter {
             }
         };
 
-        // TODO: expose cagra index params for algorithm, NNDescentNumIterations
-        return new CagraIndexParams.Builder().withNumWriterThreads(1) // TODO: how many CPU threads we can use?
-            .withCagraGraphBuildAlgo(CagraIndexParams.CagraGraphBuildAlgo.NN_DESCENT)
-            .withGraphDegree(M)
-            .withIntermediateGraphDegree(beamWidth)
-            .withNNDescentNumIterations(5)
-            .withMetric(distanceType)
-            .build();
+        int numCPUThreads = 1; // TODO: how many CPU threads we can use?
+        CagraIndexParams params;
+
+        boolean useIvfPQ = false;
+        // Check if we should use IVF_PQ based on vector count and distance type
+        // IVF_PQ doesn't support Cosine distance in CUVS 25.10
+        // TODO: Remove this check on distance when updating to CUVS 25.12+
+        if ((distanceType != CagraIndexParams.CuvsDistanceType.CosineExpanded) && (numVectors >= MAX_NUM_VECTORS_FOR_NN_DESCENT)) {
+            useIvfPQ = true;
+        }
+
+        // Check if we should use IVF_PQ due to insufficient GPU memory for NN_DESCENT
+        if ((useIvfPQ == false) && distanceType != CagraIndexParams.CuvsDistanceType.CosineExpanded) {
+            long totalDeviceMemory = GPUSupport.getTotalGpuMemory();
+            if (totalDeviceMemory > 0) {
+                long requiredMemoryForNnDescent = CuVSResourceManager.estimateNNDescentMemory(numVectors, dims, dataType);
+                if (requiredMemoryForNnDescent > totalDeviceMemory) {
+                    useIvfPQ = true;
+                    logger.debug(
+                        "Using IVF_PQ algorithm due to insufficient GPU memory for NN_DESCENT; required [{}B] > total [{}B]",
+                        requiredMemoryForNnDescent,
+                        totalDeviceMemory
+                    );
+                }
+            }
+        }
+
+        if (useIvfPQ) {
+            var ivfPqParams = CuVSIvfPqParamsFactory.create(numVectors, dims, distanceType, beamWidth);
+            params = new CagraIndexParams.Builder().withNumWriterThreads(numCPUThreads)
+                .withCagraGraphBuildAlgo(CagraIndexParams.CagraGraphBuildAlgo.IVF_PQ)
+                .withCuVSIvfPqParams(ivfPqParams)
+                .withMetric(distanceType)
+                .build();
+        } else {
+            params = new CagraIndexParams.Builder().withNumWriterThreads(numCPUThreads)
+                .withCagraGraphBuildAlgo(CagraIndexParams.CagraGraphBuildAlgo.NN_DESCENT)
+                .withGraphDegree(M)
+                .withIntermediateGraphDegree(beamWidth)
+                .withNNDescentNumIterations(5)
+                .withMetric(distanceType)
+                .build();
+        }
+        return params;
     }
 
     private HnswGraph writeGraph(CuVSMatrix cagraGraph, int[][] levelNodeOffsets) throws IOException {
@@ -515,7 +555,11 @@ final class ES92GpuHnswVectorsWriter extends KnnVectorsWriter {
             ? null
             : VectorsFormatReflectionUtils.getByteScoringSupplierVectorOrNull(randomScorerSupplier);
 
-        CagraIndexParams cagraIndexParams = createCagraIndexParams(fieldInfo.getVectorSimilarityFunction());
+        CagraIndexParams cagraIndexParams = createCagraIndexParams(
+            fieldInfo.getVectorSimilarityFunction(),
+            numVectors,
+            fieldInfo.getVectorDimension()
+        );
 
         if (vectorValues != null) {
             IndexInput slice = vectorValues.getSlice();
@@ -612,7 +656,11 @@ final class ES92GpuHnswVectorsWriter extends KnnVectorsWriter {
         var vectorValues = randomScorerSupplier == null
             ? null
             : VectorsFormatReflectionUtils.getFloatScoringSupplierVectorOrNull(randomScorerSupplier);
-        CagraIndexParams cagraIndexParams = createCagraIndexParams(fieldInfo.getVectorSimilarityFunction());
+        CagraIndexParams cagraIndexParams = createCagraIndexParams(
+            fieldInfo.getVectorSimilarityFunction(),
+            numVectors,
+            fieldInfo.getVectorDimension()
+        );
 
         if (vectorValues != null) {
             IndexInput slice = vectorValues.getSlice();

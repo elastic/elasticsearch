@@ -12,7 +12,10 @@ package org.elasticsearch.index.engine;
 import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.index.IndexDeletionPolicy;
 
+import java.io.IOException;
+import java.util.HashSet;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 public abstract class ElasticsearchIndexDeletionPolicy extends IndexDeletionPolicy {
 
@@ -45,5 +48,10 @@ public abstract class ElasticsearchIndexDeletionPolicy extends IndexDeletionPoli
         void onNewAcquiredCommit(IndexCommit commit, Set<String> additionalFiles);
 
         void onDeletedCommit(IndexCommit commit);
+
+        static Set<String> listOfNewFileNames(IndexCommit previous, IndexCommit current) throws IOException {
+            final Set<String> previousFiles = previous != null ? new HashSet<>(previous.getFileNames()) : Set.of();
+            return current.getFileNames().stream().filter(f -> previousFiles.contains(f) == false).collect(Collectors.toUnmodifiableSet());
+        }
     }
 }

@@ -341,8 +341,10 @@ public final class CharParser implements Parser {
                             }
                         } else {
                             // general string subToken
-                            ToIntFunction<SubstringView> subTokenBitmaskGenerator =
-                                delimiterParsingInfo.bitmaskGeneratorPerPosition[currentTokenSubTokenIndex];
+                            ToIntFunction<SubstringView> subTokenBitmaskGenerator = null;
+                            if (delimiterParsingInfo.bitmaskGeneratorPerPosition != null) {
+                                subTokenBitmaskGenerator = delimiterParsingInfo.bitmaskGeneratorPerPosition[currentTokenSubTokenIndex];
+                            }
                             if (subTokenBitmaskGenerator != null) {
                                 substringView.set(currentSubTokenStartIndex, currentSubTokenEndIndex);
                                 int substringBitmask = subTokenBitmaskGenerator.applyAsInt(substringView);

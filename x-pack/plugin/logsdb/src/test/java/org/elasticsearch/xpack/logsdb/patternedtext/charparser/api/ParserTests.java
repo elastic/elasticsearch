@@ -59,17 +59,17 @@ public class ParserTests extends ESTestCase {
     }
 
     public void testInvalidTimestamp() throws ParseException {
-        String messageWithTimestampIpAndNumber = "Oct 05 2023 02:48:07 PM INFO Response from 146.10.10.133 took 2000 ms";
-        List<Argument<?>> parsedArguments = parser.parse(messageWithTimestampIpAndNumber);
-        Parser.constructPattern(messageWithTimestampIpAndNumber, parsedArguments, patternedMessage, true);
+        String message = "Oct 05 2023 02:48:07 PM INFO Response from 146.10.10.133 took 2000 ms";
+        List<Argument<?>> parsedArguments = parser.parse(message);
+        Parser.constructPattern(message, parsedArguments, patternedMessage, true);
         // todo - add support for local time - based on java.time.LocalTime
         assertEquals("Oct %I %I %I:%I:%I PM INFO Response from %4 took %I ms", patternedMessage.toString());
     }
 
     public void testNumberArgumentsWithSign() throws ParseException {
-        String messageWithTimestampIpAndNumber = "-5 is negative, this:+10:-8 is both and this is positive: +20";
-        List<Argument<?>> parsedArguments = parser.parse(messageWithTimestampIpAndNumber);
-        Parser.constructPattern(messageWithTimestampIpAndNumber, parsedArguments, patternedMessage, true);
+        String message = "-5 is negative, this:+10:-8 is both and this is positive: +20";
+        List<Argument<?>> parsedArguments = parser.parse(message);
+        Parser.constructPattern(message, parsedArguments, patternedMessage, true);
         assertEquals("%I is negative, this:%I:%I is both and this is positive: %I", patternedMessage.toString());
         assertEquals(4, parsedArguments.size());
         Argument<?> argument = parsedArguments.getFirst();
@@ -88,5 +88,15 @@ public class ParserTests extends ESTestCase {
         assertThat(argument, instanceOf(IntegerArgument.class));
         assertEquals(Sign.PLUS, ((IntegerArgument) argument).sign());
         assertEquals(20, ((IntegerArgument) argument).value().intValue());
+    }
+
+    public void testFloatingPointArguments() throws ParseException {
+        String message = "-5.08 is one, and here is another: -1.09e-2";
+        List<Argument<?>> parsedArguments = parser.parse(message);
+        Parser.constructPattern(message, parsedArguments, patternedMessage, true);
+        assertEquals("%F is one, and here is another: %F", patternedMessage.toString());
+        assertEquals(2, parsedArguments.size());
+        Argument<?> argument = parsedArguments.getFirst();
+
     }
 }

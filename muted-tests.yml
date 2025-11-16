@@ -483,6 +483,9 @@ tests:
 - class: org.elasticsearch.upgrades.IndexSortUpgradeIT
   method: testIndexSortForNumericTypes {upgradedNodes=1}
   issue: https://github.com/elastic/elasticsearch/issues/138130
+- class: org.elasticsearch.xpack.downsample.DataStreamLifecycleDownsampleIT
+  method: testUpdateDownsampleSamplingMode
+  issue: https://github.com/elastic/elasticsearch/issues/138135
 
 # Examples:
 #

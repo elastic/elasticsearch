@@ -2639,8 +2639,6 @@ public class VerifierTests extends ESTestCase {
     }
 
     public void testDecayArgs() {
-        assumeTrue("Decay function not enabled", EsqlCapabilities.Cap.DECAY_FUNCTION.isEnabled());
-
         // First arg cannot be null
         assertEquals(
             "2:23: first argument of [decay(null, origin, scale, "

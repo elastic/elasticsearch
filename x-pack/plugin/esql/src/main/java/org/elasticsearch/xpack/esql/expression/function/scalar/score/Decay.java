@@ -124,7 +124,7 @@ public class Decay extends EsqlScalarFunction implements OptionalArgument, PostO
     @FunctionInfo(
         returnType = "double",
         preview = true,
-        appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW, version = "9.2.0") },
+        appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW, version = "9.3.0") },
         description = "Calculates a relevance score that decays based on the distance of a numeric, spatial or date type value "
             + "from a target origin, using configurable decay functions.",
         detailedDescription = """

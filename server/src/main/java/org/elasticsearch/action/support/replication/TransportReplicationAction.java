@@ -338,6 +338,9 @@ public abstract class TransportReplicationAction<
 
     /**
      * During Resharding, we might need to split the primary request.
+     * We are here because there was mismatch between the SplitShardCountSummary in the request
+     * and that on the primary shard node. We assume that the request is exactly 1 reshard split behind
+     * the current state.
      */
     protected Map<ShardId, Request> splitRequestOnPrimary(Request request) {
         return Map.of(request.shardId(), request);

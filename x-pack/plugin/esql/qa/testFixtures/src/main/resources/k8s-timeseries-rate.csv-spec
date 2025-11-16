@@ -39,7 +39,7 @@ rate_bytes_in:double | cluster:keyword | time_bucket:datetime
 
 rate_with_window
 required_capability: ts_command_v0
-required_capability: time_series_window
+required_capability: time_series_window_v0
 // tag::rate_with_window[]
 TS k8s
 | WHERE TRANGE("2024-05-10T00:05:00.000Z", "2024-05-10T00:10:00.000Z")

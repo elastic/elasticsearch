@@ -1670,7 +1670,7 @@ public class EsqlCapabilities {
         /**
          * Support grouping window in time-series for example: rate(counter, "1m") or avg_over_time(field, "5m")
          */
-        TIME_SERIES_WINDOW,
+        TIME_SERIES_WINDOW_V0,
 
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.

@@ -191,7 +191,7 @@ events:double      | pod:keyword | time_bucket:datetime
 
 avg_over_time_with_window
 required_capability: ts_command_v0
-required_capability: time_series_window
+required_capability: time_series_window_v0
 // tag::avg_over_time_with_window[]
 TS k8s 
 | STATS events = sum(avg_over_time(events_received, 10minute)) by pod, time_bucket = tbucket(5minute)

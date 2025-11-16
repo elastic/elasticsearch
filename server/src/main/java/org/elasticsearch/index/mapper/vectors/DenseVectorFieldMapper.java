@@ -3486,6 +3486,8 @@ public class DenseVectorFieldMapper extends FieldMapper {
         private final byte[] vectorAsBytes;
 
         public VectorSimilarityFunctionConfig(SimilarityFunction similarityFunction, float[] vector) {
+            Objects.requireNonNull(vector);
+            assert vector.length > 0 : "vector length must be > 0";
             this.similarityFunction = similarityFunction;
             this.vector = vector;
             this.vectorAsBytes = null;

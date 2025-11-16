@@ -1295,6 +1295,11 @@ public class EsqlCapabilities {
         SET_COMMAND,
 
         /**
+         * Support timezones in DATE_TRUNC and dependent functions.
+         */
+        DATE_TRUNC_TIMEZONE_SUPPORT(Build.current().isSnapshot()),
+
+        /**
          * (Re)Added EXPLAIN command
          */
         EXPLAIN(Build.current().isSnapshot()),
@@ -1653,6 +1658,16 @@ public class EsqlCapabilities {
          * Support for exponential_histogram type in PERCENTILES aggregation.
          */
         EXPONENTIAL_HISTOGRAM_PERCENTILES_SUPPORT(EXPONENTIAL_HISTOGRAM_FEATURE_FLAG),
+
+        /**
+         * Support for the temporary work to eventually allow FIRST to work with null and multi-value fields, among other things.
+         */
+        ALL_FIRST(Build.current().isSnapshot()),
+
+        /**
+         * Allow ST_EXTENT_AGG to gracefully handle missing spatial shapes
+         */
+        ST_EXTENT_AGG_NULL_SUPPORT,
 
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.

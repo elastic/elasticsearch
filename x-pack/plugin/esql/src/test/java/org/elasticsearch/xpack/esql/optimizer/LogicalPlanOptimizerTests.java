@@ -9670,4 +9670,52 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         EsRelation relation = as(filter.child(), EsRelation.class);
         assertEquals("test", relation.indexPattern());
     }
+
+    /*
+     * Renaming or shadowing the @timestamp field prior to running stats with TS command is not allowed.
+     */
+    public void testTranslateMetricsAfterRenamingTimestamp() {
+        assertThat(
+            expectThrows(
+                IllegalArgumentException.class,
+                () -> logicalOptimizerWithLatestVersion.optimize(metricsAnalyzer.analyze(parser.createStatement("""
+                    TS k8s |
+                    EVAL @timestamp = region |
+                    STATS max(network.cost), count(network.eth0.rx)
+                    """)))
+            ).getMessage(),
+            containsString("""
+                Functions [count(network.eth0.rx), max(network.cost)] require a @timestamp field of type date or date_nanos \
+                to be present when run with the TS command, but it was not present.""")
+        );
+
+        assertThat(
+            expectThrows(
+                IllegalArgumentException.class,
+                () -> logicalOptimizerWithLatestVersion.optimize(metricsAnalyzer.analyze(parser.createStatement("""
+                    TS k8s |
+                    DISSECT event "%{@timestamp} %{network.total_bytes_in}" |
+                    STATS ohxqxpSqEZ = avg(network.eth0.currently_connected_clients)
+                    """)))
+            ).getMessage(),
+            containsString("""
+                Function [avg(network.eth0.currently_connected_clients)] requires a @timestamp field of type date or date_nanos \
+                to be present when run with the TS command, but it was not present.""")
+        );
+
+        // we may want to allow this later
+        assertThat(
+            expectThrows(
+                IllegalArgumentException.class,
+                () -> logicalOptimizerWithLatestVersion.optimize(metricsAnalyzer.analyze(parser.createStatement("""
+                    TS k8s |
+                    EVAL `@timestamp` = @timestamp + 1day |
+                    STATS std_dev(network.eth0.currently_connected_clients)
+                    """)))
+            ).getMessage(),
+            containsString("""
+                Function [std_dev(network.eth0.currently_connected_clients)] requires a @timestamp field of type date or date_nanos \
+                to be present when run with the TS command, but it was not present.""")
+        );
+    }
 }

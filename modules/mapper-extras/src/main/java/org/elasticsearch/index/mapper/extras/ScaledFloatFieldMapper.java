@@ -722,7 +722,13 @@ public class ScaledFloatFieldMapper extends FieldMapper {
         }
         long scaledValue = encode(doubleValue, scalingFactor);
 
-        NumberFieldMapper.NumberType.LONG.addFields(context.doc(), fieldType().name(), scaledValue, indexed, hasDocValues, stored);
+        NumberFieldMapper.NumberType.LONG.addFields(
+            context.doc(),
+            fieldType().name(),
+            scaledValue,
+            IndexType.points(indexed, hasDocValues),
+            stored
+        );
 
         if (shouldStoreOffsets) {
             context.getOffSetContext().recordOffset(offsetsFieldName, scaledValue);

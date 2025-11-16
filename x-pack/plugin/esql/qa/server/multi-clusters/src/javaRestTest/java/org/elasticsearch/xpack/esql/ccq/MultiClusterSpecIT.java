@@ -101,16 +101,7 @@ public class MultiClusterSpecIT extends EsqlSpecTestCase {
         CsvTestCase testCase,
         String instructions
     ) {
-        super(
-            fileName,
-            groupName,
-            testName,
-            lineNumber,
-            testCase.requiredCapabilities.contains(SUBQUERY_IN_FROM_COMMAND.capabilityName())
-                ? convertSubqueryToRemoteIndices(testCase)
-                : convertToRemoteIndices(testCase),
-            instructions
-        );
+        super(fileName, groupName, testName, lineNumber, convertToRemoteIndices(testCase), instructions);
     }
 
     // TODO: think how to handle this better
@@ -306,6 +297,9 @@ public class MultiClusterSpecIT extends EsqlSpecTestCase {
         if (dataLocation == null) {
             dataLocation = randomFrom(DataLocation.values());
         }
+        if (testCase.requiredCapabilities.contains(SUBQUERY_IN_FROM_COMMAND.capabilityName())) {
+            return convertSubqueryToRemoteIndices(testCase);
+        }
         String query = testCase.query;
         String[] commands = query.split("\\|");
         String first = commands[0].trim();
@@ -447,25 +441,21 @@ public class MultiClusterSpecIT extends EsqlSpecTestCase {
             // substitute the index patterns or subquery with remote index patterns
             if (isSubquery(indexPatternOrSubquery)) {
                 // it's a subquery, we need to process it recursively
-                String subquery = indexPatternOrSubquery.substring(1, indexPatternOrSubquery.length() - 1);
+                String subquery = indexPatternOrSubquery.strip().substring(1, indexPatternOrSubquery.length() - 1);
                 String transformedSubquery = convertSubqueryToRemoteIndices(subquery);
                 transformed.add("(" + transformedSubquery + ")");
             } else {
                 // It's an index pattern, we need to convert it to remote index pattern.
-                // indexPatternOrSubquery could be a comma separated list of indices, we need to process each index separately
-                List<String> indexPatterns = splitIgnoringParentheses(indexPatternOrSubquery, ",");
-                String remoteIndex = indexPatterns.stream()
-                    .map(String::strip)
-                    // Data is loaded on one of the clusters not both, remote only may not guarantee data is found on the remote cluster.
-                    .map(index -> unquoteAndRequoteAsRemote(index, false))
-                    .collect(Collectors.joining(","));
+                String remoteIndex = unquoteAndRequoteAsRemote(indexPatternOrSubquery, false);
                 transformed.add(remoteIndex);
             }
         }
         // rebuild from command from transformed index patterns and subqueries
-        String transformedFrom = "from " + String.join(", ", transformed) + metadata;
+        String transformedFrom = "FROM " + String.join(", ", transformed) + metadata;
         // rebuild the whole query
-        testQuery = transformedFrom + (theRest.isEmpty() ? "" : " | " + String.join(" | ", theRest));
+        // testQuery = transformedFrom + (theRest.isEmpty() ? "" : " | " + String.join(" | ", theRest));
+        mainFromCommandAndTheRest.set(0, transformedFrom);
+        testQuery = String.join(" | ", mainFromCommandAndTheRest);
 
         LOGGER.trace("Transform query: \nFROM: {}\nTO:   {}", query, testQuery);
         return testQuery;

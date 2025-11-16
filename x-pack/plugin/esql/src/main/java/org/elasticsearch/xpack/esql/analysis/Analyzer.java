@@ -2753,7 +2753,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         }
 
         /**
-         * Update the attributes referencing the updated UnionAll output
+         * Update the attributes referencing the updated UnionAll output.
          */
         private static LogicalPlan updateAttributesReferencingUpdatedUnionAllOutput(
             LogicalPlan plan,
@@ -2767,6 +2767,21 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         }
     }
 
+    /**
+     * Prune branches of a UnionAll that resolve to empty subqueries.
+     * For example, given the following plan, the index resolution of 'remote:missingIndex' is EMPTY_SUBQUERY:
+     * UnionAll[[]]
+     * |_EsRelation[test][...]
+     * |_Subquery[]
+     * | \_UnresolvedRelation[remote:missingIndex]
+     * \_Subquery[]
+     *   \_EsRelation[sample_data][...]
+     * The branch with EMPTY_SUBQUERY index resolution is pruned in the plan after the rule is applied:
+     * UnionAll[[]]
+     * |_EsRelation[test][...]
+     * \_Subquery[]
+     *   \_EsRelation[sample_data][...]
+     */
     private static class PruneEmptyUnionAllBranch extends ParameterizedAnalyzerRule<UnionAll, AnalyzerContext> {
 
         @Override
@@ -2779,7 +2794,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 Holder<Boolean> isEmptySubquery = new Holder<>(Boolean.FALSE);
                 child.forEachUp(UnresolvedRelation.class, ur -> {
                     IndexResolution resolution = indexResolutions.get(ur.indexPattern());
-                    if (resolution != null && resolution == IndexResolution.EMPTY_SUBQUERY) {
+                    if (resolution == IndexResolution.EMPTY_SUBQUERY) {
                         isEmptySubquery.set(Boolean.TRUE);
                     }
                 });

@@ -486,8 +486,22 @@ public class ComputeService {
                 // starts computes on remote clusters
                 final var remoteClusters = clusterComputeHandler.getRemoteClusters(clusterToConcreteIndices, clusterToOriginalIndices);
                 for (ClusterComputeHandler.RemoteCluster cluster : remoteClusters) {
-                    if (execInfo.getCluster(cluster.clusterAlias()).getStatus() != EsqlExecutionInfo.Cluster.Status.RUNNING) {
+                    EsqlExecutionInfo.Cluster.Status clusterStatus = execInfo.getCluster(cluster.clusterAlias()).getStatus();
+                    // The cluster status could be changed by ClusterComputeHandler on a previous fork/subquery branch to SUCCESSFUL
+                    // or PARTIAL. So SUCCESSFUL could mean the previous branch succeeded, but not necessarily the whole query succeeded.
+                    // If the previous branch succeeded, the subsequent branches should still continue, so that the query doesn't
+                    // miss the results from a branch and return wrong results. Both RUNNING and SUCCESSFUL mean we should continue
+                    // processing the next compute on remote cluster in the queue. If it is partial, it is fine to skip the subsequent
+                    // branches as something went wrong already.
+                    if (clusterStatus != EsqlExecutionInfo.Cluster.Status.RUNNING
+                        && clusterStatus != EsqlExecutionInfo.Cluster.Status.SUCCESSFUL) {
                         // if the cluster is already in the terminal state from the planning stage, no need to call it
+                        LOGGER.trace(
+                            "skipping remote cluster [{}] with status [{}] on plan {}",
+                            cluster.clusterAlias(),
+                            clusterStatus,
+                            dataNodePlan
+                        );
                         continue;
                     }
                     clusterComputeHandler.startComputeOnRemoteCluster(

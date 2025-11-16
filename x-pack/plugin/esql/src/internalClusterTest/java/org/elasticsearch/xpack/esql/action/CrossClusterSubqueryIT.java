@@ -7,9 +7,6 @@
 
 package org.elasticsearch.xpack.esql.action;
 
-import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
-import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequestBuilder;
-import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.index.query.RangeQueryBuilder;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.junit.Before;
@@ -23,11 +20,8 @@ import java.util.List;
 import java.util.Locale;
 
 import static org.elasticsearch.core.TimeValue.timeValueSeconds;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.getValuesList;
 import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.empty;
-import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasItems;
 import static org.hamcrest.Matchers.hasSize;
@@ -35,14 +29,16 @@ import static org.hamcrest.Matchers.hasSize;
 // @TestLogging(value = "org.elasticsearch.xpack.esql.session:DEBUG", reason = "to better understand planning")
 public class CrossClusterSubqueryIT extends AbstractCrossClusterTestCase {
 
+    private static final String REMOTE_CLUSTER_1_INDEX = REMOTE_CLUSTER_1 + ":" + REMOTE_INDEX;
+    private static final String REMOTE_CLUSTER_2_INDEX = REMOTE_CLUSTER_2 + ":" + REMOTE_INDEX;
+
     @Before
-    public void checkSubqueryInFromCommandSupport() {
+    public void checkSubqueryInFromCommandSupport() throws IOException {
         assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
+        setupClusters(3);
     }
 
-    public void testSubquery() throws IOException {
-        setupClusters(3);
-
+    public void testSubquery() {
         try (EsqlQueryResponse resp = runQuery("""
             FROM (FROM logs-* metadata _index),(FROM *:logs-* metadata _index)
             | SORT _index, id
@@ -61,11 +57,11 @@ public class CrossClusterSubqueryIT extends AbstractCrossClusterTestCase {
                 assertNull(row.get(constIndex));
                 String indexName = (String) row.get(indexIndex);
                 if (i < 10) {
-                    assertEquals("cluster-a:logs-2", indexName);
+                    assertEquals(REMOTE_CLUSTER_1_INDEX, indexName);
                 } else if (i < 20) {
-                    assertEquals("logs-1", indexName);
+                    assertEquals(LOCAL_INDEX, indexName);
                 } else {
-                    assertEquals("remote-b:logs-2", indexName);
+                    assertEquals(REMOTE_CLUSTER_2_INDEX, indexName);
                 }
                 assertThat((Long) row.get(vIndex), greaterThanOrEqualTo(0L));
             }
@@ -75,11 +71,11 @@ public class CrossClusterSubqueryIT extends AbstractCrossClusterTestCase {
         }
     }
 
-    public void testSubqueryWithAliases() throws IOException {
-        setupClusters(3);
-        setupAlias(LOCAL_CLUSTER, "logs-1", "logs-a");
-        setupAlias(REMOTE_CLUSTER_1, "logs-2", "logs-a");
-        setupAlias(REMOTE_CLUSTER_2, "logs-2", "logs-a");
+    public void testSubqueryWithAliases() {
+        String ALIAS = "logs-a";
+        setupAlias(LOCAL_CLUSTER, LOCAL_INDEX, ALIAS);
+        setupAlias(REMOTE_CLUSTER_1, REMOTE_INDEX, ALIAS);
+        setupAlias(REMOTE_CLUSTER_2, REMOTE_INDEX, ALIAS);
 
         try (EsqlQueryResponse resp = runQuery("""
             FROM logs-a,(FROM *:logs-a metadata _index) metadata _index
@@ -92,9 +88,9 @@ public class CrossClusterSubqueryIT extends AbstractCrossClusterTestCase {
             List<List<Object>> values = getValuesList(resp);
             assertThat(values, hasSize(3));
             List<List<Object>> expected = List.of(
-                List.of(10L, "cluster-a:logs-2"),
-                List.of(10L, "logs-1"),
-                List.of(10L, "remote-b:logs-2")
+                List.of(10L, REMOTE_CLUSTER_1_INDEX),
+                List.of(10L, LOCAL_INDEX),
+                List.of(10L, REMOTE_CLUSTER_2_INDEX)
             );
             assertEquals(expected, values);
 
@@ -103,9 +99,7 @@ public class CrossClusterSubqueryIT extends AbstractCrossClusterTestCase {
         }
     }
 
-    public void testSubqueryWithDateMath() throws IOException {
-        setupClusters(3);
-
+    public void testSubqueryWithDateMath() {
         ZonedDateTime nowUtc = ZonedDateTime.now(ZoneOffset.UTC);
         ZonedDateTime nextMidnight = nowUtc.plusDays(1).withHour(0).withMinute(0).withSecond(0).withNano(0);
         // If we're too close to midnight, we could create index with one day and query with another, and it'd fail.
@@ -136,13 +130,16 @@ public class CrossClusterSubqueryIT extends AbstractCrossClusterTestCase {
         }
     }
 
-    public void testSubqueryWithMissingRemoteIndexSkipUnavailableTrue() throws IOException {
-        setupClusters(3);
+    /*
+     * Validate Analyzer.PruneEmptyUnionAllBranch
+     */
+    public void testSubqueryWithMissingRemoteIndexSkipUnavailableTrue() {
         populateIndex(LOCAL_CLUSTER, "local_idx", randomIntBetween(1, 5), 5);
         populateIndex(REMOTE_CLUSTER_2, "remote_idx", randomIntBetween(1, 5), 5);
 
         try {
             setSkipUnavailable(REMOTE_CLUSTER_1, true);
+            // all subqueries have at least one index matching the index pattern, query succeeds
             try (EsqlQueryResponse resp = runQuery("""
                 FROM local*,(FROM *:remote* metadata _index) metadata _index
                 | STATS c = count(*) by _index
@@ -153,21 +150,15 @@ public class CrossClusterSubqueryIT extends AbstractCrossClusterTestCase {
 
                 List<List<Object>> values = getValuesList(resp);
                 assertThat(values, hasSize(2));
-                List<List<Object>> expected = List.of(List.of(5L, "local_idx"), List.of(5L, "remote-b:remote_idx"));
+                List<List<Object>> expected = List.of(List.of(5L, "local_idx"), List.of(5L, REMOTE_CLUSTER_2 + ":remote_idx"));
                 assertEquals(expected, values);
 
                 EsqlExecutionInfo executionInfo = resp.getExecutionInfo();
-
-                var localCluster = executionInfo.getCluster(LOCAL_CLUSTER);
-                assertThat(localCluster.getStatus(), equalTo(EsqlExecutionInfo.Cluster.Status.SUCCESSFUL));
-                var remoteCluster = executionInfo.getCluster(REMOTE_CLUSTER_2);
-                assertThat(localCluster.getStatus(), equalTo(EsqlExecutionInfo.Cluster.Status.SUCCESSFUL));
-                remoteCluster = executionInfo.getCluster(REMOTE_CLUSTER_1);
-                assertThat(remoteCluster.getStatus(), equalTo(EsqlExecutionInfo.Cluster.Status.SUCCESSFUL));
-                assertThat(remoteCluster.getFailures(), empty());
+                assertCCSExecutionInfoDetails(executionInfo);
             }
 
-            // The subquery does not have any index matching the index pattern, Analyzer prunes that branch.
+            // One subquery on remote cluster 1 does not have any index matching the index pattern,
+            // remote cluster 1 is marked as skipped in executionInfo and Analyzer prunes that branch.
             try (EsqlQueryResponse resp = runQuery("""
                 FROM local*,
                     (FROM c*:remote* metadata _index),
@@ -181,20 +172,15 @@ public class CrossClusterSubqueryIT extends AbstractCrossClusterTestCase {
 
                 List<List<Object>> values = getValuesList(resp);
                 assertThat(values, hasSize(2));
-                List<List<Object>> expected = List.of(List.of(5L, "local_idx"), List.of(5L, "remote-b:remote_idx"));
+                List<List<Object>> expected = List.of(List.of(5L, "local_idx"), List.of(5L, REMOTE_CLUSTER_2 + ":remote_idx"));
                 assertEquals(expected, values);
 
                 EsqlExecutionInfo executionInfo = resp.getExecutionInfo();
-
-                var localCluster = executionInfo.getCluster(LOCAL_CLUSTER);
-                assertThat(localCluster.getStatus(), equalTo(EsqlExecutionInfo.Cluster.Status.SUCCESSFUL));
-                var remoteCluster = executionInfo.getCluster(REMOTE_CLUSTER_2);
-                assertThat(localCluster.getStatus(), equalTo(EsqlExecutionInfo.Cluster.Status.SUCCESSFUL));
-                remoteCluster = executionInfo.getCluster(REMOTE_CLUSTER_1);
-                assertThat(remoteCluster.getStatus(), equalTo(EsqlExecutionInfo.Cluster.Status.SKIPPED));
-                assertThat(remoteCluster.getFailures(), empty());
+                assertRemoteCluster1SkippedInCCSExecutionInfo(executionInfo);
             }
 
+            // Multiple subqueries on remote cluster 1 do not have any index matching the index pattern,
+            // remote cluster 1 is marked as skipped in executionInfo and Analyzer prunes those branches.
             try (EsqlQueryResponse resp = runQuery("""
                 FROM local*,
                     (FROM c*:remote* metadata _index),
@@ -209,48 +195,15 @@ public class CrossClusterSubqueryIT extends AbstractCrossClusterTestCase {
 
                 List<List<Object>> values = getValuesList(resp);
                 assertThat(values, hasSize(2));
-                List<List<Object>> expected = List.of(List.of(5L, "local_idx"), List.of(5L, "remote-b:remote_idx"));
+                List<List<Object>> expected = List.of(List.of(5L, "local_idx"), List.of(5L, REMOTE_CLUSTER_2 + ":remote_idx"));
                 assertEquals(expected, values);
 
                 EsqlExecutionInfo executionInfo = resp.getExecutionInfo();
-
-                var localCluster = executionInfo.getCluster(LOCAL_CLUSTER);
-                assertThat(localCluster.getStatus(), equalTo(EsqlExecutionInfo.Cluster.Status.SUCCESSFUL));
-                var remoteCluster = executionInfo.getCluster(REMOTE_CLUSTER_2);
-                assertThat(localCluster.getStatus(), equalTo(EsqlExecutionInfo.Cluster.Status.SUCCESSFUL));
-                remoteCluster = executionInfo.getCluster(REMOTE_CLUSTER_1);
-                assertThat(remoteCluster.getStatus(), equalTo(EsqlExecutionInfo.Cluster.Status.SKIPPED));
-                assertThat(remoteCluster.getFailures(), empty());
+                assertRemoteCluster1SkippedInCCSExecutionInfo(executionInfo);
             }
 
-            try (EsqlQueryResponse resp = runQuery("""
-                FROM local*,
-                    (FROM c*:remote*, c*:missing metadata _index),
-                    (FROM c*:missing* metadata _index),
-                    (FROM r*:remote* metadata _index)
-                  metadata _index
-                | STATS c = count(*) by _index
-                | SORT _index
-                """, randomBoolean())) {
-                var columns = resp.columns().stream().map(ColumnInfoImpl::name).toList();
-                assertThat(columns, hasItems("c", "_index"));
-
-                List<List<Object>> values = getValuesList(resp);
-                assertThat(values, hasSize(2));
-                List<List<Object>> expected = List.of(List.of(5L, "local_idx"), List.of(5L, "remote-b:remote_idx"));
-                assertEquals(expected, values);
-
-                EsqlExecutionInfo executionInfo = resp.getExecutionInfo();
-
-                var localCluster = executionInfo.getCluster(LOCAL_CLUSTER);
-                assertThat(localCluster.getStatus(), equalTo(EsqlExecutionInfo.Cluster.Status.SUCCESSFUL));
-                var remoteCluster = executionInfo.getCluster(REMOTE_CLUSTER_2);
-                assertThat(localCluster.getStatus(), equalTo(EsqlExecutionInfo.Cluster.Status.SUCCESSFUL));
-                remoteCluster = executionInfo.getCluster(REMOTE_CLUSTER_1);
-                assertThat(remoteCluster.getStatus(), equalTo(EsqlExecutionInfo.Cluster.Status.SKIPPED));
-                assertThat(remoteCluster.getFailures(), empty());
-            }
-
+            // Some subqueries on remote cluster 1 have indexes matching the index pattern, some don't
+            // remote cluster 1 is marked as successful in executionInfo and Analyzer keeps prunes empty branches.
             try (EsqlQueryResponse resp = runQuery("""
                 FROM local*,
                     (FROM c*:remote* metadata _index),
@@ -266,21 +219,14 @@ public class CrossClusterSubqueryIT extends AbstractCrossClusterTestCase {
                 List<List<Object>> values = getValuesList(resp);
                 assertThat(values, hasSize(3));
                 List<List<Object>> expected = List.of(
-                    List.of(10L, "cluster-a:logs-2"),
+                    List.of(10L, REMOTE_CLUSTER_1_INDEX),
                     List.of(5L, "local_idx"),
-                    List.of(5L, "remote-b:remote_idx")
+                    List.of(5L, REMOTE_CLUSTER_2 + ":remote_idx")
                 );
                 assertEquals(expected, values);
 
                 EsqlExecutionInfo executionInfo = resp.getExecutionInfo();
-
-                var localCluster = executionInfo.getCluster(LOCAL_CLUSTER);
-                assertThat(localCluster.getStatus(), equalTo(EsqlExecutionInfo.Cluster.Status.SUCCESSFUL));
-                var remoteCluster = executionInfo.getCluster(REMOTE_CLUSTER_2);
-                assertThat(localCluster.getStatus(), equalTo(EsqlExecutionInfo.Cluster.Status.SUCCESSFUL));
-                remoteCluster = executionInfo.getCluster(REMOTE_CLUSTER_1);
-                assertThat(remoteCluster.getStatus(), equalTo(EsqlExecutionInfo.Cluster.Status.SUCCESSFUL));
-                assertThat(remoteCluster.getFailures(), empty());
+                assertCCSExecutionInfoDetails(executionInfo);
             }
 
             try (EsqlQueryResponse resp = runQuery("""
@@ -297,24 +243,17 @@ public class CrossClusterSubqueryIT extends AbstractCrossClusterTestCase {
                 List<List<Object>> values = getValuesList(resp);
                 assertThat(values, hasSize(3));
                 List<List<Object>> expected = List.of(
-                    List.of(10L, "cluster-a:logs-2"),
+                    List.of(10L, REMOTE_CLUSTER_1_INDEX),
                     List.of(5L, "local_idx"),
-                    List.of(5L, "remote-b:remote_idx")
+                    List.of(5L, REMOTE_CLUSTER_2 + ":remote_idx")
                 );
                 assertEquals(expected, values);
 
                 EsqlExecutionInfo executionInfo = resp.getExecutionInfo();
-
-                var localCluster = executionInfo.getCluster(LOCAL_CLUSTER);
-                assertThat(localCluster.getStatus(), equalTo(EsqlExecutionInfo.Cluster.Status.SUCCESSFUL));
-                var remoteCluster = executionInfo.getCluster(REMOTE_CLUSTER_2);
-                assertThat(localCluster.getStatus(), equalTo(EsqlExecutionInfo.Cluster.Status.SUCCESSFUL));
-                remoteCluster = executionInfo.getCluster(REMOTE_CLUSTER_1);
-                assertThat(remoteCluster.getStatus(), equalTo(EsqlExecutionInfo.Cluster.Status.SUCCESSFUL));
-                assertThat(remoteCluster.getFailures(), empty());
+                assertCCSExecutionInfoDetails(executionInfo);
             }
 
-            // If there is no valid subquery, Analyzer's verifier fails on the query.
+            // If there is no subquery with matching index pattern, Analyzer's verifier fails on the query.
             var ex = expectThrows(VerificationException.class, () -> runQuery("""
                 FROM (FROM c*:remote* metadata _index),(FROM c*:missing* metadata _index) metadata _index
                 | STATS c = count(*) by _index
@@ -328,13 +267,13 @@ public class CrossClusterSubqueryIT extends AbstractCrossClusterTestCase {
         }
     }
 
-    public void testSubqueryWithMissingRemoteIndexSkipUnavailableFalse() throws IOException {
-        setupClusters(3);
+    public void testSubqueryWithMissingRemoteIndexSkipUnavailableFalse() {
         populateIndex(LOCAL_CLUSTER, "local_idx", randomIntBetween(1, 5), 5);
         populateIndex(REMOTE_CLUSTER_2, "remote_idx", randomIntBetween(1, 5), 5);
 
         try {
             setSkipUnavailable(REMOTE_CLUSTER_1, false);
+            // All subqueries have matching index patterns, the query succeeds
             try (EsqlQueryResponse resp = runQuery("""
                 FROM local*,(FROM *:remote* metadata _index) metadata _index
                 | STATS c = count(*) by _index
@@ -345,21 +284,14 @@ public class CrossClusterSubqueryIT extends AbstractCrossClusterTestCase {
 
                 List<List<Object>> values = getValuesList(resp);
                 assertThat(values, hasSize(2));
-                List<List<Object>> expected = List.of(List.of(5L, "local_idx"), List.of(5L, "remote-b:remote_idx"));
+                List<List<Object>> expected = List.of(List.of(5L, "local_idx"), List.of(5L, REMOTE_CLUSTER_2 + ":remote_idx"));
                 assertEquals(expected, values);
 
                 EsqlExecutionInfo executionInfo = resp.getExecutionInfo();
-
-                var localCluster = executionInfo.getCluster(LOCAL_CLUSTER);
-                assertThat(localCluster.getStatus(), equalTo(EsqlExecutionInfo.Cluster.Status.SUCCESSFUL));
-                var remoteCluster = executionInfo.getCluster(REMOTE_CLUSTER_2);
-                assertThat(localCluster.getStatus(), equalTo(EsqlExecutionInfo.Cluster.Status.SUCCESSFUL));
-                remoteCluster = executionInfo.getCluster(REMOTE_CLUSTER_1);
-                assertThat(remoteCluster.getStatus(), equalTo(EsqlExecutionInfo.Cluster.Status.SUCCESSFUL));
-                assertThat(remoteCluster.getFailures(), empty());
+                assertCCSExecutionInfoDetails(executionInfo);
             }
 
-            // The subquery does not have any index matching the index pattern, Analyzer's verifier fails on the branch.
+            // The subquery does not have any index matching the index pattern, Analyzer's verifier fails.
             var ex = expectThrows(VerificationException.class, () -> runQuery("""
                 FROM (FROM c*:remote* metadata _index),(FROM r*:remote* metadata _index) metadata _index
                 | STATS c = count(*) by _index
@@ -371,13 +303,12 @@ public class CrossClusterSubqueryIT extends AbstractCrossClusterTestCase {
         }
     }
 
-    public void testSubqueryWithMissingLocalIndex() throws IOException {
-        setupClusters(3);
+    public void testSubqueryWithMissingLocalIndex() {
         populateIndex(REMOTE_CLUSTER_1, "remote_idx", randomIntBetween(1, 5), 5);
         populateIndex(REMOTE_CLUSTER_2, "remote_idx", randomIntBetween(1, 5), 5);
 
-        // no local index exists, the query should fail regardless skipUnavailable=true or false,
-        // index resolution in Analyzer will fail on the branch anyway, it does not prune the branch with missing indices
+        // no local index exists, the query fail regardless skipUnavailable=true or false,
+        // index resolution in Analyzer will fail on the branch, it does not prune the branch with missing indices
         var ex = expectThrows(VerificationException.class, () -> runQuery("""
             FROM  local*,(FROM *:remote* metadata _index) metadata _index
             | STATS c = count(*) by _index
@@ -403,30 +334,20 @@ public class CrossClusterSubqueryIT extends AbstractCrossClusterTestCase {
             List<List<Object>> values = getValuesList(resp);
             assertThat(values, hasSize(5));
             List<List<Object>> expected = List.of(
-                List.of(10L, "cluster-a:logs-2"),
-                List.of(5L, "cluster-a:remote_idx"),
-                List.of(10L, "logs-1"),
-                List.of(10L, "remote-b:logs-2"),
-                List.of(5L, "remote-b:remote_idx")
+                List.of(10L, REMOTE_CLUSTER_1_INDEX),
+                List.of(5L, REMOTE_CLUSTER_1 + ":remote_idx"),
+                List.of(10L, LOCAL_INDEX),
+                List.of(10L, REMOTE_CLUSTER_2_INDEX),
+                List.of(5L, REMOTE_CLUSTER_2 + ":remote_idx")
             );
             assertEquals(expected, values);
 
             EsqlExecutionInfo executionInfo = resp.getExecutionInfo();
-
-            var localCluster = executionInfo.getCluster(LOCAL_CLUSTER);
-            assertThat(localCluster.getStatus(), equalTo(EsqlExecutionInfo.Cluster.Status.SUCCESSFUL));
-            var remoteCluster = executionInfo.getCluster(REMOTE_CLUSTER_2);
-            assertThat(localCluster.getStatus(), equalTo(EsqlExecutionInfo.Cluster.Status.SUCCESSFUL));
-            remoteCluster = executionInfo.getCluster(REMOTE_CLUSTER_1);
-            // This is successful, given the index does not exist on remote-1 but exists on remote-2, is this as expected?
-            assertThat(remoteCluster.getStatus(), equalTo(EsqlExecutionInfo.Cluster.Status.SUCCESSFUL));
-            assertThat(remoteCluster.getFailures(), empty());
+            assertCCSExecutionInfoDetails(executionInfo);
         }
     }
 
-    public void testSubqueryWithFilter() throws IOException {
-        setupClusters(3);
-
+    public void testSubqueryWithFilter() {
         try (EsqlQueryResponse resp = runQuery("""
             FROM
                 (FROM logs-* metadata _index | where v > 5),
@@ -440,20 +361,18 @@ public class CrossClusterSubqueryIT extends AbstractCrossClusterTestCase {
 
             List<List<Object>> values = getValuesList(resp);
             List<List<Object>> expected = List.of(
-                List.of("remote", 4L, "cluster-a:logs-2"),
-                List.of("local", 6L, "logs-1"),
-                List.of("remote", 4L, "remote-b:logs-2")
+                List.of("remote", 4L, REMOTE_CLUSTER_1_INDEX),
+                List.of("local", 6L, LOCAL_INDEX),
+                List.of("remote", 4L, REMOTE_CLUSTER_2_INDEX)
             );
-            assertTrue(values.equals(expected));
+            assertEquals(expected, values);
 
             EsqlExecutionInfo executionInfo = resp.getExecutionInfo();
             assertCCSExecutionInfoDetails(executionInfo);
         }
     }
 
-    public void testSubqueryWithFullTextFunctionInFilter() throws IOException {
-        setupClusters(3);
-
+    public void testSubqueryWithFullTextFunctionInFilter() {
         try (EsqlQueryResponse resp = runQuery("""
             FROM
                 logs-*,
@@ -468,21 +387,46 @@ public class CrossClusterSubqueryIT extends AbstractCrossClusterTestCase {
 
             List<List<Object>> values = getValuesList(resp);
             List<List<Object>> expected = List.of(
-                List.of("remote", 0L, "cluster-a:logs-2"),
-                List.of("remote", 1L, "cluster-a:logs-2"),
-                List.of("remote", 0L, "remote-b:logs-2"),
-                List.of("remote", 1L, "remote-b:logs-2")
+                List.of("remote", 0L, REMOTE_CLUSTER_1_INDEX),
+                List.of("remote", 1L, REMOTE_CLUSTER_1_INDEX),
+                List.of("remote", 0L, REMOTE_CLUSTER_2_INDEX),
+                List.of("remote", 1L, REMOTE_CLUSTER_2_INDEX)
             );
-            assertTrue(values.equals(expected));
+            assertEquals(expected, values);
+
+            EsqlExecutionInfo executionInfo = resp.getExecutionInfo();
+            assertCCSExecutionInfoDetails(executionInfo);
+        }
+
+        try (EsqlQueryResponse resp = runQuery("""
+            FROM
+                logs-*,
+                (FROM *:logs-* metadata _index | WHERE tag:"remote")
+                metadata _index
+            | WHERE v < 2
+            | DROP const, id
+            | SORT _index, v
+            """, randomBoolean())) {
+            var columns = resp.columns().stream().map(ColumnInfoImpl::name).toList();
+            assertThat(columns, hasItems("tag", "v", "_index"));
+
+            List<List<Object>> values = getValuesList(resp);
+            List<List<Object>> expected = List.of(
+                List.of("remote", 0L, REMOTE_CLUSTER_1_INDEX),
+                List.of("remote", 1L, REMOTE_CLUSTER_1_INDEX),
+                List.of("local", 0L, LOCAL_INDEX),
+                List.of("local", 1L, LOCAL_INDEX),
+                List.of("remote", 0L, REMOTE_CLUSTER_2_INDEX),
+                List.of("remote", 1L, REMOTE_CLUSTER_2_INDEX)
+            );
+            assertEquals(expected, values);
 
             EsqlExecutionInfo executionInfo = resp.getExecutionInfo();
             assertCCSExecutionInfoDetails(executionInfo);
         }
     }
 
-    public void testSubqueryWithStats() throws IOException {
-        setupClusters(3);
-
+    public void testSubqueryWithStats() {
         try (EsqlQueryResponse resp = runQuery("""
             FROM
                 logs-*,
@@ -496,15 +440,14 @@ public class CrossClusterSubqueryIT extends AbstractCrossClusterTestCase {
 
             List<List<Object>> values = getValuesList(resp);
             List<List<Object>> expected = List.of(List.of(10L, "local"), List.of(2L, "remote"));
-            assertTrue(values.equals(expected));
+            assertEquals(expected, values);
 
             EsqlExecutionInfo executionInfo = resp.getExecutionInfo();
             assertCCSExecutionInfoDetails(executionInfo);
         }
     }
 
-    public void testSubqueryWithLookupJoin() throws IOException {
-        setupClusters(3);
+    public void testSubqueryWithLookupJoin() {
         populateLookupIndex(LOCAL_CLUSTER, "values_lookup", 10);
         populateLookupIndex(REMOTE_CLUSTER_1, "values_lookup", 10);
         populateLookupIndex(REMOTE_CLUSTER_2, "values_lookup", 10);
@@ -523,11 +466,11 @@ public class CrossClusterSubqueryIT extends AbstractCrossClusterTestCase {
 
             List<List<Object>> values = getValuesList(resp);
             List<List<Object>> expected = List.of(
-                List.of("remote", 4L, "cluster-a:logs-2", "cluster-a"),
-                List.of("local", 6L, "logs-1", "local"),
-                List.of("remote", 4L, "remote-b:logs-2", "remote-b")
+                List.of("remote", 4L, REMOTE_CLUSTER_1_INDEX, REMOTE_CLUSTER_1),
+                List.of("local", 6L, LOCAL_INDEX, "local"),
+                List.of("remote", 4L, REMOTE_CLUSTER_2_INDEX, REMOTE_CLUSTER_2)
             );
-            assertTrue(values.equals(expected));
+            assertEquals(expected, values);
 
             EsqlExecutionInfo executionInfo = resp.getExecutionInfo();
             assertCCSExecutionInfoDetails(executionInfo);
@@ -545,9 +488,7 @@ public class CrossClusterSubqueryIT extends AbstractCrossClusterTestCase {
         );
     }
 
-    public void testSubqueryWithInlineStatsInSubquery() throws IOException {
-        setupClusters(3);
-
+    public void testSubqueryWithInlineStatsInSubquery() {
         // inline stats inside subquery is supported
         try (EsqlQueryResponse resp = runQuery("""
             FROM
@@ -603,9 +544,7 @@ public class CrossClusterSubqueryIT extends AbstractCrossClusterTestCase {
         );
     }
 
-    public void testSubqueryWithFilterInRequest() throws IOException {
-        setupClusters(3);
-
+    public void testSubqueryWithFilterInRequest() {
         EsqlQueryRequest request = randomBoolean() ? EsqlQueryRequest.asyncEsqlQueryRequest() : EsqlQueryRequest.syncEsqlQueryRequest();
         request.query("""
             FROM
@@ -631,16 +570,14 @@ public class CrossClusterSubqueryIT extends AbstractCrossClusterTestCase {
                 List.of("local", 6L, "logs-1"),
                 List.of("remote", 4L, "remote-b:logs-2")
             );
-            assertTrue(values.equals(expected));
+            assertEquals(expected, values);
 
             EsqlExecutionInfo executionInfo = resp.getExecutionInfo();
             assertCCSExecutionInfoDetails(executionInfo);
         }
     }
 
-    public void testNestedSubqueries() throws IOException {
-        setupClusters(3);
-
+    public void testNestedSubqueries() {
         // nested subqueries are not supported yet
         VerificationException ex = expectThrows(VerificationException.class, () -> runQuery("""
             FROM logs-*,(FROM c*:logs-*, (FROM r*:logs-*))
@@ -648,9 +585,7 @@ public class CrossClusterSubqueryIT extends AbstractCrossClusterTestCase {
         assertThat(ex.getMessage(), containsString("Nested subqueries are not supported"));
     }
 
-    public void testSubqueryWithFork() throws IOException {
-        setupClusters(3);
-
+    public void testSubqueryWithFork() {
         // fork after subqueries is not supported yet
         VerificationException ex = expectThrows(VerificationException.class, () -> runQuery("""
             FROM logs-*,(FROM c*:logs-*), (FROM r*:logs-*)
@@ -671,26 +606,12 @@ public class CrossClusterSubqueryIT extends AbstractCrossClusterTestCase {
         assertThat(ex.getMessage(), containsString("FORK inside subquery is not supported"));
     }
 
-    private static void assertCCSExecutionInfoDetails(EsqlExecutionInfo executionInfo) {
-        assertNotNull(executionInfo);
-        assertThat(executionInfo.overallTook().millis(), greaterThanOrEqualTo(0L));
-        assertTrue(executionInfo.isCrossClusterSearch());
-        List<EsqlExecutionInfo.Cluster> clusters = executionInfo.clusterAliases().stream().map(executionInfo::getCluster).toList();
-
-        for (EsqlExecutionInfo.Cluster cluster : clusters) {
-            assertThat(cluster.getTook().millis(), greaterThanOrEqualTo(0L));
-            assertThat(cluster.getStatus(), equalTo(EsqlExecutionInfo.Cluster.Status.SUCCESSFUL));
-            assertThat(cluster.getSkippedShards(), equalTo(0));
-            assertThat(cluster.getFailedShards(), equalTo(0));
-        }
-    }
-
-    protected void setupAlias(String clusterAlias, String indexName, String aliasName) {
-        Client client = client(clusterAlias);
-        IndicesAliasesRequestBuilder indicesAliasesRequestBuilder = client.admin()
-            .indices()
-            .prepareAliases(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT)
-            .addAliasAction(IndicesAliasesRequest.AliasActions.add().index(indexName).alias(aliasName));
-        assertAcked(client.admin().indices().aliases(indicesAliasesRequestBuilder.request()));
+    static void assertRemoteCluster1SkippedInCCSExecutionInfo(EsqlExecutionInfo executionInfo) {
+        var localCluster = executionInfo.getCluster(LOCAL_CLUSTER);
+        assertEquals(EsqlExecutionInfo.Cluster.Status.SUCCESSFUL, localCluster.getStatus());
+        var remoteCluster1 = executionInfo.getCluster(REMOTE_CLUSTER_1);
+        assertEquals(EsqlExecutionInfo.Cluster.Status.SKIPPED, remoteCluster1.getStatus());
+        var remoteCluster2 = executionInfo.getCluster(REMOTE_CLUSTER_2);
+        assertEquals(EsqlExecutionInfo.Cluster.Status.SUCCESSFUL, remoteCluster2.getStatus());
     }
 }

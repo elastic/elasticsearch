@@ -19,9 +19,9 @@ import java.io.IOException;
 import java.util.List;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.getValuesList;
+import static org.elasticsearch.xpack.esql.action.CrossClusterSubqueryIT.assertRemoteCluster1SkippedInCCSExecutionInfo;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
-import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItems;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.not;
@@ -30,8 +30,9 @@ import static org.hamcrest.Matchers.not;
 public class CrossClusterSubqueryUnavailableRemotesIT extends AbstractCrossClusterTestCase {
 
     @Before
-    public void checkSubqueryInFromCommandSupport() {
+    public void checkSubqueryInFromCommandSupport() throws IOException {
         assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
+        setupClusters(3);
     }
 
     @Override
@@ -43,11 +44,10 @@ public class CrossClusterSubqueryUnavailableRemotesIT extends AbstractCrossClust
      * Test that when skip_unavailable is true, and a remote cluster fails to respond,
      * the query does not error out and data is returned from the other clusters.
      */
-    public void testSubqueryFailToReceiveClusterResponseWithSkipUnavailableTrue() throws IOException {
-        setupClusters(3);
+    public void testSubqueryFailToReceiveClusterResponseWithSkipUnavailableTrue() {
         setSkipUnavailable(REMOTE_CLUSTER_1, true);
         setSkipUnavailable(REMOTE_CLUSTER_2, true);
-        Exception simulatedFailure = mockTransportServiceToRecevieSimulatedFailure();
+        Exception simulatedFailure = mockTransportServiceToReceiveSimulatedFailure();
 
         try {
             try (EsqlQueryResponse resp = runQuery("""
@@ -60,13 +60,8 @@ public class CrossClusterSubqueryUnavailableRemotesIT extends AbstractCrossClust
                 List<List<Object>> values = getValuesList(resp);
                 assertThat(values, hasSize(20));
                 EsqlExecutionInfo executionInfo = resp.getExecutionInfo();
-
-                var localCluster = executionInfo.getCluster(LOCAL_CLUSTER);
-                assertThat(localCluster.getStatus(), equalTo(EsqlExecutionInfo.Cluster.Status.SUCCESSFUL));
+                assertRemoteCluster1SkippedInCCSExecutionInfo(executionInfo);
                 var remoteCluster = executionInfo.getCluster(REMOTE_CLUSTER_1);
-                assertThat(remoteCluster.getStatus(), equalTo(EsqlExecutionInfo.Cluster.Status.SKIPPED));
-                var remoteCluster2 = executionInfo.getCluster(REMOTE_CLUSTER_2);
-                assertThat(remoteCluster2.getStatus(), equalTo(EsqlExecutionInfo.Cluster.Status.SUCCESSFUL));
                 assertThat(remoteCluster.getFailures(), not(empty()));
                 var failure = remoteCluster.getFailures().get(0);
                 assertThat(failure.reason(), containsString(simulatedFailure.getMessage()));
@@ -92,11 +87,10 @@ public class CrossClusterSubqueryUnavailableRemotesIT extends AbstractCrossClust
     /*
      * Test that when skip_unavailable is false, and a remote cluster fails to respond, the query fails.
      */
-    public void testSubqueryFailToReceiveClusterResponseWithSkipUnavailableFalse() throws IOException {
-        setupClusters(3);
+    public void testSubqueryFailToReceiveClusterResponseWithSkipUnavailableFalse() {
         setSkipUnavailable(REMOTE_CLUSTER_1, false);
         setSkipUnavailable(REMOTE_CLUSTER_2, false);
-        Exception simulatedFailure = mockTransportServiceToRecevieSimulatedFailure();
+        Exception simulatedFailure = mockTransportServiceToReceiveSimulatedFailure();
 
         try {
             // with local indices
@@ -126,7 +120,6 @@ public class CrossClusterSubqueryUnavailableRemotesIT extends AbstractCrossClust
      * Test that when skip_unavailable is true, a disconnected remote cluster is skipped.
      */
     public void testSubqueryWithDisconnectedRemoteClusterWithSkipUnavailableTrue() throws IOException {
-        setupClusters(3);
         setSkipUnavailable(REMOTE_CLUSTER_1, true);
         setSkipUnavailable(REMOTE_CLUSTER_2, true);
         try {
@@ -142,9 +135,8 @@ public class CrossClusterSubqueryUnavailableRemotesIT extends AbstractCrossClust
                 List<List<Object>> values = getValuesList(resp);
                 assertThat(values, hasSize(20));
                 EsqlExecutionInfo executionInfo = resp.getExecutionInfo();
-
+                assertRemoteCluster1SkippedInCCSExecutionInfo(executionInfo);
                 var remoteCluster = executionInfo.getCluster(REMOTE_CLUSTER_1);
-                assertThat(remoteCluster.getStatus(), equalTo(EsqlExecutionInfo.Cluster.Status.SKIPPED));
                 assertThat(remoteCluster.getFailures(), not(empty()));
                 var failure = remoteCluster.getFailures().get(0);
                 assertThat(
@@ -165,11 +157,10 @@ public class CrossClusterSubqueryUnavailableRemotesIT extends AbstractCrossClust
                 List<List<Object>> values = getValuesList(resp);
                 assertThat(values, hasSize(0));
                 EsqlExecutionInfo executionInfo = resp.getExecutionInfo();
-
                 var localCluster = executionInfo.getCluster(LOCAL_CLUSTER);
-                assertThat(localCluster.getStatus(), equalTo(EsqlExecutionInfo.Cluster.Status.SUCCESSFUL));
+                assertEquals(EsqlExecutionInfo.Cluster.Status.SUCCESSFUL, localCluster.getStatus());
                 var remoteCluster = executionInfo.getCluster(REMOTE_CLUSTER_1);
-                assertThat(remoteCluster.getStatus(), equalTo(EsqlExecutionInfo.Cluster.Status.SKIPPED));
+                assertEquals(EsqlExecutionInfo.Cluster.Status.SKIPPED, remoteCluster.getStatus());
                 assertThat(remoteCluster.getFailures(), not(empty()));
                 var failure = remoteCluster.getFailures().get(0);
                 assertThat(failure.reason(), containsString("unable to connect to remote cluster"));
@@ -183,7 +174,6 @@ public class CrossClusterSubqueryUnavailableRemotesIT extends AbstractCrossClust
      * Test that when skip_unavailable is false, a disconnected remote cluster causes the query to fail.
      */
     public void testSubqueryWithDisconnectedRemoteClusterWithSkipUnavailableFalse() throws IOException {
-        setupClusters(3);
         setSkipUnavailable(REMOTE_CLUSTER_1, false);
         setSkipUnavailable(REMOTE_CLUSTER_2, false);
 
@@ -216,7 +206,7 @@ public class CrossClusterSubqueryUnavailableRemotesIT extends AbstractCrossClust
     /*
      * Mocks a bad REMOTE_CLUSTER_1.
      */
-    private Exception mockTransportServiceToRecevieSimulatedFailure() {
+    private Exception mockTransportServiceToReceiveSimulatedFailure() {
         Exception simulatedFailure = randomFailure();
         for (TransportService transportService : cluster(REMOTE_CLUSTER_1).getInstances(TransportService.class)) {
             MockTransportService ts = asInstanceOf(MockTransportService.class, transportService);

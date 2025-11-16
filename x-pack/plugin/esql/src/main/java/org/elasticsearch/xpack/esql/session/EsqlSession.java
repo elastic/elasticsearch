@@ -563,7 +563,7 @@ public class EsqlSession {
                 }
                 // Check if a subquery need to be pruned. If some but not all the subqueries has invalid index resolution,
                 // and all the clusters referenced by the subquery that has invalid index resolution have skipUnavailable=true,
-                // try to prune it by setting IndexResolution to EMPTY_SUBQUERY.,Analyzer.PruneEmptyUnionAllBranch will
+                // try to prune it by setting IndexResolution to EMPTY_SUBQUERY. Analyzer.PruneEmptyUnionAllBranch will
                 // take care of removing the subquery during analysis.
                 // If all subqueries have invalid index resolution, we should fail in Analyzer's verifier.
                 if (r.indexResolution.isEmpty() == false // it is not a row
@@ -577,9 +577,7 @@ public class EsqlSession {
                         Map<String, String> clustersWithInvalidIndexResolutions = new HashMap<>();
                         // iterate the index resolution and replace it with EMPTY_SUBQUERY if the index resolution is invalid
                         // and skipUnavailable is true for all the clusters involved
-                        for (var entry : r.indexResolution.entrySet()) {
-                            IndexPattern indexPattern = entry.getKey();
-                            IndexResolution indexResolution = entry.getValue();
+                        r.indexResolution.forEach((indexPattern, indexResolution) -> {
                             if (indexResolution.isValid() == false) {
                                 r.withIndices(
                                     indexPattern,
@@ -592,7 +590,7 @@ public class EsqlSession {
                                     )
                                 );
                             }
-                        }
+                        });
                         // mark the clusters as SKIPPED in EsqlExecutionInfo for those clusters involved in the invalid
                         // index resolution with skipUnavailable=true
                         for (Map.Entry<String, String> entry : clustersWithInvalidIndexResolutions.entrySet()) {

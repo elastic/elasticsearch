@@ -41,6 +41,7 @@ import org.elasticsearch.xcontent.XContentParserConfiguration;
 
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -48,6 +49,7 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.function.BiConsumer;
 import java.util.function.BooleanSupplier;
+import java.util.function.Consumer;
 import java.util.function.LongSupplier;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
@@ -361,7 +363,7 @@ public class QueryRewriteContext {
      * Returns <code>true</code> if there are any registered async actions.
      */
     public boolean hasAsyncActions() {
-        return asyncActions.isEmpty() == false;
+        return asyncActions.isEmpty() == false || uniqueRewriteActions.isEmpty() == false;
     }
 
     /**
@@ -369,10 +371,10 @@ public class QueryRewriteContext {
      * <code>null</code>. The list of registered actions is cleared once this method returns.
      */
     public void executeAsyncActions(ActionListener<Void> listener) {
-        if (asyncActions.isEmpty()) {
+        if (asyncActions.isEmpty() && uniqueRewriteActions.isEmpty()) {
             listener.onResponse(null);
         } else {
-            CountDown countDown = new CountDown(asyncActions.size());
+            CountDown countDown = new CountDown(asyncActions.size() + uniqueRewriteActions.size());
             ActionListener<?> internalListener = new ActionListener<>() {
                 @Override
                 public void onResponse(Object o) {
@@ -393,6 +395,12 @@ public class QueryRewriteContext {
             asyncActions.clear();
             for (BiConsumer<Client, ActionListener<?>> action : biConsumers) {
                 action.accept(client, internalListener);
+            }
+
+            var copyUniqueRewriteActions = new HashMap<>(uniqueRewriteActions);
+            uniqueRewriteActions.clear();
+            for (var entry : copyUniqueRewriteActions.keySet()) {
+                entry.execute(client, internalListener, copyUniqueRewriteActions.get(entry));
             }
         }
     }
@@ -574,5 +582,14 @@ public class QueryRewriteContext {
      */
     public void setTrackTimeRangeFilterFrom(boolean trackTimeRangeFilterFrom) {
         this.trackTimeRangeFilterFrom = trackTimeRangeFilterFrom;
+    }
+
+    private final Map<QueryRewriteAsyncAction, List<Consumer<Object>>> uniqueRewriteActions = new HashMap<>();
+
+    /**
+     * Registers an async action that must be executed only once before the next rewrite round.
+     */
+    public void registerUniqueRewriteAction(QueryRewriteAsyncAction action, Consumer<Object> consumer) {
+        uniqueRewriteActions.computeIfAbsent(action, k -> new ArrayList<>()).add(consumer);
     }
 }

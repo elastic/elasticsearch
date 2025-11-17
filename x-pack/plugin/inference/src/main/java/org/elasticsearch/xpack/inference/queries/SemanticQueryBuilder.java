@@ -14,6 +14,7 @@ import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ResolvedIndices;
 import org.elasticsearch.action.support.GroupedActionListener;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.InferenceFieldMetadata;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -25,6 +26,7 @@ import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.index.query.MatchNoneQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.index.query.QueryRewriteAsyncAction;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.inference.InferenceResults;
@@ -53,6 +55,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -321,38 +324,78 @@ public class SemanticQueryBuilder extends AbstractQueryBuilder<SemanticQueryBuil
         return inferenceResultsMapSupplier;
     }
 
+    @SuppressWarnings("unchecked")
     static void registerInferenceAsyncActions(
         QueryRewriteContext queryRewriteContext,
         SetOnce<Map<FullyQualifiedInferenceId, InferenceResults>> inferenceResultsMapSupplier,
         String query,
         List<String> inferenceIds
     ) {
-        List<InferenceAction.Request> inferenceRequests = inferenceIds.stream()
-            .map(
-                i -> new InferenceAction.Request(
-                    TaskType.ANY,
-                    i,
-                    null,
-                    null,
-                    null,
-                    List.of(query),
-                    Map.of(),
-                    InputType.INTERNAL_SEARCH,
-                    null,
-                    false
-                )
-            )
-            .toList();
+        queryRewriteContext.registerUniqueRewriteAction(
+            new InferenceRewriteAsyncAction(queryRewriteContext, inferenceIds, query),
+            (obj) -> {
+                Collection<Tuple<FullyQualifiedInferenceId, InferenceResults>> responses = (List<
+                    Tuple<FullyQualifiedInferenceId, InferenceResults>>) obj;
+                Map<FullyQualifiedInferenceId, InferenceResults> inferenceResultsMap = new HashMap<>(responses.size());
+                responses.forEach(r -> inferenceResultsMap.put(r.v1(), r.v2()));
+                inferenceResultsMapSupplier.set(inferenceResultsMap);
+            }
+        );
+    }
 
-        queryRewriteContext.registerAsyncAction((client, listener) -> {
-            GroupedActionListener<Tuple<FullyQualifiedInferenceId, InferenceResults>> gal = createGroupedActionListener(
-                inferenceResultsMapSupplier,
+    private static class InferenceRewriteAsyncAction extends QueryRewriteAsyncAction {
+        private final List<String> inferenceIds;
+        private final String query;
+
+        public InferenceRewriteAsyncAction(QueryRewriteContext queryRewriteContext, List<String> inferenceIds, String query) {
+            super(queryRewriteContext);
+            this.inferenceIds = inferenceIds;
+            this.query = query;
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(inferenceIds, query);
+        }
+
+        @Override
+        public boolean equals(Object obj) {
+            if (obj instanceof InferenceRewriteAsyncAction == false) {
+                return false;
+            }
+            InferenceRewriteAsyncAction other = (InferenceRewriteAsyncAction) obj;
+            return Objects.equals(inferenceIds, other.inferenceIds) && Objects.equals(query, other.query);
+        }
+
+        @Override
+        public void execute(Client client, ActionListener<?> listener, List<Consumer<Object>> consumers) {
+            List<InferenceAction.Request> inferenceRequests = inferenceIds.stream()
+                .map(
+                    i -> new InferenceAction.Request(
+                        TaskType.ANY,
+                        i,
+                        null,
+                        null,
+                        null,
+                        List.of(query),
+                        Map.of(),
+                        InputType.INTERNAL_SEARCH,
+                        null,
+                        false
+                    )
+                )
+                .toList();
+
+            GroupedActionListener<Tuple<FullyQualifiedInferenceId, InferenceResults>> gal = new GroupedActionListener<>(
                 inferenceRequests.size(),
-                listener
+                listener.delegateFailureAndWrap((l, inferenceResponse) -> {
+                    consumers.forEach(consumer -> consumer.accept(inferenceResponse));
+                    l.onResponse(null);
+                })
             );
             for (InferenceAction.Request inferenceRequest : inferenceRequests) {
                 FullyQualifiedInferenceId fullyQualifiedInferenceId = new FullyQualifiedInferenceId(
-                    queryRewriteContext.getLocalClusterAlias(),
+                    getQueryRewriteContext().getLocalClusterAlias(),
                     inferenceRequest.getInferenceEntityId()
                 );
                 executeAsyncWithOrigin(
@@ -369,7 +412,7 @@ public class SemanticQueryBuilder extends AbstractQueryBuilder<SemanticQueryBuil
                     })
                 );
             }
-        });
+        }
     }
 
     static <T extends QueryBuilder> T getNewInferenceResultsFromSupplier(

@@ -71,7 +71,6 @@ import org.elasticsearch.xpack.esql.expression.function.grouping.Categorize;
 import org.elasticsearch.xpack.esql.expression.function.grouping.TBucket;
 import org.elasticsearch.xpack.esql.expression.function.inference.TextEmbedding;
 import org.elasticsearch.xpack.esql.expression.function.scalar.Clamp;
-import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlConfigurationFunction;
 import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.Case;
 import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.ClampMax;
 import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.ClampMin;
@@ -777,7 +776,7 @@ public class EsqlFunctionRegistry {
         if (TimestampAware.class.isAssignableFrom(def.clazz())) {
             countOfParamsToDescribe--; // skip the implicit @timestamp parameter (last or last before Configuration)
         }
-        if (EsqlConfigurationFunction.class.isAssignableFrom(def.clazz())) {
+        if (ConfigurationFunction.class.isAssignableFrom(def.clazz())) {
             // this isn't enforced by the contract, but the convention is: func(..., Expression timestamp, Configuration config)
             assert Configuration.class.isAssignableFrom(params[params.length - 1].getType())
                 : "The configuration parameter must be the last argument of an EsqlConfigurationFunction definition";
@@ -1270,11 +1269,51 @@ public class EsqlFunctionRegistry {
         T build(Source source, Expression one, Expression two, Expression three, Configuration configuration);
     }
 
+    /**
+     * Build a {@linkplain FunctionDefinition} for a quaternary function that is configuration aware.
+     */
+    @SuppressWarnings("overloads")  // These are ambiguous if you aren't using ctor references but we always do
+    protected static <T extends Function> FunctionDefinition def(
+        Class<T> function,
+        QuaternaryConfigurationAwareBuilder<T> ctorRef,
+        String... names
+    ) {
+        FunctionBuilder builder = (source, children, cfg) -> {
+            checkIsOptionalQuadFunction(function, children.size());
+            return ctorRef.build(
+                source,
+                children.get(0),
+                children.get(1),
+                children.size() > 2 ? children.get(2) : null,
+                children.size() > 3 ? children.get(3) : null,
+                cfg
+            );
+        };
+        return def(function, builder, names);
+    }
+
+    protected interface QuaternaryConfigurationAwareBuilder<T> {
+        T build(Source source, Expression one, Expression two, Expression three, Expression four, Configuration configuration);
+    }
+
     protected static <T extends Function> FunctionDefinition defTS(Class<T> function, BinaryBuilder<T> ctorRef, String... names) {
         checkIsTimestampAware(function);
         FunctionBuilder builder = (source, children, cfg) -> {
             checkIsUniFunction(children.size());
             return ctorRef.build(source, children.getFirst(), UnresolvedTimestamp.withSource(source));
+        };
+        return def(function, builder, names);
+    }
+
+    protected static <T extends Function> FunctionDefinition defTS(
+        Class<T> function,
+        BinaryConfigurationAwareBuilder<T> ctorRef,
+        String... names
+    ) {
+        checkIsTimestampAware(function);
+        FunctionBuilder builder = (source, children, cfg) -> {
+            checkIsUniFunction(children.size());
+            return ctorRef.build(source, children.getFirst(), UnresolvedTimestamp.withSource(source), cfg);
         };
         return def(function, builder, names);
     }
@@ -1352,6 +1391,20 @@ public class EsqlFunctionRegistry {
             throw new QlIllegalArgumentException("expects two or three arguments");
         } else if (hasMinimumOne == false && hasMinimumTwo == false && childrenSize != 3) {
             throw new QlIllegalArgumentException("expects exactly three arguments");
+        }
+    }
+
+    private static void checkIsOptionalQuadFunction(Class<? extends Function> function, int childrenSize) {
+        if (OptionalArgument.class.isAssignableFrom(function)) {
+            if (childrenSize > 4 || childrenSize < 3) {
+                throw new QlIllegalArgumentException("expects three or four arguments");
+            }
+        } else if (TwoOptionalArguments.class.isAssignableFrom(function)) {
+            if (childrenSize > 4 || childrenSize < 2) {
+                throw new QlIllegalArgumentException("expects minimum two, maximum four arguments");
+            }
+        } else if (childrenSize != 4) {
+            throw new QlIllegalArgumentException("expects exactly four arguments");
         }
     }
 }

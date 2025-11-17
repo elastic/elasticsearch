@@ -7,16 +7,19 @@
 
 package org.elasticsearch.xpack.esql.expression.function.scalar;
 
+import org.elasticsearch.xpack.esql.ConfigurationBuilder;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.expression.function.AbstractScalarFunctionTestCase;
 import org.elasticsearch.xpack.esql.session.Configuration;
 
+import java.time.ZoneId;
 import java.util.List;
 
 import static org.elasticsearch.xpack.esql.ConfigurationTestUtils.randomConfiguration;
 import static org.elasticsearch.xpack.esql.ConfigurationTestUtils.randomTables;
 import static org.elasticsearch.xpack.esql.SerializationTestUtils.assertSerialization;
+import static org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier.TEST_SOURCE;
 
 public abstract class AbstractConfigurationFunctionTestCase extends AbstractScalarFunctionTestCase {
     protected abstract Expression buildWithConfiguration(Source source, List<Expression> args, Configuration configuration);
@@ -42,5 +45,9 @@ public abstract class AbstractConfigurationFunctionTestCase extends AbstractScal
 
         Expression differentExpr = buildWithConfiguration(testCase.getSource(), testCase.getDataAsFields(), differentConfig);
         assertNotEquals(expr, differentExpr);
+    }
+
+    protected static Configuration configurationForTimezone(ZoneId zoneId) {
+        return new ConfigurationBuilder(randomConfiguration()).query(TEST_SOURCE.text()).zoneId(zoneId).build();
     }
 }

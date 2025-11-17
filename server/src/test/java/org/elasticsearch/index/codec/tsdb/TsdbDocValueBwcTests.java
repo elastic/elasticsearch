@@ -81,8 +81,12 @@ public class TsdbDocValueBwcTests extends ESTestCase {
     }
 
     public void testMixedIndexDocValueBinaryPerBlockCompression() throws Exception {
-        var oldCodec = TestUtil.alwaysDocValuesFormat(new ES819TSDBDocValuesFormat(BinaryDVCompressionMode.COMPRESSED_ZSTD_LEVEL_1, randomBoolean()));
-        var newCodec = TestUtil.alwaysDocValuesFormat(new ES819TSDBDocValuesFormat(BinaryDVCompressionMode.COMPRESSED_ZSTD_LEVEL_1, randomBoolean()));
+        var oldCodec = TestUtil.alwaysDocValuesFormat(
+            new ES819TSDBDocValuesFormat(BinaryDVCompressionMode.COMPRESSED_ZSTD_LEVEL_1, randomBoolean())
+        );
+        var newCodec = TestUtil.alwaysDocValuesFormat(
+            new ES819TSDBDocValuesFormat(BinaryDVCompressionMode.COMPRESSED_ZSTD_LEVEL_1, randomBoolean())
+        );
         testMixedIndex(oldCodec, newCodec, this::assertVersion819, this::assertVersion819);
     }
 

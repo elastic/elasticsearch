@@ -80,7 +80,7 @@ final class ES819TSDBDocValuesConsumer extends XDocValuesConsumer {
     ES819TSDBDocValuesConsumer(
         BinaryDVCompressionMode binaryDVCompressionMode,
         final boolean enablePerBlockCompression,
-            SegmentWriteState state,
+        SegmentWriteState state,
         int skipIndexIntervalSize,
         int minDocsPerOrdinalForOrdinalRangeEncoding,
         boolean enableOptimizedMerge,

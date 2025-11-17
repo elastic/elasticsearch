@@ -10,6 +10,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.logging.LogManager;
@@ -21,6 +22,7 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.Scope;
 import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestCancellableNodeClient;
+import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
@@ -40,10 +42,10 @@ import static org.elasticsearch.xpack.ql.util.LoggingUtils.logOnFailure;
 public class RestEqlSearchAction extends BaseRestHandler {
     private static final Logger LOGGER = LogManager.getLogger(RestEqlSearchAction.class);
     private static final String SEARCH_PATH = "/{index}/_eql/search";
-    private final Settings settings;
+    private final CrossProjectModeDecider crossProjectModeDecider;
 
     public RestEqlSearchAction(Settings settings) {
-        this.settings = settings;
+        this.crossProjectModeDecider = new CrossProjectModeDecider(settings);
     }
 
     @Override
@@ -53,7 +55,8 @@ public class RestEqlSearchAction extends BaseRestHandler {
 
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
-        if (settings != null && settings.getAsBoolean("serverless.cross_project.enabled", false)) {
+        boolean crossProjectEnabled = crossProjectModeDecider.crossProjectEnabled();
+        if (crossProjectEnabled) {
             // accept but drop project_routing param until fully supported
             request.param("project_routing");
         }
@@ -74,7 +77,23 @@ public class RestEqlSearchAction extends BaseRestHandler {
                 eqlRequest.keepAlive(request.paramAsTime("keep_alive", eqlRequest.keepAlive()));
             }
             eqlRequest.keepOnCompletion(request.paramAsBoolean("keep_on_completion", eqlRequest.keepOnCompletion()));
-            eqlRequest.ccsMinimizeRoundtrips(request.paramAsBoolean("ccs_minimize_roundtrips", eqlRequest.ccsMinimizeRoundtrips()));
+            if (crossProjectEnabled) {
+                if (request.hasParam("ccs_minimize_roundtrips")) {
+                    /*
+                     * MRT should not be settable by the user in Cross Project Search environment.
+                     * Irrespective of the value, issue a warning, and set MRT to true for the request.
+                     *
+                     * By default, MRT is true and is picked up from RequestDefaults.CCS_MINIMIZE_ROUNDTRIPS.
+                     */
+                    String warning = "ccs_minimize_roundtrips always defaults to true in Cross Project Search context."
+                        + " Setting it explicitly has no effect irrespective of the value specified and is ignored.";
+                    HeaderWarning.addWarning(warning);
+                    request.param("ccs_minimize_roundtrips");
+                    eqlRequest.ccsMinimizeRoundtrips(true);
+                }
+            } else {
+                eqlRequest.ccsMinimizeRoundtrips(request.paramAsBoolean("ccs_minimize_roundtrips", eqlRequest.ccsMinimizeRoundtrips()));
+            }
             eqlRequest.allowPartialSearchResults(
                 request.paramAsBoolean("allow_partial_search_results", eqlRequest.allowPartialSearchResults())
             );

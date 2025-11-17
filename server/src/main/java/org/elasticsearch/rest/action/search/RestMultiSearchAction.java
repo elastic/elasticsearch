@@ -18,6 +18,7 @@ import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.TriFunction;
 import org.elasticsearch.common.bytes.ReleasableBytesReference;
+import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.features.NodeFeature;
@@ -28,6 +29,7 @@ import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestCancellableNodeClient;
 import org.elasticsearch.rest.action.RestRefCountedChunkedToXContentListener;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
 import org.elasticsearch.usage.SearchUsageHolder;
 import org.elasticsearch.xcontent.XContent;
 import org.elasticsearch.xcontent.XContentParser;
@@ -48,13 +50,15 @@ public class RestMultiSearchAction extends BaseRestHandler {
     private final boolean allowExplicitIndex;
     private final SearchUsageHolder searchUsageHolder;
     private final Predicate<NodeFeature> clusterSupportsFeature;
-    private final Settings settings;
+    private final CrossProjectModeDecider crossProjectModeDecider;
+    private static final String MRT_ENABLED_IN_CPS_WARN = "ccs_minimize_roundtrips always defaults to true in Cross Project Search context."
+        + " Setting it explicitly has no effect irrespective of the value specified and is ignored.";
 
     public RestMultiSearchAction(Settings settings, SearchUsageHolder searchUsageHolder, Predicate<NodeFeature> clusterSupportsFeature) {
-        this.settings = settings;
         this.allowExplicitIndex = MULTI_ALLOW_EXPLICIT_INDEX.get(settings);
         this.searchUsageHolder = searchUsageHolder;
         this.clusterSupportsFeature = clusterSupportsFeature;
+        this.crossProjectModeDecider = new CrossProjectModeDecider(settings);
     }
 
     @Override
@@ -77,11 +81,18 @@ public class RestMultiSearchAction extends BaseRestHandler {
         if (client.threadPool() != null && client.threadPool().getThreadContext() != null) {
             client.threadPool().getThreadContext().setErrorTraceTransportHeader(request);
         }
-        if (settings != null && settings.getAsBoolean("serverless.cross_project.enabled", false)) {
+        boolean crossProjectEnabled = crossProjectModeDecider.crossProjectEnabled();
+        if (crossProjectEnabled) {
             // accept but drop project_routing param until fully supported
             request.param("project_routing");
         }
-        final MultiSearchRequest multiSearchRequest = parseRequest(request, allowExplicitIndex, searchUsageHolder, clusterSupportsFeature);
+        final MultiSearchRequest multiSearchRequest = parseRequest(
+            request,
+            allowExplicitIndex,
+            searchUsageHolder,
+            clusterSupportsFeature,
+            crossProjectEnabled
+        );
         return channel -> {
             final RestCancellableNodeClient cancellableClient = new RestCancellableNodeClient(client, request.getHttpChannel());
             cancellableClient.execute(
@@ -99,9 +110,17 @@ public class RestMultiSearchAction extends BaseRestHandler {
         RestRequest restRequest,
         boolean allowExplicitIndex,
         SearchUsageHolder searchUsageHolder,
-        Predicate<NodeFeature> clusterSupportsFeature
+        Predicate<NodeFeature> clusterSupportsFeature,
+        boolean crossProjectEnabled
     ) throws IOException {
-        return parseRequest(restRequest, allowExplicitIndex, searchUsageHolder, clusterSupportsFeature, (k, v, r) -> false);
+        return parseRequest(
+            restRequest,
+            allowExplicitIndex,
+            searchUsageHolder,
+            clusterSupportsFeature,
+            (k, v, r) -> false,
+            crossProjectEnabled
+        );
     }
 
     /**
@@ -113,7 +132,8 @@ public class RestMultiSearchAction extends BaseRestHandler {
         boolean allowExplicitIndex,
         SearchUsageHolder searchUsageHolder,
         Predicate<NodeFeature> clusterSupportsFeature,
-        TriFunction<String, Object, SearchRequest, Boolean> extraParamParser
+        TriFunction<String, Object, SearchRequest, Boolean> extraParamParser,
+        boolean crossProjectEnabled
     ) throws IOException {
         MultiSearchRequest multiRequest = new MultiSearchRequest();
         IndicesOptions indicesOptions = IndicesOptions.fromRequest(restRequest, multiRequest.indicesOptions());
@@ -142,12 +162,10 @@ public class RestMultiSearchAction extends BaseRestHandler {
             if (searchRequest.pointInTimeBuilder() != null) {
                 RestSearchAction.preparePointInTime(searchRequest, restRequest);
             } else {
-                searchRequest.setCcsMinimizeRoundtrips(
-                    restRequest.paramAsBoolean("ccs_minimize_roundtrips", searchRequest.isCcsMinimizeRoundtrips())
-                );
+                searchRequest.setCcsMinimizeRoundtrips(maybeConsumeCcsMrtParam(restRequest, crossProjectEnabled));
             }
             multiRequest.add(searchRequest);
-        }, extraParamParser);
+        }, extraParamParser, crossProjectEnabled);
         List<SearchRequest> requests = multiRequest.requests();
         for (SearchRequest request : requests) {
             // preserve if it's set on the request
@@ -168,9 +186,10 @@ public class RestMultiSearchAction extends BaseRestHandler {
         RestRequest request,
         IndicesOptions indicesOptions,
         boolean allowExplicitIndex,
-        CheckedBiConsumer<SearchRequest, XContentParser, IOException> consumer
+        CheckedBiConsumer<SearchRequest, XContentParser, IOException> consumer,
+        boolean crossProjectEnabled
     ) throws IOException {
-        parseMultiLineRequest(request, indicesOptions, allowExplicitIndex, consumer, (k, v, r) -> false);
+        parseMultiLineRequest(request, indicesOptions, allowExplicitIndex, consumer, (k, v, r) -> false, crossProjectEnabled);
     }
 
     /**
@@ -182,12 +201,13 @@ public class RestMultiSearchAction extends BaseRestHandler {
         IndicesOptions indicesOptions,
         boolean allowExplicitIndex,
         CheckedBiConsumer<SearchRequest, XContentParser, IOException> consumer,
-        TriFunction<String, Object, SearchRequest, Boolean> extraParamParser
+        TriFunction<String, Object, SearchRequest, Boolean> extraParamParser,
+        boolean crossProjectEnabled
     ) throws IOException {
 
         String[] indices = Strings.splitStringByCommaToArray(request.param("index"));
         String searchType = request.param("search_type");
-        boolean ccsMinimizeRoundtrips = request.paramAsBoolean("ccs_minimize_roundtrips", true);
+        boolean ccsMinimizeRoundtrips = maybeConsumeCcsMrtParam(request, crossProjectEnabled);
         String routing = request.param("routing");
 
         final Tuple<XContentType, ReleasableBytesReference> sourceTuple = request.contentOrSourceParam();
@@ -206,6 +226,26 @@ public class RestMultiSearchAction extends BaseRestHandler {
             allowExplicitIndex,
             extraParamParser
         );
+    }
+
+    private static boolean maybeConsumeCcsMrtParam(RestRequest request, boolean crossProjectEnabled) {
+        if (crossProjectEnabled) {
+            // Warn user, consume param, and return true.
+            if (request.hasParam("ccs_minimize_roundtrips")) {
+                HeaderWarning.addWarning(RestMultiSearchAction.MRT_ENABLED_IN_CPS_WARN);
+                request.param("ccs_minimize_roundtrips");
+                return true;
+            }
+
+            /*
+             * User has no preference, use the default value that's appropriate for CPS.
+             * CPS searches should minimise round trips.
+             */
+            return true;
+        } else {
+            // Not in CPS environment, pick whatever user chose.
+            return request.paramAsBoolean("ccs_minimize_roundtrips", true);
+        }
     }
 
     @Override

@@ -13,6 +13,7 @@ import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.support.ChannelActionListener;
 import org.elasticsearch.compute.lucene.EmptyIndexedByShardId;
 import org.elasticsearch.compute.operator.DriverCompletionInfo;
+import org.elasticsearch.compute.operator.PlanTimeProfile;
 import org.elasticsearch.compute.operator.exchange.ExchangeService;
 import org.elasticsearch.compute.operator.exchange.ExchangeSourceHandler;
 import org.elasticsearch.core.Releasable;
@@ -299,6 +300,7 @@ final class ClusterComputeHandler implements TransportRequestHandler<ClusterComp
                         () -> exchangeSink.createExchangeSink(() -> {})
                     ),
                     coordinatorPlan,
+                    configuration.profile() ? new PlanTimeProfile() : null,
                     computeListener.acquireCompute()
                 );
                 dataNodeComputeHandler.startComputeOnDataNodes(

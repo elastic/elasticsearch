@@ -15,10 +15,19 @@ import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 
-public record PlanProfile(String description, String clusterName, String nodeName, String planTree) implements Writeable, ToXContentObject {
+public record PlanProfile(String description, String clusterName, String nodeName, String planTree, PlanTimeProfile planTimeProfile)
+    implements
+        Writeable,
+        ToXContentObject {
 
     public static PlanProfile readFrom(StreamInput in) throws IOException {
-        return new PlanProfile(in.readString(), in.readString(), in.readString(), in.readString());
+        String description = in.readString();
+        String clusterName = in.readString();
+        String nodeName = in.readString();
+        String planTree = in.readString();
+        PlanTimeProfile timeProfile = new PlanTimeProfile(in);
+
+        return new PlanProfile(description, clusterName, nodeName, planTree, timeProfile);
     }
 
     @Override
@@ -27,15 +36,18 @@ public record PlanProfile(String description, String clusterName, String nodeNam
         out.writeString(clusterName);
         out.writeString(nodeName);
         out.writeString(planTree);
+        planTimeProfile.writeTo(out);
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        return builder.startObject()
-            .field("description", description)
-            .field("cluster_name", clusterName)
-            .field("node_name", nodeName)
-            .field("plan", planTree)
-            .endObject();
+        builder.startObject();
+        builder.field("description", description);
+        builder.field("cluster_name", clusterName);
+        builder.field("node_name", nodeName);
+        builder.field("plan", planTree);
+        planTimeProfile.toXContent(builder, params);
+
+        return builder.endObject();
     }
 }

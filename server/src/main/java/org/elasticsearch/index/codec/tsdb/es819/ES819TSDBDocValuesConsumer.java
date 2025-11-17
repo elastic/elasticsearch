@@ -520,8 +520,6 @@ final class ES819TSDBDocValuesConsumer extends XDocValuesConsumer {
     private final class CompressedBinaryBlockWriter implements BinaryWriter {
         final Compressor compressor;
 
-        final TSDBDocValuesEncoder encoder = new TSDBDocValuesEncoder(ES819TSDBDocValuesFormat.NUMERIC_BLOCK_SIZE);
-        final long[] docOffsetsBuffer = new long[ES819TSDBDocValuesFormat.NUMERIC_BLOCK_SIZE];
         final int[] docOffsets = new int[BLOCK_COUNT_THRESHOLD + 1]; // start for each doc plus start of doc that would be after last
 
         int uncompressedBlockLength = 0;
@@ -578,20 +576,12 @@ final class ES819TSDBDocValuesConsumer extends XDocValuesConsumer {
         }
 
         void compressOffsets(DataOutput output, int numDocsInCurrentBlock) throws IOException {
-            int batchStart = 0;
             int numOffsets = numDocsInCurrentBlock + 1;
-            while (batchStart < numOffsets) {
-                int batchLength = Math.min(numOffsets - batchStart, NUMERIC_BLOCK_SIZE);
-                for (int i = 0; i < batchLength; i++) {
-                    docOffsetsBuffer[i] = docOffsets[batchStart + i];
-                }
-                if (batchLength < docOffsetsBuffer.length) {
-                    // fill with last offset so a negative delta doesn't reduce compression ratio
-                    Arrays.fill(docOffsetsBuffer, batchLength, docOffsetsBuffer.length, docOffsetsBuffer[batchLength - 1]);
-                }
-                encoder.encode(docOffsetsBuffer, output);
-                batchStart += batchLength;
+            // delta encode
+            for (int i = numOffsets - 1; i > 0; i--) {
+                docOffsets[i] -= docOffsets[i - 1];
             }
+            output.writeGroupVInts(docOffsets, numOffsets);
         }
 
         void compress(byte[] data, int uncompressedLength, DataOutput output) throws IOException {

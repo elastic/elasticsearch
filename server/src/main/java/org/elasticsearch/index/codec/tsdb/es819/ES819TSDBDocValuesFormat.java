@@ -31,9 +31,9 @@ import java.io.IOException;
  */
 public class ES819TSDBDocValuesFormat extends org.apache.lucene.codecs.DocValuesFormat {
 
-    static final int NUMERIC_BLOCK_SHIFT = 7;
-    public static final int NUMERIC_BLOCK_SIZE = 1 << NUMERIC_BLOCK_SHIFT;
-    static final int NUMERIC_BLOCK_MASK = NUMERIC_BLOCK_SIZE - 1;
+    private static final int NUMERIC_BLOCK_SHIFT = 7;
+    private static final int NUMERIC_BLOCK_SIZE = 1 << NUMERIC_BLOCK_SHIFT;
+
     static final int DIRECT_MONOTONIC_BLOCK_SHIFT = 16;
     static final String CODEC_NAME = "ES819TSDB";
     static final String DATA_CODEC = "ES819TSDBDocValuesData";
@@ -153,5 +153,13 @@ public class ES819TSDBDocValuesFormat extends org.apache.lucene.codecs.DocValues
     @Override
     public DocValuesProducer fieldsProducer(SegmentReadState state) throws IOException {
         return new ES819TSDBDocValuesProducer(state, DATA_CODEC, DATA_EXTENSION, META_CODEC, META_EXTENSION);
+    }
+
+    public static int getNumericBlockSize() {
+        return NUMERIC_BLOCK_SIZE;
+    }
+
+    public static int getNumericBlockShift() {
+        return NUMERIC_BLOCK_SHIFT;
     }
 }

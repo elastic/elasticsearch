@@ -1965,13 +1965,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 }
 
                 if (missing.isEmpty() == false) {
-                    return new EsRelation(
-                        esr.source(),
-                        esr.indexPattern(),
-                        esr.indexMode(),
-                        esr.indexNameWithModes(),
-                        CollectionUtils.combine(esr.output(), missing)
-                    );
+                    return esr.withAttributes(CollectionUtils.combine(esr.output(), missing));
                 }
                 return esr;
             });

@@ -120,7 +120,11 @@ public class ESNextDiskBBQVectorsReader extends IVFVectorsReader {
         float visitRatio
     ) throws IOException {
         final FieldEntry fieldEntry = fields.get(fieldInfo.number);
-        final float approximateDocsPerCentroid = approximateCost / numCentroids;
+        float approximateDocsPerCentroid = approximateCost / numCentroids;
+        if (approximateDocsPerCentroid <= 1.25) {
+            // TODO: we need to make this call to build the iterator, otherwise accept docs breaks all together
+            approximateDocsPerCentroid = acceptDocs.cost();
+        }
         final int bitsRequired = DirectWriter.bitsRequired(numCentroids);
         final long sizeLookup = directWriterSizeOnDisk(values.size(), bitsRequired);
         final long fp = centroids.getFilePointer();

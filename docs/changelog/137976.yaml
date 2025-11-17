@@ -1,0 +1,7 @@
+pr: 137976
+summary: Fix for GET /_migration/deprecations doesn't check deprecated affix settings
+  correctly
+area: Infra/Core
+type: bug
+issues:
+ - 137008

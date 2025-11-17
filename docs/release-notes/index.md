@@ -262,7 +262,7 @@ PUT vectors
  {
    "mappings": {
      "properties": {
-       "vector": {"type": "dense_vector", "index_options": {"type": "disk_bbq"}
+       "vector": {"type": "dense_vector", "index_options": {"type": "bbq_disk"}
      }
    }
  }

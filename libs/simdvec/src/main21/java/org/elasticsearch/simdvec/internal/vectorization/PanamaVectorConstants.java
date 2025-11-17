@@ -28,9 +28,9 @@ public final class PanamaVectorConstants {
     /** Whether integer vectors can be trusted to actually be fast. */
     static final boolean ENABLE_INTEGER_VECTORS;
 
-    static final VectorSpecies<Byte> PRERERRED_BYTE_SPECIES;
-    static final VectorSpecies<Integer> PRERERRED_INTEGER_SPECIES;
-    static final VectorSpecies<Float> PRERERRED_FLOAT_SPECIES;
+    static final VectorSpecies<Byte> PREFERRED_BYTE_SPECIES;
+    static final VectorSpecies<Integer> PREFERRED_INTEGER_SPECIES;
+    static final VectorSpecies<Float> PREFERRED_FLOAT_SPECIES;
     static final VectorSpecies<Long> PREFERRED_LONG_SPECIES;
 
     static {
@@ -49,9 +49,9 @@ public final class PanamaVectorConstants {
         // but allow easy overriding for testing
         PREFERRED_VECTOR_BITSIZE = vs.orElse(vectorBitSize);
 
-        PRERERRED_BYTE_SPECIES = VectorSpecies.of(byte.class, VectorShape.forBitSize(PREFERRED_VECTOR_BITSIZE));
-        PRERERRED_INTEGER_SPECIES = VectorSpecies.of(int.class, VectorShape.forBitSize(PREFERRED_VECTOR_BITSIZE));
-        PRERERRED_FLOAT_SPECIES = VectorSpecies.of(float.class, VectorShape.forBitSize(PREFERRED_VECTOR_BITSIZE));
+        PREFERRED_BYTE_SPECIES = VectorSpecies.of(byte.class, VectorShape.forBitSize(PREFERRED_VECTOR_BITSIZE));
+        PREFERRED_INTEGER_SPECIES = VectorSpecies.of(int.class, VectorShape.forBitSize(PREFERRED_VECTOR_BITSIZE));
+        PREFERRED_FLOAT_SPECIES = VectorSpecies.of(float.class, VectorShape.forBitSize(PREFERRED_VECTOR_BITSIZE));
         PREFERRED_LONG_SPECIES = VectorSpecies.of(long.class, VectorShape.forBitSize(PREFERRED_VECTOR_BITSIZE));
 
         // hotspot misses some SSE intrinsics, workaround it

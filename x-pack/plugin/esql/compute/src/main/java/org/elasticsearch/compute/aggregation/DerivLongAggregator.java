@@ -44,8 +44,12 @@ class DerivLongAggregator {
         DerivDoubleAggregator.combineIntermediate(state, count, sumVal, sumTs, sumTsVal, sumTsSq);
     }
 
-    public static Block evaluateFinal(SimpleLinearRegressionWithTimeseries state, DriverContext driverContext) {
-        return DerivDoubleAggregator.evaluateFinal(state, driverContext);
+    public static Block evaluateFinal(
+        SimpleLinearRegressionWithTimeseries state,
+        DriverContext driverContext,
+        SimpleLinearRegressionWithTimeseries.SimpleLinearModelFunction fn
+    ) {
+        return DerivDoubleAggregator.evaluateFinal(state, driverContext, fn);
     }
 
     public static DerivDoubleAggregator.GroupingState initGrouping(DriverContext driverContext) {
@@ -71,8 +75,9 @@ class DerivLongAggregator {
     public static Block evaluateFinal(
         DerivDoubleAggregator.GroupingState state,
         IntVector selectedGroups,
-        GroupingAggregatorEvaluationContext ctx
+        GroupingAggregatorEvaluationContext ctx,
+        SimpleLinearRegressionWithTimeseries.SimpleLinearModelFunction fn
     ) {
-        return DerivDoubleAggregator.evaluateFinal(state, selectedGroups, ctx);
+        return DerivDoubleAggregator.evaluateFinal(state, selectedGroups, ctx, fn);
     }
 }

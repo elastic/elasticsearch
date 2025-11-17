@@ -54,9 +54,13 @@ class DerivDoubleAggregator {
         state.sumTsSq += sumTsSq;
     }
 
-    public static Block evaluateFinal(SimpleLinearRegressionWithTimeseries state, DriverContext driverContext) {
+    public static Block evaluateFinal(
+        SimpleLinearRegressionWithTimeseries state,
+        DriverContext driverContext,
+        SimpleLinearRegressionWithTimeseries.SimpleLinearModelFunction fn
+    ) {
         BlockFactory blockFactory = driverContext.blockFactory();
-        var slope = state.slope();
+        var slope = fn.predict(state);
         if (Double.isNaN(slope)) {
             return blockFactory.newConstantNullBlock(1);
         }
@@ -83,7 +87,12 @@ class DerivDoubleAggregator {
         combineIntermediate(state.getAndGrow(groupId), count, sumVal, sumTs, sumTsVal, sumTsSq);
     }
 
-    public static Block evaluateFinal(GroupingState state, IntVector selectedGroups, GroupingAggregatorEvaluationContext ctx) {
+    public static Block evaluateFinal(
+        GroupingState state,
+        IntVector selectedGroups,
+        GroupingAggregatorEvaluationContext ctx,
+        SimpleLinearRegressionWithTimeseries.SimpleLinearModelFunction fn
+    ) {
         try (DoubleBlock.Builder builder = ctx.driverContext().blockFactory().newDoubleBlockBuilder(selectedGroups.getPositionCount())) {
             for (int i = 0; i < selectedGroups.getPositionCount(); i++) {
                 int groupId = selectedGroups.getInt(i);
@@ -92,7 +101,7 @@ class DerivDoubleAggregator {
                     builder.appendNull();
                     continue;
                 }
-                double result = slr.slope();
+                double result = fn.predict(slr);
                 if (Double.isNaN(result)) {
                     builder.appendNull();
                     continue;

@@ -81,5 +81,4 @@ class SimpleLinearRegressionWithTimeseries implements AggregatorState {
         }
         return (sumVal - slp * sumTs) / count;
     }
-
 }

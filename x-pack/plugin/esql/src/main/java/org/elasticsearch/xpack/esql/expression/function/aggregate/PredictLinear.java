@@ -9,9 +9,8 @@ package org.elasticsearch.xpack.esql.expression.function.aggregate;
 
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.compute.aggregation.AggregatorFunctionSupplier;
-import org.elasticsearch.compute.aggregation.DerivDoubleGroupingAggregatorFunction;
-import org.elasticsearch.compute.aggregation.DerivIntGroupingAggregatorFunction;
-import org.elasticsearch.compute.aggregation.DerivLongGroupingAggregatorFunction;
+import org.elasticsearch.compute.aggregation.DerivDoubleAggregatorFunctionSupplier;
+import org.elasticsearch.compute.aggregation.DerivLongAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.SimpleLinearRegressionWithTimeseries;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
@@ -132,9 +131,8 @@ public class PredictLinear extends TimeSeriesAggregateFunction implements ToAggr
         };
         final DataType type = field().dataType();
         return switch (type) {
-            case INTEGER -> new DerivIntGroupingAggregatorFunction.Supplier(fn);
-            case LONG -> new DerivLongGroupingAggregatorFunction.Supplier(fn);
-            case DOUBLE -> new DerivDoubleGroupingAggregatorFunction.Supplier(fn);
+            case LONG, INTEGER -> new DerivLongAggregatorFunctionSupplier(fn);
+            case DOUBLE -> new DerivDoubleAggregatorFunctionSupplier(fn);
             default -> throw new IllegalArgumentException("Unsupported data type for deriv aggregation: " + type);
         };
     }

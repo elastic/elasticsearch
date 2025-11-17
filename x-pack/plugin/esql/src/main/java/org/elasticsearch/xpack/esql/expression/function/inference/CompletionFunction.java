@@ -27,7 +27,25 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isTyp
 
 /**
  * COMPLETION function generates text completions from a prompt using an inference endpoint.
- * This function is not registered in the function registry.
+ * <p>
+ * This function is an internal optimization primitive used exclusively for constant folding of
+ * {@code COMPLETION} commands during the analysis phase. It should never be registered in the
+ * function registry or exposed to users, as ESQL does not currently support async functions
+ * in the function registry.
+ * <p>
+ * When a {@code COMPLETION} command has a foldable prompt (e.g., a literal or foldable expression),
+ * the analyzer transforms it into an {@code EVAL} node with a {@code CompletionFunction} expression:
+ * <pre>{@code
+ * FROM books
+ * | COMPLETION "Translate this text" WITH { "inference_id": "my-model" }
+ * }</pre>
+ * is internally rewritten into:
+ * <pre>{@code
+ * FROM books
+ * | EVAL completion = COMPLETION("Translate this text", "my-model")
+ * }</pre>
+ * The pre-optimizer then evaluates this function using {@code InferenceFunctionEvaluator} and
+ * replaces it with a literal result.
  */
 public class CompletionFunction extends InferenceFunction<CompletionFunction> {
 

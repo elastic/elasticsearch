@@ -79,6 +79,7 @@ import org.elasticsearch.xpack.esql.plan.logical.local.EmptyLocalSupplier;
 import org.elasticsearch.xpack.esql.plan.logical.local.EsqlProject;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 import org.elasticsearch.xpack.esql.rule.RuleExecutor;
+import org.elasticsearch.xpack.esql.session.Configuration;
 import org.elasticsearch.xpack.esql.stats.SearchStats;
 import org.junit.BeforeClass;
 
@@ -1850,9 +1851,13 @@ public class LocalLogicalPlanOptimizerTests extends ESTestCase {
         return plan(query, analyzer);
     }
 
-    protected LogicalPlan localPlan(LogicalPlan plan, SearchStats searchStats) {
-        var localContext = new LocalLogicalOptimizerContext(EsqlTestUtils.TEST_CFG, FoldContext.small(), searchStats);
+    protected LogicalPlan localPlan(LogicalPlan plan, Configuration configuration, SearchStats searchStats) {
+        var localContext = new LocalLogicalOptimizerContext(configuration, FoldContext.small(), searchStats);
         return new LocalLogicalPlanOptimizer(localContext).localOptimize(plan);
+    }
+
+    protected LogicalPlan localPlan(LogicalPlan plan, SearchStats searchStats) {
+        return localPlan(plan, EsqlTestUtils.TEST_CFG, searchStats);
     }
 
     private LogicalPlan localPlan(String query) {

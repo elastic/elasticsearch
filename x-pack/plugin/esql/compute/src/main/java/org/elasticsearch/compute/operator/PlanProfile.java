@@ -7,6 +7,7 @@
 
 package org.elasticsearch.compute.operator;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -20,14 +21,19 @@ public record PlanProfile(String description, String clusterName, String nodeNam
         Writeable,
         ToXContentObject {
 
+    private static final TransportVersion PLAN_PROFILE_VERSION = TransportVersion.fromName("plan_profile_version");
+
     public static PlanProfile readFrom(StreamInput in) throws IOException {
         String description = in.readString();
         String clusterName = in.readString();
         String nodeName = in.readString();
         String planTree = in.readString();
-        PlanTimeProfile timeProfile = new PlanTimeProfile(in);
+        PlanTimeProfile profile = null;
+        if( in.getTransportVersion().supports(PLAN_PROFILE_VERSION)) {
+            profile = in.readOptionalWriteable(PlanTimeProfile::new);
+        }
 
-        return new PlanProfile(description, clusterName, nodeName, planTree, timeProfile);
+        return new PlanProfile(description, clusterName, nodeName, planTree, profile);
     }
 
     @Override
@@ -36,6 +42,9 @@ public record PlanProfile(String description, String clusterName, String nodeNam
         out.writeString(clusterName);
         out.writeString(nodeName);
         out.writeString(planTree);
+        if (out.getTransportVersion().supports(PLAN_PROFILE_VERSION)) {
+            out.writeOptionalWriteable(planTimeProfile);
+        }
         planTimeProfile.writeTo(out);
     }
 
@@ -46,7 +55,9 @@ public record PlanProfile(String description, String clusterName, String nodeNam
         builder.field("cluster_name", clusterName);
         builder.field("node_name", nodeName);
         builder.field("plan", planTree);
-        planTimeProfile.toXContent(builder, params);
+        if (planTimeProfile != null) {
+            planTimeProfile.toXContent(builder, params);
+        }
 
         return builder.endObject();
     }

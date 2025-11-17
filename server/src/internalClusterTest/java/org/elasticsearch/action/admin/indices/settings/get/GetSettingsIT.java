@@ -37,12 +37,12 @@ public class GetSettingsIT extends ESIntegTestCase {
 
         assertAcked(prepareCreate(indexName).setSettings(Settings.builder().put("index.mode", "logsdb")).get());
         GetSettingsResponse unfilteredResponse = indicesAdmin().getSettings(
-            new GetSettingsRequest(TEST_REQUEST_TIMEOUT).indices(indexName).includeDefaults(true)
+            new GetSettingsRequest().indices(indexName).includeDefaults(true)
         ).actionGet();
         for (String key : expectedSettings.keySet()) {
             assertThat(unfilteredResponse.getSetting(indexName, key), equalTo(expectedSettings.get(key)));
             GetSettingsResponse filteredResponse = indicesAdmin().getSettings(
-                new GetSettingsRequest(TEST_REQUEST_TIMEOUT).indices(indexName).includeDefaults(true).names(key)
+                new GetSettingsRequest().indices(indexName).includeDefaults(true).names(key)
             ).actionGet();
 
             var expectedFilteredSettingsMap = Map.of(indexName, expectedSettings.filter(key::equals));

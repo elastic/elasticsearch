@@ -35,7 +35,7 @@ public class ModelValidatorBuilder {
         }
 
         switch (taskType) {
-            case TEXT_EMBEDDING -> {
+            case TEXT_EMBEDDING, EMBEDDING -> {
                 return new DenseEmbeddingModelValidator(
                     Objects.requireNonNullElse(validatorFromService, new SimpleServiceIntegrationValidator())
                 );

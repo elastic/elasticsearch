@@ -22,7 +22,7 @@ public class MinimalServiceSettingsTests extends AbstractXContentTestCase<Minima
         SimilarityMeasure similarity = null;
         DenseVectorFieldMapper.ElementType elementType = null;
 
-        if (taskType == TaskType.TEXT_EMBEDDING) {
+        if (taskType == TaskType.TEXT_EMBEDDING || taskType == TaskType.EMBEDDING) {
             dimensions = randomIntBetween(2, 1024);
             similarity = randomFrom(SimilarityMeasure.values());
             elementType = randomFrom(DenseVectorFieldMapper.ElementType.values());

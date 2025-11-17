@@ -514,7 +514,7 @@ tasks.named('stringTemplates').configure {
   }
 
   generateTwoStateFiles(file("src/main/java/org/elasticsearch/compute/aggregation/X-2State.java.st"))
-  generateTwoStateFiles(file("src/main/java/org/elasticsearch/compute/aggregation/All-X-2State.java.st"), "All")
+  generateTwoStateFiles(file("src/main/java/org/elasticsearch/compute/aggregation/X-All2State.java.st"), "All")
 
   File irateAggregatorInputFile = file("src/main/java/org/elasticsearch/compute/aggregation/X-IrateAggregator.java.st")
   template {
@@ -996,7 +996,7 @@ tasks.named('stringTemplates').configure {
   }
 
   generateTimestampAggregatorClasses("src/main/java/org/elasticsearch/compute/aggregation/X-ValueByTimestampAggregator.java.st", "")
-  generateTimestampAggregatorClasses("src/main/java/org/elasticsearch/compute/aggregation/All-X-ValueByTimestampAggregator.java.st", "All")
+  generateTimestampAggregatorClasses("src/main/java/org/elasticsearch/compute/aggregation/X-AllValueByTimestampAggregator.java.st", "All")
 
   File rateAggregatorInputFile = file("src/main/java/org/elasticsearch/compute/aggregation/X-RateGroupingAggregatorFunction.java.st")
   template {

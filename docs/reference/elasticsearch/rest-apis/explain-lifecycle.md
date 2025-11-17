@@ -7,7 +7,9 @@ applies_to:
 
 # Explain lifecycle API examples [explain-lifecycle-api]
 
-Retrieves the current lifecycle status for one or more indices. For data streams, the API retrieves the current lifecycle status for the stream’s backing indices.
+The [explain lifecycle API](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-ilm-explain-lifecycle) retrieves the current lifecycle status for one or more indices. For data streams, the API retrieves the lifecycle status for the stream’s backing indices, including the current phase, action, step, and any failures.
+
+## Get the lifecycle status of an index
 
 The following example retrieves the lifecycle state of `my-index-000001`:
 
@@ -94,6 +96,8 @@ When management of the index is first taken over by {{ilm-init}}, `explain` show
 8. When the index entered the current action
 9. When the index entered the current step
 
+## View the phase definition applied to an index
+
 Once the policy is running on the index, the response includes a `phase_execution` object that shows the definition of the current phase. Changes to the underlying policy will not affect this index until the current phase completes.
 
 ```console-result
@@ -144,6 +148,8 @@ Once the policy is running on the index, the response includes a `phase_executio
 3. The version of the policy that was loaded
 4. The date the loaded policy was last modified
 5. The epoch time when the loaded policy was last modified
+
+## Check the status of a running step
 
 If {{ilm-init}} is waiting for a step to complete, the response includes status information for the step that's being performed on the index.
 
@@ -203,6 +209,8 @@ If {{ilm-init}} is waiting for a step to complete, the response includes status 
 % TESTRESPONSE[skip:not possible to get the cluster into this state in a docs test]
 
 1. Status of the step that's in progress.
+
+## Diagnose lifecycle errors
 
 If the index is in the ERROR step, something went wrong while executing a step in the policy and you will need to take action for the index to proceed
 to the next step. Some steps are safe to automatically be retried in certain circumstances. To help you diagnose the problem, the explain response shows the step that failed, the step info which provides information about the error, and information about the retry attempts executed for the failed step if it's the case.

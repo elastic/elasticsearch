@@ -90,6 +90,22 @@ public class ParsedHistogramConverterTests extends ESTestCase {
         assertThat(posBuckets.get(1).count(), equalTo(2L));
     }
 
+    public void testToExponentialHistogramConversionWithZeroCounts() {
+        // build a t-digest with two centroids very close to each other
+        List<Double> centroids = List.of(1.0, 2.0, 3.0);
+        List<Long> counts = List.of(1L, 0L, 2L);
+
+        HistogramParser.ParsedHistogram input = new HistogramParser.ParsedHistogram(centroids, counts);
+        ExponentialHistogramParser.ParsedExponentialHistogram converted = ParsedHistogramConverter.tDigestToExponential(input);
+
+        assertThat(converted.zeroCount(), equalTo(0L));
+        List<IndexWithCount> posBuckets = converted.positiveBuckets();
+        assertThat(posBuckets.size(), equalTo(2));
+        assertThat(posBuckets.get(0).index(), lessThan(posBuckets.get(1).index()));
+        assertThat(posBuckets.get(0).count(), equalTo(1L));
+        assertThat(posBuckets.get(1).count(), equalTo(2L));
+    }
+
     public void testToTDigestConversionMergesCentroids() {
         // build a histogram with two buckets very close to zero
         ExponentialHistogram input = ExponentialHistogram.builder(ExponentialHistogram.MAX_SCALE, ExponentialHistogramCircuitBreaker.noop())

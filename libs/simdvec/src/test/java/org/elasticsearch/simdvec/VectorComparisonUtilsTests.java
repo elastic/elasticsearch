@@ -185,8 +185,13 @@ public class VectorComparisonUtilsTests extends BaseVectorizationTests {
     public void testEqualMaskUnalignedLong() {
         long[] data = new long[16];
         data[1] = 1L;
-        assertEquals(0b10, panamaVectorCmpUtils.equalMask(data, 0, 1L));
-        assertEquals(0b01, panamaVectorCmpUtils.equalMask(data, 1, 1L));
+        if (panamaVectorCmpUtils.longVectorLanes() == 1) {
+            assertEquals(0b0, panamaVectorCmpUtils.equalMask(data, 0, 1L));
+            assertEquals(0b1, panamaVectorCmpUtils.equalMask(data, 1, 1L));
+        } else {
+            assertEquals(0b10, panamaVectorCmpUtils.equalMask(data, 0, 1L));
+            assertEquals(0b01, panamaVectorCmpUtils.equalMask(data, 1, 1L));
+        }
     }
 
     // -- static utilities

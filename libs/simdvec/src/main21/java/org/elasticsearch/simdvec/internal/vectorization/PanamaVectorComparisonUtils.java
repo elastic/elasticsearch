@@ -35,33 +35,72 @@ import org.elasticsearch.simdvec.VectorComparisonUtils;
  * }
  * }</pre>
  */
-public final class PanamaVectorComparisonUtils implements VectorComparisonUtils {
+public final class PanamaVectorComparisonUtils {
 
-    public static PanamaVectorComparisonUtils INSTANCE = new PanamaVectorComparisonUtils();
+    public static VectorComparisonUtils INSTANCE;
 
     /** The preferred byte vector species for the current platform. */
-    private static final VectorSpecies<Byte> BS = ByteVector.SPECIES_PREFERRED;
-    private static final VectorSpecies<Long> LS = LongVector.SPECIES_PREFERRED;
+    static final VectorSpecies<Byte> BS = PanamaVectorConstants.PRERERRED_BYTE_SPECIES;
+    static final VectorSpecies<Long> LS = PanamaVectorConstants.PREFERRED_LONG_SPECIES;
 
-    private PanamaVectorComparisonUtils() {}
-
-    @Override
-    public int byteVectorLanes() {
-        return BS.length();
+    static {
+        if (PanamaVectorConstants.PREFERRED_VECTOR_BITSIZE == 128) {
+            INSTANCE = new Panama128VectorComparisonUtils();
+        } else {
+            INSTANCE = new PanamaWideVectorComparisonUtils();
+        }
     }
 
-    @Override
-    public long equalMask(byte[] array, int offset, byte value) {
-        return ByteVector.fromArray(BS, array, offset).eq(value).toLong();
+    // Implementation used for bit-widths > 128 - uses both ByteVector and LongVector.
+    static final class PanamaWideVectorComparisonUtils implements VectorComparisonUtils {
+
+        private PanamaWideVectorComparisonUtils() {}
+
+        @Override
+        public int byteVectorLanes() {
+            return BS.length();
+        }
+
+        @Override
+        public long equalMask(byte[] array, int offset, byte value) {
+            return ByteVector.fromArray(BS, array, offset).eq(value).toLong();
+        }
+
+        @Override
+        public int longVectorLanes() {
+            return LS.length();
+        }
+
+        @Override
+        public long equalMask(long[] array, int offset, long value) {
+            return LongVector.fromArray(LS, array, offset).eq(value).toLong();
+        }
     }
 
-    @Override
-    public int longVectorLanes() {
-        return LS.length();
-    }
+    // This implementation is used on narrow bit-widths to avoid LongVector.
+    // Benchmarking shows that the scalar equivalent is more performant.
+    static final class Panama128VectorComparisonUtils implements VectorComparisonUtils {
 
-    @Override
-    public long equalMask(long[] array, int offset, long value) {
-        return LongVector.fromArray(LS, array, offset).eq(value).toLong();
+        private Panama128VectorComparisonUtils() {}
+
+        @Override
+        public int byteVectorLanes() {
+            return BS.length();
+        }
+
+        @Override
+        public long equalMask(byte[] array, int offset, byte value) {
+            return ByteVector.fromArray(BS, array, offset).eq(value).toLong();
+        }
+
+        @Override
+        public int longVectorLanes() {
+            return 1;
+        }
+
+        @Override
+        public long equalMask(long[] array, int offset, long value) {
+            return array[offset] == value ? 1L : 0L;
+        }
     }
 }

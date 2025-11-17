@@ -152,7 +152,18 @@ public class SecurityMigrations {
             updateByQueryRequest.setQuery(filterQuery);
             updateByQueryRequest.setAbortOnVersionConflict(false);
             updateByQueryRequest.setScript(
-                new Script(ScriptType.INLINE, "painless", "ctx._source.metadata_flattened = ctx._source.metadata;", Collections.emptyMap())
+                new Script(
+                    ScriptType.INLINE,
+                    "painless",
+                    """
+                    if (ctx._source.metadata != null && ctx._source.metadata instanceof Map && !ctx._source.metadata.isEmpty()) {
+                        ctx._source.metadata_flattened = ctx._source.metadata;
+                    } else {
+                        ctx.op = 'noop';
+                    }
+                    """,
+                    Collections.emptyMap()
+                )
             );
 
             client.admin()
@@ -160,12 +171,13 @@ public class SecurityMigrations {
                 .execute(UpdateByQueryAction.INSTANCE, updateByQueryRequest, ActionListener.wrap(bulkByScrollResponse -> {
                     logger.debug(
                         "metadata_flattened update-by-query completed: total=[{}], updated=[{}], conflicts=[{}], failures=[{}], "
-                            + "searchFailures=[{}], timedOut=[{}]",
+                            + "searchFailures=[{}], noops=[{}], timedOut=[{}]",
                         bulkByScrollResponse.getTotal(),
                         bulkByScrollResponse.getUpdated(),
                         bulkByScrollResponse.getVersionConflicts(),
                         bulkByScrollResponse.getBulkFailures().size(),
                         bulkByScrollResponse.getSearchFailures().size(),
+                        bulkByScrollResponse.getNoops(),
                         bulkByScrollResponse.isTimedOut()
                     );
                     if (bulkByScrollResponse.getBulkFailures().isEmpty() == false) {

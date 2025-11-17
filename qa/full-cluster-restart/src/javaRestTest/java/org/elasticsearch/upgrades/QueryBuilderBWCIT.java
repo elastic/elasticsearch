@@ -44,8 +44,8 @@ import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
  * An integration test that tests whether percolator queries stored in older supported ES version can still be read by the
  * current ES version. Percolator queries are stored in the binary format in a dedicated doc values field (see
  * PercolatorFieldMapper#createQueryBuilderField(...) method). We don't attempt to assert anything on results here, simply executing
- * a percolator query will force deserialization of the old query builder. This also ensures verifies that our fallback compatibility
- * functionality is working correction, otherwise the search request will throw an exception.
+ * a percolator query will force deserialization of the old query builder. This also verifies that our fallback compatibility
+ * functionality is working correctly, otherwise the search request will throw an exception.
  */
 public class QueryBuilderBWCIT extends ParameterizedFullClusterRestartTestCase {
     private static final List<Object[]> CANDIDATES = new ArrayList<>();

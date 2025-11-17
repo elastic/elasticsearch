@@ -169,6 +169,7 @@ public class DownsampleIT extends DownsamplingIntegTestCase {
         Supplier<XContentBuilder> sourceSupplier = () -> {
             String ts = randomDateForRange(now.minusSeconds(60 * 60).toEpochMilli(), now.plusSeconds(60 * 29).toEpochMilli());
             try {
+                int maxHistogramSize = randomIntBetween(2, 10);
                 return XContentFactory.jsonBuilder()
                     .startObject()
                     .field("@timestamp", ts)
@@ -177,14 +178,14 @@ public class DownsampleIT extends DownsamplingIntegTestCase {
                     .field("metrics.cpu_usage", randomDouble())
 
                     .startObject("my_labels.my_histogram")
-                    .array("values", 0.1, 0.25, 0.35, 0.4, 0.45, 0.5)
-                    .array("counts", 8, 17, 8, 7, 6, 2)
+                    .array("values", randomHistogramValues(maxHistogramSize))
+                    .array("counts", randomHistogramValueCounts(maxHistogramSize))
                     .endObject()
 
                     .startObject("my_labels.my_aggregate")
-                    .field("min", 0.1)
-                    .field("max", 0.5)
-                    .field("sum", 1.5)
+                    .field("min", randomFloatBetween(0.0f, 10.0f, true))
+                    .field("max", randomFloatBetween(10.0f, 20.0f, true))
+                    .field("sum", randomFloatBetween(20.0f, 30.0f, true))
                     .field("value_count", randomIntBetween(1, 10))
                     .endObject()
                     .endObject();
@@ -559,5 +560,22 @@ public class DownsampleIT extends DownsamplingIntegTestCase {
 
     private EsqlQueryResponse esqlCommand(String command) throws IOException {
         return client().execute(EsqlQueryAction.INSTANCE, new EsqlQueryRequest().query(command)).actionGet(30, TimeUnit.SECONDS);
+    }
+
+    public static double[] randomHistogramValues(int size) {
+        final double[] array = new double[size];
+        double minHistogramValue = randomDoubleBetween(0.0, 0.1, true);
+        for (int i = 0; i < array.length; i++) {
+            array[i] = minHistogramValue += randomDoubleBetween(0.0, 0.5, true);
+        }
+        return array;
+    }
+
+    public static int[] randomHistogramValueCounts(int size) {
+        final int[] array = new int[size];
+        for (int i = 0; i < array.length; i++) {
+            array[i] = randomIntBetween(1, 100);
+        }
+        return array;
     }
 }

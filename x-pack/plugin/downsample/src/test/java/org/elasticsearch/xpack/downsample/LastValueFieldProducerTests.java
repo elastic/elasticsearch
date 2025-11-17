@@ -125,7 +125,7 @@ public class LastValueFieldProducerTests extends AggregatorTestCase {
     }
 
     public void testFlattenedLastValueFieldProducer() throws IOException {
-        var producer = new LastValueFieldProducer.FlattenedFieldProducer("dummy");
+        var producer = LastValueFieldProducer.createForLabel("dummy", "flattened");
         assertTrue(producer.isEmpty());
         assertEquals("dummy", producer.name());
         assertEquals("last_value", producer.sampleLabel());

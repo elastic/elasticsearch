@@ -24,7 +24,7 @@ public class MetricFieldProducerTests extends AggregatorTestCase {
 
     public void testMinCountMetric() throws IOException {
         var instance = MetricFieldProducer.createFieldProducerForGauge(randomAlphaOfLength(10), DownsampleConfig.SamplingMethod.AGGREGATE);
-        var aggregateMetricFieldProducer = (MetricFieldProducer.AggregateScalarMetricFieldProducer) instance;
+        var aggregateMetricFieldProducer = (MetricFieldProducer.AggregateGaugeMetricFieldProducer) instance;
         assertEquals(Double.MAX_VALUE, aggregateMetricFieldProducer.min, 0);
         var docIdBuffer = IntArrayList.from(0, 1, 2, 3);
         var numericValues = createNumericValuesInstance(docIdBuffer, 40, 5.5, 12.2, 55);
@@ -46,7 +46,7 @@ public class MetricFieldProducerTests extends AggregatorTestCase {
 
     public void testMaxCountMetric() throws IOException {
         var instance = MetricFieldProducer.createFieldProducerForGauge(randomAlphaOfLength(10), DownsampleConfig.SamplingMethod.AGGREGATE);
-        var aggregateMetricFieldProducer = (MetricFieldProducer.AggregateScalarMetricFieldProducer) instance;
+        var aggregateMetricFieldProducer = (MetricFieldProducer.AggregateGaugeMetricFieldProducer) instance;
         assertEquals(-Double.MAX_VALUE, aggregateMetricFieldProducer.max, 0);
         var docIdBuffer = IntArrayList.from(0, 1, 2);
         var numericValues = createNumericValuesInstance(docIdBuffer, 5.5, 12.2, 55);
@@ -68,7 +68,7 @@ public class MetricFieldProducerTests extends AggregatorTestCase {
 
     public void testSumCountMetric() throws IOException {
         var instance = MetricFieldProducer.createFieldProducerForGauge(randomAlphaOfLength(10), DownsampleConfig.SamplingMethod.AGGREGATE);
-        var aggregateMetricFieldProducer = (MetricFieldProducer.AggregateScalarMetricFieldProducer) instance;
+        var aggregateMetricFieldProducer = (MetricFieldProducer.AggregateGaugeMetricFieldProducer) instance;
         assertEquals(0, aggregateMetricFieldProducer.sum.value(), 0);
         var docIdBuffer = IntArrayList.from(0, 1, 2);
         var numericValues = createNumericValuesInstance(docIdBuffer, 5.5, 12.2, 55);
@@ -93,7 +93,7 @@ public class MetricFieldProducerTests extends AggregatorTestCase {
      * Tests stolen from SumAggregatorTests#testSummationAccuracy
      */
     public void testSummationAccuracy() throws IOException {
-        var instance = new MetricFieldProducer.AggregateScalarMetricFieldProducer(randomAlphaOfLength(10));
+        var instance = new MetricFieldProducer.AggregateGaugeMetricFieldProducer(randomAlphaOfLength(10));
         assertEquals(0, instance.sum.value(), 0);
         var docIdBuffer = IntArrayList.from(0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16);
         // Summing up a normal array and expect an accurate value
@@ -166,7 +166,7 @@ public class MetricFieldProducerTests extends AggregatorTestCase {
 
     public void testValueCountMetric() throws IOException {
         var instance = MetricFieldProducer.createFieldProducerForGauge(randomAlphaOfLength(10), DownsampleConfig.SamplingMethod.AGGREGATE);
-        var aggregateMetricFieldProducer = (MetricFieldProducer.AggregateScalarMetricFieldProducer) instance;
+        var aggregateMetricFieldProducer = (MetricFieldProducer.AggregateGaugeMetricFieldProducer) instance;
         assertEquals(0, aggregateMetricFieldProducer.count);
         var docIdBuffer = IntArrayList.from(0, 1, 2);
         var numericValues = createNumericValuesInstance(docIdBuffer, 40, 30, 20);
@@ -207,7 +207,7 @@ public class MetricFieldProducerTests extends AggregatorTestCase {
 
     public void testGaugeMetricFieldProducer() throws IOException {
         final String field = "field";
-        MetricFieldProducer producer = new MetricFieldProducer.AggregateScalarMetricFieldProducer(field);
+        MetricFieldProducer producer = new MetricFieldProducer.AggregateGaugeMetricFieldProducer(field);
         assertTrue(producer.isEmpty());
         var docIdBuffer = IntArrayList.from(0, 1, 2);
         var valuesInstance = createNumericValuesInstance(docIdBuffer, 55.0, 12.2, 5.5);

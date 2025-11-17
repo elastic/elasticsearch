@@ -38,7 +38,7 @@ abstract sealed class MetricFieldProducer extends AbstractDownsampleFieldProduce
 
     public static AbstractDownsampleFieldProducer createFieldProducerForGauge(String name, DownsampleConfig.SamplingMethod samplingMethod) {
         return switch (samplingMethod) {
-            case AGGREGATE -> new AggregateScalarMetricFieldProducer(name);
+            case AGGREGATE -> new AggregateGaugeMetricFieldProducer(name);
             case LAST_VALUE -> LastValueFieldProducer.createForMetric(name);
         };
     }
@@ -49,14 +49,14 @@ abstract sealed class MetricFieldProducer extends AbstractDownsampleFieldProduce
     /**
      * {@link MetricFieldProducer} implementation for creating an aggregate gauge metric field
      */
-    static final class AggregateScalarMetricFieldProducer extends MetricFieldProducer {
+    static final class AggregateGaugeMetricFieldProducer extends MetricFieldProducer {
 
         double max = MAX_NO_VALUE;
         double min = MIN_NO_VALUE;
         final CompensatedSum sum = new CompensatedSum();
         long count;
 
-        AggregateScalarMetricFieldProducer(String name) {
+        AggregateGaugeMetricFieldProducer(String name) {
             super(name);
         }
 
@@ -102,7 +102,7 @@ abstract sealed class MetricFieldProducer extends AbstractDownsampleFieldProduce
     }
 
     // For downsampling downsampled indices:
-    static final class AggregatePreAggregatedMetricFieldProducer extends MetricFieldProducer {
+    static final class AggregateGaugeSubmetricFieldProducer extends MetricFieldProducer {
 
         final AggregateMetricDoubleFieldMapper.Metric metric;
 
@@ -111,7 +111,7 @@ abstract sealed class MetricFieldProducer extends AbstractDownsampleFieldProduce
         final CompensatedSum sum = new CompensatedSum();
         long count;
 
-        AggregatePreAggregatedMetricFieldProducer(String name, AggregateMetricDoubleFieldMapper.Metric metric) {
+        AggregateGaugeSubmetricFieldProducer(String name, AggregateMetricDoubleFieldMapper.Metric metric) {
             super(name);
             this.metric = metric;
         }

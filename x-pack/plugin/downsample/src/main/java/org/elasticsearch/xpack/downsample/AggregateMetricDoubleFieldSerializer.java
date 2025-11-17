@@ -12,7 +12,10 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import java.io.IOException;
 import java.util.Collection;
 
-final class AggregateMetricFieldSerializer implements DownsampleFieldSerializer {
+/**
+ * This serialiser can be used to convert a list of producers to an aggregate metric double field.
+ */
+final class AggregateMetricDoubleFieldSerializer implements DownsampleFieldSerializer {
     private final Collection<AbstractDownsampleFieldProducer> producers;
     private final String name;
 
@@ -22,7 +25,7 @@ final class AggregateMetricFieldSerializer implements DownsampleFieldSerializer 
      * @param producers a collection of {@link AbstractDownsampleFieldProducer} instances with the subfields
      *                  of the aggregate_metric_double field.
      */
-    AggregateMetricFieldSerializer(String name, Collection<AbstractDownsampleFieldProducer> producers) {
+    AggregateMetricDoubleFieldSerializer(String name, Collection<AbstractDownsampleFieldProducer> producers) {
         this.name = name;
         this.producers = producers;
     }
@@ -38,12 +41,12 @@ final class AggregateMetricFieldSerializer implements DownsampleFieldSerializer 
             assert name.equals(fieldProducer.name()) : "producer has a different name";
             if (fieldProducer.isEmpty() == false) {
                 if (fieldProducer instanceof MetricFieldProducer metricFieldProducer) {
-                    if (metricFieldProducer instanceof MetricFieldProducer.AggregateScalarMetricFieldProducer gaugeProducer) {
+                    if (metricFieldProducer instanceof MetricFieldProducer.AggregateGaugeMetricFieldProducer gaugeProducer) {
                         builder.field("max", gaugeProducer.max);
                         builder.field("min", gaugeProducer.min);
                         builder.field("sum", gaugeProducer.sum.value());
                         builder.field("value_count", gaugeProducer.count);
-                    } else if (metricFieldProducer instanceof MetricFieldProducer.AggregatePreAggregatedMetricFieldProducer producer) {
+                    } else if (metricFieldProducer instanceof MetricFieldProducer.AggregateGaugeSubmetricFieldProducer producer) {
                         switch (producer.metric) {
                             case max -> builder.field("max", producer.max);
                             case min -> builder.field("min", producer.min);

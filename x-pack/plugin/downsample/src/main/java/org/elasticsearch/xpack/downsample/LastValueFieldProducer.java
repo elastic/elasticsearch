@@ -34,12 +34,45 @@ class LastValueFieldProducer extends AbstractDownsampleFieldProducer {
         this.supportsMultiValue = producesMultiValue;
     }
 
-    static LastValueFieldProducer createForLabel(String name) {
+    /**
+     * Creates a producer that can be used for downsampling labels. It works for all types apart from
+     * `aggregate_metric_double`, if the field type is aggregate metric double, please use
+     * {@link LastValueFieldProducer#createForAggregateSubMetricLabel(String, Metric)}.
+     */
+    static LastValueFieldProducer createForLabel(String name, String fieldType) {
+        assert "aggregate_metric_double".equals(fieldType) == false
+            : "field type cannot be aggregate metric double: " + fieldType + " for field " + name;
+        if ("histogram".equals(fieldType)) {
+            return new LastValueFieldProducer.HistogramFieldProducer(name, true);
+        } else if ("flattened".equals(fieldType)) {
+            return new LastValueFieldProducer.FlattenedFieldProducer(name, true);
+        }
         return new LastValueFieldProducer(name, true);
     }
 
+    /**
+     * Creates a producer that can be used for downsampling labels. It works for all types apart from
+     * `aggregate_metric_double`, if the field type is aggregate metric double, please use
+     * {@link LastValueFieldProducer#createForAggregateSubMetricMetric(String, Metric)} (String, Metric).}
+     */
     static LastValueFieldProducer createForMetric(String name) {
         return new LastValueFieldProducer(name, false);
+    }
+
+    /**
+     * Creates a producer that can be used for downsampling ONLY a sub-metric of an aggregate metric double labels. For
+     * other types of labels please use {@link LastValueFieldProducer#createForLabel(String, String)}.
+     */
+    static AggregateSubMetricFieldProducer createForAggregateSubMetricLabel(String name, Metric metric) {
+        return new AggregateSubMetricFieldProducer(name, metric, true);
+    }
+
+    /**
+     * Creates a producer that can be used for downsampling ONLY a sub-metric of an aggregate metric double metrics. For
+     * other types of metrics please use {@link LastValueFieldProducer#createForMetric(String)}.
+     */
+    static AggregateSubMetricFieldProducer createForAggregateSubMetricMetric(String name, Metric metric) {
+        return new AggregateSubMetricFieldProducer(name, metric, false);
     }
 
     @Override
@@ -98,21 +131,16 @@ class LastValueFieldProducer extends AbstractDownsampleFieldProducer {
         return "last_value";
     }
 
-    static final class AggregateMetricFieldProducer extends LastValueFieldProducer {
+    /**
+     * This producer is used to downsample by keeping the last value the sub-metric of an aggregate metric double.
+     */
+    static final class AggregateSubMetricFieldProducer extends LastValueFieldProducer {
 
         private final Metric metric;
 
-        AggregateMetricFieldProducer(String name, Metric metric, boolean supportsMultiValue) {
+        private AggregateSubMetricFieldProducer(String name, Metric metric, boolean supportsMultiValue) {
             super(name, supportsMultiValue);
             this.metric = metric;
-        }
-
-        static AggregateMetricFieldProducer forLabel(String name, Metric metric) {
-            return new AggregateMetricFieldProducer(name, metric, true);
-        }
-
-        static AggregateMetricFieldProducer forMetric(String name, Metric metric) {
-            return new AggregateMetricFieldProducer(name, metric, false);
         }
 
         @Override
@@ -122,8 +150,8 @@ class LastValueFieldProducer extends AbstractDownsampleFieldProducer {
     }
 
     static final class HistogramFieldProducer extends LastValueFieldProducer {
-        HistogramFieldProducer(String name) {
-            super(name, true);
+        private HistogramFieldProducer(String name, boolean producesMultiValue) {
+            super(name, producesMultiValue);
         }
 
         @Override
@@ -143,8 +171,8 @@ class LastValueFieldProducer extends AbstractDownsampleFieldProducer {
 
     static final class FlattenedFieldProducer extends LastValueFieldProducer {
 
-        FlattenedFieldProducer(String name) {
-            super(name, true);
+        private FlattenedFieldProducer(String name, boolean producesMultiValue) {
+            super(name, producesMultiValue);
         }
 
         @Override

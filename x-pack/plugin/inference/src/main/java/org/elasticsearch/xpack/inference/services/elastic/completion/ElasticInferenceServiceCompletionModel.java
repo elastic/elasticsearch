@@ -78,8 +78,8 @@ public class ElasticInferenceServiceCompletionModel extends ElasticInferenceServ
         TaskType taskType,
         String service,
         ElasticInferenceServiceCompletionServiceSettings serviceSettings,
-        @Nullable TaskSettings taskSettings,
-        @Nullable SecretSettings secretSettings,
+        TaskSettings taskSettings,
+        SecretSettings secretSettings,
         ElasticInferenceServiceComponents elasticInferenceServiceComponents
     ) {
         super(

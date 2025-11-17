@@ -77,12 +77,12 @@ public class ElasticInferenceServiceAuthorizationRequestHandlerTests extends EST
         var authHandler = new ElasticInferenceServiceAuthorizationRequestHandler(null, threadPool, logger);
 
         try (var sender = senderFactory.createSender()) {
-            PlainActionFuture<ElasticInferenceServiceAuthorizationModel> listener = new PlainActionFuture<>();
+            PlainActionFuture<AuthorizationModel> listener = new PlainActionFuture<>();
             authHandler.getAuthorization(listener, sender);
 
             var authResponse = listener.actionGet(TIMEOUT);
-            assertTrue(authResponse.getAuthorizedTaskTypes().isEmpty());
-            assertTrue(authResponse.getAuthorizedModelIds().isEmpty());
+            assertTrue(authResponse.getTaskTypes().isEmpty());
+            assertTrue(authResponse.getEndpointIds().isEmpty());
             assertFalse(authResponse.isAuthorized());
 
             var loggerArgsCaptor = ArgumentCaptor.forClass(String.class);
@@ -99,12 +99,12 @@ public class ElasticInferenceServiceAuthorizationRequestHandlerTests extends EST
         var authHandler = new ElasticInferenceServiceAuthorizationRequestHandler("", threadPool, logger);
 
         try (var sender = senderFactory.createSender()) {
-            PlainActionFuture<ElasticInferenceServiceAuthorizationModel> listener = new PlainActionFuture<>();
+            PlainActionFuture<AuthorizationModel> listener = new PlainActionFuture<>();
             authHandler.getAuthorization(listener, sender);
 
             var authResponse = listener.actionGet(TIMEOUT);
-            assertTrue(authResponse.getAuthorizedTaskTypes().isEmpty());
-            assertTrue(authResponse.getAuthorizedModelIds().isEmpty());
+            assertTrue(authResponse.getTaskTypes().isEmpty());
+            assertTrue(authResponse.getEndpointIds().isEmpty());
             assertFalse(authResponse.isAuthorized());
 
             var loggerArgsCaptor = ArgumentCaptor.forClass(String.class);
@@ -135,7 +135,7 @@ public class ElasticInferenceServiceAuthorizationRequestHandlerTests extends EST
 
             queueWebServerResponsesForRetries(responseJson);
 
-            PlainActionFuture<ElasticInferenceServiceAuthorizationModel> listener = new PlainActionFuture<>();
+            PlainActionFuture<AuthorizationModel> listener = new PlainActionFuture<>();
             authHandler.getAuthorization(listener, sender);
 
             var exception = expectThrows(XContentParseException.class, () -> listener.actionGet(TIMEOUT));
@@ -181,12 +181,12 @@ public class ElasticInferenceServiceAuthorizationRequestHandlerTests extends EST
 
             webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
 
-            PlainActionFuture<ElasticInferenceServiceAuthorizationModel> listener = new PlainActionFuture<>();
+            PlainActionFuture<AuthorizationModel> listener = new PlainActionFuture<>();
             authHandler.getAuthorization(listener, sender);
 
             var authResponse = listener.actionGet(TIMEOUT);
-            assertThat(authResponse.getAuthorizedTaskTypes(), is(EnumSet.of(TaskType.SPARSE_EMBEDDING, TaskType.CHAT_COMPLETION)));
-            assertThat(authResponse.getAuthorizedModelIds(), is(Set.of("model-a")));
+            assertThat(authResponse.getTaskTypes(), is(EnumSet.of(TaskType.SPARSE_EMBEDDING, TaskType.CHAT_COMPLETION)));
+            assertThat(authResponse.getEndpointIds(), is(Set.of("model-a")));
             assertTrue(authResponse.isAuthorized());
 
             var loggerArgsCaptor = ArgumentCaptor.forClass(String.class);
@@ -203,8 +203,8 @@ public class ElasticInferenceServiceAuthorizationRequestHandlerTests extends EST
         var logger = mock(Logger.class);
         var authHandler = new ElasticInferenceServiceAuthorizationRequestHandler(eisGatewayUrl, threadPool, logger);
 
-        PlainActionFuture<ElasticInferenceServiceAuthorizationModel> listener = new PlainActionFuture<>();
-        ActionListener<ElasticInferenceServiceAuthorizationModel> onlyOnceListener = ActionListener.assertOnce(listener);
+        PlainActionFuture<AuthorizationModel> listener = new PlainActionFuture<>();
+        ActionListener<AuthorizationModel> onlyOnceListener = ActionListener.assertOnce(listener);
         String responseJson = """
                 {
                     "models": [
@@ -222,8 +222,8 @@ public class ElasticInferenceServiceAuthorizationRequestHandlerTests extends EST
             authHandler.waitForAuthRequestCompletion(TIMEOUT);
 
             var authResponse = listener.actionGet(TIMEOUT);
-            assertThat(authResponse.getAuthorizedTaskTypes(), is(EnumSet.of(TaskType.SPARSE_EMBEDDING, TaskType.CHAT_COMPLETION)));
-            assertThat(authResponse.getAuthorizedModelIds(), is(Set.of("model-a")));
+            assertThat(authResponse.getTaskTypes(), is(EnumSet.of(TaskType.SPARSE_EMBEDDING, TaskType.CHAT_COMPLETION)));
+            assertThat(authResponse.getEndpointIds(), is(Set.of("model-a")));
             assertTrue(authResponse.isAuthorized());
 
             var loggerArgsCaptor = ArgumentCaptor.forClass(String.class);
@@ -249,7 +249,7 @@ public class ElasticInferenceServiceAuthorizationRequestHandlerTests extends EST
         var authHandler = new ElasticInferenceServiceAuthorizationRequestHandler("abc", threadPool, logger);
 
         try (var sender = senderFactory.createSender()) {
-            PlainActionFuture<ElasticInferenceServiceAuthorizationModel> listener = new PlainActionFuture<>();
+            PlainActionFuture<AuthorizationModel> listener = new PlainActionFuture<>();
 
             authHandler.getAuthorization(listener, sender);
             var exception = expectThrows(ElasticsearchException.class, () -> listener.actionGet(TIMEOUT));

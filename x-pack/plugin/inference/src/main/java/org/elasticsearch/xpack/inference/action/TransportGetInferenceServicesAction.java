@@ -26,7 +26,7 @@ import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.inference.action.GetInferenceServicesAction;
 import org.elasticsearch.xpack.inference.external.http.sender.Sender;
 import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceService;
-import org.elasticsearch.xpack.inference.services.elastic.authorization.ElasticInferenceServiceAuthorizationModel;
+import org.elasticsearch.xpack.inference.services.elastic.authorization.AuthorizationModel;
 import org.elasticsearch.xpack.inference.services.elastic.authorization.ElasticInferenceServiceAuthorizationRequestHandler;
 
 import java.util.ArrayList;
@@ -122,7 +122,7 @@ public class TransportGetInferenceServicesAction extends HandledTransportAction<
         ArrayList<Map.Entry<String, InferenceService>> availableServices,
         @Nullable TaskType requestedTaskType
     ) {
-        SubscribableListener.<ElasticInferenceServiceAuthorizationModel>newForked(authModelListener -> {
+        SubscribableListener.<AuthorizationModel>newForked(authModelListener -> {
             // Executing on a separate thread because there's a chance the authorization call needs to do some initialization for the Sender
             threadPool.executor(UTILITY_THREAD_POOL_NAME).execute(() -> getEisAuthorization(authModelListener, eisSender));
         }).<List<InferenceServiceConfiguration>>andThen((configurationListener, authorizationModel) -> {
@@ -133,8 +133,8 @@ public class TransportGetInferenceServicesAction extends HandledTransportAction<
                 return;
             }
 
-            var config = ElasticInferenceService.createConfiguration(authorizationModel.getAuthorizedTaskTypes());
-            if (requestedTaskType != null && authorizationModel.getAuthorizedTaskTypes().contains(requestedTaskType) == false) {
+            var config = ElasticInferenceService.createConfiguration(authorizationModel.getTaskTypes());
+            if (requestedTaskType != null && authorizationModel.getTaskTypes().contains(requestedTaskType) == false) {
                 configurationListener.onResponse(serviceConfigs);
                 return;
             }
@@ -150,14 +150,14 @@ public class TransportGetInferenceServicesAction extends HandledTransportAction<
             );
     }
 
-    private void getEisAuthorization(ActionListener<ElasticInferenceServiceAuthorizationModel> listener, Sender sender) {
+    private void getEisAuthorization(ActionListener<AuthorizationModel> listener, Sender sender) {
         var disabledServiceListener = listener.delegateResponse((delegate, e) -> {
             logger.warn(
                 "Failed to retrieve authorization information from the "
                     + "Elastic Inference Service while determining service configurations. Marking service as disabled.",
                 e
             );
-            delegate.onResponse(ElasticInferenceServiceAuthorizationModel.newDisabledService());
+            delegate.onResponse(AuthorizationModel.empty());
         });
 
         eisAuthorizationRequestHandler.getAuthorization(disabledServiceListener, sender);

@@ -16,6 +16,7 @@ import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.inference.Model;
 import org.elasticsearch.persistent.AllocatedPersistentTask;
 import org.elasticsearch.persistent.PersistentTasksService;
 import org.elasticsearch.tasks.TaskId;
@@ -28,18 +29,15 @@ import org.elasticsearch.xpack.inference.registry.ModelRegistry;
 import org.elasticsearch.xpack.inference.services.ServiceComponents;
 import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceComponents;
 import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceSettings;
-import org.elasticsearch.xpack.inference.services.elastic.InternalPreconfiguredEndpoints;
 
 import java.util.EnumSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.stream.Collectors;
 
 import static org.elasticsearch.xpack.inference.InferencePlugin.UTILITY_THREAD_POOL_NAME;
 import static org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceService.IMPLEMENTED_TASK_TYPES;
@@ -233,7 +231,7 @@ public class AuthorizationPoller extends AllocatedPersistentTask {
             delegate.onResponse(null);
         });
 
-        SubscribableListener.<ElasticInferenceServiceAuthorizationModel>newForked(
+        SubscribableListener.<AuthorizationModel>newForked(
             authModelListener -> authorizationHandler.getAuthorization(authModelListener, sender)
         )
             .andThenApply(this::getNewInferenceEndpointsToStore)
@@ -241,31 +239,27 @@ public class AuthorizationPoller extends AllocatedPersistentTask {
             .addListener(finalListener);
     }
 
-    private Set<String> getNewInferenceEndpointsToStore(ElasticInferenceServiceAuthorizationModel authModel) {
+    private List<? extends Model> getNewInferenceEndpointsToStore(AuthorizationModel authModel) {
         var scopedAuthModel = authModel.newLimitedToTaskTypes(EnumSet.copyOf(IMPLEMENTED_TASK_TYPES));
 
-        var authorizedModelIds = scopedAuthModel.getAuthorizedModelIds();
+        var newEndpointIds = scopedAuthModel.getEndpointIds();
         var existingInferenceIds = modelRegistry.getInferenceIds();
 
-        var newInferenceIds = authorizedModelIds.stream()
-            .map(InternalPreconfiguredEndpoints::getWithModelName)
-            .flatMap(List::stream)
-            .map(model -> model.configurations().getInferenceEntityId())
-            .collect(Collectors.toSet());
-
-        newInferenceIds.removeAll(existingInferenceIds);
-        return newInferenceIds;
+        newEndpointIds.removeAll(existingInferenceIds);
+        return scopedAuthModel.getEndpoints(newEndpointIds);
     }
 
-    private void storePreconfiguredModels(Set<String> newInferenceIds, ActionListener<Void> listener) {
-        if (newInferenceIds.isEmpty()) {
+    private void storePreconfiguredModels(List<? extends Model> newEndpoints, ActionListener<Void> listener) {
+        if (newEndpoints.isEmpty()) {
             listener.onResponse(null);
             return;
         }
 
-        logger.info("Storing new EIS preconfigured inference endpoints with inference IDs {}", newInferenceIds);
-        var modelsToAdd = PreconfiguredEndpointModelAdapter.getModels(newInferenceIds, elasticInferenceServiceComponents);
-        var storeRequest = new StoreInferenceEndpointsAction.Request(modelsToAdd, TimeValue.THIRTY_SECONDS);
+        logger.info(
+            "Storing new EIS preconfigured inference endpoints with inference IDs {}",
+            newEndpoints.stream().map(Model::getInferenceEntityId).toList()
+        );
+        var storeRequest = new StoreInferenceEndpointsAction.Request(newEndpoints, TimeValue.THIRTY_SECONDS);
 
         ActionListener<StoreInferenceEndpointsAction.Response> logResultsListener = ActionListener.wrap(responses -> {
             for (var response : responses.getResults()) {
@@ -278,7 +272,7 @@ public class AuthorizationPoller extends AllocatedPersistentTask {
                         .log("Successfully stored EIS preconfigured inference endpoint with inference ID [{}]", response.inferenceId());
                 }
             }
-        }, e -> logger.atWarn().withThrowable(e).log("Failed to store new EIS preconfigured inference endpoints [{}]", newInferenceIds));
+        }, e -> logger.atWarn().withThrowable(e).log("Failed to store new EIS preconfigured inference endpoints [{}]", newEndpoints));
 
         client.execute(
             StoreInferenceEndpointsAction.INSTANCE,

@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.inference.services.elastic.response;
 
-import org.apache.http.auth.AUTH;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -102,19 +101,6 @@ public class ElasticInferenceServiceAuthorizationResponseEntityV2 implements Inf
 
     public static final String NAME = "elastic_inference_service_auth_results_v2";
 
-    private static final Logger logger = LogManager.getLogger(ElasticInferenceServiceAuthorizationResponseEntityV2.class);
-    private static final String AUTH_FIELD_NAME = "authorized_models";
-    private static final Map<String, TaskType> ELASTIC_INFERENCE_SERVICE_TASK_TYPE_MAPPING = Map.of(
-        "embed/text/sparse",
-        TaskType.SPARSE_EMBEDDING,
-        "chat",
-        TaskType.CHAT_COMPLETION,
-        "embed/text/dense",
-        TaskType.TEXT_EMBEDDING,
-        "rerank/text/text-similarity",
-        TaskType.RERANK
-    );
-
     private static final String INFERENCE_ENDPOINTS = "inference_endpoints";
 
     @SuppressWarnings("unchecked")
@@ -173,52 +159,109 @@ public class ElasticInferenceServiceAuthorizationResponseEntityV2 implements Inf
             AUTHORIZED_ENDPOINT_PARSER.declareString(constructorArg(), new ParseField(STATUS));
             AUTHORIZED_ENDPOINT_PARSER.declareStringArray(optionalConstructorArg(), new ParseField(PROPERTIES));
             AUTHORIZED_ENDPOINT_PARSER.declareString(constructorArg(), new ParseField(RELEASE_DATE));
-            AUTHORIZED_ENDPOINT_PARSER.declareObject(
-                optionalConstructorArg(),
-                Configuration.CONFIGURATION_PARSER::apply,
-                new ParseField(CONFIGURATION)
-            );
-        }
-
-        private static EnumSet<TaskType> toTaskTypes(List<String> stringTaskTypes) {
-            var taskTypes = EnumSet.noneOf(TaskType.class);
-            for (String taskType : stringTaskTypes) {
-                var mappedTaskType = ELASTIC_INFERENCE_SERVICE_TASK_TYPE_MAPPING.get(taskType);
-                if (mappedTaskType != null) {
-                    taskTypes.add(mappedTaskType);
-                }
-            }
-
-            return taskTypes;
+            AUTHORIZED_ENDPOINT_PARSER.declareObject(optionalConstructorArg(), Configuration.PARSER::apply, new ParseField(CONFIGURATION));
         }
 
         public AuthorizedEndpoint(StreamInput in) throws IOException {
-            this(in.readString(), in.readEnumSet(TaskType.class));
+            this(
+                in.readString(),
+                in.readString(),
+                in.readString(),
+                in.readString(),
+                in.readOptionalCollectionAsList(StreamInput::readString),
+                in.readString(),
+                in.readOptionalWriteable(Configuration::new)
+            );
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
+            out.writeString(id);
             out.writeString(modelName);
-            out.writeEnumSet(taskTypes);
+            out.writeString(taskType);
+            out.writeString(status);
+            out.writeOptionalCollection(properties, StreamOutput::writeString);
+            out.writeString(releaseDate);
+            out.writeOptionalWriteable(configuration);
         }
 
-    @Override
+        @Override
+        public String toString() {
+            return Strings.format(
+                "AuthorizedEndpoint{id='%s', modelName='%s', taskType='%s', status='%s', "
+                    + "properties=%s, releaseDate='%s', configuration=%s}",
+                id,
+                modelName,
+                taskType,
+                status,
+                properties,
+                releaseDate,
+                configuration
+            );
+        }
+
+        @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
 
-            builder.field(ID, )
-
-            builder.field("model_name", modelName);
-            builder.field("task_types", taskTypes.stream().map(TaskType::toString).collect(Collectors.toList()));
+            builder.field(ID, id);
+            builder.field(MODEL_NAME, modelName);
+            builder.field(TASK_TYPE, taskType);
+            builder.field(STATUS, status);
+            if (properties != null) {
+                builder.field(PROPERTIES, properties);
+            }
+            builder.field(RELEASE_DATE, releaseDate);
+            if (configuration != null) {
+                builder.field(CONFIGURATION, configuration);
+            }
 
             builder.endObject();
 
             return builder;
         }
+    }
+
+    public record TaskTypeObject(String eisTaskType, String elasticsearchTaskType) implements Writeable, ToXContentObject {
+
+        private static final String EIS_TASK_TYPE_FIELD = "eis";
+        private static final String ELASTICSEARCH_TASK_TYPE_FIELD = "elasticsearch";
+
+        private static final ConstructingObjectParser<TaskTypeObject, Void> PARSER = new ConstructingObjectParser<>(
+            TaskTypeObject.class.getSimpleName(),
+            true,
+            args -> new TaskTypeObject((String) args[0], (String) args[1])
+        );
+
+        static {
+            PARSER.declareString(optionalConstructorArg(), new ParseField(EIS_TASK_TYPE_FIELD));
+            PARSER.declareString(constructorArg(), new ParseField(ELASTICSEARCH_TASK_TYPE_FIELD));
+        }
+
+        public TaskTypeObject(StreamInput in) throws IOException {
+            this(in.readOptionalString(), in.readString());
+        }
 
         @Override
         public String toString() {
-            return Strings.format("{modelName='%s', taskTypes='%s'}", modelName, taskTypes);
+            return Strings.format("TaskTypeObject{eisTaskType='%s', elasticsearchTaskType='%s'}", eisTaskType, elasticsearchTaskType);
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeOptionalString(eisTaskType);
+            out.writeString(elasticsearchTaskType);
+        }
+
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            builder.startObject();
+            if (eisTaskType != null) {
+                builder.field(EIS_TASK_TYPE_FIELD, eisTaskType);
+            }
+            builder.field(ELASTICSEARCH_TASK_TYPE_FIELD, elasticsearchTaskType);
+            builder.endObject();
+            return builder;
         }
     }
 
@@ -229,23 +272,25 @@ public class ElasticInferenceServiceAuthorizationResponseEntityV2 implements Inf
         @Nullable Map<String, Object> chunkingSettings
     ) implements Writeable, ToXContentObject {
 
-        private static final String SIMILARITY = "similarity";
-        private static final String DIMENSIONS = "dimensions";
-        private static final String ELEMENT_TYPE = "element_type";
-        private static final String CHUNKING_SETTINGS = "chunking_settings";
+        public static final Configuration EMPTY = new Configuration(null, null, null, null);
+
+        public static final String SIMILARITY = "similarity";
+        public static final String DIMENSIONS = "dimensions";
+        public static final String ELEMENT_TYPE = "element_type";
+        public static final String CHUNKING_SETTINGS = "chunking_settings";
 
         @SuppressWarnings("unchecked")
-        public static final ConstructingObjectParser<Configuration, Void> CONFIGURATION_PARSER = new ConstructingObjectParser<>(
+        public static final ConstructingObjectParser<Configuration, Void> PARSER = new ConstructingObjectParser<>(
             Configuration.class.getSimpleName(),
             true,
             args -> new Configuration((String) args[0], (Integer) args[1], (String) args[2], (Map<String, Object>) args[3])
         );
 
         static {
-            CONFIGURATION_PARSER.declareString(optionalConstructorArg(), new ParseField(SIMILARITY));
-            CONFIGURATION_PARSER.declareInt(optionalConstructorArg(), new ParseField(DIMENSIONS));
-            CONFIGURATION_PARSER.declareString(optionalConstructorArg(), new ParseField(ELEMENT_TYPE));
-            CONFIGURATION_PARSER.declareObject(optionalConstructorArg(), (p, c) -> p.mapOrdered(), new ParseField(CHUNKING_SETTINGS));
+            PARSER.declareString(optionalConstructorArg(), new ParseField(SIMILARITY));
+            PARSER.declareInt(optionalConstructorArg(), new ParseField(DIMENSIONS));
+            PARSER.declareString(optionalConstructorArg(), new ParseField(ELEMENT_TYPE));
+            PARSER.declareObject(optionalConstructorArg(), (p, c) -> p.mapOrdered(), new ParseField(CHUNKING_SETTINGS));
         }
 
         public Configuration(StreamInput in) throws IOException {
@@ -282,12 +327,23 @@ public class ElasticInferenceServiceAuthorizationResponseEntityV2 implements Inf
             builder.endObject();
             return builder;
         }
+
+        @Override
+        public String toString() {
+            return Strings.format(
+                "Configuration{similarity='%s', dimensions=%s, elementType='%s', chunkingSettings=%s}",
+                similarity,
+                dimensions,
+                elementType,
+                chunkingSettings
+            );
+        }
     }
 
-    private final List<AuthorizedEndpoint> authorizedModels;
+    private final List<AuthorizedEndpoint> authorizedEndpoints;
 
     public ElasticInferenceServiceAuthorizationResponseEntityV2(List<AuthorizedEndpoint> authorizedModels) {
-        this.authorizedModels = Objects.requireNonNull(authorizedModels);
+        this.authorizedEndpoints = Objects.requireNonNull(authorizedModels);
     }
 
     /**
@@ -310,23 +366,23 @@ public class ElasticInferenceServiceAuthorizationResponseEntityV2 implements Inf
         }
     }
 
-    public List<AuthorizedEndpoint> getAuthorizedModels() {
-        return authorizedModels;
+    public List<AuthorizedEndpoint> getAuthorizedEndpoints() {
+        return authorizedEndpoints;
     }
 
     @Override
     public String toString() {
-        return authorizedModels.stream().map(AuthorizedEndpoint::toString).collect(Collectors.joining(", "));
+        return authorizedEndpoints.stream().map(AuthorizedEndpoint::toString).collect(Collectors.joining(", "));
     }
 
     @Override
     public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params params) {
-        throw new UnsupportedOperationException();
+        throw new UnsupportedOperationException("Not implemented");
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeCollection(authorizedModels);
+        out.writeCollection(authorizedEndpoints);
     }
 
     @Override
@@ -349,11 +405,11 @@ public class ElasticInferenceServiceAuthorizationResponseEntityV2 implements Inf
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         ElasticInferenceServiceAuthorizationResponseEntityV2 that = (ElasticInferenceServiceAuthorizationResponseEntityV2) o;
-        return Objects.equals(authorizedModels, that.authorizedModels);
+        return Objects.equals(authorizedEndpoints, that.authorizedEndpoints);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(authorizedModels);
+        return Objects.hash(authorizedEndpoints);
     }
 }

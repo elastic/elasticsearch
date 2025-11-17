@@ -14,7 +14,7 @@ import java.util.Set;
 
 public record EsIndex(
     String name,
-    Map<String, EsField> mapping,
+    Map<String, EsField> mapping, // keyed by field names
     Map<String, IndexMode> indexNameWithModes,
     Set<String> partiallyUnmappedFields
 ) {

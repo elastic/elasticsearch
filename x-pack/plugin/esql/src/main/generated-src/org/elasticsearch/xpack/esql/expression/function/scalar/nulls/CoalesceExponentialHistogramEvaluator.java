@@ -10,7 +10,7 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.nulls;
 // begin generated imports
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.compute.data.Block;
-import org.elasticsearch.compute.data.LongBlock;
+import org.elasticsearch.compute.data.ExponentialHistogramBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
@@ -28,11 +28,11 @@ import java.util.stream.IntStream;
  * {@link EvalOperator.ExpressionEvaluator} implementation for {@link Coalesce}.
  * This class is generated. Edit {@code X-CoalesceEvaluator.java.st} instead.
  */
-abstract sealed class CoalesceLongEvaluator implements EvalOperator.ExpressionEvaluator permits
-    CoalesceLongEvaluator.CoalesceLongEagerEvaluator, //
-    CoalesceLongEvaluator.CoalesceLongLazyEvaluator {
+abstract sealed class CoalesceExponentialHistogramEvaluator implements EvalOperator.ExpressionEvaluator permits
+    CoalesceExponentialHistogramEvaluator.CoalesceExponentialHistogramEagerEvaluator, //
+    CoalesceExponentialHistogramEvaluator.CoalesceExponentialHistogramLazyEvaluator {
 
-    private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(CoalesceLongEvaluator.class);
+    private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(CoalesceExponentialHistogramEvaluator.class);
 
     static ExpressionEvaluator.Factory toEvaluator(EvaluatorMapper.ToEvaluator toEvaluator, List<Expression> children) {
         List<ExpressionEvaluator.Factory> childEvaluators = children.stream().map(toEvaluator::apply).toList();
@@ -40,7 +40,7 @@ abstract sealed class CoalesceLongEvaluator implements EvalOperator.ExpressionEv
             return new ExpressionEvaluator.Factory() {
                 @Override
                 public ExpressionEvaluator get(DriverContext context) {
-                    return new CoalesceLongEagerEvaluator(
+                    return new CoalesceExponentialHistogramEagerEvaluator(
                         // comment to make spotless happy about line breaks
                         context,
                         childEvaluators.stream().map(x -> x.get(context)).toList()
@@ -49,14 +49,14 @@ abstract sealed class CoalesceLongEvaluator implements EvalOperator.ExpressionEv
 
                 @Override
                 public String toString() {
-                    return "CoalesceLongEagerEvaluator[values=" + childEvaluators + ']';
+                    return "CoalesceExponentialHistogramEagerEvaluator[values=" + childEvaluators + ']';
                 }
             };
         }
         return new ExpressionEvaluator.Factory() {
             @Override
             public ExpressionEvaluator get(DriverContext context) {
-                return new CoalesceLongLazyEvaluator(
+                return new CoalesceExponentialHistogramLazyEvaluator(
                     // comment to make spotless happy about line breaks
                     context,
                     childEvaluators.stream().map(x -> x.get(context)).toList()
@@ -65,7 +65,7 @@ abstract sealed class CoalesceLongEvaluator implements EvalOperator.ExpressionEv
 
             @Override
             public String toString() {
-                return "CoalesceLongLazyEvaluator[values=" + childEvaluators + ']';
+                return "CoalesceExponentialHistogramLazyEvaluator[values=" + childEvaluators + ']';
             }
         };
     }
@@ -73,13 +73,13 @@ abstract sealed class CoalesceLongEvaluator implements EvalOperator.ExpressionEv
     protected final DriverContext driverContext;
     protected final List<EvalOperator.ExpressionEvaluator> evaluators;
 
-    protected CoalesceLongEvaluator(DriverContext driverContext, List<EvalOperator.ExpressionEvaluator> evaluators) {
+    protected CoalesceExponentialHistogramEvaluator(DriverContext driverContext, List<EvalOperator.ExpressionEvaluator> evaluators) {
         this.driverContext = driverContext;
         this.evaluators = evaluators;
     }
 
     @Override
-    public final LongBlock eval(Page page) {
+    public final ExponentialHistogramBlock eval(Page page) {
         return entireBlock(page);
     }
 
@@ -101,10 +101,10 @@ abstract sealed class CoalesceLongEvaluator implements EvalOperator.ExpressionEv
      *     </li>
      * </ul>
      */
-    private LongBlock entireBlock(Page page) {
+    private ExponentialHistogramBlock entireBlock(Page page) {
         int lastFullBlockIdx = 0;
         while (true) {
-            LongBlock lastFullBlock = (LongBlock) evaluators.get(lastFullBlockIdx++).eval(page);
+            ExponentialHistogramBlock lastFullBlock = (ExponentialHistogramBlock) evaluators.get(lastFullBlockIdx++).eval(page);
             if (lastFullBlockIdx == evaluators.size() || lastFullBlock.asVector() != null) {
                 return lastFullBlock;
             }
@@ -134,7 +134,7 @@ abstract sealed class CoalesceLongEvaluator implements EvalOperator.ExpressionEv
      * any way it likes.
      * </p>
      */
-    protected abstract LongBlock perPosition(Page page, LongBlock lastFullBlock, int firstToEvaluate);
+    protected abstract ExponentialHistogramBlock perPosition(Page page, ExponentialHistogramBlock lastFullBlock, int firstToEvaluate);
 
     @Override
     public final String toString() {
@@ -159,31 +159,31 @@ abstract sealed class CoalesceLongEvaluator implements EvalOperator.ExpressionEv
      * Evaluates {@code COALESCE} eagerly per position if entire-block evaluation fails.
      * First we evaluate all remaining evaluators, and then we pluck the first non-null
      * value from each one. This is <strong>much</strong> faster than
-     * {@link CoalesceLongLazyEvaluator} but will include spurious warnings if any of the
+     * {@link CoalesceExponentialHistogramLazyEvaluator} but will include spurious warnings if any of the
      * evaluators make them so we only use it for evaluators that are
      * {@link Factory#eagerEvalSafeInLazy safe} to evaluate eagerly
      * in a lazy environment.
      */
-    static final class CoalesceLongEagerEvaluator extends CoalesceLongEvaluator {
-        CoalesceLongEagerEvaluator(DriverContext driverContext, List<EvalOperator.ExpressionEvaluator> evaluators) {
+    static final class CoalesceExponentialHistogramEagerEvaluator extends CoalesceExponentialHistogramEvaluator {
+        CoalesceExponentialHistogramEagerEvaluator(DriverContext driverContext, List<EvalOperator.ExpressionEvaluator> evaluators) {
             super(driverContext, evaluators);
         }
 
         @Override
-        protected LongBlock perPosition(Page page, LongBlock lastFullBlock, int firstToEvaluate) {
+        protected ExponentialHistogramBlock perPosition(Page page, ExponentialHistogramBlock lastFullBlock, int firstToEvaluate) {
             int positionCount = page.getPositionCount();
-            LongBlock[] flatten = new LongBlock[evaluators.size() - firstToEvaluate + 1];
+            ExponentialHistogramBlock[] flatten = new ExponentialHistogramBlock[evaluators.size() - firstToEvaluate + 1];
             try {
                 flatten[0] = lastFullBlock;
                 for (int f = 1; f < flatten.length; f++) {
-                    flatten[f] = (LongBlock) evaluators.get(firstToEvaluate + f - 1).eval(page);
+                    flatten[f] = (ExponentialHistogramBlock) evaluators.get(firstToEvaluate + f - 1).eval(page);
                 }
                 try (
-                    LongBlock.Builder result = driverContext.blockFactory() //
-                        .newLongBlockBuilder(positionCount)
+                    ExponentialHistogramBlock.Builder result = driverContext.blockFactory() //
+                        .newExponentialHistogramBlockBuilder(positionCount)
                 ) {
                     position: for (int p = 0; p < positionCount; p++) {
-                        for (LongBlock f : flatten) {
+                        for (ExponentialHistogramBlock f : flatten) {
                             if (false == f.isNull(p)) {
                                 result.copyFrom(f, p);
                                 continue position;
@@ -210,17 +210,17 @@ abstract sealed class CoalesceLongEvaluator implements EvalOperator.ExpressionEv
      *     </li>
      * </ul>
      */
-    static final class CoalesceLongLazyEvaluator extends CoalesceLongEvaluator {
-        CoalesceLongLazyEvaluator(DriverContext driverContext, List<EvalOperator.ExpressionEvaluator> evaluators) {
+    static final class CoalesceExponentialHistogramLazyEvaluator extends CoalesceExponentialHistogramEvaluator {
+        CoalesceExponentialHistogramLazyEvaluator(DriverContext driverContext, List<EvalOperator.ExpressionEvaluator> evaluators) {
             super(driverContext, evaluators);
         }
 
         @Override
-        protected LongBlock perPosition(Page page, LongBlock lastFullBlock, int firstToEvaluate) {
+        protected ExponentialHistogramBlock perPosition(Page page, ExponentialHistogramBlock lastFullBlock, int firstToEvaluate) {
             int positionCount = page.getPositionCount();
             try (
-                LongBlock.Builder result = driverContext.blockFactory() //
-                    .newLongBlockBuilder(positionCount)
+                ExponentialHistogramBlock.Builder result = driverContext.blockFactory() //
+                    .newExponentialHistogramBlockBuilder(positionCount)
             ) {
                 position: for (int p = 0; p < positionCount; p++) {
                     if (lastFullBlock.isNull(p) == false) {
@@ -234,7 +234,7 @@ abstract sealed class CoalesceLongEvaluator implements EvalOperator.ExpressionEv
                     );
                     try (Releasable ignored = limited::releaseBlocks) {
                         for (int e = firstToEvaluate; e < evaluators.size(); e++) {
-                            try (LongBlock block = (LongBlock) evaluators.get(e).eval(limited)) {
+                            try (ExponentialHistogramBlock block = (ExponentialHistogramBlock) evaluators.get(e).eval(limited)) {
                                 if (false == block.isNull(0)) {
                                     result.copyFrom(block, 0);
                                     continue position;

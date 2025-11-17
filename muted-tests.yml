@@ -450,12 +450,6 @@ tests:
 - class: org.elasticsearch.xpack.inference.integration.AuthorizationTaskExecutorMultipleNodesIT
   method: testCancellingAuthorizationTaskRestartsIt
   issue: https://github.com/elastic/elasticsearch/issues/138099
-- class: org.elasticsearch.index.store.DirectIOIT
-  method: testDirectIONotUsed {p0=bbq_disk}
-  issue: https://github.com/elastic/elasticsearch/issues/138102
-- class: org.elasticsearch.index.store.DirectIOIT
-  method: testDirectIOUsed {p0=bbq_disk}
-  issue: https://github.com/elastic/elasticsearch/issues/138104
 - class: org.elasticsearch.xpack.shutdown.NodeShutdownIT
   method: testStalledShardMigrationProperlyDetected
   issue: https://github.com/elastic/elasticsearch/issues/115697
@@ -477,12 +471,6 @@ tests:
 - class: org.elasticsearch.xpack.downsample.DataStreamLifecycleDownsampleIT
   method: testUpdateDownsampleSamplingMode
   issue: https://github.com/elastic/elasticsearch/issues/138135
-- class: org.elasticsearch.index.store.DirectIOIT
-  method: testDirectIONotUsed {p0=bbq_hnsw}
-  issue: https://github.com/elastic/elasticsearch/issues/138101
-- class: org.elasticsearch.index.store.DirectIOIT
-  method: testDirectIOUsed {p0=bbq_hnsw}
-  issue: https://github.com/elastic/elasticsearch/issues/138103
 
 # Examples:
 #

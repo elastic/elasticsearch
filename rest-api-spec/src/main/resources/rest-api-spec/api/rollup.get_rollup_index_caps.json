@@ -24,8 +24,8 @@
           ],
           "parts": {
             "index": {
-              "type": "string",
-              "description": "The rollup index or index pattern to obtain rollup capabilities from."
+              "type": "list",
+              "description": "Comma-separated list of data streams or indices to check for rollup capabilities. Wildcard (`*`) expressions are supported."
             }
           }
         }

@@ -444,7 +444,6 @@ public class IndicesQueryCacheTests extends ESTestCase {
         IndicesService indicesService = mock(IndicesService.class);
         when(indicesService.iterator()).thenAnswer(ignored -> List.of(indexService).iterator());
         when(indicesService.getIndicesQueryCache()).thenReturn(queryCache);
-        when(indicesService.getIndicesQueryCache()).thenReturn(queryCache);
         return indicesService;
     }
 

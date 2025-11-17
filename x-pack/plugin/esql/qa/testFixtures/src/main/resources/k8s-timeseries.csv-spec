@@ -723,6 +723,7 @@ mx:integer | tbucket:datetime
 
 derivative_of_gauge_metric
 required_capability: ts_command_v0
+required_capability: TS_LINREG_DERIVATIVE
 
 // tag::deriv[]
 TS k8s

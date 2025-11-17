@@ -59,6 +59,7 @@
       },
       "interval": {
         "type": "string",
+        "required": true,
         "description": "Collection interval (e.g., '10s' or '10000ms') of the payload"
       }
     },

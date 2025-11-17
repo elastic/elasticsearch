@@ -477,9 +477,12 @@ tests:
 - class: org.elasticsearch.xpack.downsample.DataStreamLifecycleDownsampleIT
   method: testUpdateDownsampleSamplingMode
   issue: https://github.com/elastic/elasticsearch/issues/138135
-- class: org.elasticsearch.indices.mapping.UpdateMappingIntegrationIT
-  method: testUpdateMappingWithConflicts
-  issue: https://github.com/elastic/elasticsearch/issues/138137
+- class: org.elasticsearch.index.store.DirectIOIT
+  method: testDirectIONotUsed {p0=bbq_hnsw}
+  issue: https://github.com/elastic/elasticsearch/issues/138101
+- class: org.elasticsearch.index.store.DirectIOIT
+  method: testDirectIOUsed {p0=bbq_hnsw}
+  issue: https://github.com/elastic/elasticsearch/issues/138103
 
 # Examples:
 #

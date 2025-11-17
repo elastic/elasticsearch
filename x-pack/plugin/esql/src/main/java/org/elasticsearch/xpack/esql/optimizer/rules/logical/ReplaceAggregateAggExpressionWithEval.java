@@ -44,7 +44,7 @@ import java.util.Map;
  * stats a = min(x), c = count(*) by g | eval b = a, d = c | keep a, b, c, d, g
  */
 public class ReplaceAggregateAggExpressionWithEval extends OptimizerRules.OptimizerRule<Aggregate> {
-    private boolean replaceNestedExpressions = true;
+    private final boolean replaceNestedExpressions;
 
     public ReplaceAggregateAggExpressionWithEval(boolean replaceNestedExpressions) {
         super(OptimizerRules.TransformDirection.UP);
@@ -53,6 +53,7 @@ public class ReplaceAggregateAggExpressionWithEval extends OptimizerRules.Optimi
 
     public ReplaceAggregateAggExpressionWithEval() {
         super(OptimizerRules.TransformDirection.UP);
+        this.replaceNestedExpressions = true;
     }
 
     @Override

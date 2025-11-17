@@ -18,6 +18,7 @@ import java.util.Objects;
  * It checks:
  * - that a tsid is only collected once, and
  * - that all TSIDs that are being collected for a round have the same value.
+ * Important note: This class assumes that field values are collected and sorted by descending order by time
  */
 public class DimensionFieldProducer extends LastValueFieldProducer {
 

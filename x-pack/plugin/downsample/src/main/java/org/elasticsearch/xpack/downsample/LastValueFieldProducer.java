@@ -21,6 +21,7 @@ import java.util.List;
 
 /**
  * Class that produces the last value of a field for downsampling.
+ * Important note: This class assumes that field values are collected and sorted by descending order by time
  */
 class LastValueFieldProducer extends AbstractDownsampleFieldProducer {
     private final boolean supportsMultiValue;

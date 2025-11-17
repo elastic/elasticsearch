@@ -29,6 +29,9 @@ import org.elasticsearch.cluster.metadata.DataStreamFailureStore;
 import org.elasticsearch.cluster.metadata.DataStreamOptions;
 import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.common.compress.CompressedXContent;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.extras.MapperExtrasPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESSingleNodeTestCase;
@@ -273,7 +276,11 @@ public class DataStreamsStatsTests extends ESSingleNodeTestCase {
         DataStreamOptions.Template failureStoreOptions = failureStore == false
             ? null
             : new DataStreamOptions.Template(DataStreamFailureStore.builder().enabled(true).buildTemplate());
-        Template idxTemplate = new Template(null, new CompressedXContent("""
+        Settings.Builder settingsBuilder = Settings.builder();
+        if (randomBoolean()) {
+            settingsBuilder.put(IndexSettings.MODE.getKey(), IndexMode.LOGSDB.getName());
+        }
+        Template idxTemplate = new Template(settingsBuilder.build(), new CompressedXContent("""
             {"properties":{"@timestamp":{"type":"date"},"data":{"type":"keyword"}}}
             """), null, null, failureStoreOptions);
         ComposableIndexTemplate template = ComposableIndexTemplate.builder()

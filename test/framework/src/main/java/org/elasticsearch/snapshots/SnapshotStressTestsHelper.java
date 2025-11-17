@@ -293,6 +293,10 @@ public class SnapshotStressTestsHelper {
         }
 
         public void run() throws InterruptedException {
+            run(true, true);
+        }
+
+        public void run(boolean restartEnabled, boolean shutdownEnabled) throws InterruptedException {
             shuffleNodes();
 
             for (TrackedIndex trackedIndex : indices.values()) {
@@ -303,7 +307,7 @@ public class SnapshotStressTestsHelper {
                 trackedRepository.start();
             }
 
-            final int nodeRestarterCount = between(1, 2);
+            final int nodeRestarterCount = restartEnabled ? between(1, 2) : 0;
             for (int i = 0; i < nodeRestarterCount; i++) {
                 startNodeRestarter();
             }
@@ -338,7 +342,7 @@ public class SnapshotStressTestsHelper {
                 startCleaner();
             }
 
-            if (randomBoolean()) {
+            if (shutdownEnabled && randomBoolean()) {
                 startNodeShutdownMarker();
             }
 

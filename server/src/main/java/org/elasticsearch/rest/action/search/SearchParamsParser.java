@@ -27,6 +27,10 @@ public class SearchParamsParser {
      * @return A boolean that determines if round trips should be minimised for this search request.
      */
     public static boolean parseCcsMinimizeRoundtrips(Optional<Boolean> crossProjectEnabled, RestRequest request) {
+        return parseCcsMinimizeRoundtrips(crossProjectEnabled, request, true);
+    }
+
+    public static boolean parseCcsMinimizeRoundtrips(Optional<Boolean> crossProjectEnabled, RestRequest request, boolean defaultValue) {
         if (crossProjectEnabled.orElse(false)) {
             if (request.hasParam("ccs_minimize_roundtrips")) {
                 request.param("ccs_minimize_roundtrips");
@@ -38,7 +42,7 @@ public class SearchParamsParser {
             return true;
         } else {
             // This is not a CPS request; use the value the user has provided.
-            return request.paramAsBoolean("ccs_minimize_roundtrips", true);
+            return request.paramAsBoolean("ccs_minimize_roundtrips", defaultValue);
         }
     }
 }

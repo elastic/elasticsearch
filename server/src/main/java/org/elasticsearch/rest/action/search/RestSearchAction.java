@@ -274,7 +274,9 @@ public class RestSearchAction extends BaseRestHandler {
         if (searchRequest.pointInTimeBuilder() != null) {
             preparePointInTime(searchRequest, request);
         } else {
-            searchRequest.setCcsMinimizeRoundtrips(SearchParamsParser.parseCcsMinimizeRoundtrips(crossProjectEnabled, request));
+            searchRequest.setCcsMinimizeRoundtrips(
+                SearchParamsParser.parseCcsMinimizeRoundtrips(crossProjectEnabled, request, searchRequest.isCcsMinimizeRoundtrips())
+            );
         }
         if (request.paramAsBoolean("force_synthetic_source", false)) {
             searchRequest.setForceSyntheticSource(true);

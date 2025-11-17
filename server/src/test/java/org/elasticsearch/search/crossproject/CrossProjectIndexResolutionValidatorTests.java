@@ -707,7 +707,7 @@ public class CrossProjectIndexResolutionValidatorTests extends ESTestCase {
         );
         assertNotNull(e);
         assertThat(e, instanceOf(IndexNotFoundException.class));
-        assertThat(e.getMessage(), containsString("no such index [" + original + "]"));
+        assertThat(e.getMessage(), containsString("no such index [P1:logs*]"));
     }
 
     private IndicesOptions getStrictAllowNoIndices() {

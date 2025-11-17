@@ -10,7 +10,6 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.logging.LogManager;
@@ -22,6 +21,7 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.Scope;
 import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestCancellableNodeClient;
+import org.elasticsearch.rest.action.search.SearchParamsParser;
 import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
@@ -32,6 +32,7 @@ import org.elasticsearch.xpack.eql.action.EqlSearchResponse;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Optional;
 import java.util.Set;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
@@ -77,23 +78,7 @@ public class RestEqlSearchAction extends BaseRestHandler {
                 eqlRequest.keepAlive(request.paramAsTime("keep_alive", eqlRequest.keepAlive()));
             }
             eqlRequest.keepOnCompletion(request.paramAsBoolean("keep_on_completion", eqlRequest.keepOnCompletion()));
-            if (crossProjectEnabled) {
-                if (request.hasParam("ccs_minimize_roundtrips")) {
-                    /*
-                     * MRT should not be settable by the user in Cross Project Search environment.
-                     * Irrespective of the value, issue a warning, and set MRT to true for the request.
-                     *
-                     * By default, MRT is true and is picked up from RequestDefaults.CCS_MINIMIZE_ROUNDTRIPS.
-                     */
-                    String warning = "ccs_minimize_roundtrips always defaults to true in Cross Project Search context."
-                        + " Setting it explicitly has no effect irrespective of the value specified and is ignored.";
-                    HeaderWarning.addWarning(warning);
-                    request.param("ccs_minimize_roundtrips");
-                    eqlRequest.ccsMinimizeRoundtrips(true);
-                }
-            } else {
-                eqlRequest.ccsMinimizeRoundtrips(request.paramAsBoolean("ccs_minimize_roundtrips", eqlRequest.ccsMinimizeRoundtrips()));
-            }
+            eqlRequest.ccsMinimizeRoundtrips(SearchParamsParser.parseCcsMinimizeRoundtrips(Optional.of(crossProjectEnabled), request));
             eqlRequest.allowPartialSearchResults(
                 request.paramAsBoolean("allow_partial_search_results", eqlRequest.allowPartialSearchResults())
             );

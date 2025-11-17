@@ -23,6 +23,7 @@ import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Optional;
 import java.util.Set;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
@@ -93,7 +94,7 @@ public class RestMultiSearchTemplateAction extends BaseRestHandler {
                 }
                 RestSearchAction.validateSearchRequest(restRequest, searchRequest);
             },
-            crossProjectEnabled
+            Optional.of(crossProjectEnabled)
         );
         return multiRequest;
     }

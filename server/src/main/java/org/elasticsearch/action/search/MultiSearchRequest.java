@@ -36,6 +36,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
@@ -167,7 +168,8 @@ public class MultiSearchRequest extends LegacyActionRequest implements Composite
         String routing,
         String searchType,
         Boolean ccsMinimizeRoundtrips,
-        boolean allowExplicitIndex
+        boolean allowExplicitIndex,
+        Optional<Boolean> crossProjectEnabled
     ) throws IOException {
         readMultiLineFormat(
             xContent,
@@ -180,7 +182,8 @@ public class MultiSearchRequest extends LegacyActionRequest implements Composite
             searchType,
             ccsMinimizeRoundtrips,
             allowExplicitIndex,
-            (s, o, r) -> false
+            (s, o, r) -> false,
+            crossProjectEnabled
         );
 
     }
@@ -196,7 +199,8 @@ public class MultiSearchRequest extends LegacyActionRequest implements Composite
         String searchType,
         Boolean ccsMinimizeRoundtrips,
         boolean allowExplicitIndex,
-        TriFunction<String, Object, SearchRequest, Boolean> extraParamParser
+        TriFunction<String, Object, SearchRequest, Boolean> extraParamParser,
+        Optional<Boolean> crossProjectEnabled
     ) throws IOException {
         int from = 0;
         byte marker = xContent.bulkSeparator();
@@ -219,6 +223,7 @@ public class MultiSearchRequest extends LegacyActionRequest implements Composite
             if (searchType != null) {
                 searchRequest.searchType(searchType);
             }
+            // When crossProjectEnabled is true, ccsMinimizeRoundtrips is guaranteed to be true.
             if (ccsMinimizeRoundtrips != null) {
                 searchRequest.setCcsMinimizeRoundtrips(ccsMinimizeRoundtrips);
             }
@@ -250,7 +255,7 @@ public class MultiSearchRequest extends LegacyActionRequest implements Composite
                         } else if ("search_type".equals(entry.getKey()) || "searchType".equals(entry.getKey())) {
                             searchRequest.searchType(nodeStringValue(value, null));
                         } else if ("ccs_minimize_roundtrips".equals(entry.getKey()) || "ccsMinimizeRoundtrips".equals(entry.getKey())) {
-                            searchRequest.setCcsMinimizeRoundtrips(nodeBooleanValue(value));
+                            searchRequest.setCcsMinimizeRoundtrips(crossProjectEnabled.orElse(false) || nodeBooleanValue(value));
                         } else if ("request_cache".equals(entry.getKey()) || "requestCache".equals(entry.getKey())) {
                             searchRequest.requestCache(nodeBooleanValue(value, entry.getKey()));
                         } else if ("preference".equals(entry.getKey())) {

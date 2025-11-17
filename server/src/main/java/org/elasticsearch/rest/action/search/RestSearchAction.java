@@ -16,7 +16,6 @@ import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.Nullable;
@@ -275,33 +274,7 @@ public class RestSearchAction extends BaseRestHandler {
         if (searchRequest.pointInTimeBuilder() != null) {
             preparePointInTime(searchRequest, request);
         } else {
-            if (crossProjectEnabled.orElse(false)) {
-                /*
-                 * MRT should not be settable by the user when in Cross Project Search environment.
-                 * Only _async_search uses MRT=false. However, in RestSubmitAsyncSearchAction, we
-                 * already, explicitly, and directly call in `SearchRequest#setCcsMinimizeRoundtrips()`
-                 * to set it to true. Although other searches that utilise SearchRequest-s do not call
-                 * this method, SearchRequest, by default, sets MRT to true when it is instantiated.
-                 * This way, all searches pivot to MRT=true for CPS.
-                 *
-                 * Since users will anyway see a banner via Kibana that setting MRT in Serverless has no
-                 * effect, we can safely drop it.
-                 */
-                if (request.hasParam("ccs_minimize_roundtrips")) {
-                    String warning = "ccs_minimize_roundtrips always defaults to true in Cross Project Search context."
-                        + " Setting it explicitly has no effect irrespective of the value specified and is ignored.";
-                    HeaderWarning.addWarning(warning);
-                    request.param("ccs_minimize_roundtrips");
-                }
-            } else {
-                /*
-                 * Either we're not in a Cross Project Search environment or the endpoint isn't compatible with it. Parse what's in the
-                 * request.
-                 */
-                searchRequest.setCcsMinimizeRoundtrips(
-                    request.paramAsBoolean("ccs_minimize_roundtrips", searchRequest.isCcsMinimizeRoundtrips())
-                );
-            }
+            searchRequest.setCcsMinimizeRoundtrips(SearchParamsParser.parseCcsMinimizeRoundtrips(crossProjectEnabled, request));
         }
         if (request.paramAsBoolean("force_synthetic_source", false)) {
             searchRequest.setForceSyntheticSource(true);

@@ -27,7 +27,6 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import java.util.Set;
 
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
@@ -308,15 +307,7 @@ public class NodeShutdownIT extends ESRestTestCase {
     }
 
     public void testStalledShardMigrationProperlyDetected() throws Exception {
-        ensureHealth(r -> {});
-        final var clusterState = assertOKAndCreateObjectPath(client().performRequest(new Request("GET", "_cluster/state")));
-
-        final Set<String> nodeIdsForSecurityIndex = Set.of(
-            clusterState.evaluate("routing_table.indices.\\.security-7.shards.0.0.node"),
-            clusterState.evaluate("routing_table.indices.\\.security-7.shards.0.1.node")
-        );
-
-        String nodeIdToShutdown = getRandomNodeId(nodeIdsForSecurityIndex);
+        String nodeIdToShutdown = getRandomNodeId();
         int numberOfShards = randomIntBetween(1, 5);
 
         // Create an index, pin the allocation to the node we're about to shut down
@@ -493,17 +484,13 @@ public class NodeShutdownIT extends ESRestTestCase {
         assertOK(client().performRequest(putShutdown));
     }
 
-    private String getRandomNodeId() throws IOException {
-        return getRandomNodeId(Set.of());
-    }
-
     @SuppressWarnings("unchecked")
-    private String getRandomNodeId(Set<String> excludes) throws IOException {
+    private String getRandomNodeId() throws IOException {
         Request nodesRequest = new Request("GET", "_nodes");
         Map<String, Object> nodesResponse = responseAsMap(client().performRequest(nodesRequest));
         Map<String, Object> nodesObject = (Map<String, Object>) nodesResponse.get("nodes");
 
-        return randomValueOtherThanMany(excludes::contains, () -> randomFrom(nodesObject.keySet()));
+        return randomFrom(nodesObject.keySet());
     }
 
     @Override

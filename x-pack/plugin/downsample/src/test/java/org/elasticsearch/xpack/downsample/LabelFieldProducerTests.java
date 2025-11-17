@@ -24,10 +24,10 @@ import java.util.List;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
 
-public class LastValueFieldProducerTests extends AggregatorTestCase {
+public class LabelFieldProducerTests extends AggregatorTestCase {
 
     public void testLastValueKeyword() throws IOException {
-        LastValueFieldProducer lastValueFieldProducer = new LastValueFieldProducer(randomAlphanumericOfLength(10), randomBoolean());
+        LabelFieldProducer lastValueFieldProducer = new LabelFieldProducer(randomAlphanumericOfLength(10), randomBoolean());
         assertThat(lastValueFieldProducer.lastValue(), nullValue());
         var docIdBuffer = IntArrayList.from(0, 1, 2);
         var values = createValuesInstance(docIdBuffer, new String[] { "aaa", "bbb", "ccc" });
@@ -38,7 +38,7 @@ public class LastValueFieldProducerTests extends AggregatorTestCase {
     }
 
     public void testLastValueDouble() throws IOException {
-        LastValueFieldProducer lastValueFieldProducer = new LastValueFieldProducer(randomAlphanumericOfLength(10), randomBoolean());
+        LabelFieldProducer lastValueFieldProducer = new LabelFieldProducer(randomAlphanumericOfLength(10), randomBoolean());
         assertThat(lastValueFieldProducer.lastValue(), nullValue());
         var docIdBuffer = IntArrayList.from(0, 1, 2);
         var values = createValuesInstance(docIdBuffer, new Double[] { 10.20D, 17.30D, 12.60D });
@@ -49,7 +49,7 @@ public class LastValueFieldProducerTests extends AggregatorTestCase {
     }
 
     public void testLastValueInteger() throws IOException {
-        LastValueFieldProducer lastValueFieldProducer = new LastValueFieldProducer(randomAlphanumericOfLength(10), randomBoolean());
+        LabelFieldProducer lastValueFieldProducer = new LabelFieldProducer(randomAlphanumericOfLength(10), randomBoolean());
         assertThat(lastValueFieldProducer.lastValue(), nullValue());
         var docIdBuffer = IntArrayList.from(0, 1, 2);
         var values = createValuesInstance(docIdBuffer, new Integer[] { 10, 17, 12 });
@@ -60,7 +60,7 @@ public class LastValueFieldProducerTests extends AggregatorTestCase {
     }
 
     public void testLastValueLong() throws IOException {
-        LastValueFieldProducer lastValueFieldProducer = new LastValueFieldProducer(randomAlphanumericOfLength(10), randomBoolean());
+        LabelFieldProducer lastValueFieldProducer = new LabelFieldProducer(randomAlphanumericOfLength(10), randomBoolean());
         assertThat(lastValueFieldProducer.lastValue(), nullValue());
         var docIdBuffer = IntArrayList.from(0, 1, 2);
         var values = createValuesInstance(docIdBuffer, new Long[] { 10L, 17L, 12L });
@@ -71,7 +71,7 @@ public class LastValueFieldProducerTests extends AggregatorTestCase {
     }
 
     public void testLastValueBoolean() throws IOException {
-        LastValueFieldProducer lastValueFieldProducer = new LastValueFieldProducer(randomAlphanumericOfLength(10), randomBoolean());
+        LabelFieldProducer lastValueFieldProducer = new LabelFieldProducer(randomAlphanumericOfLength(10), randomBoolean());
         assertThat(lastValueFieldProducer.lastValue(), nullValue());
         var docIdBuffer = IntArrayList.from(0, 1, 2);
         var values = createValuesInstance(docIdBuffer, new Boolean[] { true, false, false });
@@ -104,7 +104,7 @@ public class LastValueFieldProducerTests extends AggregatorTestCase {
             }
         };
 
-        LastValueFieldProducer singleLastValueProducer = new LastValueFieldProducer(randomAlphanumericOfLength(10), false);
+        LabelFieldProducer singleLastValueProducer = new LabelFieldProducer(randomAlphanumericOfLength(10), false);
         assertThat(singleLastValueProducer.lastValue(), nullValue());
         singleLastValueProducer.collect(values, docIdBuffer);
         assertThat(singleLastValueProducer.lastValue(), equalTo(true));
@@ -114,7 +114,7 @@ public class LastValueFieldProducerTests extends AggregatorTestCase {
         assertThat(singleLastValueProducer.lastValue(), nullValue());
 
         values.iterator = Arrays.stream(multiValue).iterator();
-        LastValueFieldProducer multiLastValueProducer = new LastValueFieldProducer(randomAlphanumericOfLength(10), true);
+        LabelFieldProducer multiLastValueProducer = new LabelFieldProducer(randomAlphanumericOfLength(10), true);
         assertThat(multiLastValueProducer.lastValue(), nullValue());
         multiLastValueProducer.collect(values, docIdBuffer);
         assertThat(multiLastValueProducer.lastValue(), equalTo(multiValue));
@@ -125,7 +125,7 @@ public class LastValueFieldProducerTests extends AggregatorTestCase {
     }
 
     public void testFlattenedLastValueFieldProducer() throws IOException {
-        var producer = LastValueFieldProducer.createForLabel("dummy", "flattened");
+        var producer = LabelFieldProducer.createForLabel("dummy", "flattened");
         assertTrue(producer.isEmpty());
         assertEquals("dummy", producer.name());
 

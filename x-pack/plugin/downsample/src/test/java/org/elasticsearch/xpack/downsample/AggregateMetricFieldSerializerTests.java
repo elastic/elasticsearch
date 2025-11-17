@@ -17,7 +17,7 @@ import org.elasticsearch.xpack.aggregatemetric.mapper.AggregateMetricDoubleField
 import java.io.IOException;
 import java.util.List;
 
-import static org.elasticsearch.xpack.downsample.LastValueFieldProducerTests.createValuesInstance;
+import static org.elasticsearch.xpack.downsample.LabelFieldProducerTests.createValuesInstance;
 import static org.elasticsearch.xpack.downsample.MetricFieldProducerTests.createNumericValuesInstance;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -38,7 +38,7 @@ public class AggregateMetricFieldSerializerTests extends ESTestCase {
     }
 
     public void testInvalidCounterFieldSerialization() throws IOException {
-        AbstractDownsampleFieldProducer producer = LastValueFieldProducer.createForMetric("my-counter");
+        AbstractDownsampleFieldProducer producer = LabelFieldProducer.createForMetric("my-counter");
         var docIdBuffer = IntArrayList.from(0, 1, 2);
         var valuesInstance = createValuesInstance(docIdBuffer, new Integer[] { 55, 12, 5 });
         producer.collect(valuesInstance, docIdBuffer);
@@ -134,12 +134,12 @@ public class AggregateMetricFieldSerializerTests extends ESTestCase {
     /**
      * Serializing for a metric or a label shouldn't make a difference.
      */
-    LastValueFieldProducer.AggregateSubMetricFieldProducer randomAggregateSubMetricFieldProducer(
+    LabelFieldProducer.AggregateSubMetricFieldProducer randomAggregateSubMetricFieldProducer(
         String name,
         AggregateMetricDoubleFieldMapper.Metric metric
     ) {
         return randomBoolean()
-            ? LastValueFieldProducer.createForAggregateSubMetricLabel(name, metric)
-            : LastValueFieldProducer.createForAggregateSubMetricMetric(name, metric);
+            ? LabelFieldProducer.createForAggregateSubMetricLabel(name, metric)
+            : LabelFieldProducer.createForAggregateSubMetricMetric(name, metric);
     }
 }

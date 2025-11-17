@@ -39,7 +39,7 @@ abstract sealed class MetricFieldProducer extends AbstractDownsampleFieldProduce
     public static AbstractDownsampleFieldProducer createFieldProducerForGauge(String name, DownsampleConfig.SamplingMethod samplingMethod) {
         return switch (samplingMethod) {
             case AGGREGATE -> new AggregateGaugeMetricFieldProducer(name);
-            case LAST_VALUE -> LastValueFieldProducer.createForMetric(name);
+            case LAST_VALUE -> LabelFieldProducer.createForMetric(name);
         };
     }
 

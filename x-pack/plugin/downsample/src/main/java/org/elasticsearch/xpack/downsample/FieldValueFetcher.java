@@ -72,13 +72,13 @@ class FieldValueFetcher {
         if (fieldType.getMetricType() != null) {
             return switch (fieldType.getMetricType()) {
                 case GAUGE -> MetricFieldProducer.createFieldProducerForGauge(name(), samplingMethod);
-                case COUNTER -> LastValueFieldProducer.createForMetric(name());
+                case COUNTER -> LabelFieldProducer.createForMetric(name());
                 // TODO: Support POSITION in downsampling
                 case POSITION -> throw new IllegalArgumentException("Unsupported metric type [position] for down-sampling");
             };
         } else {
             // If a field is not a metric, we downsample it as a label
-            return LastValueFieldProducer.createForLabel(name(), fieldType.typeName());
+            return LabelFieldProducer.createForLabel(name(), fieldType.typeName());
         }
     }
 

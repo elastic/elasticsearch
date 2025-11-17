@@ -70,7 +70,6 @@ public class TDigestFieldMapper extends FieldMapper {
     public static final String CENTROIDS_NAME = "centroids";
     public static final String COUNTS_NAME = "counts";
     public static final String SUM_FIELD_NAME = "sum";
-    public static final String TOTAL_COUNT_FIELD_NAME = "count";
     public static final String MIN_FIELD_NAME = "min";
     public static final String MAX_FIELD_NAME = "max";
     public static final String CONTENT_TYPE = "tdigest";

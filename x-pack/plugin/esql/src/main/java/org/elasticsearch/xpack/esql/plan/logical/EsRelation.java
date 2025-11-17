@@ -196,4 +196,8 @@ public class EsRelation extends LeafPlan {
     public EsRelation withAttributes(List<Attribute> newAttributes) {
         return new EsRelation(source(), indexPattern, indexMode, indexNameWithModes, newAttributes);
     }
+
+    public EsRelation withIndexMode(IndexMode indexMode) {
+        return new EsRelation(source(), indexPattern, indexMode, indexNameWithModes, attrs);
+    }
 }

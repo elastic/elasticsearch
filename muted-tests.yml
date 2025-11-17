@@ -414,15 +414,6 @@ tests:
 - class: org.elasticsearch.indices.mapping.UpdateMappingIntegrationIT
   method: testUpdateMappingConcurrently
   issue: https://github.com/elastic/elasticsearch/issues/137758
-- class: org.elasticsearch.xpack.inference.integration.CCMPersistentStorageServiceIT
-  method: testDelete_RemovesCCMConfiguration
-  issue: https://github.com/elastic/elasticsearch/issues/137786
-- class: org.elasticsearch.xpack.inference.integration.CCMPersistentStorageServiceIT
-  method: testDelete_DoesNotThrow_WhenTheConfigurationDoesNotExist
-  issue: https://github.com/elastic/elasticsearch/issues/137797
-- class: org.elasticsearch.xpack.inference.integration.CCMServiceIT
-  method: testIsEnabled_ReturnsTrue_WhenCCMConfigurationIsPresent
-  issue: https://github.com/elastic/elasticsearch/issues/137798
 - class: org.elasticsearch.xpack.inference.external.http.sender.RequestExecutorServiceTests
   method: testChangingCapacity_DoesNotRejectsOverflowTasks_BecauseOfQueueFull
   issue: https://github.com/elastic/elasticsearch/issues/137823

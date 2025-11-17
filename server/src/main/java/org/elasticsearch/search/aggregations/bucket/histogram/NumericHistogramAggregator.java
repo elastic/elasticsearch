@@ -9,9 +9,9 @@
 
 package org.elasticsearch.search.aggregations.bucket.histogram;
 
+import org.apache.lucene.search.DoubleValues;
 import org.apache.lucene.search.ScoreMode;
 import org.elasticsearch.index.fielddata.FieldData;
-import org.elasticsearch.index.fielddata.NumericDoubleValues;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
 import org.elasticsearch.search.aggregations.AggregationExecutionContext;
 import org.elasticsearch.search.aggregations.Aggregator;
@@ -87,7 +87,7 @@ public class NumericHistogramAggregator extends AbstractHistogramAggregator {
         }
 
         final SortedNumericDoubleValues values = valuesSource.doubleValues(aggCtx.getLeafReaderContext());
-        final NumericDoubleValues singleton = FieldData.unwrapSingleton(values);
+        final DoubleValues singleton = FieldData.unwrapSingleton(values);
         return singleton != null ? getLeafCollector(singleton, sub) : getLeafCollector(values, sub);
     }
 
@@ -111,7 +111,7 @@ public class NumericHistogramAggregator extends AbstractHistogramAggregator {
         };
     }
 
-    private LeafBucketCollector getLeafCollector(NumericDoubleValues values, LeafBucketCollector sub) {
+    private LeafBucketCollector getLeafCollector(DoubleValues values, LeafBucketCollector sub) {
         return new LeafBucketCollectorBase(sub, values) {
             @Override
             public void collect(int doc, long owningBucketOrd) throws IOException {

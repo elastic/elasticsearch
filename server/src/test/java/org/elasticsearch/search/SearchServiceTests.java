@@ -459,7 +459,7 @@ public class SearchServiceTests extends IndexShardTestCase {
             new MetadataFieldMapper[0],
             Collections.emptyMap()
         );
-        KeywordFieldMapper keywordFieldMapper = new KeywordFieldMapper.Builder("field", IndexVersion.current()).build(root);
+        KeywordFieldMapper keywordFieldMapper = new KeywordFieldMapper.Builder("field", indexSettings).build(root);
         DateFieldMapper dateFieldMapper = new DateFieldMapper.Builder(
             "@timestamp",
             DateFieldMapper.Resolution.MILLISECONDS,

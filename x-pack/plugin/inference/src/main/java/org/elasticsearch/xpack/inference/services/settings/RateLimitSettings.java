@@ -125,7 +125,7 @@ public class RateLimitSettings implements Writeable, ToXContentFragment {
     }
 
     // This should only be used for testing.
-    RateLimitSettings(long requestsPerTimeUnit, TimeUnit timeUnit, boolean enabled) {
+    public RateLimitSettings(long requestsPerTimeUnit, TimeUnit timeUnit, boolean enabled) {
         if (requestsPerTimeUnit <= 0) {
             throw new IllegalArgumentException("requests per minute must be positive");
         }

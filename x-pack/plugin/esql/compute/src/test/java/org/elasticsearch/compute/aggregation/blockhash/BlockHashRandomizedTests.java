@@ -255,7 +255,7 @@ public class BlockHashRandomizedTests extends ESTestCase {
             specs.add(new BlockHash.GroupSpec(c, types.get(c)));
         }
         return forcePackedHash
-            ? new PackedValuesBlockHash(specs, blockFactory, emitBatchSize)
+            ? new CompositedBlockHashN(specs, blockFactory, emitBatchSize)
             : BlockHash.build(specs, blockFactory, emitBatchSize, true);
     }
 

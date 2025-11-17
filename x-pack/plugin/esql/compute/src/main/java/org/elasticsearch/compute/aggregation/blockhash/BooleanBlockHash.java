@@ -71,7 +71,7 @@ final class BooleanBlockHash extends BlockHash {
         }
     }
 
-    private IntBlock add(BooleanBlock block) {
+    IntBlock add(BooleanBlock block) {
         return new MultivalueDedupeBoolean(block).hash(blockFactory, everSeen);
     }
 

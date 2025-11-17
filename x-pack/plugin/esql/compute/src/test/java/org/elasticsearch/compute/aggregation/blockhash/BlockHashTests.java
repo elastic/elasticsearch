@@ -1353,7 +1353,7 @@ public class BlockHashTests extends BlockHashTestCase {
         List<Output> output2 = new ArrayList<>();
         try (
             BlockHash hash1 = new BytesRef2BlockHash(blockFactory, 0, 1, emitBatchSize);
-            BlockHash hash2 = new PackedValuesBlockHash(groupSpecs, blockFactory, emitBatchSize)
+            BlockHash hash2 = new CompositedBlockHashN(groupSpecs, blockFactory, emitBatchSize)
         ) {
             hash1.add(page, new GroupingAggregatorFunction.AddInput() {
                 @Override
@@ -1467,7 +1467,7 @@ public class BlockHashTests extends BlockHashTestCase {
         List<Output> output2 = new ArrayList<>();
         try (
             BlockHash hash1 = new BytesRef3BlockHash(blockFactory, 0, 1, 2, emitBatchSize);
-            BlockHash hash2 = new PackedValuesBlockHash(groupSpecs, blockFactory, emitBatchSize)
+            BlockHash hash2 = new CompositedBlockHashN(groupSpecs, blockFactory, emitBatchSize)
         ) {
             hash1.add(page, new GroupingAggregatorFunction.AddInput() {
                 @Override
@@ -1712,7 +1712,7 @@ public class BlockHashTests extends BlockHashTestCase {
             specs.add(new BlockHash.GroupSpec(c, values[c].elementType()));
         }
         return forcePackedHash
-            ? new PackedValuesBlockHash(specs, blockFactory, emitBatchSize)
+            ? new CompositedBlockHashN(specs, blockFactory, emitBatchSize)
             : BlockHash.build(specs, blockFactory, emitBatchSize, true);
     }
 

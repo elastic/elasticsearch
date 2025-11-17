@@ -196,7 +196,7 @@ public abstract class BlockHash implements Releasable, SeenGroupIds {
                 return new BytesRefLongBlockHash(blockFactory, g2.channel(), g1.channel(), true, emitBatchSize);
             }
         }
-        return new PackedValuesBlockHash(groups, blockFactory, emitBatchSize);
+        return new CompositedBlockHashN(groups, blockFactory, emitBatchSize);
     }
 
     /**
@@ -234,7 +234,7 @@ public abstract class BlockHash implements Releasable, SeenGroupIds {
     /**
      * Creates a specialized hash table that maps a {@link Block} of the given input element type to ids.
      */
-    private static BlockHash newForElementType(int channel, ElementType type, BlockFactory blockFactory) {
+    static BlockHash newForElementType(int channel, ElementType type, BlockFactory blockFactory) {
         return switch (type) {
             case NULL -> new NullBlockHash(channel, blockFactory);
             case BOOLEAN -> new BooleanBlockHash(channel, blockFactory);

@@ -20,11 +20,11 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * Class that produces the last value of a field.
+ * Class that produces the last value of a field for downsampling.
  */
 class LastValueFieldProducer extends AbstractDownsampleFieldProducer {
     private final boolean supportsMultiValue;
-    private Object lastValue = null;
+    Object lastValue = null;
 
     LastValueFieldProducer(String name, boolean producesMultiValue) {
         super(name);

@@ -21,6 +21,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.compute.lucene.IndexedByShardId;
 import org.elasticsearch.compute.lucene.IndexedByShardIdFromSingleton;
 import org.elasticsearch.compute.operator.DriverCompletionInfo;
+import org.elasticsearch.compute.operator.PlanTimeProfile;
 import org.elasticsearch.compute.operator.exchange.ExchangeService;
 import org.elasticsearch.compute.operator.exchange.ExchangeSink;
 import org.elasticsearch.compute.operator.exchange.ExchangeSinkHandler;
@@ -249,6 +250,7 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
         private final boolean failFastOnShardFailure;
         private final Map<ShardId, Exception> shardLevelFailures;
         private final ComputeSearchContextByShardId searchContexts;
+        private final PlanTimeProfile planTimeProfile;
 
         DataNodeRequestExecutor(
             EsqlFlags flags,
@@ -273,6 +275,7 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
             this.singleShardPipeline = singleShardPipeline;
             this.blockingSink = exchangeSink.createExchangeSink(() -> {});
             this.searchContexts = searchContexts;
+            this.planTimeProfile = new PlanTimeProfile();
         }
 
         void start() {
@@ -340,7 +343,13 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                                     null,
                                     () -> exchangeSink.createExchangeSink(pagesProduced::incrementAndGet)
                                 );
-                                computeService.runCompute(parentTask, computeContext, request.plan(), sub.acquireCompute());
+                                computeService.runCompute(
+                                    parentTask,
+                                    computeContext,
+                                    request.plan(),
+                                    planTimeProfile,
+                                    sub.acquireCompute()
+                                );
                             }
                         }
                     } else {
@@ -355,7 +364,7 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                             null,
                             () -> exchangeSink.createExchangeSink(pagesProduced::incrementAndGet)
                         );
-                        computeService.runCompute(parentTask, computeContext, request.plan(), batchListener);
+                        computeService.runCompute(parentTask, computeContext, request.plan(), planTimeProfile, batchListener);
                     }
                 }, batchListener::onFailure)
             );
@@ -466,6 +475,7 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
         DataNodeRequest request,
         boolean failFastOnShardFailure,
         ComputeSearchContextByShardId searchContexts,
+        PlanTimeProfile planTimeProfile,
         ActionListener<DataNodeComputeResponse> listener
     ) {
         final Map<ShardId, Exception> shardLevelFailures = new HashMap<>();
@@ -523,6 +533,7 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                         () -> externalSink.createExchangeSink(() -> {})
                     ),
                     reducePlan,
+                    planTimeProfile,
                     ActionListener.wrap(resp -> {
                         // don't return until all pages are fetched
                         externalSink.addCompletionListener(ActionListener.running(() -> {
@@ -551,7 +562,13 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
         Configuration configuration = request.configuration();
         // We can avoid synchronization (for the most part) since the array elements are never modified, and the array is only added to,
         // with its size being known before we start the computation.
+        long planTime = 0L;
+        PlanTimeProfile planTimeProfile = null;
         if (request.plan() instanceof ExchangeSinkExec plan) {
+            long startPlanTime = 0L;
+            if (configuration.profile()) {
+                startPlanTime = System.nanoTime();
+            }
             reductionPlan = ComputeService.reductionPlan(
                 computeService.plannerSettings(),
                 computeService.createFlags(),
@@ -561,6 +578,11 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                 request.runNodeLevelReduction(),
                 request.reductionLateMaterialization()
             );
+            if (configuration.profile()) {
+                planTimeProfile = new PlanTimeProfile();
+                planTimeProfile.addPlanTime(System.nanoTime() - startPlanTime);
+
+            }
         } else {
             listener.onFailure(new IllegalStateException("expected exchange sink for a remote compute; got " + request.plan()));
             return;
@@ -581,6 +603,7 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
         // the sender doesn't support retry on shard failures, so we need to fail fast here.
         final boolean failFastOnShardFailures = supportShardLevelRetryFailure(channel.getVersion()) == false;
         var computeSearchContexts = new ComputeSearchContextByShardId(request.shardIds().size());
+
         runComputeOnDataNode(
             (CancellableTask) task,
             sessionId,
@@ -588,6 +611,7 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
             request.withPlan(reductionPlan.dataNodePlan()),
             failFastOnShardFailures,
             computeSearchContexts,
+            planTimeProfile,
             ActionListener.releaseAfter(listener, computeSearchContexts)
         );
     }

@@ -14,6 +14,7 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.aggregation.AggregatorMode;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.ElementType;
+import org.elasticsearch.compute.operator.PlanTimeProfile;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -202,9 +203,10 @@ public class PlannerUtils {
         List<SearchExecutionContext> searchContexts,
         Configuration configuration,
         FoldContext foldCtx,
-        PhysicalPlan plan
+        PhysicalPlan plan,
+        PlanTimeProfile planTimeProfile
     ) {
-        return localPlan(plannerSettings, flags, configuration, foldCtx, plan, SearchContextStats.from(searchContexts));
+        return localPlan(plannerSettings, flags, configuration, foldCtx, plan, SearchContextStats.from(searchContexts), planTimeProfile);
     }
 
     public static PhysicalPlan localPlan(
@@ -213,27 +215,38 @@ public class PlannerUtils {
         Configuration configuration,
         FoldContext foldCtx,
         PhysicalPlan plan,
-        SearchStats searchStats
+        SearchStats searchStats,
+        PlanTimeProfile planTimeProfile
     ) {
         final var logicalOptimizer = new LocalLogicalPlanOptimizer(new LocalLogicalOptimizerContext(configuration, foldCtx, searchStats));
         var physicalOptimizer = new LocalPhysicalPlanOptimizer(
             new LocalPhysicalOptimizerContext(plannerSettings, flags, configuration, foldCtx, searchStats)
         );
 
-        return localPlan(plan, logicalOptimizer, physicalOptimizer);
+        return localPlan(plan, logicalOptimizer, physicalOptimizer, planTimeProfile);
     }
 
     public static PhysicalPlan localPlan(
         PhysicalPlan plan,
         LocalLogicalPlanOptimizer logicalOptimizer,
-        LocalPhysicalPlanOptimizer physicalOptimizer
+        LocalPhysicalPlanOptimizer physicalOptimizer,
+        PlanTimeProfile planTimeProfile
     ) {
         final LocalMapper localMapper = new LocalMapper();
         var isCoordPlan = new Holder<>(Boolean.TRUE);
+        long planStartNanos = 0L;
+        boolean profilingEnabled = planTimeProfile != null;
+        if (profilingEnabled) {
+            planStartNanos = System.nanoTime();
+        }
         Set<PhysicalPlan> lookupJoinExecRightChildren = plan.collect(LookupJoinExec.class::isInstance)
             .stream()
             .map(x -> ((LookupJoinExec) x).right())
             .collect(Collectors.toSet());
+
+        if (profilingEnabled) {
+            planTimeProfile.addPlanTime(System.nanoTime() - planStartNanos);
+        }
 
         PhysicalPlan localPhysicalPlan = plan.transformUp(FragmentExec.class, f -> {
             if (lookupJoinExecRightChildren.contains(f)) {
@@ -243,7 +256,14 @@ public class PlannerUtils {
                 return f;
             }
             isCoordPlan.set(Boolean.FALSE);
+
+            // Logical optimization
+            long logicalStartNanos = profilingEnabled ? System.nanoTime() : 0;
             LogicalPlan optimizedFragment = logicalOptimizer.localOptimize(f.fragment());
+            if (profilingEnabled) {
+                planTimeProfile.addLogicalOptimizationPlanTime(System.nanoTime() - logicalStartNanos);
+            }
+
             PhysicalPlan physicalFragment = localMapper.map(optimizedFragment);
             QueryBuilder filter = f.esFilter();
             if (filter != null) {
@@ -259,10 +279,20 @@ public class PlannerUtils {
                     )
                 );
             }
+
+            // Physical optimization
+            long physicalStartNanos = profilingEnabled ? System.nanoTime() : 0;
             var localOptimized = physicalOptimizer.localOptimize(physicalFragment);
+            if (profilingEnabled) {
+                planTimeProfile.addPhysicalOptimizationPlanTime(System.nanoTime() - physicalStartNanos);
+            }
+
             return EstimatesRowSize.estimateRowSize(f.estimatedRowSize(), localOptimized);
         });
-        return isCoordPlan.get() ? plan : localPhysicalPlan;
+
+        PhysicalPlan resultPlan = isCoordPlan.get() ? plan : localPhysicalPlan;
+
+        return resultPlan;
     }
 
     /**

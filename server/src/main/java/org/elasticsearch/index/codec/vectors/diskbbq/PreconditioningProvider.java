@@ -19,11 +19,12 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.nio.FloatBuffer;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
+import java.util.List;
 import java.util.Random;
 
-// FIXME: recall drops to 0; fix this
-// TODO: add in random permutation matrix instead of variance based and compare
 // TODO: apply to other formats
 // TODO: instead of manually having to indicate preconditioning add the ability to decide when to use it given the data on the segment
 // TODO: consider global version of preconditioning?
@@ -37,12 +38,15 @@ public class PreconditioningProvider {
     public PreconditioningProvider(int blockDim, FloatVectorValues vectors) throws IOException {
         this.blockDim = blockDim;
         int dim = vectors.dimension();
-        blocks = PreconditioningProvider.generateRandomOrthogonalMatrix(dim, blockDim);
+        Random random = new Random(42L);
+        blocks = PreconditioningProvider.generateRandomOrthogonalMatrix(dim, blockDim, random);
         int[] dimBlocks = new int[blocks.length];
         for (int i = 0; i < blocks.length; i++) {
             dimBlocks[i] = blocks[i].length;
         }
-        permutationMatrix = PreconditioningProvider.createPermutationMatrix(dimBlocks, vectors);
+        // TODO: test random permutation matrix vs variance based
+        permutationMatrix = PreconditioningProvider.createPermutationMatrixWEqualVariance(dimBlocks, vectors);
+        // permutationMatrix = PreconditioningProvider.createPermutationMatrixRandomly(dim, dimBlocks, random);
     }
 
     private PreconditioningProvider(int blockDim, float[][][] blocks, int[][] permutationMatrix) {
@@ -140,6 +144,7 @@ public class PreconditioningProvider {
         return new PreconditioningProvider(blockDim, blocks, permutationMatrix);
     }
 
+    // TODO: write Panama version of this
     static void modifiedGramSchmidt(float[][] m) {
         assert m.length == m[0].length;
         int dim = m.length;
@@ -167,21 +172,20 @@ public class PreconditioningProvider {
         }
     }
 
-    private static void randomFill(Random gen, float[][] m) {
+    private static void randomFill(Random random, float[][] m) {
         for (int i = 0; i < m.length; ++i) {
             for (int j = 0; j < m[i].length; ++j) {
-                m[i][j] = (float) gen.nextGaussian();
+                m[i][j] = (float) random.nextGaussian();
             }
         }
     }
 
-    private static float[][][] generateRandomOrthogonalMatrix(int dim, int blockDim) {
+    private static float[][][] generateRandomOrthogonalMatrix(int dim, int blockDim, Random random) {
         blockDim = Math.min(dim, blockDim);
         int nBlocks = dim / blockDim;
         int rem = dim % blockDim;
 
         float[][][] blocks = new float[nBlocks + (rem > 0 ? 1 : 0)][][];
-        Random random = new Random(42L);
 
         for (int i = 0; i < nBlocks; i++) {
             float[][] m = new float[blockDim][blockDim];
@@ -221,7 +225,28 @@ public class PreconditioningProvider {
         return minIndex;
     }
 
-    private static int[][] createPermutationMatrix(int[] dimBlocks, FloatVectorValues vectors) throws IOException {
+    private static int[][] createPermutationMatrixRandomly(int dim, int[] dimBlocks, Random random) {
+        // Randomly assign dimensions to blocks.
+        List<Integer> indices = new ArrayList<>(dim);
+        for (int i = 0; i < dim; i++) {
+            indices.add(i);
+        }
+        Collections.shuffle(indices, random);
+
+        int[][] permutationMatrix = new int[dimBlocks.length][];
+        int pos = 0;
+        for (int i = 0; i < dimBlocks.length; i++) {
+            permutationMatrix[i] = new int[dimBlocks[i]];
+            for (int j = 0; j < dimBlocks[i]; j++) {
+                permutationMatrix[i][j] = indices.get(pos++);
+            }
+            Arrays.sort(permutationMatrix[i]);
+        }
+
+        return permutationMatrix;
+    }
+
+    private static int[][] createPermutationMatrixWEqualVariance(int[] dimBlocks, FloatVectorValues vectors) throws IOException {
         int dim = vectors.dimension();
 
         if (dimBlocks.length == 1) {
@@ -237,6 +262,7 @@ public class PreconditioningProvider {
         float[] variances = new float[dim];
         int[] n = new int[dim];
 
+        // TODO: write Panama version of this
         for (int i = 0; i < vectors.size(); ++i) {
             float[] vector = vectors.vectorValue(i);
             for (int j = 0; j < dim; j++) {

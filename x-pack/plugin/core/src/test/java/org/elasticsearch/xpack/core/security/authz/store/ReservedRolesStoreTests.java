@@ -439,6 +439,8 @@ public class ReservedRolesStoreTests extends ESTestCase {
         assertTrue(kibanaRole.cluster().check("cluster:admin/script/get", request, authentication));
 
         // Inference
+        assertTrue(kibanaRole.cluster().check("cluster:admin/xpack/inference/ccm/delete", request, authentication));
+        assertTrue(kibanaRole.cluster().check("cluster:admin/xpack/inference/ccm/put", request, authentication));
         assertTrue(kibanaRole.cluster().check("cluster:admin/xpack/inference/get", request, authentication));
         assertTrue(kibanaRole.cluster().check("cluster:admin/xpack/inference/put", request, authentication));
         assertTrue(kibanaRole.cluster().check("cluster:admin/xpack/inference/delete", request, authentication));
@@ -1732,6 +1734,7 @@ public class ReservedRolesStoreTests extends ESTestCase {
             "logs-google_scc.finding-" + randomAlphaOfLength(randomIntBetween(0, 13)),
             "logs-aws.securityhub_findings-" + randomAlphaOfLength(randomIntBetween(0, 13)),
             "logs-aws.securityhub_findings_full_posture-" + randomAlphaOfLength(randomIntBetween(0, 13)),
+            "logs-aws_securityhub.finding-" + randomAlphaOfLength(randomIntBetween(0, 13)),
             "logs-aws.inspector-" + randomAlphaOfLength(randomIntBetween(0, 13)),
             "logs-aws.config-" + randomAlphaOfLength(randomIntBetween(0, 13)),
             "logs-amazon_security_lake.findings-" + randomAlphaOfLength(randomIntBetween(0, 13)),

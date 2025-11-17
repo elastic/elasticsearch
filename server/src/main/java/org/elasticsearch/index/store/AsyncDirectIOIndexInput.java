@@ -22,8 +22,6 @@ package org.elasticsearch.index.store;
 
 import com.carrotsearch.hppc.IntArrayDeque;
 import com.carrotsearch.hppc.IntDeque;
-import com.carrotsearch.hppc.LongArrayDeque;
-import com.carrotsearch.hppc.LongDeque;
 
 import org.apache.lucene.store.IndexInput;
 import org.elasticsearch.ExceptionsHelper;
@@ -43,6 +41,7 @@ import java.nio.file.StandardOpenOption;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.TreeMap;
 import java.util.concurrent.ExecutionException;
@@ -121,7 +120,7 @@ public class AsyncDirectIOIndexInput extends IndexInput {
         super("DirectIOIndexInput(path=\"" + path + "\")");
         this.channel = FileChannel.open(path, StandardOpenOption.READ, getDirectOpenOption());
         this.blockSize = blockSize;
-        this.prefetcher = new DirectIOPrefetcher(blockSize, this.channel, bufferSize, maxPrefetches, maxPrefetches * 16);
+        this.prefetcher = new DirectIOPrefetcher(blockSize, this.channel, bufferSize, maxPrefetches);
         this.buffer = allocateBuffer(bufferSize, blockSize);
         this.isOpen = true;
         this.isClosable = true;
@@ -139,13 +138,7 @@ public class AsyncDirectIOIndexInput extends IndexInput {
         this.buffer = allocateBuffer(bufferSize, other.blockSize);
         this.blockSize = other.blockSize;
         this.channel = other.channel;
-        this.prefetcher = new DirectIOPrefetcher(
-            this.blockSize,
-            this.channel,
-            bufferSize,
-            other.prefetcher.maxConcurrentPrefetches,
-            other.prefetcher.maxTotalPrefetches
-        );
+        this.prefetcher = new DirectIOPrefetcher(this.blockSize, this.channel, bufferSize, other.prefetcher.maxConcurrentPrefetches);
         this.isOpen = true;
         this.isClosable = false;
         this.length = length;
@@ -170,11 +163,22 @@ public class AsyncDirectIOIndexInput extends IndexInput {
         if (pos < 0 || length < 0 || pos + length > this.length) {
             throw new IllegalArgumentException("Invalid prefetch range: pos=" + pos + ", length=" + length + ", fileLength=" + this.length);
         }
-        // check if our current buffer already contains the requested range
+
+        // align to prefetch buffer
         final long absPos = pos + offset;
-        final long alignedPos = absPos - (absPos % blockSize);
-        // we only prefetch into a single buffer, even if length exceeds buffer size
-        // maybe we should improve this...
+        long alignedPos = absPos - absPos % blockSize;
+
+        // check if our current buffer already contains the requested range
+        if (alignedPos >= filePos && alignedPos < filePos + buffer.capacity()) {
+            // The current buffer contains bytes of this request.
+            // Adjust the position and length accordingly to skip the current buffer.
+            alignedPos = filePos + buffer.capacity();
+            length -= alignedPos - absPos;
+        } else {
+            // Add to the total length the bytes added by the alignment
+            length += absPos - alignedPos;
+        }
+        // do the prefetch
         prefetcher.prefetch(alignedPos, length);
     }
 
@@ -396,12 +400,16 @@ public class AsyncDirectIOIndexInput extends IndexInput {
         return slice;
     }
 
+    // pkg private for testing
+    int prefetchSlots() {
+        return prefetcher.posToSlot.size();
+    }
+
     /**
      * A simple prefetcher that uses virtual threads to prefetch data into direct byte buffers.
      */
     private static class DirectIOPrefetcher implements Closeable {
         private final int maxConcurrentPrefetches;
-        private final int maxTotalPrefetches;
         private final FileChannel channel;
         private final int blockSize;
         private final long[] prefetchPos;
@@ -411,10 +419,9 @@ public class AsyncDirectIOIndexInput extends IndexInput {
         private final IntDeque slots;
         private final ByteBuffer[] prefetchBuffers;
         private final int prefetchBytesSize;
-        private final LongDeque pendingPrefetches = new LongArrayDeque();
         private final ExecutorService executor = Executors.newVirtualThreadPerTaskExecutor();
 
-        DirectIOPrefetcher(int blockSize, FileChannel channel, int prefetchBytesSize, int maxConcurrentPrefetches, int maxTotalPrefetches) {
+        DirectIOPrefetcher(int blockSize, FileChannel channel, int prefetchBytesSize, int maxConcurrentPrefetches) {
             this.blockSize = blockSize;
             this.channel = channel;
             this.maxConcurrentPrefetches = maxConcurrentPrefetches;
@@ -428,48 +435,48 @@ public class AsyncDirectIOIndexInput extends IndexInput {
             this.posToSlot = new TreeMap<>();
             this.prefetchBuffers = new ByteBuffer[maxConcurrentPrefetches];
             this.prefetchBytesSize = prefetchBytesSize;
-            this.maxTotalPrefetches = maxTotalPrefetches;
         }
 
         /**
          * Initiate prefetch of the given range. The range will be aligned to blockSize and
          * chopped up into chunks of prefetchBytesSize.
-         * If there are not enough slots available, the prefetch request will be queued
-         * until a slot becomes available. This throttling may occur if the number of
-         * concurrent prefetches is exceeded, or if there is significant IO pressure.
+         * If there are not enough slots available, the prefetch request will reuse the slot
+         * with the lowest file pointer. If that slot is still being prefetched, the prefetch request
+         * will be skipped.
          * @param pos the position to prefetch from, must be non-negative and within file length
          * @param length the length to prefetch, must be non-negative.
          */
         void prefetch(long pos, long length) {
+            assert pos % blockSize == 0 : "prefetch pos [" + pos + "] must be aligned to block size [" + blockSize + "]";
             // first determine how many slots we need given the length
-            int numSlots = (int) Math.min(
-                (length + prefetchBytesSize - 1) / prefetchBytesSize,
-                maxTotalPrefetches - (this.posToSlot.size() + this.pendingPrefetches.size())
-            );
-            while (numSlots > 0 && (this.posToSlot.size() + this.pendingPrefetches.size()) < maxTotalPrefetches) {
-                final int slot;
-                Integer existingSlot = this.posToSlot.get(pos);
-                if (existingSlot != null && prefetchThreads.get(existingSlot) != null) {
-                    // already being prefetched and hasn't been consumed.
-                    // return early
-                    return;
-                }
-                if (this.posToSlot.size() < maxConcurrentPrefetches && slots.isEmpty() == false) {
-                    slot = slots.removeFirst();
+            while (length > 0) {
+                Map.Entry<Long, Integer> floor = this.posToSlot.floorEntry(pos);
+                if (floor == null || floor.getKey() + prefetchBytesSize <= pos) {
+                    // check if there are any slots available. If not we will reuse the one with the
+                    // lower file pointer.
+                    if (slots.isEmpty()) {
+                        assert this.posToSlot.size() == maxConcurrentPrefetches;
+                        final int oldestSlot = posToSlot.firstEntry().getValue();
+                        if (prefetchThreads.get(oldestSlot).isDone() == false) {
+                            // cannot reuse oldest slot. We are over-prefetching
+                            LOGGER.debug("could not prefetch pos [{}] with length [{}]", pos, length);
+                            return;
+                        }
+                        LOGGER.debug("prefetch on reused slot with pos [{}] with length [{}]", pos, length);
+                        clearSlot(oldestSlot);
+                        assert slots.isEmpty() == false;
+                    }
+                    final int slot = slots.removeFirst();
                     posToSlot.put(pos, slot);
                     prefetchPos[slot] = pos;
-                } else {
-                    slot = -1;
-                    LOGGER.debug("queueing prefetch of pos [{}] with length [{}], waiting for open slot", pos, length);
-                    pendingPrefetches.addLast(pos);
-                }
-                if (slot != -1) {
                     startPrefetch(pos, slot);
+                    length -= prefetchBytesSize;
+                    pos += prefetchBytesSize;
+                } else {
+                    length -= floor.getKey() + prefetchBytesSize - pos;
+                    pos = floor.getKey() + prefetchBytesSize;
                 }
-                pos += prefetchBytesSize;
-                numSlots--;
             }
-
         }
 
         /**
@@ -506,7 +513,7 @@ public class AsyncDirectIOIndexInput extends IndexInput {
                 Thread.currentThread().interrupt();
             } finally {
                 if (prefetchBuffer == null) {
-                    clearSlotAndMaybeStartPending(slot);
+                    clearSlot(slot);
                 }
             }
             if (prefetchBuffer == null) {
@@ -518,22 +525,15 @@ public class AsyncDirectIOIndexInput extends IndexInput {
             slice.put(prefetchBuffer);
             slice.flip();
             slice.position(Math.toIntExact(pos - prefetchedPos) + delta);
-            clearSlotAndMaybeStartPending(slot);
+            clearSlot(slot);
             return true;
         }
 
-        void clearSlotAndMaybeStartPending(int slot) {
-            assert prefetchThreads.get(slot) != null && prefetchThreads.get(slot).isDone();
+        void clearSlot(int slot) {
+            assert prefetchThreads.get(slot) != null;
             prefetchThreads.set(slot, null);
             posToSlot.remove(prefetchPos[slot]);
-            if (pendingPrefetches.isEmpty()) {
-                slots.addLast(slot);
-                return;
-            }
-            final long req = pendingPrefetches.removeFirst();
-            posToSlot.put(req, slot);
-            prefetchPos[slot] = req;
-            startPrefetch(req, slot);
+            slots.addLast(slot);
         }
 
         private boolean assertSlotsConsistent() {

@@ -67,7 +67,7 @@ public class CodecService implements CodecProvider {
         for (String codec : Codec.availableCodecs()) {
             codecs.put(codec, Codec.forName(codec));
         }
-        final boolean useTsdbSyntheticId = mapperService != null && mapperService.getIndexSettings().useTsdbSyntheticId();
+        final boolean useTsdbSyntheticId = mapperService != null && mapperService.getIndexSettings().useTimeSeriesSyntheticId();
         assert useTsdbSyntheticId == false || mapperService.getIndexSettings().getMode() == IndexMode.TIME_SERIES;
 
         this.codecs = codecs.entrySet().stream().collect(Collectors.toUnmodifiableMap(Map.Entry::getKey, e -> {

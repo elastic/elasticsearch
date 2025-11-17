@@ -1,11 +1,12 @@
 {
   "indices.get_sample": {
     "documentation": {
-      "url": "https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-indices-get-sample",
+      "url": "https://www.elastic.co/docs/api/doc/elasticsearch#TODO",
       "description": "Get random sample of ingested data"
     },
     "stability": "experimental",
-    "visibility": "public",
+    "visibility": "feature_flag",
+    "feature_flag": "random_sampling",
     "headers": {
       "accept": [
         "application/json"

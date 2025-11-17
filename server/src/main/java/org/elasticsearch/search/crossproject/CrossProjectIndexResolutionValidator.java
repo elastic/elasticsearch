@@ -112,21 +112,26 @@ public class CrossProjectIndexResolutionValidator {
                 // qualified linked project expression
                 for (String remoteExpression : remoteExpressions) {
                     String[] splitResource = splitQualifiedResource(remoteExpression);
+                    var projectAlias = splitResource[0];
+                    var resource = splitResource[1];
+
                     ElasticsearchException remoteException = checkSingleRemoteExpression(
                         remoteResolvedExpressions,
-                        splitResource[0], // projectAlias
-                        splitResource[1], // resource
+                        projectAlias,
+                        resource,
                         remoteExpression,
                         indicesOptions
                     );
                     if (remoteException != null) {
-                        var replaced = remoteException instanceof ElasticsearchSecurityException
+                        var wrapped = remoteException instanceof ElasticsearchSecurityException
                             ? new ElasticsearchSecurityException(
-                                Strings.replace(remoteException.getMessage(), splitResource[1], remoteExpression),
-                                remoteException
+                                "indices [{}] are unauthorized for project [{}]",
+                                remoteException,
+                                resource,
+                                projectAlias
                             )
                             : remoteException;
-                        baseException = recordException(baseException, replaced);
+                        baseException = recordException(baseException, wrapped);
                     }
                 }
             } else {
@@ -145,10 +150,13 @@ public class CrossProjectIndexResolutionValidator {
                 // checking if flat expression matched remotely
                 for (String remoteExpression : remoteExpressions) {
                     String[] splitResource = splitQualifiedResource(remoteExpression);
+                    var projectAlias = splitResource[0];
+                    var resource = splitResource[1];
+
                     ElasticsearchException remoteException = checkSingleRemoteExpression(
                         remoteResolvedExpressions,
-                        splitResource[0], // projectAlias
-                        splitResource[1], // resource
+                        projectAlias,
+                        resource,
                         remoteExpression,
                         indicesOptions
                     );
@@ -159,11 +167,13 @@ public class CrossProjectIndexResolutionValidator {
                     }
                     if (false == isUnauthorized && remoteException instanceof ElasticsearchSecurityException) {
                         isUnauthorized = true;
-                        var replaced = new ElasticsearchSecurityException(
-                            Strings.replace(remoteException.getMessage(), splitResource[1], remoteExpression),
-                            remoteException
+                        var wrapped = new ElasticsearchSecurityException(
+                            "indices [{}] are unauthorized for project [{}]",
+                            remoteException,
+                            resource,
+                            projectAlias
                         );
-                        baseException = recordException(baseException, replaced);
+                        baseException = recordException(baseException, wrapped);
                     }
                 }
                 if (foundFlat) {

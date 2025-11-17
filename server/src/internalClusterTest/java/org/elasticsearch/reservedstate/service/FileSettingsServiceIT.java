@@ -197,20 +197,18 @@ public class FileSettingsServiceIT extends ESIntegTestCase {
         CountDownLatch savedClusterState = new CountDownLatch(1);
         AtomicLong metadataVersion = new AtomicLong(-1);
         Function<ClusterState, Boolean> clusterStateProcessor = clusterState -> {
-            synchronized (savedClusterState) {
-                ReservedStateMetadata reservedState = clusterState.metadata().reservedStateMetadata().get(FileSettingsService.NAMESPACE);
-                if (reservedState != null && reservedState.version() == fileSettingsVersion) {
-                    metadataVersion.set(clusterState.metadata().version());
-                    savedClusterState.countDown();
-                    logger.info(
-                        "done waiting for file settings [version: {}, metadata version: {}]",
-                        clusterState.version(),
-                        clusterState.metadata().version()
-                    );
-                    return true;
-                }
-                return false;
+            ReservedStateMetadata reservedState = clusterState.metadata().reservedStateMetadata().get(FileSettingsService.NAMESPACE);
+            if (reservedState != null && reservedState.version() == fileSettingsVersion) {
+                metadataVersion.set(clusterState.metadata().version());
+                savedClusterState.countDown();
+                logger.info(
+                    "done waiting for file settings [version: {}, metadata version: {}]",
+                    clusterState.version(),
+                    clusterState.metadata().version()
+                );
+                return true;
             }
+            return false;
         };
         clusterService.addListener(new ClusterStateListener() {
             @Override

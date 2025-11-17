@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.xpack.esql.plugin;
 
-import org.elasticsearch.Build;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
@@ -108,6 +107,8 @@ import java.util.Objects;
 import java.util.function.BiConsumer;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
+
+import static org.elasticsearch.xpack.esql.plugin.EsqlFeatures.ESQL_VIEWS_FEATURE_FLAG;
 
 public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin, SearchPlugin {
 
@@ -293,7 +294,7 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
             new ActionHandler(EsqlListQueriesAction.INSTANCE, TransportEsqlListQueriesAction.class),
             new ActionHandler(EsqlGetQueryAction.INSTANCE, TransportEsqlGetQueryAction.class)
         );
-        if (Build.current().isSnapshot()) {
+        if (ESQL_VIEWS_FEATURE_FLAG.isEnabled()) {
             List<ActionHandler> actions = new ArrayList<>(releasedActions);
             actions.addAll(
                 List.of(
@@ -327,7 +328,7 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
             new RestEsqlDeleteAsyncResultAction(),
             new RestEsqlListQueriesAction()
         );
-        if (Build.current().isSnapshot()) {
+        if (ESQL_VIEWS_FEATURE_FLAG.isEnabled()) {
             List<RestHandler> restHandlers = new ArrayList<>(releasedRestHandlers);
             restHandlers.addAll(List.of(new RestPutViewAction(), new RestDeleteViewAction(), new RestGetViewAction()));
             return restHandlers;
@@ -360,7 +361,7 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
 
         entries.add(ExpressionQueryBuilder.ENTRY);
         entries.add(PlanStreamWrapperQueryBuilder.ENTRY);
-        if (Build.current().isSnapshot()) {
+        if (ESQL_VIEWS_FEATURE_FLAG.isEnabled()) {
             entries.addAll(ViewMetadata.ENTRIES);
         }
 
@@ -372,7 +373,7 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
     @Override
     public List<NamedXContentRegistry.Entry> getNamedXContent() {
         List<NamedXContentRegistry.Entry> namedXContent = new ArrayList<>();
-        if (Build.current().isSnapshot()) {
+        if (ESQL_VIEWS_FEATURE_FLAG.isEnabled()) {
             namedXContent.add(
                 new NamedXContentRegistry.Entry(Metadata.ProjectCustom.class, new ParseField(ViewMetadata.TYPE), ViewMetadata::fromXContent)
             );

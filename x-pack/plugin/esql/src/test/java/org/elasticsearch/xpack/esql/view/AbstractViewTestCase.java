@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.xpack.esql.view;
 
-import org.elasticsearch.Build;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.project.ProjectResolver;
@@ -23,6 +22,7 @@ import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicReference;
 
+import static org.elasticsearch.xpack.esql.plugin.EsqlFeatures.ESQL_VIEWS_FEATURE_FLAG;
 import static org.elasticsearch.xpack.esql.view.ViewService.ViewServiceConfig.DEFAULT;
 
 public abstract class AbstractViewTestCase extends ESSingleNodeTestCase {
@@ -43,7 +43,7 @@ public abstract class AbstractViewTestCase extends ESSingleNodeTestCase {
         protected final ProjectId projectId;
 
         public TestViewsApi() {
-            if (Build.current().isSnapshot() == false) {
+            if (ESQL_VIEWS_FEATURE_FLAG.isEnabled() == false) {
                 // The TestResponseCapture implementation waits forever if views are not enabled, so lets rather fail early
                 throw new IllegalStateException("Views tests cannot run in release mode yet");
             }

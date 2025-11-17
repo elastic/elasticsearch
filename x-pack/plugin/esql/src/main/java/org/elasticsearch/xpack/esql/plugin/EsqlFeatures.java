@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.plugin;
 
 import org.elasticsearch.Build;
+import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.features.FeatureSpecification;
 import org.elasticsearch.features.NodeFeature;
@@ -39,6 +40,11 @@ public class EsqlFeatures implements FeatureSpecification {
      * This marks that the cluster state has support for the ViewMetadata CustomProject
      */
     public static final NodeFeature ESQL_VIEWS = new NodeFeature("esql.views");
+
+    /**
+     * A feature flag to enable ESQL views REST API functionality.
+     */
+    public static final FeatureFlag ESQL_VIEWS_FEATURE_FLAG = new FeatureFlag("esql_views");
 
     private Set<NodeFeature> snapshotBuildFeatures() {
         assert Build.current().isSnapshot() : Build.current();

@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.esql.view;
 
-import org.elasticsearch.Build;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
@@ -20,6 +19,7 @@ import org.junit.runners.model.Statement;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 
+import static org.elasticsearch.xpack.esql.plugin.EsqlFeatures.ESQL_VIEWS_FEATURE_FLAG;
 import static org.elasticsearch.xpack.esql.view.ViewTests.randomView;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -35,7 +35,7 @@ public class ViewCrudTests extends AbstractViewTestCase {
     public TestRule skipIfNotSnapshot = (base, description) -> new Statement() {
         @Override
         public void evaluate() throws Throwable {
-            assumeTrue("These tests only work in SNAPSHOT builds", Build.current().isSnapshot());
+            assumeTrue("These tests only work in SNAPSHOT builds", ESQL_VIEWS_FEATURE_FLAG.isEnabled());
             base.evaluate();
         }
     };

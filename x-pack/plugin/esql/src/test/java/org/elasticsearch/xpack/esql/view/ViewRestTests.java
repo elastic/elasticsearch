@@ -7,13 +7,14 @@
 
 package org.elasticsearch.xpack.esql.view;
 
-import org.elasticsearch.Build;
 import org.elasticsearch.core.TimeValue;
+
+import static org.elasticsearch.xpack.esql.plugin.EsqlFeatures.ESQL_VIEWS_FEATURE_FLAG;
 
 public class ViewRestTests extends AbstractViewTestCase {
 
     public void testSnapshot() throws Exception {
-        assumeTrue("Skipping test because we're not in a SNAPSHOT build", Build.current().isSnapshot());
+        assumeTrue("Skipping test because we're not in a SNAPSHOT build", ESQL_VIEWS_FEATURE_FLAG.isEnabled());
         GetViewAction.Request request = new GetViewAction.Request(TimeValue.timeValueMinutes(1));
         TestResponseCapture<GetViewAction.Response> responseCapture = new TestResponseCapture<>();
         client().admin().cluster().execute(GetViewAction.INSTANCE, request, responseCapture);
@@ -26,7 +27,7 @@ public class ViewRestTests extends AbstractViewTestCase {
     }
 
     public void testReleased() {
-        assumeFalse("Skipping test because we're in a SNAPSHOT build", Build.current().isSnapshot());
+        assumeFalse("Skipping test because we're in a SNAPSHOT build", ESQL_VIEWS_FEATURE_FLAG.isEnabled());
         GetViewAction.Request request = new GetViewAction.Request(TimeValue.timeValueMinutes(1));
         TestResponseCapture<GetViewAction.Response> responseCapture = new TestResponseCapture<>();
         client().admin().cluster().execute(GetViewAction.INSTANCE, request, responseCapture);

@@ -430,7 +430,7 @@ public final class TranslateTimeSeriesAggregate extends OptimizerRules.Parameter
                     }
                 }
                 throw new EsqlIllegalArgumentException(
-                    "Unsupported window [{}] of aggregate function [{}]; the window must be a positive multiple of the time bucket [{}].",
+                    "Unsupported window [{}] for aggregate function [{}]; the window must be larger than the time bucket [{}] and an exact multiple of it",
                     window.sourceText(),
                     af.sourceText(),
                     Objects.requireNonNull(agg.timeBucket()).sourceText()

@@ -40,7 +40,7 @@ public final class PanamaVectorComparisonUtils {
     public static VectorComparisonUtils INSTANCE;
 
     /** The preferred byte vector species for the current platform. */
-    static final VectorSpecies<Byte> BS = PanamaVectorConstants.PRERERRED_BYTE_SPECIES;
+    static final VectorSpecies<Byte> BS = PanamaVectorConstants.PREFERRED_BYTE_SPECIES;
     static final VectorSpecies<Long> LS = PanamaVectorConstants.PREFERRED_LONG_SPECIES;
 
     static {

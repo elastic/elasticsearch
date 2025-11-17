@@ -33,6 +33,7 @@ import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
@@ -49,6 +50,7 @@ import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.search.QueryParserHelper;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.IndexLongFieldRange;
 import org.elasticsearch.index.shard.ShardId;
@@ -87,6 +89,7 @@ import static org.elasticsearch.cluster.node.DiscoveryNodeFilters.OpType.AND;
 import static org.elasticsearch.cluster.node.DiscoveryNodeFilters.OpType.OR;
 import static org.elasticsearch.cluster.node.DiscoveryNodeFilters.validateIpValue;
 import static org.elasticsearch.common.settings.Settings.readSettingsFromStream;
+import static org.elasticsearch.index.IndexSettings.DEFAULT_FIELD_SETTING;
 import static org.elasticsearch.snapshots.SearchableSnapshotsSettings.SEARCHABLE_SNAPSHOT_PARTIAL_SETTING_KEY;
 
 public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragment {
@@ -1367,6 +1370,32 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
 
     public OptionalLong getForecastedShardSizeInBytes() {
         return shardSizeInBytesForecast == null ? OptionalLong.empty() : OptionalLong.of(shardSizeInBytesForecast);
+    }
+
+    /**
+     * Get the inference fields that match the provided field pattern map. The matches are returned as a map where the key is the
+     * {@link InferenceFieldMetadata} for the matching inference field and the value is the effective weight of the field.
+     * If {@code useDefaultFields} is true and {@code fields} is empty, then the field pattern map will be derived from the value of
+     * {@link IndexSettings#DEFAULT_FIELD_SETTING} for the index.
+     *
+     * @param fields The field pattern map, where the key is the field pattern and the value is the pattern weight.
+     * @param resolveWildcards If {@code true}, wildcards in field patterns will be resolved. Otherwise, only explicit matches will be
+     *                         returned.
+     * @param useDefaultFields If {@code true}, default fields will be used if {@code fields} is empty.
+     * @return A map of inference field matches
+     */
+    public Map<InferenceFieldMetadata, Float> getMatchingInferenceFields(
+        Map<String, Float> fields,
+        boolean resolveWildcards,
+        boolean useDefaultFields
+    ) {
+        Map<String, Float> effectiveFields = fields;
+        if (effectiveFields.isEmpty() && useDefaultFields) {
+            List<String> defaultFields = settings.getAsList(DEFAULT_FIELD_SETTING.getKey(), DEFAULT_FIELD_SETTING.getDefault(settings));
+            effectiveFields = QueryParserHelper.parseFieldsAndWeights(defaultFields);
+        }
+
+        return getMatchingInferenceFields(inferenceFields, effectiveFields, resolveWildcards);
     }
 
     public static final String INDEX_RESIZE_SOURCE_UUID_KEY = "index.resize.source.uuid";
@@ -3299,5 +3328,52 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         } catch (NumberFormatException e) {
             throw new IllegalArgumentException("unable to parse the index name [" + indexName + "] to extract the counter", e);
         }
+    }
+
+    /**
+     * An overload of {@link #getMatchingInferenceFields(Map, boolean, boolean)}}, where the inference field metadata map to match against
+     * is provided by the caller. {@code useDefaultFields} is unavailable because the index's {@link IndexSettings#DEFAULT_FIELD_SETTING} is
+     * out of scope.
+     *
+     * @param inferenceFieldMetadataMap The inference field metadata map to match against.
+     * @param fieldMap The field pattern map, where the key is the field pattern and the value is the pattern weight.
+     * @param resolveWildcards If {@code true}, wildcards in field patterns will be resolved. Otherwise, only explicit matches will be
+     *                         returned.
+     * @return A map of inference field matches
+     */
+    public static Map<InferenceFieldMetadata, Float> getMatchingInferenceFields(
+        Map<String, InferenceFieldMetadata> inferenceFieldMetadataMap,
+        Map<String, Float> fieldMap,
+        boolean resolveWildcards
+    ) {
+        Map<InferenceFieldMetadata, Float> matches = new HashMap<>();
+        for (var entry : fieldMap.entrySet()) {
+            String field = entry.getKey();
+            Float weight = entry.getValue();
+
+            if (inferenceFieldMetadataMap.containsKey(field)) {
+                // No wildcards in field name
+                addToMatchingInferenceFieldsMap(matches, inferenceFieldMetadataMap.get(field), weight);
+            } else if (resolveWildcards) {
+                if (Regex.isMatchAllPattern(field)) {
+                    inferenceFieldMetadataMap.values().forEach(ifm -> addToMatchingInferenceFieldsMap(matches, ifm, weight));
+                } else if (Regex.isSimpleMatchPattern(field)) {
+                    inferenceFieldMetadataMap.values()
+                        .stream()
+                        .filter(ifm -> Regex.simpleMatch(field, ifm.getName()))
+                        .forEach(ifm -> addToMatchingInferenceFieldsMap(matches, ifm, weight));
+                }
+            }
+        }
+
+        return matches;
+    }
+
+    private static void addToMatchingInferenceFieldsMap(
+        Map<InferenceFieldMetadata, Float> matches,
+        InferenceFieldMetadata inferenceFieldMetadata,
+        Float weight
+    ) {
+        matches.compute(inferenceFieldMetadata, (k, v) -> v == null ? weight : v * weight);
     }
 }

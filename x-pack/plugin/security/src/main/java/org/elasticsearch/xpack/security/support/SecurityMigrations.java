@@ -151,20 +151,13 @@ public class SecurityMigrations {
 
             updateByQueryRequest.setQuery(filterQuery);
             updateByQueryRequest.setAbortOnVersionConflict(false);
-            updateByQueryRequest.setScript(
-                new Script(
-                    ScriptType.INLINE,
-                    "painless",
-                    """
-                    if (ctx._source.metadata != null && ctx._source.metadata instanceof Map && !ctx._source.metadata.isEmpty()) {
-                        ctx._source.metadata_flattened = ctx._source.metadata;
-                    } else {
-                        ctx.op = 'noop';
-                    }
-                    """,
-                    Collections.emptyMap()
-                )
-            );
+            updateByQueryRequest.setScript(new Script(ScriptType.INLINE, "painless", """
+                if (ctx._source.metadata != null && ctx._source.metadata instanceof Map && !ctx._source.metadata.isEmpty()) {
+                    ctx._source.metadata_flattened = ctx._source.metadata;
+                } else {
+                    ctx.op = 'noop';
+                }
+                """, Collections.emptyMap()));
 
             client.admin()
                 .cluster()

@@ -87,7 +87,7 @@ public class AuthorizationTaskExecutorMultipleNodesIT extends ESIntegTestCase {
         return Settings.builder()
             .put(super.nodeSettings(nodeOrdinal, otherSettings))
             // Disable CCM to ensure that only the authorization task executor is initialized in the inference plugin when it is created
-            .put(CCMSettings.ALLOW_CONFIGURING_CCM.getKey(), false)
+            .put(CCMSettings.CCM_SUPPORTED_ENVIRONMENT.getKey(), false)
             .put(LicenseSettings.SELF_GENERATED_LICENSE_TYPE.getKey(), "trial")
             .put(ElasticInferenceServiceSettings.ELASTIC_INFERENCE_SERVICE_URL.getKey(), gatewayUrl)
             .put(ElasticInferenceServiceSettings.PERIODIC_AUTHORIZATION_ENABLED.getKey(), false)

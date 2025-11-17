@@ -106,7 +106,7 @@ public class CCMServiceIT extends CCMSingleNodeIT {
     @Override
     protected Settings nodeSettings() {
         return Settings.builder()
-            .put(CCMSettings.ALLOW_CONFIGURING_CCM.getKey(), true)
+            .put(CCMSettings.CCM_SUPPORTED_ENVIRONMENT.getKey(), true)
             .put(ElasticInferenceServiceSettings.ELASTIC_INFERENCE_SERVICE_URL.getKey(), gatewayUrl)
             // Ensure that the polling logic only occurs once so we can deterministically control when an authorization response is
             // received

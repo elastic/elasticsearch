@@ -25,6 +25,7 @@ import org.junit.rules.RuleChain;
 import org.junit.rules.TestRule;
 
 import static org.elasticsearch.xpack.inference.InferenceBaseRestTest.getModel;
+import static org.elasticsearch.xpack.inference.services.elastic.ccm.CCMSettings.CCM_SUPPORTED_ENVIRONMENT;
 
 public class BaseMockEISAuthServerTest extends ESRestTestCase {
 
@@ -48,7 +49,7 @@ public class BaseMockEISAuthServerTest extends ESRestTestCase {
         .setting("xpack.inference.elastic.periodic_authorization_enabled", "false")
         // Setting to false so that the CCM logic will be skipped when running the tests, the authorization logic skip trying to determine
         // if CCM is enabled
-        .setting("xpack.inference.elastic.allow_configuring_ccm", "false")
+        .setting(CCM_SUPPORTED_ENVIRONMENT.getKey(), "false")
         // This plugin is located in the inference/qa/test-service-plugin package, look for TestInferenceServicePlugin
         .plugin("inference-service-test")
         .user("x_pack_rest_user", "x-pack-test-password")

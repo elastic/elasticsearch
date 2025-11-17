@@ -486,7 +486,7 @@ public class InferencePlugin extends Plugin
         // If CCM is not allowed in this environment then we can initialize the auth poller task because
         // authentication with EIS will be through certs that are already configured. If CCM configuration is allowed,
         // we need to wait for the user to provide an API key before we can start polling EIS
-        if (ccmFeature.allowConfiguringCcm() == false) {
+        if (ccmFeature.isCcmSupportedEnvironment() == false) {
             logger.info("CCM configuration is not permitted - starting EIS authorization task executor");
             authTaskExecutor.startAndLazyCreateTask();
         }
@@ -520,7 +520,7 @@ public class InferencePlugin extends Plugin
     ) {
         // Create a separate instance of HTTPClientManager with its own SSL configuration (`xpack.inference.elastic.http.ssl.*`).
         HttpClientManager manager;
-        if (ccmFeature.allowConfiguringCcm()) {
+        if (ccmFeature.isCcmSupportedEnvironment()) {
             // If ccm is configurable then we aren't using mTLS so ignore the ssl service
             manager = HttpClientManager.create(
                 settings,

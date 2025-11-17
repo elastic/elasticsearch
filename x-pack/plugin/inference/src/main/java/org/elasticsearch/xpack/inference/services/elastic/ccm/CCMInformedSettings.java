@@ -30,7 +30,7 @@ public class CCMInformedSettings extends ElasticInferenceServiceSettings {
     @Override
     public String getElasticInferenceServiceUrl() {
         String urlFromSettings = super.getElasticInferenceServiceUrl();
-        if (ccmFeature.allowConfiguringCcm() == false || Strings.isNullOrEmpty(urlFromSettings) == false) {
+        if (ccmFeature.isCcmSupportedEnvironment() == false || Strings.isNullOrEmpty(urlFromSettings) == false) {
             return urlFromSettings;
         }
 

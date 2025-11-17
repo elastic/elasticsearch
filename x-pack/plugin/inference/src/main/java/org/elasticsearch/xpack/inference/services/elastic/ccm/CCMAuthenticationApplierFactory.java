@@ -38,7 +38,7 @@ public class CCMAuthenticationApplierFactory {
     public interface AuthApplier extends Function<HttpRequestBase, HttpRequestBase> {}
 
     public void getAuthenticationApplier(ActionListener<AuthApplier> listener) {
-        if (ccmFeature.allowConfiguringCcm() == false) {
+        if (ccmFeature.isCcmSupportedEnvironment() == false) {
             listener.onResponse(NOOP_APPLIER);
             return;
         }

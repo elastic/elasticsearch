@@ -66,7 +66,7 @@ public class CCMAuthenticationApplierFactoryTests extends ESTestCase {
 
     public void testGetAuthenticationApplier_ReturnsNoopWhenConfiguringCCMIsDisabled() {
         var ccmFeature = mock(CCMFeature.class);
-        when(ccmFeature.allowConfiguringCcm()).thenReturn(false);
+        when(ccmFeature.isCcmSupportedEnvironment()).thenReturn(false);
         var ccmService = mock(CCMService.class);
 
         var factory = new CCMAuthenticationApplierFactory(ccmFeature, ccmService);
@@ -78,7 +78,7 @@ public class CCMAuthenticationApplierFactoryTests extends ESTestCase {
 
     public void testGetAuthenticationApplier_ReturnsFailure_WhenConfiguringCCMIsEnabled_ButHasNotBeenConfiguredYet() {
         var ccmFeature = mock(CCMFeature.class);
-        when(ccmFeature.allowConfiguringCcm()).thenReturn(true);
+        when(ccmFeature.isCcmSupportedEnvironment()).thenReturn(true);
 
         var ccmService = mock(CCMService.class);
         doAnswer(invocation -> {
@@ -105,7 +105,7 @@ public class CCMAuthenticationApplierFactoryTests extends ESTestCase {
         var secret = "secret";
 
         var ccmFeature = mock(CCMFeature.class);
-        when(ccmFeature.allowConfiguringCcm()).thenReturn(true);
+        when(ccmFeature.isCcmSupportedEnvironment()).thenReturn(true);
 
         var ccmService = mock(CCMService.class);
         doAnswer(invocation -> {

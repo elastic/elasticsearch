@@ -297,7 +297,7 @@ public class AuthorizationPoller extends AllocatedPersistentTask {
             listener.onResponse(new RegistryNotReadyAction());
             return;
         }
-        if (ccmFeature.allowConfiguringCcm() == false) {
+        if (ccmFeature.isCcmSupportedEnvironment() == false) {
             listener.onResponse(new SendAuthRequestAction());
             return;
         }

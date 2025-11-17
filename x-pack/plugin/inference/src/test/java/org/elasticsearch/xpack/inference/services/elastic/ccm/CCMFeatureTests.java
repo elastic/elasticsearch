@@ -16,7 +16,7 @@ public class CCMFeatureTests extends ESTestCase {
 
     public static CCMFeature createMockCCMFeature(boolean enabled) {
         var mockFeature = mock(CCMFeature.class);
-        when(mockFeature.allowConfiguringCcm()).thenReturn(enabled);
+        when(mockFeature.isCcmSupportedEnvironment()).thenReturn(enabled);
 
         return mockFeature;
     }

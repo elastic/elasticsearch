@@ -21,7 +21,7 @@ public class CCMInformedSettingsTests extends ESTestCase {
         var url = "http://custom-url.com";
         var settings = Settings.builder().put(ELASTIC_INFERENCE_SERVICE_URL.getKey(), url).build();
         var ccmFeature = mock(CCMFeature.class);
-        when(ccmFeature.allowConfiguringCcm()).thenReturn(true);
+        when(ccmFeature.isCcmSupportedEnvironment()).thenReturn(true);
 
         var informedSettings = new CCMInformedSettings(settings, ccmFeature);
 
@@ -31,7 +31,7 @@ public class CCMInformedSettingsTests extends ESTestCase {
     public void testGetElasticInferenceServiceUrl_ReturnsCCMDefault_WhenConfiguringCCMIsPermitted_ButSettingUrlIsEmpty() {
         var settings = Settings.builder().put(ELASTIC_INFERENCE_SERVICE_URL.getKey(), "").build();
         var ccmFeature = mock(CCMFeature.class);
-        when(ccmFeature.allowConfiguringCcm()).thenReturn(true);
+        when(ccmFeature.isCcmSupportedEnvironment()).thenReturn(true);
 
         var informedSettings = new CCMInformedSettings(settings, ccmFeature);
 
@@ -41,7 +41,7 @@ public class CCMInformedSettingsTests extends ESTestCase {
     public void testGetElasticInferenceServiceUrl_ReturnsCCMDefault_WhenConfiguringCCMIsPermitted_ButSettingUrlIsNull() {
         var settings = Settings.builder().put(ELASTIC_INFERENCE_SERVICE_URL.getKey(), (String) null).build();
         var ccmFeature = mock(CCMFeature.class);
-        when(ccmFeature.allowConfiguringCcm()).thenReturn(true);
+        when(ccmFeature.isCcmSupportedEnvironment()).thenReturn(true);
 
         var informedSettings = new CCMInformedSettings(settings, ccmFeature);
 
@@ -50,7 +50,7 @@ public class CCMInformedSettingsTests extends ESTestCase {
 
     public void testGetElasticInferenceServiceUrl_ReturnsCCMDefault_WhenConfiguringCCMIsPermitted_ButSettingUrlIsAbsent() {
         var ccmFeature = mock(CCMFeature.class);
-        when(ccmFeature.allowConfiguringCcm()).thenReturn(true);
+        when(ccmFeature.isCcmSupportedEnvironment()).thenReturn(true);
 
         var informedSettings = new CCMInformedSettings(Settings.EMPTY, ccmFeature);
 
@@ -61,7 +61,7 @@ public class CCMInformedSettingsTests extends ESTestCase {
         var url = "http://custom-url.com";
         var settings = Settings.builder().put(ELASTIC_INFERENCE_SERVICE_URL.getKey(), url).build();
         var ccmFeature = mock(CCMFeature.class);
-        when(ccmFeature.allowConfiguringCcm()).thenReturn(false);
+        when(ccmFeature.isCcmSupportedEnvironment()).thenReturn(false);
 
         var informedSettings = new CCMInformedSettings(settings, ccmFeature);
 
@@ -72,7 +72,7 @@ public class CCMInformedSettingsTests extends ESTestCase {
         var url = "";
         var settings = Settings.builder().put(ELASTIC_INFERENCE_SERVICE_URL.getKey(), url).build();
         var ccmFeature = mock(CCMFeature.class);
-        when(ccmFeature.allowConfiguringCcm()).thenReturn(false);
+        when(ccmFeature.isCcmSupportedEnvironment()).thenReturn(false);
 
         var informedSettings = new CCMInformedSettings(settings, ccmFeature);
 
@@ -82,7 +82,7 @@ public class CCMInformedSettingsTests extends ESTestCase {
     public void testGetElasticInferenceServiceUrl_ReturnsEmpty_WhenConfiguringCCMIsNotPermitted_AndSettingUrlIsNull() {
         var settings = Settings.builder().put(ELASTIC_INFERENCE_SERVICE_URL.getKey(), (String) null).build();
         var ccmFeature = mock(CCMFeature.class);
-        when(ccmFeature.allowConfiguringCcm()).thenReturn(false);
+        when(ccmFeature.isCcmSupportedEnvironment()).thenReturn(false);
 
         var informedSettings = new CCMInformedSettings(settings, ccmFeature);
 
@@ -91,7 +91,7 @@ public class CCMInformedSettingsTests extends ESTestCase {
 
     public void testGetElasticInferenceServiceUrl_ReturnsEmpty_WhenConfiguringCCMIsNotPermitted_AndSettingUrlAbsent() {
         var ccmFeature = mock(CCMFeature.class);
-        when(ccmFeature.allowConfiguringCcm()).thenReturn(false);
+        when(ccmFeature.isCcmSupportedEnvironment()).thenReturn(false);
 
         var informedSettings = new CCMInformedSettings(Settings.EMPTY, ccmFeature);
 

@@ -125,7 +125,7 @@ public class Idelta extends TimeSeriesAggregateFunction implements OptionalArgum
 
     @Override
     public String toString() {
-        return "idelta(" + field() + ")";
+        return "idelta(" + field() + ", " + timestamp() + ")";
     }
 
     @Override

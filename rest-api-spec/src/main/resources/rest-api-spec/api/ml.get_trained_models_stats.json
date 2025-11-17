@@ -20,8 +20,8 @@
           ],
           "parts": {
             "model_id": {
-              "type": "string",
-              "description": "The ID of the trained models stats to fetch"
+              "type": "list",
+              "description": "The unique identifier of the trained model or a model alias. It can be a comma-separated list or a wildcard expression."
             }
           }
         },

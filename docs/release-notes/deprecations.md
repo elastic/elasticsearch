@@ -16,6 +16,61 @@ To give you insight into what deprecated features you’re using, {{es}}:
 
 % ## Next version [elasticsearch-nextversion-deprecations]
 
+## 9.1.7 [elasticsearch-9.1.7-deprecations]
+
+There are no deprecations associated with this release.
+
+## 9.1.6 [elasticsearch-9.1.6-deprecations]
+
+There are no deprecations associated with this release.
+
+## 9.0.8 [elasticsearch-9.0.8-deprecations]
+
+There are no deprecations associated with this release.
+
+## 9.1.5 [elasticsearch-9.1.5-deprecations]
+
+There are no deprecations associated with this release.
+
+## 9.1.4 [elasticsearch-9.1.4-deprecations]
+
+There are no deprecations associated with this release.
+
+## 9.0.7 [elasticsearch-9.0.7-deprecations]
+
+There are no deprecations associated with this release.
+
+## 9.0.6 [elasticsearch-9.0.6-deprecations]
+
+Authorization:
+* Change `reporting_user` role to leverage reserved kibana privileges [#132766](https://github.com/elastic/elasticsearch/pull/132766)
+
+
+## 9.1.3 [elasticsearch-9.1.3-deprecations]
+
+Authorization:
+* Change `reporting_user` role to leverage reserved kibana privileges [#132766](https://github.com/elastic/elasticsearch/pull/132766)
+
+## 9.1.2 [elasticsearch-9.1.2-deprecations]
+
+There are no deprecations associated with this release.
+
+## 9.0.5 [elasticsearch-9.0.5-deprecations]
+
+There are no deprecations associated with this release.
+
+## 9.1.1 [elasticsearch-9.1.1-deprecations]
+
+There are no deprecations associated with this release.
+
+## 9.1.0 [elasticsearch-9.1.0-deprecations]
+
+There are no deprecations associated with this release.
+
+## 9.0.4 [elasticsearch-9.0.4-deprecations]
+
+There are no deprecations associated with this release.
+
 ## 9.0.3 [elasticsearch-9.0.3-deprecations]
 
 Engine:

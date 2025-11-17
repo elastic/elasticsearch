@@ -102,7 +102,7 @@ abstract sealed class MetricFieldProducer extends AbstractDownsampleFieldProduce
     }
 
     // For downsampling downsampled indices:
-    static final class AggregateGaugeSubmetricFieldProducer extends MetricFieldProducer {
+    static final class AggregateSubMetricFieldProducer extends MetricFieldProducer {
 
         final AggregateMetricDoubleFieldMapper.Metric metric;
 
@@ -111,7 +111,7 @@ abstract sealed class MetricFieldProducer extends AbstractDownsampleFieldProduce
         final CompensatedSum sum = new CompensatedSum();
         long count;
 
-        AggregateGaugeSubmetricFieldProducer(String name, AggregateMetricDoubleFieldMapper.Metric metric) {
+        AggregateSubMetricFieldProducer(String name, AggregateMetricDoubleFieldMapper.Metric metric) {
             super(name);
             this.metric = metric;
         }

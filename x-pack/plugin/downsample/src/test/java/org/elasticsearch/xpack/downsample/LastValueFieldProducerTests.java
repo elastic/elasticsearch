@@ -128,7 +128,6 @@ public class LastValueFieldProducerTests extends AggregatorTestCase {
         var producer = LastValueFieldProducer.createForLabel("dummy", "flattened");
         assertTrue(producer.isEmpty());
         assertEquals("dummy", producer.name());
-        assertEquals("last_value", producer.sampleLabel());
 
         var bytes = List.of("a\0value_a", "b\0value_b", "c\0value_c", "d\0value_d");
         var docValues = new FormattedDocValues() {

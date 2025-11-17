@@ -37,7 +37,7 @@ public class AggregateMetricDoubleFieldSerializerTests extends ESTestCase {
         }
     }
 
-    public void testCounterFieldSerialization() throws IOException {
+    public void testInvalidCounterFieldSerialization() throws IOException {
         AbstractDownsampleFieldProducer producer = LastValueFieldProducer.createForMetric("my-counter");
         var docIdBuffer = IntArrayList.from(0, 1, 2);
         var valuesInstance = createValuesInstance(docIdBuffer, new Integer[] { 55, 12, 5 });
@@ -46,37 +46,35 @@ public class AggregateMetricDoubleFieldSerializerTests extends ESTestCase {
             "my-counter",
             List.of(producer)
         );
-        try (XContentBuilder builder = XContentBuilder.builder(XContentType.JSON.xContent())) {
-            builder.humanReadable(true).startObject();
-            gaugeFieldSerializer.write(builder);
-            builder.endObject();
-            assertThat(Strings.toString(builder), equalTo("{\"my-counter\":{\"last_value\":55}}"));
-        }
+        XContentBuilder builder = XContentBuilder.builder(XContentType.JSON.xContent());
+        builder.humanReadable(true).startObject();
+        IllegalStateException error = expectThrows(IllegalStateException.class, () -> gaugeFieldSerializer.write(builder));
+        assertThat(error.getMessage(), equalTo("Unexpected field producer class: LastValueFieldProducer for my-counter field"));
     }
 
     public void testAggregatePreAggregatedFieldSerialization() throws IOException {
-        MetricFieldProducer minProducer = new MetricFieldProducer.AggregateGaugeSubmetricFieldProducer(
+        MetricFieldProducer minProducer = new MetricFieldProducer.AggregateSubMetricFieldProducer(
             "my-gauge",
             AggregateMetricDoubleFieldMapper.Metric.min
         );
         var docIdBuffer = IntArrayList.from(0, 1);
         var valuesInstance = createNumericValuesInstance(docIdBuffer, 10, 5.5);
         minProducer.collect(valuesInstance, docIdBuffer);
-        MetricFieldProducer maxProducer = new MetricFieldProducer.AggregateGaugeSubmetricFieldProducer(
+        MetricFieldProducer maxProducer = new MetricFieldProducer.AggregateSubMetricFieldProducer(
             "my-gauge",
             AggregateMetricDoubleFieldMapper.Metric.max
         );
         docIdBuffer = IntArrayList.from(0, 1);
         valuesInstance = createNumericValuesInstance(docIdBuffer, 30, 55.0);
         maxProducer.collect(valuesInstance, docIdBuffer);
-        MetricFieldProducer sumProducer = new MetricFieldProducer.AggregateGaugeSubmetricFieldProducer(
+        MetricFieldProducer sumProducer = new MetricFieldProducer.AggregateSubMetricFieldProducer(
             "my-gauge",
             AggregateMetricDoubleFieldMapper.Metric.sum
         );
         docIdBuffer = IntArrayList.from(0, 1);
         valuesInstance = createNumericValuesInstance(docIdBuffer, 30, 72.7);
         sumProducer.collect(valuesInstance, docIdBuffer);
-        MetricFieldProducer countProducer = new MetricFieldProducer.AggregateGaugeSubmetricFieldProducer(
+        MetricFieldProducer countProducer = new MetricFieldProducer.AggregateSubMetricFieldProducer(
             "my-gauge",
             AggregateMetricDoubleFieldMapper.Metric.value_count
         );

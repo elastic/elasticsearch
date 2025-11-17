@@ -562,7 +562,7 @@ public class DownsampleIT extends DownsamplingIntegTestCase {
         return client().execute(EsqlQueryAction.INSTANCE, new EsqlQueryRequest().query(command)).actionGet(30, TimeUnit.SECONDS);
     }
 
-    public static double[] randomHistogramValues(int size) {
+    private static double[] randomHistogramValues(int size) {
         final double[] array = new double[size];
         double minHistogramValue = randomDoubleBetween(0.0, 0.1, true);
         for (int i = 0; i < array.length; i++) {
@@ -571,7 +571,7 @@ public class DownsampleIT extends DownsamplingIntegTestCase {
         return array;
     }
 
-    public static int[] randomHistogramValueCounts(int size) {
+    private static int[] randomHistogramValueCounts(int size) {
         final int[] array = new int[size];
         for (int i = 0; i < array.length; i++) {
             array[i] = randomIntBetween(1, 100);

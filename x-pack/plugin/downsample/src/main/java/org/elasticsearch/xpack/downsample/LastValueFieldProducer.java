@@ -127,10 +127,6 @@ class LastValueFieldProducer extends AbstractDownsampleFieldProducer {
         return lastValue;
     }
 
-    public String sampleLabel() {
-        return "last_value";
-    }
-
     /**
      * This producer is used to downsample by keeping the last value the sub-metric of an aggregate metric double.
      */
@@ -143,8 +139,7 @@ class LastValueFieldProducer extends AbstractDownsampleFieldProducer {
             this.metric = metric;
         }
 
-        @Override
-        public String sampleLabel() {
+        public String subMetric() {
             return metric.name();
         }
     }

@@ -16,7 +16,7 @@ import java.util.Collection;
  * This serialiser can be used to convert a list of producers to an aggregate metric double field. The producer should produce an
  * aggregate metric double or a sub metric of one, any other producers will trigger an error.
  */
-final class AggregateMetricDoubleFieldSerializer implements DownsampleFieldSerializer {
+final class AggregateMetricFieldSerializer implements DownsampleFieldSerializer {
     private final Collection<AbstractDownsampleFieldProducer> producers;
     private final String name;
 
@@ -26,7 +26,7 @@ final class AggregateMetricDoubleFieldSerializer implements DownsampleFieldSeria
      * @param producers a collection of {@link AbstractDownsampleFieldProducer} instances with the subfields
      *                  of the aggregate_metric_double field.
      */
-    AggregateMetricDoubleFieldSerializer(String name, Collection<AbstractDownsampleFieldProducer> producers) {
+    AggregateMetricFieldSerializer(String name, Collection<AbstractDownsampleFieldProducer> producers) {
         this.name = name;
         this.producers = producers;
     }

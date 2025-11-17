@@ -610,7 +610,7 @@ class DownsampleShardIndexer {
                     if (e.getValue().size() == 1) {
                         return e.getValue().get(0);
                     } else {
-                        return new AggregateMetricDoubleFieldSerializer(e.getKey(), e.getValue());
+                        return new AggregateMetricFieldSerializer(e.getKey(), e.getValue());
                     }
                 })
                 .toArray(DownsampleFieldSerializer[]::new);

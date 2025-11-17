@@ -325,7 +325,8 @@ public class LookupFromIndexIT extends AbstractEsqlIntegTestCase {
                 0,
                 searchContext,
                 searchContext.getSearchExecutionContext(),
-                AliasFilter.EMPTY
+                AliasFilter.EMPTY,
+                null
             );
             LuceneSourceOperator.Factory source = new LuceneSourceOperator.Factory(
                 new IndexedByShardIdFromSingleton<>(esqlContext),

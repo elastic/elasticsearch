@@ -61,6 +61,7 @@ import org.elasticsearch.search.fetch.StoredFieldsSpec;
 import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.search.lookup.SourceFilter;
+import org.elasticsearch.search.profile.query.QueryProfiler;
 import org.elasticsearch.search.sort.SortAndFormats;
 import org.elasticsearch.search.sort.SortBuilder;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
@@ -225,7 +226,7 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
         private final KeywordEsField unmappedEsField;
 
         DefaultShardContextForUnmappedField(DefaultShardContext ctx, PotentiallyUnmappedKeywordEsField unmappedEsField) {
-            super(ctx.index, ctx.releasable, ctx.ctx, ctx.aliasFilter);
+            super(ctx.index, ctx.releasable, ctx.ctx, ctx.aliasFilter, ctx.queryProfiler);
             this.unmappedEsField = unmappedEsField;
         }
 
@@ -429,12 +430,20 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
         private final SearchExecutionContext ctx;
         private final AliasFilter aliasFilter;
         private final String shardIdentifier;
+        private final QueryProfiler queryProfiler;
 
-        public DefaultShardContext(int index, Releasable releasable, SearchExecutionContext ctx, AliasFilter aliasFilter) {
+        public DefaultShardContext(
+            int index,
+            Releasable releasable,
+            SearchExecutionContext ctx,
+            AliasFilter aliasFilter,
+            QueryProfiler queryProfiler
+        ) {
             this.index = index;
             this.releasable = releasable;
             this.ctx = ctx;
             this.aliasFilter = aliasFilter;
+            this.queryProfiler = queryProfiler;
             // Build the shardIdentifier once up front so we can reuse references to it in many places.
             this.shardIdentifier = this.ctx.getFullyQualifiedIndex().getName() + ":" + this.ctx.getShardId();
         }
@@ -457,6 +466,10 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
         @Override
         public String shardIdentifier() {
             return shardIdentifier;
+        }
+
+        public QueryProfiler profiler() {
+            return queryProfiler;
         }
 
         @Override

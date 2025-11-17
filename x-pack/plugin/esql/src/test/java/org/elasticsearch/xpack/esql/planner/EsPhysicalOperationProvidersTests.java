@@ -81,7 +81,7 @@ public class EsPhysicalOperationProvidersTests extends ESTestCase {
         EsPhysicalOperationProviders provider = new EsPhysicalOperationProviders(
             FoldContext.small(),
             new IndexedByShardIdFromSingleton<>(
-                new EsPhysicalOperationProviders.DefaultShardContext(0, () -> {}, createMockContext(), AliasFilter.EMPTY)
+                new EsPhysicalOperationProviders.DefaultShardContext(0, () -> {}, createMockContext(), AliasFilter.EMPTY, null)
             ),
             null,
             TEST_PLANNER_SETTINGS

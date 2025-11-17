@@ -95,7 +95,9 @@ public class RestFleetMultiSearchAction extends BaseRestHandler {
                 } else {
                     return false;
                 }
-            }
+            },
+            // Fleet searches neither support CCS nor CPS.
+            false
         );
 
         for (SearchRequest searchRequest : multiSearchRequest.requests()) {

@@ -41,6 +41,7 @@ import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.defaultLoo
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.defaultSubqueryResolution;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.indexResolutions;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.mergeIndexResolutions;
+import static org.elasticsearch.xpack.esql.core.type.DataType.DATE_NANOS;
 import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
 import static org.hamcrest.Matchers.containsString;
 
@@ -61,6 +62,7 @@ public abstract class AbstractLogicalPlanOptimizerTests extends ESTestCase {
     protected static Analyzer analyzerExtra;
     protected static Map<String, EsField> metricMapping;
     protected static Analyzer metricsAnalyzer;
+    protected static Analyzer metricsNanosAnalyzer;
     protected static Analyzer multiIndexAnalyzer;
     protected static Analyzer sampleDataIndexAnalyzer;
     protected static Analyzer subqueryAnalyzer;
@@ -175,6 +177,20 @@ public abstract class AbstractLogicalPlanOptimizerTests extends ESTestCase {
                 EsqlTestUtils.TEST_CFG,
                 new EsqlFunctionRegistry(),
                 indexResolutions(metricsIndex),
+                enrichResolution,
+                emptyInferenceResolution()
+            ),
+            TEST_VERIFIER
+        );
+
+        var metricNanosMapping = loadMapping("k8s-mappings.json");
+        metricNanosMapping.put("@timestamp", new EsField("@timestamp", DATE_NANOS, emptyMap(), true, EsField.TimeSeriesFieldType.NONE));
+        var metricsNanosIndex = new EsIndex("date-nanos-k8s", metricNanosMapping, Map.of("date-nanos-k8s", IndexMode.TIME_SERIES));
+        metricsNanosAnalyzer = new Analyzer(
+            testAnalyzerContext(
+                EsqlTestUtils.TEST_CFG,
+                new EsqlFunctionRegistry(),
+                indexResolutions(metricsNanosIndex),
                 enrichResolution,
                 emptyInferenceResolution()
             ),

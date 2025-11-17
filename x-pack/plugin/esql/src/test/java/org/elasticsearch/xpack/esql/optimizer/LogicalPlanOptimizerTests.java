@@ -9793,6 +9793,20 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
                 to be present when run with the TS command, but it was not present.""")
         );
 
+        assertThat(
+            expectThrows(
+                IllegalArgumentException.class,
+                () -> logicalOptimizerWithLatestVersion.optimize(metricsNanosAnalyzer.analyze(parser.createStatement("""
+                    TS date-nanos-k8s |
+                    EVAL `@timestamp` = region |
+                    STATS avg(network.eth0.currently_connected_clients)
+                    """)))
+            ).getMessage(),
+            containsString("""
+                Function [avg(network.eth0.currently_connected_clients)] requires a @timestamp field of type date or date_nanos \
+                to be present when run with the TS command, but it was not present.""")
+        );
+
         // we may want to allow this later
         assertThat(
             expectThrows(

@@ -24,6 +24,7 @@ import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestActions;
 import org.elasticsearch.rest.action.RestBuilderListener;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
@@ -37,10 +38,10 @@ import static org.elasticsearch.search.internal.SearchContext.DEFAULT_TERMINATE_
 @ServerlessScope(Scope.PUBLIC)
 public class RestCountAction extends BaseRestHandler {
 
-    private Settings settings;
+    private final CrossProjectModeDecider crossProjectModeDecider;
 
     public RestCountAction(Settings settings) {
-        this.settings = settings;
+        this.crossProjectModeDecider = new CrossProjectModeDecider(settings);
     }
 
     @Override
@@ -60,17 +61,16 @@ public class RestCountAction extends BaseRestHandler {
 
     @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
-        if (settings != null && settings.getAsBoolean("serverless.cross_project.enabled", false)) {
-            // accept but drop project_routing param until fully supported
-            request.param("project_routing");
-        }
-
         SearchRequest countRequest = new SearchRequest(Strings.splitStringByCommaToArray(request.param("index")));
         countRequest.indicesOptions(IndicesOptions.fromRequest(request, countRequest.indicesOptions()));
+        if (crossProjectModeDecider.crossProjectEnabled()) {
+            countRequest.setProjectRouting(request.param("project_routing"));
+            // TODO: do I also need to adjust indicesOptions here?
+        }
         SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder().size(0).trackTotalHits(true);
         countRequest.source(searchSourceBuilder);
         request.withContentOrSourceParamParserOrNull(parser -> {
-            if (parser == null) {
+            if (parser == null) {  // TODO: this means there is no request body right?
                 QueryBuilder queryBuilder = RestActions.urlParamsToQueryBuilder(request);
                 if (queryBuilder != null) {
                     searchSourceBuilder.query(queryBuilder);

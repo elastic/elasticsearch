@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.esql.expression.promql.predicate.operator;
+package org.elasticsearch.xpack.esql.plan.logical.promql.operator;
 
 import java.util.Locale;
 import java.util.Objects;

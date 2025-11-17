@@ -5,12 +5,12 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.esql.expression.promql.predicate.operator.set;
+package org.elasticsearch.xpack.esql.plan.logical.promql.operator.set;
 
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
-import org.elasticsearch.xpack.esql.expression.promql.predicate.operator.VectorBinaryOperator;
-import org.elasticsearch.xpack.esql.expression.promql.predicate.operator.VectorMatch;
+import org.elasticsearch.xpack.esql.plan.logical.promql.operator.VectorBinaryOperator;
+import org.elasticsearch.xpack.esql.plan.logical.promql.operator.VectorMatch;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 
 public class VectorBinarySet extends VectorBinaryOperator {

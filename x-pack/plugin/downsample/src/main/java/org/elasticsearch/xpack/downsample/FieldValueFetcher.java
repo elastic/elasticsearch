@@ -78,9 +78,9 @@ class FieldValueFetcher {
         } else {
             // If field is not a metric, we downsample it as a label
             if ("histogram".equals(fieldType.typeName())) {
-                return new LastValueFieldProducer.HistogramLastLastValueFieldProducer(name());
+                return new LastValueFieldProducer.HistogramFieldProducer(name());
             } else if ("flattened".equals(fieldType.typeName())) {
-                return new LastValueFieldProducer.FlattenedLastValueFieldProducer(name());
+                return new LastValueFieldProducer.FlattenedFieldProducer(name());
             }
             return LastValueFieldProducer.createForLabel(name());
         }

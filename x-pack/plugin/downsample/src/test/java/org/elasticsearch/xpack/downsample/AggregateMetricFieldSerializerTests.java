@@ -93,28 +93,28 @@ public class AggregateMetricFieldSerializerTests extends ESTestCase {
     }
 
     public void testLastValuePreAggregatedFieldSerialization() throws IOException {
-        AbstractDownsampleFieldProducer minProducer = new LastValueFieldProducer.AggregateMetricFieldProducer(
+        AbstractDownsampleFieldProducer minProducer = LastValueFieldProducer.AggregateMetricFieldProducer.forLabel(
             "my-gauge",
             AggregateMetricDoubleFieldMapper.Metric.min
         );
         var docIdBuffer = IntArrayList.from(0, 1);
         var valuesInstance = createValuesInstance(docIdBuffer, new Double[] { 10D, 5.5 });
         minProducer.collect(valuesInstance, docIdBuffer);
-        AbstractDownsampleFieldProducer maxProducer = new LastValueFieldProducer.AggregateMetricFieldProducer(
+        AbstractDownsampleFieldProducer maxProducer = LastValueFieldProducer.AggregateMetricFieldProducer.forLabel(
             "my-gauge",
             AggregateMetricDoubleFieldMapper.Metric.max
         );
         docIdBuffer = IntArrayList.from(0, 1);
         valuesInstance = createValuesInstance(docIdBuffer, new Double[] { 30D, 55.0 });
         maxProducer.collect(valuesInstance, docIdBuffer);
-        AbstractDownsampleFieldProducer sumProducer = new LastValueFieldProducer.AggregateMetricFieldProducer(
+        AbstractDownsampleFieldProducer sumProducer = LastValueFieldProducer.AggregateMetricFieldProducer.forLabel(
             "my-gauge",
             AggregateMetricDoubleFieldMapper.Metric.sum
         );
         docIdBuffer = IntArrayList.from(0, 1);
         valuesInstance = createValuesInstance(docIdBuffer, new Double[] { 30D, 72.7 });
         sumProducer.collect(valuesInstance, docIdBuffer);
-        AbstractDownsampleFieldProducer countProducer = new LastValueFieldProducer.AggregateMetricFieldProducer(
+        AbstractDownsampleFieldProducer countProducer = LastValueFieldProducer.AggregateMetricFieldProducer.forLabel(
             "my-gauge",
             AggregateMetricDoubleFieldMapper.Metric.value_count
         );

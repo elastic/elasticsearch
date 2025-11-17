@@ -24,6 +24,8 @@ import java.util.List;
  * Important note: This class assumes that field values are collected and sorted by descending order by time
  */
 class LastValueFieldProducer extends AbstractDownsampleFieldProducer {
+    // When downsampling metrics, we only keep one value even if the field was a multi-vlaue field.
+    // For labels, we preserve all the values of the last occurence.
     private final boolean supportsMultiValue;
     Object lastValue = null;
 
@@ -100,9 +102,17 @@ class LastValueFieldProducer extends AbstractDownsampleFieldProducer {
 
         private final Metric metric;
 
-        AggregateMetricFieldProducer(String name, Metric metric) {
-            super(name, true);
+        AggregateMetricFieldProducer(String name, Metric metric, boolean supportsMultiValue) {
+            super(name, supportsMultiValue);
             this.metric = metric;
+        }
+
+        static AggregateMetricFieldProducer forLabel(String name, Metric metric) {
+            return new AggregateMetricFieldProducer(name, metric, true);
+        }
+
+        static AggregateMetricFieldProducer forMetric(String name, Metric metric) {
+            return new AggregateMetricFieldProducer(name, metric, false);
         }
 
         @Override
@@ -111,8 +121,8 @@ class LastValueFieldProducer extends AbstractDownsampleFieldProducer {
         }
     }
 
-    static final class HistogramLastLastValueFieldProducer extends LastValueFieldProducer {
-        HistogramLastLastValueFieldProducer(String name) {
+    static final class HistogramFieldProducer extends LastValueFieldProducer {
+        HistogramFieldProducer(String name) {
             super(name, true);
         }
 
@@ -131,9 +141,9 @@ class LastValueFieldProducer extends AbstractDownsampleFieldProducer {
         }
     }
 
-    static final class FlattenedLastValueFieldProducer extends LastValueFieldProducer {
+    static final class FlattenedFieldProducer extends LastValueFieldProducer {
 
-        FlattenedLastValueFieldProducer(String name) {
+        FlattenedFieldProducer(String name) {
             super(name, true);
         }
 

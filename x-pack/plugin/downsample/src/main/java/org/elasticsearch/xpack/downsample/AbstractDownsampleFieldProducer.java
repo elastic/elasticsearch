@@ -15,7 +15,7 @@ import java.io.IOException;
 /**
  * Base class that reads fields from the source index and produces their downsampled values
  */
-abstract class AbstractDownsampleFieldProducer implements DownsampleFieldSerializer {
+public abstract class AbstractDownsampleFieldProducer implements DownsampleFieldSerializer {
 
     private final String name;
     protected boolean isEmpty;

@@ -626,16 +626,14 @@ public class PercolateQueryBuilder extends AbstractQueryBuilder<PercolateQueryBu
 
             QueryBuilder queryBuilder;
 
-            if (TransportVersion.isCompatible(transportVersion)) {
+            if (TransportVersion.isCompatible(transportVersion) || fallbackSource == null) {
                 // set the transportversion here - only read vints so far, so can change the version freely at this point
                 input.setTransportVersion(transportVersion);
                 queryBuilder = input.readNamedWriteable(QueryBuilder.class);
                 assert in.read() == -1;
-            } else if (fallbackSource != null) {
+            } else {
                 // incompatible transport version, try the fallback
                 queryBuilder = readQueryBuilder(fallbackSource.get(), registry, indexVersion, null);
-            } else {
-                throw new IllegalStateException("Unable to read query builder. Unsupported transportVersion: " + transportVersion);
             }
 
             return queryBuilder;

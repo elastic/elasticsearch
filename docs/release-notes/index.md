@@ -114,10 +114,9 @@ TSDB:
 Vector Search:
 * Use Suppliers To Get Inference Results In Semantic Queries [#136720](https://github.com/elastic/elasticsearch/pull/136720) (issue: [#136621](https://github.com/elastic/elasticsearch/issues/136621))
 
+
+
 ## 9.1.7 [elasticsearch-9.1.7-release-notes]
-```{applies_to}
-stack: ga 9.1.7
-```
 
 ### Features and enhancements [elasticsearch-9.1.7-features-enhancements]
 

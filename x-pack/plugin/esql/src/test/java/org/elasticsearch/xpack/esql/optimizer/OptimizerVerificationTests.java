@@ -235,7 +235,8 @@ public class OptimizerVerificationTests extends AbstractLogicalPlanOptimizerTest
             err,
             containsString(
                 "ENRICH with remote policy can't be executed after "
-                    + "[COMPLETION language_code = CONCAT(\"some prompt: \", first_name) WITH { \"inference_id\" : \"completion-inference-id\" }]@2:3"
+                    + "[COMPLETION language_code = CONCAT(\"some prompt: \", first_name) "
+                    + "WITH { \"inference_id\" : \"completion-inference-id\" }]@2:3"
             )
         );
 

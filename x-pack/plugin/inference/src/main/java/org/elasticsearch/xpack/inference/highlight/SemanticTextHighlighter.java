@@ -295,7 +295,7 @@ public class SemanticTextHighlighter implements Highlighter {
         } else if (vectorQuery instanceof RescoreKnnVectorQuery rescoreQuery) {
             return extractVectorData(rescoreQuery.innerQuery());
         }
-        //TODO: do we care about AbstractIVFKnnVectorQuery?
+        // TODO: do we care about AbstractIVFKnnVectorQuery?
         return null;
     }
 

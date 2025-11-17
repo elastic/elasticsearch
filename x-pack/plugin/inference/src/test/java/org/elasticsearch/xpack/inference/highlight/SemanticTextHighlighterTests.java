@@ -51,7 +51,6 @@ import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.search.lookup.Source;
 import org.elasticsearch.search.rank.RankDoc;
 import org.elasticsearch.search.vectors.KnnVectorQueryBuilder;
-import org.elasticsearch.search.vectors.VectorSimilarityQuery;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.ml.search.SparseVectorQueryBuilder;
 import org.elasticsearch.xpack.inference.InferencePlugin;
@@ -216,7 +215,7 @@ public class SemanticTextHighlighterTests extends MapperServiceTestCase {
         float[] vector = readDenseVector(queryMap.get("embeddings"));
         var fieldType = (SemanticTextFieldMapper.SemanticTextFieldType) mapperService.mappingLookup().getFieldType(SEMANTIC_FIELD_E5);
 
-        //TODO: understand why this ends up being a VectorSimilarityQuery with a RescoreKnnVectorQuery innerQuery (InlineRescoreQuery)
+        // TODO: understand why this ends up being a VectorSimilarityQuery with a RescoreKnnVectorQuery innerQuery (InlineRescoreQuery)
         // with an ESDiversifyingChildrenFloatKnnVectorQuery innerQuery
         KnnVectorQueryBuilder knnQuery = new KnnVectorQueryBuilder(
             fieldType.getEmbeddingsField().fullPath(),

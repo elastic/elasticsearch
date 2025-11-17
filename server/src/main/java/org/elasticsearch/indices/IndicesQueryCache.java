@@ -147,12 +147,6 @@ public class IndicesQueryCache implements QueryCache, Closeable {
         return new CacheTotals(totalItemsInCache, shardCount);
     }
 
-    public static long getSharedRamSizeForShard(IndicesService indicesService, ShardId shardId) {
-        IndicesQueryCache.CacheTotals cacheTotals = IndicesQueryCache.getCacheTotalsForAllShards(indicesService);
-        final var queryCache = indicesService.getIndicesQueryCache();
-        return (queryCache == null) ? 0L : queryCache.getSharedRamSizeForShard(shardId, cacheTotals);
-    }
-
     /**
      * This method computes the shared RAM size in bytes for the given indexShard.
      * @param shardId The shard to compute the shared RAM size for

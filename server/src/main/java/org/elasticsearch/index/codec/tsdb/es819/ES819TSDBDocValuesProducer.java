@@ -416,7 +416,7 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
             long blockStartOffset = addresses.get(blockId);
             compressedData.seek(blockStartOffset);
 
-            var header = BinaryDVCompressionMode.BlockHeader.fromInt(compressedData.readVInt());
+            var header = BinaryDVCompressionMode.BlockHeader.fromByte(compressedData.readByte());
             int uncompressedBlockLength = compressedData.readVInt();
 
             if (uncompressedBlockLength == 0) {

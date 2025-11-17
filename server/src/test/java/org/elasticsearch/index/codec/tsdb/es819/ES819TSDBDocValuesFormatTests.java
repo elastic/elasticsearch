@@ -85,7 +85,8 @@ public class ES819TSDBDocValuesFormatTests extends ES87TSDBDocValuesFormatTests 
             ESTestCase.randomIntBetween(2, 4096),
             ESTestCase.randomIntBetween(1, 512),
             random().nextBoolean(),
-            randomBinaryCompressionMode()
+            randomBinaryCompressionMode(),
+            true
         );
 
         @Override
@@ -1362,7 +1363,8 @@ public class ES819TSDBDocValuesFormatTests extends ES87TSDBDocValuesFormatTests 
                 ESTestCase.randomIntBetween(2, 4096),
                 1, // always enable range-encode
                 random().nextBoolean(),
-                randomBinaryCompressionMode()
+                randomBinaryCompressionMode(),
+                randomBoolean()
             );
 
             @Override

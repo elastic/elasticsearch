@@ -80,6 +80,12 @@ public class TsdbDocValueBwcTests extends ESTestCase {
         testMixedIndex(oldCodec, newCodec, this::assertVersion819, this::assertVersion819);
     }
 
+    public void testMixedIndexDocValueBinaryPerBlockCompression() throws Exception {
+        var oldCodec = TestUtil.alwaysDocValuesFormat(new ES819TSDBDocValuesFormat(BinaryDVCompressionMode.COMPRESSED_ZSTD_LEVEL_1, randomBoolean()));
+        var newCodec = TestUtil.alwaysDocValuesFormat(new ES819TSDBDocValuesFormat(BinaryDVCompressionMode.COMPRESSED_ZSTD_LEVEL_1, randomBoolean()));
+        testMixedIndex(oldCodec, newCodec, this::assertVersion819, this::assertVersion819);
+    }
+
     public void testMixedIndex816To900Lucene101() throws Exception {
         var oldCodec = new Elasticsearch816Codec() {
 
@@ -339,7 +345,8 @@ public class TsdbDocValueBwcTests extends ESTestCase {
                             random().nextInt(16, 128),
                             nextOrdinalRangeThreshold.getAsInt(),
                             random().nextBoolean(),
-                            ES819TSDBDocValuesFormatTests.randomBinaryCompressionMode()
+                            ES819TSDBDocValuesFormatTests.randomBinaryCompressionMode(),
+                            randomBoolean()
                         )
                     )
                 );

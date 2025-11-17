@@ -23,7 +23,8 @@ public class ES819TSDBDocValuesFormatVariableSkipIntervalTests extends ES87TSDBD
                 random().nextInt(4, 16),
                 random().nextInt(1, 32),
                 random().nextBoolean(),
-                ES819TSDBDocValuesFormatTests.randomBinaryCompressionMode()
+                ES819TSDBDocValuesFormatTests.randomBinaryCompressionMode(),
+                random().nextBoolean()
             )
         );
     }
@@ -35,7 +36,8 @@ public class ES819TSDBDocValuesFormatVariableSkipIntervalTests extends ES87TSDBD
                 random().nextInt(Integer.MIN_VALUE, 2),
                 random().nextInt(1, 32),
                 random().nextBoolean(),
-                ES819TSDBDocValuesFormatTests.randomBinaryCompressionMode()
+                ES819TSDBDocValuesFormatTests.randomBinaryCompressionMode(),
+                random().nextBoolean()
             )
         );
         assertTrue(ex.getMessage().contains("skipIndexIntervalSize must be > 1"));

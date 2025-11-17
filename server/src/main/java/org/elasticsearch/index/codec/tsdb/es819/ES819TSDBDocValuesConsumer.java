@@ -58,7 +58,6 @@ import static org.elasticsearch.index.codec.tsdb.es819.DocValuesConsumerUtil.com
 import static org.elasticsearch.index.codec.tsdb.es819.ES819TSDBDocValuesFormat.BLOCK_BYTES_THRESHOLD;
 import static org.elasticsearch.index.codec.tsdb.es819.ES819TSDBDocValuesFormat.BLOCK_COUNT_THRESHOLD;
 import static org.elasticsearch.index.codec.tsdb.es819.ES819TSDBDocValuesFormat.DIRECT_MONOTONIC_BLOCK_SHIFT;
-import static org.elasticsearch.index.codec.tsdb.es819.ES819TSDBDocValuesFormat.NUMERIC_BLOCK_SIZE;
 import static org.elasticsearch.index.codec.tsdb.es819.ES819TSDBDocValuesFormat.SKIP_INDEX_LEVEL_SHIFT;
 import static org.elasticsearch.index.codec.tsdb.es819.ES819TSDBDocValuesFormat.SKIP_INDEX_MAX_LEVEL;
 import static org.elasticsearch.index.codec.tsdb.es819.ES819TSDBDocValuesFormat.SORTED_SET;
@@ -76,10 +75,12 @@ final class ES819TSDBDocValuesConsumer extends XDocValuesConsumer {
     private final int primarySortFieldNumber;
     final SegmentWriteState state;
     final BinaryDVCompressionMode binaryDVCompressionMode;
+    private final boolean enablePerBlockCompression; // only false for testing
 
     ES819TSDBDocValuesConsumer(
         BinaryDVCompressionMode binaryDVCompressionMode,
-        SegmentWriteState state,
+        final boolean enablePerBlockCompression,
+            SegmentWriteState state,
         int skipIndexIntervalSize,
         int minDocsPerOrdinalForOrdinalRangeEncoding,
         boolean enableOptimizedMerge,
@@ -89,6 +90,7 @@ final class ES819TSDBDocValuesConsumer extends XDocValuesConsumer {
         String metaExtension
     ) throws IOException {
         this.binaryDVCompressionMode = binaryDVCompressionMode;
+        this.enablePerBlockCompression = enablePerBlockCompression;
         this.state = state;
         this.termsDictBuffer = new byte[1 << 14];
         this.dir = state.directory;
@@ -563,9 +565,9 @@ final class ES819TSDBDocValuesConsumer extends XDocValuesConsumer {
 
             // Data can be compressed or uncompressed on a per-block granularity, though is currently always compressed.
             // In the future will leave data uncompressed if compression does not reduce storage.
-            boolean shouldCompress = true;
+            final boolean shouldCompress = enablePerBlockCompression;
             var header = new BinaryDVCompressionMode.BlockHeader(shouldCompress);
-            data.writeVInt(header.toInt());
+            data.writeByte(header.toByte());
 
             // write length of string data
             data.writeVInt(uncompressedBlockLength);

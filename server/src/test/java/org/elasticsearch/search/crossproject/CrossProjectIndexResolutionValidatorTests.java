@@ -271,11 +271,7 @@ public class CrossProjectIndexResolutionValidatorTests extends ESTestCase {
             List.of(
                 new ResolvedIndexExpression(
                     original,
-                    new ResolvedIndexExpression.LocalExpressions(
-                        Set.of(),
-                        ResolvedIndexExpression.LocalIndexResolutionResult.NONE,
-                        null
-                    ),
+                    new ResolvedIndexExpression.LocalExpressions(Set.of(), ResolvedIndexExpression.LocalIndexResolutionResult.NONE, null),
                     Set.of("P1:logs")
                 )
             )
@@ -681,11 +677,7 @@ public class CrossProjectIndexResolutionValidatorTests extends ESTestCase {
             List.of(
                 new ResolvedIndexExpression(
                     original,
-                    new ResolvedIndexExpression.LocalExpressions(
-                        Set.of(),
-                        ResolvedIndexExpression.LocalIndexResolutionResult.NONE,
-                        null
-                    ),
+                    new ResolvedIndexExpression.LocalExpressions(Set.of(), ResolvedIndexExpression.LocalIndexResolutionResult.NONE, null),
                     Set.of("P1:logs*")
                 )
             )

@@ -16,8 +16,10 @@ import java.util.Map;
 
 /**
  * Visitor interface for creating executable actions for Nvidia inference services.
+ * This interface defines methods to create actions for embeddings, reranking and completion models.
  */
 public interface NvidiaActionVisitor {
+
     /**
      * Creates an executable action for the given Nvidia embeddings model.
      *
@@ -38,8 +40,8 @@ public interface NvidiaActionVisitor {
     /**
      * Creates an executable action for the given Nvidia rerank model.
      *
-     * @param model The Nvidia rerank model.
-     * @return An executable action for the rerank model.
+     * @param model The Nvidia rerank model
+     * @return An executable action for the rerank model
      */
     ExecutableAction create(NvidiaRerankModel model);
 }

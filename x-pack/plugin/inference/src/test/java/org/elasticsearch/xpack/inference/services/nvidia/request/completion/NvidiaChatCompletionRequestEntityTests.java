@@ -19,6 +19,7 @@ import org.elasticsearch.xpack.inference.external.http.sender.UnifiedChatInput;
 import java.io.IOException;
 import java.util.ArrayList;
 
+import static org.hamcrest.Matchers.is;
 import static org.mockito.Mockito.mock;
 
 public class NvidiaChatCompletionRequestEntityTests extends ESTestCase {
@@ -71,7 +72,7 @@ public class NvidiaChatCompletionRequestEntityTests extends ESTestCase {
 
         XContentBuilder builder = JsonXContent.contentBuilder();
         entity.toXContent(builder, ToXContent.EMPTY_PARAMS);
-        assertEquals(XContentHelper.stripWhitespace(expectedJson), Strings.toString(builder));
+        assertThat(Strings.toString(builder), is(XContentHelper.stripWhitespace(expectedJson)));
     }
 
 }

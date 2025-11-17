@@ -19,7 +19,6 @@ import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.ChunkInferenceInput;
 import org.elasticsearch.inference.ChunkedInference;
 import org.elasticsearch.inference.ChunkingSettings;
@@ -35,6 +34,7 @@ import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.inference.UnifiedCompletionRequest;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.http.MockResponse;
 import org.elasticsearch.test.http.MockWebServer;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -62,7 +62,6 @@ import org.elasticsearch.xpack.inference.services.nvidia.embeddings.NvidiaEmbedd
 import org.elasticsearch.xpack.inference.services.nvidia.embeddings.NvidiaEmbeddingsTaskSettings;
 import org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettings;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
-import org.hamcrest.CoreMatchers;
 import org.hamcrest.Matchers;
 import org.junit.After;
 import org.junit.Before;
@@ -94,15 +93,14 @@ import static org.elasticsearch.xpack.inference.services.ServiceComponentsTests.
 import static org.elasticsearch.xpack.inference.services.nvidia.completion.NvidiaChatCompletionModelTests.createChatCompletionModel;
 import static org.elasticsearch.xpack.inference.services.nvidia.embeddings.NvidiaEmbeddingsServiceSettingsTests.buildServiceSettingsMap;
 import static org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettingsTests.getSecretSettingsMap;
-import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.isA;
 import static org.mockito.Mockito.mock;
 
 public class NvidiaServiceTests extends AbstractInferenceServiceTests {
-    private static final TimeValue TIMEOUT = new TimeValue(30, TimeUnit.SECONDS);
     private final MockWebServer webServer = new MockWebServer();
     private ThreadPool threadPool;
     private HttpClientManager clientManager;
@@ -397,7 +395,7 @@ public class NvidiaServiceTests extends AbstractInferenceServiceTests {
                 listener
             );
 
-            var result = listener.actionGet(TIMEOUT);
+            var result = listener.actionGet(ESTestCase.TEST_REQUEST_TIMEOUT);
             InferenceEventsAssertion.assertThat(result).hasFinishedStream().hasNoErrors().hasEvent(XContentHelper.stripWhitespace("""
                 {
                     "id": "chatcmpl-8425dd3d-78f3-4143-93cb-dd576ab8ae26",
@@ -457,7 +455,7 @@ public class NvidiaServiceTests extends AbstractInferenceServiceTests {
                     }
                 }), latch::countDown)
             );
-            assertTrue(latch.await(30, TimeUnit.SECONDS));
+            assertThat(latch.await(30, TimeUnit.SECONDS), is(true));
         }
     }
 
@@ -517,7 +515,7 @@ public class NvidiaServiceTests extends AbstractInferenceServiceTests {
                 listener
             );
 
-            var result = listener.actionGet(TIMEOUT);
+            var result = listener.actionGet(ESTestCase.TEST_REQUEST_TIMEOUT);
 
             InferenceEventsAssertion.assertThat(result).hasFinishedStream().hasNoEvents().hasErrorMatching(e -> {
                 e = unwrapCause(e);
@@ -579,7 +577,7 @@ public class NvidiaServiceTests extends AbstractInferenceServiceTests {
     public void testSupportsStreaming() throws IOException {
         try (var service = new NvidiaService(mock(), createWithEmptySettings(mock()), mockClusterServiceEmpty())) {
             assertThat(service.supportedStreamingTasks(), is(EnumSet.of(TaskType.COMPLETION, TaskType.CHAT_COMPLETION)));
-            assertFalse(service.canStream(TaskType.ANY));
+            assertThat(service.canStream(TaskType.ANY), is(false));
         }
     }
 
@@ -664,43 +662,45 @@ public class NvidiaServiceTests extends AbstractInferenceServiceTests {
                 listener
             );
 
-            var results = listener.actionGet(TIMEOUT);
+            var results = listener.actionGet(ESTestCase.TEST_REQUEST_TIMEOUT);
 
             assertThat(results, hasSize(2));
             {
-                assertThat(results.get(0), CoreMatchers.instanceOf(ChunkedInferenceEmbedding.class));
-                var floatResult = (ChunkedInferenceEmbedding) results.get(0);
+                assertThat(results.getFirst(), instanceOf(ChunkedInferenceEmbedding.class));
+                var floatResult = (ChunkedInferenceEmbedding) results.getFirst();
                 assertThat(floatResult.chunks(), hasSize(1));
-                assertThat(floatResult.chunks().get(0).embedding(), Matchers.instanceOf(DenseEmbeddingFloatResults.Embedding.class));
-                assertTrue(
+                assertThat(floatResult.chunks().getFirst().embedding(), Matchers.instanceOf(DenseEmbeddingFloatResults.Embedding.class));
+                assertThat(
                     Arrays.equals(
                         new float[] { 0.0089111328125f, -0.007049560546875f },
-                        ((DenseEmbeddingFloatResults.Embedding) floatResult.chunks().get(0).embedding()).values()
-                    )
+                        ((DenseEmbeddingFloatResults.Embedding) floatResult.chunks().getFirst().embedding()).values()
+                    ),
+                    is(true)
                 );
             }
             {
-                assertThat(results.get(1), CoreMatchers.instanceOf(ChunkedInferenceEmbedding.class));
+                assertThat(results.get(1), instanceOf(ChunkedInferenceEmbedding.class));
                 var floatResult = (ChunkedInferenceEmbedding) results.get(1);
                 assertThat(floatResult.chunks(), hasSize(1));
-                assertThat(floatResult.chunks().get(0).embedding(), Matchers.instanceOf(DenseEmbeddingFloatResults.Embedding.class));
-                assertTrue(
+                assertThat(floatResult.chunks().getFirst().embedding(), Matchers.instanceOf(DenseEmbeddingFloatResults.Embedding.class));
+                assertThat(
                     Arrays.equals(
                         new float[] { -0.008544921875f, -0.0230712890625f },
-                        ((DenseEmbeddingFloatResults.Embedding) floatResult.chunks().get(0).embedding()).values()
-                    )
+                        ((DenseEmbeddingFloatResults.Embedding) floatResult.chunks().getFirst().embedding()).values()
+                    ),
+                    is(true)
                 );
             }
 
             assertThat(webServer.requests(), hasSize(1));
-            assertNull(webServer.requests().get(0).getUri().getQuery());
+            assertNull(webServer.requests().getFirst().getUri().getQuery());
             assertThat(
-                webServer.requests().get(0).getHeader(HttpHeaders.CONTENT_TYPE),
+                webServer.requests().getFirst().getHeader(HttpHeaders.CONTENT_TYPE),
                 equalTo(XContentType.JSON.mediaTypeWithoutParameters())
             );
-            assertThat(webServer.requests().get(0).getHeader(HttpHeaders.AUTHORIZATION), equalTo("Bearer api_key"));
+            assertThat(webServer.requests().getFirst().getHeader(HttpHeaders.AUTHORIZATION), equalTo("Bearer api_key"));
 
-            var requestMap = entityAsMap(webServer.requests().get(0).getBody());
+            var requestMap = entityAsMap(webServer.requests().getFirst().getBody());
             assertThat(requestMap.size(), Matchers.is(4));
             assertThat(requestMap.get("input"), Matchers.is(List.of("abc", "def")));
             assertThat(requestMap.get("model"), Matchers.is("model"));
@@ -790,7 +790,7 @@ public class NvidiaServiceTests extends AbstractInferenceServiceTests {
                 listener
             );
 
-            return InferenceEventsAssertion.assertThat(listener.actionGet(TIMEOUT)).hasFinishedStream();
+            return InferenceEventsAssertion.assertThat(listener.actionGet(ESTestCase.TEST_REQUEST_TIMEOUT)).hasFinishedStream();
         }
     }
 

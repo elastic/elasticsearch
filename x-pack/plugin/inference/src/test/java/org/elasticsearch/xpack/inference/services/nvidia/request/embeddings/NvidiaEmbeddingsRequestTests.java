@@ -26,6 +26,7 @@ import java.util.List;
 import static org.elasticsearch.xpack.inference.external.http.Utils.entityAsMap;
 import static org.hamcrest.Matchers.aMapWithSize;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.is;
 
 public class NvidiaEmbeddingsRequestTests extends ESTestCase {
     public void testCreateRequest_AllFields_InputTypeFromRequest_Success() throws IOException {
@@ -81,10 +82,10 @@ public class NvidiaEmbeddingsRequestTests extends ESTestCase {
 
     public void testIsTruncated_ReturnsTrue() {
         var request = createRequest("url", "some model");
-        assertFalse(request.getTruncationInfo()[0]);
+        assertThat(request.getTruncationInfo()[0], is(false));
 
         var truncatedRequest = request.truncate();
-        assertTrue(truncatedRequest.getTruncationInfo()[0]);
+        assertThat(truncatedRequest.getTruncationInfo()[0], is(true));
     }
 
     private HttpPost validateRequestUrlAndContentType(HttpRequest request, String expectedUrl) {

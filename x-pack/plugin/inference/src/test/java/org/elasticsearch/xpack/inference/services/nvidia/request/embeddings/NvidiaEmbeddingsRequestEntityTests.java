@@ -19,7 +19,7 @@ import org.elasticsearch.xpack.inference.services.cohere.CohereTruncation;
 import java.io.IOException;
 import java.util.List;
 
-import static org.hamcrest.CoreMatchers.is;
+import static org.hamcrest.Matchers.is;
 
 public class NvidiaEmbeddingsRequestEntityTests extends ESTestCase {
     public void testXContent_AllFields() throws IOException {

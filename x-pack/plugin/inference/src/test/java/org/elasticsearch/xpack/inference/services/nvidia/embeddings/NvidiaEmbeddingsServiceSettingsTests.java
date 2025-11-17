@@ -24,7 +24,6 @@ import org.elasticsearch.xpack.inference.services.ServiceFields;
 import org.elasticsearch.xpack.inference.services.ServiceUtils;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettingsTests;
-import org.hamcrest.CoreMatchers;
 
 import java.io.IOException;
 import java.net.URI;
@@ -448,7 +447,7 @@ public class NvidiaEmbeddingsServiceSettingsTests extends AbstractWireSerializin
         entity.toXContent(builder, null);
         String xContentResult = Strings.toString(builder);
 
-        assertThat(xContentResult, CoreMatchers.is(XContentHelper.stripWhitespace("""
+        assertThat(xContentResult, is(XContentHelper.stripWhitespace("""
             {
                 "model_id": "some model",
                 "url": "https://www.elastic.co",
@@ -479,7 +478,7 @@ public class NvidiaEmbeddingsServiceSettingsTests extends AbstractWireSerializin
 
         var settingsFromBuffer = new NvidiaEmbeddingsServiceSettings(inputBuffer);
 
-        assertEquals(settings, settingsFromBuffer);
+        assertThat(settingsFromBuffer, is(settings));
     }
 
     @Override

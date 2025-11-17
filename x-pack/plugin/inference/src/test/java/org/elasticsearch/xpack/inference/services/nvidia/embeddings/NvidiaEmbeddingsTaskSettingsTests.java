@@ -39,22 +39,22 @@ public class NvidiaEmbeddingsTaskSettingsTests extends AbstractWireSerializingTe
 
     public void testIsEmpty_AllFieldsPresent_False() {
         var taskSettings = new NvidiaEmbeddingsTaskSettings(InputType.INGEST, CohereTruncation.START);
-        assertFalse(taskSettings.isEmpty());
+        assertThat(taskSettings.isEmpty(), is(false));
     }
 
     public void testIsEmpty_NoInputType_False() {
         var taskSettings = new NvidiaEmbeddingsTaskSettings(null, CohereTruncation.START);
-        assertFalse(taskSettings.isEmpty());
+        assertThat(taskSettings.isEmpty(), is(false));
     }
 
     public void testIsEmpty_NoTruncation_False() {
         var taskSettings = new NvidiaEmbeddingsTaskSettings(InputType.INGEST, null);
-        assertFalse(taskSettings.isEmpty());
+        assertThat(taskSettings.isEmpty(), is(false));
     }
 
     public void testIsEmpty_True() {
         var taskSettings = NvidiaEmbeddingsTaskSettings.EMPTY_SETTINGS;
-        assertTrue(taskSettings.isEmpty());
+        assertThat(taskSettings.isEmpty(), is(true));
     }
 
     public void testUpdatedTaskSettings_NotUpdated_UseInitialSettings() {
@@ -62,8 +62,8 @@ public class NvidiaEmbeddingsTaskSettingsTests extends AbstractWireSerializingTe
         NvidiaEmbeddingsTaskSettings updatedSettings = (NvidiaEmbeddingsTaskSettings) initialSettings.updatedTaskSettings(
             Collections.unmodifiableMap(new HashMap<>())
         );
-        assertEquals(initialSettings.getInputType(), updatedSettings.getInputType());
-        assertEquals(initialSettings.getTruncation(), updatedSettings.getTruncation());
+        assertThat(updatedSettings.getInputType(), is(initialSettings.getInputType()));
+        assertThat(updatedSettings.getTruncation(), is(initialSettings.getTruncation()));
     }
 
     public void testUpdatedTaskSettings_Updated_UseNewSettings() {
@@ -75,8 +75,8 @@ public class NvidiaEmbeddingsTaskSettingsTests extends AbstractWireSerializingTe
         NvidiaEmbeddingsTaskSettings updatedSettings = (NvidiaEmbeddingsTaskSettings) initialSettings.updatedTaskSettings(
             Collections.unmodifiableMap(newSettingsMap)
         );
-        assertEquals(newSettings.getInputType(), updatedSettings.getInputType());
-        assertEquals(newSettings.getTruncation(), updatedSettings.getTruncation());
+        assertThat(updatedSettings.getInputType(), is(newSettings.getInputType()));
+        assertThat(updatedSettings.getTruncation(), is(newSettings.getTruncation()));
     }
 
     public void testFromMap_CreatesEmptySettings_WhenAllFieldsAreNull() {

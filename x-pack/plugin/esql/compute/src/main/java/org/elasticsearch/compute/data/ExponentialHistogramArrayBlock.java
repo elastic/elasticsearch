@@ -120,6 +120,21 @@ final class ExponentialHistogramArrayBlock extends AbstractNonThreadSafeRefCount
     }
 
     @Override
+    public Block buildExponentialHistogramComponentBlock(Component component) {
+        // as soon as we support multi-values, we need to implement this differently,
+        // as the sub-blocks will be flattened and the position count won't match anymore
+        // we'll likely have to return a "view" on the sub-blocks that implements the multi-value logic
+        Block result = switch (component) {
+            case MIN -> minima;
+            case MAX -> maxima;
+            case SUM -> sums;
+            case COUNT -> valueCounts;
+        };
+        result.incRef();
+        return result;
+    }
+
+    @Override
     public void serializeExponentialHistogram(int valueIndex, SerializedOutput out, BytesRef scratch) {
         // not that this value count is different from getValueCount(position)!
         // this value count represents the number of individual samples the histogram was computed for

@@ -221,7 +221,7 @@ public class DesiredBalanceComputerTests extends ESAllocationTestCase {
         final var settings = Settings.builder().put(WRITE_LOAD_DECIDER_ENABLED_SETTING.getKey(), "enabled").build();
         final var routingAllocation = routingAllocationWithDecidersOf(clusterState, clusterInfo, settings);
         final var input = new DesiredBalanceInput(42, routingAllocation, List.of());
-        final var computer = createDesiredBalanceComputer(new BalancedShardsAllocator(Settings.EMPTY));
+        final var computer = createDesiredBalanceComputer(new BalancedShardsAllocator(settings));
         var balance = computer.compute(DesiredBalance.BECOME_MASTER_INITIAL, input, queue(), ignored -> true);
         assertThat(balance.getAssignment(new ShardId(index, 0)).nodeIds(), equalTo(Set.of("node-0")));
         assertThat(balance.getAssignment(new ShardId(index, 1)).nodeIds(), equalTo(Set.of("node-1")));

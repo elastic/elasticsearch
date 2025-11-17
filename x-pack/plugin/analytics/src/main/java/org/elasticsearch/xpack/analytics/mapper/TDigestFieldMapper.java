@@ -79,13 +79,13 @@ public class TDigestFieldMapper extends FieldMapper {
     }
 
     public static class Builder extends FieldMapper.Builder {
-        private static final int DEFAULT_COMPRESSION = 100;
-        private static final int MAXIMUM_COMPRESSION = 10000;
+        private static final double DEFAULT_COMPRESSION = 100d;
+        private static final double MAXIMUM_COMPRESSION = 10000d;
 
         private final Parameter<Map<String, String>> meta = Parameter.metaParam();
         private final Parameter<Explicit<Boolean>> ignoreMalformed;
         private final Parameter<TDigestState.Type> digestType;
-        private final Parameter<Integer> compression;
+        private final Parameter<Double> compression;
 
         public Builder(String name, boolean ignoreMalformedByDefault) {
             super(name);
@@ -102,7 +102,15 @@ public class TDigestFieldMapper extends FieldMapper {
                 TDigestState.Type.HYBRID,
                 TDigestState.Type.class
             );
-            this.compression = Parameter.intParam("compression", false, m -> toType(m).compression, DEFAULT_COMPRESSION).addValidator(c -> {
+            this.compression = new Parameter<>(
+                "compression",
+                false,
+                () -> DEFAULT_COMPRESSION,
+                (n, c1, o) -> XContentMapValues.nodeDoubleValue(o),
+                m -> toType(m).compression,
+                XContentBuilder::field,
+                Objects::toString
+            ).addValidator(c -> {
                 if (c <= 0 || c > MAXIMUM_COMPRESSION) {
                     throw new IllegalArgumentException(
                         "compression must be a positive integer between 1 and " + MAXIMUM_COMPRESSION + " was [" + c + "]"
@@ -135,7 +143,7 @@ public class TDigestFieldMapper extends FieldMapper {
     private final Explicit<Boolean> ignoreMalformed;
     private final boolean ignoreMalformedByDefault;
     private final TDigestState.Type digestType;
-    private final int compression;
+    private final double compression;
 
     public TDigestFieldMapper(String simpleName, MappedFieldType mappedFieldType, BuilderParams builderParams, Builder builder) {
         super(simpleName, mappedFieldType, builderParams);
@@ -154,7 +162,7 @@ public class TDigestFieldMapper extends FieldMapper {
         return digestType;
     }
 
-    public int compression() {
+    public double compression() {
         return compression;
     }
 

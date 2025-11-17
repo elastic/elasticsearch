@@ -1137,6 +1137,13 @@ public abstract class ESTestCase extends LuceneTestCase {
     }
 
     /**
+     * Returns a pseudo-random double from a Gaussian distribution with mean 0.0 and standard deviation 1.0
+     */
+    public static double randomGaussianDouble() {
+        return random().nextGaussian();
+    }
+
+    /**
      * Returns a double value in the interval [start, end) if lowerInclusive is
      * set to true, (start, end) otherwise.
      *
@@ -1749,6 +1756,15 @@ public abstract class ESTestCase extends LuceneTestCase {
     public Environment newEnvironment(Settings settings) {
         Settings build = buildEnvSettings(settings);
         return TestEnvironment.newEnvironment(build);
+    }
+
+    public static IndexSettings defaultIndexSettings() {
+        IndexMetadata INDEX_METADATA = IndexMetadata.builder("index")
+            .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current()))
+            .numberOfShards(1)
+            .numberOfReplicas(0)
+            .build();
+        return new IndexSettings(INDEX_METADATA, Settings.EMPTY);
     }
 
     /** Return consistent index settings for the provided index version. */

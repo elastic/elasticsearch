@@ -190,8 +190,8 @@ final class RewriteCachingDirectoryReader extends DirectoryReader {
                     int docCount = skipper.docCount();
                     valuesMap.put(info.name, new DocValuesSkipper() {
                         @Override
-                        public void advance(int target) throws IOException {
-
+                        public void advance(int target) {
+                            throw new UnsupportedOperationException();
                         }
 
                         @Override

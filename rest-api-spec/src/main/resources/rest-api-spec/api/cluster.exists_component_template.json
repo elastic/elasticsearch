@@ -20,8 +20,8 @@
           ],
           "parts": {
             "name": {
-              "type": "string",
-              "description": "The name of the template"
+              "type": "list",
+              "description": "Comma-separated list of component template names used to limit the request. Wildcard (*) expressions are supported."
             }
           }
         }
@@ -34,7 +34,10 @@
         "description": "Timeout for waiting for new cluster state in case it is blocked"
       },
       "local": {
-        "deprecated": true,
+        "deprecated": {
+          "version": "9.0.0",
+          "description": "This parameter has no effect, is now deprecated, and will be removed in a future version."
+        },
         "type": "boolean",
         "default": false,
         "description": "Return local information, do not retrieve the state from master node (default: false)"

@@ -44,6 +44,7 @@ public class VectorComparisonUtilsLongBenchmark {
     final VectorComparisonUtils defaultVecCmpUtils = DefaultVectorComparisonUtils.INSTANCE;
     final VectorComparisonUtils panamaVecCmpUtils = ESVectorizationProvider.getInstance().getVectorUtilSupport().getVectorComparisonUtils();
 
+    // TODO: we don't want the larges values bigger than cache
     @Param(value = { "64", "127", "128", "4096", "16384", "65536", "1048576" })
     public int size;
 

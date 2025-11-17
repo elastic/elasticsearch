@@ -31,24 +31,12 @@ import static jdk.incubator.vector.VectorOperators.OR;
 
 public final class PanamaESVectorUtilSupport implements ESVectorUtilSupport {
 
-    static final int VECTOR_BITSIZE;
+    static final int VECTOR_BITSIZE = PanamaVectorConstants.PREFERRED_VECTOR_BITSIZE;
 
-    private static final VectorSpecies<Float> FLOAT_SPECIES;
-    private static final VectorSpecies<Integer> INTEGER_SPECIES;
+    private static final VectorSpecies<Float> FLOAT_SPECIES = PanamaVectorConstants.PRERERRED_FLOAT_SPECIES;
+    private static final VectorSpecies<Integer> INTEGER_SPECIES = PanamaVectorConstants.PRERERRED_INTEGER_SPECIES;
     /** Whether integer vectors can be trusted to actually be fast. */
-    static final boolean HAS_FAST_INTEGER_VECTORS;
-
-    static {
-        // default to platform supported bitsize
-        VECTOR_BITSIZE = VectorShape.preferredShape().vectorBitSize();
-        FLOAT_SPECIES = VectorSpecies.of(float.class, VectorShape.forBitSize(VECTOR_BITSIZE));
-        INTEGER_SPECIES = VectorSpecies.of(int.class, VectorShape.forBitSize(VECTOR_BITSIZE));
-
-        // hotspot misses some SSE intrinsics, workaround it
-        // to be fair, they do document this thing only works well with AVX2/AVX3 and Neon
-        boolean isAMD64withoutAVX2 = Constants.OS_ARCH.equals("amd64") && VECTOR_BITSIZE < 256;
-        HAS_FAST_INTEGER_VECTORS = isAMD64withoutAVX2 == false;
-    }
+    static final boolean HAS_FAST_INTEGER_VECTORS = PanamaVectorConstants.ENABLE_INTEGER_VECTORS;
 
     private static FloatVector fma(FloatVector a, FloatVector b, FloatVector c) {
         if (Constants.HAS_FAST_VECTOR_FMA) {

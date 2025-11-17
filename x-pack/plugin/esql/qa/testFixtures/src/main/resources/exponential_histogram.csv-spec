@@ -170,3 +170,17 @@ FROM exp_histo_sample | WHERE instance == "dummy-empty"
 min:double | max:double
 NULL       | NULL
 ;
+
+
+ungroupedSumAvg
+required_capability: exponential_histogram_sum_avg_support
+
+FROM exp_histo_sample | WHERE NOT STARTS_WITH(instance, "dummy") 
+ | STATS sum = SUM(responseTime), avg = AVG(responseTime) // if we swap the order here of sum and avg, it works by accident
+ | KEEP sum, avg
+;
+
+sum:double  | avg:double 
+1536.648714 | 0.09932445956951716
+;
+

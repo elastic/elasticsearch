@@ -1573,6 +1573,11 @@ public class EsqlCapabilities {
         EXPONENTIAL_HISTOGRAM_MINMAX_SUPPORT(EXPONENTIAL_HISTOGRAM_FEATURE_FLAG),
 
         /**
+         * Support for exponential_histogram type in SUM and AVG aggregation.
+         */
+        EXPONENTIAL_HISTOGRAM_SUM_AVG_SUPPORT(EXPONENTIAL_HISTOGRAM_FEATURE_FLAG),
+
+        /**
          * Create new block when filtering OrdinalBytesRefBlock
          */
         FIX_FILTER_ORDINALS,

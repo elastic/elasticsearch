@@ -30,6 +30,7 @@ import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.project.TestProjectResolvers;
 import org.elasticsearch.cluster.routing.GlobalRoutingTable;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
+import org.elasticsearch.cluster.routing.SplitShardCountSummary;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -246,12 +247,12 @@ public class BroadcastReplicationTests extends ESTestCase {
             index
         );
         logger.debug("--> using initial state:\n{}", clusterService.state());
-        List<ShardId> shards = broadcastReplicationAction.shards(
+        List<TransportBroadcastReplicationAction.ShardRecord> shards = broadcastReplicationAction.shards(
             new DummyBroadcastRequest().indices(shardId.getIndexName()),
             clusterState.projectState(projectId)
         );
         assertThat(shards.size(), equalTo(1));
-        assertThat(shards.get(0), equalTo(shardId));
+        assertThat(shards.get(0).shardId(), equalTo(shardId));
     }
 
     private class TestBroadcastReplicationAction extends TransportBroadcastReplicationAction<
@@ -285,7 +286,11 @@ public class BroadcastReplicationTests extends ESTestCase {
         }
 
         @Override
-        protected BasicReplicationRequest newShardRequest(DummyBroadcastRequest request, ShardId shardId) {
+        protected BasicReplicationRequest newShardRequest(
+            DummyBroadcastRequest request,
+            ShardId shardId,
+            SplitShardCountSummary shardCountSummary
+        ) {
             return new BasicReplicationRequest(shardId);
         }
 
@@ -304,6 +309,7 @@ public class BroadcastReplicationTests extends ESTestCase {
             Task task,
             DummyBroadcastRequest request,
             ShardId shardId,
+            SplitShardCountSummary shardCountSummary,
             ActionListener<ReplicationResponse> shardActionListener
         ) {
             capturedShardRequests.add(new Tuple<>(shardId, shardActionListener));

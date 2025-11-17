@@ -66,6 +66,7 @@ import org.elasticsearch.xpack.core.inference.action.DeleteCCMConfigurationActio
 import org.elasticsearch.xpack.core.inference.action.DeleteInferenceEndpointAction;
 import org.elasticsearch.xpack.core.inference.action.GetCCMConfigurationAction;
 import org.elasticsearch.xpack.core.inference.action.GetInferenceDiagnosticsAction;
+import org.elasticsearch.xpack.core.inference.action.GetInferenceFieldsAction;
 import org.elasticsearch.xpack.core.inference.action.GetInferenceModelAction;
 import org.elasticsearch.xpack.core.inference.action.GetInferenceServicesAction;
 import org.elasticsearch.xpack.core.inference.action.GetRerankerWindowSizeAction;
@@ -81,6 +82,7 @@ import org.elasticsearch.xpack.inference.action.TransportDeleteCCMConfigurationA
 import org.elasticsearch.xpack.inference.action.TransportDeleteInferenceEndpointAction;
 import org.elasticsearch.xpack.inference.action.TransportGetCCMConfigurationAction;
 import org.elasticsearch.xpack.inference.action.TransportGetInferenceDiagnosticsAction;
+import org.elasticsearch.xpack.inference.action.TransportGetInferenceFieldsAction;
 import org.elasticsearch.xpack.inference.action.TransportGetInferenceModelAction;
 import org.elasticsearch.xpack.inference.action.TransportGetInferenceServicesAction;
 import org.elasticsearch.xpack.inference.action.TransportGetRerankerWindowSizeAction;
@@ -149,6 +151,7 @@ import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServic
 import org.elasticsearch.xpack.inference.services.elastic.authorization.AuthorizationPoller;
 import org.elasticsearch.xpack.inference.services.elastic.authorization.AuthorizationTaskExecutor;
 import org.elasticsearch.xpack.inference.services.elastic.authorization.ElasticInferenceServiceAuthorizationRequestHandler;
+import org.elasticsearch.xpack.inference.services.elastic.ccm.CCMCache;
 import org.elasticsearch.xpack.inference.services.elastic.ccm.CCMFeature;
 import org.elasticsearch.xpack.inference.services.elastic.ccm.CCMIndex;
 import org.elasticsearch.xpack.inference.services.elastic.ccm.CCMPersistentStorageService;
@@ -276,7 +279,9 @@ public class InferencePlugin extends Plugin
             new ActionHandler(StoreInferenceEndpointsAction.INSTANCE, TransportStoreEndpointsAction.class),
             new ActionHandler(GetCCMConfigurationAction.INSTANCE, TransportGetCCMConfigurationAction.class),
             new ActionHandler(PutCCMConfigurationAction.INSTANCE, TransportPutCCMConfigurationAction.class),
-            new ActionHandler(DeleteCCMConfigurationAction.INSTANCE, TransportDeleteCCMConfigurationAction.class)
+            new ActionHandler(DeleteCCMConfigurationAction.INSTANCE, TransportDeleteCCMConfigurationAction.class),
+            new ActionHandler(CCMCache.ClearCCMCacheAction.INSTANCE, CCMCache.ClearCCMCacheAction.class),
+            new ActionHandler(GetInferenceFieldsAction.INSTANCE, TransportGetInferenceFieldsAction.class)
         );
     }
 
@@ -453,7 +458,19 @@ public class InferencePlugin extends Plugin
     private Collection<?> createCCMComponents(PluginServices services) {
         ccmFeature.set(new CCMFeature(settings));
         var ccmPersistentStorageService = new CCMPersistentStorageService(services.client());
-        return List.of(new CCMService(ccmPersistentStorageService), ccmFeature.get(), ccmPersistentStorageService);
+        return List.of(
+            new CCMService(ccmPersistentStorageService),
+            ccmFeature.get(),
+            ccmPersistentStorageService,
+            new CCMCache(
+                ccmPersistentStorageService,
+                services.clusterService(),
+                settings,
+                services.featureService(),
+                services.projectResolver(),
+                services.client()
+            )
+        );
     }
 
     @Override
@@ -653,6 +670,7 @@ public class InferencePlugin extends Plugin
         settings.addAll(InferenceEndpointRegistry.getSettingsDefinitions());
         settings.addAll(ElasticInferenceServiceSettings.getSettingsDefinitions());
         settings.addAll(CCMSettings.getSettingsDefinitions());
+        settings.addAll(CCMCache.getSettingsDefinitions());
         return Collections.unmodifiableSet(settings);
     }
 

@@ -59,6 +59,7 @@ import java.util.Objects;
 import java.util.Set;
 
 import static org.elasticsearch.index.mapper.FieldArrayContext.getOffsetsFieldName;
+import static org.elasticsearch.index.mapper.FieldMapper.Parameter.useTimeSeriesDocValuesSkippers;
 
 /**
  * A field mapper for boolean fields.
@@ -148,12 +149,7 @@ public class BooleanFieldMapper extends FieldMapper {
             if (docValues.get() == false) {
                 return IndexType.NONE;
             }
-            if (dimension.get()
-                && indexSettings.useDocValuesSkipper()
-                && indexSettings.getIndexVersionCreated().onOrAfter(IndexVersions.TIME_SERIES_DIMENSIONS_USE_SKIPPERS)) {
-                return IndexType.skippers();
-            }
-            return IndexType.docValuesOnly();
+            return useTimeSeriesDocValuesSkippers(indexSettings, dimension.get()) ? IndexType.skippers() : IndexType.docValuesOnly();
         }
 
         @Override

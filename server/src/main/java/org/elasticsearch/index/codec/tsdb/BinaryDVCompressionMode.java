@@ -45,4 +45,21 @@ public enum BinaryDVCompressionMode {
         }
         return compressionMode;
     }
+
+    public record BlockHeader(boolean isCompressed) {
+        static final int IS_COMPRESSED = 0x1;
+
+        public static BlockHeader fromInt(int header) {
+            boolean isCompressed = (header & IS_COMPRESSED) != 0;
+            return new BlockHeader(isCompressed);
+        }
+
+        public int toInt() {
+            int header = 0;
+            if (isCompressed) {
+                header |= IS_COMPRESSED;
+            }
+            return header;
+        }
+    }
 }

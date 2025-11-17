@@ -416,7 +416,8 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
             long blockStartOffset = addresses.get(blockId);
             compressedData.seek(blockStartOffset);
 
-            int uncompressedBlockLength = compressedData.readInt();
+            var header = BinaryDVCompressionMode.BlockHeader.fromInt(compressedData.readVInt());
+            int uncompressedBlockLength = compressedData.readVInt();
 
             if (uncompressedBlockLength == 0) {
                 return;
@@ -427,7 +428,12 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
             assert uncompressedBlockLength <= uncompressedBlock.length;
             uncompressedBytesRef.offset = 0;
             uncompressedBytesRef.length = uncompressedBlock.length;
-            decompressor.decompress(compressedData, uncompressedBlockLength, 0, uncompressedBlockLength, uncompressedBytesRef);
+
+            if (header.isCompressed()) {
+                decompressor.decompress(compressedData, uncompressedBlockLength, 0, uncompressedBlockLength, uncompressedBytesRef);
+            } else {
+                compressedData.readBytes(uncompressedBlock, 0, uncompressedBlockLength);
+            }
         }
 
         void decompressDocOffsets(int numDocsInBlock, DataInput input) throws IOException {

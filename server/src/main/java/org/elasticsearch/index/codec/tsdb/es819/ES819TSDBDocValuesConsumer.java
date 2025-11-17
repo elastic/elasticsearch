@@ -561,14 +561,25 @@ final class ES819TSDBDocValuesConsumer extends XDocValuesConsumer {
             totalChunks++;
             long thisBlockStartPointer = data.getFilePointer();
 
+            // Data can be compressed or uncompressed on a per-block granularity, though is currently always compressed.
+            // In the future will leave data uncompressed if compression does not reduce storage.
+            boolean shouldCompress = true;
+            var header = new BinaryDVCompressionMode.BlockHeader(shouldCompress);
+            data.writeVInt(header.toInt());
+
             // write length of string data
-            data.writeInt(uncompressedBlockLength);
+            data.writeVInt(uncompressedBlockLength);
 
             maxUncompressedBlockLength = Math.max(maxUncompressedBlockLength, uncompressedBlockLength);
             maxNumDocsInAnyBlock = Math.max(maxNumDocsInAnyBlock, numDocsInCurrentBlock);
 
             compressOffsets(data, numDocsInCurrentBlock);
-            compress(block, uncompressedBlockLength, data);
+
+            if (shouldCompress) {
+                compress(block, uncompressedBlockLength, data);
+            } else {
+                data.writeBytes(block, 0, uncompressedBlockLength);
+            }
 
             long blockLenBytes = data.getFilePointer() - thisBlockStartPointer;
             blockMetaAcc.addDoc(numDocsInCurrentBlock, blockLenBytes);

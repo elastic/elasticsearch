@@ -25,6 +25,7 @@ import org.apache.lucene.tests.util.TestUtil;
 import org.elasticsearch.common.logging.LogConfigurator;
 import org.elasticsearch.index.codec.vectors.BFloat16;
 import org.elasticsearch.index.codec.vectors.BaseBFloat16KnnVectorsFormatTestCase;
+import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.junit.AssumptionViolatedException;
 
 import java.io.IOException;
@@ -46,7 +47,7 @@ public class ES93ScalarQuantizedBFloat16VectorFormatTests extends BaseBFloat16Kn
 
     @Override
     public void setUp() throws Exception {
-        format = new ES93ScalarQuantizedVectorsFormat(ES93GenericFlatVectorsFormat.ElementType.BFLOAT16);
+        format = new ES93ScalarQuantizedVectorsFormat(DenseVectorFieldMapper.ElementType.BFLOAT16);
         super.setUp();
     }
 

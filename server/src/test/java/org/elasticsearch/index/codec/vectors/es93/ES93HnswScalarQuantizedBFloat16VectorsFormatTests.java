@@ -10,10 +10,11 @@
 package org.elasticsearch.index.codec.vectors.es93;
 
 import org.apache.lucene.codecs.KnnVectorsFormat;
-import org.apache.lucene.codecs.lucene104.Lucene104ScalarQuantizedVectorsFormat;
 import org.apache.lucene.store.Directory;
 import org.elasticsearch.index.codec.vectors.BFloat16;
 import org.elasticsearch.index.codec.vectors.BaseHnswBFloat16VectorsFormatTestCase;
+import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
+import org.junit.AssumptionViolatedException;
 
 import java.io.IOException;
 import java.util.concurrent.ExecutorService;
@@ -33,8 +34,10 @@ public class ES93HnswScalarQuantizedBFloat16VectorsFormatTests extends BaseHnswB
         return new ES93HnswScalarQuantizedVectorsFormat(
             DEFAULT_MAX_CONN,
             DEFAULT_BEAM_WIDTH,
-            Lucene104ScalarQuantizedVectorsFormat.ScalarEncoding.SEVEN_BIT,
-            ES93GenericFlatVectorsFormat.ElementType.BFLOAT16,
+            DenseVectorFieldMapper.ElementType.BFLOAT16,
+            null,
+            7,
+            false,
             random().nextBoolean()
         );
     }
@@ -44,8 +47,10 @@ public class ES93HnswScalarQuantizedBFloat16VectorsFormatTests extends BaseHnswB
         return new ES93HnswScalarQuantizedVectorsFormat(
             maxConn,
             beamWidth,
-            Lucene104ScalarQuantizedVectorsFormat.ScalarEncoding.SEVEN_BIT,
-            ES93GenericFlatVectorsFormat.ElementType.BFLOAT16,
+            DenseVectorFieldMapper.ElementType.BFLOAT16,
+            null,
+            7,
+            false,
             random().nextBoolean()
         );
     }
@@ -55,12 +60,19 @@ public class ES93HnswScalarQuantizedBFloat16VectorsFormatTests extends BaseHnswB
         return new ES93HnswScalarQuantizedVectorsFormat(
             maxConn,
             beamWidth,
-            Lucene104ScalarQuantizedVectorsFormat.ScalarEncoding.SEVEN_BIT,
-            ES93GenericFlatVectorsFormat.ElementType.BFLOAT16,
+            DenseVectorFieldMapper.ElementType.BFLOAT16,
+            null,
+            7,
+            false,
             random().nextBoolean(),
             numMergeWorkers,
             service
         );
+    }
+
+    @Override
+    public void testSingleVectorCase() throws Exception {
+        throw new AssumptionViolatedException("Scalar quantization changes the score significantly for MAXIMUM_INNER_PRODUCT");
     }
 
     public void testSimpleOffHeapSize() throws IOException {

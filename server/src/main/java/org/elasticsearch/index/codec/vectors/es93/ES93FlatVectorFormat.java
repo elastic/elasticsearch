@@ -24,6 +24,7 @@ import org.apache.lucene.search.KnnCollector;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.hnsw.OrdinalTranslatedKnnCollector;
 import org.apache.lucene.util.hnsw.RandomVectorScorer;
+import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 
 import java.io.IOException;
 import java.util.Map;
@@ -44,9 +45,9 @@ public class ES93FlatVectorFormat extends KnnVectorsFormat {
         format = new ES93GenericFlatVectorsFormat();
     }
 
-    public ES93FlatVectorFormat(ES93GenericFlatVectorsFormat.ElementType elementType) {
+    public ES93FlatVectorFormat(DenseVectorFieldMapper.ElementType elementType) {
         super(NAME);
-        assert elementType != ES93GenericFlatVectorsFormat.ElementType.BIT : "ES815BitFlatVectorFormat should be used for bits";
+        assert elementType != DenseVectorFieldMapper.ElementType.BIT : "ES815BitFlatVectorFormat should be used for bits";
         format = new ES93GenericFlatVectorsFormat(elementType, false);
     }
 
@@ -70,7 +71,6 @@ public class ES93FlatVectorFormat extends KnnVectorsFormat {
         private final FlatVectorsReader reader;
 
         ES93FlatVectorReader(FlatVectorsReader reader) {
-            super();
             this.reader = reader;
         }
 

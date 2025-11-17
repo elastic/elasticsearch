@@ -23,6 +23,7 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.BaseKnnVectorsFormatTestCase;
 import org.apache.lucene.tests.util.TestUtil;
 import org.elasticsearch.common.logging.LogConfigurator;
+import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.junit.AssumptionViolatedException;
 
 import java.io.IOException;
@@ -42,7 +43,7 @@ public class ES93ScalarQuantizedVectorsFormatTests extends BaseKnnVectorsFormatT
 
     @Override
     protected Codec getCodec() {
-        return TestUtil.alwaysKnnVectorsFormat(new ES93ScalarQuantizedVectorsFormat(ES93GenericFlatVectorsFormat.ElementType.STANDARD));
+        return TestUtil.alwaysKnnVectorsFormat(new ES93ScalarQuantizedVectorsFormat(DenseVectorFieldMapper.ElementType.FLOAT));
     }
 
     public void testSearchWithVisitedLimit() {

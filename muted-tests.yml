@@ -480,6 +480,9 @@ tests:
 - class: org.elasticsearch.index.store.DirectIOIT
   method: testDirectIONotUsed {p0=bbq_hnsw}
   issue: https://github.com/elastic/elasticsearch/issues/138101
+- class: org.elasticsearch.index.store.DirectIOIT
+  method: testDirectIOUsed {p0=bbq_hnsw}
+  issue: https://github.com/elastic/elasticsearch/issues/138103
 
 # Examples:
 #

@@ -1,0 +1,5 @@
+pr: 137992
+summary: Prevent passing a pipeline to a logs stream bulk index request body
+area: Data streams
+type: bug
+issues: []

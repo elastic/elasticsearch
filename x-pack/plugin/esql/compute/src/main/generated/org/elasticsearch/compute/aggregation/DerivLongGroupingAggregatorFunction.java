@@ -22,10 +22,10 @@ import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
 
 /**
- * {@link GroupingAggregatorFunction} implementation for {@link DerivDoubleAggregator}.
+ * {@link GroupingAggregatorFunction} implementation for {@link DerivLongAggregator}.
  * This class is generated. Edit {@code GroupingAggregatorImplementer} instead.
  */
-public final class DerivDoubleGroupingAggregatorFunction implements GroupingAggregatorFunction {
+public final class DerivLongGroupingAggregatorFunction implements GroupingAggregatorFunction {
   private static final List<IntermediateStateDesc> INTERMEDIATE_STATE_DESC = List.of(
       new IntermediateStateDesc("count", ElementType.LONG),
       new IntermediateStateDesc("sumVal", ElementType.DOUBLE),
@@ -39,16 +39,16 @@ public final class DerivDoubleGroupingAggregatorFunction implements GroupingAggr
 
   private final DriverContext driverContext;
 
-  public DerivDoubleGroupingAggregatorFunction(List<Integer> channels,
+  public DerivLongGroupingAggregatorFunction(List<Integer> channels,
       DerivDoubleAggregator.GroupingState state, DriverContext driverContext) {
     this.channels = channels;
     this.state = state;
     this.driverContext = driverContext;
   }
 
-  public static DerivDoubleGroupingAggregatorFunction create(List<Integer> channels,
+  public static DerivLongGroupingAggregatorFunction create(List<Integer> channels,
       DriverContext driverContext) {
-    return new DerivDoubleGroupingAggregatorFunction(channels, DerivDoubleAggregator.initGrouping(driverContext), driverContext);
+    return new DerivLongGroupingAggregatorFunction(channels, DerivLongAggregator.initGrouping(driverContext), driverContext);
   }
 
   public static List<IntermediateStateDesc> intermediateStateDesc() {
@@ -63,9 +63,9 @@ public final class DerivDoubleGroupingAggregatorFunction implements GroupingAggr
   @Override
   public GroupingAggregatorFunction.AddInput prepareProcessRawInputPage(SeenGroupIds seenGroupIds,
       Page page) {
-    DoubleBlock valueBlock = page.getBlock(channels.get(0));
+    LongBlock valueBlock = page.getBlock(channels.get(0));
     LongBlock timestampBlock = page.getBlock(channels.get(1));
-    DoubleVector valueVector = valueBlock.asVector();
+    LongVector valueVector = valueBlock.asVector();
     if (valueVector == null) {
       maybeEnableGroupIdTracking(seenGroupIds, valueBlock, timestampBlock);
       return new GroupingAggregatorFunction.AddInput() {
@@ -135,7 +135,7 @@ public final class DerivDoubleGroupingAggregatorFunction implements GroupingAggr
     };
   }
 
-  private void addRawInput(int positionOffset, IntArrayBlock groups, DoubleBlock valueBlock,
+  private void addRawInput(int positionOffset, IntArrayBlock groups, LongBlock valueBlock,
       LongBlock timestampBlock) {
     for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
       if (groups.isNull(groupPosition)) {
@@ -155,19 +155,19 @@ public final class DerivDoubleGroupingAggregatorFunction implements GroupingAggr
         int valueStart = valueBlock.getFirstValueIndex(valuesPosition);
         int valueEnd = valueStart + valueBlock.getValueCount(valuesPosition);
         for (int valueOffset = valueStart; valueOffset < valueEnd; valueOffset++) {
-          double valueValue = valueBlock.getDouble(valueOffset);
+          long valueValue = valueBlock.getLong(valueOffset);
           int timestampStart = timestampBlock.getFirstValueIndex(valuesPosition);
           int timestampEnd = timestampStart + timestampBlock.getValueCount(valuesPosition);
           for (int timestampOffset = timestampStart; timestampOffset < timestampEnd; timestampOffset++) {
             long timestampValue = timestampBlock.getLong(timestampOffset);
-            DerivDoubleAggregator.combine(state, groupId, valueValue, timestampValue);
+            DerivLongAggregator.combine(state, groupId, valueValue, timestampValue);
           }
         }
       }
     }
   }
 
-  private void addRawInput(int positionOffset, IntArrayBlock groups, DoubleVector valueVector,
+  private void addRawInput(int positionOffset, IntArrayBlock groups, LongVector valueVector,
       LongVector timestampVector) {
     for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
       if (groups.isNull(groupPosition)) {
@@ -178,9 +178,9 @@ public final class DerivDoubleGroupingAggregatorFunction implements GroupingAggr
       int groupEnd = groupStart + groups.getValueCount(groupPosition);
       for (int g = groupStart; g < groupEnd; g++) {
         int groupId = groups.getInt(g);
-        double valueValue = valueVector.getDouble(valuesPosition);
+        long valueValue = valueVector.getLong(valuesPosition);
         long timestampValue = timestampVector.getLong(valuesPosition);
-        DerivDoubleAggregator.combine(state, groupId, valueValue, timestampValue);
+        DerivLongAggregator.combine(state, groupId, valueValue, timestampValue);
       }
     }
   }
@@ -224,12 +224,12 @@ public final class DerivDoubleGroupingAggregatorFunction implements GroupingAggr
       for (int g = groupStart; g < groupEnd; g++) {
         int groupId = groups.getInt(g);
         int valuesPosition = groupPosition + positionOffset;
-        DerivDoubleAggregator.combineIntermediate(state, groupId, count.getLong(valuesPosition), sumVal.getDouble(valuesPosition), sumTs.getLong(valuesPosition), sumTsVal.getDouble(valuesPosition), sumTsSq.getLong(valuesPosition));
+        DerivLongAggregator.combineIntermediate(state, groupId, count.getLong(valuesPosition), sumVal.getDouble(valuesPosition), sumTs.getLong(valuesPosition), sumTsVal.getDouble(valuesPosition), sumTsSq.getLong(valuesPosition));
       }
     }
   }
 
-  private void addRawInput(int positionOffset, IntBigArrayBlock groups, DoubleBlock valueBlock,
+  private void addRawInput(int positionOffset, IntBigArrayBlock groups, LongBlock valueBlock,
       LongBlock timestampBlock) {
     for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
       if (groups.isNull(groupPosition)) {
@@ -249,19 +249,19 @@ public final class DerivDoubleGroupingAggregatorFunction implements GroupingAggr
         int valueStart = valueBlock.getFirstValueIndex(valuesPosition);
         int valueEnd = valueStart + valueBlock.getValueCount(valuesPosition);
         for (int valueOffset = valueStart; valueOffset < valueEnd; valueOffset++) {
-          double valueValue = valueBlock.getDouble(valueOffset);
+          long valueValue = valueBlock.getLong(valueOffset);
           int timestampStart = timestampBlock.getFirstValueIndex(valuesPosition);
           int timestampEnd = timestampStart + timestampBlock.getValueCount(valuesPosition);
           for (int timestampOffset = timestampStart; timestampOffset < timestampEnd; timestampOffset++) {
             long timestampValue = timestampBlock.getLong(timestampOffset);
-            DerivDoubleAggregator.combine(state, groupId, valueValue, timestampValue);
+            DerivLongAggregator.combine(state, groupId, valueValue, timestampValue);
           }
         }
       }
     }
   }
 
-  private void addRawInput(int positionOffset, IntBigArrayBlock groups, DoubleVector valueVector,
+  private void addRawInput(int positionOffset, IntBigArrayBlock groups, LongVector valueVector,
       LongVector timestampVector) {
     for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
       if (groups.isNull(groupPosition)) {
@@ -272,9 +272,9 @@ public final class DerivDoubleGroupingAggregatorFunction implements GroupingAggr
       int groupEnd = groupStart + groups.getValueCount(groupPosition);
       for (int g = groupStart; g < groupEnd; g++) {
         int groupId = groups.getInt(g);
-        double valueValue = valueVector.getDouble(valuesPosition);
+        long valueValue = valueVector.getLong(valuesPosition);
         long timestampValue = timestampVector.getLong(valuesPosition);
-        DerivDoubleAggregator.combine(state, groupId, valueValue, timestampValue);
+        DerivLongAggregator.combine(state, groupId, valueValue, timestampValue);
       }
     }
   }
@@ -318,12 +318,12 @@ public final class DerivDoubleGroupingAggregatorFunction implements GroupingAggr
       for (int g = groupStart; g < groupEnd; g++) {
         int groupId = groups.getInt(g);
         int valuesPosition = groupPosition + positionOffset;
-        DerivDoubleAggregator.combineIntermediate(state, groupId, count.getLong(valuesPosition), sumVal.getDouble(valuesPosition), sumTs.getLong(valuesPosition), sumTsVal.getDouble(valuesPosition), sumTsSq.getLong(valuesPosition));
+        DerivLongAggregator.combineIntermediate(state, groupId, count.getLong(valuesPosition), sumVal.getDouble(valuesPosition), sumTs.getLong(valuesPosition), sumTsVal.getDouble(valuesPosition), sumTsSq.getLong(valuesPosition));
       }
     }
   }
 
-  private void addRawInput(int positionOffset, IntVector groups, DoubleBlock valueBlock,
+  private void addRawInput(int positionOffset, IntVector groups, LongBlock valueBlock,
       LongBlock timestampBlock) {
     for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
       int valuesPosition = groupPosition + positionOffset;
@@ -337,25 +337,25 @@ public final class DerivDoubleGroupingAggregatorFunction implements GroupingAggr
       int valueStart = valueBlock.getFirstValueIndex(valuesPosition);
       int valueEnd = valueStart + valueBlock.getValueCount(valuesPosition);
       for (int valueOffset = valueStart; valueOffset < valueEnd; valueOffset++) {
-        double valueValue = valueBlock.getDouble(valueOffset);
+        long valueValue = valueBlock.getLong(valueOffset);
         int timestampStart = timestampBlock.getFirstValueIndex(valuesPosition);
         int timestampEnd = timestampStart + timestampBlock.getValueCount(valuesPosition);
         for (int timestampOffset = timestampStart; timestampOffset < timestampEnd; timestampOffset++) {
           long timestampValue = timestampBlock.getLong(timestampOffset);
-          DerivDoubleAggregator.combine(state, groupId, valueValue, timestampValue);
+          DerivLongAggregator.combine(state, groupId, valueValue, timestampValue);
         }
       }
     }
   }
 
-  private void addRawInput(int positionOffset, IntVector groups, DoubleVector valueVector,
+  private void addRawInput(int positionOffset, IntVector groups, LongVector valueVector,
       LongVector timestampVector) {
     for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
       int valuesPosition = groupPosition + positionOffset;
       int groupId = groups.getInt(groupPosition);
-      double valueValue = valueVector.getDouble(valuesPosition);
+      long valueValue = valueVector.getLong(valuesPosition);
       long timestampValue = timestampVector.getLong(valuesPosition);
-      DerivDoubleAggregator.combine(state, groupId, valueValue, timestampValue);
+      DerivLongAggregator.combine(state, groupId, valueValue, timestampValue);
     }
   }
 
@@ -392,11 +392,11 @@ public final class DerivDoubleGroupingAggregatorFunction implements GroupingAggr
     for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
       int groupId = groups.getInt(groupPosition);
       int valuesPosition = groupPosition + positionOffset;
-      DerivDoubleAggregator.combineIntermediate(state, groupId, count.getLong(valuesPosition), sumVal.getDouble(valuesPosition), sumTs.getLong(valuesPosition), sumTsVal.getDouble(valuesPosition), sumTsSq.getLong(valuesPosition));
+      DerivLongAggregator.combineIntermediate(state, groupId, count.getLong(valuesPosition), sumVal.getDouble(valuesPosition), sumTs.getLong(valuesPosition), sumTsVal.getDouble(valuesPosition), sumTsSq.getLong(valuesPosition));
     }
   }
 
-  private void maybeEnableGroupIdTracking(SeenGroupIds seenGroupIds, DoubleBlock valueBlock,
+  private void maybeEnableGroupIdTracking(SeenGroupIds seenGroupIds, LongBlock valueBlock,
       LongBlock timestampBlock) {
     if (valueBlock.mayHaveNulls()) {
       state.enableGroupIdTracking(seenGroupIds);
@@ -419,7 +419,7 @@ public final class DerivDoubleGroupingAggregatorFunction implements GroupingAggr
   @Override
   public void evaluateFinal(Block[] blocks, int offset, IntVector selected,
       GroupingAggregatorEvaluationContext ctx) {
-    blocks[offset] = DerivDoubleAggregator.evaluateFinal(state, selected, ctx);
+    blocks[offset] = DerivLongAggregator.evaluateFinal(state, selected, ctx);
   }
 
   @Override

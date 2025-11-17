@@ -723,8 +723,6 @@ mx:integer | tbucket:datetime
 
 derivative_of_gauge_metric
 required_capability: ts_command_v0
-required_capability: TS_LINREG_DERIVATIVE
-
 
 // tag::deriv[]
 TS k8s
@@ -744,7 +742,7 @@ max_deriv:double | time_bucket:datetime     | pod:keyword
 -2.0E-5          | 2024-05-10T00:10:00.000Z | three
 // end::deriv-result[]
 -1.0E-6          | 2024-05-10T00:15:00.000Z | three
-0.0              | 2024-05-10T00:20:00.000Z | three
+1.9E-5           | 2024-05-10T00:20:00.000Z | three
 
 ;
 
@@ -763,8 +761,8 @@ TS k8s
 max_deriv:double | max_rate:double | time_bucket:datetime     | cluster:keyword
 0.0855           | 8.120833        | 2024-05-10T00:00:00.000Z | prod
 0.004933         | 6.451737        | 2024-05-10T00:05:00.000Z | prod
-0.008922         | 11.562738       | 2024-05-10T00:10:00.000Z | prod
-0.016623         | 11.860806       | 2024-05-10T00:15:00.000Z | prod
-0.0              | 6.980661        | 2024-05-10T00:20:00.000Z | prod
+0.008922         | 11.56274        | 2024-05-10T00:10:00.000Z | prod
+0.016623         | 11.86081        | 2024-05-10T00:15:00.000Z | prod
+0.009026         | 6.980661        | 2024-05-10T00:20:00.000Z | prod
 
 ;

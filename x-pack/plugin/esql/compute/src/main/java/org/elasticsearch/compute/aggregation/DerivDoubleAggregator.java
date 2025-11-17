@@ -8,8 +8,7 @@
 package org.elasticsearch.compute.aggregation;
 
 import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.common.util.DoubleArray;
-import org.elasticsearch.common.util.LongArray;
+import org.elasticsearch.common.util.ObjectArray;
 import org.elasticsearch.compute.ann.Aggregator;
 import org.elasticsearch.compute.ann.GroupingAggregator;
 import org.elasticsearch.compute.ann.IntermediateState;
@@ -29,9 +28,7 @@ import org.elasticsearch.core.Releasables;
         @IntermediateState(name = "sumTsVal", type = "DOUBLE"),
         @IntermediateState(name = "sumTsSq", type = "LONG") }
 )
-@GroupingAggregator(
-    { @IntermediateState(name = "timestamps", type = "LONG_BLOCK"), @IntermediateState(name = "values", type = "DOUBLE_BLOCK") }
-)
+@GroupingAggregator
 class DerivDoubleAggregator {
 
     public static SimpleLinearRegressionWithTimeseries initSingle(DriverContext driverContext) {
@@ -70,45 +67,32 @@ class DerivDoubleAggregator {
         return new GroupingState(driverContext.bigArrays());
     }
 
-    public static void combine(GroupingState state, int groupId, long timestamp, double value) {
-        // TODO
+    public static void combine(GroupingState state, int groupId, double value, long timestamp) {
+        state.getAndGrow(groupId).add(timestamp, value);
     }
 
     public static void combineIntermediate(
         GroupingState state,
         int groupId,
-        LongBlock timestamps, // stylecheck
-        DoubleBlock values,
-        int otherPosition
+        long count,
+        double sumVal,
+        long sumTs,
+        double sumTsVal,
+        long sumTsSq
     ) {
-        // TODO use groupId
-        state.collectValue(groupId, timestamps.getLong(otherPosition), values.getDouble(otherPosition));
+        combineIntermediate(state.getAndGrow(groupId), count, sumVal, sumTs, sumTsVal, sumTsSq);
     }
 
     public static Block evaluateFinal(GroupingState state, IntVector selectedGroups, GroupingAggregatorEvaluationContext ctx) {
-        // Block evaluatePercentile(IntVector selected, DriverContext driverContext) {
-        // try (DoubleBlock.Builder builder = driverContext.blockFactory().newDoubleBlockBuilder(selected.getPositionCount())) {
-        // for (int i = 0; i < selected.getPositionCount(); i++) {
-        // int si = selected.getInt(i);
-        // if (si >= digests.size()) {
-        // builder.appendNull();
-        // continue;
-        // }
-        // final TDigestState digest = digests.get(si);
-        // if (percentile != null && digest != null && digest.size() > 0) {
-        // builder.appendDouble(digest.quantile(percentile / 100));
-        // } else {
-        // builder.appendNull();
-        // }
-        // }
-        // return builder.build();
-        // }
-        // }
         try (DoubleBlock.Builder builder = ctx.driverContext().blockFactory().newDoubleBlockBuilder(selectedGroups.getPositionCount())) {
             for (int i = 0; i < selectedGroups.getPositionCount(); i++) {
                 int groupId = selectedGroups.getInt(i);
-                // TODO must use groupId
-                double result = 1.0;
+                SimpleLinearRegressionWithTimeseries slr = state.get(groupId);
+                if (slr == null) {
+                    builder.appendNull();
+                    continue;
+                }
+                double result = slr.slope();
                 if (Double.isNaN(result)) {
                     builder.appendNull();
                     continue;
@@ -120,50 +104,68 @@ class DerivDoubleAggregator {
     }
 
     public static final class GroupingState extends AbstractArrayState {
-        private final BigArrays bigArrays;
-        private LongArray timestamps;
-        private DoubleArray values;
+        private ObjectArray<SimpleLinearRegressionWithTimeseries> states;
 
         GroupingState(BigArrays bigArrays) {
             super(bigArrays);
-            this.bigArrays = bigArrays;
-            this.timestamps = bigArrays.newLongArray(1L);
-            this.values = bigArrays.newDoubleArray(1L);
+            states = bigArrays.newObjectArray(1);
         }
 
-        void collectValue(int groupId, long timestamp, double value) {
-            if (groupId < timestamps.size()) {
-                timestamps.set(groupId, timestamp);
-            } else {
-                timestamps = bigArrays.grow(timestamps, groupId + 1);
+        SimpleLinearRegressionWithTimeseries get(int groupId) {
+            if (groupId >= states.size()) {
+                return null;
             }
-            timestamps.set(groupId, timestamp);
-            if (groupId < values.size()) {
-                values.set(groupId, value);
-            } else {
-                values = bigArrays.grow(values, groupId + 1);
+            return states.get(groupId);
+        }
+
+        SimpleLinearRegressionWithTimeseries getAndGrow(int groupId) {
+            if (groupId >= states.size()) {
+                states = bigArrays.grow(states, groupId + 1);
             }
-            values.set(groupId, value);
+            SimpleLinearRegressionWithTimeseries slr = states.get(groupId);
+            if (slr == null) {
+                slr = new SimpleLinearRegressionWithTimeseries();
+                states.set(groupId, slr);
+            }
+            return slr;
         }
 
         @Override
         public void close() {
-            Releasables.close(timestamps, values, super::close);
+            Releasables.close(states, super::close);
         }
 
         @Override
         public void toIntermediate(Block[] blocks, int offset, IntVector selected, DriverContext driverContext) {
             try (
-                LongBlock.Builder timestampBuilder = driverContext.blockFactory().newLongBlockBuilder(selected.getPositionCount());
-                DoubleBlock.Builder valueBuilder = driverContext.blockFactory().newDoubleBlockBuilder(selected.getPositionCount());
+                LongBlock.Builder countBuilder = driverContext.blockFactory().newLongBlockBuilder(selected.getPositionCount());
+                DoubleBlock.Builder sumValBuilder = driverContext.blockFactory().newDoubleBlockBuilder(selected.getPositionCount());
+                LongBlock.Builder sumTsBuilder = driverContext.blockFactory().newLongBlockBuilder(selected.getPositionCount());
+                DoubleBlock.Builder sumTsValBuilder = driverContext.blockFactory().newDoubleBlockBuilder(selected.getPositionCount());
+                LongBlock.Builder sumTsSqBuilder = driverContext.blockFactory().newLongBlockBuilder(selected.getPositionCount())
             ) {
                 for (int i = 0; i < selected.getPositionCount(); i++) {
                     int groupId = selected.getInt(i);
-                    timestampBuilder.appendLong(timestamps.get(groupId));
-                    valueBuilder.appendDouble(values.get(groupId));
+                    SimpleLinearRegressionWithTimeseries slr = get(groupId);
+                    if (slr == null) {
+                        countBuilder.appendNull();
+                        sumValBuilder.appendNull();
+                        sumTsBuilder.appendNull();
+                        sumTsValBuilder.appendNull();
+                        sumTsSqBuilder.appendNull();
+                    } else {
+                        countBuilder.appendLong(slr.count);
+                        sumValBuilder.appendDouble(slr.sumVal);
+                        sumTsBuilder.appendLong(slr.sumTs);
+                        sumTsValBuilder.appendDouble(slr.sumTsVal);
+                        sumTsSqBuilder.appendLong(slr.sumTsSq);
+                    }
                 }
-                blocks[offset] = timestampBuilder.build();
-                blocks[offset + 1] = valueBuilder.build();
+                blocks[offset] = countBuilder.build();
+                blocks[offset + 1] = sumValBuilder.build();
+                blocks[offset + 2] = sumTsBuilder.build();
+                blocks[offset + 3] = sumTsValBuilder.build();
+                blocks[offset + 4] = sumTsSqBuilder.build();
             }
         }
     }

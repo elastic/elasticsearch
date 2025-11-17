@@ -197,7 +197,7 @@ public class EsqlCCSUtils {
         // NOTE: we assume that updateExecutionInfoWithUnavailableClusters() was already run and took care of unavailable clusters.
         final Set<String> clustersWithNoMatchingIndices = executionInfo.getRunningClusterAliases().collect(toSet());
         for (IndexResolution indexResolution : indexResolutions) {
-            for (String indexName : indexResolution.resolvedIndices()) {
+            for (String indexName : indexResolution.get().concreteIndices()) {
                 clustersWithNoMatchingIndices.remove(RemoteClusterAware.parseClusterAlias(indexName));
             }
         }

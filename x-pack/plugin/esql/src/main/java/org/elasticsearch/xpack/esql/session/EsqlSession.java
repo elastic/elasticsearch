@@ -669,17 +669,8 @@ public class EsqlSession {
             return result.addLookupIndexResolution(index, lookupIndexResolution);
         }
 
-        if (lookupIndexResolution.get().indexNameWithModes().isEmpty() && lookupIndexResolution.resolvedIndices().isEmpty() == false) {
-            // This is a weird situation - we have empty index list but non-empty resolution. This is likely because IndexResolver
-            // got an empty map and pretends to have an empty resolution. This means this query will fail, since lookup fields will not
-            // match, but here we can pretend it's ok to pass it on to the verifier and generate a correct error message.
-            // Note this only happens if the map is completely empty, which means it's going to error out anyway, since we should have
-            // at least the key field there.
-            return result.addLookupIndexResolution(index, lookupIndexResolution);
-        }
-
         // Collect resolved clusters from the index resolution, verify that each cluster has a single resolution for the lookup index
-        Map<String, String> clustersWithResolvedIndices = new HashMap<>(lookupIndexResolution.resolvedIndices().size());
+        Map<String, String> clustersWithResolvedIndices = new HashMap<>(lookupIndexResolution.get().indexNameWithModes().size());
         lookupIndexResolution.get().indexNameWithModes().forEach((indexName, indexMode) -> {
             String clusterAlias = RemoteClusterAware.parseClusterAlias(indexName);
             // Check that all indices are in lookup mode
@@ -759,7 +750,7 @@ public class EsqlSession {
         if (localIndexNames.size() == 1) {
             String indexName = localIndexNames.iterator().next();
             EsIndex newIndex = new EsIndex(index, lookupIndexResolution.get().mapping(), Map.of(indexName, IndexMode.LOOKUP));
-            return IndexResolution.valid(newIndex, newIndex.concreteIndices(), lookupIndexResolution.failures());
+            return IndexResolution.valid(newIndex, lookupIndexResolution.failures());
         }
         // validate remotes to be able to handle multiple indices in LOOKUP JOIN
         validateRemoteVersions(executionInfo);

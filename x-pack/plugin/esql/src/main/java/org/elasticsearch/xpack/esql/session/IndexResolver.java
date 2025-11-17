@@ -274,7 +274,7 @@ public class IndexResolver {
         // errors.
         var index = new EsIndex(indexPattern, rootFields, allEmpty ? Map.of() : concreteIndices, partiallyUnmappedFields);
         var failures = EsqlCCSUtils.groupFailuresPerCluster(fieldsInfo.caps.getFailures());
-        return IndexResolution.valid(index, concreteIndices.keySet(), failures);
+        return IndexResolution.valid(index, failures);
     }
 
     private record IndexFieldCapabilitiesWithSourceHash(List<IndexFieldCapabilities> fieldCapabilities, String indexMappingHash) {}

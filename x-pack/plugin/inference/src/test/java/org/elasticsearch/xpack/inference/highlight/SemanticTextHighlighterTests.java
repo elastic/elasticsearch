@@ -51,6 +51,7 @@ import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.search.lookup.Source;
 import org.elasticsearch.search.rank.RankDoc;
 import org.elasticsearch.search.vectors.KnnVectorQueryBuilder;
+import org.elasticsearch.search.vectors.VectorSimilarityQuery;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.ml.search.SparseVectorQueryBuilder;
 import org.elasticsearch.xpack.inference.InferencePlugin;
@@ -205,6 +206,40 @@ public class SemanticTextHighlighterTests extends MapperServiceTestCase {
             10,
             HighlightBuilder.Order.SCORE,
             new String[0]
+        );
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testDenseVectorWithSimilarityThreshold() throws Exception {
+        var mapperService = createDefaultMapperService(useLegacyFormat);
+        Map<String, Object> queryMap = (Map<String, Object>) queries.get("dense_vector_1");
+        float[] vector = readDenseVector(queryMap.get("embeddings"));
+        var fieldType = (SemanticTextFieldMapper.SemanticTextFieldType) mapperService.mappingLookup().getFieldType(SEMANTIC_FIELD_E5);
+
+        //TODO: understand why this ends up being a VectorSimilarityQuery with a RescoreKnnVectorQuery innerQuery (InlineRescoreQuery)
+        // with an ESDiversifyingChildrenFloatKnnVectorQuery innerQuery
+        KnnVectorQueryBuilder knnQuery = new KnnVectorQueryBuilder(
+            fieldType.getEmbeddingsField().fullPath(),
+            vector,
+            10,
+            10,
+            10f,
+            null,
+            0.85f
+        );
+        NestedQueryBuilder nestedQueryBuilder = new NestedQueryBuilder(fieldType.getChunksField().fullPath(), knnQuery, ScoreMode.Max);
+        var shardRequest = createShardSearchRequest(nestedQueryBuilder);
+        var sourceToParse = new SourceToParse("0", readSampleDoc(useLegacyFormat), XContentType.JSON);
+
+        String[] expectedPassages = ((List<String>) queryMap.get("expected_with_similarity_threshold")).toArray(String[]::new);
+        assertHighlightOneDoc(
+            mapperService,
+            shardRequest,
+            sourceToParse,
+            SEMANTIC_FIELD_E5,
+            expectedPassages.length,
+            HighlightBuilder.Order.SCORE,
+            expectedPassages
         );
     }
 

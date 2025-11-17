@@ -33,8 +33,10 @@ import org.elasticsearch.search.fetch.subphase.highlight.HighlightField;
 import org.elasticsearch.search.fetch.subphase.highlight.HighlightUtils;
 import org.elasticsearch.search.fetch.subphase.highlight.Highlighter;
 import org.elasticsearch.search.vectors.DenseVectorQuery;
+import org.elasticsearch.search.vectors.RescoreKnnVectorQuery;
 import org.elasticsearch.search.vectors.SparseVectorQueryWrapper;
 import org.elasticsearch.search.vectors.VectorData;
+import org.elasticsearch.search.vectors.VectorSimilarityQuery;
 import org.elasticsearch.xcontent.Text;
 import org.elasticsearch.xpack.inference.mapper.OffsetSourceField;
 import org.elasticsearch.xpack.inference.mapper.OffsetSourceFieldMapper;
@@ -276,10 +278,25 @@ public class SemanticTextHighlighter implements Highlighter {
                     queries.add(new MatchAllDocsQuery());
                 } else if (query instanceof DenseVectorQuery.Floats floatsQuery) {
                     queries.add(fieldType.createExactKnnQuery(VectorData.fromFloats(floatsQuery.getQuery()), null));
+                } else if (query instanceof VectorSimilarityQuery similarityQuery) {
+                    VectorData vectorData = extractVectorData(similarityQuery.getInnerKnnQuery());
+                    if (vectorData != null) queries.add(fieldType.createExactKnnQuery(vectorData, similarityQuery.getSimilarity()));
                 }
             }
         });
         return queries;
+    }
+
+    private VectorData extractVectorData(Query vectorQuery) {
+        if (vectorQuery instanceof KnnFloatVectorQuery knnQuery) {
+            return VectorData.fromFloats(knnQuery.getTargetCopy());
+        } else if (vectorQuery instanceof KnnByteVectorQuery knnQuery) {
+            return VectorData.fromBytes(knnQuery.getTargetCopy());
+        } else if (vectorQuery instanceof RescoreKnnVectorQuery rescoreQuery) {
+            return extractVectorData(rescoreQuery.innerQuery());
+        }
+        //TODO: do we care about AbstractIVFKnnVectorQuery?
+        return null;
     }
 
     private List<Query> extractSparseVectorQueries(SparseVectorFieldType fieldType, Query querySection) {

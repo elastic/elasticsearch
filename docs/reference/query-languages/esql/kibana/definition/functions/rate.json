@@ -60,8 +60,7 @@
     }
   ],
   "examples" : [
-    "TS k8s\n| STATS max_rate=MAX(RATE(network.total_bytes_in)) BY time_bucket = TBUCKET(5minute)",
-    "TS k8s\n| WHERE TRANGE(\"2024-05-10T00:05:00.000Z\", \"2024-05-10T00:10:00.000Z\")\n| STATS rate_bytes_in=avg(rate(network.total_bytes_in, 5minute)) BY cluster, time_bucket = bucket(@timestamp,1minute)"
+    "TS k8s\n| STATS max_rate=MAX(RATE(network.total_bytes_in)) BY time_bucket = TBUCKET(5minute)"
   ],
   "preview" : true,
   "snapshot_only" : false

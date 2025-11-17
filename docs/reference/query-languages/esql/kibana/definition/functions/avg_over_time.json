@@ -78,8 +78,7 @@
     }
   ],
   "examples" : [
-    "TS k8s\n| STATS max_cost=MAX(AVG_OVER_TIME(network.cost)) BY cluster, time_bucket = TBUCKET(1minute)",
-    "TS k8s\n| STATS events = sum(avg_over_time(events_received, 10minute)) by pod, time_bucket = tbucket(5minute)"
+    "TS k8s\n| STATS max_cost=MAX(AVG_OVER_TIME(network.cost)) BY cluster, time_bucket = TBUCKET(1minute)"
   ],
   "preview" : true,
   "snapshot_only" : false

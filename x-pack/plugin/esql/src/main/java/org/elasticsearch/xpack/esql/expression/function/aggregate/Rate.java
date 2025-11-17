@@ -53,7 +53,7 @@ public class Rate extends TimeSeriesAggregateFunction implements OptionalArgumen
             + "[`TS`](/reference/query-languages/esql/commands/ts.md) source command, to be properly applied per time series.",
         appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW, version = "9.2.0") },
         preview = true,
-        examples = { @Example(file = "k8s-timeseries", tag = "rate"), @Example(file = "k8s-timeseries-rate", tag = "rate_with_window") }
+        examples = { @Example(file = "k8s-timeseries", tag = "rate") }
     )
 
     public Rate(

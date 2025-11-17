@@ -46,9 +46,7 @@ public class AvgOverTime extends TimeSeriesAggregateFunction implements Optional
         type = FunctionType.TIME_SERIES_AGGREGATE,
         appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW, version = "9.2.0") },
         preview = true,
-        examples = {
-            @Example(file = "k8s-timeseries", tag = "avg_over_time"),
-            @Example(file = "k8s-timeseries-avg-over-time", tag = "avg_over_time_with_window") }
+        examples = { @Example(file = "k8s-timeseries", tag = "avg_over_time") }
     )
     public AvgOverTime(
         Source source,

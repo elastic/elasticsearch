@@ -428,7 +428,7 @@ public class KeywordFieldMapperTests extends MapperTestCase {
         assertDimension(true, KeywordFieldMapper.KeywordFieldType::isDimension);
         assertDimension(false, KeywordFieldMapper.KeywordFieldType::isDimension);
 
-        assertDimensionIndexing();
+        assertTimeSeriesIndexing();
     }
 
     public void testDimensionAndIgnoreAbove() throws IOException {

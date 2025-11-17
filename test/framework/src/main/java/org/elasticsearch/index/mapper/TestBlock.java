@@ -114,6 +114,36 @@ public class TestBlock implements BlockLoader.Block {
             }
 
             @Override
+            public BlockLoader.SingletonBytesRefBuilder singletonBytesRefs(int expectedCount) {
+                class BytesRefsBuilder extends TestBlock.Builder implements BlockLoader.SingletonBytesRefBuilder {
+                    private final int count = expectedCount;
+
+                    private BytesRefsBuilder() {
+                        super(expectedCount);
+                    }
+
+                    @Override
+                    public BlockLoader.SingletonBytesRefBuilder appendBytesRefs(byte[] bytes, long[] offsets) throws IOException {
+                        for (int i = 0; i < offsets.length - 1; i++) {
+                            BytesRef ref = new BytesRef(bytes, (int) offsets[i], (int) (offsets[i + 1] - offsets[i]));
+                            add(BytesRef.deepCopyOf(ref));
+                        }
+                        return this;
+                    }
+
+                    @Override
+                    public BlockLoader.SingletonBytesRefBuilder appendBytesRefs(byte[] bytes, long bytesRefLengths) throws IOException {
+                        for (int i = 0; i < count; i++) {
+                            BytesRef ref = new BytesRef(bytes, (int) (i * bytesRefLengths), (int) bytesRefLengths);
+                            add(BytesRef.deepCopyOf(ref));
+                        }
+                        return this;
+                    }
+                }
+                return new BytesRefsBuilder();
+            }
+
+            @Override
             public BlockLoader.DoubleBuilder doublesFromDocValues(int expectedCount) {
                 return doubles(expectedCount);
             }

@@ -893,7 +893,7 @@ public class EmbeddingRequestChunkerTests extends ESTestCase {
 
     private void testBatchChunksAcrossInputs(boolean batchChunksAcrossInputs) {
         int maxChunkSize = 10;
-        var testSentence = IntStream.range(0, maxChunkSize).mapToObj(i -> "word" + i).collect(Collectors.joining(" ")) + ".";
+        var testSentence = IntStream.range(0, maxChunkSize).mapToObj(i -> "Word" + i).collect(Collectors.joining(" ")) + ".";
         var chunkingSettings = new SentenceBoundaryChunkingSettings(maxChunkSize, 0);
         var batchSizes = List.of(3, 1, 4);
         var totalBatchSizes = batchSizes.stream().mapToInt(Integer::intValue).sum();

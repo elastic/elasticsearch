@@ -77,7 +77,7 @@ public class IpFieldMapper extends FieldMapper {
 
     public static final class Builder extends FieldMapper.DimensionBuilder {
 
-        private final Parameter<Boolean> indexed = Parameter.indexParam(m -> toType(m).indexed, true);
+        private final Parameter<Boolean> indexed;
         private final Parameter<Boolean> hasDocValues = Parameter.docValuesParam(m -> toType(m).hasDocValues, true);
         private final Parameter<Boolean> stored = Parameter.storeParam(m -> toType(m).stored, false);
 
@@ -108,20 +108,9 @@ public class IpFieldMapper extends FieldMapper {
                 IGNORE_MALFORMED_SETTING.get(indexSettings.getSettings())
             );
             this.script.precludesParameters(nullValue, ignoreMalformed);
+            this.dimension = TimeSeriesParams.dimensionParam(m -> toType(m).dimension, hasDocValues::get);
+            this.indexed = Parameter.indexParam(m -> toType(m).indexed, indexSettings, dimension);
             addScriptValidation(script, indexed, hasDocValues);
-            this.dimension = TimeSeriesParams.dimensionParam(m -> toType(m).dimension).addValidator(v -> {
-                if (v && (indexed.getValue() == false || hasDocValues.getValue() == false)) {
-                    throw new IllegalArgumentException(
-                        "Field ["
-                            + TimeSeriesParams.TIME_SERIES_DIMENSION_PARAM
-                            + "] requires that ["
-                            + indexed.name
-                            + "] and ["
-                            + hasDocValues.name
-                            + "] are true"
-                    );
-                }
-            });
         }
 
         Builder nullValue(String nullValue) {
@@ -188,6 +177,11 @@ public class IpFieldMapper extends FieldMapper {
         private IndexType indexType() {
             if (indexSettings.getIndexVersionCreated().isLegacyIndexVersion()) {
                 return hasDocValues.get() ? IndexType.archivedPoints() : IndexType.NONE;
+            }
+            if (dimension.get()
+                && indexSettings.useDocValuesSkipper()
+                && indexSettings.getIndexVersionCreated().onOrAfter(IndexVersions.TIME_SERIES_DIMENSIONS_USE_SKIPPERS)) {
+                return IndexType.skippers();
             }
             return IndexType.points(indexed.get(), hasDocValues.get());
         }
@@ -675,7 +669,11 @@ public class IpFieldMapper extends FieldMapper {
             doc.add(address);
         }
         if (hasDocValues) {
-            doc.add(new SortedSetDocValuesField(fieldType().name(), address.binaryValue()));
+            if (indexed == false) {
+                doc.add(SortedSetDocValuesField.indexedField(fieldType().name(), address.binaryValue()));
+            } else {
+                doc.add(new SortedSetDocValuesField(fieldType().name(), address.binaryValue()));
+            }
         } else if (stored || indexed) {
             context.addToFieldNames(fieldType().name());
         }

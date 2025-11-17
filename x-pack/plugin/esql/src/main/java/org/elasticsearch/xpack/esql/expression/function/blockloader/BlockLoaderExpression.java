@@ -17,18 +17,19 @@ import org.elasticsearch.index.mapper.blockloader.docvalues.fn.MvMaxLongsFromDoc
 import org.elasticsearch.index.mapper.blockloader.docvalues.fn.Utf8CodePointsFromOrdsBlockLoader;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
+import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlScalarFunction;
 import org.elasticsearch.xpack.esql.stats.SearchStats;
 
 /**
  * {@link Expression} that can be "pushed" into value loading. Most of the time
  * we load values into {@link Block}s and then run the expressions on them, but
  * sometimes it's worth short-circuiting this process and running the expression
- * in the tight loop we use for loading:
+ * in the tight loop we use for loading values.
  * <ul>
  *     <li>
- *         {@code V_COSINE(vector, [constant_vector])} - vector is ~512 floats
- *         and V_COSINE is one double. We can do this without copying the floats
- *         at all if we push.
+ *         {@code V_COSINE(vector, [constant_vector])} - a vector is ~512 floats
+ *         and V_COSINE is one double. Better yet, we can use the search index
+ *         to find the distance without even looking at all the values.
  *     </li>
  *     <li>
  *         {@code ST_CENTROID(shape)} - shapes can be quite large. Centroids
@@ -48,6 +49,7 @@ import org.elasticsearch.xpack.esql.stats.SearchStats;
  *         multivalued fields.
  *     </li>
  * </ul>
+ * NOCOMMIT see {@link EsqlScalarFunction} for a discussion around when we implement these optimizations
  * <h2>How to implement</h2>
  * <ol>
  *     <li>Implement some block loaders</li>

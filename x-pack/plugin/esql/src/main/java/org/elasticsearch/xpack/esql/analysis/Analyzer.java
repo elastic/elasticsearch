@@ -297,13 +297,15 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
 
             var attributes = mappingAsAttributes(plan.source(), esIndex.mapping());
             attributes.addAll(plan.metadataFields());
-            return new EsRelation(
+            var esRelation = new EsRelation(
                 plan.source(),
                 esIndex.name(),
                 plan.indexMode(),
                 esIndex.indexNameWithModes(),
                 attributes.isEmpty() ? NO_FIELDS : attributes
             );
+            esRelation.addResolution(esIndex.original(), esIndex.concrete());
+            return esRelation;
         }
     }
 

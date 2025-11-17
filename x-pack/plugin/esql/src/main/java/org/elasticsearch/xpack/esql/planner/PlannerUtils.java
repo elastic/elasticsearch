@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.esql.planner;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.aggregation.AggregatorMode;
@@ -155,30 +154,6 @@ public class PlannerUtils {
         return new ReducedPlan(EstimatesRowSize.estimateRowSize(estimatedRowSize, plan));
     }
 
-    /**
-     * Returns a set of concrete indices after resolving the original indices specified in the FROM command.
-     */
-    public static Set<String> planConcreteIndices(PhysicalPlan plan) {
-        if (plan == null) {
-            return Set.of();
-        }
-        var indices = new LinkedHashSet<String>();
-        forEachRelation(plan, relation -> indices.addAll(relation.concreteIndices()));
-        return indices;
-    }
-
-    /**
-     * Returns the original indices specified in the FROM command of the query. We need the original query to resolve alias filters.
-     */
-    public static String[] planOriginalIndices(PhysicalPlan plan) {
-        if (plan == null) {
-            return Strings.EMPTY_ARRAY;
-        }
-        var indices = new LinkedHashSet<String>();
-        forEachRelation(plan, relation -> indices.addAll(asList(Strings.commaDelimitedListToStringArray(relation.indexPattern()))));
-        return indices.toArray(String[]::new);
-    }
-
     public static boolean requiresSortedTimeSeriesSource(PhysicalPlan plan) {
         return plan.anyMatch(e -> {
             if (e instanceof FragmentExec f) {
@@ -188,7 +163,7 @@ public class PlannerUtils {
         });
     }
 
-    private static void forEachRelation(PhysicalPlan plan, Consumer<EsRelation> action) {
+    public static void forEachRelation(PhysicalPlan plan, Consumer<EsRelation> action) {
         plan.forEachDown(FragmentExec.class, f -> f.fragment().forEachDown(EsRelation.class, r -> {
             if (r.indexMode() != IndexMode.LOOKUP) {
                 action.accept(r);

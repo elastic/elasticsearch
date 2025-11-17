@@ -14,6 +14,7 @@ import org.elasticsearch.action.fieldcaps.FieldCapabilitiesRequest;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
 import org.elasticsearch.action.fieldcaps.IndexFieldCapabilities;
 import org.elasticsearch.action.support.IndicesOptions;
+import org.elasticsearch.action.support.IndicesOptions.CrossProjectModeOptions;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.util.Maps;
@@ -24,6 +25,7 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.xpack.esql.action.EsqlResolveFieldsAction;
 import org.elasticsearch.xpack.esql.action.EsqlResolveFieldsResponse;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
@@ -75,6 +77,22 @@ public class IndexResolver {
         .gatekeeperOptions(
             IndicesOptions.GatekeeperOptions.builder().ignoreThrottled(true).allowClosedIndices(true).allowAliasToMultipleIndices(true)
         )
+        .build();
+
+    public static final IndicesOptions FIELD_CAPS_FLAT_INDICES_OPTIONS = IndicesOptions.builder()
+        .concreteTargetOptions(IndicesOptions.ConcreteTargetOptions.ERROR_WHEN_UNAVAILABLE_TARGETS)
+        .wildcardOptions(
+            IndicesOptions.WildcardOptions.builder()
+                .matchOpen(true)
+                .matchClosed(false)
+                .includeHidden(false)
+                .allowEmptyExpressions(true)
+                .resolveAliases(true)
+        )
+        .gatekeeperOptions(
+            IndicesOptions.GatekeeperOptions.builder().ignoreThrottled(true).allowClosedIndices(true).allowAliasToMultipleIndices(true)
+        )
+        .crossProjectModeOptions(new CrossProjectModeOptions(true))
         .build();
 
     private final Client client;
@@ -134,6 +152,31 @@ public class IndexResolver {
                 l.onResponse(new Versioned<>(mergedMappings(indexWildcard, info), info.effectiveMinTransportVersion()));
             })
         );
+    }
+
+    public void resolveFlatIndicesVersioned(
+        String indexWildcard,
+        Set<String> fieldNames,
+        QueryBuilder requestFilter,
+        boolean includeAllDimensions,
+        boolean useAggregateMetricDoubleWhenNotSupported,
+        boolean useDenseVectorWhenNotSupported,
+        ActionListener<Versioned<IndexResolution>> listener
+    ) {
+        var request = createFieldCapsRequest(indexWildcard, fieldNames, requestFilter, includeAllDimensions);
+        request.includeResolvedTo(true);
+        request.indicesOptions(FIELD_CAPS_FLAT_INDICES_OPTIONS);
+        client.execute(EsqlResolveFieldsAction.TYPE, request, listener.delegateFailureAndWrap((l, response) -> {
+            FieldsInfo info = new FieldsInfo(
+                response.caps(),
+                response.caps().minTransportVersion(),
+                Build.current().isSnapshot(),
+                useAggregateMetricDoubleWhenNotSupported,
+                useDenseVectorWhenNotSupported
+            );
+            LOGGER.debug("minimum transport version {} {}", response.caps().minTransportVersion(), info.effectiveMinTransportVersion());
+            l.onResponse(new Versioned<>(mergedMappings(indexWildcard, info), info.effectiveMinTransportVersion()));
+        }));
     }
 
     /**
@@ -266,13 +309,48 @@ public class IndexResolver {
         for (FieldCapabilitiesIndexResponse ir : fieldsInfo.caps.getIndexResponses()) {
             allEmpty &= ir.get().isEmpty();
         }
+
+        var original = new HashMap<String, List<String>>();
+        var concrete = new HashMap<String, List<String>>();
+
+        for (var expression : fieldsInfo.caps.getResolvedLocally().expressions()) {
+            if (expression.localExpressions().indices().isEmpty() == false) {
+                original.computeIfAbsent(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY, k -> new ArrayList<>()).add(expression.original());
+                concrete.computeIfAbsent(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY, k -> new ArrayList<>())
+                    .addAll(expression.localExpressions().indices());
+            }
+        }
+        for (var entry : fieldsInfo.caps.getResolvedRemotely().entrySet()) {
+            var remote = entry.getKey();
+            for (var expression : entry.getValue().expressions()) {
+                if (expression.localExpressions().indices().isEmpty() == false) {
+                    original.computeIfAbsent(remote, k -> new ArrayList<>()).add(expression.original());
+                    concrete.computeIfAbsent(remote, k -> new ArrayList<>()).addAll(expression.localExpressions().indices());
+                }
+            }
+        }
+
+        LOGGER.info(
+            "--->Resolution info\nlocal {}\nremote {}",
+            fieldsInfo.caps.getResolvedLocally(),
+            fieldsInfo.caps.getResolvedRemotely()
+        );
+        LOGGER.info("--->Indices: \noriginal: {}\nconcrete: {}", original, concrete);
+
         // If all the mappings are empty we return an empty set of resolved indices to line up with QL
         // Introduced with #46775
         // We need to be able to differentiate between an empty mapping index and an empty index due to fields not being found. An empty
         // mapping index will generate no columns (important) for a query like FROM empty-mapping-index, whereas an empty result here but
         // for fields that do not exist in the index (but the index has a mapping) will result in "VerificationException Unknown column"
         // errors.
-        var index = new EsIndex(indexPattern, rootFields, allEmpty ? Map.of() : concreteIndices, partiallyUnmappedFields);
+        var index = new EsIndex(
+            indexPattern,
+            rootFields,
+            original,
+            concrete,
+            allEmpty ? Map.of() : concreteIndices,
+            partiallyUnmappedFields
+        );
         var failures = EsqlCCSUtils.groupFailuresPerCluster(fieldsInfo.caps.getFailures());
         return IndexResolution.valid(index, concreteIndices.keySet(), failures);
     }

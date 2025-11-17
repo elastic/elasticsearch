@@ -121,7 +121,9 @@ public class ES93ScalarQuantizedVectorsFormat extends KnnVectorsFormat {
 
     @Override
     public KnnVectorsReader fieldsReader(SegmentReadState state) throws IOException {
-        return new ES93FlatVectorReader(new Lucene99ScalarQuantizedVectorsReader(state, rawVectorFormat.fieldsReader(state), flatVectorScorer));
+        return new ES93FlatVectorReader(
+            new Lucene99ScalarQuantizedVectorsReader(state, rawVectorFormat.fieldsReader(state), flatVectorScorer)
+        );
     }
 
     @Override

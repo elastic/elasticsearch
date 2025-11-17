@@ -35,7 +35,6 @@ public class ES93HnswScalarQuantizedVectorsFormat extends AbstractHnswVectorsFor
     static final String NAME = "ES93HnswScalarQuantizedVectorsFormat";
     private static final int ALLOWED_BITS = (1 << 8) | (1 << 7) | (1 << 4);
 
-
     /** The minimum confidence interval */
     private static final float MINIMUM_CONFIDENCE_INTERVAL = 0.9f;
 

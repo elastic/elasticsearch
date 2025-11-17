@@ -12,7 +12,6 @@ If you are migrating from a version prior to version 9.0, you must first upgrade
 
 % ## Next version [elasticsearch-nextversion-breaking-changes]
 
-
 ## 9.2.1 [elasticsearch-9.2.1-breaking-changes]
 ```{applies_to}
 stack: ga 9.2.1
@@ -21,9 +20,6 @@ stack: ga 9.2.1
 There are no breaking changes associated with this release.
 
 ## 9.1.7 [elasticsearch-9.1.7-breaking-changes]
-```{applies_to}
-stack: ga 9.1.7
-```
 
 There are no breaking changes associated with this release.
 

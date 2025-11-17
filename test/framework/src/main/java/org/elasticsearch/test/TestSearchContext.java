@@ -562,9 +562,4 @@ public class TestSearchContext extends SearchContext {
     public IdLoader newIdLoader() {
         throw new UnsupportedOperationException();
     }
-
-    @Override
-    public IndexService indexService() {
-        return indexService;
-    }
 }

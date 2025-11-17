@@ -11,7 +11,7 @@ import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.mapper.Mapper;
-import org.elasticsearch.index.mapper.MappingLookup;
+import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.inference.ChunkingSettings;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
@@ -31,18 +31,17 @@ import java.io.IOException;
 import java.util.List;
 
 import static org.elasticsearch.xpack.inference.rank.textsimilarity.ChunkScorerConfig.DEFAULT_SIZE;
+import static org.elasticsearch.xpack.inference.rank.textsimilarity.ChunkScorerConfig.defaultChunkingSettings;
 
 public class TextSimilarityRerankingRankFeaturePhaseRankShardContext extends RerankingRankFeaturePhaseRankShardContext {
 
     private final ChunkScorerConfig chunkScorerConfig;
     private final ChunkingSettings chunkingSettings;
-    private final Chunker chunker;
 
     public TextSimilarityRerankingRankFeaturePhaseRankShardContext(String field, @Nullable ChunkScorerConfig chunkScorerConfig) {
         super(field);
         this.chunkScorerConfig = chunkScorerConfig;
         chunkingSettings = chunkScorerConfig != null ? chunkScorerConfig.chunkingSettings() : null;
-        chunker = chunkingSettings != null ? ChunkerBuilder.fromChunkingStrategy(chunkingSettings.getChunkingStrategy()) : null;
     }
 
     @Override
@@ -56,8 +55,8 @@ public class TextSimilarityRerankingRankFeaturePhaseRankShardContext extends Rer
                 if (chunkScorerConfig != null) {
                     int size = chunkScorerConfig.size() != null ? chunkScorerConfig.size() : DEFAULT_SIZE;
 
-                    MappingLookup mappingLookup = searchContext.indexService().mapperService().mappingLookup();
-                    Mapper mapper = mappingLookup.getMapper(field);
+                    SearchExecutionContext searchExecutionContext = searchContext.getSearchExecutionContext();
+                    Mapper mapper = searchExecutionContext.getMappingLookup().getMapper(field);
                     boolean isSemanticTextField = mapper instanceof SemanticTextFieldMapper;
 
                     List<ScoredChunk> scoredChunks;
@@ -66,10 +65,14 @@ public class TextSimilarityRerankingRankFeaturePhaseRankShardContext extends Rer
                         SemanticTextFieldMapper semanticTextFieldMapper = (SemanticTextFieldMapper) mapper;
                         SemanticTextFieldMapper.SemanticTextFieldType fieldType = semanticTextFieldMapper.fieldType();
 
-                        if (hasIncompatibleChunkingSettings(fieldType)) {
-                            HeaderWarning.addWarning("""
-                                Specified chunking settings do not match semantic_text embeddings, returned chunks will be scored using BM25
-                                """);
+                        // We can't guarantee that all semantic_text embeddings will be compatible with indexed chunking settings,
+                        // so we take a hard line, warning and scoring using BM25 if reranking on a semantic_text field with specified
+                        // chunking_settings.
+                        if (chunkScorerConfig.chunkingSettings() != null) {
+                            HeaderWarning.addWarning(
+                                "chunking_settings specified for semantic_text field will use BM25 for "
+                                    + "scoring instead of indexed embeddings"
+                            );
                             scoredChunks = chunkAndScoreBm25(docField.getValue().toString(), size);
                         } else {
                             scoredChunks = scoreSemanticTextChunks(searchContext, fieldType, hit, size);
@@ -90,7 +93,9 @@ public class TextSimilarityRerankingRankFeaturePhaseRankShardContext extends Rer
     }
 
     private List<ScoredChunk> chunkAndScoreBm25(String value, int size) {
-        List<Chunker.ChunkOffset> chunkOffsets = chunker.chunk(value, chunkingSettings);
+        ChunkingSettings chunkingSettingsOrDefault = chunkingSettings != null ? chunkingSettings : defaultChunkingSettings();
+        Chunker chunker = ChunkerBuilder.fromChunkingStrategy(chunkingSettingsOrDefault.getChunkingStrategy());
+        List<Chunker.ChunkOffset> chunkOffsets = chunker.chunk(value, chunkingSettingsOrDefault);
         List<String> chunks = chunkOffsets.stream().map(offset -> { return value.substring(offset.start(), offset.end()); }).toList();
 
         MemoryIndexChunkScorer scorer = new MemoryIndexChunkScorer();
@@ -109,30 +114,13 @@ public class TextSimilarityRerankingRankFeaturePhaseRankShardContext extends Rer
     ) {
         SemanticChunkScorer scorer = new SemanticChunkScorer(searchContext);
         try {
-            return scorer.scoreChunks(fieldType, hit, chunkScorerConfig.inferenceText(), size);
+            List<ScoredChunk> scoredChunks = scorer.scoreChunks(fieldType, hit, chunkScorerConfig.inferenceText(), size);
+            if (scoredChunks.isEmpty()) {
+                scoredChunks = chunkAndScoreBm25(hit.field(field).getValue().toString(), size);
+            }
+            return scoredChunks;
         } catch (IOException e) {
             throw new IllegalStateException("Could not score semantic text chunks", e);
         }
     }
-
-    private boolean hasIncompatibleChunkingSettings(SemanticTextFieldMapper.SemanticTextFieldType fieldType) {
-        //
-        // Here, I'm trying to be aggressive about detecting whether we should be able to use existing semantic_text embeddings.
-        // If no chunking settings are specified in the retriever request, we assume we are good to go.
-        // If we have specified chunking settings, we check them against the existing semantic text chunking settings
-        // and if they are equivalent, we're still good to go.
-        // This does open up a potential edge case, because chunking settings are updateable and it's possibe that the chunking
-        // settings were updated but we still have chunks with an old chunking settings that have not yet been reindexed.
-        // Our other option is to take a hard line and always return a warning if chunking settings are specified.
-        // I decided to be more lenient here to open up discussion in the POC.
-        if (chunkingSettings == null) {
-            return false;
-        }
-        ChunkingSettings semanticTextChunkingSettings = fieldType.getChunkingSettings();
-        if (semanticTextChunkingSettings == null) {
-            return false;
-        }
-        return semanticTextChunkingSettings.equals(chunkingSettings) == false;
-    }
-
 }

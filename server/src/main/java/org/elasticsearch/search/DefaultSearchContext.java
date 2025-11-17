@@ -945,9 +945,4 @@ final class DefaultSearchContext extends SearchContext {
     public IdLoader newIdLoader() {
         return IdLoader.create(indexService.mapperService());
     }
-
-    @Override
-    public IndexService indexService() {
-        return this.indexService;
-    }
 }

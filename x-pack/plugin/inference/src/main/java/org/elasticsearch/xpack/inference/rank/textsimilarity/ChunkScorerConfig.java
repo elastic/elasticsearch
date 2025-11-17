@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.inference.rank.textsimilarity;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -28,6 +29,12 @@ public class ChunkScorerConfig implements Writeable, ToXContentObject {
 
     public static final int DEFAULT_CHUNK_SIZE = 300;
     public static final int DEFAULT_SIZE = 1;
+
+    private static final TransportVersion CHUNKING_SETTINGS_ALLOW_NULL = TransportVersion.fromName("rerank.chunking_settings_allow_null");
+
+    public static ChunkingSettings defaultChunkingSettings() {
+        return defaultChunkingSettings(null);
+    }
 
     public static ChunkingSettings defaultChunkingSettings(Integer chunkSize) {
         int chunkSizeOrDefault = chunkSize != null ? chunkSize : DEFAULT_CHUNK_SIZE;
@@ -52,8 +59,14 @@ public class ChunkScorerConfig implements Writeable, ToXContentObject {
     public ChunkScorerConfig(StreamInput in) throws IOException {
         this.size = in.readOptionalVInt();
         this.inferenceText = in.readString();
-        Map<String, Object> chunkingSettingsMap = in.readGenericMap();
-        this.chunkingSettings = ChunkingSettingsBuilder.fromMap(chunkingSettingsMap);
+
+        Map<String, Object> chunkingSettingsMap;
+        if (in.getTransportVersion().supports(CHUNKING_SETTINGS_ALLOW_NULL)) {
+            chunkingSettingsMap = in.readOptionalImmutableMap(StreamInput::readString, StreamInput::readGenericValue);
+        } else {
+            chunkingSettingsMap = in.readGenericMap();
+        }
+        this.chunkingSettings = chunkingSettingsMap != null ? ChunkingSettingsBuilder.fromMap(chunkingSettingsMap) : null;
     }
 
     public ChunkScorerConfig(Integer size, ChunkingSettings chunkingSettings) {
@@ -70,7 +83,12 @@ public class ChunkScorerConfig implements Writeable, ToXContentObject {
     public void writeTo(StreamOutput out) throws IOException {
         out.writeOptionalVInt(size);
         out.writeString(inferenceText);
-        out.writeGenericMap(chunkingSettings.asMap());
+        if (out.getTransportVersion().supports(CHUNKING_SETTINGS_ALLOW_NULL)) {
+            Map<String, Object> chunkingSettingsMap = chunkingSettings != null ? chunkingSettings.asMap() : null;
+            out.writeOptionalMap(chunkingSettingsMap, StreamOutput::writeString, StreamOutput::writeGenericValue);
+        } else {
+            out.writeGenericMap(chunkingSettings.asMap());
+        }
     }
 
     public Integer size() {
@@ -122,8 +140,10 @@ public class ChunkScorerConfig implements Writeable, ToXContentObject {
         builder.startObject();
         builder.field("size", size);
         builder.field("inference_text", inferenceText);
-        builder.field("chunking_settings");
-        chunkingSettings.toXContent(builder, params);
+        if (chunkingSettings != null) {
+            builder.field("chunking_settings");
+            chunkingSettings.toXContent(builder, params);
+        }
         builder.endObject();
         return builder;
     }

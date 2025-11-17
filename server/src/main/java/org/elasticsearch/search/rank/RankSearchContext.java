@@ -547,9 +547,4 @@ public class RankSearchContext extends SearchContext {
     public IdLoader newIdLoader() {
         throw new UnsupportedOperationException();
     }
-
-    @Override
-    public IndexService indexService() {
-        return parent.indexService();
-    }
 }

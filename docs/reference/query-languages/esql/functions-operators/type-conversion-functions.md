@@ -22,6 +22,9 @@ mapped_pages:
 :::
 
 
+:::{include} ../_snippets/functions/layout/to_aggregate_metric_double.md
+:::
+
 :::{include} ../_snippets/functions/layout/to_boolean.md
 :::
 
@@ -41,6 +44,9 @@ mapped_pages:
 :::
 
 :::{include} ../_snippets/functions/layout/to_degrees.md
+:::
+
+:::{include} ../_snippets/functions/layout/to_dense_vector.md
 :::
 
 :::{include} ../_snippets/functions/layout/to_double.md

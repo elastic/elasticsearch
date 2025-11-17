@@ -19,6 +19,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.dissect.DissectParser;
 import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
@@ -60,6 +61,7 @@ import org.elasticsearch.xpack.esql.expression.function.aggregate.SummationMode;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.Match;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.MultiMatch;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.Score;
+import org.elasticsearch.xpack.esql.expression.function.fulltext.SingleFieldFullTextFunction;
 import org.elasticsearch.xpack.esql.expression.function.grouping.Bucket;
 import org.elasticsearch.xpack.esql.expression.function.grouping.Categorize;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDouble;
@@ -8123,6 +8125,95 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         assertThat(lastOverTime.filter(), instanceOf(Equals.class));
     }
 
+    public void testTranslateOverTimeWithWindow() {
+        {
+            int window = between(1, 20);
+            var query = String.format(Locale.ROOT, """
+                TS k8s
+                | STATS avg(last_over_time(network.bytes_in, %s minute)) BY TBUCKET(1 minute)
+                | LIMIT 10
+                """, window);
+            var plan = logicalOptimizerWithLatestVersion.optimize(metricsAnalyzer.analyze(parser.createStatement(query)));
+            Holder<LastOverTime> holder = new Holder<>();
+            plan.forEachExpressionDown(LastOverTime.class, holder::set);
+            assertNotNull(holder.get());
+            assertTrue(holder.get().hasWindow());
+            assertThat(holder.get().window().fold(FoldContext.small()), equalTo(Duration.ofMinutes(window)));
+        }
+        {
+            int window = between(1, 3);
+            int bucket = randomFrom(5, 10, 15, 20, 30, 60);
+            var query = String.format(Locale.ROOT, """
+                TS k8s
+                | STATS avg(last_over_time(network.bytes_in, %s hour)) BY TBUCKET(%s minute)
+                | LIMIT 10
+                """, window, bucket);
+            var plan = logicalOptimizerWithLatestVersion.optimize(metricsAnalyzer.analyze(parser.createStatement(query)));
+            Holder<LastOverTime> holder = new Holder<>();
+            plan.forEachExpressionDown(LastOverTime.class, holder::set);
+            assertNotNull(holder.get());
+            assertTrue(holder.get().hasWindow());
+            assertThat(holder.get().window().fold(FoldContext.small()), equalTo(Duration.ofHours(window)));
+        }
+        // smaller window
+        {
+            var query = """
+                TS k8s
+                | STATS sum(rate(network.total_bytes_in, 1m)) BY TBUCKET(5m)
+                | LIMIT 10
+                """;
+            var error = expectThrows(EsqlIllegalArgumentException.class, () -> {
+                logicalOptimizerWithLatestVersion.optimize(metricsAnalyzer.analyze(parser.createStatement(query)));
+            });
+            assertThat(
+                error.getMessage(),
+                equalTo(
+                    "Unsupported window [1m] for aggregate function [rate(network.total_bytes_in, 1m)]; "
+                        + "the window must be larger than the time bucket [TBUCKET(5m)] and an exact multiple of it"
+                )
+            );
+        }
+        // not supported
+        {
+            int window = randomValueOtherThanMany(n -> n % 5 == 0, () -> between(1, 30));
+            var query = String.format(Locale.ROOT, """
+                TS k8s
+                | STATS avg(last_over_time(network.bytes_in, %s minute)) BY tbucket(5 minute)
+                | LIMIT 10
+                """, window);
+            var error = expectThrows(EsqlIllegalArgumentException.class, () -> {
+                logicalOptimizerWithLatestVersion.optimize(metricsAnalyzer.analyze(parser.createStatement(query)));
+            });
+            assertThat(
+                error.getMessage(),
+                containsString("the window must be larger than the time bucket [tbucket(5 minute)] and an exact multiple of it")
+            );
+        }
+        // no time bucket
+        {
+            int window = randomIntBetween(1, 50);
+            var query = String.format(Locale.ROOT, """
+                TS k8s
+                | STATS avg(last_over_time(network.bytes_in, %s minute))
+                | LIMIT 10
+                """, window);
+            var error = expectThrows(EsqlIllegalArgumentException.class, () -> {
+                logicalOptimizerWithLatestVersion.optimize(metricsAnalyzer.analyze(parser.createStatement(query)));
+            });
+            assertThat(
+                error.getMessage(),
+                equalTo(
+                    String.format(
+                        Locale.ROOT,
+                        "Using a window in aggregation [STATS avg(last_over_time(network.bytes_in, %s minute))] "
+                            + "requires a time bucket in groupings",
+                        window
+                    )
+                )
+            );
+        }
+    }
+
     public void testMvSortInvalidOrder() {
         VerificationException e = expectThrows(VerificationException.class, () -> plan("""
             from test
@@ -9336,8 +9427,6 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
     }
 
     public void testDecayOriginMustBeLiteral() {
-        assumeTrue("requires DECAY_FUNCTION capability enabled", EsqlCapabilities.Cap.DECAY_FUNCTION.isEnabled());
-
         var query = """
             FROM employees
             | EVAL decay_result = decay(salary, salary, 10, {"offset": 5, "decay": 0.5, "type": "linear"})
@@ -9352,8 +9441,6 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
     }
 
     public void testDecayScaleMustBeLiteral() {
-        assumeTrue("requires DECAY_FUNCTION capability enabled", EsqlCapabilities.Cap.DECAY_FUNCTION.isEnabled());
-
         var query = """
             FROM employees
             | EVAL decay_result = decay(salary, 10, salary, {"offset": 5, "decay": 0.5, "type": "linear"})
@@ -9617,5 +9704,108 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         assertTrue(e.getMessage().startsWith("Found "));
         final String header = "Found 1 problem\nline ";
         assertEquals("3:24: FORK inside subquery is not supported", e.getMessage().substring(header.length()));
+    }
+
+    /*
+     * Limit[1000[INTEGER],false,false]
+     * \_Filter[MATCH(last_name{f}#8,Doe[KEYWORD])]
+     *   \_EsRelation[test][_meta_field{f}#10, emp_no{f}#4, first_name{f}#5, ge..]
+     */
+    public void testFullTextFunctionOnNull() {
+        String functionName = randomFrom("match", "match_phrase");
+        var plan = optimizedPlan(String.format(Locale.ROOT, """
+            from test
+            | where %s(null, "John") or %s(last_name, "Doe")
+            """, functionName, functionName));
+
+        // Limit[1000[INTEGER],false,false]
+        var limit = as(plan, Limit.class);
+
+        // Filter has a single match on last_name only
+        var filter = as(limit.child(), Filter.class);
+        var fullTextFunction = as(filter.condition(), SingleFieldFullTextFunction.class);
+        FieldAttribute lastName = as(fullTextFunction.field(), FieldAttribute.class);
+        assertEquals("last_name", lastName.name());
+        Literal queryLiteral = as(fullTextFunction.query(), Literal.class);
+        assertEquals(new BytesRef("Doe"), queryLiteral.value());
+
+        // EsRelation[test]
+        EsRelation relation = as(filter.child(), EsRelation.class);
+        assertEquals("test", relation.indexPattern());
+    }
+
+    public void testFullTextFunctionOnEvalNull() {
+        String functionName = randomFrom("match", "match_phrase");
+        var plan = optimizedPlan(String.format(Locale.ROOT, """
+            from test
+            | eval some_field = null
+            | where %s(some_field, "John") or %s(last_name, "Doe")
+            """, functionName, functionName));
+
+        // Eval null
+        var eval = as(plan, Eval.class);
+        assertThat(eval.fields().getFirst().child(), is(NULL));
+
+        var limit = as(eval.child(), Limit.class);
+
+        // Filter has a single match on last_name only
+        var filter = as(limit.child(), Filter.class);
+        var fullTextFunction = as(filter.condition(), SingleFieldFullTextFunction.class);
+        FieldAttribute lastName = as(fullTextFunction.field(), FieldAttribute.class);
+        assertEquals("last_name", lastName.name());
+        Literal queryLiteral = as(fullTextFunction.query(), Literal.class);
+        assertEquals(new BytesRef("Doe"), queryLiteral.value());
+
+        // EsRelation[test]
+        EsRelation relation = as(filter.child(), EsRelation.class);
+        assertEquals("test", relation.indexPattern());
+    }
+
+    /*
+     * Renaming or shadowing the @timestamp field prior to running stats with TS command is not allowed.
+     */
+    public void testTranslateMetricsAfterRenamingTimestamp() {
+        assertThat(
+            expectThrows(
+                IllegalArgumentException.class,
+                () -> logicalOptimizerWithLatestVersion.optimize(metricsAnalyzer.analyze(parser.createStatement("""
+                    TS k8s |
+                    EVAL @timestamp = region |
+                    STATS max(network.cost), count(network.eth0.rx)
+                    """)))
+            ).getMessage(),
+            containsString("""
+                Functions [count(network.eth0.rx), max(network.cost)] require a @timestamp field of type date or date_nanos \
+                to be present when run with the TS command, but it was not present.""")
+        );
+
+        assertThat(
+            expectThrows(
+                IllegalArgumentException.class,
+                () -> logicalOptimizerWithLatestVersion.optimize(metricsAnalyzer.analyze(parser.createStatement("""
+                    TS k8s |
+                    DISSECT event "%{@timestamp} %{network.total_bytes_in}" |
+                    STATS ohxqxpSqEZ = avg(network.eth0.currently_connected_clients)
+                    """)))
+            ).getMessage(),
+            containsString("""
+                Function [avg(network.eth0.currently_connected_clients)] requires a @timestamp field of type date or date_nanos \
+                to be present when run with the TS command, but it was not present.""")
+        );
+
+        // we may want to allow this later
+        assertThat(
+            expectThrows(
+                IllegalArgumentException.class,
+                () -> logicalOptimizerWithLatestVersion.optimize(metricsAnalyzer.analyze(parser.createStatement("""
+                    TS k8s |
+                    EVAL `@timestamp` = @timestamp + 1day |
+                    STATS std_dev(network.eth0.currently_connected_clients)
+                    """)))
+            ).getMessage(),
+            containsString("""
+                Function [std_dev(network.eth0.currently_connected_clients)] requires a @timestamp field of type date or date_nanos \
+                to be present when run with the TS command, but it was not present.""")
+        );
     }
 }

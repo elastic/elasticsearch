@@ -509,7 +509,7 @@ public class TransportInferenceUsageActionTests extends ESTestCase {
 
     private void givenDefaultEndpoints(String... ids) {
         for (String id : ids) {
-            when(modelRegistry.containsDefaultConfigId(id)).thenReturn(true);
+            when(modelRegistry.containsPreconfiguredInferenceEndpointId(id)).thenReturn(true);
         }
     }
 

@@ -48,8 +48,6 @@ import org.elasticsearch.index.engine.CommitStats;
 import org.elasticsearch.index.seqno.RetentionLeaseStats;
 import org.elasticsearch.index.seqno.SeqNoStats;
 import org.elasticsearch.index.shard.IndexShard;
-import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.indices.IndicesQueryCache;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.node.NodeService;
@@ -199,7 +197,8 @@ public class TransportClusterStatsAction extends TransportNodesAction<
                     null,
                     null,
                     null,
-                    Map.of()
+                    Map.of(),
+                    false
                 )
                 : new ClusterStatsResponse(
                     System.currentTimeMillis(),
@@ -211,7 +210,8 @@ public class TransportClusterStatsAction extends TransportNodesAction<
                     additionalStats.analysisStats(),
                     VersionStats.of(clusterService.state().metadata(), responses),
                     additionalStats.clusterSnapshotStats(),
-                    additionalStats.getRemoteStats()
+                    additionalStats.getRemoteStats(),
+                    request.isCPS()
                 )
         ).addListener(listener);
     }
@@ -260,12 +260,9 @@ public class TransportClusterStatsAction extends TransportNodesAction<
             false,
             false
         );
-        Map<ShardId, Long> shardIdToSharedRam = IndicesQueryCache.getSharedRamSizeForAllShards(indicesService);
         List<ShardStats> shardsStats = new ArrayList<>();
         for (IndexService indexService : indicesService) {
             for (IndexShard indexShard : indexService) {
-                // get the shared ram for this shard id (or zero if there's nothing in the map)
-                long sharedRam = shardIdToSharedRam.getOrDefault(indexShard.shardId(), 0L);
                 cancellableTask.ensureNotCancelled();
                 if (indexShard.routingEntry() != null && indexShard.routingEntry().active()) {
                     // only report on fully started shards
@@ -286,7 +283,7 @@ public class TransportClusterStatsAction extends TransportNodesAction<
                         new ShardStats(
                             indexShard.routingEntry(),
                             indexShard.shardPath(),
-                            CommonStats.getShardLevelStats(indicesService.getIndicesQueryCache(), indexShard, SHARD_STATS_FLAGS, sharedRam),
+                            CommonStats.getShardLevelStats(indicesService.getIndicesQueryCache(), indexShard, SHARD_STATS_FLAGS),
                             commitStats,
                             seqNoStats,
                             retentionLeaseStats,
@@ -317,7 +314,7 @@ public class TransportClusterStatsAction extends TransportNodesAction<
             clusterStatus,
             nodeInfo,
             nodeStats,
-            shardsStats.toArray(new ShardStats[0]),
+            shardsStats.toArray(new ShardStats[shardsStats.size()]),
             searchUsageStats,
             repositoryUsageStats,
             ccsTelemetry,
@@ -445,7 +442,7 @@ public class TransportClusterStatsAction extends TransportNodesAction<
     }
 
     private boolean doRemotes(ClusterStatsRequest request) {
-        return SearchService.CCS_COLLECT_TELEMETRY.get(settings) && request.doRemotes();
+        return SearchService.CCS_COLLECT_TELEMETRY.get(settings) && request.doRemotes() && request.isCPS() == false;
     }
 
     private class RemoteStatsFanout extends CancellableFanOut<String, RemoteClusterStatsResponse, Map<String, RemoteClusterStats>> {
@@ -479,7 +476,7 @@ public class TransportClusterStatsAction extends TransportNodesAction<
         @Override
         protected void onItemResponse(String clusterAlias, RemoteClusterStatsResponse response) {
             if (response != null) {
-                remoteClustersStats.computeIfPresent(clusterAlias, (ignored, v) -> v.acceptResponse(response));
+                remoteClustersStats.computeIfPresent(clusterAlias, (k, v) -> v.acceptResponse(response));
             }
         }
 

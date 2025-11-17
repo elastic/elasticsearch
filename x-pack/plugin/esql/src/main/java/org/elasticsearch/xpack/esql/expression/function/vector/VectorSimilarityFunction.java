@@ -228,15 +228,30 @@ public abstract class VectorSimilarityFunction extends BinaryScalarFunction
         }
 
         List<?> vectorList = (List<?>) literal.value();
-        float[] vectorArray = new float[vectorList.size()];
-        for (int i = 0; i < vectorList.size(); i++) {
-            vectorArray[i] = ((Number) vectorList.get(i)).floatValue();
+        DenseVectorFieldMapper.ElementType elementType = null;
+        var fieldType = stats.fieldType(field.fieldName());
+        if (fieldType instanceof DenseVectorFieldMapper.DenseVectorFieldType) {
+            elementType = ((DenseVectorFieldMapper.DenseVectorFieldType) fieldType).getElementType();
         }
-
-        return new PushedBlockLoaderExpression(
-            field,
-            new DenseVectorFieldMapper.VectorSimilarityFunctionConfig(getSimilarityFunction(), vectorArray)
-        );
+        if (elementType == null || elementType == DenseVectorFieldMapper.ElementType.FLOAT) {
+            float[] floatVector = new float[vectorList.size()];
+            for (int i = 0; i < vectorList.size(); i++) {
+                floatVector[i] = ((Number) vectorList.get(i)).floatValue();
+            }
+            return new PushedBlockLoaderExpression(
+                field,
+                new DenseVectorFieldMapper.VectorSimilarityFunctionConfig(getSimilarityFunction(), floatVector)
+            );
+        } else {
+            byte[] byteVector = new byte[vectorList.size()];
+            for (int i = 0; i < vectorList.size(); i++) {
+                byteVector[i] = ((Number) vectorList.get(i)).byteValue();
+            }
+            return new PushedBlockLoaderExpression(
+                field,
+                new DenseVectorFieldMapper.VectorSimilarityFunctionConfig(getSimilarityFunction(), byteVector)
+            );
+        }
     }
 
     interface VectorValueProvider extends Releasable {

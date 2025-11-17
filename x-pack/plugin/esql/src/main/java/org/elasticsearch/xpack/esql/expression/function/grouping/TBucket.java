@@ -14,14 +14,17 @@ import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.SurrogateExpression;
+import org.elasticsearch.xpack.esql.expression.function.ConfigurationFunction;
 import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionType;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.expression.function.TimestampAware;
+import org.elasticsearch.xpack.esql.session.Configuration;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Objects;
 
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.DEFAULT;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.IMPLICIT;
@@ -30,9 +33,14 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isTyp
 /**
  * Splits dates into a given number of buckets. The span is derived from a time range provided.
  */
-public class TBucket extends GroupingFunction.EvaluatableGroupingFunction implements SurrogateExpression, TimestampAware {
+public class TBucket extends GroupingFunction.EvaluatableGroupingFunction
+    implements
+        SurrogateExpression,
+        TimestampAware,
+        ConfigurationFunction {
     public static final String NAME = "TBucket";
 
+    private final Configuration configuration;
     private final Expression buckets;
     private final Expression timestamp;
 
@@ -63,11 +71,13 @@ public class TBucket extends GroupingFunction.EvaluatableGroupingFunction implem
     public TBucket(
         Source source,
         @Param(name = "buckets", type = { "date_period", "time_duration" }, description = "Desired bucket size.") Expression buckets,
-        Expression timestamp
+        Expression timestamp,
+        Configuration configuration
     ) {
         super(source, List.of(buckets, timestamp));
         this.buckets = buckets;
         this.timestamp = timestamp;
+        this.configuration = configuration;
     }
 
     @Override
@@ -87,7 +97,7 @@ public class TBucket extends GroupingFunction.EvaluatableGroupingFunction implem
 
     @Override
     public Expression surrogate() {
-        return new Bucket(source(), timestamp, buckets, null, null);
+        return new Bucket(source(), timestamp, buckets, null, null, configuration);
     }
 
     @Override
@@ -107,12 +117,12 @@ public class TBucket extends GroupingFunction.EvaluatableGroupingFunction implem
 
     @Override
     public Expression replaceChildren(List<Expression> newChildren) {
-        return new TBucket(source(), newChildren.get(0), newChildren.get(1));
+        return new TBucket(source(), newChildren.get(0), newChildren.get(1), configuration);
     }
 
     @Override
     protected NodeInfo<? extends Expression> info() {
-        return NodeInfo.create(this, TBucket::new, buckets, timestamp);
+        return NodeInfo.create(this, TBucket::new, buckets, timestamp, configuration);
     }
 
     @Override
@@ -127,5 +137,20 @@ public class TBucket extends GroupingFunction.EvaluatableGroupingFunction implem
     @Override
     public String toString() {
         return "TBucket{buckets=" + buckets + "}";
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(getClass(), children(), configuration);
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+        if (super.equals(obj) == false) {
+            return false;
+        }
+        TBucket other = (TBucket) obj;
+
+        return configuration.equals(other.configuration);
     }
 }

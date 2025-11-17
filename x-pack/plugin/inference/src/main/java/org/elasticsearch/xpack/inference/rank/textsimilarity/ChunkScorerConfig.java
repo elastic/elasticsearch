@@ -29,7 +29,7 @@ public class ChunkScorerConfig implements Writeable, ToXContentObject {
     public static final int DEFAULT_CHUNK_SIZE = 300;
     public static final int DEFAULT_SIZE = 1;
 
-    public static ChunkingSettings createChunkingSettings(Integer chunkSize) {
+    public static ChunkingSettings defaultChunkingSettings(Integer chunkSize) {
         int chunkSizeOrDefault = chunkSize != null ? chunkSize : DEFAULT_CHUNK_SIZE;
         ChunkingSettings chunkingSettings = new SentenceBoundaryChunkingSettings(chunkSizeOrDefault, 0);
         chunkingSettings.validate();
@@ -39,11 +39,11 @@ public class ChunkScorerConfig implements Writeable, ToXContentObject {
     public static ChunkingSettings chunkingSettingsFromMap(Map<String, Object> map) {
 
         if (map == null || map.isEmpty()) {
-            return createChunkingSettings(DEFAULT_CHUNK_SIZE);
+            return null;
         }
 
         if (map.size() == 1 && map.containsKey("max_chunk_size")) {
-            return createChunkingSettings((Integer) map.get("max_chunk_size"));
+            return defaultChunkingSettings((Integer) map.get("max_chunk_size"));
         }
 
         return ChunkingSettingsBuilder.fromMap(map);

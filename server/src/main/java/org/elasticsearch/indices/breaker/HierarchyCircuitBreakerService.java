@@ -445,9 +445,7 @@ public class HierarchyCircuitBreakerService extends CircuitBreakerService {
         Map<String, CircuitBreaker> breakers
     ) {
         final var message = new StringBuilder();
-        message.append("[parent] Data too large, data for [");
-        message.append(label);
-        message.append("] would be [");
+        message.append("[parent] Data too large, data for [parent] would be [");
         appendBytesSafe(message, memoryUsed.totalUsage);
         message.append("], which is larger than the limit of [");
         appendBytesSafe(message, parentLimit);
@@ -456,7 +454,9 @@ public class HierarchyCircuitBreakerService extends CircuitBreakerService {
             final long realUsage = memoryUsed.baseUsage;
             message.append(", real usage: [");
             appendBytesSafe(message, realUsage);
-            message.append("], new bytes reserved: [");
+            message.append("], new bytes reserved for [");
+            message.append(label);
+            message.append("]: [");
             appendBytesSafe(message, newBytesReserved);
             message.append("]");
         }

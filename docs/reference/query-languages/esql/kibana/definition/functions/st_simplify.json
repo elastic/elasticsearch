@@ -78,7 +78,7 @@
     }
   ],
   "examples" : [
-    null
+    "FROM airports\n| SORT name\n| LIMIT 5\n| EVAL result = st_simplify(location, 0.0)\n| KEEP location, result"
   ],
   "preview" : false,
   "snapshot_only" : false

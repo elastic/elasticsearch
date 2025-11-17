@@ -29,7 +29,6 @@ import org.locationtech.jts.simplify.DouglasPeuckerSimplifier;
 import java.io.IOException;
 import java.util.List;
 
-import static org.elasticsearch.xpack.esql.core.type.DataType.GEO_SHAPE;
 import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.UNSPECIFIED;
 
 public class StSimplify extends EsqlScalarFunction {
@@ -42,7 +41,7 @@ public class StSimplify extends EsqlScalarFunction {
     Expression tolerance;
 
     @FunctionInfo(
-        returnType = "geo_shape",
+        returnType = { "geo_point", "geo_shape", "cartesian_point", "cartesian_shape" },
         description = "Simplifies the input geometry with a given tolerance.",
         examples = @Example(file = "spatial", tag = "st_simplify")
     )
@@ -67,7 +66,7 @@ public class StSimplify extends EsqlScalarFunction {
 
     @Override
     public DataType dataType() {
-        return GEO_SHAPE;
+        return geometry.dataType();
     }
 
     @Override

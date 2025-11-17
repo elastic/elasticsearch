@@ -4,5 +4,9 @@
 Simplifies the input geometry with a given tolerance.
 
 ```esql
-null
+FROM airports
+| SORT name
+| LIMIT 5
+| EVAL result = st_simplify(location, 0.0)
+| KEEP location, result
 ```

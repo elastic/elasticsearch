@@ -92,6 +92,7 @@ public class DenseVectorFieldTypeTests extends FieldTypeTestCase {
                 randomIntBetween(1, 100),
                 randomIntBetween(1, 3199),
                 randomFrom((Float) null, 0f, (float) randomDoubleBetween(0.9, 1.0, true)),
+                randomBoolean(),
                 randomFrom((DenseVectorFieldMapper.RescoreVector) null, randomRescoreVector())
             )
         );
@@ -114,12 +115,14 @@ public class DenseVectorFieldTypeTests extends FieldTypeTestCase {
                     randomIntBetween(1, 100),
                     randomIntBetween(1, 10_000),
                     randomFrom((Float) null, 0f, (float) randomDoubleBetween(0.9, 1.0, true)),
+                    randomBoolean(),
                     randomFrom((DenseVectorFieldMapper.RescoreVector) null, randomRescoreVector())
                 ),
                 new DenseVectorFieldMapper.Int4HnswIndexOptions(
                     randomIntBetween(1, 100),
                     randomIntBetween(1, 10_000),
                     randomFrom((Float) null, 0f, (float) randomDoubleBetween(0.9, 1.0, true)),
+                    randomBoolean(),
                     randomFrom((DenseVectorFieldMapper.RescoreVector) null, randomRescoreVector())
                 ),
                 new DenseVectorFieldMapper.FlatIndexOptions(),
@@ -167,12 +170,14 @@ public class DenseVectorFieldTypeTests extends FieldTypeTestCase {
                 randomIntBetween(1, 100),
                 randomIntBetween(1, 10_000),
                 randomFrom((Float) null, 0f, (float) randomDoubleBetween(0.9, 1.0, true)),
+                randomBoolean(),
                 rescoreVector
             ),
             new DenseVectorFieldMapper.Int4HnswIndexOptions(
                 randomIntBetween(1, 100),
                 randomIntBetween(1, 10_000),
                 randomFrom((Float) null, 0f, (float) randomDoubleBetween(0.9, 1.0, true)),
+                randomBoolean(),
                 rescoreVector
             ),
             new DenseVectorFieldMapper.BBQHnswIndexOptions(

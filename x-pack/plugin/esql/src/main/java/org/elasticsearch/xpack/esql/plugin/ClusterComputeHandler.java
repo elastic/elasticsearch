@@ -128,8 +128,6 @@ final class ClusterComputeHandler implements TransportRequestHandler<ClusterComp
                 }))) {
                     var remotePlan = new RemoteClusterPlan(plan, cluster.concreteIndices, cluster.originalIndices);
                     var clusterRequest = new ClusterComputeRequest(clusterAlias, childSessionId, configuration, remotePlan);
-                    assert clusterRequest.allowsCrossProject();
-                    assert clusterRequest.indicesOptions().resolveCrossProjectIndexExpression();
                     final ActionListener<ComputeResponse> clusterListener = computeListener.acquireCompute().map(r -> {
                         finalResponse.set(r);
                         return r.getCompletionInfo();

@@ -14,6 +14,7 @@ import org.apache.lucene.document.InetAddressPoint;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.compute.data.AggregateMetricDoubleBlockBuilder;
+import org.elasticsearch.exponentialhistogram.ExponentialHistogram;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -54,7 +55,8 @@ public class MaxTests extends AbstractAggregationTestCase {
             MultiRowTestCaseSupplier.ipCases(1, 1000),
             MultiRowTestCaseSupplier.versionCases(1, 1000),
             MultiRowTestCaseSupplier.stringCases(1, 1000, DataType.KEYWORD),
-            MultiRowTestCaseSupplier.stringCases(1, 1000, DataType.TEXT)
+            MultiRowTestCaseSupplier.stringCases(1, 1000, DataType.TEXT),
+            MultiRowTestCaseSupplier.exponentialHistogramCases(1, 100)
         ).flatMap(List::stream).map(MaxTests::makeSupplier).collect(Collectors.toCollection(() -> suppliers));
 
         FunctionAppliesTo unsignedLongAppliesTo = appliesTo(FunctionAppliesToLifecycle.GA, "9.2.0", "", true);
@@ -212,7 +214,8 @@ public class MaxTests extends AbstractAggregationTestCase {
     private static TestCaseSupplier makeSupplier(TestCaseSupplier.TypedDataSupplier fieldSupplier) {
         return new TestCaseSupplier(fieldSupplier.name(), List.of(fieldSupplier.type()), () -> {
             var fieldTypedData = fieldSupplier.get();
-            Comparable<? super Comparable<?>> expected;
+            Comparable<?> expected;
+            DataType expectedReturnType;
 
             if (fieldSupplier.type() == DataType.AGGREGATE_METRIC_DOUBLE) {
                 expected = fieldTypedData.multiRowData()
@@ -223,18 +226,29 @@ public class MaxTests extends AbstractAggregationTestCase {
                     )
                     .max(Comparator.naturalOrder())
                     .orElse(null);
+                expectedReturnType = DataType.DOUBLE;
+            } else if (fieldSupplier.type() == DataType.EXPONENTIAL_HISTOGRAM) {
+                expected = fieldTypedData.multiRowData()
+                    .stream()
+                    .map(obj -> (ExponentialHistogram) obj)
+                    .filter(histo -> histo.valueCount() > 0) // only non-empty histograms have an influence
+                    .map(ExponentialHistogram::max)
+                    .min(Comparator.naturalOrder())
+                    .orElse(null);
+                expectedReturnType = DataType.DOUBLE;
             } else {
                 expected = fieldTypedData.multiRowData()
                     .stream()
                     .map(v -> (Comparable<? super Comparable<?>>) v)
                     .max(Comparator.naturalOrder())
                     .orElse(null);
+                expectedReturnType = fieldSupplier.type();
             }
 
             return new TestCaseSupplier.TestCase(
                 List.of(fieldTypedData),
                 standardAggregatorName("Max", fieldSupplier.type()),
-                fieldSupplier.type() == DataType.AGGREGATE_METRIC_DOUBLE ? DataType.DOUBLE : fieldSupplier.type(),
+                expectedReturnType,
                 equalTo(expected)
             );
         });

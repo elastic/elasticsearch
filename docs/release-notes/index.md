@@ -21,9 +21,6 @@ To check for security updates, go to [Security announcements for the Elastic sta
 % *
 
 ## 9.1.7 [elasticsearch-9.1.7-release-notes]
-```{applies_to}
-stack: ga 9.1.7
-```
 
 ### Features and enhancements [elasticsearch-9.1.7-features-enhancements]
 
@@ -77,8 +74,6 @@ Search:
 * Make `MutableSearchResponse` ref-counted to prevent use-after-close in async search [#134359](https://github.com/elastic/elasticsearch/pull/134359)
 * Remove early phase failure in batched [#136889](https://github.com/elastic/elasticsearch/pull/136889) (issue: [#134151](https://github.com/elastic/elasticsearch/issues/134151))
 * [LTR] Fix feature display order when using explain [#137671](https://github.com/elastic/elasticsearch/pull/137671)
-
-
 
 ## 9.2.1 [elasticsearch-9.2.1-release-notes]
 
@@ -171,8 +166,6 @@ TSDB:
 Vector Search:
 * Use Suppliers To Get Inference Results In Semantic Queries [#136720](https://github.com/elastic/elasticsearch/pull/136720) (issue: [#136621](https://github.com/elastic/elasticsearch/issues/136621))
 
-
-
 ## 9.1.6 [elasticsearch-9.1.6-release-notes]
 
 ### Features and enhancements [elasticsearch-9.1.6-features-enhancements]
@@ -262,7 +255,7 @@ PUT vectors
  {
    "mappings": {
      "properties": {
-       "vector": {"type": "dense_vector", "index_options": {"type": "disk_bbq"}
+       "vector": {"type": "dense_vector", "index_options": {"type": "bbq_disk"}
      }
    }
  }
@@ -467,6 +460,9 @@ Machine Learning:
 * Track inference deployments [#131442](https://github.com/elastic/elasticsearch/pull/131442)
 * [ML] Add Azure AI Rerank support to the Inference Plugin [#129848](https://github.com/elastic/elasticsearch/pull/129848)
 * [ML] Add IBM watsonx Completion and Chat Completion support to the Inference Plugin [#129146](https://github.com/elastic/elasticsearch/pull/129146)
+* Update the PyTorch library to version 2.7.1 [#2863](https://github.com/elastic/ml-cpp/pull/2863)
+* Report the actual memory usage of the autodetect process [#2846](https://github.com/elastic/ml-cpp/pull/2846)
+* Improve adherence to memory limits for the bucket gatherer [#2848](https://github.com/elastic/ml-cpp/pull/2848)
 
 Mapping:
 * Add new `pattern_text` field mapper in tech preview [#135370](https://github.com/elastic/elasticsearch/pull/135370)

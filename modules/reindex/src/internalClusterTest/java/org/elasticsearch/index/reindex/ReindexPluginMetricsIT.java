@@ -36,7 +36,7 @@ import static org.elasticsearch.reindex.ReindexMetrics.ATTRIBUTE_NAME_ERROR_TYPE
 import static org.elasticsearch.reindex.ReindexMetrics.ATTRIBUTE_NAME_SOURCE;
 import static org.elasticsearch.reindex.ReindexMetrics.ATTRIBUTE_VALUE_SOURCE_LOCAL;
 import static org.elasticsearch.reindex.ReindexMetrics.ATTRIBUTE_VALUE_SOURCE_REMOTE;
-import static org.elasticsearch.reindex.ReindexMetrics.REINDEX_COMPLETION_HISTOGRAM;
+import static org.elasticsearch.reindex.ReindexMetrics.REINDEX_COMPLETION_COUNTER;
 import static org.elasticsearch.reindex.ReindexMetrics.REINDEX_TIME_HISTOGRAM;
 import static org.elasticsearch.reindex.UpdateByQueryMetrics.UPDATE_BY_QUERY_TIME_HISTOGRAM;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
@@ -111,7 +111,7 @@ public class ReindexPluginMetricsIT extends ESIntegTestCase {
         assertBusy(() -> {
             testTelemetryPlugin.collect();
             assertThat(testTelemetryPlugin.getLongHistogramMeasurement(REINDEX_TIME_HISTOGRAM).size(), equalTo(1));
-            List<Measurement> completions = testTelemetryPlugin.getLongHistogramMeasurement(REINDEX_COMPLETION_HISTOGRAM);
+            List<Measurement> completions = testTelemetryPlugin.getLongCounterMeasurement(REINDEX_COMPLETION_COUNTER);
             assertThat(completions.size(), equalTo(1));
             assertThat(completions.getFirst().attributes().get(ATTRIBUTE_NAME_ERROR_TYPE), equalTo(expectedException.status().name()));
             assertThat(completions.getFirst().attributes().get(ATTRIBUTE_NAME_SOURCE), equalTo(ATTRIBUTE_VALUE_SOURCE_REMOTE));
@@ -127,7 +127,7 @@ public class ReindexPluginMetricsIT extends ESIntegTestCase {
         assertBusy(() -> {
             testTelemetryPlugin.collect();
             assertThat(testTelemetryPlugin.getLongHistogramMeasurement(REINDEX_TIME_HISTOGRAM).size(), equalTo(2));
-            List<Measurement> completions = testTelemetryPlugin.getLongHistogramMeasurement(REINDEX_COMPLETION_HISTOGRAM);
+            List<Measurement> completions = testTelemetryPlugin.getLongCounterMeasurement(REINDEX_COMPLETION_COUNTER);
             assertThat(completions.size(), equalTo(2));
             assertNull(completions.get(1).attributes().get(ATTRIBUTE_NAME_ERROR_TYPE));
             assertThat(completions.get(1).attributes().get(ATTRIBUTE_NAME_SOURCE), equalTo(ATTRIBUTE_VALUE_SOURCE_REMOTE));
@@ -158,7 +158,7 @@ public class ReindexPluginMetricsIT extends ESIntegTestCase {
         assertBusy(() -> {
             testTelemetryPlugin.collect();
             assertThat(testTelemetryPlugin.getLongHistogramMeasurement(REINDEX_TIME_HISTOGRAM).size(), equalTo(1));
-            assertThat(testTelemetryPlugin.getLongHistogramMeasurement(REINDEX_COMPLETION_HISTOGRAM).size(), equalTo(1));
+            assertThat(testTelemetryPlugin.getLongCounterMeasurement(REINDEX_COMPLETION_COUNTER).size(), equalTo(1));
         });
 
         // Now none of them
@@ -167,7 +167,7 @@ public class ReindexPluginMetricsIT extends ESIntegTestCase {
         assertBusy(() -> {
             testTelemetryPlugin.collect();
             assertThat(testTelemetryPlugin.getLongHistogramMeasurement(REINDEX_TIME_HISTOGRAM).size(), equalTo(2));
-            assertThat(testTelemetryPlugin.getLongHistogramMeasurement(REINDEX_COMPLETION_HISTOGRAM).size(), equalTo(2));
+            assertThat(testTelemetryPlugin.getLongCounterMeasurement(REINDEX_COMPLETION_COUNTER).size(), equalTo(2));
         });
 
         // Now half of them
@@ -175,7 +175,7 @@ public class ReindexPluginMetricsIT extends ESIntegTestCase {
         assertBusy(() -> {
             testTelemetryPlugin.collect();
             assertThat(testTelemetryPlugin.getLongHistogramMeasurement(REINDEX_TIME_HISTOGRAM).size(), equalTo(3));
-            assertThat(testTelemetryPlugin.getLongHistogramMeasurement(REINDEX_COMPLETION_HISTOGRAM).size(), equalTo(3));
+            assertThat(testTelemetryPlugin.getLongCounterMeasurement(REINDEX_COMPLETION_COUNTER).size(), equalTo(3));
         });
 
         // Limit with maxDocs
@@ -183,10 +183,10 @@ public class ReindexPluginMetricsIT extends ESIntegTestCase {
         assertBusy(() -> {
             testTelemetryPlugin.collect();
             assertThat(testTelemetryPlugin.getLongHistogramMeasurement(REINDEX_TIME_HISTOGRAM).size(), equalTo(4));
-            assertThat(testTelemetryPlugin.getLongHistogramMeasurement(REINDEX_COMPLETION_HISTOGRAM).size(), equalTo(4));
+            assertThat(testTelemetryPlugin.getLongCounterMeasurement(REINDEX_COMPLETION_COUNTER).size(), equalTo(4));
 
             // asset all metric attributes are correct
-            testTelemetryPlugin.getLongHistogramMeasurement(REINDEX_COMPLETION_HISTOGRAM).forEach(m -> {
+            testTelemetryPlugin.getLongCounterMeasurement(REINDEX_COMPLETION_COUNTER).forEach(m -> {
                 assertNull(m.attributes().get(ATTRIBUTE_NAME_ERROR_TYPE));
                 assertThat(m.attributes().get(ATTRIBUTE_NAME_SOURCE), equalTo(ATTRIBUTE_VALUE_SOURCE_LOCAL));
             });
@@ -210,9 +210,9 @@ public class ReindexPluginMetricsIT extends ESIntegTestCase {
         assertBusy(() -> {
             testTelemetryPlugin.collect();
             assertThat(testTelemetryPlugin.getLongHistogramMeasurement(REINDEX_TIME_HISTOGRAM).size(), equalTo(1));
-            assertThat(testTelemetryPlugin.getLongHistogramMeasurement(REINDEX_COMPLETION_HISTOGRAM).size(), equalTo(1));
+            assertThat(testTelemetryPlugin.getLongCounterMeasurement(REINDEX_COMPLETION_COUNTER).size(), equalTo(1));
             assertThat(
-                testTelemetryPlugin.getLongHistogramMeasurement(REINDEX_COMPLETION_HISTOGRAM)
+                testTelemetryPlugin.getLongCounterMeasurement(REINDEX_COMPLETION_COUNTER)
                     .getFirst()
                     .attributes()
                     .get(ATTRIBUTE_NAME_ERROR_TYPE),

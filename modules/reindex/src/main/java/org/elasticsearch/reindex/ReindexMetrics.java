@@ -10,6 +10,7 @@
 package org.elasticsearch.reindex;
 
 import org.elasticsearch.ElasticsearchStatusException;
+import org.elasticsearch.telemetry.metric.LongCounter;
 import org.elasticsearch.telemetry.metric.LongHistogram;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
 
@@ -19,7 +20,7 @@ import java.util.Map;
 public class ReindexMetrics {
 
     public static final String REINDEX_TIME_HISTOGRAM = "es.reindex.duration.histogram";
-    public static final String REINDEX_COMPLETION_HISTOGRAM = "es.reindex.completion.histogram";
+    public static final String REINDEX_COMPLETION_COUNTER = "es.reindex.completion.counter";
 
     // refers to https://opentelemetry.io/docs/specs/semconv/registry/attributes/error/#error-type
     public static final String ATTRIBUTE_NAME_ERROR_TYPE = "error.type";
@@ -29,12 +30,12 @@ public class ReindexMetrics {
     public static final String ATTRIBUTE_VALUE_SOURCE_REMOTE = "remote";
 
     private final LongHistogram reindexTimeSecsHistogram;
-    private final LongHistogram reindexCompletionHistogram;
+    private final LongCounter reindexCompletionHistogram;
 
     public ReindexMetrics(MeterRegistry meterRegistry) {
         this.reindexTimeSecsHistogram = meterRegistry.registerLongHistogram(REINDEX_TIME_HISTOGRAM, "Time to reindex by search", "seconds");
-        this.reindexCompletionHistogram = meterRegistry.registerLongHistogram(
-            REINDEX_COMPLETION_HISTOGRAM,
+        this.reindexCompletionHistogram = meterRegistry.registerLongCounter(
+            REINDEX_COMPLETION_COUNTER,
             "Number of completed reindex operations",
             "unit"
         );
@@ -52,7 +53,7 @@ public class ReindexMetrics {
         // attribute ATTRIBUTE_ERROR_TYPE being absent indicates success
         assert attributes.get(ATTRIBUTE_NAME_ERROR_TYPE) == null : "error.type attribute must not be present for successes";
 
-        reindexCompletionHistogram.record(1L, attributes);
+        reindexCompletionHistogram.incrementBy(1, attributes);
     }
 
     public void recordFailure(boolean remote, Throwable e) {
@@ -70,7 +71,7 @@ public class ReindexMetrics {
         // https://opentelemetry.io/docs/specs/semconv/general/recording-errors/#recording-errors-on-metrics
         assert attributes.get(ATTRIBUTE_NAME_ERROR_TYPE) != null : "error.type attribute must be present for failures";
 
-        reindexCompletionHistogram.record(1L, attributes);
+        reindexCompletionHistogram.incrementBy(1, attributes);
     }
 
     private Map<String, Object> getAttributes(boolean remote) {

@@ -23,7 +23,7 @@ import static org.elasticsearch.reindex.ReindexMetrics.ATTRIBUTE_NAME_ERROR_TYPE
 import static org.elasticsearch.reindex.ReindexMetrics.ATTRIBUTE_NAME_SOURCE;
 import static org.elasticsearch.reindex.ReindexMetrics.ATTRIBUTE_VALUE_SOURCE_LOCAL;
 import static org.elasticsearch.reindex.ReindexMetrics.ATTRIBUTE_VALUE_SOURCE_REMOTE;
-import static org.elasticsearch.reindex.ReindexMetrics.REINDEX_COMPLETION_HISTOGRAM;
+import static org.elasticsearch.reindex.ReindexMetrics.REINDEX_COMPLETION_COUNTER;
 import static org.elasticsearch.reindex.ReindexMetrics.REINDEX_TIME_HISTOGRAM;
 
 public class ReindexMetricsTests extends ESTestCase {
@@ -64,8 +64,7 @@ public class ReindexMetricsTests extends ESTestCase {
         // first metric
         metrics.recordSuccess(false);
 
-        List<Measurement> measurements = registry.getRecorder()
-            .getMeasurements(InstrumentType.LONG_HISTOGRAM, REINDEX_COMPLETION_HISTOGRAM);
+        List<Measurement> measurements = registry.getRecorder().getMeasurements(InstrumentType.LONG_COUNTER, REINDEX_COMPLETION_COUNTER);
         assertEquals(1, measurements.size());
         assertEquals(1, measurements.getFirst().getLong());
         assertEquals(ATTRIBUTE_VALUE_SOURCE_LOCAL, measurements.getFirst().attributes().get(ATTRIBUTE_NAME_SOURCE));
@@ -74,7 +73,7 @@ public class ReindexMetricsTests extends ESTestCase {
         // second metric
         metrics.recordSuccess(true);
 
-        measurements = registry.getRecorder().getMeasurements(InstrumentType.LONG_HISTOGRAM, REINDEX_COMPLETION_HISTOGRAM);
+        measurements = registry.getRecorder().getMeasurements(InstrumentType.LONG_COUNTER, REINDEX_COMPLETION_COUNTER);
         assertEquals(2, measurements.size());
         assertEquals(1, measurements.get(1).getLong());
         assertEquals(ATTRIBUTE_VALUE_SOURCE_REMOTE, measurements.get(1).attributes().get(ATTRIBUTE_NAME_SOURCE));
@@ -85,19 +84,20 @@ public class ReindexMetricsTests extends ESTestCase {
         // first metric
         metrics.recordFailure(false, new IllegalArgumentException("random failure"));
 
-        List<Measurement> measurements = registry.getRecorder()
-            .getMeasurements(InstrumentType.LONG_HISTOGRAM, REINDEX_COMPLETION_HISTOGRAM);
+        List<Measurement> measurements = registry.getRecorder().getMeasurements(InstrumentType.LONG_COUNTER, REINDEX_COMPLETION_COUNTER);
         assertEquals(1, measurements.size());
         assertEquals(1, measurements.getFirst().getLong());
         assertEquals("java.lang.IllegalArgumentException", measurements.getFirst().attributes().get(ATTRIBUTE_NAME_ERROR_TYPE));
+        assertEquals(ATTRIBUTE_VALUE_SOURCE_LOCAL, measurements.getFirst().attributes().get(ATTRIBUTE_NAME_SOURCE));
 
         // second metric
         metrics.recordFailure(true, new ElasticsearchStatusException("another failure", RestStatus.BAD_REQUEST));
 
-        measurements = registry.getRecorder().getMeasurements(InstrumentType.LONG_HISTOGRAM, REINDEX_COMPLETION_HISTOGRAM);
+        measurements = registry.getRecorder().getMeasurements(InstrumentType.LONG_COUNTER, REINDEX_COMPLETION_COUNTER);
         assertEquals(2, measurements.size());
         assertEquals(1, measurements.getFirst().getLong());
         assertEquals(1, measurements.get(1).getLong());
         assertEquals(RestStatus.BAD_REQUEST.name(), measurements.get(1).attributes().get(ATTRIBUTE_NAME_ERROR_TYPE));
+        assertEquals(ATTRIBUTE_VALUE_SOURCE_REMOTE, measurements.get(1).attributes().get(ATTRIBUTE_NAME_SOURCE));
     }
 }

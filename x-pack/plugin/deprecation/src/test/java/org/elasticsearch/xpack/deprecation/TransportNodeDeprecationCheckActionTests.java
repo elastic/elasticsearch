@@ -16,9 +16,11 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.DiskUsage;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.routing.allocation.DiskThresholdSettings;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.test.ESTestCase;
@@ -26,17 +28,25 @@ import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.deprecation.DeprecationIssue;
+import org.hamcrest.BaseMatcher;
+import org.hamcrest.Description;
+import org.hamcrest.Matcher;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
 import org.mockito.Mockito;
 
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 
+import static org.elasticsearch.common.settings.ClusterSettings.BUILT_IN_CLUSTER_SETTINGS;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasItem;
+import static org.hamcrest.Matchers.hasSize;
 import static org.mockito.Mockito.when;
 
 public class TransportNodeDeprecationCheckActionTests extends ESTestCase {
@@ -98,7 +108,6 @@ public class TransportNodeDeprecationCheckActionTests extends ESTestCase {
             actionFilters,
             clusterInfoService
         );
-        NodesDeprecationCheckAction.NodeRequest nodeRequest = null;
         AtomicReference<Settings> visibleNodeSettings = new AtomicReference<>();
         AtomicReference<Settings> visibleClusterStateMetadataSettings = new AtomicReference<>();
         NodeDeprecationChecks.NodeDeprecationCheck<
@@ -118,7 +127,7 @@ public class TransportNodeDeprecationCheckActionTests extends ESTestCase {
                 ClusterState,
                 XPackLicenseState,
                 DeprecationIssue>> nodeSettingsChecks = List.of(nodeSettingCheck);
-        transportNodeDeprecationCheckAction.nodeOperation(nodeRequest, nodeSettingsChecks);
+        transportNodeDeprecationCheckAction.nodeOperation(nodeSettingsChecks);
         settingsBuilder = Settings.builder();
         settingsBuilder.put("some.undeprecated.property", "someValue3");
         settingsBuilder.putList("some.undeprecated.list.property", List.of("someValue4", "someValue5"));
@@ -137,7 +146,7 @@ public class TransportNodeDeprecationCheckActionTests extends ESTestCase {
             .putList(TransportDeprecationInfoAction.SKIP_DEPRECATIONS_SETTING.getKey(), List.of("some.undeprecated.property"))
             .build();
         clusterSettings.applySettings(newSettings);
-        transportNodeDeprecationCheckAction.nodeOperation(nodeRequest, nodeSettingsChecks);
+        transportNodeDeprecationCheckAction.nodeOperation(nodeSettingsChecks);
         settingsBuilder = Settings.builder();
         settingsBuilder.put("some.deprecated.property", "someValue1");
         settingsBuilder.put("some.other.bad.deprecated.property", "someValue2");
@@ -163,7 +172,7 @@ public class TransportNodeDeprecationCheckActionTests extends ESTestCase {
         settingsBuilder.put("cluster.routing.allocation.disk.watermark.low", "10%");
         Settings settingsWithLowWatermark = settingsBuilder.build();
         Settings dynamicSettings = settingsWithLowWatermark;
-        ClusterSettings clusterSettings = new ClusterSettings(nodeSettings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+        ClusterSettings clusterSettings = new ClusterSettings(nodeSettings, BUILT_IN_CLUSTER_SETTINGS);
         String nodeId = "123";
         long totalBytesOnMachine = 100;
         long totalBytesFree = 70;
@@ -202,5 +211,94 @@ public class TransportNodeDeprecationCheckActionTests extends ESTestCase {
         );
         assertNotNull(issue);
         assertEquals("Disk usage exceeds low watermark", issue.getMessage());
+    }
+
+    public void testDiskLowWatermarkIsIncludedInDeprecationWarnings() {
+        Settings.Builder settingsBuilder = Settings.builder();
+        String deprecatedSettingKey = "some.deprecated.property";
+        settingsBuilder.put(deprecatedSettingKey, "someValue1");
+        settingsBuilder.put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_LOW_DISK_WATERMARK_SETTING.getKey(), "10%");
+        Settings nodeSettings = settingsBuilder.build();
+        final XPackLicenseState licenseState = null;
+        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT).metadata(Metadata.builder().build()).build();
+        ClusterService clusterService = Mockito.mock(ClusterService.class);
+        when(clusterService.state()).thenReturn(clusterState);
+        ClusterSettings clusterSettings = new ClusterSettings(
+            nodeSettings,
+            Set.copyOf(CollectionUtils.appendToCopy(BUILT_IN_CLUSTER_SETTINGS, TransportDeprecationInfoAction.SKIP_DEPRECATIONS_SETTING))
+        );
+        when((clusterService.getClusterSettings())).thenReturn(clusterSettings);
+        DiscoveryNode node = Mockito.mock(DiscoveryNode.class);
+        String nodeId = "123";
+        when(node.getId()).thenReturn(nodeId);
+        TransportService transportService = Mockito.mock(TransportService.class);
+        when(transportService.getThreadPool()).thenReturn(threadPool);
+        when(transportService.getLocalNode()).thenReturn(node);
+        PluginsService pluginsService = Mockito.mock(PluginsService.class);
+        ActionFilters actionFilters = Mockito.mock(ActionFilters.class);
+        ClusterInfoService clusterInfoService = Mockito.mock(ClusterInfoService.class);
+        long totalBytesOnMachine = 100;
+        long totalBytesFree = 70;
+        ClusterInfo clusterInfo = ClusterInfo.builder()
+            .mostAvailableSpaceUsage(Map.of(nodeId, new DiskUsage(nodeId, "", "", totalBytesOnMachine, totalBytesFree)))
+            .build();
+        when(clusterInfoService.getClusterInfo()).thenReturn(clusterInfo);
+        TransportNodeDeprecationCheckAction transportNodeDeprecationCheckAction = new TransportNodeDeprecationCheckAction(
+            nodeSettings,
+            threadPool,
+            licenseState,
+            clusterService,
+            transportService,
+            pluginsService,
+            actionFilters,
+            clusterInfoService
+        );
+
+        NodeDeprecationChecks.NodeDeprecationCheck<
+            Settings,
+            PluginsAndModules,
+            ClusterState,
+            XPackLicenseState,
+            DeprecationIssue> deprecationCheck = (first, second, third, fourth) -> {
+                if (first.keySet().contains(deprecatedSettingKey)) {
+                    return new DeprecationIssue(DeprecationIssue.Level.WARNING, "Deprecated setting", null, null, false, null);
+                }
+                return null;
+            };
+        NodesDeprecationCheckAction.NodeResponse nodeResponse = transportNodeDeprecationCheckAction.nodeOperation(
+            Collections.singletonList(deprecationCheck)
+        );
+        List<DeprecationIssue> deprecationIssues = nodeResponse.getDeprecationIssues();
+        assertThat(deprecationIssues, hasSize(2));
+        assertThat(deprecationIssues, hasItem(new DeprecationIssueMatcher(DeprecationIssue.Level.WARNING, equalTo("Deprecated setting"))));
+        assertThat(
+            deprecationIssues,
+            hasItem(new DeprecationIssueMatcher(DeprecationIssue.Level.CRITICAL, equalTo("Disk usage exceeds low watermark")))
+        );
+    }
+
+    private static class DeprecationIssueMatcher extends BaseMatcher<DeprecationIssue> {
+        private final DeprecationIssue.Level level;
+        private final Matcher<String> messageMatcher;
+
+        private DeprecationIssueMatcher(DeprecationIssue.Level level, Matcher<String> messageMatcher) {
+            this.level = level;
+            this.messageMatcher = messageMatcher;
+        }
+
+        @Override
+        public boolean matches(Object actual) {
+            if (actual instanceof DeprecationIssue == false) {
+                return false;
+            }
+            DeprecationIssue actualDeprecationIssue = (DeprecationIssue) actual;
+            return level.equals(actualDeprecationIssue.getLevel()) && messageMatcher.matches(actualDeprecationIssue.getMessage());
+        }
+
+        @Override
+        public void describeTo(Description description) {
+            description.appendText("deprecation issue with level: ").appendValue(level).appendText(" and message: ");
+            messageMatcher.describeTo(description);
+        }
     }
 }

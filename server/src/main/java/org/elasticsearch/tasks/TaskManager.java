@@ -139,7 +139,7 @@ public class TaskManager implements ClusterStateApplier {
         long maxSize = maxHeaderSize.getBytes();
         ThreadContext threadContext = threadPool.getThreadContext();
 
-        assert threadContext.hasTraceContext() == false : "Expected threadContext to have no traceContext fields";
+        assert threadContext.hasApmTraceContext() == false : "Expected threadContext to have no APM trace context";
 
         for (String key : taskHeaders) {
             String httpHeader = threadContext.getHeader(key);
@@ -181,7 +181,7 @@ public class TaskManager implements ClusterStateApplier {
      * For REST actions this will be the case, otherwise {@link Tracer#startTrace} can be used.
      */
     void maybeStartTrace(ThreadContext threadContext, Task task) {
-        if (threadContext.hasParentTraceContext() == false) {
+        if (threadContext.hasParentApmTraceContext() == false) {
             return;
         }
         TaskId parentTask = task.getParentTaskId();
@@ -189,12 +189,6 @@ public class TaskManager implements ClusterStateApplier {
             ? Map.of(Tracer.AttributeKeys.TASK_ID, task.getId(), Tracer.AttributeKeys.PARENT_TASK_ID, parentTask.toString())
             : Map.of(Tracer.AttributeKeys.TASK_ID, task.getId());
         tracer.startTrace(threadContext, task, task.getAction(), attributes);
-    }
-
-    void maybeStopTrace(ThreadContext threadContext, Task task) {
-        if (threadContext.hasTraceContext()) {
-            tracer.stopTrace(task);
-        }
     }
 
     public <Request extends ActionRequest, Response extends ActionResponse> Task registerAndExecute(
@@ -358,7 +352,7 @@ public class TaskManager implements ClusterStateApplier {
                 return removedTask;
             }
         } finally {
-            maybeStopTrace(threadPool.getThreadContext(), task);
+            tracer.stopTrace(task); // stop trace if started / known by tracer
             for (RemovedTaskListener listener : removedTaskListeners) {
                 listener.onRemoved(task);
             }

@@ -51,8 +51,6 @@ public class RestMultiSearchAction extends BaseRestHandler {
     private final SearchUsageHolder searchUsageHolder;
     private final Predicate<NodeFeature> clusterSupportsFeature;
     private final CrossProjectModeDecider crossProjectModeDecider;
-    private static final String MRT_ENABLED_IN_CPS_WARN = "ccs_minimize_roundtrips always defaults to true in Cross Project Search context."
-        + " Setting it explicitly has no effect irrespective of the value specified and is ignored.";
 
     public RestMultiSearchAction(Settings settings, SearchUsageHolder searchUsageHolder, Predicate<NodeFeature> clusterSupportsFeature) {
         this.allowExplicitIndex = MULTI_ALLOW_EXPLICIT_INDEX.get(settings);

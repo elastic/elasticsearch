@@ -153,6 +153,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
     public static final String EVENT_INGESTED_FIELD_NAME = "event.ingested";
 
     private static final TransportVersion INDEX_RESHARDING_METADATA = TransportVersion.fromName("index_resharding_metadata");
+    private static final TransportVersion INDEX_CREATED_TRANSPORT_VERSION = TransportVersion.fromName("index_created_transport_version");
 
     @Nullable
     public String getDownsamplingInterval() {
@@ -545,6 +546,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
     public static final List<String> PARTIALLY_MOUNTED_INDEX_TIER_PREFERENCE = List.of(DataTier.DATA_FROZEN);
 
     static final String KEY_VERSION = "version";
+    static final String KEY_TRANSPORT_VERSION = "transport_version";
     static final String KEY_MAPPING_VERSION = "mapping_version";
     static final String KEY_SETTINGS_VERSION = "settings_version";
     static final String KEY_ALIASES_VERSION = "aliases_version";
@@ -584,6 +586,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
 
     private final Index index;
     private final long version;
+    private final TransportVersion transportVersion;
 
     private final long mappingVersion;
 
@@ -669,6 +672,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
     private IndexMetadata(
         final Index index,
         final long version,
+        final TransportVersion transportVersion,
         final long mappingVersion,
         final long settingsVersion,
         final long aliasesVersion,
@@ -718,6 +722,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
     ) {
         this.index = index;
         this.version = version;
+        this.transportVersion = transportVersion;
         assert mappingVersion >= 0 : mappingVersion;
         this.mappingVersion = mappingVersion;
         this.mappingsUpdatedVersion = mappingsUpdatedVersion;
@@ -783,6 +788,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         return new IndexMetadata(
             this.index,
             this.version,
+            this.transportVersion,
             this.mappingVersion,
             this.settingsVersion,
             this.aliasesVersion,
@@ -845,6 +851,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         return new IndexMetadata(
             this.index,
             this.version,
+            this.transportVersion,
             this.mappingVersion,
             this.settingsVersion,
             this.aliasesVersion,
@@ -915,6 +922,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         return new IndexMetadata(
             this.index,
             this.version,
+            this.transportVersion,
             this.mappingVersion,
             this.settingsVersion,
             this.aliasesVersion,
@@ -976,6 +984,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         return new IndexMetadata(
             this.index,
             this.version,
+            this.transportVersion,
             this.mappingVersion,
             this.settingsVersion,
             this.aliasesVersion,
@@ -1032,6 +1041,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         return new IndexMetadata(
             this.index,
             this.version + 1,
+            this.transportVersion,
             this.mappingVersion,
             this.settingsVersion,
             this.aliasesVersion,
@@ -1091,6 +1101,10 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
 
     public long getVersion() {
         return this.version;
+    }
+
+    public TransportVersion getTransportVersion() {
+        return transportVersion;
     }
 
     public long getMappingVersion() {
@@ -1556,6 +1570,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         private final String index;
         private final int routingNumShards;
         private final long version;
+        private final TransportVersion transportVersion;
         private final long mappingVersion;
         private final long settingsVersion;
         private final long aliasesVersion;
@@ -1589,6 +1604,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         IndexMetadataDiff(IndexMetadata before, IndexMetadata after) {
             index = after.index.getName();
             version = after.version;
+            transportVersion = after.transportVersion;
             mappingVersion = after.mappingVersion;
             settingsVersion = after.settingsVersion;
             aliasesVersion = after.aliasesVersion;
@@ -1642,6 +1658,9 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             index = in.readString();
             routingNumShards = in.readInt();
             version = in.readLong();
+            transportVersion = in.getTransportVersion().supports(INDEX_CREATED_TRANSPORT_VERSION)
+                ? TransportVersion.readVersion(in)
+                : TransportVersion.fromId(0);
             mappingVersion = in.readVLong();
             settingsVersion = in.readVLong();
             aliasesVersion = in.readVLong();
@@ -1709,6 +1728,9 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             out.writeString(index);
             out.writeInt(routingNumShards);
             out.writeLong(version);
+            if (out.getTransportVersion().supports(INDEX_CREATED_TRANSPORT_VERSION)) {
+                TransportVersion.writeVersion(transportVersion, out);
+            }
             out.writeVLong(mappingVersion);
             out.writeVLong(settingsVersion);
             out.writeVLong(aliasesVersion);
@@ -1749,6 +1771,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         public IndexMetadata apply(IndexMetadata part) {
             Builder builder = builder(index);
             builder.version(version);
+            builder.transportVersion(transportVersion);
             builder.mappingVersion(mappingVersion);
             builder.settingsVersion(settingsVersion);
             builder.aliasesVersion(aliasesVersion);
@@ -1792,6 +1815,11 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
     public static IndexMetadata readFrom(StreamInput in, @Nullable Function<String, MappingMetadata> mappingLookup) throws IOException {
         Builder builder = new Builder(in.readString());
         builder.version(in.readLong());
+        builder.transportVersion(
+            in.getTransportVersion().supports(INDEX_CREATED_TRANSPORT_VERSION)
+                ? TransportVersion.readVersion(in)
+                : TransportVersion.fromId(0)
+        );
         builder.mappingVersion(in.readVLong());
         builder.settingsVersion(in.readVLong());
         builder.aliasesVersion(in.readVLong());
@@ -1859,6 +1887,9 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
     public void writeTo(StreamOutput out, boolean mappingsAsHash) throws IOException {
         out.writeString(index.getName()); // uuid will come as part of settings
         out.writeLong(version);
+        if (out.getTransportVersion().supports(INDEX_CREATED_TRANSPORT_VERSION)) {
+            TransportVersion.writeVersion(transportVersion, out);
+        }
         out.writeVLong(mappingVersion);
         out.writeVLong(settingsVersion);
         out.writeVLong(aliasesVersion);
@@ -1934,6 +1965,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         private String index;
         private State state = State.OPEN;
         private long version = 1;
+        private TransportVersion transportVersion = TransportVersion.fromId(0);
         private long mappingVersion = 1;
         private long settingsVersion = 1;
         private long aliasesVersion = 1;
@@ -1970,6 +2002,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             this.index = indexMetadata.getIndex().getName();
             this.state = indexMetadata.state;
             this.version = indexMetadata.version;
+            this.transportVersion = indexMetadata.transportVersion;
             this.mappingVersion = indexMetadata.mappingVersion;
             this.settingsVersion = indexMetadata.settingsVersion;
             this.aliasesVersion = indexMetadata.aliasesVersion;
@@ -2170,6 +2203,15 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
 
         public Builder version(long version) {
             this.version = version;
+            return this;
+        }
+
+        public TransportVersion transportVersion() {
+            return this.transportVersion;
+        }
+
+        public Builder transportVersion(TransportVersion transportVersion) {
+            this.transportVersion = transportVersion;
             return this;
         }
 
@@ -2437,6 +2479,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             return new IndexMetadata(
                 new Index(index, uuid),
                 version,
+                transportVersion,
                 mappingVersion,
                 settingsVersion,
                 aliasesVersion,
@@ -2495,6 +2538,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             builder.startObject(indexMetadata.getIndex().getName());
 
             builder.field(KEY_VERSION, indexMetadata.getVersion());
+            builder.field(KEY_TRANSPORT_VERSION, indexMetadata.getTransportVersion().toString());
             builder.field(KEY_MAPPING_VERSION, indexMetadata.getMappingVersion());
             builder.field(KEY_SETTINGS_VERSION, indexMetadata.getSettingsVersion());
             builder.field(KEY_ALIASES_VERSION, indexMetadata.getAliasesVersion());
@@ -2752,6 +2796,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
                     switch (currentFieldName) {
                         case KEY_STATE -> builder.state(State.fromString(parser.text()));
                         case KEY_VERSION -> builder.version(parser.longValue());
+                        case KEY_TRANSPORT_VERSION -> builder.transportVersion(TransportVersion.fromString(parser.text()));
                         case KEY_MAPPING_VERSION -> {
                             mappingVersion = true;
                             builder.mappingVersion(parser.longValue());

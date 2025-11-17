@@ -1147,7 +1147,6 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         long startTimeInMillis,
         ActionListener<ResolvedIndices> listener
     ) {
-
         Map<String, ResolvedIndexExpressions> resolvedExpressions = responsesByCluster.stream()
             .collect(Collectors.toMap(Map.Entry::getKey, response -> {
                 var resolvedIndexExpressions = response.getValue().getResolvedIndexExpressions();

@@ -4331,6 +4331,28 @@ public class AnalyzerTests extends ESTestCase {
         assertThat(completionFunction.inferenceId(), equalTo(string("completion-inference-id")));
     }
 
+    public void testFoldableCompletionWithFoldableExpressionTransformedToEval() {
+        // Test that a foldable Completion plan with a foldable expression (not just a literal) is transformed correctly
+        // Using CONCAT with all literal arguments to ensure it's foldable during analysis
+        LogicalPlan plan = analyze("""
+            FROM books METADATA _score
+            | COMPLETION CONCAT("Translate", " ", "this text") WITH { "inference_id" : "completion-inference-id" }
+            """, "mapping-books.json");
+
+        Eval eval = as(as(plan, Limit.class).child(), Eval.class);
+        assertThat(eval.fields().size(), equalTo(1));
+
+        Alias alias = eval.fields().get(0);
+        assertThat(alias.name(), equalTo("completion"));
+        assertThat(alias.child(), instanceOf(CompletionFunction.class));
+
+        CompletionFunction completionFunction = as(alias.child(), CompletionFunction.class);
+        // The prompt should be a Concat expression that is foldable (all arguments are literals)
+        assertThat(completionFunction.prompt(), instanceOf(Concat.class));
+        assertThat(completionFunction.prompt().foldable(), equalTo(true));
+        assertThat(completionFunction.inferenceId(), equalTo(string("completion-inference-id")));
+    }
+
     public void testResolveGroupingsBeforeResolvingImplicitReferencesToGroupings() {
         var plan = analyze("""
             FROM test

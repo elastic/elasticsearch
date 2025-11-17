@@ -320,15 +320,9 @@ public final class TranslateTimeSeriesAggregate extends OptimizerRules.Parameter
         LogicalPlan newChild = aggregate.child().transformUp(EsRelation.class, r -> {
             IndexMode indexMode = requiredTimeSeriesSource.get() ? r.indexMode() : IndexMode.STANDARD;
             if (r.output().contains(tsid.get()) == false) {
-                return new EsRelation(
-                    r.source(),
-                    r.indexPattern(),
-                    indexMode,
-                    r.indexNameWithModes(),
-                    CollectionUtils.combine(r.output(), tsid.get())
-                );
+                return r.withIndexMode(indexMode).withAttributes(CollectionUtils.combine(r.output(), tsid.get()));
             } else {
-                return new EsRelation(r.source(), r.indexPattern(), indexMode, r.indexNameWithModes(), r.output());
+                return r.withIndexMode(indexMode);
             }
         });
         final var firstPhase = new TimeSeriesAggregate(

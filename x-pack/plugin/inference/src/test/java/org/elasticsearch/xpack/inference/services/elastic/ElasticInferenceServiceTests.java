@@ -86,6 +86,7 @@ import static org.elasticsearch.xpack.inference.external.http.Utils.entityAsMap;
 import static org.elasticsearch.xpack.inference.external.http.Utils.getUrl;
 import static org.elasticsearch.xpack.inference.services.SenderServiceTests.createMockSender;
 import static org.elasticsearch.xpack.inference.services.ServiceComponentsTests.createWithEmptySettings;
+import static org.elasticsearch.xpack.inference.services.elastic.ccm.CCMAuthenticationApplierFactoryTests.createNoopApplierFactory;
 import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.Matchers.contains;
@@ -1162,12 +1163,15 @@ public class ElasticInferenceServiceTests extends ESSingleNodeTestCase {
 
         var factory = mock(HttpRequestSender.Factory.class);
         when(factory.createSender()).thenReturn(sender);
-        return new ElasticInferenceService(
+        var service = new ElasticInferenceService(
             factory,
             createWithEmptySettings(threadPool),
             new ElasticInferenceServiceSettings(Settings.EMPTY),
-            mockClusterServiceEmpty()
+            mockClusterServiceEmpty(),
+            createNoopApplierFactory()
         );
+        service.init();
+        return service;
     }
 
     private ElasticInferenceService createService(HttpRequestSender.Factory senderFactory) {
@@ -1175,11 +1179,14 @@ public class ElasticInferenceServiceTests extends ESSingleNodeTestCase {
     }
 
     private ElasticInferenceService createService(HttpRequestSender.Factory senderFactory, String elasticInferenceServiceURL) {
-        return new ElasticInferenceService(
+        var service = new ElasticInferenceService(
             senderFactory,
             createWithEmptySettings(threadPool),
             ElasticInferenceServiceSettingsTests.create(elasticInferenceServiceURL),
-            mockClusterServiceEmpty()
+            mockClusterServiceEmpty(),
+            createNoopApplierFactory()
         );
+        service.init();
+        return service;
     }
 }

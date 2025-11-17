@@ -179,7 +179,7 @@ public class DesiredBalanceComputerTests extends ESAllocationTestCase {
         // This test demonstrates that the computer does not get stuck in an infinite loop when moveShards and balancer moving against
         // each other. This is done by configuring two shards each on its own node.
         // - Shard 0 with no write load on node-0 with node load 0.92 and queue latency 15s
-        // - Shard 0 with some write load on node-1 with no node load nor queue latency
+        // - Shard 1 with some write load on node-1 with no node load nor queue latency
         // 1. MoveShard will want to move shard 0 off node-0 to node-1 for hot-spot mitigation.
         // 2. Balance will want to move shard 0 back to node-0 to spread the index. Balancer always picks shard 0 because it has
         // no write load thus write load decider says YES

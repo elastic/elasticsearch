@@ -59,7 +59,9 @@ public class ShardMovementWriteLoadSimulator {
             }
         }
         // Always record the moving shard regardless whether its write load is adjusted
-        nodesWithMovedAwayShard.add(shardRouting.relocatingNodeId());
+        if (shardRouting.relocatingNodeId() != null) {
+            nodesWithMovedAwayShard.add(shardRouting.relocatingNodeId());
+        }
     }
 
     /**

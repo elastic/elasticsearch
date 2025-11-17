@@ -46,7 +46,7 @@ public class AggregateMetricFieldSerializerTests extends ESTestCase {
         XContentBuilder builder = XContentBuilder.builder(XContentType.JSON.xContent());
         builder.humanReadable(true).startObject();
         IllegalStateException error = expectThrows(IllegalStateException.class, () -> gaugeFieldSerializer.write(builder));
-        assertThat(error.getMessage(), equalTo("Unexpected field producer class: LastValueFieldProducer for my-counter field"));
+        assertThat(error.getMessage(), equalTo("Unexpected field producer class: LabelFieldProducer for my-counter field"));
     }
 
     public void testAggregatePreAggregatedFieldSerialization() throws IOException {

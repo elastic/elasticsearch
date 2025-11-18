@@ -143,4 +143,26 @@ public class ES93HnswScalarQuantizedVectorsFormat extends AbstractHnswVectorsFor
             new Lucene99ScalarQuantizedVectorsReader(state, rawVectorFormat.fieldsReader(state), flatVectorScorer)
         );
     }
+
+    @Override
+    public String toString() {
+        return NAME
+            + "(name="
+            + NAME
+            + ", maxConn="
+            + maxConn
+            + ", beamWidth="
+            + beamWidth
+            + ", confidenceInterval="
+            + confidenceInterval
+            + ", bits="
+            + bits
+            + ", compressed="
+            + compress
+            + ", flatVectorScorer="
+            + flatVectorScorer
+            + ", flatVectorFormat="
+            + rawVectorFormat
+            + ")";
+    }
 }

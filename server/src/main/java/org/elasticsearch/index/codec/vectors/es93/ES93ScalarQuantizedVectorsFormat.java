@@ -218,7 +218,7 @@ public class ES93ScalarQuantizedVectorsFormat extends KnnVectorsFormat {
 
         @Override
         public String toString() {
-            return "ESFlatVectorsScorer(" + "delegate=" + delegate + ", factory=" + factory + ')';
+            return "ESQuantizedFlatVectorsScorer(" + "delegate=" + delegate + ", factory=" + factory + ')';
         }
 
         @Override

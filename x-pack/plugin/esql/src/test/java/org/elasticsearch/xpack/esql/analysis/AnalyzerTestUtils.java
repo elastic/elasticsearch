@@ -19,6 +19,7 @@ import org.elasticsearch.xpack.esql.core.type.InvalidMappedField;
 import org.elasticsearch.xpack.esql.enrich.ResolvedEnrichPolicy;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.index.EsIndex;
+import org.elasticsearch.xpack.esql.index.EsIndexGenerator;
 import org.elasticsearch.xpack.esql.index.IndexResolution;
 import org.elasticsearch.xpack.esql.inference.InferenceResolution;
 import org.elasticsearch.xpack.esql.inference.ResolvedInference;
@@ -203,13 +204,12 @@ public final class AnalyzerTestUtils {
     }
 
     public static IndexResolution loadMapping(String resource, String indexName, IndexMode indexMode) {
-        EsIndex test = new EsIndex(indexName, EsqlTestUtils.loadMapping(resource), Map.of(indexName, indexMode));
+        EsIndex test = EsIndexGenerator.esIndex(indexName, EsqlTestUtils.loadMapping(resource), Map.of(indexName, indexMode));
         return IndexResolution.valid(test);
     }
 
     public static IndexResolution loadMapping(String resource, String indexName) {
-        EsIndex test = new EsIndex(indexName, EsqlTestUtils.loadMapping(resource), Map.of(indexName, IndexMode.STANDARD));
-        return IndexResolution.valid(test);
+        return loadMapping(resource, indexName, IndexMode.STANDARD);
     }
 
     public static Map<IndexPattern, IndexResolution> analyzerDefaultMapping() {
@@ -406,7 +406,7 @@ public final class AnalyzerTestUtils {
         typesToIndices2.put("long", Set.of("index3"));
         EsField dateDateNanosField = new InvalidMappedField(dateDateNanos, typesToIndices1);
         EsField dateDateNanosLongField = new InvalidMappedField(dateDateNanosLong, typesToIndices2);
-        EsIndex index = new EsIndex(
+        EsIndex index = EsIndexGenerator.esIndex(
             "index*",
             Map.of(dateDateNanos, dateDateNanosField, dateDateNanosLong, dateDateNanosLongField),
             Map.of("index1", IndexMode.STANDARD, "index2", IndexMode.STANDARD, "index3", IndexMode.STANDARD)

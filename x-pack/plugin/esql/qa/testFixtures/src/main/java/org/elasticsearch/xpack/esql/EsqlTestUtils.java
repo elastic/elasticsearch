@@ -185,6 +185,7 @@ import static org.elasticsearch.test.ESTestCase.randomByte;
 import static org.elasticsearch.test.ESTestCase.randomDouble;
 import static org.elasticsearch.test.ESTestCase.randomFloat;
 import static org.elasticsearch.test.ESTestCase.randomFrom;
+import static org.elasticsearch.test.ESTestCase.randomIdentifier;
 import static org.elasticsearch.test.ESTestCase.randomInt;
 import static org.elasticsearch.test.ESTestCase.randomIntBetween;
 import static org.elasticsearch.test.ESTestCase.randomIp;
@@ -324,7 +325,7 @@ public final class EsqlTestUtils {
     }
 
     public static EsRelation relation(IndexMode mode) {
-        var index = new EsIndex(randomAlphaOfLength(8), emptyMap());
+        var index = new EsIndex(randomIdentifier(), Map.of(), Map.of(), Map.of(), Set.of());
         return new EsRelation(EMPTY, index.name(), mode, index.indexNameWithModes(), List.of());
     }
 

@@ -89,11 +89,18 @@ public abstract class RemoteClusterAware implements LinkedProjectConfigService.L
     public static String parseClusterAlias(String indexExpression) {
         assert indexExpression != null : "Must not pass null indexExpression";
         String[] parts = splitIndexName(indexExpression.trim());
-        if (parts[0] == null) {
-            return RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY;
-        } else {
-            return parts[0];
-        }
+        return getClusterAlias(parts);
+    }
+
+    /**
+     * @return the cluster alias or LOCAL_CLUSTER_GROUP_KEY if the split represents local index
+     */
+    public static String getClusterAlias(String[] split) {
+        return split[0] == null ? LOCAL_CLUSTER_GROUP_KEY : split[0];
+    }
+
+    public static String getLocalIndexName(String[] split) {
+        return split[1];
     }
 
     /**

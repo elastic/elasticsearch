@@ -9,13 +9,15 @@ package org.elasticsearch.xpack.esql.index;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
 public record EsIndex(
     String name,
     Map<String, EsField> mapping, // keyed by field names
-    Map<String, IndexMode> indexNameWithModes,
+    Map<String, IndexMode> indexNameWithModes, // keyed by a qualified index name
+    Map<String, List<String>> concreteIndicesByRemotes, // keyed by cluster alias
     Set<String> partiallyUnmappedFields
 ) {
 
@@ -23,17 +25,6 @@ public record EsIndex(
         assert name != null;
         assert mapping != null;
         assert partiallyUnmappedFields != null;
-    }
-
-    public EsIndex(String name, Map<String, EsField> mapping, Map<String, IndexMode> indexNameWithModes) {
-        this(name, mapping, indexNameWithModes, Set.of());
-    }
-
-    /**
-     * Intended for tests. Returns an index with an empty index mode map.
-     */
-    public EsIndex(String name, Map<String, EsField> mapping) {
-        this(name, mapping, Map.of(), Set.of());
     }
 
     public boolean isPartiallyUnmappedField(String fieldName) {

@@ -59,7 +59,7 @@ import org.elasticsearch.xpack.esql.core.type.PotentiallyUnmappedKeywordEsField;
 import org.elasticsearch.xpack.esql.core.util.StringUtils;
 import org.elasticsearch.xpack.esql.expression.Order;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
-import org.elasticsearch.xpack.esql.index.EsIndex;
+import org.elasticsearch.xpack.esql.index.EsIndexGenerator;
 import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
 import org.elasticsearch.xpack.esql.plan.physical.FieldExtractExec;
 import org.elasticsearch.xpack.esql.plan.physical.TimeSeriesAggregateExec;
@@ -136,7 +136,7 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
             TEST_PLANNER_SETTINGS,
             new EsQueryExec(
                 Source.EMPTY,
-                index().name(),
+                EsIndexGenerator.esIndex("test").name(),
                 IndexMode.STANDARD,
                 List.of(),
                 null,
@@ -168,7 +168,7 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
             TEST_PLANNER_SETTINGS,
             new EsQueryExec(
                 Source.EMPTY,
-                index().name(),
+                EsIndexGenerator.esIndex("test").name(),
                 IndexMode.STANDARD,
                 List.of(),
                 limit,
@@ -200,7 +200,7 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
             TEST_PLANNER_SETTINGS,
             new EsQueryExec(
                 Source.EMPTY,
-                index().name(),
+                EsIndexGenerator.esIndex("test").name(),
                 IndexMode.STANDARD,
                 List.of(),
                 limit,
@@ -225,7 +225,7 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
             TEST_PLANNER_SETTINGS,
             new EsQueryExec(
                 Source.EMPTY,
-                index().name(),
+                EsIndexGenerator.esIndex("test").name(),
                 IndexMode.STANDARD,
                 List.of(),
                 null,
@@ -260,7 +260,7 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
         int estimatedRowSize = estimatedRowSizeIsHuge ? randomIntBetween(20000, Integer.MAX_VALUE) : randomIntBetween(1, 50);
         EsQueryExec queryExec = new EsQueryExec(
             Source.EMPTY,
-            index().name(),
+            EsIndexGenerator.esIndex("test").name(),
             IndexMode.STANDARD,
             List.of(),
             new Literal(Source.EMPTY, 10, DataType.INTEGER),
@@ -299,7 +299,7 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
     private BlockLoader constructBlockLoader() throws IOException {
         EsQueryExec queryExec = new EsQueryExec(
             Source.EMPTY,
-            index().name(),
+            EsIndexGenerator.esIndex("test").name(),
             IndexMode.STANDARD,
             List.of(new FieldAttribute(Source.EMPTY, EsQueryExec.DOC_ID_FIELD.getName(), EsQueryExec.DOC_ID_FIELD)),
             null,
@@ -426,9 +426,5 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
             throw new RuntimeException(e);
         }
         return reader;
-    }
-
-    private EsIndex index() {
-        return new EsIndex("test", Map.of());
     }
 }

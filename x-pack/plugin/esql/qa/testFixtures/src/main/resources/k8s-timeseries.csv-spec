@@ -723,7 +723,6 @@ mx:integer | tbucket:datetime
 
 derivative_of_gauge_metric
 required_capability: ts_command_v0
-required_capability: TS_LINREG_DERIVATIVE
 
 // tag::deriv[]
 TS k8s
@@ -738,18 +737,17 @@ TS k8s
 
 // tag::deriv-result[]
 max_deriv:double | time_bucket:datetime     | pod:keyword
-9.3E-5           | 2024-05-10T00:00:00.000Z | three
-3.8E-5           | 2024-05-10T00:05:00.000Z | three
--2.0E-5          | 2024-05-10T00:10:00.000Z | three
+0.092774         | 2024-05-10T00:00:00.000Z | three
+0.038026         | 2024-05-10T00:05:00.000Z | three
+-0.0197          | 2024-05-10T00:10:00.000Z | three
 // end::deriv-result[]
--1.0E-6          | 2024-05-10T00:15:00.000Z | three
-1.9E-5           | 2024-05-10T00:20:00.000Z | three
+-0.001209        | 2024-05-10T00:15:00.000Z | three
+0.019397         | 2024-05-10T00:20:00.000Z | three
 
 ;
 
 derivative_compared_to_rate
 required_capability: ts_command_v0
-required_capability: TS_LINREG_DERIVATIVE
 
 TS k8s
 | STATS max_deriv = max(deriv(to_long(network.total_bytes_in))), max_rate = max(rate(network.total_bytes_in)) BY time_bucket = bucket(@timestamp,5minute), cluster
@@ -760,10 +758,10 @@ TS k8s
 ;
 
 max_deriv:double | max_rate:double | time_bucket:datetime     | cluster:keyword
-0.0855           | 8.120833        | 2024-05-10T00:00:00.000Z | prod
-0.004933         | 6.451737        | 2024-05-10T00:05:00.000Z | prod
-0.008922         | 11.56274        | 2024-05-10T00:10:00.000Z | prod
-0.016623         | 11.86081        | 2024-05-10T00:15:00.000Z | prod
-0.009026         | 6.980661        | 2024-05-10T00:20:00.000Z | prod
+85.5             | 8.120833        | 2024-05-10T00:00:00.000Z | prod
+4.933168         | 6.451737        | 2024-05-10T00:05:00.000Z | prod
+8.922491         | 11.56274        | 2024-05-10T00:10:00.000Z | prod
+16.62316         | 11.86081        | 2024-05-10T00:15:00.000Z | prod
+9.026268         | 6.980661        | 2024-05-10T00:20:00.000Z | prod
 
 ;

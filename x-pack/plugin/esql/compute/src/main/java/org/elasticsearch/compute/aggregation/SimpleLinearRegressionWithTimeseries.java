@@ -55,7 +55,7 @@ class SimpleLinearRegressionWithTimeseries implements AggregatorState {
         if (denominator == 0) {
             return Double.NaN;
         }
-        return numerator / denominator;
+        return numerator / denominator * 1000.0; // per second
     }
 
     double intercept() {

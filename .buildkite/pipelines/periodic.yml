@@ -589,7 +589,7 @@ steps:
               skip: true
             - with:
                 BWC_VERSION: "9.1.8"
-                ES_RUNTIME_JAVA: openjdk24
+                ES_RUNTIME_JAVA: [openjdk24, openjdk23]
               skip: true
         agents:
           provider: gcp

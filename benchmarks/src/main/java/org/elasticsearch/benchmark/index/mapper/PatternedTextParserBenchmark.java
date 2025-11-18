@@ -16,6 +16,8 @@ import org.elasticsearch.xpack.logsdb.patternedtext.charparser.api.ParseExceptio
 import org.elasticsearch.xpack.logsdb.patternedtext.charparser.api.Parser;
 import org.elasticsearch.xpack.logsdb.patternedtext.charparser.api.ParserFactory;
 import org.elasticsearch.xpack.logsdb.patternedtext.charparser.api.Timestamp;
+import org.elasticsearch.xpack.logsdb.patternedtext.charparser.parser.TimestampFormat;
+import org.elasticsearch.xpack.logsdb.patterntext.PatternTextValueProcessor;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
 import org.openjdk.jmh.annotations.Fork;
@@ -28,10 +30,8 @@ import org.openjdk.jmh.annotations.State;
 import org.openjdk.jmh.annotations.Warmup;
 import org.openjdk.jmh.infra.Blackhole;
 
-import java.text.SimpleDateFormat;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
-import java.util.Date;
 import java.util.List;
 import java.util.Locale;
 import java.util.concurrent.TimeUnit;
@@ -60,14 +60,14 @@ public class PatternedTextParserBenchmark {
         parser = ParserFactory.createParser();
         regexParser = new RegexParser();
         testMessage = "Oct 05, 2023 02:48:00 PM INFO Response from 127.0.0.1 took 2000 ms";
-        dateTimeFormatter = DateTimeFormatter.ofPattern("MMM dd yyyy hh:mm:ss a").withLocale(java.util.Locale.US);
+        dateTimeFormatter = DateTimeFormatter.ofPattern("MMM dd, yyyy hh:mm:ss a").withLocale(java.util.Locale.US);
     }
 
     @Benchmark
     public void parseWithCharParser(Blackhole blackhole) throws ParseException {
         List<Argument<?>> arguments = parser.parse(testMessage);
         blackhole.consume(arguments);
-        // long timestamp = TimestampFormat.parseTimestamp(dateTimeFormatter, "Oct 05 2023 02:48:00 PM");
+        // long timestamp = TimestampFormat.parseTimestamp(dateTimeFormatter, "Oct 05, 2023 02:48:00 PM");
         // blackhole.consume(timestamp);
     }
 
@@ -75,6 +75,14 @@ public class PatternedTextParserBenchmark {
     public void parseWithRegexParser(Blackhole blackhole) throws ParseException {
         List<Argument<?>> arguments = regexParser.parse(testMessage);
         blackhole.consume(arguments);
+    }
+
+    @Benchmark
+    public void parseWithSimpleParser(Blackhole blackhole) throws ParseException {
+        PatternTextValueProcessor.Parts parts = PatternTextValueProcessor.split(testMessage);
+        blackhole.consume(parts);
+        long timestamp = TimestampFormat.parseTimestamp(dateTimeFormatter, "Oct 05, 2023 02:48:00 PM");
+        blackhole.consume(timestamp);
     }
 
     private static class RegexParser implements Parser {
@@ -87,18 +95,14 @@ public class PatternedTextParserBenchmark {
             "\\b\\d{2}/[A-Za-z]{3}/\\d{4}:\\d{2}:\\d{2}:\\d{2} [+-]\\d{4}\\b"
         );
         private static final String TIMESTAMP_1_FORMAT = "dd/MMM/yyyy:HH:mm:ss Z";
-        private static final ThreadLocal<SimpleDateFormat> TIMESTAMP_1_FORMATTER = ThreadLocal.withInitial(
-            () -> new SimpleDateFormat(TIMESTAMP_1_FORMAT, Locale.ENGLISH)
-        );
+        private static final DateTimeFormatter TIMESTAMP_1_FORMATTER = DateTimeFormatter.ofPattern(TIMESTAMP_1_FORMAT, Locale.ENGLISH);
 
         // Existing timestamp pattern and format
         private static final Pattern TIMESTAMP_2_PATTERN = Pattern.compile(
             "\\b(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec) \\d{2}, \\d{4} \\d{2}:\\d{2}:\\d{2} (?:AM|PM)\\b"
         );
         private static final String TIMESTAMP_2_FORMAT = "MMM dd, yyyy hh:mm:ss a";
-        private static final ThreadLocal<SimpleDateFormat> TIMESTAMP_2_FORMATTER = ThreadLocal.withInitial(
-            () -> new SimpleDateFormat(TIMESTAMP_2_FORMAT, Locale.ENGLISH)
-        );
+        private static final DateTimeFormatter TIMESTAMP_2_FORMATTER = DateTimeFormatter.ofPattern(TIMESTAMP_2_FORMAT, Locale.ENGLISH);
 
         /**
          * Checks if a position range overlaps with any existing argument in the list
@@ -132,29 +136,29 @@ public class PatternedTextParserBenchmark {
             // 1. Find and extract timestamp substring (prefer TIMESTAMP_1, then TIMESTAMP_2)
             int tsStart = -1, tsEnd = -1;
             String tsString = null;
-            SimpleDateFormat usedFormatter = null;
+            DateTimeFormatter usedFormatter = null;
 
             Matcher ts1Matcher = TIMESTAMP_1_PATTERN.matcher(rawMessage);
             if (ts1Matcher.find()) {
                 tsString = ts1Matcher.group();
                 tsStart = ts1Matcher.start();
                 tsEnd = ts1Matcher.end();
-                usedFormatter = TIMESTAMP_1_FORMATTER.get();
+                usedFormatter = TIMESTAMP_1_FORMATTER;
             } else {
                 Matcher ts2Matcher = TIMESTAMP_2_PATTERN.matcher(rawMessage);
                 if (ts2Matcher.find()) {
                     tsString = ts2Matcher.group();
                     tsStart = ts2Matcher.start();
                     tsEnd = ts2Matcher.end();
-                    usedFormatter = TIMESTAMP_2_FORMATTER.get();
+                    usedFormatter = TIMESTAMP_2_FORMATTER;
                 }
             }
 
             if (tsString != null) {
                 try {
-                    Date date = usedFormatter.parse(tsString);
-                    arguments.add(new Timestamp(tsStart, tsEnd - tsStart, date.getTime(), usedFormatter.toPattern()));
-                } catch (java.text.ParseException e) {
+                    long timestampMillis = TimestampFormat.parseTimestamp(usedFormatter, tsString);
+                    arguments.add(new Timestamp(tsStart, tsEnd - tsStart, timestampMillis, "doesn't matter"));
+                } catch (Exception e) {
                     throw new ParseException("Failed to parse timestamp: " + tsString, e);
                 }
             }

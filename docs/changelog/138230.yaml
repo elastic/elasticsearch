@@ -2,4 +2,5 @@ pr: 138230
 summary: Update to Lucene 10.3.2
 area: Vector Search
 type: feature
-issues: []
+issues:
+ - 135718

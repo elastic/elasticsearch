@@ -1,8 +1,13 @@
 ---
 setup:
   - requires:
-      cluster_features: [ "esql.views" ]
+      capabilities:
+        - method: PUT
+          path: /_query
+          parameters: [ method, path, parameters, capabilities ]
+          capabilities: [ esql.views ]
       reason: "Views not yet supported in cluster state"
+      test_runner_features: [ capabilities, allowed_warnings_regex, warnings_regex ]
   - do:
       indices.create:
         index: test

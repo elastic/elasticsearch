@@ -736,10 +736,11 @@ public class LocalExecutionPlanner {
         // 1. We've just got one entry - this should be the one relevant to the join, and it should be for this cluster
         // 2. We have got multiple entries - this means each cluster has its own one, and we should extract one relevant for this cluster
 
-
         var indices = esRelation.concreteIndicesByRemotes().get(clusterAlias);
         if (indices == null) {
-            throw new IllegalStateException("can't plan [" + join + "]: no matching index found " + EsqlCCSUtils.inClusterName(clusterAlias));
+            throw new IllegalStateException(
+                "can't plan [" + join + "]: no matching index found " + EsqlCCSUtils.inClusterName(clusterAlias)
+            );
         }
         String indexName = indices.getFirst();
         if (join.leftFields().size() != join.rightFields().size()) {

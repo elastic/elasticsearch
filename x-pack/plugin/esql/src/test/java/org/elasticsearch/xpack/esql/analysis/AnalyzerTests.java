@@ -195,7 +195,7 @@ public class AnalyzerTests extends ESTestCase {
         var plan = analyzer.analyze(UNRESOLVED_RELATION);
         var limit = as(plan, Limit.class);
 
-        assertEquals(new EsRelation(EMPTY, idx.name(), IndexMode.STANDARD, Map.of(), NO_FIELDS), limit.child());
+        assertEquals(new EsRelation(EMPTY, idx.name(), IndexMode.STANDARD, Map.of(), Map.of(), NO_FIELDS), limit.child());
     }
 
     public void testFailOnUnresolvedIndex() {
@@ -213,7 +213,7 @@ public class AnalyzerTests extends ESTestCase {
         var plan = analyzer.analyze(unresolvedRelation("cluster:idx"));
         var limit = as(plan, Limit.class);
 
-        assertEquals(new EsRelation(EMPTY, idx.name(), IndexMode.STANDARD, Map.of(), NO_FIELDS), limit.child());
+        assertEquals(new EsRelation(EMPTY, idx.name(), IndexMode.STANDARD, Map.of(), Map.of(), NO_FIELDS), limit.child());
     }
 
     public void testAttributeResolution() {
@@ -3178,7 +3178,8 @@ public class AnalyzerTests extends ESTestCase {
                     ),
                     List.of()
                 )
-            )
+            ),
+            pattern -> Map.of()
         );
 
         String query = "FROM foo, bar | INSIST_🐔 message";
@@ -3203,7 +3204,8 @@ public class AnalyzerTests extends ESTestCase {
                     ),
                     List.of()
                 )
-            )
+            ),
+            pattern -> Map.of()
         );
         var plan = analyze("FROM foo, bar | INSIST_🐔 message", analyzer(resolution, TEST_VERIFIER));
         var limit = as(plan, Limit.class);
@@ -3230,7 +3232,8 @@ public class AnalyzerTests extends ESTestCase {
                     ),
                     List.of()
                 )
-            )
+            ),
+            pattern -> Map.of()
         );
         var plan = analyze("FROM foo, bar | INSIST_🐔 message", analyzer(resolution, TEST_VERIFIER));
         var limit = as(plan, Limit.class);
@@ -3255,7 +3258,8 @@ public class AnalyzerTests extends ESTestCase {
                     ),
                     List.of()
                 )
-            )
+            ),
+            pattern -> Map.of()
         );
         var plan = analyze("FROM foo, bar | INSIST_🐔 message", analyzer(resolution, TEST_VERIFIER));
         var limit = as(plan, Limit.class);
@@ -3280,7 +3284,8 @@ public class AnalyzerTests extends ESTestCase {
                     ),
                     List.of()
                 )
-            )
+            ),
+            pattern -> Map.of()
         );
         var plan = analyze("FROM foo, bar | INSIST_🐔 message", analyzer(resolution, TEST_VERIFIER));
         var limit = as(plan, Limit.class);
@@ -3306,7 +3311,8 @@ public class AnalyzerTests extends ESTestCase {
                     ),
                     List.of()
                 )
-            )
+            ),
+            pattern -> Map.of()
         );
         VerificationException e = expectThrows(
             VerificationException.class,
@@ -3328,7 +3334,8 @@ public class AnalyzerTests extends ESTestCase {
         {
             IndexResolution resolution = IndexResolver.mergedMappings(
                 "foo",
-                new IndexResolver.FieldsInfo(caps, TransportVersion.minimumCompatible(), false, true, true)
+                new IndexResolver.FieldsInfo(caps, TransportVersion.minimumCompatible(), false, true, true),
+                pattern -> Map.of()
             );
             var plan = analyze("FROM foo", analyzer(resolution, TEST_VERIFIER));
             assertThat(plan.output(), hasSize(1));
@@ -3337,7 +3344,8 @@ public class AnalyzerTests extends ESTestCase {
         {
             IndexResolution resolution = IndexResolver.mergedMappings(
                 "foo",
-                new IndexResolver.FieldsInfo(caps, TransportVersion.minimumCompatible(), false, true, false)
+                new IndexResolver.FieldsInfo(caps, TransportVersion.minimumCompatible(), false, true, false),
+                pattern -> Map.of()
             );
             var plan = analyze("FROM foo", analyzer(resolution, TEST_VERIFIER));
             assertThat(plan.output(), hasSize(1));
@@ -3359,7 +3367,8 @@ public class AnalyzerTests extends ESTestCase {
         {
             IndexResolution resolution = IndexResolver.mergedMappings(
                 "foo",
-                new IndexResolver.FieldsInfo(caps, TransportVersion.minimumCompatible(), false, true, true)
+                new IndexResolver.FieldsInfo(caps, TransportVersion.minimumCompatible(), false, true, true),
+                pattern -> Map.of()
             );
             var plan = analyze("FROM foo", analyzer(resolution, TEST_VERIFIER));
             assertThat(plan.output(), hasSize(1));
@@ -3371,7 +3380,8 @@ public class AnalyzerTests extends ESTestCase {
         {
             IndexResolution resolution = IndexResolver.mergedMappings(
                 "foo",
-                new IndexResolver.FieldsInfo(caps, TransportVersion.minimumCompatible(), false, false, true)
+                new IndexResolver.FieldsInfo(caps, TransportVersion.minimumCompatible(), false, false, true),
+                pattern -> Map.of()
             );
             var plan = analyze("FROM foo", analyzer(resolution, TEST_VERIFIER));
             assertThat(plan.output(), hasSize(1));
@@ -3823,7 +3833,7 @@ public class AnalyzerTests extends ESTestCase {
             new FieldCapabilitiesIndexResponse("idx", "idx", Map.of(), true, IndexMode.STANDARD)
         );
         IndexResolver.FieldsInfo caps = fieldsInfoOnCurrentVersion(new FieldCapabilitiesResponse(idxResponses, List.of()));
-        IndexResolution resolution = IndexResolver.mergedMappings("test*", caps);
+        IndexResolution resolution = IndexResolver.mergedMappings("test*", caps, pattern -> Map.of());
         var analyzer = analyzer(indexResolutions(resolution), TEST_VERIFIER, configuration(query));
         return analyze(query, analyzer);
     }
@@ -4701,6 +4711,7 @@ public class AnalyzerTests extends ESTestCase {
             "k8s*",
             mapping,
             Map.of("k8s", IndexMode.TIME_SERIES, "k8s-downsampled", IndexMode.TIME_SERIES),
+            Map.of(),
             Map.of(),
             Set.of()
         );

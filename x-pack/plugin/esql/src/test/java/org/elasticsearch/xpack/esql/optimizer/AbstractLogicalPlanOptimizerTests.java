@@ -192,6 +192,7 @@ public abstract class AbstractLogicalPlanOptimizerTests extends ESTestCase {
             multiIndexMapping,
             Map.of("test1", IndexMode.STANDARD, "test2", IndexMode.STANDARD),
             Map.of(),
+            Map.of(),
             Set.of("partial_type_keyword")
         );
         multiIndexAnalyzer = new Analyzer(

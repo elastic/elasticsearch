@@ -448,7 +448,14 @@ public class CsvTests extends ESTestCase {
             .toList();
         var mergedMappings = mergeMappings(mappings);
         return IndexResolution.valid(
-            new EsIndex(datasets.indexPattern(), mergedMappings.mapping, indexModes, Map.of(), mergedMappings.partiallyUnmappedFields)
+            new EsIndex(
+                datasets.indexPattern(),
+                mergedMappings.mapping,
+                indexModes,
+                Map.of(),
+                Map.of(),
+                mergedMappings.partiallyUnmappedFields
+            )
         );
     }
 

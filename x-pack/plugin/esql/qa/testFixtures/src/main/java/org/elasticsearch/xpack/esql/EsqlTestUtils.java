@@ -105,7 +105,6 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Gre
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThan;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThanOrEqual;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.NotEquals;
-import org.elasticsearch.xpack.esql.index.EsIndex;
 import org.elasticsearch.xpack.esql.index.IndexResolution;
 import org.elasticsearch.xpack.esql.inference.InferenceResolution;
 import org.elasticsearch.xpack.esql.inference.InferenceService;
@@ -325,8 +324,7 @@ public final class EsqlTestUtils {
     }
 
     public static EsRelation relation(IndexMode mode) {
-        var index = new EsIndex(randomIdentifier(), Map.of(), Map.of(), Map.of(), Set.of());
-        return new EsRelation(EMPTY, index.name(), mode, Map.of(), List.of());
+        return new EsRelation(EMPTY, randomIdentifier(), mode, Map.of(), Map.of(), List.of());
     }
 
     /**

@@ -22,15 +22,15 @@ import static org.elasticsearch.core.Tuple.tuple;
 public class EsIndexGenerator {
 
     public static EsIndex esIndex(String name) {
-        return new EsIndex(name, Map.of(), Map.of(), Map.of(), Set.of());
+        return new EsIndex(name, Map.of(), Map.of(), Map.of(), Map.of(), Set.of());
     }
 
     public static EsIndex esIndex(String name, Map<String, EsField> mapping) {
-        return new EsIndex(name, mapping, Map.of(), Map.of(), Set.of());
+        return new EsIndex(name, mapping, Map.of(), Map.of(), Map.of(), Set.of());
     }
 
     public static EsIndex esIndex(String name, Map<String, EsField> mapping, Map<String, IndexMode> indexNameWithModes) {
-        return new EsIndex(name, mapping, indexNameWithModes, Map.of(), Set.of());
+        return new EsIndex(name, mapping, indexNameWithModes, Map.of(), Map.of(), Set.of());
     }
 
     public static EsIndex randomEsIndex() {
@@ -53,6 +53,10 @@ public class EsIndexGenerator {
     }
 
     public static Map<String, List<String>> randomRemotesWithIndices() {
-        return ESTestCase.randomMap(0, 10, () -> tuple(ESTestCase.randomIdentifier(), ESTestCase.randomList(1, 10, ESTestCase::randomIdentifier)));
+        return ESTestCase.randomMap(
+            0,
+            10,
+            () -> tuple(ESTestCase.randomIdentifier(), ESTestCase.randomList(1, 10, ESTestCase::randomIdentifier))
+        );
     }
 }

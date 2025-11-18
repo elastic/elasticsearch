@@ -17,6 +17,7 @@ public record EsIndex(
     String name,
     Map<String, EsField> mapping, // keyed by field names
     Map<String, IndexMode> indexNameWithModes, // keyed by a qualified index name
+    Map<String, List<String>> originalIndicesByRemotes, // keyed by cluster alias
     Map<String, List<String>> concreteIndicesByRemotes, // keyed by cluster alias
     Set<String> partiallyUnmappedFields
 ) {

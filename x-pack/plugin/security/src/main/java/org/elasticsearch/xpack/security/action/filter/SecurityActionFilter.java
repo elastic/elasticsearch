@@ -21,13 +21,16 @@ import org.elasticsearch.action.support.ActionFilterChain;
 import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.action.support.DestructiveOperations;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.XPackField;
 import org.elasticsearch.xpack.core.security.SecurityContext;
+import org.elasticsearch.xpack.core.security.authc.AuthenticationToken;
 import org.elasticsearch.xpack.core.security.authc.support.SecondaryAuthentication;
 import org.elasticsearch.xpack.core.security.authz.privilege.HealthAndStatsPrivilege;
 import org.elasticsearch.xpack.core.security.user.InternalUsers;
@@ -171,22 +174,46 @@ public class SecurityActionFilter implements ActionFilter {
          here if a request is not associated with any other user.
          */
         final String securityAction = SecurityActionMapper.action(action, request);
-        authcService.authenticate(securityAction, request, InternalUsers.SYSTEM_USER, listener.delegateFailureAndWrap((delegate, authc) -> {
-            if (authc != null) {
-                final String requestId = AuditUtil.extractRequestId(threadContext);
-                assert Strings.hasText(requestId);
-                authzService.authorize(
-                    authc,
-                    securityAction,
-                    request,
-                    delegate.delegateFailure((ll, aVoid) -> chain.proceed(task, action, request, ll.map(response -> {
-                        auditTrailService.get().coordinatingActionResponse(requestId, authc, action, request, response);
-                        return response;
-                    })))
-                );
-            } else {
-                delegate.onFailure(new IllegalStateException("no authentication present but auth is allowed"));
-            }
-        }));
+        authcService.authenticate(
+            securityAction,
+            request,
+            InternalUsers.SYSTEM_USER,
+            ActionListener.runAfter(listener.delegateFailureAndWrap((delegate, authc) -> {
+                if (authc != null) {
+                    final String requestId = AuditUtil.extractRequestId(threadContext);
+                    assert Strings.hasText(requestId);
+                    authzService.authorize(
+                        authc,
+                        securityAction,
+                        request,
+                        delegate.delegateFailure((ll, aVoid) -> chain.proceed(task, action, request, ll.map(response -> {
+                            auditTrailService.get().coordinatingActionResponse(requestId, authc, action, request, response);
+                            return response;
+                        })))
+                    );
+                } else {
+                    delegate.onFailure(new IllegalStateException("no authentication present but auth is allowed"));
+                }
+            }), this::closeAuthenticationCredentialsInThreadContext)
+        );
     }
+
+    /**
+     * Closes any {@link AuthenticationToken} or {@link SecureString} objects stored in thread context transient headers.
+     * This method is called after the request is handled and the response sent back to the caller.
+     */
+    private void closeAuthenticationCredentialsInThreadContext() {
+        try {
+            for (Object value : threadContext.getTransientHeaders().values()) {
+                if (value instanceof AuthenticationToken token) {
+                    token.clearCredentials();
+                } else if (value instanceof SecureString secureString) {
+                    IOUtils.closeWhileHandlingException(secureString);
+                }
+            }
+        } catch (Exception e) {
+            logger.debug("failed to close authentication credentials", e);
+        }
+    }
+
 }

@@ -225,7 +225,7 @@ public class AuthenticationService {
             realms,
             token
         );
-        authenticatorChain.authenticate(context, listener);
+        authenticatorChain.authenticate(context, ActionListener.runBefore(listener, context::close));
     }
 
     public void expire(String principal) {
@@ -271,7 +271,7 @@ public class AuthenticationService {
     }
 
     void authenticate(final Authenticator.Context context, final ActionListener<Authentication> listener) {
-        authenticatorChain.authenticate(context, listener);
+        authenticatorChain.authenticate(context, ActionListener.runBefore(listener, context::close));
     }
 
     // pkg private method for testing

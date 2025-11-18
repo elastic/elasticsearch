@@ -834,6 +834,47 @@ public class AuthenticationServiceTests extends ESTestCase {
         }, this::logAndFail));
     }
 
+    public void testAuthenticationTokenClearedOnSuccess() {
+        UsernamePasswordToken passwordToken = spy(new UsernamePasswordToken("user", new SecureString("passwd".toCharArray())));
+        User user = new User("user", "r1");
+
+        when(firstRealm.token(threadContext)).thenReturn(passwordToken);
+        when(firstRealm.supports(passwordToken)).thenReturn(true);
+        mockAuthenticate(firstRealm, passwordToken, user);
+
+        authenticateBlocking("_action", transportRequest, null, result -> {
+            assertThat(result, notNullValue());
+            assertThat(result.v1().getEffectiveSubject().getUser(), is(user));
+            assertThat(result.v1().getAuthenticationType(), is(AuthenticationType.REALM));
+        });
+
+        verify(passwordToken, times(1)).clearCredentials();
+        var e = expectThrows(IllegalStateException.class, () -> passwordToken.credentials().length());
+        assertThat(e.getMessage(), containsString("SecureString has already been closed"));
+    }
+
+    public void testAuthenticationTokenClearedOnFailure() {
+        UsernamePasswordToken passwordToken = spy(new UsernamePasswordToken("superman", new SecureString("verysecret".toCharArray())));
+
+        when(firstRealm.token(threadContext)).thenReturn(passwordToken);
+        when(firstRealm.supports(passwordToken)).thenReturn(true);
+        mockAuthenticate(firstRealm, passwordToken, null); // null user = authentication fails
+
+        when(secondRealm.token(threadContext)).thenReturn(null);
+        when(secondRealm.supports(passwordToken)).thenReturn(false);
+
+        try {
+            authenticateBlocking("_action", transportRequest, null, null);
+            fail("authentication should have failed");
+        } catch (ElasticsearchSecurityException e) {
+            assertAuthenticationException(e);
+        }
+
+        verify(passwordToken, times(1)).clearCredentials();
+        var e = expectThrows(IllegalStateException.class, () -> passwordToken.credentials().length());
+        assertThat(e.getMessage(), containsString("SecureString has already been closed"));
+    }
+
     public void testAuthenticateTransportAnonymous() throws Exception {
         when(firstRealm.token(threadContext)).thenReturn(null);
         when(secondRealm.token(threadContext)).thenReturn(null);

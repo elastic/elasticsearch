@@ -110,7 +110,7 @@ class AuthenticatorChain {
             logger.trace("Found existing authentication [{}] in request [{}]", authentication, context.getRequest());
             listener.onResponse(authentication);
         } else {
-            doAuthenticate(context, ActionListener.runBefore(listener, context::close));
+            doAuthenticate(context, listener);
         }
     }
 

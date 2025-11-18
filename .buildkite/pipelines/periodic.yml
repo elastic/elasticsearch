@@ -578,15 +578,15 @@ steps:
               - openjdk24
               - openjdk25
             BWC_VERSION: ["8.19.8", "9.1.8", "9.2.2", "9.3.0"]
-        adjustments:
-          - with:
-              BWC_VERSION: "8.19.*"
-              ES_RUNTIME_JAVA: openjdk23
-            skip: true
-          - with:
-              BWC_VERSION: "9.1.*"
-              ES_RUNTIME_JAVA: openjdk23
-            skip: true
+          adjustments:
+            - with:
+                BWC_VERSION: "8.19.*"
+                ES_RUNTIME_JAVA: openjdk23
+              skip: true
+            - with:
+                BWC_VERSION: "9.1.*"
+                ES_RUNTIME_JAVA: openjdk23
+              skip: true
         agents:
           provider: gcp
           image: family/elasticsearch-ubuntu-2404

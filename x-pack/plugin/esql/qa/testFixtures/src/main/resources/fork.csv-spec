@@ -23,6 +23,7 @@ emp_no:integer | _fork:keyword
 
 simpleForkWithStats
 required_capability: fork_v9
+required_capability: routing_function_update
 
 // tag::simpleForkWithStats[]
 FROM books METADATA _score

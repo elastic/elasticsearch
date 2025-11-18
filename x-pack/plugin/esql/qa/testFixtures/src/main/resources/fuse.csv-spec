@@ -25,6 +25,7 @@ fuseWithMatchAndScore
 required_capability: fork_v9
 required_capability: fuse_v6
 required_capability: match_operator_colon
+required_capability: routing_function_update
 
 FROM books METADATA _id, _index, _score
 | FORK ( WHERE title:"Tolkien" | SORT _score, _id DESC | LIMIT 3 )
@@ -48,6 +49,7 @@ fuseWithDisjunctionAndPostFilter
 required_capability: fork_v9
 required_capability: fuse_v6
 required_capability: match_operator_colon
+required_capability: routing_function_update
 
 FROM books METADATA _id, _index, _score
 | FORK ( WHERE title:"Tolkien" OR author:"Tolkien" | SORT _score, _id DESC | LIMIT 3 )
@@ -91,6 +93,7 @@ fuseWithMultipleForkBranches
 required_capability: fork_v9
 required_capability: fuse_v6
 required_capability: match_operator_colon
+required_capability: routing_function_update
 
 FROM books METADATA _id, _index, _score
 | FORK (WHERE author:"Keith Faulkner" AND qstr("author:Rory or author:Beverlie") | SORT _score, _id DESC | LIMIT 3)
@@ -140,6 +143,7 @@ required_capability: fork_v9
 required_capability: fuse_v6
 required_capability: semantic_text_field_caps
 required_capability: metadata_score
+required_capability: routing_function_update
 
 FROM books METADATA _id, _index, _score
 | FORK ( WHERE title:"Tolkien" | SORT _score, _id DESC | LIMIT 3 )
@@ -164,6 +168,7 @@ required_capability: fork_v9
 required_capability: fuse_v6
 required_capability: semantic_text_field_caps
 required_capability: metadata_score
+required_capability: routing_function_update
 
 FROM books METADATA _id, _index, _score
 | FORK ( WHERE title:"Tolkien" | SORT _score, _id DESC | LIMIT 3 )
@@ -188,6 +193,7 @@ required_capability: fork_v9
 required_capability: fuse_v6
 required_capability: semantic_text_field_caps
 required_capability: metadata_score
+required_capability: routing_function_update
 
 FROM books METADATA _id, _index, _score
 | FORK ( WHERE title:"Tolkien" | SORT _score, _id DESC | LIMIT 3 )
@@ -212,6 +218,7 @@ required_capability: fork_v9
 required_capability: fuse_v6
 required_capability: semantic_text_field_caps
 required_capability: metadata_score
+required_capability: routing_function_update
 
 FROM books METADATA _id, _score, _index
 | FORK ( WHERE title:"Tolkien" | SORT _score, _id DESC | LIMIT 3 )
@@ -236,6 +243,7 @@ required_capability: fork_v9
 required_capability: fuse_v6
 required_capability: semantic_text_field_caps
 required_capability: metadata_score
+required_capability: routing_function_update
 
 FROM books METADATA _id, _index, _score
 | FORK ( WHERE title:"Tolkien" | SORT _score, _id DESC | LIMIT 3 | EVAL my_score = _score | DROP _score)
@@ -260,6 +268,7 @@ required_capability: fork_v9
 required_capability: fuse_v6
 required_capability: semantic_text_field_caps
 required_capability: metadata_score
+required_capability: routing_function_update
 
 FROM books METADATA _id, _index, _score
 | FORK ( WHERE title:"Tolkien" | SORT _score, _id DESC | LIMIT 3)
@@ -287,6 +296,7 @@ required_capability: fuse_v6
 required_capability: semantic_text_field_caps
 required_capability: metadata_score
 required_capability: dots_in_fuse
+required_capability: routing_function_update
 
 FROM books METADATA _id, _index, _score
 | FORK ( WHERE title:"Tolkien" | SORT _score, _id DESC | LIMIT 3)
@@ -313,6 +323,7 @@ required_capability: fork_v9
 required_capability: fuse_v6
 required_capability: semantic_text_field_caps
 required_capability: metadata_score
+required_capability: routing_function_update
 
 FROM books METADATA _id, _score
 | FORK ( WHERE title:"Tolkien" | SORT _score, _id DESC | LIMIT 3 | EVAL new_id = CONCAT(_id, _id) | DROP _id)
@@ -339,6 +350,7 @@ required_capability: fork_v9
 required_capability: fuse_v6
 required_capability: semantic_text_field_caps
 required_capability: metadata_score
+required_capability: routing_function_update
 
 FROM books METADATA _id, _score
 | FORK ( WHERE title:"Tolkien" | SORT _score, _id DESC | LIMIT 3
@@ -367,6 +379,7 @@ required_capability: fork_v9
 required_capability: fuse_v6
 required_capability: semantic_text_field_caps
 required_capability: metadata_score
+required_capability: routing_function_update
 
 FROM books METADATA _id, _index, _score
 | FORK ( WHERE title:"Tolkien" | SORT _score, _id DESC | LIMIT 3 )
@@ -391,6 +404,7 @@ fuseWithLinearAndL2Norm
 required_capability: fork_v9
 required_capability: fuse_v6
 required_capability: fuse_l2_norm
+required_capability: routing_function_update
 
 FROM books METADATA _id, _index, _score
 | FORK ( WHERE title:"Tolkien" | SORT _score, _id DESC | LIMIT 3 )
@@ -416,6 +430,7 @@ required_capability: fork_v9
 required_capability: fuse_v6
 required_capability: semantic_text_field_caps
 required_capability: metadata_score
+required_capability: routing_function_update
 
 FROM books METADATA _id, _index, _score
 | FORK ( WHERE title:"Tolkien" | SORT _score, _id DESC | LIMIT 3 )
@@ -440,6 +455,7 @@ required_capability: fork_v9
 required_capability: fuse_v6
 required_capability: semantic_text_field_caps
 required_capability: metadata_score
+required_capability: routing_function_update
 
 FROM books METADATA _id, _index, _score
 | FORK ( WHERE title:"Tolkien" | SORT _score, _id DESC | LIMIT 3 )
@@ -464,6 +480,7 @@ required_capability: fork_v9
 required_capability: fuse_v6
 required_capability: semantic_text_field_caps
 required_capability: metadata_score
+required_capability: routing_function_update
 
 FROM books METADATA _id, _index, _score
 | FORK ( WHERE title:"Tolkien" | SORT _score, _id DESC | LIMIT 3 )
@@ -488,6 +505,7 @@ required_capability: fork_v9
 required_capability: fuse_v6
 required_capability: semantic_text_field_caps
 required_capability: metadata_score
+required_capability: routing_function_update
 
 FROM books METADATA _id, _index, _score
 | FORK ( WHERE title:"Tolkien" | SORT _score, _id DESC | LIMIT 3 )
@@ -513,6 +531,7 @@ required_capability: fork_v9
 required_capability: fuse_v6
 required_capability: semantic_text_field_caps
 required_capability: metadata_score
+required_capability: routing_function_update
 
 FROM books METADATA _id, _index, _score
 | FORK ( WHERE title:"Tolkien" | SORT _score, _id DESC | LIMIT 3 | EVAL my_score = _score | DROP _score)
@@ -538,6 +557,7 @@ required_capability: fork_v9
 required_capability: fuse_v6
 required_capability: semantic_text_field_caps
 required_capability: metadata_score
+required_capability: routing_function_update
 
 FROM books METADATA _id, _index, _score
 | FORK ( WHERE title:"Tolkien" | SORT _score, _id DESC | LIMIT 3)
@@ -564,6 +584,7 @@ required_capability: fork_v9
 required_capability: fuse_v6
 required_capability: semantic_text_field_caps
 required_capability: metadata_score
+required_capability: routing_function_update
 
 FROM books METADATA _id, _score
 | FORK ( WHERE title:"Tolkien" | SORT _score, _id DESC | LIMIT 3 | EVAL new_id = CONCAT(_id, _id) | DROP _id)
@@ -589,6 +610,7 @@ required_capability: fork_v9
 required_capability: fuse_v6
 required_capability: semantic_text_field_caps
 required_capability: metadata_score
+required_capability: routing_function_update
 
 FROM books METADATA _id, _score
 | FORK ( WHERE title:"Tolkien" | SORT _score, _id DESC | LIMIT 3

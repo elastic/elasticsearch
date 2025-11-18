@@ -29,7 +29,6 @@ import org.gradle.api.JavaVersion;
 import org.gradle.api.NamedDomainObjectContainer;
 import org.gradle.api.Plugin;
 import org.gradle.api.Project;
-import org.gradle.api.artifacts.Configuration;
 import org.gradle.api.artifacts.ExternalModuleDependency;
 import org.gradle.api.configuration.BuildFeatures;
 import org.gradle.api.logging.Logger;
@@ -226,7 +225,6 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
         if (branchesFileLocation.startsWith("http")) {
             try {
                 project.getRepositories().ivy(ivyArtifactRepository -> {
-                    ivyArtifactRepository.setUrl("https://raw.githubusercontent.com/elastic/elasticsearch/");
                     ivyArtifactRepository.getMetadataSources().artifact();
                     ivyArtifactRepository.artifactPattern(
                         "https://raw.githubusercontent.com/elastic/elasticsearch/[organisation]/[module].[ext]"
@@ -236,7 +234,7 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
                 // Resolve the remote file via Gradle dependency resolution so it is downloaded and cached by Gradle
                 var dependency = (ExternalModuleDependency) project.getDependencies().create("main:branches@json");
                 dependency.setChanging(true);
-                Configuration branchesConfig = project.getConfigurations().detachedConfiguration(dependency);
+                var branchesConfig = project.getConfigurations().detachedConfiguration(dependency);
                 branchesConfig.getResolutionStrategy().cacheChangingModulesFor(0, TimeUnit.SECONDS);
                 branchesFile = branchesConfig.getSingleFile();
             } catch (Exception e) {

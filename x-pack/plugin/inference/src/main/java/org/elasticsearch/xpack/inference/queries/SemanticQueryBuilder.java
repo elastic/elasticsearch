@@ -347,7 +347,7 @@ public class SemanticQueryBuilder extends AbstractQueryBuilder<SemanticQueryBuil
         private final List<String> inferenceIds;
         private final String query;
 
-        public InferenceRewriteAsyncAction(QueryRewriteContext queryRewriteContext, List<String> inferenceIds, String query) {
+        InferenceRewriteAsyncAction(QueryRewriteContext queryRewriteContext, List<String> inferenceIds, String query) {
             super(queryRewriteContext);
             this.inferenceIds = inferenceIds;
             this.query = query;

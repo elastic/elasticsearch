@@ -48,7 +48,7 @@ import org.elasticsearch.core.Releasables;
 )
 public class AllLastDoubleByTimestampAggregator {
     public static String describe() {
-        return "last_double_by_timestamp";
+        return "all_last_double_by_timestamp";
     }
 
     public static AllLongDoubleState initSingle(DriverContext driverContext) {

@@ -48,7 +48,7 @@ import org.elasticsearch.core.Releasables;
 )
 public class AllFirstBytesRefByTimestampAggregator {
     public static String describe() {
-        return "first_BytesRef_by_timestamp";
+        return "all_first_BytesRef_by_timestamp";
     }
 
     public static AllLongBytesRefState initSingle(DriverContext driverContext) {

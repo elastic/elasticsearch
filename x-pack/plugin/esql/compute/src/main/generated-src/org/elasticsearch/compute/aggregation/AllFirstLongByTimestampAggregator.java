@@ -48,7 +48,7 @@ import org.elasticsearch.core.Releasables;
 )
 public class AllFirstLongByTimestampAggregator {
     public static String describe() {
-        return "first_long_by_timestamp";
+        return "all_first_long_by_timestamp";
     }
 
     public static AllLongLongState initSingle(DriverContext driverContext) {

@@ -48,7 +48,7 @@ import org.elasticsearch.core.Releasables;
 )
 public class AllFirstDoubleByTimestampAggregator {
     public static String describe() {
-        return "first_double_by_timestamp";
+        return "all_first_double_by_timestamp";
     }
 
     public static AllLongDoubleState initSingle(DriverContext driverContext) {

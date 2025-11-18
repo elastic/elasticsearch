@@ -48,7 +48,7 @@ import org.elasticsearch.core.Releasables;
 )
 public class $Prefix$$Occurrence$$Type$ByTimestampAggregator {
     public static String describe() {
-        return "$occurrence$_$type$_by_timestamp";
+        return "all_$occurrence$_$type$_by_timestamp";
     }
 
     public static $Prefix$Long$Type$State initSingle(DriverContext driverContext) {

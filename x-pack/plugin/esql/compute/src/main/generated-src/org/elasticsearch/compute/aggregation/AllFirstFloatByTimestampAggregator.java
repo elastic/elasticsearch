@@ -48,7 +48,7 @@ import org.elasticsearch.core.Releasables;
 )
 public class AllFirstFloatByTimestampAggregator {
     public static String describe() {
-        return "first_float_by_timestamp";
+        return "all_first_float_by_timestamp";
     }
 
     public static AllLongFloatState initSingle(DriverContext driverContext) {

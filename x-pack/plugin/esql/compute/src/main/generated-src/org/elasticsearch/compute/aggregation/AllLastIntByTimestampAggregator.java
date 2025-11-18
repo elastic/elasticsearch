@@ -48,7 +48,7 @@ import org.elasticsearch.core.Releasables;
 )
 public class AllLastIntByTimestampAggregator {
     public static String describe() {
-        return "last_int_by_timestamp";
+        return "all_last_int_by_timestamp";
     }
 
     public static AllLongIntState initSingle(DriverContext driverContext) {

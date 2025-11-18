@@ -87,7 +87,7 @@ public class IndexResolver {
     /**
      * Resolves a pattern to one (potentially compound meaning that spawns multiple indices) mapping.
      */
-    public void resolveAsMergedMapping(
+    public void resolveIndices(
         String indexWildcard,
         Set<String> fieldNames,
         QueryBuilder requestFilter,
@@ -96,11 +96,7 @@ public class IndexResolver {
         boolean useDenseVectorWhenNotSupported,
         ActionListener<IndexResolution> listener
     ) {
-        ActionListener<Versioned<IndexResolution>> ignoreVersion = listener.delegateFailureAndWrap(
-            (l, versionedResolution) -> l.onResponse(versionedResolution.inner())
-        );
-
-        resolveAsMergedMappingAndRetrieveMinimumVersion(
+        resolveIndicesVersioned(
             indexWildcard,
             fieldNames,
             requestFilter,
@@ -108,7 +104,7 @@ public class IndexResolver {
             useAggregateMetricDoubleWhenNotSupported,
             useDenseVectorWhenNotSupported,
             null, // executionInfo not available in this code path
-            ignoreVersion
+            listener.map(Versioned::inner)
         );
     }
 
@@ -116,7 +112,7 @@ public class IndexResolver {
      * Resolves a pattern to one (potentially compound meaning that spawns multiple indices) mapping. Also retrieves the minimum transport
      * version available in the cluster (and remotes).
      */
-    public void resolveAsMergedMappingAndRetrieveMinimumVersion(
+    public void resolveIndicesVersioned(
         String indexWildcard,
         Set<String> fieldNames,
         QueryBuilder requestFilter,

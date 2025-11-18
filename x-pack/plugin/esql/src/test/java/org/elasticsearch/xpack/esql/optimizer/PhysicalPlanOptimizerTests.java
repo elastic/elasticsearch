@@ -164,6 +164,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.function.Function;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
@@ -3246,18 +3247,17 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         // \_FragmentExec[filter=null, estimatedRowSize=0, reducer=[], fragment=[<>
         // EsRelation[test][some_field1{f}#2, some_field2{f}#3]<>]]
 
-        EsRelation relation = new EsRelation(
+        var esField = List.of(
+            new EsField("some_field1", DataType.KEYWORD, Map.of(), true, EsField.TimeSeriesFieldType.NONE),
+            new EsField("some_field2", DataType.KEYWORD, Map.of(), true, EsField.TimeSeriesFieldType.NONE)
+        );
+        var index = new EsIndex("test", esField.stream().collect(Collectors.toMap(EsField::getName, Function.identity())));
+        var relation = new EsRelation(
             Source.EMPTY,
-            new EsIndex(
-                "test",
-                Map.of(
-                    "some_field1",
-                    new EsField("some_field1", DataType.KEYWORD, Map.of(), true, EsField.TimeSeriesFieldType.NONE),
-                    "some_field2",
-                    new EsField("some_field2", DataType.KEYWORD, Map.of(), true, EsField.TimeSeriesFieldType.NONE)
-                )
-            ),
-            IndexMode.STANDARD
+            index.name(),
+            IndexMode.STANDARD,
+            index.indexNameWithModes(),
+            esField.stream().map(field -> (Attribute) new FieldAttribute(Source.EMPTY, null, null, field.getName(), field)).toList()
         );
         Attribute some_field1 = relation.output().get(0);
         Attribute some_field2 = relation.output().get(1);

@@ -379,7 +379,12 @@ public class EsqlSession {
                 );
                 // TODO: INLINE STATS can we do better here and further optimize the plan AFTER one of the subplans executed?
                 newLogicalPlan.setOptimized();
-                LOGGER.trace("Main plan change after previous subplan execution:\n{}", NodeUtils.diffString(optimizedPlan, newLogicalPlan));
+                if (LOGGER.isTraceEnabled()) {
+                    LOGGER.trace(
+                        "Main plan change after previous subplan execution:\n{}",
+                        NodeUtils.diffString(optimizedPlan, newLogicalPlan)
+                    );
+                }
 
                 // look for the next inlinejoin plan
                 var newSubPlan = firstSubPlan(newLogicalPlan, subPlansResults);
@@ -597,7 +602,7 @@ public class EsqlSession {
             ThreadPool.Names.SEARCH_COORDINATION,
             ThreadPool.Names.SYSTEM_READ
         );
-        indexResolver.resolveAsMergedMapping(
+        indexResolver.resolveIndices(
             EsqlCCSUtils.createQualifiedLookupIndexExpressionFromAvailableClusters(executionInfo, localPattern),
             result.wildcardJoinIndices().contains(localPattern) ? IndexResolver.ALL_FIELDS : result.fieldNames,
             null,
@@ -832,7 +837,7 @@ public class EsqlSession {
             // return empty resolution if the expression is pure CCS and resolved no remote clusters (like no-such-cluster*:index)
             listener.onResponse(result.withIndices(indexPattern, IndexResolution.empty(indexPattern.indexPattern())));
         } else {
-            indexResolver.resolveAsMergedMappingAndRetrieveMinimumVersion(
+            indexResolver.resolveIndicesVersioned(
                 indexPattern.indexPattern(),
                 result.fieldNames,
                 // Maybe if no indices are returned, retry without index mode and provide a clearer error message.

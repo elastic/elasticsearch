@@ -106,7 +106,15 @@ final class SpatialExtentState implements AggregatorState {
 
     public Block toBlock(DriverContext driverContext) {
         var factory = driverContext.blockFactory();
-        return seen ? factory.newConstantBytesRefBlockWith(new BytesRef(toWKB()), 1) : factory.newConstantNullBlock(1);
+
+        boolean hasInfinity = minX == Integer.MAX_VALUE
+            || maxX == Integer.MIN_VALUE
+            || minY == Integer.MAX_VALUE
+            || maxY == Integer.MIN_VALUE;
+
+        return seen && (hasInfinity == false)
+            ? factory.newConstantBytesRefBlockWith(new BytesRef(toWKB()), 1)
+            : factory.newConstantNullBlock(1);
     }
 
     private byte[] toWKB() {

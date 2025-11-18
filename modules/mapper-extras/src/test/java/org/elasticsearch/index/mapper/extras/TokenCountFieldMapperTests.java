@@ -267,6 +267,6 @@ public class TokenCountFieldMapperTests extends MapperTestCase {
 
     @Override
     protected List<SortShortcutSupport> getSortShortcutSupport() {
-        return List.of();
+        return List.of(new SortShortcutSupport(this::minimalMapping, this::writeField, true));
     }
 }

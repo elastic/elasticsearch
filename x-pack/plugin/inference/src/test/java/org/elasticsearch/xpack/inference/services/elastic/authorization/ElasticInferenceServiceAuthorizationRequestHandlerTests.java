@@ -192,9 +192,7 @@ public class ElasticInferenceServiceAuthorizationRequestHandlerTests extends EST
         );
 
         try (var sender = senderFactory.createSender()) {
-            var responseData = AuthorizationResponseEntityTests.getEisAuthorizationResponseWithMultipleEndpoints(
-                eisGatewayUrl
-            );
+            var responseData = AuthorizationResponseEntityTests.getEisAuthorizationResponseWithMultipleEndpoints(eisGatewayUrl);
 
             webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseData.responseJson()));
 

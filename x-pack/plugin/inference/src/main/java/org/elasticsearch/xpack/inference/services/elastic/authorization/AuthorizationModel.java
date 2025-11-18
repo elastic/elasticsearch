@@ -150,9 +150,7 @@ public class AuthorizationModel {
         return AuthorizationResponseEntity.Configuration.EMPTY;
     }
 
-    private static Map<String, Object> getChunkingSettingsMap(
-        AuthorizationResponseEntity.Configuration configuration
-    ) {
+    private static Map<String, Object> getChunkingSettingsMap(AuthorizationResponseEntity.Configuration configuration) {
         return Objects.requireNonNullElse(configuration.chunkingSettings(), new HashMap<>());
     }
 
@@ -181,21 +179,9 @@ public class AuthorizationModel {
     }
 
     private static void validateConfigurationForTextEmbedding(AuthorizationResponseEntity.Configuration config) {
-        validateFieldPresent(
-            AuthorizationResponseEntity.Configuration.ELEMENT_TYPE,
-            config.elementType(),
-            TaskType.TEXT_EMBEDDING
-        );
-        validateFieldPresent(
-            AuthorizationResponseEntity.Configuration.DIMENSIONS,
-            config.dimensions(),
-            TaskType.TEXT_EMBEDDING
-        );
-        validateFieldPresent(
-            AuthorizationResponseEntity.Configuration.SIMILARITY,
-            config.similarity(),
-            TaskType.TEXT_EMBEDDING
-        );
+        validateFieldPresent(AuthorizationResponseEntity.Configuration.ELEMENT_TYPE, config.elementType(), TaskType.TEXT_EMBEDDING);
+        validateFieldPresent(AuthorizationResponseEntity.Configuration.DIMENSIONS, config.dimensions(), TaskType.TEXT_EMBEDDING);
+        validateFieldPresent(AuthorizationResponseEntity.Configuration.SIMILARITY, config.similarity(), TaskType.TEXT_EMBEDDING);
     }
 
     private static void validateFieldPresent(String field, Object fieldValue, TaskType taskType) {
@@ -206,14 +192,8 @@ public class AuthorizationModel {
         }
     }
 
-    private static SimilarityMeasure getSimilarityMeasure(
-        AuthorizationResponseEntity.Configuration configuration
-    ) {
-        validateFieldPresent(
-            AuthorizationResponseEntity.Configuration.SIMILARITY,
-            configuration.similarity(),
-            TaskType.TEXT_EMBEDDING
-        );
+    private static SimilarityMeasure getSimilarityMeasure(AuthorizationResponseEntity.Configuration configuration) {
+        validateFieldPresent(AuthorizationResponseEntity.Configuration.SIMILARITY, configuration.similarity(), TaskType.TEXT_EMBEDDING);
 
         return SimilarityMeasure.fromString(configuration.similarity());
     }

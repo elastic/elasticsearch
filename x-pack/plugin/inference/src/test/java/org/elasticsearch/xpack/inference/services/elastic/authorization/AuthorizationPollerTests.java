@@ -345,9 +345,7 @@ public class AuthorizationPollerTests extends ESTestCase {
         var mockAuthHandler = mock(ElasticInferenceServiceAuthorizationRequestHandler.class);
         doAnswer(invocation -> {
             ActionListener<AuthorizationModel> listener = invocation.getArgument(0);
-            listener.onResponse(
-                AuthorizationModel.of(new AuthorizationResponseEntity(List.of(completionModel)), url)
-            );
+            listener.onResponse(AuthorizationModel.of(new AuthorizationResponseEntity(List.of(completionModel)), url));
             return Void.TYPE;
         }).when(mockAuthHandler).getAuthorization(any(), any());
 

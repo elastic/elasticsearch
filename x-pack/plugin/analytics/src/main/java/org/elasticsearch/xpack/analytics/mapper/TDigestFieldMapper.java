@@ -204,10 +204,10 @@ public class TDigestFieldMapper extends FieldMapper {
             DoublesBlockLoader maximaLoader = new DoublesBlockLoader(valuesMaxSubFieldName(name()), NumericUtils::sortableLongToDouble);
             DoublesBlockLoader sumsLoader = new DoublesBlockLoader(valuesSumSubFieldName(name()), NumericUtils::sortableLongToDouble);
             LongsBlockLoader valueCountsLoader = new LongsBlockLoader(valuesCountSubFieldName(name()));
-            BytesRefsFromBinaryBlockLoader bytesLoader = new BytesRefsFromBinaryBlockLoader(name());
+            BytesRefsFromBinaryBlockLoader digestLoader = new BytesRefsFromBinaryBlockLoader(name());
 
             // TODO: We're constantly passing around this set of 5 things. It would be nice to make a container for that.
-            return new TDigestBlockLoader(bytesLoader, minimaLoader, maximaLoader, sumsLoader, valueCountsLoader);
+            return new TDigestBlockLoader(digestLoader, minimaLoader, maximaLoader, sumsLoader, valueCountsLoader);
         }
 
         @Override

@@ -41,7 +41,7 @@ public class ParserTests extends ESTestCase {
         assertNull("Sign should be null", ((IntegerArgument) argument).sign());
     }
 
-    public void testTimestampAndIpAndNumber() throws ParseException {
+    public void testRFC1123TimestampAndIpAndNumber() throws ParseException {
         String messageWithTimestampIpAndNumber = "Oct, 05 2023 02:48:07 PM INFO Response from 146.10.10.133 took 2000 ms";
         List<Argument<?>> parsedArguments = parser.parse(messageWithTimestampIpAndNumber);
         Parser.constructPattern(messageWithTimestampIpAndNumber, parsedArguments, patternedMessage, true);
@@ -113,5 +113,30 @@ public class ParserTests extends ESTestCase {
         Argument<?> argument = parsedArguments.getFirst();
         assertThat(argument, instanceOf(IntegerArgument.class));
         assertEquals(123456789, ((IntegerArgument) argument).value().intValue());
+    }
+
+    public void testApacheLogTimestamp() throws ParseException {
+        String message = "05/Oct/2023:14:48:00 +0000 GET /index.html 200";
+        List<Argument<?>> parsedArguments = parser.parse(message);
+        Parser.constructPattern(message, parsedArguments, patternedMessage, true);
+        assertEquals("%T GET /index.html %I", patternedMessage.toString());
+        assertEquals(2, parsedArguments.size());
+        Argument<?> argument = parsedArguments.getFirst();
+        assertThat(argument, instanceOf(Timestamp.class));
+        Timestamp timestamp = (Timestamp) argument;
+        assertEquals(1696517280000L, timestamp.getTimestampMillis());
+        String pattern = timestamp.getFormat();
+        assertEquals("dd/MMM/yyyy:HH:mm:ss Z", pattern);
+        DateTimeFormatter dateTimeFormatter = DateTimeFormatter.ofPattern(pattern, Locale.US);
+        assertEquals(1696517280000L, TimestampFormat.parseTimestamp(dateTimeFormatter, "05/Oct/2023:14:48:00 +0000"));
+        argument = parsedArguments.get(1);
+        assertThat(argument, instanceOf(IntegerArgument.class));
+        assertEquals(200, ((IntegerArgument) argument).value().intValue());
+    }
+
+    public void testApacheErrorLogTimestamp() throws ParseException {
+        String message = "[Thu Oct 05 14:48:00.123 2023] [info] [pid 9] core.c(4739): [client 172.17.0.1:50764] AH00128: File does not "
+            + "exist: /usr/local/apache2/htdocs/favicon.ico.";
+        // todo - timestamp with NA component (day of week) not yet supported as well as IP4V address
     }
 }

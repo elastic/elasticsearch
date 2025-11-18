@@ -165,7 +165,6 @@ public class SchemaCompilerTests extends ESTestCase {
         int DD_bitmask = subTokenBitmaskRegistry.getBitmask("DD");
         int YYYY_bitmask = subTokenBitmaskRegistry.getBitmask("YYYY");
         int hh_bitmask = subTokenBitmaskRegistry.getBitmask("hh");
-        int HH_bitmask = subTokenBitmaskRegistry.getBitmask("HH");
         int mm_bitmask = subTokenBitmaskRegistry.getBitmask("mm");
         int ss_bitmask = subTokenBitmaskRegistry.getBitmask("ss");
         int TZOhhmm_bitmask = subTokenBitmaskRegistry.getBitmask("TZOhhmm");
@@ -221,8 +220,7 @@ public class SchemaCompilerTests extends ESTestCase {
         assertNotEquals("DD bitmask should be set for 22", 0x00, bitmask & DD_bitmask);
         assertEquals("MM bitmask should not be set for 22", 0x00, bitmask & MM_bitmask);
         assertEquals("YYYY bitmask should not be set for 22", 0x00, bitmask & YYYY_bitmask);
-        assertEquals("hh bitmask should not be set for 22", 0x00, bitmask & hh_bitmask);
-        assertNotEquals("HH bitmask should be set for 22", 0x00, bitmask & HH_bitmask);
+        assertNotEquals("hh bitmask should be set for 22", 0x00, bitmask & hh_bitmask);
         assertNotEquals("mm bitmask should be set for 22", 0x00, bitmask & mm_bitmask);
         assertNotEquals("ss bitmask should be set for 22", 0x00, bitmask & ss_bitmask);
         assertNotEquals("int_bitmask should be set for 22", 0x00, bitmask & int_bitmask);
@@ -361,17 +359,17 @@ public class SchemaCompilerTests extends ESTestCase {
         assertNotEquals(0x00, subTokenCountToTokenBitmask[4] & uuid_bitmask);
         assertEquals(0x00, subTokenCountToTokenBitmask[5] & uuid_bitmask);
 
-        assertEquals(7, compiledSchema.maxSubTokensPerMultiToken);
+        assertEquals(8, compiledSchema.maxSubTokensPerMultiToken);
         BitmaskRegistry<MultiTokenType> multiTokenBitmaskRegistry = compiledSchema.multiTokenBitmaskRegistry;
-        int timestamp1_bitmask = multiTokenBitmaskRegistry.getBitmask("timestamp1");
-        MultiTokenType timestamp1Type = multiTokenBitmaskRegistry.getHighestPriorityType(timestamp1_bitmask);
+        int rfc_1123_timestamp_bitmask = multiTokenBitmaskRegistry.getBitmask("RFC-1123-timestamp");
+        MultiTokenType timestamp1Type = multiTokenBitmaskRegistry.getHighestPriorityType(rfc_1123_timestamp_bitmask);
         assertEquals(7, timestamp1Type.getNumSubTokens());
-        TimestampFormat timestamp1Format = timestamp1Type.getTimestampFormat();
-        assertEquals(7, timestamp1Format.getNumTimestampComponents());
-        int[] timestampComponentsOrder = timestamp1Format.getTimestampComponentsOrder();
+        TimestampFormat rfc1123TimestampFormat = timestamp1Type.getTimestampFormat();
+        assertEquals(7, rfc1123TimestampFormat.getNumTimestampComponents());
+        int[] timestampComponentsOrder = rfc1123TimestampFormat.getTimestampComponentsOrder();
         assertEquals(TimestampComponentType.values().length, timestampComponentsOrder.length);
-        // "timestamp1" type format is: "$Mon, $DD $YYYY $timeS $AP"
-        assertEquals("MMM, dd yyyy hh:mm:ss a", timestamp1Format.getJavaTimeFormat());
+        // RFC-1123-timestamp type format is: "$Mon, $DD $YYYY $timeS $AP"
+        assertEquals("MMM, dd yyyy hh:mm:ss a", rfc1123TimestampFormat.getJavaTimeFormat());
         assertEquals(0, timestampComponentsOrder[TimestampComponentType.MONTH_CODE]);
         assertEquals(1, timestampComponentsOrder[TimestampComponentType.DAY_CODE]);
         assertEquals(2, timestampComponentsOrder[TimestampComponentType.YEAR_CODE]);
@@ -398,7 +396,7 @@ public class SchemaCompilerTests extends ESTestCase {
         TimestampFormat result = SchemaCompiler.createTimestampFormat(multiTokenFormat);
 
         // bracket literals should be escaped in the Java time format; double-space should be preserved
-        assertEquals("yyyy-MM-dd  '{'hh:mm:ss.SSS'}' Z", result.getJavaTimeFormat());
+        assertEquals("yyyy-MM-dd  '{'HH:mm:ss.SSS'}' Z", result.getJavaTimeFormat());
         int[] order = result.getTimestampComponentsOrder();
         assertEquals(0, order[TimestampComponentType.YEAR_CODE]);
         assertEquals(1, order[TimestampComponentType.MONTH_CODE]);

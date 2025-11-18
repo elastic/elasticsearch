@@ -48,8 +48,6 @@ public abstract class ParsingType implements Type {
                     String.format(Locale.ROOT, "Multi-token type %s is a timestamp, but does not have a timestamp format defined", name)
                 );
             }
-        } else if (timestampFormat.getNumTimestampComponents() != numSubTokens) {
-            throw new IllegalArgumentException("The number of sub-tokens must match the number of timestamp components in the format");
         }
         this.name = name;
         this.encodingType = encodingType;

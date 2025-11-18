@@ -13,6 +13,7 @@ public enum EncodingType {
     DOUBLE('F', "double"),
     HEX('H', "hexadecimal"),
     IPV4('4', "IPv4"),
+    IPV4_ADDRESS('V', "IPv4 and port"),
     UUID('U', "UUID"),
     TIMESTAMP('T', "timestamp");
 

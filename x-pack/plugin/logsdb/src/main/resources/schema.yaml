@@ -29,6 +29,7 @@ predefined_constructs:
     H: "hexadecimal"                               # Hexadecimal value, retained as a string
     F: "floating point"                            # Floating point numeric value
     4: "IPv4"                                      # IPv4 address
+    V: "IPv4 Address"                              # IPv4 and port combined
     U: "UUID"                                      # UUID value
     T: "timestamp"                                 # Timestamp value
   # The timestamp component types are used to define the components of a timestamp in the schema section.
@@ -154,15 +155,10 @@ schema:
       constraint: "1-31"
       description: "Day of the month between 1 and 31, inclusive"
       timestamp_component_type: "D"
-    - name: "HH"
-      base_type: "%I"
-      constraint: "0-23"
-      description: "Hour of the day in 24-hour format between 0 and 23, inclusive"
-      timestamp_component_type: "h"
     - name: "hh"
       base_type: "%I"
-      constraint: "1-12"
-      description: "Hour of the day in 12-hour format between 1 and 12, inclusive"
+      constraint: "0-23"
+      description: "Hour of the day, either in 24-hour or 12-hour format"
       timestamp_component_type: "h"
     - name: "AP"
       base_type: "%A"
@@ -246,6 +242,10 @@ schema:
       encoding_type: "%4"
       format: "$octet.$octet.$octet.$octet"
       description: "IPv4 address in dotted-decimal notation"
+    - name: "IPv4_with_port"
+      encoding_type: "%V"
+      format: "$octet.$octet.$octet.$octet:$port"
+      description: "IPv4 address in dotted-decimal notation with port"
     - name: "UUID_standard"
       encoding_type: "%U"
       format: "(%X{8})-(%X{4})-(%X{4})-(%X{4})-(%X{12})"
@@ -258,6 +258,10 @@ schema:
       encoding_type: "%I"
       format: "$DD"
       description: "Day of the month as an integer"
+    - name: "Day"
+      encoding_type: "%A"
+      format: "$Day"
+      description: "3-letter abbreviation for the day of the week"
     - name: "Mon"
       encoding_type: "%A"
       format: "$Mon"
@@ -298,11 +302,16 @@ schema:
       encoding_type: "%A"
       format: "$hh:$mm:$ss.$us"
       description: "Time with microsecond resolution"
-    - name: "datetime1"
+    - name: "logging-libraries-datetime"
       encoding_type: "%T"
+      # todo - special_sub_token_delimiters not supported yet
       special_sub_token_delimiters: "T"
-      format: "$DD/$MM/$YYYYT$hh:$mm:$ss"
-      description: "Date and time"
+      format: "$DD/$Mon/$YYYYT$hh:$mm:$ss"
+      description: "Date and time commonly used in logging library format"
+    - name: "apache-log-datetime"
+      encoding_type: "%T"
+      format: "$DD/$Mon/$YYYY:$hh:$mm:$ss"
+      description: "Date and time in Apache log format"
 
   # Multi-token types define patterns that span across multiple tokens (space/tab separated).
   # These are used for complex patterns like timestamps that might include multiple tokens.
@@ -313,13 +322,23 @@ schema:
   #          Each referenced element must be separated by spaces to indicate token boundaries
   #   description: human-readable description
   multi_token_types:
-    - name: "timestamp1"
+    - name: "RFC-1123-timestamp"
       encoding_type: "%T"
       # e.g Oct 05, 2023 02:48:00 PM
       format: "$Mon, $DD $YYYY $timeS $AP"
-      description: "Multi-token date"
-    - name: "timestamp2"
+      description: "RFC 1123 formatted timestamp"
+    - name: "logging-libraries-datetime-timestamp"
+      encoding_type: "%T"
+      # e.g 05/Oct/2023T14:48:00 +0200
+      format: "$logging-libraries-datetime $TZOhhmm"
+      description: "Logging libraries formatted timestamp"
+    - name: "apache-log-timestamp"
       encoding_type: "%T"
       # e.g 05/Oct/2023:14:48:00 +0200
-      format: "$datetime1 $TZOhhmm"
-      description: "Multi-token timestamp"
+      format: "$apache-log-datetime $TZOhhmm"
+      description: "Apache log formatted timestamp"
+    - name: "apache-error-log-timestamp"
+      encoding_type: "%T"
+      # e.g Thu Oct 05 14:48:00 2023
+      format: "$Day $Mon $DD $timeMS $YYYY"
+      description: "Apache error log formatted timestamp"

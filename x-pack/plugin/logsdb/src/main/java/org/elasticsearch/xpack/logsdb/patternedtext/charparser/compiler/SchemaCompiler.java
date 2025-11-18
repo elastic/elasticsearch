@@ -835,6 +835,10 @@ public class SchemaCompiler {
                     + ")."
             );
         }
+
+        boolean isUsingAmPm = tokens.stream()
+            .anyMatch(token -> Arrays.stream(token.format().getSubTokenTypes()).anyMatch(subToken -> subToken.name().equals("AP")));
+
         int[] timestampComponentsOrder = new int[TimestampComponentType.values().length];
         Arrays.fill(timestampComponentsOrder, -1);
         int nextComponentIndex = 0;
@@ -842,7 +846,13 @@ public class SchemaCompiler {
         for (int i = 0; i < tokens.size(); i++) {
             org.elasticsearch.xpack.logsdb.patternedtext.charparser.schema.TokenType token = tokens.get(i);
             StringBuilder tokenJavaTimeFormat = new StringBuilder();
-            nextComponentIndex += appendTimestampComponents(token, tokenJavaTimeFormat, timestampComponentsOrder, nextComponentIndex);
+            nextComponentIndex += appendTimestampComponents(
+                token,
+                tokenJavaTimeFormat,
+                timestampComponentsOrder,
+                nextComponentIndex,
+                isUsingAmPm
+            );
             javaTimeFormat.append(tokenJavaTimeFormat);
             if (i < delimiterParts.size()) {
                 String delimiterPart = delimiterParts.get(i);
@@ -864,7 +874,8 @@ public class SchemaCompiler {
         StringBuilder javaTimeFormat = new StringBuilder();
         int[] timestampComponentsOrder = new int[TimestampComponentType.values().length];
         Arrays.fill(timestampComponentsOrder, -1);
-        appendTimestampComponents(timestampToken, javaTimeFormat, timestampComponentsOrder, 0);
+        boolean isUsingAmPm = Arrays.stream(timestampToken.format().getSubTokenTypes()).anyMatch(subToken -> subToken.name().equals("AP"));
+        appendTimestampComponents(timestampToken, javaTimeFormat, timestampComponentsOrder, 0, isUsingAmPm);
         return new TimestampFormat(javaTimeFormat.toString(), timestampComponentsOrder);
     }
 
@@ -881,7 +892,8 @@ public class SchemaCompiler {
         org.elasticsearch.xpack.logsdb.patternedtext.charparser.schema.TokenType token,
         StringBuilder javaTimeFormat,
         int[] timestampComponentsOrder,
-        int nextComponentIndex
+        int nextComponentIndex,
+        boolean isUsingAmPm
     ) {
         StringBuilder tokenJavaTimeFormat = new StringBuilder();
         TokenFormat format = token.format();
@@ -894,7 +906,7 @@ public class SchemaCompiler {
             TimestampComponentType componentType = subToken.getTimestampComponentType();
             if (componentType != TimestampComponentType.NA) {
                 timestampComponentsOrder[componentType.getCode()] = i + nextComponentIndex;
-                tokenJavaTimeFormat.append(mapSubTokenTypeToPattern(subToken));
+                tokenJavaTimeFormat.append(mapSubTokenTypeToPattern(subToken, isUsingAmPm));
                 if (i < delimiters.length) {
                     appendDelimiter(tokenJavaTimeFormat, delimiters[i]);
                 }
@@ -915,7 +927,8 @@ public class SchemaCompiler {
     }
 
     private static String mapSubTokenTypeToPattern(
-        org.elasticsearch.xpack.logsdb.patternedtext.charparser.schema.SubTokenType subTokenType
+        org.elasticsearch.xpack.logsdb.patternedtext.charparser.schema.SubTokenType subTokenType,
+        boolean useAmPm
     ) {
         TimestampComponentType componentType = subTokenType.getTimestampComponentType();
         if (componentType == TimestampComponentType.NA) {
@@ -924,19 +937,18 @@ public class SchemaCompiler {
 
         // The mapping is based on the sub-token definitions in schema.yaml
         return switch (subTokenType.name()) {
-            case "YYYY" -> "yyyy"; // 4-digit year
-            case "MM" -> "MM";     // 2-digit month
-            case "Mon" -> "MMM";    // 3-letter month abbreviation
-            case "DD" -> "dd";     // 2-digit day
-            case "hh" -> "hh";     // 2-digit hour (12-hour clock - 1-12)
-            case "HH" -> "HH";     // 2-digit hour (24-hour clock - 0-23)
-            case "mm" -> "mm";     // 2-digit minute
-            case "ss" -> "ss";     // 2-digit second
-            case "ms" -> "SSS";    // 3-digit millisecond
-            case "us" -> "SSSSSS"; // 6-digit microsecond
-            case "AP" -> "a";      // AM/PM marker
-            case "TZA", "TZOhhmm" -> "Z"; // Timezone offset like +0200 or -0500
-            case "Day" -> "E";     // Day of week abbreviation
+            case "YYYY" -> "yyyy";                  // 4-digit year
+            case "MM" -> "MM";                      // 2-digit month
+            case "Mon" -> "MMM";                    // 3-letter month abbreviation
+            case "DD" -> "dd";                      // 2-digit day
+            case "hh" -> useAmPm ? "hh" : "HH";     // 2-digit hour (either 12-hour or 24-hour clock - 0-23)
+            case "mm" -> "mm";                      // 2-digit minute
+            case "ss" -> "ss";                      // 2-digit second
+            case "ms" -> "SSS";                     // 3-digit millisecond
+            case "us" -> "SSSSSS";                  // 6-digit microsecond
+            case "AP" -> "a";                       // AM/PM marker
+            case "TZA", "TZOhhmm" -> "Z";           // Timezone offset like +0200 or -0500
+            case "Day" -> "E";                      // Day of week abbreviation
             default -> "";
         };
     }

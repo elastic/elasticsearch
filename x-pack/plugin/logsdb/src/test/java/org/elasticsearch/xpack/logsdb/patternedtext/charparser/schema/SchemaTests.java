@@ -33,15 +33,18 @@ public class SchemaTests extends ESTestCase {
             .collect(Collectors.toMap(MultiTokenType::name, t -> t));
 
         // ensure expected multi-token types from schema.yaml are present
-        assertTrue("timestamp1 should be present", nameToType.containsKey("timestamp1"));
-        assertTrue("timestamp2 should be present", nameToType.containsKey("timestamp2"));
+        assertTrue("RFC-1123-timestamp should be present", nameToType.containsKey("RFC-1123-timestamp"));
+        assertTrue(
+            "logging-libraries-datetime-timestamp should be present",
+            nameToType.containsKey("logging-libraries-datetime-timestamp")
+        );
 
-        MultiTokenType t1 = nameToType.get("timestamp1");
-        MultiTokenType t2 = nameToType.get("timestamp2");
+        MultiTokenType t1 = nameToType.get("RFC-1123-timestamp");
+        MultiTokenType t2 = nameToType.get("logging-libraries-datetime-timestamp");
 
         // encoding type expected to be %T (Timestamp)
-        assertEquals("encodingType for timestamp1", EncodingType.TIMESTAMP, t1.encodingType());
-        assertEquals("encodingType for timestamp2", EncodingType.TIMESTAMP, t2.encodingType());
+        assertEquals("encodingType for RFC-1123-timestamp", EncodingType.TIMESTAMP, t1.encodingType());
+        assertEquals("encodingType for logging-libraries-datetime-timestamp", EncodingType.TIMESTAMP, t2.encodingType());
 
         nameToType.values().forEach(t -> {
             StringBuilder formatFromParts = new StringBuilder();

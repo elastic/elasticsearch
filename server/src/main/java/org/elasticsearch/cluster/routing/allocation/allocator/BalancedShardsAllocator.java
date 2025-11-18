@@ -1791,7 +1791,8 @@ public class BalancedShardsAllocator implements ShardsAllocator {
         }
     }
 
-    record ProjectIndex(ProjectId project, String indexName) {
+    // Visible for testing
+    public record ProjectIndex(ProjectId project, String indexName) {
         ProjectIndex(RoutingAllocation allocation, ShardRouting shard) {
             this(allocation.metadata().projectFor(shard.index()).id(), shard.getIndexName());
         }

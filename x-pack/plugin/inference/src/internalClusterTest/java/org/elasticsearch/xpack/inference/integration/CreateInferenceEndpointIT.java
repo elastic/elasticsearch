@@ -242,7 +242,7 @@ public class CreateInferenceEndpointIT extends ESIntegTestCase {
 
     private String getServiceForTaskType(TaskType taskType) {
         return switch (taskType) {
-            case TEXT_EMBEDDING -> TestDenseInferenceServiceExtension.TestInferenceService.NAME;
+            case TEXT_EMBEDDING, EMBEDDING -> TestDenseInferenceServiceExtension.TestInferenceService.NAME;
             case SPARSE_EMBEDDING -> TestSparseInferenceServiceExtension.TestInferenceService.NAME;
             case RERANK -> TestRerankingServiceExtension.TestInferenceService.NAME;
             case COMPLETION, CHAT_COMPLETION -> TestStreamingCompletionServiceExtension.TestInferenceService.NAME;

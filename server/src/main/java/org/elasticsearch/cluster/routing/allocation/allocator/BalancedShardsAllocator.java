@@ -448,7 +448,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
             boolean shardBalanced = false;
             // Balance each partition
             for (NodeSorter nodeSorter : nodeSorters) {
-                if (nodeSorter.modelNodes.length < 2) { /* skip if we only have one node */
+                if (nodeSorter.getModelNodes().length < 2) { /* skip if we only have one node */
                     logger.trace("skipping rebalance as the partition has single node only");
                     continue;
                 }
@@ -607,7 +607,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
         private boolean balanceByWeights(NodeSorter sorter) {
             boolean shardBalanced = false;
             final AllocationDeciders deciders = allocation.deciders();
-            final ModelNode[] modelNodes = sorter.modelNodes;
+            final ModelNode[] modelNodes = sorter.getModelNodes();
             final float[] weights = sorter.weights;
             for (var index : buildWeightOrderedIndices(sorter)) {
                 IndexMetadata indexMetadata = indexMetadata(index);
@@ -993,7 +993,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
             RoutingNode targetNode = null;
             final List<NodeAllocationResult> nodeResults = explain ? new ArrayList<>() : null;
             int weightRanking = 0;
-            for (ModelNode currentNode : sorter.modelNodes) {
+            for (ModelNode currentNode : sorter.getModelNodes()) {
                 if (currentNode != sourceNode) {
                     RoutingNode target = currentNode.getRoutingNode();
                     Decision allocationDecision = decider.apply(shardRouting, target);
@@ -1713,7 +1713,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
      *
      * @see BalancingWeightsFactory
      */
-    public static final class NodeSorter extends IntroSorter {
+    public static class NodeSorter extends IntroSorter {
 
         final ModelNode[] modelNodes;
         /** The nodes weights with respect to the current weight function / index */
@@ -1788,6 +1788,10 @@ public class BalancedShardsAllocator implements ShardsAllocator {
 
         public WeightFunction getWeightFunction() {
             return function;
+        }
+
+        public ModelNode[] getModelNodes() {
+            return modelNodes;
         }
     }
 

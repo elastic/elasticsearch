@@ -13,7 +13,9 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.index.mapper.DateFieldMapper;
+import org.elasticsearch.index.mapper.TimeSeriesIdFieldMapper;
 import org.elasticsearch.search.DocValueFormat;
+import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -167,6 +169,20 @@ public class ToStringTests extends AbstractScalarFunctionTestCase {
             "ToStringFromAggregateMetricDoubleEvaluator[field=" + read + "]",
             DataType.KEYWORD,
             agg -> new BytesRef(EsqlDataTypeConverter.aggregateMetricDoubleLiteralToString(agg)),
+            List.of()
+        );
+        TestCaseSupplier.unary(
+            suppliers,
+            "ToStringFromTsidEvaluator[tsid=" + read + "]",
+            List.of(
+                new TestCaseSupplier.TypedDataSupplier(
+                    "<_tsid>",
+                    () -> EsqlTestUtils.randomLiteral(DataType.TSID_DATA_TYPE).value(),
+                    DataType.TSID_DATA_TYPE
+                )
+            ),
+            DataType.KEYWORD,
+            tsid -> new BytesRef((String) TimeSeriesIdFieldMapper.encodeTsid((BytesRef) tsid)),
             List.of()
         );
         return parameterSuppliersFromTypedDataWithDefaultChecks(true, suppliers);

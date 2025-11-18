@@ -113,7 +113,7 @@ public class ToString extends AbstractConvertFunction implements EvaluatorMapper
                 "keyword",
                 "long",
                 "text",
-                "tsid",
+                "_tsid",
                 "unsigned_long",
                 "version" },
             description = "Input value. The input can be a single- or multi-valued column or an expression."

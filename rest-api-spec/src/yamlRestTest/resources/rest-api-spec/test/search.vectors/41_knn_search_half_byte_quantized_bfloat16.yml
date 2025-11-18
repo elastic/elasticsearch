@@ -802,6 +802,7 @@ setup:
             properties:
               vector:
                 type: dense_vector
+                element_type: bfloat16
                 similarity: max_inner_product
                 dims: 4
                 index_options:

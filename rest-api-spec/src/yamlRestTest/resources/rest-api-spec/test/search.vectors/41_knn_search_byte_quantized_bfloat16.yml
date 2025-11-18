@@ -736,6 +736,7 @@ setup:
           properties:
             vector:
               type: dense_vector
+              element_type: bfloat16
               index_options:
                 type: int8_hnsw
                 rescore_vector:

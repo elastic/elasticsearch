@@ -192,7 +192,6 @@ public class TransportOpenPointInTimeAction extends HandledTransportAction<OpenP
                                 listener.onFailure(ex);
                                 return;
                             }
-                            // TODO MP: collect indices and call execute open pit
                             Set<String> collectedIndices = new HashSet<>(indices.length);
 
                             for (String remoteAlias : resolvedRemoteExpressions.keySet()) {
@@ -240,6 +239,9 @@ public class TransportOpenPointInTimeAction extends HandledTransportAction<OpenP
                             terminalHandler.run();
                         }));
                     }
+                } else {
+                    // for CPS requests that are targeting origin only, could be because of project_routing or other reasons.
+                    executeOpenPit((SearchTask) task, request, listener);
                 }
             }
         } else {

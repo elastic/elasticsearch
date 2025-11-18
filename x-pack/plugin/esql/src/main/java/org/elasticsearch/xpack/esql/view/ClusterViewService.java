@@ -105,6 +105,6 @@ public class ClusterViewService extends ViewService {
 
     @Override
     protected boolean viewsFeatureEnabled() {
-        return featureService.clusterHasFeature(clusterService.state(), EsqlFeatures.ESQL_VIEWS);
+        return EsqlFeatures.ESQL_VIEWS_FEATURE_FLAG.isEnabled();
     }
 }

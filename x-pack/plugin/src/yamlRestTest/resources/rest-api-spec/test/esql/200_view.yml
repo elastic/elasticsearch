@@ -5,7 +5,7 @@ setup:
         - method: PUT
           path: /_query
           parameters: [ method, path, parameters, capabilities ]
-          capabilities: [ esql.views ]
+          capabilities: [ views_in_cluster_state ]
       reason: "Views not yet supported in cluster state"
       test_runner_features: [ capabilities, allowed_warnings_regex, warnings_regex ]
   - do:
@@ -70,7 +70,7 @@ basic:
         - method: PUT
           path: /_query
           parameters: [ method, path, parameters, capabilities ]
-          capabilities: [ views_v1 ]
+          capabilities: [ views_with_branching ]
       reason: "Views not yet supported"
       test_runner_features: [ capabilities, allowed_warnings_regex, warnings_regex ]
   - do:

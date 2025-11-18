@@ -60,9 +60,9 @@ public final class PruneColumns extends Rule<LogicalPlan, LogicalPlan> {
             // same index fields will have different name ids in the left and right hand sides - as in the extreme example
             // `FROM lookup_idx | LOOKUP JOIN lookup_idx ON key_field`.
 
-//            if (forkFound.get()) {
-//                return p;
-//            }
+            if (forkFound.get()) {
+                return p;
+            }
 
             // TODO: revisit with every new command
             // skip nodes that simply pass the input through and use no references

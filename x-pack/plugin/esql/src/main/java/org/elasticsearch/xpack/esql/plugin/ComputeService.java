@@ -200,6 +200,7 @@ public class ComputeService {
         Configuration configuration,
         FoldContext foldContext,
         EsqlExecutionInfo execInfo,
+        PlanTimeProfile planTimeProfile,
         ActionListener<Result> listener
     ) {
         assert ThreadPool.assertCurrentThreadPool(
@@ -211,7 +212,10 @@ public class ComputeService {
         Tuple<List<PhysicalPlan>, PhysicalPlan> subplansAndMainPlan = PlannerUtils.breakPlanIntoSubPlansAndMainPlan(physicalPlan);
 
         List<PhysicalPlan> subplans = subplansAndMainPlan.v1();
-        PlanTimeProfile planTimeProfile = configuration.profile() ? new PlanTimeProfile() : null;
+        // PlanTimeProfile is now passed from EsqlSession which already tracks logical/physical optimization time
+        if (planTimeProfile == null && configuration.profile()) {
+            planTimeProfile = new PlanTimeProfile();
+        }
 
         // we have no sub plans, so we can just execute the given plan
         if (subplans == null || subplans.isEmpty()) {

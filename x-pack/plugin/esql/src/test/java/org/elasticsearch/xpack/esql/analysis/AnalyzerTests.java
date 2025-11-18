@@ -195,7 +195,7 @@ public class AnalyzerTests extends ESTestCase {
         var plan = analyzer.analyze(UNRESOLVED_RELATION);
         var limit = as(plan, Limit.class);
 
-        assertEquals(new EsRelation(EMPTY, idx.name(), IndexMode.STANDARD, idx.indexNameWithModes(), NO_FIELDS), limit.child());
+        assertEquals(new EsRelation(EMPTY, idx.name(), IndexMode.STANDARD, Map.of(), NO_FIELDS), limit.child());
     }
 
     public void testFailOnUnresolvedIndex() {
@@ -213,7 +213,7 @@ public class AnalyzerTests extends ESTestCase {
         var plan = analyzer.analyze(unresolvedRelation("cluster:idx"));
         var limit = as(plan, Limit.class);
 
-        assertEquals(new EsRelation(EMPTY, idx.name(), IndexMode.STANDARD, idx.indexNameWithModes(), NO_FIELDS), limit.child());
+        assertEquals(new EsRelation(EMPTY, idx.name(), IndexMode.STANDARD, Map.of(), NO_FIELDS), limit.child());
     }
 
     public void testAttributeResolution() {

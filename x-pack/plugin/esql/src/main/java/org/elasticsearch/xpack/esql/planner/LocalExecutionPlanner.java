@@ -67,7 +67,6 @@ import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.tasks.CancellableTask;
-import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.action.ColumnInfoImpl;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
@@ -737,26 +736,12 @@ public class LocalExecutionPlanner {
         // 1. We've just got one entry - this should be the one relevant to the join, and it should be for this cluster
         // 2. We have got multiple entries - this means each cluster has its own one, and we should extract one relevant for this cluster
 
-        var concreteIndices = esRelation.concreteIndices();
-        String[] indexSplit = RemoteClusterAware.splitIndexName(switch (concreteIndices.size()) {
-            case 1 -> concreteIndices.iterator().next();
-            default -> concreteIndices.stream()
-                .filter(i -> RemoteClusterAware.parseClusterAlias(i).equals(clusterAlias))
-                .findFirst()
-                .orElseThrow(
-                    () -> new IllegalStateException(
-                        "can't plan [" + join + "]: no matching index found " + EsqlCCSUtils.inClusterName(clusterAlias)
-                    )
-                );
-        });
 
-        // No prefix is ok, prefix with this cluster is ok, something else is not
-        if (indexSplit[0] != null && clusterAlias.equals(indexSplit[0]) == false) {
-            throw new IllegalStateException(
-                "can't plan [" + join + "]: no matching index found " + EsqlCCSUtils.inClusterName(clusterAlias)
-            );
+        var indices = esRelation.concreteIndicesByRemotes().get(clusterAlias);
+        if (indices == null) {
+            throw new IllegalStateException("can't plan [" + join + "]: no matching index found " + EsqlCCSUtils.inClusterName(clusterAlias));
         }
-        String indexName = indexSplit[1];
+        String indexName = indices.getFirst();
         if (join.leftFields().size() != join.rightFields().size()) {
             throw new IllegalArgumentException("can't plan [" + join + "]: mismatching left and right field count");
         }

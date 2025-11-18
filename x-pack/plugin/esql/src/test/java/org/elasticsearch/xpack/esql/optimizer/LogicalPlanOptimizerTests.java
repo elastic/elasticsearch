@@ -6160,9 +6160,9 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         var join = as(topN.child(), Join.class);
         assertThat(Expressions.names(join.config().leftFields()), is(List.of("scalerank")));
         var left = as(join.left(), EsRelation.class);
-        assertThat(left.concreteIndices(), is(Set.of("airports")));
+        assertThat(left.concreteIndicesByRemotes(), is(Map.of("", List.of("airports"))));
         var right = as(join.right(), EsRelation.class);
-        assertThat(right.concreteIndices(), is(Set.of("languages_lookup")));
+        assertThat(right.concreteIndicesByRemotes(), is(Map.of("", List.of("languages_lookup"))));
     }
 
     /*

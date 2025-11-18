@@ -775,6 +775,10 @@ public abstract class StreamInput extends InputStream {
         return map;
     }
 
+    public Map<String, List<String>> readMapOfLists() throws IOException {
+        return readMapOfLists(StreamInput::readString);
+    }
+
     /**
      * Read a {@link Map} of string keys to {@code V}-type {@link List}s.
      * <pre><code>

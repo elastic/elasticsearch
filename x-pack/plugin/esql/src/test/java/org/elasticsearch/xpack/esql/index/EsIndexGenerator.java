@@ -13,6 +13,7 @@ import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.type.EsFieldTests;
 
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
@@ -49,5 +50,9 @@ public class EsIndexGenerator {
 
     public static Map<String, IndexMode> randomIndexNameWithModes() {
         return ESTestCase.randomMap(0, 10, () -> tuple(ESTestCase.randomIdentifier(), ESTestCase.randomFrom(IndexMode.values())));
+    }
+
+    public static Map<String, List<String>> randomRemotesWithIndices() {
+        return ESTestCase.randomMap(0, 10, () -> tuple(ESTestCase.randomIdentifier(), ESTestCase.randomList(1, 10, ESTestCase::randomIdentifier)));
     }
 }

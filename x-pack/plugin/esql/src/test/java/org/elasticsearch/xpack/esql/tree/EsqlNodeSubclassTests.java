@@ -45,6 +45,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.math.Pow;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Concat;
 import org.elasticsearch.xpack.esql.expression.predicate.fulltext.FullTextPredicate;
 import org.elasticsearch.xpack.esql.index.EsIndex;
+import org.elasticsearch.xpack.esql.index.EsIndexGenerator;
 import org.elasticsearch.xpack.esql.plan.logical.Dissect;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Fork;
@@ -733,7 +734,7 @@ public class EsqlNodeSubclassTests<T extends B, B extends Node<B>> extends NodeS
             SourceTests.randomSource(),
             randomIdentifier(),
             randomFrom(IndexMode.values()),
-            randomIndexNameWithModes(),
+            EsIndexGenerator.randomRemotesWithIndices(),
             randomFieldAttributes(0, 10, false)
         );
     }

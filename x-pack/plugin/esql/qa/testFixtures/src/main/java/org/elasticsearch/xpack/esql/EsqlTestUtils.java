@@ -326,7 +326,7 @@ public final class EsqlTestUtils {
 
     public static EsRelation relation(IndexMode mode) {
         var index = new EsIndex(randomIdentifier(), Map.of(), Map.of(), Map.of(), Set.of());
-        return new EsRelation(EMPTY, index.name(), mode, index.indexNameWithModes(), List.of());
+        return new EsRelation(EMPTY, index.name(), mode, Map.of(), List.of());
     }
 
     /**

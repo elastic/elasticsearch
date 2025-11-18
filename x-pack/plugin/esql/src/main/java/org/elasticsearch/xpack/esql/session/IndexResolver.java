@@ -283,7 +283,7 @@ public class IndexResolver {
             partiallyUnmappedFields
         );
         var failures = EsqlCCSUtils.groupFailuresPerCluster(fieldsInfo.caps.getFailures());
-        return IndexResolution.valid(index, concreteIndices.keySet(), failures);
+        return IndexResolution.valid(index, indexNameWithModes.keySet(), failures);
     }
 
     private record IndexFieldCapabilitiesWithSourceHash(List<IndexFieldCapabilities> fieldCapabilities, String indexMappingHash) {}

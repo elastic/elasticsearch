@@ -70,7 +70,7 @@ public class PromqlFunctionRegistry {
                 withinSeries("rate", Rate::new) },
             // Aggregation range functions
             new FunctionDefinition[] {
-                withinSeriesOverTime("avg_over_time", AvgOverTime::new),
+                withinSeriesOverTimeWithWindow("avg_over_time", AvgOverTime::new),
                 withinSeriesOverTime("count_over_time", CountOverTime::new),
                 withinSeriesOverTime("max_over_time", MaxOverTime::new),
                 withinSeriesOverTime("min_over_time", MinOverTime::new),
@@ -207,6 +207,16 @@ public class PromqlFunctionRegistry {
             FunctionType.WITHIN_SERIES_AGGREGATION,
             Arity.TWO,
             (source, params) -> builder.build(source, params.get(0), params.get(1))
+        );
+    }
+
+    // NB: There's no longer a single argument constructor so accept the dual one while passing on a NO_WINDOW
+    private static FunctionDefinition withinSeriesOverTimeWithWindow(String name, OverTimeWithinSeriesBinary<?> builder) {
+        return new FunctionDefinition(
+            name,
+            FunctionType.WITHIN_SERIES_AGGREGATION,
+            Arity.ONE,
+            (source, params) -> builder.build(source, params.get(0), AggregateFunction.NO_WINDOW)
         );
     }
 

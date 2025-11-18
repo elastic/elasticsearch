@@ -16,207 +16,211 @@ Every elasticsearch node maintains various networking clients and servers,
 protocols, and synchronous/asynchronous handling.
 
 ## HTTP Transport
+The HTTP Transport Server (simply HTTP Transport) is a single entry point for
+all external clients (excluding cross-cluster communication). Management,
+ingestion, search, and all other external operations pass through the HTTP
+server.
 
-Every node has an HTTP Transport Server (simply HTTP Transport) and it is a
-single entry point for all external clients (except cross-cluster). Management,
-ingestion, search, and everything else passes through HTTP server.
+Elasticsearch works over HTTP 1.1 and supports features such as TLS, chunked
+transfer encoding, content compression, and pipelining. While attempting to
+be HTTP spec compliant, Elasticsearch is not a webserver. ES Supports `GET`
+requests with a payload (though some old proxies may drop content) and
+`POST` for clients unable to send `GET-with-body`. Requests cannot be cached
+by middle boxes.
 
-Elasticsearch works over HTTP 1.1 and supports HTTP features such as: TLS,
-chunked transfer encoding, content compression, pipelining. Although we try to
-be HTTP spec compliant, Elastic is not a webserver. We support GET requests with
-payload (some old proxies might drop content), requests cannot be cached by
-middle boxes.
+There is no connection limit, but a limit on payload size exists. The default
+maximum payload is 100MB after compression. It's a very large number and almost
+never a good target that the client should approach.
 
-By default HTTP server binds to the first available port in range
-9200-9300. There is no connections limit, but there is a limit on payload
-size. Default maximum payload is 100mb after compression. It's a very large
-number and almost never a good target that client should approach.
-
-Security is not enabled by default, meaning no TLS and authentication. These
-features are available in the x-pack/security module.
+Security features, including basic security (authc/authz/TLS) in the free tier,
+are achieved with separate x-pack modules.
 
 HTTP transport provides two options for content processing: aggregate fully and
-incremental. Aggregated content is a preferable choice for a small messages that
-cannot be parsed incrementally (like JSON). But aggregation has drawbacks, it
-requires more memory, and memory is reserved until all bytes are received. If
-client sends all but the last byte, memory still in use until the client
-disconnects. If this happens concurrently then memory starts to grow
-unbounded. Large delimited content, like bulk indexing, takes advantage of
-incremental content processing, chunks of bytes. It's more complicated for
-application code, but provides better control over memory usage.
+incremental. Aggregated content is a preferable choice for small messages that
+do not fit for incremental parsing (e.g., JSON). Aggregation has drawbacks, it
+requires more memory, which is reserved until all bytes are received. Concurrent
+incomplete requests can lead to unbounded memory growth and potential OOMs.
+Large delimited content, such as bulk indexing, which is processed in byte
+chunks. It's more complicated for application code, but provides better control
+over memory usage.
 
-Incremental bulk indexing has a back-pressure feature. When memory pressure
-grows high we stop reading bytes from TCP sockets for some connections and allow
-only few to proceed, until pressure is resolved. This feature protects from
-unbounded memory usage and OOMs.
+Incremental bulk indexing includes a back-pressure feature.When memory pressure
+grows high, reading bytes from TCP sockets is paused for some connections,
+allowing only a few to proceed until the pressure is resolved. This mechanism
+protects against unbounded memory usage and OutOfMemory errors (OOMs).
 
-ES supports multiple Content-Types for payload: CBOR, JSON, SMILE, YAML, and
-their versioned types. Internally we call it XContentType. When a class
-implements `toXContent` that means it can be sent(serialized) over HTTP/REST.
+ES supports multiple `Content-Types` for the payload, collectively referred to
+internally as `XContentType`: CBOR, JSON, SMILE, YAML, and their versioned types.
+Any class that implements `toXContent` can be serialized and sent over HTTP/REST
 
 HTTP routing is based on a combination of Method and URI. For example,
 `RestCreateIndexAction` handler uses `("PUT", "/{index}")`, where curly braces
-indicate path variables. `RestBulkAction` specifies a list of routes
+indicate path variables. RestBulkAction specifies a list of routes
 
 ```java
-    @Override
-    public List<Route> routes() {
-        return List.of(
-            new Route(POST, "/_bulk"),
-            new Route(PUT, "/_bulk"),
-            new Route(POST, "/{index}/_bulk"),
-            new Route(PUT, "/{index}/_bulk")
-        );
-    }
+@Override
+  public List<Route> routes() {
+    return List.of(
+      new Route(POST, "/_bulk"),
+      new Route(PUT, "/_bulk"),
+      new Route(POST, "/{index}/_bulk"),
+      new Route(PUT, "/{index}/_bulk")
+    );
+  }
 ```
 
-Every REST handler must be declared in `ActionModule` class in the
-`initRestHandlers` method. Plugins that implements `ActionPlugin` can extend
-list of handlers through `getRestHandlers` override. Every REST handler should
-extend `BaseRestHandler`.
+Every REST handler must be declared in the `ActionModule` class in the
+`initRestHandlers` method. Plugins implementing `ActionPlugin` can extend the
+list of handlers via the `getRestHandlers` override. Every REST handler
+should extend `BaseRestHandler`.
 
-The job of the REST handler is to parse and validate HTTP request and construct
-typed version of request, often Transport request (see Transport section below).
+The REST handler’s job is to parse and validate the HTTP request and construct a
+typed version of the request, often a Transport request. When security is
+enabled, the HTTP layer handles authentication (based on headers), and the
+Transport layer handles authorization.
 
 Request handling flow from Java classes view goes as:
 
 ```
 (if security enabled) Security.getHttpServerTransportWithHeadersValidator
-  -> `Netty4HttpServerTransport`
-  -> `AbstractHttpServerTransport`
-  -> `RestController`
-  -> `BaseRestHandler`
-  -> `Rest{Some}Action`
+-> `Netty4HttpServerTransport`
+-> `AbstractHttpServerTransport`
+-> `RestController`
+-> `BaseRestHandler`
+-> `Rest{Some}Action`
 ```
 
-Where `Netty4HttpServerTransport` is a single implementation of
-`AbstractHttpServerTransport` that lives in a `transport-netty4` module. And
-security module injects SSL and headers validator.
+`Netty4HttpServerTransport` is a single implementation of
+`AbstractHttpServerTransport` from the `transport-netty4`
+module. Security module injects SSL and headers validator.
 
 ## Transport
 
-`Transport` is an umbrella term for a node-to-node communication. It's a
-TCP-based custom binary protocol. Every node in a cluster is a client and server
-at the same time. Node-to-node communication never uses HTTP transport.
+Transport is the term for node-to-node communication, utilizing a TCP-based
+custom binary protocol. Every node acts as both a client and a server.
+Node-to-node communication almost never uses HTTP transport (except for
+reindex-from-remote).
 
-`Netty4Transport` is the only implementation of TCP transport and initialize
-Transport client and server. X-pack/security plugin provides secure version of
-transport with TLS and authentication - `SecurityNetty4Transport`.
+`Netty4Transport` is the sole implementation of TCP transport, initializing
+both the Transport client and server. The `x-pack/security` plugin provides
+a secure version: `SecurityNetty4Transport` (with TLS and authentication).
 
-Once node discovers cluster it will open a pool of connections to every other
-node in a cluster, and every other node will open a pool of connections
-back. That means a connection between nodes A and B is A->B pool + B->A pool. A
-node sends requests only on connections it opens (as a client).
+A `Connection` between nodes is a pool of `Channels`, where each channel is a
+non-blocking TCP connection (Java NIO terminology). Once a cluster is
+discovered, a `Connection` (pool of `Channels`) is opened to every other node,
+and every other node opens a `Connection` back. This results in two
+`Connections` between any two nodes `(A→B and B→A)`. A node sends requests only
+on the `Connection` it opens (acting as a client). The default pool is around 13
+`Channels`, divided into sub-pools for different purposes (e.g., ping,
+node-state, bulks). The pool structure is defined in the `ConnectionProfile`
+class.
 
-A default connection pool is around 13 connections, a pool has sub-pools of
-connections for different purposes: ping, node-state, bulks, etc. Pool structure
-is defined in `ConnectionProfile` class.
+ES never behaves incorrectly (e.g. loses data) in the face of network outages
+but it may become unavailable unless the network is stable. Network stability
+between nodes is assumed, though connectivity issues remain a constant
+challenge.
 
-ES has resilience to disconnects, frequent reconnects, but in general we assume
-network should be stable between nodes. Nevertheless, connectivity problems
-never stop coming from SDH's and Serverless. Not every cluster has enough
-redundancy to survive prolonged network interruptions.
+Request timeouts are discouraged, as Transport requests are guaranteed to
+eventually receive a response, even without a timeout. `SO_KEEPALIVE` helps
+detect and tear down dead connections. When a connection closes with an error,
+the entire pool is closed, outstanding requests fail, and the pool is
+reconnected.
 
-Request timeouts are discouraged. Transport request can take all the time they
-need to finish. SO_KEEPALIVE helps to detect and tear down dead connections.
-When connection is closed with error, we close entire pool of connections and
-fail outstanding requests. Then reconnect the pool again.
+There are no retries on the Transport layer itself. The application layer
+decides when and how to retry (e.g., via `RetryableAction` or
+`TransportMasterNodeAction`). In the future Transport framework might support
+retries #95100.
 
-There are no retries on the Transport layer. Application layer should decide how
-and when to retry. Some requests don't retry, and some retry with
-`RetryableAction` or `TransportMasterNodeAction`. We might have retries in the
-Transport framework in the future with [#95100](https://github.com/elastic/elasticsearch/issues/95100).
+Transport can multiplex requests and responses in a single `Channel`, but
+cannot multiplex parts of messages. Each transport message must be fully
+dispatched before the next can be sent. Proper application-layer sizing/chunking
+of messages is recommended to ensure fairness of delivery across multiple
+senders. A Transport message cannot be larger than 30% of heap (
+`org.elasticsearch.transport.TcpTransport#THIRTY_PER_HEAP_SIZE`) or 2GB (due to
+`org.elasticsearch.transport.Header#networkMessageSize` being an `int`).
 
-Transport does not support multiplexing. Each transport message has to be
-dispatched fully before the next message can be sent. It's recommended to
-properly size/chunk messages at application layer to provide fairness of
-delivery across many senders. There is no strict guideline for transport message
-size. Use your judgement based on: how critical message is, how often it needs
-to be delivered, is it necessary to deliver as a single large piece. Almost
-always it can be chunked.
+The `TransportMessage` family tree includes various types (node-to-node,
+broadcast, master node acknowledged) to ensure correct dispatch and response
+handling. For example when a message must be accepted on all nodes.
 
-`TransportMessage` has a tall family tree. There are simple node-to-node
-messages, broadcast messages, messages that has to be acknowledge by master
-node, etc. These are important for the transport infrastructure to dispatch
-message to the right place and return response back when it's truly successful.
+## Other networking stacks
 
-## Snapshots
+Snapshotting to remote repositories involves different networking clients
+and SDKs. For example AWS SDK comes with Apache or Netty HTTP client, Azure
+with Netty-based Project-Reactor, GCP uses default Java HTTP client.
+Underlying clients may be reused between repositories, with varying levels of
+control over networking settings.
 
-Another area of different networking clients is snapshotting. ES supports
-snapshotting to remote repositories. These repositories usually come with their
-own SDK and networking stack. For example AWS SDK comes with tomcat or netty,
-Azure with netty-based project-reactor, GCP uses default java HTTP
-client. Depending on the SDK underlying client might be reused between
-repositories. Some provide better control over networking settings, others
-less.
+There are other features such as SAML/JWT metadata reloading, Watcher HTTP
+action, reindex and ML related features such as inference that also use HTTP
+clients.
 
 ## Sync/Async IO and threading
 
-Elasticsearch does a lot of IO - disk, HTTP server, Transport client/server,
-repositories. Unfortunately not everything fits into synchronous or asynchronous
-style. As a result we have a bag of everything.
-
-HTTP and Transport use asynchronous IO. Disk and repositories synchronous IO.
-
-Asynchronous IO utilize a small set of threads by running small tasks,
-minimizing context switch. Synchronous IO uses many threads and let scheduler
-decide what to run. As a result ES runs at 100+ threads where Async threads
-co-exist(compete) with Sync threads.
+ES handles a mix of I/O operations (disk, HTTP server,
+Transport client/server, repositories), resulting in a combination of
+synchronous and asynchronous styles. Asynchronous IO utilizes a small set of
+threads by running small tasks, minimizing context switch. Synchronous IO
+uses many threads and relies on an OS scheduler. ES typically runs with 100+
+threads, where Async and Sync threads compete for resources.
 
 ## Netty
 
-Netty is a networking framework/toolkit. It's a collection of building blocks
-that provides great control and foot-shooters to build networking applications.
+Netty is a networking framework/toolkit used extensively for HTTP and Transport
+networks, providing foundational building blocks for networking applications.
 
-We use netty extensively in our HTTP and Transport networks. It's not a guide
-for netty, but covers major interaction with rest of ES.
+### Event-Loop (Transport-Thread)
 
-### Event-Loop or Transport-Thread
+Netty is an Async IO framework, it runs with a few threads. An event-loop is
+a thread that processes events for one or many `Channels` (TCP connections).
+Every `Channel` has exactly one, unchanging event-loop, eliminating the need to
+synchronize events within that `Channel`. A single, CPU-bound `Transport
+ThreadPool` (e.g.,4 threads for 4 cores) serves all HTTP and Transport
+servers and clients, handling potentially hundreds or thousands of connections.
 
-Netty is an Async IO framework. So it runs with a few threads. An event-loop is
-a thread that processes events for one or many connections. Every connection has
-exactly one event-loop that never changes. With this guaranty there is no need
-to synchronize events that happen within the connection/pipeline.
-
-To take full advantage of async IO we have a single Transport ThreadPool that
-serves HTTP and Transport servers and clients. The pool size is CPU bound, for
-example 4 cores would have 4 threads. These 4 threads would serve hundreds or
-thousands of connections.
-
-Event-loop threads serve many connections each, so it's absolutely critical to
-not block thread for a long time. Any blocking operation or heavy compute has to
-be forked to another thread pool. But forking comes with overhead, doing forking
-on every tiny request is a wasted CPU work. As a rule of thumb: don't fork
+Event-loop threads serve many connections each, it's critical to not block
+threads for a long time.Fork any blocking operation or heavy computation to
+another thread pool. Forking, however, comes with overhead. Do not fork
 simple requests that can be served from memory and do not require heavy
-computations (seconds), otherwise fork.
+computations (milliseconds).
 
-Transport threads are monitored by `ThreadWatchdog`. When thread runs single
-task longer than 5 seconds warning logs appears. There are many reasons for
-slowness, not only lack of forking. For example GC pauses, CPU starvation from
-other thread-pools.
+Transport threads are monitored by `ThreadWatchdog`. A warning log appears if a
+single task runs longer than 5 seconds. Slowness can be caused by blocking, GC
+pauses, or CPU starvation from other thread pools.
 
 ### ByteBuf - byte buffers and reference counting
 
-One of the performance edges of netty is controlled memory allocation. Netty
-manages byte buffer pools and reuse them heavily. This performance gain comes
-with a cost. And cost is reference counting on developer's shoulders. Netty
-reads socket bytes into pooled byte-buffers and passes them to application. Then
-application is responsible to release this buffer when work is done.
+Netty's controlled memory allocation provides a performance edge by managing and
+reusing byte buffer pools (e.g., pools of 1MiB byte chunks sliced into 16KiB
+pages). Some pages might not be in use while taking up heap space and show up in
+the heap dump.
 
-Reference counting creates two new problems:
-1. use after release (free)
-2. never release (leak).
+Netty reads socket bytes into direct buffers, and ES copies them into pooled
+byte-buffers (`CopyBytesSocketChannel`). The application is responsible for
+retaining (increasing ref-count) and releasing (decreasing ref-count) for
+pooled buffers.
 
-Unfortunately the compiler won’t help here. These cases has to be carefully
-tested using netty's LeakDetector with Paranoid level. Be aware.
+Reference counting introduces two primary problems:
+
+1. Use after release (free): Accessing a buffer after it has been explicitly
+   released.
+2. Never release (leak): Failing to release a buffer, leading to memory leaks.
+
+The compiler does not help detect these issues. They require careful testing
+using Netty's LeakDetector with a Paranoid level.
 
 ### Async methods return futures
 
-Every async operation in netty returns future. It's easy to miss or forget, The
-compiler won't help. `ctx.write(message)` always succeeds. Always check result
-of async operation:
+Every asynchronous operation in Netty returns a future. It is easy to forget
+to check the result, as a following call always succeeds:
 
+```java
+ctx.write(message)
 ```
+
+Check the result of an async operation:
+
+```java
 ctx.write(message).addListener(f -> { if (f.isSuccess() ...)});
 ```
 

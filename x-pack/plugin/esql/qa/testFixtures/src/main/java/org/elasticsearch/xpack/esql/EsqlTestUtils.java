@@ -45,8 +45,10 @@ import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.exponentialhistogram.ExponentialHistogram;
+import org.elasticsearch.exponentialhistogram.ExponentialHistogramBuilder;
 import org.elasticsearch.exponentialhistogram.ExponentialHistogramCircuitBreaker;
 import org.elasticsearch.exponentialhistogram.ReleasableExponentialHistogram;
+import org.elasticsearch.exponentialhistogram.ZeroBucket;
 import org.elasticsearch.geo.GeometryTestUtils;
 import org.elasticsearch.geo.ShapeTestUtils;
 import org.elasticsearch.geometry.utils.Geohash;
@@ -167,6 +169,7 @@ import java.util.Set;
 import java.util.TreeMap;
 import java.util.function.Predicate;
 import java.util.jar.JarInputStream;
+import java.util.stream.DoubleStream;
 import java.util.stream.IntStream;
 import java.util.zip.ZipEntry;
 
@@ -321,7 +324,8 @@ public final class EsqlTestUtils {
     }
 
     public static EsRelation relation(IndexMode mode) {
-        return new EsRelation(EMPTY, new EsIndex(randomAlphaOfLength(8), emptyMap()), mode);
+        var index = new EsIndex(randomAlphaOfLength(8), emptyMap());
+        return new EsRelation(EMPTY, index.name(), mode, index.indexNameWithModes(), List.of());
     }
 
     /**
@@ -1056,6 +1060,7 @@ public final class EsqlTestUtils {
     public static ExponentialHistogram randomExponentialHistogram() {
         // TODO(b/133393): allow (index,scale) based zero thresholds as soon as we support them in the block
         // ideally Replace this with the shared random generation in ExponentialHistogramTestUtils
+        int numBuckets = randomIntBetween(4, 300);
         boolean hasNegativeValues = randomBoolean();
         boolean hasPositiveValues = randomBoolean();
         boolean hasZeroValues = randomBoolean();
@@ -1067,12 +1072,22 @@ public final class EsqlTestUtils {
             hasZeroValues ? IntStream.range(0, randomIntBetween(1, 100)).map(i1 -> 0) : IntStream.empty()
         ).mapToDouble(sign -> sign * (Math.pow(1_000_000, randomDouble()))).toArray();
 
-        int numBuckets = randomIntBetween(4, 300);
         ReleasableExponentialHistogram histo = ExponentialHistogram.create(
             numBuckets,
             ExponentialHistogramCircuitBreaker.noop(),
             rawValues
         );
+        // Setup a proper zeroThreshold based on a random chance
+        if (histo.zeroBucket().count() > 0 && randomBoolean()) {
+            double smallestNonZeroValue = DoubleStream.of(rawValues).map(Math::abs).filter(val -> val != 0).min().orElse(0.0);
+            double zeroThreshold = smallestNonZeroValue * randomDouble();
+            try (ReleasableExponentialHistogram releaseAfterCopy = histo) {
+                ZeroBucket zeroBucket = ZeroBucket.create(zeroThreshold, histo.zeroBucket().count());
+                ExponentialHistogramBuilder builder = ExponentialHistogram.builder(histo, ExponentialHistogramCircuitBreaker.noop())
+                    .zeroBucket(zeroBucket);
+                histo = builder.build();
+            }
+        }
         // Make the result histogram writeable to allow usage in Literals for testing
         return new WriteableExponentialHistogram(histo);
     }

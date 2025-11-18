@@ -108,12 +108,12 @@ public class ReadableMatchers {
         }
 
         @Override
-        public void describeMismatchSafely(BytesRef item, org.hamcrest.Description description) {
+        public void describeMismatchSafely(BytesRef item, Description description) {
             description.appendText("was ").appendValue(item.utf8ToString());
         }
 
         @Override
-        public void describeTo(org.hamcrest.Description description) {
+        public void describeTo(Description description) {
             description.appendText(string);
         }
     }

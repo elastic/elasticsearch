@@ -1,0 +1,5 @@
+pr: 138204
+summary: "[DiskBBQ] Add bulk scoring for int7 centroid scoring"
+area: Vector Search
+type: enhancement
+issues: []

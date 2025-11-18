@@ -17,6 +17,8 @@
 
 package co.elastic.elasticsearch.stateless.autoscaling.indexing;
 
+import co.elastic.elasticsearch.stateless.autoscaling.indexing.IngestionLoad.NodeIngestionLoad;
+
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.master.MasterNodeRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -31,9 +33,9 @@ public class PublishNodeIngestLoadRequest extends MasterNodeRequest<PublishNodeI
     private final String nodeId;
     private final String nodeName;
     private final long seqNo;
-    private final double ingestionLoad;
+    private final NodeIngestionLoad ingestionLoad;
 
-    public PublishNodeIngestLoadRequest(String nodeId, String nodeName, long seqNo, double ingestionLoad) {
+    public PublishNodeIngestLoadRequest(String nodeId, String nodeName, long seqNo, NodeIngestionLoad ingestionLoad) {
         super(TimeValue.MINUS_ONE);
         this.nodeId = nodeId;
         this.nodeName = nodeName;
@@ -46,7 +48,7 @@ public class PublishNodeIngestLoadRequest extends MasterNodeRequest<PublishNodeI
         this.nodeId = in.readString();
         this.nodeName = in.readString();
         this.seqNo = in.readLong();
-        this.ingestionLoad = in.readDouble();
+        this.ingestionLoad = NodeIngestionLoad.from(in);
     }
 
     @Override
@@ -55,7 +57,7 @@ public class PublishNodeIngestLoadRequest extends MasterNodeRequest<PublishNodeI
         out.writeString(nodeId);
         out.writeString(nodeName);
         out.writeLong(seqNo);
-        out.writeDouble(ingestionLoad);
+        ingestionLoad.writeTo(out);
     }
 
     public String getNodeId() {
@@ -70,7 +72,7 @@ public class PublishNodeIngestLoadRequest extends MasterNodeRequest<PublishNodeI
         return seqNo;
     }
 
-    public double getIngestionLoad() {
+    public NodeIngestionLoad getIngestionLoad() {
         return ingestionLoad;
     }
 
@@ -85,7 +87,7 @@ public class PublishNodeIngestLoadRequest extends MasterNodeRequest<PublishNodeI
         if (o == null || getClass() != o.getClass()) return false;
         PublishNodeIngestLoadRequest that = (PublishNodeIngestLoadRequest) o;
         return seqNo == that.seqNo
-            && Double.compare(that.ingestionLoad, ingestionLoad) == 0
+            && Objects.equals(that.ingestionLoad, ingestionLoad)
             && Objects.equals(nodeId, that.nodeId)
             && Objects.equals(nodeName, that.nodeName);
     }

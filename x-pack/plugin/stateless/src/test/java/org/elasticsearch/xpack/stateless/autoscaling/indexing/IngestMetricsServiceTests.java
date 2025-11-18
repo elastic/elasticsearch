@@ -20,6 +20,7 @@ package co.elastic.elasticsearch.stateless.autoscaling.indexing;
 import co.elastic.elasticsearch.serverless.constants.ProjectType;
 import co.elastic.elasticsearch.stateless.autoscaling.MetricQuality;
 import co.elastic.elasticsearch.stateless.autoscaling.indexing.IngestMetricsService.RawAndAdjustedNodeIngestLoadSnapshots;
+import co.elastic.elasticsearch.stateless.autoscaling.indexing.IngestionLoad.NodeIngestionLoad;
 import co.elastic.elasticsearch.stateless.autoscaling.memory.MemoryMetricsService;
 
 import org.elasticsearch.cluster.ClusterChangedEvent;
@@ -139,9 +140,10 @@ public class IngestMetricsServiceTests extends ESTestCase {
     public void testOnlyIndexNodesAreTracked() {
         final var localNode = DiscoveryNodeUtils.builder(UUIDs.randomBase64UUID()).roles(Set.of(DiscoveryNodeRole.MASTER_ROLE)).build();
 
+        final var indexNodeId = UUIDs.randomBase64UUID();
         final var nodes = DiscoveryNodes.builder()
             .add(localNode)
-            .add(DiscoveryNodeUtils.builder(UUIDs.randomBase64UUID()).roles(Set.of(DiscoveryNodeRole.INDEX_ROLE)).build())
+            .add(DiscoveryNodeUtils.builder(indexNodeId).roles(Set.of(DiscoveryNodeRole.INDEX_ROLE)).build())
             .add(DiscoveryNodeUtils.builder(UUIDs.randomBase64UUID()).roles(Set.of(DiscoveryNodeRole.SEARCH_ROLE)).build())
             .localNodeId(localNode.getId())
             .build();
@@ -150,6 +152,10 @@ public class IngestMetricsServiceTests extends ESTestCase {
 
         final var state = clusterState(DiscoveryNodes.builder(nodes).masterNodeId(localNode.getId()).build());
         service.clusterChanged(new ClusterChangedEvent("Local node elected as master", state, clusterState(nodes)));
+        var trackedIngestLoads = service.getNodesIngestLoad();
+        assertEquals(1, trackedIngestLoads.size());
+        assertNotNull(trackedIngestLoads.get(indexNodeId));
+        assertEquals(NodeIngestionLoad.EMPTY, trackedIngestLoads.get(indexNodeId).getIngestLoad());
         var indexTierMetrics = service.getIndexTierMetrics(state, randomDesiredBalanceStats());
         var metricQualityCount = indexTierMetrics.getNodesLoad()
             .stream()
@@ -217,7 +223,7 @@ public class IngestMetricsServiceTests extends ESTestCase {
         // Take into account the case where the index node sends the metric to the new master node before it applies the new cluster state
         if (randomBoolean()) {
             fakeClock.addAndGet(TimeValue.timeValueSeconds(1).nanos());
-            service.trackNodeIngestLoad(clusterState1, indexNode.getId(), indexNode.getName(), 1, 0.5);
+            service.trackNodeIngestLoad(clusterState1, indexNode.getId(), indexNode.getName(), 1, mockedNodeIngestionLoad(0.5));
         }
 
         var nodesWithIndexingNode = DiscoveryNodes.builder(nodesWithElectedMaster).add(indexNode).build();
@@ -225,7 +231,7 @@ public class IngestMetricsServiceTests extends ESTestCase {
         service.clusterChanged(new ClusterChangedEvent("index node joins", clusterState2, clusterState(nodesWithElectedMaster)));
 
         fakeClock.addAndGet(TimeValue.timeValueSeconds(1).nanos());
-        service.trackNodeIngestLoad(clusterState2, indexNode.getId(), indexNode.getName(), 2, 1.5);
+        service.trackNodeIngestLoad(clusterState2, indexNode.getId(), indexNode.getName(), 2, mockedNodeIngestionLoad(1.5));
 
         var indexTierMetrics = service.getIndexTierMetrics(clusterState2, allocationStats);
         assertThat(indexTierMetrics.getNodesLoad(), hasSize(1));
@@ -263,7 +269,7 @@ public class IngestMetricsServiceTests extends ESTestCase {
             final var clusterState3 = clusterState(nodesWithIndexingNode);
             service.clusterChanged(new ClusterChangedEvent("index node re-joins", clusterState3, clusterState(nodesWithElectedMaster)));
             fakeClock.addAndGet(TimeValue.timeValueSeconds(1).nanos());
-            service.trackNodeIngestLoad(clusterState3, indexNode.getId(), indexNode.getName(), 3, 0.5);
+            service.trackNodeIngestLoad(clusterState3, indexNode.getId(), indexNode.getName(), 3, mockedNodeIngestionLoad(0.5));
 
             var indexTierMetricsAfterNodeReJoins = service.getIndexTierMetrics(clusterState3, allocationStats);
             assertThat(indexTierMetricsAfterNodeReJoins.getNodesLoad(), hasSize(1));
@@ -311,7 +317,7 @@ public class IngestMetricsServiceTests extends ESTestCase {
         assertThat(indexTierMetrics.getNodesLoad().toString(), indexTierMetrics.getNodesLoad(), hasSize(1));
 
         var indexNodeLoad = indexTierMetrics.getNodesLoad().get(0);
-        assertThat(indexNodeLoad.load(), is(equalTo(maxSeqNoIngestionLoad)));
+        assertThat(indexNodeLoad.load(), is(equalTo(maxSeqNoIngestionLoad.totalIngestionLoad())));
         assertThat(indexNodeLoad.metricQuality(), is(equalTo(MetricQuality.EXACT)));
     }
 
@@ -371,7 +377,7 @@ public class IngestMetricsServiceTests extends ESTestCase {
             randomDesiredBalanceStatsForExactMetrics(maxUndesiredShardsProportionForScaleDown)
         );
         assertThat(indexTierMetrics.getNodesLoad().toString(), indexTierMetrics.getNodesLoad(), hasSize(1));
-        assertEquals(indexTierMetrics.getNodesLoad().get(0).load(), masterNodeLoad, EPSILON);
+        assertEquals(indexTierMetrics.getNodesLoad().get(0).load(), masterNodeLoad.totalIngestionLoad(), EPSILON);
         assertEquals(indexTierMetrics.getNodesLoad().get(0).metricQuality(), MetricQuality.EXACT);
 
         service.trackNodeIngestLoad(clusterState2, indexNode.getId(), indexNode.getName(), seqNo + 1, randomIngestionLoad());
@@ -381,7 +387,7 @@ public class IngestMetricsServiceTests extends ESTestCase {
             randomDesiredBalanceStatsForExactMetrics(maxUndesiredShardsProportionForScaleDown)
         );
         assertThat(indexTierMetrics.getNodesLoad().toString(), indexTierMetrics.getNodesLoad(), hasSize(1));
-        assertEquals(indexTierMetrics.getNodesLoad().get(0).load(), masterNodeLoad, EPSILON);
+        assertEquals(indexTierMetrics.getNodesLoad().get(0).load(), masterNodeLoad.totalIngestionLoad(), EPSILON);
         assertEquals(indexTierMetrics.getNodesLoad().get(0).metricQuality(), MetricQuality.EXACT);
     }
 
@@ -556,7 +562,7 @@ public class IngestMetricsServiceTests extends ESTestCase {
         );
         service.clusterChanged(new ClusterChangedEvent("test", initialState, ClusterState.EMPTY_STATE));
         final LongSupplier seqNoSupplier = new AtomicLong(randomLongBetween(0, 100))::getAndIncrement;
-        final Map<String, Double> publishedLoads1 = trackRandomIngestionLoads(service, seqNoSupplier, initialState);
+        final Map<String, NodeIngestionLoad> publishedLoads1 = trackRandomIngestionLoads(service, seqNoSupplier, initialState);
         assertExactIngestionLoads(service, publishedLoads1.values(), initialState, maxUndesiredShardsProportionForScaleDown);
         assertMetricsForRawIngestLoads(service, metricRecorder, publishedLoads1);
 
@@ -578,14 +584,14 @@ public class IngestMetricsServiceTests extends ESTestCase {
 
         metricRecorder.resetCalls();
         final ClusterState state2, state3;
-        final Map<String, Double> publishedLoads3;
+        final Map<String, NodeIngestionLoad> publishedLoads3;
         if (randomBoolean()) {
             // shutdown first and then add new nodes
             state2 = ClusterState.builder(initialState)
                 .metadata(Metadata.builder(initialState.metadata()).putCustom(NodesShutdownMetadata.TYPE, nodeShutdownMetadata))
                 .build();
             service.clusterChanged(new ClusterChangedEvent("shutdown", state2, initialState));
-            final Map<String, Double> publishedLoads2 = trackRandomIngestionLoads(service, seqNoSupplier, state2);
+            final Map<String, NodeIngestionLoad> publishedLoads2 = trackRandomIngestionLoads(service, seqNoSupplier, state2);
             final var readMetrics2 = service.getIndexTierMetrics(
                 state2,
                 randomDesiredBalanceStatsForExactMetrics(maxUndesiredShardsProportionForScaleDown)
@@ -600,7 +606,7 @@ public class IngestMetricsServiceTests extends ESTestCase {
             // add new nodes first then shutdown
             state2 = stateWithNewNodes(initialState, newNodes);
             service.clusterChanged(new ClusterChangedEvent("node-join", state2, initialState));
-            final Map<String, Double> ingestionLoads2 = trackRandomIngestionLoads(service, seqNoSupplier, state2);
+            final Map<String, NodeIngestionLoad> ingestionLoads2 = trackRandomIngestionLoads(service, seqNoSupplier, state2);
             assertExactIngestionLoads(service, ingestionLoads2.values(), state2, maxUndesiredShardsProportionForScaleDown);
             assertMetricsForRawIngestLoads(service, metricRecorder, ingestionLoads2);
 
@@ -636,7 +642,7 @@ public class IngestMetricsServiceTests extends ESTestCase {
         }
         final ClusterState state4 = clusterStateBuilder.build();
         service.clusterChanged(new ClusterChangedEvent("shutdown-node-left", state4, state3));
-        final Map<String, Double> publishedLoads4 = trackRandomIngestionLoads(service, seqNoSupplier, state4);
+        final Map<String, NodeIngestionLoad> publishedLoads4 = trackRandomIngestionLoads(service, seqNoSupplier, state4);
 
         metricRecorder.resetCalls();
         if (adjustmentAfterScalingWindow.equals(TimeValue.ZERO)) {
@@ -691,7 +697,7 @@ public class IngestMetricsServiceTests extends ESTestCase {
         );
         service.clusterChanged(new ClusterChangedEvent("initial", initialState, ClusterState.EMPTY_STATE));
         final LongSupplier seqNoSupplier = new AtomicLong(randomLongBetween(0, 100))::getAndIncrement;
-        final Collection<Double> publishedLoads1 = trackRandomIngestionLoads(service, seqNoSupplier, initialState).values();
+        final Collection<NodeIngestionLoad> publishedLoads1 = trackRandomIngestionLoads(service, seqNoSupplier, initialState).values();
         assertExactIngestionLoads(service, publishedLoads1, initialState, maxUndesiredShardsProportionForScaleDown);
 
         final List<DiscoveryNode> shuttingDownNodes = randomSubsetOf(1, initialState.nodes().getAllNodes());
@@ -712,7 +718,8 @@ public class IngestMetricsServiceTests extends ESTestCase {
             .metadata(Metadata.builder(initialState.metadata()).putCustom(NodesShutdownMetadata.TYPE, nodeShutdownMetadata))
             .build();
         service.clusterChanged(new ClusterChangedEvent("shutdown", stateWithShutDowns, initialState));
-        final Collection<Double> publishedLoads2 = trackRandomIngestionLoads(service, seqNoSupplier, stateWithShutDowns).values();
+        final Collection<NodeIngestionLoad> publishedLoads2 = trackRandomIngestionLoads(service, seqNoSupplier, stateWithShutDowns)
+            .values();
         final var readMetrics2 = service.getIndexTierMetrics(
             stateWithShutDowns,
             randomDesiredBalanceStatsForExactMetrics(maxUndesiredShardsProportionForScaleDown)
@@ -848,12 +855,16 @@ public class IngestMetricsServiceTests extends ESTestCase {
         return ClusterState.builder(state).nodes(builder.build()).build();
     }
 
-    private Map<String, Double> trackRandomIngestionLoads(IngestMetricsService service, LongSupplier seqNoSupplier, ClusterState state) {
+    private Map<String, NodeIngestionLoad> trackRandomIngestionLoads(
+        IngestMetricsService service,
+        LongSupplier seqNoSupplier,
+        ClusterState state
+    ) {
         final List<DiscoveryNode> indexingNodes = state.nodes()
             .stream()
             .filter(node -> node.getRoles().contains(DiscoveryNodeRole.INDEX_ROLE))
             .toList();
-        final Map<String, Double> ingestionLoads = indexingNodes.stream()
+        final Map<String, NodeIngestionLoad> ingestionLoads = indexingNodes.stream()
             .collect(Collectors.toUnmodifiableMap(DiscoveryNode::getId, ignore -> randomIngestionLoad()));
         indexingNodes.forEach(
             node -> service.trackNodeIngestLoad(
@@ -869,7 +880,7 @@ public class IngestMetricsServiceTests extends ESTestCase {
 
     private void assertExactIngestionLoads(
         IngestMetricsService service,
-        Collection<Double> publishedLoads,
+        Collection<NodeIngestionLoad> publishedLoads,
         ClusterState state,
         double maxUndesiredShardsProportionForScaleDown
     ) {
@@ -884,7 +895,7 @@ public class IngestMetricsServiceTests extends ESTestCase {
         assertThat(readMetrics.size(), equalTo(indexingNodes.size()));
         assertTrue(readMetrics.stream().allMatch(nodeLoad -> nodeLoad.metricQuality() == MetricQuality.EXACT));
         assertArrayEquals(
-            publishedLoads.stream().mapToDouble(Double::doubleValue).sorted().toArray(),
+            publishedLoads.stream().mapToDouble(NodeIngestionLoad::totalIngestionLoad).sorted().toArray(),
             readMetrics.stream().mapToDouble(NodeIngestLoadSnapshot::load).sorted().toArray(),
             EPSILON
         );
@@ -892,19 +903,19 @@ public class IngestMetricsServiceTests extends ESTestCase {
 
     private void assertIngestionLoadWeightApplied(
         IngestMetricsService service,
-        Collection<Double> publishedLoads,
+        Collection<NodeIngestionLoad> publishedLoads,
         List<NodeIngestLoadSnapshot> readMetrics,
         int numForHighWeight
     ) {
         final double highWeight = service.getHighIngestionLoadWeightDuringScaling();
         final double lowWeight = service.getLowIngestionLoadWeightDuringScaling();
         boolean weightApplied = highWeight < 1.0 || lowWeight < 1.0;
-        double totalPublishedIngestionLoad = publishedLoads.stream().reduce(Double::sum).get();
+        double totalPublishedIngestionLoad = publishedLoads.stream().map(NodeIngestionLoad::totalIngestionLoad).reduce(Double::sum).get();
         double totalReadMetric = readMetrics.stream().map(NodeIngestLoadSnapshot::load).reduce(Double::sum).get();
         if (weightApplied) {
             assertTrue(readMetrics.stream().allMatch(l -> l.metricQuality().equals(MetricQuality.MINIMUM)));
             assertThat(totalReadMetric, lessThan(totalPublishedIngestionLoad));
-            final List<Double> sortedPublishedLoads = publishedLoads.stream().sorted().toList();
+            final List<Double> sortedPublishedLoads = publishedLoads.stream().map(NodeIngestionLoad::totalIngestionLoad).sorted().toList();
             for (int i = 0; i < sortedPublishedLoads.size() - numForHighWeight; i++) {
                 assertTrue(doublesEquals(sortedPublishedLoads.get(i) * lowWeight, readMetrics.get(i).load()));
             }
@@ -920,7 +931,7 @@ public class IngestMetricsServiceTests extends ESTestCase {
     private static void assertMetricsForRawIngestLoads(
         IngestMetricsService service,
         MetricRecorder<Instrument> metricRecorder,
-        Map<String, Double> publishedLoads
+        Map<String, NodeIngestionLoad> publishedLoads
     ) {
         assertMetricsForRawAndAdjustedIngestLoads(service, metricRecorder, publishedLoads, null);
     }
@@ -928,16 +939,19 @@ public class IngestMetricsServiceTests extends ESTestCase {
     private static void assertMetricsForRawAndAdjustedIngestLoads(
         IngestMetricsService service,
         MetricRecorder<Instrument> metricRecorder,
-        Map<String, Double> publishedLoads,
+        Map<String, NodeIngestionLoad> publishedLoads,
         @Nullable List<NodeIngestLoadSnapshot> readMetrics
     ) {
+        Map<String, Double> publishedTotalLoads = publishedLoads.entrySet()
+            .stream()
+            .collect(Collectors.toUnmodifiableMap(Map.Entry::getKey, e -> e.getValue().totalIngestionLoad()));
         // We should always observe the raw ingest loads
         final RawAndAdjustedNodeIngestLoadSnapshots lastNodeIngestLoadSnapshots = service.getLastNodeIngestLoadSnapshots();
         assertThat(
             lastNodeIngestLoadSnapshots.raw()
                 .stream()
                 .collect(Collectors.toUnmodifiableMap(NodeIngestLoadSnapshot::nodeId, NodeIngestLoadSnapshot::load)),
-            equalTo(publishedLoads)
+            equalTo(publishedTotalLoads)
         );
 
         metricRecorder.collect();
@@ -953,7 +967,7 @@ public class IngestMetricsServiceTests extends ESTestCase {
                     assertThat(measurement.attributes().get("node_name"), notNullValue());
                 })
                 .collect(Collectors.toUnmodifiableMap(m -> m.attributes().get("node_id"), Measurement::getDouble)),
-            equalTo(publishedLoads)
+            equalTo(publishedTotalLoads)
         );
 
         // Based on whether there are shutting down nodes and whether weights are configured, we may observe adjusted ingest loads
@@ -970,7 +984,7 @@ public class IngestMetricsServiceTests extends ESTestCase {
                     readMetrics.stream().collect(Collectors.toUnmodifiableMap(NodeIngestLoadSnapshot::nodeId, NodeIngestLoadSnapshot::load))
                 )
             );
-            assertThat(measurements, hasSize(publishedLoads.size() * 2));
+            assertThat(measurements, hasSize(publishedTotalLoads.size() * 2));
             assertThat(
                 measurements.stream()
                     .filter(measurement -> ADJUSTED.key().equals(measurement.attributes().get("type")))
@@ -993,7 +1007,7 @@ public class IngestMetricsServiceTests extends ESTestCase {
             );
         } else {
             assertThat(lastNodeIngestLoadSnapshots.adjusted(), nullValue());
-            assertThat(measurements, hasSize(publishedLoads.size()));
+            assertThat(measurements, hasSize(publishedTotalLoads.size()));
             assertTrue(measurements.stream().allMatch(measurement -> SINGLE.key().equals(measurement.attributes().get("type"))));
         }
     }
@@ -1015,8 +1029,8 @@ public class IngestMetricsServiceTests extends ESTestCase {
         })));
     }
 
-    private static double randomIngestionLoad() {
-        return randomDoubleBetween(0, 16, true);
+    private static NodeIngestionLoad randomIngestionLoad() {
+        return mockedNodeIngestionLoad(randomDoubleBetween(0, 16, true));
     }
 
     private static ClusterState clusterState(DiscoveryNodes nodes) {
@@ -1084,5 +1098,10 @@ public class IngestMetricsServiceTests extends ESTestCase {
         final long totalShards = randomBoolean() ? 0 : randomNonNegativeLong();
         final long undesiredAllocations = randomBoolean() ? 0 : randomLongBetween(0L, totalShards);
         return new DesiredBalanceMetrics.RoleAllocationStats(totalShards, undesiredAllocations);
+    }
+
+    // TODO: return a value that is consistent internally at least w.r.t. the executor ingestion loads
+    private static NodeIngestionLoad mockedNodeIngestionLoad(double totalIngestionLoad) {
+        return new NodeIngestionLoad(Map.of(), Map.of(), totalIngestionLoad);
     }
 }

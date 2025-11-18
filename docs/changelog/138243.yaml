@@ -1,0 +1,5 @@
+pr: 138243
+summary: "Startup: Skip setting validation if non-master"
+area: Infra/Node Lifecycle
+type: enhancement
+issues: []

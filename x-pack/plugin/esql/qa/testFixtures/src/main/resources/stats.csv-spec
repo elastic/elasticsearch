@@ -3463,3 +3463,72 @@ employees:long | job_positions:keyword
 15             | Tech Lead    
 ;
 
+fixClassCastBugWithCountDistinct
+required_capability: fix_stats_classcast_exception
+
+from airports 
+| rename scalerank AS x 
+| stats  a = count(x), b = count(x) + count(x), c = count_distinct(x)
+;
+
+a:long | b:long | c:long
+891    | 1782   | 8
+;
+
+fixClassCastBugWithValuesFn
+required_capability: fix_stats_classcast_exception
+
+ROW x = [1,2,3] 
+| STATS a = MV_COUNT(VALUES(x)), b = VALUES(x), c = SUM(x)
+;
+
+a:integer | b:integer | c:long
+3         | [1, 2, 3] | 6
+;
+
+fixClassCastBugWithSeveralCountDistincts
+required_capability: fix_stats_classcast_exception
+
+ROW x = 1 
+| STATS a = 2*COUNT_DISTINCT(x), b = COUNT_DISTINCT(x), c = MAX(x)
+;
+
+a:long | b:long | c:integer
+2      | 1      | 1
+;
+
+fixClassCastBugWithMedianPlusCountDistinct
+required_capability: fix_stats_classcast_exception
+
+FROM sample_data_ts_long 
+| EVAL sym1 = 0, sym5 = 1
+| STATS sym2 = median(sym5) + 0, sym3 = median(sym5), sym4 = count_distinct(sym1)
+;
+
+sym2:double |sym3:double | sym4:long
+1.0         | 1.0        | 1
+;
+
+fixClassCastBugWithFoldableLiterals
+required_capability: fix_stats_classcast_exception
+
+from airports 
+| rename scalerank AS x 
+| stats  a = count(x), b = count(x) + count(x), c = count_distinct(x, 10), d = count_distinct(x, 10 + 1 - 1)
+;
+
+a:long | b:long | c:long | d:long
+891    | 1782   | 8      | 8
+;
+
+fixClassCastBugWithSurrogateExpressions
+required_capability: fix_stats_classcast_exception
+
+from airports 
+| rename scalerank AS x 
+| stats a = median(x), b = percentile(x, 50), c = count_distinct(x)
+;
+
+a:double | b:double | c:long
+6.0      | 6.0      | 8
+;

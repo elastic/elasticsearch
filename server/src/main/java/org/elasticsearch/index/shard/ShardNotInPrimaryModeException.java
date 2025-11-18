@@ -16,7 +16,7 @@ import java.io.IOException;
 public class ShardNotInPrimaryModeException extends IllegalIndexShardStateException {
 
     public ShardNotInPrimaryModeException(final ShardId shardId, final IndexShardState currentState) {
-        super(shardId, currentState, "shard is not in primary mode");
+        super(shardId, currentState, "shard " + shardId.toString() + " is not in primary mode");
     }
 
     public ShardNotInPrimaryModeException(final StreamInput in) throws IOException {

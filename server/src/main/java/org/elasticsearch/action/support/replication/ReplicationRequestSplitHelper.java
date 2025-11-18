@@ -45,6 +45,8 @@ public final class ReplicationRequestSplitHelper {
         final ShardId sourceShard = request.shardId();
         IndexMetadata indexMetadata = project.getIndexSafe(sourceShard.getIndex());
         SplitShardCountSummary shardCountSummary = SplitShardCountSummary.forIndexing(indexMetadata, sourceShard.getId());
+        System.out.println("Request ShardCountSummary " + request.reshardSplitShardCountSummary());
+        System.out.println("ShardCountSummary " + shardCountSummary);
 
         Map<ShardId, T> requestsByShard = new HashMap<>();
         requestsByShard.put(sourceShard, request);

@@ -546,6 +546,7 @@ public abstract class TransportReplicationAction<
                         );
                     splitCoordinator.coordinate();
                 } else {
+                    System.out.println("No split coordination needed");
                     setPhase(replicationTask, "primary");
                     executePrimaryRequest(primaryShardReference, setFinishedListener);
                 }

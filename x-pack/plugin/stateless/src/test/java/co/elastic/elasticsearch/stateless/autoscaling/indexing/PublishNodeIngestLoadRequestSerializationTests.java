@@ -17,10 +17,17 @@
 
 package co.elastic.elasticsearch.stateless.autoscaling.indexing;
 
+import co.elastic.elasticsearch.stateless.autoscaling.indexing.IngestionLoad.ExecutorIngestionLoad;
+import co.elastic.elasticsearch.stateless.autoscaling.indexing.IngestionLoad.ExecutorStats;
+import co.elastic.elasticsearch.stateless.autoscaling.indexing.IngestionLoad.NodeIngestionLoad;
+
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.test.ESTestCase;
+
+import java.util.HashMap;
+import java.util.Map;
 
 public class PublishNodeIngestLoadRequestSerializationTests extends AbstractWireSerializingTestCase<PublishNodeIngestLoadRequest> {
 
@@ -31,12 +38,7 @@ public class PublishNodeIngestLoadRequestSerializationTests extends AbstractWire
 
     @Override
     protected PublishNodeIngestLoadRequest createTestInstance() {
-        return new PublishNodeIngestLoadRequest(
-            UUIDs.randomBase64UUID(),
-            randomIdentifier(),
-            randomLong(),
-            randomDoubleBetween(0, 512, true)
-        );
+        return new PublishNodeIngestLoadRequest(UUIDs.randomBase64UUID(), randomIdentifier(), randomLong(), randomNodeIngestionLoad());
     }
 
     @Override
@@ -50,23 +52,75 @@ public class PublishNodeIngestLoadRequestSerializationTests extends AbstractWire
             );
             case 1 -> new PublishNodeIngestLoadRequest(
                 instance.getNodeId(),
-                instance.getNodeName(),
-                randomValueOtherThan(instance.getSeqNo(), ESTestCase::randomLong),
+                randomValueOtherThan(instance.getNodeName(), ESTestCase::randomIdentifier),
+                instance.getSeqNo(),
                 instance.getIngestionLoad()
             );
             case 2 -> new PublishNodeIngestLoadRequest(
                 instance.getNodeId(),
                 instance.getNodeName(),
-                instance.getSeqNo(),
-                randomValueOtherThan(instance.getIngestionLoad(), () -> randomDoubleBetween(0, 512, true))
+                randomValueOtherThan(instance.getSeqNo(), ESTestCase::randomLong),
+                instance.getIngestionLoad()
             );
             case 3 -> new PublishNodeIngestLoadRequest(
                 instance.getNodeId(),
-                randomValueOtherThan(instance.getNodeName(), ESTestCase::randomIdentifier),
+                instance.getNodeName(),
                 instance.getSeqNo(),
-                instance.getIngestionLoad()
+                mutateNodeIngestionLoad(instance.getIngestionLoad())
             );
             default -> throw new IllegalStateException("Unexpected value: " + randomInt(2));
         };
     }
+
+    private static ExecutorStats randomExecutorStats() {
+        return new ExecutorStats(
+            randomDoubleBetween(0, 100, true),
+            randomDoubleBetween(10, 100000, true),
+            randomInt(1000),
+            randomDoubleBetween(0, 500, true),
+            randomIntBetween(1, 64)
+        );
+    }
+
+    private static ExecutorIngestionLoad randomExecutorIngestionLoad() {
+        return new ExecutorIngestionLoad(randomDoubleBetween(0, 100, true), randomDoubleBetween(0, 50, true));
+    }
+
+    private static NodeIngestionLoad randomNodeIngestionLoad() {
+        Map<String, ExecutorStats> executorStats = new HashMap<>();
+        Map<String, ExecutorIngestionLoad> executorIngestionLoads = new HashMap<>();
+        for (String executorName : AverageWriteLoadSampler.WRITE_EXECUTORS) {
+            executorStats.put(executorName, randomExecutorStats());
+            executorIngestionLoads.put(executorName, randomExecutorIngestionLoad());
+        }
+        double totalIngestionLoad = randomDoubleBetween(0, 512, true);
+        return new NodeIngestionLoad(executorStats, executorIngestionLoads, totalIngestionLoad);
+    }
+
+    private NodeIngestionLoad mutateNodeIngestionLoad(NodeIngestionLoad load) {
+        return switch (randomInt(2)) {
+            case 0 -> {
+                Map<String, ExecutorStats> newExecutorStats = new HashMap<>(load.executorStats());
+                String executor = randomFrom(newExecutorStats.keySet());
+                newExecutorStats.put(executor, randomValueOtherThan(load.executorStats().get(executor), () -> randomExecutorStats()));
+                yield new NodeIngestionLoad(newExecutorStats, load.executorIngestionLoads(), load.totalIngestionLoad());
+            }
+            case 1 -> {
+                Map<String, ExecutorIngestionLoad> newExecutorIngestionLoads = new HashMap<>(load.executorIngestionLoads());
+                String executor = randomFrom(newExecutorIngestionLoads.keySet());
+                newExecutorIngestionLoads.put(
+                    executor,
+                    randomValueOtherThan(load.executorIngestionLoads().get(executor), () -> randomExecutorIngestionLoad())
+                );
+                yield new NodeIngestionLoad(load.executorStats(), newExecutorIngestionLoads, load.totalIngestionLoad());
+            }
+            case 2 -> new NodeIngestionLoad(
+                load.executorStats(),
+                load.executorIngestionLoads(),
+                randomValueOtherThan(load.totalIngestionLoad(), () -> randomDoubleBetween(0, 512, true))
+            );
+            default -> throw new IllegalStateException("Unexpected value: " + randomInt(2));
+        };
+    }
+
 }

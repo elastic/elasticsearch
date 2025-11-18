@@ -1613,6 +1613,13 @@ public class EsqlCapabilities {
         PUSHING_DOWN_EVAL_WITH_SCORE,
 
         /**
+         * Fix for ClassCastException in STATS
+         * https://github.com/elastic/elasticsearch/issues/133992
+         * https://github.com/elastic/elasticsearch/issues/136598
+         */
+        FIX_STATS_CLASSCAST_EXCEPTION,
+
+        /**
          * Fix attribute equality to respect the name id of the attribute.
          */
         ATTRIBUTE_EQUALS_RESPECTS_NAME_ID,
@@ -1675,6 +1682,11 @@ public class EsqlCapabilities {
          * Allow ST_EXTENT_AGG to gracefully handle missing spatial shapes
          */
         ST_EXTENT_AGG_NULL_SUPPORT,
+
+        /**
+         * Support grouping window in time-series for example: rate(counter, "1m") or avg_over_time(field, "5m")
+         */
+        TIME_SERIES_WINDOW_V0,
 
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.

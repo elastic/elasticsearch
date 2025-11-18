@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.analytics.mapper;
 
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.core.Types;
 import org.elasticsearch.datageneration.datasource.DataSourceHandler;
 import org.elasticsearch.datageneration.datasource.DataSourceRequest;
@@ -17,6 +18,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.analytics.AnalyticsPlugin;
 import org.junit.Before;
 
+import java.io.IOException;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
@@ -76,6 +78,38 @@ public class TDigestFieldBlockLoaderTests extends BlockLoaderTestCase {
     @Override
     protected Object expected(Map<String, Object> fieldMapping, Object value, TestContext testContext) {
         Map<String, Object> valueAsMap = Types.forciblyCast(value);
-        return valueAsMap;
+        List<Double> centroids = Types.forciblyCast(valueAsMap.get("centroids"));
+        List<Long> counts = Types.forciblyCast(valueAsMap.get("counts"));
+        BytesStreamOutput streamOutput = new BytesStreamOutput();
+
+        long totalCount = 0;
+
+        for (int i = 0; i < centroids.size(); i++) {
+            long count = counts.get(i);
+            totalCount += count;
+            // we do not add elements with count == 0
+            try {
+                if (count > 0) {
+                    streamOutput.writeVLong(count);
+                    streamOutput.writeDouble(centroids.get(i));
+                }
+            } catch (IOException e) {
+                throw new RuntimeException(e);
+            }
+        }
+
+        long finalTotalCount = totalCount;
+        return Map.of(
+            "min",
+            valueAsMap.get("min"),
+            "max",
+            valueAsMap.get("max"),
+            "sum",
+            valueAsMap.get("sum"),
+            "count",
+            finalTotalCount,
+            "encodedDigests",
+            streamOutput.bytes().toBytesRef()
+        );
     }
 }

@@ -1672,7 +1672,7 @@ public class EsqlCapabilities {
         /**
          * Support grouping window in time-series for example: rate(counter, "1m") or avg_over_time(field, "5m")
          */
-        TIME_SERIES_WINDOW_V0,
+        TIME_SERIES_WINDOW_V1,
 
         /**
          * PromQL support in ESQL

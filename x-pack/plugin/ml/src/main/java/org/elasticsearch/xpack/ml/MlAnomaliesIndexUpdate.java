@@ -33,7 +33,9 @@ import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
 import org.elasticsearch.xpack.core.ml.utils.MlIndexAndAlias;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
 
@@ -95,6 +97,12 @@ public class MlAnomaliesIndexUpdate implements MlAutoUpdateService.UpdateAction 
             AnomalyDetectorsIndex.jobResultsIndexPattern()
         );
 
+        if (indices.length == 0) {
+            return;
+        }
+
+        var baseIndicesMap = Arrays.stream(indices).collect(Collectors.groupingBy(MlIndexAndAlias::baseIndexName));
+
         for (String index : indices) {
             boolean isCompatibleIndexVersion = MlIndexAndAlias.indexIsReadWriteCompatibleInV9(
                 latestState.metadata().getProject().index(index).getCreationVersion()
@@ -116,7 +124,7 @@ public class MlAnomaliesIndexUpdate implements MlAutoUpdateService.UpdateAction 
             }
 
             PlainActionFuture<Boolean> updated = new PlainActionFuture<>();
-            rollAndUpdateAliases(latestState, index, updated);
+            rollAndUpdateAliases(latestState, index, baseIndicesMap.get(MlIndexAndAlias.baseIndexName(index)), updated);
             try {
                 updated.actionGet();
             } catch (Exception ex) {
@@ -142,7 +150,7 @@ public class MlAnomaliesIndexUpdate implements MlAutoUpdateService.UpdateAction 
         throw exception;
     }
 
-    private void rollAndUpdateAliases(ClusterState clusterState, String index, ActionListener<Boolean> listener) {
+    private void rollAndUpdateAliases(ClusterState clusterState, String index, List<String> baseIndices, ActionListener<Boolean> listener) {
         Tuple<String, String> newIndexNameAndRolloverAlias = MlIndexAndAlias.createRolloverAliasAndNewIndexName(index);
         String rolloverAlias = newIndexNameAndRolloverAlias.v1();
         String newIndexName = newIndexNameAndRolloverAlias.v2();
@@ -154,7 +162,7 @@ public class MlAnomaliesIndexUpdate implements MlAutoUpdateService.UpdateAction 
         ).<String>andThen((l, success) -> {
             rollover(rolloverAlias, newIndexName, l);
         }).<Boolean>andThen((l, newIndexNameResponse) -> {
-            MlIndexAndAlias.addIndexAliasesRequests(aliasRequestBuilder, index, newIndexNameResponse, clusterState);
+            MlIndexAndAlias.addResultsIndexRolloverAliasActions(aliasRequestBuilder, newIndexNameResponse, clusterState, baseIndices);
             // Delete the new alias created for the rollover action
             aliasRequestBuilder.removeAlias(newIndexNameResponse, rolloverAlias);
             MlIndexAndAlias.updateAliases(aliasRequestBuilder, l);

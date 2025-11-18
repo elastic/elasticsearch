@@ -10,8 +10,10 @@
 package org.elasticsearch.action.bulk;
 
 import org.elasticsearch.action.DocWriteRequest;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.routing.IndexRouting;
+import org.elasticsearch.cluster.routing.SplitShardCountSummary;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
@@ -33,7 +35,9 @@ public final class ShardBulkSplitHelper {
     public static Map<ShardId, BulkShardRequest> splitRequests(BulkShardRequest request, ProjectMetadata project) {
         final ShardId sourceShardId = request.shardId();
         final Index index = sourceShardId.getIndex();
-        IndexRouting indexRouting = IndexRouting.fromIndexMetadata(project.getIndexSafe(index));
+        IndexMetadata indexMetadata = project.getIndexSafe(index);
+        IndexRouting indexRouting = IndexRouting.fromIndexMetadata(indexMetadata);
+        SplitShardCountSummary shardCountSummary = SplitShardCountSummary.forIndexing(indexMetadata, request.shardId().getId());
 
         Map<ShardId, List<BulkItemRequest>> requestsByShard = new HashMap<>();
         Map<ShardId, BulkShardRequest> bulkRequestsPerShard = new HashMap<>();
@@ -57,17 +61,26 @@ public final class ShardBulkSplitHelper {
 
         // All items belong to either the source shard or target shard.
         if (requestsByShard.size() == 1) {
-            // Return the original request if no items were split to target.
+            // Return the original request if no items were split to target. Note that
+            // this original request still contains the stale SplitShardCountSummary.
+            // This is alright because we hold primary indexing permits while calling this split
+            // method and we execute this request on the primary without letting go of the indexing permits.
+            // This means that a second split cannot occur in the meantime.
             if (requestsByShard.containsKey(sourceShardId)) {
                 return Map.of(sourceShardId, request);
             }
         }
 
+        // Create a new BulkShardRequest(s) with the updated SplitShardCountSummary. This is because
+        // we do not hold primary permits on the target shard, and hence it can proceed with
+        // a second split operation while this request is still pending. We must verify the
+        // SplitShardCountSummary again on the target.
         for (Map.Entry<ShardId, List<BulkItemRequest>> entry : requestsByShard.entrySet()) {
             final ShardId shardId = entry.getKey();
             final List<BulkItemRequest> requests = entry.getValue();
             BulkShardRequest bulkShardRequest = new BulkShardRequest(
                 shardId,
+                shardCountSummary,
                 request.getRefreshPolicy(),
                 requests.toArray(new BulkItemRequest[0]),
                 request.isSimulated()

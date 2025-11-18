@@ -620,7 +620,8 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                         }),
                         forceConnectTimeoutSecs,
                         resolvesCrossProject,
-                        rewritten.getResolvedIndexExpressions()
+                        rewritten.getResolvedIndexExpressions(),
+                        rewritten.getProjectRouting()
                     );
                 }
             }
@@ -1065,7 +1066,8 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         ActionListener<Map<String, SearchShardsResponse>> listener,
         TimeValue forceConnectTimeoutSecs,
         boolean resolvesCrossProject,
-        ResolvedIndexExpressions originResolvedIdxExpressions
+        ResolvedIndexExpressions originResolvedIdxExpressions,
+        String projectRouting
     ) {
         RemoteClusterService remoteClusterService = transportService.getRemoteClusterService();
         final CountDown responsesCountDown = new CountDown(remoteIndicesByCluster.size());
@@ -1104,7 +1106,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                         // We do not use the relaxed index options here when validating indices' existence.
                         ElasticsearchException validationEx = CrossProjectIndexResolutionValidator.validate(
                             originalIdxOpts,
-                            null,
+                            projectRouting,
                             originResolvedIdxExpressions,
                             resolvedIndexExpressions
                         );

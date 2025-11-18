@@ -24,7 +24,6 @@ import org.elasticsearch.index.fielddata.AbstractBinaryDocValues;
 import org.elasticsearch.index.fielddata.AbstractSortedDocValues;
 import org.elasticsearch.index.fielddata.AbstractSortedSetDocValues;
 import org.elasticsearch.index.fielddata.FieldData;
-import org.elasticsearch.index.fielddata.NumericDoubleValues;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
 import org.elasticsearch.index.fielddata.SortedNumericLongValues;
@@ -274,7 +273,7 @@ public class MultiValueModeTests extends ESTestCase {
                 docsWithValue.set(i);
             }
         }
-        final Supplier<SortedNumericDoubleValues> multiValues = () -> FieldData.singleton(new NumericDoubleValues() {
+        final Supplier<SortedNumericDoubleValues> multiValues = () -> FieldData.singleton(new DoubleValues() {
             int docID;
 
             @Override
@@ -337,7 +336,7 @@ public class MultiValueModeTests extends ESTestCase {
     private void verifySortedNumericDouble(Supplier<SortedNumericDoubleValues> supplier, int maxDoc) throws IOException {
         for (MultiValueMode mode : MultiValueMode.values()) {
             SortedNumericDoubleValues values = supplier.get();
-            final NumericDoubleValues selected = mode.select(values);
+            final DoubleValues selected = mode.select(values);
             for (int i = 0; i < maxDoc; ++i) {
                 Double actual = null;
                 if (selected.advanceExact(i)) {

@@ -19,6 +19,7 @@ public class AggregateWritables {
             Count.ENTRY,
             CountDistinct.ENTRY,
             First.ENTRY,
+            AllFirst.ENTRY,
             Max.ENTRY,
             Median.ENTRY,
             MedianAbsoluteDeviation.ENTRY,
@@ -51,7 +52,8 @@ public class AggregateWritables {
             PresentOverTime.ENTRY,
             Absent.ENTRY,
             AbsentOverTime.ENTRY,
-            DimensionValues.ENTRY
+            DimensionValues.ENTRY,
+            HistogramMerge.ENTRY
         );
     }
 }

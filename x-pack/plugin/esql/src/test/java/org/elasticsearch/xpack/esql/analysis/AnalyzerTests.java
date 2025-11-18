@@ -5607,12 +5607,12 @@ public class AnalyzerTests extends ESTestCase {
 
     public void testLikeParameters() {
         if (EsqlCapabilities.Cap.LIKE_PARAMETER_SUPPORT.isEnabled()) {
-            var plan = analyze(
-                String.format(Locale.ROOT, "from test | where first_name like ?pattern"),
+            var anonymous_plan = analyze(
+                String.format(Locale.ROOT, "from test | where first_name like ?"),
                 "mapping-basic.json",
-                new QueryParams(List.of(paramAsConstant("pattern", "Anna*")))
+                new QueryParams(List.of(paramAsConstant(null, "Anna*")))
             );
-            var limit = as(plan, Limit.class);
+            var limit = as(anonymous_plan, Limit.class);
             var filter = as(limit.child(), Filter.class);
             WildcardLike like = as(filter.condition(), WildcardLike.class);
             assertEquals("Anna*", like.pattern().pattern());
@@ -5621,12 +5621,12 @@ public class AnalyzerTests extends ESTestCase {
 
     public void testLikeListParameters() {
         if (EsqlCapabilities.Cap.LIKE_PARAMETER_SUPPORT.isEnabled()) {
-            var plan = analyze(
-                String.format(Locale.ROOT, "from test | where first_name like (?p1, ?p2)"),
+            var positional_plan = analyze(
+                String.format(Locale.ROOT, "from test | where first_name like (?1, ?2)"),
                 "mapping-basic.json",
-                new QueryParams(List.of(paramAsConstant("p1", "Anna*"), paramAsConstant("p2", "Chris*")))
+                new QueryParams(List.of(paramAsConstant(null, "Anna*"), paramAsConstant(null, "Chris*")))
             );
-            var limit = as(plan, Limit.class);
+            var limit = as(positional_plan, Limit.class);
             var filter = as(limit.child(), Filter.class);
             var likelist = as(filter.condition(), WildcardLikeList.class);
             var patternlist = as(likelist.pattern(), WildcardPatternList.class);
@@ -5636,12 +5636,12 @@ public class AnalyzerTests extends ESTestCase {
 
     public void testRLikeParameters() {
         if (EsqlCapabilities.Cap.LIKE_PARAMETER_SUPPORT.isEnabled()) {
-            var plan = analyze(
+            var named_plan = analyze(
                 String.format(Locale.ROOT, "from test | where first_name rlike ?pattern"),
                 "mapping-basic.json",
                 new QueryParams(List.of(paramAsConstant("pattern", "Anna*")))
             );
-            var limit = as(plan, Limit.class);
+            var limit = as(named_plan, Limit.class);
             var filter = as(limit.child(), Filter.class);
             RLike rlike = as(filter.condition(), RLike.class);
             assertEquals("Anna*", rlike.pattern().pattern());
@@ -5650,12 +5650,12 @@ public class AnalyzerTests extends ESTestCase {
 
     public void testRLikeListParameters() {
         if (EsqlCapabilities.Cap.LIKE_PARAMETER_SUPPORT.isEnabled()) {
-            var plan = analyze(
+            var named_plan = analyze(
                 String.format(Locale.ROOT, "from test | where first_name rlike (?p1, ?p2)"),
                 "mapping-basic.json",
                 new QueryParams(List.of(paramAsConstant("p1", "Anna*"), paramAsConstant("p2", "Chris*")))
             );
-            var limit = as(plan, Limit.class);
+            var limit = as(named_plan, Limit.class);
             var filter = as(limit.child(), Filter.class);
             RLikeList rlikelist = as(filter.condition(), RLikeList.class);
             RLikePatternList patternlist = as(rlikelist.pattern(), RLikePatternList.class);

@@ -1371,58 +1371,53 @@ public class StatementParserTests extends AbstractStatementParserTests {
 
     public void testLikeParam() {
         if (EsqlCapabilities.Cap.LIKE_PARAMETER_SUPPORT.isEnabled()) {
-            LogicalPlan cmd = statement(
-                "row a = \"abc\" | where a like ?pattern",
-                new QueryParams(List.of(paramAsConstant("pattern", "a*")))
+            LogicalPlan anonymous = statement(
+                "row a = \"abc\" | where a like ?",
+                new QueryParams(List.of(paramAsConstant(null, "a*")))
             );
-            Filter filter = as(cmd, Filter.class);
+            Filter filter = as(anonymous, Filter.class);
             WildcardLike like = as(filter.condition(), WildcardLike.class);
             assertEquals("a*", like.pattern().pattern());
 
             expectError(
-                "row a = \"abc\" | where a like ?pattern",
-                List.of(paramAsConstant("pattern", 1)),
-                "Invalid pattern parameter type for LIKE [?pattern]: expected string, found integer"
-            );
-            expectError(
-                "row a = \"abc\" | where a like ?pattern1",
-                List.of(paramAsConstant("pattern", 1)),
-                "Invalid pattern for LIKE [?pattern1]: parameter not found"
+                "row a = \"abc\" | where a like ?",
+                List.of(paramAsConstant(null, 1)),
+                "Invalid pattern parameter type for LIKE [?]: expected string, found integer"
             );
         }
     }
 
     public void testLikeListParam() {
         if (EsqlCapabilities.Cap.LIKE_PARAMETER_SUPPORT.isEnabled()) {
-            LogicalPlan cmd = statement(
-                "row a = \"abc\" | where a like ( ?p1, ?p2 )",
-                new QueryParams(List.of(paramAsConstant("p1", "a*"), paramAsConstant("p2", "b*")))
+            LogicalPlan positional = statement(
+                "row a = \"abc\" | where a like ( ?1, ?2 )",
+                new QueryParams(List.of(paramAsConstant(null, "a*"), paramAsConstant(null, "b*")))
             );
-            Filter filter = as(cmd, Filter.class);
+            Filter filter = as(positional, Filter.class);
             WildcardLikeList likelist = as(filter.condition(), WildcardLikeList.class);
             WildcardPatternList patternlist = as(likelist.pattern(), WildcardPatternList.class);
             assertEquals("(\"a*\", \"b*\")", patternlist.pattern());
 
             expectError(
-                "row a = \"abc\" | where a like ( ?p1, ?p2 )",
-                List.of(paramAsConstant("p1", "a*"), paramAsConstant("p2", 1)),
-                "Invalid pattern parameter type for LIKE [?p2]: expected string, found integer"
+                "row a = \"abc\" | where a like ( ?1, ?2 )",
+                List.of(paramAsConstant(null, "a*"), paramAsConstant(null, 1)),
+                "Invalid pattern parameter type for LIKE [?2]: expected string, found integer"
             );
             expectError(
-                "row a = \"abc\" | where a like ( ?p1, ?p3 )",
-                List.of(paramAsConstant("p1", "a*"), paramAsConstant("p2", 1)),
-                "Invalid pattern for LIKE [?p3]: parameter not found"
+                "row a = \"abc\" | where a like ( ?1, ?3 )",
+                List.of(paramAsConstant(null, "a*"), paramAsConstant(null, 1)),
+                "Invalid pattern for LIKE [?3]: parameter not found"
             );
         }
     }
 
     public void testRLikeParam() {
         if (EsqlCapabilities.Cap.LIKE_PARAMETER_SUPPORT.isEnabled()) {
-            LogicalPlan cmd = statement(
+            LogicalPlan named = statement(
                 "row a = \"abc\" | where a rlike ?pattern",
                 new QueryParams(List.of(paramAsConstant("pattern", "a*")))
             );
-            Filter filter = as(cmd, Filter.class);
+            Filter filter = as(named, Filter.class);
             RLike rlike = as(filter.condition(), RLike.class);
             assertEquals("a*", rlike.pattern().pattern());
 
@@ -1441,11 +1436,11 @@ public class StatementParserTests extends AbstractStatementParserTests {
 
     public void testRLikeListParam() {
         if (EsqlCapabilities.Cap.LIKE_PARAMETER_SUPPORT.isEnabled()) {
-            LogicalPlan cmd = statement(
+            LogicalPlan named = statement(
                 "row a = \"abc\" | where a rlike ( ?p1, ?p2 )",
                 new QueryParams(List.of(paramAsConstant("p1", "a*"), paramAsConstant("p2", "b*")))
             );
-            Filter filter = as(cmd, Filter.class);
+            Filter filter = as(named, Filter.class);
             RLikeList rlikelist = as(filter.condition(), RLikeList.class);
             RLikePatternList patternlist = as(rlikelist.pattern(), RLikePatternList.class);
             assertEquals("(\"a*\", \"b*\")", patternlist.pattern());

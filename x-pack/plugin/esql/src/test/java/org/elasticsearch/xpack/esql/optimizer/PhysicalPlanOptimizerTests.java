@@ -3131,7 +3131,6 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
                 node.source(),
                 node.indexPattern(),
                 IndexMode.STANDARD,
-                node.indexNameWithModes(),
                 List.of(),
                 node.query()
             )

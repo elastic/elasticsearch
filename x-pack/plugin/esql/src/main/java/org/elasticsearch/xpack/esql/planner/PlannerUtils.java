@@ -253,7 +253,6 @@ public class PlannerUtils {
                         Source.EMPTY,
                         query.indexPattern(),
                         query.indexMode(),
-                        query.indexNameWithModes(),
                         query.output(),
                         filter
                     )

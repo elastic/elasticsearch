@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.esql.plan;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
@@ -24,6 +25,8 @@ import java.util.function.Predicate;
  * There are two main types of plans, {@code LogicalPlan} and {@code PhysicalPlan}
  */
 public abstract class QueryPlan<PlanType extends QueryPlan<PlanType>> extends Node<PlanType> {
+
+    protected static final TransportVersion ESQL_PLAN_KEEP_SPLIT_INDICES = TransportVersion.fromName("esql_plan_keep_split_indices");
 
     private AttributeSet lazyOutputSet;
     private AttributeSet lazyInputSet;

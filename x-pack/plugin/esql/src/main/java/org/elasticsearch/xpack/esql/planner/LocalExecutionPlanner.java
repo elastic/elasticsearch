@@ -736,26 +736,20 @@ public class LocalExecutionPlanner {
         // After enabling remote joins, we can have one of the two situations here:
         // 1. We've just got one entry - this should be the one relevant to the join, and it should be for this cluster
         // 2. We have got multiple entries - this means each cluster has its own one, and we should extract one relevant for this cluster
-        Map.Entry<String, IndexMode> entry;
-        if (esRelation.indexNameWithModes().size() == 1) {
-            entry = esRelation.indexNameWithModes().entrySet().iterator().next();
-        } else {
-            var maybeEntry = esRelation.indexNameWithModes()
-                .entrySet()
-                .stream()
-                .filter(e -> RemoteClusterAware.parseClusterAlias(e.getKey()).equals(clusterAlias))
-                .findFirst();
-            entry = maybeEntry.orElseThrow(
-                () -> new IllegalStateException(
-                    "can't plan [" + join + "]: no matching index found " + EsqlCCSUtils.inClusterName(clusterAlias)
-                )
-            );
-        }
 
-        if (entry.getValue() != IndexMode.LOOKUP) {
-            throw new IllegalStateException("can't plan [" + join + "], found index with mode [" + entry.getValue() + "]");
-        }
-        String[] indexSplit = RemoteClusterAware.splitIndexName(entry.getKey());
+        var concreteIndices = esRelation.concreteIndices();
+        String[] indexSplit = RemoteClusterAware.splitIndexName(switch (concreteIndices.size()) {
+            case 1 -> concreteIndices.iterator().next();
+            default -> concreteIndices.stream()
+                .filter(i -> RemoteClusterAware.parseClusterAlias(i).equals(clusterAlias))
+                .findFirst()
+                .orElseThrow(
+                    () -> new IllegalStateException(
+                        "can't plan [" + join + "]: no matching index found " + EsqlCCSUtils.inClusterName(clusterAlias)
+                    )
+                );
+        });
+
         // No prefix is ok, prefix with this cluster is ok, something else is not
         if (indexSplit[0] != null && clusterAlias.equals(indexSplit[0]) == false) {
             throw new IllegalStateException(

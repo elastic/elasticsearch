@@ -17,52 +17,54 @@ dummy-zero_threshold_only | "{""scale"":0,""sum"":0.0,""zero"":{""threshold"":2.
 
 
 allAggsGrouped
-required_capability: exponential_histogram_minmax_support
+required_capability: exponential_histogram_sum_avg_support
 
 FROM exp_histo_sample 
  | EVAL instance = CASE(STARTS_WITH(instance, "dummy"), "dummy-grouped", instance)
- | STATS min = MIN(responseTime), max = MAX(responseTime), p75 = PERCENTILE(responseTime,75) BY instance
+ | STATS min = MIN(responseTime), max = MAX(responseTime), p75 = PERCENTILE(responseTime,75), sum = SUM(responseTime), avg = AVG(responseTime) BY instance
  | EVAL p75 = ROUND(p75, 7) // rounding to avoid floating point precision issues
- | KEEP instance, min, max, p75
+ | KEEP instance, min, max, p75, sum, avg
  | SORT instance
 ;
 
-instance:keyword | min:double | max:double | p75:double
-dummy-grouped    | -100.0     | 50.0       | 8.3457089
-instance-0       | 2.4E-4     | 6.786232   | 0.2608237
-instance-1       | 2.17E-4    | 3.190723   | 0.0016068
-instance-2       | 2.2E-4     | 2.744054   | 0.0016068
+instance:keyword | min:double | max:double | p75:double | sum:double         | avg:double
+dummy-grouped    | -100.0     | 50.0       | 8.3457089  | -7550.0            | -15.0398406374502
+instance-0       | 2.4E-4     | 6.786232   | 0.2608237  | 1472.744209        | 0.1665811796176903
+instance-1       | 2.17E-4    | 3.190723   | 0.0016068  | 36.198484          | 0.011137995076923077
+instance-2       | 2.2E-4     | 2.744054   | 0.0016068  | 27.706021000000003 | 0.008197047633136096
 ;
 
 
 
 allAggsInlineGrouped
-required_capability: exponential_histogram_minmax_support
+required_capability: exponential_histogram_sum_avg_support
 
 FROM exp_histo_sample 
- | INLINE STATS min = MIN(responseTime), max = MAX(responseTime), p75 = PERCENTILE(responseTime,75) BY instance
+ | INLINE STATS min = MIN(responseTime), max = MAX(responseTime), p75 = PERCENTILE(responseTime,75), sum = SUM(responseTime), avg = AVG(responseTime)  BY instance
  | EVAL p75 = ROUND(p75, 7) // rounding to avoid floating point precision issues
- | KEEP instance, min, max, p75
+ | KEEP instance, min, max, p75, sum , avg
  | SORT instance
  | Limit 15
 ;
+warningRegex: Line 2:132: evaluation of \[AVG\(responseTime\)\] failed, treating result as null. Only first 20 failures recorded
+warningRegex: Line 2:132: java.lang.ArithmeticException: / by zero
 
-instance:keyword          | min:double | max:double | p75:double
-dummy-empty               | null       | null       | null
-dummy-full                | -100.0     | 50.0       | 10.6666667
-dummy-negative_only       | -50.0      | -1.0       | -12.8729318
-dummy-no_zero_bucket      | -100.0     | 50.0       | 10.6666667
-dummy-positive_only       | 1.0        | 50.0       | 34.7656715
-dummy-zero_count_only     | 0.0        | 0.0        | 0.0
-dummy-zero_threshold_only | null       | null       | null
-instance-0                | 2.4E-4     | 6.786232   | 0.2608237
-instance-0                | 2.4E-4     | 6.786232   | 0.2608237
-instance-0                | 2.4E-4     | 6.786232   | 0.2608237
-instance-0                | 2.4E-4     | 6.786232   | 0.2608237
-instance-0                | 2.4E-4     | 6.786232   | 0.2608237
-instance-0                | 2.4E-4     | 6.786232   | 0.2608237
-instance-0                | 2.4E-4     | 6.786232   | 0.2608237
-instance-0                | 2.4E-4     | 6.786232   | 0.2608237
+instance:keyword          | min:double | max:double | p75:double  | sum:double  | avg:double
+dummy-empty               | null       | null       | null        | 0.0         | null
+dummy-full                | -100.0     | 50.0       | 10.6666667  | -3775.0     | -25.0
+dummy-negative_only       | -50.0      | -1.0       | -12.8729318 | -1275.0     | -25.5
+dummy-no_zero_bucket      | -100.0     | 50.0       | 10.6666667  | -3775.0     | -25.166666666666668
+dummy-positive_only       | 1.0        | 50.0       | 34.7656715  | 1275.0      | 25.5
+dummy-zero_count_only     | 0.0        | 0.0        | 0.0         | 0.0         | 0.0
+dummy-zero_threshold_only | null       | null       | null        | 0.0         | null
+instance-0                | 2.4E-4     | 6.786232   | 0.2608237   | 1472.744209 | 0.1665811796176903
+instance-0                | 2.4E-4     | 6.786232   | 0.2608237   | 1472.744209 | 0.1665811796176903
+instance-0                | 2.4E-4     | 6.786232   | 0.2608237   | 1472.744209 | 0.1665811796176903
+instance-0                | 2.4E-4     | 6.786232   | 0.2608237   | 1472.744209 | 0.1665811796176903
+instance-0                | 2.4E-4     | 6.786232   | 0.2608237   | 1472.744209 | 0.1665811796176903
+instance-0                | 2.4E-4     | 6.786232   | 0.2608237   | 1472.744209 | 0.1665811796176903
+instance-0                | 2.4E-4     | 6.786232   | 0.2608237   | 1472.744209 | 0.1665811796176903
+instance-0                | 2.4E-4     | 6.786232   | 0.2608237   | 1472.744209 | 0.1665811796176903
 ;
 
 
@@ -172,15 +174,74 @@ NULL       | NULL
 ;
 
 
-ungroupedSumAvg
+ungroupedAvg
 required_capability: exponential_histogram_sum_avg_support
 
 FROM exp_histo_sample | WHERE NOT STARTS_WITH(instance, "dummy") 
- | STATS sum = SUM(responseTime), avg = AVG(responseTime) // if we swap the order here of sum and avg, it works by accident
- | KEEP sum, avg
+ | STATS avg = AVG(responseTime)
+ | KEEP avg
 ;
 
-sum:double  | avg:double 
-1536.648714 | 0.09932445956951716
+avg:double 
+0.09932445956951716
 ;
 
+
+groupedAvg
+required_capability: exponential_histogram_sum_avg_support
+
+FROM exp_histo_sample | WHERE NOT STARTS_WITH(instance, "dummy") 
+ | STATS avg = AVG(responseTime) BY instance
+ | KEEP instance, avg
+ | SORT instance
+;
+
+instance:keyword | avg:double
+instance-0       | 0.1665811796176903
+instance-1       | 0.011137995076923077
+instance-2       | 0.008197047633136096
+;
+
+
+avgOnEmptyHistogram
+required_capability: exponential_histogram_sum_avg_support
+
+FROM exp_histo_sample | WHERE instance == "dummy-empty"
+ | STATS  avg = AVG(responseTime)
+ | KEEP avg //TODO handle without triggering warnings, but this currently triggers a planner issue
+;
+warningRegex: Line 2:16: evaluation of \[AVG\(responseTime\)\] failed, treating result as null. Only first 20 failures recorded
+warningRegex: Line 2:16: java.lang.ArithmeticException: / by zero
+
+avg:double
+NULL
+;
+
+
+ungroupedSum
+required_capability: exponential_histogram_sum_avg_support
+
+FROM exp_histo_sample | WHERE NOT STARTS_WITH(instance, "dummy") 
+ | STATS sum = SUM(responseTime)
+ | KEEP sum
+;
+
+sum:double 
+1536.648714
+;
+
+
+groupedSum
+required_capability: exponential_histogram_sum_avg_support
+
+FROM exp_histo_sample | WHERE NOT STARTS_WITH(instance, "dummy") 
+ | STATS sum = SUM(responseTime) BY instance
+ | KEEP instance, sum
+ | SORT instance
+;
+
+instance:keyword | sum:double
+instance-0       | 1472.744209
+instance-1       | 36.198484
+instance-2       | 27.706021000000003
+;

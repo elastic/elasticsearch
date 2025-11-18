@@ -66,7 +66,10 @@ public class Sum extends NumericAggregate implements SurrogateExpression {
                 tag = "docsStatsSumNestedExpression"
             ) }
     )
-    public Sum(Source source, @Param(name = "number", type = { "aggregate_metric_double", "exponential_histogram", "double", "integer", "long" }) Expression field) {
+    public Sum(
+        Source source,
+        @Param(name = "number", type = { "aggregate_metric_double", "exponential_histogram", "double", "integer", "long" }) Expression field
+    ) {
         this(source, field, Literal.TRUE, NO_WINDOW, SummationMode.COMPENSATED_LITERAL);
     }
 
@@ -144,7 +147,10 @@ public class Sum extends NumericAggregate implements SurrogateExpression {
         if (supportsDates()) {
             return TypeResolutions.isType(
                 this,
-                e -> e == DataType.DATETIME || e == DataType.AGGREGATE_METRIC_DOUBLE || e == DataType.EXPONENTIAL_HISTOGRAM || e.isNumeric() && e != DataType.UNSIGNED_LONG,
+                e -> e == DataType.DATETIME
+                    || e == DataType.AGGREGATE_METRIC_DOUBLE
+                    || e == DataType.EXPONENTIAL_HISTOGRAM
+                    || e.isNumeric() && e != DataType.UNSIGNED_LONG,
                 sourceText(),
                 DEFAULT,
                 "datetime",
@@ -153,7 +159,9 @@ public class Sum extends NumericAggregate implements SurrogateExpression {
         }
         return isType(
             field(),
-            dt -> dt == DataType.AGGREGATE_METRIC_DOUBLE || dt == DataType.EXPONENTIAL_HISTOGRAM || dt.isNumeric() && dt != DataType.UNSIGNED_LONG,
+            dt -> dt == DataType.AGGREGATE_METRIC_DOUBLE
+                || dt == DataType.EXPONENTIAL_HISTOGRAM
+                || dt.isNumeric() && dt != DataType.UNSIGNED_LONG,
             sourceText(),
             DEFAULT,
             "aggregate_metric_double, exponential_histogram or numeric except unsigned_long or counter types"

@@ -106,12 +106,8 @@ public class AvgTests extends AbstractAggregationTestCase {
                         yield count == 0 ? null : sum / count;
                     }
                     case EXPONENTIAL_HISTOGRAM -> {
-                        double sum = fieldData.stream()
-                            .mapToDouble(v -> ((ExponentialHistogram) v).sum())
-                            .sum();
-                        double count = fieldData.stream()
-                            .mapToLong(v -> ((ExponentialHistogram) v).valueCount())
-                            .sum();
+                        double sum = fieldData.stream().mapToDouble(v -> ((ExponentialHistogram) v).sum()).sum();
+                        double count = fieldData.stream().mapToLong(v -> ((ExponentialHistogram) v).valueCount()).sum();
                         yield count == 0 ? null : sum / count;
                     }
                     default -> throw new IllegalStateException("Unexpected value: " + fieldTypedData.type());

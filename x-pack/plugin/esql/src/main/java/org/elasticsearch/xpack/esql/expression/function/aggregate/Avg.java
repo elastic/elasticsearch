@@ -134,11 +134,16 @@ public class Avg extends AggregateFunction implements SurrogateExpression {
             );
         }
         if (field.dataType() == EXPONENTIAL_HISTOGRAM) {
-            return new Div(
+            Sum valuesSum = new Sum(s, field, filter(), window(), summationMode);
+            Sum totalCount = new Sum(
                 s,
-                new Sum(s, field, filter(), window(), summationMode),
-                new Sum(s, ExtractHistogramComponent.create(s, field, ExponentialHistogramBlock.Component.COUNT), filter(), window(), summationMode)
+                ExtractHistogramComponent.create(s, field, ExponentialHistogramBlock.Component.COUNT),
+                filter(),
+                window(),
+                summationMode
             );
+            // TODO handle empty histograms ( => 0.0 / 0.0) gracefully without triggering a warning
+            return new Div(s, valuesSum, totalCount);
         }
         if (field.foldable()) {
             return new MvAvg(s, field);

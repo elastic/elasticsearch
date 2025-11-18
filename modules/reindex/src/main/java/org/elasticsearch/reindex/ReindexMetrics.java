@@ -20,7 +20,7 @@ import java.util.Map;
 public class ReindexMetrics {
 
     public static final String REINDEX_TIME_HISTOGRAM = "es.reindex.duration.histogram";
-    public static final String REINDEX_COMPLETION_COUNTER = "es.reindex.completion.counter";
+    public static final String REINDEX_COMPLETION_COUNTER = "es.reindex.completion.total";
 
     // refers to https://opentelemetry.io/docs/specs/semconv/registry/attributes/error/#error-type
     public static final String ATTRIBUTE_NAME_ERROR_TYPE = "error.type";

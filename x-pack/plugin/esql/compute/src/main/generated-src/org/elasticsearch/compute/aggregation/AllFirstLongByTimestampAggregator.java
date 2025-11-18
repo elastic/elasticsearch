@@ -31,7 +31,7 @@ import org.elasticsearch.core.Releasables;
 
 /**
  * A time-series aggregation function that collects the First occurrence value of a time series in a specified interval.
- * This class is generated. Edit `All-X-ValueByTimestampAggregator.java.st` instead.
+ * This class is generated. Edit `X-AllValueByTimestampAggregator.java.st` instead.
  */
 @Aggregator(
     {

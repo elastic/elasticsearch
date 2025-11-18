@@ -18,7 +18,7 @@ import org.elasticsearch.core.Releasables;
 
 /**
  * Aggregator state for a single {@code long} and a single {@code BytesRef}, with support for null v2 values.
- * This class is generated. Edit {@code All-X-2State.java.st} instead.
+ * This class is generated. Edit {@code X-All2State.java.st} instead.
  */
 final class AllLongBytesRefState implements AggregatorState {
     // the timestamp

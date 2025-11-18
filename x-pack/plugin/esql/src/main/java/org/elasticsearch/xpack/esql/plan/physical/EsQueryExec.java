@@ -183,17 +183,7 @@ public class EsQueryExec extends LeafExec implements EstimatesRowSize {
 
     @Override
     protected NodeInfo<EsQueryExec> info() {
-        return NodeInfo.create(
-            this,
-            EsQueryExec::new,
-            indexPattern,
-            indexMode,
-            attrs,
-            limit,
-            sorts,
-            estimatedRowSize,
-            queryBuilderAndTags
-        );
+        return NodeInfo.create(this, EsQueryExec::new, indexPattern, indexMode, attrs, limit, sorts, estimatedRowSize, queryBuilderAndTags);
     }
 
     public String indexPattern() {
@@ -258,16 +248,7 @@ public class EsQueryExec extends LeafExec implements EstimatesRowSize {
     public EsQueryExec withLimit(Expression limit) {
         return Objects.equals(this.limit, limit)
             ? this
-            : new EsQueryExec(
-                source(),
-                indexPattern,
-                indexMode,
-                attrs,
-                limit,
-                sorts,
-                estimatedRowSize,
-                queryBuilderAndTags
-            );
+            : new EsQueryExec(source(), indexPattern, indexMode, attrs, limit, sorts, estimatedRowSize, queryBuilderAndTags);
     }
 
     public boolean canPushSorts() {
@@ -281,16 +262,7 @@ public class EsQueryExec extends LeafExec implements EstimatesRowSize {
         }
         return Objects.equals(this.sorts, sorts)
             ? this
-            : new EsQueryExec(
-                source(),
-                indexPattern,
-                indexMode,
-                attrs,
-                limit,
-                sorts,
-                estimatedRowSize,
-                queryBuilderAndTags
-            );
+            : new EsQueryExec(source(), indexPattern, indexMode, attrs, limit, sorts, estimatedRowSize, queryBuilderAndTags);
     }
 
     /**

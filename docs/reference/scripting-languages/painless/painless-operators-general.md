@@ -102,19 +102,26 @@ conditional: expression '?' expression ':' expression;
 
 * Evaluation of conditionals.
 
-    ```painless
-    boolean b = true;        <1>
-    int x = b ? 1 : 2;       <2>
-    List y = x > 1 ? new ArrayList() : null; <3>
-    def z = x < 2 ? x : 2.0; <4>
+    ```java
+    boolean b = true;
+    int x = b ? 1 : 2;	<1>
     ```
 
-    1. declare `boolean b`; store `boolean true` to `b`
-    2. declare `int x`; load from `b` → `boolean true` evaluate 1st expression: `int 1` → `int 1`; store `int 1` to `x`
-    3. declare `List y`; load from `x` → `int 1`; `int 1` greater than `int 1` → `boolean false`; evaluate 2nd expression: `null` → `null`; store `null` to `y`;
-    4. declare `def z`; load from `x` → `int 1`; `int 1` less than `int 2` → `boolean true`; evaluate 1st expression: load from `x` → `int 1`; promote `int 1` and `double 2.0`: result `double`; implicit cast `int 1` to `double 1.0` → `double 1.0`; implicit cast `double 1.0` to `def` → `def`; store `def` to `z`;
+    1. declare `int x`; load from `b` → `boolean true` evaluate 1st expression: `int 1` → `int 1`; store `int 1` to `x`
 
 
+    ```java
+    int x = 1;
+    List y = x > 1 ? new ArrayList() : null; <1>
+    ```
+    1. declare `List y`; load from `x` → `int 1`; `int 1` greater than `int 1` → `boolean false`; evaluate 2nd expression: `null` → `null`; store `null` to `y`
+
+    ```java
+    int x = 1;
+    def z = x < 2 ? x : 2.0;	<1>
+    ```
+
+    1. declare `def z`; load from `x` → `int 1`; `int 1` less than `int 2` → `boolean true`; evaluate 1st expression: load from `x` → `int 1`; promote `int 1` and `double 2.0`: result `double`; implicit cast `int 1` to `double 1.0` → `double 1.0`; implicit cast `double 1.0` to `def` → `def`; store `def` to `z`;
 
 ## Assignment [assignment-operator]
 

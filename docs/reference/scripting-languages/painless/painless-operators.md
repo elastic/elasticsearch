@@ -20,10 +20,10 @@ Painless operators use Java-like syntax with {{es}} specific enhancements such a
 
 Painless organizes operators into five functional categories based on their purpose.
 
-Double-click to expand.
 :::{image} images/painless-operator-categories.png
 :alt: Painless operator categories
 :::
+Double-click to expand the image.
 
 ### General operators
 

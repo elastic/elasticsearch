@@ -7,7 +7,9 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.search.basic;
+package org.elasticsearch.integration;
+
+import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
@@ -31,6 +33,7 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -46,6 +49,7 @@ import org.elasticsearch.transport.NoSuchRemoteClusterException;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xpack.security.LocalStateSecurity;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -74,11 +78,23 @@ public class QueryRewriteContextMultiClustersIT extends AbstractMultiClustersTes
 
     private static final ConcurrentHashMap<String, AtomicInteger> INSTRUMENTED_ACTION_CALL_MAP = new ConcurrentHashMap<>();
 
+    private final boolean securityEnabled;
+
     private boolean clustersConfigured = false;
+
+    @ParametersFactory
+    public static Iterable<Object[]> parameters() throws Exception {
+        return List.of(new Object[] { true }, new Object[] { false });
+    }
 
     @Override
     protected List<String> remoteClusterAlias() {
         return List.of(REMOTE_CLUSTER_A, REMOTE_CLUSTER_B);
+    }
+
+    @Override
+    protected boolean reuseClusters() {
+        return false;
     }
 
     @Override
@@ -88,7 +104,19 @@ public class QueryRewriteContextMultiClustersIT extends AbstractMultiClustersTes
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins(String clusterAlias) {
-        return List.of(TestPlugin.class);
+        return List.of(TestPlugin.class, LocalStateSecurity.class);
+    }
+
+    @Override
+    protected Settings nodeSettings() {
+        Settings.Builder builder = Settings.builder().put(super.nodeSettings());
+        builder.put("xpack.security.enabled", false)
+            .put("xpack.security.authc.api_key.enabled", "true")
+            .put("xpack.security.http.ssl.enabled", "false")
+            .put("xpack.security.transport.ssl.enabled", "false")
+            .put("xpack.monitoring.templates.enabled", "false");
+
+        return builder.build();
     }
 
     @Before
@@ -100,6 +128,10 @@ public class QueryRewriteContextMultiClustersIT extends AbstractMultiClustersTes
             setupClusters();
             clustersConfigured = true;
         }
+    }
+
+    public QueryRewriteContextMultiClustersIT(boolean securityEnabled) {
+        this.securityEnabled = securityEnabled;
     }
 
     public void testCallRemoteAsyncAction() {

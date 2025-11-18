@@ -261,7 +261,7 @@ public class IndexDeprecationCheckerTests extends ESTestCase {
                     }
                 }
                 """)
-            .transportVersion(randomBoolean() ? TransportVersion.fromId(0) : TransportVersion.fromId(9000019))
+            .transportVersion(randomBoolean() ? TransportVersion.fromId(0) : TransportVersion.fromId(8840012))
             .build();
         ClusterState clusterState = ClusterState.builder(ClusterState.EMPTY_STATE)
             .metadata(Metadata.builder().put(indexMetadata, true))

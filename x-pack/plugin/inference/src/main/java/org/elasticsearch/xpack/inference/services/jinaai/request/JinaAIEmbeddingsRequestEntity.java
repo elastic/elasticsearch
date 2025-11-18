@@ -38,6 +38,8 @@ public record JinaAIEmbeddingsRequestEntity(
     public static final String TASK_TYPE_FIELD = "task";
     public static final String LATE_CHUNKING = "late_chunking";
     static final String EMBEDDING_TYPE_FIELD = "embedding_type";
+    // Late chunking models have a token limit of 8000 or ~6000 words (using a rough 1 token:0.75 words ratio). We set the maximum word
+    // count with a bit of extra room to 5500 words.
     static final int MAX_WORD_COUNT_FOR_LATE_CHUNKING = 5500;
 
     public JinaAIEmbeddingsRequestEntity {

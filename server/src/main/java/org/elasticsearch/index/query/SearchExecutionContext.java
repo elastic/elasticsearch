@@ -22,6 +22,7 @@ import org.apache.lucene.search.similarities.Similarity;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.lucene.search.Queries;
@@ -109,6 +110,8 @@ public class SearchExecutionContext extends QueryRewriteContext {
     private final Integer requestSize;
     private final MapperMetrics mapperMetrics;
 
+    private final ProjectMetadata projectMetadata;
+
     /**
      * Build a {@linkplain SearchExecutionContext}.
      */
@@ -132,7 +135,8 @@ public class SearchExecutionContext extends QueryRewriteContext {
         BooleanSupplier allowExpensiveQueries,
         ValuesSourceRegistry valuesSourceRegistry,
         Map<String, Object> runtimeMappings,
-        MapperMetrics mapperMetrics
+        MapperMetrics mapperMetrics,
+        ProjectMetadata projectMetadata
     ) {
         this(
             shardId,
@@ -155,7 +159,8 @@ public class SearchExecutionContext extends QueryRewriteContext {
             valuesSourceRegistry,
             runtimeMappings,
             null,
-            mapperMetrics
+            mapperMetrics,
+            projectMetadata
         );
     }
 
@@ -180,7 +185,8 @@ public class SearchExecutionContext extends QueryRewriteContext {
         ValuesSourceRegistry valuesSourceRegistry,
         Map<String, Object> runtimeMappings,
         Integer requestSize,
-        MapperMetrics mapperMetrics
+        MapperMetrics mapperMetrics,
+        ProjectMetadata projectMetadata
     ) {
         this(
             shardId,
@@ -207,7 +213,8 @@ public class SearchExecutionContext extends QueryRewriteContext {
             valuesSourceRegistry,
             parseRuntimeMappings(runtimeMappings, mapperService, indexSettings, mappingLookup),
             requestSize,
-            mapperMetrics
+            mapperMetrics,
+            projectMetadata
         );
     }
 
@@ -234,7 +241,8 @@ public class SearchExecutionContext extends QueryRewriteContext {
             source.getValuesSourceRegistry(),
             source.runtimeMappings,
             source.requestSize,
-            source.mapperMetrics
+            source.mapperMetrics,
+            source.projectMetadata
         );
     }
 
@@ -260,7 +268,8 @@ public class SearchExecutionContext extends QueryRewriteContext {
         ValuesSourceRegistry valuesSourceRegistry,
         Map<String, MappedFieldType> runtimeMappings,
         Integer requestSize,
-        MapperMetrics mapperMetrics
+        MapperMetrics mapperMetrics,
+        ProjectMetadata projectMetadata
     ) {
         super(
             parserConfig,
@@ -294,6 +303,7 @@ public class SearchExecutionContext extends QueryRewriteContext {
         this.searcher = searcher;
         this.requestSize = requestSize;
         this.mapperMetrics = mapperMetrics;
+        this.projectMetadata = projectMetadata;
     }
 
     private void reset() {
@@ -743,5 +753,9 @@ public class SearchExecutionContext extends QueryRewriteContext {
      */
     public boolean rewriteToNamedQuery() {
         return rewriteToNamedQueries;
+    }
+
+    public ProjectMetadata projectMetadata() {
+        return projectMetadata;
     }
 }

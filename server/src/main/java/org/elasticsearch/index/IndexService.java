@@ -789,7 +789,8 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
             valuesSourceRegistry,
             runtimeMappings,
             requestSize,
-            mapperMetrics
+            mapperMetrics,
+            client.projectResolver().getProjectMetadata(clusterService.state())
         );
     }
 

@@ -18,6 +18,7 @@ import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.logging.DeprecationLogger;
@@ -2203,6 +2204,17 @@ public class ElasticsearchInternalServiceTests extends InferenceServiceTestCase 
         ArgumentCaptor<InferModelAction.Request> requestCaptor = ArgumentCaptor.forClass(InferModelAction.Request.class);
         verify(client).execute(same(InferModelAction.INSTANCE), requestCaptor.capture(), any(ActionListener.class));
         assertEquals(providedTimeout, requestCaptor.getValue().getInferenceTimeout());
+    }
+
+    public void testUpdateServiceSettings_ThrowsExceptionWhenNumThreadsIsUpdated() {
+        var existingSettings = new ElasticsearchInternalServiceSettings(1, 4, "test-model", null, null);
+
+        Map<String, Object> serviceSettingsWithNumThreads = Map.of(ElasticsearchInternalServiceSettings.NUM_THREADS, 8);
+        var exception = expectThrows(
+            ValidationException.class,
+            () -> existingSettings.updateServiceSettings(serviceSettingsWithNumThreads)
+        );
+        assertThat(exception.getMessage(), containsString("[num_threads] cannot be updated"));
     }
 
     private ElasticsearchInternalService createService(Client client) {

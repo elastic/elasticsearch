@@ -21,7 +21,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.datastreams.lifecycle.DataStreamLifecycleService;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
-import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 
 import java.util.HashSet;
@@ -352,17 +351,15 @@ public class DataStreamLifecycleDownsampleIT extends DownsamplingIntegTestCase {
         rolloverResponse = safeGet(client().execute(RolloverAction.INSTANCE, new RolloverRequest(dataStreamName, null)));
         assertTrue(rolloverResponse.isRolledOver());
         String downsampledPrefix = "downsample-10m-";
-        final var waitForUpdatedDownsamplingRound = ClusterServiceUtils.addMasterTemporaryStateListener(clusterState -> {
+        awaitClusterState(clusterState -> {
             ProjectMetadata projectMetadata = clusterState.metadata().getProject();
             final var dataStream = projectMetadata.dataStreams().get(dataStreamName);
             if (dataStream == null) {
                 return false;
             }
-
             return dataStream.getIndices().size() > 2
                 && dataStream.getIndices().stream().filter(index -> index.getName().startsWith(downsampledPrefix)).count() == 2;
         });
-        safeAwait(waitForUpdatedDownsamplingRound);
         assertDownsamplingMethod(initialSamplingMethod, downsampledPrefix + firstBackingIndex);
         assertDownsamplingMethod(updatedSamplingMethod, downsampledPrefix + secondBackingIndex);
     }

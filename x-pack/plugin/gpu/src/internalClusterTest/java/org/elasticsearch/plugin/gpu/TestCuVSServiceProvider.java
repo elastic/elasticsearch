@@ -25,6 +25,9 @@ public class TestCuVSServiceProvider extends CuVSServiceProvider {
 
     @Override
     public CuVSProvider get(CuVSProvider builtin) {
+        if (mockedGPUInfoProvider == null) {
+            return builtin;
+        }
         return new CuVSProviderDelegate(builtin) {
             @Override
             public GPUInfoProvider gpuInfoProvider() {

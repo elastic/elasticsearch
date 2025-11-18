@@ -120,7 +120,7 @@ public class IndexMappingTemplateAsserter {
             "index_templates",
             "index_template",
             "version"
-        )).getFirst();
+        )).get(0);
         assertEquals(version, templateVersion.intValue());
 
         var templateIndexPatterns = ((List<String>) XContentMapValues.extractValue(

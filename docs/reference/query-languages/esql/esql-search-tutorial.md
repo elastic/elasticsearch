@@ -631,11 +631,13 @@ This approach gives you full control over vector embeddings, unlike `semantic_te
 
 ### Documentation
 
-This tutorial introduced the basics of search and filtering in {{esql}}. Building a real-world search experience requires understanding many more advanced concepts and techniques. Here are some resources once you're ready to dive deeper:
+This tutorial introduced search, filtering, and AI-powered capabilities in {{esql}}. Here are some resources once you're ready to dive deeper:
 
-- [Search with {{esql}}](docs-content://solutions/search/esql-for-search.md): Learn about all the search capabilities in {{esql}}.
+- [Search with {{esql}}](docs-content://solutions/search/esql-for-search.md): Learn about all search capabilities in {{esql}}.
 - [Semantic search](docs-content://solutions/search/semantic-search.md): Understand your various options for semantic search in Elasticsearch.
   - [The `semantic_text` workflow](docs-content://solutions/search/semantic-search.md#_semantic_text_workflow): Learn how to use the `semantic_text` field type for semantic search. This is the recommended approach for most users looking to perform semantic search in {{es}}, because it abstracts away the complexity of setting up inference endpoints and models.
+- [Inference API](docs-content://explore-analyze/elastic-inference/inference-api.md): Set up inference endpoints for the `RERANK`, `COMPLETION`, and `TEXT_EMBEDDING` commands.
+- [Text analysis](docs-content://manage-data/data-store/text-analysis/index.md): Understand how text analysis works for full-text search.
 
 ### Related blog posts
 

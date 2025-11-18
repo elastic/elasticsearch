@@ -26,7 +26,7 @@ import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServic
 import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceComponents;
 import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceSettings;
 import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceSettingsTests;
-import org.elasticsearch.xpack.inference.services.elastic.response.AuthorizationResponseEntityV2;
+import org.elasticsearch.xpack.inference.services.elastic.response.AuthorizationResponseEntity;
 import org.elasticsearch.xpack.inference.services.elastic.sparseembeddings.ElasticInferenceServiceSparseEmbeddingsModel;
 import org.elasticsearch.xpack.inference.services.elastic.sparseembeddings.ElasticInferenceServiceSparseEmbeddingsServiceSettings;
 import org.junit.Before;
@@ -43,7 +43,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import static org.elasticsearch.xpack.inference.services.ServiceComponentsTests.createWithEmptySettings;
 import static org.elasticsearch.xpack.inference.services.elastic.ccm.CCMFeatureTests.createMockCCMFeature;
 import static org.elasticsearch.xpack.inference.services.elastic.ccm.CCMServiceTests.createMockCCMService;
-import static org.elasticsearch.xpack.inference.services.elastic.response.AuthorizationResponseEntityV2Tests.createAuthorizedEndpoint;
+import static org.elasticsearch.xpack.inference.services.elastic.response.AuthorizationResponseEntityTests.createAuthorizedEndpoint;
 import static org.hamcrest.Matchers.is;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
@@ -188,7 +188,7 @@ public class AuthorizationPollerTests extends ESTestCase {
         var mockAuthHandler = mock(ElasticInferenceServiceAuthorizationRequestHandler.class);
         doAnswer(invocation -> {
             ActionListener<AuthorizationModel> listener = invocation.getArgument(0);
-            listener.onResponse(AuthorizationModel.of(new AuthorizationResponseEntityV2(List.of(sparseModel)), url));
+            listener.onResponse(AuthorizationModel.of(new AuthorizationResponseEntity(List.of(sparseModel)), url));
             return Void.TYPE;
         }).when(mockAuthHandler).getAuthorization(any(), any());
 
@@ -255,7 +255,7 @@ public class AuthorizationPollerTests extends ESTestCase {
         var mockAuthHandler = mock(ElasticInferenceServiceAuthorizationRequestHandler.class);
         doAnswer(invocation -> {
             ActionListener<AuthorizationModel> listener = invocation.getArgument(0);
-            listener.onResponse(AuthorizationModel.of(new AuthorizationResponseEntityV2(List.of(sparseModel)), url));
+            listener.onResponse(AuthorizationModel.of(new AuthorizationResponseEntity(List.of(sparseModel)), url));
             return Void.TYPE;
         }).when(mockAuthHandler).getAuthorization(any(), any());
 
@@ -310,7 +310,7 @@ public class AuthorizationPollerTests extends ESTestCase {
         var mockAuthHandler = mock(ElasticInferenceServiceAuthorizationRequestHandler.class);
         doAnswer(invocation -> {
             ActionListener<AuthorizationModel> listener = invocation.getArgument(0);
-            listener.onResponse(AuthorizationModel.of(new AuthorizationResponseEntityV2(List.of(sparseModel)), url));
+            listener.onResponse(AuthorizationModel.of(new AuthorizationResponseEntity(List.of(sparseModel)), url));
             return Void.TYPE;
         }).when(mockAuthHandler).getAuthorization(any(), any());
 
@@ -346,7 +346,7 @@ public class AuthorizationPollerTests extends ESTestCase {
         doAnswer(invocation -> {
             ActionListener<AuthorizationModel> listener = invocation.getArgument(0);
             listener.onResponse(
-                AuthorizationModel.of(new AuthorizationResponseEntityV2(List.of(completionModel)), url)
+                AuthorizationModel.of(new AuthorizationResponseEntity(List.of(completionModel)), url)
             );
             return Void.TYPE;
         }).when(mockAuthHandler).getAuthorization(any(), any());
@@ -384,7 +384,7 @@ public class AuthorizationPollerTests extends ESTestCase {
         var mockAuthHandler = mock(ElasticInferenceServiceAuthorizationRequestHandler.class);
         doAnswer(invocation -> {
             ActionListener<AuthorizationModel> listener = invocation.getArgument(0);
-            listener.onResponse(AuthorizationModel.of(new AuthorizationResponseEntityV2(List.of(sparseModel)), url));
+            listener.onResponse(AuthorizationModel.of(new AuthorizationResponseEntity(List.of(sparseModel)), url));
             return Void.TYPE;
         }).when(mockAuthHandler).getAuthorization(any(), any());
 
@@ -441,7 +441,7 @@ public class AuthorizationPollerTests extends ESTestCase {
         var mockAuthHandler = mock(ElasticInferenceServiceAuthorizationRequestHandler.class);
         doAnswer(invocation -> {
             ActionListener<AuthorizationModel> listener = invocation.getArgument(0);
-            listener.onResponse(AuthorizationModel.of(new AuthorizationResponseEntityV2(List.of(sparseModel)), url));
+            listener.onResponse(AuthorizationModel.of(new AuthorizationResponseEntity(List.of(sparseModel)), url));
             return Void.TYPE;
         }).when(mockAuthHandler).getAuthorization(any(), any());
 

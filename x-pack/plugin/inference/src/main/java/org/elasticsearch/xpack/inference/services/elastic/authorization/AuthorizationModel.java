@@ -24,7 +24,7 @@ import org.elasticsearch.xpack.inference.services.elastic.densetextembeddings.El
 import org.elasticsearch.xpack.inference.services.elastic.densetextembeddings.ElasticInferenceServiceDenseTextEmbeddingsServiceSettings;
 import org.elasticsearch.xpack.inference.services.elastic.rerank.ElasticInferenceServiceRerankModel;
 import org.elasticsearch.xpack.inference.services.elastic.rerank.ElasticInferenceServiceRerankServiceSettings;
-import org.elasticsearch.xpack.inference.services.elastic.response.AuthorizationResponseEntityV2;
+import org.elasticsearch.xpack.inference.services.elastic.response.AuthorizationResponseEntity;
 import org.elasticsearch.xpack.inference.services.elastic.sparseembeddings.ElasticInferenceServiceSparseEmbeddingsModel;
 import org.elasticsearch.xpack.inference.services.elastic.sparseembeddings.ElasticInferenceServiceSparseEmbeddingsServiceSettings;
 
@@ -48,13 +48,13 @@ public class AuthorizationModel {
     private static final Logger logger = LogManager.getLogger(AuthorizationModel.class);
     private static final String UNKNOWN_TASK_TYPE_LOG_MESSAGE = "Authorized endpoint id [{}] has unknown task type [{}], skipping";
 
-    public static AuthorizationModel of(AuthorizationResponseEntityV2 responseEntity, String baseEisUrl) {
+    public static AuthorizationModel of(AuthorizationResponseEntity responseEntity, String baseEisUrl) {
         var components = new ElasticInferenceServiceComponents(baseEisUrl);
         return createInternal(responseEntity.getAuthorizedEndpoints(), components);
     }
 
     private static AuthorizationModel createInternal(
-        List<AuthorizationResponseEntityV2.AuthorizedEndpoint> responseEndpoints,
+        List<AuthorizationResponseEntity.AuthorizedEndpoint> responseEndpoints,
         ElasticInferenceServiceComponents components
     ) {
         var validEndpoints = new ArrayList<ElasticInferenceServiceModel>();
@@ -69,7 +69,7 @@ public class AuthorizationModel {
     }
 
     private static ElasticInferenceServiceModel createModel(
-        AuthorizationResponseEntityV2.AuthorizedEndpoint authorizedEndpoint,
+        AuthorizationResponseEntity.AuthorizedEndpoint authorizedEndpoint,
         ElasticInferenceServiceComponents components
     ) {
         try {
@@ -110,7 +110,7 @@ public class AuthorizationModel {
     }
 
     private static ElasticInferenceServiceCompletionModel createCompletionModel(
-        AuthorizationResponseEntityV2.AuthorizedEndpoint authorizedEndpoint,
+        AuthorizationResponseEntity.AuthorizedEndpoint authorizedEndpoint,
         ElasticInferenceServiceComponents components
     ) {
         return new ElasticInferenceServiceCompletionModel(
@@ -125,7 +125,7 @@ public class AuthorizationModel {
     }
 
     private static ElasticInferenceServiceSparseEmbeddingsModel createSparseEmbeddingsModel(
-        AuthorizationResponseEntityV2.AuthorizedEndpoint authorizedEndpoint,
+        AuthorizationResponseEntity.AuthorizedEndpoint authorizedEndpoint,
         ElasticInferenceServiceComponents components
     ) {
         return new ElasticInferenceServiceSparseEmbeddingsModel(
@@ -140,24 +140,24 @@ public class AuthorizationModel {
         );
     }
 
-    private static AuthorizationResponseEntityV2.Configuration getConfigurationOrEmpty(
-        AuthorizationResponseEntityV2.AuthorizedEndpoint authorizedEndpoint
+    private static AuthorizationResponseEntity.Configuration getConfigurationOrEmpty(
+        AuthorizationResponseEntity.AuthorizedEndpoint authorizedEndpoint
     ) {
         if (authorizedEndpoint.configuration() != null) {
             return authorizedEndpoint.configuration();
         }
 
-        return AuthorizationResponseEntityV2.Configuration.EMPTY;
+        return AuthorizationResponseEntity.Configuration.EMPTY;
     }
 
     private static Map<String, Object> getChunkingSettingsMap(
-        AuthorizationResponseEntityV2.Configuration configuration
+        AuthorizationResponseEntity.Configuration configuration
     ) {
         return Objects.requireNonNullElse(configuration.chunkingSettings(), new HashMap<>());
     }
 
     private static ElasticInferenceServiceDenseTextEmbeddingsModel createDenseTextEmbeddingsModel(
-        AuthorizationResponseEntityV2.AuthorizedEndpoint authorizedEndpoint,
+        AuthorizationResponseEntity.AuthorizedEndpoint authorizedEndpoint,
         ElasticInferenceServiceComponents components
     ) {
         var config = getConfigurationOrEmpty(authorizedEndpoint);
@@ -180,19 +180,19 @@ public class AuthorizationModel {
         );
     }
 
-    private static void validateConfigurationForTextEmbedding(AuthorizationResponseEntityV2.Configuration config) {
+    private static void validateConfigurationForTextEmbedding(AuthorizationResponseEntity.Configuration config) {
         validateFieldPresent(
-            AuthorizationResponseEntityV2.Configuration.ELEMENT_TYPE,
+            AuthorizationResponseEntity.Configuration.ELEMENT_TYPE,
             config.elementType(),
             TaskType.TEXT_EMBEDDING
         );
         validateFieldPresent(
-            AuthorizationResponseEntityV2.Configuration.DIMENSIONS,
+            AuthorizationResponseEntity.Configuration.DIMENSIONS,
             config.dimensions(),
             TaskType.TEXT_EMBEDDING
         );
         validateFieldPresent(
-            AuthorizationResponseEntityV2.Configuration.SIMILARITY,
+            AuthorizationResponseEntity.Configuration.SIMILARITY,
             config.similarity(),
             TaskType.TEXT_EMBEDDING
         );
@@ -207,10 +207,10 @@ public class AuthorizationModel {
     }
 
     private static SimilarityMeasure getSimilarityMeasure(
-        AuthorizationResponseEntityV2.Configuration configuration
+        AuthorizationResponseEntity.Configuration configuration
     ) {
         validateFieldPresent(
-            AuthorizationResponseEntityV2.Configuration.SIMILARITY,
+            AuthorizationResponseEntity.Configuration.SIMILARITY,
             configuration.similarity(),
             TaskType.TEXT_EMBEDDING
         );
@@ -219,7 +219,7 @@ public class AuthorizationModel {
     }
 
     private static ElasticInferenceServiceRerankModel createRerankModel(
-        AuthorizationResponseEntityV2.AuthorizedEndpoint authorizedEndpoint,
+        AuthorizationResponseEntity.AuthorizedEndpoint authorizedEndpoint,
         ElasticInferenceServiceComponents components
     ) {
         return new ElasticInferenceServiceRerankModel(

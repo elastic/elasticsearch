@@ -37,17 +37,17 @@ import java.util.stream.Collectors;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
-public class AuthorizationResponseEntityV2 implements InferenceServiceResults {
+public class AuthorizationResponseEntity implements InferenceServiceResults {
 
     public static final String NAME = "elastic_inference_service_auth_results_v2";
 
     private static final String INFERENCE_ENDPOINTS = "inference_endpoints";
 
     @SuppressWarnings("unchecked")
-    public static ConstructingObjectParser<AuthorizationResponseEntityV2, Void> PARSER = new ConstructingObjectParser<>(
-        AuthorizationResponseEntityV2.class.getSimpleName(),
+    public static ConstructingObjectParser<AuthorizationResponseEntity, Void> PARSER = new ConstructingObjectParser<>(
+        AuthorizationResponseEntity.class.getSimpleName(),
         true,
-        args -> new AuthorizationResponseEntityV2((List<AuthorizedEndpoint>) args[0])
+        args -> new AuthorizationResponseEntity((List<AuthorizedEndpoint>) args[0])
     );
 
     static {
@@ -291,22 +291,22 @@ public class AuthorizationResponseEntityV2 implements InferenceServiceResults {
 
     private final List<AuthorizedEndpoint> authorizedEndpoints;
 
-    public AuthorizationResponseEntityV2(List<AuthorizedEndpoint> authorizedModels) {
+    public AuthorizationResponseEntity(List<AuthorizedEndpoint> authorizedModels) {
         this.authorizedEndpoints = Objects.requireNonNull(authorizedModels);
     }
 
     /**
      * Create an empty response
      */
-    public AuthorizationResponseEntityV2() {
+    public AuthorizationResponseEntity() {
         this(List.of());
     }
 
-    public AuthorizationResponseEntityV2(StreamInput in) throws IOException {
+    public AuthorizationResponseEntity(StreamInput in) throws IOException {
         this(in.readCollectionAsList(AuthorizedEndpoint::new));
     }
 
-    public static AuthorizationResponseEntityV2 fromResponse(Request request, HttpResult response) throws IOException {
+    public static AuthorizationResponseEntity fromResponse(Request request, HttpResult response) throws IOException {
         var parserConfig = XContentParserConfiguration.EMPTY.withDeprecationHandler(LoggingDeprecationHandler.INSTANCE);
 
         try (XContentParser jsonParser = XContentFactory.xContent(XContentType.JSON).createParser(parserConfig, response.body())) {
@@ -352,7 +352,7 @@ public class AuthorizationResponseEntityV2 implements InferenceServiceResults {
     public boolean equals(Object o) {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
-        AuthorizationResponseEntityV2 that = (AuthorizationResponseEntityV2) o;
+        AuthorizationResponseEntity that = (AuthorizationResponseEntity) o;
         return Objects.equals(authorizedEndpoints, that.authorizedEndpoints);
     }
 

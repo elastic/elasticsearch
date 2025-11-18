@@ -28,7 +28,7 @@ import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSender;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSenderTests;
 import org.elasticsearch.xpack.inference.logging.ThrottlerManager;
 import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceModel;
-import org.elasticsearch.xpack.inference.services.elastic.response.AuthorizationResponseEntityV2Tests;
+import org.elasticsearch.xpack.inference.services.elastic.response.AuthorizationResponseEntityTests;
 import org.junit.After;
 import org.junit.Before;
 import org.mockito.ArgumentCaptor;
@@ -47,7 +47,7 @@ import static org.elasticsearch.xpack.inference.external.request.RequestUtils.be
 import static org.elasticsearch.xpack.inference.services.SenderServiceTests.createMockSender;
 import static org.elasticsearch.xpack.inference.services.elastic.ccm.CCMAuthenticationApplierFactoryTests.createApplierFactory;
 import static org.elasticsearch.xpack.inference.services.elastic.ccm.CCMAuthenticationApplierFactoryTests.createNoopApplierFactory;
-import static org.elasticsearch.xpack.inference.services.elastic.response.AuthorizationResponseEntityV2Tests.getEisElserAuthorizationResponse;
+import static org.elasticsearch.xpack.inference.services.elastic.response.AuthorizationResponseEntityTests.getEisElserAuthorizationResponse;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.instanceOf;
@@ -192,7 +192,7 @@ public class ElasticInferenceServiceAuthorizationRequestHandlerTests extends EST
         );
 
         try (var sender = senderFactory.createSender()) {
-            var responseData = AuthorizationResponseEntityV2Tests.getEisAuthorizationResponseWithMultipleEndpoints(
+            var responseData = AuthorizationResponseEntityTests.getEisAuthorizationResponseWithMultipleEndpoints(
                 eisGatewayUrl
             );
 

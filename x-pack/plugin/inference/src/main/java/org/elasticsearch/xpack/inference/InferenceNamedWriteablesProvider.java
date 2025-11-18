@@ -75,6 +75,7 @@ import org.elasticsearch.xpack.inference.services.custom.response.SparseEmbeddin
 import org.elasticsearch.xpack.inference.services.deepseek.DeepSeekChatCompletionModel;
 import org.elasticsearch.xpack.inference.services.elastic.completion.ElasticInferenceServiceCompletionServiceSettings;
 import org.elasticsearch.xpack.inference.services.elastic.rerank.ElasticInferenceServiceRerankServiceSettings;
+import org.elasticsearch.xpack.inference.services.elastic.response.AuthorizationResponseEntity;
 import org.elasticsearch.xpack.inference.services.elastic.sparseembeddings.ElasticInferenceServiceSparseEmbeddingsServiceSettings;
 import org.elasticsearch.xpack.inference.services.elasticsearch.CustomElandInternalServiceSettings;
 import org.elasticsearch.xpack.inference.services.elasticsearch.CustomElandInternalTextEmbeddingServiceSettings;
@@ -702,6 +703,13 @@ public class InferenceNamedWriteablesProvider {
                 StreamingUnifiedChatCompletionResults.Results.class,
                 StreamingUnifiedChatCompletionResults.Results.NAME,
                 StreamingUnifiedChatCompletionResults.Results::new
+            )
+        );
+        namedWriteables.add(
+            new NamedWriteableRegistry.Entry(
+                InferenceServiceResults.class,
+                AuthorizationResponseEntity.NAME,
+                AuthorizationResponseEntity::new
             )
         );
     }

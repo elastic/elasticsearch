@@ -30,6 +30,7 @@ import org.elasticsearch.exponentialhistogram.ExponentialHistogramUtils;
 import org.elasticsearch.exponentialhistogram.ExponentialHistogramXContent;
 import org.elasticsearch.exponentialhistogram.ZeroBucket;
 import org.elasticsearch.index.fielddata.FieldDataContext;
+import org.elasticsearch.index.fielddata.FormattedDocValues;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.elasticsearch.index.mapper.BlockLoader;
@@ -277,6 +278,11 @@ public class ExponentialHistogramFieldMapper extends FieldMapper {
                         }
 
                         @Override
+                        public FormattedDocValues getFormattedValues(DocValueFormat format) {
+                            return createFormattedDocValues(context.reader(), fieldName);
+                        }
+
+                        @Override
                         public long ramBytesUsed() {
                             return 0; // No dynamic allocations
                         }
@@ -413,6 +419,43 @@ public class ExponentialHistogramFieldMapper extends FieldMapper {
                 }
             };
         }
+    }
+
+    // Visible for testing
+    static FormattedDocValues createFormattedDocValues(LeafReader reader, String fieldName) {
+        return new FormattedDocValues() {
+
+            boolean hasNext = false;
+            ExponentialHistogramValuesReader delegate;
+
+            private ExponentialHistogramValuesReader lazyDelegate() throws IOException {
+                if (delegate == null) {
+                    delegate = new DocValuesReader(reader, fieldName);
+                }
+                return delegate;
+            }
+
+            @Override
+            public boolean advanceExact(int docId) throws IOException {
+                hasNext = lazyDelegate().advanceExact(docId);
+                return hasNext;
+            }
+
+            @Override
+            public int docValueCount() throws IOException {
+                return 1; // no multivalue support, so always 1
+            }
+
+            @Override
+            public Object nextValue() throws IOException {
+                if (hasNext == false) {
+                    throw new IllegalStateException("No value available, make sure to call advanceExact() first");
+                }
+                hasNext = false;
+                return lazyDelegate().histogramValue();
+            }
+
+        };
     }
 
     @Override

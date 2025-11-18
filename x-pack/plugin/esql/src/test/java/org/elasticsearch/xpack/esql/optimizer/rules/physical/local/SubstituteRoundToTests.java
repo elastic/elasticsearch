@@ -77,8 +77,8 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 
-public class SubtituteRoundToTests extends AbstractLocalPhysicalPlanOptimizerTests {
-    public SubtituteRoundToTests(String name, Configuration config) {
+public class SubstituteRoundToTests extends AbstractLocalPhysicalPlanOptimizerTests {
+    public SubstituteRoundToTests(String name, Configuration config) {
         super(name, config);
     }
 

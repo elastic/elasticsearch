@@ -515,7 +515,7 @@ public class PushQueriesIT extends ESRestTestCase {
             }""";
     }
 
-    private static final Pattern TO_NAME = Pattern.compile("\\[.+", Pattern.DOTALL);
+    static final Pattern TO_NAME = Pattern.compile("\\[.+", Pattern.DOTALL);
 
     private static String checkOperatorProfile(Map<String, Object> o, Matcher<String> query) {
         String name = (String) o.get("operator");

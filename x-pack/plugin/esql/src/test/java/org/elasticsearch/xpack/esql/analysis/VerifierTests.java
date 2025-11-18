@@ -1152,7 +1152,8 @@ public class VerifierTests extends ESTestCase {
             error("FROM test | STATS min(network.bytes_in)", tsdb),
             equalTo(
                 "1:19: argument of [min(network.bytes_in)] must be"
-                    + " [boolean, date, ip, string, version, aggregate_metric_double or numeric except counter types],"
+                    + " [boolean, date, ip, string, version, aggregate_metric_double,"
+                    + " exponential_histogram or numeric except counter types],"
                     + " found value [network.bytes_in] type [counter_long]"
             )
         );
@@ -1161,7 +1162,8 @@ public class VerifierTests extends ESTestCase {
             error("FROM test | STATS max(network.bytes_in)", tsdb),
             equalTo(
                 "1:19: argument of [max(network.bytes_in)] must be"
-                    + " [boolean, date, ip, string, version, aggregate_metric_double or numeric except counter types],"
+                    + " [boolean, date, ip, string, version, aggregate_metric_double, exponential_histogram"
+                    + " or numeric except counter types],"
                     + " found value [network.bytes_in] type [counter_long]"
             )
         );
@@ -2638,9 +2640,7 @@ public class VerifierTests extends ESTestCase {
         }
     }
 
-    public void testDecayFunctionNullArgs() {
-        assumeTrue("Decay function not enabled", EsqlCapabilities.Cap.DECAY_FUNCTION.isEnabled());
-
+    public void testDecayArgs() {
         // First arg cannot be null
         assertEquals(
             "2:23: first argument of [decay(null, origin, scale, "
@@ -2668,6 +2668,49 @@ public class VerifierTests extends ESTestCase {
             error(
                 "row value = 10, origin = 10\n"
                     + "| eval decay_result = decay(value, origin, null, {\"offset\": 0, \"decay\": 0.5, \"type\": \"linear\"})"
+            )
+        );
+
+        // Offset value type
+        assertEquals(
+            "2:23: offset option has invalid type, expected [numeric], found [keyword]",
+            error(
+                "row value = 10, origin = 10, scale = 1\n"
+                    + "| eval decay_result = decay(value, origin, scale, {\"offset\": \"aaa\", \"decay\": 0.5, \"type\": \"linear\"})"
+            )
+        );
+
+        assertEquals(
+            "1:118: offset option has invalid type, expected [time_duration], found [keyword]",
+            error(
+                "row value =  TO_DATETIME(\"2023-01-01T00:00:00Z\"), origin =  TO_DATETIME(\"2023-01-01T00:00:00Z\")"
+                    + "| eval decay_result = decay(value, origin, 24 hours, {\"offset\": \"aaa\", \"decay\": 0.5, \"type\": \"linear\"})"
+            )
+        );
+
+        assertEquals(
+            "1:110: offset option has invalid type, expected [numeric], found [keyword]",
+            error(
+                "row value =  TO_CARTESIANPOINT(\"POINT(10 0)\"), origin = TO_CARTESIANPOINT(\"POINT(0 0)\")"
+                    + "| eval decay_result = decay(value, origin, 10.0, {\"offset\": \"aaa\", \"decay\": 0.5, \"type\": \"linear\"})"
+            )
+        );
+
+        // Type option value
+        assertEquals(
+            "2:23: Invalid option [type] in "
+                + "[decay(value, origin, scale, {\"offset\": 1, \"decay\": 0.5, \"type\": 123})], allowed types [[KEYWORD]]",
+            error(
+                "row value = 10, origin = 10, scale = 1\n"
+                    + "| eval decay_result = decay(value, origin, scale, {\"offset\": 1, \"decay\": 0.5, \"type\": 123})"
+            )
+        );
+
+        assertEquals(
+            "2:23: type option has invalid value, expected one of [gauss, linear, exp], found [\"foobar\"]",
+            error(
+                "row value = 10, origin = 10, scale = 1\n"
+                    + "| eval decay_result = decay(value, origin, scale, {\"offset\": 1, \"decay\": 0.5, \"type\": \"foobar\"})"
             )
         );
     }

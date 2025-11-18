@@ -10,7 +10,13 @@
           "name" : "field",
           "type" : "counter_double",
           "optional" : false,
-          "description" : ""
+          "description" : "the counter field whose per-second average rate of increase is computed"
+        },
+        {
+          "name" : "window",
+          "type" : "time_duration",
+          "optional" : true,
+          "description" : "the time window over which the rate is computed"
         }
       ],
       "variadic" : false,
@@ -22,7 +28,13 @@
           "name" : "field",
           "type" : "counter_integer",
           "optional" : false,
-          "description" : ""
+          "description" : "the counter field whose per-second average rate of increase is computed"
+        },
+        {
+          "name" : "window",
+          "type" : "time_duration",
+          "optional" : true,
+          "description" : "the time window over which the rate is computed"
         }
       ],
       "variadic" : false,
@@ -34,7 +46,13 @@
           "name" : "field",
           "type" : "counter_long",
           "optional" : false,
-          "description" : ""
+          "description" : "the counter field whose per-second average rate of increase is computed"
+        },
+        {
+          "name" : "window",
+          "type" : "time_duration",
+          "optional" : true,
+          "description" : "the time window over which the rate is computed"
         }
       ],
       "variadic" : false,

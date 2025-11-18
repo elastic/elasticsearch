@@ -18,39 +18,13 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
 
-// import static org.hamcrest.Matchers.equalTo;
-
+// import org.elasticsearch.test.junit.annotations.TestLogging;
+// @TestLogging(value = "org.elasticsearch.xpack.esql:TRACE,org.elasticsearch.compute:TRACE", reason = "debug")
 public class ToLongSurrogateErrorTests extends ErrorsForCasesWithoutExamplesTestCase {
 
     @Override
     protected List<TestCaseSupplier> cases() {
         List<TestCaseSupplier> suppliers = new ArrayList<>();
-
-        /*
-        // one parameter
-        suppliers.add(new TestCaseSupplier(List.of(DataType.LONG),                      () -> null));
-
-        suppliers.add(new TestCaseSupplier(List.of(DataType.BOOLEAN),                   () -> null));
-        suppliers.add(new TestCaseSupplier(List.of(DataType.DATETIME),                  () -> null));
-        suppliers.add(new TestCaseSupplier(List.of(DataType.DATE_NANOS),                () -> null));
-        suppliers.add(new TestCaseSupplier(List.of(DataType.KEYWORD),                   () -> null));
-        suppliers.add(new TestCaseSupplier(List.of(DataType.TEXT),                      () -> null));
-        suppliers.add(new TestCaseSupplier(List.of(DataType.DOUBLE),                    () -> null));
-        suppliers.add(new TestCaseSupplier(List.of(DataType.UNSIGNED_LONG),             () -> null));
-        suppliers.add(new TestCaseSupplier(List.of(DataType.INTEGER),                   () -> null));
-        suppliers.add(new TestCaseSupplier(List.of(DataType.COUNTER_LONG),              () -> null));
-        suppliers.add(new TestCaseSupplier(List.of(DataType.COUNTER_INTEGER),           () -> null));
-        suppliers.add(new TestCaseSupplier(List.of(DataType.GEOHASH),                   () -> null));
-        suppliers.add(new TestCaseSupplier(List.of(DataType.GEOTILE),                   () -> null));
-        suppliers.add(new TestCaseSupplier(List.of(DataType.GEOHEX),                    () -> null));
-
-        // two parameter
-        suppliers.add(new TestCaseSupplier(List.of(DataType.KEYWORD, DataType.INTEGER), () -> null));
-        suppliers.add(new TestCaseSupplier(List.of(DataType.TEXT,    DataType.INTEGER), () -> null));
-
-        return suppliers;
-        */
-
         return paramsToSuppliers(ToLongSurrogateTests.parameters());
     }
 

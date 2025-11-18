@@ -157,18 +157,20 @@ public class ToLongSurrogate extends EsqlScalarFunction implements SurrogateExpr
             return new TypeResolution("Unresolved children");
         }
 
-        // single parameter TO_LONG(field) supports many types
-        if (base == null) {
+        if (base != null) {
+            // two parameter TO_LONG(string, base) supports more restricted types
+
+            TypeResolution resolution = TypeResolutions.isString(field, sourceText(), FIRST);
+            if (resolution.resolved()) {
+                resolution = TypeResolutions.isWholeNumber(base, sourceText(), SECOND);
+            }
+            return resolution;
+
+        } else {
+
+            // single parameter TO_LONG(field) supports many types
             return (new ToLong(source(), field)).resolveType();
         }
-
-        // two parameter TO_LONG(string, base) supports more restricted types
-        TypeResolution resolution = TypeResolutions.isString(field, sourceText(), FIRST);
-        if (resolution.unresolved()) {
-            return resolution;
-        }
-        resolution = TypeResolutions.isWholeNumber(base, sourceText(), SECOND);
-        return resolution;
     }
 
     @Override
@@ -179,15 +181,34 @@ public class ToLongSurrogate extends EsqlScalarFunction implements SurrogateExpr
     @Override
     public Expression surrogate() {
         if (base != null) {
-            if (DataType.isString(field.dataType()) == false) {
-                throw new UnsupportedOperationException("may not specify base with non-string field");
+            // two parameter TO_LONG(string, base)
+
+            switch (field.dataType()) {
+            case DataType.KEYWORD:
+            case DataType.TEXT:
+            case DataType.NULL:
+                break;
+            default:
+                throw new UnsupportedOperationException("may not specify base with non-string field " + field.dataType());
             }
-            if (base.dataType().isWholeNumber() == false) {
-                throw new UnsupportedOperationException("base must be a whole number");
+
+            switch (base.dataType()) {
+                case DataType.INTEGER:
+                case DataType.LONG:
+                case DataType.UNSIGNED_LONG:
+                case DataType.NULL:
+                break;
+            default:
+                throw new UnsupportedOperationException("base must be a whole number, not " + base.dataType());
             }
+
             return new ToLongBase(source(), field, new ToInteger(source(), base));
+
+        } else {
+
+            // single parameter TO_LONG(field)
+            return new ToLong(source(), field);
         }
-        return new ToLong(source(), field);
     }
 
     @Override

@@ -27,7 +27,6 @@ public class ToLongSurrogateTests extends AbstractScalarFunctionTestCase {
 
     @ParametersFactory
     public static Iterable<Object[]> parameters() {
-        // TODO multivalue fields
         List<TestCaseSupplier> suppliers = new ArrayList<>();
 
         // one argument test cases
@@ -41,10 +40,12 @@ public class ToLongSurrogateTests extends AbstractScalarFunctionTestCase {
         ToLongTests.supplyUnaryCounter(suppliers);
         ToLongTests.supplyUnaryGeo(suppliers);
 
-        suppliers = anyNullIsNull(true, randomizeBytesRefsOffset(suppliers));
-
         // two argument test cases
         ToLongBaseTests.supplyBinaryStringInteger(suppliers);
+        ToLongBaseTests.supplyBinaryStringLong(suppliers);
+        ToLongBaseTests.supplyBinaryStringUnsignedLong(suppliers);
+
+        suppliers = anyNullIsNull(true, randomizeBytesRefsOffset(suppliers));
 
         return parameterSuppliersFromTypedData(suppliers);
     }

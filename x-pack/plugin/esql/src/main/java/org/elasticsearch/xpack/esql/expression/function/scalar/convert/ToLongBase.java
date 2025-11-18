@@ -78,10 +78,9 @@ public class ToLongBase extends EsqlScalarFunction {
             return new TypeResolution("Unresolved children");
         }
         TypeResolution resolution = isString(string, sourceText(), FIRST);
-        if (resolution.unresolved()) {
-            return resolution;
+        if (resolution.resolved()) {
+            resolution = isType(base, dt -> dt == INTEGER, sourceText(), SECOND, "integer");
         }
-        resolution = isType(base, dt -> dt == INTEGER, sourceText(), SECOND, "integer");
         return resolution;
     }
 

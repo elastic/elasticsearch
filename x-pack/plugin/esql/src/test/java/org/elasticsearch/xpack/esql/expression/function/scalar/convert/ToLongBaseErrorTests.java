@@ -17,8 +17,8 @@ import org.hamcrest.Matcher;
 import java.util.List;
 import java.util.Set;
 
-import static org.hamcrest.Matchers.equalTo;
-
+// import org.elasticsearch.test.junit.annotations.TestLogging;
+// @TestLogging(value = "org.elasticsearch.xpack.esql:TRACE,org.elasticsearch.compute:TRACE", reason = "debug")
 public class ToLongBaseErrorTests extends ErrorsForCasesWithoutExamplesTestCase {
 
     @Override
@@ -32,11 +32,22 @@ public class ToLongBaseErrorTests extends ErrorsForCasesWithoutExamplesTestCase 
     }
 
     @Override
-    protected Matcher<String> expectedTypeErrorMatcher(List<Set<DataType>> validPerPosition, List<DataType> signature) {
-        return equalTo(typeErrorMessage(true, validPerPosition, signature, (v, p) -> switch (p) {
-            case 0 -> "string";
-            case 1 -> "integer";
-            default -> "";
-        }));
+    protected Matcher<String> expectedTypeErrorMatcher(List<Set<DataType>> unused, List<DataType> signature) {
+        switch (signature.get(0)) {
+            case DataType.KEYWORD:
+            case DataType.TEXT:
+            case DataType.NULL:
+                break;
+            default:
+                return typeErrorMessage(signature, 0, "string");
+        }
+        switch (signature.get(1)) {
+            case DataType.INTEGER:
+            case DataType.NULL:
+                break;
+            default:
+                return typeErrorMessage(signature, 1, "integer");
+        }
+        throw new IllegalStateException("signature is not an error: " + signature);
     }
 }

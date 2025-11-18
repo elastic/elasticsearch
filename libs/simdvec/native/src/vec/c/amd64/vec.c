@@ -156,9 +156,9 @@ EXPORT int32_t dot7u(int8_t* a, int8_t* b, size_t dims) {
 EXPORT void dot7u_bulk(int8_t* a, int8_t* b, size_t dims, size_t count, float_t* results) {
     int32_t res = 0;
     if (dims > STRIDE_BYTES_LEN) {
+        int limit = dims & ~(STRIDE_BYTES_LEN - 1);
         for (size_t c = 0; c < count; c++) {
-            int i = 0;
-            i += dims & ~(STRIDE_BYTES_LEN - 1);
+            int i = limit;
             res = dot7u_inner(a, b, i);
             for (; i < dims; i++) {
                 res += a[i] * b[i];

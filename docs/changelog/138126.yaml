@@ -1,5 +1,5 @@
 pr: 138126
-summary: Fix stats performance
+summary: Improving performance of stats APIs when the number of shards is very large
 area: Stats
 type: bug
 issues:

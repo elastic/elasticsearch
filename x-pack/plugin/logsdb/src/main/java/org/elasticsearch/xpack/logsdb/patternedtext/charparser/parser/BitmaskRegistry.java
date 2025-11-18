@@ -33,6 +33,11 @@ public final class BitmaskRegistry<T extends ParsingType> {
     // array for quick access to instances by bit index
     private final T[] typesByBitIndex;
 
+    // a two-dimensional array for quick access to higher level bitmasks by position for each type
+    // the first dimension is the position, and the second dimension is the type bit index
+    // for example, higherLevelBitmaskByPosition[2][3] will give the higher level bitmask for the type at bit index 3 at position 2
+    private int[][] higherLevelBitmaskByPosition;
+
     private volatile int nextBitIndex;
     private volatile int accumulativeBitmask;
     private int combinedBitmask;
@@ -78,7 +83,26 @@ public final class BitmaskRegistry<T extends ParsingType> {
         typesByBitIndex[bitIndex] = type;
         accumulativeBitmask |= bitmask;
 
+        // update higher level bitmask by position
+        if (type.higherLevelBitmaskByPosition != null) {
+            int numPositions = type.higherLevelBitmaskByPosition.length;
+            ensureHigherLevelBitmaskByPositionCapacity(numPositions - 1);
+            for (int position = 0; position < numPositions; position++) {
+                higherLevelBitmaskByPosition[position][bitIndex] = type.higherLevelBitmaskByPosition[position];
+            }
+        }
+
         return bitmask;
+    }
+
+    private void ensureHigherLevelBitmaskByPositionCapacity(int position) {
+        if (higherLevelBitmaskByPosition == null) {
+            higherLevelBitmaskByPosition = new int[position + 1][32];
+        } else if (higherLevelBitmaskByPosition.length <= position) {
+            int[][] newArray = new int[position + 1][32];
+            System.arraycopy(higherLevelBitmaskByPosition, 0, newArray, 0, higherLevelBitmaskByPosition.length);
+            higherLevelBitmaskByPosition = newArray;
+        }
     }
 
     /**
@@ -159,17 +183,28 @@ public final class BitmaskRegistry<T extends ParsingType> {
      * @return the combined higher level bitmask for the given bitmask and position
      */
     @OptimizedAPI
-    public int getHigherLevelBitmaskByPosition(int bitmask, int position) {
+    public int getHigherLevelBitmaskByPositionOld(int bitmask, int position) {
         int resultBitmask = 0;
         int currentBitIndex = 0;
         while (bitmask != 0) {
             if ((bitmask & 1) != 0) {
-                // todo: profiler shows that this is a relatively expensive operation, consider storing two-dimensional array -
-                // first dimension is type and the second is bitmask by position for this type
-                // By doing so, we can even store the two-dimensional array of each registry in the parser itself, or at least
-                // implement this algorithm as a static method that can will likely be inlined by the compiler.
-                // if the rightmost bit is set - update the higher-level bitmask for the current bit index
                 resultBitmask |= typesByBitIndex[currentBitIndex].getHigherLevelBitmaskByPosition(position);
+            }
+            bitmask >>>= 1;
+            currentBitIndex++;
+        }
+        return resultBitmask;
+    }
+
+    @OptimizedAPI
+    public int getHigherLevelBitmaskByPosition(int bitmask, int position) {
+        int[] higherLevelBitmaskForPosition = higherLevelBitmaskByPosition[position];
+        int resultBitmask = 0;
+        int currentBitIndex = 0;
+        while (bitmask != 0) {
+            if ((bitmask & 1) != 0) {
+                // if the rightmost bit is set - update the higher-level bitmask for the current bit index
+                resultBitmask |= higherLevelBitmaskForPosition[currentBitIndex];
             }
             bitmask >>>= 1;
             currentBitIndex++;

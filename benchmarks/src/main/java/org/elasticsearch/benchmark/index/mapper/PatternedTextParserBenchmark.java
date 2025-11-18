@@ -81,8 +81,8 @@ public class PatternedTextParserBenchmark {
     public void parseWithSimpleParser(Blackhole blackhole) throws ParseException {
         PatternTextValueProcessor.Parts parts = PatternTextValueProcessor.split(testMessage);
         blackhole.consume(parts);
-        long timestamp = TimestampFormat.parseTimestamp(dateTimeFormatter, "Oct 05, 2023 02:48:00 PM");
-        blackhole.consume(timestamp);
+        // long timestamp = TimestampFormat.parseTimestamp(dateTimeFormatter, "Oct 05, 2023 02:48:00 PM");
+        // blackhole.consume(timestamp);
     }
 
     private static class RegexParser implements Parser {

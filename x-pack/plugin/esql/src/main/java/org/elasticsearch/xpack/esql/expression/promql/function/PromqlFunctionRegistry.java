@@ -86,7 +86,7 @@ public class PromqlFunctionRegistry {
                 withinSeriesOverTime("absent_over_time", AbsentOverTime::new),
                 withinSeriesOverTime("present_over_time", PresentOverTime::new) },
             // Range functions with parameters
-            new FunctionDefinition[] { withinSeriesOverTimeBinary("quantile_over_time", PercentileOverTime::new) },
+            new FunctionDefinition[] { withinSeriesOverTime("quantile_over_time", PercentileOverTime::new) },
             // Across-series aggregations (basic - single field parameter)
             new FunctionDefinition[] {
                 acrossSeries("avg", Avg::new),
@@ -168,6 +168,11 @@ public class PromqlFunctionRegistry {
     }
 
     @FunctionalInterface
+    protected interface WithinSeriesWindow<T extends TimeSeriesAggregateFunction> {
+        T build(Source source, Expression field, Expression window, Expression timestamp);
+    }
+
+    @FunctionalInterface
     protected interface OverTimeWithinSeries<T extends TimeSeriesAggregateFunction> {
         T build(Source source, Expression valueField);
     }
@@ -196,7 +201,7 @@ public class PromqlFunctionRegistry {
         );
     }
 
-    private static FunctionDefinition withinSeriesOverTimeBinary(String name, OverTimeWithinSeriesBinary<?> builder) {
+    private static FunctionDefinition withinSeriesOverTime(String name, OverTimeWithinSeriesBinary<?> builder) {
         return new FunctionDefinition(
             name,
             FunctionType.WITHIN_SERIES_AGGREGATION,
@@ -210,6 +215,14 @@ public class PromqlFunctionRegistry {
             Expression valueField = params.get(0);
             Expression timestampField = params.get(1);
             return builder.build(source, valueField, timestampField);
+        });
+    }
+
+    private static FunctionDefinition withinSeries(String name, WithinSeriesWindow<?> builder) {
+        return new FunctionDefinition(name, FunctionType.WITHIN_SERIES_AGGREGATION, Arity.ONE, (source, params) -> {
+            Expression valueField = params.get(0);
+            Expression timestampField = params.get(1);
+            return builder.build(source, valueField, AggregateFunction.NO_WINDOW, timestampField);
         });
     }
 

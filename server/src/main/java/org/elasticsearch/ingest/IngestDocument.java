@@ -206,7 +206,14 @@ public final class IngestDocument {
     public <T> T getFieldValue(String path, Class<T> clazz, boolean ignoreMissing) {
         final FieldPath fieldPath = FieldPath.of(path, getCurrentAccessPatternSafe());
         Object context = fieldPath.initialContext(this);
-        ResolveResult result = resolve(fieldPath.pathElements, fieldPath.pathElements.length, path, context, getCurrentAccessPatternSafe());
+        ResolveResult result = resolve(
+            fieldPath.pathElements,
+            fieldPath.pathElements.length,
+            path,
+            context,
+            getCurrentAccessPatternSafe(),
+            false
+        );
         if (result.wasSuccessful) {
             return cast(path, result.resolvedObject, clazz);
         } else if (ignoreMissing) {
@@ -435,7 +442,8 @@ public final class IngestDocument {
             fieldPath.pathElements.length - 1,
             path,
             context,
-            getCurrentAccessPatternSafe()
+            getCurrentAccessPatternSafe(),
+            true
         );
         if (result.wasSuccessful) {
             context = result.resolvedObject;
@@ -496,14 +504,19 @@ public final class IngestDocument {
     /**
      * Resolves the path elements (up to the limit) within the context. The result of such resolution can either be successful,
      * or can indicate a failure.
+     * @param cantBeLeaf if true, tracks parent context and returns incomplete result if the resolved value is a Map
      */
     private static ResolveResult resolve(
         final String[] pathElements,
         final int limit,
         final String fullPath,
         Object context,
-        IngestPipelineFieldAccessPattern accessPattern
+        IngestPipelineFieldAccessPattern accessPattern,
+        boolean cantBeLeaf
     ) {
+        Object parentContext = null;
+        String resolvedPath = "";
+
         for (int i = 0; i < limit; i++) {
             String pathElement = pathElements[i];
             if (context == null) {
@@ -515,12 +528,18 @@ public final class IngestDocument {
                         if (object == NOT_FOUND) {
                             return ResolveResult.error(Errors.notPresent(fullPath, pathElement));
                         } else {
+                            // Track parent context before moving to the next level
+                            parentContext = context;
+                            resolvedPath = i == 0 ? pathElement : resolvedPath + "." + pathElement;
                             context = object;
                         }
                     }
                     case FLEXIBLE -> {
                         Object object = map.getOrDefault(pathElement, NOT_FOUND); // getOrDefault is faster than containsKey + get
                         if (object != NOT_FOUND) {
+                            // Track parent context before moving to the next level
+                            parentContext = context;
+                            resolvedPath = i == 0 ? pathElement : resolvedPath + "." + pathElement;
                             context = object;
                         } else if (i == (limit - 1)) {
                             // This is our last path element, return incomplete
@@ -534,6 +553,9 @@ public final class IngestDocument {
                                 object = map.getOrDefault(combinedPath, NOT_FOUND); // getOrDefault is faster than containsKey + get
                                 if (object != NOT_FOUND) {
                                     // Found one, update the outer loop index to skip past the elements we've used
+                                    // Track parent context before moving to the next level
+                                    parentContext = context;
+                                    resolvedPath = i == 0 ? combinedPath : resolvedPath + "." + combinedPath;
                                     context = object;
                                     i = j;
                                     break;
@@ -555,6 +577,9 @@ public final class IngestDocument {
                         if (object == NOT_FOUND) {
                             return ResolveResult.error(Errors.notPresent(fullPath, pathElement));
                         } else {
+                            // Track parent context before moving to the next level
+                            parentContext = context;
+                            resolvedPath = i == 0 ? pathElement : resolvedPath + "." + pathElement;
                             context = object;
                         }
                     }
@@ -563,6 +588,9 @@ public final class IngestDocument {
                         Map<String, Object> map = (Map<String, Object>) context;
                         Object object = map.getOrDefault(pathElement, NOT_FOUND); // getOrDefault is faster than containsKey + get
                         if (object != NOT_FOUND) {
+                            // Track parent context before moving to the next level
+                            parentContext = context;
+                            resolvedPath = i == 0 ? pathElement : resolvedPath + "." + pathElement;
                             context = object;
                         } else if (i == (limit - 1)) {
                             // This is our last path element, return incomplete
@@ -576,6 +604,9 @@ public final class IngestDocument {
                                 object = map.getOrDefault(combinedPath, NOT_FOUND); // getOrDefault is faster than containsKey + get
                                 if (object != NOT_FOUND) {
                                     // Found one, update the outer loop index to skip past the elements we've used
+                                    // Track parent context before moving to the next level
+                                    parentContext = context;
+                                    resolvedPath = i == 0 ? combinedPath : resolvedPath + "." + combinedPath;
                                     context = object;
                                     i = j;
                                     break;
@@ -602,12 +633,21 @@ public final class IngestDocument {
                 if (index < 0 || index >= list.size()) {
                     return ResolveResult.error(Errors.outOfBounds(fullPath, index, list.size()));
                 } else {
+                    // Track parent context before moving to the next level
+                    parentContext = context;
+                    resolvedPath = i == 0 ? pathElement : resolvedPath + "." + pathElement;
                     context = list.get(index);
                 }
             } else {
                 return ResolveResult.error(Errors.cannotResolve(fullPath, pathElement, context));
             }
         }
+
+        // If cantBeLeaf is true and the resolved value is NOT a Map (i.e., it's a leaf), return incomplete with parent context
+        if (cantBeLeaf && (context instanceof Map<?, ?>) == false) {
+            return ResolveResult.incomplete(parentContext, resolvedPath);
+        }
+
         return ResolveResult.success(context);
     }
 

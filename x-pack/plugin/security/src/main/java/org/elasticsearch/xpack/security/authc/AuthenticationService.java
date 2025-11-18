@@ -225,7 +225,7 @@ public class AuthenticationService {
             realms,
             token
         );
-        authenticatorChain.authenticate(context, ActionListener.runBefore(listener, context::close));
+        authenticate(context, listener);
     }
 
     public void expire(String principal) {

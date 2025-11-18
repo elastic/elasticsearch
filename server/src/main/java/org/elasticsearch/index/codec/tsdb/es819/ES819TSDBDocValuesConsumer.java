@@ -65,6 +65,8 @@ final class ES819TSDBDocValuesConsumer extends XDocValuesConsumer {
     private final int minDocsPerOrdinalForOrdinalRangeEncoding;
     final boolean enableOptimizedMerge;
     private final int primarySortFieldNumber;
+    private final int numericBlockShift;
+    private final int numericBlockSize;
 
     ES819TSDBDocValuesConsumer(
         SegmentWriteState state,
@@ -74,13 +76,17 @@ final class ES819TSDBDocValuesConsumer extends XDocValuesConsumer {
         String dataCodec,
         String dataExtension,
         String metaCodec,
-        String metaExtension
+        String metaExtension,
+        int numericBlockShift
     ) throws IOException {
         this.termsDictBuffer = new byte[1 << 14];
         this.dir = state.directory;
         this.minDocsPerOrdinalForOrdinalRangeEncoding = minDocsPerOrdinalForOrdinalRangeEncoding;
         this.primarySortFieldNumber = ES819TSDBDocValuesProducer.primarySortFieldNumber(state.segmentInfo, state.fieldInfos);
         this.context = state.context;
+        this.numericBlockShift = numericBlockShift;
+        this.numericBlockSize = 1 << numericBlockShift;
+
         boolean success = false;
         try {
             final String dataName = IndexFileNames.segmentFileName(state.segmentInfo.name, state.segmentSuffix, dataExtension);
@@ -199,9 +205,6 @@ final class ES819TSDBDocValuesConsumer extends XDocValuesConsumer {
                     startDocs.add(maxDoc);
                     startDocs.finish();
                 } else {
-                    final int numericBlockShift = ES819TSDBDocValuesFormat.getNumericBlockShift();
-                    final int numericBlockSize = ES819TSDBDocValuesFormat.getNumericBlockSize();
-
                     indexWriter = DirectMonotonicWriter.getInstance(
                         meta,
                         new ByteBuffersIndexOutput(indexOut, "temp-dv-index", "temp-dv-index"),

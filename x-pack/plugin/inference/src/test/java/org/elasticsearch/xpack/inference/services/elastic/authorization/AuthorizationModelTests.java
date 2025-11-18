@@ -22,7 +22,7 @@ import org.elasticsearch.xpack.inference.services.elastic.densetextembeddings.El
 import org.elasticsearch.xpack.inference.services.elastic.densetextembeddings.ElasticInferenceServiceDenseTextEmbeddingsServiceSettings;
 import org.elasticsearch.xpack.inference.services.elastic.rerank.ElasticInferenceServiceRerankModel;
 import org.elasticsearch.xpack.inference.services.elastic.rerank.ElasticInferenceServiceRerankServiceSettings;
-import org.elasticsearch.xpack.inference.services.elastic.response.ElasticInferenceServiceAuthorizationResponseEntityV2;
+import org.elasticsearch.xpack.inference.services.elastic.response.AuthorizationResponseEntityV2;
 import org.elasticsearch.xpack.inference.services.elastic.sparseembeddings.ElasticInferenceServiceSparseEmbeddingsModel;
 import org.elasticsearch.xpack.inference.services.elastic.sparseembeddings.ElasticInferenceServiceSparseEmbeddingsServiceSettings;
 
@@ -42,28 +42,10 @@ public class AuthorizationModelTests extends ESTestCase {
     }
 
     public void testExcludes_EndpointsWithoutValidTaskTypes() {
-        var response = new ElasticInferenceServiceAuthorizationResponseEntityV2(
+        var response = new AuthorizationResponseEntityV2(
             List.of(
-                new ElasticInferenceServiceAuthorizationResponseEntityV2.AuthorizedEndpoint(
-                    "id",
-                    "name",
-                    "invalid_task_type",
-                    "ga",
-                    null,
-                    "",
-                    "",
-                    null
-                ),
-                new ElasticInferenceServiceAuthorizationResponseEntityV2.AuthorizedEndpoint(
-                    "id2",
-                    "name",
-                    TaskType.ANY.toString(),
-                    "ga",
-                    null,
-                    "",
-                    "",
-                    null
-                )
+                new AuthorizationResponseEntityV2.AuthorizedEndpoint("id", "name", "invalid_task_type", "ga", null, "", "", null),
+                new AuthorizationResponseEntityV2.AuthorizedEndpoint("id2", "name", TaskType.ANY.toString(), "ga", null, "", "", null)
             )
         );
         var auth = AuthorizationModel.of(response, "url");
@@ -75,9 +57,9 @@ public class AuthorizationModelTests extends ESTestCase {
         var id1 = "id1";
         var id2 = "id2";
 
-        var response = new ElasticInferenceServiceAuthorizationResponseEntityV2(
+        var response = new AuthorizationResponseEntityV2(
             List.of(
-                new ElasticInferenceServiceAuthorizationResponseEntityV2.AuthorizedEndpoint(
+                new AuthorizationResponseEntityV2.AuthorizedEndpoint(
                     id1,
                     "name1",
                     TaskType.CHAT_COMPLETION.toString(),
@@ -87,7 +69,7 @@ public class AuthorizationModelTests extends ESTestCase {
                     "",
                     null
                 ),
-                new ElasticInferenceServiceAuthorizationResponseEntityV2.AuthorizedEndpoint(
+                new AuthorizationResponseEntityV2.AuthorizedEndpoint(
                     id2,
                     "name2",
                     TaskType.SPARSE_EMBEDDING.toString(),
@@ -109,9 +91,9 @@ public class AuthorizationModelTests extends ESTestCase {
     public void testReturnsAuthorizedTaskTypes_UsesFirstInferenceId_IfDuplicates() {
         var id = "id1";
 
-        var response = new ElasticInferenceServiceAuthorizationResponseEntityV2(
+        var response = new AuthorizationResponseEntityV2(
             List.of(
-                new ElasticInferenceServiceAuthorizationResponseEntityV2.AuthorizedEndpoint(
+                new AuthorizationResponseEntityV2.AuthorizedEndpoint(
                     id,
                     "name1",
                     TaskType.CHAT_COMPLETION.toString(),
@@ -122,7 +104,7 @@ public class AuthorizationModelTests extends ESTestCase {
                     null
                 ),
                 // This should be ignored because the id is a duplicate
-                new ElasticInferenceServiceAuthorizationResponseEntityV2.AuthorizedEndpoint(
+                new AuthorizationResponseEntityV2.AuthorizedEndpoint(
                     id,
                     "name2",
                     TaskType.SPARSE_EMBEDDING.toString(),
@@ -151,9 +133,9 @@ public class AuthorizationModelTests extends ESTestCase {
         var similarity = SimilarityMeasure.COSINE;
         var dimensions = 123;
 
-        var response = new ElasticInferenceServiceAuthorizationResponseEntityV2(
+        var response = new AuthorizationResponseEntityV2(
             List.of(
-                new ElasticInferenceServiceAuthorizationResponseEntityV2.AuthorizedEndpoint(
+                new AuthorizationResponseEntityV2.AuthorizedEndpoint(
                     id1,
                     name1,
                     TaskType.CHAT_COMPLETION.toString(),
@@ -163,7 +145,7 @@ public class AuthorizationModelTests extends ESTestCase {
                     "",
                     null
                 ),
-                new ElasticInferenceServiceAuthorizationResponseEntityV2.AuthorizedEndpoint(
+                new AuthorizationResponseEntityV2.AuthorizedEndpoint(
                     id2,
                     name2,
                     TaskType.TEXT_EMBEDDING.toString(),
@@ -171,7 +153,7 @@ public class AuthorizationModelTests extends ESTestCase {
                     null,
                     "",
                     "",
-                    new ElasticInferenceServiceAuthorizationResponseEntityV2.Configuration(
+                    new AuthorizationResponseEntityV2.Configuration(
                         similarity.toString(),
                         dimensions,
                         DenseVectorFieldMapper.ElementType.FLOAT.toString(),
@@ -223,9 +205,9 @@ public class AuthorizationModelTests extends ESTestCase {
         var similarity = SimilarityMeasure.COSINE;
         var dimensions = 123;
 
-        var response = new ElasticInferenceServiceAuthorizationResponseEntityV2(
+        var response = new AuthorizationResponseEntityV2(
             List.of(
-                new ElasticInferenceServiceAuthorizationResponseEntityV2.AuthorizedEndpoint(
+                new AuthorizationResponseEntityV2.AuthorizedEndpoint(
                     id1,
                     name1,
                     TaskType.CHAT_COMPLETION.toString(),
@@ -235,7 +217,7 @@ public class AuthorizationModelTests extends ESTestCase {
                     "",
                     null
                 ),
-                new ElasticInferenceServiceAuthorizationResponseEntityV2.AuthorizedEndpoint(
+                new AuthorizationResponseEntityV2.AuthorizedEndpoint(
                     id2,
                     name2,
                     TaskType.TEXT_EMBEDDING.toString(),
@@ -243,7 +225,7 @@ public class AuthorizationModelTests extends ESTestCase {
                     null,
                     "",
                     "",
-                    new ElasticInferenceServiceAuthorizationResponseEntityV2.Configuration(
+                    new AuthorizationResponseEntityV2.Configuration(
                         similarity.toString(),
                         dimensions,
                         DenseVectorFieldMapper.ElementType.FLOAT.toString(),
@@ -292,9 +274,9 @@ public class AuthorizationModelTests extends ESTestCase {
 
         var dimensions = 123;
 
-        var response = new ElasticInferenceServiceAuthorizationResponseEntityV2(
+        var response = new AuthorizationResponseEntityV2(
             List.of(
-                new ElasticInferenceServiceAuthorizationResponseEntityV2.AuthorizedEndpoint(
+                new AuthorizationResponseEntityV2.AuthorizedEndpoint(
                     id1,
                     name1,
                     TaskType.CHAT_COMPLETION.toString(),
@@ -304,7 +286,7 @@ public class AuthorizationModelTests extends ESTestCase {
                     "",
                     null
                 ),
-                new ElasticInferenceServiceAuthorizationResponseEntityV2.AuthorizedEndpoint(
+                new AuthorizationResponseEntityV2.AuthorizedEndpoint(
                     id2,
                     name2,
                     TaskType.TEXT_EMBEDDING.toString(),
@@ -312,14 +294,14 @@ public class AuthorizationModelTests extends ESTestCase {
                     null,
                     "",
                     "",
-                    new ElasticInferenceServiceAuthorizationResponseEntityV2.Configuration(
+                    new AuthorizationResponseEntityV2.Configuration(
                         null,
                         dimensions,
                         DenseVectorFieldMapper.ElementType.FLOAT.toString(),
                         null
                     )
                 ),
-                new ElasticInferenceServiceAuthorizationResponseEntityV2.AuthorizedEndpoint(
+                new AuthorizationResponseEntityV2.AuthorizedEndpoint(
                     id2,
                     name2,
                     TaskType.TEXT_EMBEDDING.toString(),
@@ -327,7 +309,7 @@ public class AuthorizationModelTests extends ESTestCase {
                     null,
                     "",
                     "",
-                    new ElasticInferenceServiceAuthorizationResponseEntityV2.Configuration(
+                    new AuthorizationResponseEntityV2.Configuration(
                         SimilarityMeasure.DOT_PRODUCT.toString(),
                         dimensions,
                         DenseVectorFieldMapper.ElementType.FLOAT.toString(),
@@ -378,9 +360,9 @@ public class AuthorizationModelTests extends ESTestCase {
 
         var url = "base_url";
 
-        var response = new ElasticInferenceServiceAuthorizationResponseEntityV2(
+        var response = new AuthorizationResponseEntityV2(
             List.of(
-                new ElasticInferenceServiceAuthorizationResponseEntityV2.AuthorizedEndpoint(
+                new AuthorizationResponseEntityV2.AuthorizedEndpoint(
                     idChat,
                     nameChat,
                     TaskType.CHAT_COMPLETION.toString(),
@@ -390,7 +372,7 @@ public class AuthorizationModelTests extends ESTestCase {
                     "",
                     null
                 ),
-                new ElasticInferenceServiceAuthorizationResponseEntityV2.AuthorizedEndpoint(
+                new AuthorizationResponseEntityV2.AuthorizedEndpoint(
                     idSparse,
                     nameSparse,
                     TaskType.SPARSE_EMBEDDING.toString(),
@@ -400,7 +382,7 @@ public class AuthorizationModelTests extends ESTestCase {
                     "",
                     null
                 ),
-                new ElasticInferenceServiceAuthorizationResponseEntityV2.AuthorizedEndpoint(
+                new AuthorizationResponseEntityV2.AuthorizedEndpoint(
                     idDense,
                     nameDense,
                     TaskType.TEXT_EMBEDDING.toString(),
@@ -408,14 +390,9 @@ public class AuthorizationModelTests extends ESTestCase {
                     null,
                     "",
                     "",
-                    new ElasticInferenceServiceAuthorizationResponseEntityV2.Configuration(
-                        similarity.toString(),
-                        dimensions,
-                        elementType,
-                        null
-                    )
+                    new AuthorizationResponseEntityV2.Configuration(similarity.toString(), dimensions, elementType, null)
                 ),
-                new ElasticInferenceServiceAuthorizationResponseEntityV2.AuthorizedEndpoint(
+                new AuthorizationResponseEntityV2.AuthorizedEndpoint(
                     idRerank,
                     nameRerank,
                     TaskType.RERANK.toString(),

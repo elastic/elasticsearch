@@ -37,19 +37,18 @@ import java.util.stream.Collectors;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
-public class ElasticInferenceServiceAuthorizationResponseEntityV2 implements InferenceServiceResults {
+public class AuthorizationResponseEntityV2 implements InferenceServiceResults {
 
     public static final String NAME = "elastic_inference_service_auth_results_v2";
 
     private static final String INFERENCE_ENDPOINTS = "inference_endpoints";
 
     @SuppressWarnings("unchecked")
-    public static ConstructingObjectParser<ElasticInferenceServiceAuthorizationResponseEntityV2, Void> PARSER =
-        new ConstructingObjectParser<>(
-            ElasticInferenceServiceAuthorizationResponseEntityV2.class.getSimpleName(),
-            true,
-            args -> new ElasticInferenceServiceAuthorizationResponseEntityV2((List<AuthorizedEndpoint>) args[0])
-        );
+    public static ConstructingObjectParser<AuthorizationResponseEntityV2, Void> PARSER = new ConstructingObjectParser<>(
+        AuthorizationResponseEntityV2.class.getSimpleName(),
+        true,
+        args -> new AuthorizationResponseEntityV2((List<AuthorizedEndpoint>) args[0])
+    );
 
     static {
         PARSER.declareObjectArray(
@@ -292,23 +291,22 @@ public class ElasticInferenceServiceAuthorizationResponseEntityV2 implements Inf
 
     private final List<AuthorizedEndpoint> authorizedEndpoints;
 
-    public ElasticInferenceServiceAuthorizationResponseEntityV2(List<AuthorizedEndpoint> authorizedModels) {
+    public AuthorizationResponseEntityV2(List<AuthorizedEndpoint> authorizedModels) {
         this.authorizedEndpoints = Objects.requireNonNull(authorizedModels);
     }
 
     /**
      * Create an empty response
      */
-    public ElasticInferenceServiceAuthorizationResponseEntityV2() {
+    public AuthorizationResponseEntityV2() {
         this(List.of());
     }
 
-    public ElasticInferenceServiceAuthorizationResponseEntityV2(StreamInput in) throws IOException {
+    public AuthorizationResponseEntityV2(StreamInput in) throws IOException {
         this(in.readCollectionAsList(AuthorizedEndpoint::new));
     }
 
-    public static ElasticInferenceServiceAuthorizationResponseEntityV2 fromResponse(Request request, HttpResult response)
-        throws IOException {
+    public static AuthorizationResponseEntityV2 fromResponse(Request request, HttpResult response) throws IOException {
         var parserConfig = XContentParserConfiguration.EMPTY.withDeprecationHandler(LoggingDeprecationHandler.INSTANCE);
 
         try (XContentParser jsonParser = XContentFactory.xContent(XContentType.JSON).createParser(parserConfig, response.body())) {
@@ -354,7 +352,7 @@ public class ElasticInferenceServiceAuthorizationResponseEntityV2 implements Inf
     public boolean equals(Object o) {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
-        ElasticInferenceServiceAuthorizationResponseEntityV2 that = (ElasticInferenceServiceAuthorizationResponseEntityV2) o;
+        AuthorizationResponseEntityV2 that = (AuthorizationResponseEntityV2) o;
         return Objects.equals(authorizedEndpoints, that.authorizedEndpoints);
     }
 

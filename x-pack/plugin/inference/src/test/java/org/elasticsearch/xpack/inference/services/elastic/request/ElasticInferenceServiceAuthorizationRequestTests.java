@@ -51,7 +51,12 @@ public class ElasticInferenceServiceAuthorizationRequestTests extends ESTestCase
     public void testCreateUri_CreatesUri() throws URISyntaxException {
         String url = "https://inference.us-east-1.aws.svc.elastic.cloud";
 
-        var request = new ElasticInferenceServiceAuthorizationRequest(url, traceContext, randomElasticInferenceServiceRequestMetadata());
+        var request = new ElasticInferenceServiceAuthorizationRequest(
+            url,
+            traceContext,
+            randomElasticInferenceServiceRequestMetadata(),
+            CCMAuthenticationApplierFactory.NOOP_APPLIER
+        );
         assertThat(request.getURI(), is(new URI(url + AUTHORIZATION_PATH)));
     }
 }

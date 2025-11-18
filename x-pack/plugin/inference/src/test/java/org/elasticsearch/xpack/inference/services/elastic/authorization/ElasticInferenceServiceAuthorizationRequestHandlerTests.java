@@ -14,8 +14,6 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.inference.EmptySecretSettings;
-import org.elasticsearch.inference.EmptyTaskSettings;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.test.ESTestCase;
@@ -24,18 +22,13 @@ import org.elasticsearch.test.http.MockResponse;
 import org.elasticsearch.test.http.MockWebServer;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.XContentParseException;
-import org.elasticsearch.xpack.core.inference.chunking.SentenceBoundaryChunkingSettings;
 import org.elasticsearch.xpack.core.inference.results.ChatCompletionResults;
 import org.elasticsearch.xpack.inference.external.http.HttpClientManager;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSender;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSenderTests;
 import org.elasticsearch.xpack.inference.logging.ThrottlerManager;
-import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceService;
-import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceComponents;
 import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceModel;
-import org.elasticsearch.xpack.inference.services.elastic.response.ElasticInferenceServiceAuthorizationResponseEntityV2Tests;
-import org.elasticsearch.xpack.inference.services.elastic.sparseembeddings.ElasticInferenceServiceSparseEmbeddingsModel;
-import org.elasticsearch.xpack.inference.services.elastic.sparseembeddings.ElasticInferenceServiceSparseEmbeddingsServiceSettings;
+import org.elasticsearch.xpack.inference.services.elastic.response.AuthorizationResponseEntityV2Tests;
 import org.junit.After;
 import org.junit.Before;
 import org.mockito.ArgumentCaptor;
@@ -54,6 +47,7 @@ import static org.elasticsearch.xpack.inference.external.request.RequestUtils.be
 import static org.elasticsearch.xpack.inference.services.SenderServiceTests.createMockSender;
 import static org.elasticsearch.xpack.inference.services.elastic.ccm.CCMAuthenticationApplierFactoryTests.createApplierFactory;
 import static org.elasticsearch.xpack.inference.services.elastic.ccm.CCMAuthenticationApplierFactoryTests.createNoopApplierFactory;
+import static org.elasticsearch.xpack.inference.services.elastic.response.AuthorizationResponseEntityV2Tests.getEisElserAuthorizationResponse;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.instanceOf;
@@ -67,29 +61,6 @@ import static org.mockito.Mockito.when;
 
 public class ElasticInferenceServiceAuthorizationRequestHandlerTests extends ESTestCase {
     private static final TimeValue TIMEOUT = new TimeValue(30, TimeUnit.SECONDS);
-    private static final String ELSER_EIS_RESPONSE = """
-        {
-          "inference_endpoints": [
-            {
-              "id": ".elastic-elser-v2",
-              "model_name": "elser_model_2",
-              "task_type": "sparse_embedding",
-              "status": "preview",
-              "properties": [
-                "english"
-              ],
-              "release_date": "2024-05-01",
-              "configuration": {
-                "chunking_settings": {
-                  "strategy": "sentence",
-                  "max_chunk_size": 250,
-                  "sentence_overlap": 1
-                }
-              }
-            }
-          ]
-        }
-        """;
 
     private final MockWebServer webServer = new MockWebServer();
     private ThreadPool threadPool;
@@ -221,8 +192,9 @@ public class ElasticInferenceServiceAuthorizationRequestHandlerTests extends EST
         );
 
         try (var sender = senderFactory.createSender()) {
-            var responseData = ElasticInferenceServiceAuthorizationResponseEntityV2Tests.EisAuthorizationResponseData
-                .getEisAuthorizationData(eisGatewayUrl);
+            var responseData = AuthorizationResponseEntityV2Tests.getEisAuthorizationResponseWithMultipleEndpoints(
+                eisGatewayUrl
+            );
 
             webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseData.responseJson()));
 
@@ -269,8 +241,10 @@ public class ElasticInferenceServiceAuthorizationRequestHandlerTests extends EST
             createApplierFactory(secret)
         );
 
+        var elserResponse = getEisElserAuthorizationResponse(eisGatewayUrl);
+
         try (var sender = senderFactory.createSender()) {
-            webServer.enqueue(new MockResponse().setResponseCode(200).setBody(ELSER_EIS_RESPONSE));
+            webServer.enqueue(new MockResponse().setResponseCode(200).setBody(elserResponse.responseJson()));
 
             PlainActionFuture<AuthorizationModel> listener = new PlainActionFuture<>();
             authHandler.getAuthorization(listener, sender);
@@ -310,38 +284,21 @@ public class ElasticInferenceServiceAuthorizationRequestHandlerTests extends EST
         PlainActionFuture<AuthorizationModel> listener = new PlainActionFuture<>();
         ActionListener<AuthorizationModel> onlyOnceListener = ActionListener.assertOnce(listener);
 
-        webServer.enqueue(new MockResponse().setResponseCode(200).setBody(ELSER_EIS_RESPONSE));
+        var elserResponse = getEisElserAuthorizationResponse(eisGatewayUrl);
+
+        webServer.enqueue(new MockResponse().setResponseCode(200).setBody(elserResponse.responseJson()));
 
         try (var sender = senderFactory.createSender()) {
             authHandler.getAuthorization(onlyOnceListener, sender);
             authHandler.waitForAuthRequestCompletion(TIMEOUT);
 
             var endpointId = ".elastic-elser-v2";
-            var endpointName = "elser_model_2";
-            var maxChunkSize = 250;
-            var sentenceOverlap = 1;
 
             var authResponse = listener.actionGet(TIMEOUT);
             assertThat(authResponse.getTaskTypes(), is(EnumSet.of(TaskType.SPARSE_EMBEDDING)));
             assertThat(authResponse.getEndpointIds(), is(Set.of(endpointId)));
             assertTrue(authResponse.isAuthorized());
-            assertThat(
-                authResponse.getEndpoints(Set.of(endpointId)),
-                is(
-                    List.of(
-                        new ElasticInferenceServiceSparseEmbeddingsModel(
-                            endpointId,
-                            TaskType.SPARSE_EMBEDDING,
-                            ElasticInferenceService.NAME,
-                            new ElasticInferenceServiceSparseEmbeddingsServiceSettings(endpointName, null),
-                            EmptyTaskSettings.INSTANCE,
-                            EmptySecretSettings.INSTANCE,
-                            new ElasticInferenceServiceComponents(eisGatewayUrl),
-                            new SentenceBoundaryChunkingSettings(maxChunkSize, sentenceOverlap)
-                        )
-                    )
-                )
-            );
+            assertThat(authResponse.getEndpoints(Set.of(endpointId)), is(elserResponse.expectedEndpoints()));
 
             var loggerArgsCaptor = ArgumentCaptor.forClass(String.class);
             verify(logger, times(1)).debug(loggerArgsCaptor.capture());

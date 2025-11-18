@@ -24,7 +24,7 @@ import org.elasticsearch.xpack.inference.external.http.sender.Sender;
 import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceResponseHandler;
 import org.elasticsearch.xpack.inference.services.elastic.ccm.CCMAuthenticationApplierFactory;
 import org.elasticsearch.xpack.inference.services.elastic.request.ElasticInferenceServiceAuthorizationRequest;
-import org.elasticsearch.xpack.inference.services.elastic.response.ElasticInferenceServiceAuthorizationResponseEntityV2;
+import org.elasticsearch.xpack.inference.services.elastic.response.AuthorizationResponseEntityV2;
 import org.elasticsearch.xpack.inference.telemetry.TraceContext;
 
 import java.util.Objects;
@@ -47,7 +47,7 @@ public class ElasticInferenceServiceAuthorizationRequestHandler {
     private static ResponseHandler createAuthResponseHandler() {
         return new ElasticInferenceServiceResponseHandler(
             Strings.format("%s authorization", ELASTIC_INFERENCE_SERVICE_IDENTIFIER),
-            ElasticInferenceServiceAuthorizationResponseEntityV2::fromResponse
+            AuthorizationResponseEntityV2::fromResponse
         );
     }
 
@@ -119,7 +119,7 @@ public class ElasticInferenceServiceAuthorizationRequestHandler {
                     sender.sendWithoutQueuing(logger, request, AUTH_RESPONSE_HANDLER, DEFAULT_AUTH_TIMEOUT, authListener);
                 })
                 .andThenApply(authResult -> {
-                    if (authResult instanceof ElasticInferenceServiceAuthorizationResponseEntityV2 authResponseEntity) {
+                    if (authResult instanceof AuthorizationResponseEntityV2 authResponseEntity) {
                         logger.debug(() -> Strings.format("Received authorization information from gateway %s", authResponseEntity));
                         return AuthorizationModel.of(authResponseEntity, baseUrl);
                     }

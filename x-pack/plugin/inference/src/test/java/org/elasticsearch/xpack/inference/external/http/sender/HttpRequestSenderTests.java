@@ -15,7 +15,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.InferenceServiceResults;
-import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.http.MockResponse;
 import org.elasticsearch.test.http.MockWebServer;
@@ -33,14 +32,13 @@ import org.elasticsearch.xpack.inference.services.ServiceComponentsTests;
 import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceResponseHandler;
 import org.elasticsearch.xpack.inference.services.elastic.ccm.CCMAuthenticationApplierFactory;
 import org.elasticsearch.xpack.inference.services.elastic.request.ElasticInferenceServiceAuthorizationRequest;
-import org.elasticsearch.xpack.inference.services.elastic.response.ElasticInferenceServiceAuthorizationResponseEntity;
+import org.elasticsearch.xpack.inference.services.elastic.response.AuthorizationResponseEntityV2;
 import org.elasticsearch.xpack.inference.telemetry.TraceContext;
 import org.junit.After;
 import org.junit.Before;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.EnumSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.concurrent.CountDownLatch;
@@ -57,6 +55,7 @@ import static org.elasticsearch.xpack.inference.external.http.Utils.getUrl;
 import static org.elasticsearch.xpack.inference.services.ServiceComponentsTests.createWithEmptySettings;
 import static org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceService.ELASTIC_INFERENCE_SERVICE_IDENTIFIER;
 import static org.elasticsearch.xpack.inference.services.elastic.request.ElasticInferenceServiceRequestTests.randomElasticInferenceServiceRequestMetadata;
+import static org.elasticsearch.xpack.inference.services.elastic.response.AuthorizationResponseEntityV2Tests.getEisElserAuthorizationResponse;
 import static org.elasticsearch.xpack.inference.services.openai.OpenAiUtils.ORGANIZATION_HEADER;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
@@ -302,17 +301,9 @@ public class HttpRequestSenderTests extends ESTestCase {
         try (var sender = createSender(senderFactory)) {
             sender.startSynchronously();
 
-            String responseJson = """
-                {
-                    "models": [
-                        {
-                          "model_name": "model-a",
-                          "task_types": ["embed/text/sparse", "chat"]
-                        }
-                    ]
-                }
-                """;
-            webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
+            var url = getUrl(webServer);
+            var elserResponse = getEisElserAuthorizationResponse(url);
+            webServer.enqueue(new MockResponse().setResponseCode(200).setBody(elserResponse.responseJson()));
 
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
             var request = new ElasticInferenceServiceAuthorizationRequest(
@@ -323,25 +314,15 @@ public class HttpRequestSenderTests extends ESTestCase {
             );
             var responseHandler = new ElasticInferenceServiceResponseHandler(
                 String.format(Locale.ROOT, "%s sparse embeddings", ELASTIC_INFERENCE_SERVICE_IDENTIFIER),
-                ElasticInferenceServiceAuthorizationResponseEntity::fromResponse
+                AuthorizationResponseEntityV2::fromResponse
             );
 
             sender.sendWithoutQueuing(mock(Logger.class), request, responseHandler, null, listener);
 
             var result = listener.actionGet(TIMEOUT);
-            assertThat(result, instanceOf(ElasticInferenceServiceAuthorizationResponseEntity.class));
-            var authResponse = (ElasticInferenceServiceAuthorizationResponseEntity) result;
-            assertThat(
-                authResponse.getAuthorizedModels(),
-                is(
-                    List.of(
-                        new ElasticInferenceServiceAuthorizationResponseEntity.AuthorizedModel(
-                            "model-a",
-                            EnumSet.of(TaskType.SPARSE_EMBEDDING, TaskType.CHAT_COMPLETION)
-                        )
-                    )
-                )
-            );
+            assertThat(result, instanceOf(AuthorizationResponseEntityV2.class));
+            var authResponse = (AuthorizationResponseEntityV2) result;
+            assertThat(authResponse.getAuthorizedEndpoints(), is(elserResponse.responseEntity().getAuthorizedEndpoints()));
         }
     }
 

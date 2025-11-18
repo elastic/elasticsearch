@@ -46,7 +46,7 @@ import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.MAX_
 public class ES93ScalarQuantizedVectorsFormat extends KnnVectorsFormat {
 
     static final String NAME = "ES93ScalarQuantizedVectorsFormat";
-    private static final int ALLOWED_BITS = (1 << 8) | (1 << 7) | (1 << 4);
+    private static final int ALLOWED_BITS = (1 << 7) | (1 << 4);
 
     static final FlatVectorsScorer flatVectorScorer = new ESQuantizedFlatVectorsScorer(
         new ScalarQuantizedVectorScorer(FlatVectorScorerUtil.getLucene99FlatVectorsScorer())
@@ -97,7 +97,7 @@ public class ES93ScalarQuantizedVectorsFormat extends KnnVectorsFormat {
             );
         }
         if (bits < 1 || bits > 8 || (ALLOWED_BITS & (1 << bits)) == 0) {
-            throw new IllegalArgumentException("bits must be one of: 4, 7, 8; bits=" + bits);
+            throw new IllegalArgumentException("bits must be one of: 4, 7; bits=" + bits);
         }
         assert elementType != DenseVectorFieldMapper.ElementType.BIT : "BIT should not be used with scalar quantization";
 

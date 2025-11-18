@@ -33,7 +33,7 @@ import static org.apache.lucene.codecs.lucene99.Lucene99ScalarQuantizedVectorsFo
 public class ES93HnswScalarQuantizedVectorsFormat extends AbstractHnswVectorsFormat {
 
     static final String NAME = "ES93HnswScalarQuantizedVectorsFormat";
-    private static final int ALLOWED_BITS = (1 << 8) | (1 << 7) | (1 << 4);
+    private static final int ALLOWED_BITS = (1 << 7) | (1 << 4);
 
     /** The minimum confidence interval */
     private static final float MINIMUM_CONFIDENCE_INTERVAL = 0.9f;
@@ -102,7 +102,7 @@ public class ES93HnswScalarQuantizedVectorsFormat extends AbstractHnswVectorsFor
             );
         }
         if (bits < 1 || bits > 8 || (ALLOWED_BITS & (1 << bits)) == 0) {
-            throw new IllegalArgumentException("bits must be one of: 4, 7, 8; bits=" + bits);
+            throw new IllegalArgumentException("bits must be one of: 4, 7; bits=" + bits);
         }
         assert elementType != DenseVectorFieldMapper.ElementType.BIT : "BIT should not be used with scalar quantization";
 

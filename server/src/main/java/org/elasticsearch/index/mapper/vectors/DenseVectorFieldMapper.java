@@ -1755,7 +1755,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 boolean onDiskRescore = XContentMapValues.nodeBooleanValue(onDiskRescoreNode, false);
 
                 MappingParser.checkNoRemainingFields(fieldName, indexOptionsMap);
-                return new BBQIVFIndexOptions(clusterSize, visitPercentage, rescoreVector, onDiskRescore);
+                return new BBQIVFIndexOptions(clusterSize, visitPercentage, onDiskRescore, rescoreVector);
             }
 
             @Override
@@ -2412,7 +2412,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
         final double defaultVisitPercentage;
         final boolean onDiskRescore;
 
-        BBQIVFIndexOptions(int clusterSize, double defaultVisitPercentage, RescoreVector rescoreVector, boolean onDiskRescore) {
+        BBQIVFIndexOptions(int clusterSize, double defaultVisitPercentage, boolean onDiskRescore, RescoreVector rescoreVector) {
             super(VectorIndexType.BBQ_DISK, rescoreVector);
             this.clusterSize = clusterSize;
             this.defaultVisitPercentage = defaultVisitPercentage;
@@ -2449,13 +2449,13 @@ public class DenseVectorFieldMapper extends FieldMapper {
             BBQIVFIndexOptions that = (BBQIVFIndexOptions) other;
             return clusterSize == that.clusterSize
                 && defaultVisitPercentage == that.defaultVisitPercentage
-                && Objects.equals(rescoreVector, that.rescoreVector)
-                && onDiskRescore == that.onDiskRescore;
+                && onDiskRescore == that.onDiskRescore
+                && Objects.equals(rescoreVector, that.rescoreVector);
         }
 
         @Override
         int doHashCode() {
-            return Objects.hash(clusterSize, defaultVisitPercentage, rescoreVector, onDiskRescore);
+            return Objects.hash(clusterSize, defaultVisitPercentage, onDiskRescore, rescoreVector);
         }
 
         @Override
@@ -2469,11 +2469,11 @@ public class DenseVectorFieldMapper extends FieldMapper {
             builder.field("type", type);
             builder.field("cluster_size", clusterSize);
             builder.field("default_visit_percentage", defaultVisitPercentage);
-            if (rescoreVector != null) {
-                rescoreVector.toXContent(builder, params);
-            }
             if (onDiskRescore) {
                 builder.field("on_disk_rescore", true);
+            }
+            if (rescoreVector != null) {
+                rescoreVector.toXContent(builder, params);
             }
             builder.endObject();
             return builder;

@@ -110,8 +110,25 @@ needed to backport to `8.19` you would run (in `main`):
     ./gradlew generateTransportVersion --name=my_tv --backport-branches=9.1,8.19
 
 In the above case CI will not know what transport version name to update, so you
-must run the generate task again as described. After merging the updated transport
-version it will need to be backported to all the applicable branches.
+must run the generate task again as described. After merging the updated
+transport version it will need to be backported to all the applicable branches.
+Backport branches that already included the original change can use
+auto-backport in CI or cherry-pick the new transport version change. Backport
+branches that did not include the original change need to cherry-pick both the
+original change and the new transport version change. Summarized steps:
+
+1. Generate and merge the change with a newly created transport version to
+`main` with a backport branch of `9.1`
+2. Use auto-backport from CI to merge change with the newly created transport
+version into `9.1`
+3. Discover it's necessary for this change to be backported to `8.19`
+4. Generate and merge a change to add a transport version for `8.19` into `main`
+and the backport branch `9.1` that already has the original change using
+auto-backport in CI
+5. Cherry-pick both the original change and the change for the additional
+transport version for `8.19` into a new backport branch
+6. Create a new pull request for this backport branch for `8.19` and merge
+once CI passes
 
 ### Resolving merge conflicts
 

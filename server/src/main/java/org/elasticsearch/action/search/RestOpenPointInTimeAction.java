@@ -62,7 +62,6 @@ public class RestOpenPointInTimeAction extends BaseRestHandler {
         } else {
             openRequest.indicesOptions(IndicesOptions.fromRequest(request, OpenPointInTimeRequest.DEFAULT_INDICES_OPTIONS));
         }
-        openRequest.indicesOptions(IndicesOptions.fromRequest(request, OpenPointInTimeRequest.DEFAULT_INDICES_OPTIONS));
         openRequest.routing(request.param("routing"));
         openRequest.preference(request.param("preference"));
         openRequest.keepAlive(TimeValue.parseTimeValue(request.param("keep_alive"), null, "keep_alive"));

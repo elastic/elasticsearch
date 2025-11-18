@@ -12,6 +12,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.xpack.esql.plan.logical.inference.Completion;
 import org.elasticsearch.xpack.esql.plan.logical.inference.Rerank;
 
+import java.util.Locale;
 import java.util.Map;
 
 public record InferenceCommandConfig(boolean enabled, int rowLimit) {
@@ -38,7 +39,7 @@ public record InferenceCommandConfig(boolean enabled, int rowLimit) {
 
     private static Setting<Boolean> commandEnabledSetting(String commandName) {
         return Setting.boolSetting(
-            String.format(ENABLED_SETTING_PATTERN, commandName),
+            String.format(Locale.ROOT, ENABLED_SETTING_PATTERN, commandName),
             true,
             Setting.Property.NodeScope,
             Setting.Property.Dynamic
@@ -47,7 +48,7 @@ public record InferenceCommandConfig(boolean enabled, int rowLimit) {
 
     private static Setting<Integer> rowLimitSetting(String commandName, int defaultValue) {
         return Setting.intSetting(
-            String.format(ROW_LIMIT_PATTERN, commandName),
+            String.format(Locale.ROOT, ROW_LIMIT_PATTERN, commandName),
             defaultValue,
             -1,
             Setting.Property.NodeScope,

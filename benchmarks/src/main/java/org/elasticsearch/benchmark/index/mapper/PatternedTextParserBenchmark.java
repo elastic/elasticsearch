@@ -16,7 +16,6 @@ import org.elasticsearch.xpack.logsdb.patternedtext.charparser.api.ParseExceptio
 import org.elasticsearch.xpack.logsdb.patternedtext.charparser.api.Parser;
 import org.elasticsearch.xpack.logsdb.patternedtext.charparser.api.ParserFactory;
 import org.elasticsearch.xpack.logsdb.patternedtext.charparser.api.Timestamp;
-import org.elasticsearch.xpack.logsdb.patternedtext.charparser.parser.TimestampFormat;
 import org.elasticsearch.xpack.logsdb.patterntext.PatternTextValueProcessor;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;

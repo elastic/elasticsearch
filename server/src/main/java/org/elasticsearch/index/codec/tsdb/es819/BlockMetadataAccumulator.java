@@ -20,7 +20,7 @@ import org.elasticsearch.core.IOUtils;
 import java.io.Closeable;
 import java.io.IOException;
 
-public final class BlockMetadataAccumulator implements Closeable {
+final class BlockMetadataAccumulator implements Closeable {
 
     private final DelayedOffsetAccumulator blockAddressAcc;
     private final DelayedOffsetAccumulator blockDocRangeAcc;

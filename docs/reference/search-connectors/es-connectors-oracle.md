@@ -323,4 +323,4 @@ This connector is built with the [Elastic connector framework](https://github.co
 
 This connector uses the [generic database connector source code](https://github.com/elastic/connectors/blob/master/connectors/sources/generic_database.py) (branch *main*, compatible with Elastic *9.0*).
 
-View [additional code specific to this data source](https://github.com/elastic/connectors/tree/main/connectors/sources/oracle.py) (branch *main*, compatible with Elastic *9.0*).
+View [additional code specific to this data source](https://github.com/elastic/connectors/tree/main/app/connectors_service/connectors/sources/oracle) (branch *main*, compatible with Elastic *9.0*).

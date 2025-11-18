@@ -2095,6 +2095,7 @@ public class MetadataCreateIndexService {
             if (applyRefreshBlock(indexMetadata)) {
                 // Applies the INDEX_REFRESH_BLOCK to the index. This block will remain in cluster state until an unpromotable shard is
                 // started or a configurable delay is elapsed.
+                logger.debug("applying refresh block to {}", indexMetadata.getIndex().getName());
                 clusterBlocks.addIndexBlock(projectId, indexMetadata.getIndex().getName(), IndexMetadata.INDEX_REFRESH_BLOCK);
             }
         };

@@ -8,15 +8,70 @@
 package org.elasticsearch.xpack.analytics.mapper;
 
 import org.elasticsearch.core.Types;
+import org.elasticsearch.datageneration.datasource.DataSourceHandler;
+import org.elasticsearch.datageneration.datasource.DataSourceRequest;
+import org.elasticsearch.datageneration.datasource.DataSourceResponse;
 import org.elasticsearch.index.mapper.BlockLoaderTestCase;
+import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.analytics.AnalyticsPlugin;
+import org.junit.Before;
 
+import java.util.Collection;
+import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
 public class TDigestFieldBlockLoaderTests extends BlockLoaderTestCase {
 
     public TDigestFieldBlockLoaderTests(Params params) {
-        super(TDigestFieldMapper.CONTENT_TYPE, params);
+        super(TDigestFieldMapper.CONTENT_TYPE, List.of(DATA_SOURCE_HANDLER), params);
     }
+
+    @Override
+    protected Collection<? extends Plugin> getPlugins() {
+        return List.of(new AnalyticsPlugin());
+    }
+
+    @Before
+    public void setup() {
+        assumeTrue("Only when exponential_histogram feature flag is enabled", TDigestFieldMapper.TDIGEST_FIELD_MAPPER.isEnabled());
+    }
+
+    private static DataSourceHandler DATA_SOURCE_HANDLER = new DataSourceHandler() {
+
+        @Override
+        public DataSourceResponse.ObjectArrayGenerator handle(DataSourceRequest.ObjectArrayGenerator request) {
+            // tdigest does not support multiple values in a document so we can't have object arrays
+            return new DataSourceResponse.ObjectArrayGenerator(Optional::empty);
+        }
+
+        @Override
+        public DataSourceResponse.LeafMappingParametersGenerator handle(DataSourceRequest.LeafMappingParametersGenerator request) {
+            if (request.fieldType().equals(TDigestFieldMapper.CONTENT_TYPE) == false) {
+                return null;
+            }
+
+            return new DataSourceResponse.LeafMappingParametersGenerator(() -> {
+                var map = new HashMap<String, Object>();
+                if (ESTestCase.randomBoolean()) {
+                    // NOCOMMIT TODO - randomize the other parameters to the field here
+                    map.put("ignore_malformed", ESTestCase.randomBoolean());
+                }
+                return map;
+            });
+        }
+
+        @Override
+        public DataSourceResponse.FieldDataGenerator handle(DataSourceRequest.FieldDataGenerator request) {
+            if (request.fieldType().equals(TDigestFieldMapper.CONTENT_TYPE) == false) {
+                return null;
+            }
+            // NOCOMMIT TODO - randomize the data size here?
+            return new DataSourceResponse.FieldDataGenerator(mapping -> TDigestFieldMapperTests.generateRandomFieldValues(100));
+        }
+    };
 
     @Override
     protected Object expected(Map<String, Object> fieldMapping, Object value, TestContext testContext) {

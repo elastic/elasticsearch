@@ -1,5 +1,5 @@
 pr: 138053
 summary: Upgrade UnboundID LDAP SDK to 7.0.3
 area: Security
-type: bug
+type: enhancement
 issues: []

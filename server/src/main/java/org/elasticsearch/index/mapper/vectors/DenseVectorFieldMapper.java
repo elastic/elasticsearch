@@ -3246,18 +3246,22 @@ public class DenseVectorFieldMapper extends FieldMapper {
     /**
      * @return the custom kNN vectors format that is configured for this field or
      * {@code null} if the default format should be used.
+     * @param defaultFormat      the default kNN vectors format to use if no custom format is configured
+     * @param indexSettings      the index settings
+     * @param threadPool         the thread pool to use for merging, or {@code null} if not available
      */
     public KnnVectorsFormat getKnnVectorsFormatForField(
         KnnVectorsFormat defaultFormat,
         IndexSettings indexSettings,
         @Nullable ThreadPool threadPool
     ) {
-        ExecutorService mergingExecutorService = threadPool != null ? threadPool.executor(ThreadPool.Names.MERGE) : null;
-        // TODO something other than max???
-        int maxMergingWorkers = mergingExecutorService != null ? threadPool.info(ThreadPool.Names.MERGE).getMax() : 1;
-        // we shouldn't provide an executor service if we only have one thread
-        if (maxMergingWorkers == 1 && mergingExecutorService != null) {
-            mergingExecutorService = null;
+        ExecutorService mergingExecutorService = null;
+        int maxMergingWorkers = 1;
+        if (indexSettings.isIntraMergeParallelismEnabled() && threadPool != null) {
+            maxMergingWorkers = threadPool.info(ThreadPool.Names.MERGE).getMax();
+            if (maxMergingWorkers > 1) {
+                mergingExecutorService = threadPool.executor(ThreadPool.Names.MERGE);
+            }
         }
         final KnnVectorsFormat format;
         if (indexOptions == null) {

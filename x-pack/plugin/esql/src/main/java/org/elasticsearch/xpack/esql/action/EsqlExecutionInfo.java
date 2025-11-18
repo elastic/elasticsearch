@@ -64,6 +64,7 @@ public class EsqlExecutionInfo implements ChunkedToXContentObject, Writeable {
     public static final ParseField IS_PARTIAL_FIELD = new ParseField("is_partial");
 
     private static final TransportVersion ESQL_QUERY_PLANNING_DURATION = TransportVersion.fromName("esql_query_planning_duration");
+    private static final TransportVersion ESQL_FIELD_CAPS_DURATION = TransportVersion.fromName("esql_field_caps_duration");
 
     // Map key is clusterAlias on the primary querying cluster of a CCS minimize_roundtrips=true query
     // The Map itself is immutable after construction - all Clusters will be accounted for at the start of the search.
@@ -81,9 +82,11 @@ public class EsqlExecutionInfo implements ChunkedToXContentObject, Writeable {
     private transient volatile boolean isStopped; // Have we received stop command?
 
     // start time for the ESQL query for calculating time spans relative to the beginning of the query
-    private final transient TimeSpan.Builder relativeStart;
+    private transient TimeSpan.Builder relativeStart;
     private transient TimeSpan overallTimeSpan;
     private transient TimeSpan planningTimeSpan; // time elapsed since start of query to calling ComputeService.execute
+    private transient TimeSpan.Builder fieldCapabilitiesTimeSpanBuilder;
+    private transient TimeSpan fieldCapabilitiesTimeSpan; // time elapsed during field capabilities request in IndexResolver
     private TimeValue overallTook;
 
     // Are we doing subplans? No need to serialize this because it is only relevant for the coordinator node.
@@ -126,6 +129,9 @@ public class EsqlExecutionInfo implements ChunkedToXContentObject, Writeable {
             this.overallTimeSpan = in.readOptional(TimeSpan::readFrom);
             this.planningTimeSpan = in.readOptional(TimeSpan::readFrom);
         }
+        if (in.getTransportVersion().supports(ESQL_FIELD_CAPS_DURATION)) {
+            this.fieldCapabilitiesTimeSpan = in.readOptional(TimeSpan::readFrom);
+        }
     }
 
     @Override
@@ -143,6 +149,9 @@ public class EsqlExecutionInfo implements ChunkedToXContentObject, Writeable {
         if (out.getTransportVersion().supports(ESQL_QUERY_PLANNING_DURATION)) {
             out.writeOptionalWriteable(overallTimeSpan);
             out.writeOptionalWriteable(planningTimeSpan);
+        }
+        if (out.getTransportVersion().supports(ESQL_FIELD_CAPS_DURATION)) {
+            out.writeOptionalWriteable(fieldCapabilitiesTimeSpan);
         }
         assert inSubplan == false : "Should not be serializing execution info while in subplans";
     }
@@ -168,6 +177,28 @@ public class EsqlExecutionInfo implements ChunkedToXContentObject, Writeable {
 
     public TimeValue planningTookTime() {
         return planningTimeSpan != null ? planningTimeSpan.toTimeValue() : null;
+    }
+
+    /**
+     * Call when field capabilities request completes in IndexResolver.
+     */
+    public void markStartFieldCapabilities() {
+        assert fieldCapabilitiesTimeSpanBuilder == null : "Field caps should not have started";
+        fieldCapabilitiesTimeSpanBuilder = TimeSpan.start();
+    }
+
+    /**
+     * Call when field capabilities request completes in IndexResolver.
+     */
+    public void markEndFieldCapabilities() {
+        assert fieldCapabilitiesTimeSpanBuilder != null : "Field caps start time must be set when markEndFieldCapabilities is called";
+        if (fieldCapabilitiesTimeSpan == null) {
+            fieldCapabilitiesTimeSpan = fieldCapabilitiesTimeSpanBuilder.stop();
+        }
+    }
+
+    public TimeSpan fieldCapabilitiesTimeSpan() {
+        return fieldCapabilitiesTimeSpan;
     }
 
     /**

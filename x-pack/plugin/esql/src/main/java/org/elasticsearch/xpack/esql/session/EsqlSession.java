@@ -848,6 +848,7 @@ public class EsqlSession {
                 indexMode == IndexMode.TIME_SERIES,
                 preAnalysis.useAggregateMetricDoubleWhenNotSupported(),
                 preAnalysis.useDenseVectorWhenNotSupported(),
+                executionInfo,
                 listener.delegateFailureAndWrap((l, indexResolution) -> {
                     EsqlCCSUtils.updateExecutionInfoWithUnavailableClusters(executionInfo, indexResolution.inner().failures());
                     l.onResponse(

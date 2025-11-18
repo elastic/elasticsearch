@@ -24,6 +24,7 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.esql.action.EsqlExecutionInfo;
 import org.elasticsearch.xpack.esql.action.EsqlResolveFieldsAction;
 import org.elasticsearch.xpack.esql.action.EsqlResolveFieldsResponse;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
@@ -106,6 +107,7 @@ public class IndexResolver {
             includeAllDimensions,
             useAggregateMetricDoubleWhenNotSupported,
             useDenseVectorWhenNotSupported,
+            null, // executionInfo not available in this code path
             ignoreVersion
         );
     }
@@ -121,12 +123,20 @@ public class IndexResolver {
         boolean includeAllDimensions,
         boolean useAggregateMetricDoubleWhenNotSupported,
         boolean useDenseVectorWhenNotSupported,
+        @Nullable EsqlExecutionInfo executionInfo,
         ActionListener<Versioned<IndexResolution>> listener
     ) {
+        if (executionInfo != null) {
+            executionInfo.markStartFieldCapabilities();
+        }
         client.execute(
             EsqlResolveFieldsAction.TYPE,
             createFieldCapsRequest(indexWildcard, fieldNames, requestFilter, includeAllDimensions),
             listener.delegateFailureAndWrap((l, response) -> {
+                // Mark field capabilities as complete
+                if (executionInfo != null) {
+                    executionInfo.markEndFieldCapabilities();
+                }
                 FieldsInfo info = new FieldsInfo(
                     response.caps(),
                     response.caps().minTransportVersion(),

@@ -270,6 +270,7 @@ public class EsqlQueryResponse extends org.elasticsearch.xpack.core.esql.action.
                 if (executionInfo != null) {
                     b.field("query", executionInfo.overallTimeSpan());
                     b.field("planning", executionInfo.planningTimeSpan());
+                    b.field("field_capabilities", executionInfo.fieldCapabilitiesTimeSpan());
                 }
                 return b;
             }));

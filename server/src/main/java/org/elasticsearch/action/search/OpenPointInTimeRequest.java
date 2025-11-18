@@ -50,6 +50,7 @@ public final class OpenPointInTimeRequest extends LegacyActionRequest implements
     private boolean allowPartialSearchResults = false;
 
     public static final IndicesOptions DEFAULT_INDICES_OPTIONS = SearchRequest.DEFAULT_INDICES_OPTIONS;
+    public static final IndicesOptions DEFAULT_CPS_INDICES_OPTIONS = SearchRequest.DEFAULT_CPS_INDICES_OPTIONS;
 
     public OpenPointInTimeRequest(String... indices) {
         this.indices = Objects.requireNonNull(indices, "[index] is not specified");

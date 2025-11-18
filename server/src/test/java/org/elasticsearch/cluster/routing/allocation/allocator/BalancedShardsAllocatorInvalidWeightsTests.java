@@ -26,7 +26,9 @@ import org.elasticsearch.cluster.routing.allocation.WriteLoadForecaster;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.MockLog;
@@ -50,10 +52,10 @@ import static org.mockito.Mockito.spy;
 public class BalancedShardsAllocatorInvalidWeightsTests extends ESTestCase {
 
     public void testBalanceWillBePerformedForAnyNodesReturningValidWeights() {
-        try (var ignored = BalancedShardsAllocator.disableInvalidWeightsAssertionsAndRemoveLogRateLimiting()) {
+        try (var ignored = BalancedShardsAllocator.disableInvalidWeightsAssertions()) {
             final var balancingWeightsFactory = new InvalidWeightsBalancingWeightsFactory();
             final var allocator = new BalancedShardsAllocator(
-                BalancerSettings.DEFAULT,
+                createBalancerSettings(),
                 WriteLoadForecaster.DEFAULT,
                 balancingWeightsFactory
             );
@@ -88,10 +90,10 @@ public class BalancedShardsAllocatorInvalidWeightsTests extends ESTestCase {
     }
 
     public void testShardThatNeedsMovingWillAlwaysBeMoved() {
-        try (var ignored = BalancedShardsAllocator.disableInvalidWeightsAssertionsAndRemoveLogRateLimiting()) {
+        try (var ignored = BalancedShardsAllocator.disableInvalidWeightsAssertions()) {
             final var balancingWeightsFactory = new InvalidWeightsBalancingWeightsFactory();
             final var allocator = new BalancedShardsAllocator(
-                BalancerSettings.DEFAULT,
+                createBalancerSettings(),
                 WriteLoadForecaster.DEFAULT,
                 balancingWeightsFactory
             );
@@ -152,10 +154,10 @@ public class BalancedShardsAllocatorInvalidWeightsTests extends ESTestCase {
     }
 
     public void testUnallocatedShardsAreStillAllocatedWhenOneOrMoreNodesReturnInvalidWeights() {
-        try (var ignored = BalancedShardsAllocator.disableInvalidWeightsAssertionsAndRemoveLogRateLimiting()) {
+        try (var ignored = BalancedShardsAllocator.disableInvalidWeightsAssertions()) {
             final var balancingWeightsFactory = new InvalidWeightsBalancingWeightsFactory();
             final var allocator = new BalancedShardsAllocator(
-                BalancerSettings.DEFAULT,
+                createBalancerSettings(),
                 WriteLoadForecaster.DEFAULT,
                 balancingWeightsFactory
             );
@@ -179,10 +181,10 @@ public class BalancedShardsAllocatorInvalidWeightsTests extends ESTestCase {
     }
 
     public void testExplainRebalanceExcludesNodesReturningInvalidWeights() {
-        try (var ignored = BalancedShardsAllocator.disableInvalidWeightsAssertionsAndRemoveLogRateLimiting()) {
+        try (var ignored = BalancedShardsAllocator.disableInvalidWeightsAssertions()) {
             final var balancingWeightsFactory = new InvalidWeightsBalancingWeightsFactory();
             final var allocator = new BalancedShardsAllocator(
-                BalancerSettings.DEFAULT,
+                createBalancerSettings(),
                 WriteLoadForecaster.DEFAULT,
                 balancingWeightsFactory
             );
@@ -233,6 +235,15 @@ public class BalancedShardsAllocatorInvalidWeightsTests extends ESTestCase {
                 }
             });
         }
+    }
+
+    /**
+     * Create balancer settings with invalid weight log rate limiting turned off
+     */
+    private BalancerSettings createBalancerSettings() {
+        return new BalancerSettings(
+            Settings.builder().put(BalancedShardsAllocator.INVALID_WEIGHTS_MINIMUM_LOG_INTERVAL.getKey(), TimeValue.ZERO).build()
+        );
     }
 
     private void assertInvalidWeightsMessageIsLogged(Runnable runnable) {

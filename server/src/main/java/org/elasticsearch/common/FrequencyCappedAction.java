@@ -11,7 +11,6 @@ package org.elasticsearch.common;
 
 import org.elasticsearch.core.TimeValue;
 
-import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.LongSupplier;
 
 /**
@@ -39,29 +38,6 @@ public class FrequencyCappedAction {
         if (current >= next) {
             next = current + minInterval.millis();
             runnable.run();
-        }
-    }
-
-    /**
-     * A utility for running a frequency-capped action statically
-     *
-     * @param currentTimeMillisSupplier A supplier of the current time in milliseconds
-     * @param lastTimeExecuted An {@link AtomicLong} used to store the last time the action was executed
-     * @param minInterval The minimum interval between executions
-     * @param runnable The action to run
-     */
-    public static void runIfDue(
-        LongSupplier currentTimeMillisSupplier,
-        AtomicLong lastTimeExecuted,
-        TimeValue minInterval,
-        Runnable runnable
-    ) {
-        final long lastTimestamp = lastTimeExecuted.get();
-        final long currentTimeMillis = currentTimeMillisSupplier.getAsLong();
-        if (currentTimeMillis - lastTimestamp >= minInterval.millis()) {
-            if (lastTimeExecuted.compareAndSet(lastTimestamp, currentTimeMillis)) {
-                runnable.run();
-            }
         }
     }
 }

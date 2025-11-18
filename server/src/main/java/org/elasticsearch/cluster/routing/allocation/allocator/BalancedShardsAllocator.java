@@ -58,7 +58,6 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.BiFunction;
 import java.util.function.Predicate;
 
@@ -118,14 +117,18 @@ public class BalancedShardsAllocator implements ShardsAllocator {
         Property.Dynamic,
         Property.NodeScope
     );
-    private static final AtomicLong INVALID_WEIGHT_FUNCTION_LAST_LOG = new AtomicLong(0);
-    private static final TimeValue MINIMUM_INVALID_WEIGHT_LOG_INTERVAL = TimeValue.timeValueMinutes(5);
+    public static final Setting<TimeValue> INVALID_WEIGHTS_MINIMUM_LOG_INTERVAL = Setting.timeSetting(
+        "cluster.routing.allocation.balance.invalid_weights_log_min_interval",
+        TimeValue.timeValueMinutes(5),
+        Property.Dynamic,
+        Property.NodeScope
+    );
     private static boolean enableInvalidWeightsAssertion = true;
-    private static TimeValue minimumInvalidWeightLogInterval = MINIMUM_INVALID_WEIGHT_LOG_INTERVAL;
 
     private final BalancerSettings balancerSettings;
     private final WriteLoadForecaster writeLoadForecaster;
     private final BalancingWeightsFactory balancingWeightsFactory;
+    private final FrequencyCappedAction logInvalidWeights;
 
     public BalancedShardsAllocator() {
         this(Settings.EMPTY);
@@ -148,6 +151,8 @@ public class BalancedShardsAllocator implements ShardsAllocator {
         this.balancerSettings = balancerSettings;
         this.writeLoadForecaster = writeLoadForecaster;
         this.balancingWeightsFactory = balancingWeightsFactory;
+        this.logInvalidWeights = new FrequencyCappedAction(System::currentTimeMillis, TimeValue.ZERO);
+        balancerSettings.getClusterSettings().initializeAndWatch(INVALID_WEIGHTS_MINIMUM_LOG_INTERVAL, logInvalidWeights::setMinInterval);
     }
 
     @Override
@@ -179,7 +184,8 @@ public class BalancedShardsAllocator implements ShardsAllocator {
             allocation,
             balancerSettings.getThreshold(),
             balancingWeights,
-            balancerSettings.completeEarlyOnShardAssignmentChange()
+            balancerSettings.completeEarlyOnShardAssignmentChange(),
+            logInvalidWeights
         );
 
         boolean shardAssigned = false, shardMoved = false, shardBalanced = false;
@@ -258,7 +264,8 @@ public class BalancedShardsAllocator implements ShardsAllocator {
             allocation,
             balancerSettings.getThreshold(),
             balancingWeightsFactory.create(),
-            balancerSettings.completeEarlyOnShardAssignmentChange()
+            balancerSettings.completeEarlyOnShardAssignmentChange(),
+            logInvalidWeights
         );
         AllocateUnassignedDecision allocateUnassignedDecision = AllocateUnassignedDecision.NOT_TAKEN;
         MoveDecision moveDecision = MoveDecision.NOT_TAKEN;
@@ -319,13 +326,15 @@ public class BalancedShardsAllocator implements ShardsAllocator {
         private final BalancingWeights balancingWeights;
         private final NodeSorters nodeSorters;
         private final boolean completeEarlyOnShardAssignmentChange;
+        private final FrequencyCappedAction logInvalidWeights;
 
         private Balancer(
             WriteLoadForecaster writeLoadForecaster,
             RoutingAllocation allocation,
             float threshold,
             BalancingWeights balancingWeights,
-            boolean completeEarlyOnShardAssignmentChange
+            boolean completeEarlyOnShardAssignmentChange,
+            FrequencyCappedAction logInvalidWeights
         ) {
             this.writeLoadForecaster = writeLoadForecaster;
             this.allocation = allocation;
@@ -341,6 +350,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
             this.nodeSorters = balancingWeights.createNodeSorters(nodesArray(), this);
             this.balancingWeights = balancingWeights;
             this.completeEarlyOnShardAssignmentChange = completeEarlyOnShardAssignmentChange;
+            this.logInvalidWeights = logInvalidWeights;
         }
 
         private static long getShardDiskUsageInBytes(ShardRouting shardRouting, IndexMetadata indexMetadata, ClusterInfo clusterInfo) {
@@ -1578,6 +1588,16 @@ public class BalancedShardsAllocator implements ShardsAllocator {
             logger.trace("No shards of [{}] can relocate from [{}] to [{}]", idx, maxNode.getNodeId(), minNode.getNodeId());
             return false;
         }
+
+        /**
+         * Rate-limited logging about invalid weights being returned by the weight function
+         */
+        private void maybeLogInvalidWeightEncountered(ModelNode modelNode, ProjectIndex index, float weight) {
+            logInvalidWeights.maybeExecute(
+                () -> logger.error("Weight function returned invalid weight node={}, index={}, weight={}", modelNode, index, weight)
+            );
+            assert enableInvalidWeightsAssertion == false : "Weight function is returning invalid weights";
+        }
     }
 
     /**
@@ -1799,7 +1819,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
             for (int i = 0; i < to; i++) {
                 float weight = weight(modelNodes[i]);
                 if (nodeWeightIsInvalid(weight)) {
-                    maybeLogInvalidWeightEncountered(modelNodes[i], index, weight);
+                    balancer.maybeLogInvalidWeightEncountered(modelNodes[i], index, weight);
                     weight = Float.MAX_VALUE;
                     invalidCount++;
                 }
@@ -1826,7 +1846,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
         private void recalculateWeight(int nodeIndex) {
             float newWeight = weight(modelNodes[nodeIndex]);
             if (nodeWeightIsInvalid(newWeight)) {
-                maybeLogInvalidWeightEncountered(modelNodes[nodeIndex], index, newWeight);
+                balancer.maybeLogInvalidWeightEncountered(modelNodes[nodeIndex], index, newWeight);
                 newWeight = Float.MAX_VALUE;
                 // We assume any existing MAX_VALUE weight is due to being previously invalid
                 if (weights[nodeIndex] != Float.MAX_VALUE) {
@@ -1903,27 +1923,10 @@ public class BalancedShardsAllocator implements ShardsAllocator {
         }
     }
 
-    /**
-     * Rate-limited logging about invalid weights being returned by the weight function
-     */
-    private static void maybeLogInvalidWeightEncountered(ModelNode modelNode, ProjectIndex index, float weight) {
-        FrequencyCappedAction.runIfDue(
-            System::currentTimeMillis,
-            INVALID_WEIGHT_FUNCTION_LAST_LOG,
-            minimumInvalidWeightLogInterval,
-            () -> logger.error("Weight function returned invalid weight node={}, index={}, weight={}", modelNode, index, weight)
-        );
-        assert enableInvalidWeightsAssertion == false : "Weight function is returning invalid weights";
-    }
-
     // visible for testing
-    static Releasable disableInvalidWeightsAssertionsAndRemoveLogRateLimiting() {
+    static Releasable disableInvalidWeightsAssertions() {
         enableInvalidWeightsAssertion = false;
-        minimumInvalidWeightLogInterval = TimeValue.ZERO;
-        return () -> {
-            enableInvalidWeightsAssertion = true;
-            minimumInvalidWeightLogInterval = MINIMUM_INVALID_WEIGHT_LOG_INTERVAL;
-        };
+        return () -> enableInvalidWeightsAssertion = true;
     }
 
     record ProjectIndex(ProjectId project, String indexName) {

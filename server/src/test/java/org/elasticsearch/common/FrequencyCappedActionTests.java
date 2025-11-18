@@ -16,10 +16,6 @@ import java.util.concurrent.atomic.AtomicLong;
 
 import static org.elasticsearch.core.TimeValue.timeValueMillis;
 import static org.hamcrest.Matchers.equalTo;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.reset;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.verifyNoInteractions;
 
 public class FrequencyCappedActionTests extends ESTestCase {
 
@@ -52,30 +48,5 @@ public class FrequencyCappedActionTests extends ESTestCase {
         currentTime.addAndGet(randomLongBetween(minInterval.millis(), Long.MAX_VALUE));
         action.maybeExecute(executions::incrementAndGet);
         assertThat(executions.get(), equalTo(2L));
-    }
-
-    public void testRunIfDue() {
-        final var lastExecuted = new AtomicLong();
-        final var currentTime = new AtomicLong(System.currentTimeMillis());
-        final TimeValue minimumInterval = TimeValue.timeValueSeconds(between(1, 300));
-        final var action = mock(Runnable.class);
-
-        // the first call should always run
-        FrequencyCappedAction.runIfDue(currentTime::get, lastExecuted, minimumInterval, action);
-        verify(action).run();
-        reset(action);
-
-        for (int i = 0; i < between(1, 10); i++) {
-            // advance time less than the minimum interval, the action should not be run
-            currentTime.addAndGet(randomLongBetween(0, minimumInterval.millis() - 1));
-            FrequencyCappedAction.runIfDue(currentTime::get, lastExecuted, minimumInterval, action);
-            verifyNoInteractions(action);
-
-            // advance time past the minimum interval, the action should be run again
-            currentTime.addAndGet(randomLongBetween(minimumInterval.millis(), minimumInterval.millis() * 2));
-            FrequencyCappedAction.runIfDue(currentTime::get, lastExecuted, minimumInterval, action);
-            verify(action).run();
-            reset(action);
-        }
     }
 }

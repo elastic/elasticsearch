@@ -11,6 +11,7 @@ package org.elasticsearch.indices.analysis.wrappers;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.LenientBooleans;
 import org.elasticsearch.env.Environment;
@@ -58,7 +59,12 @@ public class SettingsInvocationHandler implements InvocationHandler {
             return getValue(Long::valueOf, setting.path(), setting.defaultValue());
         } else if (annotation instanceof BooleanSetting setting) {
             return getValue(
-                v -> LenientBooleans.parseAndCheckForDeprecatedUsage(v, LenientBooleans.Category.SETTING, setting.path()),
+                v -> LenientBooleans.parseAndCheckForDeprecatedUsage(
+                    v,
+                    LenientBooleans.UsageCategory.SETTING,
+                    setting.path(),
+                    DeprecationCategory.SETTINGS
+                ),
                 setting.path(),
                 setting.defaultValue()
             );

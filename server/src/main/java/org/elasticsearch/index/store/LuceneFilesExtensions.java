@@ -10,8 +10,8 @@
 package org.elasticsearch.index.store;
 
 import org.apache.lucene.index.IndexFileNames;
-import org.elasticsearch.common.util.LenientBooleans;
 import org.elasticsearch.common.util.Maps;
+import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.Nullable;
 
 import java.util.Collections;
@@ -97,11 +97,7 @@ public enum LuceneFilesExtensions {
      * In the future, we would like to add a proper plugin extension point for this.
      */
     private static boolean allowUnknownLuceneFileExtensions() {
-        return LenientBooleans.parseAndCheckForDeprecatedUsage(
-            System.getProperty("es.allow_unknown_lucene_file_extensions", "false"),
-            LenientBooleans.Category.SYSTEM_PROPERTY,
-            "es.allow_unknown_lucene_file_extensions"
-        );
+        return Booleans.parseBoolean(System.getProperty("es.allow_unknown_lucene_file_extensions", "false"));
     }
 
     /**

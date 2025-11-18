@@ -25,14 +25,14 @@ public class LenientBooleans {
     /**
      * Category of use of lenient Boolean parsing.
      */
-    public enum Category {
+    public enum UsageCategory {
         SYSTEM_PROPERTY("system property"),
         INDEX_METADATA("index metadata"),
         SETTING("setting");
 
         private final String displayValue;
 
-        Category(String displayValue) {
+        UsageCategory(String displayValue) {
             this.displayValue = displayValue;
         }
 
@@ -49,10 +49,15 @@ public class LenientBooleans {
     }
 
     @SuppressForbidden(reason = "wrap lenient parsing of booleans for deprecation logging.")
-    public static boolean parseAndCheckForDeprecatedUsage(String value, Category category, String name) {
+    public static boolean parseAndCheckForDeprecatedUsage(
+        String value,
+        UsageCategory usageCategory,
+        String name,
+        DeprecationCategory deprecationCategory
+    ) {
         if (Booleans.isBoolean(value) == false) {
-            String key = String.format(Locale.ROOT, "lenient.%s.%s", category, name);
-            deprecationLogger.warn(DeprecationCategory.PARSING, key, DEPRECATED_MESSAGE_TEMPLATE, value, category.displayValue(), name);
+            String key = String.format(Locale.ROOT, "lenient.%s.%s", usageCategory, name);
+            deprecationLogger.critical(deprecationCategory, key, DEPRECATED_MESSAGE_TEMPLATE, value, usageCategory.displayValue(), name);
         }
         return Boolean.parseBoolean(value);
     }

@@ -588,6 +588,10 @@ public class QueryRewriteContext {
 
     /**
      * Registers an async action that must be executed only once before the next rewrite round.
+     * A {@link Consumer} argument is also required.
+     * When an async action is registered multiple times, we simply collect all the consumers associated with it.
+     * After the async action is executed, all consumers associated with it will be executed and receive as argument
+     * the result of the async action.
      */
     public void registerUniqueRewriteAction(QueryRewriteAsyncAction action, Consumer<Object> consumer) {
         uniqueRewriteActions.computeIfAbsent(action, k -> new ArrayList<>()).add(consumer);

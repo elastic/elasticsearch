@@ -15,8 +15,26 @@ import org.elasticsearch.client.internal.Client;
 import java.util.List;
 import java.util.function.Consumer;
 
+/**
+ * Represents a unique action that needs to be executed asynchronously during query rewriting.
+ * A {@link QueryRewriteAsyncAction} is registered using
+ * {@link QueryRewriteContext#registerUniqueRewriteAction(QueryRewriteAsyncAction, Consumer)}.
+ * This is useful when we want to remove duplicate and costly async actions that take part in query rewriting, such as generating
+ * embeddings for semantic search.
+ */
 public abstract class QueryRewriteAsyncAction {
 
+    /**
+     * The execute method will:
+     * - Execute the action
+     * - Pass the action result to the consumers and execute the consumers
+     * - Call the listener
+     *
+     * @param client A rest client that can be used during execution.
+     * @param listener The listener that will be called after the action and consumers have been executed.
+     * @param consumers A list of consumer that expect the result of the action. It is the responsibility of the implementor to execute
+     *                  the consumers.
+     */
     public abstract void execute(Client client, ActionListener<?> listener, List<Consumer<Object>> consumers);
 
     private final QueryRewriteContext queryRewriteContext;

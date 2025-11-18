@@ -57,6 +57,7 @@ import org.elasticsearch.xpack.esql.plan.logical.join.InlineJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.Join;
 import org.elasticsearch.xpack.esql.plan.logical.join.JoinConfig;
 import org.elasticsearch.xpack.esql.plan.logical.join.JoinTypes;
+import org.elasticsearch.xpack.esql.plan.logical.join.StubRelation;
 import org.elasticsearch.xpack.esql.plan.logical.local.EsqlProject;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalSupplier;
@@ -1024,7 +1025,7 @@ public class PushDownAndCombineFiltersTests extends AbstractLogicalPlanOptimizer
         assertEquals(expectedPushedFilters, actualPushedFilters);
     }
 
-    /**
+    /*
      * We check that a filter after an INLINE JOIN is pushed down past the join into the sub-plan.
      * With the help of InlineJoin.firstSubPlan(), we extract the sub-plan and verify that the filter exists there, meaning EsqlSession
      * did its job of pushing down the filter (by copying the correct part of the left hand side to the right hand side to also include
@@ -1095,7 +1096,7 @@ public class PushDownAndCombineFiltersTests extends AbstractLogicalPlanOptimizer
         assertEquals(left, firstSubPlanFilter);
     }
 
-    /**
+    /*
      * EsqlProject[[avg{r}#5, languages{f}#18, gender{f}#17, emp_no{f}#15]]
      * \_Limit[1000[INTEGER],false,false]
      *   \_Filter[emp_no{f}#15 > 10050[INTEGER]]
@@ -1174,7 +1175,7 @@ public class PushDownAndCombineFiltersTests extends AbstractLogicalPlanOptimizer
         assertEquals(left, firstSubPlanFilter);
     }
 
-    /**
+    /*
      * EsqlProject[[avg{r}#5, languages{f}#18, gender{f}#17, emp_no{f}#15]]
      * \_Limit[1000[INTEGER],false,false]
      *   \_Filter[ISNOTNULL(gender{f}#17) OR emp_no{f}#15 > 10050[INTEGER]]
@@ -1425,7 +1426,7 @@ public class PushDownAndCombineFiltersTests extends AbstractLogicalPlanOptimizer
         assertWarnings("Line 3:16: Field 'salary' shadowed by field at line 3:40", "No limit defined, adding default limit of [1000]");
     }
 
-    /**
+    /*
      * EsqlProject[[languages{f}#14, a{r}#5, gender{f}#13]]
      * \_Limit[1000[INTEGER],false,false]
      *   \_Filter[languages{f}#14 > 2[INTEGER]]
@@ -1488,7 +1489,7 @@ public class PushDownAndCombineFiltersTests extends AbstractLogicalPlanOptimizer
         assertEquals(left, firstSubPlanRelation);
     }
 
-    /**
+    /*
      * EsqlProject[[avgByL{r}#5, avgByG{r}#9, languages{f}#20, gender{f}#19, emp_no{f}#17]]
      * \_Limit[1000[INTEGER],false,false]
      *   \_Filter[languages{f}#20 > 2[INTEGER]]
@@ -1625,7 +1626,7 @@ public class PushDownAndCombineFiltersTests extends AbstractLogicalPlanOptimizer
         assertEquals(firstSubPlanFilter.condition(), left.condition());
     }
 
-    /**
+    /*
      * EsqlProject[[avgByL{r}#5, avgByG{r}#9, languages{f}#22, gender{f}#21, emp_no{f}#19]]
      * \_Limit[1000[INTEGER],false,false]
      *   \_Filter[emp_no{f}#19 > 10050[INTEGER]]
@@ -1783,7 +1784,7 @@ public class PushDownAndCombineFiltersTests extends AbstractLogicalPlanOptimizer
         assertEquals(firstSubPlanFilter.condition(), left.condition());
     }
 
-    /**
+    /*
      * EsqlProject[[avgByL{r}#5, avgByG{r}#9, languages{f}#22, gender{f}#21, emp_no{f}#19]]
      * \_Limit[1000[INTEGER],false,false]
      *   \_Filter[avgByL{r}#5 > 40000[INTEGER]]
@@ -1941,7 +1942,7 @@ public class PushDownAndCombineFiltersTests extends AbstractLogicalPlanOptimizer
         assertEquals(firstSubPlanFilter.condition(), left.condition());
     }
 
-    /**
+    /*
      * EsqlProject[[avgByL{r}#9, avgByG{r}#16, lang{r}#13, gender{f}#28, emp_no{f}#26]]
      * \_Limit[1000[INTEGER],false,false]
      *   \_Filter[emp_no{f}#26 > 10050[INTEGER]]
@@ -2126,5 +2127,49 @@ public class PushDownAndCombineFiltersTests extends AbstractLogicalPlanOptimizer
         // the IS NOT NULL filter is the same as the one pushed down on the left side of the first InlineJoin
         var firstSubPlanFilter = as(firstSubPlanProjection.child(), Filter.class);
         assertEquals(firstSubPlanFilter.condition(), leftFilter.condition());
+    }
+
+    /*
+     * EsqlProject[[a{r}#5, gender{f}#12]]
+     * \_Limit[1000[INTEGER],false,false]
+     *   \_Filter[a{r}#5 > 55000[INTEGER]]
+     *     \_InlineJoin[LEFT,[gender{f}#12],[gender{r}#12]]
+     *       |_EsRelation[employees][_meta_field{f}#16, emp_no{f}#10, first_name{f}#11, ..]
+     *       \_Project[[a{r}#5, gender{f}#12]]
+     *         \_Eval[[$$SUM$a$0{r$}#21 / $$COUNT$a$1{r$}#22 AS a#5]]
+     *           \_Aggregate[[gender{f}#12],[SUM(salary{f}#15,true[BOOLEAN],PT0S[TIME_DURATION],compensated[KEYWORD]) AS $$SUM$a$0#21,
+     * COUNT(salary{f}#15,true[BOOLEAN],PT0S[TIME_DURATION]) AS $$COUNT$a$1#22, gender{f}#12]]
+     *             \_StubRelation[[_meta_field{f}#16, emp_no{f}#10, first_name{f}#11, gender{f}#12, hire_date{f}#17, job{f}#18,
+     * job.raw{f}#19, languages{f}#13, last_name{f}#14, long_noidx{f}#20, salary{f}#15]]
+     */
+    public void testDontPushDown_OnRightSideOf_InlineStats() {
+        // a > 55000 even if it makes sense to have it pushed down on the right hand side, atm it cannot be done for inlinestats
+        var plan = plan("""
+            FROM employees
+            | INLINE STATS a = AVG(salary) BY gender
+            | WHERE a > 55000
+            | KEEP a, gender
+            """);
+
+        var project = as(plan, EsqlProject.class);
+        var limit = as(project.child(), Limit.class);
+        // common filter, above InlineJoin
+        var commonFilter = as(limit.child(), Filter.class);
+        assertThat(commonFilter.condition(), instanceOf(GreaterThan.class));
+        var commonGt = as(commonFilter.condition(), GreaterThan.class);
+        var commonGtField = as(commonGt.left(), ReferenceAttribute.class);
+        assertEquals("a", commonGtField.name());
+        var commonGtRight = as(commonGt.right(), Literal.class);
+        assertEquals(55000, commonGtRight.value());
+
+        // InlineJoin
+        var ij = as(commonFilter.child(), InlineJoin.class);
+        // InlineJoin left side
+        var left = as(ij.left(), EsRelation.class);
+        // InlineJoin right side
+        var right = as(ij.right(), Project.class);
+        var eval = as(right.child(), Eval.class);
+        var aggregate = as(eval.child(), Aggregate.class);
+        as(aggregate.child(), StubRelation.class);
     }
 }

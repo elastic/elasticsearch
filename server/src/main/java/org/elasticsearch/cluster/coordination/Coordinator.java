@@ -650,7 +650,8 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
 
     private void handleJoinRequest(JoinRequest joinRequest, ActionListener<Void> joinListener) {
         assert Thread.holdsLock(mutex) == false;
-        assert getLocalNode().isMasterNode() : getLocalNode() + " received a join but is not master-eligible";
+        DiscoveryNode masterNode = getLocalNode();
+        assert masterNode.isMasterNode() : getLocalNode() + " received a join but is not master-eligible";
         logger.trace("handleJoinRequest: as {}, handling {}", mode, joinRequest);
 
         if (singleNodeDiscovery && joinRequest.getSourceNode().equals(getLocalNode()) == false) {
@@ -666,9 +667,12 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
             return;
         }
 
+        // Store the current term so we can check later whether a new master has been elected
+        final long currentTerm = getCurrentTerm();
         transportService.connectToNode(joinRequest.getSourceNode(), new ActionListener<>() {
             @Override
             public void onResponse(Releasable response) {
+                String joiningNode = joinRequest.getSourceNode().toString();
                 SubscribableListener
                     // Validates the join request: can the remote node deserialize our cluster state and does it respond to pings?
                     .<Void>newForked(l -> validateJoinRequest(joinRequest, l))
@@ -682,6 +686,18 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
                             // joining node in its future states too. Thus, we need to wait for the next committed state before we know the
                             // eventual outcome, and we need to wait for that before we can release (our ref to) the connection and complete
                             // the listener.
+                            logger.debug(
+                                "the cluster state update adding {} to the cluster was not committed to all nodes, "
+                                    + "and {} will be stepping down as master. However, the next master may have already committed the "
+                                    + "cluster state we've just published and will therefore include {} in its future states too. "
+                                    + "We will keep the connection to {} open until the next published cluster state update confirms "
+                                    + "whether {} has been added to the cluster",
+                                joiningNode,
+                                masterNode.getName(),
+                                joiningNode,
+                                joiningNode,
+                                joiningNode
+                            );
 
                             // NB we are on the master update thread here at the end of processing the failed cluster state update, so this
                             // all happens before any cluster state update that re-elects a master
@@ -691,13 +707,21 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
                                 @Override
                                 public void clusterChanged(ClusterChangedEvent event) {
                                     final var discoveryNodes = event.state().nodes();
-                                    // Keep the connection open until the next committed state
-                                    if (discoveryNodes.getMasterNode() != null) {
+                                    // Keep the connection open until the next committed state by the next elected master
+                                    if (discoveryNodes.getMasterNode() != null && event.state().term() > currentTerm) {
                                         // Remove this listener to avoid memory leaks
                                         clusterService.removeListener(this);
                                         if (discoveryNodes.nodeExists(joinRequest.getSourceNode().getId())) {
+                                            logger.debug(
+                                                "node {} was added to the cluster in the next cluster state update",
+                                                joinRequest.getSourceNode()
+                                            );
                                             ll.onResponse(null);
                                         } else {
+                                            logger.debug(
+                                                "node {} was not added to the cluster in the next cluster state update",
+                                                joinRequest.getSourceNode()
+                                            );
                                             ll.onFailure(e);
                                         }
                                     }
@@ -719,7 +743,10 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
                     })))
 
                     // Whatever the outcome, release (our ref to) the connection we just opened and notify the joining node.
-                    .addListener(ActionListener.runBefore(joinListener, () -> Releasables.close(response)));
+                    .addListener(ActionListener.runBefore(joinListener, () -> {
+                        logger.debug("closing the connection to {}", joinRequest.getSourceNode());
+                        Releasables.close(response);
+                    }));
             }
 
             @Override
@@ -1412,9 +1439,9 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
     }
 
     /*
-    * Valid Voting Configuration Exclusion state criteria:
-    * 1. Every voting config exclusion with an ID of _absent_ should not match any nodes currently in the cluster by name
-    * 2. Every voting config exclusion with a name of _absent_ should not match any nodes currently in the cluster by ID
+     * Valid Voting Configuration Exclusion state criteria:
+     * 1. Every voting config exclusion with an ID of _absent_ should not match any nodes currently in the cluster by name
+     * 2. Every voting config exclusion with a name of _absent_ should not match any nodes currently in the cluster by ID
      */
     static boolean validVotingConfigExclusionState(ClusterState clusterState) {
         Set<VotingConfigExclusion> votingConfigExclusions = clusterState.getVotingConfigExclusions();
@@ -1812,7 +1839,7 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
 
                     if (foundQuorum) {
                         if (electionScheduler == null) {
-                            logger.debug("starting election scheduler, expecting votes [{}]", expectedVotes);
+                            logger.debug("preparing election scheduler, expecting votes [{}]", expectedVotes);
                             startElectionScheduler();
                         }
                     } else {
@@ -1834,8 +1861,10 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
         assert electionScheduler == null : electionScheduler;
 
         if (getLocalNode().isMasterNode() == false) {
+            logger.debug("local node is not the master, skipping election scheduler");
             return;
         }
+        logger.debug("starting election scheduler");
 
         final TimeValue gracePeriod = TimeValue.ZERO;
         electionScheduler = electionSchedulerFactory.startElectionScheduler(gracePeriod, new Runnable() {

@@ -174,6 +174,7 @@ You can either download it manually or run the following command:
 ```sh
 curl https://raw.githubusercontent.com/elastic/connectors/main/config.yml.example --output ~/connectors-config/config.yml
 ```
+% NOTCONSOLE
 
 Remember to update the `--output` argument value if your directory name is different, or you want to use a different config file name.
 
@@ -222,7 +223,7 @@ docker.elastic.co/integrations/elastic-connectors:{{version.stack}} \
 /app/bin/elastic-ingest \
 -c /config/config.yml
 ```
-
+% NOTCONSOLE
 ::::
 
 
@@ -297,7 +298,6 @@ For faster tests, add the `DATA_SIZE=small` flag:
 ```shell
 make ftest NAME=sandfly DATA_SIZE=small
 ```
-
 
 ### Known issues [es-connectors-sandfly-client-known-issues]
 

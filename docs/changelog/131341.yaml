@@ -1,5 +1,0 @@
-pr: 131341
-summary: Consider min/max from predicates when transform date_trunc/bucket to `round_to`
-area: ES|QL
-type: enhancement
-issues: []

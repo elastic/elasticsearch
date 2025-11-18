@@ -16,6 +16,7 @@ import org.elasticsearch.xpack.esql.plan.GeneratingPlan;
 import org.elasticsearch.xpack.esql.plan.logical.ExecutesOn;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.SortAgnostic;
+import org.elasticsearch.xpack.esql.plan.logical.Streaming;
 import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
 
 import java.io.IOException;
@@ -24,6 +25,7 @@ import java.util.Objects;
 
 public abstract class InferencePlan<PlanType extends InferencePlan<PlanType>> extends UnaryPlan
     implements
+        Streaming,
         SortAgnostic,
         GeneratingPlan<InferencePlan<PlanType>>,
         ExecutesOn.Coordinator {
@@ -79,4 +81,10 @@ public abstract class InferencePlan<PlanType extends InferencePlan<PlanType>> ex
     public List<String> validOptionNames() {
         return VALID_INFERENCE_OPTION_NAMES;
     }
+
+    /**
+     * Checks if this InferencePlan is foldable (all input expressions are foldable).
+     * A plan is foldable if all its input expressions can be evaluated statically.
+     */
+    public abstract boolean isFoldable();
 }

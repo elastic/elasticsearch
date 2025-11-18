@@ -13,6 +13,7 @@ import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.RegExp;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.ResourceAlreadyExistsException;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.admin.indices.create.CreateIndexClusterStateUpdateRequest;
@@ -1702,7 +1703,7 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
                 TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY
             );
 
-            var expectRefreshBlock = 0 < nbReplicas;
+            var expectRefreshBlock = 0 < nbReplicas && minTransportVersion.supports(TransportVersions.V_8_18_0);
             assertThat(updatedClusterState.blocks().indices(projectId), is(aMapWithSize(expectRefreshBlock ? 1 : 0)));
             assertThat(
                 updatedClusterState.blocks().hasIndexBlock(projectId, "test", IndexMetadata.INDEX_REFRESH_BLOCK),
@@ -1736,7 +1737,10 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
                 .build(),
             minTransportVersion
         );
-        assertThat(blocks.hasIndexBlock(projectId, "test", IndexMetadata.INDEX_REFRESH_BLOCK), is(isStateless && useRefreshBlock));
+        assertThat(
+            blocks.hasIndexBlock(projectId, "test", IndexMetadata.INDEX_REFRESH_BLOCK),
+            is(isStateless && useRefreshBlock && minTransportVersion.supports(TransportVersions.V_8_18_0))
+        );
     }
 
     public void testSetPrivateSettingsFails() throws Exception {

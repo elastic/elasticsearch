@@ -10,11 +10,23 @@
 package org.elasticsearch.transport;
 
 import java.util.Collection;
+import java.util.Optional;
 
 /**
  * Service for registering {@link LinkedProjectConfigListener}s to be notified of changes to linked project configurations.
  */
 public interface LinkedProjectConfigService {
+
+    /**
+     * Interface for providing a {@link LinkedProjectConfigService} instance via SPI.
+     */
+    interface Provider {
+        /**
+         * @return An {@link Optional} populated with a {@link LinkedProjectConfigService} instance, or {@link Optional#empty()} if it is
+         * not possible to create an instance in the current runtime environment.
+         */
+        Optional<LinkedProjectConfigService> create();
+    }
 
     /**
      * Listener interface for receiving updates about linked project configurations.

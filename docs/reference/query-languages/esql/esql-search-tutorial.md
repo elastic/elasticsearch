@@ -20,6 +20,7 @@ Want to get started quickly? Run the following command in your terminal to set u
 ```sh
 curl -fsSL https://elastic.co/start-local | sh
 ```
+% NOTCONSOLE
 
 ## Running {{esql}} queries
 

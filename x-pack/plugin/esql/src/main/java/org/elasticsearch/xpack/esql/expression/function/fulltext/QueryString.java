@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.expression.function.fulltext;
 
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -280,7 +281,10 @@ public class QueryString extends FullTextFunction implements OptionalArgument {
     private static QueryString readFrom(StreamInput in) throws IOException {
         Source source = Source.readFrom((PlanStreamInput) in);
         Expression query = in.readNamedWriteable(Expression.class);
-        QueryBuilder queryBuilder = in.readOptionalNamedWriteable(QueryBuilder.class);
+        QueryBuilder queryBuilder = null;
+        if (in.getTransportVersion().supports(TransportVersions.V_8_18_0)) {
+            queryBuilder = in.readOptionalNamedWriteable(QueryBuilder.class);
+        }
         return new QueryString(source, query, null, queryBuilder);
     }
 
@@ -288,7 +292,9 @@ public class QueryString extends FullTextFunction implements OptionalArgument {
     public void writeTo(StreamOutput out) throws IOException {
         source().writeTo(out);
         out.writeNamedWriteable(query());
-        out.writeOptionalNamedWriteable(queryBuilder());
+        if (out.getTransportVersion().supports(TransportVersions.V_8_18_0)) {
+            out.writeOptionalNamedWriteable(queryBuilder());
+        }
     }
 
     @Override

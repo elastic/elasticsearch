@@ -64,7 +64,7 @@ public final class HealthMetadata extends AbstractNamedDiffable<ClusterState.Cus
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersion.minimumCompatible();
+        return TransportVersions.V_8_5_0;
     }
 
     @Override
@@ -156,21 +156,40 @@ public final class HealthMetadata extends AbstractNamedDiffable<ClusterState.Cus
      * Contains the thresholds needed to determine the health of a cluster when it comes to the amount of room available to create new
      * shards. These values are determined by the elected master.
      */
-    public record ShardLimits(int maxShardsPerNode, int maxShardsPerNodeFrozen) implements ToXContentFragment, Writeable {
+    public record ShardLimits(
+        int maxShardsPerNode,
+        int maxShardsPerNodeFrozen,
+        int shardCapacityUnhealthyThresholdYellow,
+        int shardCapacityUnhealthyThresholdRed
+    ) implements ToXContentFragment, Writeable {
 
         private static final String TYPE = "shard_limits";
         private static final ParseField MAX_SHARDS_PER_NODE = new ParseField("max_shards_per_node");
         private static final ParseField MAX_SHARDS_PER_NODE_FROZEN = new ParseField("max_shards_per_node_frozen");
+        private static final ParseField SHARD_CAPACITY_UNHEALTHY_THRESHOLD_YELLOW_FIELD = new ParseField(
+            "shard_capacity_unhealthy_threshold_yellow"
+        );
+        private static final ParseField SHARD_CAPACITY_UNHEALTHY_THRESHOLD_RED_FIELD = new ParseField(
+            "shard_capacity_unhealthy_threshold_red"
+        );
         static final TransportVersion VERSION_SUPPORTING_SHARD_LIMIT_FIELDS = TransportVersions.V_8_8_0;
+        static final TransportVersion VERSION_SHARD_CAPACITY_UNHEALTH_THRESHOLDS = TransportVersion.fromName(
+            "shard_capacity_unhealthy_thresholds"
+        );
 
         static ShardLimits readFrom(StreamInput in) throws IOException {
-            return new ShardLimits(in.readInt(), in.readInt());
+            return in.getTransportVersion().supports(VERSION_SHARD_CAPACITY_UNHEALTH_THRESHOLDS)
+                ? new ShardLimits(in.readInt(), in.readInt(), in.readInt(), in.readInt())
+                // defaults from older versions
+                : new ShardLimits(in.readInt(), in.readInt(), 10, 5);
         }
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.field(MAX_SHARDS_PER_NODE.getPreferredName(), maxShardsPerNode);
             builder.field(MAX_SHARDS_PER_NODE_FROZEN.getPreferredName(), maxShardsPerNodeFrozen);
+            builder.field(SHARD_CAPACITY_UNHEALTHY_THRESHOLD_YELLOW_FIELD.getPreferredName(), shardCapacityUnhealthyThresholdYellow);
+            builder.field(SHARD_CAPACITY_UNHEALTHY_THRESHOLD_RED_FIELD.getPreferredName(), shardCapacityUnhealthyThresholdRed);
             return builder;
         }
 
@@ -178,6 +197,10 @@ public final class HealthMetadata extends AbstractNamedDiffable<ClusterState.Cus
         public void writeTo(StreamOutput out) throws IOException {
             out.writeInt(maxShardsPerNode);
             out.writeInt(maxShardsPerNodeFrozen);
+            if (out.getTransportVersion().supports(VERSION_SHARD_CAPACITY_UNHEALTH_THRESHOLDS)) {
+                out.writeInt(shardCapacityUnhealthyThresholdYellow);
+                out.writeInt(shardCapacityUnhealthyThresholdRed);
+            }
         }
 
         public static Builder newBuilder() {
@@ -192,12 +215,16 @@ public final class HealthMetadata extends AbstractNamedDiffable<ClusterState.Cus
 
             private int maxShardsPerNode;
             private int maxShardsPerNodeFrozen;
+            private int shardCapacityUnhealthyThresholdYellow;
+            private int shardCapacityUnhealthyThresholdRed;
 
             private Builder() {}
 
             private Builder(ShardLimits shardLimits) {
                 this.maxShardsPerNode = shardLimits.maxShardsPerNode;
                 this.maxShardsPerNodeFrozen = shardLimits.maxShardsPerNodeFrozen;
+                this.shardCapacityUnhealthyThresholdYellow = shardLimits.shardCapacityUnhealthyThresholdYellow;
+                this.shardCapacityUnhealthyThresholdRed = shardLimits.shardCapacityUnhealthyThresholdRed;
             }
 
             public Builder maxShardsPerNode(int maxShardsPerNode) {
@@ -210,8 +237,23 @@ public final class HealthMetadata extends AbstractNamedDiffable<ClusterState.Cus
                 return this;
             }
 
+            public Builder shardCapacityUnhealthyThresholdYellow(int shardCapacityUnhealthyThresholdYellow) {
+                this.shardCapacityUnhealthyThresholdYellow = shardCapacityUnhealthyThresholdYellow;
+                return this;
+            }
+
+            public Builder shardCapacityUnhealthyThresholdRed(int shardCapacityUnhealthyThresholdRed) {
+                this.shardCapacityUnhealthyThresholdRed = shardCapacityUnhealthyThresholdRed;
+                return this;
+            }
+
             public ShardLimits build() {
-                return new ShardLimits(maxShardsPerNode, maxShardsPerNodeFrozen);
+                return new ShardLimits(
+                    maxShardsPerNode,
+                    maxShardsPerNodeFrozen,
+                    shardCapacityUnhealthyThresholdYellow,
+                    shardCapacityUnhealthyThresholdRed
+                );
             }
         }
     }
@@ -230,6 +272,7 @@ public final class HealthMetadata extends AbstractNamedDiffable<ClusterState.Cus
     ) implements ToXContentFragment, Writeable {
 
         public static final String TYPE = "disk";
+        public static final TransportVersion VERSION_SUPPORTING_HEADROOM_FIELDS = TransportVersions.V_8_5_0;
 
         private static final ParseField HIGH_WATERMARK_FIELD = new ParseField("high_watermark");
         private static final ParseField HIGH_MAX_HEADROOM_FIELD = new ParseField("high_max_headroom");
@@ -252,8 +295,12 @@ public final class HealthMetadata extends AbstractNamedDiffable<ClusterState.Cus
                 FROZEN_FLOOD_STAGE_WATERMARK_FIELD.getPreferredName()
             );
             ByteSizeValue frozenFloodStageMaxHeadroom = ByteSizeValue.readFrom(in);
-            ByteSizeValue highMaxHeadroom = ByteSizeValue.readFrom(in);
-            ByteSizeValue floodStageMaxHeadroom = ByteSizeValue.readFrom(in);
+            ByteSizeValue highMaxHeadroom = in.getTransportVersion().onOrAfter(VERSION_SUPPORTING_HEADROOM_FIELDS)
+                ? ByteSizeValue.readFrom(in)
+                : ByteSizeValue.MINUS_ONE;
+            ByteSizeValue floodStageMaxHeadroom = in.getTransportVersion().onOrAfter(VERSION_SUPPORTING_HEADROOM_FIELDS)
+                ? ByteSizeValue.readFrom(in)
+                : ByteSizeValue.MINUS_ONE;
             return new Disk(
                 highWatermark,
                 highMaxHeadroom,
@@ -270,8 +317,10 @@ public final class HealthMetadata extends AbstractNamedDiffable<ClusterState.Cus
             out.writeString(describeFloodStageWatermark());
             out.writeString(describeFrozenFloodStageWatermark());
             frozenFloodStageMaxHeadroom.writeTo(out);
-            highMaxHeadroom.writeTo(out);
-            floodStageMaxHeadroom.writeTo(out);
+            if (out.getTransportVersion().onOrAfter(VERSION_SUPPORTING_HEADROOM_FIELDS)) {
+                highMaxHeadroom.writeTo(out);
+                floodStageMaxHeadroom.writeTo(out);
+            }
         }
 
         @Override
@@ -377,57 +426,57 @@ public final class HealthMetadata extends AbstractNamedDiffable<ClusterState.Cus
 
             private Builder() {}
 
-            public Builder highWatermark(RelativeByteSizeValue highWatermark) {
+            public Disk.Builder highWatermark(RelativeByteSizeValue highWatermark) {
                 this.highWatermark = highWatermark;
                 return this;
             }
 
-            public Builder highWatermark(String highWatermark, String setting) {
+            public Disk.Builder highWatermark(String highWatermark, String setting) {
                 return highWatermark(RelativeByteSizeValue.parseRelativeByteSizeValue(highWatermark, setting));
             }
 
-            public Builder highMaxHeadroom(ByteSizeValue highMaxHeadroom) {
+            public Disk.Builder highMaxHeadroom(ByteSizeValue highMaxHeadroom) {
                 this.highMaxHeadroom = highMaxHeadroom;
                 return this;
             }
 
-            public Builder highMaxHeadroom(String highMaxHeadroom, String setting) {
+            public Disk.Builder highMaxHeadroom(String highMaxHeadroom, String setting) {
                 return highMaxHeadroom(ByteSizeValue.parseBytesSizeValue(highMaxHeadroom, setting));
             }
 
-            public Builder floodStageWatermark(RelativeByteSizeValue floodStageWatermark) {
+            public Disk.Builder floodStageWatermark(RelativeByteSizeValue floodStageWatermark) {
                 this.floodStageWatermark = floodStageWatermark;
                 return this;
             }
 
-            public Builder floodStageWatermark(String floodStageWatermark, String setting) {
+            public Disk.Builder floodStageWatermark(String floodStageWatermark, String setting) {
                 return floodStageWatermark(RelativeByteSizeValue.parseRelativeByteSizeValue(floodStageWatermark, setting));
             }
 
-            public Builder floodStageMaxHeadroom(ByteSizeValue floodStageMaxHeadroom) {
+            public Disk.Builder floodStageMaxHeadroom(ByteSizeValue floodStageMaxHeadroom) {
                 this.floodStageMaxHeadroom = floodStageMaxHeadroom;
                 return this;
             }
 
-            public Builder floodStageMaxHeadroom(String floodStageMaxHeadroom, String setting) {
+            public Disk.Builder floodStageMaxHeadroom(String floodStageMaxHeadroom, String setting) {
                 return floodStageMaxHeadroom(ByteSizeValue.parseBytesSizeValue(floodStageMaxHeadroom, setting));
             }
 
-            public Builder frozenFloodStageWatermark(RelativeByteSizeValue frozenFloodStageWatermark) {
+            public Disk.Builder frozenFloodStageWatermark(RelativeByteSizeValue frozenFloodStageWatermark) {
                 this.frozenFloodStageWatermark = frozenFloodStageWatermark;
                 return this;
             }
 
-            public Builder frozenFloodStageWatermark(String frozenFloodStageWatermark, String setting) {
+            public Disk.Builder frozenFloodStageWatermark(String frozenFloodStageWatermark, String setting) {
                 return frozenFloodStageWatermark(RelativeByteSizeValue.parseRelativeByteSizeValue(frozenFloodStageWatermark, setting));
             }
 
-            public Builder frozenFloodStageMaxHeadroom(ByteSizeValue frozenFloodStageMaxHeadroom) {
+            public Disk.Builder frozenFloodStageMaxHeadroom(ByteSizeValue frozenFloodStageMaxHeadroom) {
                 this.frozenFloodStageMaxHeadroom = frozenFloodStageMaxHeadroom;
                 return this;
             }
 
-            public Builder frozenFloodStageMaxHeadroom(String frozenFloodStageMaxHeadroom, String setting) {
+            public Disk.Builder frozenFloodStageMaxHeadroom(String frozenFloodStageMaxHeadroom, String setting) {
                 return frozenFloodStageMaxHeadroom(ByteSizeValue.parseBytesSizeValue(frozenFloodStageMaxHeadroom, setting));
             }
 

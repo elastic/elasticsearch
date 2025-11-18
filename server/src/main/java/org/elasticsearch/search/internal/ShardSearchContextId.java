@@ -77,4 +77,8 @@ public final class ShardSearchContextId implements Writeable {
     public String toString() {
         return "[" + sessionId + "][" + id + "] searcherId [" + searcherId + "]";
     }
+
+    public String getSearcherId() {
+        return searcherId;
+    }
 }

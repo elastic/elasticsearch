@@ -43,6 +43,7 @@ import java.util.function.Function;
 import static org.elasticsearch.index.codec.vectors.diskbbq.ES920DiskBBQVectorsFormat.MAX_VECTORS_PER_CLUSTER;
 import static org.elasticsearch.index.codec.vectors.diskbbq.ES920DiskBBQVectorsFormat.MIN_VECTORS_PER_CLUSTER;
 import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.BBQ_MIN_DIMS;
+import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.ElementType.BFLOAT16;
 import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.ElementType.BIT;
 import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.ElementType.BYTE;
 import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.ElementType.FLOAT;
@@ -96,6 +97,15 @@ public class DenseVectorFieldTypeTests extends FieldTypeTestCase {
         );
     }
 
+    public static DenseVectorFieldMapper.VectorSimilarity randomGPUSupportedSimilarity(
+        DenseVectorFieldMapper.VectorIndexType vectorIndexType
+    ) {
+        if (vectorIndexType == DenseVectorFieldMapper.VectorIndexType.INT8_HNSW) {
+            return randomFrom(VectorSimilarity.L2_NORM, VectorSimilarity.COSINE, VectorSimilarity.DOT_PRODUCT);
+        }
+        return randomFrom(VectorSimilarity.values());
+    }
+
     public static DenseVectorFieldMapper.DenseVectorIndexOptions randomIndexOptionsAll() {
         List<DenseVectorFieldMapper.DenseVectorIndexOptions> options = new ArrayList<>(
             Arrays.asList(
@@ -124,6 +134,7 @@ public class DenseVectorFieldTypeTests extends FieldTypeTestCase {
                 new DenseVectorFieldMapper.BBQHnswIndexOptions(
                     randomIntBetween(1, 100),
                     randomIntBetween(1, 10_000),
+                    randomBoolean(),
                     randomFrom((DenseVectorFieldMapper.RescoreVector) null, randomRescoreVector())
                 ),
                 new DenseVectorFieldMapper.BBQFlatIndexOptions(
@@ -164,7 +175,12 @@ public class DenseVectorFieldTypeTests extends FieldTypeTestCase {
                 randomFrom((Float) null, 0f, (float) randomDoubleBetween(0.9, 1.0, true)),
                 rescoreVector
             ),
-            new DenseVectorFieldMapper.BBQHnswIndexOptions(randomIntBetween(1, 100), randomIntBetween(1, 10_000), rescoreVector)
+            new DenseVectorFieldMapper.BBQHnswIndexOptions(
+                randomIntBetween(1, 100),
+                randomIntBetween(1, 10_000),
+                randomBoolean(),
+                rescoreVector
+            )
         );
     }
 
@@ -773,6 +789,7 @@ public class DenseVectorFieldTypeTests extends FieldTypeTestCase {
     public void testFilterSearchThreshold() {
         List<Tuple<DenseVectorFieldMapper.ElementType, Function<Query, KnnSearchStrategy>>> cases = List.of(
             Tuple.tuple(FLOAT, q -> ((ESKnnFloatVectorQuery) q).getStrategy()),
+            Tuple.tuple(BFLOAT16, q -> ((ESKnnFloatVectorQuery) q).getStrategy()),
             Tuple.tuple(BYTE, q -> ((ESKnnByteVectorQuery) q).getStrategy()),
             Tuple.tuple(BIT, q -> ((ESKnnByteVectorQuery) q).getStrategy())
         );

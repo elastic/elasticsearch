@@ -616,7 +616,12 @@ public class RestEsqlIT extends RestEsqlTestCase {
                         // If the coordinating node and data node are the same node then we get this
                         either(matchesList().item("ExchangeSourceOperator").item("ExchangeSinkOperator"))
                             // If the coordinating node and data node are *not* the same node we get this
-                            .or(matchesList().item("ExchangeSourceOperator").item("TopNOperator").item("ExchangeSinkOperator"))
+                            .or(
+                                matchesList().item("ExchangeSourceOperator")
+                                    .item("TopNOperator")
+                                    .item("ProjectOperator")
+                                    .item("ExchangeSinkOperator")
+                            )
                     );
                     case "final" -> assertMap(
                         sig,
@@ -761,6 +766,7 @@ public class RestEsqlIT extends RestEsqlTestCase {
         shouldBeSupported.remove(DataType.DOC_DATA_TYPE);
         shouldBeSupported.remove(DataType.TSID_DATA_TYPE);
         shouldBeSupported.remove(DataType.DENSE_VECTOR);
+        shouldBeSupported.remove(DataType.EXPONENTIAL_HISTOGRAM); // TODO(b/133393): add support when blockloader is implemented
         if (EsqlCapabilities.Cap.AGGREGATE_METRIC_DOUBLE_V0.isEnabled() == false) {
             shouldBeSupported.remove(DataType.AGGREGATE_METRIC_DOUBLE);
         }

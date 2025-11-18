@@ -56,7 +56,7 @@ public class DateExtractTests extends AbstractConfigurationFunctionTestCase {
                             "DateExtractMillisEvaluator[value=Attribute[channel=1], chronoField=Attribute[channel=0], zone=Z]",
                             DataType.LONG,
                             equalTo(2023L)
-                        )
+                        ).withStaticConfiguration()
                     ),
                     new TestCaseSupplier(
                         List.of(stringType, DataType.DATE_NANOS),
@@ -68,7 +68,7 @@ public class DateExtractTests extends AbstractConfigurationFunctionTestCase {
                             "DateExtractNanosEvaluator[value=Attribute[channel=1], chronoField=Attribute[channel=0], zone=Z]",
                             DataType.LONG,
                             equalTo(2023L)
-                        )
+                        ).withStaticConfiguration()
                     ),
                     new TestCaseSupplier(
                         List.of(stringType, DataType.DATE_NANOS),
@@ -80,7 +80,7 @@ public class DateExtractTests extends AbstractConfigurationFunctionTestCase {
                             "DateExtractNanosEvaluator[value=Attribute[channel=1], chronoField=Attribute[channel=0], zone=Z]",
                             DataType.LONG,
                             equalTo(123456L)
-                        )
+                        ).withStaticConfiguration()
                     ),
                     new TestCaseSupplier(
                         List.of(stringType, DataType.DATETIME),
@@ -93,7 +93,10 @@ public class DateExtractTests extends AbstractConfigurationFunctionTestCase {
                             "DateExtractMillisEvaluator[value=Attribute[channel=1], chronoField=Attribute[channel=0], zone=Z]",
                             DataType.LONG,
                             is(nullValue())
-                        ).withWarning("Line 1:1: evaluation of [source] failed, treating result as null. Only first 20 failures recorded.")
+                        ).withStaticConfiguration()
+                            .withWarning(
+                                "Line 1:1: evaluation of [source] failed, treating result as null. Only first 20 failures recorded."
+                            )
                             .withWarning(
                                 "Line 1:1: java.lang.IllegalArgumentException: "
                                     + "No enum constant java.time.temporal.ChronoField.NOT A UNIT"
@@ -104,7 +107,7 @@ public class DateExtractTests extends AbstractConfigurationFunctionTestCase {
             );
         }
 
-        return parameterSuppliersFromTypedDataWithDefaultChecksNoErrors(true, suppliers);
+        return parameterSuppliersFromTypedDataWithDefaultChecks(true, suppliers);
     }
 
     public void testAllChronoFields() {

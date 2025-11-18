@@ -9,6 +9,8 @@
 
 package org.elasticsearch.action.admin.indices.rollover;
 
+import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -60,5 +62,10 @@ public class OptimalShardCountCondition extends Condition<Integer> {
         } else {
             throw new IllegalArgumentException("invalid token when parsing " + NAME + " condition: " + parser.currentToken());
         }
+    }
+
+    @Override
+    boolean includedInVersion(TransportVersion version) {
+        return version.onOrAfter(TransportVersions.V_8_14_0);
     }
 }

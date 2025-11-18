@@ -9,6 +9,7 @@
 
 package org.elasticsearch.action.admin.indices.mapping.get;
 
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.support.IndicesOptions;
@@ -42,6 +43,9 @@ public class GetMappingsRequest extends LocalClusterStateRequest implements Indi
     public GetMappingsRequest(StreamInput in) throws IOException {
         super(in);
         indices = in.readStringArray();
+        if (in.getTransportVersion().before(TransportVersions.V_8_0_0)) {
+            in.readStringArray();
+        }
         indicesOptions = IndicesOptions.readIndicesOptions(in);
     }
 

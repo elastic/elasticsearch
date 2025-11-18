@@ -12,46 +12,84 @@ package org.elasticsearch.cluster.routing;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexReshardingMetadata;
 import org.elasticsearch.cluster.metadata.IndexReshardingState;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.Writeable;
+
+import java.io.IOException;
 
 /**
  * The SplitShardCountSummary has been added to accommodate in-place index resharding.
- * This is populated when the coordinator is deciding which shards a request applies to.
- * For example, {@link org.elasticsearch.action.bulk.BulkOperation} splits
- * an incoming bulk request into shard level {@link org.elasticsearch.action.bulk.BulkShardRequest}
- * based on its cluster state view of the number of shards that are ready for indexing.
- * The purpose of this metadata is to reconcile the cluster state visible at the coordinating
- * node with that visible at the source shard node. (w.r.t resharding).
- * When an index is being split, there is a point in time when the newly created shard (target shard)
- * takes over its portion of the document space from the original shard (source shard).
- * Although the handoff is atomic at the original (source shard) and new shards (target shard),
- * there is a window of time between the coordinating node creating a shard request and the shard receiving and processing it.
- * This field is used by the original shard (source shard) when it processes the request to detect whether
- * the coordinator's view of the new shard's state when it created the request matches the shard's current state,
- * or whether the request must be reprocessed taking into account the current shard states.
- *
- * Note that we are able to get away with a single number, instead of an array of target shard states,
- * because we only allow splits in increments of 2x.
- *
+ * <p>
+ * Documents are routed to shards by hashing some routing field of the document
+ * (typically the document ID) and partitioning the hash space among the shards.
+ * When the number of shards changes, that changes the way the hash space is partitioned,
+ * causing some documents to route to different shards. For documents that have already been indexed,
+ * the shards coordinate between themselves to move documents from their old shard to their new home
+ * as necessary. The original shard hands off the share of its hash space that will route to the new
+ * shard atomically, blocking requests while the handoff is performed and rerouting any queued requests
+ * that should now route to the new shard after handoff has completed.
+ * <p>
+ * But how does the original shard know if a queued request should be rerouted? And for that matter, how
+ * does it know whether requests that arrive after handoff has completed have been routed correctly?
+ * It is the coordinating node's job to convert index-level requests into the appropriate set of shard-level requests.
+ * That's where SplitShardCountSummary comes in. The coordinator computes this field for each shard-level request
+ * it creates, based on its view of the number of routable shards in the index at the time. When the receiving shard
+ * processes the request, it can compare the summary provided by the coordinator against its own view. If a handoff has
+ * occurred between the time the coordinator created the shard request and the time the shard processes it, then the
+ * provided summary won't match the summary calculated by the receiving shard.
+ * <p>
+ * The SplitShardCountSummary is calculated by the coordinating node independently for each shard-level request, but its value
+ * is either the old number of shards in the *index* or the new number of shards. This compact encoding still makes it possible to handle
+ * requests that are stale enough that more than one split has taken place between the time the request was created and
+ * processed (although this is expected to be rare, long-running requests like PITs mean that it should be handled gracefully).
+ * Some indexing examples follow.
+ * <p>
  * Example 1:
  * Suppose we are resharding an index from 2 -> 4 shards. While splitting a bulk request, the coordinator observes
  * that target shards are not ready for indexing. So requests that are meant for shard 0 and 2 are bundled together,
  * sent to shard 0 with “reshardSplitShardCountSummary” 2 in the request.
  * Requests that are meant for shard 1 and 3 are bundled together,
  * sent to shard 1 with “reshardSplitShardCountSummary” 2 in the request.
- *
+ * <p>
  * Example 2:
  * Suppose we are resharding an index from 4 -> 8 shards. While splitting a bulk request, the coordinator observes
- * that source shard 0 has completed HANDOFF but source shards 1, 2, 3 have not completed handoff.
+ * that source shard 0 has completed handoff but source shards 1, 2, 3 have not completed handoff.
  * So, the shard-bulk-request it sends to shard 0 and 4 has the "reshardSplitShardCountSummary" 8,
  * while the shard-bulk-request it sends to shard 1,2,3 has the "reshardSplitShardCountSummary" 4.
  * Note that in this case no shard-bulk-request is sent to shards 5, 6, 7 and the requests that were meant for these target shards
  * are bundled together with and sent to their source shards.
- *
+ * <p>
+ * Search during resharding has the same basic problem but is handled a little differently. Indexing shards handle stale requests by
+ * re-splitting bulk requests into sub requests containing documents appropriate for each shard, then aggregating the results of those
+ * requests and completing the original shard level request. But when a shard is split, it starts out with both the old and new shards
+ * containing all the documents that were on the old shard, until each shard deletes the documents that route to the other at the
+ * end of the split process. To handle search requests that arrive after the split but before the cleanup, search shards filter out
+ * documents that belong to the other shard, but only if they know that the coordinator is including the other shard in its query.
+ * If the coordinator's shard count summary differs from the shard's calculation, that means that the coordinator did not include
+ * shards in the query that have been split since the query was created, and the search shards should not filter. If the count matches,
+ * then the coordinator is including both the old and new shards in its query, and the shards themselves should filter.
+ * <p>
+ * Search example:
+ * Suppose we are resharding an index from 4 -> 8 shards. While handling a search request, the coordinator observes
+ * that target shard 5 is in SPLIT state but target shards 4, 6, 7 are in CLONE/HANDOFF state.
+ * The coordinator will send shard search requests to all source shards (0, 1, 2, 3) and to all target shards
+ * that are at least in SPLIT state (5).
+ * Shard search request sent to source shards 0, 2, 3 has the "reshardSplitShardCountSummary" of 4
+ * since corresponding target shards (4, 6, 7) have not advanced to SPLIT state.
+ * Shard search request sent to source shard 1 has the "reshardSplitShardCountSummary" of 8
+ * since the corresponding target shard 5 is in SPLIT state.
+ * When a shard search request is executed on the source shard 1, "reshardSplitShardCountSummary" value
+ * is checked and documents that will be returned by target shard 5 are excluded
+ * (they are still present in the source shard because the resharding process is not complete).
+ * All other source shard search requests (0, 2, 3) return all available documents since corresponding target shards
+ * are not yet available to do that.
+ * <p>
  * A value of 0 indicates an INVALID reshardSplitShardCountSummary. Hence, a request with INVALID reshardSplitShardCountSummary
  * will be treated as a Summary mismatch on the source shard node.
  */
 
-public class SplitShardCountSummary {
+public class SplitShardCountSummary implements Writeable {
     public static final SplitShardCountSummary UNSET = new SplitShardCountSummary(0);
 
     /**
@@ -128,13 +166,20 @@ public class SplitShardCountSummary {
 
     /**
      * Construct a SplitShardCountSummary from an integer
-     * Used for deserialization.
+     * Used for deserialization in versions that use int instead of vInt for serialization.
      */
     public static SplitShardCountSummary fromInt(int payload) {
         return new SplitShardCountSummary(payload);
     }
 
     private final int shardCountSummary;
+
+    /**
+     * Deserialize a SplitShardCountSummary using a canonical vInt-based serialization protocol.
+     */
+    public SplitShardCountSummary(StreamInput in) throws IOException {
+        this.shardCountSummary = in.readVInt();
+    }
 
     /**
      * Return an integer representation of this summary
@@ -156,6 +201,14 @@ public class SplitShardCountSummary {
         this.shardCountSummary = shardCountSummary;
     }
 
+    /**
+     * Serializes a SplitShardCountSummary using a canonical vInt-based serialization protocol.
+     */
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        out.writeVInt(shardCountSummary);
+    }
+
     @Override
     public boolean equals(Object other) {
         if (this == other) {
@@ -171,5 +224,10 @@ public class SplitShardCountSummary {
     @Override
     public int hashCode() {
         return Integer.hashCode(shardCountSummary);
+    }
+
+    @Override
+    public String toString() {
+        return "SplitShardCountSummary [shardCountSummary=" + shardCountSummary + "]";
     }
 }

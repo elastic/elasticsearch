@@ -40,12 +40,12 @@
         "description": "The interval for the second sampling of threads"
       },
       "snapshots": {
-        "type": "number",
+        "type": "long",
         "default": 10,
         "description": "Number of samples of thread stacktrace (default: 10)"
       },
       "threads": {
-        "type": "number",
+        "type": "long",
         "default": 3,
         "description": "Specify the number of threads to provide information for (default: 3)"
       },
@@ -60,6 +60,7 @@
           "cpu",
           "wait",
           "block",
+          "gpu",
           "mem"
         ],
         "default": "cpu",
@@ -69,7 +70,10 @@
         "type": "enum",
         "options": [
           "cpu",
-          "total"
+          "wait",
+          "block",
+          "gpu",
+          "mem"
         ],
         "description": "The sort order for 'cpu' type (default: total)"
       },

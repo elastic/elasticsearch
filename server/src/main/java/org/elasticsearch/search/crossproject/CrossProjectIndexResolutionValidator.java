@@ -16,6 +16,8 @@ import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.action.ResolvedIndexExpression;
 import org.elasticsearch.action.ResolvedIndexExpressions;
 import org.elasticsearch.action.support.IndicesOptions;
+import org.elasticsearch.common.Strings;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.transport.RemoteClusterAware;
@@ -66,12 +68,14 @@ public class CrossProjectIndexResolutionValidator {
      * local and linked project resolution results when determining the appropriate error response.
      *
      * @param indicesOptions            Controls error behavior for missing indices
+     * @param projectRouting            The project routing string from the request, can be null if request does not specify it
      * @param localResolvedExpressions  Resolution results from the origin project
      * @param remoteResolvedExpressions Resolution results from linked projects
      * @return a {@link ElasticsearchException} if validation fails, null if validation passes
      */
     public static ElasticsearchException validate(
         IndicesOptions indicesOptions,
+        @Nullable String projectRouting,
         ResolvedIndexExpressions localResolvedExpressions,
         Map<String, ResolvedIndexExpressions> remoteResolvedExpressions
     ) {
@@ -80,30 +84,27 @@ public class CrossProjectIndexResolutionValidator {
             return null;
         }
 
+        final boolean hasProjectRouting = Strings.isEmpty(projectRouting) == false;
         logger.debug(
-            "Checking index existence for [{}] and [{}] with indices options [{}]",
+            "Checking index existence for [{}] and [{}] with indices options [{}]{}",
             localResolvedExpressions,
             remoteResolvedExpressions,
-            indicesOptions
+            indicesOptions,
+            hasProjectRouting ? " and project routing [" + projectRouting + "]" : ""
         );
 
         for (ResolvedIndexExpression localResolvedIndices : localResolvedExpressions.expressions()) {
             String originalExpression = localResolvedIndices.original();
             logger.debug("Checking replaced expression for original expression [{}]", originalExpression);
 
-            // Check if this is a qualified resource (project:index pattern)
-            boolean isQualifiedExpression = RemoteClusterAware.isRemoteIndexName(originalExpression);
+            // Check if this is a qualified resource (project:index pattern) or has project routing
+            boolean isQualifiedExpression = hasProjectRouting || RemoteClusterAware.isRemoteIndexName(originalExpression);
 
             Set<String> remoteExpressions = localResolvedIndices.remoteExpressions();
             ResolvedIndexExpression.LocalExpressions localExpressions = localResolvedIndices.localExpressions();
             ResolvedIndexExpression.LocalIndexResolutionResult result = localExpressions.localIndexResolutionResult();
             if (isQualifiedExpression) {
-                ElasticsearchException e = checkResolutionFailure(
-                    localExpressions.expressions(),
-                    result,
-                    originalExpression,
-                    indicesOptions
-                );
+                ElasticsearchException e = checkResolutionFailure(localExpressions, result, originalExpression, indicesOptions);
                 if (e != null) {
                     return e;
                 }
@@ -123,7 +124,7 @@ public class CrossProjectIndexResolutionValidator {
                 }
             } else {
                 ElasticsearchException localException = checkResolutionFailure(
-                    localExpressions.expressions(),
+                    localExpressions,
                     result,
                     originalExpression,
                     indicesOptions
@@ -157,7 +158,7 @@ public class CrossProjectIndexResolutionValidator {
                     continue;
                 }
                 if (isUnauthorized) {
-                    return securityException(originalExpression);
+                    return localException;
                 }
                 return new IndexNotFoundException(originalExpression);
             }
@@ -167,10 +168,10 @@ public class CrossProjectIndexResolutionValidator {
     }
 
     public static IndicesOptions indicesOptionsForCrossProjectFanout(IndicesOptions indicesOptions) {
-        // TODO set resolveCrossProject=false here once we have an IndicesOptions flag for that
         return IndicesOptions.builder(indicesOptions)
             .concreteTargetOptions(new IndicesOptions.ConcreteTargetOptions(true))
             .wildcardOptions(IndicesOptions.WildcardOptions.builder(indicesOptions.wildcardOptions()).allowEmptyExpressions(true).build())
+            .crossProjectModeOptions(IndicesOptions.CrossProjectModeOptions.DEFAULT)
             .build();
     }
 
@@ -196,7 +197,7 @@ public class CrossProjectIndexResolutionValidator {
         }
 
         return checkResolutionFailure(
-            matchingExpression.expressions(),
+            matchingExpression,
             matchingExpression.localIndexResolutionResult(),
             remoteExpression,
             indicesOptions
@@ -228,7 +229,7 @@ public class CrossProjectIndexResolutionValidator {
     }
 
     private static ElasticsearchException checkResolutionFailure(
-        Set<String> localExpressions,
+        ResolvedIndexExpression.LocalExpressions localExpressions,
         ResolvedIndexExpression.LocalIndexResolutionResult result,
         String expression,
         IndicesOptions indicesOptions
@@ -240,11 +241,14 @@ public class CrossProjectIndexResolutionValidator {
             if (result == CONCRETE_RESOURCE_NOT_VISIBLE) {
                 return new IndexNotFoundException(expression);
             } else if (result == CONCRETE_RESOURCE_UNAUTHORIZED) {
-                return securityException(expression);
+                assert localExpressions.exception() != null
+                    : "ResolvedIndexExpression should have exception set when concrete index is unauthorized";
+
+                return localExpressions.exception();
             }
         }
 
-        if (indicesOptions.allowNoIndices() == false && result == SUCCESS && localExpressions.isEmpty()) {
+        if (indicesOptions.allowNoIndices() == false && result == SUCCESS && localExpressions.indices().isEmpty()) {
             return new IndexNotFoundException(expression);
         }
 

@@ -28,7 +28,7 @@ public class LimitGenerator implements CommandGenerator {
         QuerySchema schema,
         QueryExecutor executor
     ) {
-        int limit = randomIntBetween(0, 15000);
+        int limit = randomIntBetween(0, 2000);
         String cmd = " | limit " + limit;
         return new CommandDescription(LIMIT, this, cmd, Map.ofEntries(Map.entry(LIMIT, limit)));
     }

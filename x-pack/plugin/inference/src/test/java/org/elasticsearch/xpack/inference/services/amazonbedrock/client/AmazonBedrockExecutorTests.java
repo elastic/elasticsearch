@@ -34,7 +34,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.List;
 
 import static org.elasticsearch.xpack.core.inference.results.ChatCompletionResultsTests.buildExpectationCompletion;
-import static org.elasticsearch.xpack.core.inference.results.TextEmbeddingFloatResultsTests.buildExpectationFloat;
+import static org.elasticsearch.xpack.core.inference.results.DenseEmbeddingFloatResultsTests.buildExpectationFloat;
 import static org.elasticsearch.xpack.inference.common.TruncatorTests.createTruncator;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;

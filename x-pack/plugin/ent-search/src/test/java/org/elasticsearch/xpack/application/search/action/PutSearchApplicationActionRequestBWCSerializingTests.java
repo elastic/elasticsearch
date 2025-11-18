@@ -35,7 +35,14 @@ public class PutSearchApplicationActionRequestBWCSerializingTests extends Abstra
 
     @Override
     protected PutSearchApplicationAction.Request mutateInstance(PutSearchApplicationAction.Request instance) {
-        return randomValueOtherThan(instance, this::createTestInstance);
+        SearchApplication searchApplication = instance.getSearchApplication();
+        boolean create = instance.create();
+        switch (randomIntBetween(0, 1)) {
+            case 0 -> searchApplication = EnterpriseSearchModuleTestUtils.randomSearchApplication();
+            case 1 -> create = create == false;
+            default -> throw new AssertionError("Illegal randomisation branch");
+        }
+        return new PutSearchApplicationAction.Request(searchApplication, create);
     }
 
     @Override

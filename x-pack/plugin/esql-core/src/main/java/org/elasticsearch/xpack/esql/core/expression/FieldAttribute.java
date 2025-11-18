@@ -48,7 +48,8 @@ public class FieldAttribute extends TypedAttribute {
         FieldAttribute::readFrom
     );
 
-    private static final TransportVersion ESQL_FIELD_ATTRIBUTE_DROP_TYPE = TransportVersion.fromName("esql_field_attribute_drop_type");
+    // Only public for testing
+    public static final TransportVersion ESQL_FIELD_ATTRIBUTE_DROP_TYPE = TransportVersion.fromName("esql_field_attribute_drop_type");
 
     private final String parentName;
     private final EsField field;
@@ -230,15 +231,14 @@ public class FieldAttribute extends TypedAttribute {
     }
 
     @Override
-    @SuppressWarnings("checkstyle:EqualsHashCode")// equals is implemented in parent. See innerEquals instead
-    public int hashCode() {
-        return Objects.hash(super.hashCode(), parentName, field);
+    protected int innerHashCode(boolean ignoreIds) {
+        return Objects.hash(super.innerHashCode(ignoreIds), parentName, field);
     }
 
     @Override
-    protected boolean innerEquals(Object o) {
+    protected boolean innerEquals(Object o, boolean ignoreIds) {
         var other = (FieldAttribute) o;
-        return super.innerEquals(other) && Objects.equals(parentName, other.parentName) && Objects.equals(field, other.field);
+        return super.innerEquals(other, ignoreIds) && Objects.equals(parentName, other.parentName) && Objects.equals(field, other.field);
     }
 
     @Override

@@ -12,6 +12,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.inference.ServiceSettings;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xpack.inference.services.validation.DenseEmbeddingModelValidator;
 
 /**
  * Contains any model-specific settings that are stored in SageMakerServiceSettings.
@@ -72,7 +73,7 @@ public interface SageMakerStoredServiceSchema extends ServiceSettings {
 
     /**
      * If this Schema supports Text Embeddings, then we need to implement this.
-     * {@link org.elasticsearch.xpack.inference.services.validation.TextEmbeddingModelValidator} will set the dimensions if the user
+     * {@link DenseEmbeddingModelValidator} will set the dimensions if the user
      * does not do it, so we need to store the dimensions and flip the {@link #dimensionsSetByUser()} boolean.
      */
     default SageMakerStoredServiceSchema updateModelWithEmbeddingDetails(Integer dimensions) {

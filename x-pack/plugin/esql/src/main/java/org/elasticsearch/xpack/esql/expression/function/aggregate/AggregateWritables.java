@@ -19,6 +19,7 @@ public class AggregateWritables {
             Count.ENTRY,
             CountDistinct.ENTRY,
             First.ENTRY,
+            AllFirst.ENTRY,
             Max.ENTRY,
             Median.ENTRY,
             MedianAbsoluteDeviation.ENTRY,
@@ -33,6 +34,7 @@ public class AggregateWritables {
             SpatialCentroid.ENTRY,
             SpatialExtent.ENTRY,
             StdDev.ENTRY,
+            Variance.ENTRY,
             Sum.ENTRY,
             Top.ENTRY,
             Values.ENTRY,
@@ -49,7 +51,9 @@ public class AggregateWritables {
             Present.ENTRY,
             PresentOverTime.ENTRY,
             Absent.ENTRY,
-            AbsentOverTime.ENTRY
+            AbsentOverTime.ENTRY,
+            DimensionValues.ENTRY,
+            HistogramMerge.ENTRY
         );
     }
 }

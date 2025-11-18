@@ -9,11 +9,14 @@
 
 package org.elasticsearch.cluster.metadata;
 
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ChunkedToXContentDiffableSerializationTestCase;
@@ -101,6 +104,27 @@ public class NodesShutdownMetadataTests extends ChunkedToXContentDiffableSeriali
         }
     }
 
+    public void testSigtermIsRemoveInOlderVersions() throws IOException {
+        SingleNodeShutdownMetadata metadata = SingleNodeShutdownMetadata.builder()
+            .setNodeId("myid")
+            .setNodeEphemeralId("myid")
+            .setType(SingleNodeShutdownMetadata.Type.SIGTERM)
+            .setReason("myReason")
+            .setStartedAtMillis(0L)
+            .setGracePeriod(new TimeValue(1_000))
+            .build();
+        BytesStreamOutput out = new BytesStreamOutput();
+        out.setTransportVersion(TransportVersions.V_8_7_1);
+        metadata.writeTo(out);
+        StreamInput in = out.bytes().streamInput();
+        in.setTransportVersion(TransportVersions.V_8_7_1);
+        assertThat(new SingleNodeShutdownMetadata(in).getType(), equalTo(SingleNodeShutdownMetadata.Type.REMOVE));
+
+        out = new BytesStreamOutput();
+        metadata.writeTo(out);
+        assertThat(new SingleNodeShutdownMetadata(out.bytes().streamInput()).getType(), equalTo(SingleNodeShutdownMetadata.Type.SIGTERM));
+    }
+
     public void testIsNodeMarkedForRemoval() {
         SingleNodeShutdownMetadata.Type type;
         SingleNodeShutdownMetadata.Builder builder = SingleNodeShutdownMetadata.builder()
@@ -182,6 +206,12 @@ public class NodesShutdownMetadataTests extends ChunkedToXContentDiffableSeriali
 
     @Override
     protected Metadata.ClusterCustom mutateInstance(Metadata.ClusterCustom instance) {
-        return makeTestChanges(instance);
+        Map<String, SingleNodeShutdownMetadata> originalNodes = ((NodesShutdownMetadata) instance).getAll();
+        Map<String, SingleNodeShutdownMetadata> mutatedNodes = randomValueOtherThan(
+            originalNodes,
+            () -> randomList(0, 10, this::randomNodeShutdownInfo).stream()
+                .collect(Collectors.toMap(SingleNodeShutdownMetadata::getNodeId, Function.identity()))
+        );
+        return new NodesShutdownMetadata(mutatedNodes);
     }
 }

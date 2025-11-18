@@ -9,8 +9,8 @@ package org.elasticsearch.xpack.inference.services.sagemaker.schema.elastic;
 
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.inference.TaskType;
-import org.elasticsearch.xpack.core.inference.results.TextEmbeddingByteResults;
-import org.elasticsearch.xpack.core.inference.results.TextEmbeddingFloatResults;
+import org.elasticsearch.xpack.core.inference.results.DenseEmbeddingByteResults;
+import org.elasticsearch.xpack.core.inference.results.DenseEmbeddingFloatResults;
 import org.elasticsearch.xpack.inference.services.sagemaker.model.SageMakerModel;
 import org.elasticsearch.xpack.inference.services.sagemaker.schema.SageMakerStoredServiceSchema;
 
@@ -66,8 +66,8 @@ public class ElasticTextEmbeddingPayloadTests extends ElasticPayloadTestCase<Ela
 
         assertThat(bitResults.embeddings().size(), is(1));
         var embedding = bitResults.embeddings().get(0);
-        assertThat(embedding, isA(TextEmbeddingByteResults.Embedding.class));
-        assertThat(((TextEmbeddingByteResults.Embedding) embedding).values(), is(new byte[] { 23 }));
+        assertThat(embedding, isA(DenseEmbeddingByteResults.Embedding.class));
+        assertThat(((DenseEmbeddingByteResults.Embedding) embedding).values(), is(new byte[] { 23 }));
     }
 
     public void testByteResponse() throws Exception {
@@ -87,8 +87,8 @@ public class ElasticTextEmbeddingPayloadTests extends ElasticPayloadTestCase<Ela
 
         assertThat(byteResults.embeddings().size(), is(1));
         var embedding = byteResults.embeddings().get(0);
-        assertThat(embedding, isA(TextEmbeddingByteResults.Embedding.class));
-        assertThat(((TextEmbeddingByteResults.Embedding) embedding).values(), is(new byte[] { 23 }));
+        assertThat(embedding, isA(DenseEmbeddingByteResults.Embedding.class));
+        assertThat(((DenseEmbeddingByteResults.Embedding) embedding).values(), is(new byte[] { 23 }));
     }
 
     public void testFloatResponse() throws Exception {
@@ -108,7 +108,7 @@ public class ElasticTextEmbeddingPayloadTests extends ElasticPayloadTestCase<Ela
 
         assertThat(byteResults.embeddings().size(), is(1));
         var embedding = byteResults.embeddings().get(0);
-        assertThat(embedding, isA(TextEmbeddingFloatResults.Embedding.class));
-        assertThat(((TextEmbeddingFloatResults.Embedding) embedding).values(), is(new float[] { 0.1F }));
+        assertThat(embedding, isA(DenseEmbeddingFloatResults.Embedding.class));
+        assertThat(((DenseEmbeddingFloatResults.Embedding) embedding).values(), is(new float[] { 0.1F }));
     }
 }

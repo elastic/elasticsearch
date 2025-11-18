@@ -42,6 +42,7 @@ import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.index.mapper.FieldNamesFieldMapper;
 import org.elasticsearch.index.mapper.FieldTypeTestCase;
+import org.elasticsearch.index.mapper.IndexType;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MappingParserContext;
@@ -49,6 +50,7 @@ import org.elasticsearch.index.mapper.TextFieldMapper;
 import org.elasticsearch.index.mapper.TextSearchInfo;
 import org.elasticsearch.index.mapper.extras.MatchOnlyTextFieldMapper.MatchOnlyTextFieldType;
 import org.elasticsearch.script.ScriptCompiler;
+import org.elasticsearch.search.lookup.SearchLookup;
 import org.hamcrest.Matchers;
 
 import java.io.IOException;
@@ -59,6 +61,7 @@ import java.util.List;
 
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public class MatchOnlyTextFieldTypeTests extends FieldTypeTestCase {
 
@@ -293,9 +296,8 @@ public class MatchOnlyTextFieldTypeTests extends FieldTypeTestCase {
 
         KeywordFieldMapper.KeywordFieldType syntheticSourceDelegate = new KeywordFieldMapper.KeywordFieldType(
             "child",
-            mock(FieldType.class),
-            mock(NamedAnalyzer.class),
-            mock(NamedAnalyzer.class),
+            IndexType.terms(true, true),
+            new TextSearchInfo(mock(FieldType.class), null, mock(NamedAnalyzer.class), mock(NamedAnalyzer.class)),
             mock(NamedAnalyzer.class),
             builder,
             true
@@ -315,6 +317,7 @@ public class MatchOnlyTextFieldTypeTests extends FieldTypeTestCase {
         // when
         MappedFieldType.BlockLoaderContext blContext = mock(MappedFieldType.BlockLoaderContext.class);
         doReturn(FieldNamesFieldMapper.FieldNamesFieldType.get(false)).when(blContext).fieldNames();
+        when(blContext.indexSettings()).thenReturn(indexSettings);
         BlockLoader blockLoader = ft.blockLoader(blContext);
 
         // then
@@ -341,9 +344,8 @@ public class MatchOnlyTextFieldTypeTests extends FieldTypeTestCase {
 
         KeywordFieldMapper.KeywordFieldType syntheticSourceDelegate = new KeywordFieldMapper.KeywordFieldType(
             "child",
-            mock(FieldType.class),
-            mock(NamedAnalyzer.class),
-            mock(NamedAnalyzer.class),
+            IndexType.terms(true, true),
+            new TextSearchInfo(mock(FieldType.class), null, mock(NamedAnalyzer.class), mock(NamedAnalyzer.class)),
             mock(NamedAnalyzer.class),
             builder,
             true
@@ -362,11 +364,44 @@ public class MatchOnlyTextFieldTypeTests extends FieldTypeTestCase {
 
         // when
         MappedFieldType.BlockLoaderContext blContext = mock(MappedFieldType.BlockLoaderContext.class);
+        when(blContext.indexSettings()).thenReturn(indexSettings);
         doReturn(FieldNamesFieldMapper.FieldNamesFieldType.get(false)).when(blContext).fieldNames();
         BlockLoader blockLoader = ft.blockLoader(blContext);
 
         // then
         // verify that we don't delegate anything
         assertThat(blockLoader, Matchers.not(Matchers.instanceOf(BlockLoader.Delegating.class)));
+    }
+
+    public void testBlockLoaderDelegateToKeywordFieldWhenSyntheticSourceIsDisabled() {
+        String parentFieldName = "foo";
+        String childFieldName = "foo.bar";
+        // given
+        KeywordFieldMapper.KeywordFieldType keywordFieldType = new KeywordFieldMapper.KeywordFieldType(
+            parentFieldName,
+            true,
+            true,
+            Collections.emptyMap()
+        );
+
+        MatchOnlyTextFieldMapper.MatchOnlyTextFieldType ft = new MatchOnlyTextFieldMapper.MatchOnlyTextFieldType(
+            childFieldName,
+            new TextSearchInfo(TextFieldMapper.Defaults.FIELD_TYPE, null, Lucene.STANDARD_ANALYZER, Lucene.STANDARD_ANALYZER),
+            mock(NamedAnalyzer.class),
+            false,
+            Collections.emptyMap(),
+            true,
+            false,
+            keywordFieldType
+        );
+
+        var mockedSearchLookup = mock(SearchLookup.class);
+        when(mockedSearchLookup.fieldType(parentFieldName)).thenReturn(keywordFieldType);
+
+        var mockedBlockLoaderContext = mock(MappedFieldType.BlockLoaderContext.class);
+        when(mockedBlockLoaderContext.parentField(childFieldName)).thenReturn(parentFieldName);
+        when(mockedBlockLoaderContext.lookup()).thenReturn(mockedSearchLookup);
+        BlockLoader blockLoader = ft.blockLoader(mockedBlockLoaderContext);
+        assertThat(blockLoader, Matchers.instanceOf(BlockLoader.Delegating.class));
     }
 }

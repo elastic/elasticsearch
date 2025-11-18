@@ -9,6 +9,7 @@
 
 package org.elasticsearch.cluster.routing.allocation.allocator;
 
+import org.apache.logging.log4j.Level;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.replication.ClusterStateCreationUtils;
 import org.elasticsearch.cluster.ClusterInfo;
@@ -35,6 +36,7 @@ import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.allocation.AllocateUnassignedDecision;
+import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.allocator.BalancedShardsAllocator.Balancer.PrioritiseByShardWriteLoadComparator;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDecider;
@@ -43,16 +45,20 @@ import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.cluster.routing.allocation.decider.SameShardAllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.ThrottlingAllocationDecider;
 import org.elasticsearch.common.UUIDs;
+import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.snapshots.SnapshotShardSizeInfo;
+import org.elasticsearch.test.MockLog;
 import org.elasticsearch.test.gateway.TestGatewayAllocator;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.hamcrest.Matchers;
 
 import java.util.ArrayList;
@@ -63,6 +69,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.DoubleSupplier;
 import java.util.function.Function;
 import java.util.stream.Collector;
@@ -74,6 +81,7 @@ import static java.util.stream.Collectors.mapping;
 import static java.util.stream.Collectors.summingDouble;
 import static java.util.stream.Collectors.summingLong;
 import static java.util.stream.Collectors.toSet;
+import static org.elasticsearch.cluster.ClusterInfo.shardIdentifierFromRouting;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.RELOCATING;
 import static org.elasticsearch.cluster.routing.TestShardRouting.shardRoutingBuilder;
 import static org.elasticsearch.cluster.routing.allocation.allocator.BalancedShardsAllocator.Balancer.PrioritiseByShardWriteLoadComparator.THRESHOLD_RATIO;
@@ -90,8 +98,6 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.sameInstance;
-import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertTrue;
 
 public class BalancedShardsAllocatorTests extends ESAllocationTestCase {
 
@@ -99,7 +105,7 @@ public class BalancedShardsAllocatorTests extends ESAllocationTestCase {
     };
     private static final Settings WITH_DISK_BALANCING = Settings.builder().put(DISK_USAGE_BALANCE_FACTOR_SETTING.getKey(), "1e-9").build();
 
-    public void testDecideShardAllocation() {
+    public void testExplainShardAllocation() {
         BalancedShardsAllocator allocator = new BalancedShardsAllocator(Settings.EMPTY);
         ClusterState clusterState = ClusterStateCreationUtils.state("idx", false, ShardRoutingState.STARTED);
         assertEquals(clusterState.nodes().getSize(), 3);
@@ -122,9 +128,9 @@ public class BalancedShardsAllocatorTests extends ESAllocationTestCase {
         RoutingAllocation allocation = createRoutingAllocation(clusterState);
 
         allocation.debugDecision(false);
-        AllocateUnassignedDecision allocateDecision = allocator.decideShardAllocation(shard, allocation).getAllocateDecision();
+        AllocateUnassignedDecision allocateDecision = allocator.explainShardAllocation(shard, allocation).getAllocateDecision();
         allocation.debugDecision(true);
-        AllocateUnassignedDecision allocateDecisionWithExplain = allocator.decideShardAllocation(shard, allocation).getAllocateDecision();
+        AllocateUnassignedDecision allocateDecisionWithExplain = allocator.explainShardAllocation(shard, allocation).getAllocateDecision();
         // the allocation decision should have same target node no matter the debug is on or off
         assertEquals(allocateDecision.getTargetNode().getId(), allocateDecisionWithExplain.getTargetNode().getId());
 
@@ -135,7 +141,7 @@ public class BalancedShardsAllocatorTests extends ESAllocationTestCase {
         assertEquals(allocateDecision.getTargetNode().getId(), assignedShards.get(0).currentNodeId());
     }
 
-    public void testDecideShardAllocationWhenThereAreMultipleProjects() {
+    public void testExplainShardAllocationWhenThereAreMultipleProjects() {
         final int numberOfNodes = randomIntBetween(3, 8);
         final int numberOfProjects = randomIntBetween(3, 8);
 
@@ -219,7 +225,7 @@ public class BalancedShardsAllocatorTests extends ESAllocationTestCase {
             .index(indexName)
             .shard(0)
             .primaryShard();
-        AllocateUnassignedDecision allocateDecision = allocator.decideShardAllocation(shard, allocation).getAllocateDecision();
+        AllocateUnassignedDecision allocateDecision = allocator.explainShardAllocation(shard, allocation).getAllocateDecision();
         final DiscoveryNode targetNode = allocateDecision.getTargetNode();
         assertThat(targetNode, notNullValue());
         assertThat(nodes.get(targetNode.getId()), sameInstance(targetNode));
@@ -614,9 +620,9 @@ public class BalancedShardsAllocatorTests extends ESAllocationTestCase {
             () -> ClusterInfo.builder()
                 .shardSizes(
                     Map.of(
-                        ClusterInfo.shardIdentifierFromRouting(new ShardId(index, 0), true),
+                        shardIdentifierFromRouting(new ShardId(index, 0), true),
                         0L,
-                        ClusterInfo.shardIdentifierFromRouting(new ShardId(index, 1), true),
+                        shardIdentifierFromRouting(new ShardId(index, 1), true),
                         ByteSizeUnit.GB.toBytes(500)
                     )
                 )
@@ -689,6 +695,78 @@ public class BalancedShardsAllocatorTests extends ESAllocationTestCase {
         // The partition that balances on shard count only has an even distribution of shards
         assertThat(shardBalancedPartition.get("shardsOnly-1"), hasSize(3));
         assertThat(shardBalancedPartition.get("shardsOnly-2"), hasSize(3));
+    }
+
+    public void testSkipDiskUsageComputation() {
+        final var modelNodesRef = new AtomicReference<BalancedShardsAllocator.ModelNode[]>();
+        final var balancerRef = new AtomicReference<BalancedShardsAllocator.Balancer>();
+        // Intentionally configure disk weight factor to be non-zero so that the test would fail if disk usage is not ignored
+        final var weightFunction = new WeightFunction(1, 1, 1, 1);
+        final var allocator = new BalancedShardsAllocator(
+            BalancerSettings.DEFAULT,
+            TEST_WRITE_LOAD_FORECASTER,
+            () -> new BalancingWeights() {
+                @Override
+                public WeightFunction weightFunctionForShard(ShardRouting shard) {
+                    return weightFunction;
+                }
+
+                @Override
+                public WeightFunction weightFunctionForNode(RoutingNode node) {
+                    return weightFunction;
+                }
+
+                @Override
+                public NodeSorters createNodeSorters(
+                    BalancedShardsAllocator.ModelNode[] modelNodes,
+                    BalancedShardsAllocator.Balancer balancer
+                ) {
+                    modelNodesRef.set(modelNodes);
+                    balancerRef.set(balancer);
+                    final BalancedShardsAllocator.NodeSorter nodeSorter = new BalancedShardsAllocator.NodeSorter(
+                        modelNodes,
+                        weightFunction,
+                        balancer
+                    );
+                    return new NodeSorters() {
+                        @Override
+                        public BalancedShardsAllocator.NodeSorter sorterForShard(ShardRouting shard) {
+                            return nodeSorter;
+                        }
+
+                        @Override
+                        public Iterator<BalancedShardsAllocator.NodeSorter> iterator() {
+                            return Iterators.single(nodeSorter);
+                        }
+                    };
+                }
+
+                @Override
+                public boolean diskUsageIgnored() {
+                    return true; // This makes the computation ignore disk usage
+                }
+            }
+        );
+
+        final String indexName = randomIdentifier();
+        final var clusterState = createStateWithIndices(anIndex(indexName).shardSizeInBytesForecast(ByteSizeValue.ofGb(8).getBytes()));
+        final var index = clusterState.metadata().getProject(ProjectId.DEFAULT).index(indexName);
+
+        // A cluster info with shard sizes
+        final var clusterInfo = ClusterInfo.builder()
+            .shardSizes(Map.of(shardIdentifierFromRouting(new ShardId(index.getIndex(), 0), true), ByteSizeValue.ofGb(8).getBytes()))
+            .build();
+        allocator.allocate(
+            new RoutingAllocation(new AllocationDeciders(List.of()), clusterState, clusterInfo, null, 0L).mutableCloneForSimulation()
+        );
+
+        final var modelNodes = modelNodesRef.get();
+        assertNotNull(modelNodes);
+        final var balancer = balancerRef.get();
+        assertNotNull(balancer);
+
+        assertThat(balancer.avgDiskUsageInBytesPerNode(), equalTo(0.0));
+        Arrays.stream(modelNodes).forEach(modelNode -> assertThat(modelNode.diskUsageInBytes(), equalTo(0.0)));
     }
 
     public void testReturnEarlyOnShardAssignmentChanges() {
@@ -929,6 +1007,43 @@ public class BalancedShardsAllocatorTests extends ESAllocationTestCase {
         applyStartedShardsUntilNoChange(clusterState, allocationService);
     }
 
+    @TestLogging(
+        value = "org.elasticsearch.cluster.routing.allocation.allocator.BalancedShardsAllocator.not-preferred:DEBUG",
+        reason = "debug logging for test"
+    )
+    public void testNotPreferredMovementIsLoggedAtDebugLevel() {
+        final var clusterState = ClusterStateCreationUtils.state(randomIdentifier(), 3, 3);
+        final var balancedShardsAllocator = new BalancedShardsAllocator(
+            BalancerSettings.DEFAULT,
+            TEST_WRITE_LOAD_FORECASTER,
+            new GlobalBalancingWeightsFactory(BalancerSettings.DEFAULT)
+        );
+
+        final var allocation = new RoutingAllocation(new AllocationDeciders(List.<AllocationDecider>of(new AllocationDecider() {
+            @Override
+            public Decision canRemain(
+                IndexMetadata indexMetadata,
+                ShardRouting shardRouting,
+                RoutingNode node,
+                RoutingAllocation allocation
+            ) {
+                return new Decision.Single(Decision.Type.NOT_PREFERRED, "test_decider", "Always NOT_PREFERRED");
+            }
+        })), clusterState.getRoutingNodes().mutableCopy(), clusterState, ClusterInfo.EMPTY, SnapshotShardSizeInfo.EMPTY, 0L);
+
+        final var notPreferredLoggerName = BalancedShardsAllocator.class.getName() + ".not-preferred";
+        MockLog.assertThatLogger(
+            () -> balancedShardsAllocator.allocate(allocation),
+            notPreferredLoggerName,
+            new MockLog.SeenEventExpectation(
+                "moved a NOT_PREFERRED allocation",
+                notPreferredLoggerName,
+                Level.DEBUG,
+                "Moving shard [*] to [*] from a NOT_PREFERRED allocation, explanation is [Always NOT_PREFERRED]"
+            )
+        );
+    }
+
     /**
      * Test for {@link PrioritiseByShardWriteLoadComparator}. See Comparator Javadoc for expected
      * ordering.
@@ -1028,6 +1143,161 @@ public class BalancedShardsAllocatorTests extends ESAllocationTestCase {
         for (int i = 0; i < numberOfShardsWithNoWriteLoad; i++) {
             final var currentShardId = sortedShards.get(currentIndex++);
             assertThat(shardWriteLoads, Matchers.not(Matchers.hasKey(currentShardId.shardId())));
+        }
+    }
+
+    public void testAssigmentPreferenceForUnassignedShards() {
+        final var notPreferredDecider = new AllocationDecider() {
+            @Override
+            public Decision canAllocate(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
+                final var nodeId = node.node().getId();
+                if (nodeId.startsWith("not-preferred")) {
+                    return Decision.NOT_PREFERRED;
+                } else if (nodeId.startsWith("yes")) {
+                    return Decision.YES;
+                } else if (nodeId.startsWith("no")) {
+                    return Decision.NO;
+                } else if (nodeId.startsWith("throttle")) {
+                    return Decision.THROTTLE;
+                } else {
+                    throw new AssertionError("unexpected node name: " + node.node().getName());
+                }
+            }
+        };
+
+        final var allocationService = new MockAllocationService(
+            new AllocationDeciders(List.of(notPreferredDecider)),
+            new TestGatewayAllocator(),
+            new BalancedShardsAllocator(BalancerSettings.DEFAULT, TEST_WRITE_LOAD_FORECASTER, new NodeNameDrivenBalancingWeightsFactory()),
+            () -> ClusterInfo.EMPTY,
+            SNAPSHOT_INFO_SERVICE_WITH_NO_SHARD_SIZES
+        );
+
+        // No allocation when NO
+        assertUnassigned(allocationService, shuffledList("no"));
+        // No allocation when THROTTLE
+        assertUnassigned(allocationService, shuffledList("throttle"));
+        // NOT_PREFERRED when no other choice
+        assertAssignedTo(allocationService, "not-preferred", shuffledList("not-preferred"));
+        // NOT_PREFERRED over NO
+        assertAssignedTo(allocationService, "not-preferred", shuffledList("not-preferred", "no"));
+        // THROTTLE (No allocation) over NOT_PREFERRED/NO
+        assertUnassigned(allocationService, shuffledList("throttle", "not-preferred", "no"));
+        // THROTTLE (No allocation) over NOT_PREFERRED
+        assertUnassigned(allocationService, shuffledList("throttle", "not-preferred"));
+        // YES over THROTTLE/NO/NOT_PREFERRED
+        assertAssignedTo(allocationService, "yes", shuffledList("not-preferred", "yes", "throttle", "no"));
+        // prioritize YES/THROTTLE by weight
+        assertUnassigned(allocationService, shuffledList("throttle-low", "yes-high", "yes"));
+        assertAssignedTo(allocationService, "yes-low", shuffledList("yes-low", "throttle", "throttle-high"));
+        // prioritize YES over THROTTLE when weights equal
+        assertAssignedTo(allocationService, "yes-low", shuffledList("yes-low", "throttle-low"));
+        // prioritize YES by weight
+        assertAssignedTo(allocationService, "yes-low", shuffledList("yes-low", "yes", "yes-high"));
+        // prioritize NOT_PREFERRED by weight
+        assertAssignedTo(allocationService, "not-preferred-low", shuffledList("not-preferred-low", "not-preferred", "not-preferred-high"));
+    }
+
+    private void assertUnassigned(AllocationService allocationService, List<String> allNodeIds) {
+        assertAssignedTo(allocationService, null, allNodeIds);
+    }
+
+    private void assertAssignedTo(AllocationService allocationService, @Nullable String expectedNodeId, List<String> allNodeIds) {
+        final var discoveryNodesBuilder = DiscoveryNodes.builder();
+        for (String nodeName : allNodeIds) {
+            discoveryNodesBuilder.add(newNode(nodeName));
+        }
+        final var projectMetadataBuilder = ProjectMetadata.builder(ProjectId.DEFAULT);
+        final var routingTableBuilder = RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY);
+
+        final var indexMetadata = anIndex("index", indexSettings(IndexVersion.current(), 1, 0)).build();
+        projectMetadataBuilder.put(indexMetadata, false);
+        routingTableBuilder.addAsNew(indexMetadata);
+
+        var clusterState = ClusterState.builder(ClusterName.DEFAULT)
+            .nodes(discoveryNodesBuilder)
+            .putProjectMetadata(projectMetadataBuilder)
+            .putRoutingTable(ProjectId.DEFAULT, routingTableBuilder.build())
+            .build();
+
+        clusterState = startInitializingShardsAndReroute(allocationService, clusterState);
+
+        final RoutingTable routingTable = clusterState.routingTable(ProjectId.DEFAULT);
+        final ShardRouting primaryShard = routingTable.shardRoutingTable(indexMetadata.getIndex().getName(), 0).primaryShard();
+        assertThat(primaryShard.currentNodeId(), equalTo(expectedNodeId));
+    }
+
+    /**
+     * Returns specific values for {@link WeightFunction#calculateNodeWeightWithIndex} depending on the
+     * suffix of the node name.
+     */
+    private static class NodeNameDrivenBalancingWeightsFactory implements BalancingWeightsFactory {
+
+        private static class NodeNameDrivenWeightFunction extends WeightFunction {
+
+            NodeNameDrivenWeightFunction() {
+                super(1.0f, 1.0f, 1.0f, 1.0f);
+            }
+
+            @Override
+            float calculateNodeWeightWithIndex(
+                BalancedShardsAllocator.Balancer balancer,
+                BalancedShardsAllocator.ModelNode node,
+                BalancedShardsAllocator.ProjectIndex index
+            ) {
+                final var nodeId = node.getNodeId();
+                if (nodeId.endsWith("-high")) {
+                    return 10.0f;
+                } else if (nodeId.endsWith("-low")) {
+                    return 0.0f;
+                } else {
+                    return 5.0f;
+                }
+            }
+        }
+
+        private static class NodeNameDrivenBalancingWeights implements BalancingWeights {
+
+            private final NodeNameDrivenWeightFunction weightFunction = new NodeNameDrivenWeightFunction();
+
+            @Override
+            public WeightFunction weightFunctionForShard(ShardRouting shard) {
+                return weightFunction;
+            }
+
+            @Override
+            public WeightFunction weightFunctionForNode(RoutingNode node) {
+                return weightFunction;
+            }
+
+            @Override
+            public NodeSorters createNodeSorters(
+                BalancedShardsAllocator.ModelNode[] modelNodes,
+                BalancedShardsAllocator.Balancer balancer
+            ) {
+                final var nodeSorter = new BalancedShardsAllocator.NodeSorter(modelNodes, weightFunction, balancer);
+                return new NodeSorters() {
+                    @Override
+                    public BalancedShardsAllocator.NodeSorter sorterForShard(ShardRouting shard) {
+                        return nodeSorter;
+                    }
+
+                    @Override
+                    public Iterator<BalancedShardsAllocator.NodeSorter> iterator() {
+                        return List.of(nodeSorter).iterator();
+                    }
+                };
+            }
+
+            @Override
+            public boolean diskUsageIgnored() {
+                return true;
+            }
+        }
+
+        @Override
+        public BalancingWeights create() {
+            return new NodeNameDrivenBalancingWeights();
         }
     }
 
@@ -1227,6 +1497,11 @@ public class BalancedShardsAllocatorTests extends ESAllocationTestCase {
                         return prefixNodeSorters.get(prefix(shard.getIndexName()));
                     }
                 };
+            }
+
+            @Override
+            public boolean diskUsageIgnored() {
+                return true;
             }
         }
     }

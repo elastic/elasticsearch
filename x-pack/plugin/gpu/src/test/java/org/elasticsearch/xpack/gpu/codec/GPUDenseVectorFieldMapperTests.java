@@ -1,8 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0; you may not use this file except in compliance with the Elastic License
- * 2.0.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.xpack.gpu.codec;
@@ -30,7 +32,7 @@ public class GPUDenseVectorFieldMapperTests extends DenseVectorFieldMapperTests 
 
     @BeforeClass
     public static void setup() {
-        assumeTrue("cuvs not supported", GPUSupport.isSupported(false));
+        assumeTrue("cuvs not supported", GPUSupport.isSupported());
     }
 
     @Override
@@ -44,7 +46,7 @@ public class GPUDenseVectorFieldMapperTests extends DenseVectorFieldMapperTests 
         // TODO improve test with custom parameters
         KnnVectorsFormat knnVectorsFormat = getKnnVectorsFormat("hnsw");
         String expectedStr = "Lucene99HnswVectorsFormat(name=Lucene99HnswVectorsFormat, "
-            + "maxConn=16, beamWidth=128, flatVectorFormat=Lucene99FlatVectorsFormat)";
+            + "maxConn=12, beamWidth=22, flatVectorFormat=Lucene99FlatVectorsFormat)";
         assertEquals(expectedStr, knnVectorsFormat.toString());
     }
 
@@ -53,7 +55,7 @@ public class GPUDenseVectorFieldMapperTests extends DenseVectorFieldMapperTests 
         // TOD improve the test with custom parameters
         KnnVectorsFormat knnVectorsFormat = getKnnVectorsFormat("int8_hnsw");
         String expectedStr = "Lucene99HnswVectorsFormat(name=Lucene99HnswVectorsFormat, "
-            + "maxConn=16, beamWidth=128, flatVectorFormat=ES814ScalarQuantizedVectorsFormat";
+            + "maxConn=12, beamWidth=22, flatVectorFormat=ES814ScalarQuantizedVectorsFormat";
         assertTrue(knnVectorsFormat.toString().startsWith(expectedStr));
     }
 

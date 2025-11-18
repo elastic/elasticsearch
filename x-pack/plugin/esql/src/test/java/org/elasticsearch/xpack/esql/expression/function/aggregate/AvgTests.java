@@ -55,7 +55,7 @@ public class AvgTests extends AbstractAggregationTestCase {
             )
         );
 
-        return parameterSuppliersFromTypedDataWithDefaultChecksNoErrors(suppliers, true);
+        return parameterSuppliersFromTypedDataWithDefaultChecks(suppliers, true);
     }
 
     @Override

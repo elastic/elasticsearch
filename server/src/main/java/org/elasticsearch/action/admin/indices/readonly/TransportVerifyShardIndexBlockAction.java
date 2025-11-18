@@ -8,6 +8,7 @@
  */
 package org.elasticsearch.action.admin.indices.readonly;
 
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.admin.indices.flush.FlushRequest;
@@ -180,7 +181,11 @@ public class TransportVerifyShardIndexBlockAction extends TransportReplicationAc
         ShardRequest(StreamInput in) throws IOException {
             super(in);
             clusterBlock = new ClusterBlock(in);
-            phase1 = in.readBoolean();
+            if (in.getTransportVersion().supports(TransportVersions.V_8_18_0)) {
+                phase1 = in.readBoolean();
+            } else {
+                phase1 = true; // does not matter, not verified anyway
+            }
         }
 
         public ShardRequest(final ShardId shardId, final ClusterBlock clusterBlock, boolean phase1, final TaskId parentTaskId) {
@@ -199,7 +204,9 @@ public class TransportVerifyShardIndexBlockAction extends TransportReplicationAc
         public void writeTo(final StreamOutput out) throws IOException {
             super.writeTo(out);
             clusterBlock.writeTo(out);
-            out.writeBoolean(phase1);
+            if (out.getTransportVersion().supports(TransportVersions.V_8_18_0)) {
+                out.writeBoolean(phase1);
+            }
         }
 
         public ClusterBlock clusterBlock() {

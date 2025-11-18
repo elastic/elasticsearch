@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.core.ssl.cert;
 
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -62,7 +63,11 @@ public class CertificateInfo implements ToXContentObject, Writeable, Comparable<
         this.serialNumber = in.readString();
         this.hasPrivateKey = in.readBoolean();
         this.expiry = Instant.ofEpochMilli(in.readLong()).atZone(ZoneOffset.UTC);
-        this.issuer = in.readString();
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_4_0)) {
+            this.issuer = in.readString();
+        } else {
+            this.issuer = "";
+        }
     }
 
     @Override
@@ -74,7 +79,9 @@ public class CertificateInfo implements ToXContentObject, Writeable, Comparable<
         out.writeString(serialNumber);
         out.writeBoolean(hasPrivateKey);
         out.writeLong(expiry.toInstant().toEpochMilli());
-        out.writeString(issuer);
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_4_0)) {
+            out.writeString(issuer);
+        }
     }
 
     @Nullable

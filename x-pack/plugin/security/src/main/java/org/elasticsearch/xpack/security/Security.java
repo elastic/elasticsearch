@@ -865,7 +865,8 @@ public class Security extends Plugin
             clusterService,
             resourceWatcherService,
             userRoleMapper,
-            projectResolver
+            projectResolver,
+            telemetryProvider
         );
         Map<String, Realm.Factory> realmFactories = new HashMap<>(
             InternalRealms.getFactories(
@@ -1145,6 +1146,7 @@ public class Security extends Plugin
         if (authorizationDenialMessages.get() == null) {
             authorizationDenialMessages.set(new AuthorizationDenialMessages.Default());
         }
+        final var authorizedProjectsResolver = getCustomAuthorizedProjectsResolverOrDefault(extensionComponents);
         final AuthorizationService authzService = new AuthorizationService(
             settings,
             allRolesStore,
@@ -1163,7 +1165,7 @@ public class Security extends Plugin
             authorizationDenialMessages.get(),
             linkedProjectConfigService,
             projectResolver,
-            getCustomAuthorizedProjectsResolverOrDefault(extensionComponents),
+            authorizedProjectsResolver,
             new CrossProjectModeDecider(settings)
         );
 
@@ -1171,6 +1173,7 @@ public class Security extends Plugin
         components.add(reservedRolesStore); // used by roles actions
         components.add(allRolesStore); // for SecurityInfoTransportAction and clear roles cache
         components.add(authzService);
+        components.add(new PluginComponentBinding<>(AuthorizedProjectsResolver.class, authorizedProjectsResolver));
 
         final SecondaryAuthenticator secondaryAuthenticator = new SecondaryAuthenticator(
             securityContext.get(),
@@ -1633,6 +1636,7 @@ public class Security extends Plugin
         settingsList.add(TokenService.TOKEN_EXPIRATION);
         settingsList.add(TokenService.DELETE_INTERVAL);
         settingsList.add(TokenService.DELETE_TIMEOUT);
+        settingsList.add(ProfileService.MAX_SIZE_SETTING);
         settingsList.addAll(SSLConfigurationSettings.getProfileSettings());
         settingsList.add(ApiKeyService.STORED_HASH_ALGO_SETTING);
         settingsList.add(ApiKeyService.DELETE_TIMEOUT);
@@ -1642,6 +1646,8 @@ public class Security extends Plugin
         settingsList.add(ApiKeyService.CACHE_MAX_KEYS_SETTING);
         settingsList.add(ApiKeyService.CACHE_TTL_SETTING);
         settingsList.add(ApiKeyService.DOC_CACHE_TTL_SETTING);
+        settingsList.add(ApiKeyService.CERTIFICATE_IDENTITY_PATTERN_CACHE_TTL_SETTING);
+        settingsList.add(ApiKeyService.CERTIFICATE_IDENTITY_PATTERN_CACHE_MAX_KEYS_SETTING);
         settingsList.add(NativePrivilegeStore.CACHE_MAX_APPLICATIONS_SETTING);
         settingsList.add(NativePrivilegeStore.CACHE_TTL_SETTING);
         settingsList.add(OPERATOR_PRIVILEGES_ENABLED);

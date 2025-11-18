@@ -9,6 +9,7 @@
 
 package org.elasticsearch.script;
 
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -58,7 +59,11 @@ public class TimeSeries implements Writeable, ToXContentFragment {
         fiveMinutes = in.readVLong();
         fifteenMinutes = in.readVLong();
         twentyFourHours = in.readVLong();
-        total = in.readVLong();
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_1_0)) {
+            total = in.readVLong();
+        } else {
+            total = 0;
+        }
     }
 
     @Override
@@ -75,7 +80,9 @@ public class TimeSeries implements Writeable, ToXContentFragment {
         out.writeVLong(fiveMinutes);
         out.writeVLong(fifteenMinutes);
         out.writeVLong(twentyFourHours);
-        out.writeVLong(total);
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_1_0)) {
+            out.writeVLong(total);
+        }
     }
 
     public boolean areTimingsEmpty() {

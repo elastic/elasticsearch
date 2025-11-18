@@ -53,7 +53,7 @@
         "description": "Specify whether aggregation and suggester names should be prefixed by their respective types in the response"
       },
       "max_concurrent_searches": {
-        "type": "number",
+        "type": "long",
         "description": "Controls the maximum number of concurrent searches the multi search api will execute"
       },
       "rest_total_hits_as_int": {

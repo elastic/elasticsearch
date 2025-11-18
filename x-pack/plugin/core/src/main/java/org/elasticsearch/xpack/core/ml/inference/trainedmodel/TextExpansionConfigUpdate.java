@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.core.ml.inference.trainedmodel;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -41,13 +42,17 @@ public class TextExpansionConfigUpdate extends NlpConfigUpdate {
         return new TextExpansionConfigUpdate(resultsField, tokenizationUpdate);
     }
 
-    private static final ObjectParser<Builder, Void> STRICT_PARSER = createParser(false);
+    private static final ObjectParser<TextExpansionConfigUpdate.Builder, Void> STRICT_PARSER = createParser(false);
 
-    private static ObjectParser<Builder, Void> createParser(boolean lenient) {
-        ObjectParser<Builder, Void> parser = new ObjectParser<>(NAME, lenient, Builder::new);
-        parser.declareString(Builder::setResultsField, RESULTS_FIELD);
+    private static ObjectParser<TextExpansionConfigUpdate.Builder, Void> createParser(boolean lenient) {
+        ObjectParser<TextExpansionConfigUpdate.Builder, Void> parser = new ObjectParser<>(
+            NAME,
+            lenient,
+            TextExpansionConfigUpdate.Builder::new
+        );
+        parser.declareString(TextExpansionConfigUpdate.Builder::setResultsField, RESULTS_FIELD);
         parser.declareNamedObject(
-            Builder::setTokenizationUpdate,
+            TextExpansionConfigUpdate.Builder::setTokenizationUpdate,
             (p, c, n) -> p.namedObject(TokenizationUpdate.class, n, lenient),
             TOKENIZATION
         );
@@ -106,7 +111,7 @@ public class TextExpansionConfigUpdate extends NlpConfigUpdate {
 
     @Override
     public InferenceConfigUpdate.Builder<? extends InferenceConfigUpdate.Builder<?, ?>, ? extends InferenceConfigUpdate> newBuilder() {
-        return new Builder().setResultsField(resultsField).setTokenizationUpdate(tokenizationUpdate);
+        return new TextExpansionConfigUpdate.Builder().setResultsField(resultsField).setTokenizationUpdate(tokenizationUpdate);
     }
 
     @Override
@@ -129,20 +134,20 @@ public class TextExpansionConfigUpdate extends NlpConfigUpdate {
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersion.minimumCompatible();
+        return TransportVersions.V_8_7_0;
     }
 
-    public static class Builder implements InferenceConfigUpdate.Builder<Builder, TextExpansionConfigUpdate> {
+    public static class Builder implements InferenceConfigUpdate.Builder<TextExpansionConfigUpdate.Builder, TextExpansionConfigUpdate> {
         private String resultsField;
         private TokenizationUpdate tokenizationUpdate;
 
         @Override
-        public Builder setResultsField(String resultsField) {
+        public TextExpansionConfigUpdate.Builder setResultsField(String resultsField) {
             this.resultsField = resultsField;
             return this;
         }
 
-        public Builder setTokenizationUpdate(TokenizationUpdate tokenizationUpdate) {
+        public TextExpansionConfigUpdate.Builder setTokenizationUpdate(TokenizationUpdate tokenizationUpdate) {
             this.tokenizationUpdate = tokenizationUpdate;
             return this;
         }

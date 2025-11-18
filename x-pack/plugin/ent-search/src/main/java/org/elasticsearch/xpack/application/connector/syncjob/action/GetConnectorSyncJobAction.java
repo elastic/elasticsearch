@@ -119,6 +119,10 @@ public class GetConnectorSyncJobAction {
             this.connectorSyncJob = new ConnectorSyncJobSearchResult(in);
         }
 
+        ConnectorSyncJobSearchResult getConnectorSyncJob() {
+            return connectorSyncJob;
+        }
+
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             connectorSyncJob.writeTo(out);

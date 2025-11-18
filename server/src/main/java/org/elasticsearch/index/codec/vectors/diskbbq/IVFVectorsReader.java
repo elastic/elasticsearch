@@ -31,6 +31,7 @@ import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.util.Bits;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.index.codec.vectors.GenericFlatVectorReaders;
+import org.elasticsearch.search.vectors.ESAcceptDocs;
 import org.elasticsearch.search.vectors.IVFKnnSearchStrategy;
 
 import java.io.Closeable;
@@ -114,6 +115,9 @@ public abstract class IVFVectorsReader extends KnnVectorsReader {
         IndexInput centroids,
         float[] target,
         IndexInput postingListSlice,
+        AcceptDocs acceptDocs,
+        float approximateCost,
+        FloatVectorValues values,
         float visitRatio
     ) throws IOException;
 
@@ -199,7 +203,8 @@ public abstract class IVFVectorsReader extends KnnVectorsReader {
             input.readFloats(globalCentroid, 0, globalCentroid.length);
             globalCentroidDp = Float.intBitsToFloat(input.readInt());
         }
-        return new FieldEntry(
+        return doReadField(
+            input,
             rawVectorFormat,
             useDirectIOReads,
             similarityFunction,
@@ -213,6 +218,21 @@ public abstract class IVFVectorsReader extends KnnVectorsReader {
             globalCentroidDp
         );
     }
+
+    protected abstract FieldEntry doReadField(
+        IndexInput input,
+        String rawVectorFormat,
+        boolean useDirectIOReads,
+        VectorSimilarityFunction similarityFunction,
+        VectorEncoding vectorEncoding,
+        int numCentroids,
+        long centroidOffset,
+        long centroidLength,
+        long postingListOffset,
+        long postingListLength,
+        float[] globalCentroid,
+        float globalCentroidDp
+    ) throws IOException;
 
     private static VectorSimilarityFunction readSimilarityFunction(DataInput input) throws IOException {
         final int i = input.readInt();
@@ -267,8 +287,19 @@ public abstract class IVFVectorsReader extends KnnVectorsReader {
                 "vector query dimension: " + target.length + " differs from field dimension: " + fieldInfo.getVectorDimension()
             );
         }
-        int numVectors = getReaderForField(field).getFloatVectorValues(field).size();
-        float percentFiltered = Math.max(0f, Math.min(1f, (float) acceptDocs.cost() / numVectors));
+        final ESAcceptDocs esAcceptDocs;
+        if (acceptDocs instanceof ESAcceptDocs) {
+            esAcceptDocs = (ESAcceptDocs) acceptDocs;
+        } else {
+            esAcceptDocs = null;
+        }
+        FloatVectorValues values = getReaderForField(field).getFloatVectorValues(field);
+        int numVectors = values.size();
+        // TODO returning cost 0 in ESAcceptDocs.ESAcceptDocsAll feels wrong? cost is related to the number of matching documents?
+        float approximateCost = (float) (esAcceptDocs == null ? acceptDocs.cost()
+            : esAcceptDocs instanceof ESAcceptDocs.ESAcceptDocsAll ? numVectors
+            : esAcceptDocs.approximateCost());
+        float percentFiltered = Math.max(0f, Math.min(1f, approximateCost / numVectors));
         float visitRatio = DYNAMIC_VISIT_RATIO;
         // Search strategy may be null if this is being called from checkIndex (e.g. from a test)
         if (knnCollector.getSearchStrategy() instanceof IVFKnnSearchStrategy ivfSearchStrategy) {
@@ -295,6 +326,9 @@ public abstract class IVFVectorsReader extends KnnVectorsReader {
             entry.centroidSlice(ivfCentroids),
             target,
             postListSlice,
+            acceptDocs,
+            approximateCost,
+            values,
             visitRatio
         );
         Bits acceptDocsBits = acceptDocs.bits();
@@ -318,6 +352,7 @@ public abstract class IVFVectorsReader extends KnnVectorsReader {
             }
         }
         if (acceptDocsBits != null) {
+            // TODO Adjust the value here when using centroid filtering
             float unfilteredRatioVisited = (float) expectedDocs / numVectors;
             int filteredVectors = (int) Math.ceil(numVectors * percentFiltered);
             float expectedScored = Math.min(2 * filteredVectors * unfilteredRatioVisited, expectedDocs / 2f);
@@ -368,24 +403,76 @@ public abstract class IVFVectorsReader extends KnnVectorsReader {
         IOUtils.close(closeables);
     }
 
-    protected record FieldEntry(
-        String rawVectorFormatName,
-        boolean useDirectIOReads,
-        VectorSimilarityFunction similarityFunction,
-        VectorEncoding vectorEncoding,
-        int numCentroids,
-        long centroidOffset,
-        long centroidLength,
-        long postingListOffset,
-        long postingListLength,
-        float[] globalCentroid,
-        float globalCentroidDp
-    ) implements GenericFlatVectorReaders.Field {
-        IndexInput centroidSlice(IndexInput centroidFile) throws IOException {
+    protected static class FieldEntry implements GenericFlatVectorReaders.Field {
+        protected final String rawVectorFormatName;
+        protected final boolean useDirectIOReads;
+        protected final VectorSimilarityFunction similarityFunction;
+        protected final VectorEncoding vectorEncoding;
+        protected final int numCentroids;
+        protected final long centroidOffset;
+        protected final long centroidLength;
+        protected final long postingListOffset;
+        protected final long postingListLength;
+        protected final float[] globalCentroid;
+        protected final float globalCentroidDp;
+
+        protected FieldEntry(
+            String rawVectorFormatName,
+            boolean useDirectIOReads,
+            VectorSimilarityFunction similarityFunction,
+            VectorEncoding vectorEncoding,
+            int numCentroids,
+            long centroidOffset,
+            long centroidLength,
+            long postingListOffset,
+            long postingListLength,
+            float[] globalCentroid,
+            float globalCentroidDp
+        ) {
+            this.rawVectorFormatName = rawVectorFormatName;
+            this.useDirectIOReads = useDirectIOReads;
+            this.similarityFunction = similarityFunction;
+            this.vectorEncoding = vectorEncoding;
+            this.numCentroids = numCentroids;
+            this.centroidOffset = centroidOffset;
+            this.centroidLength = centroidLength;
+            this.postingListOffset = postingListOffset;
+            this.postingListLength = postingListLength;
+            this.globalCentroid = globalCentroid;
+            this.globalCentroidDp = globalCentroidDp;
+        }
+
+        @Override
+        public String rawVectorFormatName() {
+            return rawVectorFormatName;
+        }
+
+        @Override
+        public boolean useDirectIOReads() {
+            return useDirectIOReads;
+        }
+
+        public int numCentroids() {
+            return numCentroids;
+        }
+
+        public float[] globalCentroid() {
+            return globalCentroid;
+        }
+
+        public float globalCentroidDp() {
+            return globalCentroidDp;
+        }
+
+        public VectorSimilarityFunction similarityFunction() {
+            return similarityFunction;
+        }
+
+        public IndexInput centroidSlice(IndexInput centroidFile) throws IOException {
             return centroidFile.slice("centroids", centroidOffset, centroidLength);
         }
 
-        IndexInput postingListSlice(IndexInput postingListFile) throws IOException {
+        public IndexInput postingListSlice(IndexInput postingListFile) throws IOException {
             return postingListFile.slice("postingLists", postingListOffset, postingListLength);
         }
     }

@@ -237,7 +237,7 @@ public class HashAggregationOperator implements Operator {
             blocks = new Block[keys.length + Arrays.stream(aggBlockCounts).sum()];
             System.arraycopy(keys, 0, blocks, 0, keys.length);
             int offset = keys.length;
-            var evaluationContext = evaluationContext(keys);
+            var evaluationContext = evaluationContext(blockHash, keys);
             for (int i = 0; i < aggregators.size(); i++) {
                 var aggregator = aggregators.get(i);
                 aggregator.evaluate(blocks, offset, selected, evaluationContext);
@@ -257,7 +257,7 @@ public class HashAggregationOperator implements Operator {
         }
     }
 
-    protected GroupingAggregatorEvaluationContext evaluationContext(Block[] keys) {
+    protected GroupingAggregatorEvaluationContext evaluationContext(BlockHash blockHash, Block[] keys) {
         return new GroupingAggregatorEvaluationContext(driverContext);
     }
 
@@ -355,8 +355,14 @@ public class HashAggregationOperator implements Operator {
             hashNanos = in.readVLong();
             aggregationNanos = in.readVLong();
             pagesProcessed = in.readVInt();
-            rowsReceived = in.readVLong();
-            rowsEmitted = in.readVLong();
+
+            if (in.getTransportVersion().supports(TransportVersions.V_8_18_0)) {
+                rowsReceived = in.readVLong();
+                rowsEmitted = in.readVLong();
+            } else {
+                rowsReceived = 0;
+                rowsEmitted = 0;
+            }
             if (in.getTransportVersion().supports(ESQL_HASH_OPERATOR_STATUS_OUTPUT_TIME)) {
                 emitNanos = in.readVLong();
             } else {
@@ -369,8 +375,11 @@ public class HashAggregationOperator implements Operator {
             out.writeVLong(hashNanos);
             out.writeVLong(aggregationNanos);
             out.writeVInt(pagesProcessed);
-            out.writeVLong(rowsReceived);
-            out.writeVLong(rowsEmitted);
+
+            if (out.getTransportVersion().supports(TransportVersions.V_8_18_0)) {
+                out.writeVLong(rowsReceived);
+                out.writeVLong(rowsEmitted);
+            }
             if (out.getTransportVersion().supports(ESQL_HASH_OPERATOR_STATUS_OUTPUT_TIME)) {
                 out.writeVLong(emitNanos);
             }

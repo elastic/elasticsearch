@@ -9,6 +9,7 @@
 
 package org.elasticsearch.action.admin.indices.stats;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -27,6 +28,8 @@ import java.io.IOException;
 import java.util.Objects;
 
 public class ShardStats implements Writeable, ToXContentFragment {
+
+    private static final TransportVersion DEDUPLICATE_SHARD_PATH_VERSION = TransportVersions.V_8_4_0;
 
     private final ShardRouting shardRouting;
     private final CommonStats commonStats;
@@ -51,7 +54,11 @@ public class ShardStats implements Writeable, ToXContentFragment {
         commonStats = new CommonStats(in);
         commitStats = CommitStats.readOptionalCommitStatsFrom(in);
         statePath = in.readString();
-        dataPath = Objects.requireNonNullElse(in.readOptionalString(), this.statePath);
+        if (in.getTransportVersion().onOrAfter(DEDUPLICATE_SHARD_PATH_VERSION)) {
+            dataPath = Objects.requireNonNullElse(in.readOptionalString(), this.statePath);
+        } else {
+            dataPath = in.readString();
+        }
         isCustomDataPath = in.readBoolean();
         seqNoStats = in.readOptionalWriteable(SeqNoStats::new);
         retentionLeaseStats = in.readOptionalWriteable(RetentionLeaseStats::new);
@@ -201,7 +208,11 @@ public class ShardStats implements Writeable, ToXContentFragment {
         commonStats.writeTo(out);
         out.writeOptionalWriteable(commitStats);
         out.writeString(statePath);
-        out.writeOptionalString(statePath.equals(dataPath) ? null : dataPath);
+        if (out.getTransportVersion().onOrAfter(DEDUPLICATE_SHARD_PATH_VERSION)) {
+            out.writeOptionalString(statePath.equals(dataPath) ? null : dataPath);
+        } else {
+            out.writeString(dataPath);
+        }
         out.writeBoolean(isCustomDataPath);
         out.writeOptionalWriteable(seqNoStats);
         out.writeOptionalWriteable(retentionLeaseStats);

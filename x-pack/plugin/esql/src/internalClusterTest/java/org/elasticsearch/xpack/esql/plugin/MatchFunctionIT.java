@@ -313,6 +313,28 @@ public class MatchFunctionIT extends AbstractEsqlIntegTestCase {
         );
     }
 
+    public void testMatchWithLookupJoinOnMatch() {
+        var query = """
+            FROM test
+            | rename id as id_left
+            | LOOKUP JOIN test_lookup ON id_left == id and MATCH(lookup_content, "fox")
+            | WHERE id > 0
+            | SORT id, id_left, content, lookup_content
+            """;
+        try (var resp = run(query)) {
+            assertColumnNames(resp.columns(), List.of("content", "id_left", "id", "lookup_content"));
+            assertColumnTypes(resp.columns(), List.of("text", "integer", "integer", "text"));
+            // Should return rows where lookup_content matches "fox" (ids 1 and 6)
+            assertValues(
+                resp.values(),
+                List.of(
+                    List.of("This is a brown fox", 1, 1, "This is a brown fox"),
+                    List.of("The quick brown fox jumps over the lazy dog", 6, 6, "The quick brown fox jumps over the lazy dog")
+                )
+            );
+        }
+    }
+
     static void createAndPopulateIndex(Consumer<String[]> ensureYellow) {
         var indexName = "test";
         var client = client().admin().indices();
@@ -341,5 +363,19 @@ public class MatchFunctionIT extends AbstractEsqlIntegTestCase {
             .setSettings(Settings.builder().put("index.number_of_shards", 1).put("index.mode", "lookup"))
             .setMapping("id", "type=integer", "lookup_content", "type=text");
         assertAcked(createRequest);
+
+        // Populate the lookup index with test data
+        client().prepareBulk()
+            .add(new IndexRequest(lookupIndexName).id("1").source("id", 1, "lookup_content", "This is a brown fox"))
+            .add(new IndexRequest(lookupIndexName).id("2").source("id", 2, "lookup_content", "This is a brown dog"))
+            .add(new IndexRequest(lookupIndexName).id("3").source("id", 3, "lookup_content", "This dog is really brown"))
+            .add(
+                new IndexRequest(lookupIndexName).id("4")
+                    .source("id", 4, "lookup_content", "The dog is brown but this document is very very long")
+            )
+            .add(new IndexRequest(lookupIndexName).id("5").source("id", 5, "lookup_content", "There is also a white cat"))
+            .add(new IndexRequest(lookupIndexName).id("6").source("id", 6, "lookup_content", "The quick brown fox jumps over the lazy dog"))
+            .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+            .get();
     }
 }

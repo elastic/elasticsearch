@@ -92,7 +92,7 @@ public class ToAggregateMetricDoubleTests extends AbstractScalarFunctionTestCase
             emptyList()
         );
 
-        return parameterSuppliersFromTypedDataWithDefaultChecksNoErrors(true, suppliers);
+        return parameterSuppliersFromTypedDataWithDefaultChecks(true, suppliers);
     }
 
 }

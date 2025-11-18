@@ -12,11 +12,10 @@ package org.elasticsearch.search.aggregations.metrics;
 import com.carrotsearch.hppc.BitMixer;
 
 import org.apache.lucene.index.BinaryDocValues;
-import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.index.NumericDocValues;
-import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.index.SortedSetDocValues;
+import org.apache.lucene.search.DoubleValues;
+import org.apache.lucene.search.LongValues;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.FixedBitSet;
@@ -29,9 +28,9 @@ import org.elasticsearch.common.util.ObjectArray;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.fielddata.FieldData;
-import org.elasticsearch.index.fielddata.NumericDoubleValues;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
+import org.elasticsearch.index.fielddata.SortedNumericLongValues;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.index.mapper.vectors.SparseVectorFieldMapper;
 import org.elasticsearch.search.aggregations.AggregationExecutionContext;
@@ -96,15 +95,15 @@ public class CardinalityAggregator extends NumericMetricsAggregator.SingleValue 
             numericCollectorsUsed++;
             if (source.isFloatingPoint()) {
                 SortedNumericDoubleValues values = source.doubleValues(ctx);
-                NumericDoubleValues singleton = FieldData.unwrapSingleton(values);
+                DoubleValues singleton = FieldData.unwrapSingleton(values);
                 if (singleton != null) {
                     return new DirectSingleValuesCollector(counts, MurmurHash3SingleValues.hash(singleton));
                 } else {
                     return new DirectMultiValuesCollector(counts, MurmurHash3MultiValues.hash(values));
                 }
             } else {
-                SortedNumericDocValues values = source.longValues(ctx);
-                NumericDocValues singleton = DocValues.unwrapSingleton(values);
+                SortedNumericLongValues values = source.longValues(ctx);
+                LongValues singleton = SortedNumericLongValues.unwrapSingleton(values);
                 if (singleton != null) {
                     return new DirectSingleValuesCollector(counts, MurmurHash3SingleValues.hash(singleton));
                 } else {
@@ -386,7 +385,7 @@ public class CardinalityAggregator extends NumericMetricsAggregator.SingleValue 
         /**
          * Return a {@link MurmurHash3MultiValues} instance that computes hashes on the fly for each long value.
          */
-        public static MurmurHash3MultiValues hash(SortedNumericDocValues values) {
+        public static MurmurHash3MultiValues hash(SortedNumericLongValues values) {
             return new Long(values);
         }
 
@@ -399,9 +398,9 @@ public class CardinalityAggregator extends NumericMetricsAggregator.SingleValue 
 
         private static class Long extends MurmurHash3MultiValues {
 
-            private final SortedNumericDocValues values;
+            private final SortedNumericLongValues values;
 
-            Long(SortedNumericDocValues values) {
+            Long(SortedNumericLongValues values) {
                 this.values = values;
             }
 
@@ -486,14 +485,14 @@ public class CardinalityAggregator extends NumericMetricsAggregator.SingleValue 
         /**
          * Return a {@link MurmurHash3MultiValues} instance that computes hashes on the fly for each double value.
          */
-        public static MurmurHash3SingleValues hash(NumericDoubleValues values) {
+        public static MurmurHash3SingleValues hash(DoubleValues values) {
             return new Double(values);
         }
 
         /**
          * Return a {@link MurmurHash3MultiValues} instance that computes hashes on the fly for each long value.
          */
-        public static MurmurHash3SingleValues hash(NumericDocValues values) {
+        public static MurmurHash3SingleValues hash(LongValues values) {
             return new Long(values);
         }
 
@@ -506,9 +505,9 @@ public class CardinalityAggregator extends NumericMetricsAggregator.SingleValue 
 
         private static class Long extends MurmurHash3SingleValues {
 
-            private final NumericDocValues values;
+            private final LongValues values;
 
-            Long(NumericDocValues values) {
+            Long(LongValues values) {
                 this.values = values;
             }
 
@@ -525,9 +524,9 @@ public class CardinalityAggregator extends NumericMetricsAggregator.SingleValue 
 
         private static class Double extends MurmurHash3SingleValues {
 
-            private final NumericDoubleValues values;
+            private final DoubleValues values;
 
-            Double(NumericDoubleValues values) {
+            Double(DoubleValues values) {
                 this.values = values;
             }
 

@@ -11,7 +11,6 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.ResourceNotFoundException;
-import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
@@ -110,7 +109,7 @@ public class TransportUpgradeJobModelSnapshotAction extends TransportMasterNodeA
             return;
         }
 
-        if (state.getMinTransportVersion().equals(TransportVersion.current()) == false) {
+        if (state.nodes().isMixedVersionCluster()) {
             listener.onFailure(
                 ExceptionsHelper.conflictStatusException(
                     "Cannot upgrade job [{}] snapshot [{}] while cluster upgrade is in progress.",

@@ -40,6 +40,7 @@ import java.util.Map;
 import java.util.Set;
 
 import static org.elasticsearch.cluster.metadata.DataStreamTestHelper.generateMapping;
+import static org.elasticsearch.cluster.metadata.DataStreamTestHelper.randomSettings;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -470,12 +471,7 @@ public class MetadataDataStreamsServiceTests extends MapperServiceTestCase {
         String dataStream = randomAlphaOfLength(5);
         DataStreamLifecycle lifecycle = DataStreamLifecycle.dataLifecycleBuilder().dataRetention(randomPositiveTimeValue()).build();
         ProjectMetadata before = DataStreamTestHelper.getProjectWithDataStreams(List.of(new Tuple<>(dataStream, 2)), List.of());
-        MetadataDataStreamsService service = new MetadataDataStreamsService(
-            mock(ClusterService.class),
-            mock(IndicesService.class),
-            DataStreamGlobalRetentionSettings.create(ClusterSettings.createBuiltInClusterSettings()),
-            IndexSettingProviders.EMPTY
-        );
+        MetadataDataStreamsService service = getTestInstance();
         {
             // Remove lifecycle
             ProjectMetadata after = service.updateDataLifecycle(before, List.of(dataStream), null);
@@ -502,12 +498,7 @@ public class MetadataDataStreamsServiceTests extends MapperServiceTestCase {
             DataStreamOptionsTests::randomDataStreamOptions
         );
         ProjectMetadata before = DataStreamTestHelper.getProjectWithDataStreams(List.of(new Tuple<>(dataStream, 2)), List.of());
-        MetadataDataStreamsService service = new MetadataDataStreamsService(
-            mock(ClusterService.class),
-            mock(IndicesService.class),
-            DataStreamGlobalRetentionSettings.create(ClusterSettings.createBuiltInClusterSettings()),
-            IndexSettingProviders.EMPTY
-        );
+        MetadataDataStreamsService service = getTestInstance();
 
         // Ensure no data stream options are stored
         DataStream updatedDataStream = before.dataStreams().get(dataStream);
@@ -581,6 +572,134 @@ public class MetadataDataStreamsServiceTests extends MapperServiceTestCase {
                 + "or cancel the currently running snapshot.",
             e.getMessage()
         );
+    }
+
+    public void testGetEffectiveSettingsNoMatchingTemplate() {
+        // No matching template, so we expect an IllegalArgumentException
+        DataStream dataStream = DataStreamTestHelper.randomInstance();
+        ProjectMetadata.Builder projectMetadataBuilder = ProjectMetadata.builder(randomProjectIdOrDefault());
+        MetadataDataStreamsService service = getTestInstance();
+        assertThrows(IllegalArgumentException.class, () -> service.getEffectiveSettings(projectMetadataBuilder.build(), dataStream));
+    }
+
+    public void testGetEffectiveSettingsTemplateSettingsOnly() throws IOException {
+        // We only have settings from the template, so we expect to get those back
+        DataStream dataStream = createDataStream(Settings.EMPTY);
+        Settings templateSettings = randomSettings();
+        Template.Builder templateBuilder = Template.builder().settings(templateSettings);
+        ComposableIndexTemplate indexTemplate = ComposableIndexTemplate.builder()
+            .indexPatterns(List.of(dataStream.getName()))
+            .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate())
+            .template(templateBuilder)
+            .build();
+        ProjectMetadata.Builder projectMetadataBuilder = ProjectMetadata.builder(randomProjectIdOrDefault())
+            .dataStreams(Map.of(dataStream.getName(), dataStream), Map.of())
+            .indexTemplates(Map.of(dataStream.getName(), indexTemplate));
+        MetadataDataStreamsService service = getTestInstance();
+        assertThat(service.getEffectiveSettings(projectMetadataBuilder.build(), dataStream), equalTo(templateSettings));
+    }
+
+    public void testGetEffectiveSettingsComponentTemplateSettingsOnly() throws IOException {
+        // We only have settings from a component template, so we expect to get those back
+        DataStream dataStream = createDataStream(Settings.EMPTY);
+        Settings templateSettings = Settings.EMPTY;
+        Template.Builder indexTemplateBuilder = Template.builder().settings(templateSettings);
+        ComposableIndexTemplate indexTemplate = ComposableIndexTemplate.builder()
+            .indexPatterns(List.of(dataStream.getName()))
+            .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate())
+            .template(indexTemplateBuilder)
+            .componentTemplates(List.of("component-template-1"))
+            .build();
+        Settings componentSettings = randomSettings();
+        Template.Builder componentTemplateBuilder = Template.builder().settings(componentSettings);
+        ComponentTemplate componentTemplate1 = new ComponentTemplate(componentTemplateBuilder.build(), null, null);
+        ProjectMetadata.Builder projectMetadataBuilder = ProjectMetadata.builder(randomProjectIdOrDefault())
+            .indexTemplates(Map.of(dataStream.getName(), indexTemplate))
+            .dataStreams(Map.of(dataStream.getName(), dataStream), Map.of())
+            .componentTemplates(Map.of("component-template-1", componentTemplate1));
+        MetadataDataStreamsService service = getTestInstance();
+        assertThat(service.getEffectiveSettings(projectMetadataBuilder.build(), dataStream), equalTo(componentSettings));
+    }
+
+    public void testGetEffectiveSettingsDataStreamSettingsOnly() throws IOException {
+        // We only have settings from the data stream, so we expect to get those back
+        Settings dataStreamSettings = randomSettings();
+        DataStream dataStream = createDataStream(dataStreamSettings);
+        Settings templateSettings = Settings.EMPTY;
+        Template.Builder templateBuilder = Template.builder().settings(templateSettings);
+        ComposableIndexTemplate indexTemplate = ComposableIndexTemplate.builder()
+            .indexPatterns(List.of(dataStream.getName()))
+            .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate())
+            .template(templateBuilder)
+            .build();
+        ProjectMetadata.Builder projectMetadataBuilder = ProjectMetadata.builder(randomProjectIdOrDefault())
+            .dataStreams(Map.of(dataStream.getName(), dataStream), Map.of())
+            .indexTemplates(Map.of(dataStream.getName(), indexTemplate));
+        MetadataDataStreamsService service = getTestInstance();
+        assertThat(service.getEffectiveSettings(projectMetadataBuilder.build(), dataStream), equalTo(dataStreamSettings));
+    }
+
+    public void testGetEffectiveSettings() throws IOException {
+        // Here we have settings from both the template and the data stream, so we expect the data stream settings to take precedence
+        Settings dataStreamSettings = Settings.builder()
+            .put("index.setting1", "dataStreamValue")
+            .put("index.setting2", "dataStreamValue")
+            .put("index.setting3", (String) null) // This one gets removed from the effective settings
+            .build();
+        DataStream dataStream = createDataStream(dataStreamSettings);
+        Settings templateSettings = Settings.builder()
+            .put("index.setting1", "templateValue")
+            .put("index.setting3", "templateValue")
+            .put("index.setting4", "templateValue")
+            .build();
+        Template.Builder templateBuilder = Template.builder().settings(templateSettings);
+        ComposableIndexTemplate indexTemplate = ComposableIndexTemplate.builder()
+            .indexPatterns(List.of(dataStream.getName()))
+            .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate())
+            .template(templateBuilder)
+            .componentTemplates(List.of("component-template-1"))
+            .build();
+        ProjectMetadata.Builder projectMetadataBuilder = ProjectMetadata.builder(randomProjectIdOrDefault())
+            .indexTemplates(Map.of(dataStream.getName(), indexTemplate))
+            .dataStreams(Map.of(dataStream.getName(), dataStream), Map.of())
+            .componentTemplates(
+                Map.of(
+                    "component-template-1",
+                    new ComponentTemplate(
+                        Template.builder()
+                            .settings(
+                                Settings.builder()
+                                    .put("index.setting1", "componentTemplateValue")
+                                    .put("index.setting5", "componentTemplateValue")
+                            )
+                            .build(),
+                        1L,
+                        Map.of()
+                    )
+                )
+            );
+        Settings mergedSettings = Settings.builder()
+            .put("index.setting1", "dataStreamValue")
+            .put("index.setting2", "dataStreamValue")
+            .put("index.setting4", "templateValue")
+            .put("index.setting5", "componentTemplateValue")
+            .build();
+        MetadataDataStreamsService service = getTestInstance();
+        assertThat(service.getEffectiveSettings(projectMetadataBuilder.build(), dataStream), equalTo(mergedSettings));
+    }
+
+    public MetadataDataStreamsService getTestInstance() {
+        return new MetadataDataStreamsService(
+            mock(ClusterService.class),
+            mock(IndicesService.class),
+            DataStreamGlobalRetentionSettings.create(ClusterSettings.createBuiltInClusterSettings()),
+            IndexSettingProviders.EMPTY
+        );
+    }
+
+    private DataStream createDataStream(Settings settings) {
+        DataStream dataStream = DataStreamTestHelper.randomInstance();
+        return dataStream.copy().setSettings(settings).build();
     }
 
     private MapperService getMapperService(IndexMetadata im) {

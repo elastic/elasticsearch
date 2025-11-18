@@ -1,8 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0; you may not use this file except in compliance with the Elastic License
- * 2.0.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.plugin.gpu;
@@ -27,6 +29,7 @@ import java.util.Locale;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailuresAndResponse;
+import static org.hamcrest.Matchers.containsString;
 
 @LuceneTestCase.SuppressCodecs("*") // use our custom codec
 public class GPUIndexIT extends ESIntegTestCase {
@@ -38,7 +41,7 @@ public class GPUIndexIT extends ESIntegTestCase {
 
     @BeforeClass
     public static void checkGPUSupport() {
-        assumeTrue("cuvs not supported", GPUSupport.isSupported(false));
+        assumeTrue("cuvs not supported", GPUSupport.isSupported());
     }
 
     public void testBasic() {
@@ -158,6 +161,44 @@ public class GPUIndexIT extends ESIntegTestCase {
         assertAcked(client().admin().indices().prepareUpdateSettings(indexName).setSettings(settingsBuilder.build()));
         ensureGreen();
         assertSearch(indexName, randomFloatVector(dims), numDocs);
+    }
+
+    public void testInt8HnswMaxInnerProductProductFails() {
+        String indexName = "index_int8_max_inner_product_fails";
+        final int dims = randomIntBetween(4, 128);
+
+        Settings.Builder settingsBuilder = Settings.builder().put(indexSettings());
+        settingsBuilder.put("index.number_of_shards", 1);
+        settingsBuilder.put("index.vectors.indexing.use_gpu", true);
+
+        String mapping = String.format(Locale.ROOT, """
+            {
+              "properties": {
+                "my_vector": {
+                  "type": "dense_vector",
+                  "dims": %d,
+                  "similarity": "max_inner_product",
+                  "index_options": {
+                    "type": "int8_hnsw"
+                  }
+                }
+              }
+            }
+            """, dims);
+
+        // Index creation should succeed
+        assertAcked(prepareCreate(indexName).setSettings(settingsBuilder.build()).setMapping(mapping));
+        ensureGreen();
+
+        // Attempt to index a document and expect it to fail
+        IllegalArgumentException ex = expectThrows(
+            IllegalArgumentException.class,
+            () -> client().prepareIndex(indexName).setId("1").setSource("my_vector", randomFloatVector(dims)).get()
+        );
+        assertThat(
+            ex.getMessage(),
+            containsString("GPU vector indexing does not support [max_inner_product] similarity for [int8_hnsw] index type.")
+        );
     }
 
     private void createIndex(String indexName, int dims, boolean sorted) {

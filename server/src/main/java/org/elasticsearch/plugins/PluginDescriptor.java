@@ -9,6 +9,7 @@
 
 package org.elasticsearch.plugins;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Strings;
@@ -44,6 +45,9 @@ public class PluginDescriptor implements Writeable, ToXContentObject {
     public static final String INTERNAL_DESCRIPTOR_FILENAME = "plugin-descriptor.properties";
     public static final String STABLE_DESCRIPTOR_FILENAME = "stable-plugin-descriptor.properties";
     public static final String NAMED_COMPONENTS_FILENAME = "named_components.json";
+
+    private static final TransportVersion MODULE_NAME_SUPPORT = TransportVersions.V_8_3_0;
+    private static final TransportVersion BOOTSTRAP_SUPPORT_REMOVED = TransportVersions.V_8_4_0;
 
     private final String name;
     private final String description;
@@ -125,14 +129,27 @@ public class PluginDescriptor implements Writeable, ToXContentObject {
         } else {
             this.classname = in.readString();
         }
-        this.moduleName = in.readOptionalString();
+        if (in.getTransportVersion().onOrAfter(MODULE_NAME_SUPPORT)) {
+            this.moduleName = in.readOptionalString();
+        } else {
+            this.moduleName = null;
+        }
         extendedPlugins = in.readStringCollectionAsList();
         hasNativeController = in.readBoolean();
 
+        if (in.getTransportVersion().before(BOOTSTRAP_SUPPORT_REMOVED)) {
+            in.readString(); // plugin type
+            in.readOptionalString(); // java opts
+        }
         isLicensed = in.readBoolean();
 
-        isModular = in.readBoolean();
-        isStable = in.readBoolean();
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_4_0)) {
+            isModular = in.readBoolean();
+            isStable = in.readBoolean();
+        } else {
+            isModular = moduleName != null;
+            isStable = false;
+        }
 
         ensureCorrectArgumentsForPluginType();
     }
@@ -153,12 +170,21 @@ public class PluginDescriptor implements Writeable, ToXContentObject {
         } else {
             out.writeString(classname);
         }
-        out.writeOptionalString(moduleName);
+        if (out.getTransportVersion().onOrAfter(MODULE_NAME_SUPPORT)) {
+            out.writeOptionalString(moduleName);
+        }
         out.writeStringCollection(extendedPlugins);
         out.writeBoolean(hasNativeController);
+
+        if (out.getTransportVersion().before(BOOTSTRAP_SUPPORT_REMOVED)) {
+            out.writeString("ISOLATED");
+            out.writeOptionalString(null);
+        }
         out.writeBoolean(isLicensed);
-        out.writeBoolean(isModular);
-        out.writeBoolean(isStable);
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_4_0)) {
+            out.writeBoolean(isModular);
+            out.writeBoolean(isStable);
+        }
     }
 
     private void ensureCorrectArgumentsForPluginType() {

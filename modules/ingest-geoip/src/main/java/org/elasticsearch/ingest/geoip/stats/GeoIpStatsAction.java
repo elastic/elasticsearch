@@ -174,7 +174,9 @@ public class GeoIpStatsAction {
             }
             databases = in.readCollectionAsImmutableSet(StreamInput::readString);
             filesInTemp = in.readCollectionAsImmutableSet(StreamInput::readString);
-            configDatabases = in.readCollectionAsImmutableSet(StreamInput::readString);
+            configDatabases = in.getTransportVersion().onOrAfter(TransportVersions.V_8_0_0)
+                ? in.readCollectionAsImmutableSet(StreamInput::readString)
+                : null;
         }
 
         protected NodeResponse(
@@ -224,7 +226,9 @@ public class GeoIpStatsAction {
             }
             out.writeStringCollection(databases);
             out.writeStringCollection(filesInTemp);
-            out.writeStringCollection(configDatabases);
+            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_0_0)) {
+                out.writeStringCollection(configDatabases);
+            }
         }
 
         @Override

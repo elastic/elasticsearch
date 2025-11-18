@@ -42,17 +42,18 @@ public class InferenceGetModelsWithElasticInferenceServiceIT extends BaseMockEIS
         var allModels = getAllModels();
         var chatCompletionModels = getModels("_all", TaskType.CHAT_COMPLETION);
 
-        assertThat(allModels, hasSize(7));
-        assertThat(chatCompletionModels, hasSize(1));
+        assertThat(allModels, hasSize(8));
+        assertThat(chatCompletionModels, hasSize(2));
 
         for (var model : chatCompletionModels) {
             assertEquals("chat_completion", model.get("task_type"));
         }
 
         assertInferenceIdTaskType(allModels, ".rainbow-sprinkles-elastic", TaskType.CHAT_COMPLETION);
+        assertInferenceIdTaskType(allModels, ".gp-llm-v2-chat_completion", TaskType.CHAT_COMPLETION);
         assertInferenceIdTaskType(allModels, ".elser-2-elastic", TaskType.SPARSE_EMBEDDING);
-        assertInferenceIdTaskType(allModels, ".multilingual-embed-v1-elastic", TaskType.TEXT_EMBEDDING);
-        assertInferenceIdTaskType(allModels, ".rerank-v1-elastic", TaskType.RERANK);
+        assertInferenceIdTaskType(allModels, ".jina-embeddings-v3", TaskType.TEXT_EMBEDDING);
+        assertInferenceIdTaskType(allModels, ".elastic-rerank-v1", TaskType.RERANK);
     }
 
     private static void assertInferenceIdTaskType(List<Map<String, Object>> models, String inferenceId, TaskType taskType) {

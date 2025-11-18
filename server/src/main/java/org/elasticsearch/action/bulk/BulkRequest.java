@@ -112,7 +112,9 @@ public class BulkRequest extends LegacyActionRequest
         } else {
             incrementalState = BulkRequest.IncrementalState.EMPTY;
         }
-        includeSourceOnError = in.readBoolean();
+        if (in.getTransportVersion().supports(TransportVersions.V_8_18_0)) {
+            includeSourceOnError = in.readBoolean();
+        } // else default value is true
         if (in.getTransportVersion().supports(STREAMS_ENDPOINT_PARAM_RESTRICTIONS)) {
             paramsUsed = in.readCollectionAsImmutableSet(StreamInput::readString);
         }
@@ -479,7 +481,9 @@ public class BulkRequest extends LegacyActionRequest
         if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
             incrementalState.writeTo(out);
         }
-        out.writeBoolean(includeSourceOnError);
+        if (out.getTransportVersion().supports(TransportVersions.V_8_18_0)) {
+            out.writeBoolean(includeSourceOnError);
+        }
         if (out.getTransportVersion().supports(STREAMS_ENDPOINT_PARAM_RESTRICTIONS)) {
             out.writeCollection(paramsUsed, StreamOutput::writeString);
         }

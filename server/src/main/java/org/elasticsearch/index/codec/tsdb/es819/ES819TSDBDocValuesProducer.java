@@ -45,9 +45,10 @@ import org.apache.lucene.util.packed.DirectMonotonicReader;
 import org.apache.lucene.util.packed.PackedInts;
 import org.elasticsearch.core.Assertions;
 import org.elasticsearch.core.IOUtils;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.codec.tsdb.TSDBDocValuesEncoder;
-import org.elasticsearch.index.mapper.BlockDocValuesReader;
 import org.elasticsearch.index.mapper.BlockLoader;
+import org.elasticsearch.index.mapper.blockloader.docvalues.BlockDocValuesReader;
 
 import java.io.IOException;
 
@@ -208,6 +209,40 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
                         bytesSlice.readBytes((long) doc * length, bytes.bytes, 0, length);
                         return bytes;
                     }
+
+                    @Override
+                    public BlockLoader.Block tryRead(
+                        BlockLoader.BlockFactory factory,
+                        BlockLoader.Docs docs,
+                        int offset,
+                        boolean nullsFiltered,
+                        BlockDocValuesReader.ToDouble toDouble,
+                        boolean toInt
+                    ) throws IOException {
+                        int count = docs.count() - offset;
+                        int firstDocId = docs.get(offset);
+                        int lastDocId = docs.get(count - 1);
+                        doc = lastDocId;
+
+                        if (isDense(firstDocId, lastDocId, count)) {
+                            try (var builder = factory.singletonBytesRefs(count)) {
+                                int bulkLength = length * count;
+                                byte[] bytes = new byte[bulkLength];
+                                bytesSlice.readBytes((long) firstDocId * length, bytes, 0, bulkLength);
+                                builder.appendBytesRefs(bytes, length);
+                                return builder.build();
+                            }
+                        } else {
+                            try (var builder = factory.bytesRefs(count)) {
+                                for (int i = offset; i < docs.count(); i++) {
+                                    int docId = docs.get(i);
+                                    bytesSlice.readBytes((long) docId * length, bytes.bytes, 0, length);
+                                    builder.appendBytesRef(bytes);
+                                }
+                                return builder.build();
+                            }
+                        }
+                    }
                 };
             } else {
                 // variable length
@@ -222,6 +257,52 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
                         bytes.length = (int) (addresses.get(doc + 1L) - startOffset);
                         bytesSlice.readBytes(startOffset, bytes.bytes, 0, bytes.length);
                         return bytes;
+                    }
+
+                    @Override
+                    public BlockLoader.Block tryRead(
+                        BlockLoader.BlockFactory factory,
+                        BlockLoader.Docs docs,
+                        int offset,
+                        boolean nullsFiltered,
+                        BlockDocValuesReader.ToDouble toDouble,
+                        boolean toInt
+                    ) throws IOException {
+                        int count = docs.count() - offset;
+                        int firstDocId = docs.get(offset);
+                        int lastDocId = docs.get(count - 1);
+                        doc = lastDocId;
+
+                        if (isDense(firstDocId, lastDocId, count)) {
+                            try (var builder = factory.singletonBytesRefs(count)) {
+                                long[] offsets = new long[count + 1];
+
+                                // Normalize offsets so that first offset is 0
+                                long startOffset = addresses.get(firstDocId);
+                                for (int i = offset, j = 1; i < docs.count(); i++, j++) {
+                                    int docId = docs.get(i);
+                                    long nextOffset = addresses.get(docId + 1) - startOffset;
+                                    offsets[j] = nextOffset;
+                                }
+
+                                int length = Math.toIntExact(addresses.get(lastDocId + 1L) - startOffset);
+                                byte[] bytes = new byte[length];
+                                bytesSlice.readBytes(startOffset, bytes, 0, length);
+                                builder.appendBytesRefs(bytes, offsets);
+                                return builder.build();
+                            }
+                        } else {
+                            try (var builder = factory.bytesRefs(count)) {
+                                for (int i = offset; i < docs.count(); i++) {
+                                    int docId = docs.get(i);
+                                    long startOffset = addresses.get(docId);
+                                    bytes.length = (int) (addresses.get(docId + 1L) - startOffset);
+                                    bytesSlice.readBytes(startOffset, bytes.bytes, 0, bytes.length);
+                                    builder.appendBytesRef(bytes);
+                                }
+                                return builder.build();
+                            }
+                        }
                     }
                 };
             }
@@ -267,7 +348,7 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
         }
     }
 
-    private abstract static class DenseBinaryDocValues extends BinaryDocValues {
+    abstract static class DenseBinaryDocValues extends BinaryDocValues implements BlockLoader.OptionalColumnAtATimeReader {
 
         final int maxDoc;
         int doc = -1;
@@ -427,19 +508,43 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
             }
 
             BlockLoader.Block tryReadAHead(BlockLoader.BlockFactory factory, BlockLoader.Docs docs, int offset) throws IOException {
-                if (ords instanceof BaseDenseNumericValues denseOrds && (valuesSorted || entry.termsDictEntry.termsDictSize == 1)) {
+                if (ords instanceof BaseDenseNumericValues denseOrds) {
+                    if (entry.termsDictEntry.termsDictSize == 1) {
+                        return factory.constantBytes(BytesRef.deepCopyOf(lookupOrd(0)), docs.count() - offset);
+                    }
+                    if (valuesSorted == false) {
+                        return null;
+                    }
                     int firstDoc = docs.get(offset);
                     denseOrds.advanceExact(firstDoc);
-                    long startValue = denseOrds.longValue();
+                    int startValue = Math.toIntExact(denseOrds.longValue());
                     final int docCount = docs.count();
                     int lastDoc = docs.get(docCount - 1);
-                    long lastValue = denseOrds.lookAheadValueAt(lastDoc);
+                    int lastValue = Math.toIntExact(denseOrds.lookAheadValueAt(lastDoc));
                     if (lastValue == startValue) {
                         BytesRef b = lookupOrd(Math.toIntExact(startValue));
                         return factory.constantBytes(BytesRef.deepCopyOf(b), docCount - offset);
                     }
-                    // TODO: Since ordinals are sorted, start at 0 (offset by startValue), scan until lastValue,
-                    // then fill remaining positions with lastValue.
+                    var ordinalReader = denseOrds.sortedOrdinalReader();
+                    if (ordinalReader != null) {
+                        try (var builder = factory.singletonOrdinalsBuilder(this, docCount - offset, true)) {
+                            int docIndex = offset;
+                            while (docIndex < docCount) {
+                                int ord = Math.toIntExact(ordinalReader.readValueAndAdvance(docs.get(docIndex)));
+                                // append all docs of the last range without checking
+                                if (lastDoc < ordinalReader.rangeEndExclusive) {
+                                    builder.appendOrds(ord, docCount - docIndex);
+                                    break;
+                                }
+                                final int startIndex = docIndex;
+                                while (docIndex < docCount && docs.get(docIndex) < ordinalReader.rangeEndExclusive) {
+                                    ++docIndex;
+                                }
+                                builder.appendOrds(ord, docIndex - startIndex);
+                            }
+                            return builder.build();
+                        }
+                    }
                 }
                 return null;
             }
@@ -552,6 +657,9 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
         BlockLoader.Block tryRead(BlockLoader.SingletonLongBuilder builder, BlockLoader.Docs docs, int offset) throws IOException {
             return null;
         }
+
+        @Nullable
+        abstract SortedOrdinalReader sortedOrdinalReader();
     }
 
     abstract static class BaseSparseNumericValues extends NumericDocValues implements BlockLoader.OptionalColumnAtATimeReader {
@@ -1326,6 +1434,11 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
                     long lookAheadValueAt(int targetDoc) throws IOException {
                         return 0L;  // Only one ordinal!
                     }
+
+                    @Override
+                    SortedOrdinalReader sortedOrdinalReader() {
+                        return null;
+                    }
                 };
             } else {
                 final IndexedDISI disi = new IndexedDISI(
@@ -1481,13 +1594,10 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
                     return lookaheadBlock[valueIndex];
                 }
 
-                static boolean isDense(int firstDocId, int lastDocId, int length) {
-                    // This does not detect duplicate docids (e.g [1, 1, 2, 4] would be detected as dense),
-                    // this can happen with enrich or lookup. However this codec isn't used for enrich / lookup.
-                    // This codec is only used in the context of logsdb and tsdb, so this is fine here.
-                    return lastDocId - firstDocId == length - 1;
+                @Override
+                SortedOrdinalReader sortedOrdinalReader() {
+                    return null;
                 }
-
             };
         } else {
             final IndexedDISI disi = new IndexedDISI(
@@ -1602,6 +1712,13 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
         }
     }
 
+    private static boolean isDense(int firstDocId, int lastDocId, int length) {
+        // This does not detect duplicate docids (e.g [1, 1, 2, 4] would be detected as dense),
+        // this can happen with enrich or lookup. However this codec isn't used for enrich / lookup.
+        // This codec is only used in the context of logsdb and tsdb, so this is fine here.
+        return lastDocId - firstDocId == length - 1;
+    }
+
     private NumericDocValues getRangeEncodedNumericDocValues(NumericEntry entry, long maxOrd) throws IOException {
         final var ordinalsReader = new SortedOrdinalReader(
             maxOrd,
@@ -1622,6 +1739,11 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
                 @Override
                 public int docIDRunEnd() throws IOException {
                     return maxDoc;
+                }
+
+                @Override
+                SortedOrdinalReader sortedOrdinalReader() {
+                    return ordinalsReader;
                 }
             };
         } else {

@@ -55,6 +55,8 @@ dependencies {
   api "org.apache.httpcomponents.core5:httpcore5:${versions.httpcore5}"
   api "org.apache.httpcomponents.core5:httpcore5-h2:${versions.httpcore5}"
 
+  api "com.ibm.icu:icu4j:${versions.icu4j}"
+
   // Ideally this would be `runtimeOnly` so that we don't accidentally write code against the SLF4j API
   // However, some child plugins (like security) need to use slf4j directly in order to manage logging for their dependencies :(
   // And due to the way our plugin loading handles java modules between dependent plugins, this plugin (x-pack-core) needs to declare

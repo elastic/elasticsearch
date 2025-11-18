@@ -759,7 +759,13 @@ public class EsqlSession {
         if (localIndexNames.size() == 1) {
             String indexName = localIndexNames.iterator().next();
             // TODO concrete indices
-            EsIndex newIndex = new EsIndex(index, lookupIndexResolution.get().mapping(), Map.of(indexName, IndexMode.LOOKUP), Map.of(), Set.of());
+            EsIndex newIndex = new EsIndex(
+                index,
+                lookupIndexResolution.get().mapping(),
+                Map.of(indexName, IndexMode.LOOKUP),
+                Map.of(),
+                Set.of()
+            );
             return IndexResolution.valid(newIndex, newIndex.concreteIndices(), lookupIndexResolution.failures());
         }
         // validate remotes to be able to handle multiple indices in LOOKUP JOIN

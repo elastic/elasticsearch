@@ -631,6 +631,7 @@ public final class IndexSettings {
         Property.ServerlessPublic
     );
 
+    // TODO: deprecate this setting as this was designed as an opt-out and name of the setting is tied actual name of the codec:
     public static final Setting<Boolean> TIME_SERIES_ES87TSDB_CODEC_ENABLED_SETTING = Setting.boolSetting(
         "index.time_series.es87tsdb_codec.enabled",
         true,
@@ -668,6 +669,14 @@ public final class IndexSettings {
         Property.Final
     );
 
+    public static final Setting<Boolean> LOGSDB_SORT_ON_MESSAGE_TEMPLATE = Setting.boolSetting(
+        "index.logsdb.sort_on_message_template",
+        false,
+        Property.IndexScope,
+        Property.PrivateIndex,
+        Property.Final
+    );
+
     public static final boolean DOC_VALUES_SKIPPER = new FeatureFlag("doc_values_skipper").isEnabled();
     public static final Setting<Boolean> USE_DOC_VALUES_SKIPPER = Setting.boolSetting(
         "index.mapping.use_doc_values_skipper",
@@ -682,7 +691,19 @@ public final class IndexSettings {
         false,
         new Setting.Validator<>() {
             @Override
-            public void validate(Boolean value) {}
+            public void validate(Boolean enabled) {
+                if (enabled) {
+                    if (TSDB_SYNTHETIC_ID_FEATURE_FLAG == false) {
+                        throw new IllegalArgumentException(
+                            String.format(
+                                Locale.ROOT,
+                                "The setting [%s] is only permitted when the feature flag is enabled.",
+                                USE_SYNTHETIC_ID.getKey()
+                            )
+                        );
+                    }
+                }
+            }
 
             @Override
             public void validate(Boolean enabled, Map<Setting<?>, Object> settings) {
@@ -807,6 +828,19 @@ public final class IndexSettings {
         Property.Final
     );
 
+    public static final Setting<Boolean> USE_TIME_SERIES_DOC_VALUES_FORMAT_SETTING = Setting.boolSetting(
+        "index.use_time_series_doc_values_format",
+        settings -> {
+            if (settings == null) {
+                return Boolean.FALSE.toString();
+            }
+            var indexMode = IndexSettings.MODE.get(settings);
+            return Boolean.toString(indexMode.useTimeSeriesDocValuesCodec());
+        },
+        Property.IndexScope,
+        Property.Final
+    );
+
     /**
      * Legacy index setting, kept for 7.x BWC compatibility. This setting has no effect in 8.x. Do not use.
      * TODO: Remove in 9.0
@@ -820,6 +854,14 @@ public final class IndexSettings {
         Property.IndexScope,
         Property.IndexSettingDeprecatedInV7AndRemovedInV8
     );
+
+    public static final Setting<Boolean> USE_ES_812_POSTINGS_FORMAT = Setting.boolSetting("index.use_legacy_postings_format", settings -> {
+        if (settings == null) {
+            return Boolean.FALSE.toString();
+        }
+        IndexMode indexMode = IndexSettings.MODE.get(settings);
+        return Boolean.toString(indexMode.useEs812PostingsFormat());
+    }, Property.IndexScope, Property.Final);
 
     /**
      * The `index.mapping.ignore_above` setting defines the maximum length for the content of a field that will be indexed
@@ -975,7 +1017,9 @@ public final class IndexSettings {
     private final boolean recoverySourceEnabled;
     private final boolean recoverySourceSyntheticEnabled;
     private final boolean useDocValuesSkipper;
-    private final boolean tsdbSyntheticId;
+    private final boolean useTimeSeriesSyntheticId;
+    private final boolean useTimeSeriesDocValuesFormat;
+    private final boolean useEs812PostingsFormat;
 
     /**
      * The maximum number of refresh listeners allows on this shard.
@@ -1162,8 +1206,30 @@ public final class IndexSettings {
             && scopedSettings.get(RECOVERY_USE_SYNTHETIC_SOURCE_SETTING);
         useDocValuesSkipper = DOC_VALUES_SKIPPER && scopedSettings.get(USE_DOC_VALUES_SKIPPER);
         seqNoIndexOptions = scopedSettings.get(SEQ_NO_INDEX_OPTIONS_SETTING);
-        tsdbSyntheticId = TSDB_SYNTHETIC_ID_FEATURE_FLAG && scopedSettings.get(USE_SYNTHETIC_ID);
-        assert tsdbSyntheticId == false || mode == IndexMode.TIME_SERIES : mode;
+        useTimeSeriesDocValuesFormat = scopedSettings.get(USE_TIME_SERIES_DOC_VALUES_FORMAT_SETTING);
+        useEs812PostingsFormat = scopedSettings.get(USE_ES_812_POSTINGS_FORMAT);
+        final var useSyntheticId = IndexSettings.TSDB_SYNTHETIC_ID_FEATURE_FLAG && scopedSettings.get(USE_SYNTHETIC_ID);
+        if (indexMetadata.useTimeSeriesSyntheticId() != useSyntheticId) {
+            assert false;
+            throw new IllegalArgumentException(
+                String.format(
+                    Locale.ROOT,
+                    "The setting [%s] is set to [%s] but index metadata has a different value [%s].",
+                    USE_SYNTHETIC_ID.getKey(),
+                    useSyntheticId,
+                    indexMetadata.useTimeSeriesSyntheticId()
+                )
+            );
+        }
+        if (useSyntheticId) {
+            assert TSDB_SYNTHETIC_ID_FEATURE_FLAG;
+            assert indexMetadata.useTimeSeriesSyntheticId();
+            assert indexMetadata.getIndexMode() == IndexMode.TIME_SERIES : indexMetadata.getIndexMode();
+            assert indexMetadata.getCreationVersion().onOrAfter(IndexVersions.TIME_SERIES_USE_SYNTHETIC_ID);
+            useTimeSeriesSyntheticId = true;
+        } else {
+            useTimeSeriesSyntheticId = false;
+        }
         if (recoverySourceSyntheticEnabled) {
             if (DiscoveryNode.isStateless(settings)) {
                 throw new IllegalArgumentException("synthetic recovery source is only allowed in stateful");
@@ -1899,8 +1965,22 @@ public final class IndexSettings {
     /**
      * @return Whether the index is a time-series index that use synthetic ids.
      */
-    public boolean useTsdbSyntheticId() {
-        return tsdbSyntheticId;
+    public boolean useTimeSeriesSyntheticId() {
+        return useTimeSeriesSyntheticId;
+    }
+
+    /**
+     * @return Whether the time series doc value format should be used.
+     */
+    public boolean useTimeSeriesDocValuesFormat() {
+        return useTimeSeriesDocValuesFormat;
+    }
+
+    /**
+     * @return Whether the ES 8.12 postings format should be used.
+     */
+    public boolean useEs812PostingsFormat() {
+        return useEs812PostingsFormat;
     }
 
     /**

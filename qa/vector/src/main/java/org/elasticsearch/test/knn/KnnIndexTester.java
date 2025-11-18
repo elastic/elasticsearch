@@ -38,6 +38,7 @@ import org.elasticsearch.index.codec.vectors.diskbbq.ES920DiskBBQVectorsFormat;
 import org.elasticsearch.index.codec.vectors.diskbbq.next.ESNextDiskBBQVectorsFormat;
 import org.elasticsearch.index.codec.vectors.es818.ES818BinaryQuantizedVectorsFormat;
 import org.elasticsearch.index.codec.vectors.es818.ES818HnswBinaryQuantizedVectorsFormat;
+import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.logging.Level;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
@@ -117,43 +118,43 @@ public class KnnIndexTester {
 
     static Codec createCodec(CmdLineArgs args) {
         final KnnVectorsFormat format;
+        int quantizeBits = args.quantizeBits();
         if (args.indexType() == IndexType.IVF) {
-            ESNextDiskBBQVectorsFormat.QuantEncoding encoding = args.quantizeBits() == 1
-                ? ESNextDiskBBQVectorsFormat.QuantEncoding.ONE_BIT_4BIT_QUERY
-                : ESNextDiskBBQVectorsFormat.QuantEncoding.TWO_BIT_4BIT_QUERY;
+            ESNextDiskBBQVectorsFormat.QuantEncoding encoding = switch (quantizeBits) {
+                case (1) -> ESNextDiskBBQVectorsFormat.QuantEncoding.ONE_BIT_4BIT_QUERY;
+                case (2) -> ESNextDiskBBQVectorsFormat.QuantEncoding.TWO_BIT_4BIT_QUERY;
+                case (4) -> ESNextDiskBBQVectorsFormat.QuantEncoding.FOUR_BIT_SYMMETRIC;
+                default -> throw new IllegalArgumentException(
+                    "IVF index type only supports 1, 2 or 4 bits quantization, but got: " + quantizeBits
+                );
+            };
             format = new ESNextDiskBBQVectorsFormat(
                 encoding,
                 args.ivfClusterSize(),
-                ES920DiskBBQVectorsFormat.DEFAULT_CENTROIDS_PER_PARENT_CLUSTER
+                ES920DiskBBQVectorsFormat.DEFAULT_CENTROIDS_PER_PARENT_CLUSTER,
+                DenseVectorFieldMapper.ElementType.FLOAT,
+                args.onDiskRescore()
             );
         } else if (args.indexType() == IndexType.GPU_HNSW) {
-            if (args.quantizeBits() == 32) {
+            if (quantizeBits == 32) {
                 format = new ES92GpuHnswVectorsFormat();
-            } else if (args.quantizeBits() == 7) {
+            } else if (quantizeBits == 7) {
                 format = new ES92GpuHnswSQVectorsFormat();
             } else {
-                throw new IllegalArgumentException(
-                    "GPU HNSW index type only supports 7 or 32 bits quantization, but got: " + args.quantizeBits()
-                );
+                throw new IllegalArgumentException("GPU HNSW index type only supports 7 or 32 bits quantization, but got: " + quantizeBits);
             }
         } else {
-            if (args.quantizeBits() == 1) {
+            if (quantizeBits == 1) {
                 if (args.indexType() == IndexType.FLAT) {
                     format = new ES818BinaryQuantizedVectorsFormat();
                 } else {
                     format = new ES818HnswBinaryQuantizedVectorsFormat(args.hnswM(), args.hnswEfConstruction(), 1, null);
                 }
-            } else if (args.quantizeBits() < 32) {
+            } else if (quantizeBits < 32) {
                 if (args.indexType() == IndexType.FLAT) {
-                    format = new ES813Int8FlatVectorFormat(null, args.quantizeBits(), true);
+                    format = new ES813Int8FlatVectorFormat(null, quantizeBits, true);
                 } else {
-                    format = new ES814HnswScalarQuantizedVectorsFormat(
-                        args.hnswM(),
-                        args.hnswEfConstruction(),
-                        null,
-                        args.quantizeBits(),
-                        true
-                    );
+                    format = new ES814HnswScalarQuantizedVectorsFormat(args.hnswM(), args.hnswEfConstruction(), null, quantizeBits, true);
                 }
             } else {
                 format = new Lucene99HnswVectorsFormat(args.hnswM(), args.hnswEfConstruction(), 1, null);

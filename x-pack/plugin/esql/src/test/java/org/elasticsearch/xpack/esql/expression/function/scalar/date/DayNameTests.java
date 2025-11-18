@@ -62,7 +62,7 @@ public class DayNameTests extends AbstractConfigurationFunctionTestCase {
                     Matchers.startsWith("DayNameMillisEvaluator[val=Attribute[channel=0], zoneId=Z, locale=en_US]"),
                     DataType.KEYWORD,
                     equalTo(null)
-                )
+                ).withStaticConfiguration()
             )
         );
 
@@ -78,7 +78,7 @@ public class DayNameTests extends AbstractConfigurationFunctionTestCase {
                     Matchers.startsWith("DayNameMillisEvaluator[val=Attribute[channel=0], zoneId=Z, locale=en_US]"),
                     DataType.KEYWORD,
                     equalTo(new BytesRef(expectedWeekDay))
-                )
+                ).withStaticConfiguration()
             ),
             new TestCaseSupplier(
                 List.of(DataType.DATE_NANOS),
@@ -87,7 +87,7 @@ public class DayNameTests extends AbstractConfigurationFunctionTestCase {
                     Matchers.is("DayNameNanosEvaluator[val=Attribute[channel=0], zoneId=Z, locale=en_US]"),
                     DataType.KEYWORD,
                     equalTo(new BytesRef(expectedWeekDay))
-                )
+                ).withStaticConfiguration()
             )
         );
     }

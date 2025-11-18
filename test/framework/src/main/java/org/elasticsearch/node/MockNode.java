@@ -45,6 +45,7 @@ import org.elasticsearch.search.MockSearchService;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.fetch.FetchPhase;
 import org.elasticsearch.tasks.TaskManager;
+import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.telemetry.tracing.Tracer;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.MockHttpTransport;
@@ -174,7 +175,7 @@ public class MockNode extends Node {
             Function<BoundTransportAddress, DiscoveryNode> localNodeFactory,
             ClusterSettings clusterSettings,
             TaskManager taskManager,
-            Tracer tracer,
+            TelemetryProvider telemetryProvider,
             String nodeId,
             LinkedProjectConfigService linkedProjectConfigService,
             ProjectResolver projectResolver
@@ -194,7 +195,7 @@ public class MockNode extends Node {
                     localNodeFactory,
                     clusterSettings,
                     taskManager,
-                    tracer,
+                    telemetryProvider,
                     nodeId,
                     linkedProjectConfigService,
                     projectResolver
@@ -209,6 +210,7 @@ public class MockNode extends Node {
                     clusterSettings,
                     MockTransportService.createTaskManager(settings, threadPool, taskManager.getTaskHeaders(), Tracer.NOOP, nodeId),
                     linkedProjectConfigService,
+                    telemetryProvider,
                     projectResolver
                 );
             }

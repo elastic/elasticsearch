@@ -17,7 +17,6 @@ import javax.lang.model.element.Modifier;
 
 import static org.elasticsearch.compute.gen.Methods.getMethod;
 import static org.elasticsearch.compute.gen.Types.BOOLEAN_BLOCK;
-import static org.elasticsearch.compute.gen.Types.BYTES_REF;
 import static org.elasticsearch.compute.gen.Types.BYTES_REF_BLOCK;
 import static org.elasticsearch.compute.gen.Types.DOUBLE_BLOCK;
 import static org.elasticsearch.compute.gen.Types.EXPRESSION_EVALUATOR;
@@ -34,6 +33,11 @@ public record StandardArgument(TypeName type, String name) implements Argument {
             return isBlockType() ? type : blockType(type);
         }
         return vectorType(type);
+    }
+
+    @Override
+    public boolean supportsVectorReadAccess() {
+        return dataType(false) != null;
     }
 
     @Override
@@ -93,8 +97,8 @@ public record StandardArgument(TypeName type, String name) implements Argument {
 
     @Override
     public void createScratch(MethodSpec.Builder builder) {
-        if (isBytesRef()) {
-            builder.addStatement("$T $LScratch = new $T()", BYTES_REF, name, BYTES_REF);
+        if (scratchType() != null) {
+            builder.addStatement("$T $LScratch = new $T()", scratchType(), name, scratchType());
         }
     }
 
@@ -123,7 +127,7 @@ public record StandardArgument(TypeName type, String name) implements Argument {
     @Override
     public void read(MethodSpec.Builder builder, boolean blockStyle) {
         String params = blockStyle ? paramName(true) + ".getFirstValueIndex(p)" : "p";
-        if (isBytesRef()) {
+        if (scratchType() != null) {
             params += ", " + scratchName();
         }
         builder.addStatement("$T $L = $L.$L($L)", type, name, paramName(blockStyle), getMethod(type), params);
@@ -150,6 +154,19 @@ public record StandardArgument(TypeName type, String name) implements Argument {
     @Override
     public void sumBaseRamBytesUsed(MethodSpec.Builder builder) {
         builder.addStatement("baseRamBytesUsed += $L.baseRamBytesUsed()", name);
+    }
+
+    @Override
+    public void startBlockProcessingLoop(MethodSpec.Builder builder) {
+        builder.addStatement("int $L = $L.getFirstValueIndex(p)", startName(), blockName());
+        builder.addStatement("int $L = $L + $LValueCount", endName(), startName(), name());
+        builder.beginControlFlow("for (int $L = $L; $L < $L; $L++)", offsetName(), startName(), offsetName(), endName(), offsetName());
+        read(builder, blockName(), offsetName());
+    }
+
+    @Override
+    public void endBlockProcessingLoop(MethodSpec.Builder builder) {
+        builder.endControlFlow();
     }
 
     static void skipNull(MethodSpec.Builder builder, String value) {

@@ -48,10 +48,10 @@ import org.elasticsearch.index.mapper.BlockStoredFieldsReader;
 import org.elasticsearch.index.mapper.CompositeSyntheticFieldLoader;
 import org.elasticsearch.index.mapper.DocumentParserContext;
 import org.elasticsearch.index.mapper.FieldMapper;
+import org.elasticsearch.index.mapper.IndexType;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
-import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.mapper.SourceLoader;
 import org.elasticsearch.index.mapper.SourceValueFetcher;
 import org.elasticsearch.index.mapper.TextFamilyFieldType;
@@ -100,7 +100,7 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
 
     }
 
-    public static class Builder extends BuilderWithSyntheticSourceContext {
+    public static class Builder extends TextFamilyBuilder {
 
         private final Parameter<Map<String, String>> meta = Parameter.metaParam();
 
@@ -112,10 +112,9 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
             IndexVersion indexCreatedVersion,
             IndexAnalyzers indexAnalyzers,
             boolean storedFieldInBinaryFormat,
-            boolean isSyntheticSourceEnabled,
             boolean isWithinMultiField
         ) {
-            super(name, indexCreatedVersion, isSyntheticSourceEnabled, isWithinMultiField);
+            super(name, indexCreatedVersion, isWithinMultiField);
             this.analyzers = new TextParams.Analyzers(
                 indexAnalyzers,
                 m -> ((MatchOnlyTextFieldMapper) m).indexAnalyzer,
@@ -170,7 +169,6 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
             c.indexVersionCreated(),
             c.getIndexAnalyzers(),
             isSyntheticSourceStoredFieldInBinaryFormat(c.indexVersionCreated()),
-            SourceFieldMapper.isSynthetic(c.getIndexSettings()),
             c.isWithinMultiField()
         )
     );
@@ -191,7 +189,7 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
             boolean storedFieldInBinaryFormat,
             KeywordFieldMapper.KeywordFieldType syntheticSourceDelegate
         ) {
-            super(name, true, false, false, tsi, meta, isSyntheticSource, withinMultiField);
+            super(name, IndexType.terms(true, false), false, tsi, meta, isSyntheticSource, withinMultiField);
             this.indexAnalyzer = Objects.requireNonNull(indexAnalyzer);
             this.textFieldType = new TextFieldType(name, isSyntheticSource, withinMultiField, syntheticSourceDelegate);
             this.storedFieldInBinaryFormat = storedFieldInBinaryFormat;
@@ -297,7 +295,8 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
             String parentFieldName = searchExecutionContext.parentPath(name());
             var parent = searchExecutionContext.lookup().fieldType(parentFieldName);
 
-            if (parent instanceof KeywordFieldMapper.KeywordFieldType keywordParent && keywordParent.ignoreAbove().isSet()) {
+            if (parent instanceof KeywordFieldMapper.KeywordFieldType keywordParent
+                && keywordParent.ignoreAbove().valuesPotentiallyIgnored()) {
                 final String parentFallbackFieldName = keywordParent.syntheticSourceFallbackFieldName();
                 if (parent.isStored()) {
                     return storedFieldFetcher(parentFieldName, parentFallbackFieldName);
@@ -325,7 +324,7 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
             final SearchExecutionContext searchExecutionContext,
             final KeywordFieldMapper.KeywordFieldType keywordDelegate
         ) {
-            if (keywordDelegate.ignoreAbove().isSet()) {
+            if (keywordDelegate.ignoreAbove().valuesPotentiallyIgnored()) {
                 // because we don't know whether the delegate field will be ignored during parsing, we must also check the current field
                 String fieldName = name();
                 String fallbackName = syntheticSourceFallbackFieldName();
@@ -604,6 +603,28 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
                 }
             }
 
+            /*
+             * TODO: This duplicates code from TextFieldMapper
+             * If this is a sub-text field try and return the parent's loader. Text
+             * fields will always be slow to load and if the parent is exact then we
+             * should use that instead.
+             */
+            String parentField = blContext.parentField(name());
+            if (parentField != null) {
+                MappedFieldType parent = blContext.lookup().fieldType(parentField);
+                if (parent.typeName().equals(KeywordFieldMapper.CONTENT_TYPE)) {
+                    KeywordFieldMapper.KeywordFieldType kwd = (KeywordFieldMapper.KeywordFieldType) parent;
+                    if (kwd.hasNormalizer() == false && (kwd.hasDocValues() || kwd.isStored())) {
+                        return new BlockLoader.Delegating(kwd.blockLoader(blContext)) {
+                            @Override
+                            protected String delegatingTo() {
+                                return kwd.name();
+                            }
+                        };
+                    }
+                }
+            }
+
             // fallback to _source (synthetic or not)
             SourceValueFetcher fetcher = SourceValueFetcher.toString(blContext.sourcePaths(name()), blContext.indexSettings());
             // MatchOnlyText never has norms, so we have to use the field names field
@@ -677,14 +698,8 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
 
     @Override
     public FieldMapper.Builder getMergeBuilder() {
-        return new Builder(
-            leafName(),
-            indexCreatedVersion,
-            indexAnalyzers,
-            storedFieldInBinaryFormat,
-            fieldType().isSyntheticSourceEnabled(),
-            fieldType().isWithinMultiField()
-        ).init(this);
+        return new Builder(leafName(), indexCreatedVersion, indexAnalyzers, storedFieldInBinaryFormat, fieldType().isWithinMultiField())
+            .init(this);
     }
 
     @Override

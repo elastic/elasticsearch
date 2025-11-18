@@ -59,6 +59,7 @@ import org.elasticsearch.xpack.esql.expression.function.fulltext.MultiMatch;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.QueryString;
 import org.elasticsearch.xpack.esql.expression.function.grouping.Bucket;
 import org.elasticsearch.xpack.esql.expression.function.grouping.TBucket;
+import org.elasticsearch.xpack.esql.expression.function.inference.CompletionFunction;
 import org.elasticsearch.xpack.esql.expression.function.inference.TextEmbedding;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDateNanos;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDatetime;
@@ -1448,7 +1449,7 @@ public class AnalyzerTests extends ESTestCase {
         assertThat(output, hasSize(2));
         var aggs = agg.aggregates();
         var min = as(Alias.unwrap(aggs.get(0)), Min.class);
-        assertThat(min.arguments(), hasSize(2));    // field + filter
+        assertThat(min.arguments(), hasSize(3));    // field + filter + window
         var group = Alias.unwrap(agg.groupings().get(0));
         assertEquals(min.arguments().get(0), group);
     }
@@ -1470,7 +1471,7 @@ public class AnalyzerTests extends ESTestCase {
         assertThat(output, hasSize(2));
         var aggs = agg.aggregates();
         var min = as(Alias.unwrap(aggs.get(0)), Min.class);
-        assertThat(min.arguments(), hasSize(2));    // field + filter
+        assertThat(min.arguments(), hasSize(3));    // field + filter
         assertEquals(Expressions.attribute(min.arguments().get(0)), Expressions.attribute(agg.groupings().get(0)));
     }
 
@@ -2051,7 +2052,7 @@ public class AnalyzerTests extends ESTestCase {
              found value [x] type [unsigned_long]
             line 2:58: argument of [median_absolute_deviation(x)] must be [numeric except unsigned_long or counter types],\
              found value [x] type [unsigned_long]
-            line 2:96: first argument of [percentile(x, 10)] must be [numeric except unsigned_long],\
+            line 2:96: first argument of [percentile(x, 10)] must be [exponential_histogram or numeric except unsigned_long],\
              found value [x] type [unsigned_long]
             line 2:115: argument of [sum(x)] must be [aggregate_metric_double or numeric except unsigned_long or counter types],\
              found value [x] type [unsigned_long]""");
@@ -2067,7 +2068,8 @@ public class AnalyzerTests extends ESTestCase {
              found value [x] type [version]
             line 2:29: argument of [median_absolute_deviation(x)] must be [numeric except unsigned_long or counter types],\
              found value [x] type [version]
-            line 2:59: first argument of [percentile(x, 10)] must be [numeric except unsigned_long], found value [x] type [version]
+            line 2:59: first argument of [percentile(x, 10)] must be [exponential_histogram or numeric except unsigned_long],\
+             found value [x] type [version]
             line 2:78: argument of [sum(x)] must be [aggregate_metric_double or numeric except unsigned_long or counter types],\
              found value [x] type [version]""");
     }
@@ -3317,10 +3319,11 @@ public class AnalyzerTests extends ESTestCase {
     }
 
     public void testResolveDenseVector() {
-        FieldCapabilitiesResponse caps = new FieldCapabilitiesResponse(
-            List.of(fieldCapabilitiesIndexResponse("foo", Map.of("v", new IndexFieldCapabilitiesBuilder("v", "dense_vector").build()))),
-            List.of()
-        );
+        FieldCapabilitiesResponse caps = FieldCapabilitiesResponse.builder()
+            .withIndexResponses(
+                List.of(fieldCapabilitiesIndexResponse("foo", Map.of("v", new IndexFieldCapabilitiesBuilder("v", "dense_vector").build())))
+            )
+            .build();
         {
             IndexResolution resolution = IndexResolver.mergedMappings(
                 "foo",
@@ -3342,15 +3345,16 @@ public class AnalyzerTests extends ESTestCase {
     }
 
     public void testResolveAggregateMetricDouble() {
-        FieldCapabilitiesResponse caps = new FieldCapabilitiesResponse(
-            List.of(
-                fieldCapabilitiesIndexResponse(
-                    "foo",
-                    Map.of("v", new IndexFieldCapabilitiesBuilder("v", "aggregate_metric_double").build())
+        FieldCapabilitiesResponse caps = FieldCapabilitiesResponse.builder()
+            .withIndexResponses(
+                List.of(
+                    fieldCapabilitiesIndexResponse(
+                        "foo",
+                        Map.of("v", new IndexFieldCapabilitiesBuilder("v", "aggregate_metric_double").build())
+                    )
                 )
-            ),
-            List.of()
-        );
+            )
+            .build();
         {
             IndexResolution resolution = IndexResolver.mergedMappings(
                 "foo",
@@ -4286,6 +4290,67 @@ public class AnalyzerTests extends ESTestCase {
         EsRelation esRelation = as(completion.child(), EsRelation.class);
         assertThat(getAttributeByName(completion.output(), "description"), equalTo(completion.targetField()));
         assertThat(getAttributeByName(esRelation.output(), "description"), not(equalTo(completion.targetField())));
+    }
+
+    public void testFoldableCompletionTransformedToEval() {
+        // Test that a foldable Completion plan (with literal prompt) is transformed to Eval with CompletionFunction
+        LogicalPlan plan = analyze("""
+            FROM books METADATA _score
+            | COMPLETION "Translate this text in French" WITH { "inference_id" : "completion-inference-id" }
+            """, "mapping-books.json");
+
+        Eval eval = as(as(plan, Limit.class).child(), Eval.class);
+        assertThat(eval.fields().size(), equalTo(1));
+
+        Alias alias = eval.fields().get(0);
+        assertThat(alias.name(), equalTo("completion"));
+        assertThat(alias.child(), instanceOf(CompletionFunction.class));
+
+        CompletionFunction completionFunction = as(alias.child(), CompletionFunction.class);
+        assertThat(completionFunction.prompt(), equalTo(string("Translate this text in French")));
+        assertThat(completionFunction.inferenceId(), equalTo(string("completion-inference-id")));
+        assertThat(completionFunction.taskType(), equalTo(org.elasticsearch.inference.TaskType.COMPLETION));
+    }
+
+    public void testFoldableCompletionWithCustomTargetFieldTransformedToEval() {
+        // Test that a foldable Completion plan with custom target field is transformed correctly
+        LogicalPlan plan = analyze("""
+            FROM books METADATA _score
+            | COMPLETION translation = "Translate this text" WITH { "inference_id" : "completion-inference-id" }
+            """, "mapping-books.json");
+
+        Eval eval = as(as(plan, Limit.class).child(), Eval.class);
+        assertThat(eval.fields().size(), equalTo(1));
+
+        Alias alias = eval.fields().get(0);
+        assertThat(alias.name(), equalTo("translation"));
+        assertThat(alias.child(), instanceOf(CompletionFunction.class));
+
+        CompletionFunction completionFunction = as(alias.child(), CompletionFunction.class);
+        assertThat(completionFunction.prompt(), equalTo(string("Translate this text")));
+        assertThat(completionFunction.inferenceId(), equalTo(string("completion-inference-id")));
+    }
+
+    public void testFoldableCompletionWithFoldableExpressionTransformedToEval() {
+        // Test that a foldable Completion plan with a foldable expression (not just a literal) is transformed correctly
+        // Using CONCAT with all literal arguments to ensure it's foldable during analysis
+        LogicalPlan plan = analyze("""
+            FROM books METADATA _score
+            | COMPLETION CONCAT("Translate", " ", "this text") WITH { "inference_id" : "completion-inference-id" }
+            """, "mapping-books.json");
+
+        Eval eval = as(as(plan, Limit.class).child(), Eval.class);
+        assertThat(eval.fields().size(), equalTo(1));
+
+        Alias alias = eval.fields().get(0);
+        assertThat(alias.name(), equalTo("completion"));
+        assertThat(alias.child(), instanceOf(CompletionFunction.class));
+
+        CompletionFunction completionFunction = as(alias.child(), CompletionFunction.class);
+        // The prompt should be a Concat expression that is foldable (all arguments are literals)
+        assertThat(completionFunction.prompt(), instanceOf(Concat.class));
+        assertThat(completionFunction.prompt().foldable(), equalTo(true));
+        assertThat(completionFunction.inferenceId(), equalTo(string("completion-inference-id")));
     }
 
     public void testResolveGroupingsBeforeResolvingImplicitReferencesToGroupings() {
@@ -5557,6 +5622,43 @@ public class AnalyzerTests extends ESTestCase {
         assertEquals(new BytesRef("error"), literal.value());
         subqueryIndex = as(subqueryFilter.child(), EsRelation.class);
         assertEquals("sample_data", subqueryIndex.indexPattern());
+    }
+
+    public void testLookupJoinOnFieldNotAnywhereElse() {
+        assumeTrue(
+            "requires LOOKUP JOIN ON boolean expression capability",
+            EsqlCapabilities.Cap.LOOKUP_JOIN_WITH_FULL_TEXT_FUNCTION_BUGFIX.isEnabled()
+        );
+
+        String query = "FROM test | LOOKUP JOIN languages_lookup "
+            + "ON languages == language_code AND MATCH(language_name, \"English\")"
+            + "| KEEP languages";
+
+        LogicalPlan analyzedPlan = analyze(query, Analyzer.ESQL_LOOKUP_JOIN_FULL_TEXT_FUNCTION);
+
+        Limit limit = as(analyzedPlan, Limit.class);
+        assertThat(limit.limit(), instanceOf(Literal.class));
+        assertEquals(1000, as(limit.limit(), Literal.class).value());
+
+        EsqlProject project = as(limit.child(), EsqlProject.class);
+        assertEquals(1, project.projections().size());
+
+        LookupJoin lookupJoin = as(project.child(), LookupJoin.class);
+
+        // Verify join condition contains MATCH function
+        assertThat(lookupJoin.config().joinOnConditions(), notNullValue());
+        Expression joinCondition = lookupJoin.config().joinOnConditions();
+        // Check that the join condition contains a MATCH function (it should be an AND expression)
+        assertThat(joinCondition.toString(), containsString("MATCH"));
+
+        // Verify left relation is test index
+        EsRelation leftRelation = as(lookupJoin.left(), EsRelation.class);
+        assertEquals("test", leftRelation.indexPattern());
+
+        // Verify right relation is languages_lookup with LOOKUP mode
+        EsRelation rightRelation = as(lookupJoin.right(), EsRelation.class);
+        assertEquals("languages_lookup", rightRelation.indexPattern());
+        assertEquals(IndexMode.LOOKUP, rightRelation.indexMode());
     }
 
     private void verifyNameAndTypeAndMultiTypeEsField(

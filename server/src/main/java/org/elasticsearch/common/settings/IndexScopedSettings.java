@@ -198,6 +198,7 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
                 IndexSettings.TIME_SERIES_ES87TSDB_CODEC_ENABLED_SETTING,
                 IndexSettings.LOGSDB_ROUTE_ON_SORT_FIELDS,
                 IndexSettings.LOGSDB_SORT_ON_HOST_NAME,
+                IndexSettings.LOGSDB_SORT_ON_MESSAGE_TEMPLATE,
                 IndexSettings.LOGSDB_ADD_HOST_NAME_FIELD,
                 IndexSettings.PREFER_ILM_SETTING,
                 DataStreamFailureStoreDefinition.FAILURE_STORE_DEFINITION_VERSION_SETTING,
@@ -206,7 +207,9 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
                 IgnoredSourceFieldMapper.SKIP_IGNORED_SOURCE_READ_SETTING,
                 IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING,
                 IndexSettings.RECOVERY_USE_SYNTHETIC_SOURCE_SETTING,
+                IndexSettings.USE_TIME_SERIES_DOC_VALUES_FORMAT_SETTING,
                 InferenceMetadataFieldsMapper.USE_LEGACY_SEMANTIC_TEXT_FORMAT,
+                IndexSettings.USE_ES_812_POSTINGS_FORMAT,
 
                 // validate that built-in similarities don't get redefined
                 Setting.groupSetting("index.similarity.", (s) -> {

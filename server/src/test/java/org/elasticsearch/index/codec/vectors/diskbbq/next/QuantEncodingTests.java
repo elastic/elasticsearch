@@ -52,4 +52,23 @@ public class QuantEncodingTests extends ESTestCase {
         assertEquals(8, encoding.getQueryPackedLength(15));
         assertEquals(8, encoding.getQueryPackedLength(16));
     }
+
+    public void testHalfByteAndNibbles() {
+        ESNextDiskBBQVectorsFormat.QuantEncoding encoding = ESNextDiskBBQVectorsFormat.QuantEncoding.FOUR_BIT_SYMMETRIC;
+        int discretized = encoding.discretizedDimensions(randomIntBetween(1, 1024));
+        // should discretize to something that can be packed into bytes from four bits and nibbles
+        assertEquals(0, discretized % 2);
+    }
+
+    public void testHalfByteAndNibblesPackSize() {
+        ESNextDiskBBQVectorsFormat.QuantEncoding encoding = ESNextDiskBBQVectorsFormat.QuantEncoding.FOUR_BIT_SYMMETRIC;
+        assertEquals(4, encoding.getDocPackedLength(3));
+        assertEquals(4, encoding.getQueryPackedLength(3));
+        assertEquals(4, encoding.getDocPackedLength(8));
+        assertEquals(4, encoding.getQueryPackedLength(8));
+        assertEquals(8, encoding.getDocPackedLength(16));
+        assertEquals(8, encoding.getDocPackedLength(16));
+        assertEquals(8, encoding.getQueryPackedLength(16));
+        assertEquals(8, encoding.getQueryPackedLength(16));
+    }
 }

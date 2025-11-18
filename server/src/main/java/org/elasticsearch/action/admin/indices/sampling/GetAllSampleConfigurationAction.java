@@ -192,7 +192,7 @@ public class GetAllSampleConfigurationAction extends ActionType<GetAllSampleConf
         }
 
         private XContentBuilder toXContent(XContentBuilder builder, ToXContent.Params params) throws IOException {
-            builder.startArray();
+            builder.startObject().startArray("configurations");
             for (Map.Entry<String, SamplingConfiguration> entry : indexToSamplingConfigMap.entrySet()) {
                 builder.startObject();
                 builder.field("index", entry.getKey());
@@ -200,6 +200,7 @@ public class GetAllSampleConfigurationAction extends ActionType<GetAllSampleConf
                 builder.endObject();
             }
             builder.endArray();
+            builder.endObject();
             return builder;
         }
     }

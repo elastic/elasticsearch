@@ -23,16 +23,13 @@ import org.apache.lucene.search.TotalHits;
 import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.search.SearchType;
-import org.elasticsearch.cluster.routing.IndexRouting;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.fielddata.FieldDataContext;
@@ -40,9 +37,7 @@ import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
 import org.elasticsearch.index.fielddata.IndexOrdinalsFieldData;
 import org.elasticsearch.index.mapper.IdLoader;
-import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.NestedLookup;
 import org.elasticsearch.index.mapper.SourceLoader;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
@@ -88,8 +83,6 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
-import java.util.TreeSet;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.function.LongSupplier;
@@ -950,30 +943,6 @@ final class DefaultSearchContext extends SearchContext {
 
     @Override
     public IdLoader newIdLoader() {
-        if (indexService.getIndexSettings().getMode() == IndexMode.TIME_SERIES) {
-            IndexRouting.ExtractFromSource.ForRoutingPath indexRouting = null;
-            List<String> routingPaths = null;
-            if (indexService.getIndexSettings().getIndexVersionCreated().before(IndexVersions.TIME_SERIES_ROUTING_HASH_IN_ID)) {
-                indexRouting = (IndexRouting.ExtractFromSource.ForRoutingPath) indexService.getIndexSettings().getIndexRouting();
-                routingPaths = indexService.getMetadata().getRoutingPaths();
-                for (String routingField : routingPaths) {
-                    if (routingField.contains("*")) {
-                        // In case the routing fields include path matches, find any matches and add them as distinct fields
-                        // to the routing path.
-                        Set<String> matchingRoutingPaths = new TreeSet<>(routingPaths);
-                        for (Mapper mapper : indexService.mapperService().mappingLookup().fieldMappers()) {
-                            if (mapper instanceof KeywordFieldMapper && indexRouting.matchesField(mapper.fullPath())) {
-                                matchingRoutingPaths.add(mapper.fullPath());
-                            }
-                        }
-                        routingPaths = new ArrayList<>(matchingRoutingPaths);
-                        break;
-                    }
-                }
-            }
-            return IdLoader.createTsIdLoader(indexRouting, routingPaths);
-        } else {
-            return IdLoader.fromLeafStoredFieldLoader();
-        }
+        return IdLoader.create(indexService.mapperService());
     }
 }

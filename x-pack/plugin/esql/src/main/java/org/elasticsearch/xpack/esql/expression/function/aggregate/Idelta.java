@@ -53,16 +53,11 @@ public class Idelta extends TimeSeriesAggregateFunction implements OptionalArgum
         examples = { @Example(file = "k8s-timeseries-idelta", tag = "idelta") }
     )
     public Idelta(Source source, @Param(name = "field", type = { "long", "integer", "double" }) Expression field, Expression timestamp) {
-        this(source, field, Literal.TRUE, timestamp);
+        this(source, field, Literal.TRUE, NO_WINDOW, timestamp);
     }
 
-    // compatibility constructor used when reading from the stream
-    private Idelta(Source source, Expression field, Expression filter, List<Expression> children) {
-        this(source, field, filter, children.getFirst());
-    }
-
-    private Idelta(Source source, Expression field, Expression filter, Expression timestamp) {
-        super(source, field, filter, List.of(timestamp));
+    public Idelta(Source source, Expression field, Expression filter, Expression window, Expression timestamp) {
+        super(source, field, filter, window, List.of(timestamp));
         this.timestamp = timestamp;
     }
 
@@ -71,7 +66,8 @@ public class Idelta extends TimeSeriesAggregateFunction implements OptionalArgum
             Source.readFrom((PlanStreamInput) in),
             in.readNamedWriteable(Expression.class),
             in.readNamedWriteable(Expression.class),
-            in.readNamedWriteableCollectionAsList(Expression.class)
+            readWindow(in),
+            in.readNamedWriteableCollectionAsList(Expression.class).getFirst()
         );
     }
 
@@ -82,21 +78,17 @@ public class Idelta extends TimeSeriesAggregateFunction implements OptionalArgum
 
     @Override
     protected NodeInfo<Idelta> info() {
-        return NodeInfo.create(this, Idelta::new, field(), timestamp);
+        return NodeInfo.create(this, Idelta::new, field(), filter(), window(), timestamp);
     }
 
     @Override
     public Idelta replaceChildren(List<Expression> newChildren) {
-        if (newChildren.size() != 3) {
-            assert false : "expected 3 children for field, filter, @timestamp; got " + newChildren;
-            throw new IllegalArgumentException("expected 3 children for field, filter, @timestamp; got " + newChildren);
-        }
-        return new Idelta(source(), newChildren.get(0), newChildren.get(1), newChildren.get(2));
+        return new Idelta(source(), newChildren.get(0), newChildren.get(1), newChildren.get(2), newChildren.get(3));
     }
 
     @Override
     public Idelta withFilter(Expression filter) {
-        return new Idelta(source(), field(), filter, timestamp);
+        return new Idelta(source(), field(), filter, window(), timestamp);
     }
 
     @Override
@@ -133,7 +125,7 @@ public class Idelta extends TimeSeriesAggregateFunction implements OptionalArgum
 
     @Override
     public String toString() {
-        return "idelta(" + field() + ")";
+        return "idelta(" + field() + ", " + timestamp() + ")";
     }
 
     @Override

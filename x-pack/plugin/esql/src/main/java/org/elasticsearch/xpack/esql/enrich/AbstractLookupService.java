@@ -432,7 +432,8 @@ public abstract class AbstractLookupService<R extends AbstractLookupService.Requ
             BlockLoader loader = shardContext.blockLoader(
                 fieldName,
                 extractField.dataType() == DataType.UNSUPPORTED,
-                MappedFieldType.FieldExtractPreference.NONE
+                MappedFieldType.FieldExtractPreference.NONE,
+                null
             );
             fields.add(
                 new ValuesSourceReaderOperator.FieldInfo(

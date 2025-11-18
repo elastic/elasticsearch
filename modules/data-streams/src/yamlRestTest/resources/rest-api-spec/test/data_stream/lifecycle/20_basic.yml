@@ -172,6 +172,58 @@ teardown:
   - match: { data_streams.1.lifecycle.downsampling.1.fixed_interval: '10h'}
 
 ---
+"Put data stream lifecycle with downsampling method":
+  - requires:
+      capabilities:
+        - method: PUT
+          path: /_data_stream/{name}/_lifecycle
+          capabilities: [ "dlm.downsampling_method" ]
+      test_runner_features: [ "capabilities" ]
+      reason: "Downsampling method was added to data stream lifecycle was available from 9.3"
+
+  - do:
+      indices.put_data_lifecycle:
+        name: "*"
+        body: >
+          {
+            "downsampling": [
+              {
+                "after": "10d",
+                "fixed_interval": "1h"
+              },
+              {
+                "after": "100d",
+                "fixed_interval": "10h"
+              }
+            ],
+            "downsampling_method": "aggregate",
+            "data_retention": "30d",
+            "enabled": false
+          }
+
+  - is_true: acknowledged
+
+  - do:
+      indices.get_data_lifecycle:
+        name: "*"
+  - length: { data_streams: 2 }
+  - match: { data_streams.0.name: data-stream-with-lifecycle }
+  - match: { data_streams.0.lifecycle.data_retention: "30d" }
+  - match: { data_streams.0.lifecycle.enabled: false}
+  - match: { data_streams.0.lifecycle.downsampling.0.after: '10d'}
+  - match: { data_streams.0.lifecycle.downsampling.0.fixed_interval: '1h'}
+  - match: { data_streams.0.lifecycle.downsampling.1.after: '100d'}
+  - match: { data_streams.0.lifecycle.downsampling.1.fixed_interval: '10h'}
+  - match: { data_streams.1.name: simple-data-stream1 }
+  - match: { data_streams.1.lifecycle.data_retention: "30d" }
+  - match: { data_streams.1.lifecycle.enabled: false}
+  - match: { data_streams.1.lifecycle.downsampling_method: 'aggregate'}
+  - match: { data_streams.1.lifecycle.downsampling.0.after: '10d'}
+  - match: { data_streams.1.lifecycle.downsampling.0.fixed_interval: '1h'}
+  - match: { data_streams.1.lifecycle.downsampling.1.after: '100d'}
+  - match: { data_streams.1.lifecycle.downsampling.1.fixed_interval: '10h'}
+
+---
 "Enable lifecycle":
 
   - do:

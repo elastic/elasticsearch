@@ -4652,3 +4652,45 @@ FROM employees
 41681.0        |46706.0        |5              |F              |10074          
 41681.0        |46706.0        |5              |F              |10075          
 ;
+
+pushDown_OneGroupingFilter_PastInlineJoinWithInnerFilter
+required_capability: inline_stats
+
+FROM employees
+| INLINE STATS avg = AVG(salary) WHERE salary > 50000  BY languages
+| WHERE languages > 2
+| KEEP avg, languages, salary
+| SORT salary
+| LIMIT 10
+;
+
+     avg:d        |   languages:i |    salary:i     
+56499.0           |5              |25324          
+56499.0           |5              |25945          
+62060.27272727273 |3              |26436          
+63503.333333333336|4              |27215          
+62060.27272727273 |3              |28941          
+62060.27272727273 |3              |30404          
+56499.0           |5              |31120          
+56499.0           |5              |31897          
+56499.0           |5              |32272          
+63503.333333333336|4              |32568          
+;
+
+pushDown_OneGroupingFilter_PastInlineJoinWithInnerFilterAndOuterFilter
+required_capability: inline_stats
+
+FROM employees
+| INLINE STATS avg = AVG(salary) WHERE salary > 50000  BY languages
+| WHERE languages > 2 AND salary < 30000
+| KEEP avg, languages, salary
+| SORT salary
+;
+
+       avg:d      |   languages:i |    salary:i
+56499.0           |5              |25324          
+56499.0           |5              |25945          
+62060.27272727273 |3              |26436          
+63503.333333333336|4              |27215          
+62060.27272727273 |3              |28941          
+;

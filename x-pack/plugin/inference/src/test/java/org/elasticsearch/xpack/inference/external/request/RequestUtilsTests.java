@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.inference.external.request;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.test.ESTestCase;
 
+import static org.elasticsearch.xpack.inference.external.request.RequestUtils.bearerToken;
 import static org.elasticsearch.xpack.inference.external.request.RequestUtils.createAuthBearerHeader;
 import static org.hamcrest.Matchers.is;
 
@@ -19,5 +20,9 @@ public class RequestUtilsTests extends ESTestCase {
 
         assertThat(header.getName(), is("Authorization"));
         assertThat(header.getValue(), is("Bearer abc"));
+    }
+
+    public void testBearerToken() {
+        assertThat(bearerToken("abc"), is("Bearer abc"));
     }
 }

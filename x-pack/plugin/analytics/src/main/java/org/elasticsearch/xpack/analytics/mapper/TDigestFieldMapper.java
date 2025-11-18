@@ -13,6 +13,7 @@ import org.apache.lucene.index.BinaryDocValues;
 import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.util.BytesRef;
@@ -69,7 +70,6 @@ public class TDigestFieldMapper extends FieldMapper {
     public static final String CENTROIDS_NAME = "centroids";
     public static final String COUNTS_NAME = "counts";
     public static final String SUM_FIELD_NAME = "sum";
-    public static final String TOTAL_COUNT_FIELD_NAME = "count";
     public static final String MIN_FIELD_NAME = "min";
     public static final String MAX_FIELD_NAME = "max";
     public static final String CONTENT_TYPE = "tdigest";
@@ -506,10 +506,16 @@ public class TDigestFieldMapper extends FieldMapper {
     private class TDigestSyntheticFieldLoader implements CompositeSyntheticFieldLoader.DocValuesLayer {
         private final InternalTDigestValue value = new InternalTDigestValue();
         private BytesRef binaryValue;
+        private double min;
+        private double max;
+        private double sum;
 
         @Override
         public DocValuesLoader docValuesLoader(LeafReader leafReader, int[] docIdsInLeaf) throws IOException {
             BinaryDocValues docValues = leafReader.getBinaryDocValues(fieldType().name());
+            NumericDocValues minValues = leafReader.getNumericDocValues(valuesMinSubFieldName(fullPath()));
+            NumericDocValues maxValues = leafReader.getNumericDocValues(valuesMaxSubFieldName(fullPath()));
+            NumericDocValues sumValues = leafReader.getNumericDocValues(valuesSumSubFieldName(fullPath()));
             if (docValues == null) {
                 // No values in this leaf
                 binaryValue = null;
@@ -517,6 +523,24 @@ public class TDigestFieldMapper extends FieldMapper {
             }
             return docId -> {
                 if (docValues.advanceExact(docId)) {
+                    // we assume the summary sub-
+                    if (minValues != null) {
+                        minValues.advanceExact(docId);
+                        min = NumericUtils.sortableLongToDouble(minValues.longValue());
+                    } else {
+                        min = Double.NaN;
+                    }
+
+                    if (maxValues != null) {
+                        maxValues.advanceExact(docId);
+                        max = NumericUtils.sortableLongToDouble(maxValues.longValue());
+                    } else {
+                        max = Double.NaN;
+                    }
+
+                    sumValues.advanceExact(docId);
+                    sum = NumericUtils.sortableLongToDouble(sumValues.longValue());
+
                     binaryValue = docValues.binaryValue();
                     return true;
                 }
@@ -536,9 +560,17 @@ public class TDigestFieldMapper extends FieldMapper {
                 return;
             }
             value.reset(binaryValue);
-
             b.startObject();
+
             // TODO: Load the summary values out of the sub-fields, if they exist
+            if (Double.isNaN(min) == false) {
+                b.field("min", min);
+            }
+            if (Double.isNaN(max) == false) {
+                b.field("max", max);
+            }
+            b.field("sum", sum);
+
             b.startArray(CENTROIDS_NAME);
             while (value.next()) {
                 b.value(value.value());

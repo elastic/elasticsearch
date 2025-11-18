@@ -65,18 +65,18 @@ public class RestCountAction extends BaseRestHandler {
         countRequest.indicesOptions(IndicesOptions.fromRequest(request, countRequest.indicesOptions()));
         if (crossProjectModeDecider.crossProjectEnabled()) {
             countRequest.setProjectRouting(request.param("project_routing"));
-            // TODO: do I also need to adjust indicesOptions here?
+            // MP TODO: do I also need to adjust indicesOptions here?
         }
         SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder().size(0).trackTotalHits(true);
         countRequest.source(searchSourceBuilder);
         request.withContentOrSourceParamParserOrNull(parser -> {
-            if (parser == null) {  // TODO: this means there is no request body right?
+            if (parser == null) {  // MP TODO: this means there is no request body right?
                 QueryBuilder queryBuilder = RestActions.urlParamsToQueryBuilder(request);
                 if (queryBuilder != null) {
                     searchSourceBuilder.query(queryBuilder);
                 }
             } else {
-                searchSourceBuilder.query(RestActions.getQueryContent(parser));
+                searchSourceBuilder.query(RestActions.getQueryContent(parser, countRequest));
             }
         });
         countRequest.routing(request.param("routing"));

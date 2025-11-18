@@ -1372,6 +1372,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
     public void testLikeParam() {
         if (EsqlCapabilities.Cap.LIKE_PARAMETER_SUPPORT.isEnabled()) {
             LogicalPlan anonymous = statement(
+                // comment keeps following arguments on separate lines like other tests
                 "row a = \"abc\" | where a like ?",
                 new QueryParams(List.of(paramAsConstant(null, "a*")))
             );
@@ -1382,7 +1383,12 @@ public class StatementParserTests extends AbstractStatementParserTests {
             expectError(
                 "row a = \"abc\" | where a like ?",
                 List.of(paramAsConstant(null, 1)),
-                "Invalid pattern parameter type for LIKE [?]: expected string, found integer"
+                "Invalid pattern parameter type for like [?]: expected string, found integer"
+            );
+            expectError(
+                "row a = \"abc\" | where a like ?",
+                List.of(paramAsConstant(null, List.of("a*", "b*"))),
+                "Invalid pattern parameter type for like [?]: expected string, found list"
             );
         }
     }
@@ -1401,12 +1407,12 @@ public class StatementParserTests extends AbstractStatementParserTests {
             expectError(
                 "row a = \"abc\" | where a like ( ?1, ?2 )",
                 List.of(paramAsConstant(null, "a*"), paramAsConstant(null, 1)),
-                "Invalid pattern parameter type for LIKE [?2]: expected string, found integer"
+                "Invalid pattern parameter type for like [?2]: expected string, found integer"
             );
             expectError(
                 "row a = \"abc\" | where a like ( ?1, ?3 )",
                 List.of(paramAsConstant(null, "a*"), paramAsConstant(null, 1)),
-                "Invalid pattern for LIKE [?3]: parameter not found"
+                "No parameter is defined for position 3, did you mean any position between 1 and 2?"
             );
         }
     }
@@ -1424,12 +1430,12 @@ public class StatementParserTests extends AbstractStatementParserTests {
             expectError(
                 "row a = \"abc\" | where a rlike ?pattern",
                 List.of(paramAsConstant("pattern", 1)),
-                "Invalid pattern parameter type for RLIKE [?pattern]: expected string, found integer"
+                "Invalid pattern parameter type for rlike [?pattern]: expected string, found integer"
             );
             expectError(
                 "row a = \"abc\" | where a rlike ?pattern1",
                 List.of(paramAsConstant("pattern", 1)),
-                "Invalid pattern for RLIKE [?pattern1]: parameter not found"
+                "Unknown query parameter [pattern1], did you mean [pattern]?"
             );
         }
     }
@@ -1448,12 +1454,12 @@ public class StatementParserTests extends AbstractStatementParserTests {
             expectError(
                 "row a = \"abc\" | where a rlike ( ?p1, ?p2 )",
                 List.of(paramAsConstant("p1", "a*"), paramAsConstant("p2", 1)),
-                "Invalid pattern parameter type for RLIKE [?p2]: expected string, found integer"
+                "Invalid pattern parameter type for rlike [?p2]: expected string, found integer"
             );
             expectError(
                 "row a = \"abc\" | where a rlike ( ?p1, ?p3 )",
                 List.of(paramAsConstant("p1", "a*"), paramAsConstant("p2", 1)),
-                "Invalid pattern for RLIKE [?p3]: parameter not found"
+                "Unknown query parameter [p3], did you mean any of [p1, p2]?"
             );
         }
     }

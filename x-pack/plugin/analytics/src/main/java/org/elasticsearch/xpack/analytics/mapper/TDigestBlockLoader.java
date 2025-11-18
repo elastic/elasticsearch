@@ -100,7 +100,7 @@ public class TDigestBlockLoader extends BlockDocValuesReader.DocValuesBlockLoade
                 sums = sumsReader.read(factory, docs, offset, nullsFiltered);
                 valueCounts = valueCountsReader.read(factory, docs, offset, nullsFiltered);
                 encodedBytes = encodedDigestReader.read(factory, docs, offset, nullsFiltered);
-                result = factory.buildTDigestBlockDirect(minima, maxima, sums, valueCounts, encodedBytes);
+                result = factory.buildTDigestBlockDirect(encodedBytes, minima, maxima, sums, valueCounts);
                 success = true;
             } finally {
                 if (success == false) {

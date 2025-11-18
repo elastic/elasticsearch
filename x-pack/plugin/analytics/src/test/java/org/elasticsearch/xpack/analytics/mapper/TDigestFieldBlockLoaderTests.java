@@ -76,6 +76,11 @@ public class TDigestFieldBlockLoaderTests extends BlockLoaderTestCase {
     };
 
     @Override
+    public void testBlockLoaderOfMultiField() throws IOException {
+        // Multi fields are not supported
+    }
+
+    @Override
     protected Object expected(Map<String, Object> fieldMapping, Object value, TestContext testContext) {
         Map<String, Object> valueAsMap = Types.forciblyCast(value);
         List<Double> centroids = Types.forciblyCast(valueAsMap.get("centroids"));
@@ -106,9 +111,9 @@ public class TDigestFieldBlockLoaderTests extends BlockLoaderTestCase {
             valueAsMap.get("max"),
             "sum",
             valueAsMap.get("sum"),
-            "count",
+            "value_count",
             finalTotalCount,
-            "encodedDigests",
+            "encoded_digest",
             streamOutput.bytes().toBytesRef()
         );
     }

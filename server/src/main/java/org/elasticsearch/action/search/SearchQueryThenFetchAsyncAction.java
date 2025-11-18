@@ -852,7 +852,7 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
                 channelListener.onFailure(e);
                 return;
             }
-            ActionListener.respondAndRelease(channelListener, nodeQueryResponse));
+            ActionListener.respondAndRelease(channelListener, nodeQueryResponse);
         }
 
         private NodeQueryResponse getSuccessfulResponse() throws IOException {

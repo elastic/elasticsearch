@@ -159,6 +159,7 @@ public class SchemaCompilerTests extends ESTestCase {
         });
 
         int int_bitmask = subTokenBitmaskRegistry.getBitmask("integer");
+        int double_bitmask = subTokenBitmaskRegistry.getBitmask("double");
         int hex_bitmask = subTokenBitmaskRegistry.getBitmask("hex");
         int MM_bitmask = subTokenBitmaskRegistry.getBitmask("MM");
         int DD_bitmask = subTokenBitmaskRegistry.getBitmask("DD");
@@ -185,7 +186,7 @@ public class SchemaCompilerTests extends ESTestCase {
         assertNotEquals(0x00, allIntegerSubTokenBitmask & octet_bitmask);
 
         assertEquals(int_bitmask, compiledSchema.intSubTokenBitmask);
-        assertEquals(int_bitmask | hex_bitmask, compiledSchema.genericSubTokenTypesBitmask);
+        assertEquals(int_bitmask | double_bitmask | hex_bitmask, compiledSchema.genericSubTokenTypesBitmask);
 
         int[] charToSubTokenBitmask = compiledSchema.charToSubTokenBitmask;
         int charSubTokenBitmask = charToSubTokenBitmask['M'];
@@ -201,6 +202,7 @@ public class SchemaCompilerTests extends ESTestCase {
         assertEquals(0x00, charSubTokenBitmask & Mon_subToken_bitmask);
         assertNotEquals(0x00, charSubTokenBitmask & DD_bitmask);
         assertNotEquals(0x00, charSubTokenBitmask & int_bitmask);
+        assertNotEquals(0x00, charSubTokenBitmask & double_bitmask);
         assertNotEquals(0x00, charSubTokenBitmask & hex_bitmask);
         assertEquals(0x00, charSubTokenBitmask & Day_bitmask);
 

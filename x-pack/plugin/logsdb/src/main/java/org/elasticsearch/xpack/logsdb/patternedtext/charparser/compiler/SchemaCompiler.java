@@ -50,6 +50,7 @@ public class SchemaCompiler {
     public static final int ASCII_RANGE = 128;
     public static final int SMALL_INTEGERS_MAX_VALUE = 100;
     public static final String INTEGER_SUBTOKEN_NAME = "integer";
+    public static final String DOUBLE_SUBTOKEN_NAME = "double";
     public static final String HEX_SUBTOKEN_NAME = "hex";
 
     // todo - try to break this method into smaller methods
@@ -113,22 +114,12 @@ public class SchemaCompiler {
             maxTokensPerMultiToken = Math.max(maxTokensPerMultiToken, tokens.size());
             maxSubTokensPerMultiToken = Math.max(maxSubTokensPerMultiToken, subTokenCount);
 
-            int bitmaskForTokenCount = tokenCountToMultiTokenBitmaskMap.computeIfAbsent(tokens.size(), input -> 0);
-            bitmaskForTokenCount |= multiTokenBitmask;
-            tokenCountToMultiTokenBitmaskMap.put(tokens.size(), bitmaskForTokenCount);
-
-            int bitmaskForSubTokenCount = subTokenCountToMultiTokenBitmaskMap.computeIfAbsent(subTokenCount, input -> 0);
-            bitmaskForSubTokenCount |= multiTokenBitmask;
-            subTokenCountToMultiTokenBitmaskMap.put(subTokenCount, bitmaskForSubTokenCount);
+            updateBitmaskToCount(tokenCountToMultiTokenBitmaskMap, tokens.size(), multiTokenBitmask);
+            updateBitmaskToCount(subTokenCountToMultiTokenBitmaskMap, subTokenCount, multiTokenBitmask);
 
             for (int i = 0; i < tokens.size(); i++) {
                 String tokenName = tokens.get(i).name();
-                ArrayList<Integer> bitmaskList = tokenTypeToMultiTokenBitmaskByPosition.computeIfAbsent(
-                    tokenName,
-                    input -> new ArrayList<>()
-                );
-                fillListUpToIndex(bitmaskList, i, () -> 0);
-                bitmaskList.set(i, bitmaskList.get(i) | multiTokenBitmask);
+                updateBitmaskByPosition(tokenTypeToMultiTokenBitmaskByPosition, tokenName, i, multiTokenBitmask);
             }
 
             int delimiterCharPosition = -1;
@@ -168,9 +159,17 @@ public class SchemaCompiler {
 
         // register generic token types first, as they would have the lowest priority
         // generic token types are not part of multi-token types, so they are registered with an empty multi-token bitmask
-        tokenBitmaskRegistry.register(new TokenType(INTEGER_SUBTOKEN_NAME, EncodingType.INTEGER, 1, null, new int[maxTokensPerMultiToken]));
-        tokenBitmaskRegistry.register(new TokenType("double", EncodingType.DOUBLE, 2, null, new int[maxTokensPerMultiToken]));
+
+        // the double generic token type can span unknown number of tokens (e.g., "3.14" or "-1.06-e10")
+        int doubleTokenBitmask = tokenBitmaskRegistry.register(
+            new TokenType(DOUBLE_SUBTOKEN_NAME, EncodingType.DOUBLE, -1, null, new int[maxTokensPerMultiToken])
+        );
+        // floating point numbers can have 2 or 3 sub-tokens (e.g. "3.14" has 2 sub-tokens, "-1.06-e10" has 3 sub-tokens)
+        updateBitmaskToCount(subTokenCountToTokenBitmaskMap, 2, doubleTokenBitmask);
+        updateBitmaskToCount(subTokenCountToTokenBitmaskMap, 3, doubleTokenBitmask);
+
         tokenBitmaskRegistry.register(new TokenType(HEX_SUBTOKEN_NAME, EncodingType.HEX, 1, null, new int[maxTokensPerMultiToken]));
+        tokenBitmaskRegistry.register(new TokenType(INTEGER_SUBTOKEN_NAME, EncodingType.INTEGER, 1, null, new int[maxTokensPerMultiToken]));
 
         for (org.elasticsearch.xpack.logsdb.patternedtext.charparser.schema.TokenType tokenType : schema.getTokenTypes()) {
             ArrayList<Integer> multiTokenBitmaskByPositionList = tokenTypeToMultiTokenBitmaskByPosition.get(tokenType.name());
@@ -195,9 +194,7 @@ public class SchemaCompiler {
                 new TokenType(tokenType.name(), tokenType.encodingType(), subTokenCount, timestampFormat, multiTokenBitmaskByPosition)
             );
 
-            int bitmaskForSubTokenCount = subTokenCountToTokenBitmaskMap.computeIfAbsent(subTokenCount, input -> 0);
-            bitmaskForSubTokenCount |= tokenBitmask;
-            subTokenCountToTokenBitmaskMap.put(subTokenCount, bitmaskForSubTokenCount);
+            updateBitmaskToCount(subTokenCountToTokenBitmaskMap, subTokenCount, tokenBitmask);
 
             maxSubTokensPerToken = Math.max(maxSubTokensPerToken, subTokenCount);
             TokenFormat format = tokenType.format();
@@ -205,12 +202,7 @@ public class SchemaCompiler {
             for (int i = 0; i < subTokenTypes.length; i++) {
                 org.elasticsearch.xpack.logsdb.patternedtext.charparser.schema.SubTokenType subTokenType = subTokenTypes[i];
                 String subTokenName = subTokenType.name();
-                ArrayList<Integer> bitmaskList = subTokenTypeToTokenBitmaskByPosition.computeIfAbsent(
-                    subTokenName,
-                    input -> new ArrayList<>()
-                );
-                fillListUpToIndex(bitmaskList, i, () -> 0);
-                bitmaskList.set(i, bitmaskList.get(i) | tokenBitmask);
+                updateBitmaskByPosition(subTokenTypeToTokenBitmaskByPosition, subTokenName, i, tokenBitmask);
 
                 char[] subTokenDelimiters = format.getSubTokenDelimiters();
                 if (i < subTokenDelimiters.length) {
@@ -244,23 +236,28 @@ public class SchemaCompiler {
 
         BitmaskRegistry<SubTokenType> subTokenBitmaskRegistry = new BitmaskRegistry<>();
 
-        // Register generic subToken types first, as they would have the lowest priority
-        intSubTokenBitmask = subTokenBitmaskRegistry.register(
-            new SubTokenType(INTEGER_SUBTOKEN_NAME, EncodingType.INTEGER, new int[maxSubTokensPerToken], TimestampComponentType.NA)
-        );
-        allIntegerSubTokenBitmask |= intSubTokenBitmask;
-        genericSubTokenTypesBitmask |= intSubTokenBitmask;
-        allSubTokenBitmask |= intSubTokenBitmask;
         ArrayList<SubTokenBaseType> subTokenBaseTypes = schema.getSubTokenBaseTypes();
-        SubTokenBaseType integerSubTokenBaseType = subTokenBaseTypes.stream()
-            .filter(baseType -> baseType.name().equals("unsigned_integer"))
+
+        // Register generic subToken types first, as they would have the lowest priority
+
+        int[] doubleTokenBitmaskByPosition = new int[maxSubTokensPerToken];
+        doubleTokenBitmaskByPosition[0] = doubleTokenBitmask;
+        doubleTokenBitmaskByPosition[1] = doubleTokenBitmask;
+        doubleTokenBitmaskByPosition[2] = doubleTokenBitmask;
+        int doubleSubTokenBitmask = subTokenBitmaskRegistry.register(
+            new SubTokenType(DOUBLE_SUBTOKEN_NAME, EncodingType.DOUBLE, doubleTokenBitmaskByPosition, TimestampComponentType.NA)
+        );
+        genericSubTokenTypesBitmask |= doubleSubTokenBitmask;
+        allSubTokenBitmask |= doubleSubTokenBitmask;
+        SubTokenBaseType doubleSubTokenBaseType = subTokenBaseTypes.stream()
+            .filter(baseType -> baseType.name().equals("double"))
             .findFirst()
-            .orElseThrow(() -> new IllegalArgumentException("Integer subToken base type not found in schema"));
+            .orElseThrow(() -> new IllegalArgumentException("Double subToken base type not found in schema"));
         updateCharToSubTokenBitmasks(
-            INTEGER_SUBTOKEN_NAME,
+            DOUBLE_SUBTOKEN_NAME,
             charToSubTokenBitmask,
-            integerSubTokenBaseType.allowedCharacters(),
-            intSubTokenBitmask
+            doubleSubTokenBaseType.allowedCharacters(),
+            doubleSubTokenBitmask
         );
 
         int hexSubTokenBitmask = subTokenBitmaskRegistry.register(
@@ -274,9 +271,26 @@ public class SchemaCompiler {
             .orElseThrow(() -> new IllegalArgumentException("Hex subToken base type not found in schema"));
         updateCharToSubTokenBitmasks(HEX_SUBTOKEN_NAME, charToSubTokenBitmask, hexSubTokenBaseType.allowedCharacters(), hexSubTokenBitmask);
 
+        intSubTokenBitmask = subTokenBitmaskRegistry.register(
+            new SubTokenType(INTEGER_SUBTOKEN_NAME, EncodingType.INTEGER, new int[maxSubTokensPerToken], TimestampComponentType.NA)
+        );
+        allIntegerSubTokenBitmask |= intSubTokenBitmask;
+        genericSubTokenTypesBitmask |= intSubTokenBitmask;
+        allSubTokenBitmask |= intSubTokenBitmask;
+        SubTokenBaseType integerSubTokenBaseType = subTokenBaseTypes.stream()
+            .filter(baseType -> baseType.name().equals("unsigned_integer"))
+            .findFirst()
+            .orElseThrow(() -> new IllegalArgumentException("Integer subToken base type not found in schema"));
+        updateCharToSubTokenBitmasks(
+            INTEGER_SUBTOKEN_NAME,
+            charToSubTokenBitmask,
+            integerSubTokenBaseType.allowedCharacters(),
+            intSubTokenBitmask
+        );
+
         int[] smallIntegerSubTokenBitmasks = new int[SMALL_INTEGERS_MAX_VALUE + 1];
         for (int i = 0; i <= SMALL_INTEGERS_MAX_VALUE; i++) {
-            smallIntegerSubTokenBitmasks[i] = intSubTokenBitmask;
+            smallIntegerSubTokenBitmasks[i] = genericSubTokenTypesBitmask;
         }
         ArrayList<IntRangeBitmask> intRangeBitmasks = new ArrayList<>();
 
@@ -356,6 +370,26 @@ public class SchemaCompiler {
             }
         }
         subTokenBitmaskRegistry.seal();
+
+        // taking care of delimiter characters related to floating point numbers like '.' and '-'
+        ArrayList<Integer> dashBitmaskPerSubTokenCount = delimiterCharToTokenBitmaskPerSubTokenIndex.computeIfAbsent(
+            '-',
+            input -> new ArrayList<>()
+        );
+        fillListUpToIndex(dashBitmaskPerSubTokenCount, 1, () -> 0);
+        dashBitmaskPerSubTokenCount.set(0, dashBitmaskPerSubTokenCount.get(0) | doubleSubTokenBitmask);
+        dashBitmaskPerSubTokenCount.set(1, dashBitmaskPerSubTokenCount.get(1) | doubleSubTokenBitmask);
+        ArrayList<Integer> dotBitmaskPerSubTokenCount = delimiterCharToTokenBitmaskPerSubTokenIndex.computeIfAbsent(
+            '.',
+            input -> new ArrayList<>()
+        );
+        fillListUpToIndex(dotBitmaskPerSubTokenCount, 0, () -> 0);
+        dotBitmaskPerSubTokenCount.set(0, dotBitmaskPerSubTokenCount.getFirst() | doubleSubTokenBitmask);
+
+        // update floating point bitmask also for last sub-token for 1, 2, and 3 sub-tokens
+        tokenBitmaskForLastSubToken.set(0, tokenBitmaskForLastSubToken.get(0) | doubleSubTokenBitmask);
+        tokenBitmaskForLastSubToken.set(1, tokenBitmaskForLastSubToken.get(1) | doubleSubTokenBitmask);
+        tokenBitmaskForLastSubToken.set(2, tokenBitmaskForLastSubToken.get(2) | doubleSubTokenBitmask);
 
         CharSpecificParsingInfo[] charSpecificParsingInfos = new CharSpecificParsingInfo[ASCII_RANGE];
 
@@ -515,8 +549,8 @@ public class SchemaCompiler {
         for (int i = 0; i < intRangeBitmasks.size(); i++) {
             IntRangeBitmask intRangeBitmask = intRangeBitmasks.get(i);
             integerSubTokenBitmaskArrayRanges[i] = intRangeBitmask.range().upperBound();
-            // ensure that the generic integer subToken bit is always set
-            integerSubTokenBitmasks[i] = intRangeBitmask.bitmask() | intSubTokenBitmask;
+            // ensure that the generic subToken (int, double and hex) bits are always set, as they apply to all integer values
+            integerSubTokenBitmasks[i] = intRangeBitmask.bitmask() | genericSubTokenTypesBitmask;
         }
 
         return new CompiledSchema(
@@ -541,6 +575,23 @@ public class SchemaCompiler {
             tokenBitmaskRegistry,
             multiTokenBitmaskRegistry
         );
+    }
+
+    private static void updateBitmaskByPosition(
+        Map<String, ArrayList<Integer>> typeToHigherTypeBitmaskByPosition,
+        String lowerTypeName,
+        int i,
+        int tokenBitmask
+    ) {
+        ArrayList<Integer> bitmaskList = typeToHigherTypeBitmaskByPosition.computeIfAbsent(lowerTypeName, input -> new ArrayList<>());
+        fillListUpToIndex(bitmaskList, i, () -> 0);
+        bitmaskList.set(i, bitmaskList.get(i) | tokenBitmask);
+    }
+
+    private static void updateBitmaskToCount(Map<Integer, Integer> typeCountToHigherTypeBitmask, int subTokenCount, int tokenBitmask) {
+        int bitmaskForSubTokenCount = typeCountToHigherTypeBitmask.computeIfAbsent(subTokenCount, input -> 0);
+        bitmaskForSubTokenCount |= tokenBitmask;
+        typeCountToHigherTypeBitmask.put(subTokenCount, bitmaskForSubTokenCount);
     }
 
     private static int[] getMultiTokenBitmaskPerBoundaryCharIndex(

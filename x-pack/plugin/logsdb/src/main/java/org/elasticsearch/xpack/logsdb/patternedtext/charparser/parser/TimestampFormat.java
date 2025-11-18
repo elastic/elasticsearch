@@ -162,6 +162,7 @@ public final class TimestampFormat {
         timezoneOffset = 0;
         // todo - probably better to use java.time.OffsetDateTime.of(int, int, int, int, int, int, int, java.time.ZoneOffset)
         // no need to cache the ZoneOffset, as it is already cached in ZoneOffset class
+        // todo - is it possible to compute the timestamp without any allocation?
         return localDateTime.toInstant(java.time.ZoneOffset.ofTotalSeconds(timezoneOffset)).toEpochMilli();
     }
 

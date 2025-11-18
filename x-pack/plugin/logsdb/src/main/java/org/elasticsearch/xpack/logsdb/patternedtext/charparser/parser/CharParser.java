@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.logsdb.patternedtext.charparser.parser;
 
 import org.elasticsearch.xpack.logsdb.patternedtext.charparser.api.Argument;
+import org.elasticsearch.xpack.logsdb.patternedtext.charparser.api.DoubleArgument;
 import org.elasticsearch.xpack.logsdb.patternedtext.charparser.api.HexadecimalArgument;
 import org.elasticsearch.xpack.logsdb.patternedtext.charparser.api.IPv4Argument;
 import org.elasticsearch.xpack.logsdb.patternedtext.charparser.api.IntegerArgument;
@@ -63,6 +64,7 @@ public final class CharParser implements Parser {
 
     // special bitmasks
     private final int intSubTokenBitmask;
+    private final int genericSubTokenTypesBitmask;
     private final int allSubTokenBitmask;
     private final int allTokenBitmask;
     private final int allMultiTokenBitmask;
@@ -84,6 +86,7 @@ public final class CharParser implements Parser {
     private int currentTokenStartIndex;
     private int currentTokenSubTokenStartIndex;
     private int currentTokenSubTokenIndex;
+    private boolean isPotentialDecimalNumber;
 
     // current multi-token state
     private int currentMultiTokenStartIndex;
@@ -103,6 +106,7 @@ public final class CharParser implements Parser {
     private final TokenType[] bufferedTokens;
     private final int[] bufferedTokenStartIndexes;
     private final int[] bufferedTokenLengths;
+    private final boolean[] isBufferedTokenDecimalNumber;
     // the index of the first sub-token and number of sub-tokens for each buffered token
     private final int[] bufferedTokenSubTokenFirstIndexes;
     private final int[] bufferedTokenSubTokenLastIndexes;
@@ -119,6 +123,7 @@ public final class CharParser implements Parser {
         this.subTokenNumericValueRepresentationMap = compiledSchema.subTokenNumericValueRepresentation;
         this.delimiterPartsLengthToMultiTokenBitmask = compiledSchema.delimiterPartsTotalLengthToMultiTokenBitmask;
         this.intSubTokenBitmask = compiledSchema.intSubTokenBitmask;
+        this.genericSubTokenTypesBitmask = compiledSchema.genericSubTokenTypesBitmask;
         this.allSubTokenBitmask = subTokenBitmaskRegistry.getCombinedBitmask();
         this.allTokenBitmask = tokenBitmaskRegistry.getCombinedBitmask();
         this.allMultiTokenBitmask = multiTokenBitmaskRegistry.getCombinedBitmask();
@@ -135,6 +140,7 @@ public final class CharParser implements Parser {
         bufferedTokens = new TokenType[maxTokensPerMultiToken];
         bufferedTokenStartIndexes = new int[maxTokensPerMultiToken];
         bufferedTokenLengths = new int[maxTokensPerMultiToken];
+        isBufferedTokenDecimalNumber = new boolean[maxTokensPerMultiToken];
         bufferedTokenSubTokenFirstIndexes = new int[maxTokensPerMultiToken];
         bufferedTokenSubTokenLastIndexes = new int[maxTokensPerMultiToken];
     }
@@ -154,6 +160,7 @@ public final class CharParser implements Parser {
         currentTokenStartIndex = -1;
         currentTokenSubTokenStartIndex = -1;
         currentTokenSubTokenIndex = -1;
+        isPotentialDecimalNumber = false;
     }
 
     private void resetMultiTokenState() {
@@ -269,14 +276,20 @@ public final class CharParser implements Parser {
                     currentSubTokenIntValue = currentSubTokenIntValue * 10 + currentChar - '0';
                     break;
                 case SUBTOKEN_DELIMITER_CHAR_CODE:
-                    if (currentChar == '-' && currentSubTokenStartIndex == indexWithinRawMessage) {
-                        currentSubTokenSignPrefix = Sign.MINUS;
-                        // don't treat as a delimiter but as a sign prefix
-                        break;
-                    } else if (currentChar == '+' && currentSubTokenStartIndex == indexWithinRawMessage) {
-                        currentSubTokenSignPrefix = Sign.PLUS;
-                        // don't treat as a delimiter but as a sign prefix
-                        break;
+                    if (currentChar == '-') {
+                        if (currentSubTokenStartIndex == indexWithinRawMessage) {
+                            currentSubTokenSignPrefix = Sign.MINUS;
+                            // don't treat as a delimiter but as a sign prefix - continue parsing next character
+                            break;
+                        }
+                    } else if (currentChar == '+') {
+                        if (currentSubTokenStartIndex == indexWithinRawMessage) {
+                            currentSubTokenSignPrefix = Sign.PLUS;
+                            // don't treat as a delimiter but as a sign prefix - continue parsing next character
+                            break;
+                        }
+                    } else if (currentChar == '.') {
+                        isPotentialDecimalNumber = currentTokenSubTokenIndex < 0 && (currentSubTokenBitmask & intSubTokenBitmask) != 0;
                     }
 
                     // everything we need to do at the end of a sub-token we also must do at the end of a token, so we share the logic
@@ -311,9 +324,13 @@ public final class CharParser implements Parser {
                         currentTokenBitmask = 0;
                     }
 
+                    if (currentSubTokenSignPrefix == Sign.MINUS) {
+                        currentSubTokenIntValue = -currentSubTokenIntValue;
+                    }
+
                     CharSpecificParsingInfo delimiterParsingInfo = null;
                     if (currentTokenBitmask == 0) {
-                        // no need to evaluate specific subToken types, the generic type would be enough
+                        // no need to evaluate specific subToken types, the generic type would be enough to create generic arguments
                         flushBufferedInfo = true;
                     } else {
                         delimiterParsingInfo = charSpecificParsingInfos[currentChar];
@@ -325,10 +342,6 @@ public final class CharParser implements Parser {
                         // here we enforce subToken specific constraints (numeric or string) to update the current subToken bitmask
                         if ((currentSubTokenBitmask & intSubTokenBitmask) != 0) {
                             // integer subToken
-                            if (currentSubTokenSignPrefix == Sign.MINUS) {
-                                currentSubTokenIntValue = -currentSubTokenIntValue;
-                            }
-
                             if (currentSubTokenIntValue >= 0 && currentSubTokenIntValue < smallIntegerSubTokenUpperBound) {
                                 // faster bitmask lookup for small integers
                                 currentSubTokenBitmask = compiledSchema.smallIntegerSubTokenBitmasks[currentSubTokenIntValue];
@@ -349,8 +362,8 @@ public final class CharParser implements Parser {
                                 substringView.set(currentSubTokenStartIndex, currentSubTokenEndIndex);
                                 int substringBitmask = subTokenBitmaskGenerator.applyAsInt(substringView);
                                 if (substringBitmask == 0) {
-                                    // not a valid subToken, so we set the bitmask to 0
-                                    currentSubTokenBitmask = 0;
+                                    // not a specific subToken, so we keep only the generic subToken types
+                                    currentSubTokenBitmask &= genericSubTokenTypesBitmask;
                                 } else {
                                     // the subToken is valid, so we set the bitmask to the evaluated value
                                     currentSubTokenBitmask &= substringBitmask;
@@ -363,24 +376,25 @@ public final class CharParser implements Parser {
                             }
                         }
 
-                        if (currentSubTokenBitmask != 0) {
-                            bufferedSubTokensIndex++;
-                            bufferedSubTokenBitmasks[bufferedSubTokensIndex] = currentSubTokenBitmask;
-                            bufferedSubTokenStartIndexes[bufferedSubTokensIndex] = currentSubTokenStartIndex;
-                            bufferedSubTokenIntValues[bufferedSubTokensIndex] = currentSubTokenIntValue;
-                            bufferedSubTokenLengths[bufferedSubTokensIndex] = currentSubTokenLength;
-                            bufferedSubTokenSigns[bufferedSubTokensIndex] = currentSubTokenSignPrefix;
-                            if (bufferedSubTokensIndex == maxSubTokensPerMultiToken - 1) {
-                                // we are at the maximum number of subTokens for any known multi-token so we must flush the buffered info
-                                flushBufferedInfo = true;
-                            }
-                        }
-
                         // update the current token bitmask based on all "on" bits in the current sub-token bitmask
                         currentTokenBitmask &= subTokenBitmaskRegistry.getHigherLevelBitmaskByPosition(
                             currentSubTokenBitmask,
                             currentTokenSubTokenIndex
                         );
+                    }
+
+                    // buffer the current subToken info
+                    if (currentSubTokenBitmask != 0) {
+                        bufferedSubTokensIndex++;
+                        bufferedSubTokenBitmasks[bufferedSubTokensIndex] = currentSubTokenBitmask;
+                        bufferedSubTokenStartIndexes[bufferedSubTokensIndex] = currentSubTokenStartIndex;
+                        bufferedSubTokenIntValues[bufferedSubTokensIndex] = currentSubTokenIntValue;
+                        bufferedSubTokenLengths[bufferedSubTokensIndex] = currentSubTokenLength;
+                        bufferedSubTokenSigns[bufferedSubTokensIndex] = currentSubTokenSignPrefix;
+                        if (bufferedSubTokensIndex == maxSubTokensPerMultiToken - 1) {
+                            // we are at the maximum number of subTokens for any known multi-token so we must flush the buffered info
+                            flushBufferedInfo = true;
+                        }
                     }
 
                     if (currentTokenStartIndex < 0) {
@@ -409,6 +423,11 @@ public final class CharParser implements Parser {
                             bufferedTokenLengths[bufferedTokensIndex] = currentTokenLength;
                             bufferedTokenSubTokenFirstIndexes[bufferedTokensIndex] = currentTokenSubTokenStartIndex;
                             bufferedTokenSubTokenLastIndexes[bufferedTokensIndex] = bufferedSubTokensIndex;
+
+                            isBufferedTokenDecimalNumber[bufferedTokensIndex] = isPotentialDecimalNumber
+                                && currentToken.encodingType() == EncodingType.DOUBLE
+                                && currentTokenSubTokenIndex == 1
+                                && (currentSubTokenBitmask & intSubTokenBitmask) != 0;
 
                             if (bufferedTokensIndex == 0) {
                                 currentMultiTokenStartIndex = currentTokenStartIndex;
@@ -474,11 +493,6 @@ public final class CharParser implements Parser {
                                 flushBufferedInfo = true;
                             }
                         } else {
-                            // todo - calculate floating point numbers if the current token looks like such. we can maintain a bitmask
-                            // for floating point numbers that will be invalidated as soon as we encounter a character that
-                            // is not defined in the "double" SubTokenBaseType, and then we can create a floating point argument
-                            // from the buffered subTokens
-
                             currentMultiTokenBitmask = 0;
                             flushBufferedInfo = true;
                         }
@@ -575,6 +589,24 @@ public final class CharParser implements Parser {
                                         bufferedSubTokenSigns[integerSubTokenIndex]
                                     );
                                 }
+                                case DOUBLE -> {
+                                    if (isBufferedTokenDecimalNumber[i]) {
+                                        // an optimization for simple decimal numbers - if we are here, it means that
+                                        // this token contains a single decimal point and two integer sub-tokens
+                                        int firstSubTokenIndex = bufferedTokenSubTokenFirstIndexes[i];
+                                        int fractionalSubTokenLength = bufferedSubTokenLengths[firstSubTokenIndex + 1];
+                                        int fractionalSubTokenIntValue = bufferedSubTokenIntValues[firstSubTokenIndex + 1];
+                                        if (bufferedSubTokenSigns[firstSubTokenIndex] == Sign.MINUS) {
+                                            fractionalSubTokenIntValue = -fractionalSubTokenIntValue;
+                                        }
+                                        double doubleValue = bufferedSubTokenIntValues[firstSubTokenIndex] + fractionalSubTokenIntValue
+                                            / Math.pow(10, fractionalSubTokenLength);
+                                        yield new DoubleArgument(bufferedTokenStartIndexes[i], bufferedTokenLengths[i], doubleValue);
+                                    } else {
+                                        // parse as a general double argument
+                                        yield new DoubleArgument(rawMessage, bufferedTokenStartIndexes[i], bufferedTokenLengths[i]);
+                                    }
+                                }
                                 case HEX -> new HexadecimalArgument(rawMessage, bufferedTokenStartIndexes[i], bufferedTokenLengths[i]);
                                 case IPV4 -> new IPv4Argument(
                                     bufferedTokenStartIndexes[i],
@@ -599,9 +631,8 @@ public final class CharParser implements Parser {
                         for (int i = flushedSubTokens; i <= bufferedSubTokensIndex; i++) {
                             Argument<?> argument = null;
                             // this is not about specific subToken types, here we are only dealing with generic subToken types, so we
-                            // must switch off
-                            // all specific subToken types, otherwise they have precedence
-                            int subTokenBitmask = bufferedSubTokenBitmasks[i] & compiledSchema.genericSubTokenTypesBitmask;
+                            // must switch off all specific subToken types, otherwise they have precedence
+                            int subTokenBitmask = bufferedSubTokenBitmasks[i] & genericSubTokenTypesBitmask;
                             if (subTokenBitmask != 0) {
                                 SubTokenType subTokenType = subTokenBitmaskRegistry.getHighestPriorityType(subTokenBitmask);
                                 argument = switch (subTokenType.encodingType) {
@@ -610,6 +641,11 @@ public final class CharParser implements Parser {
                                         bufferedSubTokenLengths[i],
                                         bufferedSubTokenIntValues[i],
                                         bufferedSubTokenSigns[i]
+                                    );
+                                    case DOUBLE -> new DoubleArgument(
+                                        rawMessage,
+                                        bufferedSubTokenStartIndexes[i],
+                                        bufferedSubTokenLengths[i]
                                     );
                                     case HEX -> new HexadecimalArgument(
                                         rawMessage,

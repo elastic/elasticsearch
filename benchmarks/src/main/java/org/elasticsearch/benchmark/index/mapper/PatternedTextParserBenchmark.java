@@ -51,8 +51,7 @@ public class PatternedTextParserBenchmark {
 
     private Parser parser;
     private RegexParser regexParser;
-    private String testMessageWithComma;
-    private String testMessageNoComma;
+    private String testMessage;
     @SuppressWarnings("FieldCanBeLocal") // used for measurement of timestamp parsing overhead
     private DateTimeFormatter dateTimeFormatter;
 
@@ -60,14 +59,13 @@ public class PatternedTextParserBenchmark {
     public void setup() {
         parser = ParserFactory.createParser();
         regexParser = new RegexParser();
-        testMessageWithComma = "Oct 05, 2023 02:48:00 PM INFO Response from 127.0.0.1 took 2000 ms";
-        testMessageNoComma = "Oct 05 2023 02:48:00 PM INFO Response from 127.0.0.1 took 2000 ms";
+        testMessage = "Oct 05, 2023 02:48:00 PM INFO Response from 127.0.0.1 took 2000 ms";
         dateTimeFormatter = DateTimeFormatter.ofPattern("MMM dd yyyy hh:mm:ss a").withLocale(java.util.Locale.US);
     }
 
     @Benchmark
     public void parseWithCharParser(Blackhole blackhole) throws ParseException {
-        List<Argument<?>> arguments = parser.parse(testMessageNoComma);
+        List<Argument<?>> arguments = parser.parse(testMessage);
         blackhole.consume(arguments);
         // long timestamp = TimestampFormat.parseTimestamp(dateTimeFormatter, "Oct 05 2023 02:48:00 PM");
         // blackhole.consume(timestamp);
@@ -75,7 +73,7 @@ public class PatternedTextParserBenchmark {
 
     @Benchmark
     public void parseWithRegexParser(Blackhole blackhole) throws ParseException {
-        List<Argument<?>> arguments = regexParser.parse(testMessageWithComma);
+        List<Argument<?>> arguments = regexParser.parse(testMessage);
         blackhole.consume(arguments);
     }
 

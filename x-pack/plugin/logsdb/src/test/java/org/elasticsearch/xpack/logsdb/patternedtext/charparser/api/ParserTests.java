@@ -91,12 +91,27 @@ public class ParserTests extends ESTestCase {
     }
 
     public void testFloatingPointArguments() throws ParseException {
-        String message = "-5.08 is one, and here is another: -1.09e-2";
+        String message = "-5.08 is at the beginning, and here is one at the end: -1.09e-2";
         List<Argument<?>> parsedArguments = parser.parse(message);
         Parser.constructPattern(message, parsedArguments, patternedMessage, true);
-        assertEquals("%F is one, and here is another: %F", patternedMessage.toString());
+        assertEquals("%F is at the beginning, and here is one at the end: %F", patternedMessage.toString());
         assertEquals(2, parsedArguments.size());
         Argument<?> argument = parsedArguments.getFirst();
+        assertThat(argument, instanceOf(DoubleArgument.class));
+        assertEquals(-5.08, ((DoubleArgument) argument).value(), 0);
+        argument = parsedArguments.get(1);
+        assertThat(argument, instanceOf(DoubleArgument.class));
+        assertEquals(-0.0109, ((DoubleArgument) argument).value(), 0);
+    }
 
+    public void testBigIntegerArgument() throws ParseException {
+        String message = "The value is 123456789 in the message";
+        List<Argument<?>> parsedArguments = parser.parse(message);
+        Parser.constructPattern(message, parsedArguments, patternedMessage, true);
+        assertEquals("The value is %I in the message", patternedMessage.toString());
+        assertEquals(1, parsedArguments.size());
+        Argument<?> argument = parsedArguments.getFirst();
+        assertThat(argument, instanceOf(IntegerArgument.class));
+        assertEquals(123456789, ((IntegerArgument) argument).value().intValue());
     }
 }

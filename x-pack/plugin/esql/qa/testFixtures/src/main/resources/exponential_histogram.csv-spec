@@ -14,6 +14,73 @@ dummy-zero_count_only     | "{""scale"":2,""sum"":0.0,""min"":0.0,""max"":0.0,""
 dummy-zero_threshold_only | "{""scale"":0,""sum"":0.0,""zero"":{""threshold"":2.0E-5}}"
 ;
 
+
+
+allAggsGrouped
+required_capability: exponential_histogram_minmax_support
+
+FROM exp_histo_sample 
+ | EVAL instance = CASE(STARTS_WITH(instance, "dummy"), "dummy-grouped", instance)
+ | STATS min = MIN(responseTime), max = MAX(responseTime), p75 = PERCENTILE(responseTime,75) BY instance
+ | EVAL p75 = ROUND(p75, 7) // rounding to avoid floating point precision issues
+ | KEEP instance, min, max, p75
+ | SORT instance
+;
+
+instance:keyword | min:double | max:double | p75:double
+dummy-grouped    | -100.0     | 50.0       | 8.3457089
+instance-0       | 2.4E-4     | 6.786232   | 0.2608237
+instance-1       | 2.17E-4    | 3.190723   | 0.0016068
+instance-2       | 2.2E-4     | 2.744054   | 0.0016068
+;
+
+
+
+allAggsInlineGrouped
+required_capability: exponential_histogram_minmax_support
+
+FROM exp_histo_sample 
+ | INLINE STATS min = MIN(responseTime), max = MAX(responseTime), p75 = PERCENTILE(responseTime,75) BY instance
+ | EVAL p75 = ROUND(p75, 7) // rounding to avoid floating point precision issues
+ | KEEP instance, min, max, p75
+ | SORT instance
+ | Limit 15
+;
+
+instance:keyword          | min:double | max:double | p75:double
+dummy-empty               | null       | null       | null
+dummy-full                | -100.0     | 50.0       | 10.6666667
+dummy-negative_only       | -50.0      | -1.0       | -12.8729318
+dummy-no_zero_bucket      | -100.0     | 50.0       | 10.6666667
+dummy-positive_only       | 1.0        | 50.0       | 34.7656715
+dummy-zero_count_only     | 0.0        | 0.0        | 0.0
+dummy-zero_threshold_only | null       | null       | null
+instance-0                | 2.4E-4     | 6.786232   | 0.2608237
+instance-0                | 2.4E-4     | 6.786232   | 0.2608237
+instance-0                | 2.4E-4     | 6.786232   | 0.2608237
+instance-0                | 2.4E-4     | 6.786232   | 0.2608237
+instance-0                | 2.4E-4     | 6.786232   | 0.2608237
+instance-0                | 2.4E-4     | 6.786232   | 0.2608237
+instance-0                | 2.4E-4     | 6.786232   | 0.2608237
+instance-0                | 2.4E-4     | 6.786232   | 0.2608237
+;
+
+
+
+allAggsOnEmptyHistogram
+required_capability: exponential_histogram_minmax_support
+
+FROM exp_histo_sample | WHERE instance == "dummy-empty"
+ | STATS min = MIN(responseTime), max = MAX(responseTime), p75 = PERCENTILE(responseTime,75)
+ | KEEP min, max, p75
+;
+
+min:double | max:double | p75:double
+NULL       | NULL       | NULL
+;
+
+
+
 ungroupedPercentiles
 required_capability: exponential_histogram_percentiles_support
 
@@ -26,6 +93,8 @@ FROM exp_histo_sample | WHERE NOT STARTS_WITH(instance, "dummy")
 p0:double | p50:double | p99:double | p100:double
 2.17E-4   | 0.0016965  | 0.9472324  | 6.786232
 ;
+
+
 
 groupedPercentiles
 required_capability: exponential_histogram_percentiles_support
@@ -41,4 +110,63 @@ instance:keyword | p0:double | p50:double | p99:double | p100:double
 instance-0       | 2.4E-4    | 0.0211404  | 1.0432946  | 6.786232
 instance-1       | 2.17E-4   | 6.469E-4   | 0.1422151  | 3.190723
 instance-2       | 2.2E-4    | 6.469E-4   | 0.0857672  | 2.7059714542564097
+;
+
+
+
+percentileOnEmptyHistogram
+required_capability: exponential_histogram_percentiles_support
+
+FROM exp_histo_sample | WHERE instance == "dummy-empty"
+ | STATS  p50 = PERCENTILE(responseTime,50)
+ | KEEP p50
+;
+
+p50:double
+NULL
+;
+
+
+
+ungroupedMinMax
+required_capability: exponential_histogram_minmax_support
+
+FROM exp_histo_sample | WHERE NOT STARTS_WITH(instance, "dummy") 
+ | STATS min = MIN(responseTime),  max = MAX(responseTime)
+ | KEEP min, max
+;
+
+min:double | max:double
+2.17E-4    | 6.786232
+;
+
+
+
+groupedMinMax
+required_capability: exponential_histogram_minmax_support
+
+FROM exp_histo_sample | WHERE NOT STARTS_WITH(instance, "dummy") 
+ | STATS min = MIN(responseTime),  max = MAX(responseTime) BY instance
+ | KEEP instance, min, max
+ | SORT instance
+;
+
+instance:keyword | min:double | max:double
+instance-0       | 2.4E-4     | 6.786232
+instance-1       | 2.17E-4    | 3.190723
+instance-2       | 2.2E-4     | 2.744054
+;
+
+
+
+minMaxOnEmptyHistogram
+required_capability: exponential_histogram_minmax_support
+
+FROM exp_histo_sample | WHERE instance == "dummy-empty"
+ | STATS  min = MIN(responseTime), max = MAX(responseTime)
+ | KEEP min, max
+;
+
+min:double | max:double
+NULL       | NULL
 ;

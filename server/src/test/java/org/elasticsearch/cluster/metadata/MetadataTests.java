@@ -828,6 +828,7 @@ public class MetadataTests extends ESTestCase {
                 "indices": {
                   "index-1": {
                     "version": 1,
+                    "transport_version": "0",
                     "mapping_version": 1,
                     "settings_version": 1,
                     "aliases_version": 1,
@@ -862,6 +863,7 @@ public class MetadataTests extends ESTestCase {
                   },
                   "index-2": {
                     "version": 1,
+                    "transport_version": "0",
                     "mapping_version": 1,
                     "settings_version": 1,
                     "aliases_version": 1,

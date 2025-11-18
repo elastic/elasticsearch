@@ -723,6 +723,7 @@ mx:integer | tbucket:datetime
 
 derivative_of_gauge_metric
 required_capability: ts_command_v0
+required_capability: TS_LINREG_DERIVATIVE
 
 // tag::deriv[]
 TS k8s
@@ -748,6 +749,7 @@ max_deriv:double | time_bucket:datetime     | pod:keyword
 
 derivative_compared_to_rate
 required_capability: ts_command_v0
+required_capability: TS_LINREG_DERIVATIVE
 
 TS k8s
 | STATS max_deriv = max(deriv(to_long(network.total_bytes_in))), max_rate = max(rate(network.total_bytes_in)) BY time_bucket = bucket(@timestamp,5minute), cluster

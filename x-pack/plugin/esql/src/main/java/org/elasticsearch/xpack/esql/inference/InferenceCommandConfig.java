@@ -9,15 +9,17 @@ package org.elasticsearch.xpack.esql.inference;
 
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.xpack.esql.plan.logical.inference.Completion;
+import org.elasticsearch.xpack.esql.plan.logical.inference.Rerank;
 
 import java.util.Map;
 
 public record InferenceCommandConfig(boolean enabled, int rowLimit) {
 
     public static final Setting<Boolean> COMPLETION_ENABLED_SETTING = commandEnabledSetting("completion");
-    public static final Setting<Integer> COMPLETION_ROW_LIMIT_SETTING = rowLimitSetting("completion", 100);
+    public static final Setting<Integer> COMPLETION_ROW_LIMIT_SETTING = rowLimitSetting("completion", Completion.DEFAULT_MAX_ROW_LIMIT);
     public static final Setting<Boolean> RERANK_ENABLED_SETTING = commandEnabledSetting("rerank");
-    public static final Setting<Integer> RERANK_ROW_LIMIT_SETTING = rowLimitSetting("rerank", 1000);
+    public static final Setting<Integer> RERANK_ROW_LIMIT_SETTING = rowLimitSetting("rerank", Rerank.DEFAULT_MAX_ROW_LIMIT);
 
     public static InferenceCommandConfig completionCommandConfig(Settings settings) {
         return new InferenceCommandConfig(COMPLETION_ENABLED_SETTING.get(settings), COMPLETION_ROW_LIMIT_SETTING.get(settings));
@@ -52,4 +54,5 @@ public record InferenceCommandConfig(boolean enabled, int rowLimit) {
             Setting.Property.Dynamic
         );
     }
+
 }

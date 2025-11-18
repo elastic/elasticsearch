@@ -3934,6 +3934,7 @@ public class AnalyzerTests extends ESTestCase {
                 """, "mapping-books.json");
             Rerank rerank = as(as(plan, Limit.class).child(), Rerank.class);
             assertThat(rerank.inferenceId(), equalTo(string("reranking-inference-id")));
+            assertThat(rerank.rowLimit(), equalTo(Literal.integer(Source.EMPTY, Rerank.DEFAULT_MAX_ROW_LIMIT)));
         }
 
         {
@@ -4205,6 +4206,7 @@ public class AnalyzerTests extends ESTestCase {
 
         Completion completion = as(as(plan, Limit.class).child(), Completion.class);
         assertThat(completion.inferenceId(), equalTo(string("completion-inference-id")));
+        assertThat(completion.rowLimit(), equalTo(Literal.integer(Source.EMPTY, Completion.DEFAULT_MAX_ROW_LIMIT)));
     }
 
     public void testResolveCompletionInferenceIdInvalidTaskType() {

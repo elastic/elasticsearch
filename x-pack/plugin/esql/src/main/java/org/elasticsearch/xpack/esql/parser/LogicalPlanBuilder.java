@@ -1109,9 +1109,14 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
             throw qualifiersUnsupportedInFieldDefinitions(scoreAttribute.source(), ctx.targetField.getText());
         }
 
+        Literal rowLimit = Literal.integer(Source.EMPTY, context.inferenceCommandConfigProvider().get("rerank").rowLimit());
+
         return p -> {
             checkForRemoteClusters(p, source, "RERANK");
-            return applyRerankOptions(new Rerank(source, p, queryText, rerankFields, scoreAttribute), ctx.commandNamedParameters());
+            return applyRerankOptions(
+                new Rerank(source, p, queryText, rerankFields, scoreAttribute, rowLimit),
+                ctx.commandNamedParameters()
+            );
         };
     }
 
@@ -1150,9 +1155,11 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
             throw qualifiersUnsupportedInFieldDefinitions(targetField.source(), ctx.targetField.getText());
         }
 
+        Literal rowLimit = Literal.integer(Source.EMPTY, context.inferenceCommandConfigProvider().get("completion").rowLimit());
+
         return p -> {
             checkForRemoteClusters(p, source, "COMPLETION");
-            return applyCompletionOptions(new Completion(source, p, prompt, targetField), ctx.commandNamedParameters());
+            return applyCompletionOptions(new Completion(source, p, prompt, targetField, rowLimit), ctx.commandNamedParameters());
         };
     }
 

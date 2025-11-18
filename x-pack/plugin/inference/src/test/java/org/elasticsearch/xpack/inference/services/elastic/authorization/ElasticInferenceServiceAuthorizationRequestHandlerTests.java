@@ -13,6 +13,8 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.inference.EmptySecretSettings;
+import org.elasticsearch.inference.EmptyTaskSettings;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.test.ESTestCase;
@@ -20,11 +22,16 @@ import org.elasticsearch.test.http.MockResponse;
 import org.elasticsearch.test.http.MockWebServer;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.XContentParseException;
+import org.elasticsearch.xpack.core.inference.chunking.SentenceBoundaryChunkingSettings;
 import org.elasticsearch.xpack.core.inference.results.ChatCompletionResults;
 import org.elasticsearch.xpack.inference.external.http.HttpClientManager;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSender;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSenderTests;
 import org.elasticsearch.xpack.inference.logging.ThrottlerManager;
+import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceService;
+import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceComponents;
+import org.elasticsearch.xpack.inference.services.elastic.sparseembeddings.ElasticInferenceServiceSparseEmbeddingsModel;
+import org.elasticsearch.xpack.inference.services.elastic.sparseembeddings.ElasticInferenceServiceSparseEmbeddingsServiceSettings;
 import org.junit.After;
 import org.junit.Before;
 import org.mockito.ArgumentCaptor;
@@ -124,12 +131,16 @@ public class ElasticInferenceServiceAuthorizationRequestHandlerTests extends EST
         try (var sender = senderFactory.createSender()) {
             String responseJson = """
                 {
-                    "models": [
-                        {
-                          "invalid-field": "model-a",
-                          "task-types": ["embed/text/sparse", "chat"]
-                        }
-                    ]
+                  "inference_endpoints": [
+                    {
+                      "id": 123,
+                      "model_name": "elastic-rerank-v1",
+                      "task_type": "rerank",
+                      "status": "preview",
+                      "properties": [],
+                      "release_date": "2024-05-01"
+                    }
+                  ]
                 }
                 """;
 
@@ -139,13 +150,13 @@ public class ElasticInferenceServiceAuthorizationRequestHandlerTests extends EST
             authHandler.getAuthorization(listener, sender);
 
             var exception = expectThrows(XContentParseException.class, () -> listener.actionGet(TIMEOUT));
-            assertThat(exception.getMessage(), containsString("failed to parse field [models]"));
+            assertThat(exception.getMessage(), containsString("failed to parse field [inference_endpoints]"));
 
             var stringCaptor = ArgumentCaptor.forClass(String.class);
             var exceptionCaptor = ArgumentCaptor.forClass(Exception.class);
             verify(logger).warn(stringCaptor.capture(), exceptionCaptor.capture());
             var message = stringCaptor.getValue();
-            assertThat(message, containsString("failed to parse field [models]"));
+            assertThat(message, containsString("failed to parse field [inference_endpoints]"));
 
             var capturedException = exceptionCaptor.getValue();
             assertThat(capturedException, instanceOf(XContentParseException.class));
@@ -207,12 +218,21 @@ public class ElasticInferenceServiceAuthorizationRequestHandlerTests extends EST
         ActionListener<AuthorizationModel> onlyOnceListener = ActionListener.assertOnce(listener);
         String responseJson = """
                 {
-                    "models": [
-                        {
-                          "model_name": "model-a",
-                          "task_types": ["embed/text/sparse", "chat"]
-                        }
-                    ]
+                  "id": ".elastic-elser-v2",
+                  "model_name": "elser_model_2",
+                  "task_type": "sparse_embedding",
+                  "status": "preview",
+                  "properties": [
+                    "english"
+                  ],
+                  "release_date": "2024-05-01",
+                  "configuration": {
+                    "chunking_settings": {
+                      "strategy": "sentence",
+                      "max_chunk_size": 250,
+                      "sentence_overlap": 1
+                    }
+                  }
                 }
             """;
         webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
@@ -221,10 +241,32 @@ public class ElasticInferenceServiceAuthorizationRequestHandlerTests extends EST
             authHandler.getAuthorization(onlyOnceListener, sender);
             authHandler.waitForAuthRequestCompletion(TIMEOUT);
 
+            var endpointId = ".elastic-elser-v2";
+            var endpointName = "elser_model_2";
+            var maxChunkSize = 250;
+            var sentenceOverlap = 1;
+
             var authResponse = listener.actionGet(TIMEOUT);
-            assertThat(authResponse.getTaskTypes(), is(EnumSet.of(TaskType.SPARSE_EMBEDDING, TaskType.CHAT_COMPLETION)));
-            assertThat(authResponse.getEndpointIds(), is(Set.of("model-a")));
+            assertThat(authResponse.getTaskTypes(), is(EnumSet.of(TaskType.SPARSE_EMBEDDING)));
+            assertThat(authResponse.getEndpointIds(), is(Set.of(endpointId)));
             assertTrue(authResponse.isAuthorized());
+            assertThat(
+                authResponse.getEndpoints(Set.of(endpointId)),
+                is(
+                    List.of(
+                        new ElasticInferenceServiceSparseEmbeddingsModel(
+                            endpointId,
+                            TaskType.SPARSE_EMBEDDING,
+                            ElasticInferenceService.NAME,
+                            new ElasticInferenceServiceSparseEmbeddingsServiceSettings(endpointName, null),
+                            EmptyTaskSettings.INSTANCE,
+                            EmptySecretSettings.INSTANCE,
+                            new ElasticInferenceServiceComponents(eisGatewayUrl),
+                            new SentenceBoundaryChunkingSettings(maxChunkSize, sentenceOverlap)
+                        )
+                    )
+                )
+            );
 
             var loggerArgsCaptor = ArgumentCaptor.forClass(String.class);
             verify(logger, times(1)).debug(loggerArgsCaptor.capture());

@@ -26,15 +26,12 @@ import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServic
 import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceComponents;
 import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceSettings;
 import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceSettingsTests;
-import org.elasticsearch.xpack.inference.services.elastic.InternalPreconfiguredEndpoints;
-import org.elasticsearch.xpack.inference.services.elastic.response.ElasticInferenceServiceAuthorizationResponseEntity;
 import org.elasticsearch.xpack.inference.services.elastic.response.ElasticInferenceServiceAuthorizationResponseEntityV2;
 import org.elasticsearch.xpack.inference.services.elastic.sparseembeddings.ElasticInferenceServiceSparseEmbeddingsModel;
 import org.elasticsearch.xpack.inference.services.elastic.sparseembeddings.ElasticInferenceServiceSparseEmbeddingsServiceSettings;
 import org.junit.Before;
 import org.mockito.ArgumentCaptor;
 
-import java.util.EnumSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -44,7 +41,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.xpack.inference.services.ServiceComponentsTests.createWithEmptySettings;
-import static org.elasticsearch.xpack.inference.services.elastic.response.ElasticInferenceServiceAuthorizationEntityV2Tests.createAuthorizedEndpoint;
+import static org.elasticsearch.xpack.inference.services.elastic.response.ElasticInferenceServiceAuthorizationResponseEntityV2Tests.createAuthorizedEndpoint;
 import static org.hamcrest.Matchers.is;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
@@ -95,9 +92,7 @@ public class AuthorizationPollerTests extends ESTestCase {
         var mockAuthHandler = mock(ElasticInferenceServiceAuthorizationRequestHandler.class);
         doAnswer(invocation -> {
             ActionListener<AuthorizationModel> listener = invocation.getArgument(0);
-            listener.onResponse(
-                AuthorizationModel.of(new ElasticInferenceServiceAuthorizationResponseEntityV2(List.of(sparseModel)), url)
-            );
+            listener.onResponse(AuthorizationModel.of(new ElasticInferenceServiceAuthorizationResponseEntityV2(List.of(sparseModel)), url));
             return Void.TYPE;
         }).when(mockAuthHandler).getAuthorization(any(), any());
 
@@ -150,9 +145,7 @@ public class AuthorizationPollerTests extends ESTestCase {
         var mockAuthHandler = mock(ElasticInferenceServiceAuthorizationRequestHandler.class);
         doAnswer(invocation -> {
             ActionListener<AuthorizationModel> listener = invocation.getArgument(0);
-            listener.onResponse(
-                AuthorizationModel.of(new ElasticInferenceServiceAuthorizationResponseEntityV2(List.of(sparseModel)), url)
-            );
+            listener.onResponse(AuthorizationModel.of(new ElasticInferenceServiceAuthorizationResponseEntityV2(List.of(sparseModel)), url));
             return Void.TYPE;
         }).when(mockAuthHandler).getAuthorization(any(), any());
 
@@ -210,27 +203,19 @@ public class AuthorizationPollerTests extends ESTestCase {
     }
 
     public void testSendsTwoAuthorizationRequests() throws InterruptedException {
+        var url = "eis-url";
+        var sparseModel = createAuthorizedEndpoint(TaskType.SPARSE_EMBEDDING);
+
         var mockRegistry = mock(ModelRegistry.class);
         when(mockRegistry.isReady()).thenReturn(true);
-        when(mockRegistry.getInferenceIds()).thenReturn(Set.of("id1", "id2"));
+        // Since the registry is already aware of the sparse endpoint, the authorization poller will not consider it a new
+        // one and not attempt to store it.
+        when(mockRegistry.getInferenceIds()).thenReturn(Set.of("id1", sparseModel.id()));
 
         var mockAuthHandler = mock(ElasticInferenceServiceAuthorizationRequestHandler.class);
         doAnswer(invocation -> {
-            ActionListener<ElasticInferenceServiceAuthorizationModel> listener = invocation.getArgument(0);
-            listener.onResponse(
-                ElasticInferenceServiceAuthorizationModel.of(
-                    new ElasticInferenceServiceAuthorizationResponseEntity(
-                        List.of(
-                            new ElasticInferenceServiceAuthorizationResponseEntity.AuthorizedModel(
-                                // this is an unknown model id so it won't trigger storing an inference endpoint because
-                                // it doesn't map to a known one
-                                "abc",
-                                EnumSet.of(TaskType.SPARSE_EMBEDDING)
-                            )
-                        )
-                    )
-                )
-            );
+            ActionListener<AuthorizationModel> listener = invocation.getArgument(0);
+            listener.onResponse(AuthorizationModel.of(new ElasticInferenceServiceAuthorizationResponseEntityV2(List.of(sparseModel)), url));
             return Void.TYPE;
         }).when(mockAuthHandler).getAuthorization(any(), any());
 
@@ -273,27 +258,19 @@ public class AuthorizationPollerTests extends ESTestCase {
     }
 
     public void testCallsShutdownAndMarksTaskAsCompleted_WhenSchedulingFails() throws InterruptedException {
+        var url = "eis-url";
+        var sparseModel = createAuthorizedEndpoint(TaskType.SPARSE_EMBEDDING);
+
         var mockRegistry = mock(ModelRegistry.class);
         when(mockRegistry.isReady()).thenReturn(true);
-        when(mockRegistry.getInferenceIds()).thenReturn(Set.of("id1", "id2"));
+        // Since the registry is already aware of the sparse endpoint, the authorization poller will not consider it a new
+        // one and not attempt to store it.
+        when(mockRegistry.getInferenceIds()).thenReturn(Set.of("id1", sparseModel.id()));
 
         var mockAuthHandler = mock(ElasticInferenceServiceAuthorizationRequestHandler.class);
         doAnswer(invocation -> {
-            ActionListener<ElasticInferenceServiceAuthorizationModel> listener = invocation.getArgument(0);
-            listener.onResponse(
-                ElasticInferenceServiceAuthorizationModel.of(
-                    new ElasticInferenceServiceAuthorizationResponseEntity(
-                        List.of(
-                            new ElasticInferenceServiceAuthorizationResponseEntity.AuthorizedModel(
-                                // this is an unknown model id so it won't trigger storing an inference endpoint because
-                                // it doesn't map to a known one
-                                "abc",
-                                EnumSet.of(TaskType.SPARSE_EMBEDDING)
-                            )
-                        )
-                    )
-                )
-            );
+            ActionListener<AuthorizationModel> listener = invocation.getArgument(0);
+            listener.onResponse(AuthorizationModel.of(new ElasticInferenceServiceAuthorizationResponseEntityV2(List.of(sparseModel)), url));
             return Void.TYPE;
         }).when(mockAuthHandler).getAuthorization(any(), any());
 

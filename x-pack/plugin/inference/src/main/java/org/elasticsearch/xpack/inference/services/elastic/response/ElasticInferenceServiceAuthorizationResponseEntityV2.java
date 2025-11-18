@@ -15,9 +15,6 @@ import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.InferenceResults;
 import org.elasticsearch.inference.InferenceServiceResults;
-import org.elasticsearch.inference.TaskType;
-import org.elasticsearch.logging.LogManager;
-import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContent;
@@ -31,7 +28,6 @@ import org.elasticsearch.xpack.inference.external.http.HttpResult;
 import org.elasticsearch.xpack.inference.external.request.Request;
 
 import java.io.IOException;
-import java.util.EnumSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -41,62 +37,6 @@ import java.util.stream.Collectors;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
-/*
-
-{
-  "inference_endpoints": [
-    {
-      "id": ".rainbow-sprinkles-elastic",
-      "model_name": "rainbow-sprinkles",
-      "task_type": "chat",
-      "status": "ga",
-      "properties": [
-        "multilingual"
-      ],
-      "release_date": "2024-05-01",
-      "end_of_life_date": "2025-12-31"
-    },
-    {
-      "id": ".elastic-elser-v2",
-      "model_name": "elser_model_2",
-      "task_type": "embed/text/sparse",
-      "status": "preview",
-      "properties": [
-        "english"
-      ],
-      "release_date": "2024-05-01",
-      "configuration": {
-        "chunking_settings": {
-          "strategy": "sentence",
-          "max_chunk_size": 250,
-          "sentence_overlap": 1
-        }
-      }
-    },
-    {
-      "id": ".jina-embeddings-v3",
-      "model_name": "jina-embeddings-v3",
-      "task_type": "embed/text/dense",
-      "status": "beta",
-      "properties": [
-        "multilingual",
-        "open-weights"
-      ],
-      "release_date": "2024-05-01",
-      "configuration": {
-        "similarity": "cosine",
-        "dimension": 1024,
-        "element_type": "float",
-        "chunking_settings": {
-          "strategy": "sentence",
-          "max_chunk_size": 250,
-          "sentence_overlap": 1
-        }
-      }
-    }
-  ]
-}
- */
 public class ElasticInferenceServiceAuthorizationResponseEntityV2 implements InferenceServiceResults {
 
     public static final String NAME = "elastic_inference_service_auth_results_v2";
@@ -126,6 +66,7 @@ public class ElasticInferenceServiceAuthorizationResponseEntityV2 implements Inf
         String status,
         @Nullable List<String> properties,
         String releaseDate,
+        @Nullable String endOfLifeDate,
         @Nullable Configuration configuration
     ) implements Writeable, ToXContentObject {
 
@@ -135,6 +76,7 @@ public class ElasticInferenceServiceAuthorizationResponseEntityV2 implements Inf
         private static final String STATUS = "status";
         private static final String PROPERTIES = "properties";
         private static final String RELEASE_DATE = "release_date";
+        private static final String END_OF_LIFE_DATE = "end_of_life_date";
         private static final String CONFIGURATION = "configuration";
 
         @SuppressWarnings("unchecked")
@@ -148,7 +90,8 @@ public class ElasticInferenceServiceAuthorizationResponseEntityV2 implements Inf
                 (String) args[3],
                 (List<String>) args[4],
                 (String) args[5],
-                (Configuration) args[6]
+                (String) args[6],
+                (Configuration) args[7]
             )
         );
 
@@ -159,6 +102,7 @@ public class ElasticInferenceServiceAuthorizationResponseEntityV2 implements Inf
             AUTHORIZED_ENDPOINT_PARSER.declareString(constructorArg(), new ParseField(STATUS));
             AUTHORIZED_ENDPOINT_PARSER.declareStringArray(optionalConstructorArg(), new ParseField(PROPERTIES));
             AUTHORIZED_ENDPOINT_PARSER.declareString(constructorArg(), new ParseField(RELEASE_DATE));
+            AUTHORIZED_ENDPOINT_PARSER.declareString(optionalConstructorArg(), new ParseField(END_OF_LIFE_DATE));
             AUTHORIZED_ENDPOINT_PARSER.declareObject(optionalConstructorArg(), Configuration.PARSER::apply, new ParseField(CONFIGURATION));
         }
 
@@ -170,6 +114,7 @@ public class ElasticInferenceServiceAuthorizationResponseEntityV2 implements Inf
                 in.readString(),
                 in.readOptionalCollectionAsList(StreamInput::readString),
                 in.readString(),
+                in.readOptionalString(),
                 in.readOptionalWriteable(Configuration::new)
             );
         }
@@ -182,6 +127,7 @@ public class ElasticInferenceServiceAuthorizationResponseEntityV2 implements Inf
             out.writeString(status);
             out.writeOptionalCollection(properties, StreamOutput::writeString);
             out.writeString(releaseDate);
+            out.writeOptionalString(endOfLifeDate);
             out.writeOptionalWriteable(configuration);
         }
 
@@ -189,13 +135,14 @@ public class ElasticInferenceServiceAuthorizationResponseEntityV2 implements Inf
         public String toString() {
             return Strings.format(
                 "AuthorizedEndpoint{id='%s', modelName='%s', taskType='%s', status='%s', "
-                    + "properties=%s, releaseDate='%s', configuration=%s}",
+                    + "properties=%s, releaseDate='%s', endOfLifeDate='%s', configuration=%s}",
                 id,
                 modelName,
                 taskType,
                 status,
                 properties,
                 releaseDate,
+                endOfLifeDate,
                 configuration
             );
         }
@@ -212,6 +159,9 @@ public class ElasticInferenceServiceAuthorizationResponseEntityV2 implements Inf
                 builder.field(PROPERTIES, properties);
             }
             builder.field(RELEASE_DATE, releaseDate);
+            if (endOfLifeDate != null) {
+                builder.field(END_OF_LIFE_DATE, endOfLifeDate);
+            }
             if (configuration != null) {
                 builder.field(CONFIGURATION, configuration);
             }

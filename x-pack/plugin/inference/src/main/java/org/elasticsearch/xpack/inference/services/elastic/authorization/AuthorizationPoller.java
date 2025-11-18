@@ -31,6 +31,7 @@ import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServic
 import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceSettings;
 
 import java.util.EnumSet;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -242,7 +243,7 @@ public class AuthorizationPoller extends AllocatedPersistentTask {
     private List<? extends Model> getNewInferenceEndpointsToStore(AuthorizationModel authModel) {
         var scopedAuthModel = authModel.newLimitedToTaskTypes(EnumSet.copyOf(IMPLEMENTED_TASK_TYPES));
 
-        var newEndpointIds = scopedAuthModel.getEndpointIds();
+        var newEndpointIds = new HashSet<>(scopedAuthModel.getEndpointIds());
         var existingInferenceIds = modelRegistry.getInferenceIds();
 
         newEndpointIds.removeAll(existingInferenceIds);

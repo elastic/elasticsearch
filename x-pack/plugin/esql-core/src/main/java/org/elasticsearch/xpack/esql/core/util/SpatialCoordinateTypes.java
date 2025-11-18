@@ -143,11 +143,16 @@ public enum SpatialCoordinateTypes {
 
             wkt = String.format(
                 "POLYGON ((%f %f, %f %f, %f %f, %f %f, %f %f))",
-                topX, leftY, // upper left
-                topX, rightY, // upper right
-                bottomX, rightY, // lower right
-                bottomX, leftY, // lower left
-                topX, leftY  // close the polygon
+                topX,
+                leftY, // upper left
+                topX,
+                rightY, // upper right
+                bottomX,
+                rightY, // lower right
+                bottomX,
+                leftY, // lower left
+                topX,
+                leftY  // close the polygon
             );
         }
         WKTReader reader = new WKTReader();

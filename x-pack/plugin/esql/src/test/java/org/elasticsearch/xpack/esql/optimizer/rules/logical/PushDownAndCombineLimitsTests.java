@@ -83,12 +83,13 @@ public class PushDownAndCombineLimitsTests extends ESTestCase {
         ),
         new PushDownLimitTestCase<>(
             Completion.class,
-            (plan, attr) -> new Completion(EMPTY, plan, randomLiteral(KEYWORD), randomLiteral(KEYWORD), attr),
+            (plan, attr) -> new Completion(EMPTY, plan, randomLiteral(KEYWORD), randomLiteral(KEYWORD), attr, randomLiteral(INTEGER)),
             (basePlan, optimizedPlan) -> {
                 assertEquals(basePlan.source(), optimizedPlan.source());
                 assertEquals(basePlan.inferenceId(), optimizedPlan.inferenceId());
                 assertEquals(basePlan.prompt(), optimizedPlan.prompt());
                 assertEquals(basePlan.targetField(), optimizedPlan.targetField());
+                assertEquals(basePlan.rowLimit(), optimizedPlan.rowLimit());
             }
         ),
         new PushDownLimitTestCase<>(
@@ -99,13 +100,15 @@ public class PushDownAndCombineLimitsTests extends ESTestCase {
                 randomLiteral(KEYWORD),
                 randomLiteral(KEYWORD),
                 randomList(1, 10, () -> new Alias(EMPTY, randomIdentifier(), randomLiteral(KEYWORD))),
-                attr
+                attr,
+                randomLiteral(INTEGER)
             ),
             (basePlan, optimizedPlan) -> {
                 assertEquals(basePlan.source(), optimizedPlan.source());
                 assertEquals(basePlan.inferenceId(), optimizedPlan.inferenceId());
                 assertEquals(basePlan.queryText(), optimizedPlan.queryText());
                 assertEquals(basePlan.rerankFields(), optimizedPlan.rerankFields());
+                assertEquals(basePlan.rowLimit(), optimizedPlan.rowLimit());
                 assertEquals(basePlan.scoreAttribute(), optimizedPlan.scoreAttribute());
             }
         ),

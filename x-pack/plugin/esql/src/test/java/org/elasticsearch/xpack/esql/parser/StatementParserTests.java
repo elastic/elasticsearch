@@ -11,6 +11,7 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.Build;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.common.lucene.BytesRefs;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.test.ESTestCase;
@@ -51,6 +52,7 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Gre
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThanOrEqual;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThan;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThanOrEqual;
+import org.elasticsearch.xpack.esql.inference.InferenceCommandConfig;
 import org.elasticsearch.xpack.esql.plan.IndexPattern;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.Dissect;
@@ -4248,6 +4250,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
             )
         );
         assertThat(rerank.scoreAttribute(), equalToIgnoringIds(attribute("_score")));
+        assertThat(rerank.rowLimit(), equalTo(Literal.integer(EMPTY, Rerank.DEFAULT_MAX_ROW_LIMIT)));
     }
 
     public void testRerankComputedFields() {
@@ -4307,6 +4310,19 @@ public class StatementParserTests extends AbstractStatementParserTests {
         assertThat(rerank.scoreAttribute(), equalToIgnoringIds(attribute("rerank_score")));
     }
 
+    public void testRerankRowLimitOverride() {
+        int customRowLimit = 2000;
+        Settings settings = Settings.builder().put(InferenceCommandConfig.RERANK_ROW_LIMIT_SETTING.getKey(), customRowLimit).build();
+        EsqlParser parserWithSettings = new EsqlParser(settings);
+
+        var plan = as(
+            parserWithSettings.createStatement("row a = 1 | RERANK \"query text\" ON title WITH { \"inference_id\" : \"inferenceID\" }"),
+            Rerank.class
+        );
+
+        assertThat(plan.rowLimit(), equalTo(Literal.integer(EMPTY, customRowLimit)));
+    }
+
     public void testInvalidRerank() {
         expectError(
             "FROM foo* | RERANK \"query text\" ON title WITH { \"inference_id\": 3 }",
@@ -4351,6 +4367,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
         assertThat(plan.prompt(), equalToIgnoringIds(attribute("prompt_field")));
         assertThat(plan.inferenceId(), equalTo(literalString("inferenceID")));
         assertThat(plan.targetField(), equalToIgnoringIds(attribute("targetField")));
+        assertThat(plan.rowLimit(), equalTo(Literal.integer(EMPTY, Completion.DEFAULT_MAX_ROW_LIMIT)));
     }
 
     public void testCompletionUsingFunctionAsPrompt() {
@@ -4370,6 +4387,19 @@ public class StatementParserTests extends AbstractStatementParserTests {
         assertThat(plan.prompt(), equalToIgnoringIds(attribute("prompt_field")));
         assertThat(plan.inferenceId(), equalTo(literalString("inferenceID")));
         assertThat(plan.targetField(), equalToIgnoringIds(attribute("completion")));
+    }
+
+    public void testCompletionRowLimitOverride() {
+        int customRowLimit = 250;
+        Settings settings = Settings.builder().put(InferenceCommandConfig.COMPLETION_ROW_LIMIT_SETTING.getKey(), customRowLimit).build();
+        EsqlParser parserWithSettings = new EsqlParser(settings);
+
+        var plan = as(
+            parserWithSettings.createStatement("row a = 1 | COMPLETION prompt_field WITH{ \"inference_id\" : \"inferenceID\" }"),
+            Completion.class
+        );
+
+        assertThat(plan.rowLimit(), equalTo(Literal.integer(EMPTY, customRowLimit)));
     }
 
     public void testCompletionWithPositionalParameters() {

@@ -42,18 +42,30 @@ public class Completion extends InferencePlan<Completion> implements TelemetryAw
         "Completion",
         Completion::new
     );
+    public static final int DEFAULT_MAX_ROW_LIMIT = 100;
+
     private final Expression prompt;
     private final Attribute targetField;
+    private final Expression rowLimit;
+
     private List<Attribute> lazyOutput;
 
-    public Completion(Source source, LogicalPlan p, Expression prompt, Attribute targetField) {
-        this(source, p, Literal.keyword(Source.EMPTY, DEFAULT_OUTPUT_FIELD_NAME), prompt, targetField);
+    public Completion(Source source, LogicalPlan p, Expression prompt, Attribute targetField, Expression rowLimit) {
+        this(source, p, Literal.keyword(Source.EMPTY, DEFAULT_OUTPUT_FIELD_NAME), prompt, targetField, rowLimit);
     }
 
-    public Completion(Source source, LogicalPlan child, Expression inferenceId, Expression prompt, Attribute targetField) {
+    public Completion(
+        Source source,
+        LogicalPlan child,
+        Expression inferenceId,
+        Expression prompt,
+        Attribute targetField,
+        Expression rowLimit
+    ) {
         super(source, child, inferenceId);
         this.prompt = prompt;
         this.targetField = targetField;
+        this.rowLimit = rowLimit;
     }
 
     public Completion(StreamInput in) throws IOException {
@@ -62,7 +74,10 @@ public class Completion extends InferencePlan<Completion> implements TelemetryAw
             in.readNamedWriteable(LogicalPlan.class),
             in.readNamedWriteable(Expression.class),
             in.readNamedWriteable(Expression.class),
-            in.readNamedWriteable(Attribute.class)
+            in.readNamedWriteable(Attribute.class),
+            in.getTransportVersion().supports(ESQL_INFERENCE_USAGE_LIMIT)
+                ? in.readNamedWriteable(Expression.class)
+                : Literal.integer(Source.EMPTY, DEFAULT_MAX_ROW_LIMIT)
         );
     }
 
@@ -71,6 +86,9 @@ public class Completion extends InferencePlan<Completion> implements TelemetryAw
         super.writeTo(out);
         out.writeNamedWriteable(prompt);
         out.writeNamedWriteable(targetField);
+        if (out.getTransportVersion().supports(ESQL_INFERENCE_USAGE_LIMIT)) {
+            out.writeNamedWriteable(rowLimit);
+        }
     }
 
     public Expression prompt() {
@@ -81,18 +99,22 @@ public class Completion extends InferencePlan<Completion> implements TelemetryAw
         return targetField;
     }
 
+    public Expression rowLimit() {
+        return rowLimit;
+    }
+
     @Override
     public Completion withInferenceId(Expression newInferenceId) {
         if (inferenceId().equals(newInferenceId)) {
             return this;
         }
 
-        return new Completion(source(), child(), newInferenceId, prompt, targetField);
+        return new Completion(source(), child(), newInferenceId, prompt, targetField, rowLimit);
     }
 
     @Override
     public Completion replaceChild(LogicalPlan newChild) {
-        return new Completion(source(), newChild, inferenceId(), prompt, targetField);
+        return new Completion(source(), newChild, inferenceId(), prompt, targetField, rowLimit);
     }
 
     @Override
@@ -122,7 +144,7 @@ public class Completion extends InferencePlan<Completion> implements TelemetryAw
     @Override
     public Completion withGeneratedNames(List<String> newNames) {
         checkNumberOfNewNames(newNames);
-        return new Completion(source(), child(), inferenceId(), prompt, this.renameTargetField(newNames.get(0)));
+        return new Completion(source(), child(), inferenceId(), prompt, this.renameTargetField(newNames.get(0)), rowLimit);
     }
 
     private Attribute renameTargetField(String newName) {
@@ -157,7 +179,7 @@ public class Completion extends InferencePlan<Completion> implements TelemetryAw
 
     @Override
     protected NodeInfo<? extends LogicalPlan> info() {
-        return NodeInfo.create(this, Completion::new, child(), inferenceId(), prompt, targetField);
+        return NodeInfo.create(this, Completion::new, child(), inferenceId(), prompt, targetField, rowLimit);
     }
 
     @Override
@@ -167,11 +189,13 @@ public class Completion extends InferencePlan<Completion> implements TelemetryAw
         if (super.equals(o) == false) return false;
         Completion completion = (Completion) o;
 
-        return Objects.equals(prompt, completion.prompt) && Objects.equals(targetField, completion.targetField);
+        return Objects.equals(prompt, completion.prompt)
+            && Objects.equals(targetField, completion.targetField)
+            && Objects.equals(rowLimit, completion.rowLimit);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(super.hashCode(), prompt, targetField);
+        return Objects.hash(super.hashCode(), prompt, targetField, rowLimit);
     }
 }

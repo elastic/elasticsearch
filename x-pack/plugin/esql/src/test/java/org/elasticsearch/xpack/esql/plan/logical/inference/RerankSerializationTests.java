@@ -21,6 +21,7 @@ import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import java.io.IOException;
 import java.util.List;
 
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.randomLiteral;
 import static org.elasticsearch.xpack.esql.core.tree.Source.EMPTY;
 
 public class RerankSerializationTests extends AbstractLogicalPlanSerializationTests<Rerank> {
@@ -28,7 +29,15 @@ public class RerankSerializationTests extends AbstractLogicalPlanSerializationTe
     protected Rerank createTestInstance() {
         Source source = randomSource();
         LogicalPlan child = randomChild(0);
-        return new Rerank(source, child, string(randomIdentifier()), string(randomIdentifier()), randomFields(), scoreAttribute());
+        return new Rerank(
+            source,
+            child,
+            string(randomIdentifier()),
+            string(randomIdentifier()),
+            randomFields(),
+            scoreAttribute(),
+            randomLiteral(DataType.INTEGER)
+        );
     }
 
     @Override
@@ -37,14 +46,16 @@ public class RerankSerializationTests extends AbstractLogicalPlanSerializationTe
         Expression inferenceId = instance.inferenceId();
         Expression queryText = instance.queryText();
         List<Alias> fields = instance.rerankFields();
+        Expression rowLimit = instance.rowLimit();
 
-        switch (between(0, 3)) {
+        switch (between(0, 4)) {
             case 0 -> child = randomValueOtherThan(child, () -> randomChild(0));
             case 1 -> inferenceId = randomValueOtherThan(inferenceId, () -> string(RerankSerializationTests.randomIdentifier()));
             case 2 -> queryText = randomValueOtherThan(queryText, () -> string(RerankSerializationTests.randomIdentifier()));
             case 3 -> fields = randomValueOtherThan(fields, this::randomFields);
+            case 4 -> rowLimit = randomValueOtherThan(rowLimit, () -> randomLiteral(DataType.INTEGER));
         }
-        return new Rerank(instance.source(), child, inferenceId, queryText, fields, instance.scoreAttribute());
+        return new Rerank(instance.source(), child, inferenceId, queryText, fields, instance.scoreAttribute(), rowLimit);
     }
 
     private List<Alias> randomFields() {

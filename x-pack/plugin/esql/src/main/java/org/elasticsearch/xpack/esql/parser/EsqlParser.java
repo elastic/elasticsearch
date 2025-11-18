@@ -175,7 +175,10 @@ public class EsqlParser {
                 log.trace("Parse tree: {}", tree.toStringTree());
             }
 
-            return result.apply(new AstBuilder(new ExpressionBuilder.ParsingContext(params, metrics)), tree);
+            return result.apply(
+                new AstBuilder(new ExpressionBuilder.ParsingContext(params, metrics, config::inferenceCommandConfig)),
+                tree
+            );
         } catch (StackOverflowError e) {
             throw new ParsingException("ESQL statement is too large, causing stack overflow when generating the parsing tree: [{}]", query);
             // likely thrown by an invalid popMode (such as extra closing parenthesis)

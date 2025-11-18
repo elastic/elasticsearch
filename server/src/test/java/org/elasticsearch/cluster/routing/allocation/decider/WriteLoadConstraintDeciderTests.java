@@ -320,7 +320,10 @@ public class WriteLoadConstraintDeciderTests extends ESAllocationTestCase {
             )
             // simulate all zero or missing shard write loads
             .shardWriteLoads(
-                state.routingTable(ProjectId.DEFAULT).allShards().collect(Collectors.toMap(ShardRouting::shardId, ignored -> 0.0d))
+                state.routingTable(ProjectId.DEFAULT)
+                    .allShards()
+                    .filter(ignored -> randomBoolean()) // some write-loads are missing altogether
+                    .collect(Collectors.toMap(ShardRouting::shardId, ignored -> 0.0d))  // the rest are zero
             )
             .build();
 

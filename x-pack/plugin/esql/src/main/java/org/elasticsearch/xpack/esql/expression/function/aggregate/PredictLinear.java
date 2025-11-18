@@ -19,6 +19,9 @@ import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.expression.function.Example;
+import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
+import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionType;
 import org.elasticsearch.xpack.esql.expression.function.Param;
@@ -45,21 +48,32 @@ public class PredictLinear extends TimeSeriesAggregateFunction implements ToAggr
     @FunctionInfo(
         type = FunctionType.TIME_SERIES_AGGREGATE,
         returnType = { "double" },
-        description = "Predicts the value of a time series at `t` seconds in the future."
+        description = "Predicts the value of a time series at `t` seconds in the future.",
+        appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW, version = "9.3.0") },
+        preview = true,
+        examples = { @Example(file = "k8s-timeseries", tag = "predict_linear") }
     )
     public PredictLinear(
         Source source,
-        @Param(name = "field", type = { "long", "integer", "double" }) Expression field,
-        @Param(name = "t", type = { "long", "integer", "keyword", "timedelta" }) Expression t,
+        @Param(
+            name = "field",
+            type = { "long", "integer", "double" },
+            description = "the expression to use for the prediction"
+        ) Expression field,
+        @Param(
+            name = "t",
+            type = { "long", "integer", "time_duration", "double" },
+            description = "how long in the fututre to predict in seconds for numeric, or in time delta"
+        ) Expression t,
         Expression timestamp
     ) {
-        this(source, field, Literal.TRUE, timestamp, t);
+        this(source, field, Literal.TRUE, NO_WINDOW, List.of(timestamp, t));
     }
 
-    public PredictLinear(Source source, Expression field, Expression filter, Expression window, Expression timestamp, Expression t) {
-        super(source, field, filter, window, List.of(timestamp, t));
-        this.timestamp = timestamp;
-        this.t = t;
+    public PredictLinear(Source source, Expression field, Expression filter, Expression window, List<Expression> tsAndT) {
+        super(source, field, filter, window, tsAndT);
+        this.timestamp = tsAndT.getFirst();
+        this.t = tsAndT.get(1);
     }
 
     private PredictLinear(org.elasticsearch.common.io.stream.StreamInput in) throws java.io.IOException {
@@ -68,8 +82,7 @@ public class PredictLinear extends TimeSeriesAggregateFunction implements ToAggr
             in.readNamedWriteable(Expression.class),
             in.readNamedWriteable(Expression.class),
             in.readNamedWriteable(Expression.class),
-            in.readNamedWriteable(Expression.class),
-            in.readNamedWriteable(Expression.class)
+            in.readNamedWriteableCollectionAsList(Expression.class)
         );
     }
 
@@ -80,7 +93,7 @@ public class PredictLinear extends TimeSeriesAggregateFunction implements ToAggr
 
     @Override
     public AggregateFunction withFilter(Expression filter) {
-        return new PredictLinear(source(), field(), filter, window(), timestamp, t);
+        return new PredictLinear(source(), field(), filter, window(), List.of(timestamp, t));
     }
 
     @Override
@@ -90,12 +103,18 @@ public class PredictLinear extends TimeSeriesAggregateFunction implements ToAggr
 
     @Override
     public Expression replaceChildren(List<Expression> newChildren) {
-        return new PredictLinear(source(), newChildren.get(0), newChildren.get(1), newChildren.get(2), newChildren.get(3), newChildren.get(4));
+        return new PredictLinear(
+            source(),
+            newChildren.get(0),
+            newChildren.get(1),
+            newChildren.get(2),
+            List.of(newChildren.get(3), newChildren.get(4))
+        );
     }
 
     @Override
     protected NodeInfo<? extends Expression> info() {
-        return NodeInfo.create(this, PredictLinear::new, field(), filter(), window(), timestamp, t);
+        return NodeInfo.create(this, PredictLinear::new, field(), filter(), window(), List.of(timestamp, t));
     }
 
     @Override

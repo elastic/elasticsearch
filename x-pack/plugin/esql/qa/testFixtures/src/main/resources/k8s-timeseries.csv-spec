@@ -749,7 +749,6 @@ max_deriv:double | time_bucket:datetime     | pod:keyword
 
 derivative_compared_to_rate
 required_capability: ts_command_v0
-required_capability: TS_LINREG_DERIVATIVE
 
 TS k8s
 | STATS max_deriv = max(deriv(to_long(network.total_bytes_in))), max_rate = max(rate(network.total_bytes_in)) BY time_bucket = bucket(@timestamp,5minute), cluster
@@ -770,7 +769,6 @@ max_deriv:double | max_rate:double | time_bucket:datetime     | cluster:keyword
 
 predict_linear_with_long
 required_capability: ts_command_v0
-required_capability: TS_LINREG_PREDICT
 
 TS k8s
 | STATS predicted_cost = values(round(predict_linear(to_double(network.total_cost), 10), 5)) BY time_bucket = bucket(@timestamp,5minute), cluster
@@ -779,17 +777,17 @@ TS k8s
 | LIMIT 5
 ;
 
-predicted_cost:double                                                  | time_bucket:datetime     | cluster:keyword
-[-6.602588168740215E14, -8.877497236448354E15, 2.2311938303322465E15]  | 2024-05-10T00:00:00.000Z | prod
-[-8.155468708896549E14, -9.51830721515923E14, -1.145502894094415E15]   | 2024-05-10T00:05:00.000Z | prod
-[5.463777793231174E14, -2.0359960651035278E14, -1.8388879144239432E15] | 2024-05-10T00:10:00.000Z | prod
-[-1.3995586522213082E15, 1.0825172194782352E15, 4.0520717676617645E15] | 2024-05-10T00:15:00.000Z | prod
-[-8.47847162491646E14, -9.533695970876474E14, 0.0]                     | 2024-05-10T00:20:00.000Z | prod
+predicted_cost:double                      | time_bucket:datetime     | cluster:keyword
+[-6.602588E14, -8.877497E15, 2.231194E15]  | 2024-05-10T00:00:00.000Z | prod
+[-8.155469E14, -9.518307E14, -1.145503E15] | 2024-05-10T00:05:00.000Z | prod
+[5.463778E14, -2.035996E14, -1.838888E15]  | 2024-05-10T00:10:00.000Z | prod
+[-1.399559E15, 1.082517E15, 4.052072E15]   | 2024-05-10T00:15:00.000Z | prod
+[-8.478472E14, -9.533696E14]               | 2024-05-10T00:20:00.000Z | prod
+
 ;
 
 predict_linear_with_timedelta
 required_capability: ts_command_v0
-required_capability: TS_LINREG_PREDICT
 
 TS k8s
 | STATS predicted_cost = values(round(predict_linear(to_double(network.total_cost), 10 minutes), 5)) BY time_bucket = bucket(@timestamp,5minute), cluster
@@ -803,24 +801,27 @@ predicted_cost:double                                                  | time_bu
 [-8.155468708896546E14, -9.51830721515923E14, -1.1455028940944148E15]  | 2024-05-10T00:05:00.000Z | prod
 [5.463777793231174E14, -2.0359960651035275E14, -1.8388879144239428E15] | 2024-05-10T00:10:00.000Z | prod
 [-1.399558652221308E15, 1.082517219478235E15, 4.0520717676617635E15]   | 2024-05-10T00:15:00.000Z | prod
-[-8.478471624916458E14, -9.533695970876471E14, 0.0]                    | 2024-05-10T00:20:00.000Z | prod
+[-8.478471624916458E14, -9.533695970876471E14]                    | 2024-05-10T00:20:00.000Z | prod
 ;
 
 predict_linear_with_int_and_timedelta
 required_capability: ts_command_v0
-required_capability: TS_LINREG_PREDICT
 
+// tag::predict_linear[]
 TS k8s
-| STATS predicted_cost_int = values(round(predict_linear(to_long(network.total_bytes_in), 10), 5)) BY time_bucket = bucket(@timestamp,5minute), cluster
+| STATS predicted_cost_int = VALUES(ROUND(PREDICT_LINEAR(TO_LONG(network.total_bytes_in), 10), 5)) BY time_bucket = bucket(@timestamp,5minute), cluster
+// end::predict_linear[]
 | KEEP predicted_cost_int, time_bucket, cluster
 | SORT cluster, time_bucket
 | LIMIT 5
 ;
 
-predicted_cost_int:double                                                | time_bucket:datetime     | cluster:keyword
-[-4.773636702420472E16, -7.885984558091773E17, -2.2361970129287098E17]   | 2024-05-10T00:00:00.000Z | prod
-[-2.8368940048287676E16, -1.9090238696317244E16, -4.5500448741014824E16] | 2024-05-10T00:05:00.000Z | prod
-[-8.229547268699878E16, -4.188543503897301E16, -8.065656914863902E16]    | 2024-05-10T00:10:00.000Z | prod
-[-1.5332165779386784E17, -1.0946919353828525E17, -1.2534486684657331E17] | 2024-05-10T00:15:00.000Z | prod
-[8.510411223069503E17, -8.325264742678522E16, 0.0]                       | 2024-05-10T00:20:00.000Z | prod
+// tag::predict_linear-result[]
+predicted_cost_int:double                  | time_bucket:datetime     | cluster:keyword
+[-4.773637E16, -7.885985E17, -2.236197E17] | 2024-05-10T00:00:00.000Z | prod
+[-2.836894E16, -1.909024E16, -4.550045E16] | 2024-05-10T00:05:00.000Z | prod
+[-8.229547E16, -4.188544E16, -8.065657E16] | 2024-05-10T00:10:00.000Z | prod
+// end::predict_linear-result[]
+[-1.533217E17, -1.094692E17, -1.253449E17] | 2024-05-10T00:15:00.000Z | prod
+[8.510411E17, -8.325265E16]                | 2024-05-10T00:20:00.000Z | prod
 ;

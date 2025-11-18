@@ -31,8 +31,11 @@ import org.elasticsearch.core.Releasables;
 @GroupingAggregator
 class DerivDoubleAggregator {
 
-    public static SimpleLinearRegressionWithTimeseries initSingle(DriverContext driverContext) {
-        return new SimpleLinearRegressionWithTimeseries();
+    public static SimpleLinearRegressionWithTimeseries initSingle(
+        DriverContext driverContext,
+        SimpleLinearRegressionWithTimeseries.SimpleLinearModelFunction fn
+    ) {
+        return new SimpleLinearRegressionWithTimeseries(fn);
     }
 
     public static void combine(SimpleLinearRegressionWithTimeseries current, double value, long timestamp) {
@@ -54,21 +57,20 @@ class DerivDoubleAggregator {
         state.sumTsSq += sumTsSq;
     }
 
-    public static Block evaluateFinal(
-        SimpleLinearRegressionWithTimeseries state,
-        DriverContext driverContext,
-        SimpleLinearRegressionWithTimeseries.SimpleLinearModelFunction fn
-    ) {
+    public static Block evaluateFinal(SimpleLinearRegressionWithTimeseries state, DriverContext driverContext) {
         BlockFactory blockFactory = driverContext.blockFactory();
-        var slope = fn.predict(state);
+        var slope = state.fn.predict(state);
         if (Double.isNaN(slope)) {
             return blockFactory.newConstantNullBlock(1);
         }
         return blockFactory.newConstantDoubleBlockWith(slope, 1);
     }
 
-    public static GroupingState initGrouping(DriverContext driverContext) {
-        return new GroupingState(driverContext.bigArrays());
+    public static GroupingState initGrouping(
+        DriverContext driverContext,
+        SimpleLinearRegressionWithTimeseries.SimpleLinearModelFunction fn
+    ) {
+        return new GroupingState(driverContext.bigArrays(), fn);
     }
 
     public static void combine(GroupingState state, int groupId, double value, long timestamp) {
@@ -87,12 +89,7 @@ class DerivDoubleAggregator {
         combineIntermediate(state.getAndGrow(groupId), count, sumVal, sumTs, sumTsVal, sumTsSq);
     }
 
-    public static Block evaluateFinal(
-        GroupingState state,
-        IntVector selectedGroups,
-        GroupingAggregatorEvaluationContext ctx,
-        SimpleLinearRegressionWithTimeseries.SimpleLinearModelFunction fn
-    ) {
+    public static Block evaluateFinal(GroupingState state, IntVector selectedGroups, GroupingAggregatorEvaluationContext ctx) {
         try (DoubleBlock.Builder builder = ctx.driverContext().blockFactory().newDoubleBlockBuilder(selectedGroups.getPositionCount())) {
             for (int i = 0; i < selectedGroups.getPositionCount(); i++) {
                 int groupId = selectedGroups.getInt(i);
@@ -101,7 +98,7 @@ class DerivDoubleAggregator {
                     builder.appendNull();
                     continue;
                 }
-                double result = fn.predict(slr);
+                double result = slr.fn.predict(slr);
                 if (Double.isNaN(result)) {
                     builder.appendNull();
                     continue;
@@ -114,10 +111,12 @@ class DerivDoubleAggregator {
 
     public static final class GroupingState extends AbstractArrayState {
         private ObjectArray<SimpleLinearRegressionWithTimeseries> states;
+        final SimpleLinearRegressionWithTimeseries.SimpleLinearModelFunction fn;
 
-        GroupingState(BigArrays bigArrays) {
+        GroupingState(BigArrays bigArrays, SimpleLinearRegressionWithTimeseries.SimpleLinearModelFunction fn) {
             super(bigArrays);
             states = bigArrays.newObjectArray(1);
+            this.fn = fn;
         }
 
         SimpleLinearRegressionWithTimeseries get(int groupId) {
@@ -133,7 +132,7 @@ class DerivDoubleAggregator {
             }
             SimpleLinearRegressionWithTimeseries slr = states.get(groupId);
             if (slr == null) {
-                slr = new SimpleLinearRegressionWithTimeseries();
+                slr = new SimpleLinearRegressionWithTimeseries(fn);
                 states.set(groupId, slr);
             }
             return slr;

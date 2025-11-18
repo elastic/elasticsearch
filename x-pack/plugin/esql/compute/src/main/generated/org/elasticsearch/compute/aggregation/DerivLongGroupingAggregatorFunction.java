@@ -39,16 +39,21 @@ public final class DerivLongGroupingAggregatorFunction implements GroupingAggreg
 
   private final DriverContext driverContext;
 
+  private final SimpleLinearRegressionWithTimeseries.SimpleLinearModelFunction fn;
+
   public DerivLongGroupingAggregatorFunction(List<Integer> channels,
-      DerivDoubleAggregator.GroupingState state, DriverContext driverContext) {
+      DerivDoubleAggregator.GroupingState state, DriverContext driverContext,
+      SimpleLinearRegressionWithTimeseries.SimpleLinearModelFunction fn) {
     this.channels = channels;
     this.state = state;
     this.driverContext = driverContext;
+    this.fn = fn;
   }
 
   public static DerivLongGroupingAggregatorFunction create(List<Integer> channels,
-      DriverContext driverContext) {
-    return new DerivLongGroupingAggregatorFunction(channels, DerivLongAggregator.initGrouping(driverContext), driverContext);
+      DriverContext driverContext,
+      SimpleLinearRegressionWithTimeseries.SimpleLinearModelFunction fn) {
+    return new DerivLongGroupingAggregatorFunction(channels, DerivLongAggregator.initGrouping(driverContext, fn), driverContext, fn);
   }
 
   public static List<IntermediateStateDesc> intermediateStateDesc() {

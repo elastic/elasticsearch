@@ -11,6 +11,7 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.compute.aggregation.AggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.DerivDoubleAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.DerivLongAggregatorFunctionSupplier;
+import org.elasticsearch.compute.aggregation.SimpleLinearRegressionWithTimeseries;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
@@ -18,6 +19,8 @@ import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.Example;
+import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
+import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionType;
 import org.elasticsearch.xpack.esql.expression.function.Param;
@@ -40,6 +43,8 @@ public class Deriv extends TimeSeriesAggregateFunction implements ToAggregator {
         type = FunctionType.TIME_SERIES_AGGREGATE,
         returnType = { "double" },
         description = "Calculates the derivative over time of a numeric field using linear regression.",
+        appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW, version = "9.3.0") },
+        preview = true,
         examples = { @Example(file = "k8s-timeseries", tag = "deriv") }
     )
     public Deriv(Source source, @Param(name = "field", type = { "long", "integer", "double" }) Expression field, Expression timestamp) {

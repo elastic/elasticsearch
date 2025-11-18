@@ -25,8 +25,11 @@ import org.elasticsearch.compute.operator.DriverContext;
 @GroupingAggregator
 class DerivLongAggregator {
 
-    public static SimpleLinearRegressionWithTimeseries initSingle(DriverContext driverContext) {
-        return new SimpleLinearRegressionWithTimeseries();
+    public static SimpleLinearRegressionWithTimeseries initSingle(
+        DriverContext driverContext,
+        SimpleLinearRegressionWithTimeseries.SimpleLinearModelFunction fn
+    ) {
+        return new SimpleLinearRegressionWithTimeseries(fn);
     }
 
     public static void combine(SimpleLinearRegressionWithTimeseries current, long value, long timestamp) {
@@ -44,16 +47,15 @@ class DerivLongAggregator {
         DerivDoubleAggregator.combineIntermediate(state, count, sumVal, sumTs, sumTsVal, sumTsSq);
     }
 
-    public static Block evaluateFinal(
-        SimpleLinearRegressionWithTimeseries state,
+    public static Block evaluateFinal(SimpleLinearRegressionWithTimeseries state, DriverContext driverContext) {
+        return DerivDoubleAggregator.evaluateFinal(state, driverContext);
+    }
+
+    public static DerivDoubleAggregator.GroupingState initGrouping(
         DriverContext driverContext,
         SimpleLinearRegressionWithTimeseries.SimpleLinearModelFunction fn
     ) {
-        return DerivDoubleAggregator.evaluateFinal(state, driverContext, fn);
-    }
-
-    public static DerivDoubleAggregator.GroupingState initGrouping(DriverContext driverContext) {
-        return new DerivDoubleAggregator.GroupingState(driverContext.bigArrays());
+        return new DerivDoubleAggregator.GroupingState(driverContext.bigArrays(), fn);
     }
 
     public static void combine(DerivDoubleAggregator.GroupingState state, int groupId, long value, long timestamp) {
@@ -75,9 +77,8 @@ class DerivLongAggregator {
     public static Block evaluateFinal(
         DerivDoubleAggregator.GroupingState state,
         IntVector selectedGroups,
-        GroupingAggregatorEvaluationContext ctx,
-        SimpleLinearRegressionWithTimeseries.SimpleLinearModelFunction fn
+        GroupingAggregatorEvaluationContext ctx
     ) {
-        return DerivDoubleAggregator.evaluateFinal(state, selectedGroups, ctx, fn);
+        return DerivDoubleAggregator.evaluateFinal(state, selectedGroups, ctx);
     }
 }

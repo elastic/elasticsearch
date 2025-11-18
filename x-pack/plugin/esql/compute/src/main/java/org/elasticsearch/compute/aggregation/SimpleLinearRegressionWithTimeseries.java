@@ -9,7 +9,7 @@ package org.elasticsearch.compute.aggregation;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.operator.DriverContext;
 
-class SimpleLinearRegressionWithTimeseries implements AggregatorState {
+public class SimpleLinearRegressionWithTimeseries implements AggregatorState {
     @Override
     public void toIntermediate(Block[] blocks, int offset, DriverContext driverContext) {
         blocks[offset + 0] = driverContext.blockFactory().newConstantLongBlockWith(count, 1);
@@ -30,18 +30,20 @@ class SimpleLinearRegressionWithTimeseries implements AggregatorState {
     double sumTsVal;
     long sumTsSq;
     long maxTs;
+    final SimpleLinearModelFunction fn;
 
     public interface SimpleLinearModelFunction {
         double predict(SimpleLinearRegressionWithTimeseries model);
     }
 
-    SimpleLinearRegressionWithTimeseries() {
+    SimpleLinearRegressionWithTimeseries(SimpleLinearModelFunction fn) {
         this.count = 0;
         this.sumVal = 0.0;
         this.sumTs = 0;
         this.sumTsVal = 0.0;
         this.sumTsSq = 0;
         this.maxTs = Long.MIN_VALUE;
+        this.fn = fn;
     }
 
     void add(long ts, double val) {

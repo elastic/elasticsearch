@@ -17,7 +17,6 @@
 
 package co.elastic.elasticsearch.stateless.autoscaling.indexing;
 
-import co.elastic.elasticsearch.stateless.autoscaling.indexing.IngestionLoad.ExecutorIngestionLoad;
 import co.elastic.elasticsearch.stateless.autoscaling.indexing.IngestionLoad.NodeIngestionLoad;
 
 import org.elasticsearch.action.ActionListener;
@@ -35,9 +34,8 @@ import org.elasticsearch.telemetry.metric.LongWithAttributes;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.threadpool.ThreadPool;
 
-import java.util.Map;
+import java.util.List;
 import java.util.Set;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
@@ -83,13 +81,12 @@ public class IngestLoadSampler extends AbstractLifecycleComponent implements Clu
     private volatile double minSensitivityRatio;
     private volatile TimeValue samplingFrequency;
     private volatile TimeValue maxTimeBetweenPublications;
-    private volatile double ingestionLoad;
-    private volatile double latestPublishedIngestionLoad;
+    private volatile NodeIngestionLoad ingestionLoad = NodeIngestionLoad.EMPTY;
+    private volatile NodeIngestionLoad latestPublishedIngestionLoad = NodeIngestionLoad.EMPTY;
     private volatile SamplingTask samplingTask;
     private final AtomicLong lastPublicationRelativeTimeInMillis = new AtomicLong();
     private final AtomicReference<Object> inFlightPublicationTicket = new AtomicReference<>();
     private volatile DiscoveryNode localNode;
-    private final Map<String, ExecutorIngestionLoad> ingestionLoadPerExecutor;
 
     public IngestLoadSampler(
         ThreadPool threadPool,
@@ -115,56 +112,54 @@ public class IngestLoadSampler extends AbstractLifecycleComponent implements Clu
         this.nodeIngestionLoadSupplier = nodeIngestionLoadSupplier;
         // To ensure that the first sample is published right away
         lastPublicationRelativeTimeInMillis.set(threadPool.relativeTimeInMillis() - maxTimeBetweenPublications.getMillis());
-        ingestionLoadPerExecutor = new ConcurrentHashMap<>(AverageWriteLoadSampler.WRITE_EXECUTORS.size());
-        AverageWriteLoadSampler.WRITE_EXECUTORS.forEach(name -> ingestionLoadPerExecutor.put(name, new ExecutorIngestionLoad(0.0, 0.0)));
         setupMetrics(meterRegistry, AverageWriteLoadSampler.WRITE_EXECUTORS);
     }
 
     private void setupMetrics(MeterRegistry meterRegistry, Set<String> writeExecutors) {
         for (String executor : writeExecutors) {
-            meterRegistry.registerDoubleGauge(
-                "es.autoscaling.indexing.thread_pool." + executor + ".average_write_load.current",
-                "The last sampled average number of busy threads for the executor",
-                "threads",
-                () -> {
-                    var ingestionLoad = ingestionLoadPerExecutor.get(executor);
-                    return new DoubleWithAttributes(ingestionLoad.averageWriteLoad());
-                }
-            );
-            meterRegistry.registerDoubleGauge(
+            meterRegistry.registerDoublesGauge(
                 "es.autoscaling.indexing.thread_pool." + executor + ".average_task_execution_time.current",
                 "The moving average task execution time for the executor",
                 "nanoseconds",
                 () -> {
-                    var stats = writeLoadSampler.getExecutorStats(executor);
-                    return new DoubleWithAttributes(stats.averageTaskExecutionEWMA());
+                    var stats = ingestionLoad.executorStats().get(executor);
+                    return stats == null ? List.of() : List.of(new DoubleWithAttributes(stats.averageTaskExecutionEWMA()));
                 }
             );
-            meterRegistry.registerLongGauge(
+            meterRegistry.registerLongsGauge(
                 "es.autoscaling.indexing.thread_pool." + executor + ".queue_size.current",
                 "The queue size for the executor",
                 "tasks",
                 () -> {
-                    var stats = writeLoadSampler.getExecutorStats(executor);
-                    return new LongWithAttributes(stats.currentQueueSize());
+                    var stats = ingestionLoad.executorStats().get(executor);
+                    return stats == null ? List.of() : List.of(new LongWithAttributes(stats.currentQueueSize()));
                 }
             );
-            meterRegistry.registerDoubleGauge(
+            meterRegistry.registerDoublesGauge(
                 "es.autoscaling.indexing.thread_pool." + executor + ".average_queue_size.current",
                 "The average queue size for the executor",
                 "tasks",
                 () -> {
-                    var stats = writeLoadSampler.getExecutorStats(executor);
-                    return new DoubleWithAttributes(stats.averageQueueSize());
+                    var stats = ingestionLoad.executorStats().get(executor);
+                    return stats == null ? List.of() : List.of(new DoubleWithAttributes(stats.averageQueueSize()));
                 }
             );
-            meterRegistry.registerDoubleGauge(
+            meterRegistry.registerDoublesGauge(
                 "es.autoscaling.indexing.thread_pool." + executor + ".threads_needed_to_handle_queue.current",
                 "The estimated number of threads needed to handle queued tasks",
                 "threads",
                 () -> {
-                    var ingestionLoad = ingestionLoadPerExecutor.get(executor);
-                    return new DoubleWithAttributes(ingestionLoad.queueThreadsNeeded());
+                    var load = ingestionLoad.executorIngestionLoads().get(executor);
+                    return load == null ? List.of() : List.of(new DoubleWithAttributes(load.queueThreadsNeeded()));
+                }
+            );
+            meterRegistry.registerDoublesGauge(
+                "es.autoscaling.indexing.thread_pool." + executor + ".average_write_load.current",
+                "The last sampled average number of busy threads for the executor",
+                "threads",
+                () -> {
+                    var load = ingestionLoad.executorIngestionLoads().get(executor);
+                    return load == null ? List.of() : List.of(new DoubleWithAttributes(load.averageWriteLoad()));
                 }
             );
         }
@@ -203,11 +198,10 @@ public class IngestLoadSampler extends AbstractLifecycleComponent implements Clu
     }
 
     private void sampleIngestionLoad(DiscoveryNode node) {
-        double previousReading = latestPublishedIngestionLoad;
+        double previousReading = latestPublishedIngestionLoad.totalIngestionLoad();
         NodeIngestionLoad currentIngestionLoad = nodeIngestionLoadSupplier.get();
-        ingestionLoadPerExecutor.putAll(currentIngestionLoad.executorIngestionLoads());
         double currentReading = currentIngestionLoad.totalIngestionLoad();
-        this.ingestionLoad = currentReading;
+        this.ingestionLoad = currentIngestionLoad;
 
         var previousRatio = previousReading / numProcessors;
         var currentRatio = currentReading / numProcessors;

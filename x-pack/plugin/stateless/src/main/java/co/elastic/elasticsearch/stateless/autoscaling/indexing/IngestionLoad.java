@@ -17,9 +17,17 @@
 
 package co.elastic.elasticsearch.stateless.autoscaling.indexing;
 
+import org.elasticsearch.TransportVersion;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.Writeable;
+
+import java.io.IOException;
 import java.util.Map;
 
 public class IngestionLoad {
+
+    public static final TransportVersion PUBLISH_DETAILED_INGESTION_LOAD = TransportVersion.fromName("publish_detailed_ingestion_load");
 
     /**
      * {@link NodeIngestionLoad} contains {@link ExecutorStats} and {@link ExecutorIngestionLoad} for each write threadpool, and
@@ -33,7 +41,30 @@ public class IngestionLoad {
         Map<String, ExecutorStats> executorStats,
         Map<String, ExecutorIngestionLoad> executorIngestionLoads,
         double totalIngestionLoad
-    ) {}
+    ) implements Writeable {
+
+        public static NodeIngestionLoad EMPTY = new NodeIngestionLoad(Map.of(), Map.of(), 0.0);
+
+        public static NodeIngestionLoad from(StreamInput in) throws IOException {
+            final double totalIngestionLoad = in.readDouble();
+            Map<String, ExecutorStats> executorStats = Map.of();
+            Map<String, ExecutorIngestionLoad> executorIngestionLoads = Map.of();
+            if (in.getTransportVersion().supports(PUBLISH_DETAILED_INGESTION_LOAD)) {
+                executorStats = in.readImmutableMap(ExecutorStats::from);
+                executorIngestionLoads = in.readImmutableMap(ExecutorIngestionLoad::from);
+            }
+            return new NodeIngestionLoad(executorStats, executorIngestionLoads, totalIngestionLoad);
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeDouble(totalIngestionLoad);
+            if (out.getTransportVersion().supports(PUBLISH_DETAILED_INGESTION_LOAD)) {
+                out.writeMap(executorStats, (o, stats) -> stats.writeTo(o));
+                out.writeMap(executorIngestionLoads, (o, load) -> load.writeTo(o));
+            }
+        }
+    }
 
     // Detailed stats about a write threadpool
     public record ExecutorStats(
@@ -42,9 +73,34 @@ public class IngestionLoad {
         int currentQueueSize,
         double averageQueueSize,
         int maxThreads
-    ) {}
+    ) implements Writeable {
 
-    public record ExecutorIngestionLoad(double averageWriteLoad, double queueThreadsNeeded) {
+        public static ExecutorStats from(StreamInput in) throws IOException {
+            return new ExecutorStats(in.readDouble(), in.readDouble(), in.readVInt(), in.readDouble(), in.readVInt());
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeDouble(averageLoad);
+            out.writeDouble(averageTaskExecutionEWMA);
+            out.writeVInt(currentQueueSize);
+            out.writeDouble(averageQueueSize);
+            out.writeVInt(maxThreads);
+        }
+    }
+
+    public record ExecutorIngestionLoad(double averageWriteLoad, double queueThreadsNeeded) implements Writeable {
+
+        public static ExecutorIngestionLoad from(StreamInput in) throws IOException {
+            return new ExecutorIngestionLoad(in.readDouble(), in.readDouble());
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeDouble(averageWriteLoad);
+            out.writeDouble(queueThreadsNeeded);
+        }
+
         public double total() {
             return averageWriteLoad + queueThreadsNeeded;
         }

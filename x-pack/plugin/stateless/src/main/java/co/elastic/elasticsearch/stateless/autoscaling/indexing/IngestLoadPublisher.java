@@ -17,6 +17,8 @@
 
 package co.elastic.elasticsearch.stateless.autoscaling.indexing;
 
+import co.elastic.elasticsearch.stateless.autoscaling.indexing.IngestionLoad.NodeIngestionLoad;
+
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -34,7 +36,7 @@ public class IngestLoadPublisher {
         this.threadPool = threadPool;
     }
 
-    public void publishIngestionLoad(double ingestionLoad, String nodeId, String nodeName, ActionListener<Void> listener) {
+    public void publishIngestionLoad(NodeIngestionLoad ingestionLoad, String nodeId, String nodeName, ActionListener<Void> listener) {
         threadPool.generic().execute(() -> {
             var request = new PublishNodeIngestLoadRequest(nodeId, nodeName, seqNoSupplier.incrementAndGet(), ingestionLoad);
             client.execute(TransportPublishNodeIngestLoadMetric.INSTANCE, request, listener.map(unused -> null));

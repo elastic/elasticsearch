@@ -432,7 +432,8 @@ public class AutoscalingIndexingMetricsIT extends AbstractStatelessIntegTestCase
             TransportService.class
         );
         mockTransportService.addRequestHandlingBehavior(TransportPublishNodeIngestLoadMetric.NAME, (handler, request, channel, task) -> {
-            if (request instanceof PublishNodeIngestLoadRequest publishRequest && publishRequest.getIngestionLoad() > 0) {
+            if (request instanceof PublishNodeIngestLoadRequest publishRequest
+                && publishRequest.getIngestionLoad().totalIngestionLoad() > 0) {
                 firstNonZeroPublishIndexLoadLatch.countDown();
             }
             handler.messageReceived(request, channel, task);
@@ -992,7 +993,7 @@ public class AutoscalingIndexingMetricsIT extends AbstractStatelessIntegTestCase
             (handler, request, channel, task) -> handler.messageReceived(
                 request,
                 request instanceof PublishNodeIngestLoadRequest publishNodeIngestLoadRequest
-                    && publishNodeIngestLoadRequest.getIngestionLoad() > 0.0 ? new TransportChannel() {
+                    && publishNodeIngestLoadRequest.getIngestionLoad().totalIngestionLoad() > 0.0 ? new TransportChannel() {
                         @Override
                         public String getProfileName() {
                             return channel.getProfileName();
@@ -1127,7 +1128,7 @@ public class AutoscalingIndexingMetricsIT extends AbstractStatelessIntegTestCase
         {
             final var publicationLatch = new CountDownLatch(1);
             afterSendResponseRef.set(request -> {
-                if (request.getIngestionLoad() > 0.0) {
+                if (request.getIngestionLoad().totalIngestionLoad() > 0.0) {
                     publicationLatch.countDown();
                 }
             });
@@ -1142,7 +1143,7 @@ public class AutoscalingIndexingMetricsIT extends AbstractStatelessIntegTestCase
             updateClusterSettings(Settings.builder().put(IngestLoadProbe.INCLUDE_WRITE_COORDINATION_EXECUTORS_ENABLED.getKey(), false));
             final var publicationLatch = new CountDownLatch(1);
             afterSendResponseRef.set(request -> {
-                if (request.getIngestionLoad() == 0.0) {
+                if (request.getIngestionLoad().totalIngestionLoad() == 0.0) {
                     publicationLatch.countDown();
                 }
             });

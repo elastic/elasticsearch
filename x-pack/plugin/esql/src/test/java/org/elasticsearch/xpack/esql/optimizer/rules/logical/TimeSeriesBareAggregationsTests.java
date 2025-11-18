@@ -39,7 +39,7 @@ import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.defaultLoo
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 
-public class TimeSeriesAggregationsTests extends AbstractLogicalPlanOptimizerTests {
+public class TimeSeriesBareAggregationsTests extends AbstractLogicalPlanOptimizerTests {
 
     private static Map<String, EsField> mappingK8s;
     private static Analyzer k8sAnalyzer;
@@ -145,7 +145,8 @@ public class TimeSeriesAggregationsTests extends AbstractLogicalPlanOptimizerTes
     }
 
     /**
-     * Translation: TS k8s | STATS sum_over_time(field) BY TBUCKET(1h) → TS k8s | STATS VALUES(sum_over_time(field)) BY _tsid, TBUCKET(1h)
+     * Translation: TS k8s | STATS sum_over_time(field) BY TBUCKET(1h)
+     *  → TS k8s | STATS VALUES(sum_over_time(field)) BY _tsid, TBUCKET(1h)
      */
     public void testSumOverTimeWithTBucket() {
         assumeTrue("requires metrics command", EsqlCapabilities.Cap.METRICS_GROUP_BY_ALL.isEnabled());
@@ -181,7 +182,8 @@ public class TimeSeriesAggregationsTests extends AbstractLogicalPlanOptimizerTes
     }
 
     /**
-     * Translation: TS k8s | STATS rate(field) BY TBUCKET(1h) → TS k8s | STATS VALUES(rate(field)) BY _tsid, TBUCKET(1h)
+     * Translation: TS k8s | STATS rate(field) BY TBUCKET(1h)
+     *  → TS k8s | STATS VALUES(rate(field)) BY _tsid, TBUCKET(1h)
      */
     public void testRateWithTBucket() {
         assumeTrue("requires metrics command", EsqlCapabilities.Cap.METRICS_GROUP_BY_ALL.isEnabled());

@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.analysis;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -51,25 +52,33 @@ public class TimeSeriesGroupByAll extends Rule<LogicalPlan, LogicalPlan> {
                 if (af instanceof TimeSeriesAggregateFunction tsAgg) {
                     hasTopLevelOverTimeAggs = true;
                     newAggregateFunctions.add(new Alias(alias.source(), alias.name(), new Values(tsAgg.source(), tsAgg)));
+                } else {
+                    // Preserve non-time-series aggregates
+                    newAggregateFunctions.add(agg);
                 }
+            } else {
+                // Preserve non-aggregate expressions (like grouping keys that are already in aggregates)
+                newAggregateFunctions.add(agg);
             }
         }
         if (hasTopLevelOverTimeAggs == false) {
-            // If there are no top level time series aggregations, there's no need for this rule to apply
             return aggregate;
         }
 
-        // Grouping parameters for the new aggregation node.
         List<Expression> groupings = new ArrayList<>();
 
         Holder<Attribute> tsid = new Holder<>();
-        // Holder<Attribute> timestamp = new Holder<>();
         getTsFields(aggregate, tsid);
 
-        // Add the _tsid to the EsRelation Leaf, if it's not there already
         LogicalPlan newChild = aggregate.child().transformUp(EsRelation.class, r -> {
+            List<Attribute> attributesToAdd = new ArrayList<>();
+
             boolean tsidFoundInOutput = r.output().stream().anyMatch(attr -> attr.name().equalsIgnoreCase(MetadataAttribute.TSID_FIELD));
-            if (tsidFoundInOutput) {
+            if (tsidFoundInOutput == false) {
+                attributesToAdd.add(tsid.get());
+            }
+
+            if (attributesToAdd.isEmpty()) {
                 return r;
             }
 
@@ -78,7 +87,7 @@ public class TimeSeriesGroupByAll extends Rule<LogicalPlan, LogicalPlan> {
                 r.indexPattern(),
                 r.indexMode(),
                 r.indexNameWithModes(),
-                CollectionUtils.combine(r.output(), tsid.get())
+                CollectionUtils.combine(r.output(), attributesToAdd)
             );
         });
 
@@ -92,20 +101,36 @@ public class TimeSeriesGroupByAll extends Rule<LogicalPlan, LogicalPlan> {
         // Add the user defined grouping
         groupings.addAll(aggregate.groupings());
 
+        // Add user-defined groupings to aggregates if they're attributes (expressions like TBUCKET are handled later)
+        for (Expression userGrouping : aggregate.groupings()) {
+            if (userGrouping instanceof Attribute attr) {
+                // Check if it's already in aggregates (might be if it was in SELECT)
+                boolean alreadyInAggregates = newAggregateFunctions.stream().anyMatch(agg -> {
+                    Attribute aggAttr = Expressions.attribute(agg);
+                    return aggAttr != null && aggAttr.id().equals(attr.id());
+                });
+                if (alreadyInAggregates == false) {
+                    newAggregateFunctions.add(attr);
+                }
+            }
+        }
+
         return new TimeSeriesAggregate(aggregate.source(), newChild, groupings, newAggregateFunctions, null);
     }
 
-    private static void getTsFields(TimeSeriesAggregate aggregate, Holder<Attribute> tsid) {
-        aggregate.forEachDown(EsRelation.class, r -> {
-            for (Attribute attr : r.output()) {
-                if (attr.name().equals(MetadataAttribute.TSID_FIELD)) {
-                    tsid.set(attr);
-                }
-            }
-        });
-
-        if (tsid.get() == null) {
-            tsid.set(new MetadataAttribute(aggregate.source(), MetadataAttribute.TSID_FIELD, DataType.TSID_DATA_TYPE, false));
-        }
+    private static void getTsFields(TimeSeriesAggregate aggregate, Holder<Attribute> tsidHolder) {
+        aggregate.forEachDown(
+            EsRelation.class,
+            r -> r.output()
+                .stream()
+                .filter(attr -> attr.name().equalsIgnoreCase(MetadataAttribute.TSID_FIELD))
+                .findFirst()
+                .ifPresentOrElse(
+                    tsidHolder::set,
+                    () -> tsidHolder.set(
+                        new MetadataAttribute(aggregate.source(), MetadataAttribute.TSID_FIELD, DataType.TSID_DATA_TYPE, false)
+                    )
+                )
+        );
     }
 }

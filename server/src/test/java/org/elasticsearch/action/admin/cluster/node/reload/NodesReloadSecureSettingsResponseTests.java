@@ -22,36 +22,31 @@ import org.elasticsearch.test.TransportVersionUtils;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.List;
-import java.util.Optional;
 
 public class NodesReloadSecureSettingsResponseTests extends ESTestCase {
 
-    @ParametersFactory(argumentFormatting = "version=%s, exception=%s, settingNames=%s, lastModifiedTime=%s")
+    @ParametersFactory(argumentFormatting = "version=%s, exception=%s, settingNames=%s, path=%s, digest=%s, lastModifiedTime=%s")
     public static List<Object[]> parameters() {
         List<Object[]> parameters = new ArrayList<>();
 
         TransportVersion current = TransportVersion.current();
-        List<TransportVersion> versions = List.of(current, TransportVersionUtils.getPreviousVersion(current));
-
-        List<Optional<Exception>> exceptions = List.of(Optional.empty(), Optional.of(new ElasticsearchException("test error")));
-
-        List<Optional<Collection<String>>> settingNamesCases = List.of(
-            Optional.empty(),
-            Optional.of(List.of()),
-            Optional.of(List.of("setting1", "setting2"))
-        );
-
-        List<Optional<Long>> lastModifiedTimes = List.of(Optional.empty(), Optional.of(System.currentTimeMillis()));
+        TransportVersion[] versions = { current, TransportVersionUtils.getPreviousVersion(current) };
+        Exception[] exceptions = { null, new ElasticsearchException("test error") };
+        String[][] settingNamesCases = { null, {}, { "setting1", "setting2" } };
+        String[] paths = { null, "/keystore" };
+        String[] digests = { null, "abc123" };
+        Long[] lastModifiedTimes = { null, System.currentTimeMillis() };
 
         for (TransportVersion version : versions) {
-            for (Optional<Exception> exception : exceptions) {
-                for (Optional<Collection<String>> settingNames : settingNamesCases) {
-                    for (Optional<Long> lastModifiedTime : lastModifiedTimes) {
-                        parameters.add(
-                            new Object[] { version, exception.orElse(null), settingNames.orElse(null), lastModifiedTime.orElse(null) }
-                        );
+            for (Exception exception : exceptions) {
+                for (String[] settingNames : settingNamesCases) {
+                    for (String path : paths) {
+                        for (String digest : digests) {
+                            for (Long lastModifiedTime : lastModifiedTimes) {
+                                parameters.add(new Object[] { version, exception, settingNames, path, digest, lastModifiedTime });
+                            }
+                        }
                     }
                 }
             }
@@ -62,24 +57,30 @@ public class NodesReloadSecureSettingsResponseTests extends ESTestCase {
 
     private final TransportVersion version;
     private final Exception exception;
-    private final Collection<String> settingNames;
+    private final String[] settingNames;
+    private final String path;
+    private final String digest;
     private final Long lastModifiedTime;
 
     public NodesReloadSecureSettingsResponseTests(
         TransportVersion version,
         Exception exception,
-        Collection<String> settingNames,
+        String[] settingNames,
+        String path,
+        String digest,
         Long lastModifiedTime
     ) {
         this.version = version;
         this.exception = exception;
         this.settingNames = settingNames;
+        this.path = path;
+        this.digest = digest;
         this.lastModifiedTime = lastModifiedTime;
     }
 
     public void testNodeResponseWriteAndRead() throws IOException {
         DiscoveryNode node = DiscoveryNodeUtils.create("node-id");
-        var nr = new NodesReloadSecureSettingsResponse.NodeResponse(node, exception, settingNames, lastModifiedTime);
+        var nr = new NodesReloadSecureSettingsResponse.NodeResponse(node, exception, settingNames, path, digest, lastModifiedTime);
         verifyWriteAndRead(nr);
     }
 
@@ -94,13 +95,18 @@ public class NodesReloadSecureSettingsResponseTests extends ESTestCase {
         assertEquals(nr.getNode(), readNr.getNode());
         assertEquals(nr.reloadException() == null, readNr.reloadException() == null);
         if (nr.reloadException() != null) {
+            assertNotNull(readNr.reloadException());
             assertEquals(nr.reloadException().getMessage(), readNr.reloadException().getMessage());
         }
         if (version.equals(TransportVersion.current())) {
-            assertEquals(nr.secureSettingNames(), readNr.secureSettingNames());
+            assertArrayEquals(nr.secureSettingNames(), readNr.secureSettingNames());
+            assertEquals(nr.keystorePath(), readNr.keystorePath());
+            assertEquals(nr.keystoreDigest(), readNr.keystoreDigest());
             assertEquals(nr.keystoreLastModifiedTime(), readNr.keystoreLastModifiedTime());
         } else {
             assertNull(readNr.secureSettingNames());
+            assertNull(readNr.keystorePath());
+            assertNull(readNr.keystoreDigest());
             assertNull(readNr.keystoreLastModifiedTime());
         }
     }

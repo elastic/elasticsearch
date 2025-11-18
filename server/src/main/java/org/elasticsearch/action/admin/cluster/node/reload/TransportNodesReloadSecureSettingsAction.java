@@ -20,6 +20,7 @@ import org.elasticsearch.action.support.nodes.TransportNodesAction;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.hash.MessageDigests;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.KeyStoreWrapper;
 import org.elasticsearch.common.settings.Settings;
@@ -118,6 +119,8 @@ public class TransportNodesReloadSecureSettingsAction extends TransportNodesActi
                     clusterService.localNode(),
                     new IllegalStateException("Keystore is missing"),
                     null,
+                    null,
+                    null,
                     null
                 );
             }
@@ -139,14 +142,17 @@ public class TransportNodesReloadSecureSettingsAction extends TransportNodesActi
                 }
             });
             ExceptionsHelper.rethrowAndSuppress(exceptions);
+            Path keystorePath = KeyStoreWrapper.keystorePath(environment.configDir());
             return new NodesReloadSecureSettingsResponse.NodeResponse(
                 clusterService.localNode(),
                 null,
-                keystore.getSettingNames(),
-                failsafeLastModifiedTime(KeyStoreWrapper.keystorePath(environment.configDir()))
+                keystore.getSettingNames().toArray(String[]::new),
+                keystorePath.toString(),
+                failsafeSha256Digest(keystorePath),
+                failsafeLastModifiedTime(keystorePath)
             );
         } catch (final Exception e) {
-            return new NodesReloadSecureSettingsResponse.NodeResponse(clusterService.localNode(), e, null, null);
+            return new NodesReloadSecureSettingsResponse.NodeResponse(clusterService.localNode(), e, null, null, null, null);
         }
     }
 
@@ -154,7 +160,17 @@ public class TransportNodesReloadSecureSettingsAction extends TransportNodesActi
         try {
             return Files.readAttributes(path, BasicFileAttributes.class).lastModifiedTime().toMillis();
         } catch (IOException e) {
-            return null; // fallback to null if we can't read the time
+            logger.warn("Failed to read last modified time of [" + path + "]", e);
+            return null;
+        }
+    }
+
+    private static String failsafeSha256Digest(Path path) {
+        try {
+            return MessageDigests.toHexString(MessageDigests.sha256().digest(Files.readAllBytes(path)));
+        } catch (IOException e) {
+            logger.warn("Failed to compute SHA-256 digest of [" + path + "]", e);
+            return null;
         }
     }
 

@@ -77,7 +77,9 @@ public class BasicQueryClient implements QueryClient {
         }
 
         if (cfg.crossProjectEnabled()) {
-            // TODO project_routing
+            if (cfg.projectRouting() != null) {
+                search.setProjectRouting(cfg.projectRouting());
+            }
             search.indicesOptions(CrossProjectIndexResolutionValidator.indicesOptionsForCrossProjectFanout(search.indicesOptions()));
         }
         client.search(search, listener);
@@ -97,7 +99,7 @@ public class BasicQueryClient implements QueryClient {
             log.trace("About to execute multi-queries {} on {}", sj, indices);
         }
         if (cfg.crossProjectEnabled()) {
-            // TODO project_routing
+            search.requests().forEach(x -> x.setProjectRouting(cfg.projectRouting()));
             search.indicesOptions(CrossProjectIndexResolutionValidator.indicesOptionsForCrossProjectFanout(search.indicesOptions()));
         }
         client.multiSearch(search, multiSearchLogListener(listener, allowPartialSearchResults, log));

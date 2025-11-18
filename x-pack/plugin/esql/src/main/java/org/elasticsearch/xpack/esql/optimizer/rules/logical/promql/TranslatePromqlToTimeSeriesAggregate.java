@@ -197,8 +197,14 @@ public final class TranslatePromqlToTimeSeriesAggregate extends OptimizerRules.O
                 // use default lookback for instant queries
                 timeBucketSize = Literal.timeDuration(promqlCommand.source(), DEFAULT_LOOKBACK);
             }
-            Bucket b = new Bucket(promqlCommand.source(), promqlCommand.timestamp(), timeBucketSize, null, null,
-                ConfigurationAware.CONFIGURATION_MARKER);
+            Bucket b = new Bucket(
+                promqlCommand.source(),
+                promqlCommand.timestamp(),
+                timeBucketSize,
+                null,
+                null,
+                ConfigurationAware.CONFIGURATION_MARKER
+            );
             String bucketName = "TBUCKET";
             Alias tbucket = new Alias(b.source(), bucketName, b);
             aggs.add(tbucket.toAttribute());

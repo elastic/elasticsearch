@@ -10,9 +10,9 @@ package org.elasticsearch.xpack.esql.parser.promql;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.action.PromqlFeatures;
 import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.parser.ParsingException;
 import org.elasticsearch.xpack.esql.plan.logical.promql.operator.arithmetic.VectorBinaryArithmetic.ArithmeticOp;
 import org.elasticsearch.xpack.esql.plan.logical.promql.operator.comparison.VectorBinaryComparison.ComparisonOp;
-import org.elasticsearch.xpack.esql.parser.ParsingException;
 import org.junit.BeforeClass;
 
 import java.time.Duration;

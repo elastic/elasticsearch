@@ -352,7 +352,7 @@ public class SearchRequest extends LegacyActionRequest implements IndicesRequest
                 );
             }
             if (indicesOptions().equals(DEFAULT_INDICES_OPTIONS) == false
-                || indicesOptions().equals(DEFAULT_CPS_INDICES_OPTIONS) == false) {
+                && indicesOptions().equals(DEFAULT_CPS_INDICES_OPTIONS) == false) {
                 validationException = addValidationError("[indicesOptions] cannot be used with point in time", validationException);
             }
             if (getProjectRouting() != null) {

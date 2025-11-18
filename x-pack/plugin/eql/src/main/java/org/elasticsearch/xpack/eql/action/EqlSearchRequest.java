@@ -152,7 +152,8 @@ public class EqlSearchRequest extends LegacyActionRequest implements IndicesRequ
         }
     }
 
-    public String projectRouting() {
+    @Override
+    public String getProjectRouting() {
         return projectRouting;
     }
 

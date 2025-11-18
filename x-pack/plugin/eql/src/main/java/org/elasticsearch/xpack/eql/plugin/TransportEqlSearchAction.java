@@ -239,7 +239,7 @@ public final class TransportEqlSearchAction extends HandledTransportAction<EqlSe
                 request.allowPartialSequenceResults() == null
                     ? defaultAllowPartialSequenceResults(clusterService)
                     : request.allowPartialSequenceResults(),
-                request.projectRouting(),
+                request.getProjectRouting(),
                 clientId,
                 new TaskId(nodeId, task.getId()),
                 task,

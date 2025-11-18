@@ -67,8 +67,6 @@ public class PatternedTextParserBenchmark {
     public void parseWithCharParser(Blackhole blackhole) throws ParseException {
         List<Argument<?>> arguments = parser.parse(testMessage);
         blackhole.consume(arguments);
-        // long timestamp = TimestampFormat.parseTimestamp(dateTimeFormatter, "Oct 05, 2023 02:48:00 PM");
-        // blackhole.consume(timestamp);
     }
 
     @Benchmark
@@ -156,8 +154,9 @@ public class PatternedTextParserBenchmark {
 
             if (tsString != null) {
                 try {
-                    long timestampMillis = TimestampFormat.parseTimestamp(usedFormatter, tsString);
-                    arguments.add(new Timestamp(tsStart, tsEnd - tsStart, timestampMillis, "doesn't matter"));
+                    // long timestampMillis = TimestampFormat.parseTimestamp(usedFormatter, tsString);
+                    // arguments.add(new Timestamp(tsStart, tsEnd - tsStart, timestampMillis, "doesn't matter"));
+                    arguments.add(new Timestamp(tsStart, tsEnd - tsStart, 1L, "doesn't matter"));
                 } catch (Exception e) {
                     throw new ParseException("Failed to parse timestamp: " + tsString, e);
                 }

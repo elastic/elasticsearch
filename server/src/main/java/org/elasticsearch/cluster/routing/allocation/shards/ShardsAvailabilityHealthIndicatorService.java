@@ -67,6 +67,7 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -490,7 +491,7 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
             indicesWithUnavailableShards = new HashSet<>();
             indicesWithAllShardsUnavailable = new HashSet<>();
             searchableSnapshotsState = new SearchableSnapshotsState();
-            diagnosisDefinitions = new HashMap<>();
+            diagnosisDefinitions = new LinkedHashMap<>();
         }
 
         public void increment(
@@ -1186,7 +1187,7 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
          */
         public List<Diagnosis> getDiagnosis(boolean verbose, int maxAffectedResourcesCount) {
             if (verbose) {
-                Map<Diagnosis.Definition, Set<ProjectIndexName>> diagnosisToAffectedIndices = new HashMap<>(primaries.diagnosisDefinitions);
+                Map<Diagnosis.Definition, Set<ProjectIndexName>> diagnosisToAffectedIndices = new LinkedHashMap<>(primaries.diagnosisDefinitions);
                 replicas.diagnosisDefinitions.forEach((diagnosisDef, indicesWithReplicasUnassigned) -> {
                     Set<ProjectIndexName> indicesWithPrimariesUnassigned = diagnosisToAffectedIndices.get(diagnosisDef);
                     if (indicesWithPrimariesUnassigned == null) {

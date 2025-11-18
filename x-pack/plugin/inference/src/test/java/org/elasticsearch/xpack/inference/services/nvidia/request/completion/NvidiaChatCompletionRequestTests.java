@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.inference.services.nvidia.request.completion;
 
 import org.apache.http.HttpHeaders;
 import org.apache.http.client.methods.HttpPost;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.inference.external.http.sender.UnifiedChatInput;
@@ -19,95 +20,104 @@ import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.xpack.inference.external.http.Utils.entityAsMap;
+import static org.hamcrest.Matchers.aMapWithSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.nullValue;
+import static org.hamcrest.Matchers.sameInstance;
 
 public class NvidiaChatCompletionRequestTests extends ESTestCase {
+    // Completion field names
+    private static final String N_FIELD_NAME = "n";
+    private static final String STREAM_FIELD_NAME = "stream";
+    private static final String MESSAGES_FIELD_NAME = "messages";
+    private static final String ROLE_FIELD_NAME = "role";
+    private static final String CONTENT_FIELD_NAME = "content";
+    private static final String MODEL_FIELD_NAME = "model";
+    // Test values
+    private static final String URL_VALUE = "http://www.abc.com";
+    private static final String DEFAULT_URL_VALUE = "https://integrate.api.nvidia.com/v1/chat/completions";
+    private static final String MODEL_VALUE = "some_model";
+    private static final String ROLE_VALUE = "user";
+    private static final String API_KEY_VALUE = "test_api_key";
 
     public void testCreateRequest_Streaming() throws IOException {
         String input = randomAlphaOfLength(15);
-        var request = createRequest("model", "url", "secret", input, true);
+        var request = createRequest(URL_VALUE, input, true);
         var httpRequest = request.createHttpRequest();
 
         assertThat(httpRequest.httpRequestBase(), instanceOf(HttpPost.class));
         var httpPost = (HttpPost) httpRequest.httpRequestBase();
 
         var requestMap = entityAsMap(httpPost.getEntity().getContent());
-        assertThat(request.getURI().toString(), is("url"));
-        assertThat(requestMap.get("stream"), is(true));
-        assertThat(requestMap.get("model"), is("model"));
-        assertThat(requestMap.get("n"), is(1));
-        assertNull(requestMap.get("stream_options"));
-        assertThat(requestMap.get("messages"), is(List.of(Map.of("role", "user", "content", input))));
-        assertThat(httpPost.getFirstHeader(HttpHeaders.AUTHORIZATION).getValue(), is("Bearer secret"));
+        assertThat(request.getURI().toString(), is(URL_VALUE));
+        assertThat(requestMap.get(STREAM_FIELD_NAME), is(true));
+        assertThat(requestMap.get(MODEL_FIELD_NAME), is(MODEL_VALUE));
+        assertThat(requestMap.get(N_FIELD_NAME), is(1));
+        assertThat(requestMap.get(MESSAGES_FIELD_NAME), is(List.of(Map.of(ROLE_FIELD_NAME, ROLE_VALUE, CONTENT_FIELD_NAME, input))));
+        assertThat(requestMap, aMapWithSize(4));
+        assertThat(httpPost.getFirstHeader(HttpHeaders.AUTHORIZATION).getValue(), is(Strings.format("Bearer %s", API_KEY_VALUE)));
     }
 
-    public void testCreateRequest_NotStreaming() throws IOException {
+    public void testCreateRequest_NonStreaming() throws IOException {
         String input = randomAlphaOfLength(15);
-        var request = createRequest("model", "url", "secret", input, false);
+        var request = createRequest(URL_VALUE, input, false);
         var httpRequest = request.createHttpRequest();
 
         assertThat(httpRequest.httpRequestBase(), instanceOf(HttpPost.class));
         var httpPost = (HttpPost) httpRequest.httpRequestBase();
 
         var requestMap = entityAsMap(httpPost.getEntity().getContent());
-        assertThat(request.getURI().toString(), is("url"));
-        assertThat(requestMap.get("stream"), is(false));
-        assertThat(requestMap.get("model"), is("model"));
-        assertThat(requestMap.get("n"), is(1));
-        assertNull(requestMap.get("stream_options"));
-        assertThat(requestMap.get("messages"), is(List.of(Map.of("role", "user", "content", input))));
-        assertThat(httpPost.getFirstHeader(HttpHeaders.AUTHORIZATION).getValue(), is("Bearer secret"));
+        assertThat(request.getURI().toString(), is(URL_VALUE));
+        assertThat(requestMap.get(STREAM_FIELD_NAME), is(false));
+        assertThat(requestMap.get(MODEL_FIELD_NAME), is(MODEL_VALUE));
+        assertThat(requestMap.get(N_FIELD_NAME), is(1));
+        assertThat(requestMap.get(MESSAGES_FIELD_NAME), is(List.of(Map.of(ROLE_FIELD_NAME, ROLE_VALUE, CONTENT_FIELD_NAME, input))));
+        assertThat(requestMap, aMapWithSize(4));
+        assertThat(httpPost.getFirstHeader(HttpHeaders.AUTHORIZATION).getValue(), is(Strings.format("Bearer %s", API_KEY_VALUE)));
     }
 
-    public void testCreateRequest_NoUrl() throws IOException {
+    public void testCreateRequest_NoUrlProvided_DefaultUrlSet() throws IOException {
         String input = randomAlphaOfLength(15);
-        var request = createRequest("model", null, "secret", input, false);
+        var request = createRequest(null, input, false);
         var httpRequest = request.createHttpRequest();
 
         assertThat(httpRequest.httpRequestBase(), instanceOf(HttpPost.class));
         var httpPost = (HttpPost) httpRequest.httpRequestBase();
 
         var requestMap = entityAsMap(httpPost.getEntity().getContent());
-        assertThat(request.getURI().toString(), is("https://integrate.api.nvidia.com/v1/chat/completions"));
-        assertThat(requestMap.get("stream"), is(false));
-        assertThat(requestMap.get("model"), is("model"));
-        assertThat(requestMap.get("n"), is(1));
-        assertNull(requestMap.get("stream_options"));
-        assertThat(requestMap.get("messages"), is(List.of(Map.of("role", "user", "content", input))));
-        assertThat(httpPost.getFirstHeader(HttpHeaders.AUTHORIZATION).getValue(), is("Bearer secret"));
+        assertThat(request.getURI().toString(), is(DEFAULT_URL_VALUE));
+        assertThat(requestMap.get(STREAM_FIELD_NAME), is(false));
+        assertThat(requestMap.get(MODEL_FIELD_NAME), is(MODEL_VALUE));
+        assertThat(requestMap.get(N_FIELD_NAME), is(1));
+        assertThat(requestMap.get(MESSAGES_FIELD_NAME), is(List.of(Map.of(ROLE_FIELD_NAME, ROLE_VALUE, CONTENT_FIELD_NAME, input))));
+        assertThat(requestMap, aMapWithSize(4));
+        assertThat(httpPost.getFirstHeader(HttpHeaders.AUTHORIZATION).getValue(), is(Strings.format("Bearer %s", API_KEY_VALUE)));
     }
 
     public void testTruncate_DoesNotReduceInputTextSize() {
         String input = randomAlphaOfLength(5);
-        var request = createRequest("model", "url", "secret", input, true);
-        assertThat(request.truncate(), is(request));
+        var request = createRequest(URL_VALUE, input, true);
+        assertThat(request.truncate(), is(sameInstance(request)));
     }
 
     public void testTruncationInfo_ReturnsNull() {
-        var request = createRequest("model", "url", "secret", randomAlphaOfLength(5), true);
-        assertNull(request.getTruncationInfo());
+        var request = createRequest(URL_VALUE, randomAlphaOfLength(5), true);
+        assertThat(request.getTruncationInfo(), is(nullValue()));
     }
 
     public void testGetUrl_Null_ReturnsDefault() {
-        var request = createRequest("model", null, "secret", randomAlphaOfLength(5), true);
-        assertThat(request.getURI().toString(), is("https://integrate.api.nvidia.com/v1/chat/completions"));
+        var request = createRequest(null, randomAlphaOfLength(5), true);
+        assertThat(request.getURI().toString(), is(DEFAULT_URL_VALUE));
     }
 
     public void testGetUrl_ReturnsValue() {
-        var request = createRequest("model", "url", "secret", randomAlphaOfLength(5), true);
-        assertThat(request.getURI().toString(), is("url"));
+        var request = createRequest(URL_VALUE, randomAlphaOfLength(5), true);
+        assertThat(request.getURI().toString(), is(URL_VALUE));
     }
 
-    public static NvidiaChatCompletionRequest createRequest(
-        String modelId,
-        @Nullable String url,
-        String apiKey,
-        String input,
-        boolean stream
-    ) {
-        var chatCompletionModel = NvidiaChatCompletionModelTests.createChatCompletionModel(url, apiKey, modelId);
-        return new NvidiaChatCompletionRequest(new UnifiedChatInput(List.of(input), "user", stream), chatCompletionModel);
+    private static NvidiaChatCompletionRequest createRequest(@Nullable String url, String input, boolean stream) {
+        var chatCompletionModel = NvidiaChatCompletionModelTests.createChatCompletionModel(url, API_KEY_VALUE, MODEL_VALUE);
+        return new NvidiaChatCompletionRequest(new UnifiedChatInput(List.of(input), ROLE_VALUE, stream), chatCompletionModel);
     }
-
 }

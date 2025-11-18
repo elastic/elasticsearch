@@ -32,18 +32,20 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
 
 public class NvidiaChatCompletionServiceSettingsTests extends AbstractBWCWireSerializationTestCase<NvidiaChatCompletionServiceSettings> {
-    public static final String MODEL_ID = "some model";
-    public static final String CORRECT_URL = "https://www.elastic.co";
-    public static final int RATE_LIMIT = 2;
+
+    private static final String MODEL_VALUE = "some_model";
+    private static final String URL_VALUE = "http://www.abc.com";
+    private static final String INVALID_URL_VALUE = "^^^";
+    private static final int RATE_LIMIT = 2;
 
     public void testFromMap_AllFields_Success() {
         var serviceSettings = NvidiaChatCompletionServiceSettings.fromMap(
             new HashMap<>(
                 Map.of(
                     ServiceFields.MODEL_ID,
-                    MODEL_ID,
+                    MODEL_VALUE,
                     ServiceFields.URL,
-                    CORRECT_URL,
+                    URL_VALUE,
                     RateLimitSettings.FIELD_NAME,
                     new HashMap<>(Map.of(RateLimitSettings.REQUESTS_PER_MINUTE_FIELD, RATE_LIMIT))
                 )
@@ -51,7 +53,7 @@ public class NvidiaChatCompletionServiceSettingsTests extends AbstractBWCWireSer
             ConfigurationParseContext.PERSISTENT
         );
 
-        assertThat(serviceSettings, is(new NvidiaChatCompletionServiceSettings(MODEL_ID, CORRECT_URL, new RateLimitSettings(RATE_LIMIT))));
+        assertThat(serviceSettings, is(new NvidiaChatCompletionServiceSettings(MODEL_VALUE, URL_VALUE, new RateLimitSettings(RATE_LIMIT))));
     }
 
     public void testFromMap_MissingModelId_ThrowsException() {
@@ -61,7 +63,7 @@ public class NvidiaChatCompletionServiceSettingsTests extends AbstractBWCWireSer
                 new HashMap<>(
                     Map.of(
                         ServiceFields.URL,
-                        CORRECT_URL,
+                        URL_VALUE,
                         RateLimitSettings.FIELD_NAME,
                         new HashMap<>(Map.of(RateLimitSettings.REQUESTS_PER_MINUTE_FIELD, RATE_LIMIT))
                     )
@@ -81,7 +83,7 @@ public class NvidiaChatCompletionServiceSettingsTests extends AbstractBWCWireSer
             new HashMap<>(
                 Map.of(
                     ServiceFields.MODEL_ID,
-                    MODEL_ID,
+                    MODEL_VALUE,
                     RateLimitSettings.FIELD_NAME,
                     new HashMap<>(Map.of(RateLimitSettings.REQUESTS_PER_MINUTE_FIELD, RATE_LIMIT))
                 )
@@ -90,18 +92,62 @@ public class NvidiaChatCompletionServiceSettingsTests extends AbstractBWCWireSer
         );
         assertThat(
             serviceSettings,
-            is(new NvidiaChatCompletionServiceSettings(MODEL_ID, ServiceUtils.createOptionalUri(null), new RateLimitSettings(RATE_LIMIT)))
+            is(
+                new NvidiaChatCompletionServiceSettings(
+                    MODEL_VALUE,
+                    ServiceUtils.createOptionalUri(null),
+                    new RateLimitSettings(RATE_LIMIT)
+                )
+            )
+        );
+    }
+
+    public void testFromMap_InvalidUrl_ThrowsException() {
+        testFromMap_InvalidUrl(
+            Map.of(
+                ServiceFields.URL,
+                INVALID_URL_VALUE,
+                ServiceFields.MODEL_ID,
+                MODEL_VALUE,
+                RateLimitSettings.FIELD_NAME,
+                new HashMap<>(Map.of(RateLimitSettings.REQUESTS_PER_MINUTE_FIELD, RATE_LIMIT))
+            ),
+            """
+                Validation Failed: 1: [service_settings] Invalid url [^^^] received for field [url]. \
+                Error: unable to parse url [^^^]. Reason: Illegal character in path;"""
+        );
+    }
+
+    public void testFromMap_EmptyUrl_ThrowsException() {
+        testFromMap_InvalidUrl(
+            Map.of(
+                ServiceFields.URL,
+                "",
+                ServiceFields.MODEL_ID,
+                MODEL_VALUE,
+                RateLimitSettings.FIELD_NAME,
+                new HashMap<>(Map.of(RateLimitSettings.REQUESTS_PER_MINUTE_FIELD, RATE_LIMIT))
+            ),
+            "Validation Failed: 1: [service_settings] Invalid value empty string. [url] must be a non-empty string;"
+        );
+    }
+
+    private static void testFromMap_InvalidUrl(Map<String, Object> serviceSettingsMap, String expectedErrorMessage) {
+        var thrownException = expectThrows(
+            ValidationException.class,
+            () -> NvidiaChatCompletionServiceSettings.fromMap(new HashMap<>(serviceSettingsMap), ConfigurationParseContext.PERSISTENT)
         );
 
+        assertThat(thrownException.getMessage(), containsString(expectedErrorMessage));
     }
 
     public void testFromMap_MissingRateLimit_Success() {
         var serviceSettings = NvidiaChatCompletionServiceSettings.fromMap(
-            new HashMap<>(Map.of(ServiceFields.MODEL_ID, MODEL_ID, ServiceFields.URL, CORRECT_URL)),
+            new HashMap<>(Map.of(ServiceFields.MODEL_ID, MODEL_VALUE, ServiceFields.URL, URL_VALUE)),
             ConfigurationParseContext.PERSISTENT
         );
 
-        assertThat(serviceSettings, is(new NvidiaChatCompletionServiceSettings(MODEL_ID, CORRECT_URL, null)));
+        assertThat(serviceSettings, is(new NvidiaChatCompletionServiceSettings(MODEL_VALUE, URL_VALUE, null)));
     }
 
     public void testToXContent_WritesAllValues() throws IOException {
@@ -109,9 +155,9 @@ public class NvidiaChatCompletionServiceSettingsTests extends AbstractBWCWireSer
             new HashMap<>(
                 Map.of(
                     ServiceFields.MODEL_ID,
-                    MODEL_ID,
+                    MODEL_VALUE,
                     ServiceFields.URL,
-                    CORRECT_URL,
+                    URL_VALUE,
                     RateLimitSettings.FIELD_NAME,
                     new HashMap<>(Map.of(RateLimitSettings.REQUESTS_PER_MINUTE_FIELD, RATE_LIMIT))
                 )
@@ -122,36 +168,36 @@ public class NvidiaChatCompletionServiceSettingsTests extends AbstractBWCWireSer
         XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
         serviceSettings.toXContent(builder, null);
         String xContentResult = Strings.toString(builder);
-        var expected = XContentHelper.stripWhitespace("""
+        var expected = XContentHelper.stripWhitespace(Strings.format("""
             {
-                "model_id": "some model",
-                "url": "https://www.elastic.co",
+                "model_id": "%s",
+                "url": "%s",
                 "rate_limit": {
                     "requests_per_minute": 2
                 }
             }
-            """);
+            """, MODEL_VALUE, URL_VALUE));
 
         assertThat(xContentResult, is(expected));
     }
 
     public void testToXContent_DoesNotWriteOptionalValues_DefaultRateLimit() throws IOException {
         var serviceSettings = NvidiaChatCompletionServiceSettings.fromMap(
-            new HashMap<>(Map.of(ServiceFields.MODEL_ID, MODEL_ID)),
+            new HashMap<>(Map.of(ServiceFields.MODEL_ID, MODEL_VALUE)),
             ConfigurationParseContext.PERSISTENT
         );
 
         XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
         serviceSettings.toXContent(builder, null);
         String xContentResult = Strings.toString(builder);
-        var expected = XContentHelper.stripWhitespace("""
+        var expected = XContentHelper.stripWhitespace(Strings.format("""
             {
-                "model_id": "some model",
+                "model_id": "%s",
                 "rate_limit": {
                     "requests_per_minute": 3000
                 }
             }
-            """);
+            """, MODEL_VALUE));
         assertThat(xContentResult, is(expected));
     }
 
@@ -194,7 +240,7 @@ public class NvidiaChatCompletionServiceSettingsTests extends AbstractBWCWireSer
         return new NvidiaChatCompletionServiceSettings(modelId, ServiceUtils.createOptionalUri(url), RateLimitSettingsTests.createRandom());
     }
 
-    public static Map<String, Object> buildServiceSettingsMap(
+    public static Map<String, Object> getServiceSettingsMap(
         @Nullable String modelId,
         @Nullable String url,
         @Nullable HashMap<String, Integer> rateLimitSettings

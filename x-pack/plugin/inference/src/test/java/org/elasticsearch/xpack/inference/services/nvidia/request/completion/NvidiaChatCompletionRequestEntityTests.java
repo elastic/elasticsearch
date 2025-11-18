@@ -23,7 +23,10 @@ import static org.hamcrest.Matchers.is;
 import static org.mockito.Mockito.mock;
 
 public class NvidiaChatCompletionRequestEntityTests extends ESTestCase {
-    private static final String ROLE = "user";
+    // Test values
+    private static final String ROLE_VALUE = "user";
+    private static final String MODEL_VALUE = "some_model";
+    private static final String INPUT_VALUE = "Hello, world!";
 
     public void testSerializationWithModelIdStreaming() throws IOException {
         testSerialization(true, """
@@ -33,7 +36,7 @@ public class NvidiaChatCompletionRequestEntityTests extends ESTestCase {
                         "role": "user"
                     }
                 ],
-                "model": "modelId",
+                "model": "some_model",
                 "n": 1,
                 "stream": true
             }
@@ -48,7 +51,7 @@ public class NvidiaChatCompletionRequestEntityTests extends ESTestCase {
                         "role": "user"
                     }
                 ],
-                "model": "modelId",
+                "model": "some_model",
                 "n": 1,
                 "stream": false
             }
@@ -60,7 +63,7 @@ public class NvidiaChatCompletionRequestEntityTests extends ESTestCase {
     }
 
     private static void testSerialization(boolean isStreaming, String expectedJson) throws IOException {
-        var message = new UnifiedCompletionRequest.Message(new UnifiedCompletionRequest.ContentString("Hello, world!"), ROLE, null, null);
+        var message = new UnifiedCompletionRequest.Message(new UnifiedCompletionRequest.ContentString(INPUT_VALUE), ROLE_VALUE, null, null);
 
         var messageList = new ArrayList<UnifiedCompletionRequest.Message>();
         messageList.add(message);
@@ -68,7 +71,7 @@ public class NvidiaChatCompletionRequestEntityTests extends ESTestCase {
         var unifiedRequest = UnifiedCompletionRequest.of(messageList);
         var unifiedChatInput = new UnifiedChatInput(unifiedRequest, isStreaming);
 
-        var entity = new NvidiaChatCompletionRequestEntity(unifiedChatInput, "modelId");
+        var entity = new NvidiaChatCompletionRequestEntity(unifiedChatInput, MODEL_VALUE);
 
         XContentBuilder builder = JsonXContent.contentBuilder();
         entity.toXContent(builder, ToXContent.EMPTY_PARAMS);

@@ -133,20 +133,19 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
 
     /**
      * This is the cluster state task executor for cluster state update actions.
+     * Visible for testing
      */
-    private static final SimpleBatchedExecutor<DownsampleClusterStateUpdateTask, Void> STATE_UPDATE_TASK_EXECUTOR =
-        new SimpleBatchedExecutor<>() {
-            @Override
-            public Tuple<ClusterState, Void> executeTask(DownsampleClusterStateUpdateTask task, ClusterState clusterState)
-                throws Exception {
-                return Tuple.tuple(task.execute(clusterState), null);
-            }
+    static final SimpleBatchedExecutor<DownsampleClusterStateUpdateTask, Void> STATE_UPDATE_TASK_EXECUTOR = new SimpleBatchedExecutor<>() {
+        @Override
+        public Tuple<ClusterState, Void> executeTask(DownsampleClusterStateUpdateTask task, ClusterState clusterState) throws Exception {
+            return Tuple.tuple(task.execute(clusterState), null);
+        }
 
-            @Override
-            public void taskSucceeded(DownsampleClusterStateUpdateTask task, Void unused) {
-                task.listener.onResponse(AcknowledgedResponse.TRUE);
-            }
-        };
+        @Override
+        public void taskSucceeded(DownsampleClusterStateUpdateTask task, Void unused) {
+            task.listener.onResponse(AcknowledgedResponse.TRUE);
+        }
+    };
 
     @Inject
     public TransportDownsampleAction(

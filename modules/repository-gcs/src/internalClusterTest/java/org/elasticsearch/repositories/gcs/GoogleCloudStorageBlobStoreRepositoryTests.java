@@ -64,6 +64,7 @@ import static org.elasticsearch.repositories.blobstore.AbstractBlobContainerRetr
 import static org.elasticsearch.repositories.blobstore.BlobStoreTestUtil.randomPurpose;
 import static org.elasticsearch.repositories.gcs.GoogleCloudStorageClientSettings.CREDENTIALS_FILE_SETTING;
 import static org.elasticsearch.repositories.gcs.GoogleCloudStorageClientSettings.ENDPOINT_SETTING;
+import static org.elasticsearch.repositories.gcs.GoogleCloudStorageClientSettings.MAX_RETRIES_SETTING;
 import static org.elasticsearch.repositories.gcs.GoogleCloudStorageClientSettings.TOKEN_URI_SETTING;
 import static org.elasticsearch.repositories.gcs.GoogleCloudStorageRepository.BASE_PATH;
 import static org.elasticsearch.repositories.gcs.GoogleCloudStorageRepository.BUCKET;
@@ -119,6 +120,7 @@ public class GoogleCloudStorageBlobStoreRepositoryTests extends ESMockAPIBasedRe
         settings.put(super.nodeSettings(nodeOrdinal, otherSettings));
         settings.put(ENDPOINT_SETTING.getConcreteSettingForNamespace("test").getKey(), httpServerUrl());
         settings.put(TOKEN_URI_SETTING.getConcreteSettingForNamespace("test").getKey(), httpServerUrl() + "/token");
+        settings.put(MAX_RETRIES_SETTING.getConcreteSettingForNamespace("test").getKey(), 5);
 
         final MockSecureSettings secureSettings = new MockSecureSettings();
         final byte[] serviceAccount = TestUtils.createServiceAccount(random());
@@ -243,9 +245,10 @@ public class GoogleCloudStorageBlobStoreRepositoryTests extends ESMockAPIBasedRe
                 @Override
                 StorageOptions createStorageOptions(
                     final GoogleCloudStorageClientSettings gcsClientSettings,
-                    final HttpTransportOptions httpTransportOptions
+                    final HttpTransportOptions httpTransportOptions,
+                    final RetryBehaviour retryBehaviour
                 ) {
-                    StorageOptions options = super.createStorageOptions(gcsClientSettings, httpTransportOptions);
+                    StorageOptions options = super.createStorageOptions(gcsClientSettings, httpTransportOptions, retryBehaviour);
                     return options.toBuilder()
                         .setStorageRetryStrategy(StorageRetryStrategy.getLegacyStorageRetryStrategy())
                         .setHost(options.getHost())
@@ -256,7 +259,7 @@ public class GoogleCloudStorageBlobStoreRepositoryTests extends ESMockAPIBasedRe
                                 .setInitialRetryDelay(Duration.ofMillis(10L))
                                 .setRetryDelayMultiplier(options.getRetrySettings().getRetryDelayMultiplier())
                                 .setMaxRetryDelay(Duration.ofSeconds(1L))
-                                .setMaxAttempts(6)
+                                .setMaxAttempts(options.getRetrySettings().getMaxAttempts())
                                 .setJittered(false)
                                 .setInitialRpcTimeout(options.getRetrySettings().getInitialRpcTimeout())
                                 .setRpcTimeoutMultiplier(options.getRetrySettings().getRpcTimeoutMultiplier())

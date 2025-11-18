@@ -43,6 +43,7 @@ import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.repositories.gcs.GoogleCloudStorageClientSettings.CREDENTIALS_FILE_SETTING;
+import static org.elasticsearch.repositories.gcs.GoogleCloudStorageService.RetryBehaviour.ClientConfigured;
 import static org.hamcrest.Matchers.anEmptyMap;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.containsInAnyOrder;
@@ -294,11 +295,11 @@ public class GoogleCloudStorageClientsManagerTests extends ESTestCase {
     }
 
     private MeteredStorage getClientFromManager(ProjectId projectId, String clientName) throws IOException {
-        return gcsClientsManager.client(projectId, clientName, repoNameForClient(clientName), statsCollector);
+        return gcsClientsManager.client(projectId, clientName, repoNameForClient(clientName), statsCollector, ClientConfigured);
     }
 
     private MeteredStorage getClientFromService(ProjectId projectId, String clientName) throws IOException {
-        return googleCloudStorageService.client(projectId, clientName, repoNameForClient(clientName), statsCollector);
+        return googleCloudStorageService.client(projectId, clientName, repoNameForClient(clientName), statsCollector, ClientConfigured);
     }
 
     private ProjectId projectIdForClusterClient() {

@@ -139,8 +139,35 @@ class GoogleCloudStorageBlobStore implements BlobStore {
         this.casBackoffPolicy = casBackoffPolicy;
     }
 
+    /**
+     * Get a client that will retry according to its configured settings
+     *
+     * @return A client
+     */
     MeteredStorage client() throws IOException {
-        return storageService.client(projectId, clientName, repositoryName, statsCollector);
+        return storageService.client(
+            projectId,
+            clientName,
+            repositoryName,
+            statsCollector,
+            GoogleCloudStorageService.RetryBehaviour.ClientConfigured
+        );
+    }
+
+    /**
+     * Get a client that will not retry on failure
+     *
+     * @return A client with max retries configured to zero
+     */
+    MeteredStorage clientNoRetries() throws IOException {
+        return storageService.client(projectId, clientName, repositoryName, statsCollector, GoogleCloudStorageService.RetryBehaviour.None);
+    }
+
+    /**
+     * @return The settings for the configured client
+     */
+    GoogleCloudStorageClientSettings clientSettings() {
+        return storageService.clientSettings(projectId, clientName);
     }
 
     @Override

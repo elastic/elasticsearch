@@ -128,8 +128,7 @@ public class GoogleCloudStorageClientSettings {
     static final Setting.AffixSetting<Integer> MAX_RETRIES_SETTING = Setting.affixKeySetting(
         PREFIX,
         "max_retries",
-        (key) -> Setting.intSetting(key, 5, 0, Setting.Property.NodeScope),
-        () -> PROXY_HOST_SETTING
+        (key) -> Setting.intSetting(key, 5, 0, Setting.Property.NodeScope)
     );
 
     /** The credentials used by the client to connect to the Storage endpoint. */

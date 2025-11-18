@@ -1,21 +1,22 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.index.engine;
 
 import org.apache.lucene.codecs.PostingsFormat;
-import org.apache.lucene.codecs.lucene99.Lucene99Codec;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
-import org.apache.lucene.search.suggest.document.Completion99PostingsFormat;
+import org.apache.lucene.search.suggest.document.Completion101PostingsFormat;
 import org.apache.lucene.search.suggest.document.SuggestField;
 import org.apache.lucene.store.Directory;
+import org.apache.lucene.tests.util.TestUtil;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.index.cache.query.TrivialQueryCachingPolicy;
@@ -43,13 +44,8 @@ public class CompletionStatsCacheTests extends ESTestCase {
 
     public void testCompletionStatsCache() throws IOException, InterruptedException {
         final IndexWriterConfig indexWriterConfig = newIndexWriterConfig();
-        final PostingsFormat postingsFormat = new Completion99PostingsFormat();
-        indexWriterConfig.setCodec(new Lucene99Codec() {
-            @Override
-            public PostingsFormat getPostingsFormatForField(String field) {
-                return postingsFormat; // all fields are suggest fields
-            }
-        });
+        final PostingsFormat postingsFormat = new Completion101PostingsFormat();
+        indexWriterConfig.setCodec(TestUtil.alwaysPostingsFormat(postingsFormat)); // all fields are suggest fields
 
         try (Directory directory = newDirectory(); IndexWriter indexWriter = new IndexWriter(directory, indexWriterConfig)) {
 

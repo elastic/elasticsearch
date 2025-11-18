@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.indexlifecycle;
@@ -58,7 +59,7 @@ public class IndexLifecycleActionIT extends ESIntegTestCase {
         CreateIndexResponse createIndexResponse = indicesAdmin().create(new CreateIndexRequest("test").settings(settings)).actionGet();
         assertAcked(createIndexResponse);
 
-        ClusterState clusterState = clusterAdmin().prepareState().get().getState();
+        ClusterState clusterState = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState();
         RoutingNode routingNodeEntry1 = clusterState.getRoutingNodes().node(node1);
         assertThat(routingNodeEntry1.numberOfShardsWithState(STARTED), equalTo(11));
 
@@ -68,7 +69,7 @@ public class IndexLifecycleActionIT extends ESIntegTestCase {
 
         // first wait for 2 nodes in the cluster
         logger.info("Waiting for replicas to be assigned");
-        ClusterHealthResponse clusterHealth = clusterAdmin().prepareHealth()
+        ClusterHealthResponse clusterHealth = clusterAdmin().prepareHealth(TEST_REQUEST_TIMEOUT)
             .setWaitForGreenStatus()
             .setWaitForNodes("2")
             .setWaitForNoRelocatingShards(true)
@@ -83,7 +84,9 @@ public class IndexLifecycleActionIT extends ESIntegTestCase {
         ClusterRerouteUtils.reroute(client());
 
         clusterHealth = clusterAdmin().health(
-            new ClusterHealthRequest(new String[] {}).waitForGreenStatus().waitForNodes("2").waitForNoRelocatingShards(true)
+            new ClusterHealthRequest(TEST_REQUEST_TIMEOUT, new String[] {}).waitForGreenStatus()
+                .waitForNodes("2")
+                .waitForNoRelocatingShards(true)
         ).actionGet();
         assertThat(clusterHealth.isTimedOut(), equalTo(false));
         assertThat(clusterHealth.getStatus(), equalTo(ClusterHealthStatus.GREEN));
@@ -94,7 +97,7 @@ public class IndexLifecycleActionIT extends ESIntegTestCase {
         assertThat(clusterHealth.getActiveShards(), equalTo(22));
         assertThat(clusterHealth.getActivePrimaryShards(), equalTo(11));
 
-        clusterState = clusterAdmin().prepareState().get().getState();
+        clusterState = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState();
         assertNodesPresent(clusterState.getRoutingNodes(), node1, node2);
         routingNodeEntry1 = clusterState.getRoutingNodes().node(node1);
         assertThat(routingNodeEntry1.numberOfShardsWithState(RELOCATING), equalTo(0));
@@ -109,7 +112,7 @@ public class IndexLifecycleActionIT extends ESIntegTestCase {
 
         // first wait for 3 nodes in the cluster
         logger.info("Waiting for replicas to be assigned");
-        clusterHealth = clusterAdmin().prepareHealth()
+        clusterHealth = clusterAdmin().prepareHealth(TEST_REQUEST_TIMEOUT)
             .setWaitForGreenStatus()
             .setWaitForNodes("3")
             .setWaitForNoRelocatingShards(true)
@@ -123,7 +126,7 @@ public class IndexLifecycleActionIT extends ESIntegTestCase {
         // explicitly call reroute, so shards will get relocated to the new node (we delay it in ES in case other nodes join)
         ClusterRerouteUtils.reroute(client());
 
-        clusterHealth = clusterAdmin().prepareHealth()
+        clusterHealth = clusterAdmin().prepareHealth(TEST_REQUEST_TIMEOUT)
             .setWaitForGreenStatus()
             .setWaitForNodes("3")
             .setWaitForNoRelocatingShards(true)
@@ -138,7 +141,7 @@ public class IndexLifecycleActionIT extends ESIntegTestCase {
         assertThat(clusterHealth.getActiveShards(), equalTo(22));
         assertThat(clusterHealth.getActivePrimaryShards(), equalTo(11));
 
-        clusterState = clusterAdmin().prepareState().get().getState();
+        clusterState = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState();
         assertNodesPresent(clusterState.getRoutingNodes(), node1, node2, node3);
 
         routingNodeEntry1 = clusterState.getRoutingNodes().node(node1);
@@ -165,7 +168,7 @@ public class IndexLifecycleActionIT extends ESIntegTestCase {
         internalCluster().stopNode(server_1);
         // verify health
         logger.info("Running Cluster Health");
-        clusterHealth = clusterAdmin().prepareHealth()
+        clusterHealth = clusterAdmin().prepareHealth(TEST_REQUEST_TIMEOUT)
             .setWaitForGreenStatus()
             .setWaitForNodes("2")
             .setWaitForNoRelocatingShards(true)
@@ -177,7 +180,7 @@ public class IndexLifecycleActionIT extends ESIntegTestCase {
 
         ClusterRerouteUtils.reroute(client());
 
-        clusterHealth = clusterAdmin().prepareHealth()
+        clusterHealth = clusterAdmin().prepareHealth(TEST_REQUEST_TIMEOUT)
             .setWaitForGreenStatus()
             .setWaitForNodes("2")
             .setWaitForNoRelocatingShards(true)
@@ -189,7 +192,7 @@ public class IndexLifecycleActionIT extends ESIntegTestCase {
         assertThat(clusterHealth.getActiveShards(), equalTo(22));
         assertThat(clusterHealth.getActivePrimaryShards(), equalTo(11));
 
-        clusterState = clusterAdmin().prepareState().get().getState();
+        clusterState = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState();
         assertNodesPresent(clusterState.getRoutingNodes(), node3, node2);
         routingNodeEntry2 = clusterState.getRoutingNodes().node(node2);
         routingNodeEntry3 = clusterState.getRoutingNodes().node(node3);
@@ -207,7 +210,7 @@ public class IndexLifecycleActionIT extends ESIntegTestCase {
         AcknowledgedResponse deleteIndexResponse = indicesAdmin().prepareDelete("test").get();
         assertThat(deleteIndexResponse.isAcknowledged(), equalTo(true));
 
-        clusterState = clusterAdmin().prepareState().get().getState();
+        clusterState = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState();
         assertNodesPresent(clusterState.getRoutingNodes(), node3, node2);
         routingNodeEntry2 = clusterState.getRoutingNodes().node(node2);
         assertThat(routingNodeEntry2.isEmpty(), equalTo(true));

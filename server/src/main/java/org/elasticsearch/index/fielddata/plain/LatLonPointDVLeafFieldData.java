@@ -1,16 +1,17 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.index.fielddata.plain;
 
 import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.LeafReader;
-import org.apache.lucene.index.SortedNumericDocValues;
 import org.elasticsearch.index.fielddata.MultiGeoPointValues;
+import org.elasticsearch.index.fielddata.SortedNumericLongValues;
 import org.elasticsearch.script.field.ToScriptFieldFactory;
 
 import java.io.IOException;
@@ -31,14 +32,9 @@ final class LatLonPointDVLeafFieldData extends LeafGeoPointFieldData {
     }
 
     @Override
-    public void close() {
-        // noop
-    }
-
-    @Override
-    public SortedNumericDocValues getSortedNumericDocValues() {
+    public SortedNumericLongValues getSortedNumericLongValues() {
         try {
-            return DocValues.getSortedNumeric(reader, fieldName);
+            return SortedNumericLongValues.wrap(DocValues.getSortedNumeric(reader, fieldName));
         } catch (IOException e) {
             throw new IllegalStateException("Cannot load doc values", e);
         }

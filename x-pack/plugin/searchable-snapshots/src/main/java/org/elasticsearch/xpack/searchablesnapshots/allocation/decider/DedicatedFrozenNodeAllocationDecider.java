@@ -44,7 +44,7 @@ public class DedicatedFrozenNodeAllocationDecider extends AllocationDecider {
 
     @Override
     public Decision canAllocate(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
-        return canAllocateToNode(allocation.metadata().getIndexSafe(shardRouting.index()), node.node());
+        return canAllocateToNode(allocation.metadata().indexMetadata(shardRouting.index()), node.node());
     }
 
     @Override

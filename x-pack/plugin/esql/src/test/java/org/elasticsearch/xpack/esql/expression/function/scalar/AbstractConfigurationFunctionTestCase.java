@@ -7,57 +7,47 @@
 
 package org.elasticsearch.xpack.esql.expression.function.scalar;
 
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.xpack.esql.EsqlTestUtils;
+import org.elasticsearch.xpack.esql.ConfigurationBuilder;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
-import org.elasticsearch.xpack.esql.core.util.StringUtils;
-import org.elasticsearch.xpack.esql.expression.function.AbstractFunctionTestCase;
-import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
-import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
-import org.elasticsearch.xpack.esql.session.EsqlConfiguration;
+import org.elasticsearch.xpack.esql.expression.function.AbstractScalarFunctionTestCase;
+import org.elasticsearch.xpack.esql.session.Configuration;
 
+import java.time.ZoneId;
 import java.util.List;
-import java.util.Map;
 
+import static org.elasticsearch.xpack.esql.ConfigurationTestUtils.randomConfiguration;
+import static org.elasticsearch.xpack.esql.ConfigurationTestUtils.randomTables;
 import static org.elasticsearch.xpack.esql.SerializationTestUtils.assertSerialization;
+import static org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier.TEST_SOURCE;
 
-public abstract class AbstractConfigurationFunctionTestCase extends AbstractFunctionTestCase {
-    protected abstract Expression buildWithConfiguration(Source source, List<Expression> args, EsqlConfiguration configuration);
+public abstract class AbstractConfigurationFunctionTestCase extends AbstractScalarFunctionTestCase {
+    protected abstract Expression buildWithConfiguration(Source source, List<Expression> args, Configuration configuration);
 
     @Override
     protected Expression build(Source source, List<Expression> args) {
-        return buildWithConfiguration(source, args, EsqlTestUtils.TEST_CFG);
-    }
-
-    static EsqlConfiguration randomConfiguration() {
-        // TODO: Randomize the query and maybe the pragmas.
-        return new EsqlConfiguration(
-            randomZone(),
-            randomLocale(random()),
-            randomBoolean() ? null : randomAlphaOfLength(randomInt(64)),
-            randomBoolean() ? null : randomAlphaOfLength(randomInt(64)),
-            QueryPragmas.EMPTY,
-            EsqlPlugin.QUERY_RESULT_TRUNCATION_MAX_SIZE.getDefault(Settings.EMPTY),
-            EsqlPlugin.QUERY_RESULT_TRUNCATION_DEFAULT_SIZE.getDefault(Settings.EMPTY),
-            StringUtils.EMPTY,
-            randomBoolean(),
-            Map.of()
-        );
+        return buildWithConfiguration(source, args, testCase.getConfiguration());
     }
 
     public void testSerializationWithConfiguration() {
-        EsqlConfiguration config = randomConfiguration();
+        assumeTrue("can't serialize function", canSerialize());
+
+        Configuration config = randomConfiguration(testCase.getSource().text(), randomTables());
         Expression expr = buildWithConfiguration(testCase.getSource(), testCase.getDataAsFields(), config);
 
         assertSerialization(expr, config);
 
-        EsqlConfiguration differentConfig;
-        do {
-            differentConfig = randomConfiguration();
-        } while (config.equals(differentConfig));
+        Configuration differentConfig = randomValueOtherThan(
+            config,
+            // The source must match the original (static) one, as function source serialization depends on it
+            () -> randomConfiguration(testCase.getSource().text(), randomTables())
+        );
 
         Expression differentExpr = buildWithConfiguration(testCase.getSource(), testCase.getDataAsFields(), differentConfig);
-        assertFalse(expr.equals(differentExpr));
+        assertNotEquals(expr, differentExpr);
+    }
+
+    protected static Configuration configurationForTimezone(ZoneId zoneId) {
+        return new ConfigurationBuilder(randomConfiguration()).query(TEST_SOURCE.text()).zoneId(zoneId).build();
     }
 }

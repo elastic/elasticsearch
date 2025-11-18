@@ -42,6 +42,15 @@ public class PreAnalyzerTests extends ESTestCase {
         assertThat(result.indices.get(0).id().index(), is("index"));
     }
 
+    public void testBasicIndexWithSelector() {
+        LogicalPlan plan = new UnresolvedRelation(EMPTY, new TableIdentifier(EMPTY, null, "index::failures"), null, false);
+        PreAnalysis result = preAnalyzer.preAnalyze(plan);
+        assertThat(plan.preAnalyzed(), is(true));
+        assertThat(result.indices, hasSize(1));
+        assertThat(result.indices.get(0).id().cluster(), nullValue());
+        assertThat(result.indices.get(0).id().index(), is("index::failures"));
+    }
+
     public void testComplicatedQuery() {
         LogicalPlan plan = new Limit(
             EMPTY,

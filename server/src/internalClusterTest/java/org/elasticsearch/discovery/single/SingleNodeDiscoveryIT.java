@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.discovery.single;
@@ -86,7 +87,8 @@ public class SingleNodeDiscoveryIT extends ESIntegTestCase {
             0,
             "other",
             Arrays.asList(getTestTransportPlugin(), MockHttpTransport.TestPlugin.class),
-            Function.identity()
+            Function.identity(),
+            TEST_ENTITLEMENTS::addEntitledNodePaths
         );
         try {
             other.beforeTest(random());
@@ -136,7 +138,8 @@ public class SingleNodeDiscoveryIT extends ESIntegTestCase {
             0,
             "other",
             Arrays.asList(getTestTransportPlugin(), MockHttpTransport.TestPlugin.class),
-            Function.identity()
+            Function.identity(),
+            TEST_ENTITLEMENTS::addEntitledNodePaths
         );
         try (var mockLog = MockLog.capture(JoinHelper.class)) {
             mockLog.addExpectation(
@@ -159,7 +162,7 @@ public class SingleNodeDiscoveryIT extends ESIntegTestCase {
             other.beforeTest(random());
             final ClusterState first = internalCluster().getInstance(ClusterService.class).state();
             assertThat(first.nodes().getSize(), equalTo(1));
-            assertBusy(mockLog::assertAllExpectationsMatched);
+            mockLog.awaitAllExpectationsMatched();
         } finally {
             other.close();
         }

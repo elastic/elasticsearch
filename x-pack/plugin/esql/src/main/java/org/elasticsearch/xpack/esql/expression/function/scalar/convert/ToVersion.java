@@ -36,7 +36,7 @@ public class ToVersion extends AbstractConvertFunction {
     );
 
     private static final Map<DataType, BuildFactory> EVALUATORS = Map.ofEntries(
-        Map.entry(VERSION, (fieldEval, source) -> fieldEval),
+        Map.entry(VERSION, (source, fieldEval) -> fieldEval),
         Map.entry(KEYWORD, ToVersionFromStringEvaluator.Factory::new),
         Map.entry(TEXT, ToVersionFromStringEvaluator.Factory::new)
     );

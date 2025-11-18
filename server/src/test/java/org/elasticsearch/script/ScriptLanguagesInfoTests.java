@@ -1,13 +1,15 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.script;
 
+import org.elasticsearch.cluster.project.TestProjectResolvers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
 
@@ -60,7 +62,13 @@ public class ScriptLanguagesInfoTests extends ESTestCase {
         );
         Map<String, ScriptEngine> engines = Collections.singletonMap(scriptEngine.getType(), scriptEngine);
 
-        return new ScriptService(settings, engines, ScriptModule.CORE_CONTEXTS, () -> 1L);
+        return new ScriptService(
+            settings,
+            engines,
+            ScriptModule.CORE_CONTEXTS,
+            () -> 1L,
+            TestProjectResolvers.singleProject(randomProjectIdOrDefault())
+        );
     }
 
     public interface MiscContext {
@@ -86,7 +94,13 @@ public class ScriptLanguagesInfoTests extends ESTestCase {
         Map<String, ScriptContext<?>> mockAndMiscContexts = new HashMap<>(mockContexts);
         mockAndMiscContexts.put(miscContext, new ScriptContext<>(miscContext, MiscContext.class));
 
-        ScriptService ss = new ScriptService(Settings.EMPTY, engines, mockAndMiscContexts, () -> 1L);
+        ScriptService ss = new ScriptService(
+            Settings.EMPTY,
+            engines,
+            mockAndMiscContexts,
+            () -> 1L,
+            TestProjectResolvers.singleProject(randomProjectIdOrDefault())
+        );
         ScriptLanguagesInfo info = ss.getScriptLanguages();
 
         assertTrue(info.languageContexts.containsKey(MockScriptEngine.NAME));
@@ -115,7 +129,13 @@ public class ScriptLanguagesInfoTests extends ESTestCase {
         Map<String, ScriptContext<?>> mockAndMiscContexts = new HashMap<>(mockContexts);
         mockAndMiscContexts.put(miscContext, new ScriptContext<>(miscContext, MiscContext.class));
 
-        ScriptService ss = new ScriptService(settings.build(), engines, mockAndMiscContexts, () -> 1L);
+        ScriptService ss = new ScriptService(
+            settings.build(),
+            engines,
+            mockAndMiscContexts,
+            () -> 1L,
+            TestProjectResolvers.singleProject(randomProjectIdOrDefault())
+        );
         ScriptLanguagesInfo info = ss.getScriptLanguages();
 
         assertTrue(info.languageContexts.containsKey(MockScriptEngine.NAME));

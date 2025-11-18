@@ -1,0 +1,25 @@
+{
+  "indices.get_data_lifecycle_stats": {
+    "documentation": {
+      "url": "https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-indices-get-data-lifecycle-stats",
+      "description": "Get data stream lifecycle stats"
+    },
+    "stability": "stable",
+    "visibility": "public",
+    "headers": {
+      "accept": [
+        "application/json"
+      ]
+    },
+    "url": {
+      "paths": [
+        {
+          "path": "/_lifecycle/stats",
+          "methods": [
+            "GET"
+          ]
+        }
+      ]
+    }
+  }
+}

@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.core.ilm;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequest;
-import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
@@ -33,21 +32,24 @@ public class UpdateSettingsStepTests extends AbstractStepTestCase<UpdateSettings
     public UpdateSettingsStep mutateInstance(UpdateSettingsStep instance) {
         StepKey key = instance.getKey();
         StepKey nextKey = instance.getNextStepKey();
-        Settings settings = instance.getSettings();
 
-        switch (between(0, 2)) {
+        switch (between(0, 1)) {
             case 0 -> key = new StepKey(key.phase(), key.action(), key.name() + randomAlphaOfLength(5));
             case 1 -> nextKey = new StepKey(nextKey.phase(), nextKey.action(), nextKey.name() + randomAlphaOfLength(5));
-            case 2 -> settings = Settings.builder().put(settings).put(randomAlphaOfLength(10), randomInt()).build();
             default -> throw new AssertionError("Illegal randomisation branch");
         }
 
-        return new UpdateSettingsStep(key, nextKey, client, settings);
+        return new UpdateSettingsStep(key, nextKey, client, instance.getSettingsSupplier().apply(null));
     }
 
     @Override
     public UpdateSettingsStep copyInstance(UpdateSettingsStep instance) {
-        return new UpdateSettingsStep(instance.getKey(), instance.getNextStepKey(), instance.getClient(), instance.getSettings());
+        return new UpdateSettingsStep(
+            instance.getKey(),
+            instance.getNextStepKey(),
+            instance.getClientWithoutProject(),
+            instance.getSettingsSupplier().apply(null)
+        );
     }
 
     private static IndexMetadata getIndexMetadata() {
@@ -58,7 +60,7 @@ public class UpdateSettingsStepTests extends AbstractStepTestCase<UpdateSettings
             .build();
     }
 
-    public void testPerformAction() {
+    public void testPerformAction() throws Exception {
         IndexMetadata indexMetadata = getIndexMetadata();
 
         UpdateSettingsStep step = createRandomInstance();
@@ -67,15 +69,18 @@ public class UpdateSettingsStepTests extends AbstractStepTestCase<UpdateSettings
             UpdateSettingsRequest request = (UpdateSettingsRequest) invocation.getArguments()[0];
             @SuppressWarnings("unchecked")
             ActionListener<AcknowledgedResponse> listener = (ActionListener<AcknowledgedResponse>) invocation.getArguments()[1];
-            assertThat(request.settings(), equalTo(step.getSettings()));
+            assertThat(request.settings(), equalTo(step.getSettingsSupplier().apply(indexMetadata)));
             assertThat(request.indices(), equalTo(new String[] { indexMetadata.getIndex().getName() }));
             listener.onResponse(AcknowledgedResponse.TRUE);
             return null;
         }).when(indicesClient).updateSettings(Mockito.any(), Mockito.any());
 
-        assertNull(PlainActionFuture.<Void, RuntimeException>get(f -> step.performAction(indexMetadata, emptyClusterState(), null, f)));
+        final var state = projectStateWithEmptyProject();
+        performActionAndWait(step, indexMetadata, state, null);
 
-        Mockito.verify(client, Mockito.only()).admin();
+        Mockito.verify(client).projectClient(state.projectId());
+        Mockito.verify(projectClient).admin();
+        Mockito.verifyNoMoreInteractions(client);
         Mockito.verify(adminClient, Mockito.only()).indices();
         Mockito.verify(indicesClient, Mockito.only()).updateSettings(Mockito.any(), Mockito.any());
     }
@@ -89,21 +94,18 @@ public class UpdateSettingsStepTests extends AbstractStepTestCase<UpdateSettings
             UpdateSettingsRequest request = (UpdateSettingsRequest) invocation.getArguments()[0];
             @SuppressWarnings("unchecked")
             ActionListener<AcknowledgedResponse> listener = (ActionListener<AcknowledgedResponse>) invocation.getArguments()[1];
-            assertThat(request.settings(), equalTo(step.getSettings()));
+            assertThat(request.settings(), equalTo(step.getSettingsSupplier().apply(indexMetadata)));
             assertThat(request.indices(), equalTo(new String[] { indexMetadata.getIndex().getName() }));
             listener.onFailure(exception);
             return null;
         }).when(indicesClient).updateSettings(Mockito.any(), Mockito.any());
 
-        assertSame(
-            exception,
-            expectThrows(
-                Exception.class,
-                () -> PlainActionFuture.<Void, Exception>get(f -> step.performAction(indexMetadata, emptyClusterState(), null, f))
-            )
-        );
+        final var state = projectStateWithEmptyProject();
+        assertSame(exception, expectThrows(Exception.class, () -> performActionAndWait(step, indexMetadata, state, null)));
 
-        Mockito.verify(client, Mockito.only()).admin();
+        Mockito.verify(client).projectClient(state.projectId());
+        Mockito.verify(projectClient).admin();
+        Mockito.verifyNoMoreInteractions(client);
         Mockito.verify(adminClient, Mockito.only()).indices();
         Mockito.verify(indicesClient, Mockito.only()).updateSettings(Mockito.any(), Mockito.any());
     }

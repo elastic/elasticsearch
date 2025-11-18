@@ -25,7 +25,7 @@ import org.elasticsearch.xpack.core.security.authc.kerberos.KerberosRealmSetting
 import org.elasticsearch.xpack.core.security.authc.ldap.LdapRealmSettings;
 import org.elasticsearch.xpack.core.security.authc.oidc.OpenIdConnectRealmSettings;
 import org.elasticsearch.xpack.core.security.authc.pki.PkiRealmSettings;
-import org.elasticsearch.xpack.core.security.authc.saml.SamlRealmSettings;
+import org.elasticsearch.xpack.core.security.authc.saml.SingleSpSamlRealmSettings;
 import org.elasticsearch.xpack.core.security.authc.service.ServiceAccountSettings;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptorsIntersection;
@@ -89,6 +89,27 @@ public class AuthenticationTestHelper {
         return new User(
             ESTestCase.randomAlphaOfLengthBetween(3, 8),
             ESTestCase.randomArray(1, 3, String[]::new, () -> ESTestCase.randomAlphaOfLengthBetween(3, 8))
+        );
+    }
+
+    public static User randomCloudApiKeyUser() {
+        return randomCloudApiKeyUser(null);
+    }
+
+    public static User randomCloudApiKeyUser(String principal) {
+        final Map<String, Object> metadata = ESTestCase.randomBoolean()
+            ? null
+            : Map.ofEntries(
+                Map.entry(AuthenticationField.API_KEY_NAME_KEY, ESTestCase.randomAlphanumericOfLength(64)),
+                Map.entry(AuthenticationField.API_KEY_INTERNAL_KEY, ESTestCase.randomBoolean())
+            );
+        return new User(
+            principal == null ? ESTestCase.randomAlphanumericOfLength(64) : principal,
+            ESTestCase.randomArray(1, 3, String[]::new, () -> "role_" + ESTestCase.randomAlphaOfLengthBetween(3, 8)),
+            null,
+            null,
+            metadata,
+            true
         );
     }
 
@@ -193,7 +214,7 @@ public class AuthenticationTestHelper {
             LdapRealmSettings.LDAP_TYPE,
             JwtRealmSettings.TYPE,
             OpenIdConnectRealmSettings.TYPE,
-            SamlRealmSettings.TYPE,
+            SingleSpSamlRealmSettings.TYPE,
             KerberosRealmSettings.TYPE,
             PkiRealmSettings.TYPE,
             ESTestCase.randomAlphaOfLengthBetween(3, 8)
@@ -242,6 +263,38 @@ public class AuthenticationTestHelper {
             UsernamesField.SECURITY_PROFILE_ROLE,
             UsernamesField.DATA_STREAM_LIFECYCLE_ROLE
         );
+    }
+
+    public static Authentication randomCloudApiKeyAuthentication() {
+        return randomCloudApiKeyAuthentication(null, null);
+    }
+
+    public static Authentication randomCloudApiKeyAuthentication(String apiKeyId) {
+        return randomCloudApiKeyAuthentication(null, apiKeyId);
+    }
+
+    public static Authentication randomCloudApiKeyAuthentication(User user) {
+        return randomCloudApiKeyAuthentication(user, null);
+    }
+
+    public static Authentication randomCloudApiKeyAuthentication(User user, String apiKeyId) {
+        if (apiKeyId == null) {
+            apiKeyId = user != null ? user.principal() : ESTestCase.randomAlphanumericOfLength(64);
+        }
+        if (user == null) {
+            user = randomCloudApiKeyUser(apiKeyId);
+        }
+
+        assert user.principal().equals(apiKeyId) : "user principal must match cloud API key ID";
+
+        return Authentication.newCloudAuthentication(
+            Authentication.AuthenticationType.API_KEY,
+            Subject.Type.CLOUD_API_KEY,
+            AuthenticationResult.success(user, user.metadata()),
+            "node_" + ESTestCase.randomAlphaOfLengthBetween(3, 8),
+            null
+        );
+
     }
 
     public static CrossClusterAccessSubjectInfo randomCrossClusterAccessSubjectInfo(

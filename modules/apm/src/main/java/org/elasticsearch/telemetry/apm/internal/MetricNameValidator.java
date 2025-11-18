@@ -1,15 +1,21 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.telemetry.apm.internal;
 
+import org.apache.logging.log4j.LogManager;
+import org.elasticsearch.common.regex.Regex;
+
+import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.function.Predicate;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
@@ -39,6 +45,22 @@ public class MetricNameValidator {
         "security-crypto"
     );
 
+    // forbidden attributes known to cause issues due to mapping conflicts or high cardinality
+    static final Predicate<String> FORBIDDEN_ATTRIBUTE_NAMES = Regex.simpleMatcher(
+        "index",
+        // below field names are typically mapped to a timestamp risking mapping errors at ingest time
+        // if values are not valid timestamps (which would be of high cardinality, and not desired either)
+        "*.timestamp",
+        "*_timestamp",
+        "created",
+        "*.created",
+        "*.creation_date",
+        "ingested",
+        "*.ingested",
+        "*.start",
+        "*.end"
+    );
+
     private MetricNameValidator() {}
 
     /**
@@ -62,6 +84,20 @@ public class MetricNameValidator {
         lastElementIsFromAllowList(elements, metricName);
         perElementValidations(elements, metricName);
         return metricName;
+    }
+
+    public static boolean validateAttributeNames(Map<String, Object> attributes) {
+        if (attributes == null && attributes.isEmpty()) {
+            return true;
+        }
+        for (String attribute : attributes.keySet()) {
+            if (FORBIDDEN_ATTRIBUTE_NAMES.test(attribute)) {
+                LogManager.getLogger(MetricNameValidator.class)
+                    .warn("Attribute name [{}] is forbidden due to potential mapping conflicts or assumed high cardinality", attribute);
+                return false;
+            }
+        }
+        return true;
     }
 
     /**

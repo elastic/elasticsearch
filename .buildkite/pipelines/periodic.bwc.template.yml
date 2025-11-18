@@ -1,9 +1,9 @@
       - label: $BWC_VERSION / bwc
-        command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v$BWC_VERSION#bwcTest
+        command: .ci/scripts/run-gradle.sh --continue -Dbwc.checkout.align=true v$BWC_VERSION#bwcTest
         timeout_in_minutes: 300
         agents:
           provider: gcp
-          image: family/elasticsearch-ubuntu-2004
+          image: family/elasticsearch-ubuntu-2404
           machineType: n1-standard-32
           buildDirectory: /dev/shm/bk
           preemptible: true

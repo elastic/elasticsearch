@@ -11,16 +11,25 @@ import org.apache.lucene.util.IntsRef;
 import org.apache.lucene.util.UnicodeUtil;
 import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.Operations;
+import org.apache.lucene.util.automaton.TooComplexToDeterminizeException;
 
 public abstract class AbstractStringPattern implements StringPattern {
 
     private Automaton automaton;
 
-    public abstract Automaton createAutomaton();
+    public final Automaton createAutomaton(boolean ignoreCase) {
+        try {
+            return doCreateAutomaton(ignoreCase);
+        } catch (TooComplexToDeterminizeException e) {
+            throw new IllegalArgumentException("Pattern was too complex to determinize", e);
+        }
+    }
+
+    protected abstract Automaton doCreateAutomaton(boolean ignoreCase);
 
     private Automaton automaton() {
         if (automaton == null) {
-            automaton = createAutomaton();
+            automaton = createAutomaton(false);
         }
         return automaton;
     }
@@ -32,7 +41,11 @@ public abstract class AbstractStringPattern implements StringPattern {
 
     @Override
     public String exactMatch() {
-        IntsRef singleton = Operations.getSingleton(automaton());
+        Automaton a = automaton();
+        if (a.getNumStates() == 0) { // workaround for https://github.com/elastic/elasticsearch/pull/128887
+            return null; // Empty automaton has no matches
+        }
+        IntsRef singleton = Operations.getSingleton(a);
         return singleton != null ? UnicodeUtil.newString(singleton.ints, singleton.offset, singleton.length) : null;
     }
 }

@@ -1,5 +1,8 @@
 ---
 "Basic sanity check":
+  - requires:
+      cluster_features: ["cluster.reroute.ignores_metric_param"]
+      reason: requires this feature
+
   - do:
-      cluster.reroute:
-        metric: none
+        cluster.reroute: {}

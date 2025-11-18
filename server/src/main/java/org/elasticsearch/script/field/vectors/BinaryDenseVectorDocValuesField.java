@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.script.field.vectors;
@@ -85,8 +86,12 @@ public class BinaryDenseVectorDocValuesField extends DenseVectorDocValuesField {
 
     private void decodeVectorIfNecessary() {
         if (decoded == false && value != null) {
-            VectorEncoderDecoder.decodeDenseVector(indexVersion, value, vectorValue);
+            decodeDenseVector(indexVersion, value, vectorValue);
             decoded = true;
         }
+    }
+
+    void decodeDenseVector(IndexVersion indexVersion, BytesRef value, float[] vector) {
+        VectorEncoderDecoder.decodeDenseVector(indexVersion, value, vectorValue);
     }
 }

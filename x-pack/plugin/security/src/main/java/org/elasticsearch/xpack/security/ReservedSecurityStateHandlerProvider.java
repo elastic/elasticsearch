@@ -7,15 +7,15 @@
 
 package org.elasticsearch.xpack.security;
 
-import org.elasticsearch.reservedstate.ReservedClusterStateHandler;
-import org.elasticsearch.reservedstate.ReservedClusterStateHandlerProvider;
+import org.elasticsearch.reservedstate.ReservedProjectStateHandler;
+import org.elasticsearch.reservedstate.ReservedStateHandlerProvider;
 
 import java.util.Collection;
 
 /**
- * Security Provider implementation for the {@link ReservedClusterStateHandlerProvider} service interface
+ * Security Provider implementation for the {@link ReservedStateHandlerProvider} service interface
  */
-public class ReservedSecurityStateHandlerProvider implements ReservedClusterStateHandlerProvider {
+public class ReservedSecurityStateHandlerProvider implements ReservedStateHandlerProvider {
     private final Security plugin;
 
     public ReservedSecurityStateHandlerProvider() {
@@ -27,7 +27,7 @@ public class ReservedSecurityStateHandlerProvider implements ReservedClusterStat
     }
 
     @Override
-    public Collection<ReservedClusterStateHandler<?>> handlers() {
-        return plugin.reservedClusterStateHandlers();
+    public Collection<ReservedProjectStateHandler<?>> projectHandlers() {
+        return plugin.reservedProjectStateHandlers();
     }
 }

@@ -1,15 +1,16 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.support;
 
 import org.elasticsearch.action.support.IndicesOptions.ConcreteTargetOptions;
-import org.elasticsearch.action.support.IndicesOptions.FailureStoreOptions;
+import org.elasticsearch.action.support.IndicesOptions.CrossProjectModeOptions;
 import org.elasticsearch.action.support.IndicesOptions.GatekeeperOptions;
 import org.elasticsearch.action.support.IndicesOptions.WildcardOptions;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -55,10 +56,9 @@ public class IndicesOptionsTests extends ESTestCase {
                         .ignoreThrottled(randomBoolean())
                         .allowAliasToMultipleIndices(randomBoolean())
                         .allowClosedIndices(randomBoolean())
+                        .allowSelectors(randomBoolean())
                 )
-                .failureStoreOptions(
-                    FailureStoreOptions.builder().includeRegularIndices(randomBoolean()).includeFailureIndices(randomBoolean())
-                )
+                .crossProjectModeOptions(new CrossProjectModeOptions(randomBoolean()))
                 .build();
 
             BytesStreamOutput output = new BytesStreamOutput();
@@ -104,6 +104,7 @@ public class IndicesOptionsTests extends ESTestCase {
         assertThat(indicesOptions.forbidClosedIndices(), equalTo(forbidClosedIndices));
         assertEquals(ignoreAliases, indicesOptions.ignoreAliases());
         assertEquals(ignoreThrottled, indicesOptions.ignoreThrottled());
+        assertEquals(indicesOptions.resolveCrossProjectIndexExpression(), CrossProjectModeOptions.DEFAULT.resolveIndexExpression());
     }
 
     public void testFromOptionsWithDefaultOptions() {
@@ -140,6 +141,7 @@ public class IndicesOptionsTests extends ESTestCase {
         assertEquals(defaultOptions.allowAliasesToMultipleIndices(), indicesOptions.allowAliasesToMultipleIndices());
         assertEquals(defaultOptions.forbidClosedIndices(), indicesOptions.forbidClosedIndices());
         assertEquals(defaultOptions.ignoreAliases(), indicesOptions.ignoreAliases());
+        assertEquals(defaultOptions.resolveCrossProjectIndexExpression(), indicesOptions.resolveCrossProjectIndexExpression());
     }
 
     public void testFromParameters() {
@@ -203,6 +205,7 @@ public class IndicesOptionsTests extends ESTestCase {
         assertEquals(defaultOptions.allowAliasesToMultipleIndices(), updatedOptions.allowAliasesToMultipleIndices());
         assertEquals(defaultOptions.forbidClosedIndices(), updatedOptions.forbidClosedIndices());
         assertEquals(defaultOptions.ignoreAliases(), updatedOptions.ignoreAliases());
+        assertEquals(defaultOptions.resolveCrossProjectIndexExpression(), updatedOptions.resolveCrossProjectIndexExpression());
     }
 
     public void testEqualityAndHashCode() {
@@ -332,6 +335,7 @@ public class IndicesOptionsTests extends ESTestCase {
         assertEquals(ignoreUnavailable == null ? defaults.ignoreUnavailable() : ignoreUnavailable, fromMap.ignoreUnavailable());
         assertEquals(allowNoIndices == null ? defaults.allowNoIndices() : allowNoIndices, fromMap.allowNoIndices());
         assertEquals(ignoreThrottled == null ? defaults.ignoreThrottled() : ignoreThrottled, fromMap.ignoreThrottled());
+        assertEquals(fromMap.resolveCrossProjectIndexExpression(), CrossProjectModeOptions.DEFAULT.resolveIndexExpression());
     }
 
     public void testToXContent() throws IOException {
@@ -343,10 +347,21 @@ public class IndicesOptionsTests extends ESTestCase {
             randomBoolean(),
             randomBoolean()
         );
-        GatekeeperOptions gatekeeperOptions = new GatekeeperOptions(randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean());
-        FailureStoreOptions failureStoreOptions = new IndicesOptions.FailureStoreOptions(randomBoolean(), randomBoolean());
+        GatekeeperOptions gatekeeperOptions = new GatekeeperOptions(
+            randomBoolean(),
+            randomBoolean(),
+            randomBoolean(),
+            randomBoolean(),
+            randomBoolean()
+        );
+        CrossProjectModeOptions crossProjectModeOptions = new CrossProjectModeOptions(randomBoolean());
 
-        IndicesOptions indicesOptions = new IndicesOptions(concreteTargetOptions, wildcardOptions, gatekeeperOptions, failureStoreOptions);
+        IndicesOptions indicesOptions = new IndicesOptions(
+            concreteTargetOptions,
+            wildcardOptions,
+            gatekeeperOptions,
+            crossProjectModeOptions
+        );
 
         XContentType type = randomFrom(XContentType.values());
         BytesReference xContentBytes = toXContentBytes(indicesOptions, type);
@@ -361,7 +376,6 @@ public class IndicesOptionsTests extends ESTestCase {
         assertThat(map.get("ignore_unavailable"), equalTo(concreteTargetOptions.allowUnavailableTargets()));
         assertThat(map.get("allow_no_indices"), equalTo(wildcardOptions.allowEmptyExpressions()));
         assertThat(map.get("ignore_throttled"), equalTo(gatekeeperOptions.ignoreThrottled()));
-        assertThat(map.get("failure_store"), equalTo(failureStoreOptions.displayValue()));
     }
 
     public void testFromXContent() throws IOException {
@@ -421,6 +435,7 @@ public class IndicesOptionsTests extends ESTestCase {
         assertTrue(fromXContentOptions.expandWildcardsClosed());
         assertTrue(fromXContentOptions.expandWildcardsHidden());
         assertTrue(fromXContentOptions.expandWildcardsOpen());
+        assertFalse(fromXContentOptions.resolveCrossProjectIndexExpression());
 
         try (XContentBuilder builder = XContentFactory.contentBuilder(type)) {
             builder.startObject();
@@ -439,6 +454,7 @@ public class IndicesOptionsTests extends ESTestCase {
         assertFalse(fromXContentOptions.expandWildcardsClosed());
         assertFalse(fromXContentOptions.expandWildcardsHidden());
         assertFalse(fromXContentOptions.expandWildcardsOpen());
+        assertFalse(fromXContentOptions.resolveCrossProjectIndexExpression());
     }
 
     public void testFromXContentWithDefaults() throws Exception {
@@ -492,6 +508,7 @@ public class IndicesOptionsTests extends ESTestCase {
         }
         assertEquals(ignoreUnavailable, fromXContentOptions.ignoreUnavailable());
         assertEquals(expectedWildcardStates, fromXContentOptions.wildcardOptions());
+        assertFalse(fromXContentOptions.resolveCrossProjectIndexExpression());
     }
 
     private BytesReference toXContentBytes(IndicesOptions indicesOptions, XContentType type) throws IOException {

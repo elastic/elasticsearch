@@ -1,14 +1,16 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.query.functionscore;
 
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.search.DoubleValues;
 import org.apache.lucene.search.Explanation;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.ParsingException;
@@ -30,7 +32,6 @@ import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexGeoPointFieldData;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
 import org.elasticsearch.index.fielddata.MultiGeoPointValues;
-import org.elasticsearch.index.fielddata.NumericDoubleValues;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
 import org.elasticsearch.index.fielddata.SortingNumericDoubleValues;
 import org.elasticsearch.index.mapper.DateFieldMapper;
@@ -390,7 +391,7 @@ public abstract class DecayFunctionBuilder<DFB extends DecayFunctionBuilder<DFB>
         }
 
         @Override
-        protected NumericDoubleValues distance(LeafReaderContext context) {
+        protected DoubleValues distance(LeafReaderContext context) {
             final MultiGeoPointValues geoPointValues = fieldData.load(context).getPointValues();
             return FieldData.replaceMissing(mode.select(new SortingNumericDoubleValues() {
                 @Override
@@ -483,7 +484,7 @@ public abstract class DecayFunctionBuilder<DFB extends DecayFunctionBuilder<DFB>
         }
 
         @Override
-        protected NumericDoubleValues distance(LeafReaderContext context) {
+        protected DoubleValues distance(LeafReaderContext context) {
             final SortedNumericDoubleValues doubleValues = fieldData.load(context).getDoubleValues();
             return FieldData.replaceMissing(mode.select(new SortingNumericDoubleValues() {
                 @Override
@@ -584,11 +585,11 @@ public abstract class DecayFunctionBuilder<DFB extends DecayFunctionBuilder<DFB>
          * guaranteed that the value actually exists. If it does not, we assume
          * the user handles this case in the query and return 0.
          * */
-        protected abstract NumericDoubleValues distance(LeafReaderContext context);
+        protected abstract DoubleValues distance(LeafReaderContext context);
 
         @Override
         public final LeafScoreFunction getLeafScoreFunction(final LeafReaderContext ctx) {
-            final NumericDoubleValues distance = distance(ctx);
+            final DoubleValues distance = distance(ctx);
             return new LeafScoreFunction() {
 
                 @Override

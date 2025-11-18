@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.percolator;
@@ -30,6 +31,7 @@ import org.apache.lucene.index.MultiTerms;
 import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.index.PostingsEnum;
+import org.apache.lucene.index.StoredFields;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.index.memory.MemoryIndex;
@@ -55,6 +57,7 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.QueryVisitor;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Scorer;
+import org.apache.lucene.search.ScorerSupplier;
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.TermInSetQuery;
@@ -76,6 +79,7 @@ import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.mapper.DocumentParserContext;
+import org.elasticsearch.index.mapper.IndexType;
 import org.elasticsearch.index.mapper.LuceneDocument;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
@@ -245,15 +249,13 @@ public class CandidateQueryTests extends ESSingleNodeTestCase {
             queryFunctions.add(
                 () -> new TermInSetQuery(
                     field1,
-                    new BytesRef(randomFrom(stringContent.get(field1))),
-                    new BytesRef(randomFrom(stringContent.get(field1)))
+                    List.of(new BytesRef(randomFrom(stringContent.get(field1))), new BytesRef(randomFrom(stringContent.get(field1))))
                 )
             );
             queryFunctions.add(
                 () -> new TermInSetQuery(
                     field2,
-                    new BytesRef(randomFrom(stringContent.get(field1))),
-                    new BytesRef(randomFrom(stringContent.get(field1)))
+                    List.of(new BytesRef(randomFrom(stringContent.get(field1))), new BytesRef(randomFrom(stringContent.get(field1))))
                 )
             );
             // many iterations with boolean queries, which are the most complex queries to deal with when nested
@@ -300,7 +302,7 @@ public class CandidateQueryTests extends ESSingleNodeTestCase {
                 document.add(new TextField(entry.getKey(), value, Field.Store.NO));
             }
             for (Integer intValue : intValues) {
-                NumberFieldMapper.NumberType.INTEGER.addFields(document, "int_field", intValue, true, true, false);
+                NumberFieldMapper.NumberType.INTEGER.addFields(document, "int_field", intValue, IndexType.points(true, true), false);
             }
             MemoryIndex memoryIndex = MemoryIndex.fromDocument(document, new WhitespaceAnalyzer());
             duelRun(queryStore, memoryIndex, shardSearcher);
@@ -423,7 +425,13 @@ public class CandidateQueryTests extends ESSingleNodeTestCase {
             }
 
             for (int[] range : ranges) {
-                NumberFieldMapper.NumberType.INTEGER.addFields(document, "int_field", between(range[0], range[1]), true, true, false);
+                NumberFieldMapper.NumberType.INTEGER.addFields(
+                    document,
+                    "int_field",
+                    between(range[0], range[1]),
+                    IndexType.points(true, true),
+                    false
+                );
                 logger.info("Test with document: {}" + document);
                 MemoryIndex memoryIndex = MemoryIndex.fromDocument(document, new WhitespaceAnalyzer());
                 duelRun(queryStore, memoryIndex, shardSearcher);
@@ -646,7 +654,7 @@ public class CandidateQueryTests extends ESSingleNodeTestCase {
             v
         );
         TopDocs topDocs = shardSearcher.search(query, 1);
-        assertEquals(1L, topDocs.totalHits.value);
+        assertEquals(1L, topDocs.totalHits.value());
         assertEquals(1, topDocs.scoreDocs.length);
         assertEquals(0, topDocs.scoreDocs[0].doc);
 
@@ -654,7 +662,7 @@ public class CandidateQueryTests extends ESSingleNodeTestCase {
         percolateSearcher = memoryIndex.createSearcher();
         query = fieldType.percolateQuery("_name", queryStore, Collections.singletonList(new BytesArray("{}")), percolateSearcher, false, v);
         topDocs = shardSearcher.search(query, 1);
-        assertEquals(1L, topDocs.totalHits.value);
+        assertEquals(1L, topDocs.totalHits.value());
         assertEquals(1, topDocs.scoreDocs.length);
         assertEquals(1, topDocs.scoreDocs[0].doc);
 
@@ -662,7 +670,7 @@ public class CandidateQueryTests extends ESSingleNodeTestCase {
         percolateSearcher = memoryIndex.createSearcher();
         query = fieldType.percolateQuery("_name", queryStore, Collections.singletonList(new BytesArray("{}")), percolateSearcher, false, v);
         topDocs = shardSearcher.search(query, 1);
-        assertEquals(1L, topDocs.totalHits.value);
+        assertEquals(1L, topDocs.totalHits.value());
         assertEquals(1, topDocs.scoreDocs.length);
         assertEquals(2, topDocs.scoreDocs[0].doc);
 
@@ -670,7 +678,7 @@ public class CandidateQueryTests extends ESSingleNodeTestCase {
         percolateSearcher = memoryIndex.createSearcher();
         query = fieldType.percolateQuery("_name", queryStore, Collections.singletonList(new BytesArray("{}")), percolateSearcher, false, v);
         topDocs = shardSearcher.search(query, 1);
-        assertEquals(1, topDocs.totalHits.value);
+        assertEquals(1, topDocs.totalHits.value());
         assertEquals(1, topDocs.scoreDocs.length);
         assertEquals(3, topDocs.scoreDocs[0].doc);
 
@@ -678,7 +686,7 @@ public class CandidateQueryTests extends ESSingleNodeTestCase {
         percolateSearcher = memoryIndex.createSearcher();
         query = fieldType.percolateQuery("_name", queryStore, Collections.singletonList(new BytesArray("{}")), percolateSearcher, false, v);
         topDocs = shardSearcher.search(query, 1);
-        assertEquals(1, topDocs.totalHits.value);
+        assertEquals(1, topDocs.totalHits.value());
         assertEquals(1, topDocs.scoreDocs.length);
         assertEquals(4, topDocs.scoreDocs[0].doc);
 
@@ -689,7 +697,7 @@ public class CandidateQueryTests extends ESSingleNodeTestCase {
         percolateSearcher = memoryIndex.createSearcher();
         query = fieldType.percolateQuery("_name", queryStore, Collections.singletonList(new BytesArray("{}")), percolateSearcher, false, v);
         topDocs = shardSearcher.search(query, 1);
-        assertEquals(1, topDocs.totalHits.value);
+        assertEquals(1, topDocs.totalHits.value());
         assertEquals(1, topDocs.scoreDocs.length);
         assertEquals(5, topDocs.scoreDocs[0].doc);
     }
@@ -835,14 +843,14 @@ public class CandidateQueryTests extends ESSingleNodeTestCase {
             IndexVersion.current()
         );
         TopDocs topDocs = shardSearcher.search(query, 10, new Sort(SortField.FIELD_DOC));
-        assertEquals(3L, topDocs.totalHits.value);
+        assertEquals(3L, topDocs.totalHits.value());
         assertEquals(3, topDocs.scoreDocs.length);
         assertEquals(0, topDocs.scoreDocs[0].doc);
         assertEquals(1, topDocs.scoreDocs[1].doc);
         assertEquals(4, topDocs.scoreDocs[2].doc);
 
         topDocs = shardSearcher.search(new ConstantScoreQuery(query), 10);
-        assertEquals(3L, topDocs.totalHits.value);
+        assertEquals(3L, topDocs.totalHits.value());
         assertEquals(3, topDocs.scoreDocs.length);
         assertEquals(0, topDocs.scoreDocs[0].doc);
         assertEquals(1, topDocs.scoreDocs[1].doc);
@@ -874,7 +882,7 @@ public class CandidateQueryTests extends ESSingleNodeTestCase {
             IndexVersion.current()
         );
         TopDocs topDocs = shardSearcher.search(query, 10, new Sort(SortField.FIELD_DOC));
-        assertEquals(2L, topDocs.totalHits.value);
+        assertEquals(2L, topDocs.totalHits.value());
         assertEquals(2, topDocs.scoreDocs.length);
         assertEquals(0, topDocs.scoreDocs[0].doc);
         assertEquals(2, topDocs.scoreDocs[1].doc);
@@ -930,15 +938,15 @@ public class CandidateQueryTests extends ESSingleNodeTestCase {
                     v
                 );
                 BooleanQuery candidateQuery = (BooleanQuery) query.getCandidateMatchesQuery();
-                assertThat(candidateQuery.clauses().get(0).getQuery(), instanceOf(CoveringQuery.class));
+                assertThat(candidateQuery.clauses().get(0).query(), instanceOf(CoveringQuery.class));
                 TopDocs topDocs = shardSearcher.search(query, 10);
-                assertEquals(2L, topDocs.totalHits.value);
+                assertEquals(2L, topDocs.totalHits.value());
                 assertEquals(2, topDocs.scoreDocs.length);
                 assertEquals(0, topDocs.scoreDocs[0].doc);
                 assertEquals(2, topDocs.scoreDocs[1].doc);
 
                 topDocs = shardSearcher.search(new ConstantScoreQuery(query), 10);
-                assertEquals(2L, topDocs.totalHits.value);
+                assertEquals(2L, topDocs.totalHits.value());
                 assertEquals(2, topDocs.scoreDocs.length);
                 assertEquals(0, topDocs.scoreDocs[0].doc);
                 assertEquals(2, topDocs.scoreDocs[1].doc);
@@ -946,10 +954,10 @@ public class CandidateQueryTests extends ESSingleNodeTestCase {
         }
 
         // This will trigger using the TermsQuery instead of individual term query clauses in the CoveringQuery:
-        int origMaxClauseCount = BooleanQuery.getMaxClauseCount();
+        int origMaxClauseCount = IndexSearcher.getMaxClauseCount();
         try (Directory directory = new ByteBuffersDirectory()) {
             final int maxClauseCount = 100;
-            BooleanQuery.setMaxClauseCount(maxClauseCount);
+            IndexSearcher.setMaxClauseCount(maxClauseCount);
             try (IndexWriter iw = new IndexWriter(directory, newIndexWriterConfig())) {
                 Document document = new Document();
                 for (int i = 0; i < maxClauseCount; i++) {
@@ -969,22 +977,22 @@ public class CandidateQueryTests extends ESSingleNodeTestCase {
                     v
                 );
                 BooleanQuery candidateQuery = (BooleanQuery) query.getCandidateMatchesQuery();
-                assertThat(candidateQuery.clauses().get(0).getQuery(), instanceOf(TermInSetQuery.class));
+                assertThat(candidateQuery.clauses().get(0).query(), instanceOf(TermInSetQuery.class));
 
                 TopDocs topDocs = shardSearcher.search(query, 10);
-                assertEquals(2L, topDocs.totalHits.value);
+                assertEquals(2L, topDocs.totalHits.value());
                 assertEquals(2, topDocs.scoreDocs.length);
                 assertEquals(1, topDocs.scoreDocs[0].doc);
                 assertEquals(2, topDocs.scoreDocs[1].doc);
 
                 topDocs = shardSearcher.search(new ConstantScoreQuery(query), 10);
-                assertEquals(2L, topDocs.totalHits.value);
+                assertEquals(2L, topDocs.totalHits.value());
                 assertEquals(2, topDocs.scoreDocs.length);
                 assertEquals(1, topDocs.scoreDocs[0].doc);
                 assertEquals(2, topDocs.scoreDocs[1].doc);
             }
         } finally {
-            BooleanQuery.setMaxClauseCount(origMaxClauseCount);
+            IndexSearcher.setMaxClauseCount(origMaxClauseCount);
         }
     }
 
@@ -1031,7 +1039,7 @@ public class CandidateQueryTests extends ESSingleNodeTestCase {
         IndexSearcher percolateSearcher = memoryIndex.createSearcher();
         PercolateQuery query = (PercolateQuery) fieldType.percolateQuery("_name", queryStore, sources, percolateSearcher, false, v);
         TopDocs topDocs = shardSearcher.search(query, 10, new Sort(SortField.FIELD_DOC));
-        assertEquals(2L, topDocs.totalHits.value);
+        assertEquals(2L, topDocs.totalHits.value());
         assertEquals(0, topDocs.scoreDocs[0].doc);
         assertEquals(1, topDocs.scoreDocs[1].doc);
     }
@@ -1065,7 +1073,7 @@ public class CandidateQueryTests extends ESSingleNodeTestCase {
         IndexSearcher percolateSearcher = memoryIndex.createSearcher();
         PercolateQuery query = (PercolateQuery) fieldType.percolateQuery("_name", queryStore, sources, percolateSearcher, false, v);
         TopDocs topDocs = shardSearcher.search(query, 10, new Sort(SortField.FIELD_DOC));
-        assertEquals(1L, topDocs.totalHits.value);
+        assertEquals(1L, topDocs.totalHits.value());
         assertEquals(0, topDocs.scoreDocs[0].doc);
 
         memoryIndex = new MemoryIndex();
@@ -1073,7 +1081,7 @@ public class CandidateQueryTests extends ESSingleNodeTestCase {
         percolateSearcher = memoryIndex.createSearcher();
         query = (PercolateQuery) fieldType.percolateQuery("_name", queryStore, sources, percolateSearcher, false, v);
         topDocs = shardSearcher.search(query, 10, new Sort(SortField.FIELD_DOC));
-        assertEquals(1L, topDocs.totalHits.value);
+        assertEquals(1L, topDocs.totalHits.value());
         assertEquals(0, topDocs.scoreDocs[0].doc);
 
         memoryIndex = new MemoryIndex();
@@ -1081,7 +1089,7 @@ public class CandidateQueryTests extends ESSingleNodeTestCase {
         percolateSearcher = memoryIndex.createSearcher();
         query = (PercolateQuery) fieldType.percolateQuery("_name", queryStore, sources, percolateSearcher, false, v);
         topDocs = shardSearcher.search(query, 10, new Sort(SortField.FIELD_DOC));
-        assertEquals(1L, topDocs.totalHits.value);
+        assertEquals(1L, topDocs.totalHits.value());
         assertEquals(0, topDocs.scoreDocs[0].doc);
     }
 
@@ -1116,7 +1124,7 @@ public class CandidateQueryTests extends ESSingleNodeTestCase {
         IndexSearcher percolateSearcher = memoryIndex.createSearcher();
         PercolateQuery query = (PercolateQuery) fieldType.percolateQuery("_name", queryStore, sources, percolateSearcher, false, v);
         TopDocs topDocs = shardSearcher.search(query, 10, new Sort(SortField.FIELD_DOC));
-        assertEquals(1L, topDocs.totalHits.value);
+        assertEquals(1L, topDocs.totalHits.value());
         assertEquals(0, topDocs.scoreDocs[0].doc);
     }
 
@@ -1140,7 +1148,7 @@ public class CandidateQueryTests extends ESSingleNodeTestCase {
         TopDocs controlTopDocs = shardSearcher.search(controlQuery, 100);
 
         try {
-            assertThat(topDocs.totalHits.value, equalTo(controlTopDocs.totalHits.value));
+            assertThat(topDocs.totalHits.value(), equalTo(controlTopDocs.totalHits.value()));
             assertThat(topDocs.scoreDocs.length, equalTo(controlTopDocs.scoreDocs.length));
             for (int j = 0; j < topDocs.scoreDocs.length; j++) {
                 assertThat(topDocs.scoreDocs[j].doc, equalTo(controlTopDocs.scoreDocs[j].doc));
@@ -1163,12 +1171,13 @@ public class CandidateQueryTests extends ESSingleNodeTestCase {
                 logger.error("topDocs.scoreDocs[{}].doc={}", i, topDocs.scoreDocs[i].doc);
                 logger.error("topDocs.scoreDocs[{}].score={}", i, topDocs.scoreDocs[i].score);
             }
+            StoredFields storedFields = shardSearcher.storedFields();
             for (int i = 0; i < controlTopDocs.scoreDocs.length; i++) {
                 logger.error("controlTopDocs.scoreDocs[{}].doc={}", i, controlTopDocs.scoreDocs[i].doc);
                 logger.error("controlTopDocs.scoreDocs[{}].score={}", i, controlTopDocs.scoreDocs[i].score);
 
                 // Additional stored information that is useful when debugging:
-                String queryToString = shardSearcher.doc(controlTopDocs.scoreDocs[i].doc).get("query_to_string");
+                String queryToString = storedFields.document(controlTopDocs.scoreDocs[i].doc).get("query_to_string");
                 logger.error("controlTopDocs.scoreDocs[{}].query_to_string={}", i, queryToString);
 
                 TermsEnum tenum = MultiTerms.getTerms(shardSearcher.getIndexReader(), fieldType.queryTermsField.name()).iterator();
@@ -1288,7 +1297,7 @@ public class CandidateQueryTests extends ESSingleNodeTestCase {
                 }
 
                 @Override
-                public Scorer scorer(LeafReaderContext context) throws IOException {
+                public ScorerSupplier scorerSupplier(LeafReaderContext context) throws IOException {
                     float _score[] = new float[] { boost };
                     DocIdSetIterator allDocs = DocIdSetIterator.all(context.reader().maxDoc());
                     CheckedFunction<Integer, Query, IOException> leaf = queryStore.getQueries(context);
@@ -1312,7 +1321,7 @@ public class CandidateQueryTests extends ESSingleNodeTestCase {
                             }
                         }
                     };
-                    return new Scorer(this) {
+                    Scorer scorer = new Scorer() {
 
                         @Override
                         public int docID() {
@@ -1334,6 +1343,7 @@ public class CandidateQueryTests extends ESSingleNodeTestCase {
                             return _score[0];
                         }
                     };
+                    return new DefaultScorerSupplier(scorer);
                 }
 
                 @Override

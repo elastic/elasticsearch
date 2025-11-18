@@ -14,7 +14,7 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
-import org.elasticsearch.cluster.metadata.DataStream;
+import org.elasticsearch.client.WarningFailureException;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
@@ -26,10 +26,10 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.EngineConfig;
 import org.elasticsearch.rest.action.admin.indices.RestPutIndexTemplateAction;
 import org.elasticsearch.snapshots.SnapshotState;
-import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
+import org.elasticsearch.xpack.IlmESRestTestCase;
 import org.elasticsearch.xpack.core.ilm.AllocateAction;
 import org.elasticsearch.xpack.core.ilm.DeleteAction;
 import org.elasticsearch.xpack.core.ilm.ErrorStep;
@@ -58,7 +58,6 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
-import static java.util.Collections.singletonMap;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.xpack.TimeSeriesRestDriver.createFullPolicy;
 import static org.elasticsearch.xpack.TimeSeriesRestDriver.createIndexWithSettings;
@@ -81,7 +80,7 @@ import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
-public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
+public class TimeSeriesLifecycleActionsIT extends IlmESRestTestCase {
     private static final Logger logger = LogManager.getLogger(TimeSeriesLifecycleActionsIT.class);
     private static final String FAILED_STEP_RETRY_COUNT_FIELD = "failed_step_retry_count";
 
@@ -107,7 +106,7 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
             Settings.builder()
                 .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 2)
                 .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-                .put("index.routing.allocation.include._name", "javaRestTest-0")
+                .put("index.routing.allocation.include._name", "test-cluster-0")
                 .put(RolloverAction.LIFECYCLE_ROLLOVER_ALIAS, alias)
         );
 
@@ -191,7 +190,11 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
     }
 
     public void testFreezeNoop() throws Exception {
-        createNewSingletonPolicy(client(), policy, "cold", FreezeAction.INSTANCE);
+        try {
+            createNewSingletonPolicy(client(), policy, "cold", FreezeAction.INSTANCE);
+        } catch (WarningFailureException e) {
+            assertThat(e.getMessage(), containsString("The freeze action in ILM is deprecated and will be removed in a future version"));
+        }
 
         createIndexWithSettings(
             client(),
@@ -203,11 +206,16 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
                 .put("index.lifecycle.name", policy)
         );
 
-        assertBusy(
-            () -> assertThat(getStepKeyForIndex(client(), index), equalTo(PhaseCompleteStep.finalStep("cold").getKey())),
-            30,
-            TimeUnit.SECONDS
-        );
+        assertBusy(() -> {
+            try {
+                assertThat(getStepKeyForIndex(client(), index), equalTo(PhaseCompleteStep.finalStep("cold").getKey()));
+            } catch (WarningFailureException e) {
+                assertThat(
+                    e.getMessage(),
+                    containsString("The freeze action in ILM is deprecated and will be removed in a future version")
+                );
+            }
+        }, 30, TimeUnit.SECONDS);
         assertFalse(getOnlyIndexSettings(client(), index).containsKey("index.frozen"));
     }
 
@@ -218,8 +226,8 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
             alias,
             Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 2).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
         );
-        String allocateNodeName = "javaRestTest-0,javaRestTest-1,javaRestTest-2,javaRestTest-3";
-        AllocateAction allocateAction = new AllocateAction(null, null, singletonMap("_name", allocateNodeName), null, null);
+        String allocateNodeName = "test-cluster-0,test-cluster-1,test-cluster-2,test-cluster-3";
+        AllocateAction allocateAction = new AllocateAction(null, null, Map.of("_name", allocateNodeName), null, null);
         String endPhase = randomFrom("warm", "cold");
         createNewSingletonPolicy(client(), policy, endPhase, allocateAction);
         updatePolicy(client(), index, policy);
@@ -443,7 +451,7 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
                     .field("type", "fs")
                     .startObject("settings")
                     .field("compress", randomBoolean())
-                    .field("location", System.getProperty("tests.path.repo"))
+                    .field("location", repoDir.getRoot().getAbsolutePath())
                     .field("max_snapshot_bytes_per_sec", "256b")
                     .endObject()
                     .endObject()
@@ -758,6 +766,8 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
             String status = (String) statusResponseMap.get("operation_mode");
             assertEquals("STOPPED", status);
         });
+        // Wait for cluster state to be published to all nodes.
+        waitForClusterUpdates();
 
         // Re-start ILM so that subsequent tests don't fail
         Request startILMRequest = new Request("POST", "_ilm/start");
@@ -978,7 +988,7 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
             hotActions.put(SetPriorityAction.NAME, new SetPriorityAction(100));
             Map<String, Phase> phases = new HashMap<>();
             phases.put("hot", new Phase("hot", TimeValue.ZERO, hotActions));
-            phases.put("delete", new Phase("delete", TimeValue.ZERO, singletonMap(DeleteAction.NAME, DeleteAction.WITH_SNAPSHOT_DELETE)));
+            phases.put("delete", new Phase("delete", TimeValue.ZERO, Map.of(DeleteAction.NAME, DeleteAction.WITH_SNAPSHOT_DELETE)));
             LifecyclePolicy lifecyclePolicy = new LifecyclePolicy(policy, phases);
             // PUT policy
             XContentBuilder builder = jsonBuilder();
@@ -1004,7 +1014,7 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
         phases.put("cold", new Phase("cold", TimeValue.ZERO, coldActions));
         phases.put(
             "delete",
-            new Phase("delete", TimeValue.timeValueMillis(10000), singletonMap(DeleteAction.NAME, DeleteAction.NO_SNAPSHOT_DELETE))
+            new Phase("delete", TimeValue.timeValueMillis(10000), Map.of(DeleteAction.NAME, DeleteAction.NO_SNAPSHOT_DELETE))
         );
         LifecyclePolicy lifecyclePolicy = new LifecyclePolicy(policy, phases);
         // PUT policy
@@ -1222,7 +1232,7 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
         }
 
         // Finally, check that the history index is in a good state
-        String historyIndexName = DataStream.getDefaultBackingIndexName("ilm-history-7", 1);
+        String historyIndexName = getDataStreamBackingIndexNames("ilm-history-7").getFirst();
         Response explainHistoryIndex = client().performRequest(new Request("GET", historyIndexName + "/_lifecycle/explain"));
         Map<String, Object> responseMap;
         try (InputStream is = explainHistoryIndex.getEntity().getContent()) {

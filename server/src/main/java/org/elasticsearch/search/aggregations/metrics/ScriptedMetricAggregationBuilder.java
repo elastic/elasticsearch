@@ -1,15 +1,15 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.aggregations.metrics;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.ClusterSettings;
@@ -30,6 +30,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.function.ToLongFunction;
 
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 
@@ -192,11 +193,11 @@ public class ScriptedMetricAggregationBuilder extends AbstractAggregationBuilder
         validateScript(REDUCE_SCRIPT_FIELD.getPreferredName(), name, reduceScript, settings);
 
         if (combineScript == null) {
-            throw new IllegalArgumentException("[combineScript] must not be null: [" + name + "]");
+            throw new IllegalArgumentException("[" + COMBINE_SCRIPT_FIELD.getPreferredName() + "] must not be null: [" + name + "]");
         }
 
         if (reduceScript == null) {
-            throw new IllegalArgumentException("[reduceScript] must not be null: [" + name + "]");
+            throw new IllegalArgumentException("[" + REDUCE_SCRIPT_FIELD.getPreferredName() + "] must not be null: [" + name + "]");
         }
 
         // Extract params from scripts and pass them along to ScriptedMetricAggregatorFactory, since it won't have
@@ -289,7 +290,12 @@ public class ScriptedMetricAggregationBuilder extends AbstractAggregationBuilder
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.ZERO;
+        return TransportVersion.zero();
+    }
+
+    @Override
+    public boolean supportsParallelCollection(ToLongFunction<String> fieldCardinalityResolver) {
+        return false;
     }
 
     @Override

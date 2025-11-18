@@ -34,8 +34,6 @@ import java.util.stream.Collectors;
  */
 public final class ExpandedIdsMatcher {
 
-    public static String ALL = "_all";
-
     /**
      * Split {@code expression} into tokens separated by a ','
      *

@@ -6,11 +6,12 @@
  */
 package org.elasticsearch.xpack.esql.core.type;
 
-import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.xpack.esql.core.QlIllegalArgumentException;
+import org.elasticsearch.xpack.esql.core.util.PlanStreamInput;
+import org.elasticsearch.xpack.esql.core.util.PlanStreamOutput;
 
 import java.io.IOException;
 import java.util.Map;
@@ -23,31 +24,38 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.TEXT;
  * Information about a field in an es index with the {@code text} type.
  */
 public class TextEsField extends EsField {
-    static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(EsField.class, "TextEsField", TextEsField::new);
 
-    public TextEsField(String name, Map<String, EsField> properties, boolean hasDocValues) {
-        this(name, properties, hasDocValues, false);
+    public TextEsField(
+        String name,
+        Map<String, EsField> properties,
+        boolean hasDocValues,
+        boolean isAlias,
+        TimeSeriesFieldType timeSeriesFieldType
+    ) {
+        super(name, TEXT, properties, hasDocValues, isAlias, timeSeriesFieldType);
     }
 
-    public TextEsField(String name, Map<String, EsField> properties, boolean hasDocValues, boolean isAlias) {
-        super(name, TEXT, properties, hasDocValues, isAlias);
-    }
-
-    private TextEsField(StreamInput in) throws IOException {
-        this(in.readString(), in.readMap(i -> i.readNamedWriteable(EsField.class)), in.readBoolean(), in.readBoolean());
+    protected TextEsField(StreamInput in) throws IOException {
+        this(
+            ((PlanStreamInput) in).readCachedString(),
+            in.readImmutableMap(EsField::readFrom),
+            in.readBoolean(),
+            in.readBoolean(),
+            readTimeSeriesFieldType(in)
+        );
     }
 
     @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        out.writeString(getName());
-        out.writeMap(getProperties(), StreamOutput::writeNamedWriteable);
+    public void writeContent(StreamOutput out) throws IOException {
+        ((PlanStreamOutput) out).writeCachedString(getName());
+        out.writeMap(getProperties(), (o, x) -> x.writeTo(out));
         out.writeBoolean(isAggregatable());
         out.writeBoolean(isAlias());
+        writeTimeSeriesFieldType(out);
     }
 
-    @Override
     public String getWriteableName() {
-        return ENTRY.name;
+        return "TextEsField";
     }
 
     @Override

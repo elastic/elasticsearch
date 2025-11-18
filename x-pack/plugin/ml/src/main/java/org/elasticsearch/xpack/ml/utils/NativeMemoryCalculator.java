@@ -22,10 +22,10 @@ import org.elasticsearch.xpack.ml.MachineLearning;
 
 import java.util.OptionalLong;
 
+import static org.elasticsearch.xpack.core.ml.MachineLearningField.MAX_LAZY_ML_NODES;
 import static org.elasticsearch.xpack.core.ml.MachineLearningField.USE_AUTO_MACHINE_MEMORY_PERCENT;
 import static org.elasticsearch.xpack.ml.MachineLearning.MACHINE_MEMORY_NODE_ATTR;
 import static org.elasticsearch.xpack.ml.MachineLearning.MAX_JVM_SIZE_NODE_ATTR;
-import static org.elasticsearch.xpack.ml.MachineLearning.MAX_LAZY_ML_NODES;
 import static org.elasticsearch.xpack.ml.MachineLearning.MAX_MACHINE_MEMORY_PERCENT;
 import static org.elasticsearch.xpack.ml.MachineLearning.MAX_ML_NODE_SIZE;
 

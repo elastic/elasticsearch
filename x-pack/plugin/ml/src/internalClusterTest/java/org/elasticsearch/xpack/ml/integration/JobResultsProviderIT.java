@@ -128,7 +128,9 @@ public class JobResultsProviderIT extends MlSingleNodeTestCase {
                     ResultsPersisterService.PERSIST_RESULTS_MAX_RETRIES,
                     ClusterService.USER_DEFINED_METADATA,
                     ClusterApplierService.CLUSTER_SERVICE_SLOW_TASK_LOGGING_THRESHOLD_SETTING,
-                    ClusterApplierService.CLUSTER_SERVICE_SLOW_TASK_THREAD_DUMP_TIMEOUT_SETTING
+                    ClusterApplierService.CLUSTER_SERVICE_SLOW_TASK_THREAD_DUMP_TIMEOUT_SETTING,
+                    ClusterApplierService.CLUSTER_APPLIER_THREAD_WATCHDOG_INTERVAL,
+                    ClusterApplierService.CLUSTER_APPLIER_THREAD_WATCHDOG_QUIET_TIME
                 )
             )
         );
@@ -140,7 +142,7 @@ public class JobResultsProviderIT extends MlSingleNodeTestCase {
         // We can't change the signature of createComponents to e.g. pass differing values of includeNodeInfo to pass to the
         // AnomalyDetectionAuditor constructor. Instead we generate a random boolean value for that purpose.
         boolean includeNodeInfo = randomBoolean();
-        auditor = new AnomalyDetectionAuditor(client(), clusterService, includeNodeInfo);
+        auditor = new AnomalyDetectionAuditor(client(), clusterService, TestIndexNameExpressionResolver.newInstance(), includeNodeInfo);
         waitForMlTemplates();
     }
 
@@ -153,7 +155,8 @@ public class JobResultsProviderIT extends MlSingleNodeTestCase {
         // Put fist job. This should create the results index as it's the first job.
         client().execute(PutJobAction.INSTANCE, new PutJobAction.Request(job1)).actionGet();
 
-        String sharedResultsIndex = AnomalyDetectorsIndexFields.RESULTS_INDEX_PREFIX + AnomalyDetectorsIndexFields.RESULTS_INDEX_DEFAULT;
+        String sharedResultsIndex = AnomalyDetectorsIndexFields.RESULTS_INDEX_PREFIX + AnomalyDetectorsIndexFields.RESULTS_INDEX_DEFAULT
+            + MlIndexAndAlias.FIRST_INDEX_SIX_DIGIT_SUFFIX;
         Map<String, Object> mappingProperties = getIndexMappingProperties(sharedResultsIndex);
 
         // Assert mappings have a few fields from the template
@@ -206,7 +209,7 @@ public class JobResultsProviderIT extends MlSingleNodeTestCase {
 
         client().execute(PutJobAction.INSTANCE, new PutJobAction.Request(job)).actionGet();
 
-        String customIndex = AnomalyDetectorsIndexFields.RESULTS_INDEX_PREFIX + "custom-bar";
+        String customIndex = AnomalyDetectorsIndexFields.RESULTS_INDEX_PREFIX + "custom-bar-000001";
         Map<String, Object> mappingProperties = getIndexMappingProperties(customIndex);
 
         // Assert mappings have a few fields from the template
@@ -255,7 +258,7 @@ public class JobResultsProviderIT extends MlSingleNodeTestCase {
 
         // Assert that the mappings contain all the additional fields: field1, field2, field3, etc.
         String sharedResultsIndex = AnomalyDetectorsIndexFields.RESULTS_INDEX_PREFIX + AnomalyDetectorsIndexFields.RESULTS_INDEX_DEFAULT;
-        GetMappingsRequest request = new GetMappingsRequest().indices(sharedResultsIndex);
+        GetMappingsRequest request = new GetMappingsRequest(TEST_REQUEST_TIMEOUT).indices(sharedResultsIndex);
         GetMappingsResponse response = client().execute(GetMappingsAction.INSTANCE, request).actionGet();
         Map<String, MappingMetadata> indexMappings = response.getMappings();
         assertNotNull(indexMappings);
@@ -506,7 +509,7 @@ public class JobResultsProviderIT extends MlSingleNodeTestCase {
     }
 
     private Map<String, Object> getIndexMappingProperties(String index) {
-        GetMappingsRequest request = new GetMappingsRequest().indices(index);
+        GetMappingsRequest request = new GetMappingsRequest(TEST_REQUEST_TIMEOUT).indices(index);
         GetMappingsResponse response = client().execute(GetMappingsAction.INSTANCE, request).actionGet();
         Map<String, MappingMetadata> indexMappings = response.getMappings();
         assertNotNull(indexMappings);
@@ -530,7 +533,10 @@ public class JobResultsProviderIT extends MlSingleNodeTestCase {
     }
 
     private Set<String> getAliases(String index) {
-        GetAliasesResponse getAliasesResponse = client().admin().indices().getAliases(new GetAliasesRequest().indices(index)).actionGet();
+        GetAliasesResponse getAliasesResponse = client().admin()
+            .indices()
+            .getAliases(new GetAliasesRequest(TEST_REQUEST_TIMEOUT).indices(index))
+            .actionGet();
         Map<String, List<AliasMetadata>> aliases = getAliasesResponse.getAliases();
         assertThat(aliases.containsKey(index), is(true));
         List<AliasMetadata> aliasMetadataList = aliases.get(index);

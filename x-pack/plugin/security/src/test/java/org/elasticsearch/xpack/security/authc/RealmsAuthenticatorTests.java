@@ -326,7 +326,7 @@ public class RealmsAuthenticatorTests extends AbstractAuthenticatorTests {
             @SuppressWarnings("unchecked")
             final ActionListener<AuthenticationResult<User>> listener = (ActionListener<AuthenticationResult<User>>) invocationOnMock
                 .getArguments()[1];
-                listener.onResponse(AuthenticationResult.unsuccessful("unsuccessful realms authentication", null));
+            listener.onResponse(AuthenticationResult.unsuccessful("unsuccessful realms authentication", null));
             return null;
         }).when(unsuccessfulRealm).authenticate(eq(authenticationToken), any());
 
@@ -337,7 +337,7 @@ public class RealmsAuthenticatorTests extends AbstractAuthenticatorTests {
 
         final PlainActionFuture<AuthenticationResult<Authentication>> future = new PlainActionFuture<>();
         realmsAuthenticator.authenticate(context, future);
-        var e =  expectThrows(ElasticsearchSecurityException.class, () -> future.actionGet());
+        var e = expectThrows(ElasticsearchSecurityException.class, () -> future.actionGet());
         assertThat(e, sameInstance(exception));
 
         assertSingleFailedAuthMetric(
@@ -345,8 +345,7 @@ public class RealmsAuthenticatorTests extends AbstractAuthenticatorTests {
             SecurityMetricType.AUTHC_REALMS,
             Map.ofEntries(
                 Map.entry(RealmsAuthenticator.ATTRIBUTE_REALM_NAME, unsuccessfulRealm.name()),
-                Map.entry(RealmsAuthenticator.ATTRIBUTE_REALM_TYPE, unsuccessfulRealm.type()),
-                Map.entry(RealmsAuthenticator.ATTRIBUTE_REALM_AUTHC_FAILURE_REASON, "unsuccessful realms authentication")
+                Map.entry(RealmsAuthenticator.ATTRIBUTE_REALM_TYPE, unsuccessfulRealm.type())
             )
         );
 

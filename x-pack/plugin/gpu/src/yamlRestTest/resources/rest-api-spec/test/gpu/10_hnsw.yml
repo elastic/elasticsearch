@@ -1,0 +1,139 @@
+---
+"Test GPU vector operations":
+
+  - requires:
+      cluster_features: [ "vectors.indexing.use_gpu" ]
+      reason: "A cluster should have a GPU plugin to run these tests"
+
+  # creating an index is successful even if the GPU is not available
+  - do:
+      indices.create:
+        index: my_vectors
+        body:
+          mappings:
+            properties:
+              embedding:
+                type: dense_vector
+                dims: 24
+                similarity: l2_norm
+                index_options:
+                  type: hnsw
+          settings:
+            index.number_of_shards: 1
+            index.vectors.indexing.use_gpu: true
+  - match: { error: null }
+
+
+  - do:
+      bulk:
+        index: my_vectors
+        refresh: true
+        body:
+          - index:
+              _id: "1"
+          - text: "First document"
+            embedding: [0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1]
+          - index:
+              _id: "2"
+          - text: "Second document"
+            embedding: [0.2, 0.2, 0.2, 0.2, 0.2, 0.2, 0.2, 0.2, 0.2, 0.2, 0.2, 0.2, 0.2, 0.2, 0.2, 0.2, 0.2, 0.2, 0.2, 0.2, 0.2, 0.2, 0.2, 0.2]
+          - index:
+              _id: "3"
+          - text: "Third document"
+            embedding: [0.3, 0.3, 0.3, 0.3, 0.3, 0.3, 0.3, 0.3, 0.3, 0.3, 0.3, 0.3, 0.3, 0.3, 0.3, 0.3, 0.3, 0.3, 0.3, 0.3, 0.3, 0.3, 0.3, 0.3]
+  - match: { errors: false }
+
+  - do:
+      bulk:
+        index: my_vectors
+        refresh: true
+        body:
+          - index:
+              _id: "4"
+          - text: "Fourth document"
+            embedding: [0.4, 0.4, 0.4, 0.4, 0.4, 0.4, 0.4, 0.4, 0.4, 0.4, 0.4, 0.4, 0.4, 0.4, 0.4, 0.4, 0.4, 0.4, 0.4, 0.4, 0.4, 0.4, 0.4, 0.4]
+          - index:
+              _id: "5"
+          - text: "Fifth document"
+            embedding: [0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5]
+          - index:
+              _id: "6"
+          - text: "Sixth document"
+            embedding: [0.6, 0.6, 0.6, 0.6, 0.6, 0.6, 0.6, 0.6, 0.6, 0.6, 0.6, 0.6, 0.6, 0.6, 0.6, 0.6, 0.6, 0.6, 0.6, 0.6, 0.6, 0.6, 0.6, 0.6]
+          - index:
+              _id: "7"
+          - text: "Seventh document"
+            embedding: [0.7, 0.7, 0.7, 0.7, 0.7, 0.7, 0.7, 0.7, 0.7, 0.7, 0.7, 0.7, 0.7, 0.7, 0.7, 0.7, 0.7, 0.7, 0.7, 0.7, 0.7, 0.7, 0.7, 0.7]
+  - match: { errors: false }
+
+  - do:
+      search:
+        index: my_vectors
+        body:
+          knn:
+            field: embedding
+            query_vector: [0.7, 0.7, 0.7, 0.7, 0.7, 0.7, 0.7, 0.7, 0.7, 0.7, 0.7, 0.7, 0.7, 0.7, 0.7, 0.7, 0.7, 0.7, 0.7, 0.7, 0.7, 0.7, 0.7, 0.7]
+            k: 2
+
+  - match: { hits.hits.0._id: "7" }
+  - match: { hits.hits.1._id: "6" }
+
+  - do:
+      bulk:
+        index: my_vectors
+        refresh: true
+        body:
+          - delete:
+              _id: "1"
+          - delete:
+              _id: "7"
+  - match: { errors: false }
+
+  - do:
+      search:
+        index: my_vectors
+        body:
+          knn:
+            field: embedding
+            query_vector: [0.7, 0.7, 0.7, 0.7, 0.7, 0.7, 0.7, 0.7, 0.7, 0.7, 0.7, 0.7, 0.7, 0.7, 0.7, 0.7, 0.7, 0.7, 0.7, 0.7, 0.7, 0.7, 0.7, 0.7]
+            k: 2
+  - match: { hits.hits.0._id: "6" }
+  - match: { hits.hits.1._id: "5" }
+
+  - do:
+      bulk:
+        index: my_vectors
+        refresh: true
+        body:
+          - index:
+              _id: "6"
+          - text: "Sixth document"
+            embedding: [0.16, 0.16, 0.16, 0.16, 0.16, 0.16, 0.16, 0.16, 0.16, 0.16, 0.16, 0.16, 0.16, 0.16, 0.16, 0.16, 0.16, 0.16, 0.16, 0.16, 0.16, 0.16, 0.16, 0.16]
+  - match: { errors: false }
+
+  - do:
+      search:
+        index: my_vectors
+        body:
+          knn:
+            field: embedding
+            query_vector: [0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1]
+            k: 2
+  - match: { hits.hits.0._id: "6" }
+  - match: { hits.hits.1._id: "2" }
+
+  - do:
+      indices.forcemerge:
+        index: my_vectors
+        max_num_segments: 1
+
+  - do:
+      search:
+        index: my_vectors
+        body:
+          knn:
+            field: embedding
+            query_vector: [0.7, 0.7, 0.7, 0.7, 0.7, 0.7, 0.7, 0.7, 0.7, 0.7, 0.7, 0.7, 0.7, 0.7, 0.7, 0.7, 0.7, 0.7, 0.7, 0.7, 0.7, 0.7, 0.7, 0.7]
+            k: 2
+  - match: { hits.hits.0._id: "5" }
+  - match: { hits.hits.1._id: "4" }

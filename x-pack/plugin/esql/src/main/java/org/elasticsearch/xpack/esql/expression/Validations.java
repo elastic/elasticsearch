@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.esql.expression;
 
-import org.elasticsearch.xpack.esql.core.common.Failure;
+import org.elasticsearch.xpack.esql.common.Failure;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Expression.TypeResolution;
 import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;

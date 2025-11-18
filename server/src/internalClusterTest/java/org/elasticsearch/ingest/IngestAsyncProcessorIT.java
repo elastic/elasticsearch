@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.ingest;
 
@@ -14,10 +15,7 @@ import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.index.IndexRequest;
-import org.elasticsearch.action.ingest.PutPipelineRequest;
 import org.elasticsearch.action.update.UpdateResponse;
-import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.plugins.IngestPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESSingleNodeTestCase;
@@ -56,8 +54,7 @@ public class IngestAsyncProcessorIT extends ESSingleNodeTestCase {
 
     public void testAsyncProcessorImplementation() {
         // A pipeline with 2 processors: the test async processor and sync test processor.
-        BytesReference pipelineBody = new BytesArray("{\"processors\": [{\"test-async\": {}, \"test\": {}}]}");
-        clusterAdmin().putPipeline(new PutPipelineRequest("_id", pipelineBody, XContentType.JSON)).actionGet();
+        putJsonPipeline("_id", "{\"processors\": [{\"test-async\": {}, \"test\": {}}]}");
 
         BulkRequest bulkRequest = new BulkRequest();
         int numDocs = randomIntBetween(8, 256);
@@ -99,7 +96,7 @@ public class IngestAsyncProcessorIT extends ESSingleNodeTestCase {
 
         @Override
         public Map<String, Processor.Factory> getProcessors(Processor.Parameters parameters) {
-            return Map.of("test-async", (factories, tag, description, config) -> new AbstractProcessor(tag, description) {
+            return Map.of("test-async", (factories, tag, description, config, projectId) -> new AbstractProcessor(tag, description) {
 
                 @Override
                 public void execute(IngestDocument ingestDocument, BiConsumer<IngestDocument, Exception> handler) {
@@ -132,7 +129,7 @@ public class IngestAsyncProcessorIT extends ESSingleNodeTestCase {
                     return true;
                 }
 
-            }, "test", (processorFactories, tag, description, config) -> new AbstractProcessor(tag, description) {
+            }, "test", (processorFactories, tag, description, config, projectId) -> new AbstractProcessor(tag, description) {
                 @Override
                 public IngestDocument execute(IngestDocument ingestDocument) throws Exception {
                     String id = (String) ingestDocument.getSourceAndMetadata().get("_id");

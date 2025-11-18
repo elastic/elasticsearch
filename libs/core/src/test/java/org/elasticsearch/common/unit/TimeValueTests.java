@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.common.unit;
@@ -108,6 +109,7 @@ public class TimeValueTests extends ESTestCase {
         assertThat(TimeValue.parseTimeValue(s, null, "test").getStringRep(), equalTo(s));
         final TimeValue t = new TimeValue(randomIntBetween(1, 128), randomFrom(TimeUnit.values()));
         assertThat(TimeValue.parseTimeValue(t.getStringRep(), null, "test"), equalTo(t));
+        assertThat(TimeValue.timeValueSeconds(-1), equalTo(TimeValue.parseTimeValue(TimeValue.timeValueSeconds(-1).getStringRep(), "foo")));
     }
 
     private static final String FRACTIONAL_TIME_VALUES_ARE_NOT_SUPPORTED = "fractional time values are not supported";

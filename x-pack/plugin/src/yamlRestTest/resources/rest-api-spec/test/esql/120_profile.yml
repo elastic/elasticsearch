@@ -1,9 +1,5 @@
 ---
 setup:
-  - requires:
-      cluster_features: ["gte_v8.12.0"]
-      reason: "profile option added in 8.12"
-      test_runner_features: warnings
   - do:
       indices.create:
         index:  test
@@ -140,3 +136,29 @@ avg 8.14 or after:
   - gte: {profile.drivers.1.took_nanos: 0}
   - gte: {profile.drivers.1.cpu_nanos: 0}
 # It's hard to assert much about these because they don't come back in any particular order.
+
+---
+documents found:
+  - requires:
+      test_runner_features: [capabilities, contains]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: []
+          capabilities: [documents_found_and_values_loaded]
+      reason: "checks for documents_found and values_loaded"
+
+  - do:
+      esql.query:
+        body:
+          query: 'FROM test | LIMIT 1'
+          profile: true
+
+  - length: {profile.drivers: 3}
+  - match: {profile.drivers.0.operators.0.operator: /ExchangeSourceOperator|LuceneSourceOperator.+/}
+  - gte: {profile.drivers.0.documents_found: 0}
+  - gte: {profile.drivers.0.values_loaded: 0}
+  - gte: {profile.drivers.1.documents_found: 0}
+  - gte: {profile.drivers.1.values_loaded: 0}
+  - gte: {profile.drivers.2.documents_found: 0}
+  - gte: {profile.drivers.2.values_loaded: 0}

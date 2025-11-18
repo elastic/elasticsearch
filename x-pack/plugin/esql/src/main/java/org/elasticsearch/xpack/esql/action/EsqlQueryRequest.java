@@ -11,6 +11,7 @@ import org.elasticsearch.Build;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.CompositeIndicesRequest;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
@@ -20,11 +21,14 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
+import org.elasticsearch.xpack.core.async.AsyncExecutionId;
 import org.elasticsearch.xpack.esql.Column;
 import org.elasticsearch.xpack.esql.parser.QueryParams;
+import org.elasticsearch.xpack.esql.plugin.EsqlQueryStatus;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 
 import java.io.IOException;
+import java.time.ZoneId;
 import java.util.Iterator;
 import java.util.Locale;
 import java.util.Map;
@@ -42,25 +46,30 @@ public class EsqlQueryRequest extends org.elasticsearch.xpack.core.esql.action.E
     private String query;
     private boolean columnar;
     private boolean profile;
+    private Boolean includeCCSMetadata;
+    private Boolean includeExecutionMetadata;
+    private ZoneId timeZone;
     private Locale locale;
     private QueryBuilder filter;
     private QueryPragmas pragmas = new QueryPragmas(Settings.EMPTY);
-    private QueryParams params = QueryParams.EMPTY;
+    private QueryParams params = new QueryParams();
     private TimeValue waitForCompletionTimeout = DEFAULT_WAIT_FOR_COMPLETION;
     private TimeValue keepAlive = DEFAULT_KEEP_ALIVE;
     private boolean keepOnCompletion;
     private boolean onSnapshotBuild = Build.current().isSnapshot();
+    private boolean acceptedPragmaRisks = false;
+    private Boolean allowPartialResults = null;
 
     /**
      * "Tables" provided in the request for use with things like {@code LOOKUP}.
      */
     private final Map<String, Map<String, Column>> tables = new TreeMap<>();
 
-    static EsqlQueryRequest syncEsqlQueryRequest() {
+    public static EsqlQueryRequest syncEsqlQueryRequest() {
         return new EsqlQueryRequest(false);
     }
 
-    static EsqlQueryRequest asyncEsqlQueryRequest() {
+    public static EsqlQueryRequest asyncEsqlQueryRequest() {
         return new EsqlQueryRequest(true);
     }
 
@@ -78,8 +87,15 @@ public class EsqlQueryRequest extends org.elasticsearch.xpack.core.esql.action.E
         if (Strings.hasText(query) == false) {
             validationException = addValidationError("[" + RequestXContent.QUERY_FIELD + "] is required", validationException);
         }
+
         if (onSnapshotBuild == false) {
-            if (pragmas.isEmpty() == false) {
+            if (timeZone != null) {
+                validationException = addValidationError(
+                    "[" + RequestXContent.TIME_ZONE_FIELD + "] only allowed in snapshot builds",
+                    validationException
+                );
+            }
+            if (pragmas.isEmpty() == false && acceptedPragmaRisks == false) {
                 validationException = addValidationError(
                     "[" + RequestXContent.PRAGMA_FIELD + "] only allowed in snapshot builds",
                     validationException
@@ -97,8 +113,9 @@ public class EsqlQueryRequest extends org.elasticsearch.xpack.core.esql.action.E
 
     public EsqlQueryRequest() {}
 
-    public void query(String query) {
+    public EsqlQueryRequest query(String query) {
         this.query = query;
+        return this;
     }
 
     @Override
@@ -126,11 +143,37 @@ public class EsqlQueryRequest extends org.elasticsearch.xpack.core.esql.action.E
         this.profile = profile;
     }
 
+    public EsqlQueryRequest includeCCSMetadata(Boolean include) {
+        this.includeCCSMetadata = include;
+        return this;
+    }
+
+    public Boolean includeCCSMetadata() {
+        return includeCCSMetadata;
+    }
+
+    public EsqlQueryRequest includeExecutionMetadata(Boolean include) {
+        this.includeExecutionMetadata = include;
+        return this;
+    }
+
+    public Boolean includeExecutionMetadata() {
+        return includeExecutionMetadata;
+    }
+
     /**
      * Is profiling enabled?
      */
     public boolean profile() {
         return profile;
+    }
+
+    public void timeZone(ZoneId timeZone) {
+        this.timeZone = timeZone;
+    }
+
+    public ZoneId timeZone() {
+        return timeZone;
     }
 
     public void locale(Locale locale) {
@@ -141,8 +184,9 @@ public class EsqlQueryRequest extends org.elasticsearch.xpack.core.esql.action.E
         return locale;
     }
 
-    public void filter(QueryBuilder filter) {
+    public EsqlQueryRequest filter(QueryBuilder filter) {
         this.filter = filter;
+        return this;
     }
 
     @Override
@@ -150,8 +194,9 @@ public class EsqlQueryRequest extends org.elasticsearch.xpack.core.esql.action.E
         return filter;
     }
 
-    public void pragmas(QueryPragmas pragmas) {
+    public EsqlQueryRequest pragmas(QueryPragmas pragmas) {
         this.pragmas = pragmas;
+        return this;
     }
 
     public QueryPragmas pragmas() {
@@ -220,14 +265,50 @@ public class EsqlQueryRequest extends org.elasticsearch.xpack.core.esql.action.E
         return tables;
     }
 
+    public Boolean allowPartialResults() {
+        return allowPartialResults;
+    }
+
+    public EsqlQueryRequest allowPartialResults(boolean allowPartialResults) {
+        this.allowPartialResults = allowPartialResults;
+        return this;
+    }
+
     @Override
-    public Task createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
-        // Pass the query as the description
-        return new CancellableTask(id, type, action, query, parentTaskId, headers);
+    public Task createTask(TaskId taskId, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
+        var status = new EsqlQueryStatus(new AsyncExecutionId(UUIDs.randomBase64UUID(), taskId));
+        return new EsqlQueryRequestTask(query, taskId.getId(), type, action, parentTaskId, headers, status);
+    }
+
+    private static class EsqlQueryRequestTask extends CancellableTask {
+        private final Status status;
+
+        EsqlQueryRequestTask(
+            String query,
+            long id,
+            String type,
+            String action,
+            TaskId parentTaskId,
+            Map<String, String> headers,
+            EsqlQueryStatus status
+        ) {
+            // Pass the query as the description
+            super(id, type, action, query, parentTaskId, headers);
+            this.status = status;
+        }
+
+        @Override
+        public Status getStatus() {
+            return status;
+        }
     }
 
     // Setter for tests
     void onSnapshotBuild(boolean onSnapshotBuild) {
         this.onSnapshotBuild = onSnapshotBuild;
+    }
+
+    void acceptedPragmaRisks(boolean accepted) {
+        this.acceptedPragmaRisks = accepted;
     }
 }

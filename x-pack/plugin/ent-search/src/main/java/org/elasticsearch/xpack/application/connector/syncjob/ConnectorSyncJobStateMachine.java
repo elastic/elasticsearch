@@ -45,7 +45,7 @@ public class ConnectorSyncJobStateMachine {
      * @param next The proposed next {link ConnectorSyncStatus} of the {@link ConnectorSyncJob}.
      */
     public static boolean isValidTransition(ConnectorSyncStatus current, ConnectorSyncStatus next) {
-        return VALID_TRANSITIONS.getOrDefault(current, Collections.emptySet()).contains(next);
+        return validNextStates(current).contains(next);
     }
 
     /**
@@ -59,5 +59,9 @@ public class ConnectorSyncJobStateMachine {
         throws ConnectorSyncJobInvalidStatusTransitionException {
         if (isValidTransition(current, next)) return;
         throw new ConnectorSyncJobInvalidStatusTransitionException(current, next);
+    }
+
+    public static Set<ConnectorSyncStatus> validNextStates(ConnectorSyncStatus current) {
+        return VALID_TRANSITIONS.getOrDefault(current, Collections.emptySet());
     }
 }

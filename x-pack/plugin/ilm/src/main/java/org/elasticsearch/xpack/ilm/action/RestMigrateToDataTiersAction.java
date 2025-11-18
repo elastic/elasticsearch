@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.ilm.action;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.RestUtils;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.xpack.cluster.action.MigrateToDataTiersAction;
 import org.elasticsearch.xpack.cluster.action.MigrateToDataTiersRequest;
@@ -33,13 +34,21 @@ public class RestMigrateToDataTiersAction extends BaseRestHandler {
 
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
-        MigrateToDataTiersRequest migrateRequest;
+        final var masterNodeTimeout = RestUtils.getMasterNodeTimeout(request);
+        final MigrateToDataTiersRequest migrateRequest;
         if (request.hasContent()) {
             try (var parser = request.contentParser()) {
-                migrateRequest = MigrateToDataTiersRequest.parse(parser);
+                migrateRequest = MigrateToDataTiersRequest.parse(
+                    (legacyTemplateToDelete, nodeAttributeName) -> new MigrateToDataTiersRequest(
+                        masterNodeTimeout,
+                        legacyTemplateToDelete,
+                        nodeAttributeName
+                    ),
+                    parser
+                );
             }
         } else {
-            migrateRequest = new MigrateToDataTiersRequest();
+            migrateRequest = new MigrateToDataTiersRequest(masterNodeTimeout, null, null);
         }
         migrateRequest.setDryRun(request.paramAsBoolean("dry_run", false));
         return channel -> client.execute(MigrateToDataTiersAction.INSTANCE, migrateRequest, new RestToXContentListener<>(channel));

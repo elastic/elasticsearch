@@ -220,7 +220,7 @@ public class SnapshotHistoryItem implements Writeable, ToXContentObject {
     public final XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         {
-            builder.timeField(TIMESTAMP.getPreferredName(), "timestamp_string", timestamp);
+            builder.timestampFieldsFromUnixEpochMillis(TIMESTAMP.getPreferredName(), "timestamp_string", timestamp);
             builder.field(POLICY_ID.getPreferredName(), policyId);
             builder.field(REPOSITORY.getPreferredName(), repository);
             builder.field(SNAPSHOT_NAME.getPreferredName(), snapshotName);

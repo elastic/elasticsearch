@@ -1,16 +1,16 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.script.mustache;
 
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.Scope;
@@ -18,6 +18,7 @@ import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.rest.action.search.RestMultiSearchAction;
 import org.elasticsearch.rest.action.search.RestSearchAction;
+import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.util.List;
@@ -34,9 +35,11 @@ public class RestMultiSearchTemplateAction extends BaseRestHandler {
     private static final Set<String> RESPONSE_PARAMS = Set.of(RestSearchAction.TYPED_KEYS_PARAM, RestSearchAction.TOTAL_HITS_AS_INT_PARAM);
 
     private final boolean allowExplicitIndex;
+    private final Settings settings;
 
     public RestMultiSearchTemplateAction(Settings settings) {
         this.allowExplicitIndex = MULTI_ALLOW_EXPLICIT_INDEX.get(settings);
+        this.settings = settings;
     }
 
     @Override
@@ -45,9 +48,7 @@ public class RestMultiSearchTemplateAction extends BaseRestHandler {
             new Route(GET, "/_msearch/template"),
             new Route(POST, "/_msearch/template"),
             new Route(GET, "/{index}/_msearch/template"),
-            new Route(POST, "/{index}/_msearch/template"),
-            Route.builder(GET, "/{index}/{type}/_msearch/template").deprecated(TYPES_DEPRECATION_MESSAGE, RestApiVersion.V_7).build(),
-            Route.builder(POST, "/{index}/{type}/_msearch/template").deprecated(TYPES_DEPRECATION_MESSAGE, RestApiVersion.V_7).build()
+            new Route(POST, "/{index}/_msearch/template")
         );
     }
 
@@ -65,9 +66,10 @@ public class RestMultiSearchTemplateAction extends BaseRestHandler {
     /**
      * Parses a {@link RestRequest} body and returns a {@link MultiSearchTemplateRequest}
      */
-    public static MultiSearchTemplateRequest parseRequest(RestRequest restRequest, boolean allowExplicitIndex) throws IOException {
-        if (restRequest.getRestApiVersion() == RestApiVersion.V_7 && restRequest.hasParam("type")) {
-            restRequest.param("type");
+    public MultiSearchTemplateRequest parseRequest(RestRequest restRequest, boolean allowExplicitIndex) throws IOException {
+        if (settings != null && settings.getAsBoolean("serverless.cross_project.enabled", false)) {
+            // accept but drop project_routing param until fully supported
+            restRequest.param("project_routing");
         }
 
         MultiSearchTemplateRequest multiRequest = new MultiSearchTemplateRequest();
@@ -94,8 +96,8 @@ public class RestMultiSearchTemplateAction extends BaseRestHandler {
     }
 
     @Override
-    public boolean supportsContentStream() {
-        return true;
+    public boolean mediaTypesValid(RestRequest request) {
+        return super.mediaTypesValid(request) && XContentType.supportsDelimitedBulkRequests(request.getXContentType());
     }
 
     @Override

@@ -1,20 +1,24 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.search;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.action.ResolvedIndexExpressions;
 import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsGroup;
 import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsResponse;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.Maps;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.internal.AliasFilter;
@@ -34,22 +38,40 @@ public final class SearchShardsResponse extends ActionResponse {
     private final Collection<SearchShardsGroup> groups;
     private final Collection<DiscoveryNode> nodes;
     private final Map<String, AliasFilter> aliasFilters;
+    private final ResolvedIndexExpressions resolvedIndexExpressions;
+    public static final TransportVersion SEARCH_SHARDS_RESOLVED_INDEX_EXPRESSIONS = TransportVersion.fromName(
+        "search_shards_resolved_index_expressions"
+    );
+
+    public SearchShardsResponse(
+        Collection<SearchShardsGroup> groups,
+        Collection<DiscoveryNode> nodes,
+        Map<String, AliasFilter> aliasFilters,
+        @Nullable ResolvedIndexExpressions resolvedIndexExpressions
+    ) {
+        this.groups = groups;
+        this.nodes = nodes;
+        this.aliasFilters = aliasFilters;
+        this.resolvedIndexExpressions = resolvedIndexExpressions;
+    }
 
     public SearchShardsResponse(
         Collection<SearchShardsGroup> groups,
         Collection<DiscoveryNode> nodes,
         Map<String, AliasFilter> aliasFilters
     ) {
-        this.groups = groups;
-        this.nodes = nodes;
-        this.aliasFilters = aliasFilters;
+        this(groups, nodes, aliasFilters, null);
     }
 
     public SearchShardsResponse(StreamInput in) throws IOException {
-        super(in);
         this.groups = in.readCollectionAsList(SearchShardsGroup::new);
         this.nodes = in.readCollectionAsList(DiscoveryNode::new);
         this.aliasFilters = in.readMap(AliasFilter::readFrom);
+        if (in.getTransportVersion().supports(SEARCH_SHARDS_RESOLVED_INDEX_EXPRESSIONS)) {
+            this.resolvedIndexExpressions = in.readOptionalWriteable(ResolvedIndexExpressions::new);
+        } else {
+            this.resolvedIndexExpressions = null;
+        }
     }
 
     @Override
@@ -57,6 +79,9 @@ public final class SearchShardsResponse extends ActionResponse {
         out.writeCollection(groups);
         out.writeCollection(nodes);
         out.writeMap(aliasFilters, StreamOutput::writeWriteable);
+        if (out.getTransportVersion().supports(SEARCH_SHARDS_RESOLVED_INDEX_EXPRESSIONS)) {
+            out.writeOptionalWriteable(resolvedIndexExpressions);
+        }
     }
 
     /**
@@ -113,5 +138,10 @@ public final class SearchShardsResponse extends ActionResponse {
     @Override
     public String toString() {
         return "SearchShardsResponse{" + "groups=" + groups + ", nodes=" + nodes + ", aliasFilters=" + aliasFilters + '}';
+    }
+
+    @Nullable
+    public ResolvedIndexExpressions getResolvedIndexExpressions() {
+        return resolvedIndexExpressions;
     }
 }

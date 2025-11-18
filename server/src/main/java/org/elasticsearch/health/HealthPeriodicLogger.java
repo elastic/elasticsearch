@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.health;
@@ -51,10 +52,10 @@ import static org.elasticsearch.health.HealthStatus.GREEN;
 import static org.elasticsearch.health.HealthStatus.RED;
 
 /**
- * This class periodically logs the results of the Health API to the standard Elasticsearch server log file. It a lifecycle
- * aware component because it health depends on other lifecycle aware components. This means:
+ * This class periodically logs the results of the Health API to the standard Elasticsearch server log file. It is a lifecycle
+ * aware component because it depends on other lifecycle aware components. This means:
  * - We do not schedule any jobs until the lifecycle state is STARTED
- * - When the lifecycle state becomes STOPPED, do not schedule any more runs, but we do let the current one finish
+ * - When the lifecycle state becomes STOPPED, we do not schedule any more runs, but we do let the current one finish
  * - When the lifecycle state becomes CLOSED, we will interrupt the current run as well.
  */
 public class HealthPeriodicLogger extends AbstractLifecycleComponent implements ClusterStateListener, SchedulerEngine.Listener {
@@ -299,7 +300,7 @@ public class HealthPeriodicLogger extends AbstractLifecycleComponent implements 
 
     @Override
     public void triggered(SchedulerEngine.Event event) {
-        if (event.getJobName().equals(HEALTH_PERIODIC_LOGGER_JOB_NAME) && this.enabled) {
+        if (event.jobName().equals(HEALTH_PERIODIC_LOGGER_JOB_NAME) && this.enabled) {
             this.tryToLogHealth();
         }
     }
@@ -360,11 +361,24 @@ public class HealthPeriodicLogger extends AbstractLifecycleComponent implements 
                 String.format(Locale.ROOT, "%s.%s.status", HEALTH_FIELD_PREFIX, indicatorResult.name()),
                 indicatorResult.status().xContentValue()
             );
-            if (GREEN.equals(indicatorResult.status()) == false && indicatorResult.details() != null) {
-                result.put(
-                    String.format(Locale.ROOT, "%s.%s.details", HEALTH_FIELD_PREFIX, indicatorResult.name()),
-                    Strings.toString(indicatorResult.details())
-                );
+            if (GREEN.equals(indicatorResult.status()) == false) {
+                // indicator details
+                if (indicatorResult.details() != null) {
+                    result.put(
+                        String.format(Locale.ROOT, "%s.%s.details", HEALTH_FIELD_PREFIX, indicatorResult.name()),
+                        Strings.toString(indicatorResult.details())
+                    );
+                }
+                // indicator impact
+                if (indicatorResult.impacts() != null) {
+                    indicatorResult.impacts()
+                        .forEach(
+                            impact -> result.put(
+                                String.format(Locale.ROOT, "%s.%s.%s.impacted", HEALTH_FIELD_PREFIX, indicatorResult.name(), impact.id()),
+                                true
+                            )
+                        );
+                }
             }
         });
 

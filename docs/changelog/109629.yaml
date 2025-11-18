@@ -1,5 +1,0 @@
-pr: 109629
-summary: "[Data streams] Fix the description of the lazy rollover task"
-area: Data streams
-type: bug
-issues: []

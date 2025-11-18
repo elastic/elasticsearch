@@ -1,17 +1,22 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.search.MatchAllDocsQuery;
+import org.apache.lucene.search.MatchNoDocsQuery;
+import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.regex.Regex;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.fielddata.FieldData;
 import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
@@ -26,6 +31,7 @@ import org.elasticsearch.search.lookup.Source;
 
 import java.util.Collections;
 import java.util.List;
+import java.util.Locale;
 
 public class IndexFieldMapper extends MetadataFieldMapper {
 
@@ -101,6 +107,38 @@ public class IndexFieldMapper extends MetadataFieldMapper {
             };
         }
 
+        @Override
+        public Query wildcardLikeQuery(
+            String value,
+            @Nullable MultiTermQuery.RewriteMethod method,
+            boolean caseInsensitve,
+            SearchExecutionContext context
+        ) {
+            String indexName = context.getFullyQualifiedIndex().getName();
+            return getWildcardLikeQuery(value, caseInsensitve, indexName);
+        }
+
+        @Override
+        public Query wildcardLikeQuery(String value, boolean caseInsensitive, QueryRewriteContext context) {
+            String indexName = context.getFullyQualifiedIndex().getName();
+            return getWildcardLikeQuery(value, caseInsensitive, indexName);
+        }
+
+        private static Query getWildcardLikeQuery(String value, boolean caseInsensitve, String indexName) {
+            if (caseInsensitve) {
+                value = value.toLowerCase(Locale.ROOT);
+                indexName = indexName.toLowerCase(Locale.ROOT);
+            }
+            if (Regex.simpleMatch(value, indexName)) {
+                return new MatchAllDocsQuery();
+            }
+            return new MatchNoDocsQuery("The \"" + indexName + "\" query was rewritten to a \"match_none\" query.");
+        }
+
+        @Override
+        public String getConstantFieldValue(SearchExecutionContext context) {
+            return context.getFullyQualifiedIndex().getName();
+        }
     }
 
     public IndexFieldMapper() {
@@ -110,10 +148,5 @@ public class IndexFieldMapper extends MetadataFieldMapper {
     @Override
     protected String contentType() {
         return CONTENT_TYPE;
-    }
-
-    @Override
-    public SourceLoader.SyntheticFieldLoader syntheticFieldLoader() {
-        return SourceLoader.SyntheticFieldLoader.NOTHING;
     }
 }

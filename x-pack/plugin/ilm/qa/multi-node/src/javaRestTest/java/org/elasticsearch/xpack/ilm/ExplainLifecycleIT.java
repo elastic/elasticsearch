@@ -18,8 +18,8 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xpack.IlmESRestTestCase;
 import org.elasticsearch.xpack.core.ilm.DeleteAction;
 import org.elasticsearch.xpack.core.ilm.ErrorStep;
 import org.elasticsearch.xpack.core.ilm.LifecycleAction;
@@ -30,9 +30,11 @@ import org.elasticsearch.xpack.core.ilm.RolloverAction;
 import org.elasticsearch.xpack.core.ilm.ShrinkAction;
 import org.junit.Before;
 
+import java.util.Formatter;
 import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.xpack.TimeSeriesRestDriver.createFullPolicy;
@@ -42,6 +44,7 @@ import static org.elasticsearch.xpack.TimeSeriesRestDriver.explain;
 import static org.elasticsearch.xpack.TimeSeriesRestDriver.explainIndex;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.is;
@@ -49,7 +52,7 @@ import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
-public class ExplainLifecycleIT extends ESRestTestCase {
+public class ExplainLifecycleIT extends IlmESRestTestCase {
     private static final Logger logger = LogManager.getLogger(ExplainLifecycleIT.class);
     private static final String FAILED_STEP_RETRY_COUNT_FIELD = "failed_step_retry_count";
     private static final String IS_AUTO_RETRYABLE_ERROR_FIELD = "is_auto_retryable_error";
@@ -204,6 +207,7 @@ public class ExplainLifecycleIT extends ESRestTestCase {
             assertThat(explainIndexWithMissingPolicy.get("action"), is(nullValue()));
             assertThat(explainIndexWithMissingPolicy.get("step"), is(ErrorStep.NAME));
             assertThat(explainIndexWithMissingPolicy.get("age"), is(nullValue()));
+            assertThat(explainIndexWithMissingPolicy.get("age_in_millis"), is(nullValue()));
             assertThat(explainIndexWithMissingPolicy.get("failed_step"), is(nullValue()));
             Map<String, Object> stepInfo = (Map<String, Object>) explainIndexWithMissingPolicy.get("step_info");
             assertThat(stepInfo, is(notNullValue()));
@@ -257,6 +261,66 @@ public class ExplainLifecycleIT extends ESRestTestCase {
         );
     }
 
+    public void testStepInfoPreservedOnAutoRetry() throws Exception {
+        String policyName = "policy-" + randomAlphaOfLength(5).toLowerCase(Locale.ROOT);
+
+        Request createPolice = new Request("PUT", "_ilm/policy/" + policyName);
+        createPolice.setJsonEntity("""
+            {
+              "policy": {
+                "phases": {
+                  "hot": {
+                    "actions": {
+                      "rollover": {
+                        "max_docs": 1
+                      }
+                    }
+                  }
+                }
+              }
+            }
+            """);
+        assertOK(client().performRequest(createPolice));
+
+        String aliasName = "step-info-test";
+        String indexName = aliasName + "-" + randomAlphaOfLength(5).toLowerCase(Locale.ROOT);
+
+        Request templateRequest = new Request("PUT", "_index_template/template_" + policyName);
+
+        String templateBodyTemplate = """
+            {
+              "index_patterns": ["%s-*"],
+              "template": {
+                "settings": {
+                  "index.lifecycle.name": "%s",
+                  "index.lifecycle.rollover_alias": "%s"
+                }
+              }
+            }
+            """;
+        Formatter formatter = new Formatter(Locale.ROOT);
+        templateRequest.setJsonEntity(formatter.format(templateBodyTemplate, aliasName, policyName, aliasName).toString());
+
+        assertOK(client().performRequest(templateRequest));
+
+        Request indexRequest = new Request("POST", "/" + indexName + "/_doc/1");
+        indexRequest.setJsonEntity("{\"test\":\"value\"}");
+        assertOK(client().performRequest(indexRequest));
+
+        assertBusy(() -> {
+            Map<String, Object> explainIndex = explainIndex(client(), indexName);
+            var assertionMessage = "Assertion failed for the following response: " + explainIndex;
+            assertThat(assertionMessage, explainIndex.get("failed_step_retry_count"), notNullValue());
+            assertThat(assertionMessage, explainIndex.get("previous_step_info"), notNullValue());
+            assertThat(assertionMessage, (int) explainIndex.get("failed_step_retry_count"), greaterThan(0));
+            assertThat(
+                assertionMessage,
+                explainIndex.get("previous_step_info").toString(),
+                containsString("rollover_alias [" + aliasName + "] does not point to index [" + indexName + "]")
+            );
+        }, 30, TimeUnit.SECONDS);
+    }
+
     private void assertUnmanagedIndex(Map<String, Object> explainIndexMap) {
         assertThat(explainIndexMap.get("managed"), is(false));
         assertThat(explainIndexMap.get("time_since_index_creation"), is(nullValue()));
@@ -280,6 +344,7 @@ public class ExplainLifecycleIT extends ESRestTestCase {
         assertThat(explainIndexMap.get("step"), is("complete"));
         assertThat(explainIndexMap.get("phase_time_millis"), is(notNullValue()));
         assertThat(explainIndexMap.get("age"), is(notNullValue()));
+        assertThat(explainIndexMap.get("age_in_millis"), is(notNullValue()));
         assertThat(explainIndexMap.get("phase_execution"), is(notNullValue()));
         assertThat(explainIndexMap.get("failed_step"), is(nullValue()));
         assertThat(explainIndexMap.get("step_info"), is(nullValue()));

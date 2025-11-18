@@ -1,15 +1,17 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.monitor.os;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -19,6 +21,7 @@ import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
+import java.math.BigInteger;
 import java.util.Arrays;
 import java.util.Objects;
 
@@ -84,6 +87,7 @@ public class OsStats implements Writeable, ToXContentFragment {
         static final String LOAD_AVERAGE_1M = "1m";
         static final String LOAD_AVERAGE_5M = "5m";
         static final String LOAD_AVERAGE_15M = "15m";
+        static final String AVAILABLE_PROCESSORS = "available_processors";
 
         static final String MEM = "mem";
         static final String SWAP = "swap";
@@ -116,12 +120,18 @@ public class OsStats implements Writeable, ToXContentFragment {
 
     public static class Cpu implements Writeable, ToXContentFragment {
 
+        private static final TransportVersion AVAILABLE_PROCESSORS_TRANSPORT_VERSION = TransportVersion.fromName(
+            "available_processors_in_os_stats"
+        );
+
         private final short percent;
         private final double[] loadAverage;
+        private final int availableProcessors;
 
-        public Cpu(short systemCpuPercent, double[] systemLoadAverage) {
+        public Cpu(short systemCpuPercent, double[] systemLoadAverage, int availableProcessors) {
             this.percent = systemCpuPercent;
             this.loadAverage = systemLoadAverage;
+            this.availableProcessors = availableProcessors;
         }
 
         public Cpu(StreamInput in) throws IOException {
@@ -131,6 +141,7 @@ public class OsStats implements Writeable, ToXContentFragment {
             } else {
                 this.loadAverage = null;
             }
+            this.availableProcessors = in.getTransportVersion().supports(AVAILABLE_PROCESSORS_TRANSPORT_VERSION) ? in.readInt() : 0;
         }
 
         @Override
@@ -142,6 +153,9 @@ public class OsStats implements Writeable, ToXContentFragment {
                 out.writeBoolean(true);
                 out.writeDoubleArray(loadAverage);
             }
+            if (out.getTransportVersion().supports(AVAILABLE_PROCESSORS_TRANSPORT_VERSION)) {
+                out.writeInt(availableProcessors);
+            }
         }
 
         public short getPercent() {
@@ -150,6 +164,10 @@ public class OsStats implements Writeable, ToXContentFragment {
 
         public double[] getLoadAverage() {
             return loadAverage;
+        }
+
+        public int getAvailableProcessors() {
+            return availableProcessors;
         }
 
         @Override
@@ -169,6 +187,7 @@ public class OsStats implements Writeable, ToXContentFragment {
                 }
                 builder.endObject();
             }
+            builder.field(Fields.AVAILABLE_PROCESSORS, getAvailableProcessors());
             builder.endObject();
             return builder;
         }
@@ -361,7 +380,7 @@ public class OsStats implements Writeable, ToXContentFragment {
     public static class Cgroup implements Writeable, ToXContentFragment {
 
         private final String cpuAcctControlGroup;
-        private final long cpuAcctUsageNanos;
+        private final BigInteger cpuAcctUsageNanos;
         private final String cpuControlGroup;
         private final long cpuCfsPeriodMicros;
         private final long cpuCfsQuotaMicros;
@@ -386,7 +405,7 @@ public class OsStats implements Writeable, ToXContentFragment {
          *
          * @return the total CPU time in nanoseconds
          */
-        public long getCpuAcctUsageNanos() {
+        public BigInteger getCpuAcctUsageNanos() {
             return cpuAcctUsageNanos;
         }
 
@@ -464,7 +483,7 @@ public class OsStats implements Writeable, ToXContentFragment {
 
         public Cgroup(
             final String cpuAcctControlGroup,
-            final long cpuAcctUsageNanos,
+            final BigInteger cpuAcctUsageNanos,
             final String cpuControlGroup,
             final long cpuCfsPeriodMicros,
             final long cpuCfsQuotaMicros,
@@ -486,7 +505,11 @@ public class OsStats implements Writeable, ToXContentFragment {
 
         Cgroup(final StreamInput in) throws IOException {
             cpuAcctControlGroup = in.readString();
-            cpuAcctUsageNanos = in.readLong();
+            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_17_0)) {
+                cpuAcctUsageNanos = in.readBigInteger();
+            } else {
+                cpuAcctUsageNanos = BigInteger.valueOf(in.readLong());
+            }
             cpuControlGroup = in.readString();
             cpuCfsPeriodMicros = in.readLong();
             cpuCfsQuotaMicros = in.readLong();
@@ -499,7 +522,11 @@ public class OsStats implements Writeable, ToXContentFragment {
         @Override
         public void writeTo(final StreamOutput out) throws IOException {
             out.writeString(cpuAcctControlGroup);
-            out.writeLong(cpuAcctUsageNanos);
+            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_17_0)) {
+                out.writeBigInteger(cpuAcctUsageNanos);
+            } else {
+                out.writeLong(cpuAcctUsageNanos.longValue());
+            }
             out.writeString(cpuControlGroup);
             out.writeLong(cpuCfsPeriodMicros);
             out.writeLong(cpuCfsQuotaMicros);
@@ -550,9 +577,9 @@ public class OsStats implements Writeable, ToXContentFragment {
          */
         public static class CpuStat implements Writeable, ToXContentFragment {
 
-            private final long numberOfElapsedPeriods;
-            private final long numberOfTimesThrottled;
-            private final long timeThrottledNanos;
+            private final BigInteger numberOfElapsedPeriods;
+            private final BigInteger numberOfTimesThrottled;
+            private final BigInteger timeThrottledNanos;
 
             /**
              * The number of elapsed periods.
@@ -560,7 +587,7 @@ public class OsStats implements Writeable, ToXContentFragment {
              * @return the number of elapsed periods as measured by
              * {@code cpu.cfs_period_us}
              */
-            public long getNumberOfElapsedPeriods() {
+            public BigInteger getNumberOfElapsedPeriods() {
                 return numberOfElapsedPeriods;
             }
 
@@ -570,7 +597,7 @@ public class OsStats implements Writeable, ToXContentFragment {
              *
              * @return the number of times
              */
-            public long getNumberOfTimesThrottled() {
+            public BigInteger getNumberOfTimesThrottled() {
                 return numberOfTimesThrottled;
             }
 
@@ -580,27 +607,43 @@ public class OsStats implements Writeable, ToXContentFragment {
              *
              * @return the total time in nanoseconds
              */
-            public long getTimeThrottledNanos() {
+            public BigInteger getTimeThrottledNanos() {
                 return timeThrottledNanos;
             }
 
-            public CpuStat(final long numberOfElapsedPeriods, final long numberOfTimesThrottled, final long timeThrottledNanos) {
+            public CpuStat(
+                final BigInteger numberOfElapsedPeriods,
+                final BigInteger numberOfTimesThrottled,
+                final BigInteger timeThrottledNanos
+            ) {
                 this.numberOfElapsedPeriods = numberOfElapsedPeriods;
                 this.numberOfTimesThrottled = numberOfTimesThrottled;
                 this.timeThrottledNanos = timeThrottledNanos;
             }
 
             CpuStat(final StreamInput in) throws IOException {
-                numberOfElapsedPeriods = in.readLong();
-                numberOfTimesThrottled = in.readLong();
-                timeThrottledNanos = in.readLong();
+                if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_17_0)) {
+                    numberOfElapsedPeriods = in.readBigInteger();
+                    numberOfTimesThrottled = in.readBigInteger();
+                    timeThrottledNanos = in.readBigInteger();
+                } else {
+                    numberOfElapsedPeriods = BigInteger.valueOf(in.readLong());
+                    numberOfTimesThrottled = BigInteger.valueOf(in.readLong());
+                    timeThrottledNanos = BigInteger.valueOf(in.readLong());
+                }
             }
 
             @Override
             public void writeTo(final StreamOutput out) throws IOException {
-                out.writeLong(numberOfElapsedPeriods);
-                out.writeLong(numberOfTimesThrottled);
-                out.writeLong(timeThrottledNanos);
+                if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_17_0)) {
+                    out.writeBigInteger(numberOfElapsedPeriods);
+                    out.writeBigInteger(numberOfTimesThrottled);
+                    out.writeBigInteger(timeThrottledNanos);
+                } else {
+                    out.writeLong(numberOfElapsedPeriods.longValue());
+                    out.writeLong(numberOfTimesThrottled.longValue());
+                    out.writeLong(timeThrottledNanos.longValue());
+                }
             }
 
             @Override

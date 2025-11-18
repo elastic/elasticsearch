@@ -16,9 +16,7 @@ import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.index.IndexRequest;
-import org.elasticsearch.action.ingest.PutPipelineRequest;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.ingest.common.IngestCommonPlugin;
@@ -26,7 +24,6 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.reindex.ReindexPlugin;
 import org.elasticsearch.script.mustache.MustachePlugin;
 import org.elasticsearch.test.ESSingleNodeTestCase;
-import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
 import org.elasticsearch.xpack.core.enrich.action.EnrichStatsAction;
@@ -99,7 +96,7 @@ public class BasicEnrichTests extends ESSingleNodeTestCase {
             .actionGet();
 
         String pipelineName = "my-pipeline";
-        String pipelineBody = Strings.format("""
+        putJsonPipeline(pipelineName, Strings.format("""
             {
               "processors": [
                 {
@@ -111,9 +108,7 @@ public class BasicEnrichTests extends ESSingleNodeTestCase {
                   }
                 }
               ]
-            }""", policyName, MATCH_FIELD, maxMatches);
-        PutPipelineRequest putPipelineRequest = new PutPipelineRequest(pipelineName, new BytesArray(pipelineBody), XContentType.JSON);
-        clusterAdmin().putPipeline(putPipelineRequest).actionGet();
+            }""", policyName, MATCH_FIELD, maxMatches));
 
         BulkRequest bulkRequest = new BulkRequest("my-index");
         for (int i = 0; i < numDocs; i++) {
@@ -195,7 +190,7 @@ public class BasicEnrichTests extends ESSingleNodeTestCase {
             .actionGet();
 
         String pipelineName = "my-pipeline";
-        String pipelineBody = Strings.format("""
+        putJsonPipeline(pipelineName, Strings.format("""
             {
               "processors": [
                 {
@@ -207,9 +202,7 @@ public class BasicEnrichTests extends ESSingleNodeTestCase {
                   }
                 }
               ]
-            }""", policyName, matchField);
-        PutPipelineRequest putPipelineRequest = new PutPipelineRequest(pipelineName, new BytesArray(pipelineBody), XContentType.JSON);
-        clusterAdmin().putPipeline(putPipelineRequest).actionGet();
+            }""", policyName, matchField));
 
         BulkRequest bulkRequest = new BulkRequest("my-index");
         IndexRequest indexRequest = new IndexRequest();
@@ -258,12 +251,10 @@ public class BasicEnrichTests extends ESSingleNodeTestCase {
                 .actionGet();
 
             String pipelineName = "pipeline" + i;
-            String pipelineBody = Strings.format("""
+            putJsonPipeline(pipelineName, Strings.format("""
                 {
                   "processors": [ { "enrich": { "policy_name": "%s", "field": "key", "target_field": "target" } } ]
-                }""", policyName);
-            PutPipelineRequest putPipelineRequest = new PutPipelineRequest(pipelineName, new BytesArray(pipelineBody), XContentType.JSON);
-            clusterAdmin().putPipeline(putPipelineRequest).actionGet();
+                }""", policyName));
         }
 
         BulkRequest bulkRequest = new BulkRequest("my-index");
@@ -316,12 +307,10 @@ public class BasicEnrichTests extends ESSingleNodeTestCase {
         });
 
         String pipelineName = "test-pipeline";
-        String pipelineBody = Strings.format("""
+        putJsonPipeline(pipelineName, Strings.format("""
             {
               "processors": [ { "enrich": { "policy_name": "%s", "field": "key", "target_field": "target" } } ]
-            }""", policyName);
-        PutPipelineRequest putPipelineRequest = new PutPipelineRequest(pipelineName, new BytesArray(pipelineBody), XContentType.JSON);
-        clusterAdmin().putPipeline(putPipelineRequest).actionGet();
+            }""", policyName));
 
         BulkRequest bulkRequest = new BulkRequest("my-index");
         int numTestDocs = randomIntBetween(3, 10);
@@ -359,13 +348,14 @@ public class BasicEnrichTests extends ESSingleNodeTestCase {
             .actionGet();
 
         String pipelineName = "my-pipeline";
-        String pipelineBody = Strings.format(
-            """
-                {"processors": [{"enrich": {"policy_name":"%s", "field": "{{indirection1}}", "target_field": "{{indirection2}}"}}]}""",
-            policyName
+        putJsonPipeline(
+            pipelineName,
+            Strings.format(
+                """
+                    {"processors": [{"enrich": {"policy_name":"%s", "field": "{{indirection1}}", "target_field": "{{indirection2}}"}}]}""",
+                policyName
+            )
         );
-        PutPipelineRequest putPipelineRequest = new PutPipelineRequest(pipelineName, new BytesArray(pipelineBody), XContentType.JSON);
-        clusterAdmin().putPipeline(putPipelineRequest).actionGet();
 
         IndexRequest indexRequest = new IndexRequest("my-index").id("1")
             .setPipeline(pipelineName)
@@ -404,8 +394,7 @@ public class BasicEnrichTests extends ESSingleNodeTestCase {
             + "\", \"field\": \"email\", \"target_field\": \"users\"}},"
             + "{ \"foreach\": {\"field\":\"users\", \"processor\":{\"append\":{\"field\":\"matched2\",\"value\":\"{{_ingest._value}}\"}}}}"
             + "]}";
-        PutPipelineRequest putPipelineRequest = new PutPipelineRequest(pipelineName, new BytesArray(pipelineBody), XContentType.JSON);
-        clusterAdmin().putPipeline(putPipelineRequest).actionGet();
+        putJsonPipeline(pipelineName, pipelineBody);
 
         for (int i = 0; i < 5; i++) {
             IndexRequest indexRequest = new IndexRequest("my-index").id("1")

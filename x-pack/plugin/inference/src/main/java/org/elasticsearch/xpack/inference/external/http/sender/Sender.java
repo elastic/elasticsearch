@@ -7,19 +7,32 @@
 
 package org.elasticsearch.xpack.inference.external.http.sender;
 
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.InferenceServiceResults;
+import org.elasticsearch.xpack.inference.external.http.retry.ResponseHandler;
+import org.elasticsearch.xpack.inference.external.request.Request;
 
 import java.io.Closeable;
 
 public interface Sender extends Closeable {
-    void start();
+    void startSynchronously();
+
+    void startAsynchronously(ActionListener<Void> listener);
 
     void send(
         RequestManager requestCreator,
         InferenceInputs inferenceInputs,
+        @Nullable TimeValue timeout,
+        ActionListener<InferenceServiceResults> listener
+    );
+
+    void sendWithoutQueuing(
+        Logger logger,
+        Request request,
+        ResponseHandler responseHandler,
         @Nullable TimeValue timeout,
         ActionListener<InferenceServiceResults> listener
     );

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.mapper;
@@ -24,6 +25,7 @@ import org.apache.lucene.search.IndexOrDocValuesQuery;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.IndexSortSortedNumericDocValuesRangeQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
+import org.apache.lucene.search.Pruning;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.SortField;
@@ -130,8 +132,7 @@ public class NumberFieldTypeTests extends FieldTypeTestCase {
         return new NumberFieldType(
             "field",
             NumberType.LONG,
-            false,
-            false,
+            IndexType.NONE,
             false,
             true,
             null,
@@ -139,7 +140,8 @@ public class NumberFieldTypeTests extends FieldTypeTestCase {
             null,
             false,
             null,
-            null
+            null,
+            false
         );
     }
 
@@ -160,6 +162,47 @@ public class NumberFieldTypeTests extends FieldTypeTestCase {
             "Cannot search on field [field] since it is not indexed and 'search.allow_expensive_queries' is set to false.",
             e2.getMessage()
         );
+    }
+
+    private record OutOfRangeTermQueryTestCase(NumberType type, Object value) {}
+
+    public void testTermQueryWithOutOfRangeValues() {
+        List<OutOfRangeTermQueryTestCase> testCases = List.of(
+            new OutOfRangeTermQueryTestCase(NumberType.BYTE, "128"),
+            new OutOfRangeTermQueryTestCase(NumberType.BYTE, 128),
+            new OutOfRangeTermQueryTestCase(NumberType.BYTE, -129),
+            new OutOfRangeTermQueryTestCase(NumberType.SHORT, "32768"),
+            new OutOfRangeTermQueryTestCase(NumberType.SHORT, 32768),
+            new OutOfRangeTermQueryTestCase(NumberType.SHORT, -32769),
+            new OutOfRangeTermQueryTestCase(NumberType.INTEGER, "2147483648"),
+            new OutOfRangeTermQueryTestCase(NumberType.INTEGER, 2147483648L),
+            new OutOfRangeTermQueryTestCase(NumberType.INTEGER, -2147483649L),
+            new OutOfRangeTermQueryTestCase(NumberType.LONG, "9223372036854775808"),
+            new OutOfRangeTermQueryTestCase(NumberType.LONG, new BigInteger("9223372036854775808")),
+            new OutOfRangeTermQueryTestCase(NumberType.LONG, new BigInteger("-9223372036854775809")),
+            new OutOfRangeTermQueryTestCase(NumberType.HALF_FLOAT, "65520"),
+            new OutOfRangeTermQueryTestCase(NumberType.HALF_FLOAT, 65520f),
+            new OutOfRangeTermQueryTestCase(NumberType.HALF_FLOAT, -65520f),
+            new OutOfRangeTermQueryTestCase(NumberType.HALF_FLOAT, Float.POSITIVE_INFINITY),
+            new OutOfRangeTermQueryTestCase(NumberType.HALF_FLOAT, Float.NEGATIVE_INFINITY),
+            new OutOfRangeTermQueryTestCase(NumberType.HALF_FLOAT, Float.NaN),
+            new OutOfRangeTermQueryTestCase(NumberType.FLOAT, "3.4028235E39"),
+            new OutOfRangeTermQueryTestCase(NumberType.FLOAT, 3.4028235E39d),
+            new OutOfRangeTermQueryTestCase(NumberType.FLOAT, -3.4028235E39d),
+            new OutOfRangeTermQueryTestCase(NumberType.FLOAT, Float.POSITIVE_INFINITY),
+            new OutOfRangeTermQueryTestCase(NumberType.FLOAT, Float.NEGATIVE_INFINITY),
+            new OutOfRangeTermQueryTestCase(NumberType.FLOAT, Float.NaN),
+            new OutOfRangeTermQueryTestCase(NumberType.DOUBLE, "1.7976931348623157E309"),
+            new OutOfRangeTermQueryTestCase(NumberType.DOUBLE, new BigDecimal("1.7976931348623157E309")),
+            new OutOfRangeTermQueryTestCase(NumberType.DOUBLE, new BigDecimal("-1.7976931348623157E309")),
+            new OutOfRangeTermQueryTestCase(NumberType.DOUBLE, Double.NaN),
+            new OutOfRangeTermQueryTestCase(NumberType.DOUBLE, Double.POSITIVE_INFINITY),
+            new OutOfRangeTermQueryTestCase(NumberType.DOUBLE, Double.NEGATIVE_INFINITY)
+        );
+
+        for (OutOfRangeTermQueryTestCase testCase : testCases) {
+            assertTrue(testCase.type.termQuery("field", testCase.value, randomBoolean()) instanceof MatchNoDocsQuery);
+        }
     }
 
     public void testRangeQueryWithNegativeBounds() {
@@ -636,7 +679,7 @@ public class NumberFieldTypeTests extends FieldTypeTestCase {
         final int numDocs = TestUtil.nextInt(random(), 100, 500);
         for (int i = 0; i < numDocs; ++i) {
             final LuceneDocument doc = new LuceneDocument();
-            type.addFields(doc, "foo", valueSupplier.get(), true, true, false);
+            type.addFields(doc, "foo", valueSupplier.get(), IndexType.points(true, true), false);
             w.addDocument(doc);
         }
         DirectoryReader reader = DirectoryReader.open(w);
@@ -680,7 +723,7 @@ public class NumberFieldTypeTests extends FieldTypeTestCase {
         NumberFieldType fieldType = new NumberFieldType("field", type);
         IndexNumericFieldData fielddata = (IndexNumericFieldData) fieldType.fielddataBuilder(FieldDataContext.noRuntimeFields("test"))
             .build(null, null);
-        SortField sortField = fielddata.sortField(null, MultiValueMode.MIN, null, randomBoolean());
+        SortField sortField = fielddata.indexSort(IndexVersion.current(), null, MultiValueMode.MIN, randomBoolean());
 
         IndexWriterConfig writerConfig = new IndexWriterConfig();
         writerConfig.setIndexSort(new Sort(sortField));
@@ -690,7 +733,7 @@ public class NumberFieldTypeTests extends FieldTypeTestCase {
         final int numDocs = TestUtil.nextInt(random(), 100, 500);
         for (int i = 0; i < numDocs; ++i) {
             final LuceneDocument doc = new LuceneDocument();
-            type.addFields(doc, "field", valueSupplier.get(), true, true, false);
+            type.addFields(doc, "field", valueSupplier.get(), IndexType.points(true, true), false);
             w.addDocument(doc);
         }
 
@@ -724,6 +767,10 @@ public class NumberFieldTypeTests extends FieldTypeTestCase {
                 assertEquals(searcher.count(query), searcher.count(fallbackQuery));
             }
         }
+
+        var comparator = sortField.getComparator(10, Pruning.GREATER_THAN_OR_EQUAL_TO);
+        var leafComparator = comparator.getLeafComparator(reader.getContext().leaves().get(0));
+        assertNotNull(leafComparator.competitiveIterator());
 
         reader.close();
         w.close();
@@ -805,7 +852,7 @@ public class NumberFieldTypeTests extends FieldTypeTestCase {
 
         public void write(XContentBuilder b) throws IOException {
             if (value instanceof BigInteger) {
-                b.rawField("field", new ByteArrayInputStream(value.toString().getBytes("UTF-8")), XContentType.JSON);
+                b.rawField("field", new ByteArrayInputStream(value.toString().getBytes(StandardCharsets.UTF_8)), XContentType.JSON);
             } else {
                 b.field("field", value);
             }
@@ -893,15 +940,9 @@ public class NumberFieldTypeTests extends FieldTypeTestCase {
     }
 
     public void testFetchSourceValue() throws IOException {
-        MappedFieldType mapper = new NumberFieldMapper.Builder(
-            "field",
-            NumberType.INTEGER,
-            ScriptCompiler.NONE,
-            false,
-            true,
-            IndexVersion.current(),
-            null
-        ).build(MapperBuilderContext.root(false, false)).fieldType();
+        MappedFieldType mapper = new NumberFieldMapper.Builder("field", NumberType.INTEGER, ScriptCompiler.NONE, defaultIndexSettings())
+            .build(MapperBuilderContext.root(false, false))
+            .fieldType();
         assertEquals(List.of(3), fetchSourceValue(mapper, 3.14));
         assertEquals(List.of(42), fetchSourceValue(mapper, "42.9"));
         assertEquals(List.of(3, 42), fetchSourceValues(mapper, 3.14, "foo", "42.9"));
@@ -910,25 +951,16 @@ public class NumberFieldTypeTests extends FieldTypeTestCase {
             "field",
             NumberType.FLOAT,
             ScriptCompiler.NONE,
-            false,
-            true,
-            IndexVersion.current(),
-            null
+            defaultIndexSettings()
         ).nullValue(2.71f).build(MapperBuilderContext.root(false, false)).fieldType();
         assertEquals(List.of(2.71f), fetchSourceValue(nullValueMapper, ""));
         assertEquals(List.of(2.71f), fetchSourceValue(nullValueMapper, null));
     }
 
     public void testFetchHalfFloatFromSource() throws IOException {
-        MappedFieldType mapper = new NumberFieldMapper.Builder(
-            "field",
-            NumberType.HALF_FLOAT,
-            ScriptCompiler.NONE,
-            false,
-            true,
-            IndexVersion.current(),
-            null
-        ).build(MapperBuilderContext.root(false, false)).fieldType();
+        MappedFieldType mapper = new NumberFieldMapper.Builder("field", NumberType.HALF_FLOAT, ScriptCompiler.NONE, defaultIndexSettings())
+            .build(MapperBuilderContext.root(false, false))
+            .fieldType();
         /*
          * Half float loses a fair bit of precision compared to float but
          * we still do floating point comparisons. The "funny" trailing

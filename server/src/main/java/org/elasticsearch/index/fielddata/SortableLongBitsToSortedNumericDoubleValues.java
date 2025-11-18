@@ -1,28 +1,28 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.fielddata;
 
-import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.util.NumericUtils;
 
 import java.io.IOException;
 
 /**
- * {@link SortedNumericDoubleValues} instance that wraps a {@link SortedNumericDocValues}
+ * {@link SortedNumericDoubleValues} instance that wraps a {@link SortedNumericLongValues}
  * and converts the doubles to sortable long bits using
  * {@link NumericUtils#sortableLongToDouble(long)}.
  */
 final class SortableLongBitsToSortedNumericDoubleValues extends SortedNumericDoubleValues {
 
-    private final SortedNumericDocValues values;
+    private final SortedNumericLongValues values;
 
-    SortableLongBitsToSortedNumericDoubleValues(SortedNumericDocValues values) {
+    SortableLongBitsToSortedNumericDoubleValues(SortedNumericLongValues values) {
         this.values = values;
     }
 
@@ -42,7 +42,7 @@ final class SortableLongBitsToSortedNumericDoubleValues extends SortedNumericDou
     }
 
     /** Return the wrapped values. */
-    public SortedNumericDocValues getLongValues() {
+    public SortedNumericLongValues getLongValues() {
         return values;
     }
 

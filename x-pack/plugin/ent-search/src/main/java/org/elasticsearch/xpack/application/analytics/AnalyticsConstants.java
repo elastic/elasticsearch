@@ -7,6 +7,13 @@
 
 package org.elasticsearch.xpack.application.analytics;
 
+import org.elasticsearch.core.UpdateForV10;
+
+/**
+ * @deprecated in 9.0
+ */
+@Deprecated
+@UpdateForV10(owner = UpdateForV10.Owner.ENTERPRISE_SEARCH)
 public class AnalyticsConstants {
 
     private AnalyticsConstants() {}

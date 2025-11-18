@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.ccr;
 
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.delete.DeleteResponse;
+import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -91,10 +92,10 @@ public class FollowerFailOverIT extends CcrIntegTestCase {
         availableDocs.release(between(100, 200));
         PutFollowAction.Request follow = putFollow(leaderIndex, followerIndex);
         follow.getParameters().setMaxReadRequestOperationCount(randomIntBetween(32, 2048));
-        follow.getParameters().setMaxReadRequestSize(new ByteSizeValue(randomIntBetween(1, 4096), ByteSizeUnit.KB));
+        follow.getParameters().setMaxReadRequestSize(ByteSizeValue.of(randomIntBetween(1, 4096), ByteSizeUnit.KB));
         follow.getParameters().setMaxOutstandingReadRequests(randomIntBetween(1, 10));
         follow.getParameters().setMaxWriteRequestOperationCount(randomIntBetween(32, 2048));
-        follow.getParameters().setMaxWriteRequestSize(new ByteSizeValue(randomIntBetween(1, 4096), ByteSizeUnit.KB));
+        follow.getParameters().setMaxWriteRequestSize(ByteSizeValue.of(randomIntBetween(1, 4096), ByteSizeUnit.KB));
         follow.getParameters().setMaxOutstandingWriteRequests(randomIntBetween(1, 10));
         logger.info("--> follow request {}", Strings.toString(follow));
         followerClient().execute(PutFollowAction.INSTANCE, follow).get();
@@ -152,11 +153,12 @@ public class FollowerFailOverIT extends CcrIntegTestCase {
 
         PutFollowAction.Request followRequest = putFollow("index1", "index2");
         followRequest.getParameters().setMaxReadRequestOperationCount(randomIntBetween(32, 2048));
-        followRequest.getParameters().setMaxReadRequestSize(new ByteSizeValue(randomIntBetween(1, 4096), ByteSizeUnit.KB));
+        followRequest.getParameters().setMaxReadRequestSize(ByteSizeValue.of(randomIntBetween(1, 4096), ByteSizeUnit.KB));
         followRequest.getParameters().setMaxOutstandingReadRequests(randomIntBetween(1, 10));
         followRequest.getParameters().setMaxWriteRequestOperationCount(randomIntBetween(32, 2048));
-        followRequest.getParameters().setMaxWriteRequestSize(new ByteSizeValue(randomIntBetween(1, 4096), ByteSizeUnit.KB));
+        followRequest.getParameters().setMaxWriteRequestSize(ByteSizeValue.of(randomIntBetween(1, 4096), ByteSizeUnit.KB));
         followRequest.getParameters().setMaxOutstandingWriteRequests(randomIntBetween(1, 10));
+        followRequest.waitForActiveShards(ActiveShardCount.ALL);
         followerClient().execute(PutFollowAction.INSTANCE, followRequest).get();
         disableDelayedAllocation("index2");
         logger.info("--> follow request {}", Strings.toString(followRequest));
@@ -268,7 +270,7 @@ public class FollowerFailOverIT extends CcrIntegTestCase {
         // have an older mapping version than the actual mapping version that IndexService will use to index "doc1".
         final CountDownLatch latch = new CountDownLatch(1);
         clusterService.addLowPriorityApplier(event -> {
-            IndexMetadata imd = event.state().metadata().index("leader-index");
+            IndexMetadata imd = event.state().metadata().getProject().index("leader-index");
             if (imd != null
                 && imd.mapping() != null
                 && XContentMapValues.extractValue("properties.balance.type", imd.mapping().sourceAsMap()) != null) {

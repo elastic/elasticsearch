@@ -1,0 +1,117 @@
+setup:
+
+#  - skip:
+#      version: " - 8.12.99"
+#      reason: "exponential_histogram was added in 8.13"
+
+  - do:
+      indices.create:
+        index: test_exponential_histogram
+        body:
+          mappings:
+            properties:
+              histo:
+                type: exponential_histogram
+  - do:
+      bulk:
+        index: test_exponential_histogram
+        refresh: true
+        body:
+          - '{"index": {}}'
+          - '{"histo":{"scale":-1,"sum":292.0,"min":-17.0,"max":101.0,"zero":{"count":3},"positive":{"indices":[-1,0,1,2,3],"counts":[1,3,5,3,2]},"negative":{"indices":[0,2],"counts":[1,1]}}}'
+          - '{"index": {}}'
+          - '{"histo":{"scale":38,"sum":0.0}}'
+          - '{"index": {}}'
+          - '{"histo":{"scale":38,"sum":0.0,"min":0.0,"max":0.0,"zero":{"count":5}}}'
+          - '{"index": {}}'
+          - '{"histo":{"scale":5,"sum":-4101.0,"min":-1000.0,"max":-700.0,"negative":{"indices":[302,308,314,318],"counts":[2,1,1,1]}}}'
+          - '{"index": {}}'
+          - '{"histo":{"scale":0,"sum":90000.0,"min":2000.0,"max":13000.0,"positive":{"indices":[10,11,12,13],"counts":[1,2,4,5]}}}'
+---
+"Value count aggregation":
+  - do:
+      search:
+        index: test_exponential_histogram
+        size: 0
+        body:
+          aggs:
+            value_count_agg:
+              value_count:
+                field: histo
+
+  - match: { hits.total.value: 5 }
+  - match: { aggregations.value_count_agg.value: 41 }
+
+---
+"Sum aggregation":
+  - do:
+      search:
+        index: test_exponential_histogram
+        size: 0
+        body:
+          aggs:
+            sum_agg:
+              sum:
+                field: histo
+
+  - match: { hits.total.value: 5 }
+  - match: { aggregations.sum_agg.value: 86191 }
+
+---
+"Avg aggregation":
+  - do:
+      search:
+        index: test_exponential_histogram
+        size: 0
+        body:
+          aggs:
+            avg_agg:
+              avg:
+                field: histo
+
+  - match: { hits.total.value: 5 }
+  - match: { aggregations.avg_agg.value: 2102.2195121951218 }
+
+---
+"Histogram aggregation":
+  - do:
+      search:
+        index: test_exponential_histogram
+        size: 0
+        body:
+          aggs:
+            histo_agg:
+              histogram:
+                field: histo
+                interval: 5
+                min_doc_count: 1
+  - match:
+     aggregations.histo_agg.buckets:
+       - key: -995.0
+         doc_count: 1
+       - key: -910.0
+         doc_count: 1
+       - key: -800.0
+         doc_count: 1
+       - key: -705.0
+         doc_count: 2
+       - key: -20.0
+         doc_count: 1
+       - key: -5.0
+         doc_count: 1
+       - key: 0.0
+         doc_count: 12
+       - key: 5.0
+         doc_count: 5
+       - key: 25.0
+         doc_count: 3
+       - key: 100.0
+         doc_count: 2
+       - key: 2000.0
+         doc_count: 1
+       - key: 2730.0
+         doc_count: 2
+       - key: 5460.0
+         doc_count: 4
+       - key: 10920.0
+         doc_count: 5

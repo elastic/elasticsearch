@@ -12,7 +12,7 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.test.rest.ESRestTestCase;
+import org.elasticsearch.xpack.IlmESRestTestCase;
 import org.elasticsearch.xpack.core.ilm.LifecycleAction;
 import org.elasticsearch.xpack.core.ilm.LifecyclePolicy;
 import org.elasticsearch.xpack.core.ilm.LifecycleSettings;
@@ -34,7 +34,7 @@ import static org.elasticsearch.xpack.TimeSeriesRestDriver.updatePolicy;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
 
-public class ReadonlyActionIT extends ESRestTestCase {
+public class ReadonlyActionIT extends IlmESRestTestCase {
     private static final String FAILED_STEP_RETRY_COUNT_FIELD = "failed_step_retry_count";
 
     private String policy;
@@ -64,6 +64,7 @@ public class ReadonlyActionIT extends ESRestTestCase {
             assertThat(getStepKeyForIndex(client(), index), equalTo(PhaseCompleteStep.finalStep(phaseName).getKey()));
             assertThat(settings.get(IndexMetadata.INDEX_BLOCKS_WRITE_SETTING.getKey()), equalTo("true"));
             assertThat(settings.get(IndexMetadata.INDEX_BLOCKS_METADATA_SETTING.getKey()), nullValue());
+            assertThat(settings.get(LifecycleSettings.LIFECYCLE_INDEXING_COMPLETE_SETTING.getKey()), equalTo("true"));
         });
     }
 

@@ -6,8 +6,8 @@
  */
 package org.elasticsearch.xpack.core.security.action.role;
 
-import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.LegacyActionRequest;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamOutput;
 
@@ -19,7 +19,7 @@ import static org.elasticsearch.action.support.TransportAction.localOnly;
 /**
  * Request to retrieve roles from the security index
  */
-public class GetRolesRequest extends ActionRequest {
+public class GetRolesRequest extends LegacyActionRequest {
 
     private String[] names = Strings.EMPTY_ARRAY;
 

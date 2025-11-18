@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.cluster.metadata;
@@ -94,7 +95,9 @@ public class TemplateUpgradeServiceIT extends ESIntegTestCase {
             // the updates only happen on cluster state updates, so we need to make sure that the cluster state updates are happening
             // so we need to simulate updates to make sure the template upgrade kicks in
             updateClusterSettings(Settings.builder().put(TestPlugin.UPDATE_TEMPLATE_DUMMY_SETTING.getKey(), updateCount.incrementAndGet()));
-            List<IndexTemplateMetadata> templates = indicesAdmin().prepareGetTemplates("test_*").get().getIndexTemplates();
+            List<IndexTemplateMetadata> templates = indicesAdmin().prepareGetTemplates(TEST_REQUEST_TIMEOUT, "test_*")
+                .get()
+                .getIndexTemplates();
             assertThat(templates, hasSize(3));
             boolean addedFound = false;
             boolean changedFound = false;
@@ -138,7 +141,9 @@ public class TemplateUpgradeServiceIT extends ESIntegTestCase {
             // so we need to simulate updates to make sure the template upgrade kicks in
             updateClusterSettings(Settings.builder().put(TestPlugin.UPDATE_TEMPLATE_DUMMY_SETTING.getKey(), updateCount.incrementAndGet()));
 
-            List<IndexTemplateMetadata> templates = indicesAdmin().prepareGetTemplates("test_*").get().getIndexTemplates();
+            List<IndexTemplateMetadata> templates = indicesAdmin().prepareGetTemplates(TEST_REQUEST_TIMEOUT, "test_*")
+                .get()
+                .getIndexTemplates();
             assertThat(templates, hasSize(2));
             boolean addedFound = false;
             boolean changedFound = false;

@@ -141,8 +141,11 @@ public class ProfilingDataStreamManager extends AbstractProfilingPersistenceMana
     private void createDataStream(ProfilingDataStream dataStream, final ActionListener<? super ActionResponse> listener) {
         final Executor executor = threadPool.generic();
         executor.execute(() -> {
-            CreateDataStreamAction.Request request = new CreateDataStreamAction.Request(dataStream.getName());
-            request.masterNodeTimeout(TimeValue.timeValueMinutes(1));
+            CreateDataStreamAction.Request request = new CreateDataStreamAction.Request(
+                TimeValue.ONE_MINUTE /* TODO should we wait longer? */,
+                TimeValue.THIRTY_SECONDS /* TODO should we wait longer? */,
+                dataStream.getName()
+            );
             executeAsyncWithOrigin(
                 client.threadPool().getThreadContext(),
                 ClientHelper.PROFILING_ORIGIN,
@@ -217,7 +220,7 @@ public class ProfilingDataStreamManager extends AbstractProfilingPersistenceMana
 
         @Override
         public IndexMetadata indexMetadata(ClusterState state) {
-            Map<String, DataStream> dataStreams = state.metadata().dataStreams();
+            Map<String, DataStream> dataStreams = state.metadata().getProject().dataStreams();
             if (dataStreams == null) {
                 return null;
             }
@@ -229,7 +232,7 @@ public class ProfilingDataStreamManager extends AbstractProfilingPersistenceMana
             if (writeIndex == null) {
                 return null;
             }
-            return state.metadata().index(writeIndex);
+            return state.metadata().getProject().index(writeIndex);
         }
 
         @Override

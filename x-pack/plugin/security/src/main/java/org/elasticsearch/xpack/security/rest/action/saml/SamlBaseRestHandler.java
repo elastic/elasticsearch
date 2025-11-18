@@ -12,7 +12,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.rest.RestRequest;
-import org.elasticsearch.xpack.core.security.authc.saml.SamlRealmSettings;
+import org.elasticsearch.xpack.core.security.authc.saml.SingleSpSamlRealmSettings;
 import org.elasticsearch.xpack.security.authc.Realms;
 import org.elasticsearch.xpack.security.rest.action.SecurityBaseRestHandler;
 
@@ -22,7 +22,7 @@ import org.elasticsearch.xpack.security.rest.action.SecurityBaseRestHandler;
 public abstract class SamlBaseRestHandler extends SecurityBaseRestHandler {
     private static final Logger logger = LogManager.getLogger(SamlBaseRestHandler.class);
 
-    private static final String SAML_REALM_TYPE = SamlRealmSettings.TYPE;
+    private static final String SAML_REALM_TYPE = SingleSpSamlRealmSettings.TYPE;
 
     public SamlBaseRestHandler(Settings settings, XPackLicenseState licenseState) {
         super(settings, licenseState);

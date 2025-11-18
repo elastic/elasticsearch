@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.search.aggregations.bucket.terms;
 
@@ -11,7 +12,6 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.mapper.IndexFieldMapper;
 import org.elasticsearch.index.query.QueryBuilders;
@@ -27,7 +27,7 @@ import org.elasticsearch.search.aggregations.BucketOrder;
 import org.elasticsearch.search.aggregations.InternalMultiBucketAggregation;
 import org.elasticsearch.search.aggregations.bucket.AbstractTermsTestCase;
 import org.elasticsearch.search.aggregations.bucket.MultiBucketsAggregation;
-import org.elasticsearch.search.aggregations.bucket.filter.Filter;
+import org.elasticsearch.search.aggregations.bucket.SingleBucketAggregation;
 import org.elasticsearch.search.aggregations.bucket.global.GlobalAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.global.InternalGlobal;
 import org.elasticsearch.search.aggregations.metrics.Avg;
@@ -599,7 +599,7 @@ public class StringTermsIT extends AbstractTermsTestCase {
             response -> {
                 assertThat(response.getFailedShards(), equalTo(0));
 
-                Filter filter = response.getAggregations().get("filter");
+                SingleBucketAggregation filter = response.getAggregations().get("filter");
 
                 StringTerms terms = filter.getAggregations().get("terms");
                 assertThat(terms, notNullValue());
@@ -672,7 +672,7 @@ public class StringTermsIT extends AbstractTermsTestCase {
                 assertThat(tag, notNullValue());
                 assertThat(tag.getKeyAsString(), equalTo(asc ? "less" : "more"));
                 assertThat(tag.getDocCount(), equalTo(asc ? 2L : 3L));
-                Filter filter = tag.getAggregations().get("filter");
+                SingleBucketAggregation filter = tag.getAggregations().get("filter");
                 assertThat(filter, notNullValue());
                 assertThat(filter.getDocCount(), equalTo(asc ? 2L : 3L));
 
@@ -716,10 +716,10 @@ public class StringTermsIT extends AbstractTermsTestCase {
                 assertThat(tag, notNullValue());
                 assertThat(tag.getKeyAsString(), equalTo(asc ? "more" : "less"));
                 assertThat(tag.getDocCount(), equalTo(asc ? 3L : 2L));
-                Filter filter1 = tag.getAggregations().get("filter1");
+                SingleBucketAggregation filter1 = tag.getAggregations().get("filter1");
                 assertThat(filter1, notNullValue());
                 assertThat(filter1.getDocCount(), equalTo(asc ? 3L : 2L));
-                Filter filter2 = filter1.getAggregations().get("filter2");
+                SingleBucketAggregation filter2 = filter1.getAggregations().get("filter2");
                 assertThat(filter2, notNullValue());
                 assertThat(filter2.getDocCount(), equalTo(asc ? 3L : 2L));
                 Stats stats = filter2.getAggregations().get("stats");
@@ -778,10 +778,10 @@ public class StringTermsIT extends AbstractTermsTestCase {
                 assertThat(tag, notNullValue());
                 assertThat(tag.getKeyAsString(), equalTo(asc ? "more" : "less"));
                 assertThat(tag.getDocCount(), equalTo(asc ? 3L : 2L));
-                Filter filter1 = tag.getAggregations().get("filter1");
+                SingleBucketAggregation filter1 = tag.getAggregations().get("filter1");
                 assertThat(filter1, notNullValue());
                 assertThat(filter1.getDocCount(), equalTo(asc ? 3L : 2L));
-                Filter filter2 = filter1.getAggregations().get(filter2Name);
+                SingleBucketAggregation filter2 = filter1.getAggregations().get(filter2Name);
                 assertThat(filter2, notNullValue());
                 assertThat(filter2.getDocCount(), equalTo(asc ? 3L : 2L));
                 Stats stats = filter2.getAggregations().get(statsName);
@@ -840,10 +840,10 @@ public class StringTermsIT extends AbstractTermsTestCase {
                 assertThat(tag, notNullValue());
                 assertThat(tag.getKeyAsString(), equalTo(asc ? "more" : "less"));
                 assertThat(tag.getDocCount(), equalTo(asc ? 3L : 2L));
-                Filter filter1 = tag.getAggregations().get("filter1");
+                SingleBucketAggregation filter1 = tag.getAggregations().get("filter1");
                 assertThat(filter1, notNullValue());
                 assertThat(filter1.getDocCount(), equalTo(asc ? 3L : 2L));
-                Filter filter2 = filter1.getAggregations().get(filter2Name);
+                SingleBucketAggregation filter2 = filter1.getAggregations().get(filter2Name);
                 assertThat(filter2, notNullValue());
                 assertThat(filter2.getDocCount(), equalTo(asc ? 3L : 2L));
                 Stats stats = filter2.getAggregations().get(statsName);
@@ -1198,7 +1198,7 @@ public class StringTermsIT extends AbstractTermsTestCase {
     public void testScriptCaching() throws Exception {
         assertAcked(
             prepareCreate("cache_test_idx").setMapping("d", "type=keyword")
-                .setSettings(Settings.builder().put("requests.cache.enable", true).put("number_of_shards", 1).put("number_of_replicas", 1))
+                .setSettings(indexSettings(1, 1).put("requests.cache.enable", true))
         );
         indexRandom(
             true,

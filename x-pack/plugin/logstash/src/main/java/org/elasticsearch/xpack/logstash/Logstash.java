@@ -7,8 +7,6 @@
 package org.elasticsearch.xpack.logstash;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.action.ActionRequest;
-import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
@@ -68,13 +66,13 @@ public class Logstash extends Plugin implements SystemIndexPlugin {
     public Logstash() {}
 
     @Override
-    public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
+    public List<ActionHandler> getActions() {
         return List.of(
-            new ActionHandler<>(XPackUsageFeatureAction.LOGSTASH, LogstashUsageTransportAction.class),
-            new ActionHandler<>(XPackInfoFeatureAction.LOGSTASH, LogstashInfoTransportAction.class),
-            new ActionHandler<>(PutPipelineAction.INSTANCE, TransportPutPipelineAction.class),
-            new ActionHandler<>(GetPipelineAction.INSTANCE, TransportGetPipelineAction.class),
-            new ActionHandler<>(DeletePipelineAction.INSTANCE, TransportDeletePipelineAction.class)
+            new ActionHandler(XPackUsageFeatureAction.LOGSTASH, LogstashUsageTransportAction.class),
+            new ActionHandler(XPackInfoFeatureAction.LOGSTASH, LogstashInfoTransportAction.class),
+            new ActionHandler(PutPipelineAction.INSTANCE, TransportPutPipelineAction.class),
+            new ActionHandler(GetPipelineAction.INSTANCE, TransportGetPipelineAction.class),
+            new ActionHandler(DeletePipelineAction.INSTANCE, TransportDeletePipelineAction.class)
         );
     }
 
@@ -102,7 +100,6 @@ public class Logstash extends Plugin implements SystemIndexPlugin {
                 .setDescription("Contains data for Logstash Central Management")
                 .setMappings(getIndexMappings())
                 .setSettings(getIndexSettings())
-                .setVersionMetaKey("logstash-version")
                 .setOrigin(LOGSTASH_MANAGEMENT_ORIGIN)
                 .build()
         );

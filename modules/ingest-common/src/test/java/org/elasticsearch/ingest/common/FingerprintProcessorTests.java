@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.ingest.common;
@@ -214,7 +215,7 @@ public class FingerprintProcessorTests extends ESTestCase {
         if (salt != null) {
             config.put("salt", salt);
         }
-        FingerprintProcessor fp = factory.create(null, randomAlphaOfLength(10), null, config);
+        FingerprintProcessor fp = factory.create(null, randomAlphaOfLength(10), null, config, null);
 
         byte[] expectedBytes = new byte[0];
         if (salt != null) {
@@ -256,7 +257,7 @@ public class FingerprintProcessorTests extends ESTestCase {
             config.put("fields", List.of("foo", "bar"));
             config.put("method", FingerprintProcessor.Factory.SUPPORTED_DIGESTS[k]);
 
-            FingerprintProcessor fp = factory.create(null, randomAlphaOfLength(10), null, config);
+            FingerprintProcessor fp = factory.create(null, randomAlphaOfLength(10), null, config, null);
             var input = TestIngestDocument.withDefaultVersion(inputMap);
             var output = fp.execute(input);
             assertTrue(output.hasField("fingerprint"));

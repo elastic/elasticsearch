@@ -43,8 +43,22 @@ public class EqlSampleMultipleEntriesIT extends EqlSampleMultipleEntriesTestCase
         List<long[]> eventIds,
         String[] joinKeys,
         Integer size,
-        Integer maxSamplesPerKey
+        Integer maxSamplesPerKey,
+        Boolean allowPartialSearchResults,
+        Boolean allowPartialSequenceResults,
+        Boolean expectShardFailures
     ) {
-        super(remoteClusterPattern(TEST_SAMPLE_MULTI), query, name, eventIds, joinKeys, size, maxSamplesPerKey);
+        super(
+            remoteClusterPattern(TEST_SAMPLE_MULTI),
+            query,
+            name,
+            eventIds,
+            joinKeys,
+            size,
+            maxSamplesPerKey,
+            allowPartialSearchResults,
+            allowPartialSequenceResults,
+            expectShardFailures
+        );
     }
 }

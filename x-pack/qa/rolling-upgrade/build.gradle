@@ -1,5 +1,11 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
+ */
+
 import org.elasticsearch.gradle.internal.BwcVersions
-import org.elasticsearch.gradle.internal.info.BuildParams
 import org.elasticsearch.gradle.testclusters.StandaloneRestIntegTestTask
 
 apply plugin: 'elasticsearch.internal-testclusters'
@@ -8,9 +14,11 @@ apply plugin: 'elasticsearch.bwc-test'
 apply plugin: 'elasticsearch.rest-resources'
 
 dependencies {
+  testImplementation testArtifact(project(':server'))
   testImplementation testArtifact(project(xpackModule('core')))
   testImplementation project(':x-pack:qa')
   testImplementation project(':modules:reindex')
+  testImplementation testArtifact(project(xpackModule('inference')))
 }
 
 restResources {
@@ -23,7 +31,7 @@ tasks.named("forbiddenPatterns").configure {
   exclude '**/system_key'
 }
 
-String outputDir = "${buildDir}/generated-resources/${project.name}"
+String outputDir = "${layout.buildDirectory.get().asFile}/generated-resources/${project.name}"
 
 tasks.register("copyTestNodeKeyMaterial", Copy) {
   from project(':x-pack:plugin:core').files('src/test/resources/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.pem',
@@ -31,17 +39,16 @@ tasks.register("copyTestNodeKeyMaterial", Copy) {
   into outputDir
 }
 
-BuildParams.bwcVersions.withWireCompatible { bwcVersion, baseName ->
+buildParams.bwcVersions.withWireCompatible { bwcVersion, baseName ->
   String oldVersion = bwcVersion.toString()
 
   // SearchableSnapshotsRollingUpgradeIT uses a specific repository to not interfere with other tests
-  String searchableSnapshotRepository = "${buildDir}/cluster/shared/searchable-snapshots-repo/${baseName}"
+  String searchableSnapshotRepository = "${layout.buildDirectory.get().asFile}/cluster/shared/searchable-snapshots-repo/${baseName}"
 
   def baseCluster = testClusters.register(baseName) {
     testDistribution = "DEFAULT"
     versions = [oldVersion, project.version]
     numberOfNodes = 3
-
     systemProperty 'ingest.geoip.downloader.enabled.default', 'true'
     //we don't want to hit real service from each test
     systemProperty 'ingest.geoip.downloader.endpoint.default', 'http://invalid.endpoint'
@@ -50,7 +57,7 @@ BuildParams.bwcVersions.withWireCompatible { bwcVersion, baseName ->
     }
 
     setting 'repositories.url.allowed_urls', 'http://snapshot.test*'
-    setting 'path.repo', "['${buildDir}/cluster/shared/repo/${baseName}', '${searchableSnapshotRepository}']"
+    setting 'path.repo', "['${layout.buildDirectory.get().asFile}/cluster/shared/repo/${baseName}', '${searchableSnapshotRepository}']"
     setting 'xpack.license.self_generated.type', 'trial'
     setting 'xpack.security.enabled', 'true'
     setting 'xpack.security.transport.ssl.enabled', 'true'
@@ -61,6 +68,10 @@ BuildParams.bwcVersions.withWireCompatible { bwcVersion, baseName ->
     setting 'xpack.security.transport.ssl.key', 'testnode.pem'
     setting 'xpack.security.transport.ssl.certificate', 'testnode.crt'
     keystore 'xpack.security.transport.ssl.secure_key_passphrase', 'testnode'
+    if (bwcVersion.before('9.1.0')) {
+      jvmArgs '-da:org.elasticsearch.index.mapper.MapperService'
+      jvmArgs '-da:org.elasticsearch.index.mapper.DocumentMapper'
+    }
 
     if (bwcVersion.onOrAfter('7.0.0')) {
       setting 'xpack.security.authc.realms.file.file1.order', '0'
@@ -88,6 +99,15 @@ BuildParams.bwcVersions.withWireCompatible { bwcVersion, baseName ->
     keystore 'xpack.watcher.encryption_key', file("${project.projectDir}/src/test/resources/system_key")
     setting 'xpack.watcher.encrypt_sensitive_data', 'true'
 
+    // file-based settings processing had a bug around applying role mappings on an unrecovered index
+    // this was fixed in 8.7.0 (https://github.com/elastic/elasticsearch/pull/92173). To avoid flakiness
+    // in the test, we only set a role mappings file for higher versions.
+    // TODO move this out into a separate test suite, since operator settings are not relevant for most BWC tests
+    // and have some side-effects
+    if (bwcVersion.onOrAfter('8.7.0')) {
+      extraConfigFile 'operator/settings.json', file("${project.projectDir}/src/test/resources/operator_defined_role_mappings.json")
+    }
+
     // Old versions of the code contain an invalid assertion that trips
     // during tests.  Versions 5.6.9 and 6.2.4 have been fixed by removing
     // the assertion, but this is impossible for released versions.
@@ -110,14 +130,14 @@ BuildParams.bwcVersions.withWireCompatible { bwcVersion, baseName ->
     mustRunAfter("precommit")
     dependsOn "copyTestNodeKeyMaterial"
     doFirst {
-      delete("${buildDir}/cluster/shared/repo/${baseName}")
+      delete("${layout.buildDirectory.get().asFile}/cluster/shared/repo/${baseName}")
       delete("${searchableSnapshotRepository}")
     }
 
     systemProperty 'tests.rest.suite', 'old_cluster'
     systemProperty 'tests.upgrade_from_version', oldVersion
     systemProperty 'tests.path.searchable.snapshots.repo', searchableSnapshotRepository
-    nonInputProperties.systemProperty('tests.rest.cluster', baseCluster.map(c->c.allHttpSocketURI.join(",")))
+    nonInputProperties.systemProperty('tests.rest.cluster', getClusterInfo(baseName).map { it.allHttpSocketURI.join(",") })
     nonInputProperties.systemProperty('tests.clustername', baseName)
 
     // Disable ML tests for incompatible systems
@@ -131,9 +151,9 @@ BuildParams.bwcVersions.withWireCompatible { bwcVersion, baseName ->
     dependsOn "${baseName}#oldClusterTest"
     useCluster baseCluster
     doFirst {
-      baseCluster.get().nextNodeToNextVersion()
+      getRegistry().get().nextNodeToNextVersion(baseCluster)
     }
-    nonInputProperties.systemProperty('tests.rest.cluster', baseCluster.map(c->c.allHttpSocketURI.join(",")))
+    nonInputProperties.systemProperty('tests.rest.cluster', getClusterInfo(baseName).map { it.allHttpSocketURI.join(",") })
     nonInputProperties.systemProperty('tests.clustername', baseName)
     systemProperty 'tests.rest.suite', 'mixed_cluster'
     systemProperty 'tests.first_round', 'true'
@@ -168,9 +188,9 @@ BuildParams.bwcVersions.withWireCompatible { bwcVersion, baseName ->
     dependsOn "${baseName}#oneThirdUpgradedTest"
     useCluster baseCluster
     doFirst {
-      baseCluster.get().nextNodeToNextVersion()
+      getRegistry().get().nextNodeToNextVersion(baseCluster)
     }
-    nonInputProperties.systemProperty('tests.rest.cluster', "${-> baseCluster.get().allHttpSocketURI.join(",")}")
+    nonInputProperties.systemProperty('tests.rest.cluster', getClusterInfo(baseName).map { it.allHttpSocketURI.join(",") })
     nonInputProperties.systemProperty('tests.clustername', baseName)
     systemProperty 'tests.rest.suite', 'mixed_cluster'
     systemProperty 'tests.first_round', 'false'
@@ -188,9 +208,9 @@ BuildParams.bwcVersions.withWireCompatible { bwcVersion, baseName ->
     dependsOn "${baseName}#twoThirdsUpgradedTest"
     useCluster baseCluster
     doFirst {
-      baseCluster.get().nextNodeToNextVersion()
+      getRegistry().get().nextNodeToNextVersion(baseCluster)
     }
-    nonInputProperties.systemProperty('tests.rest.cluster', "${-> baseCluster.get().allHttpSocketURI.join(",")}")
+    nonInputProperties.systemProperty('tests.rest.cluster', getClusterInfo(baseName).map { it.allHttpSocketURI.join(",") })
     nonInputProperties.systemProperty('tests.clustername', baseName)
     systemProperty 'tests.rest.suite', 'upgraded_cluster'
     systemProperty 'tests.upgrade_from_version', oldVersion

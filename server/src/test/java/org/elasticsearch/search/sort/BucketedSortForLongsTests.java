@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.sort;
@@ -49,6 +50,6 @@ public class BucketedSortForLongsTests extends BucketedSortTestCase<BucketedSort
     @Override
     protected double randomValue() {
         // 2L^50 fits in the mantisa of a double which the test sort of needs.
-        return randomLongBetween(-2L ^ 50, 2L ^ 50);
+        return randomLongBetween(-(1L << 50), (1L << 50));
     }
 }

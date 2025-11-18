@@ -22,9 +22,12 @@ import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.security.action.service.TokenInfo;
 import org.elasticsearch.xpack.core.security.action.service.TokenInfo.TokenSource;
+import org.elasticsearch.xpack.core.security.authc.service.NodeLocalServiceAccountTokenStore;
+import org.elasticsearch.xpack.core.security.authc.service.ServiceAccount.ServiceAccountId;
+import org.elasticsearch.xpack.core.security.authc.service.ServiceAccountToken;
 import org.elasticsearch.xpack.core.security.authc.support.Hasher;
 import org.elasticsearch.xpack.core.security.support.NoOpLogger;
-import org.elasticsearch.xpack.security.authc.service.ServiceAccount.ServiceAccountId;
+import org.elasticsearch.xpack.security.PrivilegedFileWatcher;
 import org.elasticsearch.xpack.security.support.CacheInvalidatorRegistry;
 import org.elasticsearch.xpack.security.support.FileLineParser;
 import org.elasticsearch.xpack.security.support.FileReloadListener;
@@ -40,7 +43,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.CopyOnWriteArrayList;
 
-public class FileServiceAccountTokenStore extends CachingServiceAccountTokenStore {
+public class FileServiceAccountTokenStore extends CachingServiceAccountTokenStore implements NodeLocalServiceAccountTokenStore {
 
     private static final Logger logger = LogManager.getLogger(FileServiceAccountTokenStore.class);
 
@@ -49,6 +52,7 @@ public class FileServiceAccountTokenStore extends CachingServiceAccountTokenStor
     private final CopyOnWriteArrayList<Runnable> refreshListeners;
     private volatile Map<String, char[]> tokenHashes;
 
+    @SuppressWarnings("this-escape")
     public FileServiceAccountTokenStore(
         Environment env,
         ResourceWatcherService resourceWatcherService,
@@ -59,7 +63,7 @@ public class FileServiceAccountTokenStore extends CachingServiceAccountTokenStor
         super(env.settings(), threadPool);
         this.clusterService = clusterService;
         file = resolveFile(env);
-        FileWatcher watcher = new FileWatcher(file.getParent());
+        FileWatcher watcher = new PrivilegedFileWatcher(file.getParent());
         watcher.addListener(new FileReloadListener(file, this::tryReload));
         try {
             resourceWatcherService.add(watcher, ResourceWatcherService.Frequency.HIGH);
@@ -81,8 +85,8 @@ public class FileServiceAccountTokenStore extends CachingServiceAccountTokenStor
         // because it is not expected to have a large number of service tokens.
         listener.onResponse(
             Optional.ofNullable(tokenHashes.get(token.getQualifiedName()))
-                .map(hash -> new StoreAuthenticationResult(Hasher.verifyHash(token.getSecret(), hash), getTokenSource()))
-                .orElse(new StoreAuthenticationResult(false, getTokenSource()))
+                .map(hash -> StoreAuthenticationResult.fromBooleanResult(getTokenSource(), Hasher.verifyHash(token.getSecret(), hash)))
+                .orElse(StoreAuthenticationResult.failed(getTokenSource()))
         );
     }
 
@@ -91,7 +95,8 @@ public class FileServiceAccountTokenStore extends CachingServiceAccountTokenStor
         return TokenSource.FILE;
     }
 
-    public List<TokenInfo> findTokensFor(ServiceAccountId accountId) {
+    @Override
+    public List<TokenInfo> findNodeLocalTokensFor(ServiceAccountId accountId) {
         final String principal = accountId.asPrincipal();
         return tokenHashes.keySet()
             .stream()

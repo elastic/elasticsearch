@@ -1,20 +1,19 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.analysis.TokenStream;
-import org.apache.lucene.queries.intervals.IntervalsSource;
 import org.apache.lucene.queries.spans.SpanMultiTermQueryWrapper;
 import org.apache.lucene.queries.spans.SpanQuery;
 import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.time.DateMathParser;
 import org.elasticsearch.common.unit.Fuzziness;
@@ -90,17 +89,17 @@ public class PlaceHolderFieldMapper extends FieldMapper {
 
         @Override
         public PlaceHolderFieldMapper build(MapperBuilderContext context) {
-            PlaceHolderFieldType mappedFieldType = new PlaceHolderFieldType(context.buildFullName(name()), type, Map.of());
-            return new PlaceHolderFieldMapper(name(), mappedFieldType, multiFieldsBuilder.build(this, context), copyTo, unknownParams);
+            PlaceHolderFieldType mappedFieldType = new PlaceHolderFieldType(context.buildFullName(leafName()), type, Map.of());
+            return new PlaceHolderFieldMapper(leafName(), mappedFieldType, builderParams(this, context), unknownParams);
         }
     }
 
     public static final class PlaceHolderFieldType extends MappedFieldType {
 
-        private String type;
+        private final String type;
 
         public PlaceHolderFieldType(String name, String type, Map<String, String> meta) {
-            super(name, false, false, false, TextSearchInfo.NONE, meta);
+            super(name, IndexType.NONE, false, meta);
             this.type = type;
         }
 
@@ -222,32 +221,6 @@ public class PlaceHolderFieldMapper extends FieldMapper {
         }
 
         @Override
-        public IntervalsSource termIntervals(BytesRef term, SearchExecutionContext context) {
-            throw new QueryShardException(context, fail("term intervals query"));
-        }
-
-        @Override
-        public IntervalsSource prefixIntervals(BytesRef prefix, SearchExecutionContext context) {
-            throw new QueryShardException(context, fail("term intervals query"));
-        }
-
-        @Override
-        public IntervalsSource fuzzyIntervals(
-            String term,
-            int maxDistance,
-            int prefixLength,
-            boolean transpositions,
-            SearchExecutionContext context
-        ) {
-            throw new QueryShardException(context, fail("fuzzy intervals query"));
-        }
-
-        @Override
-        public IntervalsSource wildcardIntervals(BytesRef pattern, SearchExecutionContext context) {
-            throw new QueryShardException(context, fail("wildcard intervals query"));
-        }
-
-        @Override
         public IndexFieldData.Builder fielddataBuilder(FieldDataContext fieldDataContext) {
             throw new IllegalArgumentException(fail("aggregation or sorts"));
         }
@@ -262,11 +235,10 @@ public class PlaceHolderFieldMapper extends FieldMapper {
     public PlaceHolderFieldMapper(
         String simpleName,
         PlaceHolderFieldType fieldType,
-        MultiFields multiFields,
-        CopyTo copyTo,
+        BuilderParams builderParams,
         Map<String, Object> unknownParams
     ) {
-        super(simpleName, fieldType, multiFields, copyTo);
+        super(simpleName, fieldType, builderParams);
         this.unknownParams.putAll(unknownParams);
     }
 
@@ -277,7 +249,7 @@ public class PlaceHolderFieldMapper extends FieldMapper {
 
     @Override
     public FieldMapper.Builder getMergeBuilder() {
-        return new PlaceHolderFieldMapper.Builder(simpleName(), typeName()).init(this);
+        return new PlaceHolderFieldMapper.Builder(leafName(), typeName()).init(this);
     }
 
     @Override

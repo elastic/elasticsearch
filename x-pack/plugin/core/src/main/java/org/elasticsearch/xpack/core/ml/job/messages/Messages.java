@@ -140,7 +140,7 @@ public final class Messages {
     public static final String INFERENCE_DEPLOYMENT_UPDATED_NUMBER_OF_ALLOCATIONS = "Updated number_of_allocations to [{0}]";
 
     public static final String INVALID_MODEL_ALIAS = "Invalid model_alias; ''{0}'' can contain lowercase alphanumeric (a-z and 0-9), "
-        + "hyphens or underscores; must start with alphanumeric and cannot end with numbers";
+        + "hyphens or underscores; must start with alphanumeric and cannot end with numbers, hyphens or underscores";
     public static final String TRAINED_MODEL_INPUTS_DIFFER_SIGNIFICANTLY =
         "The input fields for new model [{0}] and for old model [{1}] differ significantly, model results may change drastically.";
 
@@ -204,6 +204,10 @@ public final class Messages {
         "Invalid detector rule: function {0} only supports conditions that apply to time";
     public static final String JOB_CONFIG_DETECTION_RULE_REQUIRES_SCOPE_OR_CONDITION =
         "Invalid detector rule: at least scope or a condition is required";
+    public static final String JOB_CONFIG_DETECTION_RULE_REQUIRES_FORCE_TIME_SHIFT_PARAMS =
+        "Invalid detector rule: actions contain force_time_shift, but corresponding parameters are missing";
+    public static final String JOB_CONFIG_DETECTION_RULE_PARAMS_FORCE_TIME_SHIFT_NOT_REQUIRED =
+        "Invalid detector rule: actions do not contain force_time_shift, but corresponding parameters are present";
     public static final String JOB_CONFIG_DETECTION_RULE_SCOPE_NO_AVAILABLE_FIELDS =
         "Invalid detector rule: scope field ''{0}'' is invalid; detector has no available fields for scoping";
     public static final String JOB_CONFIG_DETECTION_RULE_SCOPE_HAS_INVALID_FIELD =
@@ -277,6 +281,17 @@ public final class Messages {
     public static final String FIELD_CANNOT_BE_NULL = "Field [{0}] cannot be null";
     public static final String MODEL_ID_MATCHES_EXISTING_MODEL_IDS_BUT_MUST_NOT =
         "Model IDs must be unique. Requested model ID [{}] matches existing model IDs but must not.";
+    public static final String INFERENCE_ID_MATCHES_EXISTING_MODEL_IDS_BUT_MUST_NOT =
+        "Inference endpoint IDs must be unique. Requested inference endpoint ID [{}] matches existing trained model ID(s) but must not.";
+    public static final String MODEL_ID_DOES_NOT_MATCH_EXISTING_MODEL_IDS_BUT_MUST_FOR_IN_CLUSTER_SERVICE =
+        "Requested model ID [{}] does not have a matching trained model and thus cannot be updated.";
+    public static final String INFERENCE_ENTITY_NON_EXISTANT_NO_UPDATE = "The inference endpoint [{}] does not exist and cannot be updated";
+    public static final String INFERENCE_REFERENCE_CANNOT_UPDATE_ANOTHER_ENDPOINT =
+        "Cannot update inference endpoint [{}] for model deployment [{}] as it was created by another inference endpoint. "
+            + "The model can only be updated using inference endpoint id [{}].";
+    public static final String INFERENCE_CAN_ONLY_UPDATE_MODELS_IT_CREATED =
+        "Cannot update inference endpoint [{}] using model deployment [{}]. "
+            + "The model deployment must be updated through the trained models API.";
 
     private Messages() {}
 

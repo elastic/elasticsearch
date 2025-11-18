@@ -1,9 +1,15 @@
-apply plugin: 'elasticsearch.legacy-java-rest-test'
-apply plugin: 'elasticsearch.bwc-test'
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
+ */
 
 import org.elasticsearch.gradle.VersionProperties
-import org.elasticsearch.gradle.internal.info.BuildParams
 import org.elasticsearch.gradle.testclusters.StandaloneRestIntegTestTask
+
+apply plugin: 'elasticsearch.legacy-java-rest-test'
+apply plugin: 'elasticsearch.bwc-test'
 
 dependencies {
   javaRestTestImplementation project(':x-pack:qa')
@@ -19,7 +25,7 @@ testClusters.configureEach {
 tasks.named("javaRestTest").configure{ enabled = false}
 
 // A bug (https://github.com/elastic/elasticsearch/issues/68439) limits us to perform tests with versions from 7.10.3 onwards
-BuildParams.bwcVersions.withWireCompatible(v -> v.onOrAfter("7.10.3") &&
+buildParams.bwcVersions.withWireCompatible(v -> v.onOrAfter("7.10.3") &&
         v != VersionProperties.getElasticsearchVersion()) { bwcVersion, baseName ->
 
   def baseCluster = testClusters.register(baseName) {
@@ -39,22 +45,23 @@ BuildParams.bwcVersions.withWireCompatible(v -> v.onOrAfter("7.10.3") &&
       mustRunAfter("precommit")
       testClassesDirs = sourceSets.javaRestTest.output.classesDirs
       classpath = sourceSets.javaRestTest.runtimeClasspath
+      def beforeUpdateInfo = getClusterInfo(baseName).map { it.allHttpSocketURI.join(",") }
+      def afterUpdateInfo = getClusterInfo(baseName).map { it.allHttpSocketURI.join(",") }
       doFirst {
           def cluster = baseCluster.get()
           // Getting the endpoints causes a wait for the cluster
-          println "Endpoints are: ${-> cluster.allHttpSocketURI.join(",")}"
+          println "Endpoints are: ${-> beforeUpdateInfo.get()}"
           println "Upgrading one node to create a mixed cluster"
-          cluster.nextNodeToNextVersion()
-
-          println "Upgrade complete, endpoints are: ${-> cluster.allHttpSocketURI.join(",")}"
-          nonInputProperties.systemProperty('tests.rest.cluster', baseCluster.map(c->c.allHttpSocketURI.join(",")))
-          nonInputProperties.systemProperty('tests.clustername', baseName)
-
+          getRegistry().get().nextNodeToNextVersion(cluster)
+          println "Upgrade complete, endpoints are: ${-> afterUpdateInfo.get() }"
       }
+      nonInputProperties.systemProperty('tests.rest.cluster', getClusterInfo(baseName).map { it.allHttpSocketURI.join(",") })
+      nonInputProperties.systemProperty('tests.clustername', baseName)
       systemProperty 'tests.bwc_nodes_version', bwcVersion.toString().replace('-SNAPSHOT', '')
       systemProperty 'tests.new_nodes_version', project.version.toString().replace('-SNAPSHOT', '')
 
-      onlyIf("BWC tests disabled") { project.bwc_tests_enabled }
+      def bwcEnabled = project.bwc_tests_enabled
+      onlyIf("BWC tests disabled") { bwcEnabled }
   }
 
   tasks.register(bwcTaskName(bwcVersion)) {

@@ -25,7 +25,6 @@ public class DeleteConnectorSecretResponse extends ActionResponse implements ToX
     }
 
     public DeleteConnectorSecretResponse(StreamInput in) throws IOException {
-        super(in);
         this.deleted = in.readBoolean();
     }
 

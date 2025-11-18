@@ -36,7 +36,7 @@ public class ToCartesianPoint extends AbstractConvertFunction {
     );
 
     private static final Map<DataType, BuildFactory> EVALUATORS = Map.ofEntries(
-        Map.entry(CARTESIAN_POINT, (fieldEval, source) -> fieldEval),
+        Map.entry(CARTESIAN_POINT, (source, fieldEval) -> fieldEval),
         Map.entry(KEYWORD, ToCartesianPointFromStringEvaluator.Factory::new),
         Map.entry(TEXT, ToCartesianPointFromStringEvaluator.Factory::new)
     );

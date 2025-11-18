@@ -19,7 +19,9 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.project.TestProjectResolvers;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
@@ -73,7 +75,6 @@ public class TransformGetCheckpointTests extends ESSingleNodeTestCase {
     private ThreadPool threadPool;
     private IndexNameExpressionResolver indexNameExpressionResolver;
     private Client client;
-    private MockTransport mockTransport;
     private Task transformTask;
     private final String indexNamePattern = "test_index-";
     private String[] testIndices;
@@ -97,7 +98,7 @@ public class TransformGetCheckpointTests extends ESSingleNodeTestCase {
         indexNameExpressionResolver = new MockResolver();
         clusterService = getInstanceFromNode(ClusterService.class);
         indicesService = getInstanceFromNode(IndicesService.class);
-        mockTransport = new MockTransport() {
+        MockTransport mockTransport = new MockTransport() {
             @Override
             protected void onSendRequest(long requestId, String action, TransportRequest request, DiscoveryNode node) {
                 if (action.equals(GetCheckpointNodeAction.NAME)) {
@@ -238,7 +239,7 @@ public class TransformGetCheckpointTests extends ESSingleNodeTestCase {
             mockIndicesService = mock(IndicesService.class);
             for (int i = 0; i < numberOfIndices; ++i) {
                 IndexService mockIndexService = mock(IndexService.class);
-                IndexMetadata indexMeta = clusterStateWithIndex.metadata().index(indexNamePattern + i);
+                IndexMetadata indexMeta = clusterStateWithIndex.metadata().getProject().index(indexNamePattern + i);
 
                 IndexSettings mockIndexSettings = new IndexSettings(indexMeta, clusterService.getSettings());
                 when(mockIndexService.getIndexSettings()).thenReturn(mockIndexSettings);
@@ -270,17 +271,17 @@ public class TransformGetCheckpointTests extends ESSingleNodeTestCase {
 
     static class MockResolver extends IndexNameExpressionResolver {
         MockResolver() {
-            super(new ThreadContext(Settings.EMPTY), EmptySystemIndices.INSTANCE);
+            super(new ThreadContext(Settings.EMPTY), EmptySystemIndices.INSTANCE, TestProjectResolvers.DEFAULT_PROJECT_ONLY);
         }
 
         @Override
-        public String[] concreteIndexNames(ClusterState state, IndicesRequest request) {
+        public String[] concreteIndexNames(ProjectMetadata project, IndicesRequest request) {
             return request.indices();
         }
 
         @Override
         public String[] concreteIndexNames(
-            ClusterState state,
+            ProjectMetadata project,
             IndicesOptions options,
             boolean includeDataStreams,
             String... indexExpressions
@@ -289,7 +290,7 @@ public class TransformGetCheckpointTests extends ESSingleNodeTestCase {
         }
 
         @Override
-        public Index[] concreteIndices(ClusterState state, IndicesRequest request) {
+        public Index[] concreteIndices(ProjectMetadata project, IndicesRequest request) {
             Index[] out = new Index[request.indices().length];
             for (int x = 0; x < out.length; x++) {
                 out[x] = new Index(request.indices()[x], "_na_");

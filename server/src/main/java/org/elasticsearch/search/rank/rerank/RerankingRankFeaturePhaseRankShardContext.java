@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.rank.rerank;
@@ -19,6 +20,7 @@ import org.elasticsearch.search.rank.feature.RankFeatureDoc;
 import org.elasticsearch.search.rank.feature.RankFeatureShardResult;
 
 import java.util.Arrays;
+import java.util.List;
 
 /**
  * The {@code ReRankingRankFeaturePhaseRankShardContext} is handles the {@code SearchHits} generated from the {@code RankFeatureShardPhase}
@@ -36,15 +38,7 @@ public class RerankingRankFeaturePhaseRankShardContext extends RankFeaturePhaseR
     @Override
     public RankShardResult buildRankFeatureShardResult(SearchHits hits, int shardId) {
         try {
-            RankFeatureDoc[] rankFeatureDocs = new RankFeatureDoc[hits.getHits().length];
-            for (int i = 0; i < hits.getHits().length; i++) {
-                rankFeatureDocs[i] = new RankFeatureDoc(hits.getHits()[i].docId(), hits.getHits()[i].getScore(), shardId);
-                DocumentField docField = hits.getHits()[i].field(field);
-                if (docField != null) {
-                    rankFeatureDocs[i].featureData(docField.getValue().toString());
-                }
-            }
-            return new RankFeatureShardResult(rankFeatureDocs);
+            return doBuildRankFeatureShardResult(hits, shardId);
         } catch (Exception ex) {
             logger.warn(
                 "Error while fetching feature data for {field: ["
@@ -56,5 +50,17 @@ public class RerankingRankFeaturePhaseRankShardContext extends RankFeaturePhaseR
             );
             return null;
         }
+    }
+
+    protected RankShardResult doBuildRankFeatureShardResult(SearchHits hits, int shardId) {
+        RankFeatureDoc[] rankFeatureDocs = new RankFeatureDoc[hits.getHits().length];
+        for (int i = 0; i < hits.getHits().length; i++) {
+            rankFeatureDocs[i] = new RankFeatureDoc(hits.getHits()[i].docId(), hits.getHits()[i].getScore(), shardId);
+            DocumentField docField = hits.getHits()[i].field(field);
+            if (docField != null) {
+                rankFeatureDocs[i].featureData(List.of(docField.getValue().toString()));
+            }
+        }
+        return new RankFeatureShardResult(rankFeatureDocs);
     }
 }

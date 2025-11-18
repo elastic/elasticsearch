@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.search.aggregations.bucket.sampler;
 
@@ -14,7 +15,7 @@ import org.elasticsearch.search.aggregations.bucket.InternalSingleBucketAggregat
 import java.io.IOException;
 import java.util.Map;
 
-public class InternalSampler extends InternalSingleBucketAggregation implements Sampler {
+public class InternalSampler extends InternalSingleBucketAggregation {
     public static final String NAME = "mapped_sampler";
     // InternalSampler and UnmappedSampler share the same parser name, so we use this when identifying the aggregation type
     public static final String PARSER_NAME = "sampler";

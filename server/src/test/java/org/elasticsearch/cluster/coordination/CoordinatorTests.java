@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.cluster.coordination;
 
@@ -11,7 +12,6 @@ import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.core.LogEvent;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.cluster.AbstractNamedDiffable;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.SimpleDiffable;
@@ -25,6 +25,7 @@ import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterStateUpdateStats;
+import org.elasticsearch.common.ReferenceDocs;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -44,7 +45,6 @@ import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.ToXContent;
 
-import java.io.IOException;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.Iterator;
@@ -79,6 +79,8 @@ import static org.elasticsearch.discovery.PeerFinder.DISCOVERY_FIND_PEERS_INTERV
 import static org.elasticsearch.discovery.SettingsBasedSeedHostsProvider.DISCOVERY_SEED_HOSTS_SETTING;
 import static org.elasticsearch.monitor.StatusInfo.Status.HEALTHY;
 import static org.elasticsearch.monitor.StatusInfo.Status.UNHEALTHY;
+import static org.hamcrest.Matchers.allOf;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
@@ -925,7 +927,7 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
             }
 
             @Override
-            public void writeTo(StreamOutput out) throws IOException {
+            public void writeTo(StreamOutput out) {
                 if (timeAdvancer != null) {
                     timeAdvancer.advanceTime();
                 }
@@ -1061,7 +1063,7 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
             cluster.stabilise();
 
             cluster.addNodesAndStabilise(1);
-            final ClusterNode newNode = cluster.clusterNodes.get(cluster.clusterNodes.size() - 1);
+            final ClusterNode newNode = cluster.clusterNodes.getLast();
             final PublishClusterStateStats newNodePublishStats = newNode.coordinator.stats().getPublishStats();
             // initial cluster state send when joining
             assertEquals(1L, newNodePublishStats.getFullClusterStateReceivedCount());
@@ -1286,9 +1288,8 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
      * @param failJoinOnAllNodes this controls whether to fail join on all nodes or only a majority subset. The atomic register CAS election
      *                           strategy will succeed in electing a master if any node can vote (even the master candidate voting for
      *                           itself).
-     * @throws Exception
      */
-    protected void clusterCannotFormWithFailingJoinValidation(boolean failJoinOnAllNodes) throws Exception {
+    protected void clusterCannotFormWithFailingJoinValidation(boolean failJoinOnAllNodes) {
         try (Cluster cluster = new Cluster(randomIntBetween(1, 5))) {
             List<ClusterNode> clusterNodesToFailJoin;
             if (failJoinOnAllNodes) {
@@ -1586,11 +1587,11 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
 
         @Override
         public TransportVersion getMinimalSupportedVersion() {
-            return TransportVersions.ZERO;
+            return TransportVersion.zero();
         }
 
         @Override
-        public void writeTo(StreamOutput out) throws IOException {
+        public void writeTo(StreamOutput out) {
             throw new ElasticsearchException(EXCEPTION_MESSAGE);
         }
 
@@ -1705,9 +1706,9 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
                                 .toList();
                             assertThat(matchingNodes, hasSize(1));
 
-                            assertTrue(message, Regex.simpleMatch(discoveryMessageFn.apply(matchingNodes.get(0).toString()), message));
+                            assertTrue(message, Regex.simpleMatch(discoveryMessageFn.apply(matchingNodes.getFirst().toString()), message));
 
-                            nodesLogged.add(matchingNodes.get(0).getLocalNode());
+                            nodesLogged.add(matchingNodes.getFirst().getLocalNode());
                         }
 
                         @Override
@@ -1762,7 +1763,13 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
                         @Override
                         public void match(LogEvent event) {
                             final String message = event.getMessage().getFormattedMessage();
-                            assertThat(message, startsWith("This node is a fully-formed single-node cluster with cluster UUID"));
+                            assertThat(
+                                message,
+                                allOf(
+                                    startsWith("This node is a fully-formed single-node cluster with cluster UUID"),
+                                    containsString(ReferenceDocs.FORMING_SINGLE_NODE_CLUSTERS.toString())
+                                )
+                            );
                             loggedClusterUuid = (String) event.getMessage().getParameters()[0];
                         }
 
@@ -2047,7 +2054,15 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
                     + 4 * DEFAULT_DELAY_VARIABILITY
                     // Then a commit of the new leader's first cluster state
                     + DEFAULT_CLUSTER_STATE_UPDATE_DELAY
-                    // Then the remaining node may join
+                    // Then the remaining node may experience a disconnect (see comment in PeerFinder#closePeers) for which it is
+                    // removed from the cluster, and its fault detection must also detect its removal
+                    + Math.max(
+                        DEFAULT_CLUSTER_STATE_UPDATE_DELAY,
+                        defaultMillis(LEADER_CHECK_TIMEOUT_SETTING) * LEADER_CHECK_RETRY_COUNT_SETTING.get(Settings.EMPTY)
+                    )
+                    // then it does another round of discovery
+                    + defaultMillis(DISCOVERY_FIND_PEERS_INTERVAL_SETTING)
+                    // and finally it joins the master
                     + DEFAULT_CLUSTER_STATE_UPDATE_DELAY
             );
 

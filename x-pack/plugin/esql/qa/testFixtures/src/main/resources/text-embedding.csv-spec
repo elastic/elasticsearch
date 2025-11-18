@@ -1,0 +1,114 @@
+text_embedding using a row source operator
+required_capability: text_embedding_function
+required_capability: dense_vector_field_type_released
+
+// tag::text-embedding-eval[]
+ROW input="Who is Victor Hugo?"
+| EVAL embedding = TEXT_EMBEDDING("Who is Victor Hugo?", "test_dense_inference")
+// end::text-embedding-eval[]
+;
+
+input:keyword       | embedding:dense_vector
+Who is Victor Hugo? | [56.0, 50.0, 48.0]
+;
+
+
+text_embedding using a row source operator with query build using CONCAT
+required_capability: text_embedding_function
+required_capability: dense_vector_field_type_released
+
+ROW input="Who is Victor Hugo?"
+| EVAL embedding = TEXT_EMBEDDING(CONCAT("Who is ", "Victor Hugo?"), "test_dense_inference")
+;
+
+input:keyword       | embedding:dense_vector
+Who is Victor Hugo? | [56.0, 50.0, 48.0]
+;
+
+
+text_embedding with knn on semantic_text_dense_field
+required_capability: text_embedding_function
+required_capability: dense_vector_field_type_released
+required_capability: knn_function_v5
+required_capability: semantic_text_field_caps
+
+// tag::text-embedding-knn[]
+FROM semantic_text METADATA _score
+| EVAL query_embedding = TEXT_EMBEDDING("be excellent to each other", "test_dense_inference")
+| WHERE KNN(semantic_text_dense_field, query_embedding)
+// end::text-embedding-knn[]
+| SORT _score DESC
+| LIMIT 10
+| KEEP semantic_text_field, query_embedding
+;
+
+semantic_text_field:text                                              | query_embedding:dense_vector
+be excellent to each other                                            | [45.0, 55.0, 54.0]          
+live long and prosper                                                 | [45.0, 55.0, 54.0]          
+all we have to decide is what to do with the time that is given to us | [45.0, 55.0, 54.0]          
+;
+
+text_embedding with knn (inline) on semantic_text_dense_field
+required_capability: text_embedding_function
+required_capability: dense_vector_field_type_released
+required_capability: knn_function_v5
+required_capability: semantic_text_field_caps
+
+// tag::text-embedding-knn-inline[]
+FROM semantic_text METADATA _score
+| WHERE KNN(semantic_text_dense_field, TEXT_EMBEDDING("be excellent to each other", "test_dense_inference"))
+// end::text-embedding-knn-inline[]
+| SORT _score DESC
+| LIMIT 10
+| KEEP semantic_text_field
+;
+
+semantic_text_field:text                                             
+be excellent to each other                                           
+live long and prosper                                                
+all we have to decide is what to do with the time that is given to us
+;
+
+text_embedding with multiple knn queries
+required_capability: text_embedding_function
+required_capability: dense_vector_field_type_released
+required_capability: knn_function_v5
+required_capability: fork_v9
+required_capability: semantic_text_field_caps
+
+FROM semantic_text METADATA _score, _id
+| WHERE KNN(semantic_text_dense_field, TEXT_EMBEDDING("be excellent to each other", "test_dense_inference")) OR KNN(semantic_text_dense_field, TEXT_EMBEDDING("live long and prosper", "test_dense_inference")) 
+| SORT _score DESC, _id
+| LIMIT 10
+| KEEP semantic_text_field
+;
+
+semantic_text_field:text                                             
+live long and prosper
+be excellent to each other
+all we have to decide is what to do with the time that is given to us                  
+;
+
+text_embedding with multiple knn queries in fork
+required_capability: text_embedding_function
+required_capability: dense_vector_field_type_released
+required_capability: knn_function_v5
+required_capability: fork_v9
+required_capability: semantic_text_field_caps
+
+FROM semantic_text METADATA _score
+| FORK (EVAL query_embedding = TEXT_EMBEDDING("be excellent to each other", "test_dense_inference") | WHERE KNN(semantic_text_dense_field, query_embedding))
+       (EVAL query_embedding = TEXT_EMBEDDING("live long and prosper", "test_dense_inference") | WHERE KNN(semantic_text_dense_field, query_embedding))
+| SORT _score DESC, _fork ASC
+| LIMIT 10
+| KEEP semantic_text_field, query_embedding, _fork
+;
+
+semantic_text_field:text                                              | query_embedding:dense_vector | _fork:keyword
+be excellent to each other                                            | [45.0, 55.0, 54.0]           | fork1        
+live long and prosper                                                 | [50.0, 57.0, 56.0]           | fork2        
+live long and prosper                                                 | [45.0, 55.0, 54.0]           | fork1        
+be excellent to each other                                            | [50.0, 57.0, 56.0]           | fork2        
+all we have to decide is what to do with the time that is given to us | [45.0, 55.0, 54.0]           | fork1        
+all we have to decide is what to do with the time that is given to us | [50.0, 57.0, 56.0]           | fork2
+;

@@ -40,7 +40,7 @@ public class TransformConfigurationIndexIT extends TransformRestTestCase {
                 + TransformInternalIndexConstants.LATEST_INDEX_NAME
                 + "], but in a future major version, direct access to system indices will "
                 + "be prevented by default"
-        );
+        ).toBuilder().addHeader("X-elastic-product-origin", "elastic").build();
 
         try (XContentBuilder builder = jsonBuilder()) {
             builder.startObject();

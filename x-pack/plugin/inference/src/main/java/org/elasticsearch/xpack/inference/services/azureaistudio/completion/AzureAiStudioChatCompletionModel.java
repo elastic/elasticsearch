@@ -12,11 +12,11 @@ import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xpack.inference.external.action.ExecutableAction;
-import org.elasticsearch.xpack.inference.external.action.azureaistudio.AzureAiStudioActionVisitor;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.azureaistudio.AzureAiStudioEndpointType;
 import org.elasticsearch.xpack.inference.services.azureaistudio.AzureAiStudioModel;
 import org.elasticsearch.xpack.inference.services.azureaistudio.AzureAiStudioProvider;
+import org.elasticsearch.xpack.inference.services.azureaistudio.action.AzureAiStudioActionVisitor;
 import org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettings;
 
 import java.net.URI;

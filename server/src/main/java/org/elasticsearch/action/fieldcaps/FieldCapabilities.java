@@ -1,27 +1,24 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.fieldcaps;
 
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.Predicates;
 import org.elasticsearch.index.mapper.TimeSeriesParams;
-import org.elasticsearch.xcontent.ConstructingObjectParser;
-import org.elasticsearch.xcontent.InstantiatingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ParserConstructor;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -45,18 +42,17 @@ import static org.elasticsearch.index.mapper.TimeSeriesParams.TIME_SERIES_METRIC
  */
 public class FieldCapabilities implements Writeable, ToXContentObject {
 
-    private static final ParseField TYPE_FIELD = new ParseField("type");
-    private static final ParseField IS_METADATA_FIELD = new ParseField("metadata_field");
-    private static final ParseField SEARCHABLE_FIELD = new ParseField("searchable");
-    private static final ParseField AGGREGATABLE_FIELD = new ParseField("aggregatable");
-    private static final ParseField TIME_SERIES_DIMENSION_FIELD = new ParseField(TIME_SERIES_DIMENSION_PARAM);
-    private static final ParseField TIME_SERIES_METRIC_FIELD = new ParseField(TIME_SERIES_METRIC_PARAM);
-    private static final ParseField INDICES_FIELD = new ParseField("indices");
-    private static final ParseField NON_SEARCHABLE_INDICES_FIELD = new ParseField("non_searchable_indices");
-    private static final ParseField NON_AGGREGATABLE_INDICES_FIELD = new ParseField("non_aggregatable_indices");
-    private static final ParseField NON_DIMENSION_INDICES_FIELD = new ParseField("non_dimension_indices");
-    private static final ParseField METRIC_CONFLICTS_INDICES_FIELD = new ParseField("metric_conflicts_indices");
-    private static final ParseField META_FIELD = new ParseField("meta");
+    public static final ParseField TYPE_FIELD = new ParseField("type");
+    public static final ParseField IS_METADATA_FIELD = new ParseField("metadata_field");
+    public static final ParseField SEARCHABLE_FIELD = new ParseField("searchable");
+    public static final ParseField AGGREGATABLE_FIELD = new ParseField("aggregatable");
+    public static final ParseField TIME_SERIES_DIMENSION_FIELD = new ParseField(TIME_SERIES_DIMENSION_PARAM);
+    public static final ParseField TIME_SERIES_METRIC_FIELD = new ParseField(TIME_SERIES_METRIC_PARAM);
+    public static final ParseField INDICES_FIELD = new ParseField("indices");
+    public static final ParseField NON_SEARCHABLE_INDICES_FIELD = new ParseField("non_searchable_indices");
+    public static final ParseField NON_AGGREGATABLE_INDICES_FIELD = new ParseField("non_aggregatable_indices");
+    public static final ParseField NON_DIMENSION_INDICES_FIELD = new ParseField("non_dimension_indices");
+    public static final ParseField METRIC_CONFLICTS_INDICES_FIELD = new ParseField("metric_conflicts_indices");
 
     private final String name;
     private final String type;
@@ -83,8 +79,13 @@ public class FieldCapabilities implements Writeable, ToXContentObject {
      * @param isAggregatable Whether this field can be aggregated on.
      * @param isDimension Whether this field can be used as dimension
      * @param metricType If this field is a metric field, returns the metric's type or null for non-metrics fields
-     * @param indices The list of indices where this field name is defined as {@code type},
-     *                or null if all indices have the same {@code type} for the field.
+     * @param indices The list of indices where this field name is defined as {@code type}.
+     *                When {@code includeIndices} is set to {@code false}, this list is only
+     *                present if there is a mapping conflict (e.g. the same field has different
+     *                types across indices).
+     *                When {@code includeIndices} is set to {@code true}, this list is always
+     *                present and contains all indices where the field exists, regardless of
+     *                mapping conflicts.
      * @param nonSearchableIndices The list of indices where this field is not searchable,
      *                             or null if the field is searchable in all indices.
      * @param nonAggregatableIndices The list of indices where this field is not aggregatable,
@@ -227,23 +228,13 @@ public class FieldCapabilities implements Writeable, ToXContentObject {
         this.isMetadataField = in.readBoolean();
         this.isSearchable = in.readBoolean();
         this.isAggregatable = in.readBoolean();
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_0_0)) {
-            this.isDimension = in.readBoolean();
-            this.metricType = in.readOptionalEnum(TimeSeriesParams.MetricType.class);
-        } else {
-            this.isDimension = false;
-            this.metricType = null;
-        }
+        this.isDimension = in.readBoolean();
+        this.metricType = in.readOptionalEnum(TimeSeriesParams.MetricType.class);
         this.indices = in.readOptionalStringArray();
         this.nonSearchableIndices = in.readOptionalStringArray();
         this.nonAggregatableIndices = in.readOptionalStringArray();
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_0_0)) {
-            this.nonDimensionIndices = in.readOptionalStringArray();
-            this.metricConflictsIndices = in.readOptionalStringArray();
-        } else {
-            this.nonDimensionIndices = null;
-            this.metricConflictsIndices = null;
-        }
+        this.nonDimensionIndices = in.readOptionalStringArray();
+        this.metricConflictsIndices = in.readOptionalStringArray();
         meta = in.readMap(i -> i.readCollectionAsSet(StreamInput::readString));
     }
 
@@ -254,17 +245,13 @@ public class FieldCapabilities implements Writeable, ToXContentObject {
         out.writeBoolean(isMetadataField);
         out.writeBoolean(isSearchable);
         out.writeBoolean(isAggregatable);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_0_0)) {
-            out.writeBoolean(isDimension);
-            out.writeOptionalEnum(metricType);
-        }
+        out.writeBoolean(isDimension);
+        out.writeOptionalEnum(metricType);
         out.writeOptionalStringArray(indices);
         out.writeOptionalStringArray(nonSearchableIndices);
         out.writeOptionalStringArray(nonAggregatableIndices);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_0_0)) {
-            out.writeOptionalStringArray(nonDimensionIndices);
-            out.writeOptionalStringArray(metricConflictsIndices);
-        }
+        out.writeOptionalStringArray(nonDimensionIndices);
+        out.writeOptionalStringArray(metricConflictsIndices);
         out.writeMap(meta, StreamOutput::writeStringCollection);
     }
 
@@ -309,37 +296,6 @@ public class FieldCapabilities implements Writeable, ToXContentObject {
         }
         builder.endObject();
         return builder;
-    }
-
-    public static FieldCapabilities fromXContent(String name, XContentParser parser) throws IOException {
-        return PARSER.parse(parser, name);
-    }
-
-    private static final InstantiatingObjectParser<FieldCapabilities, String> PARSER;
-
-    static {
-        InstantiatingObjectParser.Builder<FieldCapabilities, String> parser = InstantiatingObjectParser.builder(
-            "field_capabilities",
-            true,
-            FieldCapabilities.class
-        );
-        parser.declareString(ConstructingObjectParser.constructorArg(), TYPE_FIELD);
-        parser.declareBoolean(ConstructingObjectParser.optionalConstructorArg(), IS_METADATA_FIELD);
-        parser.declareBoolean(ConstructingObjectParser.constructorArg(), SEARCHABLE_FIELD);
-        parser.declareBoolean(ConstructingObjectParser.constructorArg(), AGGREGATABLE_FIELD);
-        parser.declareBoolean(ConstructingObjectParser.optionalConstructorArg(), TIME_SERIES_DIMENSION_FIELD);
-        parser.declareString(ConstructingObjectParser.optionalConstructorArg(), TIME_SERIES_METRIC_FIELD);
-        parser.declareStringArray(ConstructingObjectParser.optionalConstructorArg(), INDICES_FIELD);
-        parser.declareStringArray(ConstructingObjectParser.optionalConstructorArg(), NON_SEARCHABLE_INDICES_FIELD);
-        parser.declareStringArray(ConstructingObjectParser.optionalConstructorArg(), NON_AGGREGATABLE_INDICES_FIELD);
-        parser.declareStringArray(ConstructingObjectParser.optionalConstructorArg(), NON_DIMENSION_INDICES_FIELD);
-        parser.declareStringArray(ConstructingObjectParser.optionalConstructorArg(), METRIC_CONFLICTS_INDICES_FIELD);
-        parser.declareObject(
-            ConstructingObjectParser.optionalConstructorArg(),
-            (p, context) -> p.map(HashMap::new, v -> Set.copyOf(v.list())),
-            META_FIELD
-        );
-        PARSER = parser.build();
     }
 
     /**

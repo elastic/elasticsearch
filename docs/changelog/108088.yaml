@@ -1,5 +1,0 @@
-pr: 108088
-summary: Add a SIMD (AVX2) optimised vector distance function for int7 on x64
-area: "Search"
-type: enhancement
-issues: []

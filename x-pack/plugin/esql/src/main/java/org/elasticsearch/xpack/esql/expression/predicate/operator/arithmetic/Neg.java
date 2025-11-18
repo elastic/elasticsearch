@@ -14,27 +14,41 @@ import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.ExceptionUtils;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
+import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.expression.function.scalar.UnaryScalarFunction;
 
 import java.io.IOException;
 import java.time.Duration;
 import java.time.Period;
 import java.util.List;
-import java.util.function.Function;
 
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.DEFAULT;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DATE_PERIOD;
 import static org.elasticsearch.xpack.esql.core.type.DataType.TIME_DURATION;
-import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.isTemporalAmount;
+import static org.elasticsearch.xpack.esql.core.type.DataType.isTemporalAmount;
 
 public class Neg extends UnaryScalarFunction {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Neg", Neg::new);
 
-    public Neg(Source source, Expression field) {
+    @FunctionInfo(
+        operator = "-",
+        returnType = { "double", "integer", "long", "date_period", "time_duration" },
+        description = "Returns the negation of the argument."
+    )
+    public Neg(
+        Source source,
+        @Param(
+            name = "field",
+            description = "A numeric value or a date time interval.",
+            type = { "double", "integer", "long", "date_period", "time_duration" }
+        ) Expression field
+    ) {
         super(source, field);
     }
 
@@ -48,7 +62,7 @@ public class Neg extends UnaryScalarFunction {
     }
 
     @Override
-    public ExpressionEvaluator.Factory toEvaluator(Function<Expression, ExpressionEvaluator.Factory> toEvaluator) {
+    public ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
         DataType type = dataType();
 
         if (type.isNumeric()) {
@@ -75,12 +89,12 @@ public class Neg extends UnaryScalarFunction {
     }
 
     @Override
-    public final Object fold() {
+    public final Object fold(FoldContext ctx) {
         DataType dataType = field().dataType();
         // For date periods and time durations, we need to treat folding differently. These types are unrepresentable, so there is no
         // evaluator for them - but the default folding requires an evaluator.
         if (dataType == DATE_PERIOD) {
-            Period fieldValue = (Period) field().fold();
+            Period fieldValue = (Period) field().fold(ctx);
             try {
                 return fieldValue.negated();
             } catch (ArithmeticException e) {
@@ -90,7 +104,7 @@ public class Neg extends UnaryScalarFunction {
             }
         }
         if (dataType == TIME_DURATION) {
-            Duration fieldValue = (Duration) field().fold();
+            Duration fieldValue = (Duration) field().fold(ctx);
             try {
                 return fieldValue.negated();
             } catch (ArithmeticException e) {
@@ -99,7 +113,7 @@ public class Neg extends UnaryScalarFunction {
                 throw ExceptionUtils.math(source(), e);
             }
         }
-        return super.fold();
+        return super.fold(ctx);
     }
 
     @Override

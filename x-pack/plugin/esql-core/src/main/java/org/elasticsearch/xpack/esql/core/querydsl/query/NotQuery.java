@@ -32,8 +32,8 @@ public class NotQuery extends Query {
     }
 
     @Override
-    public QueryBuilder asBuilder() {
-        return boolQuery().mustNot(child.asBuilder());
+    protected QueryBuilder asBuilder() {
+        return boolQuery().mustNot(child.toQueryBuilder());
     }
 
     @Override
@@ -58,5 +58,10 @@ public class NotQuery extends Query {
     @Override
     public Query negate(Source source) {
         return child;
+    }
+
+    @Override
+    public boolean containsPlan() {
+        return child.containsPlan();
     }
 }

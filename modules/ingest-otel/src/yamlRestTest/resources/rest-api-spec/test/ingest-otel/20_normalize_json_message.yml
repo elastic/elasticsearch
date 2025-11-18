@@ -1,0 +1,112 @@
+---
+setup:
+  - do:
+      ingest.put_pipeline:
+        id: "normalize_json_message"
+        body:
+          processors:
+            - normalize_for_stream: {}
+
+---
+teardown:
+  - do:
+      ingest.delete_pipeline:
+        id: "normalize_json_message"
+        ignore: 404
+
+---
+"Test ECS JSON message normalization":
+  - do:
+      index:
+        index: normalize_json_message_test
+        id: "ECS-JSON-message"
+        pipeline: "normalize_json_message"
+        body:
+          "@timestamp": "2023-10-01T12:00:00Z"
+          agent:
+            name: "agentNameValue"
+            type: "agentTypeValue"
+          cloud:
+            region: "originalCloudRegion"
+            provider: "aws"
+            service:
+              name: "serviceNameValue"
+          message: |
+            {
+              "@timestamp": "2023-10-02T12:00:00Z",
+              "log.level": "WARN",
+              "span": {
+                "id": "spanIdValue"
+              },
+              "trace.id": "traceIdValue",
+              "message": "This is the actual log message",
+              "cloud": {
+                "region": "overriddenCloudRegion",
+                "availability_zone": "availabilityZoneValue",
+                "service": {
+                  "type": "serviceTypeValue"
+                }
+              },
+              "process": {
+                "args": ["arg1", "arg2"]
+              },
+              "tags": ["tag1", "tag2"]
+            }
+
+  - do:
+      get:
+        index: normalize_json_message_test
+        id: "ECS-JSON-message"
+  - match: { _source.@timestamp: "2023-10-02T12:00:00Z" }
+  - match: { _source.resource.attributes.agent\.name: "agentNameValue" }
+  - match: { _source.resource.attributes.agent\.type: "agentTypeValue" }
+  - match: { _source.resource.attributes.cloud\.region: "overriddenCloudRegion" }
+  - match: { _source.resource.attributes.cloud\.availability_zone: "availabilityZoneValue" }
+  - match: { _source.resource.attributes.cloud\.provider: "aws" }
+  - match: { _source.resource.attributes.cloud\.service\.name: "serviceNameValue" }
+  - match: { _source.attributes.cloud\.service\.type: "serviceTypeValue" }
+  - match: { _source.resource.attributes.process\.args.0: "arg1" }
+  - match: { _source.resource.attributes.process\.args.1: "arg2" }
+  - match: { _source.body.text: "This is the actual log message" }
+  - match: { _source.severity_text: "WARN" }
+  - match: { _source.attributes.tags.0: "tag1" }
+  - match: { _source.attributes.tags.1: "tag2" }
+
+---
+"Test non-ECS JSON message normalization":
+  - do:
+      index:
+        index: normalize_json_message_test
+        id: "non-ECS-JSON-message"
+        pipeline: "normalize_json_message"
+        body:
+          "@timestamp": "2023-10-01T12:00:00Z"
+          agent:
+            name: "agentNameValue"
+            type: "agentTypeValue"
+          message: |
+            {
+              "message": "This is the actual log message",
+              "nested": {
+                "child": "nestedValue",
+                "next-level": {
+                  "grandchild": "deepValue"
+                },
+                "array": ["value1", "value2"]
+              },
+              "cloud.region": "cloudRegionValue"
+            }
+
+  - do:
+      get:
+        index: normalize_json_message_test
+        id: "non-ECS-JSON-message"
+  - match: { _source.@timestamp: "2023-10-01T12:00:00Z" }
+  - match: { _source.resource.attributes.agent\.name: "agentNameValue" }
+  - match: { _source.resource.attributes.agent\.type: "agentTypeValue" }
+  - match: { _source.body.structured.message: "This is the actual log message" }
+  - match: { _source.body.structured.nested.child: "nestedValue" }
+  - match: { _source.body.structured.nested.next-level.grandchild: "deepValue" }
+  - match: { _source.body.structured.nested.array.0: "value1" }
+  - match: { _source.body.structured.nested.array.1: "value2" }
+  - match: { _source.body.structured.cloud\.region: "cloudRegionValue" }

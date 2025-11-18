@@ -6,18 +6,17 @@
  */
 package org.elasticsearch.xpack.core.security.action.role;
 
-import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.action.support.nodes.BaseNodesRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.transport.TransportRequest;
+import org.elasticsearch.transport.AbstractTransportRequest;
 
 import java.io.IOException;
 
 /**
  * The request used to clear the cache for native roles stored in an index.
  */
-public class ClearRolesCacheRequest extends BaseNodesRequest<ClearRolesCacheRequest> {
+public class ClearRolesCacheRequest extends BaseNodesRequest {
 
     String[] names;
 
@@ -28,7 +27,7 @@ public class ClearRolesCacheRequest extends BaseNodesRequest<ClearRolesCacheRequ
     /**
      * Sets the roles for which caches will be evicted. When not set all the roles will be evicted from the cache.
      *
-     * @param names    The role names
+     * @param names The role names
      */
     public ClearRolesCacheRequest names(String... names) {
         this.names = names;
@@ -42,12 +41,7 @@ public class ClearRolesCacheRequest extends BaseNodesRequest<ClearRolesCacheRequ
         return names;
     }
 
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        TransportAction.localOnly();
-    }
-
-    public static class Node extends TransportRequest {
+    public static class Node extends AbstractTransportRequest {
         private String[] names;
 
         public Node(StreamInput in) throws IOException {

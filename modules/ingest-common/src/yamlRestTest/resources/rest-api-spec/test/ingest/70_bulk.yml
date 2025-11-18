@@ -88,10 +88,10 @@ teardown:
   - gte: {nodes.$master.ingest.total.failed: 0}
   - gte: {nodes.$master.ingest.total.time_in_millis: 0}
   - match: {nodes.$master.ingest.total.current: 0}
-  - gte: {nodes.$master.ingest.pipelines.pipeline1.count: 0}
-  - match: {nodes.$master.ingest.pipelines.pipeline1.failed: 0}
-  - gte: {nodes.$master.ingest.pipelines.pipeline1.time_in_millis: 0}
-  - match: {nodes.$master.ingest.pipelines.pipeline1.current: 0}
+  - gte: { "nodes.$master.ingest.pipelines.${_project_id_prefix_}pipeline1.count": 0}
+  - match: { "nodes.$master.ingest.pipelines.${_project_id_prefix_}pipeline1.failed": 0}
+  - gte: { "nodes.$master.ingest.pipelines.${_project_id_prefix_}pipeline1.time_in_millis": 0}
+  - match: { "nodes.$master.ingest.pipelines.${_project_id_prefix_}pipeline1.current": 0}
 
 ---
 "Test bulk request with default pipeline":
@@ -124,10 +124,10 @@ teardown:
   - gte: {nodes.$master.ingest.total.failed: 0}
   - gte: {nodes.$master.ingest.total.time_in_millis: 0}
   - match: {nodes.$master.ingest.total.current: 0}
-  - gte: {nodes.$master.ingest.pipelines.pipeline2.count: 0}
-  - match: {nodes.$master.ingest.pipelines.pipeline2.failed: 0}
-  - gte: {nodes.$master.ingest.pipelines.pipeline2.time_in_millis: 0}
-  - match: {nodes.$master.ingest.pipelines.pipeline2.current: 0}
+  - gte: { "nodes.$master.ingest.pipelines.${_project_id_prefix_}pipeline2.count": 0}
+  - match: { "nodes.$master.ingest.pipelines.${_project_id_prefix_}pipeline2.failed": 0}
+  - gte: { "nodes.$master.ingest.pipelines.${_project_id_prefix_}pipeline2.time_in_millis": 0}
+  - match: { "nodes.$master.ingest.pipelines.${_project_id_prefix_}pipeline2.current": 0}
 
   - do:
       get:

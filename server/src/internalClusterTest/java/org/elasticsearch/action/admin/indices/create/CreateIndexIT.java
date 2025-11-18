@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.admin.indices.create;
@@ -16,6 +17,8 @@ import org.elasticsearch.action.UnavailableShardsException;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse;
+import org.elasticsearch.action.fieldcaps.FieldCapabilitiesRequest;
+import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
 import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.IndicesOptions;
@@ -90,12 +93,12 @@ public class CreateIndexIT extends ESIntegTestCase {
         long timeBeforeRequest = System.currentTimeMillis();
         prepareCreate("test").get();
         long timeAfterRequest = System.currentTimeMillis();
-        ClusterStateResponse response = clusterAdmin().prepareState().get();
+        ClusterStateResponse response = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get();
         ClusterState state = response.getState();
         assertThat(state, notNullValue());
         Metadata metadata = state.getMetadata();
         assertThat(metadata, notNullValue());
-        Map<String, IndexMetadata> indices = metadata.getIndices();
+        Map<String, IndexMetadata> indices = metadata.getProject().indices();
         assertThat(indices, notNullValue());
         assertThat(indices.size(), equalTo(1));
         IndexMetadata index = indices.get("test");
@@ -117,7 +120,7 @@ public class CreateIndexIT extends ESIntegTestCase {
             )
         );
 
-        GetMappingsResponse response = indicesAdmin().prepareGetMappings("test").get();
+        GetMappingsResponse response = indicesAdmin().prepareGetMappings(TEST_REQUEST_TIMEOUT, "test").get();
 
         MappingMetadata mappings = response.mappings().get("test");
         assertNotNull(mappings);
@@ -127,7 +130,7 @@ public class CreateIndexIT extends ESIntegTestCase {
     public void testEmptyNestedMappings() throws Exception {
         assertAcked(prepareCreate("test").setMapping(XContentFactory.jsonBuilder().startObject().endObject()));
 
-        GetMappingsResponse response = indicesAdmin().prepareGetMappings("test").get();
+        GetMappingsResponse response = indicesAdmin().prepareGetMappings(TEST_REQUEST_TIMEOUT, "test").get();
 
         MappingMetadata mappings = response.mappings().get("test");
         assertNotNull(mappings);
@@ -147,11 +150,24 @@ public class CreateIndexIT extends ESIntegTestCase {
             prepareCreate("test").setMapping(XContentFactory.jsonBuilder().startObject().startObject("_doc").endObject().endObject())
         );
 
-        GetMappingsResponse response = indicesAdmin().prepareGetMappings("test").get();
+        GetMappingsResponse response = indicesAdmin().prepareGetMappings(TEST_REQUEST_TIMEOUT, "test").get();
 
         MappingMetadata mappings = response.mappings().get("test");
         assertNotNull(mappings);
         assertTrue(mappings.sourceAsMap().isEmpty());
+    }
+
+    public void testTwoEmptyEqualMappings() throws Exception {
+        assertAcked(prepareCreate("test1"), prepareCreate("test2").setMapping(XContentFactory.jsonBuilder().startObject().endObject()));
+        FieldCapabilitiesRequest fieldCapsReq1 = new FieldCapabilitiesRequest();
+        fieldCapsReq1.indices("test1");
+        fieldCapsReq1.fields("*");
+        FieldCapabilitiesResponse fieldCapsResp1 = internalCluster().coordOnlyNodeClient().fieldCaps(fieldCapsReq1).actionGet();
+        FieldCapabilitiesRequest fieldCapsReq2 = new FieldCapabilitiesRequest();
+        fieldCapsReq2.indices("test2");
+        fieldCapsReq2.fields("*");
+        FieldCapabilitiesResponse fieldCapsResp2 = internalCluster().coordOnlyNodeClient().fieldCaps(fieldCapsReq2).actionGet();
+        assertEquals(fieldCapsResp1.get(), fieldCapsResp2.get());
     }
 
     public void testInvalidShardCountSettings() throws Exception {
@@ -183,7 +199,7 @@ public class CreateIndexIT extends ESIntegTestCase {
 
     public void testCreateIndexWithMetadataBlocks() {
         assertAcked(prepareCreate("test").setSettings(Settings.builder().put(IndexMetadata.SETTING_BLOCKS_METADATA, true)));
-        assertBlocked(indicesAdmin().prepareGetSettings("test"), IndexMetadata.INDEX_METADATA_BLOCK);
+        assertBlocked(indicesAdmin().prepareGetSettings(TEST_REQUEST_TIMEOUT, "test"), IndexMetadata.INDEX_METADATA_BLOCK);
         disableIndexBlock("test", IndexMetadata.SETTING_BLOCKS_METADATA);
     }
 
@@ -289,14 +305,14 @@ public class CreateIndexIT extends ESIntegTestCase {
             prepareSearch("test").setIndicesOptions(IndicesOptions.lenientExpandOpen())
                 .setQuery(new RangeQueryBuilder("index_version").from(indexVersion.get(), true)),
             expected -> assertNoFailuresAndResponse(prepareSearch("test").setIndicesOptions(IndicesOptions.lenientExpandOpen()), all -> {
-                assertEquals(expected + " vs. " + all, expected.getHits().getTotalHits().value, all.getHits().getTotalHits().value);
-                logger.info("total: {}", expected.getHits().getTotalHits().value);
+                assertEquals(expected + " vs. " + all, expected.getHits().getTotalHits().value(), all.getHits().getTotalHits().value());
+                logger.info("total: {}", expected.getHits().getTotalHits().value());
             })
         );
     }
 
     public void testRestartIndexCreationAfterFullClusterRestart() throws Exception {
-        clusterAdmin().prepareUpdateSettings()
+        clusterAdmin().prepareUpdateSettings(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT)
             .setTransientSettings(Settings.builder().put("cluster.routing.allocation.enable", "none"))
             .get();
         indicesAdmin().prepareCreate("test").setWaitForActiveShards(ActiveShardCount.NONE).setSettings(indexSettings()).get();
@@ -306,10 +322,7 @@ public class CreateIndexIT extends ESIntegTestCase {
 
     public void testFailureToCreateIndexCleansUpIndicesService() {
         final int numReplicas = internalCluster().numDataNodes();
-        Settings settings = Settings.builder()
-            .put(IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
-            .put(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), numReplicas)
-            .build();
+        Settings settings = indexSettings(1, numReplicas).build();
         assertAcked(indicesAdmin().prepareCreate("test-idx-1").setSettings(settings).addAlias(new Alias("alias1").writeIndex(true)).get());
 
         ActionRequestBuilder<?, ?> builder = indicesAdmin().prepareCreate("test-idx-2")
@@ -328,10 +341,7 @@ public class CreateIndexIT extends ESIntegTestCase {
      */
     public void testDefaultWaitForActiveShardsUsesIndexSetting() throws Exception {
         final int numReplicas = internalCluster().numDataNodes();
-        Settings settings = Settings.builder()
-            .put(SETTING_WAIT_FOR_ACTIVE_SHARDS.getKey(), Integer.toString(numReplicas))
-            .put(IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
-            .put(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), numReplicas)
+        Settings settings = indexSettings(1, numReplicas).put(SETTING_WAIT_FOR_ACTIVE_SHARDS.getKey(), Integer.toString(numReplicas))
             .build();
         assertAcked(indicesAdmin().prepareCreate("test-idx-1").setSettings(settings).get());
 

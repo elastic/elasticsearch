@@ -7,10 +7,11 @@
 package org.elasticsearch.xpack.ml.integration;
 
 import org.apache.logging.log4j.Level;
-import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ResourceNotFoundException;
+import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksRequest;
+import org.elasticsearch.action.admin.cluster.node.tasks.cancel.TransportCancelTasksAction;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.common.ReferenceDocs;
@@ -74,13 +75,19 @@ import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.oneOf;
 
-@LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/105239")
 public class DatafeedJobsIT extends MlNativeAutodetectIntegTestCase {
 
     @After
     public void cleanup() {
         updateClusterSettings(Settings.builder().putNull("logger.org.elasticsearch.xpack.ml.datafeed"));
         cleanUp();
+        // Race conditions between closing and killing tasks in these tests,
+        // sometimes result in lingering persistent close tasks, which cause
+        // subsequent tests to fail. Therefore, they're explicitly cancelled.
+        CancelTasksRequest cancelTasksRequest = new CancelTasksRequest();
+        cancelTasksRequest.setActions("*close*");
+        cancelTasksRequest.setWaitForCompletion(true);
+        client().execute(TransportCancelTasksAction.TYPE, cancelTasksRequest).actionGet();
     }
 
     public void testLookbackOnly() throws Exception {
@@ -92,7 +99,7 @@ public class DatafeedJobsIT extends MlNativeAutodetectIntegTestCase {
         indexDocs(logger, "data-1", numDocs, twoWeeksAgo, oneWeekAgo);
 
         client().admin().indices().prepareCreate("data-2").setMapping("time", "type=date").get();
-        clusterAdmin().prepareHealth("data-1", "data-2").setWaitForYellowStatus().get();
+        clusterAdmin().prepareHealth(TEST_REQUEST_TIMEOUT, "data-1", "data-2").setWaitForYellowStatus().get();
         long numDocs2 = randomIntBetween(32, 2048);
         indexDocs(logger, "data-2", numDocs2, oneWeekAgo, now);
 
@@ -138,7 +145,7 @@ public class DatafeedJobsIT extends MlNativeAutodetectIntegTestCase {
         long twoWeeksAgo = oneWeekAgo - 604800000;
         indexDocs(logger, "datafeed_data_stream", numDocs, twoWeeksAgo, oneWeekAgo);
 
-        clusterAdmin().prepareHealth("datafeed_data_stream").setWaitForYellowStatus().get();
+        clusterAdmin().prepareHealth(TEST_REQUEST_TIMEOUT, "datafeed_data_stream").setWaitForYellowStatus().get();
 
         Job.Builder job = createScheduledJob("lookback-data-stream-job");
         PutJobAction.Response putJobResponse = putJob(job);
@@ -224,7 +231,6 @@ public class DatafeedJobsIT extends MlNativeAutodetectIntegTestCase {
         waitUntilJobIsClosed(jobBuilder.getId());
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/63973")
     public void testDatafeedTimingStats_DatafeedRecreated() throws Exception {
         client().admin().indices().prepareCreate("data").setMapping("time", "type=date").get();
         long numDocs = randomIntBetween(32, 2048);
@@ -244,14 +250,27 @@ public class DatafeedJobsIT extends MlNativeAutodetectIntegTestCase {
 
             putDatafeed(datafeedConfig);
             // Datafeed did not do anything yet, hence search_count is equal to 0.
-            assertDatafeedStats(datafeedId, DatafeedState.STOPPED, job.getId(), equalTo(0L));
+            assertBusy(() -> assertDatafeedStats(datafeedId, DatafeedState.STOPPED, job.getId(), equalTo(0L)), 30, TimeUnit.SECONDS);
             startDatafeed(datafeedId, 0L, now.toEpochMilli());
+
+            // First, wait for data processing to complete
+            assertBusy(() -> { assertThat(getDataCounts(job.getId()).getProcessedRecordCount(), equalTo(numDocs)); }, 60, TimeUnit.SECONDS);
+            // Then, wait for datafeed timing stats to be persisted
+            // Datafeed processed numDocs documents so search_count must be greater than 0.
+            assertBusy(
+                () -> { assertDatafeedStats(datafeedId, DatafeedState.STOPPED, job.getId(), greaterThan(0L)); },
+                30,
+                TimeUnit.SECONDS
+            );
+
+            DeleteDatafeedAction.Request request = new DeleteDatafeedAction.Request(datafeedId);
             assertBusy(() -> {
-                assertThat(getDataCounts(job.getId()).getProcessedRecordCount(), equalTo(numDocs));
-                // Datafeed processed numDocs documents so search_count must be greater than 0.
-                assertDatafeedStats(datafeedId, DatafeedState.STOPPED, job.getId(), greaterThan(0L));
-            }, 60, TimeUnit.SECONDS);
-            deleteDatafeed(datafeedId);
+                try {
+                    client().execute(DeleteDatafeedAction.INSTANCE, request).actionGet();
+                } catch (Exception e) {
+                    throw new AssertionError("Datafeed could not be deleted", e);
+                }
+            });
             waitUntilJobIsClosed(job.getId());
         };
 
@@ -321,7 +340,7 @@ public class DatafeedJobsIT extends MlNativeAutodetectIntegTestCase {
             Intervals.alignToCeil(oneWeekAgo, intervalMillis),
             Intervals.alignToFloor(now, intervalMillis)
         );
-        clusterAdmin().prepareHealth(indexName).setWaitForYellowStatus().get();
+        clusterAdmin().prepareHealth(TEST_REQUEST_TIMEOUT, indexName).setWaitForYellowStatus().get();
 
         String scrollJobId = "stop-restart-scroll";
         Job.Builder scrollJob = createScheduledJob(scrollJobId);

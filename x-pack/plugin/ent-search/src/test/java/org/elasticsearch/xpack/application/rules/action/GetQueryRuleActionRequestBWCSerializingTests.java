@@ -9,8 +9,8 @@ package org.elasticsearch.xpack.application.rules.action;
 
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.test.AbstractBWCSerializationTestCase;
 import org.elasticsearch.xcontent.XContentParser;
-import org.elasticsearch.xpack.core.ml.AbstractBWCSerializationTestCase;
 
 import java.io.IOException;
 
@@ -28,7 +28,14 @@ public class GetQueryRuleActionRequestBWCSerializingTests extends AbstractBWCSer
 
     @Override
     protected GetQueryRuleAction.Request mutateInstance(GetQueryRuleAction.Request instance) {
-        return randomValueOtherThan(instance, this::createTestInstance);
+        String rulesetId = instance.rulesetId();
+        String ruleId = instance.ruleId();
+        switch (randomIntBetween(0, 1)) {
+            case 0 -> rulesetId = randomValueOtherThan(rulesetId, () -> randomAlphaOfLengthBetween(1, 10));
+            case 1 -> ruleId = randomValueOtherThan(ruleId, () -> randomAlphaOfLengthBetween(1, 10));
+            default -> throw new AssertionError("Illegal randomisation branch");
+        }
+        return new GetQueryRuleAction.Request(rulesetId, ruleId);
     }
 
     @Override

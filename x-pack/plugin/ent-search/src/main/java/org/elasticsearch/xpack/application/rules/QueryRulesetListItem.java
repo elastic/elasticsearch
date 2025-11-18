@@ -32,10 +32,12 @@ public class QueryRulesetListItem implements Writeable, ToXContentObject {
     public static final ParseField RULESET_ID_FIELD = new ParseField("ruleset_id");
     public static final ParseField RULE_TOTAL_COUNT_FIELD = new ParseField("rule_total_count");
     public static final ParseField RULE_CRITERIA_TYPE_COUNTS_FIELD = new ParseField("rule_criteria_types_counts");
+    public static final ParseField RULE_TYPE_COUNTS_FIELD = new ParseField("rule_type_counts");
 
     private final String rulesetId;
     private final int ruleTotalCount;
     private final Map<QueryRuleCriteriaType, Integer> criteriaTypeToCountMap;
+    private final Map<QueryRule.QueryRuleType, Integer> ruleTypeToCountMap;
 
     /**
      * Constructs a QueryRulesetListItem.
@@ -44,11 +46,17 @@ public class QueryRulesetListItem implements Writeable, ToXContentObject {
      * @param ruleTotalCount  The number of rules contained within the ruleset.
      * @param criteriaTypeToCountMap A map of criteria type to the number of rules of that type.
      */
-    public QueryRulesetListItem(String rulesetId, int ruleTotalCount, Map<QueryRuleCriteriaType, Integer> criteriaTypeToCountMap) {
+    public QueryRulesetListItem(
+        String rulesetId,
+        int ruleTotalCount,
+        Map<QueryRuleCriteriaType, Integer> criteriaTypeToCountMap,
+        Map<QueryRule.QueryRuleType, Integer> ruleTypeToCountMap
+    ) {
         Objects.requireNonNull(rulesetId, "rulesetId cannot be null on a QueryRuleListItem");
         this.rulesetId = rulesetId;
         this.ruleTotalCount = ruleTotalCount;
         this.criteriaTypeToCountMap = criteriaTypeToCountMap;
+        this.ruleTypeToCountMap = ruleTypeToCountMap;
     }
 
     public QueryRulesetListItem(StreamInput in) throws IOException {
@@ -58,6 +66,12 @@ public class QueryRulesetListItem implements Writeable, ToXContentObject {
             this.criteriaTypeToCountMap = in.readMap(m -> in.readEnum(QueryRuleCriteriaType.class), StreamInput::readInt);
         } else {
             this.criteriaTypeToCountMap = Map.of();
+        }
+        TransportVersion streamTransportVersion = in.getTransportVersion();
+        if (streamTransportVersion.onOrAfter(TransportVersions.V_8_16_1)) {
+            this.ruleTypeToCountMap = in.readMap(m -> in.readEnum(QueryRule.QueryRuleType.class), StreamInput::readInt);
+        } else {
+            this.ruleTypeToCountMap = Map.of();
         }
     }
 
@@ -71,6 +85,11 @@ public class QueryRulesetListItem implements Writeable, ToXContentObject {
             builder.field(criteriaType.name().toLowerCase(Locale.ROOT), criteriaTypeToCountMap.get(criteriaType));
         }
         builder.endObject();
+        builder.startObject(RULE_TYPE_COUNTS_FIELD.getPreferredName());
+        for (QueryRule.QueryRuleType ruleType : ruleTypeToCountMap.keySet()) {
+            builder.field(ruleType.name().toLowerCase(Locale.ROOT), ruleTypeToCountMap.get(ruleType));
+        }
+        builder.endObject();
         builder.endObject();
         return builder;
     }
@@ -81,6 +100,10 @@ public class QueryRulesetListItem implements Writeable, ToXContentObject {
         out.writeInt(ruleTotalCount);
         if (out.getTransportVersion().onOrAfter(EXPANDED_RULESET_COUNT_TRANSPORT_VERSION)) {
             out.writeMap(criteriaTypeToCountMap, StreamOutput::writeEnum, StreamOutput::writeInt);
+        }
+        TransportVersion streamTransportVersion = out.getTransportVersion();
+        if (streamTransportVersion.onOrAfter(TransportVersions.V_8_16_1)) {
+            out.writeMap(ruleTypeToCountMap, StreamOutput::writeEnum, StreamOutput::writeInt);
         }
     }
 
@@ -106,6 +129,10 @@ public class QueryRulesetListItem implements Writeable, ToXContentObject {
         return criteriaTypeToCountMap;
     }
 
+    public Map<QueryRule.QueryRuleType, Integer> ruleTypeToCountMap() {
+        return ruleTypeToCountMap;
+    }
+
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
@@ -113,11 +140,12 @@ public class QueryRulesetListItem implements Writeable, ToXContentObject {
         QueryRulesetListItem that = (QueryRulesetListItem) o;
         return ruleTotalCount == that.ruleTotalCount
             && Objects.equals(rulesetId, that.rulesetId)
-            && Objects.equals(criteriaTypeToCountMap, that.criteriaTypeToCountMap);
+            && Objects.equals(criteriaTypeToCountMap, that.criteriaTypeToCountMap)
+            && Objects.equals(ruleTypeToCountMap, that.ruleTypeToCountMap);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(rulesetId, ruleTotalCount, criteriaTypeToCountMap);
+        return Objects.hash(rulesetId, ruleTotalCount, criteriaTypeToCountMap, ruleTypeToCountMap);
     }
 }

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.common.settings;
@@ -304,14 +305,18 @@ public abstract class AbstractScopedSettings {
     }
 
     /**
-     * Adds a affix settings consumer that accepts the settings for a group of settings. The consumer is only
-     * notified if at least one of the settings change.
+     * Adds an affix settings consumer and validator that accepts the settings for a group of settings. The consumer and
+     * the validator are only notified if at least one of the settings change.
      * <p>
      * Note: Only settings registered in {@link SettingsModule} can be changed dynamically.
      * </p>
      */
     @SuppressWarnings("rawtypes")
-    public synchronized void addAffixGroupUpdateConsumer(List<Setting.AffixSetting<?>> settings, BiConsumer<String, Settings> consumer) {
+    public synchronized void addAffixGroupUpdateConsumer(
+        List<Setting.AffixSetting<?>> settings,
+        BiConsumer<String, Settings> consumer,
+        BiConsumer<String, Settings> validator
+    ) {
         List<SettingUpdater> affixUpdaters = new ArrayList<>(settings.size());
         for (Setting.AffixSetting<?> setting : settings) {
             ensureSettingIsRegistered(setting);
@@ -329,8 +334,8 @@ public abstract class AbstractScopedSettings {
             public Map<String, Settings> getValue(Settings current, Settings previous) {
                 Set<String> namespaces = new HashSet<>();
                 for (Setting.AffixSetting<?> setting : settings) {
-                    SettingUpdater affixUpdaterA = setting.newAffixUpdater((k, v) -> namespaces.add(k), logger, (a, b) -> {});
-                    affixUpdaterA.apply(current, previous);
+                    SettingUpdater affixUpdater = setting.newAffixUpdater((k, v) -> namespaces.add(k), logger, (a, b) -> {});
+                    affixUpdater.apply(current, previous);
                 }
                 Map<String, Settings> namespaceToSettings = Maps.newMapWithExpectedSize(namespaces.size());
                 for (String namespace : namespaces) {
@@ -338,7 +343,9 @@ public abstract class AbstractScopedSettings {
                     for (Setting.AffixSetting<?> setting : settings) {
                         concreteSettings.add(setting.getConcreteSettingForNamespace(namespace).getKey());
                     }
-                    namespaceToSettings.put(namespace, current.filter(concreteSettings::contains));
+                    var subset = current.filter(concreteSettings::contains);
+                    validator.accept(namespace, subset);
+                    namespaceToSettings.put(namespace, subset);
                 }
                 return namespaceToSettings;
             }
@@ -350,6 +357,17 @@ public abstract class AbstractScopedSettings {
                 }
             }
         });
+    }
+
+    /**
+     * Adds an affix settings consumer that accepts the settings for a group of settings. The consumer is only
+     * notified if at least one of the settings change.
+     * <p>
+     * Note: Only settings registered in {@link SettingsModule} can be changed dynamically.
+     * </p>
+     */
+    public synchronized void addAffixGroupUpdateConsumer(List<Setting.AffixSetting<?>> settings, BiConsumer<String, Settings> consumer) {
+        addAffixGroupUpdateConsumer(settings, consumer, (a, b) -> {});
     }
 
     private void ensureSettingIsRegistered(Setting.AffixSetting<?> setting) {
@@ -432,7 +450,11 @@ public abstract class AbstractScopedSettings {
         assert setting.getProperties().contains(Setting.Property.Dynamic)
             || setting.getProperties().contains(Setting.Property.OperatorDynamic) : "Can only watch dynamic settings";
         assert setting.getProperties().contains(Setting.Property.NodeScope) : "Can only watch node settings";
-        consumer.accept(setting.get(settings));
+
+        // this mimics the combined settings of last applied and node settings, without building a new settings object
+        Settings settingsWithValue = setting.exists(lastSettingsApplied) ? lastSettingsApplied : settings;
+
+        consumer.accept(setting.get(settingsWithValue));
         addSettingsUpdateConsumer(setting, consumer);
     }
 
@@ -597,6 +619,15 @@ public abstract class AbstractScopedSettings {
                         "can not update private setting [" + setting.getKey() + "]; this setting is managed by Elasticsearch"
                     );
                 }
+            }
+
+            if (setting instanceof SecureSetting && settings.hasValue(key)) {
+                throw new IllegalArgumentException(
+                    "Setting ["
+                        + key
+                        + "] is a secure setting"
+                        + " and must be stored inside the Elasticsearch keystore, but was found inside elasticsearch.yml"
+                );
             }
         }
         if (validateValue) {

@@ -16,8 +16,6 @@ import org.elasticsearch.xpack.core.security.authc.AuthenticationFailureHandler;
 import org.elasticsearch.xpack.core.security.authc.Realm;
 import org.elasticsearch.xpack.core.security.authz.store.RoleRetrievalResult;
 
-import java.security.AccessController;
-import java.security.PrivilegedAction;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
@@ -33,14 +31,6 @@ import static org.elasticsearch.example.role.CustomInMemoryRolesProvider.ROLE_B;
  * An example x-pack extension for testing custom realms and custom role providers.
  */
 public class ExampleSecurityExtension implements SecurityExtension {
-
-    static {
-        // check that the extension's policy works.
-        AccessController.doPrivileged((PrivilegedAction<Void>) () -> {
-            System.getSecurityManager().checkPropertyAccess("myproperty");
-            return null;
-        });
-    }
 
     @Override
     public String extensionName() {

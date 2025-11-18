@@ -1,33 +1,50 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
  * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 import org.elasticsearch.gradle.Version
-import org.elasticsearch.gradle.internal.info.BuildParams
 import org.elasticsearch.gradle.testclusters.StandaloneRestIntegTestTask
 
 apply plugin: 'elasticsearch.internal-java-rest-test'
 apply plugin: 'elasticsearch.bwc-test'
+apply plugin: org.elasticsearch.gradle.internal.precommit.CheckstylePrecommitPlugin
+apply plugin: org.elasticsearch.gradle.internal.precommit.ForbiddenApisPrecommitPlugin
+apply plugin: org.elasticsearch.gradle.internal.precommit.ForbiddenPatternsPrecommitPlugin
+apply plugin: org.elasticsearch.gradle.internal.precommit.FilePermissionsPrecommitPlugin
+apply plugin: org.elasticsearch.gradle.internal.precommit.LoggerUsagePrecommitPlugin
+apply plugin: org.elasticsearch.gradle.internal.precommit.TestingConventionsPrecommitPlugin
 
 dependencies {
   javaRestTestImplementation project(xpackModule('esql:qa:testFixtures'))
   javaRestTestImplementation project(xpackModule('esql:qa:server'))
+  javaRestTestImplementation project(xpackModule('esql'))
 }
 
 def supportedVersion = bwcVersion -> {
-  // This test is less restricted than the actual CCS compatibility matrix that we are supporting.
-  // CCQ is available on 8.13 or later
+  // CCS in ES|QL available in 8.13
   return bwcVersion.onOrAfter(Version.fromString("8.13.0"));
 }
 
-BuildParams.bwcVersions.withWireCompatible(supportedVersion) { bwcVersion, baseName ->
-  tasks.register(bwcTaskName(bwcVersion), StandaloneRestIntegTestTask) {
+buildParams.bwcVersions.withWireCompatible(supportedVersion) { bwcVersion, baseName ->
+  tasks.register("${baseName}#newToOld", StandaloneRestIntegTestTask) {
     usesBwcDistribution(bwcVersion)
-    systemProperty("tests.old_cluster_version", bwcVersion)
+    systemProperty("tests.version.remote_cluster", bwcVersion)
+    maxParallelForks = 1
+  }
+
+  tasks.register("${baseName}#oldToNew", StandaloneRestIntegTestTask) {
+    usesBwcDistribution(bwcVersion)
+    systemProperty("tests.version.local_cluster", bwcVersion)
+    maxParallelForks = 1
+  }
+
+  // TODO: avoid running tests twice with the current version
+  tasks.register(bwcTaskName(bwcVersion), StandaloneRestIntegTestTask) {
+    dependsOn tasks.named("${baseName}#oldToNew")
+    dependsOn tasks.named("${baseName}#newToOld")
     maxParallelForks = 1
   }
 }

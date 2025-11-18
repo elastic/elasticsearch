@@ -1,0 +1,37 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
+ */
+
+import org.elasticsearch.gradle.internal.precommit.CheckForbiddenApisTask
+
+apply plugin: 'elasticsearch.base-internal-es-plugin'
+apply plugin: 'elasticsearch.build'
+apply plugin: 'elasticsearch.mrjar'
+
+esplugin {
+  name = 'entitlement-test-plugin'
+  description = 'A test plugin that invokes methods checked by entitlements'
+  classname = 'org.elasticsearch.entitlement.qa.test.EntitlementTestPlugin'
+  extendedPlugins = ['entitled']
+}
+
+dependencies {
+  compileOnly project(':server')
+  compileOnly project(':libs:logging')
+  compileOnly project(":libs:entitlement:qa:entitled-plugin")
+  implementation project(":libs:entitlement")
+}
+
+tasks.named("javadoc").configure {
+  enabled = false
+}
+
+tasks.withType(CheckForbiddenApisTask).configureEach {
+  replaceSignatureFiles 'jdk-signatures'
+}
+

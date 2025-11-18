@@ -25,11 +25,11 @@ public class ConnectorStateMachine {
         ConnectorStatus.NEEDS_CONFIGURATION,
         EnumSet.of(ConnectorStatus.CONFIGURED, ConnectorStatus.ERROR),
         ConnectorStatus.CONFIGURED,
-        EnumSet.of(ConnectorStatus.NEEDS_CONFIGURATION, ConnectorStatus.CONNECTED, ConnectorStatus.ERROR),
+        EnumSet.of(ConnectorStatus.NEEDS_CONFIGURATION, ConnectorStatus.CONFIGURED, ConnectorStatus.CONNECTED, ConnectorStatus.ERROR),
         ConnectorStatus.CONNECTED,
-        EnumSet.of(ConnectorStatus.CONFIGURED, ConnectorStatus.ERROR),
+        EnumSet.of(ConnectorStatus.CONNECTED, ConnectorStatus.CONFIGURED, ConnectorStatus.ERROR),
         ConnectorStatus.ERROR,
-        EnumSet.of(ConnectorStatus.CONNECTED, ConnectorStatus.CONFIGURED)
+        EnumSet.of(ConnectorStatus.CONNECTED, ConnectorStatus.CONFIGURED, ConnectorStatus.ERROR)
     );
 
     /**

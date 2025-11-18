@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.admin.indices.diskusage;
@@ -35,6 +36,7 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
+import java.util.Random;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.IntStream;
@@ -58,6 +60,13 @@ public class IndexDiskUsageAnalyzerIT extends ESIntegTestCase {
         plugins.add(EngineTestPlugin.class);
         plugins.add(MockTransportService.TestPlugin.class);
         return plugins;
+    }
+
+    @Override
+    protected Settings.Builder setRandomIndexSettings(Random random, Settings.Builder builder) {
+        var b = super.setRandomIndexSettings(random, builder);
+        b.remove(IndexSettings.SEQ_NO_INDEX_OPTIONS_SETTING.getKey());
+        return b;
     }
 
     private static final Set<ShardId> failOnFlushShards = ConcurrentCollections.newConcurrentSet();
@@ -170,7 +179,7 @@ public class IndexDiskUsageAnalyzerIT extends ESIntegTestCase {
                 .endObject();
             prepareIndex(indexName).setId("id-" + i).setSource(doc).get();
         }
-        Index index = clusterService().state().metadata().index(indexName).getIndex();
+        Index index = clusterService().state().metadata().getProject().index(indexName).getIndex();
         List<ShardId> failedShards = randomSubsetOf(
             between(1, numberOfShards),
             IntStream.range(0, numberOfShards).mapToObj(n -> new ShardId(index, n)).toList()

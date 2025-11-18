@@ -39,8 +39,24 @@ public class UnigramTokenizerTests extends BaseTokenStreamTestCase {
 
     public void testLessSimpleTokenization() throws IOException {
         TestNLPAnalyzer analyzer = new TestNLPAnalyzer(
-            List.of(UNKNOWN_TOKEN, PREFIX + "ab", "cd", PREFIX + "abc", "a", "b", "c", "ABC", "abcdabcd", "q", "r", "qr", "<mask>"),
-            List.of(0.0, 0.0, -0.1, -0.2, -0.3, -0.4, -0.5, -0.5, 20.0, 20.5, 20.5, -0.5, 0.0),
+            List.of(
+                UNKNOWN_TOKEN,
+                PREFIX + "ab",
+                "cd",
+                PREFIX + "abc",
+                "a",
+                "b",
+                "c",
+                "ABC",
+                "abcdabcd",
+                "q",
+                "r",
+                "qr",
+                "<mask>",
+                "aa",
+                "aaaa"
+            ),
+            List.of(0.0, 0.0, -0.1, -0.2, -0.3, -0.4, -0.5, -0.5, 20.0, 20.5, 20.5, -0.5, 0.0, -13.5467, -14.9644),
             UNKNOWN_TOKEN,
             new PrecompiledCharMapNormalizer.Config(new int[0], "")
         );
@@ -51,6 +67,31 @@ public class UnigramTokenizerTests extends BaseTokenStreamTestCase {
         assertAnalyzesToNoCharFilter(analyzer, "AB", new String[] { PREFIX + "AB" });
         assertAnalyzesToNoCharFilter(analyzer, "abcc", new String[] { PREFIX + "abc", "c" });
         assertAnalyzesToNoCharFilter(analyzer, "  \nabcd \n\n   abcc   \n", new String[] { PREFIX + "ab", "cd", PREFIX + "abc", "c" });
+    }
+
+    public void testLessSimpleTokenizationForRepeatingCharacters() throws IOException {
+        TestNLPAnalyzer analyzer = new TestNLPAnalyzer(
+            List.of(UNKNOWN_TOKEN, "HH", "HHHH", PREFIX + "H", "HHH", PREFIX + "HH", PREFIX, PREFIX + "HHH"),
+            List.of(0.0, -13.5467, -14.9644, -9.17478, -15.1165, -13.201, -7.97025, -15.602),
+            UNKNOWN_TOKEN,
+            PrecompiledCharMapNormalizer.fromBase64EncodedResource(
+                "/org/elasticsearch/xpack/ml/inference.nlp.tokenizers/spm_precompiled_normalizer.txt"
+            )
+        );
+
+        assertAnalyzesToNoCharFilter(analyzer, "HHHHHHHHHHHH", new String[] { PREFIX, "HHHH", "HHHH", "HHHH" });
+        assertAnalyzesToNoCharFilter(analyzer, "HHHHHHHHHHH", new String[] { PREFIX + "HHH", "HHHH", "HHHH" });
+        assertAnalyzesToNoCharFilter(analyzer, "HHHHHHHHHH", new String[] { PREFIX + "HH", "HHHH", "HHHH" });
+        assertAnalyzesToNoCharFilter(analyzer, "HHHHHHHHH", new String[] { PREFIX + "H", "HHHH", "HHHH" });
+        assertAnalyzesToNoCharFilter(analyzer, "HHHHHHHH", new String[] { PREFIX, "HHHH", "HHHH" });
+        assertAnalyzesToNoCharFilter(analyzer, "HHHHHHH", new String[] { PREFIX + "HHH", "HHHH" });
+        assertAnalyzesToNoCharFilter(analyzer, "HHHHHH", new String[] { PREFIX + "HH", "HHHH" });
+        assertAnalyzesToNoCharFilter(analyzer, "HHHHH", new String[] { PREFIX + "H", "HHHH" });
+        assertAnalyzesToNoCharFilter(analyzer, "HHHH", new String[] { PREFIX, "HHHH" });
+        assertAnalyzesToNoCharFilter(analyzer, "HHH", new String[] { PREFIX + "HHH" });
+        assertAnalyzesToNoCharFilter(analyzer, "HH", new String[] { PREFIX + "HH" });
+        assertAnalyzesToNoCharFilter(analyzer, "H", new String[] { PREFIX + "H" });
+
     }
 
     public void testLessSimpleTokenizationWithNeverSplit() throws IOException {
@@ -153,7 +194,7 @@ public class UnigramTokenizerTests extends BaseTokenStreamTestCase {
 
         @Override
         protected TokenStreamComponents createComponents(String fieldName) {
-            UnigramTokenizer tokenizer = UnigramTokenizer.build(NEVER_SPLIT, dictionary, scores, unknownToken);
+            UnigramTokenizer tokenizer = UnigramTokenizer.build(NEVER_SPLIT, dictionary, scores, unknownToken, false);
             return new TokenStreamComponents(tokenizer);
         }
     }

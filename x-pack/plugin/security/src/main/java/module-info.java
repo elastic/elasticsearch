@@ -5,6 +5,8 @@
  * 2.0.
  */
 
+import org.elasticsearch.reservedstate.ReservedStateHandlerProvider;
+
 module org.elasticsearch.security {
     requires java.naming;
     requires java.security.jgss;
@@ -23,7 +25,6 @@ module org.elasticsearch.security {
     requires org.apache.httpcomponents.httpclient;
     requires org.apache.httpcomponents.httpasyncclient;
     requires org.apache.httpcomponents.httpcore.nio;
-    requires org.apache.log4j;
     requires org.apache.logging.log4j;
     requires org.apache.logging.log4j.core;
     requires org.apache.lucene.core;
@@ -49,6 +50,7 @@ module org.elasticsearch.security {
     requires oauth2.oidc.sdk;
     requires org.slf4j;
     requires unboundid.ldapsdk;
+    requires org.elasticsearch.logging;
 
     exports org.elasticsearch.xpack.security.action to org.elasticsearch.server;
     exports org.elasticsearch.xpack.security.action.apikey to org.elasticsearch.server;
@@ -64,12 +66,21 @@ module org.elasticsearch.security {
     exports org.elasticsearch.xpack.security.action.token to org.elasticsearch.server;
     exports org.elasticsearch.xpack.security.action.user to org.elasticsearch.server;
     exports org.elasticsearch.xpack.security.action.settings to org.elasticsearch.server;
+    exports org.elasticsearch.xpack.security.action.stats to org.elasticsearch.server;
     exports org.elasticsearch.xpack.security.operator to org.elasticsearch.internal.operator, org.elasticsearch.internal.security;
     exports org.elasticsearch.xpack.security.authz to org.elasticsearch.internal.security;
-    exports org.elasticsearch.xpack.security.authc to org.elasticsearch.xcontent;
+    exports org.elasticsearch.xpack.security.authc to org.elasticsearch.xcontent, org.elasticsearch.internal.security;
+    exports org.elasticsearch.xpack.security.authc.saml to org.elasticsearch.internal.security;
     exports org.elasticsearch.xpack.security.slowlog to org.elasticsearch.server;
     exports org.elasticsearch.xpack.security.authc.support to org.elasticsearch.internal.security;
     exports org.elasticsearch.xpack.security.rest.action.apikey to org.elasticsearch.internal.security;
+    exports org.elasticsearch.xpack.security.support to org.elasticsearch.internal.security;
+    exports org.elasticsearch.xpack.security.authz.store to org.elasticsearch.internal.security;
+    exports org.elasticsearch.xpack.security.authc.service;
+    exports org.elasticsearch.xpack.security.transport.extension to org.elasticsearch.internal.security;
+    exports org.elasticsearch.xpack.security.transport to org.elasticsearch.internal.security;
+    exports org.elasticsearch.xpack.security.audit to org.elasticsearch.internal.security;
+    exports org.elasticsearch.xpack.security.metric to org.elasticsearch.internal.security;
 
     provides org.elasticsearch.index.SlowLogFieldProvider with org.elasticsearch.xpack.security.slowlog.SecuritySlowLogFieldProvider;
 
@@ -84,9 +95,7 @@ module org.elasticsearch.security {
             org.elasticsearch.xpack.security.authc.file.tool.UsersToolProvider,
             org.elasticsearch.xpack.security.enrollment.tool.AutoConfigGenerateElasticPasswordHashToolProvider;
 
-    provides org.elasticsearch.reservedstate.ReservedClusterStateHandlerProvider
-        with
-            org.elasticsearch.xpack.security.ReservedSecurityStateHandlerProvider;
+    provides ReservedStateHandlerProvider with org.elasticsearch.xpack.security.ReservedSecurityStateHandlerProvider;
 
     provides org.elasticsearch.features.FeatureSpecification with org.elasticsearch.xpack.security.SecurityFeatures;
 }

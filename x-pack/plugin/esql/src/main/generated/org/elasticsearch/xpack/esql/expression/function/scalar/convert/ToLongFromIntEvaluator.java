@@ -6,6 +6,7 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.convert;
 
 import java.lang.Override;
 import java.lang.String;
+import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
@@ -13,21 +14,27 @@ import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Vector;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 
 /**
  * {@link EvalOperator.ExpressionEvaluator} implementation for {@link ToLong}.
- * This class is generated. Do not edit it.
+ * This class is generated. Edit {@code ConvertEvaluatorImplementer} instead.
  */
 public final class ToLongFromIntEvaluator extends AbstractConvertFunction.AbstractEvaluator {
-  public ToLongFromIntEvaluator(EvalOperator.ExpressionEvaluator field, Source source,
+  private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(ToLongFromIntEvaluator.class);
+
+  private final EvalOperator.ExpressionEvaluator i;
+
+  public ToLongFromIntEvaluator(Source source, EvalOperator.ExpressionEvaluator i,
       DriverContext driverContext) {
-    super(driverContext, field, source);
+    super(driverContext, source);
+    this.i = i;
   }
 
   @Override
-  public String name() {
-    return "ToLongFromInt";
+  public EvalOperator.ExpressionEvaluator next() {
+    return i;
   }
 
   @Override
@@ -45,7 +52,7 @@ public final class ToLongFromIntEvaluator extends AbstractConvertFunction.Abstra
     }
   }
 
-  private static long evalValue(IntVector container, int index) {
+  private long evalValue(IntVector container, int index) {
     int value = container.getInt(index);
     return ToLong.fromInt(value);
   }
@@ -80,29 +87,46 @@ public final class ToLongFromIntEvaluator extends AbstractConvertFunction.Abstra
     }
   }
 
-  private static long evalValue(IntBlock container, int index) {
+  private long evalValue(IntBlock container, int index) {
     int value = container.getInt(index);
     return ToLong.fromInt(value);
+  }
+
+  @Override
+  public String toString() {
+    return "ToLongFromIntEvaluator[" + "i=" + i + "]";
+  }
+
+  @Override
+  public void close() {
+    Releasables.closeExpectNoException(i);
+  }
+
+  @Override
+  public long baseRamBytesUsed() {
+    long baseRamBytesUsed = BASE_RAM_BYTES_USED;
+    baseRamBytesUsed += i.baseRamBytesUsed();
+    return baseRamBytesUsed;
   }
 
   public static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
     private final Source source;
 
-    private final EvalOperator.ExpressionEvaluator.Factory field;
+    private final EvalOperator.ExpressionEvaluator.Factory i;
 
-    public Factory(EvalOperator.ExpressionEvaluator.Factory field, Source source) {
-      this.field = field;
+    public Factory(Source source, EvalOperator.ExpressionEvaluator.Factory i) {
       this.source = source;
+      this.i = i;
     }
 
     @Override
     public ToLongFromIntEvaluator get(DriverContext context) {
-      return new ToLongFromIntEvaluator(field.get(context), source, context);
+      return new ToLongFromIntEvaluator(source, i.get(context), context);
     }
 
     @Override
     public String toString() {
-      return "ToLongFromIntEvaluator[field=" + field + "]";
+      return "ToLongFromIntEvaluator[" + "i=" + i + "]";
     }
   }
 }

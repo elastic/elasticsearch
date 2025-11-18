@@ -25,7 +25,6 @@ public class DeleteServiceAccountTokenResponse extends ActionResponse implements
     }
 
     public DeleteServiceAccountTokenResponse(StreamInput in) throws IOException {
-        super(in);
         this.found = in.readBoolean();
     }
 

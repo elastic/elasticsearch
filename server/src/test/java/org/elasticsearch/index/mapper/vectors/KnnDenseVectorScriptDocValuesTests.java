@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.mapper.vectors;
@@ -207,7 +208,41 @@ public class KnnDenseVectorScriptDocValuesTests extends ESTestCase {
             }
 
             @Override
-            public byte[] vectorValue() {
+            public DocIndexIterator iterator() {
+                return new DocIndexIterator() {
+                    @Override
+                    public int index() {
+                        return index;
+                    }
+
+                    @Override
+                    public int docID() {
+                        return index;
+                    }
+
+                    @Override
+                    public int nextDoc() {
+                        throw new UnsupportedOperationException();
+                    }
+
+                    @Override
+                    public int advance(int target) {
+                        if (target >= size()) {
+                            return NO_MORE_DOCS;
+                        }
+                        return index = target;
+                    }
+
+                    @Override
+                    public long cost() {
+                        return 0;
+                    }
+                };
+            }
+
+            @Override
+            public byte[] vectorValue(int ord) {
+                assert ord == index;
                 for (int i = 0; i < byteVector.length; i++) {
                     byteVector[i] = (byte) vectors[index][i];
                 }
@@ -215,25 +250,12 @@ public class KnnDenseVectorScriptDocValuesTests extends ESTestCase {
             }
 
             @Override
-            public int docID() {
-                return index;
-            }
-
-            @Override
-            public int nextDoc() {
+            public ByteVectorValues copy() {
                 throw new UnsupportedOperationException();
             }
 
             @Override
-            public int advance(int target) {
-                if (target >= size()) {
-                    return NO_MORE_DOCS;
-                }
-                return index = target;
-            }
-
-            @Override
-            public VectorScorer scorer(byte[] floats) throws IOException {
+            public VectorScorer scorer(byte[] floats) {
                 throw new UnsupportedOperationException();
             }
         };
@@ -255,30 +277,51 @@ public class KnnDenseVectorScriptDocValuesTests extends ESTestCase {
             }
 
             @Override
-            public float[] vectorValue() {
+            public DocIndexIterator iterator() {
+                return new DocIndexIterator() {
+                    @Override
+                    public int index() {
+                        return index;
+                    }
+
+                    @Override
+                    public int docID() {
+                        return index;
+                    }
+
+                    @Override
+                    public int nextDoc() throws IOException {
+                        return advance(index + 1);
+                    }
+
+                    @Override
+                    public int advance(int target) throws IOException {
+                        if (target >= size()) {
+                            return NO_MORE_DOCS;
+                        }
+                        return index = target;
+                    }
+
+                    @Override
+                    public long cost() {
+                        return 0;
+                    }
+                };
+            }
+
+            @Override
+            public float[] vectorValue(int ord) {
+                assert ord == index;
                 return vectors[index];
             }
 
             @Override
-            public int docID() {
-                return index;
+            public FloatVectorValues copy() {
+                throw new UnsupportedOperationException();
             }
 
             @Override
-            public int nextDoc() {
-                return advance(index + 1);
-            }
-
-            @Override
-            public int advance(int target) {
-                if (target >= size()) {
-                    return NO_MORE_DOCS;
-                }
-                return index = target;
-            }
-
-            @Override
-            public VectorScorer scorer(float[] floats) throws IOException {
+            public VectorScorer scorer(float[] floats) {
                 throw new UnsupportedOperationException();
             }
         };

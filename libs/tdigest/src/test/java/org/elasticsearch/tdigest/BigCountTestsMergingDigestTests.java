@@ -23,7 +23,7 @@ package org.elasticsearch.tdigest;
 
 public class BigCountTestsMergingDigestTests extends BigCountTests {
     @Override
-    public TDigest createDigest() {
-        return new MergingDigest(100);
+    public TDigest createDigest(int compression) {
+        return TDigest.createMergingDigest(arrays(), compression);
     }
 }

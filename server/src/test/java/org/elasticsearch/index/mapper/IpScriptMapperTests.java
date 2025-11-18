@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.mapper;
@@ -74,16 +75,16 @@ public class IpScriptMapperTests extends MapperScriptTestCase<IpFieldScript.Fact
     @Override
     protected void assertMultipleValues(List<IndexableField> fields) {
         assertEquals(4, fields.size());
-        assertEquals("InetAddressPoint <field:[0:0:0:0:0:0:0:1]>", fields.get(0).toString());
+        assertEquals("ESInetAddressPoint <field:[::1]>", fields.get(0).toString());
         assertEquals("docValuesType=SORTED_SET<field:[0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1]>", fields.get(1).toString());
-        assertEquals("InetAddressPoint <field:[0:0:0:0:0:0:0:2]>", fields.get(2).toString());
+        assertEquals("ESInetAddressPoint <field:[::2]>", fields.get(2).toString());
         assertEquals("docValuesType=SORTED_SET<field:[0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 2]>", fields.get(3).toString());
     }
 
     @Override
     protected void assertDocValuesDisabled(List<IndexableField> fields) {
         assertEquals(1, fields.size());
-        assertEquals("InetAddressPoint <field:[0:0:0:0:0:0:0:1]>", fields.get(0).toString());
+        assertEquals("ESInetAddressPoint <field:[::1]>", fields.get(0).toString());
     }
 
     @Override

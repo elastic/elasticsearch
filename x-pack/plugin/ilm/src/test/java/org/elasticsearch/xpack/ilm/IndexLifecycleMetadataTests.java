@@ -10,7 +10,6 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.cluster.metadata.Metadata;
-import org.elasticsearch.cluster.metadata.Metadata.Custom;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.common.util.Maps;
@@ -44,8 +43,6 @@ import org.elasticsearch.xpack.core.ilm.UnfollowAction;
 import org.elasticsearch.xpack.core.ilm.WaitForSnapshotAction;
 
 import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.SortedMap;
@@ -55,7 +52,7 @@ import java.util.concurrent.TimeUnit;
 import static org.elasticsearch.xpack.ilm.LifecyclePolicyTestsUtils.newTestLifecyclePolicy;
 import static org.elasticsearch.xpack.ilm.LifecyclePolicyTestsUtils.randomTimeseriesLifecyclePolicy;
 
-public class IndexLifecycleMetadataTests extends ChunkedToXContentDiffableSerializationTestCase<Custom> {
+public class IndexLifecycleMetadataTests extends ChunkedToXContentDiffableSerializationTestCase<Metadata.ProjectCustom> {
 
     @Override
     protected IndexLifecycleMetadata createTestInstance() {
@@ -63,10 +60,7 @@ public class IndexLifecycleMetadataTests extends ChunkedToXContentDiffableSerial
         Map<String, LifecyclePolicyMetadata> policies = Maps.newMapWithExpectedSize(numPolicies);
         for (int i = 0; i < numPolicies; i++) {
             LifecyclePolicy policy = randomTimeseriesLifecyclePolicy(randomAlphaOfLength(4) + i);
-            policies.put(
-                policy.getName(),
-                new LifecyclePolicyMetadata(policy, Collections.emptyMap(), randomNonNegativeLong(), randomNonNegativeLong())
-            );
+            policies.put(policy.getName(), new LifecyclePolicyMetadata(policy, Map.of(), randomNonNegativeLong(), randomNonNegativeLong()));
         }
         return new IndexLifecycleMetadata(policies, randomFrom(OperationMode.values()));
     }
@@ -77,14 +71,14 @@ public class IndexLifecycleMetadataTests extends ChunkedToXContentDiffableSerial
     }
 
     @Override
-    protected Reader<Metadata.Custom> instanceReader() {
+    protected Reader<Metadata.ProjectCustom> instanceReader() {
         return IndexLifecycleMetadata::new;
     }
 
     @Override
     protected NamedWriteableRegistry getNamedWriteableRegistry() {
         return new NamedWriteableRegistry(
-            Arrays.asList(
+            List.of(
                 new NamedWriteableRegistry.Entry(
                     LifecycleType.class,
                     TimeseriesLifecycleType.TYPE,
@@ -111,7 +105,7 @@ public class IndexLifecycleMetadataTests extends ChunkedToXContentDiffableSerial
     protected NamedXContentRegistry xContentRegistry() {
         List<NamedXContentRegistry.Entry> entries = new ArrayList<>(ClusterModule.getNamedXWriteables());
         entries.addAll(
-            Arrays.asList(
+            List.of(
                 new NamedXContentRegistry.Entry(
                     LifecycleType.class,
                     new ParseField(TimeseriesLifecycleType.TYPE),
@@ -144,7 +138,7 @@ public class IndexLifecycleMetadataTests extends ChunkedToXContentDiffableSerial
     }
 
     @Override
-    protected Metadata.Custom mutateInstance(Custom instance) {
+    protected Metadata.ProjectCustom mutateInstance(Metadata.ProjectCustom instance) {
         IndexLifecycleMetadata metadata = (IndexLifecycleMetadata) instance;
         Map<String, LifecyclePolicyMetadata> policies = metadata.getPolicyMetadatas();
         policies = new TreeMap<>(policies);
@@ -155,7 +149,7 @@ public class IndexLifecycleMetadataTests extends ChunkedToXContentDiffableSerial
                 policyName,
                 new LifecyclePolicyMetadata(
                     randomTimeseriesLifecyclePolicy(policyName),
-                    Collections.emptyMap(),
+                    Map.of(),
                     randomNonNegativeLong(),
                     randomNonNegativeLong()
                 )
@@ -167,12 +161,12 @@ public class IndexLifecycleMetadataTests extends ChunkedToXContentDiffableSerial
     }
 
     @Override
-    protected Custom makeTestChanges(Custom testInstance) {
+    protected Metadata.ProjectCustom makeTestChanges(Metadata.ProjectCustom testInstance) {
         return mutateInstance(testInstance);
     }
 
     @Override
-    protected Reader<Diff<Custom>> diffReader() {
+    protected Reader<Diff<Metadata.ProjectCustom>> diffReader() {
         return IndexLifecycleMetadataDiff::new;
     }
 
@@ -192,9 +186,9 @@ public class IndexLifecycleMetadataTests extends ChunkedToXContentDiffableSerial
             Map<String, Phase> phases = Maps.newMapWithExpectedSize(numberPhases);
             for (int j = 0; j < numberPhases; j++) {
                 TimeValue after = randomTimeValue(0, 1_000_000_000, TimeUnit.SECONDS, TimeUnit.MINUTES, TimeUnit.HOURS, TimeUnit.DAYS);
-                Map<String, LifecycleAction> actions = Collections.emptyMap();
+                Map<String, LifecycleAction> actions = Map.of();
                 if (randomBoolean()) {
-                    actions = Collections.singletonMap(DeleteAction.NAME, DeleteAction.WITH_SNAPSHOT_DELETE);
+                    actions = Map.of(DeleteAction.NAME, DeleteAction.WITH_SNAPSHOT_DELETE);
                 }
                 String phaseName = randomAlphaOfLength(10);
                 phases.put(phaseName, new Phase(phaseName, after, actions));
@@ -204,7 +198,7 @@ public class IndexLifecycleMetadataTests extends ChunkedToXContentDiffableSerial
                 policyName,
                 new LifecyclePolicyMetadata(
                     newTestLifecyclePolicy(policyName, phases),
-                    Collections.emptyMap(),
+                    Map.of(),
                     randomNonNegativeLong(),
                     randomNonNegativeLong()
                 )

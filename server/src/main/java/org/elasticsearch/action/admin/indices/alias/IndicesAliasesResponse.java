@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.admin.indices.alias;
@@ -48,7 +49,7 @@ public class IndicesAliasesResponse extends AcknowledgedResponse {
     protected IndicesAliasesResponse(StreamInput in) throws IOException {
         super(in);
 
-        if (in.getTransportVersion().onOrAfter(TransportVersions.ALIAS_ACTION_RESULTS)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_14_0)) {
             this.errors = in.readBoolean();
             this.actionResults = in.readCollectionAsImmutableList(AliasActionResult::new);
         } else {
@@ -77,6 +78,17 @@ public class IndicesAliasesResponse extends AcknowledgedResponse {
     }
 
     /**
+     * Get a list of all errors from the response. If there are no errors, an empty list is returned.
+     */
+    public List<ElasticsearchException> getErrors() {
+        if (errors == false) {
+            return List.of();
+        } else {
+            return actionResults.stream().filter(a -> a.getError() != null).map(AliasActionResult::getError).toList();
+        }
+    }
+
+    /**
      *  Build a response from a list of action results. Sets the errors boolean based
      *  on whether an of the individual results contain an error.
      * @param actionResults an action result for each of the requested alias actions
@@ -91,7 +103,7 @@ public class IndicesAliasesResponse extends AcknowledgedResponse {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.ALIAS_ACTION_RESULTS)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_14_0)) {
             out.writeBoolean(errors);
             out.writeCollection(actionResults);
         }
@@ -162,6 +174,13 @@ public class IndicesAliasesResponse extends AcknowledgedResponse {
          */
         public static AliasActionResult buildSuccess(List<String> indices, AliasActions action) {
             return new AliasActionResult(indices, action, null);
+        }
+
+        /**
+         * The error result if the action failed, null if the action succeeded.
+         */
+        public ElasticsearchException getError() {
+            return error;
         }
 
         private int getStatus() {

@@ -28,8 +28,23 @@ public class AzureOpenAiCompletionTaskSettingsTests extends AbstractWireSerializ
     }
 
     public static AzureOpenAiCompletionTaskSettings createRandom() {
-        var user = randomBoolean() ? randomAlphaOfLength(15) : null;
-        return new AzureOpenAiCompletionTaskSettings(user);
+        return new AzureOpenAiCompletionTaskSettings(randomAlphaOfLengthOrNull(15));
+    }
+
+    public void testIsEmpty() {
+        var randomSettings = createRandom();
+        var stringRep = Strings.toString(randomSettings);
+        assertEquals(stringRep, randomSettings.isEmpty(), stringRep.equals("{}"));
+    }
+
+    public void testUpdatedTaskSettings() {
+        var initialSettings = createRandom();
+        var newSettings = createRandom();
+        AzureOpenAiCompletionTaskSettings updatedSettings = (AzureOpenAiCompletionTaskSettings) initialSettings.updatedTaskSettings(
+            newSettings.user() == null ? Map.of() : Map.of(AzureOpenAiServiceFields.USER, newSettings.user())
+        );
+
+        assertEquals(newSettings.user() == null ? initialSettings.user() : newSettings.user(), updatedSettings.user());
     }
 
     public void testFromMap_WithUser() {
@@ -94,6 +109,7 @@ public class AzureOpenAiCompletionTaskSettingsTests extends AbstractWireSerializ
 
     @Override
     protected AzureOpenAiCompletionTaskSettings mutateInstance(AzureOpenAiCompletionTaskSettings instance) throws IOException {
-        return randomValueOtherThan(instance, AzureOpenAiCompletionTaskSettingsTests::createRandomWithUser);
+        String user = randomValueOtherThan(instance.user(), () -> randomAlphaOfLengthOrNull(15));
+        return new AzureOpenAiCompletionTaskSettings(user);
     }
 }

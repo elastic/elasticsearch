@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.application;
 
 import org.elasticsearch.client.internal.node.NodeClient;
+import org.elasticsearch.license.LicensedFeature;
 import org.elasticsearch.license.MockLicenseState;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.test.ESTestCase;
@@ -16,7 +17,6 @@ import org.elasticsearch.test.rest.FakeRestChannel;
 import org.elasticsearch.test.rest.FakeRestRequest;
 import org.elasticsearch.xpack.application.utils.LicenseUtils;
 
-import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -26,18 +26,22 @@ import static org.mockito.Mockito.when;
 
 public class EnterpriseSearchBaseRestHandlerTests extends ESTestCase {
     public void testLicenseEnforcement() throws Exception {
-        MockLicenseState licenseState = MockLicenseState.createMock();
-        final LicenseUtils.Product product = LicenseUtils.Product.QUERY_RULES;
-        final boolean licensedFeature = randomBoolean();
+        final boolean isLicensed = randomBoolean();
+        MockLicenseState enterpriseLicenseState = mockLicenseState(LicenseUtils.ENTERPRISE_LICENSED_FEATURE, isLicensed);
+        MockLicenseState platinumLicenseState = mockLicenseState(LicenseUtils.PLATINUM_LICENSED_FEATURE, isLicensed);
 
-        when(licenseState.isAllowed(LicenseUtils.LICENSED_ENT_SEARCH_FEATURE)).thenReturn(licensedFeature);
-        when(licenseState.isActive()).thenReturn(licensedFeature);
+        testHandler(enterpriseLicenseState, isLicensed);
+        testHandler(platinumLicenseState, isLicensed);
+    }
+
+    private void testHandler(MockLicenseState licenseState, boolean isLicensed) throws Exception {
+        final LicenseUtils.Product product = LicenseUtils.Product.QUERY_RULES;
 
         final AtomicBoolean consumerCalled = new AtomicBoolean(false);
         EnterpriseSearchBaseRestHandler handler = new EnterpriseSearchBaseRestHandler(licenseState, product) {
 
             @Override
-            protected RestChannelConsumer innerPrepareRequest(RestRequest request, NodeClient client) throws IOException {
+            protected RestChannelConsumer innerPrepareRequest(RestRequest request, NodeClient client) {
                 return channel -> {
                     if (consumerCalled.compareAndSet(false, true) == false) {
                         fail("consumerCalled was not false");
@@ -57,7 +61,7 @@ public class EnterpriseSearchBaseRestHandlerTests extends ESTestCase {
         };
 
         FakeRestRequest fakeRestRequest = new FakeRestRequest();
-        FakeRestChannel fakeRestChannel = new FakeRestChannel(fakeRestRequest, randomBoolean(), licensedFeature ? 0 : 1);
+        FakeRestChannel fakeRestChannel = new FakeRestChannel(fakeRestRequest, randomBoolean(), isLicensed ? 0 : 1);
 
         try (var threadPool = createThreadPool()) {
             final var client = new NoOpNodeClient(threadPool);
@@ -65,7 +69,7 @@ public class EnterpriseSearchBaseRestHandlerTests extends ESTestCase {
             verifyNoMoreInteractions(licenseState);
             handler.handleRequest(fakeRestRequest, fakeRestChannel, client);
 
-            if (licensedFeature) {
+            if (isLicensed) {
                 assertTrue(consumerCalled.get());
                 assertEquals(0, fakeRestChannel.responses().get());
                 assertEquals(0, fakeRestChannel.errors().get());
@@ -75,5 +79,13 @@ public class EnterpriseSearchBaseRestHandlerTests extends ESTestCase {
                 assertEquals(1, fakeRestChannel.errors().get());
             }
         }
+    }
+
+    private MockLicenseState mockLicenseState(LicensedFeature licensedFeature, boolean isLicensed) {
+        MockLicenseState licenseState = MockLicenseState.createMock();
+
+        when(licenseState.isAllowed(licensedFeature)).thenReturn(isLicensed);
+        when(licenseState.isActive()).thenReturn(isLicensed);
+        return licenseState;
     }
 }

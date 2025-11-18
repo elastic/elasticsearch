@@ -1,0 +1,109 @@
+setup:
+  - requires:
+      test_runner_features: capabilities
+      capabilities:
+        - method: PUT
+          path: /_component_template/{id}
+          capabilities: [ component_template_tracking_info ]
+      reason: "Templates have tracking info: modified_date and created_date"
+  - requires:
+      test_runner_features: contains
+
+---
+"Test PUT setting created_date":
+  - do:
+      catch: bad_request
+      cluster.put_component_template:
+        name: test_tracking
+        body:
+          template:
+            settings:
+              number_of_shards: 1
+          created_date: "2025-07-04T12:50:48.415Z"
+  - match: { status: 400 }
+  - contains: { error.reason: "[component_template] unknown field [created_date] did you mean [created_date_millis]?" }
+
+---
+"Test PUT setting created_date_millis":
+  - do:
+      catch: bad_request
+      cluster.put_component_template:
+        name: test_tracking
+        body:
+          template:
+            settings:
+              number_of_shards: 1
+          created_date_millis: 1
+  - match: { status: 400 }
+  - match: { error.reason: "Validation Failed: 1: Provided a template property which is managed by the system: created_date_millis;" }
+
+---
+"Test PUT setting modified_date":
+  - do:
+      catch: bad_request
+      cluster.put_component_template:
+        name: test_tracking
+        body:
+          template:
+            settings:
+              number_of_shards: 1
+          modified_date: "2025-07-04T12:50:48.415Z"
+  - match: { status: 400 }
+  - contains: { error.reason: "[component_template] unknown field [modified_date] did you mean [modified_date_millis]?" }
+
+---
+"Test PUT setting modified_date_millis":
+  - do:
+      catch: bad_request
+      cluster.put_component_template:
+        name: test_tracking
+        body:
+          template:
+            settings:
+              number_of_shards: 1
+          modified_date_millis: 1
+  - match: { status: 400 }
+  - match: { error.reason: "Validation Failed: 1: Provided a template property which is managed by the system: modified_date_millis;" }
+
+---
+"Test update preserves created_date but updates modified_date":
+  - do:
+      cluster.put_component_template:
+        name: test_tracking
+        body:
+          template:
+            settings:
+              number_of_shards: 1
+  - match: { acknowledged: true }
+
+  - do:
+      cluster.get_component_template:
+        human: true
+        name: test_tracking
+  - set: { component_templates.0.component_template.created_date: first_created }
+  - set: { component_templates.0.component_template.created_date_millis: first_created_millis }
+  - set: { component_templates.0.component_template.modified_date: first_modified }
+  - set: { component_templates.0.component_template.modified_date_millis: first_modified_millis }
+  - match: { $first_created: "/^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z$/" }
+  - match: { $first_modified: "/^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z$/" }
+  - match: { $first_created: $first_modified }
+  - match: { $first_created_millis: $first_modified_millis }
+  - gte: { $first_modified_millis: 0 }
+
+  - do:
+      cluster.put_component_template:
+        name: test_tracking
+        body:
+          template:
+            settings:
+              number_of_shards: 2
+
+  - do:
+      cluster.get_component_template:
+        human: true
+        name: test_tracking
+  - set: { component_templates.0.component_template.created_date: second_created }
+  - set: { component_templates.0.component_template.created_date_millis: second_created_millis }
+  - match: { $second_created: $first_created }
+  - match: { $second_created_millis: $first_created_millis }
+

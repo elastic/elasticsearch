@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.gradle.internal;
@@ -20,6 +21,7 @@ import org.gradle.api.artifacts.component.ProjectComponentIdentifier;
 import org.gradle.api.artifacts.result.ResolvedComponentResult;
 import org.gradle.api.artifacts.result.ResolvedDependencyResult;
 import org.gradle.api.attributes.LibraryElements;
+import org.gradle.api.attributes.Usage;
 import org.gradle.api.file.FileCollection;
 import org.gradle.api.logging.Logger;
 import org.gradle.api.plugins.JavaPlugin;
@@ -52,7 +54,7 @@ public abstract class ElasticsearchJavaModulePathPlugin implements Plugin<Projec
     }
 
     // List of root tasks, by name, whose compileJava task should not use the module path. These are test related sources.
-    static final Set<String> EXCLUDES = Set.of(":test:framework", ":x-pack:plugin:eql:qa:common");
+    static final Set<String> EXCLUDES = Set.of(":test:framework", ":x-pack:plugin:eql:qa:common", ":x-pack:plugin:esql:compute:test");
 
     void configureCompileModulePath(Project project) {
         // first disable Gradle's builtin module path inference
@@ -74,12 +76,13 @@ public abstract class ElasticsearchJavaModulePathPlugin implements Plugin<Projec
             it.extendsFrom(compileClasspath);
             it.setCanBeResolved(true);
             it.setCanBeConsumed(false); // we don't want this configuration used by dependent projects
-            it.attributes(
-                attrs -> attrs.attribute(
+            it.attributes(attrs -> {
+                attrs.attribute(
                     LibraryElements.LIBRARY_ELEMENTS_ATTRIBUTE,
                     project.getObjects().named(LibraryElements.class, LibraryElements.CLASSES)
-                )
-            );
+                );
+                attrs.attribute(Usage.USAGE_ATTRIBUTE, project.getObjects().named(Usage.class, Usage.JAVA_API));
+            });
         }).getIncoming().artifactView(it -> {
             it.componentFilter(cf -> {
                 var visited = new HashSet<ComponentIdentifier>();

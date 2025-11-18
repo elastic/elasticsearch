@@ -1,51 +1,55 @@
 {
-  "ml.forecast":{
-    "documentation":{
-      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/ml-forecast.html",
-      "description":"Predicts the future behavior of a time series by using its historical behavior."
+  "ml.forecast": {
+    "documentation": {
+      "url": "https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-ml-forecast",
+      "description": "Predict future behavior of a time series"
     },
-    "stability":"stable",
-    "visibility":"public",
-    "headers":{
-      "accept": [ "application/json"],
-      "content_type": ["application/json"]
+    "stability": "stable",
+    "visibility": "public",
+    "headers": {
+      "accept": [
+        "application/json"
+      ],
+      "content_type": [
+        "application/json"
+      ]
     },
-    "url":{
-      "paths":[
+    "url": {
+      "paths": [
         {
-          "path":"/_ml/anomaly_detectors/{job_id}/_forecast",
-          "methods":[
+          "path": "/_ml/anomaly_detectors/{job_id}/_forecast",
+          "methods": [
             "POST"
           ],
-          "parts":{
-            "job_id":{
-              "type":"string",
-              "description":"The ID of the job to forecast for"
+          "parts": {
+            "job_id": {
+              "type": "string",
+              "description": "The ID of the job to forecast for"
             }
           }
         }
       ]
     },
-    "params":{
-      "duration":{
-        "type":"time",
-        "required":false,
-        "description":"The duration of the forecast"
+    "params": {
+      "duration": {
+        "type": "time",
+        "default": "1d",
+        "description": "The duration of the forecast"
       },
-      "expires_in":{
-        "type":"time",
-        "required":false,
-        "description":"The time interval after which the forecast expires. Expired forecasts will be deleted at the first opportunity."
+      "expires_in": {
+        "type": "time",
+        "default": "14d",
+        "description": "The time interval after which the forecast expires. Expired forecasts will be deleted at the first opportunity."
       },
-      "max_model_memory":{
-        "type":"string",
-        "required":false,
-        "description":"The max memory able to be used by the forecast. Default is 20mb."
+      "max_model_memory": {
+        "type": "string",
+        "default": "20mb",
+        "description": "The max memory able to be used by the forecast. Default is 20mb."
       }
     },
-    "body":{
+    "body": {
       "description": "Query parameters can be specified in the body",
-      "required":false
+      "required": false
     }
   }
 }

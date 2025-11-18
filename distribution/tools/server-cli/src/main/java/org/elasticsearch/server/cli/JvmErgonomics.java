@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.server.cli;
@@ -27,6 +28,8 @@ import java.util.regex.Pattern;
  */
 final class JvmErgonomics {
 
+    static final double DIRECT_MEMORY_TO_HEAP_FACTOR = 0.5;
+
     private JvmErgonomics() {
         throw new AssertionError("No instances intended");
     }
@@ -43,7 +46,7 @@ final class JvmErgonomics {
         final long heapSize = JvmOption.extractMaxHeapSize(finalJvmOptions);
         final long maxDirectMemorySize = JvmOption.extractMaxDirectMemorySize(finalJvmOptions);
         if (maxDirectMemorySize == 0) {
-            ergonomicChoices.add("-XX:MaxDirectMemorySize=" + heapSize / 2);
+            ergonomicChoices.add("-XX:MaxDirectMemorySize=" + (long) (DIRECT_MEMORY_TO_HEAP_FACTOR * heapSize));
         }
 
         final boolean tuneG1GCForSmallHeap = tuneG1GCForSmallHeap(heapSize);

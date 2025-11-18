@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.cluster.metadata;
 
@@ -20,14 +21,16 @@ public class MetadataIndexStateServiceUtils {
     private MetadataIndexStateServiceUtils() {}
 
     /**
-     * Allows to call {@link MetadataIndexStateService#addIndexClosedBlocks(Index[], Map, ClusterState)} which is a protected method.
+     * Allows to call {@link MetadataIndexStateService#addIndexClosedBlocks(ProjectId, Index[], Map, ClusterState)}
+     * which is a protected method.
      */
     public static ClusterState addIndexClosedBlocks(
+        final ProjectId projectId,
         final Index[] indices,
         final Map<Index, ClusterBlock> blockedIndices,
         final ClusterState state
     ) {
-        return MetadataIndexStateService.addIndexClosedBlocks(indices, blockedIndices, state);
+        return MetadataIndexStateService.addIndexClosedBlocks(projectId, indices, blockedIndices, state);
     }
 
     /**
@@ -35,10 +38,16 @@ public class MetadataIndexStateServiceUtils {
      */
     public static ClusterState closeRoutingTable(
         final ClusterState state,
+        final ProjectId projectId,
         final Map<Index, ClusterBlock> blockedIndices,
         final Map<Index, CloseIndexResponse.IndexResult> results
     ) {
-        return MetadataIndexStateService.closeRoutingTable(state, blockedIndices, results, TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY)
-            .v1();
+        return MetadataIndexStateService.closeRoutingTable(
+            state,
+            projectId,
+            blockedIndices,
+            results,
+            TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY
+        ).v1();
     }
 }

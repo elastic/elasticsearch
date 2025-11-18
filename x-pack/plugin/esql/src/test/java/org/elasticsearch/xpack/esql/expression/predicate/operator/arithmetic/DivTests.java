@@ -13,7 +13,7 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.expression.function.AbstractFunctionTestCase;
+import org.elasticsearch.xpack.esql.expression.function.AbstractScalarFunctionTestCase;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 import org.hamcrest.Matcher;
 
@@ -26,7 +26,7 @@ import java.util.function.Supplier;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public class DivTests extends AbstractFunctionTestCase {
+public class DivTests extends AbstractScalarFunctionTestCase {
     public DivTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
         this.testCase = testCaseSupplier.get();
     }
@@ -68,8 +68,8 @@ public class DivTests extends AbstractFunctionTestCase {
                         return List.of();
                     }
                     return List.of(
-                        "Line -1:-1: evaluation of [] failed, treating result as null. Only first 20 failures recorded.",
-                        "Line -1:-1: java.lang.ArithmeticException: / by zero"
+                        "Line 1:1: evaluation of [source] failed, treating result as null. Only first 20 failures recorded.",
+                        "Line 1:1: java.lang.ArithmeticException: / by zero"
                     );
                 },
                 false
@@ -88,8 +88,6 @@ public class DivTests extends AbstractFunctionTestCase {
                 false
             )
         );
-
-        suppliers = errorsForCasesWithoutExamples(anyNullIsNull(true, suppliers), DivTests::divErrorMessageString);
 
         // Divide by zero cases - all of these should warn and return null
         TestCaseSupplier.NumericTypeTestConfigs<Number> typeStuff = new TestCaseSupplier.NumericTypeTestConfigs<>(
@@ -136,8 +134,8 @@ public class DivTests extends AbstractFunctionTestCase {
                     TestCaseSupplier.getSuppliersForNumericType(rhsType, 0, 0, true),
                     evaluatorToString,
                     (lhs, rhs) -> List.of(
-                        "Line -1:-1: evaluation of [] failed, treating result as null. Only first 20 failures recorded.",
-                        "Line -1:-1: java.lang.ArithmeticException: / by zero"
+                        "Line 1:1: evaluation of [source] failed, treating result as null. Only first 20 failures recorded.",
+                        "Line 1:1: java.lang.ArithmeticException: / by zero"
                     ),
                     suppliers,
                     expected,
@@ -156,19 +154,22 @@ public class DivTests extends AbstractFunctionTestCase {
                 TestCaseSupplier.ulongCases(BigInteger.ZERO, BigInteger.valueOf(Long.MAX_VALUE), true),
                 TestCaseSupplier.ulongCases(BigInteger.ZERO, BigInteger.ZERO, true),
                 List.of(
-                    "Line -1:-1: evaluation of [] failed, treating result as null. Only first 20 failures recorded.",
-                    "Line -1:-1: java.lang.ArithmeticException: / by zero"
+                    "Line 1:1: evaluation of [source] failed, treating result as null. Only first 20 failures recorded.",
+                    "Line 1:1: java.lang.ArithmeticException: / by zero"
                 ),
                 false
             )
         );
 
+        suppliers = errorsForCasesWithoutExamples(anyNullIsNull(true, suppliers), DivTests::divErrorMessageString);
+
+        // Cannot use parameterSuppliersFromTypedDataWithDefaultChecks as error messages are non-trivial
         return parameterSuppliersFromTypedData(suppliers);
     }
 
     private static String divErrorMessageString(boolean includeOrdinal, List<Set<DataType>> validPerPosition, List<DataType> types) {
         try {
-            return typeErrorMessage(includeOrdinal, validPerPosition, types);
+            return typeErrorMessage(includeOrdinal, validPerPosition, types, (a, b) -> "numeric");
         } catch (IllegalStateException e) {
             // This means all the positional args were okay, so the expected error is from the combination
             return "[/] has arguments with incompatible types [" + types.get(0).typeName() + "] and [" + types.get(1).typeName() + "]";

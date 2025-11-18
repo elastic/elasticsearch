@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.gradle.internal.doc;
@@ -23,6 +24,7 @@ import org.gradle.api.tasks.OutputDirectory;
 import java.io.File;
 import java.io.IOException;
 import java.io.PrintWriter;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -439,7 +441,7 @@ public abstract class RestTestsFromDocSnippetTask extends DocSnippetTask {
             // Now setup the writer
             try {
                 Files.createDirectories(dest.getParent());
-                current = new PrintWriter(dest.toFile(), "UTF-8");
+                current = new PrintWriter(dest.toFile(), StandardCharsets.UTF_8);
                 return current;
             } catch (IOException e) {
                 throw new RuntimeException(e);

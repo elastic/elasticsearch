@@ -6,13 +6,16 @@
  */
 package org.elasticsearch.xpack.esql.core.expression;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.PlanStreamInput;
+import org.elasticsearch.xpack.esql.core.util.PlanStreamOutput;
 
 import java.io.IOException;
 
@@ -23,27 +26,57 @@ public class ReferenceAttribute extends TypedAttribute {
     static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         Attribute.class,
         "ReferenceAttribute",
-        ReferenceAttribute::new
+        ReferenceAttribute::readFrom
     );
 
+    private static final TransportVersion ESQL_QUALIFIERS_IN_ATTRIBUTES = TransportVersion.fromName("esql_qualifiers_in_attributes");
+
+    @Deprecated
+    /**
+     * Only used for tests
+     */
     public ReferenceAttribute(Source source, String name, DataType dataType) {
-        this(source, name, dataType, null, Nullability.FALSE, null, false);
+        this(source, null, name, dataType, Nullability.FALSE, null, false);
+    }
+
+    public ReferenceAttribute(Source source, @Nullable String qualifier, String name, DataType dataType) {
+        this(source, qualifier, name, dataType, Nullability.FALSE, null, false);
     }
 
     public ReferenceAttribute(
         Source source,
+        @Nullable String qualifier,
         String name,
         DataType dataType,
-        String qualifier,
         Nullability nullability,
-        NameId id,
+        @Nullable NameId id,
         boolean synthetic
     ) {
-        super(source, name, dataType, qualifier, nullability, id, synthetic);
+        super(source, qualifier, name, dataType, nullability, id, synthetic);
     }
 
-    @SuppressWarnings("unchecked")
-    public ReferenceAttribute(StreamInput in) throws IOException {
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        if (((PlanStreamOutput) out).writeAttributeCacheHeader(this)) {
+            Source.EMPTY.writeTo(out);
+            out.writeString(name());
+            dataType().writeTo(out);
+            checkAndSerializeQualifier((PlanStreamOutput) out, out.getTransportVersion());
+            if (out.getTransportVersion().supports(ESQL_QUALIFIERS_IN_ATTRIBUTES) == false) {
+                // We used to always serialize a null qualifier here, so do the same for bwc.
+                out.writeOptionalString(null);
+            }
+            out.writeEnum(nullable());
+            id().writeTo(out);
+            out.writeBoolean(synthetic());
+        }
+    }
+
+    public static ReferenceAttribute readFrom(StreamInput in) throws IOException {
+        return ((PlanStreamInput) in).readAttributeWithCache(ReferenceAttribute::innerReadFrom);
+    }
+
+    private static ReferenceAttribute innerReadFrom(StreamInput in) throws IOException {
         /*
          * The funny casting dance with `(StreamInput & PlanStreamInput) in` is required
          * because we're in esql-core here and the real PlanStreamInput is in
@@ -52,26 +85,19 @@ public class ReferenceAttribute extends TypedAttribute {
          * and NameId. This should become a hard cast when we move everything out
          * of esql-core.
          */
-        this(
-            Source.readFrom((StreamInput & PlanStreamInput) in),
-            in.readString(),
-            DataType.readFrom(in),
-            in.readOptionalString(),
-            in.readEnum(Nullability.class),
-            NameId.readFrom((StreamInput & PlanStreamInput) in),
-            in.readBoolean()
-        );
-    }
+        Source source = Source.readFrom((StreamInput & PlanStreamInput) in);
+        // We could cache this if we wanted to.
+        String name = in.readString();
+        DataType dataType = DataType.readFrom(in);
+        String qualifier = readQualifier((PlanStreamInput) in, in.getTransportVersion());
+        if (in.getTransportVersion().supports(ESQL_QUALIFIERS_IN_ATTRIBUTES) == false) {
+            in.readOptionalString();
+        }
+        Nullability nullability = in.readEnum(Nullability.class);
+        NameId id = NameId.readFrom((StreamInput & PlanStreamInput) in);
+        boolean synthetic = in.readBoolean();
 
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        Source.EMPTY.writeTo(out);
-        out.writeString(name());
-        dataType().writeTo(out);
-        out.writeOptionalString(qualifier());
-        out.writeEnum(nullable());
-        id().writeTo(out);
-        out.writeBoolean(synthetic());
+        return new ReferenceAttribute(source, qualifier, name, dataType, nullability, id, synthetic);
     }
 
     @Override
@@ -82,23 +108,33 @@ public class ReferenceAttribute extends TypedAttribute {
     @Override
     protected Attribute clone(
         Source source,
+        String qualifier,
         String name,
         DataType dataType,
-        String qualifier,
         Nullability nullability,
         NameId id,
         boolean synthetic
     ) {
-        return new ReferenceAttribute(source, name, dataType, qualifier, nullability, id, synthetic);
+        return new ReferenceAttribute(source, qualifier, name, dataType, nullability, id, synthetic);
     }
 
     @Override
     protected NodeInfo<ReferenceAttribute> info() {
-        return NodeInfo.create(this, ReferenceAttribute::new, name(), dataType(), qualifier(), nullable(), id(), synthetic());
+        return NodeInfo.create(this, ReferenceAttribute::new, qualifier(), name(), dataType(), nullable(), id(), synthetic());
     }
 
     @Override
     protected String label() {
         return "r";
+    }
+
+    @Override
+    public boolean isDimension() {
+        return false;
+    }
+
+    @Override
+    public boolean isMetric() {
+        return false;
     }
 }

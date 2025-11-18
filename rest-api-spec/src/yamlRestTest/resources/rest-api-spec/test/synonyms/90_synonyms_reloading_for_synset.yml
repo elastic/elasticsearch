@@ -1,5 +1,4 @@
----
-"Reload analyzers for specific synonym set":
+setup:
   - requires:
       cluster_features: ["gte_v8.10.0"]
       reason: Reloading analyzers for specific synonym set is introduced in 8.10.0
@@ -34,7 +33,6 @@
           settings:
             index:
               number_of_shards: 1
-              number_of_replicas: 0
             analysis:
               filter:
                 my_synonym_filter:
@@ -68,7 +66,6 @@
           settings:
             index:
               number_of_shards: 1
-              number_of_replicas: 0
             analysis:
               filter:
                 my_synonym_filter:
@@ -95,8 +92,12 @@
           - '{"index": {"_index": "my_index2", "_id": "2"}}'
           - '{"my_field": "goodbye"}'
 
+---
+"Reload analyzers for specific synonym set":
+# These specific tests can't succeed in BwC, as synonyms auto-expand replicas are 0-all. Replicas can't be associated to
+#  upgraded nodes, and thus we are not able to guarantee that the shards are not failed.
+# This test is skipped for BwC until synonyms index has auto-exapnd replicas set to 0-1.
 
-  # An update of synonyms_set1 must trigger auto-reloading of analyzers only for synonyms_set1
   - do:
       synonyms.put_synonym:
         id: synonyms_set1
@@ -104,12 +105,12 @@
           synonyms_set:
             - synonyms: "hello, salute"
             - synonyms: "ciao => goodbye"
+
   - match: { result: "updated" }
-  - match: { reload_analyzers_details._shards.total: 2 } # shard requests are still sent to 2 indices
-  - match: { reload_analyzers_details._shards.successful: 2 }
-  - length: { reload_analyzers_details.reload_details: 1 } # reload details contain only a single index
-  - match: { reload_analyzers_details.reload_details.0.index: "my_index1" }
-  - match: { reload_analyzers_details.reload_details.0.reloaded_analyzers.0: "my_analyzer1" }
+  - gt: { reload_analyzers_details._shards.total: 0 }
+  - gt: { reload_analyzers_details._shards.successful: 0 }
+  - match: { reload_analyzers_details._shards.failed: 0 }
+
 
   # Confirm that the index analyzers are reloaded for my_index1
   - do:
@@ -122,6 +123,23 @@
                 query: salute
   - match: { hits.total.value: 1 }
 
+---
+"Check analyzer reloaded and non failed shards for bwc tests":
+
+  - do:
+      synonyms.put_synonym:
+        id: synonyms_set1
+        body:
+          synonyms_set:
+            - synonyms: "hello, salute"
+            - synonyms: "ciao => goodbye"
+  - match: { result: "updated" }
+  - gt: { reload_analyzers_details._shards.total: 0 }
+  - gt: { reload_analyzers_details._shards.successful: 0 }
+  - length: { reload_analyzers_details.reload_details: 1 } # reload details contain only a single index
+  - match: { reload_analyzers_details.reload_details.0.index: "my_index1" }
+  - match: { reload_analyzers_details.reload_details.0.reloaded_analyzers.0: "my_analyzer1" }
+
   # Confirm that the index analyzers are still the same for my_index2
   - do:
       search:
@@ -132,3 +150,62 @@
               my_field:
                 query: salute
   - match: { hits.total.value: 0 }
+
+---
+"Reload analyzers with refresh false":
+  - requires:
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: PUT
+          path: /_synonyms/{rule_id}
+          capabilities: [ synonyms_refresh_param ]
+      reason: "synonyms refresh param capability needed"
+
+  - do:
+      synonyms.put_synonym:
+        id: synonyms_set1
+        refresh: false
+        body:
+          synonyms_set:
+            - synonyms: "hello, salute"
+
+  - match: { result: "updated" }
+  - not_exists: reload_analyzers_details
+
+  # Confirm that the index analyzers are not reloaded for my_index1
+  - do:
+      search:
+        index: my_index1
+        body:
+          query:
+            match:
+              my_field:
+                query: salute
+  - match: { hits.total.value: 0 }
+
+  # Reloading analyzers makes synonyms refresh
+  - do:
+      synonyms.put_synonym:
+        id: synonyms_set1
+        refresh: true
+        body:
+          synonyms_set:
+            - synonyms: "hello, salute"
+            - synonyms: "ciao => goodbye"
+
+  - match: { result: "updated" }
+  - gt: { reload_analyzers_details._shards.total: 0 }
+  - gt: { reload_analyzers_details._shards.successful: 0 }
+  - length: { reload_analyzers_details.reload_details: 1 }
+
+  - do:
+      search:
+        index: my_index1
+        body:
+          query:
+            match:
+              my_field:
+                query: salute
+
+  - match: { hits.total.value: 1 }
+

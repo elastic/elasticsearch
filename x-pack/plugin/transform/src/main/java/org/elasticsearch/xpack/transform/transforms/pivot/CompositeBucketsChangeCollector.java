@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.transform.transforms.pivot;
 
-import org.apache.lucene.search.BooleanQuery;
+import org.apache.lucene.search.IndexSearcher;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.Rounding;
 import org.elasticsearch.common.geo.GeoPoint;
@@ -560,7 +560,7 @@ public class CompositeBucketsChangeCollector implements ChangeCollector {
         @Override
         public int getMaxPageSize() {
             // this collector is limited by indices.query.bool.max_clause_count, default 1024
-            return BooleanQuery.getMaxClauseCount();
+            return IndexSearcher.getMaxClauseCount();
         }
 
         @Override

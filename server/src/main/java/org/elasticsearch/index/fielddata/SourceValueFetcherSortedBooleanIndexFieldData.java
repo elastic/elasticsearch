@@ -1,15 +1,15 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.fielddata;
 
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.index.SortedNumericDocValues;
 import org.elasticsearch.index.mapper.ValueFetcher;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.script.field.DocValuesScriptFieldFactory;
@@ -21,16 +21,16 @@ import org.elasticsearch.search.lookup.SourceProvider;
 import java.io.IOException;
 import java.util.Collections;
 
-public class SourceValueFetcherSortedBooleanIndexFieldData extends SourceValueFetcherIndexFieldData<SortedNumericDocValues> {
+public class SourceValueFetcherSortedBooleanIndexFieldData extends SourceValueFetcherIndexFieldData<SortedNumericLongValues> {
 
-    public static class Builder extends SourceValueFetcherIndexFieldData.Builder<SortedNumericDocValues> {
+    public static class Builder extends SourceValueFetcherIndexFieldData.Builder<SortedNumericLongValues> {
 
         public Builder(
             String fieldName,
             ValuesSourceType valuesSourceType,
             ValueFetcher valueFetcher,
             SourceProvider sourceProvider,
-            ToScriptFieldFactory<SortedNumericDocValues> toScriptFieldFactory
+            ToScriptFieldFactory<SortedNumericLongValues> toScriptFieldFactory
         ) {
             super(fieldName, valuesSourceType, valueFetcher, sourceProvider, toScriptFieldFactory);
         }
@@ -52,20 +52,20 @@ public class SourceValueFetcherSortedBooleanIndexFieldData extends SourceValueFe
         ValuesSourceType valuesSourceType,
         ValueFetcher valueFetcher,
         SourceProvider sourceProvider,
-        ToScriptFieldFactory<SortedNumericDocValues> toScriptFieldFactory
+        ToScriptFieldFactory<SortedNumericLongValues> toScriptFieldFactory
     ) {
         super(fieldName, valuesSourceType, valueFetcher, sourceProvider, toScriptFieldFactory);
     }
 
     @Override
-    public SourceValueFetcherLeafFieldData<SortedNumericDocValues> loadDirect(LeafReaderContext context) throws Exception {
+    public SourceValueFetcherLeafFieldData<SortedNumericLongValues> loadDirect(LeafReaderContext context) {
         return new SourceValueFetcherSortedBooleanLeafFieldData(toScriptFieldFactory, context, valueFetcher, sourceProvider);
     }
 
-    private static class SourceValueFetcherSortedBooleanLeafFieldData extends SourceValueFetcherLeafFieldData<SortedNumericDocValues> {
+    private static class SourceValueFetcherSortedBooleanLeafFieldData extends SourceValueFetcherLeafFieldData<SortedNumericLongValues> {
 
         private SourceValueFetcherSortedBooleanLeafFieldData(
-            ToScriptFieldFactory<SortedNumericDocValues> toScriptFieldFactory,
+            ToScriptFieldFactory<SortedNumericLongValues> toScriptFieldFactory,
             LeafReaderContext leafReaderContext,
             ValueFetcher valueFetcher,
             SourceProvider sourceProvider
@@ -82,7 +82,7 @@ public class SourceValueFetcherSortedBooleanIndexFieldData extends SourceValueFe
         }
     }
 
-    static class SourceValueFetcherSortedBooleanDocValues extends SortedNumericDocValues implements ValueFetcherDocValues {
+    static class SourceValueFetcherSortedBooleanDocValues extends SortedNumericLongValues implements ValueFetcherDocValues {
 
         private final LeafReaderContext leafReaderContext;
 
@@ -128,29 +128,9 @@ public class SourceValueFetcherSortedBooleanIndexFieldData extends SourceValueFe
         }
 
         @Override
-        public long nextValue() throws IOException {
+        public long nextValue() {
             assert iteratorIndex < trueCount + falseCount;
             return iteratorIndex++ < falseCount ? 0L : 1L;
-        }
-
-        @Override
-        public int docID() {
-            throw new UnsupportedOperationException("not supported for source fallback");
-        }
-
-        @Override
-        public int nextDoc() throws IOException {
-            throw new UnsupportedOperationException("not supported for source fallback");
-        }
-
-        @Override
-        public int advance(int target) throws IOException {
-            throw new UnsupportedOperationException("not supported for source fallback");
-        }
-
-        @Override
-        public long cost() {
-            throw new UnsupportedOperationException("not supported for source fallback");
         }
     }
 }

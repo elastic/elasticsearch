@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.datastreams.lifecycle.rest;
 
@@ -20,6 +21,7 @@ import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Set;
 
 import static org.elasticsearch.rest.RestRequest.Method.PUT;
 import static org.elasticsearch.rest.RestUtils.getAckTimeout;
@@ -27,6 +29,9 @@ import static org.elasticsearch.rest.RestUtils.getMasterNodeTimeout;
 
 @ServerlessScope(Scope.PUBLIC)
 public class RestPutDataStreamLifecycleAction extends BaseRestHandler {
+
+    private static final String SUPPORTS_DOWNSAMPLING_METHOD = "dlm.downsampling_method";
+    private static final Set<String> CAPABILITIES = Set.of(SUPPORTS_DOWNSAMPLING_METHOD);
 
     @Override
     public String getName() {
@@ -41,10 +46,18 @@ public class RestPutDataStreamLifecycleAction extends BaseRestHandler {
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
         try (XContentParser parser = request.contentParser()) {
-            PutDataStreamLifecycleAction.Request putLifecycleRequest = PutDataStreamLifecycleAction.Request.parseRequest(parser);
-            putLifecycleRequest.indices(Strings.splitStringByCommaToArray(request.param("name")));
-            putLifecycleRequest.masterNodeTimeout(getMasterNodeTimeout(request));
-            putLifecycleRequest.ackTimeout(getAckTimeout(request));
+            PutDataStreamLifecycleAction.Request putLifecycleRequest = PutDataStreamLifecycleAction.Request.parseRequest(
+                parser,
+                (dataRetention, enabled, downsamplingRounds, downsamplingMethod) -> new PutDataStreamLifecycleAction.Request(
+                    getMasterNodeTimeout(request),
+                    getAckTimeout(request),
+                    Strings.splitStringByCommaToArray(request.param("name")),
+                    dataRetention,
+                    enabled,
+                    downsamplingRounds,
+                    downsamplingMethod
+                )
+            );
             putLifecycleRequest.indicesOptions(IndicesOptions.fromRequest(request, putLifecycleRequest.indicesOptions()));
             return channel -> client.execute(
                 PutDataStreamLifecycleAction.INSTANCE,
@@ -52,5 +65,10 @@ public class RestPutDataStreamLifecycleAction extends BaseRestHandler {
                 new RestToXContentListener<>(channel)
             );
         }
+    }
+
+    @Override
+    public Set<String> supportedCapabilities() {
+        return CAPABILITIES;
     }
 }

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.vectors;
@@ -29,11 +30,11 @@ import static org.elasticsearch.common.Strings.format;
 
 public record VectorData(float[] floatVector, byte[] byteVector) implements Writeable, ToXContentFragment {
 
-    private VectorData(float[] floatVector) {
+    public VectorData(float[] floatVector) {
         this(floatVector, null);
     }
 
-    private VectorData(byte[] byteVector) {
+    public VectorData(byte[] byteVector) {
         this(null, byteVector);
     }
 
@@ -47,11 +48,15 @@ public record VectorData(float[] floatVector, byte[] byteVector) implements Writ
         }
     }
 
+    public boolean isFloat() {
+        return floatVector != null;
+    }
+
     public byte[] asByteVector() {
         if (byteVector != null) {
             return byteVector;
         }
-        DenseVectorFieldMapper.ElementType.BYTE.checkVectorBounds(floatVector);
+        DenseVectorFieldMapper.BYTE_ELEMENT.checkVectorBounds(floatVector);
         byte[] vec = new byte[floatVector.length];
         for (int i = 0; i < floatVector.length; i++) {
             vec[i] = (byte) floatVector[i];
@@ -70,11 +75,9 @@ public record VectorData(float[] floatVector, byte[] byteVector) implements Writ
         return vec;
     }
 
-    public void addToBuffer(ByteBuffer byteBuffer) {
+    public void addToBuffer(DenseVectorFieldMapper.Element element, ByteBuffer byteBuffer) {
         if (floatVector != null) {
-            for (float val : floatVector) {
-                byteBuffer.putFloat(val);
-            }
+            element.writeValues(byteBuffer, floatVector);
         } else {
             byteBuffer.put(byteVector);
         }

@@ -11,6 +11,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.core.Booleans;
 import org.elasticsearch.xpack.esql.core.InvalidArgumentException;
+import org.elasticsearch.xpack.esql.core.util.DateUtils;
 import org.elasticsearch.xpack.versionfield.Version;
 
 import java.io.IOException;
@@ -29,15 +30,12 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.DOUBLE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.FLOAT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
 import static org.elasticsearch.xpack.esql.core.type.DataType.IP;
-import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
 import static org.elasticsearch.xpack.esql.core.type.DataType.LONG;
 import static org.elasticsearch.xpack.esql.core.type.DataType.NULL;
 import static org.elasticsearch.xpack.esql.core.type.DataType.SHORT;
-import static org.elasticsearch.xpack.esql.core.type.DataType.TEXT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.UNSIGNED_LONG;
 import static org.elasticsearch.xpack.esql.core.type.DataType.VERSION;
 import static org.elasticsearch.xpack.esql.core.type.DataType.isDateTime;
-import static org.elasticsearch.xpack.esql.core.type.DataType.isPrimitive;
 import static org.elasticsearch.xpack.esql.core.type.DataType.isString;
 import static org.elasticsearch.xpack.esql.core.util.NumericUtils.UNSIGNED_LONG_MAX;
 import static org.elasticsearch.xpack.esql.core.util.NumericUtils.inUnsignedLongRange;
@@ -51,83 +49,6 @@ public final class DataTypeConverter {
     private DataTypeConverter() {}
 
     /**
-     * Returns the type compatible with both left and right types
-     * <p>
-     * If one of the types is null - returns another type
-     * If both types are numeric - returns type with the highest precision int &lt; long &lt; float &lt; double
-     * If one of the types is string and another numeric - returns numeric
-     */
-    public static DataType commonType(DataType left, DataType right) {
-        if (left == right) {
-            return left;
-        }
-        if (left == NULL) {
-            return right;
-        }
-        if (right == NULL) {
-            return left;
-        }
-        if (isString(left) && isString(right)) {
-            if (left == TEXT || right == TEXT) {
-                return TEXT;
-            }
-            if (left == KEYWORD) {
-                return KEYWORD;
-            }
-            return right;
-        }
-        if (left.isNumeric() && right.isNumeric()) {
-            // if one is int
-            if (left.isInteger()) {
-                // promote the highest int
-                if (right.isInteger()) {
-                    if (left == UNSIGNED_LONG || right == UNSIGNED_LONG) {
-                        return UNSIGNED_LONG;
-                    }
-                    return left.size() > right.size() ? left : right;
-                }
-                // promote the rational
-                return right;
-            }
-            // try the other side
-            if (right.isInteger()) {
-                return left;
-            }
-            // promote the highest rational
-            return left.size() > right.size() ? left : right;
-        }
-        if (isString(left)) {
-            if (right.isNumeric()) {
-                return right;
-            }
-        }
-        if (isString(right)) {
-            if (left.isNumeric()) {
-                return left;
-            }
-        }
-
-        if (isDateTime(left) && isDateTime(right)) {
-            return DATETIME;
-        }
-
-        // none found
-        return null;
-    }
-
-    /**
-     * Returns true if the from type can be converted to the to type, false - otherwise
-     */
-    public static boolean canConvert(DataType from, DataType to) {
-        // Special handling for nulls and if conversion is not requires
-        if (from == to || from == NULL) {
-            return true;
-        }
-        // only primitives are supported so far
-        return isPrimitive(from) && isPrimitive(to) && converterFor(from, to) != null;
-    }
-
-    /**
      * Get the conversion from one type to another.
      */
     public static Converter converterFor(DataType from, DataType to) {
@@ -139,7 +60,7 @@ public final class DataTypeConverter {
             return DefaultConverter.TO_NULL;
         }
         // proper converters
-        if (to == KEYWORD || to == TEXT) {
+        if (isString(to)) {
             return conversionToString(from);
         }
         if (to == LONG) {
@@ -200,10 +121,10 @@ public final class DataTypeConverter {
     }
 
     private static Converter conversionToUnsignedLong(DataType from) {
-        if (from.isRational()) {
+        if (from.isRationalNumber()) {
             return DefaultConverter.RATIONAL_TO_UNSIGNED_LONG;
         }
-        if (from.isInteger()) {
+        if (from.isWholeNumber()) {
             return DefaultConverter.INTEGER_TO_UNSIGNED_LONG;
         }
         if (from == BOOLEAN) {
@@ -219,10 +140,10 @@ public final class DataTypeConverter {
     }
 
     private static Converter conversionToLong(DataType from) {
-        if (from.isRational()) {
+        if (from.isRationalNumber()) {
             return DefaultConverter.RATIONAL_TO_LONG;
         }
-        if (from.isInteger()) {
+        if (from.isWholeNumber()) {
             return DefaultConverter.INTEGER_TO_LONG;
         }
         if (from == BOOLEAN) {
@@ -238,10 +159,10 @@ public final class DataTypeConverter {
     }
 
     private static Converter conversionToInt(DataType from) {
-        if (from.isRational()) {
+        if (from.isRationalNumber()) {
             return DefaultConverter.RATIONAL_TO_INT;
         }
-        if (from.isInteger()) {
+        if (from.isWholeNumber()) {
             return DefaultConverter.INTEGER_TO_INT;
         }
         if (from == BOOLEAN) {
@@ -257,10 +178,10 @@ public final class DataTypeConverter {
     }
 
     private static Converter conversionToShort(DataType from) {
-        if (from.isRational()) {
+        if (from.isRationalNumber()) {
             return DefaultConverter.RATIONAL_TO_SHORT;
         }
-        if (from.isInteger()) {
+        if (from.isWholeNumber()) {
             return DefaultConverter.INTEGER_TO_SHORT;
         }
         if (from == BOOLEAN) {
@@ -276,10 +197,10 @@ public final class DataTypeConverter {
     }
 
     private static Converter conversionToByte(DataType from) {
-        if (from.isRational()) {
+        if (from.isRationalNumber()) {
             return DefaultConverter.RATIONAL_TO_BYTE;
         }
-        if (from.isInteger()) {
+        if (from.isWholeNumber()) {
             return DefaultConverter.INTEGER_TO_BYTE;
         }
         if (from == BOOLEAN) {
@@ -295,10 +216,10 @@ public final class DataTypeConverter {
     }
 
     private static DefaultConverter conversionToFloat(DataType from) {
-        if (from.isRational()) {
+        if (from.isRationalNumber()) {
             return DefaultConverter.RATIONAL_TO_FLOAT;
         }
-        if (from.isInteger()) {
+        if (from.isWholeNumber()) {
             return DefaultConverter.INTEGER_TO_FLOAT;
         }
         if (from == BOOLEAN) {
@@ -314,10 +235,10 @@ public final class DataTypeConverter {
     }
 
     private static DefaultConverter conversionToDouble(DataType from) {
-        if (from.isRational()) {
+        if (from.isRationalNumber()) {
             return DefaultConverter.RATIONAL_TO_DOUBLE;
         }
-        if (from.isInteger()) {
+        if (from.isWholeNumber()) {
             return DefaultConverter.INTEGER_TO_DOUBLE;
         }
         if (from == BOOLEAN) {
@@ -333,10 +254,10 @@ public final class DataTypeConverter {
     }
 
     private static DefaultConverter conversionToDateTime(DataType from) {
-        if (from.isRational()) {
+        if (from.isRationalNumber()) {
             return DefaultConverter.RATIONAL_TO_DATETIME;
         }
-        if (from.isInteger()) {
+        if (from.isWholeNumber()) {
             return DefaultConverter.INTEGER_TO_DATETIME;
         }
         if (from == BOOLEAN) {
@@ -628,6 +549,6 @@ public final class DataTypeConverter {
             return dataType;
         }
 
-        return dataType.isInteger() ? dataType : LONG;
+        return dataType.isWholeNumber() ? dataType : LONG;
     }
 }

@@ -1,43 +1,45 @@
 {
-  "watcher.ack_watch":{
-    "documentation":{
-      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/watcher-api-ack-watch.html",
-      "description":"Acknowledges a watch, manually throttling the execution of the watch's actions."
+  "watcher.ack_watch": {
+    "documentation": {
+      "url": "https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-watcher-ack-watch",
+      "description": "Acknowledge a watch"
     },
-    "stability":"stable",
-    "visibility":"public",
-    "headers":{
-      "accept": [ "application/json"]
+    "stability": "stable",
+    "visibility": "public",
+    "headers": {
+      "accept": [
+        "application/json"
+      ]
     },
-    "url":{
-      "paths":[
+    "url": {
+      "paths": [
         {
-          "path":"/_watcher/watch/{watch_id}/_ack",
-          "methods":[
+          "path": "/_watcher/watch/{watch_id}/_ack",
+          "methods": [
             "PUT",
             "POST"
           ],
-          "parts":{
-            "watch_id":{
-              "type":"string",
-              "description":"Watch ID"
+          "parts": {
+            "watch_id": {
+              "type": "string",
+              "description": "Watch ID"
             }
           }
         },
         {
-          "path":"/_watcher/watch/{watch_id}/_ack/{action_id}",
-          "methods":[
+          "path": "/_watcher/watch/{watch_id}/_ack/{action_id}",
+          "methods": [
             "PUT",
             "POST"
           ],
-          "parts":{
-            "watch_id":{
-              "type":"string",
-              "description":"Watch ID"
+          "parts": {
+            "watch_id": {
+              "type": "string",
+              "description": "Watch ID"
             },
-            "action_id":{
-              "type":"list",
-              "description":"A comma-separated list of the action ids to be acked"
+            "action_id": {
+              "type": "list",
+              "description": "A comma-separated list of the action ids to be acked"
             }
           }
         }

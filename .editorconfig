@@ -209,7 +209,7 @@ indent_size = 4
 max_line_length = 140
 ij_java_class_count_to_use_import_on_demand = 999
 ij_java_names_count_to_use_import_on_demand = 999
-ij_java_imports_layout = *,|,com.**,|,org.**,|,java.**,javax.**,|,$*
+ij_java_imports_layout = *,|,com.**,|,org.**,|,java.**,|,javax.**,|,$*
 
 [*.json]
 indent_size = 2
@@ -225,6 +225,9 @@ indent_size = 2
 
 [*.{xsd,xml}]
 indent_size = 4
+
+[verification-metadata.xml]
+indent_size = 3
 
 [*.{csv,sql}-spec]
 trim_trailing_whitespace = false

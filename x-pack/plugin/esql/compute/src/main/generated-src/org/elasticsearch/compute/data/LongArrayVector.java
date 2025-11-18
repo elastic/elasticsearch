@@ -7,19 +7,24 @@
 
 package org.elasticsearch.compute.data;
 
+// begin generated imports
+import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.util.BytesRefArray;
 import org.elasticsearch.core.ReleasableIterator;
+import org.elasticsearch.core.Releasables;
 
 import java.io.IOException;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
+// end generated imports
 
 /**
  * Vector implementation that stores an array of long values.
- * This class is generated. Do not edit it.
+ * This class is generated. Edit {@code X-ArrayVector.java.st} instead.
  */
 final class LongArrayVector extends AbstractVector implements LongVector {
 
@@ -87,6 +92,32 @@ final class LongArrayVector extends AbstractVector implements LongVector {
         try (LongVector.Builder builder = blockFactory().newLongVectorBuilder(positions.length)) {
             for (int pos : positions) {
                 builder.appendLong(values[pos]);
+            }
+            return builder.build();
+        }
+    }
+
+    @Override
+    public LongBlock keepMask(BooleanVector mask) {
+        if (getPositionCount() == 0) {
+            incRef();
+            return new LongVectorBlock(this);
+        }
+        if (mask.isConstant()) {
+            if (mask.getBoolean(0)) {
+                incRef();
+                return new LongVectorBlock(this);
+            }
+            return (LongBlock) blockFactory().newConstantNullBlock(getPositionCount());
+        }
+        try (LongBlock.Builder builder = blockFactory().newLongBlockBuilder(getPositionCount())) {
+            // TODO if X-ArrayBlock used BooleanVector for it's null mask then we could shuffle references here.
+            for (int p = 0; p < getPositionCount(); p++) {
+                if (mask.getBoolean(p)) {
+                    builder.appendLong(getLong(p));
+                } else {
+                    builder.appendNull();
+                }
             }
             return builder.build();
         }

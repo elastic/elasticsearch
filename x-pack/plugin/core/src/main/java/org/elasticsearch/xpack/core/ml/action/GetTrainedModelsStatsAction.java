@@ -7,13 +7,11 @@
 package org.elasticsearch.xpack.core.ml.action;
 
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ChunkedToXContent;
-import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.ingest.IngestStats;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
@@ -34,7 +32,6 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 
-import static org.elasticsearch.core.RestApiVersion.onOrAfter;
 import static org.elasticsearch.core.Strings.format;
 
 public class GetTrainedModelsStatsAction extends ActionType<GetTrainedModelsStatsAction.Response> {
@@ -91,12 +88,6 @@ public class GetTrainedModelsStatsAction extends ActionType<GetTrainedModelsStat
             private final AssignmentStats deploymentStats;
             private final int pipelineCount;
 
-            private static final IngestStats EMPTY_INGEST_STATS = new IngestStats(
-                new IngestStats.Stats(0, 0, 0, 0),
-                Collections.emptyList(),
-                Collections.emptyMap()
-            );
-
             public TrainedModelStats(
                 String modelId,
                 TrainedModelSizeStats modelSizeStats,
@@ -107,7 +98,7 @@ public class GetTrainedModelsStatsAction extends ActionType<GetTrainedModelsStat
             ) {
                 this.modelId = Objects.requireNonNull(modelId);
                 this.modelSizeStats = modelSizeStats;
-                this.ingestStats = ingestStats == null ? EMPTY_INGEST_STATS : ingestStats;
+                this.ingestStats = ingestStats == null ? IngestStats.IDENTITY : ingestStats;
                 if (pipelineCount < 0) {
                     throw new ElasticsearchException("[{}] must be a greater than or equal to 0", PIPELINE_COUNT.getPreferredName());
                 }
@@ -118,19 +109,11 @@ public class GetTrainedModelsStatsAction extends ActionType<GetTrainedModelsStat
 
             public TrainedModelStats(StreamInput in) throws IOException {
                 modelId = in.readString();
-                if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_0_0)) {
-                    modelSizeStats = in.readOptionalWriteable(TrainedModelSizeStats::new);
-                } else {
-                    modelSizeStats = null;
-                }
+                modelSizeStats = in.readOptionalWriteable(TrainedModelSizeStats::new);
                 ingestStats = IngestStats.read(in);
                 pipelineCount = in.readVInt();
                 inferenceStats = in.readOptionalWriteable(InferenceStats::new);
-                if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_0_0)) {
-                    this.deploymentStats = in.readOptionalWriteable(AssignmentStats::new);
-                } else {
-                    this.deploymentStats = null;
-                }
+                this.deploymentStats = in.readOptionalWriteable(AssignmentStats::new);
             }
 
             public String getModelId() {
@@ -172,7 +155,7 @@ public class GetTrainedModelsStatsAction extends ActionType<GetTrainedModelsStat
                 if (this.inferenceStats != null) {
                     builder.field(INFERENCE_STATS.getPreferredName(), this.inferenceStats);
                 }
-                if (deploymentStats != null && builder.getRestApiVersion().matches(onOrAfter(RestApiVersion.V_8))) {
+                if (deploymentStats != null) {
                     builder.field(DEPLOYMENT_STATS.getPreferredName(), this.deploymentStats);
                 }
                 builder.endObject();
@@ -182,15 +165,11 @@ public class GetTrainedModelsStatsAction extends ActionType<GetTrainedModelsStat
             @Override
             public void writeTo(StreamOutput out) throws IOException {
                 out.writeString(modelId);
-                if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_0_0)) {
-                    out.writeOptionalWriteable(modelSizeStats);
-                }
+                out.writeOptionalWriteable(modelSizeStats);
                 ingestStats.writeTo(out);
                 out.writeVInt(pipelineCount);
                 out.writeOptionalWriteable(inferenceStats);
-                if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_0_0)) {
-                    out.writeOptionalWriteable(deploymentStats);
-                }
+                out.writeOptionalWriteable(deploymentStats);
             }
 
             @Override

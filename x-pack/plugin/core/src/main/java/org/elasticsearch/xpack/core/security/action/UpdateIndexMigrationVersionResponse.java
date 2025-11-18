@@ -14,9 +14,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import java.io.IOException;
 
 public class UpdateIndexMigrationVersionResponse extends ActionResponse {
-    public UpdateIndexMigrationVersionResponse(StreamInput in) throws IOException {
-        super(in);
-    }
+    public UpdateIndexMigrationVersionResponse(StreamInput in) throws IOException {}
 
     public UpdateIndexMigrationVersionResponse() {}
 

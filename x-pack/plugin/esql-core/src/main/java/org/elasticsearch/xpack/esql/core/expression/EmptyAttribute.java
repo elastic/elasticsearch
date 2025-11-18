@@ -17,11 +17,12 @@ import java.io.IOException;
 
 /**
  * Marker for optional attributes. Acting as a dummy placeholder to avoid using null
- * in the tree (which is not allowed).
+ * in the tree (which is not allowed). All empty attributes are considered equal.
  */
 public class EmptyAttribute extends Attribute {
+    // TODO: Could be a singleton - all instances are already considered equal.
     public EmptyAttribute(Source source) {
-        super(source, StringUtils.EMPTY, null, null);
+        super(source, StringUtils.EMPTY, null);
     }
 
     @Override
@@ -37,9 +38,9 @@ public class EmptyAttribute extends Attribute {
     @Override
     protected Attribute clone(
         Source source,
+        String qualifier,
         String name,
         DataType type,
-        String qualifier,
         Nullability nullability,
         NameId id,
         boolean synthetic
@@ -50,6 +51,16 @@ public class EmptyAttribute extends Attribute {
     @Override
     protected String label() {
         return "e";
+    }
+
+    @Override
+    public boolean isDimension() {
+        return false;
+    }
+
+    @Override
+    public boolean isMetric() {
+        return false;
     }
 
     @Override
@@ -68,20 +79,22 @@ public class EmptyAttribute extends Attribute {
     }
 
     @Override
-    public int hashCode() {
+    protected int innerHashCode(boolean ignoreIds) {
         return EmptyAttribute.class.hashCode();
     }
 
     @Override
-    public boolean equals(Object obj) {
-        if (this == obj) {
-            return true;
-        }
-
-        if (obj == null || getClass() != obj.getClass()) {
-            return false;
-        }
-
+    protected boolean innerEquals(Object o, boolean ignoreIds) {
         return true;
+    }
+
+    @Override
+    public int semanticHash() {
+        return EmptyAttribute.class.hashCode();
+    }
+
+    @Override
+    public boolean semanticEquals(Expression other) {
+        return other instanceof EmptyAttribute;
     }
 }

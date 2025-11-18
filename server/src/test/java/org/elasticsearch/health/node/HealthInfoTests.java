@@ -1,16 +1,19 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.health.node;
 
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.health.HealthStatus;
+import org.elasticsearch.reservedstate.service.FileSettingsService.FileSettingsHealthInfo;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
+import org.elasticsearch.test.ESTestCase;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -28,7 +31,12 @@ public class HealthInfoTests extends AbstractWireSerializingTestCase<HealthInfo>
     protected HealthInfo createTestInstance() {
         var diskInfoByNode = randomMap(0, 10, () -> tuple(randomAlphaOfLength(10), randomDiskHealthInfo()));
         var repositoriesInfoByNode = randomMap(0, 10, () -> tuple(randomAlphaOfLength(10), randomRepoHealthInfo()));
-        return new HealthInfo(diskInfoByNode, randomBoolean() ? randomDslHealthInfo() : null, repositoriesInfoByNode);
+        return new HealthInfo(
+            diskInfoByNode,
+            randomBoolean() ? randomDslHealthInfo() : null,
+            repositoriesInfoByNode,
+            randomBoolean() ? FileSettingsHealthInfo.INDETERMINATE : mutateFileSettingsHealthInfo(FileSettingsHealthInfo.INDETERMINATE)
+        );
     }
 
     @Override
@@ -40,7 +48,8 @@ public class HealthInfoTests extends AbstractWireSerializingTestCase<HealthInfo>
         var diskHealth = originalHealthInfo.diskInfoByNode();
         var dslHealth = originalHealthInfo.dslHealthInfo();
         var repoHealth = originalHealthInfo.repositoriesInfoByNode();
-        switch (randomInt(2)) {
+        var fsHealth = originalHealthInfo.fileSettingsHealthInfo();
+        switch (randomInt(3)) {
             case 0 -> diskHealth = mutateMap(
                 originalHealthInfo.diskInfoByNode(),
                 () -> randomAlphaOfLength(10),
@@ -52,8 +61,9 @@ public class HealthInfoTests extends AbstractWireSerializingTestCase<HealthInfo>
                 () -> randomAlphaOfLength(10),
                 HealthInfoTests::randomRepoHealthInfo
             );
+            case 3 -> fsHealth = mutateFileSettingsHealthInfo(fsHealth);
         }
-        return new HealthInfo(diskHealth, dslHealth, repoHealth);
+        return new HealthInfo(diskHealth, dslHealth, repoHealth, fsHealth);
     }
 
     public static DiskHealthInfo randomDiskHealthInfo() {
@@ -71,6 +81,18 @@ public class HealthInfoTests extends AbstractWireSerializingTestCase<HealthInfo>
 
     public static RepositoriesHealthInfo randomRepoHealthInfo() {
         return new RepositoriesHealthInfo(randomList(5, () -> randomAlphaOfLength(10)), randomList(5, () -> randomAlphaOfLength(10)));
+    }
+
+    private static FileSettingsHealthInfo mutateFileSettingsHealthInfo(FileSettingsHealthInfo original) {
+        long changeCount = randomValueOtherThan(original.changeCount(), ESTestCase::randomNonNegativeLong);
+        long failureStreak = randomLongBetween(0, changeCount);
+        String mostRecentFailure;
+        if (failureStreak == 0) {
+            mostRecentFailure = null;
+        } else {
+            mostRecentFailure = "Random failure #" + randomIntBetween(1000, 9999);
+        }
+        return new FileSettingsHealthInfo(true, changeCount, failureStreak, mostRecentFailure);
     }
 
     /**

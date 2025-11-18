@@ -7,20 +7,16 @@
 
 package org.elasticsearch.xpack.spatial.search.aggregations.support;
 
-import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.index.SortedNumericDocValues;
 import org.elasticsearch.common.Rounding;
 import org.elasticsearch.index.fielddata.DocValueBits;
 import org.elasticsearch.index.fielddata.MultiPointValues;
-import org.elasticsearch.index.fielddata.PointValues;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
+import org.elasticsearch.index.fielddata.SortedNumericLongValues;
 import org.elasticsearch.search.aggregations.AggregationErrors;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
-import org.elasticsearch.xcontent.ToXContentFragment;
-import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.spatial.common.CartesianPoint;
 import org.elasticsearch.xpack.spatial.index.fielddata.IndexCartesianPointFieldData;
 
@@ -32,8 +28,8 @@ public abstract class CartesianPointValuesSource extends ValuesSource {
     public static final CartesianPointValuesSource EMPTY = new CartesianPointValuesSource() {
 
         @Override
-        public SortedNumericDocValues sortedNumericDocValues(LeafReaderContext context) {
-            return DocValues.emptySortedNumeric();
+        public SortedNumericLongValues sortedNumericLongValues(LeafReaderContext context) {
+            return SortedNumericLongValues.EMPTY;
         }
 
         @Override
@@ -58,13 +54,13 @@ public abstract class CartesianPointValuesSource extends ValuesSource {
      * Return point values.
      */
     public final MultiCartesianPointValues pointValues(LeafReaderContext context) {
-        return new MultiCartesianPointValues(sortedNumericDocValues(context));
+        return new MultiCartesianPointValues(sortedNumericLongValues(context));
     }
 
     public static final class MultiCartesianPointValues extends MultiPointValues<CartesianPoint> {
         private final CartesianPoint point = new CartesianPoint();
 
-        public MultiCartesianPointValues(SortedNumericDocValues numericValues) {
+        public MultiCartesianPointValues(SortedNumericLongValues numericValues) {
             super(numericValues);
         }
 
@@ -73,39 +69,12 @@ public abstract class CartesianPointValuesSource extends ValuesSource {
             return point.resetFromEncoded(numericValues.nextValue());
         }
 
-        @Override
-        protected PointValues<CartesianPoint> getPointValues() {
-            final NumericDocValues singleton = DocValues.unwrapSingleton(numericValues);
-            return singleton != null ? new CartesianPointValues(singleton) : null;
-        }
-    }
-
-    public static final class CartesianPointValues extends PointValues<CartesianPoint> {
-
-        private final CartesianPoint point = new CartesianPoint();
-
-        CartesianPointValues(NumericDocValues values) {
-            super(values);
-        }
-
-        @Override
-        public CartesianPoint pointValue() throws IOException {
-            return point.resetFromEncoded(values.longValue());
-        }
-    }
-
-    public static final class CartesianPointValue implements ToXContentFragment {
-
-        @Override
-        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            return null;
-        }
     }
 
     /**
      * Return the internal representation of point doc values as a {@link SortedNumericDocValues}.
      */
-    public abstract SortedNumericDocValues sortedNumericDocValues(LeafReaderContext context);
+    public abstract SortedNumericLongValues sortedNumericLongValues(LeafReaderContext context);
 
     public static class Fielddata extends CartesianPointValuesSource {
 
@@ -121,8 +90,8 @@ public abstract class CartesianPointValuesSource extends ValuesSource {
         }
 
         @Override
-        public SortedNumericDocValues sortedNumericDocValues(LeafReaderContext context) {
-            return indexFieldData.load(context).getSortedNumericDocValues();
+        public SortedNumericLongValues sortedNumericLongValues(LeafReaderContext context) {
+            return indexFieldData.load(context).getSortedNumericLongValues();
         }
     }
 }

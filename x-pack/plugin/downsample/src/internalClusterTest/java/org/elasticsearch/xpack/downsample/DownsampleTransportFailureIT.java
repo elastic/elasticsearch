@@ -30,6 +30,7 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalTestCluster;
+import org.elasticsearch.test.junit.annotations.TestIssueLogging;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
@@ -52,6 +53,7 @@ import java.util.stream.Collectors;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
+import static org.elasticsearch.xpack.downsample.DownsamplingIntegTestCase.randomSamplingMethod;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 2, numClientNodes = 1, supportsDedicatedMasters = false)
 public class DownsampleTransportFailureIT extends ESIntegTestCase {
@@ -242,7 +244,7 @@ public class DownsampleTransportFailureIT extends ESIntegTestCase {
     private void assertIndexExists(final String nodeName, final String indexName) {
         final GetIndexResponse getIndexResponse = client(nodeName).admin()
             .indices()
-            .prepareGetIndex()
+            .prepareGetIndex(TEST_REQUEST_TIMEOUT)
             .addIndices(indexName)
             .addFeatures(GetIndexRequest.Feature.values())
             .get();
@@ -255,7 +257,7 @@ public class DownsampleTransportFailureIT extends ESIntegTestCase {
             "Index [" + indexName + "] was not deleted",
             () -> client(nodeName).admin()
                 .indices()
-                .prepareGetIndex()
+                .prepareGetIndex(TEST_REQUEST_TIMEOUT)
                 .addIndices(indexName)
                 .addFeatures(GetIndexRequest.Feature.values())
                 .get()
@@ -263,19 +265,25 @@ public class DownsampleTransportFailureIT extends ESIntegTestCase {
         assertEquals("no such index [" + indexName + "]", targetIndexNotFoundException.getMessage());
     }
 
+    @TestIssueLogging(
+        value = "org.elasticsearch.xpack.downsample.TransportDownsampleAction:DEBUG",
+        issueUrl = "https://github.com/elastic/elasticsearch/issues/137148"
+    )
     public void testNoDisruption() {
         // GIVEN
 
         final DownsampleAction.Request downsampleRequest = new DownsampleAction.Request(
+            TEST_REQUEST_TIMEOUT,
             SOURCE_INDEX_NAME,
             TARGET_INDEX_NAME,
             WAIT_TIMEOUT,
-            new DownsampleConfig(DateHistogramInterval.MINUTE)
+            new DownsampleConfig(DateHistogramInterval.MINUTE, randomSamplingMethod())
         );
 
         // WHEN nothing happens
 
         // THEN
+        logger.info("Executing downsample action from [{}] to [{}]", SOURCE_INDEX_NAME, TARGET_INDEX_NAME);
         final AcknowledgedResponse downsampleResponse = testCluster.masterClient()
             .execute(DownsampleAction.INSTANCE, downsampleRequest)
             .actionGet(TimeValue.timeValueMillis(DOWNSAMPLE_ACTION_TIMEOUT_MILLIS));
@@ -294,10 +302,11 @@ public class DownsampleTransportFailureIT extends ESIntegTestCase {
         // GIVEN
         final MockTransportService coordinator = MockTransportService.getInstance(testCluster.coordinator);
         final DownsampleAction.Request downsampleRequest = new DownsampleAction.Request(
+            TEST_REQUEST_TIMEOUT,
             SOURCE_INDEX_NAME,
             TARGET_INDEX_NAME,
             WAIT_TIMEOUT,
-            new DownsampleConfig(DateHistogramInterval.HOUR)
+            new DownsampleConfig(DateHistogramInterval.HOUR, randomSamplingMethod())
         );
 
         // WHEN (disruption)

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.indices.state;
 
@@ -35,7 +36,6 @@ import org.elasticsearch.test.transport.StubbableTransport;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
@@ -148,7 +148,7 @@ public class CloseWhileRelocatingShardsIT extends ESIntegTestCase {
             // Build the list of shards for which recoveries will be blocked
             final Set<ShardId> blockedShards = commands.stream()
                 .map(c -> (MoveAllocationCommand) c)
-                .map(c -> new ShardId(clusterService.state().metadata().index(c.index()).getIndex(), c.shardId()))
+                .map(c -> new ShardId(clusterService.state().metadata().getProject().index(c.index()).getIndex(), c.shardId()))
                 .collect(Collectors.toSet());
             assertThat(blockedShards, hasSize(indices.length));
 
@@ -187,30 +187,17 @@ public class CloseWhileRelocatingShardsIT extends ESIntegTestCase {
             ClusterRerouteUtils.reroute(client(), commands.toArray(AllocationCommand[]::new));
 
             // start index closing threads
-            final List<Thread> threads = new ArrayList<>();
-            for (final String indexToClose : indices) {
-                final Thread thread = new Thread(() -> {
-                    try {
-                        safeAwait(latch);
-                    } finally {
-                        release.countDown();
-                    }
-                    // Closing is not always acknowledged when shards are relocating: this is the case when the target shard is initializing
-                    // or is catching up operations. In these cases the TransportVerifyShardBeforeCloseAction will detect that the global
-                    // and max sequence number don't match and will not ack the close.
-                    AcknowledgedResponse closeResponse = indicesAdmin().prepareClose(indexToClose).get();
-                    if (closeResponse.isAcknowledged()) {
-                        assertTrue("Index closing should not be acknowledged twice", acknowledgedCloses.add(indexToClose));
-                    }
-                });
-                threads.add(thread);
-                thread.start();
-            }
-
-            latch.countDown();
-            for (Thread thread : threads) {
-                thread.join();
-            }
+            startInParallel(indices.length, i -> {
+                release.countDown();
+                // Closing is not always acknowledged when shards are relocating: this is the case when the target shard is initializing
+                // or is catching up operations. In these cases the TransportVerifyShardBeforeCloseAction will detect that the global
+                // and max sequence number don't match and will not ack the close.
+                final String indexToClose = indices[i];
+                AcknowledgedResponse closeResponse = indicesAdmin().prepareClose(indexToClose).get();
+                if (closeResponse.isAcknowledged()) {
+                    assertTrue("Index closing should not be acknowledged twice", acknowledgedCloses.add(indexToClose));
+                }
+            });
 
             // stop indexers first without waiting for stop to not redundantly index on some while waiting for another one to stop
             for (BackgroundIndexer indexer : indexers.values()) {
@@ -242,7 +229,7 @@ public class CloseWhileRelocatingShardsIT extends ESIntegTestCase {
 
             for (String index : acknowledgedCloses) {
                 assertResponse(prepareSearch(index).setSize(0).setTrackTotalHits(true), response -> {
-                    long docsCount = response.getHits().getTotalHits().value;
+                    long docsCount = response.getHits().getTotalHits().value();
                     assertEquals(
                         "Expected "
                             + docsPerIndex.get(index)

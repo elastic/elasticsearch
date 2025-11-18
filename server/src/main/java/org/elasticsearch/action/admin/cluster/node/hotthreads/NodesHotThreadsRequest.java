@@ -1,30 +1,22 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.admin.cluster.node.hotthreads;
 
 import org.elasticsearch.action.support.nodes.BaseNodesRequest;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.monitor.jvm.HotThreads;
 
-import java.io.IOException;
-
-public class NodesHotThreadsRequest extends BaseNodesRequest<NodesHotThreadsRequest> {
+public class NodesHotThreadsRequest extends BaseNodesRequest {
 
     final HotThreads.RequestOptions requestOptions;
-
-    public NodesHotThreadsRequest(StreamInput in) throws IOException {
-        super(in);
-        requestOptions = HotThreads.RequestOptions.readFrom(in);
-    }
 
     /**
      * Get hot threads from nodes based on the nodes ids specified. If none are passed, hot
@@ -65,11 +57,5 @@ public class NodesHotThreadsRequest extends BaseNodesRequest<NodesHotThreadsRequ
 
     public int snapshots() {
         return requestOptions.snapshots();
-    }
-
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        super.writeTo(out);
-        requestOptions.writeTo(out);
     }
 }

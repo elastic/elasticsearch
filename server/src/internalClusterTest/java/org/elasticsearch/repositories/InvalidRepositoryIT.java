@@ -1,15 +1,17 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.repositories;
 
 import org.elasticsearch.action.admin.cluster.repositories.get.GetRepositoriesResponse;
 import org.elasticsearch.action.admin.cluster.repositories.verify.VerifyRepositoryResponse;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Setting;
@@ -49,14 +51,16 @@ public class InvalidRepositoryIT extends ESIntegTestCase {
         );
 
         public UnstableRepository(
+            ProjectId projectId,
             RepositoryMetadata metadata,
             Environment environment,
             NamedXContentRegistry namedXContentRegistry,
             ClusterService clusterService,
             BigArrays bigArrays,
-            RecoverySettings recoverySettings
+            RecoverySettings recoverySettings,
+            SnapshotMetrics snapshotMetrics
         ) {
-            super(metadata, environment, namedXContentRegistry, clusterService, bigArrays, recoverySettings);
+            super(projectId, metadata, environment, namedXContentRegistry, clusterService, bigArrays, recoverySettings, snapshotMetrics);
             List<String> unstableNodes = UNSTABLE_NODES.get(metadata.settings());
             if (unstableNodes.contains(clusterService.getNodeName())) {
                 throw new RepositoryException(metadata.name(), "Failed to create repository: current node is not stable");
@@ -71,11 +75,21 @@ public class InvalidRepositoryIT extends ESIntegTestCase {
                 ClusterService clusterService,
                 BigArrays bigArrays,
                 RecoverySettings recoverySettings,
-                RepositoriesMetrics repositoriesMetrics
+                RepositoriesMetrics repositoriesMetrics,
+                SnapshotMetrics snapshotMetrics
             ) {
                 return Collections.singletonMap(
                     TYPE,
-                    (metadata) -> new UnstableRepository(metadata, env, namedXContentRegistry, clusterService, bigArrays, recoverySettings)
+                    (projectId, metadata) -> new UnstableRepository(
+                        projectId,
+                        metadata,
+                        env,
+                        namedXContentRegistry,
+                        clusterService,
+                        bigArrays,
+                        recoverySettings,
+                        snapshotMetrics
+                    )
                 );
             }
 
@@ -106,7 +120,7 @@ public class InvalidRepositoryIT extends ESIntegTestCase {
         // verification should fail with some node has InvalidRepository
         final var expectedException = expectThrows(
             RepositoryVerificationException.class,
-            clusterAdmin().prepareVerifyRepository(repositoryName)
+            clusterAdmin().prepareVerifyRepository(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, repositoryName)
         );
         for (Throwable suppressed : expectedException.getSuppressed()) {
             Throwable outerCause = suppressed.getCause();
@@ -130,16 +144,27 @@ public class InvalidRepositoryIT extends ESIntegTestCase {
         // put repository again: let all node can create repository successfully
         createRepository(repositoryName, UnstableRepository.TYPE, Settings.builder().put("location", randomRepoPath()));
         // verification should succeed with all node create repository successfully
-        VerifyRepositoryResponse verifyRepositoryResponse = clusterAdmin().prepareVerifyRepository(repositoryName).get();
+        VerifyRepositoryResponse verifyRepositoryResponse = clusterAdmin().prepareVerifyRepository(
+            TEST_REQUEST_TIMEOUT,
+            TEST_REQUEST_TIMEOUT,
+            repositoryName
+        ).get();
         assertEquals(verifyRepositoryResponse.getNodes().size(), internalCluster().numDataAndMasterNodes());
 
     }
 
     private void createRepository(String name, String type, Settings.Builder settings) {
         // create
-        assertAcked(clusterAdmin().preparePutRepository(name).setType(type).setVerify(false).setSettings(settings).get());
+        assertAcked(
+            clusterAdmin().preparePutRepository(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, name)
+                .setType(type)
+                .setVerify(false)
+                .setSettings(settings)
+                .get()
+        );
         // get
-        final GetRepositoriesResponse updatedGetRepositoriesResponse = clusterAdmin().prepareGetRepositories(name).get();
+        final GetRepositoriesResponse updatedGetRepositoriesResponse = clusterAdmin().prepareGetRepositories(TEST_REQUEST_TIMEOUT, name)
+            .get();
         // assert
         assertThat(updatedGetRepositoriesResponse.repositories(), hasSize(1));
         final RepositoryMetadata updatedRepositoryMetadata = updatedGetRepositoriesResponse.repositories().get(0);

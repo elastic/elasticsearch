@@ -1,6 +1,0 @@
-pr: 108455
-summary: "[ES|QL] Convert string to datetime when the other size of an arithmetic\
-  \ operator is `date_period` or `time_duration`"
-area: ES|QL
-type: enhancement
-issues: []

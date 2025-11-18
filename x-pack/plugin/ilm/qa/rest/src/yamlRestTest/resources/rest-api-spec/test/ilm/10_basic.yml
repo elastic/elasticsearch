@@ -395,3 +395,99 @@ setup:
                }
              }
            }
+
+---
+# This test checks that the deprecation warning is issued when a deprecated rollover condition is part of the policy
+# On both creation and update of an existing policy
+"Test Deprecated Condition On Policy Put / Update":
+  - requires:
+      test_runner_features: [ warnings, capabilities ]
+      capabilities:
+        - method: PUT
+          path: /_ilm/policy/my_timeseries_lifecycle
+          capabilities: [ max_size_deprecation ]
+      reason: Capability must be present to run test
+
+  - do:
+      warnings:
+        - 'Use of the [max_size] rollover condition found in phase [hot]. This condition has been deprecated in favour of the [max_primary_shard_size] condition and will be removed in a later version'
+      ilm.put_lifecycle:
+        policy: "my_timeseries_lifecycle"
+        body: |
+          {
+            "policy": {
+              "phases": {
+                "hot": {
+                  "actions": {
+                    "rollover": {
+                      "max_size": "50gb"
+                    }
+                  }
+                }
+              }
+            }
+          }
+
+  - do:
+      ilm.get_lifecycle:
+        policy: "my_timeseries_lifecycle"
+  - match: { my_timeseries_lifecycle.version: 1 }
+  - is_true: my_timeseries_lifecycle.modified_date
+  - match: { my_timeseries_lifecycle.policy.phases.hot.actions.rollover.max_size: "50gb" }
+
+  # Create a policy with rollover but without max_size
+  - do:
+      ilm.put_lifecycle:
+        policy: "my_timeseries_lifecycle_update"
+        body: |
+          {
+            "policy": {
+              "phases": {
+                "hot": {
+                  "actions": {
+                    "rollover": {
+                      "max_docs": 1000
+                    }
+                  }
+                }
+              }
+            }
+          }
+
+  - do:
+      ilm.get_lifecycle:
+        policy: "my_timeseries_lifecycle_update"
+  - match: { my_timeseries_lifecycle_update.version: 1 }
+  - is_true: my_timeseries_lifecycle_update.modified_date
+  - match: { my_timeseries_lifecycle_update.policy.phases.hot.actions.rollover.max_docs: 1000 }
+  - is_false: my_timeseries_lifecycle_update.policy.phases.hot.actions.rollover.max_size
+
+  # Update the policy to add max_size and check for deprecation warning
+  - do:
+      warnings:
+        - 'Use of the [max_size] rollover condition found in phase [hot]. This condition has been deprecated in favour of the [max_primary_shard_size] condition and will be removed in a later version'
+      ilm.put_lifecycle:
+        policy: "my_timeseries_lifecycle_update"
+        body: |
+          {
+            "policy": {
+              "phases": {
+                "hot": {
+                  "actions": {
+                    "rollover": {
+                      "max_docs": 1000,
+                      "max_size": "25gb"
+                    }
+                  }
+                }
+              }
+            }
+          }
+
+  - do:
+      ilm.get_lifecycle:
+        policy: "my_timeseries_lifecycle_update"
+  - match: { my_timeseries_lifecycle_update.version: 2 }
+  - is_true: my_timeseries_lifecycle_update.modified_date
+  - match: { my_timeseries_lifecycle_update.policy.phases.hot.actions.rollover.max_docs: 1000 }
+  - match: { my_timeseries_lifecycle_update.policy.phases.hot.actions.rollover.max_size: "25gb" }

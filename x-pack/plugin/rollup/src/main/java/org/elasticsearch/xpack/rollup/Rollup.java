@@ -7,8 +7,6 @@
 package org.elasticsearch.xpack.rollup;
 
 import org.apache.lucene.util.SetOnce;
-import org.elasticsearch.action.ActionRequest;
-import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
@@ -70,6 +68,10 @@ import java.util.function.Supplier;
 
 public class Rollup extends Plugin implements ActionPlugin, PersistentTaskPlugin {
 
+    public static final String DEPRECATION_MESSAGE =
+        "The rollup functionality will be removed in Elasticsearch 10.0. See docs for more information.";
+    public static final String DEPRECATION_KEY = "rollup_removal";
+
     // Introduced in ES version 6.3
     public static final int ROLLUP_VERSION_V1 = 1;
     // Introduced in ES Version 6.4
@@ -111,18 +113,18 @@ public class Rollup extends Plugin implements ActionPlugin, PersistentTaskPlugin
     }
 
     @Override
-    public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
+    public List<ActionHandler> getActions() {
         return Arrays.asList(
-            new ActionHandler<>(RollupSearchAction.INSTANCE, TransportRollupSearchAction.class),
-            new ActionHandler<>(PutRollupJobAction.INSTANCE, TransportPutRollupJobAction.class),
-            new ActionHandler<>(StartRollupJobAction.INSTANCE, TransportStartRollupAction.class),
-            new ActionHandler<>(StopRollupJobAction.INSTANCE, TransportStopRollupAction.class),
-            new ActionHandler<>(DeleteRollupJobAction.INSTANCE, TransportDeleteRollupJobAction.class),
-            new ActionHandler<>(GetRollupJobsAction.INSTANCE, TransportGetRollupJobAction.class),
-            new ActionHandler<>(GetRollupCapsAction.INSTANCE, TransportGetRollupCapsAction.class),
-            new ActionHandler<>(GetRollupIndexCapsAction.INSTANCE, TransportGetRollupIndexCapsAction.class),
-            new ActionHandler<>(XPackUsageFeatureAction.ROLLUP, RollupUsageTransportAction.class),
-            new ActionHandler<>(XPackInfoFeatureAction.ROLLUP, RollupInfoTransportAction.class)
+            new ActionHandler(RollupSearchAction.INSTANCE, TransportRollupSearchAction.class),
+            new ActionHandler(PutRollupJobAction.INSTANCE, TransportPutRollupJobAction.class),
+            new ActionHandler(StartRollupJobAction.INSTANCE, TransportStartRollupAction.class),
+            new ActionHandler(StopRollupJobAction.INSTANCE, TransportStopRollupAction.class),
+            new ActionHandler(DeleteRollupJobAction.INSTANCE, TransportDeleteRollupJobAction.class),
+            new ActionHandler(GetRollupJobsAction.INSTANCE, TransportGetRollupJobAction.class),
+            new ActionHandler(GetRollupCapsAction.INSTANCE, TransportGetRollupCapsAction.class),
+            new ActionHandler(GetRollupIndexCapsAction.INSTANCE, TransportGetRollupIndexCapsAction.class),
+            new ActionHandler(XPackUsageFeatureAction.ROLLUP, RollupUsageTransportAction.class),
+            new ActionHandler(XPackInfoFeatureAction.ROLLUP, RollupInfoTransportAction.class)
         );
     }
 

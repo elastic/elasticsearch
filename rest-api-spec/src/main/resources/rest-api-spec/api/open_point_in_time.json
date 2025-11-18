@@ -1,64 +1,84 @@
 {
-  "open_point_in_time":{
-    "documentation":{
-      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/master/point-in-time-api.html",
-      "description":"Open a point in time that can be used in subsequent searches"
+  "open_point_in_time": {
+    "documentation": {
+      "url": "https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-open-point-in-time",
+      "description": "Open a point in time"
     },
-    "stability":"stable",
-    "visibility":"public",
-    "headers":{
-      "accept": [ "application/json"],
-      "content_type": ["application/json"]
+    "stability": "stable",
+    "visibility": "public",
+    "headers": {
+      "accept": [
+        "application/json"
+      ],
+      "content_type": [
+        "application/json"
+      ]
     },
-    "url":{
-      "paths":[
+    "url": {
+      "paths": [
         {
-          "path":"/{index}/_pit",
-          "methods":[
+          "path": "/{index}/_pit",
+          "methods": [
             "POST"
           ],
-          "parts":{
-            "index":{
-              "type":"list",
-              "description":"A comma-separated list of index names to open point in time; use `_all` or empty string to perform the operation on all indices"
+          "parts": {
+            "index": {
+              "type": "list",
+              "description": "A comma-separated list of index names to open point in time; use `_all` or empty string to perform the operation on all indices"
             }
           }
         }
       ]
     },
-    "params":{
-      "preference":{
-        "type":"string",
-        "description":"Specify the node or shard the operation should be performed on (default: random)"
+    "params": {
+      "preference": {
+        "type": "string",
+        "description": "Specify the node or shard the operation should be performed on (default: random)"
       },
-      "routing":{
-        "type":"string",
-        "description":"Specific routing value"
+      "routing": {
+        "type": "list",
+        "description": "Specific routing value"
       },
-      "ignore_unavailable":{
-        "type":"boolean",
-        "description":"Whether specified concrete indices should be ignored when unavailable (missing or closed)"
+      "ignore_unavailable": {
+        "type": "boolean",
+        "default": false,
+        "description": "Whether specified concrete indices should be ignored when unavailable (missing or closed)"
       },
-      "expand_wildcards":{
-        "type":"enum",
-        "options":[
+      "expand_wildcards": {
+        "type": "list",
+        "options": [
           "open",
           "closed",
           "hidden",
           "none",
           "all"
         ],
-        "default":"open",
-        "description":"Whether to expand wildcard expression to concrete indices that are open, closed or both."
+        "default": "open",
+        "description": "Whether to expand wildcard expression to concrete indices that are open, closed or both."
       },
       "keep_alive": {
         "type": "string",
         "description": "Specific the time to live for the point in time",
         "required": true
+      },
+      "allow_partial_search_results": {
+        "type": "boolean",
+        "default": false,
+        "description": "Specify whether to tolerate shards missing when creating the point-in-time, or otherwise throw an exception. (default: false)"
+      },
+      "max_concurrent_shard_requests": {
+        "type": "int",
+        "description": "The number of concurrent shard requests per node executed concurrently when opening this point-in-time. This value should be used to limit the impact of opening the point-in-time on the cluster",
+        "default": 5
+      },
+      "project_routing": {
+        "type": "string",
+        "description": "A Lucene query using project metadata tags to limit which projects to search, such as _alias:_origin or _alias:*pr*. Only supported in serverless."
       }
     },
-    "body":{
-      "description":"An index_filter specified with the Query DSL"
+    "body": {
+      "description": "An index_filter specified with the Query DSL",
+      "required": false
     }
   }
 }

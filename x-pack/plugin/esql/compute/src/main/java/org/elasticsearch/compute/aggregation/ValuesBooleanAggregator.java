@@ -17,7 +17,6 @@ import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.operator.DriverContext;
-import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 
 /**
@@ -67,28 +66,16 @@ class ValuesBooleanAggregator {
         }
     }
 
-    public static void combineStates(GroupingState current, int currentGroupId, GroupingState state, int statePosition) {
-        long stateOffset = ((long) statePosition) << 1;
-        boolean seenFalse = state.values.get(stateOffset);
-        boolean seenTrue = state.values.get(stateOffset | 1);
-
-        if (seenFalse) {
-            combine(current, currentGroupId, false);
-        }
-        if (seenTrue) {
-            combine(current, currentGroupId, true);
-        }
+    public static Block evaluateFinal(GroupingState state, IntVector selected, GroupingAggregatorEvaluationContext ctx) {
+        return state.toBlock(ctx.blockFactory(), selected);
     }
 
-    public static Block evaluateFinal(GroupingState state, IntVector selected, DriverContext driverContext) {
-        return state.toBlock(driverContext.blockFactory(), selected);
-    }
-
-    public static class SingleState implements Releasable {
+    public static class SingleState implements AggregatorState {
         private boolean seenFalse;
         private boolean seenTrue;
 
-        void toIntermediate(Block[] blocks, int offset, DriverContext driverContext) {
+        @Override
+        public void toIntermediate(Block[] blocks, int offset, DriverContext driverContext) {
             blocks[offset] = toBlock(driverContext.blockFactory());
         }
 
@@ -113,14 +100,15 @@ class ValuesBooleanAggregator {
         public void close() {}
     }
 
-    public static class GroupingState implements Releasable {
+    public static class GroupingState implements GroupingAggregatorState {
         private final BitArray values;
 
         private GroupingState(BigArrays bigArrays) {
             values = new BitArray(1, bigArrays);
         }
 
-        void toIntermediate(Block[] blocks, int offset, IntVector selected, DriverContext driverContext) {
+        @Override
+        public void toIntermediate(Block[] blocks, int offset, IntVector selected, DriverContext driverContext) {
             blocks[offset] = toBlock(driverContext.blockFactory(), selected);
         }
 
@@ -155,7 +143,8 @@ class ValuesBooleanAggregator {
             }
         }
 
-        void enableGroupIdTracking(SeenGroupIds seen) {
+        @Override
+        public void enableGroupIdTracking(SeenGroupIds seen) {
             // we don't need to track which values have been seen because we don't do anything special for groups without values
         }
 

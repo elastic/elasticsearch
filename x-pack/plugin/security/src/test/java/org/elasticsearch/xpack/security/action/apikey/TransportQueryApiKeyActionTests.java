@@ -13,13 +13,13 @@ import org.elasticsearch.search.sort.NestedSortBuilder;
 import org.elasticsearch.search.sort.SortMode;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.security.support.ApiKeyFieldNameTranslators;
 
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
 import java.util.stream.IntStream;
 
+import static org.elasticsearch.xpack.security.support.FieldNameTranslators.API_KEY_FIELD_NAME_TRANSLATORS;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -43,7 +43,7 @@ public class TransportQueryApiKeyActionTests extends ESTestCase {
 
         List<String> sortFields = new ArrayList<>();
         final SearchSourceBuilder searchSourceBuilder = SearchSourceBuilder.searchSource();
-        ApiKeyFieldNameTranslators.translateFieldSortBuilders(originals, searchSourceBuilder, sortFields::add);
+        API_KEY_FIELD_NAME_TRANSLATORS.translateFieldSortBuilders(originals, searchSourceBuilder, sortFields::add);
 
         IntStream.range(0, originals.size()).forEach(i -> {
             final FieldSortBuilder original = originals.get(i);
@@ -96,13 +96,13 @@ public class TransportQueryApiKeyActionTests extends ESTestCase {
         fieldSortBuilder.setNestedSort(new NestedSortBuilder("name"));
         final IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
-            () -> ApiKeyFieldNameTranslators.translateFieldSortBuilders(
+            () -> API_KEY_FIELD_NAME_TRANSLATORS.translateFieldSortBuilders(
                 List.of(fieldSortBuilder),
                 SearchSourceBuilder.searchSource(),
                 ignored -> {}
             )
         );
-        assertThat(e.getMessage(), equalTo("nested sorting is not supported for API Key query"));
+        assertThat(e.getMessage(), equalTo("nested sorting is not currently supported in this context"));
     }
 
     private FieldSortBuilder randomFieldSortBuilderWithName(String name) {

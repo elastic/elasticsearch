@@ -1,0 +1,21 @@
+io.netty.transport:
+  - inbound_network
+  - outbound_network
+  - manage_threads
+  # Netty NioEventLoop wants to change this, because of https://bugs.openjdk.java.net/browse/JDK-6427854
+  # the bug says it only happened rarely, and that its fixed, but apparently it still happens rarely!
+  # TODO: copied over from the security policy. Check if this is still valid
+  - write_system_properties:
+      properties:
+        - sun.nio.ch.bugLevel
+io.netty.common:
+  - inbound_network
+  - outbound_network
+  - manage_threads
+  - files:
+    - path: "/etc/os-release"
+      mode: "read"
+    - path: "/usr/lib/os-release"
+      mode: "read"
+    - path: "/proc/sys/net/core/somaxconn"
+      mode: read

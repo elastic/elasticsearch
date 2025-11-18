@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.mapper;
@@ -16,10 +17,12 @@ import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
+import org.elasticsearch.index.mapper.vectors.VectorsFormatProvider;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.similarity.SimilarityProvider;
 import org.elasticsearch.script.ScriptCompiler;
 
+import java.util.List;
 import java.util.function.Function;
 import java.util.function.Supplier;
 
@@ -42,6 +45,8 @@ public class MappingParserContext {
     private final Function<Query, BitSetProducer> bitSetProducer;
     private final long mappingObjectDepthLimit;
     private long mappingObjectDepth = 0;
+    private final List<VectorsFormatProvider> vectorsFormatProviders;
+    private final RootObjectMapperNamespaceValidator namespaceValidator;
 
     public MappingParserContext(
         Function<String, SimilarityProvider> similarityLookupService,
@@ -54,7 +59,10 @@ public class MappingParserContext {
         IndexAnalyzers indexAnalyzers,
         IndexSettings indexSettings,
         IdFieldMapper idFieldMapper,
-        Function<Query, BitSetProducer> bitSetProducer
+        Function<Query, BitSetProducer> bitSetProducer,
+        List<VectorsFormatProvider> vectorsFormatProviders,
+        RootObjectMapperNamespaceValidator namespaceValidator
+
     ) {
         this.similarityLookupService = similarityLookupService;
         this.typeParsers = typeParsers;
@@ -68,6 +76,43 @@ public class MappingParserContext {
         this.idFieldMapper = idFieldMapper;
         this.mappingObjectDepthLimit = indexSettings.getMappingDepthLimit();
         this.bitSetProducer = bitSetProducer;
+        this.vectorsFormatProviders = vectorsFormatProviders;
+        this.namespaceValidator = namespaceValidator;
+    }
+
+    public MappingParserContext(
+        Function<String, SimilarityProvider> similarityLookupService,
+        Function<String, Mapper.TypeParser> typeParsers,
+        Function<String, RuntimeField.Parser> runtimeFieldParsers,
+        IndexVersion indexVersionCreated,
+        Supplier<TransportVersion> clusterTransportVersion,
+        Supplier<SearchExecutionContext> searchExecutionContextSupplier,
+        ScriptCompiler scriptCompiler,
+        IndexAnalyzers indexAnalyzers,
+        IndexSettings indexSettings,
+        IdFieldMapper idFieldMapper,
+        Function<Query, BitSetProducer> bitSetProducer,
+        List<VectorsFormatProvider> vectorsFormatProviders
+    ) {
+        this(
+            similarityLookupService,
+            typeParsers,
+            runtimeFieldParsers,
+            indexVersionCreated,
+            clusterTransportVersion,
+            searchExecutionContextSupplier,
+            scriptCompiler,
+            indexAnalyzers,
+            indexSettings,
+            idFieldMapper,
+            bitSetProducer,
+            vectorsFormatProviders,
+            null
+        );
+    }
+
+    public RootObjectMapperNamespaceValidator getNamespaceValidator() {
+        return namespaceValidator;
     }
 
     public IndexAnalyzers getIndexAnalyzers() {
@@ -141,6 +186,10 @@ public class MappingParserContext {
         return bitSetProducer.apply(query);
     }
 
+    public List<VectorsFormatProvider> getVectorsFormatProviders() {
+        return vectorsFormatProviders;
+    }
+
     void incrementMappingObjectDepth() throws MapperParsingException {
         mappingObjectDepth++;
         if (mappingObjectDepth > mappingObjectDepthLimit) {
@@ -169,7 +218,9 @@ public class MappingParserContext {
                 in.indexAnalyzers,
                 in.indexSettings,
                 in.idFieldMapper,
-                in.bitSetProducer
+                in.bitSetProducer,
+                in.vectorsFormatProviders,
+                in.namespaceValidator
             );
         }
 
@@ -199,7 +250,9 @@ public class MappingParserContext {
                 in.indexAnalyzers,
                 in.indexSettings,
                 in.idFieldMapper,
-                in.bitSetProducer
+                in.bitSetProducer,
+                in.vectorsFormatProviders,
+                in.namespaceValidator
             );
             this.dateFormatter = dateFormatter;
         }

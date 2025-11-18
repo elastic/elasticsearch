@@ -73,7 +73,7 @@ class MlAutoscalingContext {
     }
 
     MlAutoscalingContext(ClusterState clusterState) {
-        persistentTasks = clusterState.getMetadata().custom(PersistentTasksCustomMetadata.TYPE);
+        persistentTasks = clusterState.getMetadata().getProject().custom(PersistentTasksCustomMetadata.TYPE);
 
         anomalyDetectionTasks = anomalyDetectionTasks(persistentTasks);
         snapshotUpgradeTasks = snapshotUpgradeTasks(persistentTasks);
@@ -177,7 +177,7 @@ class MlAutoscalingContext {
         return anomalyDetectionTasks.isEmpty()
             && snapshotUpgradeTasks.isEmpty()
             && dataframeAnalyticsTasks.isEmpty()
-            && modelAssignments.isEmpty();
+            && modelAssignments.values().stream().allMatch(assignment -> assignment.getTaskParams().getNumberOfAllocations() == 0);
     }
 
     public List<String> findPartiallyAllocatedModels() {

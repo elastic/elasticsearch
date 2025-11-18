@@ -11,10 +11,10 @@ dependencies {
   api(project(':server')) {
     transitive = false
   }
-  api(project(':libs:elasticsearch-core')) {
+  api(project(':libs:core')) {
     transitive = false
   }
-  api(project(':libs:elasticsearch-x-content')) {
+  api(project(':libs:x-content')) {
     transitive = false
   }
   api project(':x-pack:plugin:core')

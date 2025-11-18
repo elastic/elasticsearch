@@ -1,13 +1,15 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.admin.cluster.snapshots.restore;
 
+import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
@@ -28,6 +30,8 @@ import java.util.List;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.containsString;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNotNull;
 
 public class RestoreSnapshotRequestTests extends AbstractWireSerializingTestCase<RestoreSnapshotRequest> {
     private RestoreSnapshotRequest randomState(RestoreSnapshotRequest instance) {
@@ -88,6 +92,7 @@ public class RestoreSnapshotRequestTests extends AbstractWireSerializingTestCase
                             randomBoolean()
                         )
                     )
+                    .gatekeeperOptions(IndicesOptions.GatekeeperOptions.builder().allowSelectors(false).includeFailureIndices(true).build())
                     .build()
             );
         }
@@ -107,7 +112,7 @@ public class RestoreSnapshotRequestTests extends AbstractWireSerializingTestCase
 
     @Override
     protected RestoreSnapshotRequest createTestInstance() {
-        return randomState(new RestoreSnapshotRequest(randomAlphaOfLength(5), randomAlphaOfLength(10)));
+        return randomState(new RestoreSnapshotRequest(TEST_REQUEST_TIMEOUT, randomAlphaOfLength(5), randomAlphaOfLength(10)));
     }
 
     @Override
@@ -139,7 +144,7 @@ public class RestoreSnapshotRequestTests extends AbstractWireSerializingTestCase
         // we will only restore properties from the map that are contained in the request body. All other
         // properties are restored from the original (in the actual REST action this is restored from the
         // REST path and request parameters).
-        RestoreSnapshotRequest processed = new RestoreSnapshotRequest(original.repository(), original.snapshot());
+        RestoreSnapshotRequest processed = new RestoreSnapshotRequest(TEST_REQUEST_TIMEOUT, original.repository(), original.snapshot());
         processed.masterNodeTimeout(original.masterNodeTimeout());
         processed.waitForCompletion(original.waitForCompletion());
 
@@ -172,6 +177,17 @@ public class RestoreSnapshotRequestTests extends AbstractWireSerializingTestCase
     public void testToStringWillIncludeSkipOperatorOnlyState() {
         RestoreSnapshotRequest original = createTestInstance();
         assertThat(original.toString(), containsString("skipOperatorOnlyState"));
+    }
+
+    public void testRenameReplacementNameTooLong() {
+        RestoreSnapshotRequest request = createTestInstance();
+        request.indices("b".repeat(255));
+        request.renamePattern("b");
+        request.renameReplacement("1".repeat(randomIntBetween(266, 10_000)));
+
+        ActionRequestValidationException validation = request.validate();
+        assertNotNull(validation);
+        assertThat(validation.getMessage(), containsString("rename_replacement"));
     }
 
     private Map<String, Object> convertRequestToMap(RestoreSnapshotRequest request) throws IOException {

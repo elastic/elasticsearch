@@ -196,15 +196,6 @@ public class MlConfigVersionTests extends ESTestCase {
     }
 
     public void testGetMlConfigVersionForNode() {
-        DiscoveryNode node = DiscoveryNodeUtils.builder("_node_id4")
-            .name("_node_name4")
-            .address(new TransportAddress(InetAddress.getLoopbackAddress(), 9303))
-            .roles(ROLES_WITH_ML)
-            .version(VersionInformation.inferVersions(Version.fromString("8.7.0")))
-            .build();
-        MlConfigVersion mlConfigVersion = MlConfigVersion.getMlConfigVersionForNode(node);
-        assertEquals(MlConfigVersion.V_8_7_0, mlConfigVersion);
-
         DiscoveryNode node1 = DiscoveryNodeUtils.builder("_node_id5")
             .name("_node_name5")
             .address(new TransportAddress(InetAddress.getLoopbackAddress(), 9304))

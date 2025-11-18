@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.watcher.rest.action;
 
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.core.Booleans;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.rest.FakeRestRequest;
 import org.elasticsearch.test.rest.FakeRestRequest.Builder;
@@ -38,9 +39,9 @@ public class RestExecuteWatchActionTests extends ESTestCase {
                     );
 
                     assertThat(request.getId(), is(randomId));
-                    assertThat(request.isRecordExecution(), is(Boolean.parseBoolean(recordExecution)));
-                    assertThat(request.isIgnoreCondition(), is(Boolean.parseBoolean(ignoreCondition)));
-                    assertThat(request.isDebug(), is(Boolean.parseBoolean(debugCondition)));
+                    assertThat(request.isRecordExecution(), is(Booleans.parseBoolean(recordExecution, false)));
+                    assertThat(request.isIgnoreCondition(), is(Booleans.parseBoolean(ignoreCondition, false)));
+                    assertThat(request.isDebug(), is(Booleans.parseBoolean(debugCondition, false)));
                 }
             }
         }

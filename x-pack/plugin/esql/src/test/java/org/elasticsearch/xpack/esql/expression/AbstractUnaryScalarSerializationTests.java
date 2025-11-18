@@ -7,13 +7,11 @@
 
 package org.elasticsearch.xpack.esql.expression;
 
-import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.expression.function.scalar.UnaryScalarFunction;
 
 import java.io.IOException;
-import java.util.List;
 
 public abstract class AbstractUnaryScalarSerializationTests<T extends UnaryScalarFunction> extends AbstractExpressionSerializationTests<T> {
     protected abstract T create(Source source, Expression child);
@@ -27,10 +25,5 @@ public abstract class AbstractUnaryScalarSerializationTests<T extends UnaryScala
     protected final T mutateInstance(T instance) throws IOException {
         Expression child = randomValueOtherThan(instance.field(), AbstractExpressionSerializationTests::randomChild);
         return create(instance.source(), child);
-    }
-
-    @Override
-    protected List<NamedWriteableRegistry.Entry> getNamedWriteables() {
-        return UnaryScalarFunction.getNamedWriteables();
     }
 }

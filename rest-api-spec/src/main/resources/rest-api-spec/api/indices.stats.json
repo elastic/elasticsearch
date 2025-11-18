@@ -1,31 +1,33 @@
 {
-  "indices.stats":{
-    "documentation":{
-      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/master/indices-stats.html",
-      "description":"Provides statistics on operations happening in an index."
+  "indices.stats": {
+    "documentation": {
+      "url": "https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-indices-stats",
+      "description": "Get index statistics"
     },
-    "stability":"stable",
-    "visibility":"public",
-    "headers":{
-      "accept": [ "application/json"]
+    "stability": "stable",
+    "visibility": "public",
+    "headers": {
+      "accept": [
+        "application/json"
+      ]
     },
-    "url":{
-      "paths":[
+    "url": {
+      "paths": [
         {
-          "path":"/_stats",
-          "methods":[
+          "path": "/_stats",
+          "methods": [
             "GET"
           ]
         },
         {
-          "path":"/_stats/{metric}",
-          "methods":[
+          "path": "/_stats/{metric}",
+          "methods": [
             "GET"
           ],
-          "parts":{
-            "metric":{
-              "type":"list",
-              "options":[
+          "parts": {
+            "metric": {
+              "type": "list",
+              "options": [
                 "_all",
                 "completion",
                 "docs",
@@ -34,44 +36,50 @@
                 "flush",
                 "get",
                 "indexing",
+                "mappings",
                 "merge",
+                "recovery",
                 "request_cache",
                 "refresh",
                 "search",
                 "segments",
+                "shard_stats",
                 "store",
+                "translog",
                 "warmer",
-                "bulk"
+                "bulk",
+                "dense_vector",
+                "sparse_vector"
               ],
-              "description":"Limit the information returned the specific metrics."
+              "description": "Limit the information returned the specific metrics."
             }
           }
         },
         {
-          "path":"/{index}/_stats",
-          "methods":[
+          "path": "/{index}/_stats",
+          "methods": [
             "GET"
           ],
-          "parts":{
-            "index":{
-              "type":"list",
-              "description":"A comma-separated list of index names; use `_all` or empty string to perform the operation on all indices"
+          "parts": {
+            "index": {
+              "type": "list",
+              "description": "A comma-separated list of index names; use `_all` or empty string to perform the operation on all indices"
             }
           }
         },
         {
-          "path":"/{index}/_stats/{metric}",
-          "methods":[
+          "path": "/{index}/_stats/{metric}",
+          "methods": [
             "GET"
           ],
-          "parts":{
-            "index":{
-              "type":"list",
-              "description":"A comma-separated list of index names; use `_all` or empty string to perform the operation on all indices"
+          "parts": {
+            "index": {
+              "type": "list",
+              "description": "A comma-separated list of index names; use `_all` or empty string to perform the operation on all indices"
             },
-            "metric":{
-              "type":"list",
-              "options":[
+            "metric": {
+              "type": "list",
+              "options": [
                 "_all",
                 "completion",
                 "docs",
@@ -80,74 +88,80 @@
                 "flush",
                 "get",
                 "indexing",
+                "mappings",
                 "merge",
+                "recovery",
                 "request_cache",
                 "refresh",
                 "search",
                 "segments",
+                "shard_stats",
                 "store",
+                "translog",
                 "warmer",
-                "bulk"
+                "bulk",
+                "dense_vector",
+                "sparse_vector"
               ],
-              "description":"Limit the information returned the specific metrics."
+              "description": "Limit the information returned the specific metrics."
             }
           }
         }
       ]
     },
-    "params":{
-      "completion_fields":{
-        "type":"list",
-        "description":"A comma-separated list of fields for the `completion` index metric (supports wildcards)"
+    "params": {
+      "completion_fields": {
+        "type": "list",
+        "description": "A comma-separated list of fields for the `completion` index metric (supports wildcards)"
       },
-      "fielddata_fields":{
-        "type":"list",
-        "description":"A comma-separated list of fields for the `fielddata` index metric (supports wildcards)"
+      "fielddata_fields": {
+        "type": "list",
+        "description": "A comma-separated list of fields for the `fielddata` index metric (supports wildcards)"
       },
-      "fields":{
-        "type":"list",
-        "description":"A comma-separated list of fields for `fielddata` and `completion` index metric (supports wildcards)"
+      "fields": {
+        "type": "list",
+        "description": "A comma-separated list of fields for `fielddata` and `completion` index metric (supports wildcards)"
       },
-      "groups":{
-        "type":"list",
-        "description":"A comma-separated list of search groups for `search` index metric"
+      "groups": {
+        "type": "list",
+        "description": "A comma-separated list of search groups for `search` index metric"
       },
-      "level":{
-        "type":"enum",
-        "description":"Return stats aggregated at cluster, index or shard level",
-        "options":[
+      "level": {
+        "type": "enum",
+        "description": "Return stats aggregated at cluster, index or shard level",
+        "options": [
           "cluster",
           "indices",
           "shards"
         ],
-        "default":"indices"
+        "default": "indices"
       },
-      "include_segment_file_sizes":{
-        "type":"boolean",
-        "description":"Whether to report the aggregated disk usage of each one of the Lucene index files (only applies if segment stats are requested)",
-        "default":false
+      "include_segment_file_sizes": {
+        "type": "boolean",
+        "description": "Whether to report the aggregated disk usage of each one of the Lucene index files (only applies if segment stats are requested)",
+        "default": false
       },
-      "include_unloaded_segments":{
-        "type":"boolean",
-        "description":"If set to true segment stats will include stats for segments that are not currently loaded into memory",
-        "default":false
+      "include_unloaded_segments": {
+        "type": "boolean",
+        "description": "If set to true segment stats will include stats for segments that are not currently loaded into memory",
+        "default": false
       },
-      "expand_wildcards":{
-        "type":"enum",
-        "options":[
+      "expand_wildcards": {
+        "type": "list",
+        "options": [
           "open",
           "closed",
           "hidden",
           "none",
           "all"
         ],
-        "default":"open",
-        "description":"Whether to expand wildcard expression to concrete indices that are open, closed or both."
+        "default": "open",
+        "description": "Whether to expand wildcard expression to concrete indices that are open, closed or both."
       },
-      "forbid_closed_indices":{
-        "type":"boolean",
-        "description":"If set to false stats will also collected from closed indices if explicitly specified or if expand_wildcards expands to closed indices",
-        "default":true
+      "forbid_closed_indices": {
+        "type": "boolean",
+        "description": "If set to false stats will also collected from closed indices if explicitly specified or if expand_wildcards expands to closed indices",
+        "default": true
       }
     }
   }

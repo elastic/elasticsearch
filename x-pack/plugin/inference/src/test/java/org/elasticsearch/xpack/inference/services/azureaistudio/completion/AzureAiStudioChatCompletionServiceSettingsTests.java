@@ -7,15 +7,18 @@
 
 package org.elasticsearch.xpack.inference.services.azureaistudio.completion;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xpack.core.ml.AbstractBWCWireSerializationTestCase;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.azureaistudio.AzureAiStudioEndpointType;
 import org.elasticsearch.xpack.inference.services.azureaistudio.AzureAiStudioProvider;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
+import org.elasticsearch.xpack.inference.services.settings.RateLimitSettingsTests;
 import org.hamcrest.CoreMatchers;
 
 import java.io.IOException;
@@ -27,7 +30,8 @@ import static org.elasticsearch.xpack.inference.services.azureaistudio.AzureAiSt
 import static org.elasticsearch.xpack.inference.services.azureaistudio.AzureAiStudioConstants.TARGET_FIELD;
 import static org.hamcrest.Matchers.is;
 
-public class AzureAiStudioChatCompletionServiceSettingsTests extends ESTestCase {
+public class AzureAiStudioChatCompletionServiceSettingsTests extends AbstractBWCWireSerializationTestCase<
+    AzureAiStudioChatCompletionServiceSettings> {
     public void testFromMap_Request_CreatesSettingsCorrectly() {
         var target = "http://sometarget.local";
         var provider = "openai";
@@ -119,4 +123,49 @@ public class AzureAiStudioChatCompletionServiceSettingsTests extends ESTestCase 
     public static HashMap<String, Object> createRequestSettingsMap(String target, String provider, String endpointType) {
         return new HashMap<>(Map.of(TARGET_FIELD, target, PROVIDER_FIELD, provider, ENDPOINT_TYPE_FIELD, endpointType));
     }
+
+    @Override
+    protected Writeable.Reader<AzureAiStudioChatCompletionServiceSettings> instanceReader() {
+        return AzureAiStudioChatCompletionServiceSettings::new;
+    }
+
+    @Override
+    protected AzureAiStudioChatCompletionServiceSettings createTestInstance() {
+        return createRandom();
+    }
+
+    @Override
+    protected AzureAiStudioChatCompletionServiceSettings mutateInstance(AzureAiStudioChatCompletionServiceSettings instance)
+        throws IOException {
+        var target = instance.target();
+        var provider = instance.provider();
+        var endpointType = instance.endpointType();
+        var rateLimitSettings = instance.rateLimitSettings();
+        switch (randomInt(3)) {
+            case 0 -> target = randomValueOtherThan(target, () -> randomAlphaOfLength(10));
+            case 1 -> provider = randomValueOtherThan(provider, () -> randomFrom(AzureAiStudioProvider.values()));
+            case 2 -> endpointType = randomValueOtherThan(endpointType, () -> randomFrom(AzureAiStudioEndpointType.values()));
+            case 3 -> rateLimitSettings = randomValueOtherThan(rateLimitSettings, RateLimitSettingsTests::createRandom);
+            default -> throw new AssertionError("Illegal randomisation branch");
+        }
+        return new AzureAiStudioChatCompletionServiceSettings(target, provider, endpointType, rateLimitSettings);
+    }
+
+    @Override
+    protected AzureAiStudioChatCompletionServiceSettings mutateInstanceForVersion(
+        AzureAiStudioChatCompletionServiceSettings instance,
+        TransportVersion version
+    ) {
+        return instance;
+    }
+
+    private static AzureAiStudioChatCompletionServiceSettings createRandom() {
+        return new AzureAiStudioChatCompletionServiceSettings(
+            randomAlphaOfLength(10),
+            randomFrom(AzureAiStudioProvider.values()),
+            randomFrom(AzureAiStudioEndpointType.values()),
+            RateLimitSettingsTests.createRandom()
+        );
+    }
+
 }

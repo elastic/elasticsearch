@@ -1,0 +1,84 @@
+---
+teardown:
+  - do:
+      streams.logs_disable: { }
+
+---
+"Basic toggle of logs state enable to disable and back":
+  - do:
+      streams.logs_enable: { }
+  - is_true: acknowledged
+
+  - do:
+      streams.status: { }
+  - is_true: logs.enabled
+
+  - do:
+      streams.logs_disable: { }
+  - is_true: acknowledged
+
+  - do:
+      streams.status: { }
+  - is_false: logs.enabled
+
+  - do:
+      streams.logs_enable: { }
+  - is_true: acknowledged
+
+  - do:
+      streams.status: { }
+  - is_true: logs.enabled
+
+  - do:
+      streams.logs_disable: { }
+  - is_true: acknowledged
+
+---
+"Check for repeated toggle to same state":
+  - do:
+      streams.logs_enable: { }
+  - is_true: acknowledged
+
+  - do:
+      streams.status: { }
+  - is_true: logs.enabled
+
+  - do:
+      streams.logs_enable: { }
+  - is_true: acknowledged
+
+  - do:
+      streams.status: { }
+  - is_true: logs.enabled
+
+  - do:
+      streams.logs_disable: { }
+  - is_true: acknowledged
+
+---
+"Check streams can't be enabled with existing logs indices":
+  - do:
+      indices.create:
+        index: logs
+
+  - do:
+      catch: conflict
+      streams.logs_enable: { }
+  - match: { error.reason: "Cannot enable logs streams: indices named 'logs' or starting with 'logs.' already exist." }
+
+  - do:
+      indices.delete:
+        index: logs
+
+  - do:
+      indices.create:
+        index: logs.test
+
+  - do:
+      catch: conflict
+      streams.logs_enable: { }
+  - match: { error.reason: "Cannot enable logs streams: indices named 'logs' or starting with 'logs.' already exist." }
+
+  - do:
+      indices.delete:
+        index: logs.test

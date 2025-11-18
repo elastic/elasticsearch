@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.cluster.routing;
@@ -17,9 +18,8 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ESTestCase;
 
 import java.net.InetAddress;
-import java.util.Arrays;
+import java.util.HashSet;
 import java.util.Set;
-import java.util.stream.Collectors;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
@@ -160,7 +160,9 @@ public class RoutingNodeTests extends ESTestCase {
     }
 
     private static Set<ShardId> startedShardsSet(RoutingNode routingNode) {
-        return Arrays.stream(routingNode.started()).map(ShardRouting::shardId).collect(Collectors.toSet());
+        final var result = new HashSet<ShardId>();
+        routingNode.started().forEach(shardRouting -> result.add(shardRouting.shardId()));
+        return result;
     }
 
 }

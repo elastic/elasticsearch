@@ -76,6 +76,10 @@ public class EqlSpecLoader {
         return null;
     }
 
+    private static Boolean getBoolean(TomlTable table, String key) {
+        return table.getBoolean(key);
+    }
+
     private static List<EqlSpec> readFromStream(InputStream is, Set<String> uniqueTestNames) throws Exception {
         List<EqlSpec> testSpecs = new ArrayList<>();
 
@@ -90,6 +94,9 @@ public class EqlSpecLoader {
             spec.note(getTrimmedString(table, "note"));
             spec.description(getTrimmedString(table, "description"));
             spec.size(getInteger(table, "size"));
+            spec.allowPartialSearchResults(getBoolean(table, "allow_partial_search_results"));
+            spec.allowPartialSequenceResults(getBoolean(table, "allow_partial_sequence_results"));
+            spec.expectShardFailures(getBoolean(table, "expect_shard_failures"));
 
             List<?> arr = table.getList("tags");
             if (arr != null) {

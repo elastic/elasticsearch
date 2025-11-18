@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index;
@@ -44,9 +45,14 @@ public class IndexSettingsIT extends ESIntegTestCase {
             internalCluster().fullRestart();
 
             final var indicesClient = indicesAdmin();
-            assertThat(indicesClient.prepareGetSettings("test").get().getSetting("test", "archived.index.test_setting"), equalTo("true"));
+            assertThat(
+                indicesClient.prepareGetSettings(TEST_REQUEST_TIMEOUT, "test").get().getSetting("test", "archived.index.test_setting"),
+                equalTo("true")
+            );
             updateIndexSettings(Settings.builder().putNull("archived.*"), "test");
-            assertNull(indicesClient.prepareGetSettings("test").get().getSetting("test", "archived.index.test_setting"));
+            assertNull(
+                indicesClient.prepareGetSettings(TEST_REQUEST_TIMEOUT, "test").get().getSetting("test", "archived.index.test_setting")
+            );
         } finally {
             registerSetting = true;
         }

@@ -1,8 +1,8 @@
 apply plugin: 'elasticsearch.internal-es-plugin'
 esplugin {
-  name 'x-pack-rollup'
-  description 'Elasticsearch Expanded Pack Plugin - Rollup'
-  classname 'org.elasticsearch.xpack.rollup.Rollup'
+  name = 'x-pack-rollup'
+  description = 'Elasticsearch Expanded Pack Plugin - Rollup'
+  classname ='org.elasticsearch.xpack.rollup.Rollup'
   extendedPlugins = ['x-pack-core']
 }
 

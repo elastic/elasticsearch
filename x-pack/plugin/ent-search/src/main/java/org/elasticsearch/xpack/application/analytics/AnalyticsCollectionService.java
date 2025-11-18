@@ -18,7 +18,9 @@ import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.core.UpdateForV10;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.application.analytics.action.DeleteAnalyticsCollectionAction;
@@ -32,7 +34,10 @@ import static org.elasticsearch.xpack.core.ClientHelper.ENT_SEARCH_ORIGIN;
  * Until we have more specific need the {@link AnalyticsCollection} is just another representation
  * of a {@link org.elasticsearch.cluster.metadata.DataStream}.
  * As a consequence, this service is mostly a facade for the data stream API.
+ * @deprecated in 9.0
  */
+@Deprecated
+@UpdateForV10(owner = UpdateForV10.Owner.ENTERPRISE_SEARCH)
 public class AnalyticsCollectionService {
 
     private static final Logger logger = LogManager.getLogger(AnalyticsCollectionService.class);
@@ -81,7 +86,11 @@ public class AnalyticsCollectionService {
         assert (state.nodes().isLocalNodeElectedMaster());
 
         AnalyticsCollection collection = new AnalyticsCollection(request.getName());
-        CreateDataStreamAction.Request createDataStreamRequest = new CreateDataStreamAction.Request(collection.getEventDataStream());
+        CreateDataStreamAction.Request createDataStreamRequest = new CreateDataStreamAction.Request(
+            TimeValue.THIRTY_SECONDS /* TODO should we wait longer? */,
+            TimeValue.THIRTY_SECONDS /* TODO should we wait longer? */,
+            collection.getEventDataStream()
+        );
 
         ActionListener<AcknowledgedResponse> createDataStreamListener = ActionListener.wrap(
             r -> listener.onResponse(new PutAnalyticsCollectionAction.Response(r.isAcknowledged(), request.getName())),
@@ -124,7 +133,10 @@ public class AnalyticsCollectionService {
         assert (state.nodes().isLocalNodeElectedMaster());
 
         AnalyticsCollection collection = new AnalyticsCollection(request.getCollectionName());
-        DeleteDataStreamAction.Request deleteDataStreamRequest = new DeleteDataStreamAction.Request(collection.getEventDataStream());
+        DeleteDataStreamAction.Request deleteDataStreamRequest = new DeleteDataStreamAction.Request(
+            TimeValue.THIRTY_SECONDS /* TODO should we wait longer? */,
+            collection.getEventDataStream()
+        );
         ActionListener<AcknowledgedResponse> deleteDataStreamListener = ActionListener.wrap(listener::onResponse, (Exception e) -> {
             if (e instanceof ResourceNotFoundException) {
                 listener.onFailure(new ResourceNotFoundException("analytics collection [{}] does not exists", request.getCollectionName()));

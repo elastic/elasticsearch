@@ -18,7 +18,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.io.IOException;
-import java.util.Collections;
+import java.util.Map;
 import java.util.Objects;
 
 import static org.elasticsearch.ElasticsearchException.REST_EXCEPTION_SKIP_STACK_TRACE;
@@ -86,7 +86,15 @@ public class ILMHistoryItem implements ToXContentObject {
         Exception error
     ) {
         Objects.requireNonNull(error, "ILM failures require an attached exception");
-        return new ILMHistoryItem(index, policyId, timestamp, indexAge, false, executionState, exceptionToString(error));
+        String fullErrorString = exceptionToString(error);
+        String truncatedErrorString = LifecycleExecutionState.truncateWithExplanation(fullErrorString);
+        if (truncatedErrorString.equals(fullErrorString) == false) {
+            // Append a closing quote and closing brace to attempt to make it valid JSON.
+            // There is no requirement that it actually be valid JSON, so this is
+            // best-effort, but does not cause problems if it is still invalid.
+            truncatedErrorString += "\"}";
+        }
+        return new ILMHistoryItem(index, policyId, timestamp, indexAge, false, executionState, truncatedErrorString);
     }
 
     @Override
@@ -110,7 +118,7 @@ public class ILMHistoryItem implements ToXContentObject {
     }
 
     private static String exceptionToString(Exception exception) {
-        Params stacktraceParams = new MapParams(Collections.singletonMap(REST_EXCEPTION_SKIP_STACK_TRACE, "false"));
+        Params stacktraceParams = new MapParams(Map.of(REST_EXCEPTION_SKIP_STACK_TRACE, "false"));
         String exceptionString;
         try (XContentBuilder causeXContentBuilder = JsonXContent.contentBuilder()) {
             causeXContentBuilder.startObject();

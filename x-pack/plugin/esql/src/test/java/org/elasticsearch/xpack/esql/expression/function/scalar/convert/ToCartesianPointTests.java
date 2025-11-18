@@ -15,7 +15,7 @@ import org.elasticsearch.geo.ShapeTestUtils;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.expression.function.AbstractFunctionTestCase;
+import org.elasticsearch.xpack.esql.expression.function.AbstractScalarFunctionTestCase;
 import org.elasticsearch.xpack.esql.expression.function.FunctionName;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 
@@ -27,7 +27,7 @@ import java.util.function.Supplier;
 import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.CARTESIAN;
 
 @FunctionName("to_cartesianpoint")
-public class ToCartesianPointTests extends AbstractFunctionTestCase {
+public class ToCartesianPointTests extends AbstractScalarFunctionTestCase {
     public ToCartesianPointTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
         this.testCase = testCaseSupplier.get();
     }
@@ -36,7 +36,7 @@ public class ToCartesianPointTests extends AbstractFunctionTestCase {
     public static Iterable<Object[]> parameters() {
         // TODO multivalue fields
         final String attribute = "Attribute[channel=0]";
-        final Function<String, String> evaluatorName = s -> "ToCartesianPoint" + s + "Evaluator[field=" + attribute + "]";
+        final Function<String, String> evaluatorName = s -> "ToCartesianPoint" + s + "Evaluator[in=" + attribute + "]";
         final List<TestCaseSupplier> suppliers = new ArrayList<>();
 
         TestCaseSupplier.forUnaryCartesianPoint(suppliers, attribute, DataType.CARTESIAN_POINT, v -> v, List.of());
@@ -49,8 +49,8 @@ public class ToCartesianPointTests extends AbstractFunctionTestCase {
             bytesRef -> {
                 var exception = expectThrows(Exception.class, () -> CARTESIAN.wktToWkb(bytesRef.utf8ToString()));
                 return List.of(
-                    "Line -1:-1: evaluation of [] failed, treating result as null. Only first 20 failures recorded.",
-                    "Line -1:-1: " + exception
+                    "Line 1:1: evaluation of [source] failed, treating result as null. Only first 20 failures recorded.",
+                    "Line 1:1: " + exception
                 );
             }
         );
@@ -72,7 +72,7 @@ public class ToCartesianPointTests extends AbstractFunctionTestCase {
             );
         }
 
-        return parameterSuppliersFromTypedData(errorsForCasesWithoutExamples(anyNullIsNull(true, suppliers)));
+        return parameterSuppliersFromTypedDataWithDefaultChecks(true, suppliers);
     }
 
     @Override

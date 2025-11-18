@@ -28,16 +28,80 @@
                             },
                             "heap_used_in_bytes": {
                               "type": "long"
+                            },
+                            "heap_used_percent": {
+                              "type": "half_float"
                             }
                           }
                         },
                         "uptime_in_millis": {
                           "type": "long"
+                        },
+                        "gc": {
+                          "properties": {
+                            "collectors": {
+                              "properties": {
+                                "young": {
+                                  "properties": {
+                                    "collection_count": {
+                                      "type": "long"
+                                    },
+                                    "collection_time_in_millis": {
+                                      "type": "long"
+                                    }
+                                  }
+                                },
+                                "old": {
+                                  "properties": {
+                                    "collection_count": {
+                                      "type": "long"
+                                    },
+                                    "collection_time_in_millis": {
+                                      "type": "long"
+                                    }
+                                  }
+                                }
+                              }
+                            }
+                          }
                         }
                       }
                     },
                     "logstash": {
                       "properties": {
+                        "ephemeral_id": {
+                          "type": "keyword",
+                          "ignore_above": 1024
+                        },
+                        "host": {
+                          "type": "keyword",
+                          "ignore_above": 1024
+                        },
+                        "http_address": {
+                          "type": "keyword",
+                          "ignore_above": 1024
+                        },
+                        "name": {
+                          "type": "keyword",
+                          "ignore_above": 1024
+                        },
+                        "pipeline": {
+                          "properties": {
+                            "workers": {
+                              "type": "short"
+                            },
+                            "batch_size": {
+                              "type": "long"
+                            }
+                          }
+                        },
+                        "snapshot": {
+                          "type": "boolean"
+                        },
+                        "status": {
+                          "type": "keyword",
+                          "ignore_above": 1024
+                        },
                         "uuid": {
                           "ignore_above": 1024,
                           "type": "keyword"
@@ -56,6 +120,12 @@
                               "type": "double"
                             }
                           }
+                        },
+                        "max_file_descriptors": {
+                          "type": "long"
+                        },
+                        "open_file_descriptors": {
+                          "type": "long"
                         }
                       }
                     },
@@ -189,6 +259,9 @@
                                   "type": "half_float"
                                 }
                               }
+                            },
+                            "percent": {
+                              "type": "half_float"
                             }
                           }
                         },
@@ -211,11 +284,19 @@
                                 },
                                 "cfs_quota_micros": {
                                   "type": "long"
+                                },
+                                "control_group": {
+                                  "type": "keyword",
+                                  "ignore_above": 1024
                                 }
                               }
                             },
                             "cpuacct": {
                               "properties": {
+                                "control_group": {
+                                  "type": "keyword",
+                                  "ignore_above": 1024
+                                },
                                 "usage_nanos": {
                                   "type": "long"
                                 }
@@ -244,6 +325,16 @@
                     "queue": {
                       "properties": {
                         "events_count": {
+                          "type": "long"
+                        }
+                      }
+                    },
+                    "reloads": {
+                      "properties": {
+                        "failures": {
+                          "type": "long"
+                        },
+                        "successes": {
                           "type": "long"
                         }
                       }
@@ -292,10 +383,71 @@
                             "graph": {
                               "properties": {
                                 "vertices": {
-                                  "type": "object"
+                                  "type": "nested",
+                                  "properties": {
+                                    "config_name": {
+                                      "type": "keyword",
+                                      "ignore_above": 1024
+                                    },
+                                    "explicit_id": {
+                                      "type": "boolean"
+                                    },
+                                    "id": {
+                                      "type": "keyword",
+                                      "ignore_above": 1024
+                                    },
+                                    "meta": {
+                                      "properties": {
+                                        "source": {
+                                          "properties": {
+                                            "column": {
+                                              "type": "long"
+                                            },
+                                            "id": {
+                                              "type": "keyword",
+                                              "ignore_above": 1024
+                                            },
+                                            "line": {
+                                              "type": "long"
+                                            },
+                                            "protocol": {
+                                              "type": "keyword",
+                                              "ignore_above": 1024
+                                            }
+                                          }
+                                        }
+                                      }
+                                    },
+                                    "plugin_type": {
+                                      "type": "keyword",
+                                      "ignore_above": 1024
+                                    },
+                                    "type": {
+                                      "type": "keyword",
+                                      "ignore_above": 1024
+                                    }
+                                  }
                                 },
                                 "edges": {
-                                  "type": "object"
+                                  "type": "nested",
+                                  "properties": {
+                                    "from": {
+                                      "type": "keyword",
+                                      "ignore_above": 1024
+                                    },
+                                    "id": {
+                                      "type": "keyword",
+                                      "ignore_above": 1024
+                                    },
+                                    "to": {
+                                      "type": "keyword",
+                                      "ignore_above": 1024
+                                    },
+                                    "type": {
+                                      "type": "keyword",
+                                      "ignore_above": 1024
+                                    }
+                                  }
                                 }
                               }
                             }
@@ -328,6 +480,14 @@
                       "ignore_above": 1024
                     }
                   }
+                }
+              }
+            },
+            "cluster": {
+              "properties": {
+                "id": {
+                  "type": "keyword",
+                  "ignore_above": 1024
                 }
               }
             }
@@ -531,17 +691,73 @@
             "version": {
               "ignore_above": 1024,
               "type": "keyword"
+            },
+            "node": {
+              "properties": {
+                "name": {
+                  "type": "keyword",
+                  "ignore_above": 1024
+                }
+              }
             }
           }
         },
         "host": {
           "properties": {
-            "name": {
+            "architecture": {
+              "type": "keyword",
+              "ignore_above": 1024
+            },
+            "hostname": {
+              "type": "keyword",
+              "ignore_above": 1024
+            },
+            "id": {
               "type": "keyword",
               "ignore_above": 1024
             },
             "ip": {
               "type": "ip"
+            },
+            "mac": {
+              "type": "keyword",
+              "ignore_above": 1024
+            },
+            "name": {
+              "type": "keyword",
+              "ignore_above": 1024
+            },
+            "os": {
+              "properties": {
+                "build": {
+                  "type": "keyword",
+                  "ignore_above": 1024
+                },
+                "family": {
+                  "type": "keyword",
+                  "ignore_above": 1024
+                },
+                "kernel": {
+                  "type": "keyword",
+                  "ignore_above": 1024
+                },
+                "name": {
+                  "type": "keyword",
+                  "ignore_above": 1024
+                },
+                "platform": {
+                  "type": "keyword",
+                  "ignore_above": 1024
+                },
+                "type": {
+                  "type": "keyword",
+                  "ignore_above": 1024
+                },
+                "version": {
+                  "type": "keyword",
+                  "ignore_above": 1024
+                }
+              }
             }
           }
         },
@@ -578,6 +794,30 @@
         "cluster_uuid": {
           "type": "alias",
           "path": "logstash.elasticsearch.cluster.id"
+        },
+        "agent": {
+          "properties": {
+            "ephemeral_id": {
+              "type": "keyword",
+              "ignore_above": 1024
+            },
+            "id": {
+              "type": "keyword",
+              "ignore_above": 1024
+            },
+            "name": {
+              "type": "keyword",
+              "ignore_above": 1024
+            },
+            "type": {
+              "type": "keyword",
+              "ignore_above": 1024
+            },
+            "version": {
+              "type": "keyword",
+              "ignore_above": 1024
+            }
+          }
         }
       }
     },

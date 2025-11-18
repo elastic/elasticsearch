@@ -13,6 +13,7 @@ public class ConnectorSyncJobConstants {
 
     public static final String EMPTY_CONNECTOR_SYNC_JOB_ID_ERROR_MESSAGE =
         "[connector_sync_job_id] of the connector sync job cannot be null or empty.";
+    public static final String EMPTY_WORKER_HOSTNAME_ERROR_MESSAGE = "[worker_hostname] of the connector sync job cannot be null.";
     public static final String CONNECTOR_SYNC_JOB_ID_PARAM = CONNECTOR_SYNC_JOB_ID_FIELD.getPreferredName();
 
 }

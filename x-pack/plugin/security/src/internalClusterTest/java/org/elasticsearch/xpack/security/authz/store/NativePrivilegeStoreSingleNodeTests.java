@@ -77,7 +77,7 @@ public class NativePrivilegeStoreSingleNodeTests extends SecuritySingleNodeTestC
 
     public void testResolvePrivilegesWorkWhenExpensiveQueriesAreDisabled() throws IOException {
         // Disable expensive query
-        new ClusterUpdateSettingsRequestBuilder(client()).setTransientSettings(
+        new ClusterUpdateSettingsRequestBuilder(client(), TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT).setTransientSettings(
             Settings.builder().put(ALLOW_EXPENSIVE_QUERIES.getKey(), false)
         ).get();
 
@@ -184,7 +184,7 @@ public class NativePrivilegeStoreSingleNodeTests extends SecuritySingleNodeTestC
             assertThat(authenticateResponse.authentication().getEffectiveSubject().getUser().principal(), equalTo("app_user"));
         } finally {
             // Reset setting since test suite expects things in a clean slate
-            new ClusterUpdateSettingsRequestBuilder(client()).setTransientSettings(
+            new ClusterUpdateSettingsRequestBuilder(client(), TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT).setTransientSettings(
                 Settings.builder().putNull(ALLOW_EXPENSIVE_QUERIES.getKey())
             ).get();
         }

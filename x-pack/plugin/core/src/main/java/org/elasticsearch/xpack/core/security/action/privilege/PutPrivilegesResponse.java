@@ -26,7 +26,6 @@ public final class PutPrivilegesResponse extends ActionResponse implements ToXCo
     private final Map<String, List<String>> created;
 
     public PutPrivilegesResponse(StreamInput in) throws IOException {
-        super(in);
         this.created = in.readImmutableMap(StreamInput::readStringCollectionAsList);
     }
 

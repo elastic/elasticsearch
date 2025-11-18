@@ -14,7 +14,7 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.expression.function.AbstractFunctionTestCase;
+import org.elasticsearch.xpack.esql.expression.function.AbstractScalarFunctionTestCase;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 import org.elasticsearch.xpack.esql.expression.function.scalar.VaragsTestCaseBuilder;
 
@@ -25,7 +25,7 @@ import java.util.stream.LongStream;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public class LeastTests extends AbstractFunctionTestCase {
+public class LeastTests extends AbstractScalarFunctionTestCase {
     public LeastTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
         this.testCase = testCaseSupplier.get();
     }
@@ -39,21 +39,23 @@ public class LeastTests extends AbstractFunctionTestCase {
         builder.expectFlattenedInt(IntStream::min);
         builder.expectFlattenedLong(LongStream::min);
         List<TestCaseSupplier> suppliers = builder.suppliers();
-        suppliers.add(
-            new TestCaseSupplier(
-                "(a, b)",
-                List.of(DataType.KEYWORD, DataType.KEYWORD),
-                () -> new TestCaseSupplier.TestCase(
-                    List.of(
-                        new TestCaseSupplier.TypedData(new BytesRef("a"), DataType.KEYWORD, "a"),
-                        new TestCaseSupplier.TypedData(new BytesRef("b"), DataType.KEYWORD, "b")
-                    ),
-                    "LeastBytesRefEvaluator[values=[MvMin[field=Attribute[channel=0]], MvMin[field=Attribute[channel=1]]]]",
-                    DataType.KEYWORD,
-                    equalTo(new BytesRef("a"))
+        for (DataType stringType : DataType.stringTypes()) {
+            suppliers.add(
+                new TestCaseSupplier(
+                    "(a, b)",
+                    List.of(stringType, stringType),
+                    () -> new TestCaseSupplier.TestCase(
+                        List.of(
+                            new TestCaseSupplier.TypedData(new BytesRef("a"), stringType, "a"),
+                            new TestCaseSupplier.TypedData(new BytesRef("b"), stringType, "b")
+                        ),
+                        "LeastBytesRefEvaluator[values=[MvMin[field=Attribute[channel=0]], MvMin[field=Attribute[channel=1]]]]",
+                        stringType,
+                        equalTo(new BytesRef("a"))
+                    )
                 )
-            )
-        );
+            );
+        }
         suppliers.add(
             new TestCaseSupplier(
                 "(a, b)",
@@ -96,6 +98,36 @@ public class LeastTests extends AbstractFunctionTestCase {
                     "LeastDoubleEvaluator[values=[MvMin[field=Attribute[channel=0]], MvMin[field=Attribute[channel=1]]]]",
                     DataType.DOUBLE,
                     equalTo(1d)
+                )
+            )
+        );
+        suppliers.add(
+            new TestCaseSupplier(
+                "(a, b)",
+                List.of(DataType.DATETIME, DataType.DATETIME),
+                () -> new TestCaseSupplier.TestCase(
+                    List.of(
+                        new TestCaseSupplier.TypedData(1727877348000L, DataType.DATETIME, "a"),
+                        new TestCaseSupplier.TypedData(1727790948000L, DataType.DATETIME, "b")
+                    ),
+                    "LeastLongEvaluator[values=[MvMin[field=Attribute[channel=0]], MvMin[field=Attribute[channel=1]]]]",
+                    DataType.DATETIME,
+                    equalTo(1727790948000L)
+                )
+            )
+        );
+        suppliers.add(
+            new TestCaseSupplier(
+                "(a, b)",
+                List.of(DataType.DATE_NANOS, DataType.DATE_NANOS),
+                () -> new TestCaseSupplier.TestCase(
+                    List.of(
+                        new TestCaseSupplier.TypedData(1727877348000123456L, DataType.DATE_NANOS, "a"),
+                        new TestCaseSupplier.TypedData(1727790948000987654L, DataType.DATE_NANOS, "b")
+                    ),
+                    "LeastLongEvaluator[values=[MvMin[field=Attribute[channel=0]], MvMin[field=Attribute[channel=1]]]]",
+                    DataType.DATE_NANOS,
+                    equalTo(1727790948000987654L)
                 )
             )
         );

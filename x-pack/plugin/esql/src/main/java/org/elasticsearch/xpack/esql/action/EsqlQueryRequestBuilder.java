@@ -66,6 +66,18 @@ public class EsqlQueryRequestBuilder extends org.elasticsearch.xpack.core.esql.a
         return this;
     }
 
+    @Override
+    public EsqlQueryRequestBuilder allowPartialResults(boolean allowPartialResults) {
+        request.allowPartialResults(allowPartialResults);
+        return this;
+    }
+
+    @Override
+    public org.elasticsearch.xpack.core.esql.action.EsqlQueryRequestBuilder<EsqlQueryRequest, EsqlQueryResponse> profile(boolean profile) {
+        request.profile(profile);
+        return this;
+    }
+
     static { // plumb access from x-pack core
         SharedSecrets.setEsqlQueryRequestBuilderAccess(EsqlQueryRequestBuilder::newSyncEsqlQueryRequestBuilder);
     }

@@ -239,8 +239,7 @@ public class ModelLoadingService implements ClusterStateListener {
         this.licenseState = licenseState;
     }
 
-    // for testing
-    String getModelId(String modelIdOrAlias) {
+    public String getModelId(String modelIdOrAlias) {
         return modelAliasToId.getOrDefault(modelIdOrAlias, modelIdOrAlias);
     }
 
@@ -751,7 +750,7 @@ public class ModelLoadingService implements ClusterStateListener {
 
     @Override
     public void clusterChanged(ClusterChangedEvent event) {
-        if (event.changedCustomMetadataSet().contains(TrainedModelCacheMetadata.NAME)) {
+        if (event.changedCustomProjectMetadataSet().contains(TrainedModelCacheMetadata.NAME)) {
             // Flush all models cache since we are detecting some changes.
             logger.trace("Trained model cache invalidated on node [{}]", () -> event.state().nodes().getLocalNodeId());
             localModelCache.invalidateAll();
@@ -760,14 +759,14 @@ public class ModelLoadingService implements ClusterStateListener {
         final boolean prefetchModels = event.state().nodes().getLocalNode().isIngestNode();
         // If we are not prefetching models and there were no model alias changes, don't bother handling the changes
         if ((prefetchModels == false)
-            && (event.changedCustomMetadataSet().contains(IngestMetadata.TYPE) == false)
-            && (event.changedCustomMetadataSet().contains(ModelAliasMetadata.NAME) == false)) {
+            && (event.changedCustomProjectMetadataSet().contains(IngestMetadata.TYPE) == false)
+            && (event.changedCustomProjectMetadataSet().contains(ModelAliasMetadata.NAME) == false)) {
             return;
         }
 
         ClusterState state = event.state();
-        IngestMetadata currentIngestMetadata = state.metadata().custom(IngestMetadata.TYPE);
-        Set<String> allReferencedModelKeys = event.changedCustomMetadataSet().contains(IngestMetadata.TYPE)
+        IngestMetadata currentIngestMetadata = state.metadata().getProject().custom(IngestMetadata.TYPE);
+        Set<String> allReferencedModelKeys = event.changedCustomProjectMetadataSet().contains(IngestMetadata.TYPE)
             ? countInferenceProcessors(currentIngestMetadata)
             : new HashSet<>(referencedModels);
         Set<String> referencedModelsBeforeClusterState;
@@ -915,7 +914,7 @@ public class ModelLoadingService implements ClusterStateListener {
         Set<String> allReferencedModelKeys
     ) {
         Map<String, String> changedAliases = new HashMap<>();
-        if (event.changedCustomMetadataSet().contains(ModelAliasMetadata.NAME)) {
+        if (event.changedCustomProjectMetadataSet().contains(ModelAliasMetadata.NAME)) {
             final Map<String, ModelAliasMetadata.ModelAliasEntry> modelAliasesToIds = new HashMap<>(
                 ModelAliasMetadata.fromState(event.state()).modelAliases()
             );
@@ -981,7 +980,7 @@ public class ModelLoadingService implements ClusterStateListener {
             return allReferencedModelKeys;
         }
         ingestMetadata.getPipelines().forEach((pipelineId, pipelineConfiguration) -> {
-            Object processors = pipelineConfiguration.getConfigAsMap().get("processors");
+            Object processors = pipelineConfiguration.getConfig().get("processors");
             if (processors instanceof List<?>) {
                 for (Object processor : (List<?>) processors) {
                     if (processor instanceof Map<?, ?>) {

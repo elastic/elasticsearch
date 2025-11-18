@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.aggregations.bucket.composite;
@@ -779,7 +780,9 @@ public class CompositeAggregatorTests extends AggregatorTestCase {
     public void testSubAggregationOfNested() throws Exception {
         final String nestedPath = "sellers";
         objectMappers.add(nestedObject(nestedPath));
-        SeqNoFieldMapper.SequenceIDFields sequenceIDFields = SeqNoFieldMapper.SequenceIDFields.emptySeqID();
+        SeqNoFieldMapper.SequenceIDFields sequenceIDFields = SeqNoFieldMapper.SequenceIDFields.emptySeqID(
+            SeqNoFieldMapper.SeqNoIndexOptions.POINTS_AND_DOC_VALUES
+        );
         final String leafNameField = "name";
         final String rootNameField = "name";
         TermsValuesSourceBuilder terms = new TermsValuesSourceBuilder("keyword").field(nestedPath + "." + leafNameField);
@@ -833,7 +836,7 @@ public class CompositeAggregatorTests extends AggregatorTestCase {
     public void testSubAggregationOfNestedAggregateAfter() throws Exception {
         final String nestedPath = "sellers";
         objectMappers.add(nestedObject(nestedPath));
-        SeqNoFieldMapper.SequenceIDFields sequenceIDFields = SeqNoFieldMapper.SequenceIDFields.emptySeqID();
+        var sequenceIDFields = SeqNoFieldMapper.SequenceIDFields.emptySeqID(SeqNoFieldMapper.SeqNoIndexOptions.POINTS_AND_DOC_VALUES);
         final String leafNameField = "name";
         final String rootNameField = "name";
         TermsValuesSourceBuilder terms = new TermsValuesSourceBuilder("keyword").field(nestedPath + "." + leafNameField);
@@ -2570,19 +2573,19 @@ public class CompositeAggregatorTests extends AggregatorTestCase {
             TopHits topHits = result.getBuckets().get(0).getAggregations().get("top_hits");
             assertNotNull(topHits);
             assertEquals(topHits.getHits().getHits().length, 2);
-            assertEquals(topHits.getHits().getTotalHits().value, 2L);
+            assertEquals(topHits.getHits().getTotalHits().value(), 2L);
             assertEquals("{keyword=c}", result.getBuckets().get(1).getKeyAsString());
             assertEquals(2L, result.getBuckets().get(1).getDocCount());
             topHits = result.getBuckets().get(1).getAggregations().get("top_hits");
             assertNotNull(topHits);
             assertEquals(topHits.getHits().getHits().length, 2);
-            assertEquals(topHits.getHits().getTotalHits().value, 2L);
+            assertEquals(topHits.getHits().getTotalHits().value(), 2L);
             assertEquals("{keyword=d}", result.getBuckets().get(2).getKeyAsString());
             assertEquals(1L, result.getBuckets().get(2).getDocCount());
             topHits = result.getBuckets().get(2).getAggregations().get("top_hits");
             assertNotNull(topHits);
             assertEquals(topHits.getHits().getHits().length, 1);
-            assertEquals(topHits.getHits().getTotalHits().value, 1L);
+            assertEquals(topHits.getHits().getTotalHits().value(), 1L);
         });
 
         testSearchCase(Arrays.asList(new MatchAllDocsQuery(), new FieldExistsQuery("keyword")), dataset, () -> {
@@ -2597,13 +2600,13 @@ public class CompositeAggregatorTests extends AggregatorTestCase {
             TopHits topHits = result.getBuckets().get(0).getAggregations().get("top_hits");
             assertNotNull(topHits);
             assertEquals(topHits.getHits().getHits().length, 2);
-            assertEquals(topHits.getHits().getTotalHits().value, 2L);
+            assertEquals(topHits.getHits().getTotalHits().value(), 2L);
             assertEquals("{keyword=d}", result.getBuckets().get(1).getKeyAsString());
             assertEquals(1L, result.getBuckets().get(1).getDocCount());
             topHits = result.getBuckets().get(1).getAggregations().get("top_hits");
             assertNotNull(topHits);
             assertEquals(topHits.getHits().getHits().length, 1);
-            assertEquals(topHits.getHits().getTotalHits().value, 1L);
+            assertEquals(topHits.getHits().getTotalHits().value(), 1L);
         });
     }
 

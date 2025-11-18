@@ -9,7 +9,7 @@ package org.elasticsearch.example.realm;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.http.HttpPreRequest;
-import org.elasticsearch.transport.TransportMessage;
+import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationToken;
 import org.elasticsearch.xpack.core.security.authc.DefaultAuthenticationFailureHandler;
 
@@ -25,20 +25,20 @@ public class CustomAuthenticationFailureHandler extends DefaultAuthenticationFai
     public ElasticsearchSecurityException failedAuthentication(HttpPreRequest request, AuthenticationToken token, ThreadContext context) {
         ElasticsearchSecurityException e = super.failedAuthentication(request, token, context);
         // set a custom header
-        e.addHeader("WWW-Authenticate", "custom-challenge");
+        e.addBodyHeader("WWW-Authenticate", "custom-challenge");
         return e;
     }
 
     @Override
     public ElasticsearchSecurityException failedAuthentication(
-        TransportMessage message,
+        TransportRequest message,
         AuthenticationToken token,
         String action,
         ThreadContext context
     ) {
         ElasticsearchSecurityException e = super.failedAuthentication(message, token, action, context);
         // set a custom header
-        e.addHeader("WWW-Authenticate", "custom-challenge");
+        e.addBodyHeader("WWW-Authenticate", "custom-challenge");
         return e;
     }
 
@@ -46,15 +46,15 @@ public class CustomAuthenticationFailureHandler extends DefaultAuthenticationFai
     public ElasticsearchSecurityException missingToken(HttpPreRequest request, ThreadContext context) {
         ElasticsearchSecurityException e = super.missingToken(request, context);
         // set a custom header
-        e.addHeader("WWW-Authenticate", "custom-challenge");
+        e.addBodyHeader("WWW-Authenticate", "custom-challenge");
         return e;
     }
 
     @Override
-    public ElasticsearchSecurityException missingToken(TransportMessage message, String action, ThreadContext context) {
+    public ElasticsearchSecurityException missingToken(TransportRequest message, String action, ThreadContext context) {
         ElasticsearchSecurityException e = super.missingToken(message, action, context);
         // set a custom header
-        e.addHeader("WWW-Authenticate", "custom-challenge");
+        e.addBodyHeader("WWW-Authenticate", "custom-challenge");
         return e;
     }
 }

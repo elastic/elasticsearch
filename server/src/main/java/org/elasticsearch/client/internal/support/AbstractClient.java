@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.client.internal.support;
@@ -75,6 +76,10 @@ import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.client.internal.AdminClient;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.FilterClient;
+import org.elasticsearch.client.internal.ProjectClient;
+import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.cluster.project.ProjectResolver;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Nullable;
@@ -91,13 +96,25 @@ public abstract class AbstractClient implements Client {
 
     protected final Settings settings;
     private final ThreadPool threadPool;
+    private final ProjectResolver projectResolver;
     private final AdminClient admin;
+    private final ProjectClient defaultProjectClient;
 
-    public AbstractClient(Settings settings, ThreadPool threadPool) {
+    @SuppressWarnings("this-escape")
+    public AbstractClient(Settings settings, ThreadPool threadPool, ProjectResolver projectResolver) {
         this.settings = settings;
         this.threadPool = threadPool;
+        this.projectResolver = projectResolver;
         this.admin = new AdminClient(this);
         this.logger = LogManager.getLogger(this.getClass());
+        // We create a dedicated project client for the default project to avoid having to reconstruct it on every invocation.
+        // This aims to reduce the overhead of creating a project client when the client is used in a single-project context.
+        // TODO: only create the default project client if the project resolver does not support multiple projects.
+        if (this instanceof ProjectClient == false) {
+            this.defaultProjectClient = new ProjectClientImpl(this, ProjectId.DEFAULT);
+        } else {
+            this.defaultProjectClient = null;
+        }
     }
 
     @Override
@@ -108,6 +125,11 @@ public abstract class AbstractClient implements Client {
     @Override
     public final ThreadPool threadPool() {
         return this.threadPool;
+    }
+
+    @Override
+    public ProjectResolver projectResolver() {
+        return projectResolver;
     }
 
     @Override
@@ -405,6 +427,16 @@ public abstract class AbstractClient implements Client {
         };
     }
 
+    @Override
+    public ProjectClient projectClient(ProjectId projectId) {
+        // We only take the shortcut when the given project ID matches the "current" project ID. If it doesn't, we'll let #executeOnProject
+        // take care of error handling.
+        if (projectResolver.supportsMultipleProjects() == false && projectId.equals(projectResolver.getProjectId())) {
+            return defaultProjectClient;
+        }
+        return new ProjectClientImpl(this, projectId);
+    }
+
     /**
      * Same as {@link PlainActionFuture} but for use with {@link RefCounted} result types. Unlike {@code PlainActionFuture} this future
      * acquires a reference to its result. This means that the result reference must be released by a call to {@link RefCounted#decRef()}
@@ -438,6 +470,37 @@ public abstract class AbstractClient implements Client {
                 throw ise;
             }
             return super.get();
+        }
+    }
+
+    private static class ProjectClientImpl extends FilterClient implements ProjectClient {
+
+        private final ProjectId projectId;
+
+        ProjectClientImpl(Client in, ProjectId projectId) {
+            super(in);
+            this.projectId = projectId;
+        }
+
+        @Override
+        public ProjectId projectId() {
+            return projectId;
+        }
+
+        @Override
+        protected <Request extends ActionRequest, Response extends ActionResponse> void doExecute(
+            ActionType<Response> action,
+            Request request,
+            ActionListener<Response> listener
+        ) {
+            projectResolver().executeOnProject(projectId, () -> super.doExecute(action, request, listener));
+        }
+
+        @Override
+        public ProjectClient projectClient(ProjectId projectId) {
+            throw new IllegalStateException(Strings.format("""
+                Unable to create a project client for project [%s] from project client with project ID [%s],\
+                 nested project client creation is not supported""", projectId, this.projectId));
         }
     }
 }

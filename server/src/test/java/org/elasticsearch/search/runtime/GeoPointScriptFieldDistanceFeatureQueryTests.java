@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.runtime;
@@ -25,7 +26,9 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.GeoUtils;
 import org.elasticsearch.index.mapper.GeoPointScriptFieldType;
+import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.mapper.OnScriptError;
+import org.elasticsearch.index.mapper.SourceFieldMetrics;
 import org.elasticsearch.script.AbstractLongFieldScript;
 import org.elasticsearch.script.GeoPointFieldScript;
 import org.elasticsearch.script.Script;
@@ -92,7 +95,11 @@ public class GeoPointScriptFieldDistanceFeatureQueryTests extends AbstractScript
 
             try (DirectoryReader reader = iw.getReader()) {
                 IndexSearcher searcher = newSearcher(reader);
-                SearchLookup searchLookup = new SearchLookup(null, null, SourceProvider.fromStoredFields());
+                SearchLookup searchLookup = new SearchLookup(
+                    null,
+                    null,
+                    SourceProvider.fromLookup(MappingLookup.EMPTY, null, SourceFieldMetrics.NOOP)
+                );
                 Function<LeafReaderContext, GeoPointFieldScript> leafFactory = ctx -> new GeoPointFieldScript(
                     "test",
                     Map.of(),

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.gradle.internal;
@@ -43,17 +44,16 @@ public class EmbeddedProviderExtension {
         });
 
         String manifestTaskName = "generate" + capitalName + "ProviderManifest";
-        Provider<Directory> generatedResourcesDir = project.getLayout().getBuildDirectory().dir("generated-resources");
+        Provider<Directory> generatedResourcesRoot = project.getLayout().getBuildDirectory().dir("generated-resources");
         var generateProviderManifest = project.getTasks().register(manifestTaskName, GenerateProviderManifest.class);
         generateProviderManifest.configure(t -> {
-            t.getManifestFile().set(generatedResourcesDir.map(d -> d.file("LISTING.TXT")));
+            t.getManifestFile().set(generatedResourcesRoot.map(d -> d.dir(manifestTaskName).file("LISTING.TXT")));
             t.getProviderImplClasspath().from(implConfig);
         });
-
         String implTaskName = "generate" + capitalName + "ProviderImpl";
         var generateProviderImpl = project.getTasks().register(implTaskName, Sync.class);
         generateProviderImpl.configure(t -> {
-            t.into(generatedResourcesDir);
+            t.into(generatedResourcesRoot.map(d -> d.dir(implTaskName)));
             t.into("IMPL-JARS/" + implName, spec -> {
                 spec.from(implConfig);
                 spec.from(generateProviderManifest);

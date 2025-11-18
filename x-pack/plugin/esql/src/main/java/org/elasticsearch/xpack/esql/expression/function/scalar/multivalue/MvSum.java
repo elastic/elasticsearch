@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.esql.expression.function.scalar.multivalue;
 
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.compute.ann.MvEvaluator;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
@@ -21,16 +23,19 @@ import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 
+import java.io.IOException;
 import java.util.List;
 
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
+import static org.elasticsearch.xpack.esql.core.type.DataType.isRepresentable;
 import static org.elasticsearch.xpack.esql.core.util.NumericUtils.unsignedLongAddExact;
-import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.isRepresentable;
 
 /**
  * Reduce a multivalued field to a single valued field containing the sum of all values.
  */
 public class MvSum extends AbstractMultivalueFunction {
+    public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "MvSum", MvSum::new);
+
     @FunctionInfo(
         returnType = { "double", "integer", "long", "unsigned_long" },
         description = "Converts a multivalued field into a single valued field containing the sum of all of the values.",
@@ -45,6 +50,15 @@ public class MvSum extends AbstractMultivalueFunction {
         ) Expression field
     ) {
         super(source, field);
+    }
+
+    private MvSum(StreamInput in) throws IOException {
+        super(in);
+    }
+
+    @Override
+    public String getWriteableName() {
+        return ENTRY.name;
     }
 
     @Override

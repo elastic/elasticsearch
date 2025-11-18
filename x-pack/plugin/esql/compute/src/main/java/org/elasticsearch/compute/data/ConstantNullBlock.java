@@ -9,24 +9,26 @@ package org.elasticsearch.compute.data;
 
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.RamUsageEstimator;
-import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.ReleasableIterator;
+import org.elasticsearch.exponentialhistogram.ExponentialHistogram;
 
 import java.io.IOException;
-import java.util.Objects;
 
 /**
  * Block implementation representing a constant null value.
  */
-final class ConstantNullBlock extends AbstractNonThreadSafeRefCounted
+public final class ConstantNullBlock extends AbstractNonThreadSafeRefCounted
     implements
         BooleanBlock,
         IntBlock,
         LongBlock,
+        FloatBlock,
         DoubleBlock,
-        BytesRefBlock {
+        BytesRefBlock,
+        AggregateMetricDoubleBlock,
+        ExponentialHistogramBlock {
 
     private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(ConstantNullBlock.class);
     private final int positionCount;
@@ -45,6 +47,11 @@ final class ConstantNullBlock extends AbstractNonThreadSafeRefCounted
     @Override
     public OrdinalBytesRefBlock asOrdinals() {
         return null;
+    }
+
+    @Override
+    public ToMask toMask() {
+        return new ToMask(blockFactory.newConstantBooleanVector(false, positionCount), false);
     }
 
     @Override
@@ -68,6 +75,11 @@ final class ConstantNullBlock extends AbstractNonThreadSafeRefCounted
     }
 
     @Override
+    public boolean doesHaveMultivaluedFields() {
+        return false;
+    }
+
+    @Override
     public ElementType elementType() {
         return ElementType.NULL;
     }
@@ -78,19 +90,18 @@ final class ConstantNullBlock extends AbstractNonThreadSafeRefCounted
     }
 
     @Override
-    public ReleasableIterator<ConstantNullBlock> lookup(IntBlock positions, ByteSizeValue targetBlockSize) {
-        return ReleasableIterator.single((ConstantNullBlock) positions.blockFactory().newConstantNullBlock(positions.getPositionCount()));
+    public ConstantNullBlock deepCopy(BlockFactory blockFactory) {
+        return (ConstantNullBlock) blockFactory.newConstantNullBlock(positionCount);
     }
 
-    public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
-        Block.class,
-        "ConstantNullBlock",
-        in -> ((BlockStreamInput) in).readConstantNullBlock()
-    );
+    @Override
+    public ConstantNullBlock keepMask(BooleanVector mask) {
+        return (ConstantNullBlock) blockFactory().newConstantNullBlock(getPositionCount());
+    }
 
     @Override
-    public String getWriteableName() {
-        return "ConstantNullBlock";
+    public ReleasableIterator<ConstantNullBlock> lookup(IntBlock positions, ByteSizeValue targetBlockSize) {
+        return ReleasableIterator.single((ConstantNullBlock) positions.blockFactory().newConstantNullBlock(positions.getPositionCount()));
     }
 
     @Override
@@ -116,15 +127,53 @@ final class ConstantNullBlock extends AbstractNonThreadSafeRefCounted
 
     @Override
     public boolean equals(Object obj) {
-        if (obj instanceof ConstantNullBlock that) {
-            return this.getPositionCount() == that.getPositionCount();
+        if (obj instanceof Block that) {
+            return this.getPositionCount() == 0 && that.getPositionCount() == 0
+                || this.getPositionCount() == that.getPositionCount() && that.areAllValuesNull();
+        }
+        if (obj instanceof Vector that) {
+            return this.getPositionCount() == 0 && that.getPositionCount() == 0;
         }
         return false;
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(getPositionCount());
+        // The hashcode for ConstantNullBlock is calculated in this way so that
+        // we return the same hashcode for ConstantNullBlock as we would for block
+        // types that ConstantNullBlock implements that contain only null values.
+        // Example: a DoubleBlock with 8 positions that are all null will return
+        // the same hashcode as a ConstantNullBlock with a positionCount of 8.
+        int result = 1;
+        for (int pos = 0; pos < positionCount; pos++) {
+            result = 31 * result - 1;
+        }
+        return result;
+    }
+
+    @Override
+    public DoubleBlock minBlock() {
+        return this;
+    }
+
+    @Override
+    public DoubleBlock maxBlock() {
+        return this;
+    }
+
+    @Override
+    public DoubleBlock sumBlock() {
+        return this;
+    }
+
+    @Override
+    public IntBlock countBlock() {
+        return this;
+    }
+
+    @Override
+    public Block getMetricBlock(int index) {
+        return this;
     }
 
     @Override
@@ -222,6 +271,12 @@ final class ConstantNullBlock extends AbstractNonThreadSafeRefCounted
     }
 
     @Override
+    public float getFloat(int valueIndex) {
+        assert false : "null block";
+        throw new UnsupportedOperationException("null block");
+    }
+
+    @Override
     public double getDouble(int valueIndex) {
         assert false : "null block";
         throw new UnsupportedOperationException("null block");
@@ -235,6 +290,25 @@ final class ConstantNullBlock extends AbstractNonThreadSafeRefCounted
 
     @Override
     public long getLong(int valueIndex) {
+        assert false : "null block";
+        throw new UnsupportedOperationException("null block");
+    }
+
+    @Override
+    public ExponentialHistogram getExponentialHistogram(int valueIndex, ExponentialHistogramScratch scratch) {
+        assert false : "null block";
+        throw new UnsupportedOperationException("null block");
+    }
+
+    @Override
+    public Block buildExponentialHistogramComponentBlock(Component component) {
+        // if all histograms are null, the component block is also a constant null block with the same position count
+        this.incRef();
+        return this;
+    }
+
+    @Override
+    public void serializeExponentialHistogram(int valueIndex, SerializedOutput out, BytesRef scratch) {
         assert false : "null block";
         throw new UnsupportedOperationException("null block");
     }

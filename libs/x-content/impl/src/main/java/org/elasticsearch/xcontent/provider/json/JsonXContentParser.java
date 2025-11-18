@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.xcontent.provider.json;
@@ -14,17 +15,23 @@ import com.fasterxml.jackson.core.JsonParser;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.JsonToken;
 import com.fasterxml.jackson.core.exc.InputCoercionException;
+import com.fasterxml.jackson.core.exc.StreamConstraintsException;
+import com.fasterxml.jackson.core.filter.FilteringParserDelegate;
 import com.fasterxml.jackson.core.io.JsonEOFException;
 
 import org.elasticsearch.core.IOUtils;
+import org.elasticsearch.xcontent.Text;
 import org.elasticsearch.xcontent.XContentEOFException;
 import org.elasticsearch.xcontent.XContentLocation;
 import org.elasticsearch.xcontent.XContentParseException;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
+import org.elasticsearch.xcontent.XContentString;
 import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xcontent.provider.OptimizedTextCapable;
 import org.elasticsearch.xcontent.provider.XContentParserConfigurationImpl;
 import org.elasticsearch.xcontent.support.AbstractXContentParser;
 
+import java.io.CharConversionException;
 import java.io.IOException;
 import java.nio.CharBuffer;
 
@@ -47,19 +54,42 @@ public class JsonXContentParser extends AbstractXContentParser {
         parser.configure(JsonParser.Feature.STRICT_DUPLICATE_DETECTION, allowDuplicateKeys == false);
     }
 
-    private static XContentParseException newXContentParseException(JsonProcessingException e) {
+    private static XContentLocation getLocation(JsonProcessingException e) {
         JsonLocation loc = e.getLocation();
-        throw new XContentParseException(new XContentLocation(loc.getLineNr(), loc.getColumnNr()), e.getMessage(), e);
+        if (loc != null) {
+            return new XContentLocation(loc.getLineNr(), loc.getColumnNr());
+        } else {
+            return null;
+        }
+    }
+
+    private static XContentParseException newXContentParseException(JsonProcessingException e) {
+        return new XContentParseException(getLocation(e), e.getMessage(), e);
+    }
+
+    /**
+     * Handle parser exception depending on type.
+     * This converts known exceptions to XContentParseException and rethrows them.
+     */
+    static IOException handleParserException(IOException e) throws IOException {
+        switch (e) {
+            case JsonEOFException eof -> throw new XContentEOFException(getLocation(eof), "Unexpected end of file", e);
+            case JsonParseException pe -> throw newXContentParseException(pe);
+            case InputCoercionException ice -> throw newXContentParseException(ice);
+            case CharConversionException cce -> throw new XContentParseException(null, cce.getMessage(), cce);
+            case StreamConstraintsException sce -> throw newXContentParseException(sce);
+            default -> {
+                return e;
+            }
+        }
     }
 
     @Override
     public Token nextToken() throws IOException {
         try {
             return convertToken(parser.nextToken());
-        } catch (JsonEOFException e) {
-            throw new XContentEOFException(e);
-        } catch (JsonParseException e) {
-            throw newXContentParseException(e);
+        } catch (IOException e) {
+            throw handleParserException(e);
         }
     }
 
@@ -67,8 +97,8 @@ public class JsonXContentParser extends AbstractXContentParser {
     public String nextFieldName() throws IOException {
         try {
             return parser.nextFieldName();
-        } catch (JsonParseException e) {
-            throw newXContentParseException(e);
+        } catch (IOException e) {
+            throw handleParserException(e);
         }
     }
 
@@ -96,8 +126,8 @@ public class JsonXContentParser extends AbstractXContentParser {
     protected boolean doBooleanValue() throws IOException {
         try {
             return parser.getBooleanValue();
-        } catch (JsonParseException e) {
-            throw newXContentParseException(e);
+        } catch (IOException e) {
+            throw handleParserException(e);
         }
     }
 
@@ -106,19 +136,41 @@ public class JsonXContentParser extends AbstractXContentParser {
         if (currentToken().isValue() == false) {
             throwOnNoText();
         }
-        return parser.getText();
+        try {
+            return parser.getText();
+        } catch (IOException e) {
+            throw handleParserException(e);
+        }
+    }
+
+    @Override
+    public XContentString optimizedText() throws IOException {
+        if (currentToken().isValue() == false) {
+            throwOnNoText();
+        }
+        var parser = this.parser;
+        if (parser instanceof FilteringParserDelegate delegate) {
+            parser = delegate.delegate();
+        }
+        if (parser instanceof OptimizedTextCapable optimizedTextCapableParser) {
+            var bytesRef = optimizedTextCapableParser.getValueAsText();
+            if (bytesRef != null) {
+                return bytesRef;
+            }
+        }
+        return new Text(text());
     }
 
     private void throwOnNoText() {
-        throw new IllegalStateException("Can't get text on a " + currentToken() + " at " + getTokenLocation());
+        throw new IllegalArgumentException("Expected text at " + getTokenLocation() + " but found " + currentToken());
     }
 
     @Override
     public CharBuffer charBuffer() throws IOException {
         try {
             return CharBuffer.wrap(parser.getTextCharacters(), parser.getTextOffset(), parser.getTextLength());
-        } catch (JsonParseException e) {
-            throw newXContentParseException(e);
+        } catch (IOException e) {
+            throw handleParserException(e);
         }
     }
 
@@ -167,8 +219,8 @@ public class JsonXContentParser extends AbstractXContentParser {
     public char[] textCharacters() throws IOException {
         try {
             return parser.getTextCharacters();
-        } catch (JsonParseException e) {
-            throw newXContentParseException(e);
+        } catch (IOException e) {
+            throw handleParserException(e);
         }
     }
 
@@ -176,8 +228,8 @@ public class JsonXContentParser extends AbstractXContentParser {
     public int textLength() throws IOException {
         try {
             return parser.getTextLength();
-        } catch (JsonParseException e) {
-            throw newXContentParseException(e);
+        } catch (IOException e) {
+            throw handleParserException(e);
         }
     }
 
@@ -185,8 +237,8 @@ public class JsonXContentParser extends AbstractXContentParser {
     public int textOffset() throws IOException {
         try {
             return parser.getTextOffset();
-        } catch (JsonParseException e) {
-            throw newXContentParseException(e);
+        } catch (IOException e) {
+            throw handleParserException(e);
         }
     }
 
@@ -194,8 +246,8 @@ public class JsonXContentParser extends AbstractXContentParser {
     public Number numberValue() throws IOException {
         try {
             return parser.getNumberValue();
-        } catch (InputCoercionException | JsonParseException e) {
-            throw newXContentParseException(e);
+        } catch (IOException e) {
+            throw handleParserException(e);
         }
     }
 
@@ -203,8 +255,8 @@ public class JsonXContentParser extends AbstractXContentParser {
     public short doShortValue() throws IOException {
         try {
             return parser.getShortValue();
-        } catch (InputCoercionException | JsonParseException e) {
-            throw newXContentParseException(e);
+        } catch (IOException e) {
+            throw handleParserException(e);
         }
     }
 
@@ -212,8 +264,8 @@ public class JsonXContentParser extends AbstractXContentParser {
     public int doIntValue() throws IOException {
         try {
             return parser.getIntValue();
-        } catch (InputCoercionException | JsonParseException e) {
-            throw newXContentParseException(e);
+        } catch (IOException e) {
+            throw handleParserException(e);
         }
     }
 
@@ -221,8 +273,8 @@ public class JsonXContentParser extends AbstractXContentParser {
     public long doLongValue() throws IOException {
         try {
             return parser.getLongValue();
-        } catch (InputCoercionException | JsonParseException e) {
-            throw newXContentParseException(e);
+        } catch (IOException e) {
+            throw handleParserException(e);
         }
     }
 
@@ -230,8 +282,8 @@ public class JsonXContentParser extends AbstractXContentParser {
     public float doFloatValue() throws IOException {
         try {
             return parser.getFloatValue();
-        } catch (InputCoercionException | JsonParseException e) {
-            throw newXContentParseException(e);
+        } catch (IOException e) {
+            throw handleParserException(e);
         }
     }
 
@@ -239,8 +291,8 @@ public class JsonXContentParser extends AbstractXContentParser {
     public double doDoubleValue() throws IOException {
         try {
             return parser.getDoubleValue();
-        } catch (InputCoercionException | JsonParseException e) {
-            throw newXContentParseException(e);
+        } catch (IOException e) {
+            throw handleParserException(e);
         }
     }
 
@@ -248,8 +300,8 @@ public class JsonXContentParser extends AbstractXContentParser {
     public byte[] binaryValue() throws IOException {
         try {
             return parser.getBinaryValue();
-        } catch (JsonParseException e) {
-            throw newXContentParseException(e);
+        } catch (IOException e) {
+            throw handleParserException(e);
         }
     }
 

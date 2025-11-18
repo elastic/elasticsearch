@@ -42,7 +42,7 @@ public class RegexQuery extends Query {
     }
 
     @Override
-    public QueryBuilder asBuilder() {
+    protected QueryBuilder asBuilder() {
         return regexpQuery(field, regex).caseInsensitive(caseInsensitive);
     }
 
@@ -68,5 +68,10 @@ public class RegexQuery extends Query {
     @Override
     protected String innerToString() {
         return field + "~ /" + regex + "/";
+    }
+
+    @Override
+    public boolean containsPlan() {
+        return false;
     }
 }

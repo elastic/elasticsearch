@@ -13,6 +13,7 @@ import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.xpack.core.common.IteratingActionListener;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
@@ -26,6 +27,8 @@ import org.elasticsearch.xpack.core.security.user.SystemUser;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.security.operator.OperatorPrivileges.OperatorPrivilegesService;
 
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.function.BiConsumer;
@@ -52,6 +55,7 @@ class AuthenticatorChain {
         OperatorPrivilegesService operatorPrivilegesService,
         AnonymousUser anonymousUser,
         AuthenticationContextSerializer authenticationSerializer,
+        PluggableAuthenticatorChain pluggableAuthenticatorChain,
         ServiceAccountAuthenticator serviceAccountAuthenticator,
         OAuth2TokenAuthenticator oAuth2TokenAuthenticator,
         ApiKeyAuthenticator apiKeyAuthenticator,
@@ -64,18 +68,32 @@ class AuthenticatorChain {
         this.isAnonymousUserEnabled = AnonymousUser.isAnonymousEnabled(settings);
         this.authenticationSerializer = authenticationSerializer;
         this.realmsAuthenticator = realmsAuthenticator;
-        this.allAuthenticators = List.of(serviceAccountAuthenticator, oAuth2TokenAuthenticator, apiKeyAuthenticator, realmsAuthenticator);
+
+        List<Authenticator> authenticators = new ArrayList<>();
+        if (pluggableAuthenticatorChain.hasCustomAuthenticators()) {
+            authenticators.add(pluggableAuthenticatorChain);
+        }
+        authenticators.add(serviceAccountAuthenticator);
+        authenticators.add(oAuth2TokenAuthenticator);
+        authenticators.add(apiKeyAuthenticator);
+        authenticators.add(realmsAuthenticator);
+        this.allAuthenticators = Collections.unmodifiableList(authenticators);
     }
 
     void authenticate(Authenticator.Context context, ActionListener<Authentication> originalListener) {
         assert false == context.getDefaultOrderedRealmList().isEmpty() : "realm list must not be empty";
         // Check whether authentication is an operator user and mark the threadContext if necessary
         // before returning the authentication object
-        final ActionListener<Authentication> listener = originalListener.map(authentication -> {
+        final ActionListener<Authentication> listener = ActionListener.wrap(authentication -> {
             assert authentication != null;
             operatorPrivilegesService.maybeMarkOperatorUser(authentication, context.getThreadContext());
-            return authentication;
+            logger.trace(() -> Strings.format("Authentication for [%s]", authentication));
+            originalListener.onResponse(authentication);
+        }, ex -> {
+            logger.debug(() -> Strings.format("Authentication for context [%s] failed", context), ex);
+            originalListener.onFailure(ex);
         });
+
         // If a token is directly provided in the context, authenticate with it
         if (context.getMostRecentAuthenticationToken() != null) {
             doAuthenticate(context, listener);
@@ -288,7 +306,7 @@ class AuthenticatorChain {
                     ese.status(),
                     ese.getCause()
                 );
-                ese.getHeaderKeys().forEach(k -> eseWithPreviousCredentials.addHeader(k, ese.getHeader(k)));
+                ese.getBodyHeaderKeys().forEach(k -> eseWithPreviousCredentials.addBodyHeader(k, ese.getBodyHeader(k)));
                 addMetadata(context, eseWithPreviousCredentials);
                 listener.onFailure(eseWithPreviousCredentials);
             } else {

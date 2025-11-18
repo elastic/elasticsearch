@@ -109,7 +109,6 @@ public class GeoShapeQueryBuilderGeoShapeTests extends GeoShapeQueryBuilderTestC
                 }
             }
         }
-
         if (ESTestCase.randomBoolean()) {
             builder.ignoreUnmapped(ESTestCase.randomBoolean());
         }

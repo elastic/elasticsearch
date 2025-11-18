@@ -15,6 +15,7 @@ import org.elasticsearch.xpack.core.transform.TransformField;
 import org.elasticsearch.xpack.core.transform.transforms.TransformCheckpoint;
 import org.elasticsearch.xpack.core.transform.transforms.TransformConfig;
 import org.elasticsearch.xpack.core.transform.transforms.TransformStoredDoc;
+import org.elasticsearch.xpack.core.transform.transforms.persistence.TransformInternalIndexConstants;
 
 import java.util.Collection;
 import java.util.Collections;
@@ -206,4 +207,8 @@ public interface TransformConfigManager {
     void getTransformStoredDocs(Collection<String> transformIds, TimeValue timeout, ActionListener<List<TransformStoredDoc>> listener);
 
     void refresh(ActionListener<Boolean> listener);
+
+    default boolean isLatestTransformIndex(String indexName) {
+        return TransformInternalIndexConstants.LATEST_INDEX_NAME.equals(indexName);
+    }
 }

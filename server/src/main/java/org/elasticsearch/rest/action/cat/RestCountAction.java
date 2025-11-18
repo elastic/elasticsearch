@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.rest.action.cat;
@@ -15,6 +16,7 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.Table;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
@@ -31,6 +33,12 @@ import static org.elasticsearch.rest.RestRequest.Method.GET;
 
 @ServerlessScope(Scope.PUBLIC)
 public class RestCountAction extends AbstractCatAction {
+
+    private final Settings settings;
+
+    public RestCountAction(Settings settings) {
+        this.settings = settings;
+    }
 
     @Override
     public List<Route> routes() {
@@ -50,6 +58,11 @@ public class RestCountAction extends AbstractCatAction {
 
     @Override
     public RestChannelConsumer doCatRequest(final RestRequest request, final NodeClient client) {
+        if (settings != null && settings.getAsBoolean("serverless.cross_project.enabled", false)) {
+            // accept but drop project_routing param until fully supported
+            request.param("project_routing");
+        }
+
         String[] indices = Strings.splitStringByCommaToArray(request.param("index"));
         SearchRequest countRequest = new SearchRequest(indices);
         SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder().size(0).trackTotalHits(true);
@@ -71,7 +84,7 @@ public class RestCountAction extends AbstractCatAction {
         return channel -> client.search(countRequest, new RestResponseListener<SearchResponse>(channel) {
             @Override
             public RestResponse buildResponse(SearchResponse countResponse) throws Exception {
-                assert countResponse.getHits().getTotalHits().relation == TotalHits.Relation.EQUAL_TO;
+                assert countResponse.getHits().getTotalHits().relation() == TotalHits.Relation.EQUAL_TO;
                 return RestTable.buildResponse(buildTable(request, countResponse), channel);
             }
         });
@@ -89,7 +102,7 @@ public class RestCountAction extends AbstractCatAction {
     private Table buildTable(RestRequest request, SearchResponse response) {
         Table table = getTableWithHeader(request);
         table.startRow();
-        table.addCell(response.getHits().getTotalHits().value);
+        table.addCell(response.getHits().getTotalHits().value());
         table.endRow();
 
         return table;

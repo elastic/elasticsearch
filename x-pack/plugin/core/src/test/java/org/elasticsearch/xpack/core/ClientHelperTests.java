@@ -7,7 +7,6 @@
 package org.elasticsearch.xpack.core;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
@@ -70,7 +69,7 @@ public class ClientHelperTests extends ESTestCase {
             latch.countDown();
         });
 
-        final ClusterHealthRequest request = new ClusterHealthRequest();
+        final ClusterHealthRequest request = new ClusterHealthRequest(TEST_REQUEST_TIMEOUT);
         threadContext.putHeader(headerName, headerValue);
 
         ClientHelper.executeAsyncWithOrigin(threadContext, origin, request, listener, (req, listener1) -> {
@@ -110,7 +109,13 @@ public class ClientHelperTests extends ESTestCase {
         }).when(client).execute(any(), any(), any());
 
         threadContext.putHeader(headerName, headerValue);
-        ClientHelper.executeAsyncWithOrigin(client, origin, TransportClusterHealthAction.TYPE, new ClusterHealthRequest(), listener);
+        ClientHelper.executeAsyncWithOrigin(
+            client,
+            origin,
+            TransportClusterHealthAction.TYPE,
+            new ClusterHealthRequest(TEST_REQUEST_TIMEOUT),
+            listener
+        );
 
         latch.await();
     }
@@ -363,7 +368,7 @@ public class ClientHelperTests extends ESTestCase {
         final ClusterState clusterState = mock(ClusterState.class);
         final DiscoveryNodes discoveryNodes = mock(DiscoveryNodes.class);
         when(clusterState.nodes()).thenReturn(discoveryNodes);
-        when(clusterState.getMinTransportVersion()).thenReturn(TransportVersions.MINIMUM_COMPATIBLE);
+        when(clusterState.getMinTransportVersion()).thenReturn(TransportVersion.minimumCompatible());
         // No security header
         ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
         final String nonSecurityHeaderKey = "not-a-security-header";
@@ -419,7 +424,7 @@ public class ClientHelperTests extends ESTestCase {
         // Rewritten for older version
         final TransportVersion previousVersion = TransportVersionUtils.randomVersionBetween(
             random(),
-            TransportVersions.MINIMUM_COMPATIBLE,
+            TransportVersion.minimumCompatible(),
             TransportVersionUtils.getPreviousVersion()
         );
         when(clusterState.getMinTransportVersion()).thenReturn(previousVersion);

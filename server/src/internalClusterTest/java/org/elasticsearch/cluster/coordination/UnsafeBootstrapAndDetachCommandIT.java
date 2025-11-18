@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.cluster.coordination;
 
@@ -23,6 +24,7 @@ import org.elasticsearch.gateway.GatewayMetaState;
 import org.elasticsearch.gateway.PersistedClusterStateService;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.InternalTestCluster;
 
 import java.io.IOException;
@@ -38,6 +40,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0, autoManageMasterNodes = false)
+@ESTestCase.WithoutEntitlements // CLI tools don't run with entitlements enforced
 public class UnsafeBootstrapAndDetachCommandIT extends ESIntegTestCase {
 
     private MockTerminal executeCommand(ElasticsearchNodeCommand command, Environment environment, boolean abort) throws Exception {
@@ -136,10 +139,7 @@ public class UnsafeBootstrapAndDetachCommandIT extends ESIntegTestCase {
                 .put(Node.INITIAL_STATE_TIMEOUT_SETTING.getKey(), "0s") // to ensure quick node startup
                 .build()
         );
-        assertBusy(() -> {
-            ClusterState state = clusterAdmin().prepareState().setLocal(true).get().getState();
-            assertTrue(state.blocks().hasGlobalBlockWithId(NoMasterBlockService.NO_MASTER_BLOCK_ID));
-        });
+        awaitClusterState(node, state -> state.blocks().hasGlobalBlockWithId(NoMasterBlockService.NO_MASTER_BLOCK_ID));
 
         Settings dataPathSettings = internalCluster().dataPathSettings(node);
 
@@ -241,10 +241,7 @@ public class UnsafeBootstrapAndDetachCommandIT extends ESIntegTestCase {
         internalCluster().stopNode(masterNodes.get(2));
 
         logger.info("--> ensure NO_MASTER_BLOCK on data-only node");
-        assertBusy(() -> {
-            ClusterState state = internalCluster().client(dataNode).admin().cluster().prepareState().setLocal(true).get().getState();
-            assertTrue(state.blocks().hasGlobalBlockWithId(NoMasterBlockService.NO_MASTER_BLOCK_ID));
-        });
+        awaitClusterState(dataNode, state -> state.blocks().hasGlobalBlockWithId(NoMasterBlockService.NO_MASTER_BLOCK_ID));
 
         logger.info("--> try to unsafely bootstrap 1st master-eligible node, while node lock is held");
         Environment environmentMaster1 = TestEnvironment.newEnvironment(
@@ -287,15 +284,15 @@ public class UnsafeBootstrapAndDetachCommandIT extends ESIntegTestCase {
         String dataNode2 = internalCluster().startDataOnlyNode(dataNodeDataPathSettings);
 
         logger.info("--> ensure there is no NO_MASTER_BLOCK and unsafe-bootstrap is reflected in cluster state");
-        assertBusy(() -> {
-            ClusterState state = internalCluster().client(dataNode2).admin().cluster().prepareState().setLocal(true).get().getState();
-            assertFalse(state.blocks().hasGlobalBlockWithId(NoMasterBlockService.NO_MASTER_BLOCK_ID));
-            assertTrue(state.metadata().persistentSettings().getAsBoolean(UnsafeBootstrapMasterCommand.UNSAFE_BOOTSTRAP.getKey(), false));
-        });
+        awaitClusterState(
+            dataNode2,
+            state -> state.blocks().hasGlobalBlockWithId(NoMasterBlockService.NO_MASTER_BLOCK_ID) == false
+                && state.metadata().persistentSettings().getAsBoolean(UnsafeBootstrapMasterCommand.UNSAFE_BOOTSTRAP.getKey(), false)
+        );
 
         logger.info("--> ensure index test is green");
         ensureGreen("test");
-        IndexMetadata indexMetadata = clusterService().state().metadata().index("test");
+        IndexMetadata indexMetadata = clusterService().state().metadata().getProject().index("test");
         assertThat(indexMetadata.getSettings().get(IndexMetadata.SETTING_HISTORY_UUID), notNullValue());
 
         logger.info("--> detach-cluster on 2nd and 3rd master-eligible nodes");
@@ -333,7 +330,7 @@ public class UnsafeBootstrapAndDetachCommandIT extends ESIntegTestCase {
                 .build()
         );
 
-        ClusterState state = internalCluster().client().admin().cluster().prepareState().setLocal(true).get().getState();
+        ClusterState state = internalCluster().client().admin().cluster().prepareState(TEST_REQUEST_TIMEOUT).get().getState();
         assertTrue(state.blocks().hasGlobalBlockWithId(NoMasterBlockService.NO_MASTER_BLOCK_ID));
 
         internalCluster().stopNode(node);
@@ -345,7 +342,7 @@ public class UnsafeBootstrapAndDetachCommandIT extends ESIntegTestCase {
         Settings masterNodeDataPathSettings = internalCluster().dataPathSettings(masterNode);
         updateClusterSettings(Settings.builder().put(INDICES_RECOVERY_MAX_BYTES_PER_SEC_SETTING.getKey(), "1234kb"));
 
-        ClusterState state = internalCluster().client().admin().cluster().prepareState().get().getState();
+        ClusterState state = internalCluster().client().admin().cluster().prepareState(TEST_REQUEST_TIMEOUT).get().getState();
         assertThat(state.metadata().persistentSettings().get(INDICES_RECOVERY_MAX_BYTES_PER_SEC_SETTING.getKey()), equalTo("1234kb"));
 
         internalCluster().stopCurrentMasterNode();
@@ -359,7 +356,7 @@ public class UnsafeBootstrapAndDetachCommandIT extends ESIntegTestCase {
         internalCluster().startMasterOnlyNode(masterNodeDataPathSettings);
         ensureGreen();
 
-        state = internalCluster().client().admin().cluster().prepareState().get().getState();
+        state = internalCluster().client().admin().cluster().prepareState(TEST_REQUEST_TIMEOUT).get().getState();
         assertThat(state.metadata().settings().get(INDICES_RECOVERY_MAX_BYTES_PER_SEC_SETTING.getKey()), equalTo("1234kb"));
     }
 }

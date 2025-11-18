@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.search.aggregations.bucket;
 
@@ -15,7 +16,6 @@ import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.query.GeoBoundingBoxQueryBuilder;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.InternalAggregation;
-import org.elasticsearch.search.aggregations.bucket.filter.Filter;
 import org.elasticsearch.search.aggregations.bucket.geogrid.GeoGrid;
 import org.elasticsearch.search.aggregations.bucket.geogrid.GeoGrid.Bucket;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -48,7 +48,7 @@ public class GeoHashGridIT extends ESIntegTestCase {
         return false;
     }
 
-    private final IndexVersion version = IndexVersionUtils.randomCompatibleVersion(random());
+    private final IndexVersion version = IndexVersionUtils.randomCompatibleWriteVersion(random());
 
     static Map<String, Integer> expectedDocCountsForGeoHash = null;
     static Map<String, Integer> multiValuedExpectedDocCountsForGeoHash = null;
@@ -185,7 +185,7 @@ public class GeoHashGridIT extends ESIntegTestCase {
                         .subAggregation(geohashGrid("geohashgrid").field("location").precision(precision))
                 ),
                 response -> {
-                    Filter filter = response.getAggregations().get("filtered");
+                    SingleBucketAggregation filter = response.getAggregations().get("filtered");
 
                     GeoGrid geoGrid = filter.getAggregations().get("geohashgrid");
                     for (GeoGrid.Bucket cell : geoGrid.getBuckets()) {

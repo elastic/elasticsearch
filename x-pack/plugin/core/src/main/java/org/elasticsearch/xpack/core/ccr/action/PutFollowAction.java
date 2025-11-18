@@ -194,9 +194,7 @@ public final class PutFollowAction extends ActionType<PutFollowAction.Response> 
             this.remoteCluster = in.readString();
             this.leaderIndex = in.readString();
             this.followerIndex = in.readString();
-            if (in.getTransportVersion().onOrAfter(TransportVersions.V_7_9_0)) {
-                this.settings = Settings.readSettingsFromStream(in);
-            }
+            this.settings = Settings.readSettingsFromStream(in);
             this.parameters = new FollowParameters(in);
             waitForActiveShards(ActiveShardCount.readFrom(in));
             if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_4_0)) {
@@ -210,9 +208,7 @@ public final class PutFollowAction extends ActionType<PutFollowAction.Response> 
             out.writeString(remoteCluster);
             out.writeString(leaderIndex);
             out.writeString(followerIndex);
-            if (out.getTransportVersion().onOrAfter(TransportVersions.V_7_9_0)) {
-                settings.writeTo(out);
-            }
+            settings.writeTo(out);
             parameters.writeTo(out);
             waitForActiveShards.writeTo(out);
             if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_4_0)) {
@@ -298,7 +294,6 @@ public final class PutFollowAction extends ActionType<PutFollowAction.Response> 
         }
 
         public Response(StreamInput in) throws IOException {
-            super(in);
             followIndexCreated = in.readBoolean();
             followIndexShardsAcked = in.readBoolean();
             indexFollowingStarted = in.readBoolean();

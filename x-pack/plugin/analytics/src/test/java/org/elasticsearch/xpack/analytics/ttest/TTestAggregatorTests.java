@@ -13,6 +13,7 @@ import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.tests.index.RandomIndexWriter;
+import org.elasticsearch.cluster.project.TestProjectResolvers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.core.CheckedConsumer;
@@ -137,7 +138,13 @@ public class TTestAggregatorTests extends AggregatorTestCase {
         MockScriptEngine scriptEngine = new MockScriptEngine(MockScriptEngine.NAME, scripts, Collections.emptyMap());
         Map<String, ScriptEngine> engines = Collections.singletonMap(scriptEngine.getType(), scriptEngine);
 
-        return new ScriptService(Settings.EMPTY, engines, ScriptModule.CORE_CONTEXTS, () -> 1L);
+        return new ScriptService(
+            Settings.EMPTY,
+            engines,
+            ScriptModule.CORE_CONTEXTS,
+            () -> 1L,
+            TestProjectResolvers.singleProject(randomProjectIdOrDefault())
+        );
     }
 
     public void testNoMatchingField() throws IOException {
@@ -410,20 +417,20 @@ public class TTestAggregatorTests extends AggregatorTestCase {
             );
         }, (Consumer<InternalHistogram>) histo -> {
             assertEquals(3, histo.getBuckets().size());
-            assertNotNull(histo.getBuckets().get(0).getAggregations().asMap().get("t_test"));
-            InternalTTest tTest = (InternalTTest) histo.getBuckets().get(0).getAggregations().asMap().get("t_test");
+            assertNotNull(histo.getBuckets().get(0).getAggregations().get("t_test"));
+            InternalTTest tTest = histo.getBuckets().get(0).getAggregations().get("t_test");
             assertEquals(
                 tTestType == TTestType.PAIRED ? 0.1939778614 : tTestType == TTestType.HOMOSCEDASTIC ? 0.05878871029 : 0.07529006595,
                 tTest.getValue(),
                 0.000001
             );
 
-            assertNotNull(histo.getBuckets().get(1).getAggregations().asMap().get("t_test"));
-            tTest = (InternalTTest) histo.getBuckets().get(1).getAggregations().asMap().get("t_test");
+            assertNotNull(histo.getBuckets().get(1).getAggregations().get("t_test"));
+            tTest = histo.getBuckets().get(1).getAggregations().get("t_test");
             assertEquals(Double.NaN, tTest.getValue(), 0.000001);
 
-            assertNotNull(histo.getBuckets().get(2).getAggregations().asMap().get("t_test"));
-            tTest = (InternalTTest) histo.getBuckets().get(2).getAggregations().asMap().get("t_test");
+            assertNotNull(histo.getBuckets().get(2).getAggregations().get("t_test"));
+            tTest = histo.getBuckets().get(2).getAggregations().get("t_test");
             assertEquals(
                 tTestType == TTestType.PAIRED ? 0.6666666667 : tTestType == TTestType.HOMOSCEDASTIC ? 0.8593081179 : 0.8594865044,
                 tTest.getValue(),
@@ -433,7 +440,6 @@ public class TTestAggregatorTests extends AggregatorTestCase {
         }, new AggTestConfig(histogram, fieldType1, fieldType2, fieldTypePart));
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/54365")
     public void testFormatter() throws IOException {
         TTestType tTestType = randomFrom(TTestType.values());
         MappedFieldType fieldType1 = new NumberFieldMapper.NumberFieldType("a", NumberFieldMapper.NumberType.INTEGER);
@@ -475,8 +481,8 @@ public class TTestAggregatorTests extends AggregatorTestCase {
         }, (Consumer<InternalGlobal>) global -> {
             assertEquals(3, global.getDocCount());
             assertTrue(AggregationInspectionHelper.hasValue(global));
-            assertNotNull(global.getAggregations().asMap().get("t_test"));
-            InternalTTest tTest = (InternalTTest) global.getAggregations().asMap().get("t_test");
+            assertNotNull(global.getAggregations().get("t_test"));
+            InternalTTest tTest = global.getAggregations().get("t_test");
             assertEquals(tTest, global.getProperty("t_test"));
             assertEquals(0.1939778614, (Double) global.getProperty("t_test.value"), 0.000001);
         }, new AggTestConfig(globalBuilder, fieldType1, fieldType2));

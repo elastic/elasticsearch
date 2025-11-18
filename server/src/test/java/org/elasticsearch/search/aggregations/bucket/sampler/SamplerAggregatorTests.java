@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.aggregations.bucket.sampler;
@@ -40,7 +41,7 @@ public class SamplerAggregatorTests extends AggregatorTestCase {
      * Uses the sampler aggregation to find the minimum value of a field out of the top 3 scoring documents in a search.
      */
     public void testSampler() throws IOException {
-        TextFieldType textFieldType = new TextFieldType("text", randomBoolean());
+        TextFieldType textFieldType = new TextFieldType("text", randomBoolean(), false);
         MappedFieldType numericFieldType = new NumberFieldMapper.NumberFieldType("int", NumberFieldMapper.NumberType.LONG);
 
         IndexWriterConfig indexWriterConfig = newIndexWriterConfig();
@@ -74,7 +75,7 @@ public class SamplerAggregatorTests extends AggregatorTestCase {
     }
 
     public void testRidiculousSize() throws IOException {
-        TextFieldType textFieldType = new TextFieldType("text", randomBoolean());
+        TextFieldType textFieldType = new TextFieldType("text", randomBoolean(), false);
         MappedFieldType numericFieldType = new NumberFieldMapper.NumberFieldType("int", NumberFieldMapper.NumberType.LONG);
 
         IndexWriterConfig indexWriterConfig = newIndexWriterConfig();

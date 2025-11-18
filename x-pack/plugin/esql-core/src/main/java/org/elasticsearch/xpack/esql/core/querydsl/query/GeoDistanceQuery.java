@@ -45,7 +45,7 @@ public class GeoDistanceQuery extends Query {
     }
 
     @Override
-    public QueryBuilder asBuilder() {
+    protected QueryBuilder asBuilder() {
         return QueryBuilders.geoDistanceQuery(field).distance(distance, DistanceUnit.METERS).point(lat, lon);
     }
 
@@ -74,5 +74,10 @@ public class GeoDistanceQuery extends Query {
     @Override
     protected String innerToString() {
         return field + ":" + "(" + distance + "," + "(" + lat + ", " + lon + "))";
+    }
+
+    @Override
+    public boolean containsPlan() {
+        return false;
     }
 }

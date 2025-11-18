@@ -246,7 +246,7 @@ teardown:
           }
   - length: { docs: 1 }
   - match: { docs.0.doc._source.date_source_field: "2020-33" }
-  - match: { docs.0.doc._source.date_target_field: "2020-08-10T00:00:00.000Z" }
+  - match: { docs.0.doc._source.date_target_field: "2020-08-09T00:00:00.000Z" }
   - length: { docs.0.doc._ingest: 1 }
   - is_true: docs.0.doc._ingest.timestamp
 
@@ -262,7 +262,7 @@ teardown:
         index: test
         id: "1"
   - match: { _source.date_source_field: "2020-33" }
-  - match: { _source.date_target_field: "2020-08-10T00:00:00.000Z" }
+  - match: { _source.date_target_field: "2020-08-09T00:00:00.000Z" }
 
 ---
 "Test week based date parsing with locale":

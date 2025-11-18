@@ -1,24 +1,37 @@
 {
-  "slm.get_stats":{
-    "documentation":{
-      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/master/slm-api-get-stats.html",
-      "description":"Returns global and policy-level statistics about actions taken by snapshot lifecycle management."
+  "slm.get_stats": {
+    "documentation": {
+      "url": "https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-slm-get-stats",
+      "description": "Get snapshot lifecycle management statistics"
     },
-    "stability":"stable",
-    "visibility":"public",
-    "headers":{
-      "accept": [ "application/json"]
+    "stability": "stable",
+    "visibility": "public",
+    "headers": {
+      "accept": [
+        "application/json"
+      ]
     },
-    "url":{
-      "paths":[
+    "url": {
+      "paths": [
         {
-          "path":"/_slm/stats",
-          "methods":[
+          "path": "/_slm/stats",
+          "methods": [
             "GET"
           ]
         }
       ]
     },
-    "params":{}
+    "params": {
+      "master_timeout": {
+        "type": "time",
+        "default": "30s",
+        "description": "Explicit operation timeout for connection to master node"
+      },
+      "timeout": {
+        "type": "time",
+        "default": "30s",
+        "description": "Explicit operation timeout"
+      }
+    }
   }
 }

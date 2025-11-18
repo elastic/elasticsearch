@@ -1,0 +1,54 @@
+{
+  "indices.delete_data_stream_options": {
+    "documentation": {
+      "url": "https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-indices-delete-data-stream-options",
+      "description": "Delete data stream options"
+    },
+    "stability": "stable",
+    "visibility": "public",
+    "headers": {
+      "accept": [
+        "application/json"
+      ]
+    },
+    "url": {
+      "paths": [
+        {
+          "path": "/_data_stream/{name}/_options",
+          "methods": [
+            "DELETE"
+          ],
+          "parts": {
+            "name": {
+              "type": "list",
+              "description": "A comma-separated list of data streams of which the data stream options will be deleted; use `*` to get all data streams"
+            }
+          }
+        }
+      ]
+    },
+    "params": {
+      "expand_wildcards": {
+        "type": "list",
+        "options": [
+          "open",
+          "closed",
+          "hidden",
+          "none",
+          "all"
+        ],
+        "default": "open",
+        "description": "Whether wildcard expressions should get expanded to open or closed indices (default: open)"
+      },
+      "timeout": {
+        "type": "time",
+        "description": "Explicit timestamp for the document"
+      },
+      "master_timeout": {
+        "type": "time",
+        "default": "30s",
+        "description": "Specify timeout for connection to master"
+      }
+    }
+  }
+}

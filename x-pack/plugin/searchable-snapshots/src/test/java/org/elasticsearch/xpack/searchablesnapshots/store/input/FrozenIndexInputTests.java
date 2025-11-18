@@ -98,7 +98,7 @@ public class FrozenIndexInputTests extends AbstractSearchableSnapshotsTestCase {
             .put("path.home", createTempDir())
             .build();
         final Environment environment = TestEnvironment.newEnvironment(settings);
-        for (Path path : environment.dataFiles()) {
+        for (Path path : environment.dataDirs()) {
             Files.createDirectories(path);
         }
         SnapshotId snapshotId = new SnapshotId("_name", "_uuid");
@@ -111,7 +111,7 @@ public class FrozenIndexInputTests extends AbstractSearchableSnapshotsTestCase {
                 nodeEnvironment,
                 settings,
                 threadPool,
-                SearchableSnapshots.CACHE_FETCH_ASYNC_THREAD_POOL_NAME,
+                threadPool.executor(SearchableSnapshots.CACHE_FETCH_ASYNC_THREAD_POOL_NAME),
                 BlobCacheMetrics.NOOP
             );
             CacheService cacheService = randomCacheService();

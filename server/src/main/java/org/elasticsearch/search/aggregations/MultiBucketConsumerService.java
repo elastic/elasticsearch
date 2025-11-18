@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.search.aggregations;
 
@@ -63,6 +64,11 @@ public class MultiBucketConsumerService {
         public TooManyBucketsException(StreamInput in) throws IOException {
             super(in);
             maxBuckets = in.readInt();
+        }
+
+        @Override
+        public Throwable fillInStackTrace() {
+            return this; // this exception doesn't imply a bug, no need for a stack trace
         }
 
         @Override
@@ -134,8 +140,35 @@ public class MultiBucketConsumerService {
         }
     }
 
-    public MultiBucketConsumer create() {
+    /**
+     * Similar to {@link MultiBucketConsumer} but it only checks the parent circuit breaker every 1024 calls.
+     * It provides protection for OOM during partial reductions.
+     */
+    private static class MultiBucketConsumerPartialReduction implements IntConsumer {
+        private final CircuitBreaker breaker;
+
+        // aggregations execute in a single thread so no atomic here
+        private int callCount = 0;
+
+        private MultiBucketConsumerPartialReduction(CircuitBreaker breaker) {
+            this.breaker = breaker;
+        }
+
+        @Override
+        public void accept(int value) {
+            // check parent circuit breaker every 1024 calls
+            if ((++callCount & 0x3FF) == 0) {
+                breaker.addEstimateBytesAndMaybeBreak(0, "allocated_buckets");
+            }
+        }
+    }
+
+    public IntConsumer createForFinal() {
         return new MultiBucketConsumer(maxBucket, breaker);
+    }
+
+    public IntConsumer createForPartial() {
+        return new MultiBucketConsumerPartialReduction(breaker);
     }
 
     public int getLimit() {

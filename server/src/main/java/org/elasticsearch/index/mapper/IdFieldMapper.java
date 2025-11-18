@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.mapper;
@@ -21,6 +22,7 @@ import org.elasticsearch.index.query.SearchExecutionContext;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -50,11 +52,6 @@ public abstract class IdFieldMapper extends MetadataFieldMapper {
         return CONTENT_TYPE;
     }
 
-    @Override
-    public final SourceLoader.SyntheticFieldLoader syntheticFieldLoader() {
-        return SourceLoader.SyntheticFieldLoader.NOTHING;
-    }
-
     /**
      * Description of the document being parsed used in error messages. Not
      * called unless there is an error.
@@ -81,10 +78,17 @@ public abstract class IdFieldMapper extends MetadataFieldMapper {
         return new StringField(NAME, Uid.encodeId(id), Field.Store.YES);
     }
 
+    /**
+     * Create a {@link Field} corresponding to a synthetic {@code _id} field, which is not indexed but instead resolved at runtime.
+     */
+    public static Field syntheticIdField(String id) {
+        return new SyntheticIdField(Uid.encodeId(id));
+    }
+
     protected abstract static class AbstractIdFieldType extends TermBasedFieldType {
 
         public AbstractIdFieldType() {
-            super(NAME, true, true, false, TextSearchInfo.SIMPLE_MATCH_ONLY, Collections.emptyMap());
+            super(NAME, IndexType.terms(true, false), true, TextSearchInfo.SIMPLE_MATCH_ONLY, Collections.emptyMap());
         }
 
         @Override
@@ -101,13 +105,13 @@ public abstract class IdFieldMapper extends MetadataFieldMapper {
         @Override
         public Query termsQuery(Collection<?> values, SearchExecutionContext context) {
             failIfNotIndexed();
-            BytesRef[] bytesRefs = values.stream().map(v -> {
+            List<BytesRef> bytesRefs = values.stream().map(v -> {
                 Object idObject = v;
                 if (idObject instanceof BytesRef) {
                     idObject = ((BytesRef) idObject).utf8ToString();
                 }
                 return Uid.encodeId(idObject.toString());
-            }).toArray(BytesRef[]::new);
+            }).toList();
             return new TermInSetQuery(name(), bytesRefs);
         }
 

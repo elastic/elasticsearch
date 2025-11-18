@@ -6,8 +6,8 @@
  */
 package org.elasticsearch.xpack.core.security.action.user;
 
-import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.LegacyActionRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 
@@ -16,7 +16,7 @@ import java.io.IOException;
 /**
  * A request for checking a user's privileges
  */
-public final class GetUserPrivilegesRequest extends ActionRequest implements UserRequest {
+public final class GetUserPrivilegesRequest extends LegacyActionRequest implements UserRequest {
 
     private String username;
 

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.action.admin.indices.shards;
 
@@ -33,7 +34,6 @@ import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.collect.Iterators;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ThrottledIterator;
@@ -41,6 +41,7 @@ import org.elasticsearch.core.Releasable;
 import org.elasticsearch.gateway.TransportNodesListGatewayStartedShards;
 import org.elasticsearch.gateway.TransportNodesListGatewayStartedShards.NodeGatewayStartedShards;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -67,6 +68,7 @@ public class TransportIndicesShardStoresAction extends TransportMasterNodeReadAc
 
     private static final Logger logger = LogManager.getLogger(TransportIndicesShardStoresAction.class);
 
+    private final IndexNameExpressionResolver indexNameExpressionResolver;
     private final NodeClient client;
 
     @Inject
@@ -85,10 +87,10 @@ public class TransportIndicesShardStoresAction extends TransportMasterNodeReadAc
             threadPool,
             actionFilters,
             IndicesShardStoresRequest::new,
-            indexNameExpressionResolver,
             IndicesShardStoresResponse::new,
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
+        this.indexNameExpressionResolver = indexNameExpressionResolver;
         this.client = client;
     }
 
@@ -190,7 +192,6 @@ public class TransportIndicesShardStoresAction extends TransportMasterNodeReadAc
                 Iterators.flatMap(Iterators.forArray(concreteIndices), this::getIndexIterator),
                 this::doShardRequest,
                 maxConcurrentShardRequests,
-                () -> {},
                 outerListener::close
             );
         }
@@ -237,7 +238,7 @@ public class TransportIndicesShardStoresAction extends TransportMasterNodeReadAc
             Iterator<ShardRequestContext> getShardRequestContexts() {
                 try (var shardListeners = new RefCountingListener(1, outerListener.acquire(ignored -> putResults()))) {
                     final var customDataPath = IndexMetadata.INDEX_DATA_PATH_SETTING.get(
-                        metadata.index(indexRoutingTable.getIndex()).getSettings()
+                        metadata.indexMetadata(indexRoutingTable.getIndex()).getSettings()
                     );
                     final var shardRequestContexts = new ArrayList<ShardRequestContext>(indexRoutingTable.size());
                     for (int shardNum = 0; shardNum < indexRoutingTable.size(); shardNum++) {

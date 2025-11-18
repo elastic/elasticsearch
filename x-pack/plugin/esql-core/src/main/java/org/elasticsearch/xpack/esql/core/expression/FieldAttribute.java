@@ -6,79 +6,94 @@
  */
 package org.elasticsearch.xpack.esql.core.expression;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.core.util.PlanStreamInput;
-import org.elasticsearch.xpack.esql.core.util.StringUtils;
+import org.elasticsearch.xpack.esql.core.util.PlanStreamOutput;
 
 import java.io.IOException;
 import java.util.Objects;
 
 /**
  * Attribute for an ES field.
- * To differentiate between the different type of fields this class offers:
- * - name - the fully qualified name (foo.bar.tar)
- * - path - the path pointing to the field name (foo.bar)
- * - parent - the immediate parent of the field; useful for figuring out the type of field (nested vs object)
- * - nestedParent - if nested, what's the parent (which might not be the immediate one)
+ * This class offers:
+ * - name - the name of the attribute, but not necessarily of the field.
+ * - The raw EsField representing the field; for parent.child.grandchild this is just grandchild.
+ * - parentName - the full path to the immediate parent of the field, e.g. parent.child (without .grandchild)
+ *
+ * To adequately represent e.g. union types, the name of the attribute can be altered because we may have multiple synthetic field
+ * attributes that really belong to the same underlying field. For instance, if a multi-typed field is used both as {@code field::string}
+ * and {@code field::ip}, we'll generate 2 field attributes called {@code $$field$converted_to$keyword} and {@code $$field$converted_to$ip}
+ * which still refer to the same underlying index field.
  */
 public class FieldAttribute extends TypedAttribute {
+
+    /**
+     * A field name, as found in the mapping. Includes the whole path from the root of the document.
+     * Implemented as a wrapper around {@link String} to distinguish from the attribute name (which sometimes differs!) at compile time.
+     */
+    public record FieldName(String string) {};
+
     static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         Attribute.class,
         "FieldAttribute",
-        FieldAttribute::new
+        FieldAttribute::readFrom
     );
 
-    private final FieldAttribute parent;
-    private final String path;
+    // Only public for testing
+    public static final TransportVersion ESQL_FIELD_ATTRIBUTE_DROP_TYPE = TransportVersion.fromName("esql_field_attribute_drop_type");
+
+    private final String parentName;
     private final EsField field;
+    protected FieldName lazyFieldName;
 
+    @Deprecated
+    /**
+     * For testing only
+     */
     public FieldAttribute(Source source, String name, EsField field) {
-        this(source, null, name, field);
-    }
-
-    public FieldAttribute(Source source, FieldAttribute parent, String name, EsField field) {
-        this(source, parent, name, field, null, Nullability.TRUE, null, false);
+        this(source, null, null, name, field, Nullability.TRUE, null, false);
     }
 
     public FieldAttribute(
         Source source,
-        FieldAttribute parent,
+        @Nullable String parentName,
+        @Nullable String qualifier,
         String name,
         EsField field,
-        String qualifier,
-        Nullability nullability,
-        NameId id,
         boolean synthetic
     ) {
-        this(source, parent, name, field.getDataType(), field, qualifier, nullability, id, synthetic);
+        this(source, parentName, qualifier, name, field, Nullability.TRUE, null, synthetic);
+    }
+
+    public FieldAttribute(Source source, @Nullable String parentName, @Nullable String qualifier, String name, EsField field) {
+        this(source, parentName, qualifier, name, field, Nullability.TRUE, null, false);
     }
 
     public FieldAttribute(
         Source source,
-        FieldAttribute parent,
+        @Nullable String parentName,
+        @Nullable String qualifier,
         String name,
-        DataType type,
         EsField field,
-        String qualifier,
         Nullability nullability,
-        NameId id,
+        @Nullable NameId id,
         boolean synthetic
     ) {
-        super(source, name, type, qualifier, nullability, id, synthetic);
-        this.path = parent != null ? parent.name() : StringUtils.EMPTY;
-        this.parent = parent;
+        super(source, qualifier, name, field.getDataType(), nullability, id, synthetic);
+        this.parentName = parentName;
         this.field = field;
     }
 
-    @SuppressWarnings("unchecked")
-    public FieldAttribute(StreamInput in) throws IOException {
+    private static FieldAttribute innerReadFrom(StreamInput in) throws IOException {
         /*
          * The funny casting dance with `(StreamInput & PlanStreamInput) in` is required
          * because we're in esql-core here and the real PlanStreamInput is in
@@ -87,30 +102,46 @@ public class FieldAttribute extends TypedAttribute {
          * and NameId. This should become a hard cast when we move everything out
          * of esql-core.
          */
-        this(
-            Source.readFrom((StreamInput & PlanStreamInput) in),
-            in.readOptionalWriteable(FieldAttribute::new),
-            in.readString(),
-            DataType.readFrom(in),
-            in.readNamedWriteable(EsField.class),
-            in.readOptionalString(),
-            in.readEnum(Nullability.class),
-            NameId.readFrom((StreamInput & PlanStreamInput) in),
-            in.readBoolean()
-        );
+        Source source = Source.readFrom((StreamInput & PlanStreamInput) in);
+        String parentName = ((PlanStreamInput) in).readOptionalCachedString();
+        String qualifier = readQualifier((PlanStreamInput) in, in.getTransportVersion());
+        String name = ((PlanStreamInput) in).readCachedString();
+        if (in.getTransportVersion().supports(ESQL_FIELD_ATTRIBUTE_DROP_TYPE) == false) {
+            DataType.readFrom(in);
+        }
+        EsField field = EsField.readFrom(in);
+        if (in.getTransportVersion().supports(ESQL_FIELD_ATTRIBUTE_DROP_TYPE) == false) {
+            in.readOptionalString();
+        }
+        Nullability nullability = in.readEnum(Nullability.class);
+        NameId nameId = NameId.readFrom((StreamInput & PlanStreamInput) in);
+        boolean synthetic = in.readBoolean();
+        return new FieldAttribute(source, parentName, qualifier, name, field, nullability, nameId, synthetic);
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        Source.EMPTY.writeTo(out);
-        out.writeOptionalWriteable(parent);
-        out.writeString(name());
-        dataType().writeTo(out);
-        out.writeNamedWriteable(field);
-        out.writeOptionalString(qualifier());
-        out.writeEnum(nullable());
-        id().writeTo(out);
-        out.writeBoolean(synthetic());
+        if (((PlanStreamOutput) out).writeAttributeCacheHeader(this)) {
+            Source.EMPTY.writeTo(out);
+            ((PlanStreamOutput) out).writeOptionalCachedString(parentName);
+            checkAndSerializeQualifier((PlanStreamOutput) out, out.getTransportVersion());
+            ((PlanStreamOutput) out).writeCachedString(name());
+            if (out.getTransportVersion().supports(ESQL_FIELD_ATTRIBUTE_DROP_TYPE) == false) {
+                dataType().writeTo(out);
+            }
+            field.writeTo(out);
+            if (out.getTransportVersion().supports(ESQL_FIELD_ATTRIBUTE_DROP_TYPE) == false) {
+                // We used to write the qualifier here, even though it was always null.
+                out.writeOptionalString(null);
+            }
+            out.writeEnum(nullable());
+            id().writeTo(out);
+            out.writeBoolean(synthetic());
+        }
+    }
+
+    public static FieldAttribute readFrom(StreamInput in) throws IOException {
+        return ((PlanStreamInput) in).readAttributeWithCache(FieldAttribute::innerReadFrom);
     }
 
     @Override
@@ -120,20 +151,39 @@ public class FieldAttribute extends TypedAttribute {
 
     @Override
     protected NodeInfo<FieldAttribute> info() {
-        return NodeInfo.create(this, FieldAttribute::new, parent, name(), dataType(), field, qualifier(), nullable(), id(), synthetic());
+        return NodeInfo.create(this, FieldAttribute::new, parentName, qualifier(), name(), field, nullable(), id(), synthetic());
     }
 
-    public FieldAttribute parent() {
-        return parent;
+    public String parentName() {
+        return parentName;
     }
 
-    public String path() {
-        return path;
+    /**
+     * The full name of the field in the index, including all parent fields. E.g. {@code parent.subfield.this_field}.
+     */
+    public FieldName fieldName() {
+        if (lazyFieldName == null) {
+            // Before 8.15, the field name was the same as the attribute's name.
+            // On later versions, the attribute can be renamed when creating synthetic attributes.
+            // Because until 8.15, we couldn't set `synthetic` to true due to a bug, in that version such FieldAttributes are marked by
+            // their
+            // name starting with `$$`.
+            if ((synthetic() || name().startsWith(SYNTHETIC_ATTRIBUTE_NAME_PREFIX)) == false) {
+                lazyFieldName = new FieldName(name());
+            } else {
+                lazyFieldName = new FieldName(Strings.hasText(parentName) ? parentName + "." + field.getName() : field.getName());
+            }
+        }
+        return lazyFieldName;
     }
 
-    public String qualifiedPath() {
-        // return only the qualifier is there's no path
-        return qualifier() != null ? qualifier() + (Strings.hasText(path) ? "." + path : StringUtils.EMPTY) : path;
+    /**
+     * The name of the attribute. Can deviate from the field name e.g. in case of union types. For the physical field name, use
+     * {@link FieldAttribute#fieldName()}.
+     */
+    @Override
+    public String name() {
+        return super.name();
     }
 
     public EsField.Exact getExactInfo() {
@@ -149,36 +199,61 @@ public class FieldAttribute extends TypedAttribute {
     }
 
     private FieldAttribute innerField(EsField type) {
-        return new FieldAttribute(source(), this, name() + "." + type.getName(), type, qualifier(), nullable(), id(), synthetic());
+        return new FieldAttribute(
+            source(),
+            fieldName().string,
+            qualifier(),
+            name() + "." + type.getName(),
+            type,
+            nullable(),
+            id(),
+            synthetic()
+        );
     }
 
     @Override
     protected Attribute clone(
         Source source,
+        String qualifier,
         String name,
         DataType type,
-        String qualifier,
         Nullability nullability,
         NameId id,
         boolean synthetic
     ) {
-        FieldAttribute qualifiedParent = parent != null ? (FieldAttribute) parent.withQualifier(qualifier) : null;
-        return new FieldAttribute(source, qualifiedParent, name, field, qualifier, nullability, id, synthetic);
+        // Ignore `type`, this must be the same as the field's type.
+        return new FieldAttribute(source, parentName, qualifier, name, field, nullability, id, synthetic);
     }
 
     @Override
-    public int hashCode() {
-        return Objects.hash(super.hashCode(), path);
+    public Attribute withDataType(DataType type) {
+        throw new UnsupportedOperationException("FieldAttribute obtains its type from the contained EsField.");
     }
 
     @Override
-    public boolean equals(Object obj) {
-        return super.equals(obj) && Objects.equals(path, ((FieldAttribute) obj).path);
+    protected int innerHashCode(boolean ignoreIds) {
+        return Objects.hash(super.innerHashCode(ignoreIds), parentName, field);
+    }
+
+    @Override
+    protected boolean innerEquals(Object o, boolean ignoreIds) {
+        var other = (FieldAttribute) o;
+        return super.innerEquals(other, ignoreIds) && Objects.equals(parentName, other.parentName) && Objects.equals(field, other.field);
     }
 
     @Override
     protected String label() {
         return "f";
+    }
+
+    @Override
+    public boolean isDimension() {
+        return field.getTimeSeriesFieldType() == EsField.TimeSeriesFieldType.DIMENSION;
+    }
+
+    @Override
+    public boolean isMetric() {
+        return field.getTimeSeriesFieldType() == EsField.TimeSeriesFieldType.METRIC;
     }
 
     public EsField field() {

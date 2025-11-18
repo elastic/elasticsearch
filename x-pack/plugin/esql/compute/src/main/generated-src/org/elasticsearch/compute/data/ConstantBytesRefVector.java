@@ -7,14 +7,18 @@
 
 package org.elasticsearch.compute.data;
 
+// begin generated imports
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.ReleasableIterator;
+import org.elasticsearch.core.Releasables;
+import org.elasticsearch.core.ReleasableIterator;
+// end generated imports
 
 /**
  * Vector implementation that stores a constant BytesRef value.
- * This class is generated. Do not edit it.
+ * This class is generated. Edit {@code X-ConstantVector.java.st} instead.
  */
 final class ConstantBytesRefVector extends AbstractVector implements BytesRefVector {
 
@@ -28,8 +32,11 @@ final class ConstantBytesRefVector extends AbstractVector implements BytesRefVec
     }
 
     @Override
-    public BytesRef getBytesRef(int position, BytesRef ignore) {
-        return value;
+    public BytesRef getBytesRef(int position, BytesRef scratch) {
+        scratch.bytes = value.bytes;
+        scratch.offset = value.offset;
+        scratch.length = value.length;
+        return scratch;
     }
 
     @Override
@@ -45,6 +52,35 @@ final class ConstantBytesRefVector extends AbstractVector implements BytesRefVec
     @Override
     public BytesRefVector filter(int... positions) {
         return blockFactory().newConstantBytesRefVector(value, positions.length);
+    }
+
+    @Override
+    public BytesRefBlock keepMask(BooleanVector mask) {
+        if (getPositionCount() == 0) {
+            incRef();
+            return new BytesRefVectorBlock(this);
+        }
+        if (mask.isConstant()) {
+            if (mask.getBoolean(0)) {
+                incRef();
+                return new BytesRefVectorBlock(this);
+            }
+            return (BytesRefBlock) blockFactory().newConstantNullBlock(getPositionCount());
+        }
+        IntBlock ordinals = null;
+        BytesRefVector bytes = null;
+        try {
+            try (IntVector unmaskedOrdinals = blockFactory().newConstantIntVector(0, getPositionCount())) {
+                ordinals = unmaskedOrdinals.keepMask(mask);
+            }
+            bytes = blockFactory().newConstantBytesRefVector(value, getPositionCount());
+            OrdinalBytesRefBlock result = new OrdinalBytesRefBlock(ordinals, bytes);
+            ordinals = null;
+            bytes = null;
+            return result;
+        } finally {
+            Releasables.close(ordinals, bytes);
+        }
     }
 
     @Override
@@ -77,6 +113,11 @@ final class ConstantBytesRefVector extends AbstractVector implements BytesRefVec
     @Override
     public boolean isConstant() {
         return true;
+    }
+
+    @Override
+    public BytesRefVector deepCopy(BlockFactory blockFactory) {
+        return blockFactory.newConstantBytesRefVector(value, getPositionCount());
     }
 
     public static long ramBytesUsed(BytesRef value) {

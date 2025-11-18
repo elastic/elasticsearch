@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.security.action.apikey;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.security.SecurityContext;
@@ -48,13 +48,18 @@ public final class TransportUpdateCrossClusterApiKeyAction extends TransportBase
         final Authentication authentication,
         final ActionListener<UpdateApiKeyResponse> listener
     ) {
+        if (request.getCertificateIdentity() != null) {
+            apiKeyService.ensureCertificateIdentityFeatureIsEnabled();
+        }
+
         apiKeyService.updateApiKeys(
             authentication,
             new BaseBulkUpdateApiKeyRequest(
                 List.of(request.getId()),
                 request.getRoleDescriptors(),
                 request.getMetadata(),
-                request.getExpiration()
+                request.getExpiration(),
+                request.getCertificateIdentity()
             ) {
                 @Override
                 public ApiKey.Type getType() {

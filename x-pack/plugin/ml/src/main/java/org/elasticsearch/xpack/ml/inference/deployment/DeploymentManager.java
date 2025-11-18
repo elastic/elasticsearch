@@ -16,6 +16,7 @@ import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.TransportSearchAction;
+import org.elasticsearch.action.support.ListenerTimeouts;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.Strings;
@@ -79,6 +80,7 @@ public class DeploymentManager {
     private static final Logger logger = LogManager.getLogger(DeploymentManager.class);
     private static final AtomicLong requestIdCounter = new AtomicLong(1);
     public static final int NUM_RESTART_ATTEMPTS = 3;
+    private static final TimeValue WORKER_QUEUE_COMPLETION_TIMEOUT = TimeValue.timeValueMinutes(5);
 
     private final Client client;
     private final NamedXContentRegistry xContentRegistry;
@@ -331,7 +333,7 @@ public class DeploymentManager {
         }
     }
 
-    public void stopAfterCompletingPendingWork(TrainedModelDeploymentTask task) {
+    public void stopAfterCompletingPendingWork(TrainedModelDeploymentTask task, ActionListener<AcknowledgedResponse> listener) {
         ProcessContext processContext = processContextByAllocation.remove(task.getId());
         if (processContext != null) {
             logger.info(
@@ -339,7 +341,7 @@ public class DeploymentManager {
                 task.getDeploymentId(),
                 task.stoppedReason().orElse("unknown")
             );
-            processContext.stopProcessAfterCompletingPendingWork();
+            processContext.stopProcessAfterCompletingPendingWork(listener);
         } else {
             logger.warn("[{}] No process context to stop gracefully", task.getDeploymentId());
         }
@@ -569,7 +571,7 @@ public class DeploymentManager {
 
                 processContextByAllocation.remove(task.getId());
                 isStopped = true;
-                resultProcessor.stop();
+                resultProcessor.signalIntentToStop();
                 stateStreamer.cancel();
 
                 if (startsCount.get() <= NUM_RESTART_ATTEMPTS) {
@@ -631,12 +633,15 @@ public class DeploymentManager {
             logger.debug(() -> format("[%s] Forcefully stopping process", task.getDeploymentId()));
             prepareInternalStateForShutdown();
 
-            if (priorityProcessWorker.isShutdown()) {
-                // most likely there was a crash or exception that caused the
-                // thread to stop. Notify any waiting requests in the work queue
-                handleAlreadyShuttingDownWorker();
-            } else {
-                priorityProcessWorker.shutdown();
+            priorityProcessWorker.shutdownNow();
+            try {
+                // wait for any currently executing work to finish
+                if (priorityProcessWorker.awaitTermination(10L, TimeUnit.SECONDS)) {
+                    priorityProcessWorker.notifyQueueRunnables();
+                }
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                logger.info(Strings.format("[%s] Interrupted waiting for process worker after shutdownNow", PROCESS_NAME));
             }
 
             killProcessIfPresent();
@@ -645,14 +650,8 @@ public class DeploymentManager {
 
         private void prepareInternalStateForShutdown() {
             isStopped = true;
-            resultProcessor.stop();
+            resultProcessor.signalIntentToStop();
             stateStreamer.cancel();
-        }
-
-        private void handleAlreadyShuttingDownWorker() {
-            logger.debug(() -> format("[%s] Process worker was already marked for shutdown", task.getDeploymentId()));
-
-            priorityProcessWorker.notifyQueueRunnables();
         }
 
         private void killProcessIfPresent() {
@@ -672,49 +671,46 @@ public class DeploymentManager {
             }
         }
 
-        private synchronized void stopProcessAfterCompletingPendingWork() {
+        private synchronized void stopProcessAfterCompletingPendingWork(ActionListener<AcknowledgedResponse> listener) {
             logger.debug(() -> format("[%s] Stopping process after completing its pending work", task.getDeploymentId()));
             prepareInternalStateForShutdown();
 
-            if (priorityProcessWorker.isShutdown()) {
-                // most likely there was a crash or exception that caused the
-                // thread to stop. Notify any waiting requests in the work queue
-                handleAlreadyShuttingDownWorker();
-            } else {
-                signalAndWaitForWorkerTermination();
-            }
+            // Waiting for the process worker to finish the pending work could
+            // take a long time. To avoid blocking the calling thread register
+            // a function with the process worker queue that is called when the
+            // worker queue is finished. Then proceed to closing the native process
+            // and wait for all results to be processed, the second part can be
+            // done synchronously as it is not expected to take long.
 
-            stopProcessGracefully();
-            closeNlpTaskProcessor();
-        }
+            // This listener closes the native process and waits for the results
+            // after the worker queue has finished
+            var closeProcessListener = listener.delegateFailureAndWrap((l, r) -> {
+                // process worker stopped within allotted time, close process
+                closeProcessAndWaitForResultProcessor();
+                closeNlpTaskProcessor();
+                l.onResponse(AcknowledgedResponse.TRUE);
+            });
 
-        private void signalAndWaitForWorkerTermination() {
-            try {
-                awaitTerminationAfterCompletingWork();
-            } catch (TimeoutException e) {
-                logger.warn(format("[%s] Timed out waiting for process worker to complete, forcing a shutdown", task.getDeploymentId()), e);
-                // The process failed to stop in the time period allotted, so we'll mark it for shut down
-                priorityProcessWorker.shutdown();
-                priorityProcessWorker.notifyQueueRunnables();
-            }
-        }
-
-        private void awaitTerminationAfterCompletingWork() throws TimeoutException {
-            try {
-                priorityProcessWorker.shutdown();
-
-                if (priorityProcessWorker.awaitTermination(COMPLETION_TIMEOUT.getMinutes(), TimeUnit.MINUTES) == false) {
-                    throw new TimeoutException(
-                        Strings.format("Timed out waiting for process worker to complete for process %s", PROCESS_NAME)
+            // Timeout listener waits
+            var listenWithTimeout = ListenerTimeouts.wrapWithTimeout(
+                threadPool,
+                WORKER_QUEUE_COMPLETION_TIMEOUT,
+                threadPool.executor(MachineLearning.UTILITY_THREAD_POOL_NAME),
+                closeProcessListener,
+                (l) -> {
+                    // Stopping the process worker timed out, kill the process
+                    logger.warn(
+                        format("[%s] Timed out waiting for process worker to complete, forcing a shutdown", task.getDeploymentId())
                     );
+                    forcefullyStopProcess();
+                    l.onResponse(AcknowledgedResponse.FALSE);
                 }
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
-                logger.info(Strings.format("[%s] Interrupted waiting for process worker to complete", PROCESS_NAME));
-            }
+            );
+
+            priorityProcessWorker.shutdownWithCallback(() -> listenWithTimeout.onResponse(AcknowledgedResponse.TRUE));
         }
 
-        private void stopProcessGracefully() {
+        private void closeProcessAndWaitForResultProcessor() {
             try {
                 closeProcessIfPresent();
                 resultProcessor.awaitCompletion(COMPLETION_TIMEOUT.getMinutes(), TimeUnit.MINUTES);

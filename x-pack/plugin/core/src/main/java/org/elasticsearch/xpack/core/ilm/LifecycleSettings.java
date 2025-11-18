@@ -23,6 +23,7 @@ public class LifecycleSettings {
     public static final String LIFECYCLE_STEP_MASTER_TIMEOUT = "indices.lifecycle.step.master_timeout";
     public static final String LIFECYCLE_STEP_WAIT_TIME_THRESHOLD = "index.lifecycle.step.wait_time_threshold";
     public static final String LIFECYCLE_ROLLOVER_ONLY_IF_HAS_DOCUMENTS = "indices.lifecycle.rollover.only_if_has_documents";
+    public static final String LIFECYCLE_SKIP = "index.lifecycle.skip";
 
     public static final String SLM_HISTORY_INDEX_ENABLED = "slm.history_index_enabled";
     public static final String SLM_RETENTION_SCHEDULE = "slm.retention_schedule";
@@ -81,6 +82,12 @@ public class LifecycleSettings {
         Setting.Property.Dynamic,
         Setting.Property.NodeScope,
         Setting.Property.DeprecatedWarning
+    );
+    public static final Setting<Boolean> LIFECYCLE_SKIP_SETTING = Setting.boolSetting(
+        LIFECYCLE_SKIP,
+        false,
+        Setting.Property.Dynamic,
+        Setting.Property.IndexScope
     );
 
     public static final Setting<Boolean> SLM_HISTORY_INDEX_ENABLED_SETTING = Setting.boolSetting(

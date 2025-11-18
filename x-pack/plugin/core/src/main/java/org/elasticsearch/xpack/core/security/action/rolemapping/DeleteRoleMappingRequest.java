@@ -6,8 +6,8 @@
  */
 package org.elasticsearch.xpack.core.security.action.rolemapping;
 
-import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.LegacyActionRequest;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -19,7 +19,7 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
 /**
  * A request delete a role-mapping from the org.elasticsearch.xpack.security.authc.support.mapper.NativeRoleMappingStore
  */
-public class DeleteRoleMappingRequest extends ActionRequest implements WriteRequest<DeleteRoleMappingRequest> {
+public class DeleteRoleMappingRequest extends LegacyActionRequest implements WriteRequest<DeleteRoleMappingRequest> {
 
     private String name;
     private RefreshPolicy refreshPolicy = RefreshPolicy.IMMEDIATE;

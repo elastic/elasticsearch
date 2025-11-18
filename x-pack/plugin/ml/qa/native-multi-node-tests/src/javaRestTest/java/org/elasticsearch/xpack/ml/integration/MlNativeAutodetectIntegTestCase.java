@@ -246,7 +246,19 @@ abstract class MlNativeAutodetectIntegTestCase extends MlNativeIntegTestCase {
 
     protected void waitForecastToFinish(String jobId, String forecastId) throws Exception {
         // Forecasts can take an eternity to complete in the FIPS JVM
-        waitForecastStatus(inFipsJvm() ? 300 : 90, jobId, forecastId, ForecastRequestStats.ForecastRequestStatus.FINISHED);
+        int timeoutSeconds = inFipsJvm() ? 300 : 90;
+        // First wait for the forecast document to exist and be in a non-terminal state
+        // This handles the race condition where the document may be SCHEDULED or STARTED initially
+        waitForecastStatus(
+            timeoutSeconds,
+            jobId,
+            forecastId,
+            ForecastRequestStats.ForecastRequestStatus.SCHEDULED,
+            ForecastRequestStats.ForecastRequestStatus.STARTED,
+            ForecastRequestStats.ForecastRequestStatus.FINISHED
+        );
+        // Then wait specifically for FINISHED status
+        waitForecastStatus(timeoutSeconds, jobId, forecastId, ForecastRequestStats.ForecastRequestStatus.FINISHED);
     }
 
     protected void waitForecastStatus(String jobId, String forecastId, ForecastRequestStats.ForecastRequestStatus... status)
@@ -261,6 +273,10 @@ abstract class MlNativeAutodetectIntegTestCase extends MlNativeIntegTestCase {
         ForecastRequestStats.ForecastRequestStatus... status
     ) throws Exception {
         assertBusy(() -> {
+            // Refresh the index to ensure recently indexed forecast stats documents are visible
+            indicesAdmin().prepareRefresh(AnomalyDetectorsIndex.jobResultsAliasedName(jobId))
+                .setIndicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN_HIDDEN)
+                .get();
             ForecastRequestStats forecastRequestStats = getForecastStats(jobId, forecastId);
             assertThat(forecastRequestStats, is(notNullValue()));
             assertThat(forecastRequestStats.getStatus(), in(status));
@@ -285,6 +301,27 @@ abstract class MlNativeAutodetectIntegTestCase extends MlNativeIntegTestCase {
             }
             assertThat("Annotations were: " + annotations, annotations, hasSize(expectedNumberOfAnnotations));
         });
+    }
+
+    protected List<Annotation> getAnnotations() throws Exception {
+        List<Annotation> annotations = new ArrayList<>();
+        // Refresh the annotations index so that recently indexed annotation docs are visible.
+        indicesAdmin().prepareRefresh(AnnotationIndex.LATEST_INDEX_NAME)
+            .setIndicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN_CLOSED_HIDDEN)
+            .get();
+
+        SearchRequest searchRequest = new SearchRequest(AnnotationIndex.READ_ALIAS_NAME).indicesOptions(
+            IndicesOptions.LENIENT_EXPAND_OPEN_CLOSED_HIDDEN
+        );
+        assertCheckedResponse(client().search(searchRequest), searchResponse -> {
+
+            for (SearchHit hit : searchResponse.getHits().getHits()) {
+                try (XContentParser parser = createParser(jsonXContent, hit.getSourceRef())) {
+                    annotations.add(Annotation.fromXContent(parser, null));
+                }
+            }
+        });
+        return annotations;
     }
 
     protected ForecastRequestStats getForecastStats(String jobId, String forecastId) throws Exception {
@@ -351,7 +388,7 @@ abstract class MlNativeAutodetectIntegTestCase extends MlNativeIntegTestCase {
                         .filter(QueryBuilders.termQuery(Job.ID.getPreferredName(), jobId))
                         .filter(QueryBuilders.termQuery(Forecast.FORECAST_ID.getPreferredName(), forecastId))
                 ),
-            searchResponse -> count.set(searchResponse.getHits().getTotalHits().value)
+            searchResponse -> count.set(searchResponse.getHits().getTotalHits().value())
         );
         return count.get();
     }

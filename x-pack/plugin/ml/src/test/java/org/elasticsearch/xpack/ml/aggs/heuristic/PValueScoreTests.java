@@ -34,7 +34,7 @@ public class PValueScoreTests extends AbstractNXYSignificanceHeuristicTestCase {
 
     @Override
     protected TransportVersion randomVersion() {
-        return randomFrom(TransportVersions.V_8_0_0, TransportVersions.V_7_16_0);
+        return randomFrom(TransportVersions.V_8_0_0);
     }
 
     @Override

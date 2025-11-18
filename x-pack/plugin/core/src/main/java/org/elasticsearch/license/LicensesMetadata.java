@@ -7,7 +7,6 @@
 package org.elasticsearch.license;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.cluster.AbstractNamedDiffable;
 import org.elasticsearch.cluster.NamedDiff;
 import org.elasticsearch.cluster.metadata.Metadata;
@@ -27,7 +26,7 @@ import java.util.Objects;
 /**
  * Contains metadata about registered licenses
  */
-public class LicensesMetadata extends AbstractNamedDiffable<Metadata.Custom> implements Metadata.Custom {
+public class LicensesMetadata extends AbstractNamedDiffable<Metadata.ClusterCustom> implements Metadata.ClusterCustom {
 
     public static final String TYPE = "licenses";
 
@@ -108,7 +107,7 @@ public class LicensesMetadata extends AbstractNamedDiffable<Metadata.Custom> imp
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.MINIMUM_COMPATIBLE;
+        return TransportVersion.minimumCompatible();
     }
 
     @Override
@@ -186,8 +185,8 @@ public class LicensesMetadata extends AbstractNamedDiffable<Metadata.Custom> imp
         }
     }
 
-    public static NamedDiff<Metadata.Custom> readDiffFrom(StreamInput streamInput) throws IOException {
-        return readDiffFrom(Metadata.Custom.class, TYPE, streamInput);
+    public static NamedDiff<Metadata.ClusterCustom> readDiffFrom(StreamInput streamInput) throws IOException {
+        return readDiffFrom(Metadata.ClusterCustom.class, TYPE, streamInput);
     }
 
     public static License extractLicense(LicensesMetadata licensesMetadata) {

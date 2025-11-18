@@ -1,45 +1,49 @@
 {
-  "cat.thread_pool":{
-    "documentation":{
-      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/master/cat-thread-pool.html",
-      "description":"Returns cluster-wide thread pool statistics per node.\nBy default the active, queue and rejected statistics are returned for all thread pools."
+  "cat.thread_pool": {
+    "documentation": {
+      "url": "https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-cat-thread-pool",
+      "description": "Get thread pool statistics"
     },
-    "stability":"stable",
-    "visibility":"public",
-    "headers":{
-      "accept": [ "text/plain", "application/json"]
+    "stability": "stable",
+    "visibility": "public",
+    "headers": {
+      "accept": [
+        "text/plain",
+        "application/json"
+      ]
     },
-    "url":{
-      "paths":[
+    "url": {
+      "paths": [
         {
-          "path":"/_cat/thread_pool",
-          "methods":[
+          "path": "/_cat/thread_pool",
+          "methods": [
             "GET"
           ]
         },
         {
-          "path":"/_cat/thread_pool/{thread_pool_patterns}",
-          "methods":[
+          "path": "/_cat/thread_pool/{thread_pool_patterns}",
+          "methods": [
             "GET"
           ],
-          "parts":{
-            "thread_pool_patterns":{
-              "type":"list",
-              "description":"A comma-separated list of regular-expressions to filter the thread pools in the output"
+          "parts": {
+            "thread_pool_patterns": {
+              "type": "list",
+              "description": "A comma-separated list of regular-expressions to filter the thread pools in the output"
             }
           }
         }
       ]
     },
-    "params":{
-      "format":{
-        "type":"string",
-        "description":"a short version of the Accept header, e.g. json, yaml"
+    "params": {
+      "format": {
+        "type": "string",
+        "default": "text",
+        "description": "a short version of the Accept header, e.g. json, yaml"
       },
-      "time":{
-        "type":"enum",
-        "description":"The unit in which to display time values",
-        "options":[
+      "time": {
+        "type": "enum",
+        "description": "The unit in which to display time values",
+        "options": [
           "d",
           "h",
           "m",
@@ -49,31 +53,67 @@
           "nanos"
         ]
       },
-      "local":{
-        "type":"boolean",
-        "description":"Return local information, do not retrieve the state from master node (default: false)"
+      "local": {
+        "type": "boolean",
+        "default": false,
+        "description": "Return local information, do not retrieve the state from master node (default: false)"
       },
-      "master_timeout":{
-        "type":"time",
-        "description":"Explicit operation timeout for connection to master node"
+      "master_timeout": {
+        "type": "time",
+        "default": "30s",
+        "description": "Explicit operation timeout for connection to master node"
       },
-      "h":{
-        "type":"list",
-        "description":"Comma-separated list of column names to display"
+      "h": {
+        "type": "list",
+        "description": "Comma-separated list of column names to display",
+        "options": [
+          "active",
+          "completed",
+          "core",
+          "ephemeral_id",
+          "host",
+          "ip",
+          "keep_alive",
+          "largest",
+          "max",
+          "name",
+          "node_id",
+          "node_name",
+          "pid",
+          "pool_size",
+          "port",
+          "queue",
+          "queue_size",
+          "rejected",
+          "size",
+          "type"
+        ]
       },
-      "help":{
-        "type":"boolean",
-        "description":"Return help information",
-        "default":false
+      "help": {
+        "type": "boolean",
+        "description": "Return help information",
+        "default": false
       },
-      "s":{
-        "type":"list",
-        "description":"Comma-separated list of column names or column aliases to sort by"
+      "s": {
+        "type": "list",
+        "description": "Comma-separated list of column names or column aliases to sort by"
       },
-      "v":{
-        "type":"boolean",
-        "description":"Verbose mode. Display column headers",
-        "default":false
+      "v": {
+        "type": "boolean",
+        "description": "Verbose mode. Display column headers",
+        "default": false
+      },
+      "bytes": {
+        "type": "enum",
+        "description": "The unit in which to display byte values",
+        "options": [
+          "b",
+          "kb",
+          "mb",
+          "gb",
+          "tb",
+          "pb"
+        ]
       }
     }
   }

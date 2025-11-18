@@ -1,5 +1,0 @@
-pr: 107893
-summary: Optimise histogram aggregations for single value fields
-area: Aggregations
-type: enhancement
-issues: []

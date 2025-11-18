@@ -26,6 +26,7 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.DataStreamLifecycle;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.compress.CompressedXContent;
@@ -119,22 +120,15 @@ public class DataStreamLifecycleDownsamplingSecurityIT extends SecurityIntegTest
     public void testDownsamplingAuthorized() throws Exception {
         String dataStreamName = "metrics-foo";
 
-        DataStreamLifecycle lifecycle = DataStreamLifecycle.newBuilder()
-            .downsampling(
-                new DataStreamLifecycle.Downsampling(
-                    List.of(
-                        new DataStreamLifecycle.Downsampling.Round(
-                            TimeValue.timeValueMillis(0),
-                            new DownsampleConfig(new DateHistogramInterval("5m"))
-                        ),
-                        new DataStreamLifecycle.Downsampling.Round(
-                            TimeValue.timeValueSeconds(10),
-                            new DownsampleConfig(new DateHistogramInterval("10m"))
-                        )
-                    )
+        DataStreamLifecycle.Template lifecycle = DataStreamLifecycle.dataLifecycleBuilder()
+            .downsamplingMethod(randomSamplingMethod())
+            .downsamplingRounds(
+                List.of(
+                    new DataStreamLifecycle.DownsamplingRound(TimeValue.timeValueMillis(0), new DateHistogramInterval("5m")),
+                    new DataStreamLifecycle.DownsamplingRound(TimeValue.timeValueSeconds(10), new DateHistogramInterval("10m"))
                 )
             )
-            .build();
+            .buildTemplate();
 
         setupDataStreamAndIngestDocs(
             client(),
@@ -245,9 +239,9 @@ public class DataStreamLifecycleDownsamplingSecurityIT extends SecurityIntegTest
         Map<String, String> indicesAndErrors = new HashMap<>();
         for (DataStreamLifecycleService lifecycleService : lifecycleServices) {
             DataStreamLifecycleErrorStore errorStore = lifecycleService.getErrorStore();
-            Set<String> allIndices = errorStore.getAllIndices();
+            Set<String> allIndices = errorStore.getAllIndices(Metadata.DEFAULT_PROJECT_ID);
             for (var index : allIndices) {
-                ErrorEntry error = errorStore.getError(index);
+                ErrorEntry error = errorStore.getError(Metadata.DEFAULT_PROJECT_ID, index);
                 if (error != null) {
                     indicesAndErrors.put(index, error.error());
                 }
@@ -257,7 +251,10 @@ public class DataStreamLifecycleDownsamplingSecurityIT extends SecurityIntegTest
     }
 
     private List<Index> getDataStreamBackingIndices(String dataStreamName) {
-        GetDataStreamAction.Request getDataStreamRequest = new GetDataStreamAction.Request(new String[] { dataStreamName });
+        GetDataStreamAction.Request getDataStreamRequest = new GetDataStreamAction.Request(
+            TEST_REQUEST_TIMEOUT,
+            new String[] { dataStreamName }
+        );
         GetDataStreamAction.Response getDataStreamResponse = client().execute(GetDataStreamAction.INSTANCE, getDataStreamRequest)
             .actionGet();
         assertThat(getDataStreamResponse.getDataStreams().size(), equalTo(1));
@@ -281,7 +278,7 @@ public class DataStreamLifecycleDownsamplingSecurityIT extends SecurityIntegTest
         String dataStreamName,
         @Nullable String startTime,
         @Nullable String endTime,
-        DataStreamLifecycle lifecycle,
+        DataStreamLifecycle.Template lifecycle,
         int docCount,
         String firstDocTimestamp
     ) throws IOException {
@@ -295,7 +292,7 @@ public class DataStreamLifecycleDownsamplingSecurityIT extends SecurityIntegTest
         String pattern,
         @Nullable String startTime,
         @Nullable String endTime,
-        DataStreamLifecycle lifecycle
+        DataStreamLifecycle.Template lifecycle
     ) throws IOException {
         Settings.Builder settings = indexSettings(1, 0).put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES)
             .putList(IndexMetadata.INDEX_ROUTING_PATH.getKey(), List.of(FIELD_DIMENSION_1));
@@ -333,13 +330,13 @@ public class DataStreamLifecycleDownsamplingSecurityIT extends SecurityIntegTest
         List<String> patterns,
         @Nullable Settings settings,
         @Nullable Map<String, Object> metadata,
-        @Nullable DataStreamLifecycle lifecycle
+        @Nullable DataStreamLifecycle.Template lifecycle
     ) {
         TransportPutComposableIndexTemplateAction.Request request = new TransportPutComposableIndexTemplateAction.Request(id);
         request.indexTemplate(
             ComposableIndexTemplate.builder()
                 .indexPatterns(patterns)
-                .template(new Template(settings, mappings, null, lifecycle))
+                .template(Template.builder().settings(settings).mappings(mappings).lifecycle(lifecycle))
                 .metadata(metadata)
                 .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate())
                 .build()
@@ -406,24 +403,25 @@ public class DataStreamLifecycleDownsamplingSecurityIT extends SecurityIntegTest
         logger.info("-> Indexed [{}] documents. Dropped [{}] duplicates.", docsIndexed, duplicates);
     }
 
+    private static DownsampleConfig.SamplingMethod randomSamplingMethod() {
+        if (between(0, DownsampleConfig.SamplingMethod.values().length) == 0) {
+            return null;
+        } else {
+            return randomFrom(DownsampleConfig.SamplingMethod.values());
+        }
+    }
+
     public static class SystemDataStreamWithDownsamplingConfigurationPlugin extends Plugin implements SystemIndexPlugin {
 
-        public static final DataStreamLifecycle LIFECYCLE = DataStreamLifecycle.newBuilder()
-            .downsampling(
-                new DataStreamLifecycle.Downsampling(
-                    List.of(
-                        new DataStreamLifecycle.Downsampling.Round(
-                            TimeValue.timeValueMillis(0),
-                            new DownsampleConfig(new DateHistogramInterval("5m"))
-                        ),
-                        new DataStreamLifecycle.Downsampling.Round(
-                            TimeValue.timeValueSeconds(10),
-                            new DownsampleConfig(new DateHistogramInterval("10m"))
-                        )
-                    )
+        public static final DataStreamLifecycle.Template LIFECYCLE = DataStreamLifecycle.dataLifecycleBuilder()
+            .downsamplingMethod(randomSamplingMethod())
+            .downsamplingRounds(
+                List.of(
+                    new DataStreamLifecycle.DownsamplingRound(TimeValue.timeValueMillis(0), new DateHistogramInterval("5m")),
+                    new DataStreamLifecycle.DownsamplingRound(TimeValue.timeValueSeconds(10), new DateHistogramInterval("10m"))
                 )
             )
-            .build();
+            .buildTemplate();
         static final String SYSTEM_DATA_STREAM_NAME = ".fleet-actions-results";
 
         @Override
@@ -439,11 +437,12 @@ public class DataStreamLifecycleDownsamplingSecurityIT extends SecurityIntegTest
                         SystemDataStreamDescriptor.Type.EXTERNAL,
                         ComposableIndexTemplate.builder()
                             .indexPatterns(List.of(SYSTEM_DATA_STREAM_NAME))
-                            .template(new Template(settings.build(), getTSDBMappings(), null, LIFECYCLE))
+                            .template(Template.builder().settings(settings).mappings(getTSDBMappings()).lifecycle(LIFECYCLE))
                             .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate())
                             .build(),
                         Map.of(),
                         Collections.singletonList("test"),
+                        "test",
                         new ExecutorNames(
                             ThreadPool.Names.SYSTEM_CRITICAL_READ,
                             ThreadPool.Names.SYSTEM_READ,

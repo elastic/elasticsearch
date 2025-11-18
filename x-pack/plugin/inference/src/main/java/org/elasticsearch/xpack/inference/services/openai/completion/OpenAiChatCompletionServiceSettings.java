@@ -32,9 +32,9 @@ import static org.elasticsearch.xpack.inference.services.ServiceFields.MODEL_ID;
 import static org.elasticsearch.xpack.inference.services.ServiceFields.URL;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.convertToUri;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.createOptionalUri;
+import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalPositiveInteger;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalString;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractRequiredString;
-import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeAsType;
 import static org.elasticsearch.xpack.inference.services.openai.OpenAiServiceFields.ORGANIZATION;
 
 /**
@@ -47,7 +47,7 @@ public class OpenAiChatCompletionServiceSettings extends FilteredXContentObject 
     // The rate limit for usage tier 1 is 500 request per minute for most of the completion models
     // To find this information you need to access your account's limits https://platform.openai.com/account/limits
     // 500 requests per minute
-    private static final RateLimitSettings DEFAULT_RATE_LIMIT_SETTINGS = new RateLimitSettings(500);
+    public static final RateLimitSettings DEFAULT_RATE_LIMIT_SETTINGS = new RateLimitSettings(500);
 
     public static OpenAiChatCompletionServiceSettings fromMap(Map<String, Object> map, ConfigurationParseContext context) {
         ValidationException validationException = new ValidationException();
@@ -58,7 +58,12 @@ public class OpenAiChatCompletionServiceSettings extends FilteredXContentObject 
         String url = extractOptionalString(map, URL, ModelConfigurations.SERVICE_SETTINGS, validationException);
         URI uri = convertToUri(url, URL, ModelConfigurations.SERVICE_SETTINGS, validationException);
 
-        Integer maxInputTokens = removeAsType(map, MAX_INPUT_TOKENS, Integer.class);
+        Integer maxInputTokens = extractOptionalPositiveInteger(
+            map,
+            MAX_INPUT_TOKENS,
+            ModelConfigurations.SERVICE_SETTINGS,
+            validationException
+        );
 
         RateLimitSettings rateLimitSettings = RateLimitSettings.of(
             map,
@@ -113,12 +118,7 @@ public class OpenAiChatCompletionServiceSettings extends FilteredXContentObject 
         this.uri = createOptionalUri(in.readOptionalString());
         this.organizationId = in.readOptionalString();
         this.maxInputTokens = in.readOptionalVInt();
-
-        if (in.getTransportVersion().onOrAfter(TransportVersions.ML_INFERENCE_RATE_LIMIT_SETTINGS_ADDED)) {
-            rateLimitSettings = new RateLimitSettings(in);
-        } else {
-            rateLimitSettings = DEFAULT_RATE_LIMIT_SETTINGS;
-        }
+        this.rateLimitSettings = new RateLimitSettings(in);
     }
 
     @Override
@@ -182,7 +182,7 @@ public class OpenAiChatCompletionServiceSettings extends FilteredXContentObject 
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.ML_COMPLETION_INFERENCE_SERVICE_ADDED;
+        return TransportVersions.V_8_14_0;
     }
 
     @Override
@@ -191,10 +191,7 @@ public class OpenAiChatCompletionServiceSettings extends FilteredXContentObject 
         out.writeOptionalString(uri != null ? uri.toString() : null);
         out.writeOptionalString(organizationId);
         out.writeOptionalVInt(maxInputTokens);
-
-        if (out.getTransportVersion().onOrAfter(TransportVersions.ML_INFERENCE_RATE_LIMIT_SETTINGS_ADDED)) {
-            rateLimitSettings.writeTo(out);
-        }
+        rateLimitSettings.writeTo(out);
     }
 
     @Override

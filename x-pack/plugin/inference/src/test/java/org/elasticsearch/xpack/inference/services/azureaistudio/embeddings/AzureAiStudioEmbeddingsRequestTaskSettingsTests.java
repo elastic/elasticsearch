@@ -18,6 +18,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
 
 public class AzureAiStudioEmbeddingsRequestTaskSettingsTests extends ESTestCase {
+
     public void testFromMap_ReturnsEmptySettings_WhenTheMapIsEmpty() {
         var settings = AzureAiStudioEmbeddingsRequestTaskSettings.fromMap(new HashMap<>(Map.of()));
         assertThat(settings, is(AzureAiStudioEmbeddingsRequestTaskSettings.EMPTY_SETTINGS));

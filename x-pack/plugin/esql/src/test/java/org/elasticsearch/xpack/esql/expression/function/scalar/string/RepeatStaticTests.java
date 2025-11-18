@@ -18,13 +18,14 @@ import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BlockUtils;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
+import org.elasticsearch.compute.test.TestBlockFactory;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.esql.TestBlockFactory;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
+import org.elasticsearch.xpack.esql.core.expression.function.scalar.ScalarFunction;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
-import org.elasticsearch.xpack.esql.expression.function.AbstractFunctionTestCase;
+import org.elasticsearch.xpack.esql.expression.function.AbstractScalarFunctionTestCase;
 import org.junit.After;
 
 import java.util.ArrayList;
@@ -36,7 +37,7 @@ import static org.hamcrest.Matchers.equalTo;
 
 /**
  * These tests create rows that are 1MB in size. Test classes
- * which extend AbstractFunctionTestCase rerun test cases with
+ * which extend AbstractScalarFunctionTestCase rerun test cases with
  * many randomized inputs. Unfortunately, tests are run with
  * limited memory, and instantiating many copies of these
  * tests with large rows causes out of memory.
@@ -45,14 +46,14 @@ public class RepeatStaticTests extends ESTestCase {
 
     public void testAlmostTooBig() {
         String str = randomAlphaOfLength(1);
-        int number = (int) Repeat.MAX_REPEATED_LENGTH;
+        int number = (int) ScalarFunction.MAX_BYTES_REF_RESULT_SIZE;
         String repeated = process(str, number);
         assertThat(repeated, equalTo(str.repeat(number)));
     }
 
     public void testTooBig() {
         String str = randomAlphaOfLength(1);
-        int number = (int) Repeat.MAX_REPEATED_LENGTH + 1;
+        int number = (int) ScalarFunction.MAX_BYTES_REF_RESULT_SIZE + 1;
         String repeated = process(str, number);
         assertNull(repeated);
         assertWarnings(
@@ -63,7 +64,7 @@ public class RepeatStaticTests extends ESTestCase {
 
     public String process(String str, int number) {
         try (
-            var eval = AbstractFunctionTestCase.evaluator(
+            var eval = AbstractScalarFunctionTestCase.evaluator(
                 new Repeat(Source.EMPTY, field("string", DataType.KEYWORD), field("number", DataType.INTEGER))
             ).get(driverContext());
             Block block = eval.eval(row(List.of(new BytesRef(str), number)));
@@ -73,7 +74,7 @@ public class RepeatStaticTests extends ESTestCase {
     }
 
     /**
-     * The following fields and methods were borrowed from AbstractFunctionTestCase
+     * The following fields and methods were borrowed from AbstractScalarFunctionTestCase
      */
     private final List<CircuitBreaker> breakers = Collections.synchronizedList(new ArrayList<>());
 
@@ -82,7 +83,7 @@ public class RepeatStaticTests extends ESTestCase {
     }
 
     private static FieldAttribute field(String name, DataType type) {
-        return new FieldAttribute(Source.synthetic(name), name, new EsField(name, type, Map.of(), true));
+        return new FieldAttribute(Source.synthetic(name), name, new EsField(name, type, Map.of(), true, EsField.TimeSeriesFieldType.NONE));
     }
 
     private DriverContext driverContext() {

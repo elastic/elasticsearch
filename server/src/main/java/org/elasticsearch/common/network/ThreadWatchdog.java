@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.common.network;
@@ -48,8 +49,6 @@ public class ThreadWatchdog {
         TimeValue.timeValueMinutes(10),
         Setting.Property.NodeScope
     );
-
-    private static final Logger logger = LogManager.getLogger(ThreadWatchdog.class);
 
     /**
      * Activity tracker for the current thread. Thread-locals are only retained by the owning thread so these will be GCd after thread exit.
@@ -130,6 +129,16 @@ public class ThreadWatchdog {
             assert isIdle(prevValue) : "thread [" + trackedThread.getName() + "] was already active";
         }
 
+        public boolean maybeStartActivity() {
+            assert trackedThread == Thread.currentThread() : trackedThread.getName() + " vs " + Thread.currentThread().getName();
+            if (isIdle(get())) {
+                getAndIncrement();
+                return true;
+            } else {
+                return false;
+            }
+        }
+
         public void stopActivity() {
             assert trackedThread == Thread.currentThread() : trackedThread.getName() + " vs " + Thread.currentThread().getName();
             final var prevValue = getAndIncrement();
@@ -158,8 +167,17 @@ public class ThreadWatchdog {
     }
 
     public void run(Settings settings, ThreadPool threadPool, Lifecycle lifecycle) {
-        new Checker(threadPool, NETWORK_THREAD_WATCHDOG_INTERVAL.get(settings), NETWORK_THREAD_WATCHDOG_QUIET_TIME.get(settings), lifecycle)
-            .run();
+        run(
+            NETWORK_THREAD_WATCHDOG_INTERVAL.get(settings),
+            NETWORK_THREAD_WATCHDOG_QUIET_TIME.get(settings),
+            threadPool,
+            lifecycle,
+            LogManager.getLogger(ThreadWatchdog.class)
+        );
+    }
+
+    public void run(TimeValue interval, TimeValue quietTime, ThreadPool threadPool, Lifecycle lifecycle, Logger logger) {
+        new Checker(threadPool, interval, quietTime, lifecycle, logger).run();
     }
 
     /**
@@ -171,12 +189,14 @@ public class ThreadWatchdog {
         private final TimeValue interval;
         private final TimeValue quietTime;
         private final Lifecycle lifecycle;
+        private final Logger logger;
 
-        Checker(ThreadPool threadPool, TimeValue interval, TimeValue quietTime, Lifecycle lifecycle) {
+        Checker(ThreadPool threadPool, TimeValue interval, TimeValue quietTime, Lifecycle lifecycle, Logger logger) {
             this.threadPool = threadPool;
             this.interval = interval;
             this.quietTime = quietTime.compareTo(interval) <= 0 ? interval : quietTime;
             this.lifecycle = lifecycle;
+            this.logger = logger;
             assert this.interval.millis() <= this.quietTime.millis();
         }
 

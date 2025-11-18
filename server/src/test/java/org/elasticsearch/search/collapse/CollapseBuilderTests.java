@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.search.collapse;
 
@@ -17,10 +18,10 @@ import org.apache.lucene.tests.analysis.MockAnalyzer;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.mapper.IndexType;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
-import org.elasticsearch.index.mapper.TextSearchInfo;
 import org.elasticsearch.index.mapper.ValueFetcher;
 import org.elasticsearch.index.query.InnerHitBuilder;
 import org.elasticsearch.index.query.InnerHitBuilderTests;
@@ -144,8 +145,7 @@ public class CollapseBuilderTests extends AbstractXContentSerializingTestCase<Co
             numberFieldType = new NumberFieldMapper.NumberFieldType(
                 "field",
                 NumberFieldMapper.NumberType.LONG,
-                true,
-                false,
+                IndexType.points(true, false),
                 false,
                 false,
                 null,
@@ -153,7 +153,8 @@ public class CollapseBuilderTests extends AbstractXContentSerializingTestCase<Co
                 null,
                 false,
                 null,
-                null
+                null,
+                false
             );
             when(searchExecutionContext.getFieldType("field")).thenReturn(numberFieldType);
             IllegalArgumentException exc = expectThrows(IllegalArgumentException.class, () -> builder.build(searchExecutionContext));
@@ -162,16 +163,16 @@ public class CollapseBuilderTests extends AbstractXContentSerializingTestCase<Co
             numberFieldType = new NumberFieldMapper.NumberFieldType(
                 "field",
                 NumberFieldMapper.NumberType.LONG,
+                IndexType.docValuesOnly(),
                 false,
-                false,
-                true,
                 false,
                 null,
                 Collections.emptyMap(),
                 null,
                 false,
                 null,
-                null
+                null,
+                false
             );
             when(searchExecutionContext.getFieldType("field")).thenReturn(numberFieldType);
             builder.setInnerHits(new InnerHitBuilder().setName("field"));
@@ -213,7 +214,7 @@ public class CollapseBuilderTests extends AbstractXContentSerializingTestCase<Co
         }
 
         {
-            MappedFieldType fieldType = new MappedFieldType("field", true, false, true, TextSearchInfo.NONE, Collections.emptyMap()) {
+            MappedFieldType fieldType = new MappedFieldType("field", IndexType.points(true, true), false, Collections.emptyMap()) {
                 @Override
                 public String typeName() {
                     return "some_type";

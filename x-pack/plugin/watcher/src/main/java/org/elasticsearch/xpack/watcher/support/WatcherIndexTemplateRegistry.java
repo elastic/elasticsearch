@@ -9,8 +9,10 @@ package org.elasticsearch.xpack.watcher.support;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.NotMultiProjectCapable;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xpack.core.ilm.LifecyclePolicy;
@@ -89,8 +91,10 @@ public class WatcherIndexTemplateRegistry extends IndexTemplateRegistry {
         return WATCHER_ORIGIN;
     }
 
+    @NotMultiProjectCapable(description = "Watcher is not available in serverless")
     public static boolean validate(ClusterState state) {
         return state.getMetadata()
+            .getProject(ProjectId.DEFAULT)
             .templatesV2()
             .keySet()
             .stream()

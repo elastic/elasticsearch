@@ -1,25 +1,26 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.gradle.internal
+
+import groovy.ant.AntBuilder
 
 import org.apache.tools.ant.BuildListener
 import org.apache.tools.ant.BuildLogger
 import org.apache.tools.ant.DefaultLogger
 import org.apache.tools.ant.Project
 import org.gradle.api.DefaultTask
-import org.gradle.api.GradleException
 import org.gradle.api.file.FileSystemOperations
-import org.gradle.api.tasks.Input
 import org.gradle.api.tasks.TaskAction
 
-import javax.inject.Inject
 import java.nio.charset.Charset
+import javax.inject.Inject
 
 /**
  * A task which will run ant commands.
@@ -28,11 +29,6 @@ import java.nio.charset.Charset
  */
 public abstract class AntTask extends DefaultTask {
 
-    /**
-     * A buffer that will contain the output of the ant code run,
-     * if the output was not already written directly to stdout.
-     */
-    public final ByteArrayOutputStream outputBuffer = new ByteArrayOutputStream()
 
     @Inject
     protected FileSystemOperations getFileSystemOperations() {
@@ -56,6 +52,11 @@ public abstract class AntTask extends DefaultTask {
 
         // otherwise groovy replaces System.out, and you have no chance to debug
         // ant.saveStreams = false
+        /**
+         * A buffer that will contain the output of the ant code run,
+         * if the output was not already written directly to stdout.
+         */
+        ByteArrayOutputStream outputBuffer = new ByteArrayOutputStream()
 
         final int outputLevel = logger.isDebugEnabled() ? Project.MSG_DEBUG : Project.MSG_INFO
         final PrintStream stream = useStdout() ? System.out : new PrintStream(outputBuffer, true, Charset.defaultCharset().name())
@@ -82,7 +83,8 @@ public abstract class AntTask extends DefaultTask {
         return new DefaultLogger(
             errorPrintStream: stream,
             outputPrintStream: stream,
-            messageOutputLevel: outputLevel)
+            messageOutputLevel: outputLevel
+        )
     }
 
     /**

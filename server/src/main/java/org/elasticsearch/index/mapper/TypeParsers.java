@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.mapper;
@@ -160,7 +161,15 @@ public class TypeParsers {
 
                 Mapper.TypeParser typeParser = parserContext.typeParser(type);
                 if (typeParser == null) {
-                    throw new MapperParsingException("no handler for type [" + type + "] declared on field [" + multiFieldName + "]");
+                    throw new MapperParsingException(
+                        "The mapper type ["
+                            + type
+                            + "] declared on field ["
+                            + multiFieldName
+                            + "] does not exist."
+                            + " It might have been created within a future version or requires a plugin to be installed."
+                            + " Check the documentation."
+                    );
                 }
                 if (typeParser instanceof FieldMapper.TypeParser == false) {
                     throw new MapperParsingException("Type [" + type + "] cannot be used in multi field");
@@ -178,7 +187,7 @@ public class TypeParsers {
 
     public static DateFormatter parseDateTimeFormatter(Object node) {
         if (node instanceof String) {
-            return DateFormatter.forPattern((String) node);
+            return DateFormatter.forPattern((String) node).withLocale(DateFieldMapper.DEFAULT_LOCALE);
         }
         throw new IllegalArgumentException("Invalid format: [" + node.toString() + "]: expected string value");
     }

@@ -37,7 +37,28 @@ public class EqlSampleIT extends EqlSampleTestCase {
         return REMOTE_CLUSTER.getHttpAddresses();
     }
 
-    public EqlSampleIT(String query, String name, List<long[]> eventIds, String[] joinKeys, Integer size, Integer maxSamplesPerKey) {
-        super(remoteClusterPattern(TEST_SAMPLE), query, name, eventIds, joinKeys, size, maxSamplesPerKey);
+    public EqlSampleIT(
+        String query,
+        String name,
+        List<long[]> eventIds,
+        String[] joinKeys,
+        Integer size,
+        Integer maxSamplesPerKey,
+        Boolean allowPartialSearchResults,
+        Boolean allowPartialSequenceResults,
+        Boolean expectShardFailures
+    ) {
+        super(
+            remoteClusterPattern(TEST_SAMPLE),
+            query,
+            name,
+            eventIds,
+            joinKeys,
+            size,
+            maxSamplesPerKey,
+            allowPartialSearchResults,
+            allowPartialSequenceResults,
+            expectShardFailures
+        );
     }
 }

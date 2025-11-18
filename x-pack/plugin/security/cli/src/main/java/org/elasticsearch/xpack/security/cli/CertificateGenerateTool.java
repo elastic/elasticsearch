@@ -403,7 +403,7 @@ class CertificateGenerateTool extends EnvironmentAwareCommand {
         // generate the CA keys and cert
         X500Principal x500Principal = new X500Principal(dn);
         KeyPair keyPair = CertGenUtils.generateKeyPair(keysize);
-        Certificate caCert = CertGenUtils.generateCACertificate(x500Principal, keyPair, days);
+        Certificate caCert = CertGenUtils.generateCACertificate(x500Principal, keyPair, days, null);
         final char[] password;
         if (prompt) {
             password = terminal.readSecret("Enter password for CA private key: ");

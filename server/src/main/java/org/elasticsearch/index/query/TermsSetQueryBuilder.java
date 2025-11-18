@@ -1,17 +1,16 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.index.query;
 
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.sandbox.search.CoveringQuery;
-import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.DoubleValues;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.LongValues;
@@ -26,6 +25,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
+import org.elasticsearch.index.fielddata.SortedNumericLongValues;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.TermsSetQueryScript;
@@ -272,8 +272,8 @@ public final class TermsSetQueryBuilder extends AbstractQueryBuilder<TermsSetQue
             return Queries.newMatchNoDocsQuery("No terms supplied for \"" + getName() + "\" query.");
         }
         // Fail before we attempt to create the term queries:
-        if (values.size() > BooleanQuery.getMaxClauseCount()) {
-            throw new BooleanQuery.TooManyClauses();
+        if (values.size() > IndexSearcher.getMaxClauseCount()) {
+            throw new IndexSearcher.TooManyClauses();
         }
 
         List<Query> queries = createTermQueries(context);
@@ -438,7 +438,7 @@ public final class TermsSetQueryBuilder extends AbstractQueryBuilder<TermsSetQue
 
         @Override
         public LongValues getValues(LeafReaderContext ctx, DoubleValues scores) throws IOException {
-            SortedNumericDocValues values = fieldData.load(ctx).getLongValues();
+            SortedNumericLongValues values = fieldData.load(ctx).getLongValues();
             return new LongValues() {
 
                 long current = -1;
@@ -480,6 +480,6 @@ public final class TermsSetQueryBuilder extends AbstractQueryBuilder<TermsSetQue
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.ZERO;
+        return TransportVersion.zero();
     }
 }

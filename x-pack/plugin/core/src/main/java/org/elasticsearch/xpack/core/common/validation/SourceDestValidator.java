@@ -69,7 +69,8 @@ public final class SourceDestValidator {
         + "alias [{0}], at least a [{1}] license is required, found license [{2}]";
     public static final String REMOTE_CLUSTER_LICENSE_INACTIVE = "License check failed for remote cluster "
         + "alias [{0}], license is not active";
-    public static final String REMOTE_SOURCE_INDICES_NOT_SUPPORTED = "remote source indices are not supported";
+    public static final String REMOTE_SOURCE_AND_CROSS_PROJECT_INDICES_ARE_NOT_SUPPORTED =
+        "remote source and cross-project indices are not supported";
     public static final String REMOTE_CLUSTERS_TRANSPORT_TOO_OLD =
         "remote clusters are expected to run at least version [{0}] (reason: [{1}])," + " but the following clusters were too old: [{2}]";
     public static final String PIPELINE_MISSING = "Pipeline with id [{0}] could not be found";
@@ -555,7 +556,7 @@ public final class SourceDestValidator {
         @Override
         public void validate(Context context, ActionListener<Context> listener) {
             if (context.resolveRemoteSource().isEmpty() == false) {
-                context.addValidationError(REMOTE_SOURCE_INDICES_NOT_SUPPORTED);
+                context.addValidationError(REMOTE_SOURCE_AND_CROSS_PROJECT_INDICES_ARE_NOT_SUPPORTED);
             }
             listener.onResponse(context);
         }

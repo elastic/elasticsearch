@@ -12,7 +12,7 @@ steps:
       UPDATE_ES_LUCENE_SNAPSHOT: "true"
     agents:
       provider: gcp
-      image: family/elasticsearch-ubuntu-2004
+      image: family/elasticsearch-ubuntu-2404
       machineType: custom-32-98304
       buildDirectory: /dev/shm/bk
   - wait

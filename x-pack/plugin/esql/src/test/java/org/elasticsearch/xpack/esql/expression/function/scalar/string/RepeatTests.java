@@ -14,7 +14,7 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.expression.function.AbstractFunctionTestCase;
+import org.elasticsearch.xpack.esql.expression.function.AbstractScalarFunctionTestCase;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 
 import java.util.ArrayList;
@@ -24,7 +24,7 @@ import java.util.function.Supplier;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
 
-public class RepeatTests extends AbstractFunctionTestCase {
+public class RepeatTests extends AbstractScalarFunctionTestCase {
     public RepeatTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
         this.testCase = testCaseSupplier.get();
     }
@@ -101,14 +101,12 @@ public class RepeatTests extends AbstractFunctionTestCase {
                 "RepeatEvaluator[str=Attribute[channel=0], number=Attribute[channel=1]]",
                 DataType.KEYWORD,
                 nullValue()
-            ).withWarning("Line -1:-1: evaluation of [] failed, treating result as null. Only first 20 failures recorded.")
-                .withWarning("Line -1:-1: java.lang.IllegalArgumentException: Number parameter cannot be negative, found [" + number + "]")
+            ).withWarning("Line 1:1: evaluation of [source] failed, treating result as null. Only first 20 failures recorded.")
+                .withWarning("Line 1:1: java.lang.IllegalArgumentException: Number parameter cannot be negative, found [" + number + "]")
                 .withFoldingException(IllegalArgumentException.class, "Number parameter cannot be negative, found [" + number + "]");
         }));
 
-        cases = anyNullIsNull(true, cases);
-        cases = errorsForCasesWithoutExamples(cases);
-        return parameterSuppliersFromTypedData(cases);
+        return parameterSuppliersFromTypedDataWithDefaultChecks(true, cases);
     }
 
     @Override

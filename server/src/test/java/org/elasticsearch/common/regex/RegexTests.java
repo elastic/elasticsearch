@@ -1,23 +1,29 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.common.regex;
 
 import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.CharacterRunAutomaton;
+import org.apache.lucene.util.automaton.Operations;
+import org.apache.lucene.util.automaton.TooComplexToDeterminizeException;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.Locale;
 import java.util.Random;
+import java.util.function.Predicate;
 import java.util.regex.Pattern;
 
 import static org.elasticsearch.test.LambdaMatchers.falseWith;
 import static org.elasticsearch.test.LambdaMatchers.trueWith;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
 public class RegexTests extends ESTestCase {
@@ -235,5 +241,31 @@ public class RegexTests extends ESTestCase {
         assertThat(Regex.simpleMatcher("a*c", "x*z"), trueWith("xyz"));
         assertThat(Regex.simpleMatcher("a*c", "x*z"), falseWith("abd"));
         assertThat(Regex.simpleMatcher("a*c", "x*z"), falseWith("xyy"));
+    }
+
+    public void testThousandsAndLongPattern() throws IOException {
+        String[] patterns = new String[10000];
+        for (int i = 0; i < patterns.length / 2; i++) {
+            patterns[i * 2] = randomAlphaOfLength(10);
+            patterns[i * 2 + 1] = patterns[i * 2] + ".*";
+        }
+        Predicate<String> predicate = Regex.simpleMatcher(patterns);
+        for (int i = 0; i < patterns.length / 2; i++) {
+            assertTrue(predicate.test(patterns[i]));
+        }
+    }
+
+    public void testIntersectNonDeterminizedAutomaton() {
+        // patterns too complex to determinize within the default limit
+        String[] patterns = randomArray(20, 100, size -> new String[size], () -> "*" + randomAlphanumericOfLength(10) + "*");
+        Automaton a = Regex.simpleMatchToNonDeterminizedAutomaton(patterns);
+        assertFalse(a.isDeterministic());
+        Automaton b = Regex.simpleMatchToNonDeterminizedAutomaton(Arrays.copyOfRange(patterns, patterns.length / 2, patterns.length));
+        assertFalse(b.isDeterministic());
+        assertFalse(Operations.isEmpty(Operations.intersection(a, b)));
+        IllegalArgumentException exc = expectThrows(IllegalArgumentException.class, () -> assertMatchesAll(a, "my_test"));
+        // the run automaton expects a deterministic automaton
+        assertThat(exc.getMessage(), containsString("deterministic"));
+        expectThrows(TooComplexToDeterminizeException.class, () -> Regex.simpleMatchToAutomaton(patterns));
     }
 }

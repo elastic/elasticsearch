@@ -1,14 +1,16 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.routing;
 
 import org.apache.lucene.util.Constants;
+import org.elasticsearch.action.admin.indices.shrink.ResizeType;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.settings.IndexScopedSettings;
@@ -22,6 +24,7 @@ import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 
+import static org.elasticsearch.action.admin.indices.ResizeIndexTestUtils.executeResize;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
 import static org.hamcrest.CoreMatchers.containsString;
 
@@ -93,8 +96,13 @@ public class PartitionedRoutingIT extends ESIntegTestCase {
                 Settings.builder()
                     .put(
                         "index.routing.allocation.require._name",
-                        clusterAdmin().prepareState().get().getState().nodes().getDataNodes().values().toArray(DiscoveryNode[]::new)[0]
-                            .getName()
+                        clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT)
+                            .get()
+                            .getState()
+                            .nodes()
+                            .getDataNodes()
+                            .values()
+                            .toArray(DiscoveryNode[]::new)[0].getName()
                     )
                     .put("index.blocks.write", true),
                 index
@@ -111,9 +119,12 @@ public class PartitionedRoutingIT extends ESIntegTestCase {
             index = "index_" + currentShards;
 
             logger.info("--> shrinking index [" + previousIndex + "] to [" + index + "]");
-            indicesAdmin().prepareResizeIndex(previousIndex, index)
-                .setSettings(indexSettings(currentShards, numberOfReplicas()).putNull("index.routing.allocation.require._name").build())
-                .get();
+            executeResize(
+                ResizeType.SHRINK,
+                previousIndex,
+                index,
+                indexSettings(currentShards, numberOfReplicas()).putNull("index.routing.allocation.require._name")
+            ).actionGet();
             ensureGreen();
         }
     }
@@ -154,7 +165,7 @@ public class PartitionedRoutingIT extends ESIntegTestCase {
                             + "] shards for routing ["
                             + routing
                             + "] and got hits ["
-                            + response.getHits().getTotalHits().value
+                            + response.getHits().getTotalHits().value()
                             + "]"
                     );
 
@@ -162,7 +173,7 @@ public class PartitionedRoutingIT extends ESIntegTestCase {
                         response.getTotalShards() + " was not in " + expectedShards + " for " + index,
                         expectedShards.contains(response.getTotalShards())
                     );
-                    assertEquals(expectedDocuments, response.getHits().getTotalHits().value);
+                    assertEquals(expectedDocuments, response.getHits().getTotalHits().value());
 
                     Set<String> found = new HashSet<>();
                     response.getHits().forEach(h -> found.add(h.getId()));
@@ -182,7 +193,7 @@ public class PartitionedRoutingIT extends ESIntegTestCase {
                 prepareSearch().setQuery(QueryBuilders.termQuery("_routing", routing)).setIndices(index).setSize(100),
                 response -> {
                     assertEquals(expectedShards, response.getTotalShards());
-                    assertEquals(expectedDocuments, response.getHits().getTotalHits().value);
+                    assertEquals(expectedDocuments, response.getHits().getTotalHits().value());
 
                     Set<String> found = new HashSet<>();
                     response.getHits().forEach(h -> found.add(h.getId()));

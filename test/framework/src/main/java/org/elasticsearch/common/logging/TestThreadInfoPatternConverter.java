@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.common.logging;
@@ -49,7 +50,7 @@ public class TestThreadInfoPatternConverter extends LogEventPatternConverter {
         }
     }
 
-    private static final Pattern ELASTICSEARCH_THREAD_NAME_PATTERN = Pattern.compile("elasticsearch\\[(.+)\\]\\[.+\\].+");
+    private static final Pattern ELASTICSEARCH_THREAD_NAME_PATTERN = Pattern.compile("elasticsearch\\[(.+\\]\\[.+\\]\\[.+)\\].*");
     private static final Pattern TEST_THREAD_NAME_PATTERN = Pattern.compile("TEST-.+\\.(.+)-seed#\\[.+\\]");
     private static final Pattern TEST_SUITE_INIT_THREAD_NAME_PATTERN = Pattern.compile("SUITE-.+-worker");
     private static final Pattern NOT_YET_NAMED_NODE_THREAD_NAME_PATTERN = Pattern.compile("test_SUITE-CHILD_VM.+cluster\\[T#(.+)\\]");
@@ -57,7 +58,7 @@ public class TestThreadInfoPatternConverter extends LogEventPatternConverter {
     static String threadInfo(String threadName) {
         Matcher m = ELASTICSEARCH_THREAD_NAME_PATTERN.matcher(threadName);
         if (m.matches()) {
-            // Thread looks like a node thread so use the node name
+            // Thread looks like a node thread. Display it entirely
             return m.group(1);
         }
         m = TEST_THREAD_NAME_PATTERN.matcher(threadName);

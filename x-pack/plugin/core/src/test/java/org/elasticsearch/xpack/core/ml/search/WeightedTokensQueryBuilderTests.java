@@ -27,9 +27,12 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.extras.MapperExtrasPlugin;
+import org.elasticsearch.index.mapper.vectors.TokenPruningConfig;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.inference.WeightedToken;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.search.vectors.SparseVectorQueryWrapper;
 import org.elasticsearch.test.AbstractQueryTestCase;
 import org.elasticsearch.xpack.core.XPackClientPlugin;
 import org.elasticsearch.xpack.core.ml.action.InferModelAction;
@@ -190,6 +193,30 @@ public class WeightedTokensQueryBuilderTests extends AbstractQueryTestCase<Weigh
         }
     }
 
+    @Override
+    public void testFromXContent() throws IOException {
+        super.testFromXContent();
+        assertCriticalWarnings(WeightedTokensQueryBuilder.WEIGHTED_TOKENS_DEPRECATION_MESSAGE);
+    }
+
+    @Override
+    public void testUnknownField() throws IOException {
+        super.testUnknownField();
+        assertCriticalWarnings(WeightedTokensQueryBuilder.WEIGHTED_TOKENS_DEPRECATION_MESSAGE);
+    }
+
+    @Override
+    public void testUnknownObjectException() throws IOException {
+        super.testUnknownObjectException();
+        assertCriticalWarnings(WeightedTokensQueryBuilder.WEIGHTED_TOKENS_DEPRECATION_MESSAGE);
+    }
+
+    @Override
+    public void testValidOutput() throws IOException {
+        super.testValidOutput();
+        assertCriticalWarnings(WeightedTokensQueryBuilder.WEIGHTED_TOKENS_DEPRECATION_MESSAGE);
+    }
+
     public void testPruningIsAppliedCorrectly() throws IOException {
         try (Directory directory = newDirectory(); RandomIndexWriter iw = new RandomIndexWriter(random(), directory)) {
             List<Document> documents = List.of(
@@ -247,15 +274,18 @@ public class WeightedTokensQueryBuilderTests extends AbstractQueryTestCase<Weigh
     }
 
     private void assertCorrectLuceneQuery(String name, Query query, List<String> expectedFeatureFields) {
-        assertTrue(query instanceof BooleanQuery);
-        List<BooleanClause> booleanClauses = ((BooleanQuery) query).clauses();
+        assertThat(query, instanceOf(SparseVectorQueryWrapper.class));
+        var sparseQuery = (SparseVectorQueryWrapper) query;
+        assertThat(sparseQuery.getTermsQuery(), instanceOf(BooleanQuery.class));
+        BooleanQuery booleanQuery = (BooleanQuery) sparseQuery.getTermsQuery();
+        List<BooleanClause> booleanClauses = booleanQuery.clauses();
         assertEquals(
             name + " had " + booleanClauses.size() + " clauses, expected " + expectedFeatureFields.size(),
             expectedFeatureFields.size(),
             booleanClauses.size()
         );
         for (int i = 0; i < booleanClauses.size(); i++) {
-            Query clauseQuery = booleanClauses.get(i).getQuery();
+            Query clauseQuery = booleanClauses.get(i).query();
             assertTrue(name + " query " + query + " expected to be a BoostQuery", clauseQuery instanceof BoostQuery);
             // FeatureQuery is not visible so we check the String representation
             assertTrue(name + " query " + query + " expected to be a FeatureQuery", clauseQuery.toString().contains("FeatureQuery"));
@@ -319,8 +349,10 @@ public class WeightedTokensQueryBuilderTests extends AbstractQueryTestCase<Weigh
 
     @Override
     protected void doAssertLuceneQuery(WeightedTokensQueryBuilder queryBuilder, Query query, SearchExecutionContext context) {
-        assertThat(query, instanceOf(BooleanQuery.class));
-        BooleanQuery booleanQuery = (BooleanQuery) query;
+        assertThat(query, instanceOf(SparseVectorQueryWrapper.class));
+        var sparseQuery = (SparseVectorQueryWrapper) query;
+        assertThat(sparseQuery.getTermsQuery(), instanceOf(BooleanQuery.class));
+        BooleanQuery booleanQuery = (BooleanQuery) sparseQuery.getTermsQuery();
         assertEquals(booleanQuery.getMinimumNumberShouldMatch(), 1);
         assertThat(booleanQuery.clauses(), hasSize(NUM_TOKENS));
 
@@ -329,8 +361,8 @@ public class WeightedTokensQueryBuilderTests extends AbstractQueryTestCase<Weigh
         Class<?> boostQueryClass = FeatureField.newLinearQuery("", "", 1.0f).getClass();
 
         for (var clause : booleanQuery.clauses()) {
-            assertEquals(BooleanClause.Occur.SHOULD, clause.getOccur());
-            assertThat(clause.getQuery(), either(instanceOf(featureQueryClass)).or(instanceOf(boostQueryClass)));
+            assertEquals(BooleanClause.Occur.SHOULD, clause.occur());
+            assertThat(clause.query(), either(instanceOf(featureQueryClass)).or(instanceOf(boostQueryClass)));
         }
     }
 

@@ -1,14 +1,16 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.transport;
 
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.common.bytes.ReleasableBytesReference;
+import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -18,6 +20,7 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.util.Map;
 import java.util.concurrent.Executor;
 import java.util.function.Function;
@@ -36,15 +39,18 @@ public final class TransportActionProxy {
         private final TransportService service;
         private final String action;
         private final Function<TransportRequest, Writeable.Reader<? extends TransportResponse>> responseFunction;
+        private final NamedWriteableRegistry namedWriteableRegistry;
 
         ProxyRequestHandler(
             TransportService service,
             String action,
-            Function<TransportRequest, Writeable.Reader<? extends TransportResponse>> responseFunction
+            Function<TransportRequest, Writeable.Reader<? extends TransportResponse>> responseFunction,
+            NamedWriteableRegistry namedWriteableRegistry
         ) {
             this.service = service;
             this.action = action;
             this.responseFunction = responseFunction;
+            this.namedWriteableRegistry = namedWriteableRegistry;
         }
 
         @Override
@@ -62,7 +68,28 @@ public final class TransportActionProxy {
 
                 @Override
                 public void handleResponse(TransportResponse response) {
-                    channel.sendResponse(response);
+                    // This is a short term solution to ensure data node responses for batched search go back to the coordinating
+                    // node in the expected format when a proxy data node proxies the request to itself. The response would otherwise
+                    // be sent directly via DirectResponseChannel, skipping the read and write step that this handler normally performs.
+                    if (response instanceof BytesTransportResponse btr && btr.mustConvertResponseForVersion(channel.getVersion())) {
+                        try (
+                            NamedWriteableAwareStreamInput in = new NamedWriteableAwareStreamInput(
+                                btr.streamInput(),
+                                namedWriteableRegistry
+                            )
+                        ) {
+                            TransportResponse convertedResponse = responseFunction.apply(wrappedRequest).read(in);
+                            try {
+                                channel.sendResponse(convertedResponse);
+                            } finally {
+                                convertedResponse.decRef();
+                            }
+                        } catch (IOException e) {
+                            throw new UncheckedIOException(e);
+                        }
+                    } else {
+                        channel.sendResponse(response);
+                    }
                 }
 
                 @Override
@@ -73,7 +100,7 @@ public final class TransportActionProxy {
                 @Override
                 public TransportResponse read(StreamInput in) throws IOException {
                     if (in.getTransportVersion().equals(channel.getVersion()) && in.supportReadAllToReleasableBytesReference()) {
-                        return new BytesTransportResponse(in);
+                        return new BytesTransportResponse(in.readAllToReleasableBytesReference(), in.getTransportVersion());
                     } else {
                         return responseFunction.apply(wrappedRequest).read(in);
                     }
@@ -96,36 +123,7 @@ public final class TransportActionProxy {
         }
     }
 
-    static final class BytesTransportResponse extends TransportResponse {
-        final ReleasableBytesReference bytes;
-
-        BytesTransportResponse(StreamInput in) throws IOException {
-            super(in);
-            this.bytes = in.readAllToReleasableBytesReference();
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            bytes.writeTo(out);
-        }
-
-        @Override
-        public void incRef() {
-            bytes.incRef();
-        }
-
-        @Override
-        public boolean tryIncRef() {
-            return bytes.tryIncRef();
-        }
-
-        @Override
-        public boolean decRef() {
-            return bytes.decRef();
-        }
-    }
-
-    static class ProxyRequest<T extends TransportRequest> extends TransportRequest {
+    static class ProxyRequest<T extends TransportRequest> extends AbstractTransportRequest {
         final T wrapped;
         final DiscoveryNode targetNode;
 
@@ -173,7 +171,9 @@ public final class TransportActionProxy {
         TransportService service,
         String action,
         boolean cancellable,
-        Function<TransportRequest, Writeable.Reader<? extends TransportResponse>> responseFunction
+        Function<TransportRequest, Writeable.Reader<? extends TransportResponse>> responseFunction,
+        NamedWriteableRegistry namedWriteableRegistry
+
     ) {
         RequestHandlerRegistry<? extends TransportRequest> requestHandler = service.getRequestHandler(action);
         service.registerRequestHandler(
@@ -184,7 +184,7 @@ public final class TransportActionProxy {
             in -> cancellable
                 ? new CancellableProxyRequest<>(in, requestHandler::newRequest)
                 : new ProxyRequest<>(in, requestHandler::newRequest),
-            new ProxyRequestHandler<>(service, action, responseFunction)
+            new ProxyRequestHandler<>(service, action, responseFunction, namedWriteableRegistry)
         );
     }
 
@@ -196,9 +196,10 @@ public final class TransportActionProxy {
         TransportService service,
         String action,
         boolean cancellable,
-        Writeable.Reader<? extends TransportResponse> reader
+        Writeable.Reader<? extends TransportResponse> reader,
+        NamedWriteableRegistry namedWriteableRegistry
     ) {
-        registerProxyActionWithDynamicResponseType(service, action, cancellable, request -> reader);
+        registerProxyActionWithDynamicResponseType(service, action, cancellable, request -> reader, namedWriteableRegistry);
     }
 
     private static final String PROXY_ACTION_PREFIX = "internal:transport/proxy/";

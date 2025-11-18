@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.cluster.coordination;
 
@@ -129,7 +130,7 @@ public class PublicationTransportHandler {
         ActionListener<PublishWithJoinResponse> publishResponseListener
     ) throws IOException {
         assert ThreadPool.assertCurrentThreadPool(GENERIC);
-        final Compressor compressor = CompressorFactory.compressor(request.bytes());
+        final Compressor compressor = CompressorFactory.compressorForUnknownXContentType(request.bytes());
         StreamInput in = request.bytes().streamInput();
         try {
             if (compressor != null) {
@@ -230,9 +231,17 @@ public class PublicationTransportHandler {
     private void acceptState(ClusterState incomingState, ActionListener<PublishWithJoinResponse> actionListener) {
         assert incomingState.nodes().isLocalNodeElectedMaster() == false
             : "should handle local publications locally, but got " + incomingState;
-        clusterCoordinationExecutor.execute(
-            ActionRunnable.supply(actionListener, () -> handlePublishRequest.apply(new PublishRequest(incomingState)))
-        );
+        clusterCoordinationExecutor.execute(ActionRunnable.supply(actionListener, new CheckedSupplier<>() {
+            @Override
+            public PublishWithJoinResponse get() {
+                return handlePublishRequest.apply(new PublishRequest(incomingState));
+            }
+
+            @Override
+            public String toString() {
+                return "acceptState[term=" + incomingState.term() + ",version=" + incomingState.version() + "]";
+            }
+        }));
     }
 
     public PublicationContext newPublicationContext(ClusterStatePublicationEvent clusterStatePublicationEvent) {
@@ -253,9 +262,7 @@ public class PublicationTransportHandler {
     }
 
     private ReleasableBytesReference serializeFullClusterState(ClusterState clusterState, DiscoveryNode node, TransportVersion version) {
-        final RecyclerBytesStreamOutput bytesStream = transportService.newNetworkBytesStream();
-        boolean success = false;
-        try {
+        try (RecyclerBytesStreamOutput bytesStream = transportService.newNetworkBytesStream()) {
             final long uncompressedBytes;
             try (
                 StreamOutput stream = new PositionTrackingOutputStreamStreamOutput(
@@ -269,20 +276,15 @@ public class PublicationTransportHandler {
             } catch (IOException e) {
                 throw new ElasticsearchException("failed to serialize cluster state for publishing to node {}", e, node);
             }
-            final ReleasableBytesReference result = new ReleasableBytesReference(bytesStream.bytes(), bytesStream);
-            serializationStatsTracker.serializedFullState(uncompressedBytes, result.length());
+            final int size = bytesStream.size();
+            serializationStatsTracker.serializedFullState(uncompressedBytes, size);
             logger.trace(
                 "serialized full cluster state version [{}] using transport version [{}] with size [{}]",
                 clusterState.version(),
                 version,
-                result.length()
+                size
             );
-            success = true;
-            return result;
-        } finally {
-            if (success == false) {
-                bytesStream.close();
-            }
+            return bytesStream.moveToBytesReference();
         }
     }
 
@@ -293,9 +295,7 @@ public class PublicationTransportHandler {
         TransportVersion version
     ) {
         final long clusterStateVersion = newState.version();
-        final RecyclerBytesStreamOutput bytesStream = transportService.newNetworkBytesStream();
-        boolean success = false;
-        try {
+        try (RecyclerBytesStreamOutput bytesStream = transportService.newNetworkBytesStream()) {
             final long uncompressedBytes;
             try (
                 StreamOutput stream = new PositionTrackingOutputStreamStreamOutput(
@@ -313,20 +313,15 @@ public class PublicationTransportHandler {
             } catch (IOException e) {
                 throw new ElasticsearchException("failed to serialize cluster state diff for publishing to node {}", e, node);
             }
-            final ReleasableBytesReference result = new ReleasableBytesReference(bytesStream.bytes(), bytesStream);
-            serializationStatsTracker.serializedDiff(uncompressedBytes, result.length());
+            final int size = bytesStream.size();
+            serializationStatsTracker.serializedDiff(uncompressedBytes, size);
             logger.trace(
                 "serialized cluster state diff for version [{}] using transport version [{}] with size [{}]",
                 clusterStateVersion,
                 version,
-                result.length()
+                size
             );
-            success = true;
-            return result;
-        } finally {
-            if (success == false) {
-                bytesStream.close();
-            }
+            return bytesStream.moveToBytesReference();
         }
     }
 

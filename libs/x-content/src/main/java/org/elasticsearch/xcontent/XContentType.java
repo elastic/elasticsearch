@@ -1,13 +1,15 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.xcontent;
 
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xcontent.cbor.CborXContent;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xcontent.smile.SmileXContent;
@@ -285,5 +287,16 @@ public enum XContentType implements MediaType {
 
     public static XContentType ofOrdinal(int ordinal) {
         return values[ordinal];
+    }
+
+    /**
+     * Indicates if the {@link XContentType} (from the {@code Content-Type} header of a REST request) is compatible with delimited bulk
+     * content. A bulk request contains multiple objects each terminated with {@link XContent#bulkSeparator()}.
+     * <p>
+     * In practice, this returns {@code true} if the argument has canonical type {@link XContentType#JSON} or {@link XContentType#SMILE}
+     * and {@code false} if the argument is {@code null} or has canonical type {@link XContentType#CBOR} or {@link XContentType#YAML}.
+     */
+    public static boolean supportsDelimitedBulkRequests(@Nullable XContentType xContentType) {
+        return xContentType != null && xContentType.xContent.hasBulkSeparator();
     }
 }

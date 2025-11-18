@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.gradle.internal
@@ -83,10 +84,11 @@ class BuildPluginFuncTest extends AbstractGradleFuncTest {
         file('src/main/java/org/elasticsearch/SampleClass.java') << """\
           /*
            * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
-           * or more contributor license agreements. Licensed under the Elastic License
-           *  2.0 and the Server Side Public License, v 1; you may not use this file except
-           * in compliance with, at your election, the Elastic License 2.0 or the Server
-           * Side Public License, v 1.
+           * or more contributor license agreements. Licensed under the "Elastic License
+           * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+           * Public License v 1"; you may not use this file except in compliance with, at
+           * your election, the "Elastic License 2.0", the "GNU Affero General Public
+           * License v3.0 only", or the "Server Side Public License, v 1".
            */
           package org.elasticsearch;
 
@@ -117,12 +119,10 @@ class BuildPluginFuncTest extends AbstractGradleFuncTest {
             noticeFile.set(file("NOTICE"))
             """
         when:
-        def result = gradleRunner("assemble", "-x", "generateHistoricalFeaturesMetadata").build()
+        def result = gradleRunner("assemble", "-x", "generateClusterFeaturesMetadata").build()
         then:
         result.task(":assemble").outcome == TaskOutcome.SUCCESS
         file("build/distributions/hello-world.jar").exists()
-        file("build/distributions/hello-world-javadoc.jar").exists()
-        file("build/distributions/hello-world-sources.jar").exists()
         assertValidJar(file("build/distributions/hello-world.jar"))
     }
 
@@ -151,7 +151,11 @@ class BuildPluginFuncTest extends AbstractGradleFuncTest {
             tasks.named('checkstyleMain').configure { enabled = false }
             tasks.named('loggerUsageCheck').configure { enabled = false }
             // tested elsewhere
-            tasks.named('thirdPartyAudit').configure { enabled = false }
+            tasks.named('thirdPartyAudit').configure {
+                getRuntimeJavaVersion().set(JavaVersion.VERSION_21)
+                getTargetCompatibility().set(JavaVersion.VERSION_21)
+                enabled = false
+            }
             """
         when:
         def result = gradleRunner("check").build()
@@ -160,12 +164,30 @@ class BuildPluginFuncTest extends AbstractGradleFuncTest {
         result.task(":forbiddenPatterns").outcome == TaskOutcome.SUCCESS
         result.task(":validateModule").outcome == TaskOutcome.SUCCESS
         result.task(":splitPackagesAudit").outcome == TaskOutcome.SUCCESS
-        result.task(":validateElasticPom").outcome == TaskOutcome.SUCCESS
         // disabled but check for being on the task graph
         result.task(":forbiddenApisMain").outcome == TaskOutcome.SKIPPED
         result.task(":checkstyleMain").outcome == TaskOutcome.SKIPPED
         result.task(":thirdPartyAudit").outcome == TaskOutcome.SKIPPED
         result.task(":loggerUsageCheck").outcome == TaskOutcome.SKIPPED
+    }
+
+    def "can generate dependency infos file"() {
+        given:
+        repository.generateJar("junit", "junit", "4.12", 'org.acme.JunitMock')
+        repository.configureBuild(buildFile)
+        file("licenses/junit-4.12.jar.sha1").text = "2973d150c0dc1fefe998f834810d68f278ea58ec"
+        file("licenses/junit-LICENSE.txt").text = EXAMPLE_LICENSE
+        file("licenses/junit-NOTICE.txt").text = "mock notice"
+        buildFile << """
+        dependencies {
+            api "junit:junit:4.12"
+        }
+        """
+        when:
+        def result = gradleRunner("dependenciesInfo").build()
+        then:
+        result.task(":dependenciesInfo").outcome == TaskOutcome.SUCCESS
+        file("build/reports/dependencies/dependencies.csv").text == "junit:junit,4.12,https://repo1.maven.org/maven2/junit/junit/4.12,BSD-3-Clause,\n"
     }
 
     def assertValidJar(File jar) {

@@ -20,10 +20,6 @@ public final class Expressions {
 
     private Expressions() {}
 
-    public static NamedExpression wrapAsNamed(Expression exp) {
-        return exp instanceof NamedExpression ne ? ne : new Alias(exp.source(), exp.sourceText(), exp);
-    }
-
     public static List<Attribute> asAttributes(List<? extends NamedExpression> named) {
         if (named.isEmpty()) {
             return emptyList();
@@ -33,18 +29,6 @@ public final class Expressions {
             list.add(exp.toAttribute());
         }
         return list;
-    }
-
-    public static AttributeMap<Expression> asAttributeMap(List<? extends NamedExpression> named) {
-        if (named.isEmpty()) {
-            return AttributeMap.emptyAttributeMap();
-        }
-
-        AttributeMap<Expression> map = new AttributeMap<>();
-        for (NamedExpression exp : named) {
-            map.add(exp.toAttribute(), exp);
-        }
-        return map;
     }
 
     public static boolean anyMatch(List<? extends Expression> exps, Predicate<? super Expression> predicate) {
@@ -107,33 +91,44 @@ public final class Expressions {
         return true;
     }
 
-    public static List<Object> fold(List<? extends Expression> exps) {
+    public static List<Object> fold(FoldContext ctx, List<? extends Expression> exps) {
         List<Object> folded = new ArrayList<>(exps.size());
         for (Expression exp : exps) {
-            folded.add(exp.fold());
+            folded.add(exp.fold(ctx));
         }
 
         return folded;
     }
 
     public static AttributeSet references(List<? extends Expression> exps) {
-        if (exps.isEmpty()) {
-            return AttributeSet.EMPTY;
+        if (exps.size() == 1) {
+            /*
+             * If we're getting the references from a single expression it's safe
+             * to just use its references. This is quite common. We use a ton of
+             * Aliases, for example. And every unary function can share its references
+             * with its input.
+             */
+            return exps.getFirst().references();
         }
-
-        AttributeSet set = new AttributeSet();
-        for (Expression exp : exps) {
-            set.addAll(exp.references());
-        }
-        return set;
+        return AttributeSet.of(exps, Expression::references);
     }
 
     public static String name(Expression e) {
-        return e instanceof NamedExpression ne ? ne.name() : e.sourceText();
+        return e instanceof Attribute attr && attr.qualifier() != null ? attr.qualifiedName()
+            : e instanceof NamedExpression ne ? ne.name()
+            : e.sourceText();
     }
 
-    public static boolean isNull(Expression e) {
-        return e.dataType() == DataType.NULL || (e.foldable() && e.fold() == null);
+    /**
+     * Is this {@linkplain Expression} <strong>guaranteed</strong> to have
+     * only the {@code null} value. {@linkplain Expression}s that
+     * {@link Expression#fold} to {@code null} <strong>may</strong>
+     * return {@code false} here, but should <strong>eventually</strong> be folded
+     * into a {@link Literal} containing {@code null} which will return
+     * {@code true} from here.
+     */
+    public static boolean isGuaranteedNull(Expression e) {
+        return e.dataType() == DataType.NULL || (e instanceof Literal lit && lit.value() == null);
     }
 
     public static List<String> names(Collection<? extends Expression> e) {

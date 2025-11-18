@@ -16,6 +16,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.license.License;
 import org.elasticsearch.search.SearchModule;
+import org.elasticsearch.test.AbstractBWCSerializationTestCase;
 import org.elasticsearch.xcontent.DeprecationHandler;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ToXContent;
@@ -23,7 +24,6 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
-import org.elasticsearch.xpack.core.ml.AbstractBWCSerializationTestCase;
 import org.elasticsearch.xpack.core.ml.MlConfigVersion;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ClassificationConfigTests;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.FillMaskConfigTests;
@@ -453,10 +453,6 @@ public class TrainedModelConfigTests extends AbstractBWCSerializationTestCase<Tr
     @Override
     protected TrainedModelConfig mutateInstanceForVersion(TrainedModelConfig instance, TransportVersion version) {
         TrainedModelConfig.Builder builder = new TrainedModelConfig.Builder(instance);
-        if (version.before(TrainedModelConfig.VERSION_3RD_PARTY_CONFIG_ADDED)) {
-            builder.setModelType(null);
-            builder.setLocation(null);
-        }
         if (instance.getInferenceConfig() instanceof NlpConfig nlpConfig) {
             builder.setInferenceConfig(InferenceConfigItemTestCase.mutateForVersion(nlpConfig, version));
         }

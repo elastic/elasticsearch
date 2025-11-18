@@ -1,4 +1,7 @@
 
+# claude
+.claude
+
 # intellij files
 .idea/
 *.iml
@@ -43,6 +46,7 @@ build/
 **/.local*
 .vagrant/
 /logs/
+**/target/
 
 # osx stuff
 .DS_Store
@@ -69,3 +73,7 @@ testfixtures_shared/
 # Generated
 checkstyle_ide.xml
 x-pack/plugin/esql/src/main/generated-src/generated/
+server/src/main/resources/transport/definitions/manifest.txt
+
+# JEnv
+.java-version

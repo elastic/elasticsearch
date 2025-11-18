@@ -1,0 +1,43 @@
+{
+  "indices.create_from": {
+    "documentation": {
+      "url": "https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-indices-create-from",
+      "description": "Create an index from a source index"
+    },
+    "stability": "stable",
+    "visibility": "public",
+    "headers": {
+      "accept": [
+        "application/json"
+      ],
+      "content_type": [
+        "application/json"
+      ]
+    },
+    "url": {
+      "paths": [
+        {
+          "path": "/_create_from/{source}/{dest}",
+          "methods": [
+            "PUT",
+            "POST"
+          ],
+          "parts": {
+            "source": {
+              "type": "string",
+              "description": "The source index name"
+            },
+            "dest": {
+              "type": "string",
+              "description": "The destination index name"
+            }
+          }
+        }
+      ]
+    },
+    "body": {
+      "description": "The body contains the fields `mappings_override`, `settings_override`, and `remove_index_blocks`.",
+      "required": false
+    }
+  }
+}

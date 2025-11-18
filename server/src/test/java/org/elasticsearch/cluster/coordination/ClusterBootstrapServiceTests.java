@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.cluster.coordination;
 
@@ -697,7 +698,7 @@ public class ClusterBootstrapServiceTests extends ESTestCase {
                 this node is locked into cluster UUID [test-uuid] but [cluster.initial_master_nodes] is set to [node1, node2]; \
                 remove this setting to avoid possible data loss caused by subsequent cluster bootstrap attempts; \
                 for further information see \
-                https://www.elastic.co/guide/en/elasticsearch/reference/*/important-settings.html#initial_master_nodes""";
+                https://www.elastic.co/docs/deploy-manage/deploy/self-managed/important-settings-configuration*#initial_master_nodes""";
 
             mockLog.addExpectation(
                 new MockLog.SeenEventExpectation(

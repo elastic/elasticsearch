@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.common.regex;
@@ -44,12 +45,29 @@ public class Regex {
         return str.equals("*");
     }
 
+    /**
+     * Returns true if the str ends with "*".
+     */
     public static boolean isSuffixMatchPattern(String str) {
         return str.length() > 1 && str.indexOf('*') == str.length() - 1;
     }
 
-    /** Return an {@link Automaton} that matches the given pattern. */
-    public static Automaton simpleMatchToAutomaton(String pattern) {
+    /**
+     * Returns true if the str ends with ".*".
+     */
+    public static boolean isSuffixWildcard(String str) {
+        return isSuffixMatchPattern(str) && str.endsWith(".*");
+    }
+
+    /**
+     * Return a non-determinized {@link Automaton} that matches the given pattern.
+     * WARNING: Use this method only when the resulting {@link Automaton} is used in contexts
+     * that do not require determinism (e.g., checking the intersection of automatons).
+     *
+     * For pattern matching with {@link CharacterRunAutomaton}, a deterministic automaton is required.
+     * In that case, use {@link Regex#simpleMatchToAutomaton} instead.
+     */
+    public static Automaton simpleMatchToNonDeterminizedAutomaton(String pattern) {
         List<Automaton> automata = new ArrayList<>();
         int previous = 0;
         for (int i = pattern.indexOf('*'); i != -1; i = pattern.indexOf('*', i + 1)) {
@@ -61,20 +79,34 @@ public class Regex {
         return Operations.concatenate(automata);
     }
 
+    /** Return a deterministic {@link Automaton} that matches the given pattern. */
+    public static Automaton simpleMatchToAutomaton(String pattern) {
+        return Operations.determinize(simpleMatchToNonDeterminizedAutomaton(pattern), Operations.DEFAULT_DETERMINIZE_WORK_LIMIT);
+    }
+
     /**
-     * Return an Automaton that matches the union of the provided patterns.
+     * Returns a non-deterministic {@link Automaton} that matches the union of the given patterns.
+     *
+     * WARNING: Use this method only when the resulting {@link Automaton} is used in contexts
+     * that do not require determinism (e.g., checking the intersection of automatons).
+     *
+     * For pattern matching with {@link CharacterRunAutomaton}, a deterministic automaton is required.
+     * In that case, use {@link Regex#simpleMatchToAutomaton} instead.
      */
-    public static Automaton simpleMatchToAutomaton(String... patterns) {
+    public static Automaton simpleMatchToNonDeterminizedAutomaton(String... patterns) {
         if (patterns.length < 1) {
             throw new IllegalArgumentException("There must be at least one pattern, zero given");
         }
 
         List<BytesRef> simpleStrings = new ArrayList<>();
         List<Automaton> automata = new ArrayList<>();
+        List<BytesRef> prefixes = new ArrayList<>();
         for (String pattern : patterns) {
             // Strings longer than 1000 characters aren't supported by makeStringUnion
-            if (isSimpleMatchPattern(pattern) || pattern.length() >= 1000) {
-                automata.add(simpleMatchToAutomaton(pattern));
+            if (isSuffixWildcard(pattern) && pattern.length() < 1000) {
+                prefixes.add(new BytesRef(pattern.substring(0, pattern.length() - 1)));
+            } else if (isSimpleMatchPattern(pattern) || pattern.length() >= 1000) {
+                automata.add(simpleMatchToNonDeterminizedAutomaton(pattern));
             } else {
                 simpleStrings.add(new BytesRef(pattern));
             }
@@ -87,12 +119,26 @@ public class Regex {
             } else {
                 simpleStringsAutomaton = Automata.makeString(simpleStrings.get(0).utf8ToString());
             }
-            if (automata.isEmpty()) {
+            if (automata.isEmpty() && prefixes.isEmpty()) {
                 return simpleStringsAutomaton;
             }
             automata.add(simpleStringsAutomaton);
         }
+        if (false == prefixes.isEmpty()) {
+            List<Automaton> prefixAutomaton = new ArrayList<>();
+            Collections.sort(prefixes);
+            prefixAutomaton.add(Automata.makeStringUnion(prefixes));
+            prefixAutomaton.add(Automata.makeAnyString());
+            automata.add(Operations.concatenate(prefixAutomaton));
+        }
         return Operations.union(automata);
+    }
+
+    /**
+     * Return a deterministic Automaton that matches the union of the provided patterns.
+     */
+    public static Automaton simpleMatchToAutomaton(String... patterns) {
+        return Operations.determinize(simpleMatchToNonDeterminizedAutomaton(patterns), Operations.DEFAULT_DETERMINIZE_WORK_LIMIT);
     }
 
     /**

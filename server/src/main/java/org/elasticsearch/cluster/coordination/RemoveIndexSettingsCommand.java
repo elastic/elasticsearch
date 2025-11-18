@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.cluster.coordination;
 
@@ -15,7 +16,7 @@ import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.cli.UserException;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Tuple;
@@ -57,9 +58,10 @@ public class RemoveIndexSettingsCommand extends ElasticsearchNodeCommand {
         terminal.println(Terminal.Verbosity.VERBOSE, "Loading cluster state");
         final Tuple<Long, ClusterState> termAndClusterState = loadTermAndClusterState(persistedClusterStateService, env);
         final ClusterState oldClusterState = termAndClusterState.v2();
-        final Metadata.Builder newMetadataBuilder = Metadata.builder(oldClusterState.metadata());
+        final ProjectMetadata oldProject = oldClusterState.metadata().getProject();
+        final ProjectMetadata.Builder newProjectBuilder = ProjectMetadata.builder(oldProject);
         int changes = 0;
-        for (IndexMetadata indexMetadata : oldClusterState.metadata()) {
+        for (IndexMetadata indexMetadata : oldProject) {
             Settings oldSettings = indexMetadata.getSettings();
             Settings.Builder newSettings = Settings.builder().put(oldSettings);
             boolean removed = false;
@@ -75,7 +77,7 @@ public class RemoveIndexSettingsCommand extends ElasticsearchNodeCommand {
                 }
             }
             if (removed) {
-                newMetadataBuilder.put(IndexMetadata.builder(indexMetadata).settings(newSettings));
+                newProjectBuilder.put(IndexMetadata.builder(indexMetadata).settings(newSettings));
                 changes++;
             }
         }
@@ -83,7 +85,7 @@ public class RemoveIndexSettingsCommand extends ElasticsearchNodeCommand {
             throw new UserException(ExitCodes.USAGE, "No index setting matching " + settingsToRemove + " were found on this node");
         }
 
-        final ClusterState newClusterState = ClusterState.builder(oldClusterState).metadata(newMetadataBuilder).build();
+        final ClusterState newClusterState = ClusterState.builder(oldClusterState).putProjectMetadata(newProjectBuilder).build();
         terminal.println(
             Terminal.Verbosity.VERBOSE,
             "[old cluster state = " + oldClusterState + ", new cluster state = " + newClusterState + "]"

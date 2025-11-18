@@ -44,6 +44,7 @@ import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.RecoverySource.SnapshotRecoverySource;
 import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.cluster.routing.SplitShardCountSummary;
 import org.elasticsearch.cluster.routing.allocation.decider.DiskThresholdDecider;
 import org.elasticsearch.cluster.service.ClusterApplierService;
 import org.elasticsearch.cluster.service.MasterService;
@@ -1712,14 +1713,22 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         return acquireSearcherSupplier(Engine.SearcherScope.EXTERNAL);
     }
 
+    public Engine.SearcherSupplier acquireSearcherSupplier(SplitShardCountSummary splitShardCountSummary) {
+        return acquireSearcherSupplier(Engine.SearcherScope.EXTERNAL, splitShardCountSummary);
+    }
+
     /**
      * Acquires a point-in-time reader that can be used to create {@link Engine.Searcher}s on demand.
      */
     public Engine.SearcherSupplier acquireSearcherSupplier(Engine.SearcherScope scope) {
+        return acquireSearcherSupplier(scope, SplitShardCountSummary.UNSET);
+    }
+
+    public Engine.SearcherSupplier acquireSearcherSupplier(Engine.SearcherScope scope, SplitShardCountSummary splitShardCountSummary) {
         readAllowed();
         markSearcherAccessed();
         final Engine engine = getEngine();
-        return engine.acquireSearcherSupplier(this::wrapSearcher, scope);
+        return engine.acquireSearcherSupplier(this::wrapSearcher, scope, splitShardCountSummary);
     }
 
     public Engine.Searcher acquireSearcher(String source) {

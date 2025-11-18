@@ -1272,7 +1272,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                 // calculated from the ids of the underlying segments of an index commit
                 final IndexService indexService = indicesService.indexServiceSafe(request.shardId().getIndex());
                 final IndexShard shard = indexService.getShard(request.shardId().id());
-                final Engine.SearcherSupplier searcherSupplier = shard.acquireSearcherSupplier();
+                final Engine.SearcherSupplier searcherSupplier = shard.acquireSearcherSupplier(request.getSplitShardCountSummary());
                 if (contextId.sameSearcherIdsAs(searcherSupplier.getSearcherId()) == false) {
                     searcherSupplier.close();
                     throw e;
@@ -1296,7 +1296,13 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         }
         final IndexService indexService = indicesService.indexServiceSafe(request.shardId().getIndex());
         final IndexShard shard = indexService.getShard(request.shardId().id());
-        return createAndPutReaderContext(request, indexService, shard, shard.acquireSearcherSupplier(), keepAliveInMillis);
+        return createAndPutReaderContext(
+            request,
+            indexService,
+            shard,
+            shard.acquireSearcherSupplier(request.getSplitShardCountSummary()),
+            keepAliveInMillis
+        );
     }
 
     final ReaderContext createAndPutReaderContext(

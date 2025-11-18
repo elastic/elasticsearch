@@ -215,7 +215,7 @@ public class TransportSearchShardsAction extends HandledTransportAction<SearchSh
                     shardIt.shardId(),
                     shardIt.getTargetNodeIds(),
                     shardIt.skip(),
-                    shardIt.getReshardSplitShardCountSummary()
+                    shardIt.getSplitShardCountSummary()
                 )
             );
         }

@@ -555,9 +555,6 @@ tests:
 - class: org.elasticsearch.xpack.inference.InferenceRestIT
   method: test {p0=inference/70_text_similarity_rank_retriever/Text similarity reranker with min_score zero includes all docs}
   issue: https://github.com/elastic/elasticsearch/issues/137732
-- class: org.elasticsearch.xpack.shutdown.NodeShutdownIT
-  method: testStalledShardMigrationProperlyDetected
-  issue: https://github.com/elastic/elasticsearch/issues/115697
 
 # Examples:
 #

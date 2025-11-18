@@ -21,6 +21,7 @@ import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
+import org.elasticsearch.cluster.routing.allocation.allocator.AllocationBalancingRoundMetrics;
 import org.elasticsearch.cluster.routing.allocation.allocator.BalancerSettings;
 import org.elasticsearch.cluster.routing.allocation.allocator.DesiredBalance;
 import org.elasticsearch.cluster.routing.allocation.allocator.DesiredBalanceMetrics;
@@ -177,7 +178,8 @@ public class AllocationStatsServiceTests extends ESAllocationTestCase {
                     (innerState, strategy) -> innerState,
                     EMPTY_NODE_ALLOCATION_STATS,
                     TEST_ONLY_EXPLAINER,
-                    DesiredBalanceMetrics.NOOP
+                    DesiredBalanceMetrics.NOOP,
+                    AllocationBalancingRoundMetrics.NOOP
                 ) {
                     @Override
                     public DesiredBalance getDesiredBalance() {

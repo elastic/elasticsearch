@@ -1,0 +1,5 @@
+pr: 137641
+summary: "Let `include_execution_metadata` always return data, also in local only"
+area: ES|QL
+type: enhancement
+issues: []

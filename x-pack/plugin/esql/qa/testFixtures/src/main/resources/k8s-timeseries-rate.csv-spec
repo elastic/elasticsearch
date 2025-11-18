@@ -37,6 +37,32 @@ rate_bytes_in:double | cluster:keyword | time_bucket:datetime
 
 ;
 
+rate_with_window
+required_capability: ts_command_v0
+required_capability: time_series_window_v0
+// tag::rate_with_window[]
+TS k8s
+| WHERE TRANGE("2024-05-10T00:05:00.000Z", "2024-05-10T00:10:00.000Z")
+| STATS rate_bytes_in=avg(rate(network.total_bytes_in, 5minute)) BY cluster, time_bucket = bucket(@timestamp,1minute)
+// end::rate_with_window[]
+| SORT time_bucket, cluster | LIMIT 20;
+// tag::rate_with_window-result[]
+rate_bytes_in:double | cluster:keyword | time_bucket:datetime
+4.6385399587454375   | prod            | 2024-05-10T00:05:00.000Z
+13.638384356589611   | qa              | 2024-05-10T00:05:00.000Z
+5.025874999999999    | prod            | 2024-05-10T00:06:00.000Z
+12.1780146563676     | qa              | 2024-05-10T00:06:00.000Z
+8.963922302737519    | staging         | 2024-05-10T00:06:00.000Z
+10.485661064982633   | qa              | 2024-05-10T00:07:00.000Z
+2.1985625418700354   | prod            | 2024-05-10T00:08:00.000Z
+5.243666666666666    | qa              | 2024-05-10T00:08:00.000Z
+5.098564814814814    | staging         | 2024-05-10T00:08:00.000Z
+2.4409081196581193   | prod            | 2024-05-10T00:09:00.000Z
+5.502833333333333    | qa              | 2024-05-10T00:09:00.000Z
+3.8278               | staging         | 2024-05-10T00:09:00.000Z
+// end::rate_with_window-result[]
+;
+
 rate_of_double_no_grouping
 required_capability: ts_command_v0
 TS k8s

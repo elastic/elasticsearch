@@ -80,10 +80,6 @@ public final class SpatialExtentCartesianShapeDocValuesAggregatorFunction implem
 
   private void addRawBlock(IntBlock valuesBlock) {
     for (int p = 0; p < valuesBlock.getPositionCount(); p++) {
-      int valuesValueCount = valuesBlock.getValueCount(p);
-      if (valuesValueCount == 0) {
-        continue;
-      }
       SpatialExtentCartesianShapeDocValuesAggregator.combine(state, p, valuesBlock);
     }
   }
@@ -91,10 +87,6 @@ public final class SpatialExtentCartesianShapeDocValuesAggregatorFunction implem
   private void addRawBlock(IntBlock valuesBlock, BooleanVector mask) {
     for (int p = 0; p < valuesBlock.getPositionCount(); p++) {
       if (mask.getBoolean(p) == false) {
-        continue;
-      }
-      int valuesValueCount = valuesBlock.getValueCount(p);
-      if (valuesValueCount == 0) {
         continue;
       }
       SpatialExtentCartesianShapeDocValuesAggregator.combine(state, p, valuesBlock);

@@ -217,7 +217,12 @@ public class EvalBenchmark {
                 );
                 yield EvalMapper.toEvaluator(
                     FOLD_CONTEXT,
-                    new DateTrunc(Source.EMPTY, new Literal(Source.EMPTY, Duration.ofHours(24), DataType.TIME_DURATION), timestamp),
+                    new DateTrunc(
+                        Source.EMPTY,
+                        new Literal(Source.EMPTY, Duration.ofHours(24), DataType.TIME_DURATION),
+                        timestamp,
+                        configuration()
+                    ),
                     layout(timestamp)
                 ).get(driverContext);
             }

@@ -13,12 +13,14 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.codec.vectors.BFloat16;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.ElementType;
 import org.elasticsearch.script.field.vectors.DenseVector;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xpack.esql.action.AbstractEsqlIntegTestCase;
+import org.hamcrest.Matchers;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -39,6 +41,7 @@ import static org.elasticsearch.index.IndexSettings.INDEX_MAPPING_EXCLUDE_SOURCE
 import static org.elasticsearch.index.mapper.SourceFieldMapper.Mode.SYNTHETIC;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.L2_NORM_VECTOR_SIMILARITY_FUNCTION;
+import static org.hamcrest.Matchers.hasKey;
 
 public class DenseVectorFieldTypeIT extends AbstractEsqlIntegTestCase {
 
@@ -67,7 +70,6 @@ public class DenseVectorFieldTypeIT extends AbstractEsqlIntegTestCase {
     @ParametersFactory
     public static Iterable<Object[]> parameters() throws Exception {
         List<Object[]> params = new ArrayList<>();
-
         for (ElementType elementType : List.of(ElementType.BYTE, ElementType.FLOAT, ElementType.BIT)) {
             // Test all similarities
             for (DenseVectorFieldMapper.VectorSimilarity similarity : DenseVectorFieldMapper.VectorSimilarity.values()) {
@@ -155,7 +157,6 @@ public class DenseVectorFieldTypeIT extends AbstractEsqlIntegTestCase {
         try (var resp = run(query)) {
             List<List<Object>> valuesList = EsqlTestUtils.getValuesList(resp);
             assertEquals(valuesList.size(), indexedVectors.size());
-            // print all values for debugging
             valuesList.forEach(value -> {
                 assertEquals(2, value.size());
                 Integer id = (Integer) value.get(0);
@@ -174,6 +175,33 @@ public class DenseVectorFieldTypeIT extends AbstractEsqlIntegTestCase {
                             DELTA
                         );
                     }
+                }
+            });
+        }
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testDenseVectorsIncludedInSource() {
+        var query = """
+            FROM test METADATA _source
+            | KEEP _source
+            """;
+
+        try (var resp = run(query)) {
+            List<List<Object>> valuesList = EsqlTestUtils.getValuesList(resp);
+            assertEquals(valuesList.size(), indexedVectors.size());
+            valuesList.forEach(value -> {
+                assertEquals(1, value.size());
+                Map<String, Object> source = (Map<String, Object>) value.get(0);
+                assertThat(source, hasKey("id"));
+                assertNotNull(source.get("id"));
+                Integer id = Integer.valueOf(source.get("id").toString());
+                // Vectors should be in _source if they are included in the index settings, and the vector is not null
+                if (sourceOptions == VectorSourceOptions.INCLUDE_SOURCE_VECTORS && indexedVectors.get(id) != null) {
+                    assertThat(source, hasKey("vector"));
+                    assertNotNull(source.get("vector"));
+                } else {
+                    assertThat(source, Matchers.aMapWithSize(1));
                 }
             });
         }
@@ -248,6 +276,15 @@ public class DenseVectorFieldTypeIT extends AbstractEsqlIntegTestCase {
                             }
                             final ByteBuffer buffer = ByteBuffer.allocate(Float.BYTES * numDims);
                             buffer.asFloatBuffer().put(array);
+                            yield Base64.getEncoder().encodeToString(buffer.array());
+                        }
+                        case BFLOAT16 -> {
+                            float[] array = new float[numDims];
+                            for (int k = 0; k < numDims; k++) {
+                                array[k] = vector.get(k).floatValue();
+                            }
+                            final ByteBuffer buffer = ByteBuffer.allocate(BFloat16.BYTES * numDims);
+                            BFloat16.floatToBFloat16(array, buffer.asShortBuffer());
                             yield Base64.getEncoder().encodeToString(buffer.array());
                         }
                         case BYTE, BIT -> {

@@ -23,6 +23,7 @@ import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.util.TestUtil;
 import org.elasticsearch.index.codec.vectors.BaseKnnBitVectorsFormatTestCase;
+import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -36,9 +37,7 @@ public class ES93HnswBitVectorsFormatTests extends BaseKnnBitVectorsFormatTestCa
 
     @Override
     protected Codec getCodec() {
-        return TestUtil.alwaysKnnVectorsFormat(
-            new ES93HnswVectorsFormat(ES93GenericFlatVectorsFormat.ElementType.BIT, random().nextBoolean())
-        );
+        return TestUtil.alwaysKnnVectorsFormat(new ES93HnswVectorsFormat(DenseVectorFieldMapper.ElementType.BIT));
     }
 
     @Before

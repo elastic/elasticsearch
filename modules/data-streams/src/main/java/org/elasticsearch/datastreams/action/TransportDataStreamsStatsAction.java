@@ -9,6 +9,7 @@
 package org.elasticsearch.datastreams.action;
 
 import org.apache.lucene.document.LongPoint;
+import org.apache.lucene.index.DocValuesSkipper;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.PointValues;
 import org.elasticsearch.action.ActionListener;
@@ -52,7 +53,8 @@ import java.util.SortedMap;
 public class TransportDataStreamsStatsAction extends TransportBroadcastByNodeAction<
     DataStreamsStatsAction.Request,
     DataStreamsStatsAction.Response,
-    DataStreamsStatsAction.DataStreamShardStats> {
+    DataStreamsStatsAction.DataStreamShardStats,
+    Void> {
 
     private final IndicesService indicesService;
     private final ProjectResolver projectResolver;
@@ -114,6 +116,7 @@ public class TransportDataStreamsStatsAction extends TransportBroadcastByNodeAct
         DataStreamsStatsAction.Request request,
         ShardRouting shardRouting,
         Task task,
+        Void nodeContext,
         ActionListener<DataStreamsStatsAction.DataStreamShardStats> listener
     ) {
         ActionListener.completeWith(listener, () -> {
@@ -127,16 +130,19 @@ public class TransportDataStreamsStatsAction extends TransportBroadcastByNodeAct
             assert indexAbstraction != null;
             DataStream dataStream = indexAbstraction.getParentDataStream();
             assert dataStream != null;
-            long maxTimestamp = 0L;
-            try (Engine.Searcher searcher = indexShard.acquireSearcher(ReadOnlyEngine.FIELD_RANGE_SEARCH_SOURCE)) {
-                IndexReader indexReader = searcher.getIndexReader();
-                byte[] maxPackedValue = PointValues.getMaxPackedValue(indexReader, DataStream.TIMESTAMP_FIELD_NAME);
-                if (maxPackedValue != null) {
-                    maxTimestamp = LongPoint.decodeDimension(maxPackedValue, 0);
-                }
-            }
-            return new DataStreamsStatsAction.DataStreamShardStats(indexShard.routingEntry(), storeStats, maxTimestamp);
+            return new DataStreamsStatsAction.DataStreamShardStats(indexShard.routingEntry(), storeStats, getMaxTimestamp(indexShard));
         });
+    }
+
+    private static long getMaxTimestamp(IndexShard indexShard) throws IOException {
+        try (Engine.Searcher searcher = indexShard.acquireSearcher(ReadOnlyEngine.FIELD_RANGE_SEARCH_SOURCE)) {
+            IndexReader indexReader = searcher.getIndexReader();
+            byte[] maxPackedValue = PointValues.getMaxPackedValue(indexReader, DataStream.TIMESTAMP_FIELD_NAME);
+            if (maxPackedValue != null) {
+                return LongPoint.decodeDimension(maxPackedValue, 0);
+            }
+            return DocValuesSkipper.globalMaxValue(searcher, DataStream.TIMESTAMP_FIELD_NAME);
+        }
     }
 
     @Override

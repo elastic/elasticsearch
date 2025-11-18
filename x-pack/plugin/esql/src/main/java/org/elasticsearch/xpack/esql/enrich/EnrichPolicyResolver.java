@@ -447,7 +447,7 @@ public class EnrichPolicyResolver {
                     }
                     try (ThreadContext.StoredContext ignored = threadContext.stashWithOrigin(ClientHelper.ENRICH_ORIGIN)) {
                         String indexName = EnrichPolicy.getBaseName(policyName);
-                        indexResolver.resolveAsMergedMapping(
+                        indexResolver.resolveIndices(
                             indexName,
                             IndexResolver.ALL_FIELDS,
                             null,

@@ -42,6 +42,11 @@ public class Hamming extends VectorSimilarityFunction {
         public BlockLoaderFunctionConfig.Function function() {
             return BlockLoaderFunctionConfig.Function.V_HAMMING;
         }
+
+        @Override
+        public String toString() {
+            return "V_HAMMING";
+        }
     };
     public static final DenseVectorFieldMapper.SimilarityFunction EVALUATOR_SIMILARITY_FUNCTION =
         new DenseVectorFieldMapper.SimilarityFunction() {

@@ -22,6 +22,7 @@ import org.elasticsearch.index.fielddata.LeafFieldData;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.ElementType;
 import org.elasticsearch.script.field.DocValuesScriptFieldFactory;
+import org.elasticsearch.script.field.vectors.BFloat16BinaryDenseVectorDocValuesField;
 import org.elasticsearch.script.field.vectors.BinaryDenseVectorDocValuesField;
 import org.elasticsearch.script.field.vectors.BitBinaryDenseVectorDocValuesField;
 import org.elasticsearch.script.field.vectors.BitKnnDenseVectorDocValuesField;
@@ -69,7 +70,8 @@ final class VectorDVLeafFieldData implements LeafFieldData {
             if (indexed) {
                 return switch (elementType) {
                     case BYTE -> new ByteKnnDenseVectorDocValuesField(reader.getByteVectorValues(field), name, dims);
-                    case FLOAT -> new KnnDenseVectorDocValuesField(reader.getFloatVectorValues(field), name, dims);
+                    // bfloat16 is hidden by the FloatVectorValues implementation
+                    case FLOAT, BFLOAT16 -> new KnnDenseVectorDocValuesField(reader.getFloatVectorValues(field), name, dims);
                     case BIT -> new BitKnnDenseVectorDocValuesField(reader.getByteVectorValues(field), name, dims);
                 };
             } else {
@@ -77,6 +79,7 @@ final class VectorDVLeafFieldData implements LeafFieldData {
                 return switch (elementType) {
                     case BYTE -> new ByteBinaryDenseVectorDocValuesField(values, name, elementType, dims);
                     case FLOAT -> new BinaryDenseVectorDocValuesField(values, name, elementType, dims, indexVersion);
+                    case BFLOAT16 -> new BFloat16BinaryDenseVectorDocValuesField(values, name, elementType, dims, indexVersion);
                     case BIT -> new BitBinaryDenseVectorDocValuesField(values, name, elementType, dims);
                 };
             }
@@ -85,105 +88,125 @@ final class VectorDVLeafFieldData implements LeafFieldData {
         }
     }
 
+    private class ByteDocValues implements FormattedDocValues {
+        private final int dims;
+        private byte[] vector;
+        private ByteVectorValues byteVectorValues; // use when indexed
+        private KnnVectorValues.DocIndexIterator iterator; // use when indexed
+        private BinaryDocValues binary; // use when not indexed
+
+        ByteDocValues(int dims) {
+            this.dims = dims;
+            this.vector = new byte[dims];
+            try {
+                if (indexed) {
+                    byteVectorValues = reader.getByteVectorValues(field);
+                    iterator = (byteVectorValues == null) ? null : byteVectorValues.iterator();
+                } else {
+                    binary = DocValues.getBinary(reader, field);
+                }
+            } catch (IOException e) {
+                throw new IllegalStateException("Cannot load doc values", e);
+            }
+
+        }
+
+        @Override
+        public boolean advanceExact(int docId) throws IOException {
+            if (indexed) {
+                if (iteratorAdvanceExact(iterator, docId) == false) {
+                    return false;
+                }
+                vector = byteVectorValues.vectorValue(iterator.index());
+            } else {
+                if (binary == null || binary.advanceExact(docId) == false) {
+                    return false;
+                }
+                BytesRef ref = binary.binaryValue();
+                System.arraycopy(ref.bytes, ref.offset, vector, 0, dims);
+            }
+            return true;
+        }
+
+        @Override
+        public int docValueCount() {
+            return 1;
+        }
+
+        public Object nextValue() {
+            Byte[] vectorValue = new Byte[dims];
+            for (int i = 0; i < dims; i++) {
+                vectorValue[i] = vector[i];
+            }
+            return vectorValue;
+        }
+    }
+
+    private class FloatDocValues implements FormattedDocValues {
+        private float[] vector = new float[dims];
+        private FloatVectorValues floatVectorValues; // use when indexed
+        private KnnVectorValues.DocIndexIterator iterator; // use when indexed
+        private BinaryDocValues binary; // use when not indexed
+
+        FloatDocValues() {
+            try {
+                if (indexed) {
+                    floatVectorValues = reader.getFloatVectorValues(field);
+                    iterator = (floatVectorValues == null) ? null : floatVectorValues.iterator();
+                } else {
+                    binary = DocValues.getBinary(reader, field);
+                }
+            } catch (IOException e) {
+                throw new IllegalStateException("Cannot load doc values", e);
+            }
+        }
+
+        @Override
+        public boolean advanceExact(int docId) throws IOException {
+            if (indexed) {
+                if (iteratorAdvanceExact(iterator, docId) == false) {
+                    return false;
+                }
+                vector = floatVectorValues.vectorValue(iterator.index());
+            } else {
+                if (binary == null || binary.advanceExact(docId) == false) {
+                    return false;
+                }
+                BytesRef ref = binary.binaryValue();
+                decodeDenseVector(indexVersion, ref, vector);
+            }
+            return true;
+        }
+
+        void decodeDenseVector(IndexVersion indexVersion, BytesRef ref, float[] vector) {
+            VectorEncoderDecoder.decodeDenseVector(indexVersion, ref, vector);
+        }
+
+        @Override
+        public int docValueCount() {
+            return 1;
+        }
+
+        @Override
+        public Object nextValue() {
+            return Arrays.copyOf(vector, vector.length);
+        }
+    }
+
+    private class BFloat16DocValues extends FloatDocValues {
+        @Override
+        void decodeDenseVector(IndexVersion indexVersion, BytesRef vectorBR, float[] vector) {
+            VectorEncoderDecoder.decodeBFloat16DenseVector(vectorBR, vector);
+        }
+    }
+
     @Override
     public FormattedDocValues getFormattedValues(DocValueFormat format) {
-        int dims = elementType == ElementType.BIT ? this.dims / Byte.SIZE : this.dims;
         return switch (elementType) {
-            case BYTE, BIT -> new FormattedDocValues() {
-                private byte[] vector = new byte[dims];
-                private ByteVectorValues byteVectorValues; // use when indexed
-                private KnnVectorValues.DocIndexIterator iterator; // use when indexed
-                private BinaryDocValues binary; // use when not indexed
-                {
-                    try {
-                        if (indexed) {
-                            byteVectorValues = reader.getByteVectorValues(field);
-                            iterator = (byteVectorValues == null) ? null : byteVectorValues.iterator();
-                        } else {
-                            binary = DocValues.getBinary(reader, field);
-                        }
-                    } catch (IOException e) {
-                        throw new IllegalStateException("Cannot load doc values", e);
-                    }
-
-                }
-
-                @Override
-                public boolean advanceExact(int docId) throws IOException {
-                    if (indexed) {
-                        if (iteratorAdvanceExact(iterator, docId) == false) {
-                            return false;
-                        }
-                        vector = byteVectorValues.vectorValue(iterator.index());
-                    } else {
-                        if (binary == null || binary.advanceExact(docId) == false) {
-                            return false;
-                        }
-                        BytesRef ref = binary.binaryValue();
-                        System.arraycopy(ref.bytes, ref.offset, vector, 0, dims);
-                    }
-                    return true;
-                }
-
-                @Override
-                public int docValueCount() {
-                    return 1;
-                }
-
-                public Object nextValue() {
-                    Byte[] vectorValue = new Byte[dims];
-                    for (int i = 0; i < dims; i++) {
-                        vectorValue[i] = vector[i];
-                    }
-                    return vectorValue;
-                }
-            };
-            case FLOAT -> new FormattedDocValues() {
-                float[] vector = new float[dims];
-                private FloatVectorValues floatVectorValues; // use when indexed
-                private KnnVectorValues.DocIndexIterator iterator; // use when indexed
-                private BinaryDocValues binary; // use when not indexed
-                {
-                    try {
-                        if (indexed) {
-                            floatVectorValues = reader.getFloatVectorValues(field);
-                            iterator = (floatVectorValues == null) ? null : floatVectorValues.iterator();
-                        } else {
-                            binary = DocValues.getBinary(reader, field);
-                        }
-                    } catch (IOException e) {
-                        throw new IllegalStateException("Cannot load doc values", e);
-                    }
-
-                }
-
-                @Override
-                public boolean advanceExact(int docId) throws IOException {
-                    if (indexed) {
-                        if (iteratorAdvanceExact(iterator, docId) == false) {
-                            return false;
-                        }
-                        vector = floatVectorValues.vectorValue(iterator.index());
-                    } else {
-                        if (binary == null || binary.advanceExact(docId) == false) {
-                            return false;
-                        }
-                        BytesRef ref = binary.binaryValue();
-                        VectorEncoderDecoder.decodeDenseVector(indexVersion, ref, vector);
-                    }
-                    return true;
-                }
-
-                @Override
-                public int docValueCount() {
-                    return 1;
-                }
-
-                @Override
-                public Object nextValue() {
-                    return Arrays.copyOf(vector, vector.length);
-                }
-            };
+            case BYTE -> new ByteDocValues(dims);
+            case BIT -> new ByteDocValues(dims / Byte.SIZE);
+            case FLOAT -> new FloatDocValues();
+            case BFLOAT16 -> new BFloat16DocValues();
         };
     }
 

@@ -15,6 +15,7 @@ import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequ
 import org.elasticsearch.action.admin.cluster.state.ClusterStateRequest;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.cluster.ClusterChangedEvent;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.metadata.ReservedStateErrorMetadata;
 import org.elasticsearch.cluster.metadata.ReservedStateHandlerMetadata;
@@ -28,6 +29,7 @@ import org.elasticsearch.health.GetHealthAction;
 import org.elasticsearch.health.node.FetchHealthInfoCacheAction;
 import org.elasticsearch.reservedstate.action.ReservedClusterSettingsAction;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.test.InternalTestCluster;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -38,8 +40,10 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.Function;
 import java.util.stream.Stream;
 
+import static org.elasticsearch.cluster.metadata.ReservedStateMetadata.EMPTY_VERSION;
 import static org.elasticsearch.health.HealthStatus.YELLOW;
 import static org.elasticsearch.indices.recovery.RecoverySettings.INDICES_RECOVERY_MAX_BYTES_PER_SEC_SETTING;
 import static org.elasticsearch.node.Node.INITIAL_STATE_TIMEOUT_SETTING;
@@ -192,22 +196,29 @@ public class FileSettingsServiceIT extends ESIntegTestCase {
         ClusterService clusterService = internalCluster().clusterService(node);
         CountDownLatch savedClusterState = new CountDownLatch(1);
         AtomicLong metadataVersion = new AtomicLong(-1);
+        Function<ClusterState, Boolean> clusterStateProcessor = clusterState -> {
+            ReservedStateMetadata reservedState = clusterState.metadata().reservedStateMetadata().get(FileSettingsService.NAMESPACE);
+            if (reservedState != null && reservedState.version() == fileSettingsVersion) {
+                metadataVersion.set(clusterState.metadata().version());
+                savedClusterState.countDown();
+                logger.info(
+                    "done waiting for file settings [version: {}, metadata version: {}]",
+                    clusterState.version(),
+                    clusterState.metadata().version()
+                );
+                return true;
+            }
+            return false;
+        };
         clusterService.addListener(new ClusterStateListener() {
             @Override
             public void clusterChanged(ClusterChangedEvent event) {
-                ReservedStateMetadata reservedState = event.state().metadata().reservedStateMetadata().get(FileSettingsService.NAMESPACE);
-                if (reservedState != null && reservedState.version() == fileSettingsVersion) {
+                if (clusterStateProcessor.apply(event.state())) {
                     clusterService.removeListener(this);
-                    metadataVersion.set(event.state().metadata().version());
-                    savedClusterState.countDown();
-                    logger.info(
-                        "done waiting for file settings [version: {}, metadata version: {}]",
-                        event.state().version(),
-                        event.state().metadata().version()
-                    );
                 }
             }
         });
+        clusterStateProcessor.apply(clusterService.state());
 
         return new Tuple<>(savedClusterState, metadataVersion);
     }
@@ -319,6 +330,68 @@ public class FileSettingsServiceIT extends ESIntegTestCase {
                 .get(ReservedClusterSettingsAction.NAME)
                 .keys(),
             hasSize(1)
+        );
+    }
+
+    public void testReservedStateClearedWhenFileAbsentAtStartup() throws Exception {
+        internalCluster().setBootstrapMasterNodeIndex(0);
+        logger.info("--> start master node");
+        final String masterNode = internalCluster().startMasterOnlyNode(
+            Settings.builder().put(INITIAL_STATE_TIMEOUT_SETTING.getKey(), "0s").build()
+        );
+        awaitMasterNode(internalCluster().getMasterName(), masterNode);
+        var savedClusterState = setupClusterStateListener(masterNode, versionCounter.incrementAndGet());
+
+        FileSettingsService masterFileSettingsService = internalCluster().getInstance(FileSettingsService.class, masterNode);
+
+        assertBusy(() -> assertTrue(masterFileSettingsService.watching()));
+
+        logger.info("--> write some settings");
+        writeJSONFile(masterNode, testJSON, logger, versionCounter.get());
+        assertClusterStateSaveOK(savedClusterState.v1(), savedClusterState.v2(), "50mb");
+
+        logger.info("--> get file path before restarting node");
+        Path watchedFile = masterFileSettingsService.watchedFile();
+        assertTrue("File should exist before deletion", Files.exists(watchedFile));
+
+        logger.info("--> restart master and delete file while node is stopped");
+        internalCluster().restartNode(masterNode, new InternalTestCluster.RestartCallback() {
+            @Override
+            public Settings onNodeStopped(String nodeName) throws Exception {
+                logger.info("--> delete the file settings file while node is stopped");
+                Files.deleteIfExists(watchedFile);
+                assertFalse("File should not exist after deletion", Files.exists(watchedFile));
+                return super.onNodeStopped(nodeName);
+            }
+        });
+
+        logger.info("--> verify reserved state is cleared when missing file is processed at startup");
+        assertBusy(() -> {
+            final ClusterStateResponse clusterStateResponse = clusterAdmin().state(new ClusterStateRequest(TEST_REQUEST_TIMEOUT))
+                .actionGet();
+            ReservedStateMetadata reservedState = clusterStateResponse.getState()
+                .metadata()
+                .reservedStateMetadata()
+                .get(FileSettingsService.NAMESPACE);
+            assertThat(reservedState, notNullValue());
+            assertThat(reservedState.version(), equalTo(EMPTY_VERSION));
+            assertTrue(reservedState.handlers().isEmpty());
+        }, 20, TimeUnit.SECONDS);
+
+        logger.info("--> verify settings are no longer reserved and can be modified");
+        ClusterUpdateSettingsRequest req = new ClusterUpdateSettingsRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT).persistentSettings(
+            Settings.builder().put(INDICES_RECOVERY_MAX_BYTES_PER_SEC_SETTING.getKey(), "1234kb")
+        );
+        clusterAdmin().updateSettings(req).get();
+
+        assertThat(
+            clusterAdmin().state(new ClusterStateRequest(TEST_REQUEST_TIMEOUT))
+                .actionGet()
+                .getState()
+                .metadata()
+                .persistentSettings()
+                .get(INDICES_RECOVERY_MAX_BYTES_PER_SEC_SETTING.getKey()),
+            equalTo("1234kb")
         );
     }
 

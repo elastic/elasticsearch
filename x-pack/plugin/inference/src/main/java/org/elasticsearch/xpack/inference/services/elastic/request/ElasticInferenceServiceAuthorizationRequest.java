@@ -13,6 +13,7 @@ import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.inference.external.request.Request;
 import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceService;
+import org.elasticsearch.xpack.inference.services.elastic.ccm.CCMAuthenticationApplierFactory;
 import org.elasticsearch.xpack.inference.telemetry.TraceContext;
 import org.elasticsearch.xpack.inference.telemetry.TraceContextHandler;
 
@@ -28,9 +29,10 @@ public class ElasticInferenceServiceAuthorizationRequest extends ElasticInferenc
     public ElasticInferenceServiceAuthorizationRequest(
         String url,
         TraceContext traceContext,
-        ElasticInferenceServiceRequestMetadata requestMetadata
+        ElasticInferenceServiceRequestMetadata requestMetadata,
+        CCMAuthenticationApplierFactory.AuthApplier authApplier
     ) {
-        super(requestMetadata);
+        super(requestMetadata, authApplier);
         this.uri = createUri(Objects.requireNonNull(url));
         this.traceContextHandler = new TraceContextHandler(traceContext);
     }

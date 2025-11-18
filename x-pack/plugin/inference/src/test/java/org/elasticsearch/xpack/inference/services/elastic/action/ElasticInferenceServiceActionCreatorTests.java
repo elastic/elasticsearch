@@ -10,11 +10,13 @@ package org.elasticsearch.xpack.inference.services.elastic.action;
 import org.apache.http.HttpHeaders;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.action.support.TestPlainActionFuture;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.http.MockRequest;
 import org.elasticsearch.test.http.MockResponse;
 import org.elasticsearch.test.http.MockWebServer;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -23,12 +25,16 @@ import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.core.inference.results.DenseEmbeddingFloatResults;
 import org.elasticsearch.xpack.core.inference.results.RankedDocsResultsTests;
 import org.elasticsearch.xpack.core.inference.results.SparseEmbeddingResultsTests;
+import org.elasticsearch.xpack.inference.external.action.ExecutableAction;
 import org.elasticsearch.xpack.inference.external.http.HttpClientManager;
 import org.elasticsearch.xpack.inference.external.http.sender.EmbeddingsInput;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSenderTests;
 import org.elasticsearch.xpack.inference.external.http.sender.QueryAndDocsInputs;
+import org.elasticsearch.xpack.inference.external.http.sender.Sender;
 import org.elasticsearch.xpack.inference.logging.ThrottlerManager;
+import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceModel;
 import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceSparseEmbeddingsModelTests;
+import org.elasticsearch.xpack.inference.services.elastic.ccm.CCMAuthenticationApplierFactory;
 import org.elasticsearch.xpack.inference.services.elastic.densetextembeddings.ElasticInferenceServiceDenseTextEmbeddingsModelTests;
 import org.elasticsearch.xpack.inference.services.elastic.rerank.ElasticInferenceServiceRerankModelTests;
 import org.elasticsearch.xpack.inference.telemetry.TraceContext;
@@ -46,7 +52,10 @@ import static org.elasticsearch.xpack.inference.external.http.Utils.entityAsMap;
 import static org.elasticsearch.xpack.inference.external.http.Utils.getUrl;
 import static org.elasticsearch.xpack.inference.external.http.retry.RetrySettingsTests.buildSettingsWithRetryFields;
 import static org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSenderTests.createSender;
+import static org.elasticsearch.xpack.inference.external.request.RequestUtils.bearerToken;
 import static org.elasticsearch.xpack.inference.services.ServiceComponentsTests.createWithEmptySettings;
+import static org.elasticsearch.xpack.inference.services.elastic.ccm.CCMAuthenticationApplierFactoryTests.createApplierFactory;
+import static org.elasticsearch.xpack.inference.services.elastic.ccm.CCMAuthenticationApplierFactoryTests.createNoopApplierFactory;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -97,8 +106,7 @@ public class ElasticInferenceServiceActionCreatorTests extends ESTestCase {
             webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
 
             var model = ElasticInferenceServiceSparseEmbeddingsModelTests.createModel(getUrl(webServer), "my-model-id");
-            var actionCreator = new ElasticInferenceServiceActionCreator(sender, createWithEmptySettings(threadPool), createTraceContext());
-            var action = actionCreator.create(model);
+            var action = createAction(sender, model);
 
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
             action.execute(
@@ -120,9 +128,7 @@ public class ElasticInferenceServiceActionCreatorTests extends ESTestCase {
                 )
             );
 
-            assertThat(webServer.requests(), hasSize(1));
-            assertNull(webServer.requests().get(0).getUri().getQuery());
-            assertThat(webServer.requests().get(0).getHeader(HttpHeaders.CONTENT_TYPE), equalTo(XContentType.JSON.mediaType()));
+            assertHeadersWithoutAuth(webServer.requests());
 
             var requestMap = entityAsMap(webServer.requests().get(0).getBody());
             assertThat(requestMap.size(), is(2));
@@ -131,6 +137,92 @@ public class ElasticInferenceServiceActionCreatorTests extends ESTestCase {
             assertThat(inputList, contains("hello world"));
             assertThat(requestMap.get("model"), is("my-model-id"));
         }
+    }
+
+    private ExecutableAction createAction(Sender sender, ElasticInferenceServiceModel model) {
+        return createAction(sender, model, createNoopApplierFactory());
+    }
+
+    private ExecutableAction createAction(Sender sender, ElasticInferenceServiceModel model, CCMAuthenticationApplierFactory factory) {
+        var actionCreator = new ElasticInferenceServiceActionCreator(sender, createWithEmptySettings(threadPool), factory);
+        var actionCreatorListener = new TestPlainActionFuture<ExecutableAction>();
+        actionCreator.create(model, createTraceContext(), actionCreatorListener);
+
+        return actionCreatorListener.actionGet(TIMEOUT);
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testExecute_SparseEmbedding_AddsAuthorizationHeader() throws IOException {
+        var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
+
+        try (var sender = createSender(senderFactory)) {
+            sender.startSynchronously();
+
+            String responseJson = """
+                {
+                    "data": [
+                        {
+                            "hello": 2.1259406,
+                            "greet": 1.7073475
+                        }
+                    ]
+                }
+                """;
+
+            webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
+
+            var model = ElasticInferenceServiceSparseEmbeddingsModelTests.createModel(getUrl(webServer), "my-model-id");
+            var secret = "secret-token";
+            var action = createAction(sender, model, createApplierFactory(secret));
+
+            PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
+            action.execute(
+                new EmbeddingsInput(List.of("hello world"), InputType.UNSPECIFIED),
+                InferenceAction.Request.DEFAULT_TIMEOUT,
+                listener
+            );
+
+            var result = listener.actionGet(TIMEOUT);
+
+            assertThat(
+                result.asMap(),
+                is(
+                    SparseEmbeddingResultsTests.buildExpectationSparseEmbeddings(
+                        List.of(
+                            new SparseEmbeddingResultsTests.EmbeddingExpectation(Map.of("hello", 2.1259406f, "greet", 1.7073475f), false)
+                        )
+                    )
+                )
+            );
+
+            assertHeadersWithAuth(webServer.requests(), secret);
+
+            var requestMap = entityAsMap(webServer.requests().get(0).getBody());
+            assertThat(requestMap.size(), is(2));
+            assertThat(requestMap.get("input"), instanceOf(List.class));
+            var inputList = (List<String>) requestMap.get("input");
+            assertThat(inputList, contains("hello world"));
+            assertThat(requestMap.get("model"), is("my-model-id"));
+        }
+    }
+
+    private static void assertHeadersWithAuth(List<MockRequest> requests, String secret) {
+        var request = assertSingleRequestSent(requests);
+        assertThat(request.getHeader(HttpHeaders.AUTHORIZATION), equalTo(bearerToken(secret)));
+    }
+
+    private static MockRequest assertSingleRequestSent(List<MockRequest> requests) {
+        assertThat(requests, hasSize(1));
+        var request = requests.get(0);
+        assertNull(request.getUri().getQuery());
+        assertThat(request.getHeader(HttpHeaders.CONTENT_TYPE), equalTo(XContentType.JSON.mediaType()));
+
+        return request;
+    }
+
+    private static void assertHeadersWithoutAuth(List<MockRequest> requests) {
+        var request = assertSingleRequestSent(requests);
+        assertNull(request.getHeader(HttpHeaders.AUTHORIZATION));
     }
 
     @SuppressWarnings("unchecked")
@@ -158,8 +250,7 @@ public class ElasticInferenceServiceActionCreatorTests extends ESTestCase {
             webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
 
             var model = ElasticInferenceServiceSparseEmbeddingsModelTests.createModel(getUrl(webServer), "my-model-id");
-            var actionCreator = new ElasticInferenceServiceActionCreator(sender, createWithEmptySettings(threadPool), createTraceContext());
-            var action = actionCreator.create(model);
+            var action = createAction(sender, model);
 
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
             action.execute(
@@ -217,8 +308,7 @@ public class ElasticInferenceServiceActionCreatorTests extends ESTestCase {
             var documents = List.of("document 1", "document 2", "document 3");
 
             var model = ElasticInferenceServiceRerankModelTests.createModel(getUrl(webServer), modelId);
-            var actionCreator = new ElasticInferenceServiceActionCreator(sender, createWithEmptySettings(threadPool), createTraceContext());
-            var action = actionCreator.create(model);
+            var action = createAction(sender, model);
 
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
             action.execute(new QueryAndDocsInputs(query, documents, null, topN, false), InferenceAction.Request.DEFAULT_TIMEOUT, listener);
@@ -237,9 +327,7 @@ public class ElasticInferenceServiceActionCreatorTests extends ESTestCase {
                 )
             );
 
-            assertThat(webServer.requests(), hasSize(1));
-            assertNull(webServer.requests().get(0).getUri().getQuery());
-            assertThat(webServer.requests().get(0).getHeader(HttpHeaders.CONTENT_TYPE), equalTo(XContentType.JSON.mediaType()));
+            assertHeadersWithoutAuth(webServer.requests());
 
             var requestMap = entityAsMap(webServer.requests().get(0).getBody());
 
@@ -255,6 +343,74 @@ public class ElasticInferenceServiceActionCreatorTests extends ESTestCase {
 
             assertThat(requestMap.get("query"), equalTo(query));
 
+            assertThat(requestMap.get("model"), equalTo(modelId));
+        }
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testExecute_ReturnsSuccessfulResponse_ForRerankAction_WithAuthHeader() throws IOException {
+        var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
+
+        try (var sender = createSender(senderFactory)) {
+            sender.startSynchronously();
+
+            String responseJson = """
+                {
+                    "results": [
+                        {
+                            "index": 0,
+                            "relevance_score": 0.94
+                        },
+                        {
+                            "index": 1,
+                            "relevance_score": 0.21
+                        }
+                    ]
+                }
+                """;
+
+            webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
+
+            var modelId = "my-model-id";
+            var topN = 3;
+            var query = "query";
+            var documents = List.of("document 1", "document 2", "document 3");
+
+            var model = ElasticInferenceServiceRerankModelTests.createModel(getUrl(webServer), modelId);
+            var secret = "secret-token";
+            var action = createAction(sender, model, createApplierFactory(secret));
+
+            PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
+            action.execute(new QueryAndDocsInputs(query, documents, null, topN, false), InferenceAction.Request.DEFAULT_TIMEOUT, listener);
+
+            var result = listener.actionGet(TIMEOUT);
+
+            assertThat(
+                result.asMap(),
+                equalTo(
+                    RankedDocsResultsTests.buildExpectationRerank(
+                        List.of(
+                            new RankedDocsResultsTests.RerankExpectation(Map.of("index", 0, "relevance_score", 0.94f)),
+                            new RankedDocsResultsTests.RerankExpectation(Map.of("index", 1, "relevance_score", 0.21f))
+                        )
+                    )
+                )
+            );
+
+            assertHeadersWithAuth(webServer.requests(), secret);
+
+            var requestMap = entityAsMap(webServer.requests().get(0).getBody());
+
+            assertThat(requestMap.size(), is(4));
+
+            assertThat(requestMap.get("documents"), instanceOf(List.class));
+            List<String> requestDocuments = (List<String>) requestMap.get("documents");
+            assertThat(requestDocuments.get(0), equalTo(documents.get(0)));
+            assertThat(requestDocuments.get(1), equalTo(documents.get(1)));
+            assertThat(requestDocuments.get(2), equalTo(documents.get(2)));
+
+            assertThat(requestMap.get("top_n"), equalTo(topN));
+            assertThat(requestMap.get("query"), equalTo(query));
             assertThat(requestMap.get("model"), equalTo(modelId));
         }
     }
@@ -286,8 +442,7 @@ public class ElasticInferenceServiceActionCreatorTests extends ESTestCase {
             webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
 
             var model = ElasticInferenceServiceDenseTextEmbeddingsModelTests.createModel(getUrl(webServer), "my-dense-model-id");
-            var actionCreator = new ElasticInferenceServiceActionCreator(sender, createWithEmptySettings(threadPool), createTraceContext());
-            var action = actionCreator.create(model);
+            var action = createAction(sender, model);
 
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
             action.execute(
@@ -308,9 +463,67 @@ public class ElasticInferenceServiceActionCreatorTests extends ESTestCase {
             var secondEmbedding = textEmbeddingResults.embeddings().get(1);
             assertThat(secondEmbedding.values(), is(new float[] { 1.8342123f, 2.3456789f, 0.7654321f }));
 
-            assertThat(webServer.requests(), hasSize(1));
-            assertNull(webServer.requests().get(0).getUri().getQuery());
-            assertThat(webServer.requests().get(0).getHeader(HttpHeaders.CONTENT_TYPE), equalTo(XContentType.JSON.mediaType()));
+            assertHeadersWithoutAuth(webServer.requests());
+
+            var requestMap = entityAsMap(webServer.requests().get(0).getBody());
+            assertThat(requestMap.size(), is(2));
+            assertThat(requestMap.get("input"), instanceOf(List.class));
+            var inputList = (List<String>) requestMap.get("input");
+            assertThat(inputList, contains("hello world", "second text"));
+            assertThat(requestMap.get("model"), is("my-dense-model-id"));
+        }
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testExecute_ReturnsSuccessfulResponse_ForDenseTextEmbeddingsAction_WithAuth() throws IOException {
+        var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
+
+        try (var sender = createSender(senderFactory)) {
+            sender.startSynchronously();
+
+            String responseJson = """
+                {
+                    "data": [
+                        [
+                            2.1259406,
+                            1.7073475,
+                            0.9020516
+                        ],
+                        [
+                            1.8342123,
+                            2.3456789,
+                            0.7654321
+                        ]
+                    ]
+                }
+                """;
+
+            webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
+
+            var model = ElasticInferenceServiceDenseTextEmbeddingsModelTests.createModel(getUrl(webServer), "my-dense-model-id");
+            var secret = "secret-token";
+            var action = createAction(sender, model, createApplierFactory(secret));
+
+            PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
+            action.execute(
+                new EmbeddingsInput(List.of("hello world", "second text"), InputType.UNSPECIFIED),
+                InferenceAction.Request.DEFAULT_TIMEOUT,
+                listener
+            );
+
+            var result = listener.actionGet(TIMEOUT);
+
+            assertThat(result, instanceOf(DenseEmbeddingFloatResults.class));
+            var textEmbeddingResults = (DenseEmbeddingFloatResults) result;
+            assertThat(textEmbeddingResults.embeddings(), hasSize(2));
+
+            var firstEmbedding = textEmbeddingResults.embeddings().get(0);
+            assertThat(firstEmbedding.values(), is(new float[] { 2.1259406f, 1.7073475f, 0.9020516f }));
+
+            var secondEmbedding = textEmbeddingResults.embeddings().get(1);
+            assertThat(secondEmbedding.values(), is(new float[] { 1.8342123f, 2.3456789f, 0.7654321f }));
+
+            assertHeadersWithAuth(webServer.requests(), secret);
 
             var requestMap = entityAsMap(webServer.requests().get(0).getBody());
             assertThat(requestMap.size(), is(2));
@@ -342,8 +555,7 @@ public class ElasticInferenceServiceActionCreatorTests extends ESTestCase {
             webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
 
             var model = ElasticInferenceServiceDenseTextEmbeddingsModelTests.createModel(getUrl(webServer), "my-dense-model-id");
-            var actionCreator = new ElasticInferenceServiceActionCreator(sender, createWithEmptySettings(threadPool), createTraceContext());
-            var action = actionCreator.create(model);
+            var action = createAction(sender, model);
 
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
             action.execute(
@@ -397,8 +609,7 @@ public class ElasticInferenceServiceActionCreatorTests extends ESTestCase {
             webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
 
             var model = ElasticInferenceServiceDenseTextEmbeddingsModelTests.createModel(getUrl(webServer), "my-dense-model-id");
-            var actionCreator = new ElasticInferenceServiceActionCreator(sender, createWithEmptySettings(threadPool), createTraceContext());
-            var action = actionCreator.create(model);
+            var action = createAction(sender, model);
 
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
             action.execute(
@@ -439,8 +650,7 @@ public class ElasticInferenceServiceActionCreatorTests extends ESTestCase {
             webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
 
             var model = ElasticInferenceServiceDenseTextEmbeddingsModelTests.createModel(getUrl(webServer), "my-dense-model-id");
-            var actionCreator = new ElasticInferenceServiceActionCreator(sender, createWithEmptySettings(threadPool), createTraceContext());
-            var action = actionCreator.create(model);
+            var action = createAction(sender, model);
 
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
             action.execute(new EmbeddingsInput(List.of(), InputType.UNSPECIFIED), InferenceAction.Request.DEFAULT_TIMEOUT, listener);
@@ -487,8 +697,7 @@ public class ElasticInferenceServiceActionCreatorTests extends ESTestCase {
             webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
 
             var model = ElasticInferenceServiceSparseEmbeddingsModelTests.createModel(getUrl(webServer), "my-model-id");
-            var actionCreator = new ElasticInferenceServiceActionCreator(sender, createWithEmptySettings(threadPool), createTraceContext());
-            var action = actionCreator.create(model);
+            var action = createAction(sender, model);
 
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
             action.execute(
@@ -551,8 +760,7 @@ public class ElasticInferenceServiceActionCreatorTests extends ESTestCase {
 
             // truncated to 1 token = 3 characters
             var model = ElasticInferenceServiceSparseEmbeddingsModelTests.createModel(getUrl(webServer), "my-model-id", 1);
-            var actionCreator = new ElasticInferenceServiceActionCreator(sender, createWithEmptySettings(threadPool), createTraceContext());
-            var action = actionCreator.create(model);
+            var action = createAction(sender, model);
 
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
             action.execute(

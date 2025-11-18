@@ -11,6 +11,12 @@
           "type" : "aggregate_metric_double",
           "optional" : false,
           "description" : "Expression that outputs values to average."
+        },
+        {
+          "name" : "window",
+          "type" : "time_duration",
+          "optional" : true,
+          "description" : "the time window over which to compute the average"
         }
       ],
       "variadic" : false,
@@ -23,6 +29,12 @@
           "type" : "double",
           "optional" : false,
           "description" : "Expression that outputs values to average."
+        },
+        {
+          "name" : "window",
+          "type" : "time_duration",
+          "optional" : true,
+          "description" : "the time window over which to compute the average"
         }
       ],
       "variadic" : false,
@@ -35,6 +47,12 @@
           "type" : "integer",
           "optional" : false,
           "description" : "Expression that outputs values to average."
+        },
+        {
+          "name" : "window",
+          "type" : "time_duration",
+          "optional" : true,
+          "description" : "the time window over which to compute the average"
         }
       ],
       "variadic" : false,
@@ -47,6 +65,12 @@
           "type" : "long",
           "optional" : false,
           "description" : "Expression that outputs values to average."
+        },
+        {
+          "name" : "window",
+          "type" : "time_duration",
+          "optional" : true,
+          "description" : "the time window over which to compute the average"
         }
       ],
       "variadic" : false,

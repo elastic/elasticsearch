@@ -50,7 +50,7 @@ public class TransportGetCCMConfigurationAction extends HandledTransportAction<
 
     @Override
     protected void doExecute(Task task, GetCCMConfigurationAction.Request request, ActionListener<CCMEnabledActionResponse> listener) {
-        if (ccmFeature.allowConfiguringCcm() == false) {
+        if (ccmFeature.isCcmSupportedEnvironment() == false) {
             listener.onFailure(CCM_FORBIDDEN_EXCEPTION);
             return;
         }

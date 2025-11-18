@@ -1,0 +1,5 @@
+pr: 138139
+summary: Support window function in time-series aggregations
+area: ES|QL
+type: enhancement
+issues: []

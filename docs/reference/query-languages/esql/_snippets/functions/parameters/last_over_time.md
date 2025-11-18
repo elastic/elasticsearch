@@ -3,5 +3,8 @@
 **Parameters**
 
 `field`
-:   
+:   the field to calculate the latest value for
+
+`window`
+:   the time window over which to find the latest value
 

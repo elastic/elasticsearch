@@ -27,7 +27,6 @@ import org.elasticsearch.index.engine.CommitStats;
 import org.elasticsearch.index.seqno.RetentionLeaseStats;
 import org.elasticsearch.index.seqno.SeqNoStats;
 import org.elasticsearch.index.shard.IndexShard;
-import org.elasticsearch.indices.IndicesQueryCache;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.CancellableTask;
@@ -37,7 +36,11 @@ import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
 
-public class TransportIndicesStatsAction extends TransportBroadcastByNodeAction<IndicesStatsRequest, IndicesStatsResponse, ShardStats> {
+public class TransportIndicesStatsAction extends TransportBroadcastByNodeAction<
+    IndicesStatsRequest,
+    IndicesStatsResponse,
+    ShardStats,
+    Void> {
 
     private final IndicesService indicesService;
     private final ProjectResolver projectResolver;
@@ -110,18 +113,18 @@ public class TransportIndicesStatsAction extends TransportBroadcastByNodeAction<
     }
 
     @Override
-    protected void shardOperation(IndicesStatsRequest request, ShardRouting shardRouting, Task task, ActionListener<ShardStats> listener) {
+    protected void shardOperation(
+        IndicesStatsRequest request,
+        ShardRouting shardRouting,
+        Task task,
+        Void nodeContext,
+        ActionListener<ShardStats> listener
+    ) {
         ActionListener.completeWith(listener, () -> {
             assert task instanceof CancellableTask;
             IndexService indexService = indicesService.indexServiceSafe(shardRouting.shardId().getIndex());
             IndexShard indexShard = indexService.getShard(shardRouting.shardId().id());
-            long sharedRam = IndicesQueryCache.getSharedRamSizeForShard(indicesService, indexShard.shardId());
-            CommonStats commonStats = CommonStats.getShardLevelStats(
-                indicesService.getIndicesQueryCache(),
-                indexShard,
-                request.flags(),
-                sharedRam
-            );
+            CommonStats commonStats = CommonStats.getShardLevelStats(indicesService.getIndicesQueryCache(), indexShard, request.flags());
             CommitStats commitStats;
             SeqNoStats seqNoStats;
             RetentionLeaseStats retentionLeaseStats;

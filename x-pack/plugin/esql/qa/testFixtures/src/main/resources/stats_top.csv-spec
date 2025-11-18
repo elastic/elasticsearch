@@ -312,3 +312,96 @@ top_salaries:integer
 [25324, 25945, 25976]
 ;
 
+
+outputFieldDesc
+required_capability: agg_top_with_output_field
+FROM employees
+| STATS youngest_employees = TOP(birth_date, 3, "desc"),
+        youngest_employees_salaries = TOP(birth_date, 3, "desc", salary)
+;
+
+youngest_employees:date                                                        | youngest_employees_salaries:integer
+[1965-01-03T00:00:00.000Z, 1964-10-18T00:00:00.000Z, 1964-06-11T00:00:00.000Z] | [37702, 25976, 45656]
+;
+
+outputFieldDescGrouping
+required_capability: agg_top_with_output_field
+FROM employees
+| STATS youngest_employees = TOP(birth_date, 3, "desc"),
+        youngest_employees_salaries = TOP(birth_date, 3, "desc", salary)
+  BY    gender
+| SORT gender
+| KEEP gender, youngest_employees, youngest_employees_salaries
+;
+
+gender:keyword | youngest_employees:datetime                                                    | youngest_employees_salaries:integer
+F              | [1964-10-18T00:00:00.000Z, 1964-06-02T00:00:00.000Z, 1963-03-21T00:00:00.000Z] | [25976, 56371, 43602]
+M              | [1965-01-03T00:00:00.000Z, 1964-06-11T00:00:00.000Z, 1964-04-18T00:00:00.000Z] | [37702, 45656, 46595]
+null           | [1963-06-07T00:00:00.000Z, 1963-06-01T00:00:00.000Z, 1961-05-02T00:00:00.000Z] | [48735, 45797, 61358]
+;
+
+outputFieldAsc
+required_capability: agg_top_with_output_field
+FROM employees
+| STATS oldest_employees = TOP(birth_date, 3, "asc"),
+        oldest_employees_salaries = TOP(birth_date, 3, "asc", salary)
+;
+
+oldest_employees:date                                                          | oldest_employees_salaries:integer
+[1952-02-27T00:00:00.000Z, 1952-04-19T00:00:00.000Z, 1952-05-15T00:00:00.000Z] | [71165, 66174, 54518]
+;
+
+outputFieldAscGrouping
+required_capability: agg_top_with_output_field
+FROM employees
+| STATS oldest_employees = TOP(birth_date, 3, "asc"),
+        oldest_employees_salaries = TOP(birth_date, 3, "asc", salary)
+  BY    gender
+| SORT gender
+| KEEP gender, oldest_employees, oldest_employees_salaries
+;
+
+gender:keyword | oldest_employees:datetime                                                      | oldest_employees_salaries:integer
+F              | [1952-04-19T00:00:00.000Z, 1952-05-15T00:00:00.000Z, 1952-06-13T00:00:00.000Z] | [66174, 54518, 62405]
+M              | [1952-02-27T00:00:00.000Z, 1952-07-08T00:00:00.000Z, 1952-11-13T00:00:00.000Z] | [71165, 48233, 31897]
+null           | [1953-01-23T00:00:00.000Z, 1953-11-07T00:00:00.000Z, 1954-06-19T00:00:00.000Z] | [73717, 31120, 56760]
+;
+
+outputFieldAscSameAsField
+required_capability: agg_top_with_output_field
+FROM employees
+| STATS oldest_employees = TOP(birth_date, 3, "asc"),
+        oldest_employees_dup = TOP(birth_date, 3, "asc", birth_date)
+;
+
+oldest_employees:date                                                          | oldest_employees_dup:date
+[1952-02-27T00:00:00.000Z, 1952-04-19T00:00:00.000Z, 1952-05-15T00:00:00.000Z] | [1952-02-27T00:00:00.000Z, 1952-04-19T00:00:00.000Z, 1952-05-15T00:00:00.000Z]
+;
+
+outputFieldOrderGrouping
+required_capability: agg_top_with_output_field
+
+FROM employees
+| EVAL birth_year = DATE_EXTRACT("year", birth_date)
+| STATS v = TOP(birth_year, 20, "asc", emp_no) BY birth_year
+| KEEP birth_year, v
+| SORT birth_year
+;
+
+birth_year:long | v:integer
+1952            | [10009, 10020, 10022, 10063, 10066, 10072, 10076, 10097]
+1953            | [10001, 10006, 10011, 10019, 10023, 10026, 10035, 10051, 10059, 10067, 10100]
+1954            | [10004, 10018, 10053, 10057, 10058, 10073, 10088, 10096]
+1955            | [10005, 10070, 10074, 10091]
+1956            | [10014, 10029, 10033, 10055, 10099]
+1957            | [10007, 10054, 10080, 10094]
+1958            | [10008, 10017, 10024, 10025, 10030, 10050, 10071]
+1959            | [10003, 10015, 10031, 10036, 10039, 10064, 10078, 10083, 10087]
+1960            | [10012, 10021, 10032, 10038, 10069, 10075, 10081, 10084]
+1961            | [10016, 10052, 10056, 10060, 10062, 10079, 10090, 10098]
+1962            | [10027, 10034, 10061, 10068, 10085, 10086]
+1963            | [10010, 10013, 10028, 10037, 10065, 10082, 10089]
+1964            | [10002, 10077, 10092, 10093]
+1965            | 10095
+null            | null
+;

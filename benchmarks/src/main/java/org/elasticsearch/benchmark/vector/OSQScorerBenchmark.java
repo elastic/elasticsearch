@@ -18,7 +18,9 @@ import org.apache.lucene.store.NIOFSDirectory;
 import org.apache.lucene.util.quantization.OptimizedScalarQuantizer;
 import org.elasticsearch.common.logging.LogConfigurator;
 import org.elasticsearch.core.IOUtils;
+import org.elasticsearch.index.codec.vectors.diskbbq.next.ESNextDiskBBQVectorsFormat;
 import org.elasticsearch.simdvec.ES91OSQVectorsScorer;
+import org.elasticsearch.simdvec.ESNextOSQVectorsScorer;
 import org.elasticsearch.simdvec.internal.vectorization.ESVectorizationProvider;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
@@ -57,6 +59,9 @@ public class OSQScorerBenchmark {
     @Param({ "384", "782", "1024" })
     int dims;
 
+    @Param({ "1", "2", "4" })
+    int bits;
+
     int length;
 
     int numVectors = ES91OSQVectorsScorer.BULK_SIZE * 10;
@@ -68,8 +73,8 @@ public class OSQScorerBenchmark {
     float centroidDp;
 
     byte[] scratch;
-    ES91OSQVectorsScorer scorerMmap;
-    ES91OSQVectorsScorer scorerNfios;
+    ESNextOSQVectorsScorer scorerMmap;
+    ESNextOSQVectorsScorer scorerNfios;
 
     Directory dirMmap;
     IndexInput inMmap;
@@ -84,7 +89,12 @@ public class OSQScorerBenchmark {
     public void setup() throws IOException {
         Random random = new Random(123);
 
-        this.length = OptimizedScalarQuantizer.discretize(dims, 64) / 8;
+        this.length = switch (bits) {
+            case 1 -> ESNextDiskBBQVectorsFormat.QuantEncoding.ONE_BIT_4BIT_QUERY.getDocPackedLength(dims);
+            case 2 -> ESNextDiskBBQVectorsFormat.QuantEncoding.TWO_BIT_4BIT_QUERY.getDocPackedLength(dims);
+            case 4 -> ESNextDiskBBQVectorsFormat.QuantEncoding.FOUR_BIT_SYMMETRIC.getDocPackedLength(dims);
+            default -> throw new IllegalArgumentException("Unsupported bits: " + bits);
+        };
 
         binaryVectors = new byte[numVectors][length];
         for (byte[] binaryVector : binaryVectors) {
@@ -109,8 +119,14 @@ public class OSQScorerBenchmark {
         outNfios.close();
         inMmap = dirMmap.openInput("vectors", IOContext.DEFAULT);
         inNiofs = dirNiofs.openInput("vectors", IOContext.DEFAULT);
+        int binaryQueryLength = switch (bits) {
+            case 1 -> ESNextDiskBBQVectorsFormat.QuantEncoding.ONE_BIT_4BIT_QUERY.getQueryPackedLength(dims);
+            case 2 -> ESNextDiskBBQVectorsFormat.QuantEncoding.TWO_BIT_4BIT_QUERY.getQueryPackedLength(dims);
+            case 4 -> ESNextDiskBBQVectorsFormat.QuantEncoding.FOUR_BIT_SYMMETRIC.getQueryPackedLength(dims);
+            default -> throw new IllegalArgumentException("Unsupported bits: " + bits);
+        };
 
-        binaryQueries = new byte[numVectors][4 * length];
+        binaryQueries = new byte[numVectors][binaryQueryLength];
         for (byte[] binaryVector : binaryVectors) {
             random.nextBytes(binaryVector);
         }
@@ -123,8 +139,26 @@ public class OSQScorerBenchmark {
         centroidDp = random.nextFloat();
 
         scratch = new byte[length];
-        scorerMmap = ESVectorizationProvider.getInstance().newES91OSQVectorsScorer(inMmap, dims);
-        scorerNfios = ESVectorizationProvider.getInstance().newES91OSQVectorsScorer(inNiofs, dims);
+        final int docBits;
+        final int queryBits = switch (bits) {
+            case 1 -> {
+                docBits = 1;
+                yield 4;
+            }
+            case 2 -> {
+                docBits = 2;
+                yield 4;
+            }
+            case 4 -> {
+                docBits = 4;
+                yield 4;
+            }
+            default -> throw new IllegalArgumentException("Unsupported bits: " + bits);
+        };
+        scorerMmap = ESVectorizationProvider.getInstance()
+            .newESNextOSQVectorsScorer(inMmap, (byte) queryBits, (byte) docBits, dims, length);
+        scorerNfios = ESVectorizationProvider.getInstance()
+            .newESNextOSQVectorsScorer(inNiofs, (byte) queryBits, (byte) docBits, dims, length);
         scratchScores = new float[16];
         corrections = new float[3];
     }
@@ -156,7 +190,7 @@ public class OSQScorerBenchmark {
         scoreFromMemorySegmentOnlyVector(bh, inNiofs, scorerNfios);
     }
 
-    private void scoreFromMemorySegmentOnlyVector(Blackhole bh, IndexInput in, ES91OSQVectorsScorer scorer) throws IOException {
+    private void scoreFromMemorySegmentOnlyVector(Blackhole bh, IndexInput in, ESNextOSQVectorsScorer scorer) throws IOException {
         for (int j = 0; j < numQueries; j++) {
             in.seek(0);
             for (int i = 0; i < numVectors; i++) {
@@ -203,7 +237,7 @@ public class OSQScorerBenchmark {
         scoreFromMemorySegmentOnlyVectorBulk(bh, inNiofs, scorerNfios);
     }
 
-    private void scoreFromMemorySegmentOnlyVectorBulk(Blackhole bh, IndexInput in, ES91OSQVectorsScorer scorer) throws IOException {
+    private void scoreFromMemorySegmentOnlyVectorBulk(Blackhole bh, IndexInput in, ESNextOSQVectorsScorer scorer) throws IOException {
         for (int j = 0; j < numQueries; j++) {
             in.seek(0);
             for (int i = 0; i < numVectors; i += 16) {
@@ -252,7 +286,7 @@ public class OSQScorerBenchmark {
         scoreFromMemorySegmentAllBulk(bh, inNiofs, scorerNfios);
     }
 
-    private void scoreFromMemorySegmentAllBulk(Blackhole bh, IndexInput in, ES91OSQVectorsScorer scorer) throws IOException {
+    private void scoreFromMemorySegmentAllBulk(Blackhole bh, IndexInput in, ESNextOSQVectorsScorer scorer) throws IOException {
         for (int j = 0; j < numQueries; j++) {
             in.seek(0);
             for (int i = 0; i < numVectors; i += 16) {

@@ -1,6 +1,0 @@
-pr: 137398
-summary: Error if installed plugin is inside plugins folder
-area: Infra/Plugins
-type: enhancement
-issues:
- - 27401

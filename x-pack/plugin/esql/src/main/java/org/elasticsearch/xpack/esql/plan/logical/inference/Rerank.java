@@ -175,6 +175,11 @@ public class Rerank extends InferencePlan<Rerank> implements PostAnalysisVerific
     }
 
     @Override
+    public boolean isFoldable() {
+        return false;
+    }
+
+    @Override
     protected NodeInfo<? extends LogicalPlan> info() {
         return NodeInfo.create(this, Rerank::new, child(), inferenceId(), queryText, rerankFields, scoreAttribute);
     }

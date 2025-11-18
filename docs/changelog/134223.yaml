@@ -1,6 +1,0 @@
-pr: 134223
-summary: Improve concurrency design of `EnterpriseGeoIpDownloader`
-area: Ingest Node
-type: bug
-issues:
- - 126124

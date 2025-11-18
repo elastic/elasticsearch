@@ -10,6 +10,7 @@
 package org.elasticsearch.common.geo;
 
 import org.apache.lucene.geo.GeoEncodingUtils;
+import org.apache.lucene.search.DoubleValues;
 import org.apache.lucene.util.SloppyMath;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.unit.DistanceUnit;
@@ -18,7 +19,6 @@ import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.fielddata.FieldData;
 import org.elasticsearch.index.fielddata.GeoPointValues;
 import org.elasticsearch.index.fielddata.MultiGeoPointValues;
-import org.elasticsearch.index.fielddata.NumericDoubleValues;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
 import org.elasticsearch.index.fielddata.SortingNumericDoubleValues;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
@@ -525,7 +525,7 @@ public class GeoUtils {
     ) {
         final GeoPointValues singleValues = FieldData.unwrapSingleton(geoPointValues);
         if (singleValues != null && fromPoints.length == 1) {
-            return FieldData.singleton(new NumericDoubleValues() {
+            return FieldData.singleton(new DoubleValues() {
 
                 @Override
                 public boolean advanceExact(int doc) throws IOException {

@@ -41,7 +41,7 @@ public class WriteableExponentialHistogram extends AbstractExponentialHistogram 
 
     private final ExponentialHistogram delegate;
 
-    WriteableExponentialHistogram(ExponentialHistogram delegate) {
+    public WriteableExponentialHistogram(ExponentialHistogram delegate) {
         this.delegate = delegate;
     }
 

@@ -1,0 +1,6 @@
+pr: 138122
+summary: Add validation for updating `num_threads`
+area: Machine Learning
+type: bug
+issues:
+ - 137129

@@ -143,7 +143,7 @@ public class KeywordFieldTypeTests extends FieldTypeTestCase {
         {
             FieldType fieldType = new FieldType();
             fieldType.setOmitNorms(false);
-            KeywordFieldType ft = new KeywordFieldType("field", fieldType);
+            KeywordFieldType ft = new KeywordFieldType("field", fieldType, false);
             // updated in #130531 so that a field that is neither indexed nor has doc values will generate a TermQuery
             // to avoid ISE from FieldExistsQuery
             assertEquals(new TermQuery(new Term(FieldNamesFieldMapper.NAME, "field")), ft.existsQuery(MOCK_CONTEXT));
@@ -327,9 +327,8 @@ public class KeywordFieldTypeTests extends FieldTypeTestCase {
 
         KeywordFieldMapper.KeywordFieldType fieldType = new KeywordFieldMapper.KeywordFieldType(
             "field",
-            mock(FieldType.class),
-            mock(NamedAnalyzer.class),
-            mock(NamedAnalyzer.class),
+            IndexType.terms(true, true),
+            new TextSearchInfo(mock(FieldType.class), null, mock(NamedAnalyzer.class), mock(NamedAnalyzer.class)),
             mock(NamedAnalyzer.class),
             builder,
             true
@@ -359,9 +358,8 @@ public class KeywordFieldTypeTests extends FieldTypeTestCase {
 
         KeywordFieldMapper.KeywordFieldType fieldType = new KeywordFieldMapper.KeywordFieldType(
             "field",
-            mock(FieldType.class),
-            mock(NamedAnalyzer.class),
-            mock(NamedAnalyzer.class),
+            IndexType.terms(true, true),
+            new TextSearchInfo(mock(FieldType.class), null, mock(NamedAnalyzer.class), mock(NamedAnalyzer.class)),
             mock(NamedAnalyzer.class),
             builder,
             true
@@ -390,9 +388,8 @@ public class KeywordFieldTypeTests extends FieldTypeTestCase {
 
         KeywordFieldMapper.KeywordFieldType fieldType = new KeywordFieldMapper.KeywordFieldType(
             "field",
-            mock(FieldType.class),
-            mock(NamedAnalyzer.class),
-            mock(NamedAnalyzer.class),
+            IndexType.terms(true, true),
+            new TextSearchInfo(mock(FieldType.class), null, mock(NamedAnalyzer.class), mock(NamedAnalyzer.class)),
             mock(NamedAnalyzer.class),
             builder,
             true
@@ -422,9 +419,8 @@ public class KeywordFieldTypeTests extends FieldTypeTestCase {
 
         KeywordFieldMapper.KeywordFieldType fieldType = new KeywordFieldMapper.KeywordFieldType(
             "field",
-            mock(FieldType.class),
-            mock(NamedAnalyzer.class),
-            mock(NamedAnalyzer.class),
+            IndexType.terms(true, true),
+            new TextSearchInfo(mock(FieldType.class), null, mock(NamedAnalyzer.class), mock(NamedAnalyzer.class)),
             mock(NamedAnalyzer.class),
             builder,
             true
@@ -454,9 +450,8 @@ public class KeywordFieldTypeTests extends FieldTypeTestCase {
 
         KeywordFieldMapper.KeywordFieldType fieldType = new KeywordFieldMapper.KeywordFieldType(
             "field",
-            mock(FieldType.class),
-            mock(NamedAnalyzer.class),
-            mock(NamedAnalyzer.class),
+            IndexType.terms(true, true),
+            new TextSearchInfo(mock(FieldType.class), null, mock(NamedAnalyzer.class), mock(NamedAnalyzer.class)),
             mock(NamedAnalyzer.class),
             builder,
             true
@@ -486,9 +481,8 @@ public class KeywordFieldTypeTests extends FieldTypeTestCase {
 
         KeywordFieldMapper.KeywordFieldType fieldType = new KeywordFieldMapper.KeywordFieldType(
             "field",
-            mock(FieldType.class),
-            mock(NamedAnalyzer.class),
-            mock(NamedAnalyzer.class),
+            IndexType.terms(true, true),
+            new TextSearchInfo(mock(FieldType.class), null, mock(NamedAnalyzer.class), mock(NamedAnalyzer.class)),
             mock(NamedAnalyzer.class),
             builder,
             true
@@ -518,9 +512,8 @@ public class KeywordFieldTypeTests extends FieldTypeTestCase {
 
         KeywordFieldMapper.KeywordFieldType fieldType = new KeywordFieldMapper.KeywordFieldType(
             "field",
-            mock(FieldType.class),
-            mock(NamedAnalyzer.class),
-            mock(NamedAnalyzer.class),
+            IndexType.terms(true, true),
+            new TextSearchInfo(mock(FieldType.class), null, mock(NamedAnalyzer.class), mock(NamedAnalyzer.class)),
             mock(NamedAnalyzer.class),
             builder,
             true
@@ -534,7 +527,7 @@ public class KeywordFieldTypeTests extends FieldTypeTestCase {
     public void testIgnoreAboveIsSetReturnsFalseForNonPrimaryConstructor() {
         // given
         KeywordFieldType fieldType1 = new KeywordFieldType("field");
-        KeywordFieldType fieldType2 = new KeywordFieldType("field", mock(FieldType.class));
+        KeywordFieldType fieldType2 = new KeywordFieldType("field", mock(FieldType.class), false);
         KeywordFieldType fieldType3 = new KeywordFieldType("field", true, true, Collections.emptyMap());
         KeywordFieldType fieldType4 = new KeywordFieldType("field", mock(NamedAnalyzer.class));
 

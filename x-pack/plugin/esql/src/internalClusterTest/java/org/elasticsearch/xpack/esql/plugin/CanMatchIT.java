@@ -16,7 +16,6 @@ import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.index.query.MatchQueryBuilder;
 import org.elasticsearch.index.query.RangeQueryBuilder;
-import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.transport.RemoteClusterAware;
@@ -78,8 +77,8 @@ public class CanMatchIT extends AbstractEsqlIntegTestCase {
                     ComputeService.DATA_ACTION_NAME,
                     (handler, request, channel, task) -> {
                         DataNodeRequest dataNodeRequest = (DataNodeRequest) request;
-                        for (ShardId shardId : dataNodeRequest.shardIds()) {
-                            queriedIndices.add(shardId.getIndexName());
+                        for (DataNodeRequest.Shard shard : dataNodeRequest.shards()) {
+                            queriedIndices.add(shard.shardId().getIndexName());
                         }
                         handler.messageReceived(request, channel, task);
                     }
@@ -395,8 +394,8 @@ public class CanMatchIT extends AbstractEsqlIntegTestCase {
                 ComputeService.DATA_ACTION_NAME,
                 (handler, request, channel, task) -> {
                     DataNodeRequest dataNodeRequest = (DataNodeRequest) request;
-                    for (ShardId shardId : dataNodeRequest.shardIds()) {
-                        queriedIndices.add(shardId.getIndexName());
+                    for (DataNodeRequest.Shard shard : dataNodeRequest.shards()) {
+                        queriedIndices.add(shard.shardId().getIndexName());
                     }
                     handler.messageReceived(request, channel, task);
                 }

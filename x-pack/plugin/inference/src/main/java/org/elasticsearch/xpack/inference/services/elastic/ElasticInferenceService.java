@@ -39,7 +39,6 @@ import org.elasticsearch.xpack.core.inference.results.ChunkedInferenceEmbedding;
 import org.elasticsearch.xpack.core.inference.results.ChunkedInferenceError;
 import org.elasticsearch.xpack.core.inference.results.SparseEmbeddingResults;
 import org.elasticsearch.xpack.core.ml.inference.results.ErrorInferenceResults;
-import org.elasticsearch.xpack.inference.external.action.SenderExecutableAction;
 import org.elasticsearch.xpack.inference.external.http.sender.EmbeddingsInput;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSender;
 import org.elasticsearch.xpack.inference.external.http.sender.InferenceInputs;
@@ -49,6 +48,7 @@ import org.elasticsearch.xpack.inference.services.SenderService;
 import org.elasticsearch.xpack.inference.services.ServiceComponents;
 import org.elasticsearch.xpack.inference.services.ServiceUtils;
 import org.elasticsearch.xpack.inference.services.elastic.action.ElasticInferenceServiceActionCreator;
+import org.elasticsearch.xpack.inference.services.elastic.ccm.CCMAuthenticationApplierFactory;
 import org.elasticsearch.xpack.inference.services.elastic.completion.ElasticInferenceServiceCompletionModel;
 import org.elasticsearch.xpack.inference.services.elastic.densetextembeddings.ElasticInferenceServiceDenseTextEmbeddingsModel;
 import org.elasticsearch.xpack.inference.services.elastic.densetextembeddings.ElasticInferenceServiceDenseTextEmbeddingsServiceSettings;
@@ -59,12 +59,10 @@ import org.elasticsearch.xpack.inference.telemetry.TraceContext;
 import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 
 import static org.elasticsearch.xpack.core.inference.results.ResultUtils.createInvalidChunkedResultException;
-import static org.elasticsearch.xpack.inference.external.action.ActionUtils.constructFailedToSendRequestMessage;
 import static org.elasticsearch.xpack.inference.services.ServiceFields.MAX_INPUT_TOKENS;
 import static org.elasticsearch.xpack.inference.services.ServiceFields.MODEL_ID;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.createInvalidModelException;
@@ -108,26 +106,36 @@ public class ElasticInferenceService extends SenderService {
     );
 
     private final ElasticInferenceServiceComponents elasticInferenceServiceComponents;
+    private final CCMAuthenticationApplierFactory ccmAuthenticationApplierFactory;
+    private ElasticInferenceServiceActionCreator actionCreator;
 
     public ElasticInferenceService(
         HttpRequestSender.Factory factory,
         ServiceComponents serviceComponents,
         ElasticInferenceServiceSettings elasticInferenceServiceSettings,
-        InferenceServiceExtension.InferenceServiceFactoryContext context
+        InferenceServiceExtension.InferenceServiceFactoryContext context,
+        CCMAuthenticationApplierFactory ccmAuthApplierFactory
     ) {
-        this(factory, serviceComponents, elasticInferenceServiceSettings, context.clusterService());
+        this(factory, serviceComponents, elasticInferenceServiceSettings, context.clusterService(), ccmAuthApplierFactory);
     }
 
     public ElasticInferenceService(
         HttpRequestSender.Factory factory,
         ServiceComponents serviceComponents,
         ElasticInferenceServiceSettings elasticInferenceServiceSettings,
-        ClusterService clusterService
+        ClusterService clusterService,
+        CCMAuthenticationApplierFactory ccmAuthApplierFactory
     ) {
         super(factory, serviceComponents, clusterService);
         this.elasticInferenceServiceComponents = new ElasticInferenceServiceComponents(
             elasticInferenceServiceSettings.getElasticInferenceServiceUrl()
         );
+        this.ccmAuthenticationApplierFactory = ccmAuthApplierFactory;
+    }
+
+    public void init() {
+        // Wait to initialize the action creator until the sender is constructed
+        this.actionCreator = new ElasticInferenceServiceActionCreator(getSender(), getServiceComponents(), ccmAuthenticationApplierFactory);
     }
 
     @Override
@@ -166,18 +174,12 @@ public class ElasticInferenceService extends SenderService {
 
         var completionModel = (ElasticInferenceServiceCompletionModel) model;
         var overriddenModel = ElasticInferenceServiceCompletionModel.of(completionModel, inputs.getRequest());
-        var errorMessage = constructFailedToSendRequestMessage(
-            String.format(Locale.ROOT, "%s completions", ELASTIC_INFERENCE_SERVICE_IDENTIFIER)
-        );
 
-        var requestManager = ElasticInferenceServiceUnifiedCompletionRequestManager.of(
+        actionCreator.create(
             overriddenModel,
-            getServiceComponents().threadPool(),
-            currentTraceInfo
+            currentTraceInfo,
+            listener.delegateFailureAndWrap((delegate, action) -> action.execute(inputs, timeout, delegate))
         );
-        var action = new SenderExecutableAction(getSender(), requestManager, errorMessage);
-
-        action.execute(inputs, timeout, listener);
     }
 
     @Override
@@ -198,7 +200,7 @@ public class ElasticInferenceService extends SenderService {
             return;
         }
 
-        if (model instanceof ElasticInferenceServiceExecutableActionModel == false) {
+        if (model instanceof ElasticInferenceServiceModel == false) {
             listener.onFailure(createInvalidModelException(model));
             return;
         }
@@ -208,11 +210,13 @@ public class ElasticInferenceService extends SenderService {
         // generating a different "traceparent" as every task and every REST request creates a new span).
         var currentTraceInfo = getCurrentTraceInfo();
 
-        ElasticInferenceServiceExecutableActionModel elasticInferenceServiceModel = (ElasticInferenceServiceExecutableActionModel) model;
-        var actionCreator = new ElasticInferenceServiceActionCreator(getSender(), getServiceComponents(), currentTraceInfo);
+        var elasticInferenceServiceModel = (ElasticInferenceServiceModel) model;
 
-        var action = elasticInferenceServiceModel.accept(actionCreator, taskSettings);
-        action.execute(inputs, timeout, listener);
+        actionCreator.create(
+            elasticInferenceServiceModel,
+            currentTraceInfo,
+            listener.delegateFailureAndWrap((delegate, action) -> action.execute(inputs, timeout, delegate))
+        );
     }
 
     @Override
@@ -228,8 +232,6 @@ public class ElasticInferenceService extends SenderService {
         ActionListener<List<ChunkedInference>> listener
     ) {
         if (model instanceof ElasticInferenceServiceDenseTextEmbeddingsModel denseTextEmbeddingsModel) {
-            var actionCreator = new ElasticInferenceServiceActionCreator(getSender(), getServiceComponents(), getCurrentTraceInfo());
-
             List<EmbeddingRequestChunker.BatchRequestAndListener> batchedRequests = new EmbeddingRequestChunker<>(
                 inputs,
                 DENSE_TEXT_EMBEDDINGS_MAX_BATCH_SIZE,
@@ -237,16 +239,24 @@ public class ElasticInferenceService extends SenderService {
             ).batchRequestsWithListeners(listener);
 
             for (var request : batchedRequests) {
-                var action = denseTextEmbeddingsModel.accept(actionCreator, taskSettings);
-                action.execute(new EmbeddingsInput(request.batch().inputs(), inputType), timeout, request.listener());
+                actionCreator.create(
+                    denseTextEmbeddingsModel,
+                    getCurrentTraceInfo(),
+                    request.listener()
+                        .delegateFailureAndWrap(
+                            (delegate, action) -> action.execute(
+                                new EmbeddingsInput(request.batch().inputs(), inputType),
+                                timeout,
+                                delegate
+                            )
+                        )
+                );
             }
 
             return;
         }
 
         if (model instanceof ElasticInferenceServiceSparseEmbeddingsModel sparseTextEmbeddingsModel) {
-            var actionCreator = new ElasticInferenceServiceActionCreator(getSender(), getServiceComponents(), getCurrentTraceInfo());
-
             List<EmbeddingRequestChunker.BatchRequestAndListener> batchedRequests = new EmbeddingRequestChunker<>(
                 inputs,
                 SPARSE_TEXT_EMBEDDING_MAX_BATCH_SIZE,
@@ -254,8 +264,18 @@ public class ElasticInferenceService extends SenderService {
             ).batchRequestsWithListeners(listener);
 
             for (var request : batchedRequests) {
-                var action = sparseTextEmbeddingsModel.accept(actionCreator, taskSettings);
-                action.execute(new EmbeddingsInput(request.batch().inputs(), inputType), timeout, request.listener());
+                actionCreator.create(
+                    sparseTextEmbeddingsModel,
+                    getCurrentTraceInfo(),
+                    request.listener()
+                        .delegateFailureAndWrap(
+                            (delegate, action) -> action.execute(
+                                new EmbeddingsInput(request.batch().inputs(), inputType),
+                                timeout,
+                                delegate
+                            )
+                        )
+                );
             }
 
             return;

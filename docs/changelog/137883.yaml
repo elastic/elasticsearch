@@ -1,0 +1,6 @@
+pr: 137883
+summary: Addressing vector similarity concurrency issue with byte vectors
+area: ES|QL
+type: bug
+issues:
+ - 137625

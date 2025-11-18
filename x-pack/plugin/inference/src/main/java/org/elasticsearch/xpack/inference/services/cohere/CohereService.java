@@ -333,7 +333,7 @@ public class CohereService extends SenderService implements RerankingInferenceSe
     /**
      * Returns the default similarity measure for the embedding type.
      * Cohere embeddings are expected to be normalized to unit vectors, but due to floating point precision issues,
-     * our check ({@link DenseVectorFieldMapper#isNotUnitVector(float)}) often fails.
+     * our check ({@link DenseVectorFieldMapper.Element#isUnitVector(float)}) often fails.
      * Therefore, we use cosine similarity to ensure compatibility.
      *
      * @return The default similarity measure.

@@ -1137,6 +1137,13 @@ public abstract class ESTestCase extends LuceneTestCase {
     }
 
     /**
+     * Returns a pseudo-random double from a Gaussian distribution with mean 0.0 and standard deviation 1.0
+     */
+    public static double randomGaussianDouble() {
+        return random().nextGaussian();
+    }
+
+    /**
      * Returns a double value in the interval [start, end) if lowerInclusive is
      * set to true, (start, end) otherwise.
      *

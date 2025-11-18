@@ -40,7 +40,11 @@ abstract sealed class CoalesceBooleanEvaluator implements EvalOperator.Expressio
             return new ExpressionEvaluator.Factory() {
                 @Override
                 public ExpressionEvaluator get(DriverContext context) {
-                    return new CoalesceBooleanEagerEvaluator(context, childEvaluators.stream().map(x -> x.get(context)).toList());
+                    return new CoalesceBooleanEagerEvaluator(
+                        // comment to make spotless happy about line breaks
+                        context,
+                        childEvaluators.stream().map(x -> x.get(context)).toList()
+                    );
                 }
 
                 @Override
@@ -52,7 +56,11 @@ abstract sealed class CoalesceBooleanEvaluator implements EvalOperator.Expressio
         return new ExpressionEvaluator.Factory() {
             @Override
             public ExpressionEvaluator get(DriverContext context) {
-                return new CoalesceBooleanLazyEvaluator(context, childEvaluators.stream().map(x -> x.get(context)).toList());
+                return new CoalesceBooleanLazyEvaluator(
+                    // comment to make spotless happy about line breaks
+                    context,
+                    childEvaluators.stream().map(x -> x.get(context)).toList()
+                );
             }
 
             @Override
@@ -170,7 +178,10 @@ abstract sealed class CoalesceBooleanEvaluator implements EvalOperator.Expressio
                 for (int f = 1; f < flatten.length; f++) {
                     flatten[f] = (BooleanBlock) evaluators.get(firstToEvaluate + f - 1).eval(page);
                 }
-                try (BooleanBlock.Builder result = driverContext.blockFactory().newBooleanBlockBuilder(positionCount)) {
+                try (
+                    BooleanBlock.Builder result = driverContext.blockFactory() //
+                        .newBooleanBlockBuilder(positionCount)
+                ) {
                     position: for (int p = 0; p < positionCount; p++) {
                         for (BooleanBlock f : flatten) {
                             if (false == f.isNull(p)) {
@@ -207,7 +218,10 @@ abstract sealed class CoalesceBooleanEvaluator implements EvalOperator.Expressio
         @Override
         protected BooleanBlock perPosition(Page page, BooleanBlock lastFullBlock, int firstToEvaluate) {
             int positionCount = page.getPositionCount();
-            try (BooleanBlock.Builder result = driverContext.blockFactory().newBooleanBlockBuilder(positionCount)) {
+            try (
+                BooleanBlock.Builder result = driverContext.blockFactory() //
+                    .newBooleanBlockBuilder(positionCount)
+            ) {
                 position: for (int p = 0; p < positionCount; p++) {
                     if (lastFullBlock.isNull(p) == false) {
                         result.copyFrom(lastFullBlock, p, p + 1);

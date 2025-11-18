@@ -1,5 +1,0 @@
-pr: 137442
-summary: Handle ._original stored fields with fls
-area: "Authorization"
-type: bug
-issues: []

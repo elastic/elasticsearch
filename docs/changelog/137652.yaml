@@ -1,0 +1,6 @@
+pr: 137652
+summary: Fix default value for some settings when filtered
+area: Infra/Settings
+type: bug
+issues:
+ - 136333

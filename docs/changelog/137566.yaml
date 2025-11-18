@@ -1,0 +1,5 @@
+pr: 137566
+summary: Add support for `project_routing` for `_search` and `_async_search`
+area: CCS
+type: enhancement
+issues: []

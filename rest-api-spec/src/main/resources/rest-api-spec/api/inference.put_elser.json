@@ -27,8 +27,11 @@
           ],
           "parts": {
             "task_type": {
-              "type": "string",
-              "description": "The task type"
+              "type": "enum",
+              "description": "The task type",
+              "options": [
+                "sparse_embedding"
+              ]
             },
             "elser_inference_id": {
               "type": "string",

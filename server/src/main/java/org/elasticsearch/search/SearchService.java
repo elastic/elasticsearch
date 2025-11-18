@@ -26,6 +26,7 @@ import org.elasticsearch.action.ResolvedIndices;
 import org.elasticsearch.action.search.CanMatchNodeRequest;
 import org.elasticsearch.action.search.CanMatchNodeResponse;
 import org.elasticsearch.action.search.OnlinePrewarmingService;
+import org.elasticsearch.action.search.SearchRequestAttributesExtractor;
 import org.elasticsearch.action.search.SearchShardTask;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.action.support.TransportActions;
@@ -1450,7 +1451,8 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         final Engine.SearcherSupplier reader = indexShard.acquireSearcherSupplier();
         final ShardSearchContextId id = new ShardSearchContextId(sessionId, idGenerator.incrementAndGet(), reader.getSearcherId());
         try (ReaderContext readerContext = new ReaderContext(id, indexService, indexShard, reader, -1L, true)) {
-            DefaultSearchContext searchContext = createSearchContext(readerContext, request, timeout, ResultsType.NONE);
+            // Use ResultsType.QUERY so that the created search context can execute queries correctly.
+            DefaultSearchContext searchContext = createSearchContext(readerContext, request, timeout, ResultsType.QUERY);
             searchContext.addReleasable(readerContext.markAsUsed(0L));
             return searchContext;
         }
@@ -1982,6 +1984,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     public void canMatch(CanMatchNodeRequest request, ActionListener<CanMatchNodeResponse> listener) {
         var shardLevelRequests = request.getShardLevelRequests();
         final List<CanMatchNodeResponse.ResponseOrFailure> responses = new ArrayList<>(shardLevelRequests.size());
+        Map<String, Object> searchRequestAttributes = null;
         for (var shardLevelRequest : shardLevelRequests) {
             long shardCanMatchStartTimeInNanos = System.nanoTime();
             ShardSearchRequest shardSearchRequest = request.createShardSearchRequest(shardLevelRequest);
@@ -1992,7 +1995,18 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                 CanMatchContext canMatchContext = createCanMatchContext(shardSearchRequest);
                 CanMatchShardResponse canMatchShardResponse = canMatch(canMatchContext, true);
                 responses.add(new CanMatchNodeResponse.ResponseOrFailure(canMatchShardResponse));
-                indexShard.getSearchOperationListener().onCanMatchPhase(System.nanoTime() - shardCanMatchStartTimeInNanos);
+
+                if (searchRequestAttributes == null) {
+                    // All of the shards in the request are for the same search, so the attributes will be the same for all shards.
+                    searchRequestAttributes = SearchRequestAttributesExtractor.extractAttributes(
+                        shardSearchRequest,
+                        canMatchContext.getTimeRangeFilterFromMillis(),
+                        shardSearchRequest.nowInMillis()
+                    );
+                }
+
+                indexShard.getSearchOperationListener()
+                    .onCanMatchPhase(searchRequestAttributes, System.nanoTime() - shardCanMatchStartTimeInNanos);
             } catch (Exception e) {
                 responses.add(new CanMatchNodeResponse.ResponseOrFailure(e));
             }

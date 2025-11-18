@@ -22,7 +22,11 @@ import java.net.URISyntaxException;
 public class RequestUtils {
 
     public static Header createAuthBearerHeader(SecureString apiKey) {
-        return new BasicHeader(HttpHeaders.AUTHORIZATION, "Bearer " + apiKey.toString());
+        return new BasicHeader(HttpHeaders.AUTHORIZATION, bearerToken(apiKey.toString()));
+    }
+
+    public static String bearerToken(String apiKey) {
+        return "Bearer " + apiKey;
     }
 
     public static URI buildUri(URI accountUri, String service, CheckedSupplier<URI, URISyntaxException> uriBuilder) {

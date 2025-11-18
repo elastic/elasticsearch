@@ -22,6 +22,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.inference.external.http.retry.ResponseHandler;
 import org.elasticsearch.xpack.inference.external.http.sender.Sender;
 import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceResponseHandler;
+import org.elasticsearch.xpack.inference.services.elastic.ccm.CCMAuthenticationApplierFactory;
 import org.elasticsearch.xpack.inference.services.elastic.request.ElasticInferenceServiceAuthorizationRequest;
 import org.elasticsearch.xpack.inference.services.elastic.response.ElasticInferenceServiceAuthorizationResponseEntity;
 import org.elasticsearch.xpack.inference.telemetry.TraceContext;
@@ -54,18 +55,32 @@ public class ElasticInferenceServiceAuthorizationRequestHandler {
     private final ThreadPool threadPool;
     private final Logger logger;
     private final CountDownLatch requestCompleteLatch = new CountDownLatch(1);
+    private CCMAuthenticationApplierFactory authFactory;
 
-    public ElasticInferenceServiceAuthorizationRequestHandler(@Nullable String baseUrl, ThreadPool threadPool) {
-        this.baseUrl = baseUrl;
-        this.threadPool = Objects.requireNonNull(threadPool);
-        logger = LogManager.getLogger(ElasticInferenceServiceAuthorizationRequestHandler.class);
+    public ElasticInferenceServiceAuthorizationRequestHandler(
+        @Nullable String baseUrl,
+        ThreadPool threadPool,
+        CCMAuthenticationApplierFactory authFactory
+    ) {
+        this(
+            baseUrl,
+            Objects.requireNonNull(threadPool),
+            LogManager.getLogger(ElasticInferenceServiceAuthorizationRequestHandler.class),
+            authFactory
+        );
     }
 
     // only use for testing
-    ElasticInferenceServiceAuthorizationRequestHandler(@Nullable String baseUrl, ThreadPool threadPool, Logger logger) {
+    ElasticInferenceServiceAuthorizationRequestHandler(
+        @Nullable String baseUrl,
+        ThreadPool threadPool,
+        Logger logger,
+        CCMAuthenticationApplierFactory authFactory
+    ) {
         this.baseUrl = baseUrl;
         this.threadPool = Objects.requireNonNull(threadPool);
         this.logger = Objects.requireNonNull(logger);
+        this.authFactory = Objects.requireNonNull(authFactory);
     }
 
     /**
@@ -91,25 +106,34 @@ public class ElasticInferenceServiceAuthorizationRequestHandler {
                 authModelListener.onFailure(e);
             });
 
-            SubscribableListener.newForked(sender::startAsynchronously).<InferenceServiceResults>andThen((authListener) -> {
-                var requestMetadata = extractRequestMetadataFromThreadContext(threadPool.getThreadContext());
-                var request = new ElasticInferenceServiceAuthorizationRequest(baseUrl, getCurrentTraceInfo(), requestMetadata);
-                sender.sendWithoutQueuing(logger, request, AUTH_RESPONSE_HANDLER, DEFAULT_AUTH_TIMEOUT, authListener);
-            }).andThenApply(authResult -> {
-                if (authResult instanceof ElasticInferenceServiceAuthorizationResponseEntity authResponseEntity) {
-                    logger.debug(() -> Strings.format("Received authorization information from gateway %s", authResponseEntity));
-                    return ElasticInferenceServiceAuthorizationModel.of(authResponseEntity);
-                }
+            SubscribableListener.newForked(sender::startAsynchronously)
+                .andThen(authFactory::getAuthenticationApplier)
+                .<InferenceServiceResults>andThen((authListener, authApplier) -> {
+                    var requestMetadata = extractRequestMetadataFromThreadContext(threadPool.getThreadContext());
+                    var request = new ElasticInferenceServiceAuthorizationRequest(
+                        baseUrl,
+                        getCurrentTraceInfo(),
+                        requestMetadata,
+                        authApplier
+                    );
+                    sender.sendWithoutQueuing(logger, request, AUTH_RESPONSE_HANDLER, DEFAULT_AUTH_TIMEOUT, authListener);
+                })
+                .andThenApply(authResult -> {
+                    if (authResult instanceof ElasticInferenceServiceAuthorizationResponseEntity authResponseEntity) {
+                        logger.debug(() -> Strings.format("Received authorization information from gateway %s", authResponseEntity));
+                        return ElasticInferenceServiceAuthorizationModel.of(authResponseEntity);
+                    }
 
-                var errorMessage = Strings.format(
-                    "%s Received an invalid response type from the Elastic Inference Service: %s",
-                    FAILED_TO_RETRIEVE_MESSAGE,
-                    authResult.getClass().getSimpleName()
-                );
+                    var errorMessage = Strings.format(
+                        "%s Received an invalid response type from the Elastic Inference Service: %s",
+                        FAILED_TO_RETRIEVE_MESSAGE,
+                        authResult.getClass().getSimpleName()
+                    );
 
-                logger.warn(errorMessage);
-                throw new ElasticsearchException(errorMessage);
-            }).addListener(ActionListener.runAfter(handleFailuresListener, requestCompleteLatch::countDown));
+                    logger.warn(errorMessage);
+                    throw new ElasticsearchException(errorMessage);
+                })
+                .addListener(ActionListener.runAfter(handleFailuresListener, requestCompleteLatch::countDown));
         } catch (Exception e) {
             logger.warn(Strings.format("Retrieving the authorization information encountered an exception: %s", e));
             requestCompleteLatch.countDown();

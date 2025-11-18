@@ -75,11 +75,9 @@ public record VectorData(float[] floatVector, byte[] byteVector) implements Writ
         return vec;
     }
 
-    public void addToBuffer(ByteBuffer byteBuffer) {
+    public void addToBuffer(DenseVectorFieldMapper.Element element, ByteBuffer byteBuffer) {
         if (floatVector != null) {
-            for (float val : floatVector) {
-                byteBuffer.putFloat(val);
-            }
+            element.writeValues(byteBuffer, floatVector);
         } else {
             byteBuffer.put(byteVector);
         }

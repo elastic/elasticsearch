@@ -1,9 +1,12 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0; you may not use this file except in compliance with the Elastic License
- * 2.0.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
+
 package org.elasticsearch.xpack.gpu;
 
 import org.apache.lucene.codecs.KnnVectorsFormat;
@@ -30,8 +33,6 @@ public class GPUPlugin extends Plugin implements InternalVectorFormatProviderPlu
         FALSE,
         AUTO
     }
-
-    private final boolean isGpuSupported = GPUSupport.isSupported(true);
 
     /**
      * Setting to control whether to use GPU for vectors indexing.
@@ -70,14 +71,14 @@ public class GPUPlugin extends Plugin implements InternalVectorFormatProviderPlu
                             "[index.vectors.indexing.use_gpu] doesn't support [index_options.type] of [" + indexOptions.getType() + "]."
                         );
                     }
-                    if (isGpuSupported == false) {
+                    if (GPUSupport.isSupported() == false) {
                         throw new IllegalArgumentException(
                             "[index.vectors.indexing.use_gpu] was set to [true], but GPU resources are not accessible on the node."
                         );
                     }
                     return getVectorsFormat(indexOptions, similarity);
                 }
-                if (gpuMode == GpuMode.AUTO && vectorIndexTypeSupported(indexOptions.getType()) && isGpuSupported) {
+                if (gpuMode == GpuMode.AUTO && vectorIndexTypeSupported(indexOptions.getType()) && GPUSupport.isSupported()) {
                     return getVectorsFormat(indexOptions, similarity);
                 }
             }

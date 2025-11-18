@@ -2244,6 +2244,7 @@ public class ProjectMetadataTests extends ESTestCase {
                       "indices": {
                         "index-01": {
                           "version": 1,
+                          "transport_version" : "0",
                           "mapping_version": 1,
                           "settings_version": 1,
                           "aliases_version": 1,
@@ -2281,6 +2282,7 @@ public class ProjectMetadataTests extends ESTestCase {
                         },
                         "index-02": {
                           "version": 1,
+                          "transport_version" : "0",
                           "mapping_version": 1,
                           "settings_version": 1,
                           "aliases_version": 1,
@@ -2320,6 +2322,7 @@ public class ProjectMetadataTests extends ESTestCase {
                         },
                         "index-03": {
                           "version": 1,
+                          "transport_version" : "0",
                           "mapping_version": 1,
                           "settings_version": 1,
                           "aliases_version": 1,
@@ -2361,6 +2364,7 @@ public class ProjectMetadataTests extends ESTestCase {
                         },
                         ".ds-logs-ultron-2024.08.30-000001": {
                           "version": 1,
+                          "transport_version" : "0",
                           "mapping_version": 1,
                           "settings_version": 1,
                           "aliases_version": 1,
@@ -2397,6 +2401,7 @@ public class ProjectMetadataTests extends ESTestCase {
                         },
                         ".ds-logs-ultron-2024.08.30-000002": {
                           "version": 1,
+                          "transport_version" : "0",
                           "mapping_version": 1,
                           "settings_version": 1,
                           "aliases_version": 1,
@@ -2511,6 +2516,7 @@ public class ProjectMetadataTests extends ESTestCase {
                       "indices": {
                         "index-01": {
                           "version": 1,
+                          "transport_version" : "0",
                           "mapping_version": 1,
                           "settings_version": 1,
                           "aliases_version": 1,
@@ -2548,6 +2554,7 @@ public class ProjectMetadataTests extends ESTestCase {
                         },
                         "index-02": {
                           "version": 1,
+                          "transport_version" : "0",
                           "mapping_version": 1,
                           "settings_version": 1,
                           "aliases_version": 1,
@@ -2587,6 +2594,7 @@ public class ProjectMetadataTests extends ESTestCase {
                         },
                         "index-03": {
                           "version": 1,
+                          "transport_version" : "0",
                           "mapping_version": 1,
                           "settings_version": 1,
                           "aliases_version": 1,
@@ -2628,6 +2636,7 @@ public class ProjectMetadataTests extends ESTestCase {
                         },
                         ".ds-logs-ultron-2024.08.30-000001": {
                           "version": 1,
+                          "transport_version" : "0",
                           "mapping_version": 1,
                           "settings_version": 1,
                           "aliases_version": 1,
@@ -2664,6 +2673,7 @@ public class ProjectMetadataTests extends ESTestCase {
                         },
                         ".ds-logs-ultron-2024.08.30-000002": {
                           "version": 1,
+                          "transport_version" : "0",
                           "mapping_version": 1,
                           "settings_version": 1,
                           "aliases_version": 1,

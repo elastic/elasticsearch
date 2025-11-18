@@ -403,11 +403,9 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
                 final List<BulkItemRequest> requests = entry.getValue();
 
                 // Get effective shardCount for shardId and pass it on as parameter to new BulkShardRequest
-                var indexMetadata = project.index(shardId.getIndexName());
-                SplitShardCountSummary reshardSplitShardCountSummary = SplitShardCountSummary.UNSET;
-                if (indexMetadata != null) {
-                    reshardSplitShardCountSummary = SplitShardCountSummary.forIndexing(indexMetadata, shardId.getId());
-                }
+                var indexMetadata = project.getIndexSafe(shardId.getIndex());
+                SplitShardCountSummary reshardSplitShardCountSummary = SplitShardCountSummary.forIndexing(indexMetadata, shardId.getId());
+
                 BulkShardRequest bulkShardRequest = new BulkShardRequest(
                     shardId,
                     reshardSplitShardCountSummary,
@@ -416,7 +414,7 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
                     bulkRequest.isSimulated()
                 );
 
-                if (indexMetadata != null && indexMetadata.getInferenceFields().isEmpty() == false) {
+                if (indexMetadata.getInferenceFields().isEmpty() == false) {
                     bulkShardRequest.setInferenceFieldMap(indexMetadata.getInferenceFields());
                 }
                 bulkShardRequest.waitForActiveShards(bulkRequest.waitForActiveShards());

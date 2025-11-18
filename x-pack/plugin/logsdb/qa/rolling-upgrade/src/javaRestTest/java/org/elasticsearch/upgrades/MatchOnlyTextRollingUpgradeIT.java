@@ -12,6 +12,7 @@ package org.elasticsearch.upgrades;
 import com.carrotsearch.randomizedtesting.annotations.Name;
 
 import org.elasticsearch.index.mapper.MapperFeatures;
+import org.elasticsearch.index.mapper.TextFieldMapper;
 
 public class MatchOnlyTextRollingUpgradeIT extends AbstractStringTypeRollingUpgradeIT {
 
@@ -25,11 +26,13 @@ public class MatchOnlyTextRollingUpgradeIT extends AbstractStringTypeRollingUpgr
     }
 
     @Override
-    public void testIndexing() throws Exception {
+    protected void testIndexing(boolean shouldIncludeKeywordMultiField) throws Exception {
         assumeTrue(
-            "Match only text block loader fix is not present in this cluster",
-            oldClusterHasFeature(MapperFeatures.MATCH_ONLY_TEXT_BLOCK_LOADER_FIX)
+            "Match only text block loader bug is present and fix is not present in this cluster",
+            TextFieldMapper.multiFieldsNotStoredByDefaultIndexVersionCheck(getOldClusterIndexVersion()) == oldClusterHasFeature(
+                MapperFeatures.MATCH_ONLY_TEXT_BLOCK_LOADER_FIX
+            )
         );
-        super.testIndexing();
+        super.testIndexing(shouldIncludeKeywordMultiField);
     }
 }

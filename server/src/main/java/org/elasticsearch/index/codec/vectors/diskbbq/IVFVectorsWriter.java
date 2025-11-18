@@ -151,6 +151,7 @@ public abstract class IVFVectorsWriter extends KnnVectorsWriter {
     public abstract void writeCentroids(
         FieldInfo fieldInfo,
         CentroidSupplier centroidSupplier,
+        int[] centroidAssignments,
         float[] globalCentroid,
         CentroidOffsetAndLength centroidOffsetAndLength,
         IndexOutput centroidOutput
@@ -214,7 +215,14 @@ public abstract class IVFVectorsWriter extends KnnVectorsWriter {
             // write centroids
             final float[] globalCentroid = centroidAssignments.globalCentroid();
             final long centroidOffset = ivfCentroids.alignFilePointer(Float.BYTES);
-            writeCentroids(fieldWriter.fieldInfo, centroidSupplier, globalCentroid, centroidOffsetAndLength, ivfCentroids);
+            writeCentroids(
+                fieldWriter.fieldInfo,
+                centroidSupplier,
+                centroidAssignments.assignments(),
+                globalCentroid,
+                centroidOffsetAndLength,
+                ivfCentroids
+            );
             final long centroidLength = ivfCentroids.getFilePointer() - centroidOffset;
             // write meta file
             writeMeta(
@@ -441,7 +449,14 @@ public abstract class IVFVectorsWriter extends KnnVectorsWriter {
                     postingListLength = ivfClusters.getFilePointer() - postingListOffset;
                     // write centroids
                     centroidOffset = ivfCentroids.alignFilePointer(Float.BYTES);
-                    writeCentroids(fieldInfo, centroidSupplier, calculatedGlobalCentroid, centroidOffsetAndLength, ivfCentroids);
+                    writeCentroids(
+                        fieldInfo,
+                        centroidSupplier,
+                        assignments,
+                        calculatedGlobalCentroid,
+                        centroidOffsetAndLength,
+                        ivfCentroids
+                    );
                     centroidLength = ivfCentroids.getFilePointer() - centroidOffset;
                     // write meta
                     writeMeta(

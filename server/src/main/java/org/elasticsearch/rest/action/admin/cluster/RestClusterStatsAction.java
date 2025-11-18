@@ -56,10 +56,10 @@ public class RestClusterStatsAction extends BaseRestHandler {
 
     @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
-        ClusterStatsRequest clusterStatsRequest = new ClusterStatsRequest(
-            request.paramAsBoolean("include_remotes", false),
-            request.paramAsStringArray("nodeId", null)
-        );
+        boolean includeRemotes = request.paramAsBoolean("include_remotes", false);
+        ClusterStatsRequest clusterStatsRequest = request.isServerlessRequest()
+            ? ClusterStatsRequest.newServerlessRequest(request.paramAsStringArray("nodeId", null))
+            : new ClusterStatsRequest(includeRemotes, request.paramAsStringArray("nodeId", null));
         clusterStatsRequest.setTimeout(getTimeout(request));
         return channel -> new RestCancellableNodeClient(client, request.getHttpChannel()).admin()
             .cluster()

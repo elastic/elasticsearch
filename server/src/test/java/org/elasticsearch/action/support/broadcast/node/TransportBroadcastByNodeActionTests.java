@@ -95,7 +95,10 @@ import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.anEmptyMap;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.object.HasToString.hasToString;
 
 public class TransportBroadcastByNodeActionTests extends ESTestCase {
@@ -165,8 +168,9 @@ public class TransportBroadcastByNodeActionTests extends ESTestCase {
         public void writeTo(StreamOutput out) throws IOException {}
     }
 
-    class TestTransportBroadcastByNodeAction extends TransportBroadcastByNodeAction<Request, Response, ShardResult> {
+    class TestTransportBroadcastByNodeAction extends TransportBroadcastByNodeAction<Request, Response, ShardResult, Integer> {
         private final Map<ShardRouting, Object> shards = new HashMap<>();
+        private Integer expectedNodeContext = null;
 
         TestTransportBroadcastByNodeAction(String actionName) {
             super(
@@ -201,7 +205,22 @@ public class TransportBroadcastByNodeActionTests extends ESTestCase {
         }
 
         @Override
-        protected void shardOperation(Request request, ShardRouting shardRouting, Task task, ActionListener<ShardResult> listener) {
+        public Integer createNodeContext() {
+            assertThat(expectedNodeContext, nullValue());
+            expectedNodeContext = randomInt();
+            return expectedNodeContext;
+        }
+
+        @Override
+        protected void shardOperation(
+            Request request,
+            ShardRouting shardRouting,
+            Task task,
+            Integer nodeContext,
+            ActionListener<ShardResult> listener
+        ) {
+            assertThat(expectedNodeContext, not(nullValue()));
+            assertThat(nodeContext, equalTo(expectedNodeContext));
             ActionListener.completeWith(listener, () -> {
                 if (rarely()) {
                     shards.put(shardRouting, Boolean.TRUE);
@@ -413,7 +432,7 @@ public class TransportBroadcastByNodeActionTests extends ESTestCase {
                 shards.add(shard);
             }
         }
-        final TransportBroadcastByNodeAction<Request, Response, ShardResult>.BroadcastByNodeTransportRequestHandler handler =
+        final TransportBroadcastByNodeAction<Request, Response, ShardResult, Integer>.BroadcastByNodeTransportRequestHandler handler =
             action.new BroadcastByNodeTransportRequestHandler();
 
         final PlainActionFuture<TransportResponse> future = new PlainActionFuture<>();
@@ -474,7 +493,7 @@ public class TransportBroadcastByNodeActionTests extends ESTestCase {
                 shards.add(shard);
             }
         }
-        final TransportBroadcastByNodeAction<Request, Response, ShardResult>.BroadcastByNodeTransportRequestHandler handler =
+        final TransportBroadcastByNodeAction<Request, Response, ShardResult, Integer>.BroadcastByNodeTransportRequestHandler handler =
             action.new BroadcastByNodeTransportRequestHandler();
 
         final PlainActionFuture<TransportResponse> future = new PlainActionFuture<>();
@@ -568,7 +587,7 @@ public class TransportBroadcastByNodeActionTests extends ESTestCase {
                     }
                 }
                 totalSuccessfulShards += shardResults.size();
-                TransportBroadcastByNodeAction<Request, Response, ShardResult>.NodeResponse nodeResponse = action.new NodeResponse(
+                TransportBroadcastByNodeAction<Request, Response, ShardResult, Integer>.NodeResponse nodeResponse = action.new NodeResponse(
                     entry.getKey(), shards.size(), shardResults, exceptions
                 );
                 transport.handleResponse(requestId, nodeResponse);
@@ -643,7 +662,13 @@ public class TransportBroadcastByNodeActionTests extends ESTestCase {
             int expectedShardId;
 
             @Override
-            protected void shardOperation(Request request, ShardRouting shardRouting, Task task, ActionListener<ShardResult> listener) {
+            protected void shardOperation(
+                Request request,
+                ShardRouting shardRouting,
+                Task task,
+                Integer nodeContext,
+                ActionListener<ShardResult> listener
+            ) {
                 // this test runs a node-level operation on three shards, cancelling the task some time during the execution on the second
                 if (task instanceof CancellableTask cancellableTask) {
                     assertEquals(expectedShardId++, shardRouting.shardId().id());
@@ -697,7 +722,13 @@ public class TransportBroadcastByNodeActionTests extends ESTestCase {
 
         action = new TestTransportBroadcastByNodeAction("indices:admin/shard_level_gc_test") {
             @Override
-            protected void shardOperation(Request request, ShardRouting shardRouting, Task task, ActionListener<ShardResult> listener) {
+            protected void shardOperation(
+                Request request,
+                ShardRouting shardRouting,
+                Task task,
+                Integer nodeContext,
+                ActionListener<ShardResult> listener
+            ) {
                 listeners.add(listener);
             }
         };

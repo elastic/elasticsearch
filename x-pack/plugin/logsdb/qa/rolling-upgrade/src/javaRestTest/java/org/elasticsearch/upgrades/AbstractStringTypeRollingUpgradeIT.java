@@ -12,11 +12,14 @@ import com.carrotsearch.randomizedtesting.annotations.Name;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.time.FormatNames;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.test.rest.ObjectPath;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
@@ -26,6 +29,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.TreeMap;
 
 import static org.elasticsearch.upgrades.StandardToLogsDbIndexModeRollingUpgradeIT.enableLogsdbByDefault;
 import static org.elasticsearch.upgrades.StandardToLogsDbIndexModeRollingUpgradeIT.getWriteBackingIndex;
@@ -58,15 +62,7 @@ public abstract class AbstractStringTypeRollingUpgradeIT extends AbstractRolling
                 "method": {
                   "type": "keyword"
                 },
-                "message": {
-                  "type": "$STRING_TYPE",
-                  "fields": {
-                    "keyword": {
-                      "ignore_above": $IGNORE_ABOVE,
-                      "type": "keyword"
-                    }
-                  }
-                },
+                "message": $MESSAGE_MAPPING,
                 "ip": {
                   "type": "ip"
                 },
@@ -81,7 +77,7 @@ public abstract class AbstractStringTypeRollingUpgradeIT extends AbstractRolling
         }""";
 
     // when sorted, this message will appear at the top and hence can be used to validate query results
-    private static String smallestMessage;
+    private static Map<String, String> smallestMessageMap = new TreeMap<>();
 
     public AbstractStringTypeRollingUpgradeIT(@Name("upgradedNodes") int upgradedNodes) {
         super(upgradedNodes);
@@ -90,68 +86,88 @@ public abstract class AbstractStringTypeRollingUpgradeIT extends AbstractRolling
     abstract String stringType();
 
     public void testIndexing() throws Exception {
+        testIndexing(false);
+    }
+
+    public void testIndexingWithMultifield() throws Exception {
+        testIndexing(true);
+    }
+
+    protected void testIndexing(boolean shouldIncludeKeywordMultifield) throws Exception {
+        String dataStreamName = DATA_STREAM + (shouldIncludeKeywordMultifield ? "-multifield" : "");
         if (isOldCluster()) {
+            // given - reset data stream since it could've been used by other tests
+            smallestMessageMap.remove(dataStreamName);
+
             // given - enable logsdb and create a template
             startTrial();
             enableLogsdbByDefault();
-            String templateId = getClass().getSimpleName().toLowerCase(Locale.ROOT);
-            createTemplate(DATA_STREAM, templateId, prepareTemplate());
+            String templateId = getClass().getSimpleName().toLowerCase(Locale.ROOT) + (shouldIncludeKeywordMultifield ? "-multifield" : "");
+            createTemplate(dataStreamName, templateId, prepareTemplate(shouldIncludeKeywordMultifield));
 
             // when - index some documents
-            bulkIndex(NUM_REQUESTS, NUM_DOCS_PER_REQUEST);
+            bulkIndex(dataStreamName, NUM_REQUESTS, NUM_DOCS_PER_REQUEST);
 
             // then - verify that logsdb and synthetic source are both enabled
-            String firstBackingIndex = getWriteBackingIndex(client(), DATA_STREAM, 0);
+            String firstBackingIndex = getWriteBackingIndex(client(), dataStreamName, 0);
             var settings = (Map<?, ?>) getIndexSettingsWithDefaults(firstBackingIndex).get(firstBackingIndex);
             assertThat(((Map<?, ?>) settings.get("settings")).get("index.mode"), equalTo("logsdb"));
             assertThat(((Map<?, ?>) settings.get("defaults")).get("index.mapping.source.mode"), equalTo("SYNTHETIC"));
 
             // then continued - verify that the created data stream using the created template
-            LogsdbIndexingRollingUpgradeIT.assertDataStream(DATA_STREAM, templateId);
+            LogsdbIndexingRollingUpgradeIT.assertDataStream(dataStreamName, templateId);
 
             // when/then - run some queries and verify results
-            ensureGreen(DATA_STREAM);
-            search(DATA_STREAM);
-            phraseSearch(DATA_STREAM);
-            query(DATA_STREAM);
+            ensureGreen(dataStreamName);
+            search(dataStreamName);
+            phraseSearch(dataStreamName);
+            query(dataStreamName);
         } else if (isMixedCluster()) {
             // when
-            bulkIndex(NUM_REQUESTS, NUM_DOCS_PER_REQUEST);
+            bulkIndex(dataStreamName, NUM_REQUESTS, NUM_DOCS_PER_REQUEST);
 
             // when/then
-            ensureGreen(DATA_STREAM);
-            search(DATA_STREAM);
-            phraseSearch(DATA_STREAM);
-            query(DATA_STREAM);
+            ensureGreen(dataStreamName);
+            search(dataStreamName);
+            phraseSearch(dataStreamName);
+            query(dataStreamName);
         } else if (isUpgradedCluster()) {
             // when/then
-            ensureGreen(DATA_STREAM);
-            bulkIndex(NUM_REQUESTS, NUM_DOCS_PER_REQUEST);
-            search(DATA_STREAM);
-            phraseSearch(DATA_STREAM);
-            query(DATA_STREAM);
+            ensureGreen(dataStreamName);
+            bulkIndex(dataStreamName, NUM_REQUESTS, NUM_DOCS_PER_REQUEST);
+            search(dataStreamName);
+            phraseSearch(dataStreamName);
+            query(dataStreamName);
 
             // when/then continued - force merge all shard segments into one
-            var forceMergeRequest = new Request("POST", "/" + DATA_STREAM + "/_forcemerge");
+            var forceMergeRequest = new Request("POST", "/" + dataStreamName + "/_forcemerge");
             forceMergeRequest.addParameter("max_num_segments", "1");
             assertOK(client().performRequest(forceMergeRequest));
 
             // then continued
-            ensureGreen(DATA_STREAM);
-            search(DATA_STREAM);
-            query(DATA_STREAM);
+            ensureGreen(dataStreamName);
+            search(dataStreamName);
+            query(dataStreamName);
         }
     }
 
-    private String prepareTemplate() {
-        boolean shouldSetIgnoreAbove = randomBoolean();
-        String templateWithType = TEMPLATE.replace("$STRING_TYPE", stringType());
-        if (shouldSetIgnoreAbove) {
-            return templateWithType.replace("$IGNORE_ABOVE", String.valueOf(randomInt(IGNORE_ABOVE_MAX)));
-        }
+    private String prepareTemplate(boolean shouldIncludeKeywordMultifield) throws IOException {
+        XContentBuilder b = XContentFactory.jsonBuilder();
+        b.startObject();
+        b.field("type", stringType());
 
-        // removes the entire line that defines ignore_above
-        return templateWithType.replaceAll("(?m)^\\s*\"ignore_above\":\\s*\\$IGNORE_ABOVE\\s*,?\\s*\\n?", "");
+        if (shouldIncludeKeywordMultifield) {
+            b.startObject("fields").startObject("keyword");
+            b.field("type", "keyword");
+            boolean shouldSetIgnoreAbove = randomBoolean();
+            if (shouldSetIgnoreAbove) {
+                b.field("ignore_above", randomInt(IGNORE_ABOVE_MAX));
+            }
+            b.endObject().endObject();
+        }
+        b.endObject();
+
+        return TEMPLATE.replace("$MESSAGE_MAPPING", Strings.toString(b));
     }
 
     static void createTemplate(String dataStreamName, String id, String template) throws IOException {
@@ -168,13 +184,13 @@ public abstract class AbstractStringTypeRollingUpgradeIT extends AbstractRolling
         assertOK(client().performRequest(putIndexTemplateRequest));
     }
 
-    private void bulkIndex(int numRequest, int numDocs) throws Exception {
+    private void bulkIndex(String dataStreamName, int numRequest, int numDocs) throws Exception {
         String firstIndex = null;
         Instant startTime = Instant.now().minusSeconds(60 * 60);
 
         for (int i = 0; i < numRequest; i++) {
-            var bulkRequest = new Request("POST", "/" + DATA_STREAM + "/_bulk");
-            bulkRequest.setJsonEntity(bulkIndexRequestBody(numDocs, startTime));
+            var bulkRequest = new Request("POST", "/" + dataStreamName + "/_bulk");
+            bulkRequest.setJsonEntity(bulkIndexRequestBody(dataStreamName, numDocs, startTime));
             bulkRequest.addParameter("refresh", "true");
 
             var response = client().performRequest(bulkRequest);
@@ -188,7 +204,7 @@ public abstract class AbstractStringTypeRollingUpgradeIT extends AbstractRolling
         }
     }
 
-    private String bulkIndexRequestBody(int numDocs, Instant startTime) {
+    private String bulkIndexRequestBody(String dataStreamName, int numDocs, Instant startTime) {
         StringBuilder requestBody = new StringBuilder();
 
         for (int j = 0; j < numDocs; j++) {
@@ -196,7 +212,7 @@ public abstract class AbstractStringTypeRollingUpgradeIT extends AbstractRolling
             String methodName = "method" + j % 5;
             String ip = NetworkAddress.format(randomIp(true));
             String message = randomAlphasDelimitedBySpace(10, 1, 15);
-            recordSmallestMessage(message);
+            recordSmallestMessage(dataStreamName, message);
             long length = randomLong();
             double factor = randomDouble();
 
@@ -220,7 +236,7 @@ public abstract class AbstractStringTypeRollingUpgradeIT extends AbstractRolling
     /**
      * Generates a string containing a random number of random length alphas, all delimited by space.
      */
-    public static String randomAlphasDelimitedBySpace(int maxAlphas, int minCodeUnits, int maxCodeUnits) {
+    private static String randomAlphasDelimitedBySpace(int maxAlphas, int minCodeUnits, int maxCodeUnits) {
         int numAlphas = randomIntBetween(1, maxAlphas);
         List<String> alphas = new ArrayList<>(numAlphas);
         for (int i = 0; i < numAlphas; i++) {
@@ -229,9 +245,9 @@ public abstract class AbstractStringTypeRollingUpgradeIT extends AbstractRolling
         return String.join(" ", alphas);
     }
 
-    private void recordSmallestMessage(final String message) {
-        if (smallestMessage == null || message.compareTo(smallestMessage) < 0) {
-            smallestMessage = message;
+    private void recordSmallestMessage(final String dataStreamName, final String message) {
+        if (smallestMessageMap.containsKey(dataStreamName) == false || message.compareTo(smallestMessageMap.get(dataStreamName)) < 0) {
+            smallestMessageMap.put(dataStreamName, message);
         }
     }
 
@@ -263,7 +279,7 @@ public abstract class AbstractStringTypeRollingUpgradeIT extends AbstractRolling
                         }
                     }
                 }
-            """.replace("$smallestMessage", smallestMessage));
+            """.replace("$smallestMessage", smallestMessageMap.get(dataStreamName)));
         var response = client().performRequest(searchRequest);
         assertOK(response);
         var responseBody = entityAsMap(response);
@@ -296,7 +312,7 @@ public abstract class AbstractStringTypeRollingUpgradeIT extends AbstractRolling
         Double maxTx = ObjectPath.evaluate(responseBody, "values.0.1");
         assertThat(maxTx, notNullValue());
         String key = ObjectPath.evaluate(responseBody, "values.0.2");
-        assertThat(key, equalTo(smallestMessage));
+        assertThat(key, equalTo(smallestMessageMap.get(dataStreamName)));
     }
 
     protected static void startTrial() throws IOException {

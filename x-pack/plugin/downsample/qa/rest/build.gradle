@@ -5,9 +5,9 @@
  * 2.0.
  */
 
+apply plugin: 'elasticsearch.internal-test-artifact'
 apply plugin: 'elasticsearch.internal-yaml-rest-test'
 apply plugin: 'elasticsearch.yaml-rest-compat-test'
-apply plugin: 'elasticsearch.internal-test-artifact'
 
 dependencies {
   testImplementation project(':test:test-clusters')

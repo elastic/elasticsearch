@@ -41,7 +41,11 @@ abstract sealed class CoalesceBytesRefEvaluator implements EvalOperator.Expressi
             return new ExpressionEvaluator.Factory() {
                 @Override
                 public ExpressionEvaluator get(DriverContext context) {
-                    return new CoalesceBytesRefEagerEvaluator(context, childEvaluators.stream().map(x -> x.get(context)).toList());
+                    return new CoalesceBytesRefEagerEvaluator(
+                        // comment to make spotless happy about line breaks
+                        context,
+                        childEvaluators.stream().map(x -> x.get(context)).toList()
+                    );
                 }
 
                 @Override
@@ -53,7 +57,11 @@ abstract sealed class CoalesceBytesRefEvaluator implements EvalOperator.Expressi
         return new ExpressionEvaluator.Factory() {
             @Override
             public ExpressionEvaluator get(DriverContext context) {
-                return new CoalesceBytesRefLazyEvaluator(context, childEvaluators.stream().map(x -> x.get(context)).toList());
+                return new CoalesceBytesRefLazyEvaluator(
+                    // comment to make spotless happy about line breaks
+                    context,
+                    childEvaluators.stream().map(x -> x.get(context)).toList()
+                );
             }
 
             @Override
@@ -172,7 +180,10 @@ abstract sealed class CoalesceBytesRefEvaluator implements EvalOperator.Expressi
                 for (int f = 1; f < flatten.length; f++) {
                     flatten[f] = (BytesRefBlock) evaluators.get(firstToEvaluate + f - 1).eval(page);
                 }
-                try (BytesRefBlock.Builder result = driverContext.blockFactory().newBytesRefBlockBuilder(positionCount)) {
+                try (
+                    BytesRefBlock.Builder result = driverContext.blockFactory() //
+                        .newBytesRefBlockBuilder(positionCount)
+                ) {
                     position: for (int p = 0; p < positionCount; p++) {
                         for (BytesRefBlock f : flatten) {
                             if (false == f.isNull(p)) {
@@ -210,7 +221,10 @@ abstract sealed class CoalesceBytesRefEvaluator implements EvalOperator.Expressi
         protected BytesRefBlock perPosition(Page page, BytesRefBlock lastFullBlock, int firstToEvaluate) {
             BytesRef scratch = new BytesRef();
             int positionCount = page.getPositionCount();
-            try (BytesRefBlock.Builder result = driverContext.blockFactory().newBytesRefBlockBuilder(positionCount)) {
+            try (
+                BytesRefBlock.Builder result = driverContext.blockFactory() //
+                    .newBytesRefBlockBuilder(positionCount)
+            ) {
                 position: for (int p = 0; p < positionCount; p++) {
                     if (lastFullBlock.isNull(p) == false) {
                         result.copyFrom(lastFullBlock, p, p + 1);

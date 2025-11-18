@@ -346,3 +346,36 @@ day_total:long | hour_med:double | h:datetime               | message:keyword
 1              | 1756467.0       | 2023-10-23T13:00:00.000Z | Connected to 10.1.0.1
 1              | 1232382.0       | 2023-10-23T13:00:00.000Z | Disconnected
 ;
+
+
+tbucketWithTimezoneAndDuration
+required_capability: ts_command_v0
+required_capability: date_trunc_timezone_support
+
+SET time_zone = "+05:00"\;
+TS k8s
+| WHERE @timestamp == "2024-05-10T00:04:49.000Z"
+| STATS by @timestamp, bucket = TBUCKET(3 hours)
+| SORT @timestamp
+| LIMIT 2
+;
+
+@timestamp:datetime      | bucket:datetime
+2024-05-10T00:04:49.000Z | 2024-05-09T22:00:00.000Z
+;
+
+tbucketWithTimezoneAndPeriod
+required_capability: ts_command_v0
+required_capability: date_trunc_timezone_support
+
+SET time_zone = "+05:00"\;
+TS k8s
+| WHERE @timestamp == "2024-05-10T00:04:49.000Z"
+| STATS by @timestamp, bucket = TBUCKET(1 day)
+| SORT @timestamp
+| LIMIT 2
+;
+
+@timestamp:datetime      | bucket:datetime
+2024-05-10T00:04:49.000Z | 2024-05-09T19:00:00.000Z
+;

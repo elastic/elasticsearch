@@ -1,0 +1,5 @@
+pr: 137926
+summary: "Fix parsing of Google Model Garden Anthropic `message_start` event during `chat_completion` operation"
+area: Machine Learning
+type: bug
+issues: []

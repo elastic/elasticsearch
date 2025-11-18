@@ -26,6 +26,7 @@ import org.junit.ClassRule;
 import java.io.IOException;
 
 import static org.elasticsearch.xpack.inference.rest.Paths.INFERENCE_CCM_PATH;
+import static org.elasticsearch.xpack.inference.services.elastic.ccm.CCMSettings.CCM_SUPPORTED_ENVIRONMENT;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
 
@@ -36,7 +37,7 @@ public class CCMCrudIT extends CCMRestBaseIT {
         .distribution(DistributionType.DEFAULT)
         .setting("xpack.license.self_generated.type", "basic")
         .setting("xpack.security.enabled", "true")
-        .setting("xpack.inference.elastic.allow_configuring_ccm", "true")
+        .setting(CCM_SUPPORTED_ENVIRONMENT.getKey(), "true")
         .user("x_pack_rest_user", "x-pack-test-password")
         .build();
 

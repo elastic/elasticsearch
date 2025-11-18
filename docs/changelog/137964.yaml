@@ -1,0 +1,9 @@
+pr: 137964
+summary: Fix for GET /_migration/deprecations doesn't report node deprecations if
+  low watermark exceeded and GET /_migration/deprecations doesn't report node-level
+  failures properly
+area: Infra/Core
+type: bug
+issues:
+ - 137010
+ - 137004

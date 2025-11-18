@@ -940,7 +940,7 @@ public class GoogleAiStudioServiceTests extends InferenceServiceTestCase {
                 assertThat(results.get(0), instanceOf(ChunkedInferenceEmbedding.class));
                 var floatResult = (ChunkedInferenceEmbedding) results.get(0);
                 assertThat(floatResult.chunks(), hasSize(1));
-                assertEquals(new ChunkedInference.TextOffset(0, input.get(0).input().length()), floatResult.chunks().get(0).offset());
+                assertEquals(new ChunkedInference.TextOffset(0, input.get(0).inputText().length()), floatResult.chunks().get(0).offset());
                 assertThat(floatResult.chunks().get(0).embedding(), Matchers.instanceOf(DenseEmbeddingFloatResults.Embedding.class));
                 assertTrue(
                     Arrays.equals(
@@ -955,7 +955,7 @@ public class GoogleAiStudioServiceTests extends InferenceServiceTestCase {
                 assertThat(results.get(1), instanceOf(ChunkedInferenceEmbedding.class));
                 var floatResult = (ChunkedInferenceEmbedding) results.get(1);
                 assertThat(floatResult.chunks(), hasSize(1));
-                assertEquals(new ChunkedInference.TextOffset(0, input.get(1).input().length()), floatResult.chunks().get(0).offset());
+                assertEquals(new ChunkedInference.TextOffset(0, input.get(1).inputText().length()), floatResult.chunks().get(0).offset());
                 assertThat(floatResult.chunks().get(0).embedding(), Matchers.instanceOf(DenseEmbeddingFloatResults.Embedding.class));
                 assertTrue(
                     Arrays.equals(
@@ -979,7 +979,7 @@ public class GoogleAiStudioServiceTests extends InferenceServiceTestCase {
                             "model",
                             Strings.format("%s/%s", "models", modelId),
                             "content",
-                            Map.of("parts", List.of(Map.of("text", input.get(0).input()))),
+                            Map.of("parts", List.of(Map.of("text", input.get(0).inputText()))),
                             "taskType",
                             "RETRIEVAL_DOCUMENT"
                         ),
@@ -987,7 +987,7 @@ public class GoogleAiStudioServiceTests extends InferenceServiceTestCase {
                             "model",
                             Strings.format("%s/%s", "models", modelId),
                             "content",
-                            Map.of("parts", List.of(Map.of("text", input.get(1).input()))),
+                            Map.of("parts", List.of(Map.of("text", input.get(1).inputText()))),
                             "taskType",
                             "RETRIEVAL_DOCUMENT"
                         )

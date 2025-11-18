@@ -12,6 +12,7 @@ package org.elasticsearch.index.mapper;
 import java.util.Arrays;
 import java.util.EnumSet;
 import java.util.Locale;
+import java.util.function.BooleanSupplier;
 import java.util.function.Function;
 
 /**
@@ -88,8 +89,14 @@ public final class TimeSeriesParams {
         ).acceptsNull();
     }
 
-    public static FieldMapper.Parameter<Boolean> dimensionParam(Function<FieldMapper, Boolean> initializer) {
-        return FieldMapper.Parameter.boolParam(TIME_SERIES_DIMENSION_PARAM, false, initializer, false);
+    public static FieldMapper.Parameter<Boolean> dimensionParam(Function<FieldMapper, Boolean> initializer, BooleanSupplier hasDocValues) {
+        return FieldMapper.Parameter.boolParam(TIME_SERIES_DIMENSION_PARAM, false, initializer, false).addValidator(v -> {
+            if (v && (hasDocValues.getAsBoolean() == false)) {
+                throw new IllegalArgumentException(
+                    "Field [" + TimeSeriesParams.TIME_SERIES_DIMENSION_PARAM + "] requires that [doc_values] is true"
+                );
+            }
+        });
     }
 
 }

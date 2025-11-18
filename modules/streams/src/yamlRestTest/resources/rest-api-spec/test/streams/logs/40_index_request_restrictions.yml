@@ -1,0 +1,25 @@
+---
+teardown:
+  - do:
+      streams.logs_disable: { }
+
+---
+"Check User Can't Provide Pipeline to Logs Stream":
+  - do:
+      streams.logs_enable: { }
+  - is_true: acknowledged
+
+  - do:
+      streams.status: { }
+  - is_true: logs.enabled
+
+  - do:
+      bulk:
+        index: logs
+        body: |
+          { "create": {"pipeline": "noop"}}
+          { "message": "hello streams!"}
+  - match: { errors: true }
+  - match: { items.0.create.status: 400 }
+  - match: { items.0.create.error.type: "illegal_argument_exception" }
+  - match: { items.0.create.error.reason: "Cannot provide a pipeline when writing to a stream however the [noop] pipeline was provided when writing to the [logs] stream" }

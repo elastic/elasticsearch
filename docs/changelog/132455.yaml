@@ -1,7 +1,0 @@
-pr: 132455
-summary: "Make equals include ids for Alias, `TypedAttribute`"
-area: ES|QL
-type: bug
-issues:
- - 131509
- - 132634

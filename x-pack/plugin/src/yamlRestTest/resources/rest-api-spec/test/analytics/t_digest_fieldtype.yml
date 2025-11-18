@@ -1,0 +1,283 @@
+setup:
+  - skip:
+      features: headers
+  - do:
+      indices.create:
+        index: "test"
+        body:
+          mappings:
+            properties:
+              latency:
+                type: "tdigest"
+  - do:
+      bulk:
+        index: test
+        refresh: true
+        body:
+          - '{"index": {"_id": 1}}'
+          - '{"latency": {"centroids" : [0.1, 0.2, 0.3, 0.4, 0.5], "counts" : [3, 7, 23, 12, 6]}}'
+          - '{"index": {"_id": 2}}'
+          - '{"latency": {"centroids" : [0, 0.1, 0.2, 0.3, 0.4, 0.5], "counts" : [3, 2, 5, 10, 1, 8]}}'
+          - '{"index": {"_id": 3}}'
+          - '{"latency": {"sum": 8.6, "min": 0, "max": 0.5, "centroids" : [0, 0.1, 0.2, 0.3, 0.4, 0.5], "counts" : [3, 2, 5, 10, 1, 8]}}'
+---
+"TDigest requires values in increasing order":
+  - do:
+      catch: / error parsing field \[latency\], \[centroids\] centroids must be in increasing order, got \[0.2\] but previous value was \[1.0\]/
+      index:
+        index: test
+        body: { "latency": { "centroids": [ 1.0, 0.2, 0.3, 0.4, 0.5 ], "counts": [ 3, 7, 23, 12, 6 ] } }
+---
+TDigest get:
+  - do:
+      get:
+        index: test
+        id: 1
+  - match:
+      _source:
+        latency:
+          # Note that in this case, we don't get the summary fields, because they weren't in the original source.
+          centroids: [ 0.1, 0.2, 0.3, 0.4, 0.5 ]
+          counts: [ 3, 7, 23, 12, 6 ]
+
+  - do:
+      get:
+        index: test
+        id: 3
+  - match:
+      _source:
+        latency:
+          min: 0
+          max: 0.5
+          sum: 8.6
+          centroids: [ 0, 0.1, 0.2, 0.3, 0.4, 0.5 ]
+          counts: [ 3, 2, 5, 10, 1, 8 ]
+
+---
+TDigest with synthetic source:
+  - requires:
+      cluster_features: [ "mapper.source.mode_from_index_setting" ]
+      reason: "Source mode configured through index setting"
+
+  - do:
+      indices.create:
+        index: tdigest_synthetic
+        body:
+          settings:
+            index:
+              mapping.source.mode: synthetic
+          mappings:
+            properties:
+              latency:
+                type: tdigest
+  - do:
+      bulk:
+        index: tdigest_synthetic
+        refresh: true
+        body:
+          - '{"index": {"_id": 1}}'
+          - '{"latency": {"centroids" : [0.1, 0.2, 0.3, 0.4, 0.5], "counts" : [3, 7, 23, 12, 6]}}'
+          - '{"index": {"_id": 2}}'
+          - '{"latency": {"centroids" : [0, 0.1, 0.2, 0.3, 0.4, 0.5], "counts" : [3, 2, 5, 10, 1, 8]}}'
+
+  - do:
+      get:
+        index: tdigest_synthetic
+        id: 1
+  - match:
+      _source:
+        latency:
+          min: 0.1
+          max: 0.5
+          sum: 16.4
+          centroids: [ 0.1, 0.2, 0.3, 0.4, 0.5 ]
+          counts: [ 3, 7, 23, 12, 6 ]
+
+  - do:
+      get:
+        index: tdigest_synthetic
+        id: 2
+  - match:
+      _source:
+        latency:
+          min: 0.0
+          max: 0.5
+          # $%#@! floating points...
+          sum: 8.600000000000001
+          centroids: [ 0.0, 0.1, 0.2, 0.3, 0.4, 0.5 ]
+          counts: [ 3, 2, 5, 10, 1, 8 ]
+---
+TDigest with synthetic source and explicit summary fields:
+  - requires:
+      cluster_features: [ "mapper.source.mode_from_index_setting" ]
+      reason: "Source mode configured through index setting"
+
+  - do:
+      indices.create:
+        index: tdigest_synthetic
+        body:
+          settings:
+            index:
+              mapping.source.mode: synthetic
+          mappings:
+            properties:
+              latency:
+                type: tdigest
+  - do:
+      bulk:
+        index: tdigest_synthetic
+        refresh: true
+        body:
+          - '{"index": {"_id": 1}}'
+          - '{"latency": {"sum": 8.6, "min": 0, "max": 0.5, "centroids" : [0, 0.1, 0.2, 0.3, 0.4, 0.5], "counts" : [3, 2, 5, 10, 1, 8]}}'
+
+  - do:
+      get:
+        index: tdigest_synthetic
+        id: 1
+  - match:
+      _source:
+        latency:
+          # Note that unlike the stored source case, we get back a float here
+          min: 0.0
+          max: 0.5
+          sum: 8.6
+          centroids: [ 0.0, 0.1, 0.2, 0.3, 0.4, 0.5 ]
+          counts: [ 3, 2, 5, 10, 1, 8 ]
+
+---
+TDigest with synthetic source and zero counts:
+  - requires:
+      cluster_features: [ "mapper.source.mode_from_index_setting" ]
+      reason: "Source mode configured through index setting"
+
+  - do:
+      indices.create:
+        index: tdigest_synthetic
+        body:
+          settings:
+            index:
+              mapping.source.mode: synthetic
+          mappings:
+            properties:
+              latency:
+                type: tdigest
+  - do:
+      bulk:
+        index: tdigest_synthetic
+        refresh: true
+        body:
+          - '{"index": {"_id": 1}}'
+          - '{"latency": {"centroids" : [0.1, 0.2, 0.3, 0.4, 0.5], "counts" : [0, 7, 0, 6, 0]}}'
+
+  - do:
+      get:
+        index: tdigest_synthetic
+        id: 1
+  - match:
+      _source:
+        latency:
+          # Note that we're storing 0.1 as the min, even though it's count is 0.
+          min: 0.1
+          max: 0.5
+          sum: 3.8000000000000007
+          centroids: [ 0.2, 0.4 ]
+          counts: [ 7, 6 ]
+
+
+---
+histogram with synthetic source and ignore_malformed:
+  - requires:
+      cluster_features: [ "mapper.source.mode_from_index_setting" ]
+      reason: "Source mode configured through index setting"
+
+  - do:
+      indices.create:
+        index: tdigest_synthetic
+        body:
+          settings:
+            index:
+              mapping.source.mode: synthetic
+          mappings:
+            properties:
+              latency:
+                type: tdigest
+                ignore_malformed: true
+
+  - do:
+      index:
+        index: tdigest_synthetic
+        id: "1"
+        body:
+          latency: "quick brown fox"
+
+  - do:
+      index:
+        index: tdigest_synthetic
+        id: "2"
+        body:
+          latency: [ { "centroids": [ 1.0 ], "counts": [ 1 ], "hello": "world" }, [ 123, 456 ], { "centroids": [ 2.0 ], "counts": [ 2 ] }, "fox" ]
+
+  - do:
+      indices.refresh: { }
+
+  - do:
+      get:
+        index: tdigest_synthetic
+        id: 1
+  - match:
+      _source:
+        latency: "quick brown fox"
+
+  - do:
+      get:
+        index: tdigest_synthetic
+        id: 2
+  - match:
+      _source:
+        latency: [ {
+          min: 2.0,
+          max: 2.0,
+          sum: 4.0,
+          "centroids": [ 2.0 ],
+          "counts": [ 2 ]
+        },
+          { "centroids": [ 1.0 ], "counts": [ 1 ], "hello": "world" },
+          123, 456, "fox" ]
+---
+TDigest with synthetic source and empty digest:
+  - requires:
+      cluster_features: [ "mapper.source.mode_from_index_setting" ]
+      reason: "Source mode configured through index setting"
+
+  - do:
+      indices.create:
+        index: tdigest_synthetic
+        body:
+          settings:
+            index:
+              mapping.source.mode: synthetic
+          mappings:
+            properties:
+              latency:
+                type: tdigest
+  - do:
+      bulk:
+        index: tdigest_synthetic
+        refresh: true
+        body:
+          - '{"index": {"_id": 1}}'
+          - '{"latency": {"centroids" : [], "counts" : []}}'
+
+  - do:
+      get:
+        index: tdigest_synthetic
+        id: 1
+  - match:
+      _source:
+        latency:
+          sum: 0.0
+          centroids: [ ]
+          counts: [ ]
+
+

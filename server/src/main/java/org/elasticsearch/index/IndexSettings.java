@@ -855,6 +855,14 @@ public final class IndexSettings {
         Property.IndexSettingDeprecatedInV7AndRemovedInV8
     );
 
+    public static final Setting<Boolean> USE_ES_812_POSTINGS_FORMAT = Setting.boolSetting("index.use_legacy_postings_format", settings -> {
+        if (settings == null) {
+            return Boolean.FALSE.toString();
+        }
+        IndexMode indexMode = IndexSettings.MODE.get(settings);
+        return Boolean.toString(indexMode.useEs812PostingsFormat());
+    }, Property.IndexScope, Property.Final);
+
     /**
      * The `index.mapping.ignore_above` setting defines the maximum length for the content of a field that will be indexed
      * or stored. If the length of the field’s content exceeds this limit, the field value will be ignored during indexing.
@@ -1011,6 +1019,7 @@ public final class IndexSettings {
     private final boolean useDocValuesSkipper;
     private final boolean useTimeSeriesSyntheticId;
     private final boolean useTimeSeriesDocValuesFormat;
+    private final boolean useEs812PostingsFormat;
 
     /**
      * The maximum number of refresh listeners allows on this shard.
@@ -1198,6 +1207,7 @@ public final class IndexSettings {
         useDocValuesSkipper = DOC_VALUES_SKIPPER && scopedSettings.get(USE_DOC_VALUES_SKIPPER);
         seqNoIndexOptions = scopedSettings.get(SEQ_NO_INDEX_OPTIONS_SETTING);
         useTimeSeriesDocValuesFormat = scopedSettings.get(USE_TIME_SERIES_DOC_VALUES_FORMAT_SETTING);
+        useEs812PostingsFormat = scopedSettings.get(USE_ES_812_POSTINGS_FORMAT);
         final var useSyntheticId = IndexSettings.TSDB_SYNTHETIC_ID_FEATURE_FLAG && scopedSettings.get(USE_SYNTHETIC_ID);
         if (indexMetadata.useTimeSeriesSyntheticId() != useSyntheticId) {
             assert false;
@@ -1964,6 +1974,13 @@ public final class IndexSettings {
      */
     public boolean useTimeSeriesDocValuesFormat() {
         return useTimeSeriesDocValuesFormat;
+    }
+
+    /**
+     * @return Whether the ES 8.12 postings format should be used.
+     */
+    public boolean useEs812PostingsFormat() {
+        return useEs812PostingsFormat;
     }
 
     /**

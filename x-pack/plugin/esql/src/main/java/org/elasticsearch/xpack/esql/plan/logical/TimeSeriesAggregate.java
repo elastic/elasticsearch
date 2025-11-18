@@ -219,7 +219,12 @@ public class TimeSeriesAggregate extends Aggregate {
                     // reject COUNT(keyword), but allow COUNT(numeric)
                 } else if (outer instanceof TimeSeriesAggregateFunction == false && outer.field() instanceof AggregateFunction == false) {
                     Expression field = outer.field();
-                    var lastOverTime = new LastOverTime(source(), field, new Literal(source(), null, DataType.DATETIME));
+                    var lastOverTime = new LastOverTime(
+                        source(),
+                        field,
+                        AggregateFunction.NO_WINDOW,
+                        new Literal(source(), null, DataType.DATETIME)
+                    );
                     if (lastOverTime.typeResolved() != Expression.TypeResolution.TYPE_RESOLVED) {
                         failures.add(
                             fail(

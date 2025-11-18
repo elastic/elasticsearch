@@ -23,8 +23,11 @@
           ],
           "parts": {
             "task_type": {
-              "type": "string",
-              "description": "The task type"
+              "type": "enum",
+              "description": "The task type",
+              "options": [
+                "completion"
+              ]
             },
             "anthropic_inference_id": {
               "type": "string",

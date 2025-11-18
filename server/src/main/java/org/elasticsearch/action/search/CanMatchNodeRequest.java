@@ -102,7 +102,7 @@ public class CanMatchNodeRequest extends AbstractTransportRequest implements Ind
             waitForCheckpoint = in.readLong();
             assert keepAlive == null || readerId != null : "readerId: " + readerId + " keepAlive: " + keepAlive;
             if (in.getTransportVersion().supports(ShardSearchRequest.SHARD_SEARCH_REQUEST_RESHARD_SHARD_COUNT_SUMMARY)) {
-                reshardSplitShardCountSummary = SplitShardCountSummary.fromInt(in.readVInt());
+                reshardSplitShardCountSummary = new SplitShardCountSummary(in);
             } else {
                 reshardSplitShardCountSummary = SplitShardCountSummary.UNSET;
             }
@@ -119,7 +119,7 @@ public class CanMatchNodeRequest extends AbstractTransportRequest implements Ind
             out.writeOptionalTimeValue(keepAlive);
             out.writeLong(waitForCheckpoint);
             if (out.getTransportVersion().supports(ShardSearchRequest.SHARD_SEARCH_REQUEST_RESHARD_SHARD_COUNT_SUMMARY)) {
-                out.writeVInt(reshardSplitShardCountSummary.asInt());
+                reshardSplitShardCountSummary.writeTo(out);
             }
         }
 

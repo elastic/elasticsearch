@@ -28,6 +28,7 @@ import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServic
 import org.elasticsearch.xpack.inference.services.elastic.InternalPreconfiguredEndpoints;
 import org.elasticsearch.xpack.inference.services.elastic.authorization.AuthorizationPoller;
 import org.elasticsearch.xpack.inference.services.elastic.authorization.AuthorizationTaskExecutor;
+import org.elasticsearch.xpack.inference.services.elastic.ccm.CCMSettings;
 import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.Before;
@@ -87,6 +88,10 @@ public class AuthorizationTaskExecutorIT extends ESSingleNodeTestCase {
 
     @After
     public void shutdown() {
+        removeEisPreconfiguredEndpoints(modelRegistry);
+    }
+
+    static void removeEisPreconfiguredEndpoints(ModelRegistry modelRegistry) {
         // Delete all the eis preconfigured endpoints
         var listener = new PlainActionFuture<Boolean>();
         modelRegistry.deleteModels(InternalPreconfiguredEndpoints.EIS_PRECONFIGURED_ENDPOINT_IDS, listener);
@@ -101,6 +106,8 @@ public class AuthorizationTaskExecutorIT extends ESSingleNodeTestCase {
     @Override
     protected Settings nodeSettings() {
         return Settings.builder()
+            // Disable CCM to ensure that only the authorization task executor is initialized in the inference plugin when it is created
+            .put(CCMSettings.CCM_SUPPORTED_ENVIRONMENT.getKey(), false)
             .put(ElasticInferenceServiceSettings.ELASTIC_INFERENCE_SERVICE_URL.getKey(), gatewayUrl)
             // Ensure that the polling logic only occurs once so we can deterministically control when an authorization response is
             // received
@@ -123,7 +130,15 @@ public class AuthorizationTaskExecutorIT extends ESSingleNodeTestCase {
     }
 
     private void assertNoAuthorizedEisEndpoints() throws Exception {
-        waitForTask(AUTH_TASK_ACTION, admin());
+        assertNoAuthorizedEisEndpoints(admin(), authorizationTaskExecutor, modelRegistry);
+    }
+
+    static void assertNoAuthorizedEisEndpoints(
+        AdminClient adminClient,
+        AuthorizationTaskExecutor authorizationTaskExecutor,
+        ModelRegistry modelRegistry
+    ) throws Exception {
+        waitForTask(AUTH_TASK_ACTION, adminClient);
 
         assertBusy(() -> {
             var newPoller = authorizationTaskExecutor.getCurrentPollerTask();
@@ -131,7 +146,7 @@ public class AuthorizationTaskExecutorIT extends ESSingleNodeTestCase {
             newPoller.waitForAuthorizationToComplete(TimeValue.THIRTY_SECONDS);
         });
 
-        var eisEndpoints = getEisEndpoints();
+        var eisEndpoints = getEisEndpoints(modelRegistry);
         assertThat(eisEndpoints, empty());
 
         for (String eisPreconfiguredEndpoints : InternalPreconfiguredEndpoints.EIS_PRECONFIGURED_ENDPOINT_IDS) {
@@ -153,7 +168,22 @@ public class AuthorizationTaskExecutorIT extends ESSingleNodeTestCase {
         return taskRef.get();
     }
 
+    static void waitForNoTask(String taskAction, AdminClient adminClient) throws Exception {
+        var builder = new ListTasksRequestBuilder(adminClient.cluster());
+
+        assertBusy(() -> {
+            var response = builder.get();
+            var authPollerTask = response.getTasks().stream().filter(task -> task.action().equals(taskAction)).findFirst();
+            assertFalse(authPollerTask.isPresent());
+        });
+
+    }
+
     private List<UnparsedModel> getEisEndpoints() {
+        return getEisEndpoints(modelRegistry);
+    }
+
+    static List<UnparsedModel> getEisEndpoints(ModelRegistry modelRegistry) {
         var listener = new PlainActionFuture<List<UnparsedModel>>();
         modelRegistry.getAllModels(false, listener);
 
@@ -162,17 +192,26 @@ public class AuthorizationTaskExecutorIT extends ESSingleNodeTestCase {
     }
 
     private void restartPollingTaskAndWaitForAuthResponse() throws Exception {
-        cancelAuthorizationTask(admin());
+        restartPollingTaskAndWaitForAuthResponse(admin(), authorizationTaskExecutor);
+    }
+
+    static void restartPollingTaskAndWaitForAuthResponse(AdminClient adminClient, AuthorizationTaskExecutor authTaskExecutor)
+        throws Exception {
+        cancelAuthorizationTask(adminClient);
 
         // wait for the new task to be recreated and an authorization response to be processed
+        waitForAuthorizationToComplete(authTaskExecutor);
+    }
+
+    static void waitForAuthorizationToComplete(AuthorizationTaskExecutor authTaskExecutor) throws Exception {
         assertBusy(() -> {
-            var newPoller = authorizationTaskExecutor.getCurrentPollerTask();
+            var newPoller = authTaskExecutor.getCurrentPollerTask();
             assertNotNull(newPoller);
             newPoller.waitForAuthorizationToComplete(TimeValue.THIRTY_SECONDS);
         });
     }
 
-    public static void cancelAuthorizationTask(AdminClient adminClient) throws Exception {
+    static void cancelAuthorizationTask(AdminClient adminClient) throws Exception {
         var pollerTask = waitForTask(AUTH_TASK_ACTION, adminClient);
         var builder = new CancelTasksRequestBuilder(adminClient.cluster());
 
@@ -202,7 +241,11 @@ public class AuthorizationTaskExecutorIT extends ESSingleNodeTestCase {
     }
 
     private void assertChatCompletionEndpointExists() {
-        var eisEndpoints = getEisEndpoints();
+        assertChatCompletionEndpointExists(modelRegistry);
+    }
+
+    static void assertChatCompletionEndpointExists(ModelRegistry modelRegistry) {
+        var eisEndpoints = getEisEndpoints(modelRegistry);
         assertThat(eisEndpoints.size(), is(1));
 
         var rainbowSprinklesModel = eisEndpoints.get(0);
@@ -212,7 +255,7 @@ public class AuthorizationTaskExecutorIT extends ESSingleNodeTestCase {
         );
     }
 
-    private void assertChatCompletionUnparsedModel(UnparsedModel rainbowSprinklesModel) {
+    static void assertChatCompletionUnparsedModel(UnparsedModel rainbowSprinklesModel) {
         assertThat(rainbowSprinklesModel.taskType(), is(TaskType.CHAT_COMPLETION));
         assertThat(rainbowSprinklesModel.service(), is(ElasticInferenceService.NAME));
         assertThat(rainbowSprinklesModel.inferenceEntityId(), is(InternalPreconfiguredEndpoints.DEFAULT_CHAT_COMPLETION_ENDPOINT_ID_V1));

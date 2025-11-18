@@ -11,14 +11,17 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.support.IndicesOptions;
+import org.elasticsearch.cluster.routing.SplitShardCountSummary;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BlockStreamInput;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexReshardService;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
@@ -54,7 +57,7 @@ final class DataNodeRequest extends AbstractTransportRequest implements IndicesR
     private final String clusterAlias;
     private final Map<Index, AliasFilter> aliasFilters;
     private final PhysicalPlan plan;
-    private List<ShardId> shardIds;
+    private List<Shard> shards;
     private String[] indices;
     private final IndicesOptions indicesOptions;
     private final boolean runNodeLevelReduction;
@@ -64,7 +67,7 @@ final class DataNodeRequest extends AbstractTransportRequest implements IndicesR
         String sessionId,
         Configuration configuration,
         String clusterAlias,
-        List<ShardId> shardIds,
+        List<Shard> shards,
         Map<Index, AliasFilter> aliasFilters,
         PhysicalPlan plan,
         String[] indices,
@@ -75,7 +78,7 @@ final class DataNodeRequest extends AbstractTransportRequest implements IndicesR
         this.sessionId = sessionId;
         this.configuration = configuration;
         this.clusterAlias = clusterAlias;
-        this.shardIds = shardIds;
+        this.shards = shards;
         this.aliasFilters = aliasFilters;
         this.plan = plan;
         this.indices = indices;
@@ -100,7 +103,11 @@ final class DataNodeRequest extends AbstractTransportRequest implements IndicesR
             new BlockStreamInput(in, new BlockFactory(new NoopCircuitBreaker(CircuitBreaker.REQUEST), BigArrays.NON_RECYCLING_INSTANCE))
         );
         this.clusterAlias = in.readString();
-        this.shardIds = in.readCollectionAsList(ShardId::new);
+        if (in.getTransportVersion().supports(IndexReshardService.RESHARDING_SHARD_SUMMARY_IN_ESQL)) {
+            this.shards = in.readCollectionAsList(Shard::new);
+        } else {
+            this.shards = in.readCollectionAsList(i -> new Shard(new ShardId(i), SplitShardCountSummary.UNSET));
+        }
         this.aliasFilters = in.readMap(Index::new, AliasFilter::readFrom);
         PlanStreamInput pin = new PlanStreamInput(in, in.namedWriteableRegistry(), configuration, idMapper);
         this.plan = pin.readNamedWriteable(PhysicalPlan.class);
@@ -124,7 +131,11 @@ final class DataNodeRequest extends AbstractTransportRequest implements IndicesR
         out.writeString(sessionId);
         configuration.writeTo(out);
         out.writeString(clusterAlias);
-        out.writeCollection(shardIds);
+        if (out.getTransportVersion().supports(IndexReshardService.RESHARDING_SHARD_SUMMARY_IN_ESQL)) {
+            out.writeCollection(shards);
+        } else {
+            out.writeCollection(shards, (o, s) -> s.shardId().writeTo(o));
+        }
         out.writeMap(aliasFilters);
         new PlanStreamOutput(out, configuration).writeNamedWriteable(plan);
         out.writeStringArray(indices);
@@ -146,8 +157,8 @@ final class DataNodeRequest extends AbstractTransportRequest implements IndicesR
     public IndicesRequest indices(String... indices) {
         this.indices = indices;
         if (Arrays.equals(NO_INDICES_OR_ALIASES_ARRAY, indices) || Arrays.asList(indices).contains(NO_INDEX_PLACEHOLDER)) {
-            logger.trace(() -> format("Indices empty after index resolution, also clearing shardIds %s", shardIds));
-            this.shardIds = Collections.emptyList();
+            logger.trace(() -> format("Indices empty after index resolution, also clearing shardIds %s", shards));
+            this.shards = Collections.emptyList();
         }
         return this;
     }
@@ -192,8 +203,8 @@ final class DataNodeRequest extends AbstractTransportRequest implements IndicesR
         return clusterAlias;
     }
 
-    List<ShardId> shardIds() {
-        return shardIds;
+    List<Shard> shards() {
+        return shards;
     }
 
     /**
@@ -217,7 +228,7 @@ final class DataNodeRequest extends AbstractTransportRequest implements IndicesR
 
     @Override
     public String getDescription() {
-        return "shards=" + shardIds + " plan=" + plan;
+        return "shards=" + shards + " plan=" + plan;
     }
 
     @Override
@@ -233,7 +244,7 @@ final class DataNodeRequest extends AbstractTransportRequest implements IndicesR
         return sessionId.equals(request.sessionId)
             && configuration.equals(request.configuration)
             && clusterAlias.equals(request.clusterAlias)
-            && shardIds.equals(request.shardIds)
+            && shards.equals(request.shards)
             && aliasFilters.equals(request.aliasFilters)
             && plan.equals(request.plan)
             && getParentTask().equals(request.getParentTask())
@@ -248,7 +259,7 @@ final class DataNodeRequest extends AbstractTransportRequest implements IndicesR
             sessionId,
             configuration,
             clusterAlias,
-            shardIds,
+            shards,
             aliasFilters,
             plan,
             Arrays.hashCode(indices),
@@ -262,7 +273,7 @@ final class DataNodeRequest extends AbstractTransportRequest implements IndicesR
             sessionId,
             configuration,
             clusterAlias,
-            shardIds,
+            shards,
             aliasFilters,
             newPlan,
             indices,
@@ -270,5 +281,17 @@ final class DataNodeRequest extends AbstractTransportRequest implements IndicesR
             runNodeLevelReduction,
             reductionLateMaterialization
         );
+    }
+
+    public record Shard(ShardId shardId, SplitShardCountSummary reshardSplitShardCountSummary) implements Writeable {
+        Shard(StreamInput in) throws IOException {
+            this(new ShardId(in), new SplitShardCountSummary(in));
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            shardId.writeTo(out);
+            reshardSplitShardCountSummary.writeTo(out);
+        }
     }
 }

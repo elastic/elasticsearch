@@ -114,6 +114,7 @@ toc:
                 - file: rest-apis/retrievers/rule-retriever.md
                 - file: rest-apis/retrievers/standard-retriever.md
                 - file: rest-apis/retrievers/text-similarity-reranker-retriever.md
+                - file: rest-apis/retrievers/diversify-retriever.md
                 - file: rest-apis/retrievers/retrievers-examples.md
             - file: rest-apis/search-multiple-data-streams-indices.md
             - file: rest-apis/search-profile.md

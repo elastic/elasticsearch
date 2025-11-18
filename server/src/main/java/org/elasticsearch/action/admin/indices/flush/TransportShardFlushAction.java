@@ -13,13 +13,16 @@ import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.action.support.replication.ReplicationRequestSplitHelper;
 import org.elasticsearch.action.support.replication.ReplicationResponse;
 import org.elasticsearch.action.support.replication.TransportReplicationAction;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
@@ -32,11 +35,14 @@ import org.elasticsearch.transport.TransportRequestHandler;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
+import java.util.Map;
 
 public class TransportShardFlushAction extends TransportReplicationAction<ShardFlushRequest, ShardFlushRequest, ReplicationResponse> {
 
     public static final String NAME = FlushAction.NAME + "[s]";
     public static final ActionType<ReplicationResponse> TYPE = new ActionType<>(NAME);
+
+    private final ProjectResolver projectResolver;
 
     @Inject
     public TransportShardFlushAction(
@@ -46,7 +52,8 @@ public class TransportShardFlushAction extends TransportReplicationAction<ShardF
         IndicesService indicesService,
         ThreadPool threadPool,
         ShardStateAction shardStateAction,
-        ActionFilters actionFilters
+        ActionFilters actionFilters,
+        ProjectResolver projectResolver
     ) {
         super(
             settings,
@@ -64,6 +71,7 @@ public class TransportShardFlushAction extends TransportReplicationAction<ShardF
             PrimaryActionExecution.RejectOnOverload,
             ReplicaActionExecution.SubjectToCircuitBreaker
         );
+        this.projectResolver = projectResolver;
         transportService.registerRequestHandler(
             PRE_SYNCED_FLUSH_ACTION_NAME,
             threadPool.executor(ThreadPool.Names.FLUSH),
@@ -87,6 +95,27 @@ public class TransportShardFlushAction extends TransportReplicationAction<ShardF
             logger.trace("{} flush request executed on primary", primary.shardId());
             return new PrimaryResult<>(shardRequest, new ReplicationResponse());
         }));
+    }
+
+    // We are here because there was a mismatch between the SplitShardCountSummary in the request
+    // and that on the primary shard node. We assume that the request is exactly 1 reshard split behind
+    // the current state.
+    @Override
+    protected Map<ShardId, ShardFlushRequest> splitRequestOnPrimary(ShardFlushRequest request) {
+        return ReplicationRequestSplitHelper.splitRequest(
+            request,
+            projectResolver.getProjectMetadata(clusterService.state()),
+            (targetShard, shardCountSummary) -> new ShardFlushRequest(request.getRequest(), targetShard, shardCountSummary)
+        );
+    }
+
+    @Override
+    protected Tuple<ReplicationResponse, Exception> combineSplitResponses(
+        ShardFlushRequest originalRequest,
+        Map<ShardId, ShardFlushRequest> splitRequests,
+        Map<ShardId, Tuple<ReplicationResponse, Exception>> responses
+    ) {
+        return ReplicationRequestSplitHelper.combineSplitResponses(originalRequest, splitRequests, responses);
     }
 
     @Override

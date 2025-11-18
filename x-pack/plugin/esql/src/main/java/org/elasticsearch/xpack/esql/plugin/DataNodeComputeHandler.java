@@ -17,6 +17,7 @@ import org.elasticsearch.action.support.ChannelActionListener;
 import org.elasticsearch.action.support.RefCountingRunnable;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.project.ProjectResolver;
+import org.elasticsearch.cluster.routing.SplitShardCountSummary;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.compute.lucene.IndexedByShardId;
 import org.elasticsearch.compute.lucene.IndexedByShardIdFromSingleton;
@@ -27,6 +28,7 @@ import org.elasticsearch.compute.operator.exchange.ExchangeSinkHandler;
 import org.elasticsearch.compute.operator.exchange.ExchangeSourceHandler;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
@@ -135,7 +137,7 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
             @Override
             protected void sendRequest(
                 DiscoveryNode node,
-                List<ShardId> shardIds,
+                List<DataNodeRequest.Shard> shards,
                 Map<Index, AliasFilter> aliasFilters,
                 NodeListener nodeListener
             ) {
@@ -170,7 +172,7 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                             try {
                                 groupTask = computeService.createGroupTask(
                                     parentTask,
-                                    () -> "compute group: data-node [" + node.getName() + "], " + shardIds + " [" + shardIds + "]"
+                                    () -> "compute group: data-node [" + node.getName() + "], shards [" + shards + "]"
                                 );
                             } catch (TaskCancelledException e) {
                                 l.onFailure(e);
@@ -194,7 +196,7 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                                 childSessionId,
                                 configuration,
                                 clusterAlias,
-                                shardIds,
+                                shards,
                                 aliasFilters,
                                 dataNodePlan,
                                 originalIndices.indices(),
@@ -283,9 +285,9 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
             final Configuration configuration = request.configuration();
             final String clusterAlias = request.clusterAlias();
             final var sessionId = request.sessionId();
-            final int endBatchIndex = Math.min(startBatchIndex + maxConcurrentShards, request.shardIds().size());
+            final int endBatchIndex = Math.min(startBatchIndex + maxConcurrentShards, request.shards().size());
             final AtomicInteger pagesProduced = new AtomicInteger();
-            List<ShardId> shardIds = request.shardIds().subList(startBatchIndex, endBatchIndex);
+            List<DataNodeRequest.Shard> shards = request.shards().subList(startBatchIndex, endBatchIndex);
             ActionListener<DriverCompletionInfo> batchListener = new ActionListener<>() {
                 final ActionListener<DriverCompletionInfo> ref = computeListener.acquireCompute();
 
@@ -301,8 +303,8 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                 @Override
                 public void onFailure(Exception e) {
                     if (pagesProduced.get() == 0 && failFastOnShardFailure == false) {
-                        for (ShardId shardId : shardIds) {
-                            addShardLevelFailure(shardId, e);
+                        for (DataNodeRequest.Shard shard : shards) {
+                            addShardLevelFailure(shard.shardId(), e);
                         }
                         onResponse(DriverCompletionInfo.EMPTY);
                     } else {
@@ -317,7 +319,7 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
             };
             acquireSearchContexts(
                 clusterAlias,
-                shardIds,
+                shards,
                 configuration,
                 request.aliasFilters(),
                 ActionListener.wrap(acquiredSearchContexts -> {
@@ -363,18 +365,20 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
 
         private void acquireSearchContexts(
             String clusterAlias,
-            List<ShardId> shardIds,
+            List<DataNodeRequest.Shard> shards,
             Configuration configuration,
             Map<Index, AliasFilter> aliasFilters,
             ActionListener<IndexedByShardId<ComputeSearchContext>> listener
         ) {
-            final List<IndexShard> targetShards = new ArrayList<>();
-            for (ShardId shardId : shardIds) {
+            final List<Tuple<IndexShard, SplitShardCountSummary>> targetShards = new ArrayList<>();
+            for (DataNodeRequest.Shard shard : shards) {
                 try {
-                    var indexShard = searchService.getIndicesService().indexServiceSafe(shardId.getIndex()).getShard(shardId.id());
-                    targetShards.add(indexShard);
+                    var indexShard = searchService.getIndicesService()
+                        .indexServiceSafe(shard.shardId().getIndex())
+                        .getShard(shard.shardId().id());
+                    targetShards.add(new Tuple<>(indexShard, shard.reshardSplitShardCountSummary()));
                 } catch (Exception e) {
-                    if (addShardLevelFailure(shardId, e) == false) {
+                    if (addShardLevelFailure(shard.shardId(), e) == false) {
                         listener.onFailure(e);
                         return;
                     }
@@ -385,15 +389,17 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                 synchronized (searchContexts) {
                     int startingIndex = searchContexts.length();
                     int endingIndex = startingIndex;
-                    for (IndexShard shard : targetShards) {
+                    for (Tuple<IndexShard, SplitShardCountSummary> targetShard : targetShards) {
                         SearchContext context = null;
+                        IndexShard indexShard = targetShard.v1();
                         try {
-                            var aliasFilter = aliasFilters.getOrDefault(shard.shardId().getIndex(), AliasFilter.EMPTY);
+                            var aliasFilter = aliasFilters.getOrDefault(indexShard.shardId().getIndex(), AliasFilter.EMPTY);
                             var shardRequest = new ShardSearchRequest(
-                                shard.shardId(),
+                                indexShard.shardId(),
                                 configuration.absoluteStartedTimeInMillis(),
                                 aliasFilter,
-                                clusterAlias
+                                clusterAlias,
+                                targetShard.v2()
                             );
                             // TODO: `searchService.createSearchContext` allows opening search contexts without limits,
                             // we need to limit the number of active search contexts here or in SearchService
@@ -403,7 +409,7 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                             endingIndex++;
                             searchContexts.add(cse);
                         } catch (Exception e) {
-                            if (addShardLevelFailure(shard.shardId(), e)) {
+                            if (addShardLevelFailure(indexShard.shardId(), e)) {
                                 IOUtils.close(context);
                             } else {
                                 var subList = searchContexts.subRange(startingIndex, endingIndex);
@@ -423,9 +429,9 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                     doAcquire.run();
                 }
             })) {
-                for (IndexShard targetShard : targetShards) {
+                for (Tuple<IndexShard, SplitShardCountSummary> targetShard : targetShards) {
                     final Releasable ref = refs.acquire();
-                    targetShard.ensureShardSearchActive(await -> {
+                    targetShard.v1().ensureShardSearchActive(await -> {
                         try (ref) {
                             if (await) {
                                 waitedForRefreshes.set(true);
@@ -437,7 +443,7 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
         }
 
         private void onBatchCompleted(int lastBatchIndex) {
-            if (lastBatchIndex < request.shardIds().size() && exchangeSink.isFinished() == false) {
+            if (lastBatchIndex < request.shards().size() && exchangeSink.isFinished() == false) {
                 runBatch(lastBatchIndex);
             } else {
                 // don't return until all pages are fetched
@@ -570,7 +576,7 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
             sessionId + "[n]", // internal session
             request.configuration(),
             request.clusterAlias(),
-            request.shardIds(),
+            request.shards(),
             request.aliasFilters(),
             request.plan(),
             request.indices(),
@@ -580,7 +586,7 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
         );
         // the sender doesn't support retry on shard failures, so we need to fail fast here.
         final boolean failFastOnShardFailures = supportShardLevelRetryFailure(channel.getVersion()) == false;
-        var computeSearchContexts = new ComputeSearchContextByShardId(request.shardIds().size());
+        var computeSearchContexts = new ComputeSearchContextByShardId(request.shards().size());
         runComputeOnDataNode(
             (CancellableTask) task,
             sessionId,

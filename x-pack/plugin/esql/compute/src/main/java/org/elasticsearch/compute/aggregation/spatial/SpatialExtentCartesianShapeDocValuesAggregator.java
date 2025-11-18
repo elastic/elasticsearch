@@ -38,10 +38,16 @@ class SpatialExtentCartesianShapeDocValuesAggregator extends SpatialExtentAggreg
     }
 
     public static void combine(SpatialExtentState current, @Position int p, IntBlock values) {
+        if (values.getValueCount(p) == 0) {
+            return;
+        }
         current.add(p, values);
     }
 
     public static void combine(SpatialExtentGroupingState current, int groupId, @Position int p, IntBlock values) {
+        if (values.isNull(p)) {
+            return;
+        }
         current.add(groupId, p, values);
     }
 }

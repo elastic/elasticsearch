@@ -1,7 +1,0 @@
-pr: 137407
-summary: Taking additional settings providers into account for data stream effective
-  settings
-area: Data streams
-type: bug
-issues:
- - 137381

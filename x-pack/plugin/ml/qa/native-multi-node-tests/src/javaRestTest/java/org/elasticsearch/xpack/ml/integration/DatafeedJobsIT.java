@@ -250,7 +250,7 @@ public class DatafeedJobsIT extends MlNativeAutodetectIntegTestCase {
 
             putDatafeed(datafeedConfig);
             // Datafeed did not do anything yet, hence search_count is equal to 0.
-            assertDatafeedStats(datafeedId, DatafeedState.STOPPED, job.getId(), equalTo(0L));
+            assertBusy(() -> assertDatafeedStats(datafeedId, DatafeedState.STOPPED, job.getId(), equalTo(0L)), 30, TimeUnit.SECONDS);
             startDatafeed(datafeedId, 0L, now.toEpochMilli());
 
             // First, wait for data processing to complete
@@ -263,7 +263,14 @@ public class DatafeedJobsIT extends MlNativeAutodetectIntegTestCase {
                 TimeUnit.SECONDS
             );
 
-            deleteDatafeed(datafeedId);
+            DeleteDatafeedAction.Request request = new DeleteDatafeedAction.Request(datafeedId);
+            assertBusy(() -> {
+                try {
+                    client().execute(DeleteDatafeedAction.INSTANCE, request).actionGet();
+                } catch (Exception e) {
+                    throw new AssertionError("Datafeed could not be deleted", e);
+                }
+            });
             waitUntilJobIsClosed(job.getId());
         };
 

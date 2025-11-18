@@ -275,9 +275,9 @@ public class TransportSearchActionTests extends ESTestCase {
                 AliasFilter.of(new MatchAllQueryBuilder(), Strings.EMPTY_ARRAY)
             );
             List<SearchShardsGroup> groups = List.of(
-                new SearchShardsGroup(new ShardId("foo", "foo_id", 0), List.of("node1", "node2"), false),
-                new SearchShardsGroup(new ShardId("foo", "foo_id", 1), List.of("node2", "node1"), true),
-                new SearchShardsGroup(new ShardId("bar", "bar_id", 0), List.of("node2", "node1"), false)
+                new SearchShardsGroup(new ShardId("foo", "foo_id", 0), List.of("node1", "node2"), false, SplitShardCountSummary.UNSET),
+                new SearchShardsGroup(new ShardId("foo", "foo_id", 1), List.of("node2", "node1"), true, SplitShardCountSummary.UNSET),
+                new SearchShardsGroup(new ShardId("bar", "bar_id", 0), List.of("node2", "node1"), false, SplitShardCountSummary.UNSET)
             );
             searchShardsResponseMap.put("test_cluster_1", new SearchShardsResponse(groups, nodes, aliasFilters1));
         }
@@ -1104,6 +1104,7 @@ public class TransportSearchActionTests extends ESTestCase {
                     new LatchedActionListener<>(ActionTestUtils.assertNoFailureListener(response::set), latch),
                     null,
                     false,
+                    null,
                     null
                 );
                 awaitLatch(latch, 5, TimeUnit.SECONDS);
@@ -1136,6 +1137,7 @@ public class TransportSearchActionTests extends ESTestCase {
                     new LatchedActionListener<>(ActionListener.wrap(r -> fail("no response expected"), failure::set), latch),
                     null,
                     false,
+                    null,
                     null
                 );
                 awaitLatch(latch, 5, TimeUnit.SECONDS);
@@ -1191,6 +1193,7 @@ public class TransportSearchActionTests extends ESTestCase {
                     new LatchedActionListener<>(ActionListener.wrap(r -> fail("no response expected"), failure::set), latch),
                     null,
                     false,
+                    null,
                     null
                 );
                 awaitLatch(latch, 5, TimeUnit.SECONDS);
@@ -1224,6 +1227,7 @@ public class TransportSearchActionTests extends ESTestCase {
                     new LatchedActionListener<>(ActionTestUtils.assertNoFailureListener(response::set), latch),
                     null,
                     false,
+                    null,
                     null
                 );
                 awaitLatch(latch, 5, TimeUnit.SECONDS);
@@ -1273,6 +1277,7 @@ public class TransportSearchActionTests extends ESTestCase {
                     new LatchedActionListener<>(ActionTestUtils.assertNoFailureListener(response::set), latch),
                     null,
                     false,
+                    null,
                     null
                 );
                 awaitLatch(latch, 5, TimeUnit.SECONDS);

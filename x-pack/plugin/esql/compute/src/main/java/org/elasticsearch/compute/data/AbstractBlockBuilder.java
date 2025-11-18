@@ -147,9 +147,9 @@ public abstract class AbstractBlockBuilder implements Block.Builder {
             return;
         }
         int newSize = ArrayUtil.oversize(valueCount, elementSize());
-        adjustBreaker(newSize * elementSize());
+        adjustBreaker((long) newSize * elementSize());
         growValuesArray(newSize);
-        adjustBreaker(-valuesLength * elementSize());
+        adjustBreaker(-(long) valuesLength * elementSize());
     }
 
     @Override

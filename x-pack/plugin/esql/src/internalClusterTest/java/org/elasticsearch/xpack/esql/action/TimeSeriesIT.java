@@ -588,10 +588,7 @@ public class TimeSeriesIT extends AbstractEsqlIntegTestCase {
                 assertThat(
                     readMetrics.readersBuilt().keySet(),
                     equalTo(
-                        Set.of(
-                            "_tsid:column_at_a_time:BytesRefsFromOrds.Singleton",
-                            "cpu:column_at_a_time:BlockDocValuesReader.SingletonDoubles"
-                        )
+                        Set.of("_tsid:column_at_a_time:BytesRefsFromOrds.Singleton", "cpu:column_at_a_time:DoublesFromDocValues.Singleton")
                     )
                 );
                 assertThat(ops.get(3).operator(), containsString("TimeSeriesAggregationOperator"));

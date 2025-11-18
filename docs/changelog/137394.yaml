@@ -1,6 +1,0 @@
-pr: 137394
-summary: Fix dropped ignore above fields
-area: Mapping
-type: bug
-issues:
- - 137360

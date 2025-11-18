@@ -44,7 +44,7 @@ public class RestGetCCMConfigurationAction extends BaseRestHandler {
 
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient client) {
-        if (ccmFeature.allowConfiguringCcm() == false) {
+        if (ccmFeature.isCcmSupportedEnvironment() == false) {
             throw CCM_FORBIDDEN_EXCEPTION;
         }
 

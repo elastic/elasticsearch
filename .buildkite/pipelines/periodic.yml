@@ -580,12 +580,16 @@ steps:
             BWC_VERSION: ["8.19.8", "9.1.8", "9.2.2", "9.3.0"]
           adjustments:
             - with:
-                BWC_VERSION: "8.19.*"
+                BWC_VERSION: "8.19.8"
                 ES_RUNTIME_JAVA: openjdk23
               skip: true
             - with:
-                BWC_VERSION: "9.1.*"
+                BWC_VERSION: "9.1.8"
                 ES_RUNTIME_JAVA: openjdk23
+              skip: true
+            - with:
+                BWC_VERSION: "9.1.8"
+                ES_RUNTIME_JAVA: openjdk24
               skip: true
         agents:
           provider: gcp

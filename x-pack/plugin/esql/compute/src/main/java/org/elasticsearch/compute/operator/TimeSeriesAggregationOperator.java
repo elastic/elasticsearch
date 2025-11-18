@@ -8,16 +8,31 @@
 package org.elasticsearch.compute.operator;
 
 import org.elasticsearch.common.Rounding;
+import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.IntArray;
 import org.elasticsearch.compute.Describable;
 import org.elasticsearch.compute.aggregation.AggregatorMode;
+import org.elasticsearch.compute.aggregation.DimensionValuesByteRefGroupingAggregatorFunction;
 import org.elasticsearch.compute.aggregation.GroupingAggregator;
 import org.elasticsearch.compute.aggregation.GroupingAggregatorEvaluationContext;
+import org.elasticsearch.compute.aggregation.GroupingAggregatorFunction;
 import org.elasticsearch.compute.aggregation.TimeSeriesGroupingAggregatorEvaluationContext;
+import org.elasticsearch.compute.aggregation.ValuesBooleanGroupingAggregatorFunction;
+import org.elasticsearch.compute.aggregation.ValuesBytesRefGroupingAggregatorFunction;
+import org.elasticsearch.compute.aggregation.ValuesDoubleGroupingAggregatorFunction;
+import org.elasticsearch.compute.aggregation.ValuesIntGroupingAggregatorFunction;
+import org.elasticsearch.compute.aggregation.ValuesLongGroupingAggregatorFunction;
+import org.elasticsearch.compute.aggregation.WindowGroupingAggregatorFunction;
 import org.elasticsearch.compute.aggregation.blockhash.BlockHash;
 import org.elasticsearch.compute.aggregation.blockhash.BytesRefLongBlockHash;
 import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.ElementType;
+import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.LongBlock;
+import org.elasticsearch.core.AbstractRefCounted;
+import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 
 import java.time.Duration;
@@ -69,6 +84,7 @@ public class TimeSeriesAggregationOperator extends HashAggregationOperator {
 
     private final Rounding.Prepared timeBucket;
     private final DateFieldMapper.Resolution timeResolution;
+    private ExpandingGroups expandingGroups = null;
 
     public TimeSeriesAggregationOperator(
         Rounding.Prepared timeBucket,
@@ -80,6 +96,90 @@ public class TimeSeriesAggregationOperator extends HashAggregationOperator {
         super(aggregators, blockHash, driverContext);
         this.timeBucket = timeBucket;
         this.timeResolution = timeResolution;
+    }
+
+    @Override
+    public void finish() {
+        expandWindowBuckets();
+        super.finish();
+    }
+
+    private long largestWindowMillis() {
+        long largestWindow = Long.MIN_VALUE;
+        for (GroupingAggregator aggregator : aggregators) {
+            if (aggregator.aggregatorFunction() instanceof WindowGroupingAggregatorFunction aggregatorFunction) {
+                largestWindow = Math.max(largestWindow, aggregatorFunction.window().toMillis());
+            }
+        }
+        return largestWindow;
+    }
+
+    private void expandWindowBuckets() {
+        for (GroupingAggregator aggregator : aggregators) {
+            if (aggregator.mode().isOutputPartial()) {
+                return;
+            }
+        }
+        long windowMillis = largestWindowMillis();
+        if (windowMillis <= 0) {
+            return;
+        }
+        BytesRefLongBlockHash tsBlockHash = (BytesRefLongBlockHash) blockHash;
+        long startingGroupId = tsBlockHash.numGroups();
+        if (startingGroupId == 0) {
+            return;
+        }
+        this.expandingGroups = new ExpandingGroups(driverContext.bigArrays(), startingGroupId);
+        for (long groupId = 0; groupId < startingGroupId; groupId++) {
+            long tsid = tsBlockHash.getBytesRefKeyFromGroup(groupId);
+            long endTimestamp = tsBlockHash.getLongKeyFromGroup(groupId);
+            long bucket = Math.max(endTimestamp - timeResolution.convert(largestWindowMillis()), tsBlockHash.getMinLongKey());
+            while ((bucket = timeBucket.nextRoundingValue(bucket)) < endTimestamp) {
+                if (tsBlockHash.addGroup(tsid, bucket) >= 0) {
+                    expandingGroups.addGroup(Math.toIntExact(groupId));
+                }
+            }
+        }
+    }
+
+    @Override
+    protected void evaluateAggregator(
+        GroupingAggregator aggregator,
+        Block[] blocks,
+        int offset,
+        IntVector selected,
+        GroupingAggregatorEvaluationContext evaluationContext
+    ) {
+        if (expandingGroups != null && expandingGroups.count > 0 && isValuesAggregator(aggregator)) {
+            try (var valuesSelected = selectedForValuesAggregator(driverContext.blockFactory(), selected, expandingGroups)) {
+                super.evaluateAggregator(aggregator, blocks, offset, valuesSelected, evaluationContext);
+            }
+        } else {
+            super.evaluateAggregator(aggregator, blocks, offset, selected, evaluationContext);
+        }
+    }
+
+    private static IntVector selectedForValuesAggregator(BlockFactory blockFactory, IntVector selected, ExpandingGroups expandingGroups) {
+        try (var builder = blockFactory.newIntVectorFixedBuilder(selected.getPositionCount())) {
+            int first = selected.getPositionCount() - expandingGroups.count;
+            for (int i = 0; i < first; i++) {
+                builder.appendInt(i, selected.getInt(i));
+            }
+            for (int i = 0; i < expandingGroups.count; i++) {
+                builder.appendInt(first + i, expandingGroups.getGroup(i));
+            }
+            return builder.build();
+        }
+    }
+
+    private static boolean isValuesAggregator(GroupingAggregator aggregator) {
+        GroupingAggregatorFunction fn = aggregator.aggregatorFunction();
+        return fn instanceof ValuesBooleanGroupingAggregatorFunction
+            || fn instanceof ValuesBytesRefGroupingAggregatorFunction
+            || fn instanceof ValuesIntGroupingAggregatorFunction
+            || fn instanceof ValuesLongGroupingAggregatorFunction
+            || fn instanceof ValuesDoubleGroupingAggregatorFunction
+            || fn instanceof DimensionValuesByteRefGroupingAggregatorFunction;
     }
 
     @Override
@@ -120,5 +220,42 @@ public class TimeSeriesAggregationOperator extends HashAggregationOperator {
                 return results;
             }
         };
+    }
+
+    static class ExpandingGroups extends AbstractRefCounted implements Releasable {
+        private final BigArrays bigArrays;
+        private IntArray newGroups;
+        final long startingGroupId;
+        private int count;
+
+        ExpandingGroups(BigArrays bigArrays, long startingGroupId) {
+            this.bigArrays = bigArrays;
+            this.startingGroupId = startingGroupId;
+            this.newGroups = bigArrays.newIntArray(128);
+        }
+
+        void addGroup(int groupId) {
+            newGroups = bigArrays.grow(newGroups, count + 1);
+            newGroups.set(count++, groupId);
+        }
+
+        int getGroup(int index) {
+            return newGroups.get(index);
+        }
+
+        @Override
+        protected void closeInternal() {
+            newGroups.close();
+        }
+
+        @Override
+        public void close() {
+            decRef();
+        }
+    }
+
+    @Override
+    public void close() {
+        Releasables.close(expandingGroups, super::close);
     }
 }

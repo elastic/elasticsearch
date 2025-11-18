@@ -2,18 +2,18 @@
 
 **Supported types**
 
-| field | result |
-| --- | --- |
-| aggregate_metric_double | double |
-| boolean | boolean |
-| date | date |
-| date_nanos | date_nanos |
-| double | double |
-| integer | integer |
-| ip | ip |
-| keyword | keyword |
-| long | long |
-| text | keyword |
-| unsigned_long {applies_to}`stack: ga 9.2.0` | unsigned_long |
-| version | version |
+| field | window | result |
+| --- | --- | --- |
+| aggregate_metric_double | time_duration {applies_to}`stack: preview 9.3.0` | double |
+| boolean | time_duration {applies_to}`stack: preview 9.3.0` | boolean |
+| date | time_duration {applies_to}`stack: preview 9.3.0` | date |
+| date_nanos | time_duration {applies_to}`stack: preview 9.3.0` | date_nanos |
+| double | time_duration {applies_to}`stack: preview 9.3.0` | double |
+| integer | time_duration {applies_to}`stack: preview 9.3.0` | integer |
+| ip | time_duration {applies_to}`stack: preview 9.3.0` | ip |
+| keyword | time_duration {applies_to}`stack: preview 9.3.0` | keyword |
+| long | time_duration {applies_to}`stack: preview 9.3.0` | long |
+| text | time_duration {applies_to}`stack: preview 9.3.0` | keyword |
+| unsigned_long {applies_to}`stack: ga 9.2.0` | time_duration {applies_to}`stack: preview 9.3.0` | unsigned_long |
+| version | time_duration {applies_to}`stack: preview 9.3.0` | version |
 

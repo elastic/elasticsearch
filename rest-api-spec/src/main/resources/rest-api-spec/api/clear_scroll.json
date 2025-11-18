@@ -32,7 +32,10 @@
             "scroll_id": {
               "type": "list",
               "description": "A comma-separated list of scroll IDs to clear",
-              "deprecated": true
+              "deprecated": {
+                "version": "7.0.0",
+                "description": "A scroll id can be quite large and should be specified as part of the body"
+              }
             }
           },
           "deprecated": {

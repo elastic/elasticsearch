@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.deprecation;
 import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlocks;
@@ -200,6 +201,82 @@ public class IndexDeprecationCheckerTests extends ESTestCase {
             createContextWithTransformConfigs(Map.of("test1", List.of("test-transform1"), "test2", List.of("test-transform2")))
         );
         assertEquals(expected, issuesByIndex);
+    }
+
+    public void testOldIndicesCheckWithPercolatorFields() {
+        IndexVersion olderVersion = IndexVersion.fromId(9000019);
+        IndexMetadata indexMetadata = IndexMetadata.builder("test")
+            .settings(settings(olderVersion))
+            .numberOfShards(1)
+            .numberOfReplicas(0)
+            .state(indexMetdataState)
+            .putMapping("""
+                {
+                    "properties": {
+                        "query": {
+                            "type": "percolator"
+                        },
+                        "field": {
+                            "type": "text"
+                        }
+                    }
+                }
+                """)
+            .transportVersion(randomBoolean() ? TransportVersion.fromId(0) : TransportVersion.fromId(9000019))
+            .build();
+        ClusterState clusterState = ClusterState.builder(ClusterState.EMPTY_STATE)
+            .metadata(Metadata.builder().put(indexMetadata, true))
+            .blocks(clusterBlocksForIndices(indexMetadata))
+            .build();
+        DeprecationIssue expected = new DeprecationIssue(
+            DeprecationIssue.Level.CRITICAL,
+            "Field mappings with incompatible percolator type",
+            "https://www.elastic.co/docs/reference/elasticsearch/mapping-reference/percolator#_reindexing_your_percolator_queries",
+            "The index was created before 9.latest and contains mappings that must be reindexed due to containing percolator fields. "
+                + "Field [query] is of type [_doc]",
+            false,
+            Map.of("reindex_required", true, "excluded_actions", List.of("readOnly"))
+        );
+        Map<String, List<DeprecationIssue>> issuesByIndex = checker.check(
+            clusterState,
+            new DeprecationInfoAction.Request(TimeValue.THIRTY_SECONDS),
+            emptyPrecomputedData
+        );
+        List<DeprecationIssue> issues = issuesByIndex.get("test");
+        assertEquals(singletonList(expected), issues);
+    }
+
+    public void testLatestIndicesCheckWithPercolatorFields() {
+        IndexVersion latestVersion = IndexVersion.current();
+        IndexMetadata indexMetadata = IndexMetadata.builder("test")
+            .settings(settings(latestVersion))
+            .numberOfShards(1)
+            .numberOfReplicas(0)
+            .state(indexMetdataState)
+            .putMapping("""
+                {
+                    "properties": {
+                        "query": {
+                            "type": "percolator"
+                        },
+                        "field": {
+                            "type": "text"
+                        }
+                    }
+                }
+                """)
+            .transportVersion(TransportVersion.current())
+            .build();
+        ClusterState clusterState = ClusterState.builder(ClusterState.EMPTY_STATE)
+            .metadata(Metadata.builder().put(indexMetadata, true))
+            .blocks(clusterBlocksForIndices(indexMetadata))
+            .build();
+        Map<String, List<DeprecationIssue>> issuesByIndex = checker.check(
+            clusterState,
+            new DeprecationInfoAction.Request(TimeValue.THIRTY_SECONDS),
+            emptyPrecomputedData
+        );
+        assertThat(issuesByIndex.isEmpty(), equalTo(true));
     }
 
     private IndexMetadata indexMetadata(String indexName, IndexVersion indexVersion) {
@@ -436,6 +513,49 @@ public class IndexDeprecationCheckerTests extends ESTestCase {
             createContextWithTransformConfigs(Map.of("test1", List.of("test-transform1"), "test2", List.of("test-transform2")))
         );
         assertEquals(expected, issuesByIndex);
+    }
+
+    public void testOldIgnoreIndicesCheckWithPercolatorFields() {
+        IndexVersion olderVersion = IndexVersion.fromId(9000019);
+        IndexMetadata indexMetadata = IndexMetadata.builder("test")
+            .settings(settings(olderVersion).put(MetadataIndexStateService.VERIFIED_READ_ONLY_SETTING.getKey(), true))
+            .numberOfShards(1)
+            .numberOfReplicas(0)
+            .state(indexMetdataState)
+            .putMapping("""
+                {
+                    "properties": {
+                        "query": {
+                            "type": "percolator"
+                        },
+                        "field": {
+                            "type": "text"
+                        }
+                    }
+                }
+                """)
+            .transportVersion(TransportVersion.fromId(9000019))
+            .build();
+        ClusterState clusterState = ClusterState.builder(ClusterState.EMPTY_STATE)
+            .metadata(Metadata.builder().put(indexMetadata, true))
+            .blocks(clusterBlocksForIndices(indexMetadata))
+            .build();
+        DeprecationIssue expected = new DeprecationIssue(
+            DeprecationIssue.Level.CRITICAL,
+            "Field mappings with incompatible percolator type",
+            "https://www.elastic.co/docs/reference/elasticsearch/mapping-reference/percolator#_reindexing_your_percolator_queries",
+            "The index was created before 9.latest and contains mappings that must be reindexed due to containing percolator fields. "
+                + "Field [query] is of type [_doc]",
+            false,
+            Map.of("reindex_required", true, "excluded_actions", List.of("readOnly"))
+        );
+        Map<String, List<DeprecationIssue>> issuesByIndex = checker.check(
+            clusterState,
+            new DeprecationInfoAction.Request(TimeValue.THIRTY_SECONDS),
+            emptyPrecomputedData
+        );
+        List<DeprecationIssue> issues = issuesByIndex.get("test");
+        assertEquals(singletonList(expected), issues);
     }
 
     public void testTranslogRetentionSettings() {

@@ -104,6 +104,11 @@ final class ClusterComputeRequest extends AbstractTransportRequest implements In
     }
 
     @Override
+    public boolean allowsCrossProject() {
+        return true;
+    }
+
+    @Override
     public Task createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
         if (parentTaskId.isSet() == false) {
             assert false : "DataNodeRequest must have a parent task";

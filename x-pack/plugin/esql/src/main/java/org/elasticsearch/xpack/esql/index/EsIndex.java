@@ -13,6 +13,7 @@ import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
@@ -20,9 +21,11 @@ public record EsIndex(
     String name,
     /** Map of field names to {@link EsField} instances representing that field */
     Map<String, EsField> mapping,
+    /* transient */ Map<String, List<String>> original,
+    /* transient */ Map<String, List<String>> concrete,
     Map<String, IndexMode> indexNameWithModes,
     /** Fields mapped only in some (but *not* all) indices. Since this is only used by the analyzer, it is not serialized. */
-    Set<String> partiallyUnmappedFields
+    /* transient */ Set<String> partiallyUnmappedFields
 ) implements Writeable {
 
     public EsIndex {
@@ -32,14 +35,23 @@ public record EsIndex(
     }
 
     public EsIndex(String name, Map<String, EsField> mapping, Map<String, IndexMode> indexNameWithModes) {
-        this(name, mapping, indexNameWithModes, Set.of());
+        this(name, mapping, Map.of(), Map.of(), indexNameWithModes, Set.of());
     }
 
     /**
      * Intended for tests. Returns an index with an empty index mode map.
      */
     public EsIndex(String name, Map<String, EsField> mapping) {
-        this(name, mapping, Map.of(), Set.of());
+        this(name, mapping, Map.of(), Map.of(), Map.of(), Set.of());
+    }
+
+    public EsIndex(
+        String name,
+        Map<String, EsField> mapping,
+        Map<String, IndexMode> indexNameWithModes,
+        Set<String> partiallyUnmappedFields
+    ) {
+        this(name, mapping, Map.of(), Map.of(), indexNameWithModes, partiallyUnmappedFields);
     }
 
     public static EsIndex readFrom(StreamInput in) throws IOException {
@@ -47,7 +59,7 @@ public record EsIndex(
         Map<String, EsField> mapping = in.readImmutableMap(StreamInput::readString, EsField::readFrom);
         Map<String, IndexMode> indexNameWithModes = in.readMap(IndexMode::readFrom);
         // partially unmapped fields shouldn't pass the coordinator node anyway, since they are only used by the Analyzer.
-        return new EsIndex(name, mapping, indexNameWithModes, Set.of());
+        return new EsIndex(name, mapping, Map.of(), Map.of(), indexNameWithModes, Set.of());
     }
 
     @Override

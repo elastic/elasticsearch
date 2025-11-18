@@ -22,6 +22,7 @@ import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
@@ -39,6 +40,23 @@ public class EsRelation extends LeafPlan {
     private final IndexMode indexMode;
     private final Map<String, IndexMode> indexNameWithModes;
     private final List<Attribute> attrs;
+
+    // TODO serialize
+    private final transient Map<String, List<String>> original = new HashMap<>();
+    private final transient Map<String, List<String>> concrete = new HashMap<>();
+
+    public void addResolution(Map<String, List<String>> original, Map<String, List<String>> concrete) {
+        this.original.putAll(original);
+        this.concrete.putAll(concrete);
+    }
+
+    public Map<String, List<String>> getOriginal() {
+        return original;
+    }
+
+    public Map<String, List<String>> getConcrete() {
+        return concrete;
+    }
 
     public EsRelation(Source source, EsIndex index, IndexMode indexMode) {
         this(source, index.name(), indexMode, index.indexNameWithModes(), flatten(source, index.mapping()));

@@ -14,6 +14,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesFailure;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.action.support.SubscribableListener;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.TriConsumer;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -803,20 +804,42 @@ public class EsqlSession {
         QueryBuilder requestFilter,
         ActionListener<PreAnalysisResult> listener
     ) {
-        EsqlCCSUtils.initCrossClusterState(
-            indicesExpressionGrouper,
-            verifier.licenseState(),
-            preAnalysis.indexes().keySet(),
-            executionInfo
+        assert ThreadPool.assertCurrentThreadPool(
+            ThreadPool.Names.SEARCH,
+            ThreadPool.Names.SEARCH_COORDINATION,
+            ThreadPool.Names.SYSTEM_READ
         );
-        // The main index pattern dictates on which nodes the query can be executed,
-        // so we use the minimum transport version from this field caps request.
-        forAll(
-            preAnalysis.indexes().entrySet().iterator(),
-            result,
-            (entry, r, l) -> preAnalyzeMainIndices(entry.getKey(), entry.getValue(), preAnalysis, executionInfo, r, requestFilter, l),
-            listener
-        );
+        if (crossProjectModeDecider.crossProjectEnabled() == false) {
+            EsqlCCSUtils.initCrossClusterState(
+                indicesExpressionGrouper,
+                verifier.licenseState(),
+                preAnalysis.indexes().keySet(),
+                executionInfo
+            );
+            // The main index pattern dictates on which nodes the query can be executed,
+            // so we use the minimum transport version from this field caps request.
+            forAll(
+                preAnalysis.indexes().entrySet().iterator(),
+                result,
+                (entry, r, l) -> preAnalyzeMainIndices(entry.getKey(), entry.getValue(), preAnalysis, executionInfo, r, requestFilter, l),
+                listener
+            );
+        } else {
+            forAll(
+                preAnalysis.indexes().entrySet().iterator(),
+                result,
+                (entry, r, l) -> preAnalyzeFlatMainIndices(
+                    entry.getKey(),
+                    entry.getValue(),
+                    preAnalysis,
+                    executionInfo,
+                    r,
+                    requestFilter,
+                    l
+                ),
+                listener
+            );
+        }
     }
 
     private void preAnalyzeMainIndices(
@@ -828,11 +851,6 @@ public class EsqlSession {
         QueryBuilder requestFilter,
         ActionListener<PreAnalysisResult> listener
     ) {
-        assert ThreadPool.assertCurrentThreadPool(
-            ThreadPool.Names.SEARCH,
-            ThreadPool.Names.SEARCH_COORDINATION,
-            ThreadPool.Names.SYSTEM_READ
-        );
         if (executionInfo.clusterAliases().isEmpty()) {
             // return empty resolution if the expression is pure CCS and resolved no remote clusters (like no-such-cluster*:index)
             listener.onResponse(result.withIndices(indexPattern, IndexResolution.empty(indexPattern.indexPattern())));
@@ -862,6 +880,50 @@ public class EsqlSession {
                 })
             );
         }
+    }
+
+    private void preAnalyzeFlatMainIndices(
+        IndexPattern indexPattern,
+        IndexMode indexMode,
+        PreAnalyzer.PreAnalysis preAnalysis,
+        EsqlExecutionInfo executionInfo,
+        PreAnalysisResult result,
+        QueryBuilder requestFilter,
+        ActionListener<PreAnalysisResult> listener
+    ) {
+        indexResolver.resolveFlatIndicesVersioned(
+            indexPattern.indexPattern(),
+            result.fieldNames,
+            // Maybe if no indices are returned, retry without index mode and provide a clearer error message.
+            switch (indexMode) {
+                case IndexMode.TIME_SERIES -> {
+                    var indexModeFilter = new TermQueryBuilder(IndexModeFieldMapper.NAME, IndexMode.TIME_SERIES.getName());
+                    yield requestFilter != null ? new BoolQueryBuilder().filter(requestFilter).filter(indexModeFilter) : indexModeFilter;
+                }
+                default -> requestFilter;
+            },
+            indexMode == IndexMode.TIME_SERIES,
+            preAnalysis.useAggregateMetricDoubleWhenNotSupported(),
+            preAnalysis.useDenseVectorWhenNotSupported(),
+            listener.delegateFailureAndWrap((l, indexResolution) -> {
+                LOGGER.info("--> Resolved indices {}", indexResolution);
+
+                indexResolution.inner().get().original().forEach((clusterAlias, indices) -> {
+                    executionInfo.swapCluster(clusterAlias, (k, v) -> {
+                        var indexExpr = Strings.collectionToCommaDelimitedString(indices);
+                        if (v != null) {
+                            indexExpr = v.getIndexExpression() + "," + indexExpr;
+                        }
+                        return new EsqlExecutionInfo.Cluster(clusterAlias, indexExpr, executionInfo.shouldSkipOnFailure(clusterAlias));
+                    });
+                });
+
+                EsqlCCSUtils.updateExecutionInfoWithUnavailableClusters(executionInfo, indexResolution.inner().failures());
+                l.onResponse(
+                    result.withIndices(indexPattern, indexResolution.inner()).withMinimumTransportVersion(indexResolution.minimumVersion())
+                );
+            })
+        );
     }
 
     private void analyzeWithRetry(

@@ -12,10 +12,12 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.ShardSearchFailure;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.RemoteException;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.RunOnce;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.Page;
@@ -67,6 +69,7 @@ import org.elasticsearch.xpack.esql.session.Result;
 
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -325,8 +328,20 @@ public class ComputeService {
             listener.onFailure(new IllegalStateException("expected data node plan starts with an ExchangeSink; got " + dataNodePlan));
             return;
         }
-        Map<String, OriginalIndices> clusterToConcreteIndices = transportService.getRemoteClusterService()
-            .groupIndices(SearchRequest.DEFAULT_INDICES_OPTIONS, PlannerUtils.planConcreteIndices(physicalPlan).toArray(String[]::new));
+
+        var options = IndicesOptions.builder(SearchRequest.DEFAULT_INDICES_OPTIONS)
+            .crossProjectModeOptions(new IndicesOptions.CrossProjectModeOptions(true))
+            .build();
+
+        Map<String, OriginalIndices> clusterToConcreteIndices = new HashMap<>();
+        PlannerUtils.forEachRelation(physicalPlan, relation -> {
+            // TODO do we need to merge entries here?
+            clusterToConcreteIndices.putAll(
+                Maps.transformValues(relation.getConcrete(), v -> new OriginalIndices(v.toArray(String[]::new), options))
+            );
+        });
+        LOGGER.info("--> Concrete indices {}", clusterToConcreteIndices);
+
         QueryPragmas queryPragmas = configuration.pragmas();
         Runnable cancelQueryOnFailure = cancelQueryOnFailure(rootTask);
         if (dataNodePlan == null) {
@@ -369,8 +384,16 @@ public class ComputeService {
                 return;
             }
         }
-        Map<String, OriginalIndices> clusterToOriginalIndices = transportService.getRemoteClusterService()
-            .groupIndices(SearchRequest.DEFAULT_INDICES_OPTIONS, PlannerUtils.planOriginalIndices(physicalPlan));
+
+        Map<String, OriginalIndices> clusterToOriginalIndices = new HashMap<>();
+        PlannerUtils.forEachRelation(physicalPlan, relation -> {
+            // TODO do we need to merge entries here?
+            clusterToOriginalIndices.putAll(
+                Maps.transformValues(relation.getOriginal(), v -> new OriginalIndices(v.toArray(String[]::new), options))
+            );
+        });
+        LOGGER.info("--> Original indices {}", clusterToOriginalIndices);
+
         var localOriginalIndices = clusterToOriginalIndices.remove(LOCAL_CLUSTER);
         var localConcreteIndices = clusterToConcreteIndices.remove(LOCAL_CLUSTER);
         /*

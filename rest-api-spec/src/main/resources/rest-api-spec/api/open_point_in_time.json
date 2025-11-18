@@ -36,7 +36,7 @@
         "description": "Specify the node or shard the operation should be performed on (default: random)"
       },
       "routing": {
-        "type": "string",
+        "type": "list",
         "description": "Specific routing value"
       },
       "ignore_unavailable": {
@@ -45,7 +45,7 @@
         "description": "Whether specified concrete indices should be ignored when unavailable (missing or closed)"
       },
       "expand_wildcards": {
-        "type": "enum",
+        "type": "list",
         "options": [
           "open",
           "closed",

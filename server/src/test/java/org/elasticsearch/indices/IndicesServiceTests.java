@@ -608,16 +608,14 @@ public class IndicesServiceTests extends ESSingleNodeTestCase {
 
                 shardStats.add(successfulShardStats);
 
-                when(mockIndicesService.indexShardStats(mockIndicesService, shard, CommonStatsFlags.ALL, 0L)).thenReturn(
-                    successfulShardStats
-                );
+                when(mockIndicesService.indexShardStats(mockIndicesService, shard, CommonStatsFlags.ALL)).thenReturn(successfulShardStats);
             } else {
-                when(mockIndicesService.indexShardStats(mockIndicesService, shard, CommonStatsFlags.ALL, 0L)).thenThrow(expectedException);
+                when(mockIndicesService.indexShardStats(mockIndicesService, shard, CommonStatsFlags.ALL)).thenThrow(expectedException);
             }
         }
 
-        when(mockIndicesService.iterator()).thenAnswer(invocation -> Collections.singleton(indexService).iterator());
-        when(indexService.iterator()).thenAnswer(unused -> shards.iterator());
+        when(mockIndicesService.iterator()).thenReturn(Collections.singleton(indexService).iterator());
+        when(indexService.iterator()).thenReturn(shards.iterator());
         when(indexService.index()).thenReturn(index);
 
         // real one, which has a logger defined

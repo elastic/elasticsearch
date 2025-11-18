@@ -100,6 +100,7 @@ import static org.apache.lucene.index.IndexWriter.MAX_TERM_LENGTH;
 import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.index.IndexSettings.IGNORE_ABOVE_SETTING;
 import static org.elasticsearch.index.mapper.FieldArrayContext.getOffsetsFieldName;
+import static org.elasticsearch.index.mapper.FieldMapper.Parameter.useTimeSeriesDocValuesSkippers;
 
 /**
  * A field mapper for keywords. This mapper accepts strings and indexes them as-is.
@@ -437,7 +438,7 @@ public final class KeywordFieldMapper extends FieldMapper {
 
         private FieldType resolveFieldType(final boolean forceDocValuesSkipper, final String fullFieldName) {
             FieldType fieldtype = new FieldType(Defaults.FIELD_TYPE);
-            if (forceDocValuesSkipper || shouldUseHostnameSkipper(fullFieldName) || shouldUseDimensionSkipper()) {
+            if (forceDocValuesSkipper || shouldUseHostnameSkipper(fullFieldName) || shouldUseTimeSeriesSkipper()) {
                 fieldtype = new FieldType(Defaults.FIELD_TYPE_WITH_SKIP_DOC_VALUES);
             }
             fieldtype.setOmitNorms(this.hasNorms.getValue() == false);
@@ -457,12 +458,8 @@ public final class KeywordFieldMapper extends FieldMapper {
             return fieldtype;
         }
 
-        private boolean shouldUseDimensionSkipper() {
-            return hasDocValues.get()
-                && dimension.get()
-                && indexed.get() == false
-                && indexSettings.useDocValuesSkipper()
-                && indexSettings.getIndexVersionCreated().onOrAfter(IndexVersions.TIME_SERIES_DIMENSIONS_USE_SKIPPERS);
+        private boolean shouldUseTimeSeriesSkipper() {
+            return hasDocValues.get() && indexed.get() == false && useTimeSeriesDocValuesSkippers(indexSettings, dimension.get());
         }
 
         private boolean shouldUseHostnameSkipper(final String fullFieldName) {

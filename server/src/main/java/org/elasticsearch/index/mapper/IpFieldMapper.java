@@ -60,6 +60,7 @@ import java.util.Objects;
 import java.util.function.BiFunction;
 
 import static org.elasticsearch.index.mapper.FieldArrayContext.getOffsetsFieldName;
+import static org.elasticsearch.index.mapper.FieldMapper.Parameter.useTimeSeriesDocValuesSkippers;
 import static org.elasticsearch.index.mapper.IpPrefixAutomatonUtil.buildIpPrefixAutomaton;
 
 /**
@@ -178,9 +179,7 @@ public class IpFieldMapper extends FieldMapper {
             if (indexSettings.getIndexVersionCreated().isLegacyIndexVersion()) {
                 return hasDocValues.get() ? IndexType.archivedPoints() : IndexType.NONE;
             }
-            if (dimension.get()
-                && indexSettings.useDocValuesSkipper()
-                && indexSettings.getIndexVersionCreated().onOrAfter(IndexVersions.TIME_SERIES_DIMENSIONS_USE_SKIPPERS)) {
+            if (useTimeSeriesDocValuesSkippers(indexSettings, dimension.get())) {
                 return IndexType.skippers();
             }
             return IndexType.points(indexed.get(), hasDocValues.get());
@@ -665,11 +664,11 @@ public class IpFieldMapper extends FieldMapper {
             context.getRoutingFields().addIp(fieldType().name(), address.getInetAddress());
         }
         LuceneDocument doc = context.doc();
-        if (indexed) {
+        if (fieldType().indexType.hasPoints()) {
             doc.add(address);
         }
-        if (hasDocValues) {
-            if (indexed == false) {
+        if (fieldType().indexType.hasDocValues()) {
+            if (fieldType().indexType.hasDocValuesSkipper()) {
                 doc.add(SortedSetDocValuesField.indexedField(fieldType().name(), address.binaryValue()));
             } else {
                 doc.add(new SortedSetDocValuesField(fieldType().name(), address.binaryValue()));

@@ -425,11 +425,11 @@ public class PluginsLoader {
         var pluginModule = controller.layer().findModule(moduleName).get();
         ensureEntryPointAccessible(controller, pluginModule, className);
         // export/open upstream modules to this plugin module
-        exposeQualifiedExportsAndOpens(pluginModule, qualifiedExports);
+        exposeQualifiedExportsAndOpens(controller.layer(), qualifiedExports);
         // configure qualified exports/opens to other modules/plugins
         addPluginExportsServices(qualifiedExports, controller);
         enableNativeAccess(moduleName, modulesWithNativeAccess, controller);
-        logger.debug(() -> "Loading bundle: created module layer and loader for module " + moduleName);
+        logger.debug("Loading bundle: created module layer and loader for module {}", moduleName);
         return new LayerAndLoader(controller.layer(), controller.layer().findLoader(moduleName));
     }
 

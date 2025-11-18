@@ -401,7 +401,7 @@ module org.elasticsearch.server {
             org.elasticsearch.serverless.constants,
             org.elasticsearch.serverless.apifiltering,
             org.elasticsearch.internal.security,
-            org.elasticsearch.gpu;
+            org.elasticsearch.xpack.gpu;
 
     exports org.elasticsearch.telemetry.tracing;
     exports org.elasticsearch.telemetry;

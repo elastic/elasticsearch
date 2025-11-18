@@ -122,9 +122,8 @@ public final class ProviderLocator<T> implements Supplier<T> {
         Configuration cf = parentLayer.configuration().resolve(ModuleFinder.of(), moduleFinder, Set.of(providerModuleName));
         ModuleLayer layer = parentLayer.defineModules(cf, nm -> loader); // all modules in one loader
         // check each module for boot modules that have qualified exports/opens to it
-        for (Module m : layer.modules()) {
-            exposeQualifiedExportsAndOpens(m, ModuleQualifiedExportsService.getBootServices());
-        }
+        exposeQualifiedExportsAndOpens(layer, ModuleQualifiedExportsService.getBootServices());
+
         ServiceLoader<T> sl = ServiceLoader.load(layer, providerType);
         return sl.findFirst().orElseThrow(newIllegalStateException(providerName));
     }

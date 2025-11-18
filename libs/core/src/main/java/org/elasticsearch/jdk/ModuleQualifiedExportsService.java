@@ -80,8 +80,16 @@ public abstract class ModuleQualifiedExportsService {
      * This is required since qualified statements targeting yet-to-be-created modules, i.e. plugins,
      * are silently dropped when the boot layer is created.
      */
-    public static void exposeQualifiedExportsAndOpens(Module target, Map<String, List<ModuleQualifiedExportsService>> qualifiedExports) {
-        qualifiedExports.getOrDefault(target.getName(), List.of()).forEach(exportService -> exportService.addExportsAndOpens(target));
+    public static void exposeQualifiedExportsAndOpens(
+        ModuleLayer targetLayer,
+        Map<String, List<ModuleQualifiedExportsService>> qualifiedExports
+    ) {
+        for (var targetModule : targetLayer.modules()) {
+            logger.debug("Exposing qualified exports for {}", targetModule.getName());
+            for (ModuleQualifiedExportsService exportService : qualifiedExports.getOrDefault(targetModule.getName(), List.of())) {
+                exportService.addExportsAndOpens(targetModule);
+            }
+        }
     }
 
     /**
@@ -149,10 +157,12 @@ public abstract class ModuleQualifiedExportsService {
         }
         List<String> exports = qualifiedExports.getOrDefault(targetName, List.of());
         for (String export : exports) {
+            logger.info("Adding export {} to {} (from {})", export, targetName, module.getName());
             addExports(export, target);
         }
         List<String> opens = qualifiedOpens.getOrDefault(targetName, List.of());
         for (String open : opens) {
+            logger.info("Adding open {} to {}  (from {})", open, targetName, module.getName());
             addOpens(open, target);
         }
     }

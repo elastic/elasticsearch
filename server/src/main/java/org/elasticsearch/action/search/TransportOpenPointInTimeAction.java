@@ -50,6 +50,7 @@ import org.elasticsearch.search.internal.ShardSearchContextId;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.AbstractTransportRequest;
+import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.transport.RemoteClusterService;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportActionProxy;
@@ -163,6 +164,8 @@ public class TransportOpenPointInTimeAction extends HandledTransportAction<OpenP
                     indicesOptionsForCrossProjectFanout(originalIndicesOptions),
                     indices
                 );
+                // local indices resolution was already taken care of by the Security Action Filter
+                remoteClusterIndices.remove(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY);
                 if (false == remoteClusterIndices.isEmpty()) {
                     final int remoteRequests = remoteClusterIndices.size();
                     final CountDown completionCounter = new CountDown(remoteRequests);

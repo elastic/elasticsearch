@@ -436,15 +436,16 @@ public class OptimizerVerificationTests extends AbstractLogicalPlanOptimizerTest
         var err = error("""
             FROM test
             | SORT languages
+            | MV_EXPAND languages
             | INLINE STATS count(*) BY languages
             | INLINE STATS s = sum(salary) BY first_name
             """, analyzer);
 
         assertThat(err, is("""
             2:3: Unbounded SORT not supported yet [SORT languages] please add a LIMIT
-            line 3:3: INLINE STATS [INLINE STATS count(*) BY languages] cannot yet have an unbounded SORT [SORT languages] before\
+            line 4:3: INLINE STATS [INLINE STATS count(*) BY languages] cannot yet have an unbounded SORT [SORT languages] before\
              it : either move the SORT after it, or add a LIMIT before the SORT
-            line 4:3: INLINE STATS [INLINE STATS s = sum(salary) BY first_name] cannot yet have an unbounded SORT [SORT languages]\
+            line 5:3: INLINE STATS [INLINE STATS s = sum(salary) BY first_name] cannot yet have an unbounded SORT [SORT languages]\
              before it : either move the SORT after it, or add a LIMIT before the SORT"""));
     }
 }

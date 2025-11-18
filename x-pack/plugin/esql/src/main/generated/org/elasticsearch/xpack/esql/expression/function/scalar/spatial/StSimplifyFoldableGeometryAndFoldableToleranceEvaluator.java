@@ -21,8 +21,8 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
  * {@link EvalOperator.ExpressionEvaluator} implementation for {@link StSimplify}.
  * This class is generated. Edit {@code EvaluatorImplementer} instead.
  */
-public final class StSimplifyFoldableGeoAndFoldableToleranceEvaluator implements EvalOperator.ExpressionEvaluator {
-  private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(StSimplifyFoldableGeoAndFoldableToleranceEvaluator.class);
+public final class StSimplifyFoldableGeometryAndFoldableToleranceEvaluator implements EvalOperator.ExpressionEvaluator {
+  private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(StSimplifyFoldableGeometryAndFoldableToleranceEvaluator.class);
 
   private final Source source;
 
@@ -34,8 +34,8 @@ public final class StSimplifyFoldableGeoAndFoldableToleranceEvaluator implements
 
   private Warnings warnings;
 
-  public StSimplifyFoldableGeoAndFoldableToleranceEvaluator(Source source, BytesRef inputGeometry,
-      double inputTolerance, DriverContext driverContext) {
+  public StSimplifyFoldableGeometryAndFoldableToleranceEvaluator(Source source,
+      BytesRef inputGeometry, double inputTolerance, DriverContext driverContext) {
     this.source = source;
     this.inputGeometry = inputGeometry;
     this.inputTolerance = inputTolerance;
@@ -57,7 +57,7 @@ public final class StSimplifyFoldableGeoAndFoldableToleranceEvaluator implements
     try(BytesRefBlock.Builder result = driverContext.blockFactory().newBytesRefBlockBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
         try {
-          result.appendBytesRef(StSimplify.processFoldableGeoAndFoldableTolerance(this.inputGeometry, this.inputTolerance));
+          result.appendBytesRef(StSimplify.processFoldableGeometryAndFoldableTolerance(this.inputGeometry, this.inputTolerance));
         } catch (IllegalArgumentException e) {
           warnings().registerException(e);
           result.appendNull();
@@ -69,7 +69,7 @@ public final class StSimplifyFoldableGeoAndFoldableToleranceEvaluator implements
 
   @Override
   public String toString() {
-    return "StSimplifyFoldableGeoAndFoldableToleranceEvaluator[" + "inputGeometry=" + inputGeometry + ", inputTolerance=" + inputTolerance + "]";
+    return "StSimplifyFoldableGeometryAndFoldableToleranceEvaluator[" + "inputGeometry=" + inputGeometry + ", inputTolerance=" + inputTolerance + "]";
   }
 
   @Override
@@ -102,13 +102,13 @@ public final class StSimplifyFoldableGeoAndFoldableToleranceEvaluator implements
     }
 
     @Override
-    public StSimplifyFoldableGeoAndFoldableToleranceEvaluator get(DriverContext context) {
-      return new StSimplifyFoldableGeoAndFoldableToleranceEvaluator(source, inputGeometry, inputTolerance, context);
+    public StSimplifyFoldableGeometryAndFoldableToleranceEvaluator get(DriverContext context) {
+      return new StSimplifyFoldableGeometryAndFoldableToleranceEvaluator(source, inputGeometry, inputTolerance, context);
     }
 
     @Override
     public String toString() {
-      return "StSimplifyFoldableGeoAndFoldableToleranceEvaluator[" + "inputGeometry=" + inputGeometry + ", inputTolerance=" + inputTolerance + "]";
+      return "StSimplifyFoldableGeometryAndFoldableToleranceEvaluator[" + "inputGeometry=" + inputGeometry + ", inputTolerance=" + inputTolerance + "]";
     }
   }
 }

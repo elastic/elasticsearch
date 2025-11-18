@@ -23,8 +23,8 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
  * {@link EvalOperator.ExpressionEvaluator} implementation for {@link StSimplify}.
  * This class is generated. Edit {@code EvaluatorImplementer} instead.
  */
-public final class StSimplifyNonFoldableGeoAndFoldableToleranceEvaluator implements EvalOperator.ExpressionEvaluator {
-  private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(StSimplifyNonFoldableGeoAndFoldableToleranceEvaluator.class);
+public final class StSimplifyNonFoldableGeometryAndFoldableToleranceEvaluator implements EvalOperator.ExpressionEvaluator {
+  private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(StSimplifyNonFoldableGeometryAndFoldableToleranceEvaluator.class);
 
   private final Source source;
 
@@ -36,7 +36,7 @@ public final class StSimplifyNonFoldableGeoAndFoldableToleranceEvaluator impleme
 
   private Warnings warnings;
 
-  public StSimplifyNonFoldableGeoAndFoldableToleranceEvaluator(Source source,
+  public StSimplifyNonFoldableGeometryAndFoldableToleranceEvaluator(Source source,
       EvalOperator.ExpressionEvaluator inputGeometry, double inputTolerance,
       DriverContext driverContext) {
     this.source = source;
@@ -80,7 +80,7 @@ public final class StSimplifyNonFoldableGeoAndFoldableToleranceEvaluator impleme
         }
         BytesRef inputGeometry = inputGeometryBlock.getBytesRef(inputGeometryBlock.getFirstValueIndex(p), inputGeometryScratch);
         try {
-          result.appendBytesRef(StSimplify.processNonFoldableGeoAndConstantTolerance(inputGeometry, this.inputTolerance));
+          result.appendBytesRef(StSimplify.processNonFoldableGeometryAndConstantTolerance(inputGeometry, this.inputTolerance));
         } catch (IllegalArgumentException e) {
           warnings().registerException(e);
           result.appendNull();
@@ -96,7 +96,7 @@ public final class StSimplifyNonFoldableGeoAndFoldableToleranceEvaluator impleme
       position: for (int p = 0; p < positionCount; p++) {
         BytesRef inputGeometry = inputGeometryVector.getBytesRef(p, inputGeometryScratch);
         try {
-          result.appendBytesRef(StSimplify.processNonFoldableGeoAndConstantTolerance(inputGeometry, this.inputTolerance));
+          result.appendBytesRef(StSimplify.processNonFoldableGeometryAndConstantTolerance(inputGeometry, this.inputTolerance));
         } catch (IllegalArgumentException e) {
           warnings().registerException(e);
           result.appendNull();
@@ -108,7 +108,7 @@ public final class StSimplifyNonFoldableGeoAndFoldableToleranceEvaluator impleme
 
   @Override
   public String toString() {
-    return "StSimplifyNonFoldableGeoAndFoldableToleranceEvaluator[" + "inputGeometry=" + inputGeometry + ", inputTolerance=" + inputTolerance + "]";
+    return "StSimplifyNonFoldableGeometryAndFoldableToleranceEvaluator[" + "inputGeometry=" + inputGeometry + ", inputTolerance=" + inputTolerance + "]";
   }
 
   @Override
@@ -143,13 +143,13 @@ public final class StSimplifyNonFoldableGeoAndFoldableToleranceEvaluator impleme
     }
 
     @Override
-    public StSimplifyNonFoldableGeoAndFoldableToleranceEvaluator get(DriverContext context) {
-      return new StSimplifyNonFoldableGeoAndFoldableToleranceEvaluator(source, inputGeometry.get(context), inputTolerance, context);
+    public StSimplifyNonFoldableGeometryAndFoldableToleranceEvaluator get(DriverContext context) {
+      return new StSimplifyNonFoldableGeometryAndFoldableToleranceEvaluator(source, inputGeometry.get(context), inputTolerance, context);
     }
 
     @Override
     public String toString() {
-      return "StSimplifyNonFoldableGeoAndFoldableToleranceEvaluator[" + "inputGeometry=" + inputGeometry + ", inputTolerance=" + inputTolerance + "]";
+      return "StSimplifyNonFoldableGeometryAndFoldableToleranceEvaluator[" + "inputGeometry=" + inputGeometry + ", inputTolerance=" + inputTolerance + "]";
     }
   }
 }

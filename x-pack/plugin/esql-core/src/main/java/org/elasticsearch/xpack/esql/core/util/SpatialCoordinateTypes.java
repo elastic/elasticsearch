@@ -132,7 +132,23 @@ public enum SpatialCoordinateTypes {
     public org.locationtech.jts.geom.Geometry wkbToJtsGeometry(BytesRef wkb) throws ParseException, IllegalArgumentException {
         String wkt = wkbToWkt(wkb);
         if (wkt.startsWith("BBOX")) {
-            throw new IllegalArgumentException("Input geometry cannot be a BBOX");
+            String[] bboxValues = wkt.substring(wkt.indexOf('(') + 1, wkt.indexOf(')')).split(",");
+            if (bboxValues.length != 4) {
+                throw new IllegalArgumentException("BBOX must have 4 coordinates");
+            }
+            double topX = Double.parseDouble(bboxValues[0].trim());
+            double bottomX = Double.parseDouble(bboxValues[1].trim());
+            double leftY = Double.parseDouble(bboxValues[2].trim());
+            double rightY = Double.parseDouble(bboxValues[3].trim());
+
+            wkt = String.format(
+                "POLYGON ((%f %f, %f %f, %f %f, %f %f, %f %f))",
+                topX, leftY, // upper left
+                topX, rightY, // upper right
+                bottomX, rightY, // lower right
+                bottomX, leftY, // lower left
+                topX, leftY  // close the polygon
+            );
         }
         WKTReader reader = new WKTReader();
         return reader.read(wkt);

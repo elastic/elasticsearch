@@ -3035,7 +3035,7 @@ required_capability: st_simplify
 FROM airports
 | SORT name
 | LIMIT 5
-| EVAL result = st_simplify(TO_GEOSHAPE("POLYGON((-10 -60, 120 -60, 120 60, -10 60, -10 -60))"), 1.0)
+| EVAL result = ST_SIMPLIFY(TO_GEOSHAPE("POLYGON((-10 -60, 120 -60, 120 60, -10 60, -10 -60))"), 1.0)
 | KEEP name, result
 ;
 
@@ -3054,13 +3054,13 @@ required_capability: st_simplify
 FROM airports
 | SORT name
 | LIMIT 5
-| EVAL result = st_simplify(location, 0.0)
+| EVAL result = ST_SIMPLIFY(location, 0.0)
 | KEEP location, result
 // end::st_simplify[]
 ;
 
 // tag::st_simplify-result[]
-location:geo_point                         | result:geo_shape
+location:geo_point                         | result:geo_point
 POINT (41.857756722253 9.61267784753569)   | POINT (41.857756722253 9.61267784753569)
 POINT (112.711418617258 -7.92998002840567) | POINT (112.711418617258 -7.92998002840567)
 POINT (-3.93221929167636 5.2543984451492)  | POINT (-3.93221929167636 5.2543984451492)
@@ -3073,7 +3073,7 @@ stSimplifyNoSimplification
 required_capability: st_simplify
 
 ROW geo_shape = TO_GEOSHAPE("POLYGON((0 0, 1 0.1, 2 0, 2 2, 1 1.9, 0 2, 0 0))") 
-| EVAL result = st_simplify(geo_shape, 0.01)
+| EVAL result = ST_SIMPLIFY(geo_shape, 0.01)
 | KEEP result
 ;
 
@@ -3085,7 +3085,7 @@ stSimplifyWithSimplification
 required_capability: st_simplify
 
 ROW geo_shape = TO_GEOSHAPE("POLYGON((0 0, 1 0.1, 2 0, 2 2, 1 1.9, 0 2, 0 0))") 
-| EVAL result = st_simplify(geo_shape, 0.2)
+| EVAL result = ST_SIMPLIFY(geo_shape, 0.2)
 | KEEP result
 ;
 
@@ -3097,7 +3097,7 @@ stSimplifyEmptySimplification
 required_capability: st_simplify
 
 ROW geo_shape = TO_GEOSHAPE("POLYGON((0 0, 1 0.1, 2 0, 2 2, 1 1.9, 0 2, 0 0))") 
-| EVAL result = st_simplify(geo_shape, 2.0)
+| EVAL result = ST_SIMPLIFY(geo_shape, 2.0)
 | KEEP result
 ;
 
@@ -3109,11 +3109,11 @@ stSimplifyNull
 required_capability: st_simplify
 
 ROW geo_shape = NULL
-| EVAL result = st_simplify(geo_shape, 2.0)
+| EVAL result = ST_SIMPLIFY(geo_shape, 2.0)
 | KEEP result
 ;
 
-result:geo_shape
+result:null
 NULL
 ;
 
@@ -3125,11 +3125,11 @@ required_capability: st_simplify
 ROW wkt = ["POINT(97.11 75.53)", "POINT(80.93 72.77)"]
 | MV_EXPAND wkt
 | EVAL pt = TO_CARTESIANPOINT(wkt)
-| EVAL result = st_simplify(pt, 2.0)
+| EVAL result = ST_SIMPLIFY(pt, 2.0)
 | KEEP result
 ;
 
-result:geo_shape
+result:cartesian_point
 POINT (97.11 75.53)
 POINT (80.93 72.77)
 ;
@@ -3140,11 +3140,11 @@ required_capability: st_simplify
 ROW wkt = ["POINT(97.11 75.53)", "POLYGON((0 0, 1 0.1, 2 0, 2 2, 1 1.9, 0 2, 0 0))"]
 | MV_EXPAND wkt
 | EVAL geom = TO_CARTESIANSHAPE(wkt)
-| EVAL result = st_simplify(geom, 0.2)
+| EVAL result = ST_SIMPLIFY(geom, 0.2)
 | KEEP result
 ;
 
-result:geo_shape
+result:cartesian_shape
 POINT (97.11 75.53)
 POLYGON ((0.0 0.0, 0.0 2.0, 2.0 2.0, 2.0 0.0, 0.0 0.0))
 ;
@@ -3153,7 +3153,7 @@ stSimplifyWithIntegerTolerance
 required_capability: st_simplify
 
 ROW geo_shape = TO_GEOSHAPE("POLYGON((0 0, 1 0.1, 2 0, 2 2, 1 1.9, 0 2, 0 0))") 
-| EVAL result = st_simplify(geo_shape, 2)
+| EVAL result = ST_SIMPLIFY(geo_shape, 2)
 | KEEP result
 ;
 
@@ -3161,18 +3161,14 @@ result:geo_shape
 POLYGON EMPTY
 ;
 
-stSimplifyMultiPoints
+stSimplifyBbox
 required_capability: st_simplify
 
-ROW geo_point = ["MULTIPOINT(0 0, 2 0)"]
-| MV_EXPAND geo_point
-| EVAL geo_shape = TO_GEOSHAPE(geo_point)
-| EVAL result = st_simplify(geo_shape, 0.2)
-| KEEP result
+ROW geo_shape = TO_GEOSHAPE("BBOX (0, 2, 2, 0)")
+| EVAL result1 = ST_SIMPLIFY(geo_shape, 2), result2 = ST_SIMPLIFY(geo_shape, 0.5)
+| KEEP result1, result2
 ;
 
-result:geo_shape
-POLYGON EMPTY
-POLYGON EMPTY
-POLYGON EMPTY
+result1:geo_shape | result2:geo_shape
+POLYGON EMPTY     | POLYGON ((0.0 2.0, 2.0 2.0, 2.0 0.0, 0.0 0.0, 0.0 2.0))
 ;

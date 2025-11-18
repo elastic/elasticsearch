@@ -42,7 +42,9 @@ public class StSimplify extends EsqlScalarFunction {
 
     @FunctionInfo(
         returnType = { "geo_point", "geo_shape", "cartesian_point", "cartesian_shape" },
-        description = "Simplifies the input geometry with a given tolerance.",
+        description = "Simplifies he input geometry by applying the Douglas-Peucker algorithm with a specified tolerance. "
+            + "Vertices that fall within the tolerance distance from the simplified shape are removed. "
+            + "Note that the resulting geometry may be invalid, even if the original input was valid.",
         examples = @Example(file = "spatial", tag = "st_simplify")
     )
     public StSimplify(
@@ -115,9 +117,9 @@ public class StSimplify extends EsqlScalarFunction {
         double inputTolerance = getInputTolerance(toleranceExpression);
         if (geometry.foldable()) {
             BytesRef inputGeometry = (BytesRef) geometry.fold(toEvaluator.foldCtx());
-            return new StSimplifyFoldableGeoAndFoldableToleranceEvaluator.Factory(source(), inputGeometry, inputTolerance);
+            return new StSimplifyFoldableGeometryAndFoldableToleranceEvaluator.Factory(source(), inputGeometry, inputTolerance);
         }
-        return new StSimplifyNonFoldableGeoAndFoldableToleranceEvaluator.Factory(source(), geometryEvaluator, inputTolerance);
+        return new StSimplifyNonFoldableGeometryAndFoldableToleranceEvaluator.Factory(source(), geometryEvaluator, inputTolerance);
     }
 
     private static double getInputTolerance(Object toleranceExpression) {
@@ -137,13 +139,13 @@ public class StSimplify extends EsqlScalarFunction {
         return inputTolerance;
     }
 
-    @Evaluator(extraName = "NonFoldableGeoAndFoldableTolerance", warnExceptions = { IllegalArgumentException.class })
-    static BytesRef processNonFoldableGeoAndConstantTolerance(BytesRef inputGeometry, @Fixed double inputTolerance) {
+    @Evaluator(extraName = "NonFoldableGeometryAndFoldableTolerance", warnExceptions = { IllegalArgumentException.class })
+    static BytesRef processNonFoldableGeometryAndConstantTolerance(BytesRef inputGeometry, @Fixed double inputTolerance) {
         return geoSourceAndConstantTolerance(inputGeometry, inputTolerance);
     }
 
-    @Evaluator(extraName = "FoldableGeoAndFoldableTolerance", warnExceptions = { IllegalArgumentException.class })
-    static BytesRef processFoldableGeoAndFoldableTolerance(@Fixed BytesRef inputGeometry, @Fixed double inputTolerance) {
+    @Evaluator(extraName = "FoldableGeometryAndFoldableTolerance", warnExceptions = { IllegalArgumentException.class })
+    static BytesRef processFoldableGeometryAndFoldableTolerance(@Fixed BytesRef inputGeometry, @Fixed double inputTolerance) {
         return geoSourceAndConstantTolerance(inputGeometry, inputTolerance);
     }
 

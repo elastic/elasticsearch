@@ -30,6 +30,8 @@ import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSenderT
 import org.elasticsearch.xpack.inference.logging.ThrottlerManager;
 import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceService;
 import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceComponents;
+import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceModel;
+import org.elasticsearch.xpack.inference.services.elastic.response.ElasticInferenceServiceAuthorizationResponseEntityV2Tests;
 import org.elasticsearch.xpack.inference.services.elastic.sparseembeddings.ElasticInferenceServiceSparseEmbeddingsModel;
 import org.elasticsearch.xpack.inference.services.elastic.sparseembeddings.ElasticInferenceServiceSparseEmbeddingsServiceSettings;
 import org.junit.After;
@@ -47,6 +49,7 @@ import static org.elasticsearch.xpack.inference.Utils.mockClusterServiceEmpty;
 import static org.elasticsearch.xpack.inference.external.http.Utils.getUrl;
 import static org.elasticsearch.xpack.inference.external.http.retry.RetryingHttpSender.MAX_RETIES;
 import static org.elasticsearch.xpack.inference.services.SenderServiceTests.createMockSender;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
@@ -179,26 +182,25 @@ public class ElasticInferenceServiceAuthorizationRequestHandlerTests extends EST
         var authHandler = new ElasticInferenceServiceAuthorizationRequestHandler(eisGatewayUrl, threadPool, logger);
 
         try (var sender = senderFactory.createSender()) {
-            String responseJson = """
-                {
-                    "models": [
-                        {
-                          "model_name": "model-a",
-                          "task_types": ["embed/text/sparse", "chat"]
-                        }
-                    ]
-                }
-                """;
+            var responseData = ElasticInferenceServiceAuthorizationResponseEntityV2Tests.EisAuthorizationResponseData
+                .getEisAuthorizationData(eisGatewayUrl);
 
-            webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
+            webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseData.responseJson()));
 
             PlainActionFuture<AuthorizationModel> listener = new PlainActionFuture<>();
             authHandler.getAuthorization(listener, sender);
 
             var authResponse = listener.actionGet(TIMEOUT);
-            assertThat(authResponse.getTaskTypes(), is(EnumSet.of(TaskType.SPARSE_EMBEDDING, TaskType.CHAT_COMPLETION)));
-            assertThat(authResponse.getEndpointIds(), is(Set.of("model-a")));
+            assertThat(
+                authResponse.getTaskTypes(),
+                is(EnumSet.of(TaskType.CHAT_COMPLETION, TaskType.SPARSE_EMBEDDING, TaskType.TEXT_EMBEDDING, TaskType.RERANK))
+            );
+            assertThat(authResponse.getEndpointIds(), containsInAnyOrder(responseData.inferenceIds().toArray(String[]::new)));
             assertTrue(authResponse.isAuthorized());
+            assertThat(
+                authResponse.getEndpoints(responseData.inferenceIds()),
+                containsInAnyOrder(responseData.expectedEndpoints().toArray(ElasticInferenceServiceModel[]::new))
+            );
 
             var loggerArgsCaptor = ArgumentCaptor.forClass(String.class);
             verify(logger, times(1)).debug(loggerArgsCaptor.capture());
@@ -217,6 +219,8 @@ public class ElasticInferenceServiceAuthorizationRequestHandlerTests extends EST
         PlainActionFuture<AuthorizationModel> listener = new PlainActionFuture<>();
         ActionListener<AuthorizationModel> onlyOnceListener = ActionListener.assertOnce(listener);
         String responseJson = """
+            {
+              "inference_endpoints": [
                 {
                   "id": ".elastic-elser-v2",
                   "model_name": "elser_model_2",
@@ -234,6 +238,8 @@ public class ElasticInferenceServiceAuthorizationRequestHandlerTests extends EST
                     }
                   }
                 }
+              ]
+            }
             """;
         webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
 

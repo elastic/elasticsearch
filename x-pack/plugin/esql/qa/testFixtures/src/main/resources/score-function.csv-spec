@@ -6,6 +6,7 @@ scoreSingle
 required_capability: metadata_score
 required_capability: score_function
 required_capability: match_function
+required_capability: routing_function_update
 
 // tag::score-function[]
 FROM books METADATA _score
@@ -27,6 +28,7 @@ book_no:keyword | title:text                                                    
 scoreSingleNoMetadata
 required_capability: score_function
 required_capability: match_function
+required_capability: routing_function_update
 
 FROM books
 | WHERE match(title, "Return") AND match(author, "Tolkien")
@@ -45,6 +47,7 @@ scoreAfterEval
 required_capability: score_function
 required_capability: metadata_score
 required_capability: match_function
+required_capability: routing_function_update
 
 FROM books METADATA _score
 | EVAL stars = to_long(ratings / 2.0)
@@ -65,6 +68,7 @@ book_no:keyword | author:text                                        | stars:lon
 scoreMatchWithFilterConjunction
 required_capability: score_function
 required_capability: match_function
+required_capability: routing_function_update
 
 FROM books
 | WHERE match(title, "Return") AND match(author, "Tolkien")
@@ -81,6 +85,7 @@ book_no:keyword | title:text                                                    
 scoreMatchWithDisjunction
 required_capability: score_function
 required_capability: match_function
+required_capability: routing_function_update
 
 FROM books
 | WHERE match(title, "Return") AND match(author, "Tolkien")
@@ -97,6 +102,7 @@ book_no:keyword | title:text                                                    
 scoreMatchWithDisjunctionAndFilter
 required_capability: score_function
 required_capability: match_function
+required_capability: routing_function_update
 
 FROM books
 | WHERE match(title, "Return") AND match(author, "Tolkien")
@@ -113,6 +119,7 @@ book_no:keyword | title:text                                                    
 scoreMatchDisjunctionNonPushable
 required_capability: score_function
 required_capability: match_function
+required_capability: routing_function_update
 
 FROM books
 | WHERE match(title, "Return") AND match(author, "Tolkien")
@@ -146,6 +153,7 @@ evalUsingScoreAndLimit2
 required_capability: score_function
 required_capability: match_function
 required_capability: pushing_down_eval_with_score
+required_capability: routing_function_update
 
 FROM books
 | WHERE author == "J R R Tolkien"
@@ -161,6 +169,7 @@ evalUsingScoreAndTopN
 required_capability: score_function
 required_capability: match_function
 required_capability: pushing_down_eval_with_score
+required_capability: routing_function_update
 
 FROM books
 | SORT book_no desc
@@ -186,6 +195,7 @@ evalUsingScoreAndFilter
 required_capability: score_function
 required_capability: match_function
 required_capability: pushing_down_eval_with_score
+required_capability: routing_function_update
 
 FROM books
 | sort book_no desc

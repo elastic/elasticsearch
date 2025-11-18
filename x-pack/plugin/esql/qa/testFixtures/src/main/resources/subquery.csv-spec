@@ -710,6 +710,7 @@ required_capability: fork_v9
 required_capability: completion
 required_capability: match_operator_colon
 required_capability: subquery_in_from_command
+required_capability: routing_function_update
 
 FROM sample_data, (FROM books metadata _score
                                    | WHERE title:"war and peace" AND author:"Tolstoy"
@@ -753,6 +754,7 @@ required_capability: fork_v9
 required_capability: rerank
 required_capability: match_operator_colon
 required_capability: subquery_in_from_command
+required_capability: routing_function_update
 
 FROM sample_data, (FROM books METADATA _score
                                    | WHERE title:"war and peace" AND author:"Tolstoy"

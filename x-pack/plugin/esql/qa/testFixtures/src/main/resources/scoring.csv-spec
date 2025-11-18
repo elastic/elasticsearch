@@ -5,6 +5,7 @@
 singleQstrBoostScoringSorted
 required_capability: metadata_score
 required_capability: qstr_function
+required_capability: routing_function_update
 
 from books metadata _score
 | where qstr("author:Lord Rings^2")
@@ -21,6 +22,7 @@ book_no:keyword | title:text                                                    
 singleMatchWithKeywordFieldScoring
 required_capability: metadata_score
 required_capability: match_operator_colon
+required_capability: routing_function_update
 
 from books metadata _score
 | where author.keyword:"William Faulkner"
@@ -42,6 +44,7 @@ book_no:keyword | author:text      | _score:double
 qstrWithFieldAndScoringSortedEval
 required_capability: qstr_function
 required_capability: metadata_score
+required_capability: routing_function_update
 
 from books metadata _score
 | where qstr("title:rings")
@@ -59,6 +62,7 @@ book_no:keyword | title:text                                                    
 qstrWithFieldAndScoringSorted
 required_capability: qstr_function
 required_capability: metadata_score
+required_capability: routing_function_update
 
 from books metadata _score
 | where qstr("title:rings")
@@ -75,6 +79,7 @@ book_no:keyword | title:text                                                    
 singleQstrScoringManipulated
 required_capability: metadata_score
 required_capability: qstr_function
+required_capability: routing_function_update
 
 from books metadata _score
 | where qstr("author:William Faulkner")
@@ -91,6 +96,7 @@ book_no:keyword | author:text                                        | add_score
 testMultiValuedFieldWithConjunctionWithScore
 required_capability: match_function
 required_capability: metadata_score
+required_capability: routing_function_update
 
 from books metadata _score
 | where match(author, "Keith Faulkner") and match(author, "Rory Tyger")
@@ -103,6 +109,7 @@ book_no:keyword | title:text                                                    
 testMatchAndQueryStringFunctionsWithScore
 required_capability: match_function
 required_capability: metadata_score
+required_capability: routing_function_update
 
 from books metadata _score
 | where match(author, "Keith Faulkner") and qstr("author:Rory or author:Beverlie")
@@ -117,6 +124,7 @@ book_no:keyword | title:text                                                    
 testMultiMatchWithScore
 required_capability: multi_match_function
 required_capability: metadata_score
+required_capability: routing_function_update
 
 from books metadata _score
 | where multi_match("Mark", author, title, {"fuzziness": 1})
@@ -130,6 +138,7 @@ book_no:keyword | title:text                                            | author
 testMultiMatchWithScore1
 required_capability: multi_match_function
 required_capability: metadata_score
+required_capability: routing_function_update
 
 from books metadata _score
 | where multi_match("Hobbit", description, title, {"type": "best_fields"})
@@ -157,6 +166,7 @@ book_no:keyword | _score:double
 testMultiMatchWithScore2
 required_capability: multi_match_function
 required_capability: metadata_score
+required_capability: routing_function_update
 
 from books metadata _score
 | where multi_match("Hobbit", description, title, {"type": "most_fields"})
@@ -184,6 +194,7 @@ book_no:keyword | _score:double
 multipleWhereWithMatchScoringNoSort
 required_capability: metadata_score
 required_capability: match_operator_colon
+required_capability: routing_function_update
 
 from books metadata _score
 | where title:"short stories"
@@ -198,6 +209,7 @@ book_no:keyword | title:text                                | author:text       
 multipleWhereWithMatchScoring
 required_capability: metadata_score
 required_capability: match_operator_colon
+required_capability: routing_function_update
 
 from books metadata _score
 | where title:"short stories"
@@ -213,6 +225,7 @@ combinedMatchWithFunctionsScoring
 required_capability: metadata_score
 required_capability: match_operator_colon
 required_capability: non_full_text_functions_scoring
+required_capability: routing_function_update
 
 from books metadata _score
 | where title:"Tolkien" AND author:"Tolkien" AND year > 2000
@@ -227,6 +240,7 @@ book_no:keyword | title:text               | author:text    | year:integer | _sc
 singleQstrScoring
 required_capability: metadata_score
 required_capability: qstr_function
+required_capability: routing_function_update
 
 from books metadata _score
 | where qstr("author:William Faulkner")
@@ -242,6 +256,7 @@ book_no:keyword | author:text                                        | _score:do
 singleQstrScoringGrok
 required_capability: metadata_score
 required_capability: qstr_function
+required_capability: routing_function_update
 
 from books metadata _score
 | where qstr("author:Lord Rings")
@@ -275,6 +290,7 @@ book_no:keyword | title:text               | author:text    | year:integer | c_s
 singleQstrScoringRename
 required_capability: metadata_score
 required_capability: qstr_function
+required_capability: routing_function_update
 
 from books metadata _score
 | where qstr("author:Lord Rings")
@@ -292,6 +308,7 @@ book_no:keyword | rank:double
 singleMatchWithTextFieldScoring
 required_capability: metadata_score
 required_capability: match_operator_colon
+required_capability: routing_function_update
 
 from books metadata _score
 | where author:"William Faulkner"
@@ -311,6 +328,7 @@ combinedMatchWithFunctionsScoringNoSort
 required_capability: metadata_score
 required_capability: match_operator_colon
 required_capability: non_full_text_functions_scoring
+required_capability: routing_function_update
 
 from books metadata _score
 | where title:"Tolkien" AND author:"Tolkien" AND year > 2000
@@ -341,6 +359,7 @@ book_no:keyword | title:text               | author:text    | year:integer | c_s
 singleQstrScoringEval
 required_capability: metadata_score
 required_capability: qstr_function
+required_capability: routing_function_update
 
 from books metadata _score
 | where qstr("author:Lord Rings")
@@ -358,6 +377,7 @@ book_no:keyword | c_score:double
 QstrScoreManipulation
 required_capability: metadata_score
 required_capability: qstr_function
+required_capability: routing_function_update
 
 from books metadata _score
 | where qstr("title:gentle")
@@ -468,6 +488,7 @@ conjunctionScoresPushableNonPushableFunctions
 
 required_capability: metadata_score
 required_capability: match_function
+required_capability: routing_function_update
 
 from books metadata _score
 | where match(title, "Lord") and length(title) > 20
@@ -487,6 +508,7 @@ conjunctionScoresPushableFunctions
 required_capability: metadata_score
 required_capability: match_function
 required_capability: non_full_text_functions_scoring
+required_capability: routing_function_update
 
 from books metadata _score
 | where match(title, "Lord") and ratings > 4.6
@@ -505,6 +527,7 @@ required_capability: metadata_score
 required_capability: match_operator_colon
 required_capability: full_text_functions_disjunctions_score
 required_capability: non_full_text_functions_scoring
+required_capability: routing_function_update
 
 from books metadata _score
 | where match(title, "Lord") or length(title) > 100
@@ -526,6 +549,7 @@ disjunctionScoresMultipleClauses
 required_capability: metadata_score
 required_capability: match_operator_colon
 required_capability: full_text_functions_disjunctions_score
+required_capability: routing_function_update
 
 from books metadata _score
 | where (title: "Lord" and length(title) > 40) or (author: "Dostoevsky" and length(title) > 40)
@@ -549,6 +573,7 @@ statsScores
 required_capability: metadata_score
 required_capability: match_function
 required_capability: full_text_functions_in_stats_where
+required_capability: routing_function_update
 
 from books metadata _score
 | where match(title, "Lord Rings", {"operator": "AND"})
@@ -563,6 +588,7 @@ testMatchPhraseWithScore
 
 required_capability: match_phrase_function
 required_capability: metadata_score
+required_capability: routing_function_update
 
 from books metadata _score
 | where match_phrase(title, "J. R. R. Tolkien")
@@ -577,6 +603,7 @@ book_no:keyword | title:text                            | author:text           
 
 testMatchPhraseWithScoreBoost
 required_capability: match_phrase_function
+required_capability: routing_function_update
 
 from books metadata _score
 | where match_phrase(title, "J. R. R. Tolkien", {"boost": 5})

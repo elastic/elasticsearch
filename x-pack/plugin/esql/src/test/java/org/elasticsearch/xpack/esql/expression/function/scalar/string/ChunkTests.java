@@ -71,7 +71,7 @@ public class ChunkTests extends AbstractScalarFunctionTestCase {
                 return new TestCaseSupplier.TestCase(
                     List.of(new TestCaseSupplier.TypedData(new BytesRef(text), DataType.KEYWORD, "str")),
                     "ChunkBytesRefEvaluator[str=Attribute[channel=0], "
-                    + "chunkingSettings={\"strategy\":\"sentence\",\"max_chunk_size\":300,\"sentence_overlap\":0}]",
+                        + "chunkingSettings={\"strategy\":\"sentence\",\"max_chunk_size\":300,\"sentence_overlap\":0}]",
                     DataType.KEYWORD,
                     equalTo(expectedResult)
                 );
@@ -142,17 +142,14 @@ public class ChunkTests extends AbstractScalarFunctionTestCase {
 
     private void verifyChunks(ChunkingSettings chunkingSettings, int expectedNumChunksReturned) {
         ChunkingSettings chunkingSettingsOrDefault = chunkingSettings != null ? chunkingSettings : Chunk.DEFAULT_CHUNKING_SETTINGS;
-        List<String> expected = Chunk.chunkText(PARAGRAPH_INPUT, chunkingSettingsOrDefault)
-            .stream()
-            .map(String::trim)
-            .toList();
+        List<String> expected = Chunk.chunkText(PARAGRAPH_INPUT, chunkingSettingsOrDefault).stream().map(String::trim).toList();
 
         List<String> result = process(PARAGRAPH_INPUT, chunkingSettingsOrDefault);
         assertThat(result.size(), equalTo(expectedNumChunksReturned));
         assertThat(result, equalTo(expected));
     }
 
-    private List<String> process(String str,ChunkingSettings chunkingSettings) {
+    private List<String> process(String str, ChunkingSettings chunkingSettings) {
         MapExpression optionsMap = chunkingSettings == null ? null : createChunkingSettings(chunkingSettings);
 
         try (

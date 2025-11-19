@@ -52,21 +52,28 @@ public class Chunk extends EsqlScalarFunction implements OptionalArgument {
 
     private final Expression field, chunkingSettings;
 
-    @FunctionInfo(returnType = "keyword", preview = true, description = """
-        Use `CHUNK` to split a text field into smaller chunks.""", detailedDescription = """
-            Chunk can be used on fields from the text famiy like <<text, text>> and <<semantic-text, semantic_text>>.
-            Chunk will split a text field into smaller chunks, using a sentence-based chunking strategy.
-            The number of chunks returned, and the length of the sentences used to create the chunks can be specified.
-        """, examples = { @Example(file = "chunk", tag = "chunk-with-field", applies_to = "stack: preview 9.3.0"),
-        @Example(file = "chunk", tag = "chunk-with-chunking-settings", applies_to = "stack: preview 9.3.0") })
+    @FunctionInfo(
+        returnType = "keyword",
+        preview = true,
+        description = """
+            Use `CHUNK` to split a text field into smaller chunks.""",
+        detailedDescription = """
+                Chunk can be used on fields from the text famiy like <<text, text>> and <<semantic-text, semantic_text>>.
+                Chunk will split a text field into smaller chunks, using a sentence-based chunking strategy.
+                The number of chunks returned, and the length of the sentences used to create the chunks can be specified.
+            """,
+        examples = {
+            @Example(file = "chunk", tag = "chunk-with-field", applies_to = "stack: preview 9.3.0"),
+            @Example(file = "chunk", tag = "chunk-with-chunking-settings", applies_to = "stack: preview 9.3.0") }
+    )
     public Chunk(
         Source source,
         @Param(name = "field", type = { "keyword", "text" }, description = "The input to chunk.") Expression field,
         @MapParam(
             name = "chunking_settings",
-            description = "Options to customize chunking behavior. Refer to the " +
-            "[Inference API documentation](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-inference-put" +
-            "#operation-inference-put-body-application-json-chunking_settings) for valid values for `chunking_settings`.",
+            description = "Options to customize chunking behavior. Refer to the "
+                + "[Inference API documentation](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-inference-put"
+                + "#operation-inference-put-body-application-json-chunking_settings) for valid values for `chunking_settings`.",
             optional = true
         ) Expression chunkingSettings
     ) {
@@ -116,7 +123,7 @@ public class Chunk extends EsqlScalarFunction implements OptionalArgument {
 
     private TypeResolution validateChunkingSettings() {
         // Just ensure all keys and values are literals - defer valid chunking settings for validation later
-        if (chunkingSettings instanceof  MapExpression == false) {
+        if (chunkingSettings instanceof MapExpression == false) {
             return new TypeResolution("chunking_settings must be a map");
         }
         MapExpression chunkingSettingsMap = (MapExpression) chunkingSettings;
@@ -179,10 +186,7 @@ public class Chunk extends EsqlScalarFunction implements OptionalArgument {
 
     public static List<String> chunkText(String content, ChunkingSettings chunkingSettings) {
         Chunker chunker = ChunkerBuilder.fromChunkingStrategy(chunkingSettings.getChunkingStrategy());
-        return chunker.chunk(content, chunkingSettings)
-            .stream()
-            .map(offset -> content.substring(offset.start(), offset.end()))
-            .toList();
+        return chunker.chunk(content, chunkingSettings).stream().map(offset -> content.substring(offset.start(), offset.end())).toList();
     }
 
     @Override
@@ -206,11 +210,7 @@ public class Chunk extends EsqlScalarFunction implements OptionalArgument {
             chunkingSettings = ChunkingSettingsBuilder.fromMap(chunkingSettingsMap);
         }
 
-        return new ChunkBytesRefEvaluator.Factory(
-            source(),
-            toEvaluator.apply(field),
-            chunkingSettings
-        );
+        return new ChunkBytesRefEvaluator.Factory(source(), toEvaluator.apply(field), chunkingSettings);
     }
 
     private static Map<String, Object> toMap(MapExpression mapExpr) {

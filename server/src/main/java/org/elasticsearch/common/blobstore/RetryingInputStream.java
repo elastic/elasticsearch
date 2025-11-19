@@ -252,7 +252,7 @@ public abstract class RetryingInputStream<V> extends InputStream {
             assert shouldRetry(attempt - 1) : "should not have retried";
             Thread.sleep(delayInMillis);
         } catch (InterruptedException e) {
-            logger.info("s3 input stream delay interrupted", e);
+            logger.info("retrying input stream delay interrupted", e);
             Thread.currentThread().interrupt();
         }
     }

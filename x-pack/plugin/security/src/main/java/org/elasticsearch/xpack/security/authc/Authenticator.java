@@ -233,7 +233,7 @@ public interface Authenticator {
         }
 
         @Override
-        public void close() throws IOException {
+        public void close() {
             authenticationTokens.forEach(AuthenticationToken::clearCredentials);
         }
 

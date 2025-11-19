@@ -271,7 +271,7 @@ public class AuthenticationService {
     }
 
     void authenticate(final Authenticator.Context context, final ActionListener<Authentication> listener) {
-        authenticatorChain.authenticate(context, ActionListener.runBefore(listener, context::close));
+        authenticatorChain.authenticate(context, ActionListener.runAfter(listener, context::close));
     }
 
     // pkg private method for testing

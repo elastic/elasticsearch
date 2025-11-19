@@ -23,7 +23,7 @@ template:
               service.instance.id:
                 type: keyword
                 ignore_above: 1024
-              deployment.environment:
+              deployment.environment.name:
                 type: keyword
                 ignore_above: 1024
               cloud.platform:
@@ -103,7 +103,7 @@ template:
         path: resource.attributes.service.instance.id
       service.environment:
         type: alias
-        path: resource.attributes.deployment.environment
+        path: resource.attributes.deployment.environment.name
       cloud.service.name:
         type: alias
         path: resource.attributes.cloud.platform

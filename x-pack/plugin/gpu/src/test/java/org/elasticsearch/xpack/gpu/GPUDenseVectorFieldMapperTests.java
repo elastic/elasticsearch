@@ -18,8 +18,6 @@ import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MapperServiceTestCase;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapperTests;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.test.ESTestCase;
-import org.junit.Assert;
 import org.junit.BeforeClass;
 
 import java.io.IOException;
@@ -47,7 +45,7 @@ public class GPUDenseVectorFieldMapperTests extends DenseVectorFieldMapperTests 
         KnnVectorsFormat knnVectorsFormat = getKnnVectorsFormat("hnsw");
         String expectedStr = "Lucene99HnswVectorsFormat(name=Lucene99HnswVectorsFormat, "
             + "maxConn=12, beamWidth=22, flatVectorFormat=Lucene99FlatVectorsFormat)";
-        Assert.assertEquals(expectedStr, knnVectorsFormat.toString());
+        assertEquals(expectedStr, knnVectorsFormat.toString());
     }
 
     @Override
@@ -56,11 +54,11 @@ public class GPUDenseVectorFieldMapperTests extends DenseVectorFieldMapperTests 
         KnnVectorsFormat knnVectorsFormat = getKnnVectorsFormat("int8_hnsw");
         String expectedStr = "Lucene99HnswVectorsFormat(name=Lucene99HnswVectorsFormat, "
             + "maxConn=12, beamWidth=22, flatVectorFormat=ES814ScalarQuantizedVectorsFormat";
-        Assert.assertTrue(knnVectorsFormat.toString().startsWith(expectedStr));
+        assertTrue(knnVectorsFormat.toString().startsWith(expectedStr));
     }
 
     private KnnVectorsFormat getKnnVectorsFormat(String indexOptionsType) throws IOException {
-        final int dims = ESTestCase.randomIntBetween(128, 4096);
+        final int dims = randomIntBetween(128, 4096);
         MapperService mapperService = createMapperService(MapperServiceTestCase.fieldMapping(b -> {
             b.field("type", "dense_vector");
             b.field("dims", dims);
@@ -73,13 +71,13 @@ public class GPUDenseVectorFieldMapperTests extends DenseVectorFieldMapperTests 
         CodecService codecService = new CodecService(mapperService, BigArrays.NON_RECYCLING_INSTANCE);
         Codec codec = codecService.codec("default");
         if (CodecService.ZSTD_STORED_FIELDS_FEATURE_FLAG) {
-            ESTestCase.assertThat(codec, instanceOf(PerFieldMapperCodec.class));
+            assertThat(codec, instanceOf(PerFieldMapperCodec.class));
             return ((PerFieldMapperCodec) codec).getKnnVectorsFormatForField("field");
         } else {
             if (codec instanceof CodecService.DeduplicateFieldInfosCodec deduplicateFieldInfosCodec) {
                 codec = deduplicateFieldInfosCodec.delegate();
             }
-            ESTestCase.assertThat(codec, instanceOf(LegacyPerFieldMapperCodec.class));
+            assertThat(codec, instanceOf(LegacyPerFieldMapperCodec.class));
             return ((LegacyPerFieldMapperCodec) codec).getKnnVectorsFormatForField("field");
         }
     }

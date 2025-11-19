@@ -1548,6 +1548,11 @@ public class BalancedShardsAllocator implements ShardsAllocator {
             logger.trace("No shards of [{}] can relocate from [{}] to [{}]", idx, maxNode.getNodeId(), minNode.getNodeId());
             return false;
         }
+
+        // Visible for testing.
+        public RoutingAllocation getAllocation() {
+            return this.allocation;
+        }
     }
 
     public static class ModelNode implements Iterable<ModelIndex> {

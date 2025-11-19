@@ -79,13 +79,13 @@ import java.util.function.Consumer;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
-import static co.elastic.elasticsearch.stateless.autoscaling.indexing.IngestMetricsService.ACCURATE_LOAD_WINDOW;
 import static co.elastic.elasticsearch.stateless.autoscaling.indexing.IngestMetricsService.HIGH_INGESTION_LOAD_WEIGHT_DURING_SCALING;
 import static co.elastic.elasticsearch.stateless.autoscaling.indexing.IngestMetricsService.IngestMetricType.ADJUSTED;
 import static co.elastic.elasticsearch.stateless.autoscaling.indexing.IngestMetricsService.IngestMetricType.SINGLE;
 import static co.elastic.elasticsearch.stateless.autoscaling.indexing.IngestMetricsService.LOW_INGESTION_LOAD_WEIGHT_DURING_SCALING;
 import static co.elastic.elasticsearch.stateless.autoscaling.indexing.IngestMetricsService.NODE_INGEST_LOAD_SNAPSHOTS_METRIC_NAME;
 import static co.elastic.elasticsearch.stateless.autoscaling.indexing.IngestMetricsService.groupIndexNodesByShutdownStatus;
+import static co.elastic.elasticsearch.stateless.autoscaling.indexing.NodeIngestionLoadTracker.ACCURATE_LOAD_WINDOW;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.empty;
@@ -751,11 +751,11 @@ public class AutoscalingIndexingMetricsIT extends AbstractStatelessIntegTestCase
                 channel.sendResponse(ActionResponse.Empty.INSTANCE);
             });
 
-        try (var mockLog = MockLog.capture(IngestMetricsService.class)) {
+        try (var mockLog = MockLog.capture(NodeIngestionLoadTracker.class)) {
             mockLog.addExpectation(
                 new MockLog.SeenEventExpectation(
                     "outdated ingest load",
-                    IngestMetricsService.class.getCanonicalName(),
+                    NodeIngestionLoadTracker.class.getCanonicalName(),
                     Level.WARN,
                     "reported node ingest load is older than *"
                 )

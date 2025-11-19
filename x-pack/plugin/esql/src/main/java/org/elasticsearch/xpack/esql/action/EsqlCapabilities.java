@@ -1327,7 +1327,7 @@ public class EsqlCapabilities {
         /**
          * Cosine vector similarity function
          */
-        COSINE_VECTOR_SIMILARITY_FUNCTION(Build.current().isSnapshot()),
+        COSINE_VECTOR_SIMILARITY_FUNCTION(),
 
         /**
          * Fixed some profile serialization issues
@@ -1341,17 +1341,17 @@ public class EsqlCapabilities {
         /**
          * Dot product vector similarity function
          */
-        DOT_PRODUCT_VECTOR_SIMILARITY_FUNCTION(Build.current().isSnapshot()),
+        DOT_PRODUCT_VECTOR_SIMILARITY_FUNCTION(),
 
         /**
          * l1 norm vector similarity function
          */
-        L1_NORM_VECTOR_SIMILARITY_FUNCTION(Build.current().isSnapshot()),
+        L1_NORM_VECTOR_SIMILARITY_FUNCTION(),
 
         /**
          * l2 norm vector similarity function
          */
-        L2_NORM_VECTOR_SIMILARITY_FUNCTION(Build.current().isSnapshot()),
+        L2_NORM_VECTOR_SIMILARITY_FUNCTION(),
 
         /**
          * Support for the options field of CATEGORIZE.
@@ -1397,7 +1397,7 @@ public class EsqlCapabilities {
         /**
          * Support for vector Hamming distance.
          */
-        HAMMING_VECTOR_SIMILARITY_FUNCTION(Build.current().isSnapshot()),
+        HAMMING_VECTOR_SIMILARITY_FUNCTION(),
 
         /**
          * Support for tbucket function
@@ -1663,7 +1663,7 @@ public class EsqlCapabilities {
         /**
          * Support for vector similarity functtions pushdown
          */
-        VECTOR_SIMILARITY_FUNCTIONS_PUSHDOWN(Build.current().isSnapshot()),
+        VECTOR_SIMILARITY_FUNCTIONS_PUSHDOWN(),
 
         FIX_MV_CONSTANT_COMPARISON_FIELD,
 

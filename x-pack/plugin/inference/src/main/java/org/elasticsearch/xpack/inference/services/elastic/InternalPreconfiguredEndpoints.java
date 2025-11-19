@@ -33,6 +33,10 @@ public class InternalPreconfiguredEndpoints {
     public static final String DEFAULT_CHAT_COMPLETION_MODEL_ID_V1 = "rainbow-sprinkles";
     public static final String DEFAULT_CHAT_COMPLETION_ENDPOINT_ID_V1 = ".rainbow-sprinkles-elastic";
 
+    // gp-llm-v2
+    public static final String GP_LLM_V2_MODEL_ID = "gp-llm-v2";
+    public static final String GP_LLM_V2_CHAT_COMPLETION_ENDPOINT_ID = ".gp-llm-v2-chat_completion";
+
     // elser-2
     public static final String DEFAULT_ELSER_2_MODEL_ID = "elser_model_2";
     public static final String DEFAULT_ELSER_ENDPOINT_ID_V2 = ".elser-2-elastic";
@@ -53,6 +57,8 @@ public class InternalPreconfiguredEndpoints {
 
     private static final ElasticInferenceServiceCompletionServiceSettings COMPLETION_SERVICE_SETTINGS =
         new ElasticInferenceServiceCompletionServiceSettings(DEFAULT_CHAT_COMPLETION_MODEL_ID_V1);
+    private static final ElasticInferenceServiceCompletionServiceSettings GP_LLM_V2_COMPLETION_SERVICE_SETTINGS =
+        new ElasticInferenceServiceCompletionServiceSettings(GP_LLM_V2_MODEL_ID);
     private static final ElasticInferenceServiceSparseEmbeddingsServiceSettings SPARSE_EMBEDDINGS_SERVICE_SETTINGS =
         new ElasticInferenceServiceSparseEmbeddingsServiceSettings(DEFAULT_ELSER_2_MODEL_ID, null);
     private static final ElasticInferenceServiceDenseTextEmbeddingsServiceSettings DENSE_TEXT_EMBEDDINGS_SERVICE_SETTINGS =
@@ -78,6 +84,19 @@ public class InternalPreconfiguredEndpoints {
                     ChunkingSettingsBuilder.DEFAULT_SETTINGS
                 ),
                 COMPLETION_SERVICE_SETTINGS
+            )
+        ),
+        GP_LLM_V2_MODEL_ID,
+        List.of(
+            new MinimalModel(
+                new ModelConfigurations(
+                    GP_LLM_V2_CHAT_COMPLETION_ENDPOINT_ID,
+                    TaskType.CHAT_COMPLETION,
+                    ElasticInferenceService.NAME,
+                    GP_LLM_V2_COMPLETION_SERVICE_SETTINGS,
+                    ChunkingSettingsBuilder.DEFAULT_SETTINGS
+                ),
+                GP_LLM_V2_COMPLETION_SERVICE_SETTINGS
             )
         ),
         DEFAULT_ELSER_2_MODEL_ID,

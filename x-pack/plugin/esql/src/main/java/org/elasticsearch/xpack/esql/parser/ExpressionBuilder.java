@@ -805,151 +805,6 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
         return ctx.NOT() != null ? new IsNotNull(source, exp) : new IsNull(source, exp);
     }
 
-    private static String INVALID_WILDCARD = "invalid_wildcard";
-    private static String INVALID_REGEX = "invalid_regex";
-
-    @Override
-    public Expression visitLikeExpression(EsqlBaseParser.LikeExpressionContext ctx) {
-        Source source = source(ctx);
-        String opname = ctx.LIKE().getText();
-        Expression left = expression(ctx.valueExpression());
-        EsqlBaseParser.StringOrParameterContext right = ctx.stringOrParameter();
-        String patternString = stringFromStringOrParameter(source, opname, right, INVALID_WILDCARD);
-        try {
-            WildcardPattern pattern = new WildcardPattern(patternString);
-            WildcardLike result = new WildcardLike(source, left, pattern);
-            return ctx.NOT() == null ? result : new Not(source, result);
-        } catch (InvalidArgumentException e) {
-            throw new ParsingException(source, "Invalid pattern for LIKE [{}]: [{}]", patternString, e.getMessage());
-        }
-    }
-
-    @Override
-    public Expression visitLikeListExpression(EsqlBaseParser.LikeListExpressionContext ctx) {
-        Source source = source(ctx);
-        String opname = ctx.LIKE().getText();
-        Expression left = expression(ctx.valueExpression());
-        List<EsqlBaseParser.StringOrParameterContext> right = ctx.stringOrParameter();
-        List<WildcardPattern> wildcardPatterns = right.stream()
-            .map(x -> new WildcardPattern(stringFromStringOrParameter(source, opname, x, INVALID_WILDCARD)))
-            .toList();
-        // for now we will use the old WildcardLike function for one argument case to allow compatibility in mixed version deployments
-        Expression e = wildcardPatterns.size() == 1
-            ? new WildcardLike(source, left, wildcardPatterns.getFirst())
-            : new WildcardLikeList(source, left, new WildcardPatternList(wildcardPatterns));
-        return ctx.NOT() == null ? e : new Not(source, e);
-    }
-
-    @Override
-    public Expression visitRlikeExpression(EsqlBaseParser.RlikeExpressionContext ctx) {
-        Source source = source(ctx);
-        String opname = ctx.RLIKE().getText();
-        Expression left = expression(ctx.valueExpression());
-        EsqlBaseParser.StringOrParameterContext right = ctx.stringOrParameter();
-        String patternString = stringFromStringOrParameter(source, opname, right, INVALID_REGEX);
-        try {
-            RLike rLike = new RLike(source, left, new RLikePattern(patternString));
-            return ctx.NOT() == null ? rLike : new Not(source, rLike);
-        } catch (InvalidArgumentException e) {
-            throw new ParsingException(source, "Invalid pattern for RLIKE [{}]: [{}]", patternString, e.getMessage());
-        }
-    }
-
-    @Override
-    public Expression visitRlikeListExpression(EsqlBaseParser.RlikeListExpressionContext ctx) {
-        Source source = source(ctx);
-        String opname = ctx.RLIKE().getText();
-        Expression left = expression(ctx.valueExpression());
-        List<EsqlBaseParser.StringOrParameterContext> right = ctx.stringOrParameter();
-        List<RLikePattern> rLikePatterns = right.stream()
-            .map(x -> new RLikePattern(stringFromStringOrParameter(source, opname, x, INVALID_REGEX)))
-            .toList();
-        Expression e = rLikePatterns.size() == 1
-            ? new RLike(source, left, rLikePatterns.getFirst())
-            : new RLikeList(source, left, new RLikePatternList(rLikePatterns));
-        return ctx.NOT() == null ? e : new Not(source, e);
-    }
-
-    /*
-     * Special method to simplify handling of LIKE/RLIKE expressions.
-     * Returns the pattern string given a "ctx" which holds a portion of a LIKE or RLIKE expression.
-     * When ctx is a string constant the underlying string is returned.
-     * When ctx is a parameter additional checks are done to ensure the parameter exists and refers to a string.
-     * If the parameter exists and refers to a string, the string is returned.
-     * Otherwise a designated "invalid" string is returned allowing parsing to proceed without
-     *   throwing an exception to give the parser an opportunity to report multiple problems
-     *   which are collected using context.params().addParsingError() and later combined
-     *   and thrown by LogicalPlanBuilder.parse()
-     */
-    String stringFromStringOrParameter(Source source, String opname, EsqlBaseParser.StringOrParameterContext ctx, String invalid) {
-        EsqlBaseParser.StringContext sctx = ctx.string();
-        if (sctx != null) {
-            Literal lit = visitString(sctx);
-            return BytesRefs.toString(lit.fold(FoldContext.small()));
-        }
-        EsqlBaseParser.ParameterContext pctx = ctx.parameter();
-        if (pctx != null) {
-            Source psrc = null;
-            Expression exp = null;
-            if (pctx instanceof EsqlBaseParser.InputParamContext ipctx) {
-                psrc = source(ipctx);
-                QueryParam param = paramByToken(ipctx.PARAM());
-                if (param != null && invalidListParameter(source, psrc, opname, param)) {
-                    return invalid;
-                }
-                exp = visitInputParam(ipctx);
-            }
-            if (pctx instanceof EsqlBaseParser.InputNamedOrPositionalParamContext inopctx) {
-                psrc = source(inopctx);
-                QueryParam param = paramByNameOrPosition(inopctx.NAMED_OR_POSITIONAL_PARAM());
-                if (param != null && invalidListParameter(source, psrc, opname, param)) {
-                    return invalid;
-                }
-                exp = visitInputNamedOrPositionalParam(inopctx);
-            }
-
-            if (exp != null && exp instanceof Literal lit) {
-                DataType type = lit.dataType();
-                if (type == KEYWORD) {
-                    return BytesRefs.toString(lit.fold(FoldContext.small()));
-                }
-                context.params()
-                    .addParsingError(
-                        new ParsingException(
-                            source,
-                            "Invalid pattern parameter type for {} [{}]: expected string, found {}",
-                            opname,
-                            psrc.text(),
-                            type.typeName()
-                        )
-                    );
-                return invalid;
-            }
-        }
-
-        context.params()
-            .addParsingError(
-                new ParsingException(source, "Invalid pattern for {} [{}]: expected string literal or parameter", opname, source.text())
-            );
-        return invalid;
-    }
-
-    boolean invalidListParameter(Source source, Source psrc, String opname, QueryParam param) {
-        if (param.value() instanceof List<?> list) {
-            context.params()
-                .addParsingError(
-                    new ParsingException(
-                        source,
-                        "Invalid pattern parameter type for {} [{}]: expected string, found list",
-                        opname,
-                        psrc.text()
-                    )
-                );
-            return true;
-        }
-        return false;
-    }
-
     @Override
     public Order visitOrderExpression(EsqlBaseParser.OrderExpressionContext ctx) {
         return new Order(
@@ -1115,10 +970,171 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
         return list;
     }
 
+    private static String INVALID_WILDCARD = "invalid_wildcard";
+    private static String INVALID_REGEX = "invalid_regex";
+
+    @Override
+    public Expression visitLikeExpression(EsqlBaseParser.LikeExpressionContext ctx) {
+        Source source = source(ctx);
+        String opname = ctx.LIKE().getText();
+        Expression left = expression(ctx.valueExpression());
+        EsqlBaseParser.StringOrParameterContext right = ctx.stringOrParameter();
+        String patternString = stringFromStringOrParameter(source, opname, right, INVALID_WILDCARD);
+        try {
+            WildcardPattern pattern = new WildcardPattern(patternString);
+            WildcardLike result = new WildcardLike(source, left, pattern);
+            return ctx.NOT() == null ? result : new Not(source, result);
+        } catch (InvalidArgumentException e) {
+            throw new ParsingException(source, "Invalid pattern for LIKE [{}]: [{}]", patternString, e.getMessage());
+        }
+    }
+
+    @Override
+    public Expression visitLikeListExpression(EsqlBaseParser.LikeListExpressionContext ctx) {
+        Source source = source(ctx);
+        String opname = ctx.LIKE().getText();
+        Expression left = expression(ctx.valueExpression());
+        List<EsqlBaseParser.StringOrParameterContext> right = ctx.stringOrParameter();
+        List<WildcardPattern> wildcardPatterns = right.stream()
+            .map(x -> new WildcardPattern(stringFromStringOrParameter(source, opname, x, INVALID_WILDCARD)))
+            .toList();
+        // for now we will use the old WildcardLike function for one argument case to allow compatibility in mixed version deployments
+        Expression e = wildcardPatterns.size() == 1
+            ? new WildcardLike(source, left, wildcardPatterns.getFirst())
+            : new WildcardLikeList(source, left, new WildcardPatternList(wildcardPatterns));
+        return ctx.NOT() == null ? e : new Not(source, e);
+    }
+
+    @Override
+    public Expression visitRlikeExpression(EsqlBaseParser.RlikeExpressionContext ctx) {
+        Source source = source(ctx);
+        String opname = ctx.RLIKE().getText();
+        Expression left = expression(ctx.valueExpression());
+        EsqlBaseParser.StringOrParameterContext right = ctx.stringOrParameter();
+        String patternString = stringFromStringOrParameter(source, opname, right, INVALID_REGEX);
+        try {
+            RLike rLike = new RLike(source, left, new RLikePattern(patternString));
+            return ctx.NOT() == null ? rLike : new Not(source, rLike);
+        } catch (InvalidArgumentException e) {
+            throw new ParsingException(source, "Invalid pattern for RLIKE [{}]: [{}]", patternString, e.getMessage());
+        }
+    }
+
+    @Override
+    public Expression visitRlikeListExpression(EsqlBaseParser.RlikeListExpressionContext ctx) {
+        Source source = source(ctx);
+        String opname = ctx.RLIKE().getText();
+        Expression left = expression(ctx.valueExpression());
+        List<EsqlBaseParser.StringOrParameterContext> right = ctx.stringOrParameter();
+        List<RLikePattern> rLikePatterns = right.stream()
+            .map(x -> new RLikePattern(stringFromStringOrParameter(source, opname, x, INVALID_REGEX)))
+            .toList();
+        Expression e = rLikePatterns.size() == 1
+            ? new RLike(source, left, rLikePatterns.getFirst())
+            : new RLikeList(source, left, new RLikePatternList(rLikePatterns));
+        return ctx.NOT() == null ? e : new Not(source, e);
+    }
+
+    /*
+     * Special method to simplify handling of LIKE/RLIKE expressions.
+     * Returns the pattern string given a "ctx" which holds a portion of a LIKE or RLIKE expression.
+     * When ctx is a string constant the underlying string is returned.
+     * When ctx is a parameter additional checks are done to ensure the parameter exists and refers to a string.
+     * If the parameter exists and refers to a string, the string is returned.
+     * Otherwise a designated "invalid" string is returned allowing parsing to proceed without
+     *   throwing an exception to give the parser an opportunity to report multiple problems
+     *   which are collected using context.params().addParsingError() and later combined
+     *   and thrown by LogicalPlanBuilder.parse()
+     */
+    String stringFromStringOrParameter(Source source, String opname, EsqlBaseParser.StringOrParameterContext ctx, String invalid) {
+        EsqlBaseParser.StringContext sctx = ctx.string();
+        if (sctx != null) {
+            Literal lit = visitString(sctx);
+            return BytesRefs.toString(lit.fold(FoldContext.small()));
+        }
+        EsqlBaseParser.ParameterContext pctx = ctx.parameter();
+        if (pctx != null) {
+            LikeQueryParam lqp = new LikeQueryParam(source, opname, pctx, invalid);
+            if (lqp.isInvalidList()) {
+                return invalid;
+            }
+            if (lqp.param != null) {
+                return lqp.toString(source(ctx));
+            }
+        }
+
+        context.params()
+            .addParsingError(
+                new ParsingException(source, "Invalid pattern for {} [{}]: expected string literal or parameter", opname, source.text())
+            );
+        return invalid;
+    }
+
+    private class LikeQueryParam {
+        String opname;
+        Source source;
+        String invalid;
+        Source psrc;
+        QueryParam param;
+
+        LikeQueryParam(Source source, String opname, EsqlBaseParser.ParameterContext pctx, String invalid) {
+            this.source = source;
+            this.opname = opname;
+            this.invalid = invalid;
+            if (pctx instanceof EsqlBaseParser.InputParamContext ipctx) {
+                this.psrc = source(ipctx);
+                this.param = paramByToken(ipctx.PARAM());
+            } else if (pctx instanceof EsqlBaseParser.InputNamedOrPositionalParamContext inopctx) {
+                this.psrc = source(inopctx);
+                this.param = paramByNameOrPosition(inopctx.NAMED_OR_POSITIONAL_PARAM());
+            } else {
+                throw new ParsingException(source, "Unsupported parameter context");
+            }
+        }
+
+        boolean isInvalidList() {
+            if (param != null && param.value() instanceof List<?> list) {
+                context.params()
+                    .addParsingError(
+                        new ParsingException(
+                            source,
+                            "Invalid pattern parameter type for {} [{}]: expected string, found list",
+                            opname,
+                            psrc.text()
+                        )
+                    );
+                return true;
+            } else {
+                return false;
+            }
+        }
+
+        String toString(Source spsrc) {
+            Expression exp = visitParam(spsrc, param);
+            if (exp != null && exp instanceof Literal lit) {
+                DataType type = lit.dataType();
+                if (type == KEYWORD) {
+                    return BytesRefs.toString(lit.fold(FoldContext.small()));
+                }
+                context.params()
+                    .addParsingError(
+                        new ParsingException(
+                            source,
+                            "Invalid pattern parameter type for {} [{}]: expected string, found {}",
+                            opname,
+                            psrc.text(),
+                            type.typeName()
+                        )
+                    );
+            }
+            return invalid;
+        }
+    }
+
     @Override
     public Expression visitInputParam(EsqlBaseParser.InputParamContext ctx) {
         QueryParam param = paramByToken(ctx.PARAM());
-        return visitParam(ctx, param);
+        return visitParam(source(ctx), param);
     }
 
     @Override
@@ -1127,11 +1143,10 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
         if (param == null) {
             return Literal.NULL;
         }
-        return visitParam(ctx, param);
+        return visitParam(source(ctx), param);
     }
 
-    private Expression visitParam(EsqlBaseParser.ParameterContext ctx, QueryParam param) {
-        Source source = source(ctx);
+    private Expression visitParam(Source source, QueryParam param) {
         DataType type = param.type();
         var value = param.value();
         ParserUtils.ParamClassification classification = param.classification();

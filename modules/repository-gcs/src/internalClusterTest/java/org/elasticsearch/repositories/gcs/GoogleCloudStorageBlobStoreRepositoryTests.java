@@ -13,7 +13,6 @@ import fixture.gcs.FakeOAuth2HttpHandler;
 import fixture.gcs.GoogleCloudStorageHttpHandler;
 import fixture.gcs.TestUtils;
 
-import com.google.api.gax.retrying.RetrySettings;
 import com.google.cloud.http.HttpTransportOptions;
 import com.google.cloud.storage.StorageOptions;
 import com.google.cloud.storage.StorageRetryStrategy;
@@ -120,7 +119,7 @@ public class GoogleCloudStorageBlobStoreRepositoryTests extends ESMockAPIBasedRe
         settings.put(super.nodeSettings(nodeOrdinal, otherSettings));
         settings.put(ENDPOINT_SETTING.getConcreteSettingForNamespace("test").getKey(), httpServerUrl());
         settings.put(TOKEN_URI_SETTING.getConcreteSettingForNamespace("test").getKey(), httpServerUrl() + "/token");
-        settings.put(MAX_RETRIES_SETTING.getConcreteSettingForNamespace("test").getKey(), 5);
+        settings.put(MAX_RETRIES_SETTING.getConcreteSettingForNamespace("test").getKey(), 6);
 
         final MockSecureSettings secureSettings = new MockSecureSettings();
         final byte[] serviceAccount = TestUtils.createServiceAccount(random());
@@ -251,19 +250,12 @@ public class GoogleCloudStorageBlobStoreRepositoryTests extends ESMockAPIBasedRe
                     StorageOptions options = super.createStorageOptions(gcsClientSettings, httpTransportOptions, retryBehaviour);
                     return options.toBuilder()
                         .setStorageRetryStrategy(StorageRetryStrategy.getLegacyStorageRetryStrategy())
-                        .setHost(options.getHost())
-                        .setCredentials(options.getCredentials())
                         .setRetrySettings(
-                            RetrySettings.newBuilder()
-                                .setTotalTimeout(options.getRetrySettings().getTotalTimeout())
+                            options.getRetrySettings()
+                                .toBuilder()
                                 .setInitialRetryDelay(Duration.ofMillis(10L))
-                                .setRetryDelayMultiplier(options.getRetrySettings().getRetryDelayMultiplier())
                                 .setMaxRetryDelay(Duration.ofSeconds(1L))
-                                .setMaxAttempts(options.getRetrySettings().getMaxAttempts())
                                 .setJittered(false)
-                                .setInitialRpcTimeout(options.getRetrySettings().getInitialRpcTimeout())
-                                .setRpcTimeoutMultiplier(options.getRetrySettings().getRpcTimeoutMultiplier())
-                                .setMaxRpcTimeout(options.getRetrySettings().getMaxRpcTimeout())
                                 .build()
                         )
                         .build();

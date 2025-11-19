@@ -36,7 +36,6 @@ module org.elasticsearch.inference {
     requires org.elasticsearch.sslconfig;
     requires org.apache.commons.text;
     requires software.amazon.awssdk.services.sagemakerruntime;
-    requires org.apache.logging.log4j.core;
 
     exports org.elasticsearch.xpack.inference.action;
     exports org.elasticsearch.xpack.inference.registry;

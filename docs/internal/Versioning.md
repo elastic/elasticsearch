@@ -115,20 +115,29 @@ transport version it will need to be backported to all the applicable branches.
 Backport branches that already included the original change can use
 auto-backport in CI or cherry-pick the new transport version change. Backport
 branches that did not include the original change need to cherry-pick both the
-original change and the new transport version change. Summarized steps:
+original change and the new transport version change. For example with the above
+change that is first backported to `9.1`, and subsequently added to `8.19`, the
+sequence of events would look like the following:
 
-1. Generate and merge the change with a newly created transport version to
-`main` with a backport branch of `9.1`
-2. Use auto-backport from CI to merge change with the newly created transport
-version into `9.1`
-3. Discover it's necessary for this change to be backported to `8.19`
-4. Generate and merge a change to add a transport version for `8.19` into `main`
-and the backport branch `9.1` that already has the original change using
-auto-backport in CI
-5. Cherry-pick both the original change and the change for the additional
-transport version for `8.19` into a new backport branch
-6. Create a new pull request for this backport branch for `8.19` and merge
-once CI passes
+1. Create a pull request with target branch `main` for a new change
+(`C0`) with a newly created transport version (`TV0`) required by `C0`
+   1. Use the `github` labels `auto-backport` and `branch:9.1` to backport `C0`
+   and `TV0` into the target branch `9.1`.
+2. Discover that `C0` is also required in target branch `8.19`.
+3. Create a pull request with target branch `main` for a change (`C1`) to only
+update `TV0` (`TV1`) for `8.19`
+   1. Use the gradle task
+   `./gradlew generateTransportVersion --name=my_tv
+   --backport-branches=9.1,8.19`
+   to update `TV0` (`TV1`) to include `8.19`
+   2. Use the `github` labels `auto-backport` and `branch:9.1`, `branch:8.19` to
+   backport `C1` and `TV1` into the target branches `9.1` and `8.19`. This
+   creates a source branch for `8.19` (`SB819`) that does not contain `C0`.
+   3. Cherry-pick `C0` into the source branch `SB819`
+
+Note there are several ways to do potentially do each of these steps. This
+specific example takes advantage of the available CI tooling to simplify the
+process.
 
 ### Resolving merge conflicts
 

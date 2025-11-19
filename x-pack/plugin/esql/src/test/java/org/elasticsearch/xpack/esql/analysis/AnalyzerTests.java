@@ -77,6 +77,7 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Add
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThan;
 import org.elasticsearch.xpack.esql.index.EsIndex;
+import org.elasticsearch.xpack.esql.index.EsIndexGenerator;
 import org.elasticsearch.xpack.esql.index.IndexResolution;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
 import org.elasticsearch.xpack.esql.parser.QueryParams;
@@ -189,12 +190,12 @@ public class AnalyzerTests extends ESTestCase {
     );
 
     public void testIndexResolution() {
-        EsIndex idx = new EsIndex("idx", Map.of());
+        EsIndex idx = EsIndexGenerator.esIndex("idx");
         Analyzer analyzer = analyzer(IndexResolution.valid(idx));
         var plan = analyzer.analyze(UNRESOLVED_RELATION);
         var limit = as(plan, Limit.class);
 
-        assertEquals(new EsRelation(EMPTY, idx.name(), IndexMode.STANDARD, idx.indexNameWithModes(), NO_FIELDS), limit.child());
+        assertEquals(new EsRelation(EMPTY, idx.name(), IndexMode.STANDARD, Map.of(), Map.of(), NO_FIELDS), limit.child());
     }
 
     public void testFailOnUnresolvedIndex() {
@@ -206,17 +207,17 @@ public class AnalyzerTests extends ESTestCase {
     }
 
     public void testIndexWithClusterResolution() {
-        EsIndex idx = new EsIndex("cluster:idx", Map.of());
+        EsIndex idx = EsIndexGenerator.esIndex("cluster:idx");
         Analyzer analyzer = analyzer(IndexResolution.valid(idx));
 
         var plan = analyzer.analyze(unresolvedRelation("cluster:idx"));
         var limit = as(plan, Limit.class);
 
-        assertEquals(new EsRelation(EMPTY, idx.name(), IndexMode.STANDARD, idx.indexNameWithModes(), NO_FIELDS), limit.child());
+        assertEquals(new EsRelation(EMPTY, idx.name(), IndexMode.STANDARD, Map.of(), Map.of(), NO_FIELDS), limit.child());
     }
 
     public void testAttributeResolution() {
-        EsIndex idx = new EsIndex("idx", LoadMapping.loadMapping("mapping-one-field.json"));
+        EsIndex idx = EsIndexGenerator.esIndex("idx", LoadMapping.loadMapping("mapping-one-field.json"));
         Analyzer analyzer = analyzer(IndexResolution.valid(idx));
 
         var plan = analyzer.analyze(
@@ -272,7 +273,7 @@ public class AnalyzerTests extends ESTestCase {
     }
 
     public void testRowAttributeResolution() {
-        EsIndex idx = new EsIndex("idx", Map.of());
+        EsIndex idx = EsIndexGenerator.esIndex("idx");
         Analyzer analyzer = analyzer(IndexResolution.valid(idx));
 
         var plan = analyzer.analyze(
@@ -3177,7 +3178,8 @@ public class AnalyzerTests extends ESTestCase {
                     ),
                     List.of()
                 )
-            )
+            ),
+            pattern -> Map.of()
         );
 
         String query = "FROM foo, bar | INSIST_🐔 message";
@@ -3202,7 +3204,8 @@ public class AnalyzerTests extends ESTestCase {
                     ),
                     List.of()
                 )
-            )
+            ),
+            pattern -> Map.of()
         );
         var plan = analyze("FROM foo, bar | INSIST_🐔 message", analyzer(resolution, TEST_VERIFIER));
         var limit = as(plan, Limit.class);
@@ -3229,7 +3232,8 @@ public class AnalyzerTests extends ESTestCase {
                     ),
                     List.of()
                 )
-            )
+            ),
+            pattern -> Map.of()
         );
         var plan = analyze("FROM foo, bar | INSIST_🐔 message", analyzer(resolution, TEST_VERIFIER));
         var limit = as(plan, Limit.class);
@@ -3254,7 +3258,8 @@ public class AnalyzerTests extends ESTestCase {
                     ),
                     List.of()
                 )
-            )
+            ),
+            pattern -> Map.of()
         );
         var plan = analyze("FROM foo, bar | INSIST_🐔 message", analyzer(resolution, TEST_VERIFIER));
         var limit = as(plan, Limit.class);
@@ -3279,7 +3284,8 @@ public class AnalyzerTests extends ESTestCase {
                     ),
                     List.of()
                 )
-            )
+            ),
+            pattern -> Map.of()
         );
         var plan = analyze("FROM foo, bar | INSIST_🐔 message", analyzer(resolution, TEST_VERIFIER));
         var limit = as(plan, Limit.class);
@@ -3305,7 +3311,8 @@ public class AnalyzerTests extends ESTestCase {
                     ),
                     List.of()
                 )
-            )
+            ),
+            pattern -> Map.of()
         );
         VerificationException e = expectThrows(
             VerificationException.class,
@@ -3327,7 +3334,8 @@ public class AnalyzerTests extends ESTestCase {
         {
             IndexResolution resolution = IndexResolver.mergedMappings(
                 "foo",
-                new IndexResolver.FieldsInfo(caps, TransportVersion.minimumCompatible(), false, true, true)
+                new IndexResolver.FieldsInfo(caps, TransportVersion.minimumCompatible(), false, true, true),
+                pattern -> Map.of()
             );
             var plan = analyze("FROM foo", analyzer(resolution, TEST_VERIFIER));
             assertThat(plan.output(), hasSize(1));
@@ -3336,7 +3344,8 @@ public class AnalyzerTests extends ESTestCase {
         {
             IndexResolution resolution = IndexResolver.mergedMappings(
                 "foo",
-                new IndexResolver.FieldsInfo(caps, TransportVersion.minimumCompatible(), false, true, false)
+                new IndexResolver.FieldsInfo(caps, TransportVersion.minimumCompatible(), false, true, false),
+                pattern -> Map.of()
             );
             var plan = analyze("FROM foo", analyzer(resolution, TEST_VERIFIER));
             assertThat(plan.output(), hasSize(1));
@@ -3358,7 +3367,8 @@ public class AnalyzerTests extends ESTestCase {
         {
             IndexResolution resolution = IndexResolver.mergedMappings(
                 "foo",
-                new IndexResolver.FieldsInfo(caps, TransportVersion.minimumCompatible(), false, true, true)
+                new IndexResolver.FieldsInfo(caps, TransportVersion.minimumCompatible(), false, true, true),
+                pattern -> Map.of()
             );
             var plan = analyze("FROM foo", analyzer(resolution, TEST_VERIFIER));
             assertThat(plan.output(), hasSize(1));
@@ -3370,7 +3380,8 @@ public class AnalyzerTests extends ESTestCase {
         {
             IndexResolution resolution = IndexResolver.mergedMappings(
                 "foo",
-                new IndexResolver.FieldsInfo(caps, TransportVersion.minimumCompatible(), false, false, true)
+                new IndexResolver.FieldsInfo(caps, TransportVersion.minimumCompatible(), false, false, true),
+                pattern -> Map.of()
             );
             var plan = analyze("FROM foo", analyzer(resolution, TEST_VERIFIER));
             assertThat(plan.output(), hasSize(1));
@@ -3822,7 +3833,7 @@ public class AnalyzerTests extends ESTestCase {
             new FieldCapabilitiesIndexResponse("idx", "idx", Map.of(), true, IndexMode.STANDARD)
         );
         IndexResolver.FieldsInfo caps = fieldsInfoOnCurrentVersion(new FieldCapabilitiesResponse(idxResponses, List.of()));
-        IndexResolution resolution = IndexResolver.mergedMappings("test*", caps);
+        IndexResolution resolution = IndexResolver.mergedMappings("test*", caps, pattern -> Map.of());
         var analyzer = analyzer(indexResolutions(resolution), TEST_VERIFIER, configuration(query));
         return analyze(query, analyzer);
     }
@@ -4700,6 +4711,8 @@ public class AnalyzerTests extends ESTestCase {
             "k8s*",
             mapping,
             Map.of("k8s", IndexMode.TIME_SERIES, "k8s-downsampled", IndexMode.TIME_SERIES),
+            Map.of(),
+            Map.of(),
             Set.of()
         );
         var analyzer = new Analyzer(

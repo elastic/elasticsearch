@@ -13,16 +13,30 @@ import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.type.EsFieldTests;
 
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import static org.elasticsearch.core.Tuple.tuple;
 
 public class EsIndexGenerator {
 
+    public static EsIndex esIndex(String name) {
+        return new EsIndex(name, Map.of(), Map.of(), Map.of(), Map.of(), Set.of());
+    }
+
+    public static EsIndex esIndex(String name, Map<String, EsField> mapping) {
+        return new EsIndex(name, mapping, Map.of(), Map.of(), Map.of(), Set.of());
+    }
+
+    public static EsIndex esIndex(String name, Map<String, EsField> mapping, Map<String, IndexMode> indexNameWithModes) {
+        return new EsIndex(name, mapping, indexNameWithModes, Map.of(), Map.of(), Set.of());
+    }
+
     public static EsIndex randomEsIndex() {
         String name = ESTestCase.randomIdentifier();
         Map<String, EsField> mapping = randomMapping();
-        return new EsIndex(name, mapping, randomIndexNameWithModes());
+        return esIndex(name, mapping, randomIndexNameWithModes());
     }
 
     public static Map<String, EsField> randomMapping() {
@@ -36,5 +50,13 @@ public class EsIndexGenerator {
 
     public static Map<String, IndexMode> randomIndexNameWithModes() {
         return ESTestCase.randomMap(0, 10, () -> tuple(ESTestCase.randomIdentifier(), ESTestCase.randomFrom(IndexMode.values())));
+    }
+
+    public static Map<String, List<String>> randomRemotesWithIndices() {
+        return ESTestCase.randomMap(
+            0,
+            10,
+            () -> tuple(ESTestCase.randomIdentifier(), ESTestCase.randomList(1, 10, ESTestCase::randomIdentifier))
+        );
     }
 }

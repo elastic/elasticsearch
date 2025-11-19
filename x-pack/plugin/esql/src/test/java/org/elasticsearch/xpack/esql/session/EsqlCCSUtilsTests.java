@@ -29,6 +29,7 @@ import org.elasticsearch.transport.RemoteTransportException;
 import org.elasticsearch.xpack.esql.action.EsqlExecutionInfo;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.index.EsIndex;
+import org.elasticsearch.xpack.esql.index.EsIndexGenerator;
 import org.elasticsearch.xpack.esql.index.IndexResolution;
 import org.elasticsearch.xpack.esql.plan.IndexPattern;
 import org.elasticsearch.xpack.esql.type.EsFieldTests;
@@ -204,7 +205,7 @@ public class EsqlCCSUtilsTests extends ESTestCase {
                 (k, v) -> new EsqlExecutionInfo.Cluster(REMOTE2_ALIAS, "mylogs1,mylogs2,logs*", randomBoolean())
             );
 
-            EsIndex esIndex = new EsIndex(
+            EsIndex esIndex = EsIndexGenerator.esIndex(
                 "logs*,remote1:*,remote2:mylogs1,remote2:mylogs2,remote2:logs*", // original user-provided index expression
                 randomMapping(),
                 Map.of(
@@ -250,7 +251,7 @@ public class EsqlCCSUtilsTests extends ESTestCase {
                 (k, v) -> new EsqlExecutionInfo.Cluster(REMOTE2_ALIAS, "mylogs1,mylogs2,logs*", randomBoolean())
             );
 
-            EsIndex esIndex = new EsIndex(
+            EsIndex esIndex = EsIndexGenerator.esIndex(
                 "logs*,remote2:mylogs1,remote2:mylogs2,remote2:logs*",  // original user-provided index expression
                 randomMapping(),
                 Map.of(
@@ -299,7 +300,7 @@ public class EsqlCCSUtilsTests extends ESTestCase {
                 (k, v) -> new EsqlExecutionInfo.Cluster(REMOTE2_ALIAS, "mylogs1*,mylogs2*,logs*", randomBoolean())
             );
 
-            EsIndex esIndex = new EsIndex(
+            EsIndex esIndex = EsIndexGenerator.esIndex(
                 "logs*,remote2:mylogs1*,remote2:mylogs2*,remote2:logs*", // original user-provided index expression
                 randomMapping(),
                 Map.of("logs-a", IndexMode.STANDARD) // resolved indices from field-caps (none from either remote)
@@ -341,7 +342,7 @@ public class EsqlCCSUtilsTests extends ESTestCase {
                 (k, v) -> new EsqlExecutionInfo.Cluster(REMOTE2_ALIAS, "mylogs1,mylogs2*", randomBoolean())
             );
 
-            EsIndex esIndex = new EsIndex(
+            EsIndex esIndex = EsIndexGenerator.esIndex(
                 "logs*,remote2:mylogs1,remote2:mylogs2*,remote1:logs*",  // original user-provided index expression
                 randomMapping(),
                 Map.of("logs-a", IndexMode.STANDARD)  // resolved indices from field-caps (none from either remote)
@@ -388,7 +389,7 @@ public class EsqlCCSUtilsTests extends ESTestCase {
                 )
             );
 
-            EsIndex esIndex = new EsIndex(
+            EsIndex esIndex = EsIndexGenerator.esIndex(
                 "logs*,remote2:mylogs1,remote2:mylogs2,remote2:logs*",  // original user-provided index expression
                 randomMapping(),
                 Map.of("logs-a", IndexMode.STANDARD)  // resolved indices from field-caps (none from either remote)

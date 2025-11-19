@@ -85,7 +85,13 @@ public final class QueryBuilderResolver {
 
     private static Set<String> indexNames(LogicalPlan plan) {
         Set<String> indexNames = new HashSet<>();
-        plan.forEachDown(EsRelation.class, esRelation -> indexNames.addAll(esRelation.concreteIndices()));
+        plan.forEachDown(EsRelation.class, esRelation -> {
+            for (var entry : esRelation.concreteIndicesByRemotes().entrySet()) {
+                for (String index : entry.getValue()) {
+                    indexNames.add(RemoteClusterAware.buildRemoteIndexName(entry.getKey(), index));
+                }
+            }
+        });
         return indexNames;
     }
 

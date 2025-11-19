@@ -36,6 +36,11 @@ public class Holder<T> {
         }
     }
 
+    public void setOnce(T value) {
+        assert this.value == null : "Value has already been set to " + this.value;
+        this.value = value;
+    }
+
     public T get() {
         return value;
     }

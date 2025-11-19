@@ -21,9 +21,11 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.mapper.TimeSeriesParams;
 import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.indices.IndicesExpressionGrouper;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.xpack.esql.action.EsqlResolveFieldsAction;
 import org.elasticsearch.xpack.esql.action.EsqlResolveFieldsResponse;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
@@ -48,6 +50,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.TreeMap;
 import java.util.TreeSet;
+import java.util.function.Function;
 
 import static org.elasticsearch.xpack.esql.core.type.DataType.DATETIME;
 import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
@@ -102,6 +105,7 @@ public class IndexResolver {
             includeAllDimensions,
             useAggregateMetricDoubleWhenNotSupported,
             useDenseVectorWhenNotSupported,
+            null,
             listener.map(Versioned::inner)
         );
     }
@@ -117,6 +121,7 @@ public class IndexResolver {
         boolean includeAllDimensions,
         boolean useAggregateMetricDoubleWhenNotSupported,
         boolean useDenseVectorWhenNotSupported,
+        IndicesExpressionGrouper indicesExpressionGrouper,
         ActionListener<Versioned<IndexResolution>> listener
     ) {
         client.execute(
@@ -131,9 +136,26 @@ public class IndexResolver {
                     useDenseVectorWhenNotSupported
                 );
                 LOGGER.debug("minimum transport version {} {}", response.caps().minTransportVersion(), info.effectiveMinTransportVersion());
-                l.onResponse(new Versioned<>(mergedMappings(indexWildcard, info), info.effectiveMinTransportVersion()));
+                l.onResponse(
+                    new Versioned<>(
+                        mergedMappings(indexWildcard, info, groupOriginalIndices(indicesExpressionGrouper)),
+                        info.effectiveMinTransportVersion()
+                    )
+                );
             })
         );
+    }
+
+    private static Function<String, Map<String, List<String>>> groupOriginalIndices(IndicesExpressionGrouper indicesExpressionGrouper) {
+        return indexPattern -> {
+            if (indicesExpressionGrouper == null) {
+                return Map.of();
+            }
+            return Maps.transformValues(
+                indicesExpressionGrouper.groupIndices(IndicesOptions.DEFAULT, Strings.splitStringByCommaToArray(indexPattern), false),
+                v -> List.of(v.indices())
+            );
+        };
     }
 
     /**
@@ -197,7 +219,11 @@ public class IndexResolver {
     }
 
     // public for testing only
-    public static IndexResolution mergedMappings(String indexPattern, FieldsInfo fieldsInfo) {
+    public static IndexResolution mergedMappings(
+        String indexPattern,
+        FieldsInfo fieldsInfo,
+        Function<String, Map<String, List<String>>> indexSplitter
+    ) {
         assert ThreadPool.assertCurrentThreadPool(ThreadPool.Names.SEARCH_COORDINATION); // too expensive to run this on a transport worker
         int numberOfIndices = fieldsInfo.caps.getIndexResponses().size();
         if (numberOfIndices == 0) {
@@ -257,24 +283,33 @@ public class IndexResolver {
             }
         }
 
-        Map<String, IndexMode> concreteIndices = Maps.newMapWithExpectedSize(fieldsInfo.caps.getIndexResponses().size());
-        for (FieldCapabilitiesIndexResponse ir : fieldsInfo.caps.getIndexResponses()) {
-            concreteIndices.put(ir.getIndexName(), ir.getIndexMode());
-        }
-
         boolean allEmpty = true;
+        Map<String, List<String>> concreteIndices = Maps.newHashMapWithExpectedSize(8);
+        Map<String, IndexMode> indexNameWithModes = Maps.newMapWithExpectedSize(fieldsInfo.caps.getIndexResponses().size());
         for (FieldCapabilitiesIndexResponse ir : fieldsInfo.caps.getIndexResponses()) {
+            var parts = RemoteClusterAware.splitIndexName(ir.getIndexName());
+            concreteIndices.computeIfAbsent(RemoteClusterAware.getClusterAlias(parts), k -> new ArrayList<>())
+                .add(RemoteClusterAware.getLocalIndexName(parts));
+            indexNameWithModes.put(ir.getIndexName(), ir.getIndexMode());
             allEmpty &= ir.get().isEmpty();
         }
+
         // If all the mappings are empty we return an empty set of resolved indices to line up with QL
         // Introduced with #46775
         // We need to be able to differentiate between an empty mapping index and an empty index due to fields not being found. An empty
         // mapping index will generate no columns (important) for a query like FROM empty-mapping-index, whereas an empty result here but
         // for fields that do not exist in the index (but the index has a mapping) will result in "VerificationException Unknown column"
         // errors.
-        var index = new EsIndex(indexPattern, rootFields, allEmpty ? Map.of() : concreteIndices, partiallyUnmappedFields);
+        var index = new EsIndex(
+            indexPattern,
+            rootFields,
+            allEmpty ? Map.of() : indexNameWithModes,
+            indexSplitter.apply(indexPattern),
+            concreteIndices,
+            partiallyUnmappedFields
+        );
         var failures = EsqlCCSUtils.groupFailuresPerCluster(fieldsInfo.caps.getFailures());
-        return IndexResolution.valid(index, concreteIndices.keySet(), failures);
+        return IndexResolution.valid(index, indexNameWithModes.keySet(), failures);
     }
 
     private record IndexFieldCapabilitiesWithSourceHash(List<IndexFieldCapabilities> fieldCapabilities, String indexMappingHash) {}

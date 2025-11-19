@@ -16,7 +16,7 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
-import static org.elasticsearch.xpack.esql.index.EsIndexGenerator.randomIndexNameWithModes;
+import static org.elasticsearch.xpack.esql.index.EsIndexGenerator.randomRemotesWithIndices;
 
 public class EsRelationSerializationTests extends AbstractLogicalPlanSerializationTests<EsRelation> {
     public static EsRelation randomEsRelation() {
@@ -24,7 +24,8 @@ public class EsRelationSerializationTests extends AbstractLogicalPlanSerializati
             randomSource(),
             randomIdentifier(),
             randomFrom(IndexMode.values()),
-            randomIndexNameWithModes(),
+            randomRemotesWithIndices(),
+            randomRemotesWithIndices(),
             randomFieldAttributes(0, 10, false)
         );
     }
@@ -38,16 +39,18 @@ public class EsRelationSerializationTests extends AbstractLogicalPlanSerializati
     protected EsRelation mutateInstance(EsRelation instance) throws IOException {
         String indexPattern = instance.indexPattern();
         IndexMode indexMode = instance.indexMode();
-        Map<String, IndexMode> indexNameWithModes = instance.indexNameWithModes();
+        Map<String, List<String>> originalIndicesByRemotes = instance.originalIndicesByRemotes();
+        Map<String, List<String>> concreteIndicesByRemotes = instance.concreteIndicesByRemotes();
         List<Attribute> attributes = instance.output();
-        switch (between(0, 3)) {
+        switch (between(0, 4)) {
             case 0 -> indexPattern = randomValueOtherThan(indexPattern, ESTestCase::randomIdentifier);
             case 1 -> indexMode = randomValueOtherThan(indexMode, () -> randomFrom(IndexMode.values()));
-            case 2 -> indexNameWithModes = randomValueOtherThan(indexNameWithModes, EsIndexGenerator::randomIndexNameWithModes);
-            case 3 -> attributes = randomValueOtherThan(attributes, () -> randomFieldAttributes(0, 10, false));
+            case 2 -> originalIndicesByRemotes = randomValueOtherThan(originalIndicesByRemotes, EsIndexGenerator::randomRemotesWithIndices);
+            case 3 -> concreteIndicesByRemotes = randomValueOtherThan(concreteIndicesByRemotes, EsIndexGenerator::randomRemotesWithIndices);
+            case 4 -> attributes = randomValueOtherThan(attributes, () -> randomFieldAttributes(0, 10, false));
             default -> throw new IllegalArgumentException();
         }
-        return new EsRelation(instance.source(), indexPattern, indexMode, indexNameWithModes, attributes);
+        return new EsRelation(instance.source(), indexPattern, indexMode, originalIndicesByRemotes, concreteIndicesByRemotes, attributes);
     }
 
     @Override

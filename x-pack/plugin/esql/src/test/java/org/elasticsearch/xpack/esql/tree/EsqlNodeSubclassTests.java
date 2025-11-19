@@ -45,6 +45,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.math.Pow;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Concat;
 import org.elasticsearch.xpack.esql.expression.predicate.fulltext.FullTextPredicate;
 import org.elasticsearch.xpack.esql.index.EsIndex;
+import org.elasticsearch.xpack.esql.index.EsIndexGenerator;
 import org.elasticsearch.xpack.esql.plan.logical.Dissect;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Fork;
@@ -98,7 +99,6 @@ import static java.util.Collections.emptyList;
 import static org.elasticsearch.xpack.esql.ConfigurationTestUtils.randomConfiguration;
 import static org.elasticsearch.xpack.esql.core.type.DataType.GEO_POINT;
 import static org.elasticsearch.xpack.esql.index.EsIndexGenerator.randomEsIndex;
-import static org.elasticsearch.xpack.esql.index.EsIndexGenerator.randomIndexNameWithModes;
 import static org.elasticsearch.xpack.esql.plan.AbstractNodeSerializationTests.randomFieldAttributes;
 import static org.elasticsearch.xpack.esql.plan.physical.LookupJoinExecSerializationTests.randomJoinOnExpression;
 import static org.mockito.Mockito.mock;
@@ -733,7 +733,8 @@ public class EsqlNodeSubclassTests<T extends B, B extends Node<B>> extends NodeS
             SourceTests.randomSource(),
             randomIdentifier(),
             randomFrom(IndexMode.values()),
-            randomIndexNameWithModes(),
+            EsIndexGenerator.randomRemotesWithIndices(),
+            EsIndexGenerator.randomRemotesWithIndices(),
             randomFieldAttributes(0, 10, false)
         );
     }

@@ -156,18 +156,6 @@ public class PlannerUtils {
     }
 
     /**
-     * Returns a set of concrete indices after resolving the original indices specified in the FROM command.
-     */
-    public static Set<String> planConcreteIndices(PhysicalPlan plan) {
-        if (plan == null) {
-            return Set.of();
-        }
-        var indices = new LinkedHashSet<String>();
-        forEachRelation(plan, relation -> indices.addAll(relation.concreteIndices()));
-        return indices;
-    }
-
-    /**
      * Returns the original indices specified in the FROM command of the query. We need the original query to resolve alias filters.
      */
     public static String[] planOriginalIndices(PhysicalPlan plan) {
@@ -188,7 +176,7 @@ public class PlannerUtils {
         });
     }
 
-    private static void forEachRelation(PhysicalPlan plan, Consumer<EsRelation> action) {
+    public static void forEachRelation(PhysicalPlan plan, Consumer<EsRelation> action) {
         plan.forEachDown(FragmentExec.class, f -> f.fragment().forEachDown(EsRelation.class, r -> {
             if (r.indexMode() != IndexMode.LOOKUP) {
                 action.accept(r);
@@ -249,14 +237,7 @@ public class PlannerUtils {
             if (filter != null) {
                 physicalFragment = physicalFragment.transformUp(
                     EsSourceExec.class,
-                    query -> new EsSourceExec(
-                        Source.EMPTY,
-                        query.indexPattern(),
-                        query.indexMode(),
-                        query.indexNameWithModes(),
-                        query.output(),
-                        filter
-                    )
+                    query -> new EsSourceExec(Source.EMPTY, query.indexPattern(), query.indexMode(), query.output(), filter)
                 );
             }
             var localOptimized = physicalOptimizer.localOptimize(physicalFragment);

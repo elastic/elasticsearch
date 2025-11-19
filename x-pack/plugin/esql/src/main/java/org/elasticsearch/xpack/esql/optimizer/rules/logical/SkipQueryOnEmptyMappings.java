@@ -12,10 +12,21 @@ import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.local.EmptyLocalSupplier;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 
+import java.util.List;
+
 public final class SkipQueryOnEmptyMappings extends OptimizerRules.OptimizerRule<EsRelation> {
 
     @Override
     protected LogicalPlan rule(EsRelation plan) {
-        return plan.concreteIndices().isEmpty() ? new LocalRelation(plan.source(), plan.output(), EmptyLocalSupplier.EMPTY) : plan;
+        return hasNoIndices(plan) ? new LocalRelation(plan.source(), plan.output(), EmptyLocalSupplier.EMPTY) : plan;
+    }
+
+    private static boolean hasNoIndices(EsRelation plan) {
+        for (List<String> indices : plan.concreteIndicesByRemotes().values()) {
+            if (indices.isEmpty() == false) {
+                return false;
+            }
+        }
+        return true;
     }
 }

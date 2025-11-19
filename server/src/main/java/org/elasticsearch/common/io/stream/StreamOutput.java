@@ -691,6 +691,10 @@ public abstract class StreamOutput extends OutputStream {
         writeMap(map, StreamOutput::writeString, valueWriter);
     }
 
+    public final void writeMapOfLists(Map<String, List<String>> map) throws IOException {
+        writeMap(map, StreamOutput::writeStringCollection);
+    }
+
     /**
      * Writes an {@link Instant} to the stream with nanosecond resolution
      */

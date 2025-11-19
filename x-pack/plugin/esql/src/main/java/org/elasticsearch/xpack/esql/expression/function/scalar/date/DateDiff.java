@@ -25,8 +25,10 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
+import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlConfigurationFunction;
 import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlScalarFunction;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
+import org.elasticsearch.xpack.esql.session.Configuration;
 
 import java.io.IOException;
 import java.time.Instant;
@@ -54,7 +56,7 @@ import static org.elasticsearch.xpack.esql.core.type.DataTypeConverter.safeToInt
  * in multiples of the unit specified in the first argument.
  * If the second argument (start) is greater than the third argument (end), then negative values are returned.
  */
-public class DateDiff extends EsqlScalarFunction {
+public class DateDiff extends EsqlConfigurationFunction {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "DateDiff", DateDiff::new);
 
     public static final ZoneId UTC = org.elasticsearch.xpack.esql.core.util.DateUtils.UTC;
@@ -175,9 +177,10 @@ public class DateDiff extends EsqlScalarFunction {
             name = "endTimestamp",
             type = { "date", "date_nanos" },
             description = "A string representing an end timestamp"
-        ) Expression endTimestamp
+        ) Expression endTimestamp,
+        Configuration configuration
     ) {
-        super(source, List.of(unit, startTimestamp, endTimestamp));
+        super(source, List.of(unit, startTimestamp, endTimestamp), configuration);
         this.unit = unit;
         this.startTimestamp = startTimestamp;
         this.endTimestamp = endTimestamp;
@@ -188,7 +191,8 @@ public class DateDiff extends EsqlScalarFunction {
             Source.readFrom((PlanStreamInput) in),
             in.readNamedWriteable(Expression.class),
             in.readNamedWriteable(Expression.class),
-            in.readNamedWriteable(Expression.class)
+            in.readNamedWriteable(Expression.class),
+            ((PlanStreamInput) in).configuration()
         );
     }
 
@@ -358,11 +362,11 @@ public class DateDiff extends EsqlScalarFunction {
 
     @Override
     public Expression replaceChildren(List<Expression> newChildren) {
-        return new DateDiff(source(), newChildren.get(0), newChildren.get(1), newChildren.get(2));
+        return new DateDiff(source(), newChildren.get(0), newChildren.get(1), newChildren.get(2), configuration());
     }
 
     @Override
     protected NodeInfo<? extends Expression> info() {
-        return NodeInfo.create(this, DateDiff::new, children().get(0), children().get(1), children().get(2));
+        return NodeInfo.create(this, DateDiff::new, children().get(0), children().get(1), children().get(2), configuration());
     }
 }

@@ -15,18 +15,21 @@ import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.expression.function.AbstractScalarFunctionTestCase;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
+import org.elasticsearch.xpack.esql.expression.function.scalar.AbstractConfigurationFunctionTestCase;
+import org.elasticsearch.xpack.esql.session.Configuration;
 
 import java.time.Instant;
+import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Supplier;
 import java.util.stream.Stream;
 
+import static org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier.TEST_SOURCE;
 import static org.hamcrest.Matchers.equalTo;
 
-public class DateDiffTests extends AbstractScalarFunctionTestCase {
+public class DateDiffTests extends AbstractConfigurationFunctionTestCase {
     public DateDiffTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
         this.testCase = testCaseSupplier.get();
     }
@@ -35,56 +38,56 @@ public class DateDiffTests extends AbstractScalarFunctionTestCase {
     public static Iterable<Object[]> parameters() {
 
         List<TestCaseSupplier> suppliers = new ArrayList<>();
-        suppliers.addAll(makeSuppliers("2023-12-04T10:15:30Z", "2023-12-05T10:45:00Z", "seconds", 88170));
-        suppliers.addAll(makeSuppliers("2023-12-12T00:01:01Z", "2024-12-12T00:01:01Z", "year", 1));
-        suppliers.addAll(makeSuppliers("2023-12-12T00:01:01.001Z", "2024-12-12T00:01:01Z", "year", 0));
+        suppliers.addAll(makeSuppliers("2023-12-04T10:15:30Z", "2023-12-05T10:45:00Z", "seconds", 88170, "Z"));
+        suppliers.addAll(makeSuppliers("2023-12-12T00:01:01Z", "2024-12-12T00:01:01Z", "year", 1, "Z"));
+        suppliers.addAll(makeSuppliers("2023-12-12T00:01:01.001Z", "2024-12-12T00:01:01Z", "year", 0, "Z"));
 
-        suppliers.addAll(makeSuppliers("2023-12-04T10:15:00Z", "2023-12-04T10:15:01Z", "nanoseconds", 1000000000));
-        suppliers.addAll(makeSuppliers("2023-12-04T10:15:00Z", "2023-12-04T10:15:01Z", "ns", 1000000000));
-        suppliers.addAll(makeSuppliers("2023-12-04T10:15:00Z", "2023-12-04T10:15:01Z", "microseconds", 1000000));
-        suppliers.addAll(makeSuppliers("2023-12-04T10:15:00Z", "2023-12-04T10:15:01Z", "mcs", 1000000));
-        suppliers.addAll(makeSuppliers("2023-12-04T10:15:00Z", "2023-12-04T10:15:01Z", "milliseconds", 1000));
-        suppliers.addAll(makeSuppliers("2023-12-04T10:15:00Z", "2023-12-04T10:15:01Z", "ms", 1000));
-        suppliers.addAll(makeSuppliers("2023-12-04T10:15:00Z", "2023-12-04T10:15:01Z", "seconds", 1));
-        suppliers.addAll(makeSuppliers("2023-12-04T10:15:00Z", "2023-12-04T10:15:01Z", "ss", 1));
-        suppliers.addAll(makeSuppliers("2023-12-04T10:15:00Z", "2023-12-04T10:15:01Z", "s", 1));
+        suppliers.addAll(makeSuppliers("2023-12-04T10:15:00Z", "2023-12-04T10:15:01Z", "nanoseconds", 1000000000, "Z"));
+        suppliers.addAll(makeSuppliers("2023-12-04T10:15:00Z", "2023-12-04T10:15:01Z", "ns", 1000000000, "Z"));
+        suppliers.addAll(makeSuppliers("2023-12-04T10:15:00Z", "2023-12-04T10:15:01Z", "microseconds", 1000000, "Z"));
+        suppliers.addAll(makeSuppliers("2023-12-04T10:15:00Z", "2023-12-04T10:15:01Z", "mcs", 1000000, "Z"));
+        suppliers.addAll(makeSuppliers("2023-12-04T10:15:00Z", "2023-12-04T10:15:01Z", "milliseconds", 1000, "Z"));
+        suppliers.addAll(makeSuppliers("2023-12-04T10:15:00Z", "2023-12-04T10:15:01Z", "ms", 1000, "Z"));
+        suppliers.addAll(makeSuppliers("2023-12-04T10:15:00Z", "2023-12-04T10:15:01Z", "seconds", 1, "Z"));
+        suppliers.addAll(makeSuppliers("2023-12-04T10:15:00Z", "2023-12-04T10:15:01Z", "ss", 1, "Z"));
+        suppliers.addAll(makeSuppliers("2023-12-04T10:15:00Z", "2023-12-04T10:15:01Z", "s", 1, "Z"));
 
         String zdtStart = "2023-12-04T10:15:00Z";
         String zdtEnd = "2024-12-04T10:15:01Z";
 
-        suppliers.addAll(makeSuppliers(zdtStart, zdtEnd, "minutes", 527040));
-        suppliers.addAll(makeSuppliers(zdtStart, zdtEnd, "mi", 527040));
-        suppliers.addAll(makeSuppliers(zdtStart, zdtEnd, "n", 527040));
-        suppliers.addAll(makeSuppliers(zdtStart, zdtEnd, "hours", 8784));
-        suppliers.addAll(makeSuppliers(zdtStart, zdtEnd, "hh", 8784));
+        suppliers.addAll(makeSuppliers(zdtStart, zdtEnd, "minutes", 527040, "Z"));
+        suppliers.addAll(makeSuppliers(zdtStart, zdtEnd, "mi", 527040, "Z"));
+        suppliers.addAll(makeSuppliers(zdtStart, zdtEnd, "n", 527040, "Z"));
+        suppliers.addAll(makeSuppliers(zdtStart, zdtEnd, "hours", 8784, "Z"));
+        suppliers.addAll(makeSuppliers(zdtStart, zdtEnd, "hh", 8784, "Z"));
 
         // 2024 is a leap year, so the dates are 366 days apart
-        suppliers.addAll(makeSuppliers(zdtStart, zdtEnd, "weekdays", 366));
-        suppliers.addAll(makeSuppliers(zdtStart, zdtEnd, "dw", 366));
-        suppliers.addAll(makeSuppliers(zdtStart, zdtEnd, "days", 366));
-        suppliers.addAll(makeSuppliers(zdtStart, zdtEnd, "dd", 366));
-        suppliers.addAll(makeSuppliers(zdtStart, zdtEnd, "d", 366));
-        suppliers.addAll(makeSuppliers(zdtStart, zdtEnd, "dy", 366));
-        suppliers.addAll(makeSuppliers(zdtStart, zdtEnd, "y", 366));
+        suppliers.addAll(makeSuppliers(zdtStart, zdtEnd, "weekdays", 366, "Z"));
+        suppliers.addAll(makeSuppliers(zdtStart, zdtEnd, "dw", 366, "Z"));
+        suppliers.addAll(makeSuppliers(zdtStart, zdtEnd, "days", 366, "Z"));
+        suppliers.addAll(makeSuppliers(zdtStart, zdtEnd, "dd", 366, "Z"));
+        suppliers.addAll(makeSuppliers(zdtStart, zdtEnd, "d", 366, "Z"));
+        suppliers.addAll(makeSuppliers(zdtStart, zdtEnd, "dy", 366, "Z"));
+        suppliers.addAll(makeSuppliers(zdtStart, zdtEnd, "y", 366, "Z"));
 
-        suppliers.addAll(makeSuppliers(zdtStart, zdtEnd, "weeks", 52));
-        suppliers.addAll(makeSuppliers(zdtStart, zdtEnd, "wk", 52));
-        suppliers.addAll(makeSuppliers(zdtStart, zdtEnd, "ww", 52));
-        suppliers.addAll(makeSuppliers(zdtStart, zdtEnd, "months", 12));
-        suppliers.addAll(makeSuppliers(zdtStart, zdtEnd, "mm", 12));
-        suppliers.addAll(makeSuppliers(zdtStart, zdtEnd, "m", 12));
-        suppliers.addAll(makeSuppliers(zdtStart, zdtEnd, "quarters", 4));
-        suppliers.addAll(makeSuppliers(zdtStart, zdtEnd, "qq", 4));
-        suppliers.addAll(makeSuppliers(zdtStart, zdtEnd, "q", 4));
-        suppliers.addAll(makeSuppliers(zdtStart, zdtEnd, "years", 1));
-        suppliers.addAll(makeSuppliers(zdtStart, zdtEnd, "yyyy", 1));
-        suppliers.addAll(makeSuppliers(zdtStart, zdtEnd, "yy", 1));
+        suppliers.addAll(makeSuppliers(zdtStart, zdtEnd, "weeks", 52, "Z"));
+        suppliers.addAll(makeSuppliers(zdtStart, zdtEnd, "wk", 52, "Z"));
+        suppliers.addAll(makeSuppliers(zdtStart, zdtEnd, "ww", 52, "Z"));
+        suppliers.addAll(makeSuppliers(zdtStart, zdtEnd, "months", 12, "Z"));
+        suppliers.addAll(makeSuppliers(zdtStart, zdtEnd, "mm", 12, "Z"));
+        suppliers.addAll(makeSuppliers(zdtStart, zdtEnd, "m", 12, "Z"));
+        suppliers.addAll(makeSuppliers(zdtStart, zdtEnd, "quarters", 4, "Z"));
+        suppliers.addAll(makeSuppliers(zdtStart, zdtEnd, "qq", 4, "Z"));
+        suppliers.addAll(makeSuppliers(zdtStart, zdtEnd, "q", 4, "Z"));
+        suppliers.addAll(makeSuppliers(zdtStart, zdtEnd, "years", 1, "Z"));
+        suppliers.addAll(makeSuppliers(zdtStart, zdtEnd, "yyyy", 1, "Z"));
+        suppliers.addAll(makeSuppliers(zdtStart, zdtEnd, "yy", 1, "Z"));
 
         // Error cases
         String zdtStart2 = "2023-12-04T10:15:00Z";
         String zdtEnd2 = "2023-12-04T10:20:00Z";
         suppliers.addAll(
-            makeSuppliers(
+            makeSuppliersForWarning(
                 zdtStart2,
                 zdtEnd2,
                 "nanoseconds",
@@ -95,9 +98,10 @@ public class DateDiffTests extends AbstractScalarFunctionTestCase {
         return parameterSuppliersFromTypedDataWithDefaultChecks(true, suppliers);
     }
 
-    private static List<TestCaseSupplier> makeSuppliers(String startTimestampString, String endTimestampString, String unit, int expected) {
+    private static List<TestCaseSupplier> makeSuppliers(String startTimestampString, String endTimestampString, String unit, int expected, String timezone) {
         Instant startTimestamp = Instant.parse(startTimestampString);
         Instant endTimestamp = Instant.parse(endTimestampString);
+        ZoneId zoneId = ZoneId.of(timezone);
 
         return Stream.of(DataType.KEYWORD, DataType.TEXT)
             .flatMap(
@@ -108,6 +112,8 @@ public class DateDiffTests extends AbstractScalarFunctionTestCase {
                             + "<"
                             + unitType
                             + ">, "
+                            + timezone
+                            + ", "
                             + startTimestamp
                             + "<MILLIS>, "
                             + endTimestamp
@@ -124,7 +130,7 @@ public class DateDiffTests extends AbstractScalarFunctionTestCase {
                                 + "endTimestamp=Attribute[channel=2]]",
                             DataType.INTEGER,
                             equalTo(expected)
-                        )
+                        ).withConfiguration(TEST_SOURCE, configurationForTimezone(zoneId))
                     ),
                     new TestCaseSupplier(
                         "DateDiff("
@@ -132,6 +138,8 @@ public class DateDiffTests extends AbstractScalarFunctionTestCase {
                             + "<"
                             + unitType
                             + ">, "
+                            + timezone
+                            + ", "
                             + startTimestamp
                             + "<NANOS>, "
                             + endTimestamp
@@ -156,6 +164,8 @@ public class DateDiffTests extends AbstractScalarFunctionTestCase {
                             + "<"
                             + unitType
                             + ">, "
+                            + timezone
+                            + ", "
                             + startTimestamp
                             + "<NANOS>, "
                             + endTimestamp
@@ -180,6 +190,8 @@ public class DateDiffTests extends AbstractScalarFunctionTestCase {
                             + "<"
                             + unitType
                             + ">, "
+                            + timezone
+                            + ", "
                             + startTimestamp
                             + "<MILLIS>, "
                             + endTimestamp
@@ -203,7 +215,7 @@ public class DateDiffTests extends AbstractScalarFunctionTestCase {
             .toList();
     }
 
-    private static List<TestCaseSupplier> makeSuppliers(
+    private static List<TestCaseSupplier> makeSuppliersForWarning(
         String startTimestampString,
         String endTimestampString,
         String unit,
@@ -254,8 +266,8 @@ public class DateDiffTests extends AbstractScalarFunctionTestCase {
     }
 
     @Override
-    protected Expression build(Source source, List<Expression> args) {
-        return new DateDiff(source, args.get(0), args.get(1), args.get(2));
+    protected Expression buildWithConfiguration(Source source, List<Expression> args, Configuration configuration) {
+        return new DateDiff(source, args.get(0), args.get(1), args.get(2), configuration); // TODO: Add config here
     }
 
     @Override

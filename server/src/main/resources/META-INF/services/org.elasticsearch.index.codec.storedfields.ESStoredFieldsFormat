@@ -1,0 +1,3 @@
+org.elasticsearch.index.codec.storedfields.ESZstd814StoredFieldsFormat
+org.elasticsearch.index.codec.storedfields.ESLucene90StoredFieldsFormat
+org.elasticsearch.index.codec.bloomfilter.ES93BloomFilterStoredFieldsFormat

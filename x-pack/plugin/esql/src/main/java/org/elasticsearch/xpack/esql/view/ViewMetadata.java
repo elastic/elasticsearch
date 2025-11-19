@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.xpack.esql.view;
 
-import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.cluster.AbstractNamedDiffable;
 import org.elasticsearch.cluster.NamedDiff;
@@ -53,15 +52,9 @@ public final class ViewMetadata extends AbstractNamedDiffable<Metadata.ProjectCu
     static {
         PARSER.declareObject(ConstructingObjectParser.constructorArg(), (p, c) -> {
             Map<String, View> patterns = new HashMap<>();
-            String fieldName = null;
-            for (XContentParser.Token token = p.nextToken(); token != XContentParser.Token.END_OBJECT; token = p.nextToken()) {
-                if (token == XContentParser.Token.FIELD_NAME) {
-                    fieldName = p.currentName();
-                } else if (token == XContentParser.Token.START_OBJECT) {
-                    patterns.put(fieldName, View.fromXContent(p));
-                } else {
-                    throw new ElasticsearchParseException("unexpected token [" + token + "]");
-                }
+            while (p.nextToken() != XContentParser.Token.END_OBJECT) {
+                String name = p.currentName();
+                patterns.put(name, View.fromXContent(p));
             }
             return patterns;
         }, VIEWS);

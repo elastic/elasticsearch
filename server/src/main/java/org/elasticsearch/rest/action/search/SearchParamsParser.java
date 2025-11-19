@@ -15,8 +15,9 @@ import org.elasticsearch.rest.RestRequest;
 import java.util.Optional;
 
 public class SearchParamsParser {
-    private static final String MRT_SET_IN_CPS_WARN = "ccs_minimize_roundtrips always defaults to true in Cross Project Search context."
-        + " Setting it explicitly has no effect irrespective of the value specified and is ignored.";
+    public static final String MRT_SET_IN_CPS_WARN = "ccs_minimize_roundtrips always defaults to true in Cross Project Search context."
+        + " Setting it explicitly has no effect irrespective of the value specified and is ignored."
+        + " It will soon be deprecated and made unavailable for Cross project Search.";
 
     /**
      * For CPS, we do not necessarily want to use the MRT value that the user has provided.

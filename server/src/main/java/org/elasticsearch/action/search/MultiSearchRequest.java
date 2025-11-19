@@ -18,7 +18,9 @@ import org.elasticsearch.common.TriFunction;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.rest.action.search.SearchParamsParser;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
@@ -204,6 +206,7 @@ public class MultiSearchRequest extends LegacyActionRequest implements Composite
     ) throws IOException {
         int from = 0;
         byte marker = xContent.bulkSeparator();
+        boolean warnedMrtForCps = false;
         while (true) {
             int nextMarker = findNextMarker(marker, from, data);
             if (nextMarker == -1) {
@@ -256,6 +259,10 @@ public class MultiSearchRequest extends LegacyActionRequest implements Composite
                             searchRequest.searchType(nodeStringValue(value, null));
                         } else if ("ccs_minimize_roundtrips".equals(entry.getKey()) || "ccsMinimizeRoundtrips".equals(entry.getKey())) {
                             searchRequest.setCcsMinimizeRoundtrips(crossProjectEnabled.orElse(false) || nodeBooleanValue(value));
+                            if (warnedMrtForCps == false) {
+                                HeaderWarning.addWarning(SearchParamsParser.MRT_SET_IN_CPS_WARN);
+                                warnedMrtForCps = true;
+                            }
                         } else if ("request_cache".equals(entry.getKey()) || "requestCache".equals(entry.getKey())) {
                             searchRequest.requestCache(nodeBooleanValue(value, entry.getKey()));
                         } else if ("preference".equals(entry.getKey())) {

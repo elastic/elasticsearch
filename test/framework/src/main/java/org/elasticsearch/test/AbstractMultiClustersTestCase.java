@@ -46,7 +46,6 @@ import java.util.stream.Collectors;
 
 import static org.elasticsearch.discovery.DiscoveryModule.DISCOVERY_SEED_PROVIDERS_SETTING;
 import static org.elasticsearch.discovery.SettingsBasedSeedHostsProvider.DISCOVERY_SEED_HOSTS_SETTING;
-import static org.elasticsearch.xpack.core.ClientHelper.MONITORING_ORIGIN;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.hasKey;
@@ -106,7 +105,7 @@ public abstract class AbstractMultiClustersTestCase extends ESTestCase {
 
     private Client internalClient(String clusterAlias) {
         Client client = client(clusterAlias);
-        return new OriginSettingClient(client, MONITORING_ORIGIN);
+        return new OriginSettingClient(client, "monitoring");  // TODO: Remove hardcoded reference to MONITORING_ORIGIN
     }
 
     @Before

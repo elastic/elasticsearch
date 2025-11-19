@@ -46,7 +46,6 @@ import java.util.stream.Collectors;
 
 import static org.elasticsearch.test.ESTestCase.getTestTransportPlugin;
 import static org.elasticsearch.test.ESTestCase.getTestTransportType;
-import static org.elasticsearch.xpack.core.ClientHelper.MONITORING_ORIGIN;
 import static org.hamcrest.Matchers.equalTo;
 import static org.junit.Assert.assertThat;
 
@@ -165,7 +164,7 @@ public final class ExternalTestCluster extends TestCluster {
 
     @Override
     protected Client internalClient() {
-        return new OriginSettingClient(client(), MONITORING_ORIGIN);
+        return new OriginSettingClient(client(), "monitoring");  // TODO: Remove hardcoded reference to MONITORING_ORIGIN
     }
 
     @Override

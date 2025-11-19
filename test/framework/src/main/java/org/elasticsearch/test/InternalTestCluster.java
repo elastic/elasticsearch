@@ -160,7 +160,6 @@ import static org.elasticsearch.test.NodeRoles.noRoles;
 import static org.elasticsearch.test.NodeRoles.nonDataNode;
 import static org.elasticsearch.test.NodeRoles.onlyRole;
 import static org.elasticsearch.test.NodeRoles.removeRoles;
-import static org.elasticsearch.xpack.core.ClientHelper.MONITORING_ORIGIN;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
@@ -887,7 +886,7 @@ public final class InternalTestCluster extends TestCluster {
     }
 
     private Client makeInternal(Client client) {
-        return new OriginSettingClient(client, MONITORING_ORIGIN);
+        return new OriginSettingClient(client, "monitoring");  // TODO: Remove hardcoded reference to MONITORING_ORIGIN
     }
 
     /**

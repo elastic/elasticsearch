@@ -36,7 +36,7 @@ import static org.elasticsearch.xpack.inference.external.http.Utils.getUrl;
 import static org.elasticsearch.xpack.inference.integration.AuthorizationTaskExecutorIT.cancelAuthorizationTask;
 import static org.elasticsearch.xpack.inference.integration.AuthorizationTaskExecutorIT.waitForTask;
 import static org.elasticsearch.xpack.inference.services.elastic.response.AuthorizationResponseEntityTests.EIS_EMPTY_RESPONSE;
-import static org.elasticsearch.xpack.inference.services.elastic.response.AuthorizationResponseEntityTests.RAINBOW_SPRINKLES_ENDPOINT_ID_V1;
+import static org.elasticsearch.xpack.inference.services.elastic.response.AuthorizationResponseEntityTests.RAINBOW_SPRINKLES_ENDPOINT_ID;
 import static org.elasticsearch.xpack.inference.services.elastic.response.AuthorizationResponseEntityTests.getEisRainbowSprinklesAuthorizationResponse;
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
@@ -133,7 +133,7 @@ public class AuthorizationTaskExecutorMultipleNodesIT extends ESIntegTestCase {
 
             var rainbowSprinklesEndpoint = eisEndpoints.get(0);
             assertThat(rainbowSprinklesEndpoint.getService(), is(ElasticInferenceService.NAME));
-            assertThat(rainbowSprinklesEndpoint.getInferenceEntityId(), is(RAINBOW_SPRINKLES_ENDPOINT_ID_V1));
+            assertThat(rainbowSprinklesEndpoint.getInferenceEntityId(), is(RAINBOW_SPRINKLES_ENDPOINT_ID));
             assertThat(rainbowSprinklesEndpoint.getTaskType(), is(TaskType.CHAT_COMPLETION));
         });
     }

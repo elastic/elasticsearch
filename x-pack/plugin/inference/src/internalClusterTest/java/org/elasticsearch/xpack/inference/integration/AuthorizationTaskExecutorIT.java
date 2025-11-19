@@ -45,8 +45,8 @@ import java.util.stream.Collectors;
 import static org.elasticsearch.xpack.inference.external.http.Utils.getUrl;
 import static org.elasticsearch.xpack.inference.services.elastic.response.AuthorizationResponseEntityTests.EIS_EMPTY_RESPONSE;
 import static org.elasticsearch.xpack.inference.services.elastic.response.AuthorizationResponseEntityTests.ELSER_V2_ENDPOINT_ID;
-import static org.elasticsearch.xpack.inference.services.elastic.response.AuthorizationResponseEntityTests.JINA_EMBED_ENDPOINT_ID;
-import static org.elasticsearch.xpack.inference.services.elastic.response.AuthorizationResponseEntityTests.RAINBOW_SPRINKLES_ENDPOINT_ID_V1;
+import static org.elasticsearch.xpack.inference.services.elastic.response.AuthorizationResponseEntityTests.JINA_EMBED_V3_ENDPOINT_ID;
+import static org.elasticsearch.xpack.inference.services.elastic.response.AuthorizationResponseEntityTests.RAINBOW_SPRINKLES_ENDPOINT_ID;
 import static org.elasticsearch.xpack.inference.services.elastic.response.AuthorizationResponseEntityTests.RERANK_V1_ENDPOINT_ID;
 import static org.elasticsearch.xpack.inference.services.elastic.response.AuthorizationResponseEntityTests.getEisRainbowSprinklesAuthorizationResponse;
 import static org.hamcrest.Matchers.empty;
@@ -56,9 +56,9 @@ import static org.hamcrest.Matchers.not;
 public class AuthorizationTaskExecutorIT extends ESSingleNodeTestCase {
 
     public static final Set<String> EIS_PRECONFIGURED_ENDPOINT_IDS = Set.of(
-        RAINBOW_SPRINKLES_ENDPOINT_ID_V1,
+        RAINBOW_SPRINKLES_ENDPOINT_ID,
         ELSER_V2_ENDPOINT_ID,
-        JINA_EMBED_ENDPOINT_ID,
+        JINA_EMBED_V3_ENDPOINT_ID,
         RERANK_V1_ENDPOINT_ID
     );
 
@@ -249,13 +249,13 @@ public class AuthorizationTaskExecutorIT extends ESSingleNodeTestCase {
 
         var rainbowSprinklesModel = eisEndpoints.get(0);
         assertChatCompletionUnparsedModel(rainbowSprinklesModel);
-        assertTrue(modelRegistry.containsPreconfiguredInferenceEndpointId(RAINBOW_SPRINKLES_ENDPOINT_ID_V1));
+        assertTrue(modelRegistry.containsPreconfiguredInferenceEndpointId(RAINBOW_SPRINKLES_ENDPOINT_ID));
     }
 
     static void assertChatCompletionUnparsedModel(UnparsedModel rainbowSprinklesModel) {
         assertThat(rainbowSprinklesModel.taskType(), is(TaskType.CHAT_COMPLETION));
         assertThat(rainbowSprinklesModel.service(), is(ElasticInferenceService.NAME));
-        assertThat(rainbowSprinklesModel.inferenceEntityId(), is(RAINBOW_SPRINKLES_ENDPOINT_ID_V1));
+        assertThat(rainbowSprinklesModel.inferenceEntityId(), is(RAINBOW_SPRINKLES_ENDPOINT_ID));
     }
 
     public void testCreatesChatCompletion_AndThenCreatesTextEmbedding() throws Exception {
@@ -281,12 +281,12 @@ public class AuthorizationTaskExecutorIT extends ESSingleNodeTestCase {
         var eisEndpoints = getEisEndpoints().stream().collect(Collectors.toMap(UnparsedModel::inferenceEntityId, Function.identity()));
         assertThat(eisEndpoints.size(), is(2));
 
-        assertTrue(eisEndpoints.containsKey(RAINBOW_SPRINKLES_ENDPOINT_ID_V1));
-        assertChatCompletionUnparsedModel(eisEndpoints.get(RAINBOW_SPRINKLES_ENDPOINT_ID_V1));
+        assertTrue(eisEndpoints.containsKey(RAINBOW_SPRINKLES_ENDPOINT_ID));
+        assertChatCompletionUnparsedModel(eisEndpoints.get(RAINBOW_SPRINKLES_ENDPOINT_ID));
 
-        assertTrue(eisEndpoints.containsKey(JINA_EMBED_ENDPOINT_ID));
+        assertTrue(eisEndpoints.containsKey(JINA_EMBED_V3_ENDPOINT_ID));
 
-        var textEmbeddingEndpoint = eisEndpoints.get(JINA_EMBED_ENDPOINT_ID);
+        var textEmbeddingEndpoint = eisEndpoints.get(JINA_EMBED_V3_ENDPOINT_ID);
         assertThat(textEmbeddingEndpoint.taskType(), is(TaskType.TEXT_EMBEDDING));
         assertThat(textEmbeddingEndpoint.service(), is(ElasticInferenceService.NAME));
     }

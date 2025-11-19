@@ -61,7 +61,7 @@ public class AuthorizationResponseEntity implements InferenceServiceResults {
     public record AuthorizedEndpoint(
         String id,
         String modelName,
-        String taskType,
+        TaskTypeObject taskType,
         String status,
         @Nullable List<String> properties,
         String releaseDate,
@@ -71,7 +71,7 @@ public class AuthorizationResponseEntity implements InferenceServiceResults {
 
         private static final String ID = "id";
         private static final String MODEL_NAME = "model_name";
-        private static final String TASK_TYPE = "task_type";
+        private static final String TASK_TYPE = "task_types";
         private static final String STATUS = "status";
         private static final String PROPERTIES = "properties";
         private static final String RELEASE_DATE = "release_date";
@@ -85,7 +85,7 @@ public class AuthorizationResponseEntity implements InferenceServiceResults {
             args -> new AuthorizedEndpoint(
                 (String) args[0],
                 (String) args[1],
-                (String) args[2],
+                (TaskTypeObject) args[2],
                 (String) args[3],
                 (List<String>) args[4],
                 (String) args[5],
@@ -97,7 +97,7 @@ public class AuthorizationResponseEntity implements InferenceServiceResults {
         static {
             AUTHORIZED_ENDPOINT_PARSER.declareString(constructorArg(), new ParseField(ID));
             AUTHORIZED_ENDPOINT_PARSER.declareString(constructorArg(), new ParseField(MODEL_NAME));
-            AUTHORIZED_ENDPOINT_PARSER.declareString(constructorArg(), new ParseField(TASK_TYPE));
+            AUTHORIZED_ENDPOINT_PARSER.declareObject(constructorArg(), TaskTypeObject.PARSER::apply, new ParseField(TASK_TYPE));
             AUTHORIZED_ENDPOINT_PARSER.declareString(constructorArg(), new ParseField(STATUS));
             AUTHORIZED_ENDPOINT_PARSER.declareStringArray(optionalConstructorArg(), new ParseField(PROPERTIES));
             AUTHORIZED_ENDPOINT_PARSER.declareString(constructorArg(), new ParseField(RELEASE_DATE));
@@ -109,7 +109,7 @@ public class AuthorizationResponseEntity implements InferenceServiceResults {
             this(
                 in.readString(),
                 in.readString(),
-                in.readString(),
+                new TaskTypeObject(in),
                 in.readString(),
                 in.readOptionalCollectionAsList(StreamInput::readString),
                 in.readString(),
@@ -122,7 +122,7 @@ public class AuthorizationResponseEntity implements InferenceServiceResults {
         public void writeTo(StreamOutput out) throws IOException {
             out.writeString(id);
             out.writeString(modelName);
-            out.writeString(taskType);
+            taskType.writeTo(out);
             out.writeString(status);
             out.writeOptionalCollection(properties, StreamOutput::writeString);
             out.writeString(releaseDate);
@@ -183,12 +183,12 @@ public class AuthorizationResponseEntity implements InferenceServiceResults {
         );
 
         static {
-            PARSER.declareString(optionalConstructorArg(), new ParseField(EIS_TASK_TYPE_FIELD));
+            PARSER.declareString(constructorArg(), new ParseField(EIS_TASK_TYPE_FIELD));
             PARSER.declareString(constructorArg(), new ParseField(ELASTICSEARCH_TASK_TYPE_FIELD));
         }
 
         public TaskTypeObject(StreamInput in) throws IOException {
-            this(in.readOptionalString(), in.readString());
+            this(in.readString(), in.readString());
         }
 
         @Override
@@ -198,7 +198,7 @@ public class AuthorizationResponseEntity implements InferenceServiceResults {
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            out.writeOptionalString(eisTaskType);
+            out.writeString(eisTaskType);
             out.writeString(elasticsearchTaskType);
         }
 

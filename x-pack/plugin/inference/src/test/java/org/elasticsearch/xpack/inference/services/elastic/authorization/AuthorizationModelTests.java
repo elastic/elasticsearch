@@ -31,6 +31,10 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+import static org.elasticsearch.xpack.inference.services.elastic.response.AuthorizationResponseEntityTests.EIS_CHAT_PATH;
+import static org.elasticsearch.xpack.inference.services.elastic.response.AuthorizationResponseEntityTests.EIS_EMBED_PATH;
+import static org.elasticsearch.xpack.inference.services.elastic.response.AuthorizationResponseEntityTests.EIS_SPARSE_PATH;
+import static org.elasticsearch.xpack.inference.services.elastic.response.AuthorizationResponseEntityTests.createTaskTypeObject;
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 
@@ -44,8 +48,26 @@ public class AuthorizationModelTests extends ESTestCase {
     public void testExcludes_EndpointsWithoutValidTaskTypes() {
         var response = new AuthorizationResponseEntity(
             List.of(
-                new AuthorizationResponseEntity.AuthorizedEndpoint("id", "name", "invalid_task_type", "ga", null, "", "", null),
-                new AuthorizationResponseEntity.AuthorizedEndpoint("id2", "name", TaskType.ANY.toString(), "ga", null, "", "", null)
+                new AuthorizationResponseEntity.AuthorizedEndpoint(
+                    "id",
+                    "name",
+                    createTaskTypeObject("", "invalid_task_type"),
+                    "ga",
+                    null,
+                    "",
+                    "",
+                    null
+                ),
+                new AuthorizationResponseEntity.AuthorizedEndpoint(
+                    "id2",
+                    "name",
+                    createTaskTypeObject("", TaskType.ANY.toString()),
+                    "ga",
+                    null,
+                    "",
+                    "",
+                    null
+                )
             )
         );
         var auth = AuthorizationModel.of(response, "url");
@@ -62,7 +84,7 @@ public class AuthorizationModelTests extends ESTestCase {
                 new AuthorizationResponseEntity.AuthorizedEndpoint(
                     id1,
                     "name1",
-                    TaskType.CHAT_COMPLETION.toString(),
+                    createTaskTypeObject(EIS_CHAT_PATH, TaskType.CHAT_COMPLETION.toString()),
                     "ga",
                     null,
                     "",
@@ -72,7 +94,7 @@ public class AuthorizationModelTests extends ESTestCase {
                 new AuthorizationResponseEntity.AuthorizedEndpoint(
                     id2,
                     "name2",
-                    TaskType.SPARSE_EMBEDDING.toString(),
+                    createTaskTypeObject(EIS_SPARSE_PATH, TaskType.SPARSE_EMBEDDING.toString()),
                     "ga",
                     null,
                     "",
@@ -96,7 +118,7 @@ public class AuthorizationModelTests extends ESTestCase {
                 new AuthorizationResponseEntity.AuthorizedEndpoint(
                     id,
                     "name1",
-                    TaskType.CHAT_COMPLETION.toString(),
+                    createTaskTypeObject(EIS_CHAT_PATH, TaskType.CHAT_COMPLETION.toString()),
                     "ga",
                     null,
                     "",
@@ -107,7 +129,7 @@ public class AuthorizationModelTests extends ESTestCase {
                 new AuthorizationResponseEntity.AuthorizedEndpoint(
                     id,
                     "name2",
-                    TaskType.SPARSE_EMBEDDING.toString(),
+                    createTaskTypeObject(EIS_SPARSE_PATH, TaskType.SPARSE_EMBEDDING.toString()),
                     "ga",
                     null,
                     "",
@@ -138,7 +160,7 @@ public class AuthorizationModelTests extends ESTestCase {
                 new AuthorizationResponseEntity.AuthorizedEndpoint(
                     id1,
                     name1,
-                    TaskType.CHAT_COMPLETION.toString(),
+                    createTaskTypeObject(EIS_CHAT_PATH, TaskType.CHAT_COMPLETION.toString()),
                     "ga",
                     null,
                     "",
@@ -148,7 +170,7 @@ public class AuthorizationModelTests extends ESTestCase {
                 new AuthorizationResponseEntity.AuthorizedEndpoint(
                     id2,
                     name2,
-                    TaskType.TEXT_EMBEDDING.toString(),
+                    createTaskTypeObject(EIS_EMBED_PATH, TaskType.TEXT_EMBEDDING.toString()),
                     "ga",
                     null,
                     "",
@@ -210,7 +232,7 @@ public class AuthorizationModelTests extends ESTestCase {
                 new AuthorizationResponseEntity.AuthorizedEndpoint(
                     id1,
                     name1,
-                    TaskType.CHAT_COMPLETION.toString(),
+                    createTaskTypeObject(EIS_CHAT_PATH, TaskType.CHAT_COMPLETION.toString()),
                     "ga",
                     null,
                     "",
@@ -220,7 +242,7 @@ public class AuthorizationModelTests extends ESTestCase {
                 new AuthorizationResponseEntity.AuthorizedEndpoint(
                     id2,
                     name2,
-                    TaskType.TEXT_EMBEDDING.toString(),
+                    createTaskTypeObject(EIS_EMBED_PATH, TaskType.TEXT_EMBEDDING.toString()),
                     "ga",
                     null,
                     "",
@@ -279,7 +301,7 @@ public class AuthorizationModelTests extends ESTestCase {
                 new AuthorizationResponseEntity.AuthorizedEndpoint(
                     id1,
                     name1,
-                    TaskType.CHAT_COMPLETION.toString(),
+                    createTaskTypeObject(EIS_CHAT_PATH, TaskType.CHAT_COMPLETION.toString()),
                     "ga",
                     null,
                     "",
@@ -289,7 +311,7 @@ public class AuthorizationModelTests extends ESTestCase {
                 new AuthorizationResponseEntity.AuthorizedEndpoint(
                     id2,
                     name2,
-                    TaskType.TEXT_EMBEDDING.toString(),
+                    createTaskTypeObject(EIS_EMBED_PATH, TaskType.TEXT_EMBEDDING.toString()),
                     "ga",
                     null,
                     "",
@@ -304,7 +326,7 @@ public class AuthorizationModelTests extends ESTestCase {
                 new AuthorizationResponseEntity.AuthorizedEndpoint(
                     id2,
                     name2,
-                    TaskType.TEXT_EMBEDDING.toString(),
+                    createTaskTypeObject(EIS_EMBED_PATH, TaskType.TEXT_EMBEDDING.toString()),
                     "ga",
                     null,
                     "",
@@ -365,7 +387,7 @@ public class AuthorizationModelTests extends ESTestCase {
                 new AuthorizationResponseEntity.AuthorizedEndpoint(
                     idChat,
                     nameChat,
-                    TaskType.CHAT_COMPLETION.toString(),
+                    createTaskTypeObject(EIS_CHAT_PATH, TaskType.CHAT_COMPLETION.toString()),
                     "ga",
                     null,
                     "",
@@ -375,7 +397,7 @@ public class AuthorizationModelTests extends ESTestCase {
                 new AuthorizationResponseEntity.AuthorizedEndpoint(
                     idSparse,
                     nameSparse,
-                    TaskType.SPARSE_EMBEDDING.toString(),
+                    createTaskTypeObject(EIS_SPARSE_PATH, TaskType.SPARSE_EMBEDDING.toString()),
                     "ga",
                     null,
                     "",
@@ -385,7 +407,7 @@ public class AuthorizationModelTests extends ESTestCase {
                 new AuthorizationResponseEntity.AuthorizedEndpoint(
                     idDense,
                     nameDense,
-                    TaskType.TEXT_EMBEDDING.toString(),
+                    createTaskTypeObject(EIS_EMBED_PATH, TaskType.TEXT_EMBEDDING.toString()),
                     "ga",
                     null,
                     "",
@@ -395,7 +417,7 @@ public class AuthorizationModelTests extends ESTestCase {
                 new AuthorizationResponseEntity.AuthorizedEndpoint(
                     idRerank,
                     nameRerank,
-                    TaskType.RERANK.toString(),
+                    createTaskTypeObject(EIS_SPARSE_PATH, TaskType.RERANK.toString()),
                     "ga",
                     null,
                     "",

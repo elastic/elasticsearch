@@ -17,6 +17,7 @@ import org.junit.runner.Description;
 import org.junit.runners.model.Statement;
 
 import static org.elasticsearch.core.Strings.format;
+import static org.elasticsearch.xpack.inference.services.elastic.response.AuthorizationResponseEntityTests.getEisAuthorizationResponseWithMultipleEndpoints;
 
 public class MockElasticInferenceServiceAuthorizationServer implements TestRule {
 
@@ -24,82 +25,8 @@ public class MockElasticInferenceServiceAuthorizationServer implements TestRule 
     private final MockWebServer webServer = new MockWebServer();
 
     public void enqueueAuthorizeAllModelsResponse() {
-        String responseJson = """
-            {
-              "inference_endpoints": [
-                {
-                  "id": ".rainbow-sprinkles-elastic",
-                  "model_name": "rainbow-sprinkles",
-                  "task_type": "chat_completion",
-                  "status": "ga",
-                  "properties": [
-                    "multilingual"
-                  ],
-                  "release_date": "2024-05-01",
-                  "end_of_life_date": "2025-12-31"
-                },
-                {
-                  "id": ".gp-llm-v2-chat_completion",
-                  "model_name": "gp-llm-v2",
-                  "task_type": "chat_completion",
-                  "status": "ga",
-                  "properties": [
-                    "multilingual"
-                  ],
-                  "release_date": "2024-05-01",
-                  "end_of_life_date": "2025-12-31"
-                },
-                {
-                  "id": ".elser-2-elastic",
-                  "model_name": "elser_model_2",
-                  "task_type": "sparse_embedding",
-                  "status": "preview",
-                  "properties": [
-                    "english"
-                  ],
-                  "release_date": "2024-05-01",
-                  "configuration": {
-                    "chunking_settings": {
-                      "strategy": "sentence",
-                      "max_chunk_size": 250,
-                      "sentence_overlap": 1
-                    }
-                  }
-                },
-                {
-                  "id": ".jina-embeddings-v3",
-                  "model_name": "jina-embeddings-v3",
-                  "task_type": "text_embedding",
-                  "status": "beta",
-                  "properties": [
-                    "multilingual",
-                    "open-weights"
-                  ],
-                  "release_date": "2024-05-01",
-                  "configuration": {
-                    "similarity": "cosine",
-                    "dimensions": 1024,
-                    "element_type": "float",
-                    "chunking_settings": {
-                      "strategy": "word",
-                      "max_chunk_size": 500,
-                      "overlap": 2
-                    }
-                  }
-                },
-                {
-                  "id": ".elastic-rerank-v1",
-                  "model_name": "elastic-rerank-v1",
-                  "task_type": "rerank",
-                  "status": "preview",
-                  "properties": [],
-                  "release_date": "2024-05-01"
-                }
-              ]
-            }
-            """;
-
-        webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
+        var authResponse = getEisAuthorizationResponseWithMultipleEndpoints("ignored");
+        webServer.enqueue(new MockResponse().setResponseCode(200).setBody(authResponse.responseJson()));
     }
 
     public String getUrl() {

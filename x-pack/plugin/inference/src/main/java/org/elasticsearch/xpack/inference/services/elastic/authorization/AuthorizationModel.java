@@ -73,7 +73,7 @@ public class AuthorizationModel {
         ElasticInferenceServiceComponents components
     ) {
         try {
-            var taskType = getTaskType(authorizedEndpoint.taskType());
+            var taskType = getTaskType(authorizedEndpoint.taskType().elasticsearchTaskType());
             if (taskType == null) {
                 logger.warn(UNKNOWN_TASK_TYPE_LOG_MESSAGE, authorizedEndpoint.id(), authorizedEndpoint.taskType());
                 return null;

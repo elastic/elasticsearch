@@ -45,20 +45,28 @@ import static org.hamcrest.Matchers.is;
 public class AuthorizationResponseEntityTests extends AbstractBWCWireSerializationTestCase<AuthorizationResponseEntity> {
 
     // rainbow-sprinkles
-    public static final String RAINBOW_SPRINKLES_ENDPOINT_ID_V1 = ".rainbow-sprinkles-elastic";
+    public static final String RAINBOW_SPRINKLES_ENDPOINT_ID = ".rainbow-sprinkles-elastic";
     public static final String RAINBOW_SPRINKLES_MODEL_NAME = "rainbow-sprinkles";
+    public static final String EIS_CHAT_PATH = "chat";
+
+    // gp-llm-v2
+    public static final String GP_LLM_V1_CHAT_COMPLETION_ENDPOINT_ID = ".gp-llm-v2-chat_completion";
+    public static final String GP_LLM_V1_MODEL_NAME = "gp-llm-v2";
 
     // elser-2
     public static final String ELSER_V2_ENDPOINT_ID = ".elser-2-elastic";
     public static final String ELSER_V2_MODEL_NAME = "elser_model_2";
+    public static final String EIS_SPARSE_PATH = "embed/text/sparse";
 
     // multilingual-text-embed
-    public static final String JINA_EMBED_ENDPOINT_ID = ".jina-embeddings-v3";
-    public static final String JINA_EMBED_MODEL_NAME = "jina-embeddings-v3";
+    public static final String JINA_EMBED_V3_ENDPOINT_ID = ".jina-embeddings-v3";
+    public static final String JINA_EMBED_V3_MODEL_NAME = "jina-embeddings-v3";
+    public static final String EIS_EMBED_PATH = "embed/text/dense";
 
     // rerank-v1
     public static final String RERANK_V1_ENDPOINT_ID = ".elastic-rerank-v1";
-    public static final String RERANK_V1_MODEL_NAME = "elastic-rerank-v2";
+    public static final String RERANK_V1_MODEL_NAME = "elastic-rerank-v1";
+    public static final String EIS_RERANK_PATH = "rerank/text/text-similarity";
 
     public record EisAuthorizationResponse(
         String responseJson,
@@ -79,7 +87,10 @@ public class AuthorizationResponseEntityTests extends AbstractBWCWireSerializati
             {
               "id": ".rainbow-sprinkles-elastic",
               "model_name": "rainbow-sprinkles",
-              "task_type": "chat_completion",
+              "task_types": {
+                "eis": "chat",
+                "elasticsearch": "chat_completion"
+              },
               "status": "ga",
               "properties": [
                 "multilingual"
@@ -97,7 +108,10 @@ public class AuthorizationResponseEntityTests extends AbstractBWCWireSerializati
             {
               "id": ".jina-embeddings-v3",
               "model_name": "jina-embeddings-v3",
-              "task_type": "text_embedding",
+              "task_types": {
+                "eis": "embed/text/dense",
+                "elasticsearch": "text_embedding"
+              },
               "status": "beta",
               "properties": [
                 "multilingual",
@@ -125,7 +139,10 @@ public class AuthorizationResponseEntityTests extends AbstractBWCWireSerializati
             {
               "id": ".elser-2-elastic",
               "model_name": "elser_model_2",
-              "task_type": "sparse_embedding",
+              "task_types": {
+                "eis": "embed/text/sparse",
+                "elasticsearch": "sparse_embedding"
+              },
               "status": "preview",
               "properties": [
                 "english"
@@ -149,7 +166,10 @@ public class AuthorizationResponseEntityTests extends AbstractBWCWireSerializati
             {
               "id": ".rainbow-sprinkles-elastic",
               "model_name": "rainbow-sprinkles",
-              "task_type": "chat_completion",
+              "task_types": {
+                "eis": "chat",
+                "elasticsearch": "chat_completion"
+              },
               "status": "ga",
               "properties": [
                 "multilingual"
@@ -158,9 +178,25 @@ public class AuthorizationResponseEntityTests extends AbstractBWCWireSerializati
               "end_of_life_date": "2025-12-31"
             },
             {
+              "id": ".gp-llm-v2-chat_completion",
+              "model_name": "gp-llm-v2",
+              "task_types": {
+                "eis": "chat",
+                "elasticsearch": "chat_completion"
+              },
+              "status": "ga",
+              "properties": [
+                "multilingual"
+              ],
+              "release_date": "2024-05-01"
+            },
+            {
               "id": ".elser-2-elastic",
               "model_name": "elser_model_2",
-              "task_type": "sparse_embedding",
+              "task_types": {
+                "eis": "embed/text/sparse",
+                "elasticsearch": "sparse_embedding"
+              },
               "status": "preview",
               "properties": [
                 "english"
@@ -177,7 +213,10 @@ public class AuthorizationResponseEntityTests extends AbstractBWCWireSerializati
             {
               "id": ".jina-embeddings-v3",
               "model_name": "jina-embeddings-v3",
-              "task_type": "text_embedding",
+              "task_types": {
+                "eis": "embed/text/dense",
+                "elasticsearch": "text_embedding"
+              },
               "status": "beta",
               "properties": [
                 "multilingual",
@@ -198,7 +237,10 @@ public class AuthorizationResponseEntityTests extends AbstractBWCWireSerializati
             {
               "id": ".elastic-rerank-v1",
               "model_name": "elastic-rerank-v1",
-              "task_type": "rerank",
+              "task_types": {
+                "eis": "rerank/text/text-similarity",
+                "elasticsearch": "rerank"
+              },
               "status": "preview",
               "properties": [],
               "release_date": "2024-05-01"
@@ -237,7 +279,7 @@ public class AuthorizationResponseEntityTests extends AbstractBWCWireSerializati
         return new AuthorizationResponseEntity.AuthorizedEndpoint(
             ELSER_V2_ENDPOINT_ID,
             ELSER_V2_MODEL_NAME,
-            "sparse_embedding",
+            createTaskTypeObject(EIS_SPARSE_PATH, "sparse_embedding"),
             "preview",
             List.of("english"),
             "2024-05-01",
@@ -251,15 +293,20 @@ public class AuthorizationResponseEntityTests extends AbstractBWCWireSerializati
         );
     }
 
+    public static AuthorizationResponseEntity.TaskTypeObject createTaskTypeObject(String eisTaskType, String elasticsearchTaskType) {
+        return new AuthorizationResponseEntity.TaskTypeObject(eisTaskType, elasticsearchTaskType);
+    }
+
     public static EisAuthorizationResponse getEisAuthorizationResponseWithMultipleEndpoints(String url) {
         var authorizedEndpoints = List.of(
             createRainbowSprinklesAuthorizedEndpoint(),
+            createGpLlmV2AuthorizedEndpoint(),
             createElserAuthorizedEndpoint(),
             createJinaEmbedAuthorizedEndpoint(),
             new AuthorizationResponseEntity.AuthorizedEndpoint(
                 RERANK_V1_ENDPOINT_ID,
                 RERANK_V1_MODEL_NAME,
-                "rerank",
+                createTaskTypeObject(EIS_RERANK_PATH, "rerank"),
                 "preview",
                 List.of(),
                 "2024-05-01",
@@ -275,6 +322,7 @@ public class AuthorizationResponseEntityTests extends AbstractBWCWireSerializati
             new AuthorizationResponseEntity(authorizedEndpoints),
             List.of(
                 createRainbowSprinklesExpectedEndpoint(url),
+                createGpLlmV2ExpectedEndpoint(url),
                 createElserExpectedEndpoint(url),
                 createJinaExpectedEndpoint(url),
                 new ElasticInferenceServiceRerankModel(
@@ -293,9 +341,9 @@ public class AuthorizationResponseEntityTests extends AbstractBWCWireSerializati
 
     private static AuthorizationResponseEntity.AuthorizedEndpoint createRainbowSprinklesAuthorizedEndpoint() {
         return new AuthorizationResponseEntity.AuthorizedEndpoint(
-            RAINBOW_SPRINKLES_ENDPOINT_ID_V1,
+            RAINBOW_SPRINKLES_ENDPOINT_ID,
             RAINBOW_SPRINKLES_MODEL_NAME,
-            "chat_completion",
+            createTaskTypeObject(EIS_CHAT_PATH, "chat_completion"),
             "ga",
             List.of("multilingual"),
             "2024-05-01",
@@ -304,9 +352,34 @@ public class AuthorizationResponseEntityTests extends AbstractBWCWireSerializati
         );
     }
 
+    private static ElasticInferenceServiceModel createGpLlmV2ExpectedEndpoint(String url) {
+        return new ElasticInferenceServiceCompletionModel(
+            GP_LLM_V1_CHAT_COMPLETION_ENDPOINT_ID,
+            TaskType.CHAT_COMPLETION,
+            ElasticInferenceService.NAME,
+            new ElasticInferenceServiceCompletionServiceSettings(GP_LLM_V1_MODEL_NAME),
+            EmptyTaskSettings.INSTANCE,
+            EmptySecretSettings.INSTANCE,
+            new ElasticInferenceServiceComponents(url)
+        );
+    }
+
+    private static AuthorizationResponseEntity.AuthorizedEndpoint createGpLlmV2AuthorizedEndpoint() {
+        return new AuthorizationResponseEntity.AuthorizedEndpoint(
+            GP_LLM_V1_CHAT_COMPLETION_ENDPOINT_ID,
+            GP_LLM_V1_MODEL_NAME,
+            createTaskTypeObject(EIS_CHAT_PATH, "chat_completion"),
+            "ga",
+            List.of("multilingual"),
+            "2024-05-01",
+            null,
+            null
+        );
+    }
+
     private static ElasticInferenceServiceModel createRainbowSprinklesExpectedEndpoint(String url) {
         return new ElasticInferenceServiceCompletionModel(
-            RAINBOW_SPRINKLES_ENDPOINT_ID_V1,
+            RAINBOW_SPRINKLES_ENDPOINT_ID,
             TaskType.CHAT_COMPLETION,
             ElasticInferenceService.NAME,
             new ElasticInferenceServiceCompletionServiceSettings(RAINBOW_SPRINKLES_MODEL_NAME),
@@ -344,9 +417,9 @@ public class AuthorizationResponseEntityTests extends AbstractBWCWireSerializati
 
     private static AuthorizationResponseEntity.AuthorizedEndpoint createJinaEmbedAuthorizedEndpoint() {
         return new AuthorizationResponseEntity.AuthorizedEndpoint(
-            JINA_EMBED_ENDPOINT_ID,
-            JINA_EMBED_MODEL_NAME,
-            "text_embedding",
+            JINA_EMBED_V3_ENDPOINT_ID,
+            JINA_EMBED_V3_MODEL_NAME,
+            createTaskTypeObject(EIS_EMBED_PATH, "text_embedding"),
             "beta",
             List.of("multilingual", "open-weights"),
             "2024-05-01",
@@ -362,10 +435,10 @@ public class AuthorizationResponseEntityTests extends AbstractBWCWireSerializati
 
     private static ElasticInferenceServiceModel createJinaExpectedEndpoint(String url) {
         return new ElasticInferenceServiceDenseTextEmbeddingsModel(
-            JINA_EMBED_ENDPOINT_ID,
+            JINA_EMBED_V3_ENDPOINT_ID,
             TaskType.TEXT_EMBEDDING,
             ElasticInferenceService.NAME,
-            new ElasticInferenceServiceDenseTextEmbeddingsServiceSettings(JINA_EMBED_MODEL_NAME, SimilarityMeasure.COSINE, 1024, null),
+            new ElasticInferenceServiceDenseTextEmbeddingsServiceSettings(JINA_EMBED_V3_MODEL_NAME, SimilarityMeasure.COSINE, 1024, null),
             EmptyTaskSettings.INSTANCE,
             EmptySecretSettings.INSTANCE,
             new ElasticInferenceServiceComponents(url),
@@ -388,7 +461,7 @@ public class AuthorizationResponseEntityTests extends AbstractBWCWireSerializati
             case CHAT_COMPLETION -> new AuthorizationResponseEntity.AuthorizedEndpoint(
                 id,
                 name,
-                TaskType.CHAT_COMPLETION.toString(),
+                createTaskTypeObject(EIS_CHAT_PATH, TaskType.CHAT_COMPLETION.toString()),
                 status,
                 null,
                 "",
@@ -398,7 +471,7 @@ public class AuthorizationResponseEntityTests extends AbstractBWCWireSerializati
             case SPARSE_EMBEDDING -> new AuthorizationResponseEntity.AuthorizedEndpoint(
                 id,
                 name,
-                TaskType.SPARSE_EMBEDDING.toString(),
+                createTaskTypeObject(EIS_SPARSE_PATH, TaskType.SPARSE_EMBEDDING.toString()),
                 status,
                 null,
                 "",
@@ -408,7 +481,7 @@ public class AuthorizationResponseEntityTests extends AbstractBWCWireSerializati
             case TEXT_EMBEDDING -> new AuthorizationResponseEntity.AuthorizedEndpoint(
                 id,
                 name,
-                TaskType.TEXT_EMBEDDING.toString(),
+                createTaskTypeObject(EIS_EMBED_PATH, TaskType.TEXT_EMBEDDING.toString()),
                 status,
                 null,
                 "",
@@ -423,7 +496,7 @@ public class AuthorizationResponseEntityTests extends AbstractBWCWireSerializati
             case RERANK -> new AuthorizationResponseEntity.AuthorizedEndpoint(
                 id,
                 name,
-                TaskType.RERANK.toString(),
+                createTaskTypeObject(EIS_RERANK_PATH, TaskType.RERANK.toString()),
                 status,
                 null,
                 "",
@@ -433,7 +506,7 @@ public class AuthorizationResponseEntityTests extends AbstractBWCWireSerializati
             case COMPLETION -> new AuthorizationResponseEntity.AuthorizedEndpoint(
                 id,
                 name,
-                TaskType.COMPLETION.toString(),
+                createTaskTypeObject(EIS_CHAT_PATH, TaskType.COMPLETION.toString()),
                 status,
                 null,
                 "",

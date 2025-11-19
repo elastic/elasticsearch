@@ -70,7 +70,6 @@ import java.util.function.LongSupplier;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
-import static co.elastic.elasticsearch.stateless.autoscaling.indexing.IngestMetricsService.ACCURATE_LOAD_WINDOW;
 import static co.elastic.elasticsearch.stateless.autoscaling.indexing.IngestMetricsService.HIGH_INGESTION_LOAD_WEIGHT_DURING_SCALING;
 import static co.elastic.elasticsearch.stateless.autoscaling.indexing.IngestMetricsService.IngestMetricType.ADJUSTED;
 import static co.elastic.elasticsearch.stateless.autoscaling.indexing.IngestMetricsService.IngestMetricType.SINGLE;
@@ -79,7 +78,8 @@ import static co.elastic.elasticsearch.stateless.autoscaling.indexing.IngestMetr
 import static co.elastic.elasticsearch.stateless.autoscaling.indexing.IngestMetricsService.LOW_INGESTION_LOAD_WEIGHT_DURING_SCALING;
 import static co.elastic.elasticsearch.stateless.autoscaling.indexing.IngestMetricsService.MAX_UNDESIRED_SHARDS_PROPORTION_FOR_SCALE_DOWN;
 import static co.elastic.elasticsearch.stateless.autoscaling.indexing.IngestMetricsService.NODE_INGEST_LOAD_SNAPSHOTS_METRIC_NAME;
-import static co.elastic.elasticsearch.stateless.autoscaling.indexing.IngestMetricsService.STALE_LOAD_WINDOW;
+import static co.elastic.elasticsearch.stateless.autoscaling.indexing.NodeIngestionLoadTracker.ACCURATE_LOAD_WINDOW;
+import static co.elastic.elasticsearch.stateless.autoscaling.indexing.NodeIngestionLoadTracker.STALE_LOAD_WINDOW;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;

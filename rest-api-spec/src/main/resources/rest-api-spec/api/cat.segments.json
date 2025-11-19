@@ -65,7 +65,24 @@
       "h": {
         "type": "list",
         "default": "ip,hp,rp,r,m,n,cpu,l",
-        "description": "Comma-separated list of column names to display"
+        "description": "Comma-separated list of column names to display",
+        "options": [
+          "index",
+          "shard",
+          "prirep",
+          "ip",
+          "segment",
+          "generation",
+          "docs.count",
+          "docs.deleted",
+          "size",
+          "size.memory",
+          "committed",
+          "searchable",
+          "version",
+          "compound",
+          "id"
+        ]
       },
       "help": {
         "type": "boolean",

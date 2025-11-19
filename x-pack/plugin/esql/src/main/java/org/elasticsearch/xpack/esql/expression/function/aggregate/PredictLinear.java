@@ -67,13 +67,7 @@ public class PredictLinear extends TimeSeriesAggregateFunction implements ToAggr
         ) Expression t,
         Expression timestamp
     ) {
-        this(source, field, Literal.TRUE, NO_WINDOW, List.of(timestamp, t));
-    }
-
-    public PredictLinear(Source source, Expression field, Expression filter, Expression window, List<Expression> tsAndT) {
-        super(source, field, filter, window, tsAndT);
-        this.timestamp = tsAndT.getFirst();
-        this.t = tsAndT.get(1);
+        this(source, field, Literal.TRUE, NO_WINDOW, timestamp, t);
     }
 
     public PredictLinear(Source source, Expression field, Expression filter, Expression window, Expression ts, Expression t) {
@@ -83,13 +77,15 @@ public class PredictLinear extends TimeSeriesAggregateFunction implements ToAggr
     }
 
     private PredictLinear(org.elasticsearch.common.io.stream.StreamInput in) throws java.io.IOException {
-        this(
+        super(
             Source.readFrom((PlanStreamInput) in),
             in.readNamedWriteable(Expression.class),
             in.readNamedWriteable(Expression.class),
             in.readNamedWriteable(Expression.class),
             in.readNamedWriteableCollectionAsList(Expression.class)
         );
+        this.t = children().get(4);
+        this.timestamp = children().get(3);
     }
 
     @Override
@@ -99,7 +95,7 @@ public class PredictLinear extends TimeSeriesAggregateFunction implements ToAggr
 
     @Override
     public AggregateFunction withFilter(Expression filter) {
-        return new PredictLinear(source(), field(), filter, window(), List.of(timestamp, t));
+        return new PredictLinear(source(), field(), filter, window(), timestamp, t);
     }
 
     @Override
@@ -114,13 +110,14 @@ public class PredictLinear extends TimeSeriesAggregateFunction implements ToAggr
             newChildren.get(0),
             newChildren.get(1),
             newChildren.get(2),
-            List.of(newChildren.get(3), newChildren.get(4))
+            newChildren.get(3),
+            newChildren.get(4)
         );
     }
 
     @Override
     protected NodeInfo<? extends Expression> info() {
-        return NodeInfo.create(this, PredictLinear::new, field(), filter(), window(), List.of(timestamp, t));
+        return NodeInfo.create(this, PredictLinear::new, field(), filter(), window(), timestamp, t);
     }
 
     @Override

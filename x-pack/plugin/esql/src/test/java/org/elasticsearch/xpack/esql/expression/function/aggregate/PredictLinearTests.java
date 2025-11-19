@@ -58,7 +58,7 @@ public class PredictLinearTests extends AbstractFunctionTestCase {
 
     @Override
     protected Expression build(Source source, List<Expression> args) {
-        return new PredictLinear(source, args.get(0), Literal.TRUE, AggregateFunction.NO_WINDOW, List.of(args.get(1), args.get(2)));
+        return new PredictLinear(source, args.get(0), Literal.TRUE, AggregateFunction.NO_WINDOW, args.get(1), args.get(2));
     }
 
     @SuppressWarnings("unchecked")

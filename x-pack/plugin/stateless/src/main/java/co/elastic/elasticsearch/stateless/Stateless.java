@@ -41,6 +41,7 @@ import co.elastic.elasticsearch.stateless.autoscaling.indexing.IngestLoadProbe;
 import co.elastic.elasticsearch.stateless.autoscaling.indexing.IngestLoadPublisher;
 import co.elastic.elasticsearch.stateless.autoscaling.indexing.IngestLoadSampler;
 import co.elastic.elasticsearch.stateless.autoscaling.indexing.IngestMetricsService;
+import co.elastic.elasticsearch.stateless.autoscaling.indexing.NodeIngestionLoadTracker;
 import co.elastic.elasticsearch.stateless.autoscaling.indexing.TransportPublishNodeIngestLoadMetric;
 import co.elastic.elasticsearch.stateless.autoscaling.memory.HeapMemoryUsagePublisher;
 import co.elastic.elasticsearch.stateless.autoscaling.memory.IndexingOperationsMemoryRequirementsSampler;
@@ -1140,8 +1141,8 @@ public class Stateless extends Plugin
             MemoryMetricsService.SELF_REPORTED_SHARD_MEMORY_OVERHEAD_ENABLED_SETTING,
             IngestLoadSampler.MAX_TIME_BETWEEN_METRIC_PUBLICATIONS_SETTING,
             IngestLoadSampler.MIN_SENSITIVITY_RATIO_FOR_PUBLICATION_SETTING,
-            IngestMetricsService.ACCURATE_LOAD_WINDOW,
-            IngestMetricsService.STALE_LOAD_WINDOW,
+            NodeIngestionLoadTracker.ACCURATE_LOAD_WINDOW,
+            NodeIngestionLoadTracker.STALE_LOAD_WINDOW,
             IngestMetricsService.LOW_INGESTION_LOAD_WEIGHT_DURING_SCALING,
             IngestMetricsService.HIGH_INGESTION_LOAD_WEIGHT_DURING_SCALING,
             IngestMetricsService.LOAD_ADJUSTMENT_AFTER_SCALING_WINDOW,

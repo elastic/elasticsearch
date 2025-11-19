@@ -1855,25 +1855,25 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
     public void testParamsWithLike() throws IOException {
         assumeTrue("like parameter support", EsqlCapabilities.Cap.LIKE_PARAMETER_SUPPORT.isEnabled());
         bulkLoadTestData(11);
-        var query = requestObjectBuilder().query(format(null, "from {} | where keyword like ?pattern | keep keyword", testIndexName()))
-            .params("[{\"pattern\" : \"key*0\"}]");
-        Map<String, Object> result = runEsql(query);
+        var anonymous_query = requestObjectBuilder().query(format(null, "from {} | where keyword like ? | keep keyword | sort keyword", testIndexName()))
+            .params("[\"key*0\"]");
+        Map<String, Object> result = runEsql(anonymous_query);
         assertEquals(List.of(List.of("keyword0"), List.of("keyword10")), result.get("values"));
     }
 
     public void testParamsWithLikeList() throws IOException {
         assumeTrue("like parameter support", EsqlCapabilities.Cap.LIKE_PARAMETER_SUPPORT.isEnabled());
         bulkLoadTestData(11);
-        var query = requestObjectBuilder().query(format(null, "from {} | where keyword like (?p1, ?p2) | keep keyword", testIndexName()))
-            .params("[{\"p1\" : \"key*0\"}, {\"p2\" : \"key*1\"}]");
-        Map<String, Object> result = runEsql(query);
+        var positional_query = requestObjectBuilder().query(format(null, "from {} | where keyword like (?1, ?2) | keep keyword | sort keyword", testIndexName()))
+            .params("[\"key*0\", \"key*1\"]");
+        Map<String, Object> result = runEsql(positional_query);
         assertEquals(List.of(List.of("keyword0"), List.of("keyword1"), List.of("keyword10")), result.get("values"));
     }
 
     public void testParamsWithRLike() throws IOException {
         assumeTrue("like parameter support", EsqlCapabilities.Cap.LIKE_PARAMETER_SUPPORT.isEnabled());
         bulkLoadTestData(11);
-        var query = requestObjectBuilder().query(format(null, "from {} | where keyword rlike ?pattern | keep keyword", testIndexName()))
+        var query = requestObjectBuilder().query(format(null, "from {} | where keyword rlike ?pattern | keep keyword | sort keyword", testIndexName()))
             .params("[{\"pattern\" : \"key.*0\"}]");
         Map<String, Object> result = runEsql(query);
         assertEquals(List.of(List.of("keyword0"), List.of("keyword10")), result.get("values"));
@@ -1882,7 +1882,7 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
     public void testParamsWithRLikeList() throws IOException {
         assumeTrue("like parameter support", EsqlCapabilities.Cap.LIKE_PARAMETER_SUPPORT.isEnabled());
         bulkLoadTestData(11);
-        var query = requestObjectBuilder().query(format(null, "from {} | where keyword rlike (?p1, ?p2) | keep keyword", testIndexName()))
+        var query = requestObjectBuilder().query(format(null, "from {} | where keyword rlike (?p1, ?p2) | keep keyword | sort keyword", testIndexName()))
             .params("[{\"p1\" : \"key.*0\"}, {\"p2\" : \"key.*1\"}]");
         Map<String, Object> result = runEsql(query);
         assertEquals(List.of(List.of("keyword0"), List.of("keyword1"), List.of("keyword10")), result.get("values"));

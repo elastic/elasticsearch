@@ -135,7 +135,8 @@ public class TransportPutInferenceModelAction extends TransportMasterNodeAction<
                 new ElasticsearchStatusException(
                     "task_type ["
                         + TaskType.EMBEDDING
-                        + "] is not supported by all nodes in the cluster; please complete upgrades before creating an endpoint with this task_type",
+                        + "] is not supported by all nodes in the cluster; "
+                        + "please complete upgrades before creating an endpoint with this task_type",
                     RestStatus.BAD_REQUEST
                 )
             );

@@ -56,7 +56,7 @@ public class AuthorizationResponseEntityTests extends AbstractBWCWireSerializati
         {
           "inference_endpoints": [
             {
-              "id": ".elastic-elser-v2",
+              "id": ".elser-2-elastic",
               "model_name": "elser_model_2",
               "task_type": "sparse_embedding",
               "status": "preview",
@@ -91,7 +91,7 @@ public class AuthorizationResponseEntityTests extends AbstractBWCWireSerializati
               "end_of_life_date": "2025-12-31"
             },
             {
-              "id": ".elastic-elser-v2",
+              "id": ".elser-2-elastic",
               "model_name": "elser_model_2",
               "task_type": "sparse_embedding",
               "status": "preview",

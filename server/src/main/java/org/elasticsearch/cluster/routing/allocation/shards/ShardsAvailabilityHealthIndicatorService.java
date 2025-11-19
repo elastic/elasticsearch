@@ -196,20 +196,27 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
         boolean verbose,
         TimeValue replicaUnassignedBufferTime
     ) {
-        for (Map.Entry<ProjectId, RoutingTable> entries : state.globalRoutingTable().routingTables().entrySet()) {
-            ProjectId projectId = entries.getKey();
-            RoutingTable projectRoutingTable = entries.getValue();
+        // Sort projects by ID
+        state.globalRoutingTable().routingTables().entrySet().stream()
+            .sorted(Map.Entry.comparingByKey((p1, p2) -> p1.toString().compareTo(p2.toString())))
+            .forEach(projectEntry -> {
+                ProjectId projectId = projectEntry.getKey();
+                RoutingTable projectRoutingTable = projectEntry.getValue();
 
-            for (IndexRoutingTable indexShardRouting : projectRoutingTable.indicesRouting().values()) {
-                for (int i = 0; i < indexShardRouting.size(); i++) {
-                    IndexShardRoutingTable shardRouting = indexShardRouting.shard(i);
-                    status.addPrimary(projectId, shardRouting.primaryShard(), state, shutdown, verbose);
-                    for (ShardRouting replicaShard : shardRouting.replicaShards()) {
-                        status.addReplica(projectId, replicaShard, state, shutdown, verbose, replicaUnassignedBufferTime);
-                    }
-                }
-            }
-        }
+                // Sort indices by name
+                projectRoutingTable.indicesRouting().entrySet().stream()
+                    .sorted(Map.Entry.comparingByKey())
+                    .forEach(indexEntry -> {
+                        IndexRoutingTable indexShardRouting = indexEntry.getValue();
+                        for (int i = 0; i < indexShardRouting.size(); i++) {
+                            IndexShardRoutingTable shardRouting = indexShardRouting.shard(i);
+                            status.addPrimary(projectId, shardRouting.primaryShard(), state, shutdown, verbose);
+                            for (ShardRouting replicaShard : shardRouting.replicaShards()) {
+                                status.addReplica(projectId, replicaShard, state, shutdown, verbose, replicaUnassignedBufferTime);
+                            }
+                        }
+                    });
+            });
 
         status.updateSearchableSnapshotsOfAvailableIndices();
     }
@@ -1199,40 +1206,39 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
                 if (diagnosisToAffectedIndices.isEmpty()) {
                     return List.of();
                 } else {
-
                     return diagnosisToAffectedIndices.entrySet().stream().map(e -> {
-                        List<Diagnosis.Resource> affectedResources = new ArrayList<>(1);
-                        if (e.getKey().equals(ACTION_RESTORE_FROM_SNAPSHOT)) {
-                            Set<ProjectIndexName> restoreFromSnapshotIndices = e.getValue();
-                            if (restoreFromSnapshotIndices != null && restoreFromSnapshotIndices.isEmpty() == false) {
-                                affectedResources = getRestoreFromSnapshotAffectedResources(
-                                    clusterMetadata,
-                                    systemIndices,
-                                    restoreFromSnapshotIndices,
-                                    maxAffectedResourcesCount,
-                                    projectResolver.supportsMultipleProjects()
+                            List<Diagnosis.Resource> affectedResources = new ArrayList<>(1);
+                            if (e.getKey().equals(ACTION_RESTORE_FROM_SNAPSHOT)) {
+                                Set<ProjectIndexName> restoreFromSnapshotIndices = e.getValue();
+                                if (restoreFromSnapshotIndices != null && restoreFromSnapshotIndices.isEmpty() == false) {
+                                    affectedResources = getRestoreFromSnapshotAffectedResources(
+                                        clusterMetadata,
+                                        systemIndices,
+                                        restoreFromSnapshotIndices,
+                                        maxAffectedResourcesCount,
+                                        projectResolver.supportsMultipleProjects()
+                                    );
+                                }
+                            } else {
+                                affectedResources.add(
+                                    new Diagnosis.Resource(
+                                        INDEX,
+                                        e.getValue()
+                                            .stream()
+                                            .sorted(
+                                                indicesComparatorByPriorityAndProjectIndex(
+                                                    clusterMetadata,
+                                                    projectResolver.supportsMultipleProjects()
+                                                )
+                                            )
+                                            .map(projectIndex -> projectIndex.toString(projectResolver.supportsMultipleProjects()))
+                                            .limit(Math.min(e.getValue().size(), maxAffectedResourcesCount))
+                                            .collect(Collectors.toList())
+                                    )
                                 );
                             }
-                        } else {
-                            affectedResources.add(
-                                new Diagnosis.Resource(
-                                    INDEX,
-                                    e.getValue()
-                                        .stream()
-                                        .sorted(
-                                            indicesComparatorByPriorityAndProjectIndex(
-                                                clusterMetadata,
-                                                projectResolver.supportsMultipleProjects()
-                                            )
-                                        )
-                                        .map(projectIndex -> projectIndex.toString(projectResolver.supportsMultipleProjects()))
-                                        .limit(Math.min(e.getValue().size(), maxAffectedResourcesCount))
-                                        .collect(Collectors.toList())
-                                )
-                            );
-                        }
-                        return new Diagnosis(e.getKey(), affectedResources);
-                    }).collect(Collectors.toList());
+                            return new Diagnosis(e.getKey(), affectedResources);
+                        }).collect(Collectors.toList());
                 }
             } else {
                 return List.of();

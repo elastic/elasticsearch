@@ -860,5 +860,5 @@ error on rename timestamp:
             | RENAME @timestamp AS newTs
             | STATS max(rate(k8s.pod.network.tx))  BY tbucket = bucket(newTs, 1hour)
 
-  - match: { error.reason: '/(verification_exception:\ )?Found\ 1\ problem\nline\ 3:13:\ Rate\ aggregation\ requires\ @timestamp\ field,\ but\ @timestamp\ was\ renamed\ or\ dropped/' }
+  - match: { error.reason: '/(verification_exception:\ )?Found\ 1\ problem\nline\ 3:13:\ \[rate\(k8s.pod.network.tx\)\]\ requires\ the\ \[@timestamp\]\ field,\ which\ was\ either\ not\ present\ in\ the\ source\ index,\ or\ has\ been\ dropped\ or\ renamed/' }
 

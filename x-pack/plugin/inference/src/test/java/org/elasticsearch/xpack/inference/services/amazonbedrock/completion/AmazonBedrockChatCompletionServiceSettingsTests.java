@@ -117,7 +117,18 @@ public class AmazonBedrockChatCompletionServiceSettingsTests extends AbstractBWC
     @Override
     protected AmazonBedrockChatCompletionServiceSettings mutateInstance(AmazonBedrockChatCompletionServiceSettings instance)
         throws IOException {
-        return randomValueOtherThan(instance, AmazonBedrockChatCompletionServiceSettingsTests::createRandom);
+        var region = instance.region();
+        var modelId = instance.modelId();
+        var provider = instance.provider();
+        var rateLimitSettings = instance.rateLimitSettings();
+        switch (randomInt(3)) {
+            case 0 -> region = randomValueOtherThan(region, () -> randomAlphaOfLength(10));
+            case 1 -> modelId = randomValueOtherThan(modelId, () -> randomAlphaOfLength(10));
+            case 2 -> provider = randomValueOtherThan(provider, () -> randomFrom(AmazonBedrockProvider.values()));
+            case 3 -> rateLimitSettings = randomValueOtherThan(rateLimitSettings, RateLimitSettingsTests::createRandom);
+            default -> throw new AssertionError("Illegal randomisation branch");
+        }
+        return new AmazonBedrockChatCompletionServiceSettings(region, modelId, provider, rateLimitSettings);
     }
 
     private static AmazonBedrockChatCompletionServiceSettings createRandom() {

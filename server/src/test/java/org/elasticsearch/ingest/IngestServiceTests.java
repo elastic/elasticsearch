@@ -3403,7 +3403,7 @@ public class IngestServiceTests extends ESTestCase {
         );
         verify(listener, times(1)).onResponse(null);
         // In the case where there is a pipeline, or there is a pipeline failure, there will be an IngestDocument so this verion is called:
-        verify(samplingService, times(2)).maybeSample(any(), any(), any(), any());
+        verify(samplingService, times(2)).maybeSample(any(), any(), any());
         // When there is no pipeline, we have no IngestDocument, and the maybeSample that does not require an IngestDocument is called:
         verify(samplingService, times(1)).maybeSample(any(), any());
     }

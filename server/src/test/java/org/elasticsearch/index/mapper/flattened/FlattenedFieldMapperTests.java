@@ -1016,4 +1016,9 @@ public class FlattenedFieldMapperTests extends MapperTestCase {
             assertFalse(info, rightIterator.hasNext());
         }
     }
+
+    @Override
+    protected List<SortShortcutSupport> getSortShortcutSupport() {
+        return List.of(new SortShortcutSupport(this::minimalMapping, this::writeField, true));
+    }
 }

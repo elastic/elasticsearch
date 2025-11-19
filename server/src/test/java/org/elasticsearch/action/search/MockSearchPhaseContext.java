@@ -30,6 +30,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
@@ -69,7 +70,8 @@ public final class MockSearchPhaseContext extends AbstractSearchAsyncAction<Sear
             new ArraySearchPhaseResults<>(numShards),
             5,
             null,
-            new SearchResponseMetrics(TelemetryProvider.NOOP.getMeterRegistry())
+            new SearchResponseMetrics(TelemetryProvider.NOOP.getMeterRegistry()),
+            Map.of()
         );
         this.numShards = numShards;
         numSuccess = new AtomicInteger(numShards);

@@ -51,7 +51,7 @@ public abstract class AcknowledgedRequest<Request extends MasterNodeRequest<Requ
      *                   and serializing it as a transport message). If the cluster state is committed (i.e. a quorum of master-eligible
      *                   nodes have accepted the new state) and then the timeout elapses then the corresponding listener is completed via
      *                   {@link org.elasticsearch.cluster.ClusterStateAckListener#onAckTimeout()}. Although the time interval is measured
-     *                   from the start of the publication, it does not have any effect until the cluster state is not committed:
+     *                   from the start of the publication, it does not have any effect until the cluster state is committed:
      *                   <ul>
      *                       <li>
      *                          If the cluster state update fails before committing then the failure is always reported via

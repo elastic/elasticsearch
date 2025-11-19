@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.date;
 import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
-import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateUtils;
@@ -35,6 +34,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.function.Supplier;
 
+import static org.elasticsearch.test.ReadableMatchers.matchesBytesRef;
 import static org.hamcrest.Matchers.equalTo;
 
 public class MonthNameTests extends AbstractConfigurationFunctionTestCase {
@@ -51,25 +51,32 @@ public class MonthNameTests extends AbstractConfigurationFunctionTestCase {
     @ParametersFactory
     public static Iterable<Object[]> parameters() {
         List<TestCaseSupplier> suppliers = new ArrayList<>();
-        suppliers.addAll(generateTest("1994-01-19T00:00:00.00Z", "January"));
-        suppliers.addAll(generateTest("1995-02-20T23:59:59.99Z", "February"));
-        suppliers.addAll(generateTest("1996-03-21T23:12:32.12Z", "March"));
-        suppliers.addAll(generateTest("1997-04-22T07:39:01.28Z", "April"));
-        suppliers.addAll(generateTest("1998-05-23T10:25:33.38Z", "May"));
-        suppliers.addAll(generateTest("1999-06-24T22:55:33.82Z", "June"));
-        suppliers.addAll(generateTest("2000-07-25T01:01:29.49Z", "July"));
-        suppliers.addAll(generateTest("2001-08-25T01:01:29.49Z", "August"));
-        suppliers.addAll(generateTest("2002-09-25T01:01:29.49Z", "September"));
-        suppliers.addAll(generateTest("2003-10-25T01:01:29.49Z", "October"));
-        suppliers.addAll(generateTest("2004-11-25T01:01:29.49Z", "November"));
-        suppliers.addAll(generateTest("2005-12-25T01:01:29.49Z", "December"));
+        suppliers.addAll(generateTest("1994-01-19T00:00:00.00Z", "January", "Z", "en"));
+        suppliers.addAll(generateTest("1995-02-20T23:59:59.99Z", "February", "Z", "en"));
+        suppliers.addAll(generateTest("1996-03-21T23:12:32.12Z", "March", "Z", "en"));
+        suppliers.addAll(generateTest("1997-04-22T07:39:01.28Z", "April", "Z", "en"));
+        suppliers.addAll(generateTest("1998-05-23T10:25:33.38Z", "May", "Z", "en"));
+        suppliers.addAll(generateTest("1999-06-24T22:55:33.82Z", "June", "Z", "en"));
+        suppliers.addAll(generateTest("2000-07-25T01:01:29.49Z", "July", "Z", "en"));
+        suppliers.addAll(generateTest("2001-08-25T01:01:29.49Z", "August", "Z", "en"));
+        suppliers.addAll(generateTest("2002-09-25T01:01:29.49Z", "September", "Z", "en"));
+        suppliers.addAll(generateTest("2003-10-25T01:01:29.49Z", "October", "Z", "en"));
+        suppliers.addAll(generateTest("2004-11-25T01:01:29.49Z", "November", "Z", "en"));
+        suppliers.addAll(generateTest("2005-12-25T01:01:29.49Z", "December", "Z", "en"));
+
+        // Other timezones and locales
+        suppliers.addAll(generateTest("2019-03-31T22:00:00.00Z", "April", "+05:00", "en"));
+        suppliers.addAll(generateTest("2019-03-01T00:00:00.00Z", "February", "America/New_York", "en"));
+        suppliers.addAll(generateTest("2019-03-11T00:00:00.00Z", "marzo", "Z", "es"));
+        suppliers.addAll(generateTest("2019-03-01T00:00:00.00Z", "febrero", "America/New_York", "es"));
 
         suppliers.add(
             new TestCaseSupplier(
+                "Null",
                 List.of(DataType.DATETIME),
                 () -> new TestCaseSupplier.TestCase(
                     List.of(new TestCaseSupplier.TypedData(null, DataType.DATETIME, "date")),
-                    Matchers.startsWith("MonthNameMillisEvaluator[val=Attribute[channel=0], zoneId=Z, locale=en_US]"),
+                    Matchers.startsWith("MonthNameMillisEvaluator[val=Attribute[channel=0], zoneId="),
                     DataType.KEYWORD,
                     equalTo(null)
                 )
@@ -79,25 +86,29 @@ public class MonthNameTests extends AbstractConfigurationFunctionTestCase {
         return parameterSuppliersFromTypedDataWithDefaultChecks(true, suppliers);
     }
 
-    private static List<TestCaseSupplier> generateTest(String dateTime, String expectedMonthName) {
+    private static List<TestCaseSupplier> generateTest(String dateTime, String expectedMonthName, String zoneIdString, String localeTag) {
+        ZoneId zoneId = ZoneId.of(zoneIdString);
+        Locale locale = Locale.forLanguageTag(localeTag);
         return List.of(
             new TestCaseSupplier(
+                expectedMonthName,
                 List.of(DataType.DATETIME),
                 () -> new TestCaseSupplier.TestCase(
                     List.of(new TestCaseSupplier.TypedData(toMillis(dateTime), DataType.DATETIME, "date")),
-                    Matchers.startsWith("MonthNameMillisEvaluator[val=Attribute[channel=0], zoneId=Z, locale=en_US]"),
+                    Matchers.startsWith("MonthNameMillisEvaluator[val=Attribute[channel=0], zoneId=" + zoneId + ", locale=" + locale + "]"),
                     DataType.KEYWORD,
-                    equalTo(new BytesRef(expectedMonthName))
-                )
+                    matchesBytesRef(expectedMonthName)
+                ).withConfiguration(TestCaseSupplier.TEST_SOURCE, configurationForTimezoneAndLocale(zoneId, locale))
             ),
             new TestCaseSupplier(
+                expectedMonthName,
                 List.of(DataType.DATE_NANOS),
                 () -> new TestCaseSupplier.TestCase(
                     List.of(new TestCaseSupplier.TypedData(toNanos(dateTime), DataType.DATE_NANOS, "date")),
-                    Matchers.is("MonthNameNanosEvaluator[val=Attribute[channel=0], zoneId=Z, locale=en_US]"),
+                    Matchers.is("MonthNameNanosEvaluator[val=Attribute[channel=0], zoneId=" + zoneId + ", locale=" + locale + "]"),
                     DataType.KEYWORD,
-                    equalTo(new BytesRef(expectedMonthName))
-                )
+                    matchesBytesRef(expectedMonthName)
+                ).withConfiguration(TestCaseSupplier.TEST_SOURCE, configurationForTimezoneAndLocale(zoneId, locale))
             )
         );
     }

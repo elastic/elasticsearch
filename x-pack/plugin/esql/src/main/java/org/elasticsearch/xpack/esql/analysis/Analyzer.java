@@ -77,6 +77,7 @@ import org.elasticsearch.xpack.esql.expression.function.aggregate.SumOverTime;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.SummationMode;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Values;
 import org.elasticsearch.xpack.esql.expression.function.grouping.GroupingFunction;
+import org.elasticsearch.xpack.esql.expression.function.inference.CompletionFunction;
 import org.elasticsearch.xpack.esql.expression.function.inference.InferenceFunction;
 import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlScalarFunction;
 import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.Case;
@@ -501,63 +502,23 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 childrenOutput.addAll(output);
             }
 
-            if (plan instanceof Aggregate aggregate) {
-                return resolveAggregate(aggregate, childrenOutput);
-            }
-
-            if (plan instanceof Completion c) {
-                return resolveCompletion(c, childrenOutput);
-            }
-
-            if (plan instanceof Drop d) {
-                return resolveDrop(d, childrenOutput);
-            }
-
-            if (plan instanceof Rename r) {
-                return resolveRename(r, childrenOutput);
-            }
-
-            if (plan instanceof Keep p) {
-                return resolveKeep(p, childrenOutput);
-            }
-
-            if (plan instanceof Fork f) {
-                return resolveFork(f, context);
-            }
-
-            if (plan instanceof Eval p) {
-                return resolveEval(p, childrenOutput);
-            }
-
-            if (plan instanceof Enrich p) {
-                return resolveEnrich(p, childrenOutput);
-            }
-
-            if (plan instanceof MvExpand p) {
-                return resolveMvExpand(p, childrenOutput);
-            }
-
-            if (plan instanceof Lookup l) {
-                return resolveLookup(l, childrenOutput);
-            }
-
-            if (plan instanceof LookupJoin j) {
-                return resolveLookupJoin(j, context);
-            }
-
-            if (plan instanceof Insist i) {
-                return resolveInsist(i, childrenOutput, context);
-            }
-
-            if (plan instanceof Fuse fuse) {
-                return resolveFuse(fuse, childrenOutput);
-            }
-
-            if (plan instanceof Rerank r) {
-                return resolveRerank(r, childrenOutput);
-            }
-
-            return plan.transformExpressionsOnly(UnresolvedAttribute.class, ua -> maybeResolveAttribute(ua, childrenOutput));
+            return switch (plan) {
+                case Aggregate a -> resolveAggregate(a, childrenOutput);
+                case Completion c -> resolveCompletion(c, childrenOutput);
+                case Drop d -> resolveDrop(d, childrenOutput);
+                case Rename r -> resolveRename(r, childrenOutput);
+                case Keep p -> resolveKeep(p, childrenOutput);
+                case Fork f -> resolveFork(f, context);
+                case Eval p -> resolveEval(p, childrenOutput);
+                case Enrich p -> resolveEnrich(p, childrenOutput);
+                case MvExpand p -> resolveMvExpand(p, childrenOutput);
+                case Lookup l -> resolveLookup(l, childrenOutput);
+                case LookupJoin j -> resolveLookupJoin(j, context);
+                case Insist i -> resolveInsist(i, childrenOutput, context);
+                case Fuse fuse -> resolveFuse(fuse, childrenOutput);
+                case Rerank r -> resolveRerank(r, childrenOutput);
+                default -> plan.transformExpressionsOnly(UnresolvedAttribute.class, ua -> maybeResolveAttribute(ua, childrenOutput));
+            };
         }
 
         private Aggregate resolveAggregate(Aggregate aggregate, List<Attribute> childrenOutput) {
@@ -715,8 +676,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                                         + joinedAttribute.dataType().typeName()
                                         + "] and original column was ["
                                         + attr.dataType().typeName()
-                                        + "]",
-                                    null
+                                        + "]"
                                 );
                             }
                         }
@@ -1121,13 +1081,19 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             Expression aggFilter = new Literal(source, true, DataType.BOOLEAN);
 
             List<NamedExpression> aggregates = new ArrayList<>();
-            aggregates.add(new Alias(source, score.name(), new Sum(source, score, aggFilter, SummationMode.COMPENSATED_LITERAL)));
+            aggregates.add(
+                new Alias(
+                    source,
+                    score.name(),
+                    new Sum(source, score, aggFilter, AggregateFunction.NO_WINDOW, SummationMode.COMPENSATED_LITERAL)
+                )
+            );
 
             for (Attribute attr : childrenOutput) {
                 if (attr.name().equals(score.name())) {
                     continue;
                 }
-                var valuesAgg = new Values(source, attr, aggFilter);
+                var valuesAgg = new Values(source, attr, aggFilter, AggregateFunction.NO_WINDOW);
                 // Use VALUES only on supported fields.
                 // FuseScoreEval will check that the input contains only columns with supported data types
                 // and will fail with an appropriate error message if it doesn't.
@@ -1431,7 +1397,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
 
     private static List<Attribute> resolveAgainstList(UnresolvedAttribute ua, Collection<Attribute> attrList) {
         var matches = AnalyzerRules.maybeResolveAgainstList(ua, attrList, a -> Analyzer.handleSpecialFields(ua, a));
-        return potentialCandidatesIfNoMatchesFound(ua, matches, attrList, list -> UnresolvedAttribute.errorMessage(ua.name(), list));
+        return potentialCandidatesIfNoMatchesFound(ua, matches, attrList, ua::defaultUnresolvedMessage);
     }
 
     private static List<Attribute> potentialCandidatesIfNoMatchesFound(
@@ -1500,8 +1466,8 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
 
         @Override
         public LogicalPlan apply(LogicalPlan plan, AnalyzerContext context) {
-            return plan.transformDown(InferencePlan.class, p -> resolveInferencePlan(p, context))
-                .transformExpressionsOnly(InferenceFunction.class, f -> resolveInferenceFunction(f, context));
+            return plan.transformExpressionsOnly(InferenceFunction.class, f -> resolveInferenceFunction(f, context))
+                .transformDown(InferencePlan.class, p -> resolveInferencePlan(p, context));
         }
 
         private LogicalPlan resolveInferencePlan(InferencePlan<?> plan, AnalyzerContext context) {
@@ -1526,6 +1492,28 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                     + plan.taskType()
                     + "] are supported.";
                 return plan.withInferenceResolutionError(inferenceId, error);
+            }
+
+            if (plan.isFoldable()) {
+                // Transform foldable InferencePlan to Eval with function call
+                return transformToEval(plan, inferenceId);
+            }
+
+            return plan;
+        }
+
+        /**
+         * Transforms a foldable InferencePlan to an Eval with the appropriate function call.
+         */
+        private LogicalPlan transformToEval(InferencePlan<?> plan, String inferenceId) {
+            Expression inferenceIdLiteral = Literal.keyword(plan.inferenceId().source(), inferenceId);
+            Source source = plan.source();
+            LogicalPlan child = plan.child();
+
+            if (plan instanceof Completion completion) {
+                CompletionFunction completionFunction = new CompletionFunction(source, completion.prompt(), inferenceIdLiteral);
+                Alias alias = new Alias(source, completion.targetField().name(), completionFunction, completion.targetField().id());
+                return new Eval(source, child, List.of(alias));
             }
 
             return plan;
@@ -1703,7 +1691,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                         if (arg.foldable() && ((arg instanceof EsqlScalarFunction) == false)) {
                             if (i < targetDataTypes.size()) {
                                 targetDataType = targetDataTypes.get(i);
-                            }
+                            } // else the last type applies to all elements in a possible list (variadic)
                             if (targetDataType != NULL && targetDataType != UNSUPPORTED) {
                                 Expression e = castStringLiteral(arg, targetDataType);
                                 if (e != arg) {
@@ -1977,13 +1965,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 }
 
                 if (missing.isEmpty() == false) {
-                    return new EsRelation(
-                        esr.source(),
-                        esr.indexPattern(),
-                        esr.indexMode(),
-                        esr.indexNameWithModes(),
-                        CollectionUtils.combine(esr.output(), missing)
-                    );
+                    return esr.withAttributes(CollectionUtils.combine(esr.output(), missing));
                 }
                 return esr;
             });

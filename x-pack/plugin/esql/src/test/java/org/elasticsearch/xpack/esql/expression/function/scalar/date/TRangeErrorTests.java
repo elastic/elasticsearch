@@ -62,9 +62,9 @@ public class TRangeErrorTests extends ErrorsForCasesWithoutExamplesTestCase {
         expectThrows(InvalidArgumentException.class, equalTo("invalid time range for []: Unsupported offset type [BytesRef]"), () -> {
             TRange trange = new TRange(
                 Source.EMPTY,
-                new Literal(Source.EMPTY, Instant.now(), DataType.DATETIME),
                 Literal.keyword(Source.EMPTY, "invalid_offset"),
                 null,
+                new Literal(Source.EMPTY, Instant.now(), DataType.DATETIME),
                 EsqlTestUtils.configuration(StringUtils.EMPTY)
             );
             trange.surrogate();
@@ -80,9 +80,9 @@ public class TRangeErrorTests extends ErrorsForCasesWithoutExamplesTestCase {
             () -> {
                 TRange trange = new TRange(
                     Source.EMPTY,
-                    new Literal(Source.EMPTY, Instant.now(), DataType.DATETIME),
                     Literal.keyword(Source.EMPTY, "invalid_offset"),
                     Literal.keyword(Source.EMPTY, "2024-01-01T12:00:00Z"),
+                    new Literal(Source.EMPTY, Instant.now(), DataType.DATETIME),
                     EsqlTestUtils.configuration(StringUtils.EMPTY)
                 );
                 trange.surrogate();
@@ -96,9 +96,9 @@ public class TRangeErrorTests extends ErrorsForCasesWithoutExamplesTestCase {
             () -> {
                 TRange trange = new TRange(
                     Source.EMPTY,
-                    new Literal(Source.EMPTY, Instant.now(), DataType.DATETIME),
                     Literal.keyword(Source.EMPTY, "2024-01-01T12:00:00Z"),
                     Literal.keyword(Source.EMPTY, "2024-01-01T10:00:00Z"),
+                    new Literal(Source.EMPTY, Instant.now(), DataType.DATETIME),
                     EsqlTestUtils.configuration(StringUtils.EMPTY)
                 );
                 trange.surrogate();
@@ -112,9 +112,9 @@ public class TRangeErrorTests extends ErrorsForCasesWithoutExamplesTestCase {
             () -> {
                 TRange trange = new TRange(
                     Source.EMPTY,
-                    new Literal(Source.EMPTY, Instant.now(), DataType.DATETIME),
                     Literal.fromDouble(Source.EMPTY, 123.45),
                     Literal.keyword(Source.EMPTY, "2024-01-01T12:00:00Z"),
+                    new Literal(Source.EMPTY, Instant.now(), DataType.DATETIME),
                     EsqlTestUtils.configuration(StringUtils.EMPTY)
                 );
                 trange.surrogate();
@@ -125,9 +125,9 @@ public class TRangeErrorTests extends ErrorsForCasesWithoutExamplesTestCase {
         expectThrows(InvalidArgumentException.class, equalTo("invalid time range for []: Unsupported offset type [Double]"), () -> {
             TRange trange = new TRange(
                 Source.EMPTY,
-                new Literal(Source.EMPTY, Instant.now(), DataType.DATETIME),
                 Literal.fromDouble(Source.EMPTY, 123.45),
                 null,
+                new Literal(Source.EMPTY, Instant.now(), DataType.DATETIME),
                 EsqlTestUtils.configuration(StringUtils.EMPTY)
             );
             trange.surrogate();
@@ -143,11 +143,7 @@ public class TRangeErrorTests extends ErrorsForCasesWithoutExamplesTestCase {
             DateEsField.dateEsField(fieldName, Collections.emptyMap(), true, DateEsField.TimeSeriesFieldType.NONE)
         );
 
-        if (args.size() == 1) {
-            return new TRange(source, timestamp, args.getFirst(), null, EsqlTestUtils.TEST_CFG);
-        }
-
-        return new TRange(source, timestamp, args.get(0), args.get(1), EsqlTestUtils.TEST_CFG);
+        return new TRange(source, args.getFirst(), args.size() == 1 ? null : args.get(1), timestamp, EsqlTestUtils.TEST_CFG);
     }
 
     @Override

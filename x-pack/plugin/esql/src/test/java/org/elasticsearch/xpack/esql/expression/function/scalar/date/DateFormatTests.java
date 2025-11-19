@@ -24,8 +24,11 @@ import org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 import java.util.function.Supplier;
 
+import static org.elasticsearch.test.ReadableMatchers.matchesBytesRef;
+import static org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier.TEST_SOURCE;
 import static org.hamcrest.Matchers.matchesPattern;
 
 public class DateFormatTests extends AbstractConfigurationFunctionTestCase {
@@ -84,7 +87,54 @@ public class DateFormatTests extends AbstractConfigurationFunctionTestCase {
             (value) -> new BytesRef(EsqlDataTypeConverter.DEFAULT_DATE_TIME_FORMATTER.formatNanos(DateUtils.toLong((Instant) value))),
             List.of()
         );
+        suppliers = TestCaseSupplier.mapTestCases(
+            suppliers,
+            testCase -> testCase.withConfiguration(TestCaseSupplier.TEST_SOURCE, configurationForLocale(Locale.US))
+        );
+        suppliers.addAll(casesFor("MMM", "2020-01-01T00:00:00.00Z", "es-es", "ene"));
+        suppliers.addAll(casesFor("VV", "2020-01-01T00:00:00.00Z", "es-es", "Z"));
         return parameterSuppliersFromTypedDataWithDefaultChecks(true, suppliers);
+    }
+
+    private static List<TestCaseSupplier> casesFor(String format, String date, String localeTag, String expectedString) {
+        long dateMillis = Instant.parse(date).toEpochMilli();
+        Locale locale = Locale.forLanguageTag(localeTag);
+        return List.of(
+            new TestCaseSupplier(
+                format + " - " + date + " (millis) - " + locale,
+                List.of(DataType.KEYWORD, DataType.DATETIME),
+                () -> new TestCaseSupplier.TestCase(
+                    List.of(
+                        new TestCaseSupplier.TypedData(format, DataType.KEYWORD, "format"),
+                        new TestCaseSupplier.TypedData(dateMillis, DataType.DATETIME, "date")
+                    ),
+                    matchesPattern(
+                        "DateFormatMillisEvaluator\\[val=Attribute\\[channel=1], formatter=Attribute\\[(channel=0|\\w+)], locale="
+                            + locale
+                            + "]"
+                    ),
+                    DataType.KEYWORD,
+                    matchesBytesRef(expectedString)
+                ).withConfiguration(TEST_SOURCE, configurationForLocale(locale))
+            ),
+            new TestCaseSupplier(
+                format + " - " + date + " (nanos) - " + locale,
+                List.of(DataType.KEYWORD, DataType.DATE_NANOS),
+                () -> new TestCaseSupplier.TestCase(
+                    List.of(
+                        new TestCaseSupplier.TypedData(format, DataType.KEYWORD, "format"),
+                        new TestCaseSupplier.TypedData(DateUtils.toNanoSeconds(dateMillis), DataType.DATE_NANOS, "date")
+                    ),
+                    matchesPattern(
+                        "DateFormatNanosEvaluator\\[val=Attribute\\[channel=1], formatter=Attribute\\[(channel=0|\\w+)], locale="
+                            + locale
+                            + "]"
+                    ),
+                    DataType.KEYWORD,
+                    matchesBytesRef(expectedString)
+                ).withConfiguration(TEST_SOURCE, configurationForLocale(locale))
+            )
+        );
     }
 
     @Override

@@ -26,6 +26,7 @@ import org.elasticsearch.compute.operator.exchange.ExchangeService;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.search.SearchService;
+import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
@@ -170,7 +171,8 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
             usageService,
             new InferenceService(client),
             blockFactoryProvider,
-            new PlannerSettings(clusterService)
+            new PlannerSettings(clusterService),
+            new CrossProjectModeDecider(clusterService.getSettings())
         );
 
         this.computeService = new ComputeService(
@@ -292,7 +294,8 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
     }
 
     private void recordCCSTelemetry(Task task, EsqlExecutionInfo executionInfo, EsqlQueryRequest request, @Nullable Exception exception) {
-        if (executionInfo.isCrossClusterSearch() == false) {
+        if (executionInfo.isCrossClusterSearch() == false
+            && executionInfo.includeExecutionMetadata() != EsqlExecutionInfo.IncludeExecutionMetadata.ALWAYS) {
             return;
         }
 
@@ -329,7 +332,9 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
                 remotesCount.getAndIncrement();
             }
         });
-        assert remotesCount.get() > 0 : "Got cross-cluster search telemetry without any remote clusters";
+        if (remotesCount.get() == 0) {
+            return;
+        }
         usageBuilder.setRemotesCount(remotesCount.get());
         usageService.getEsqlUsageHolder().updateUsage(usageBuilder.build());
     }
@@ -352,20 +357,22 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
     private EsqlExecutionInfo createEsqlExecutionInfo(EsqlQueryRequest request) {
         if (request.includeCCSMetadata() != null && request.includeExecutionMetadata() != null) {
             throw new VerificationException(
-                "Both [include_execution_metadata] and [include_ccs_metadata] query parameters are set. "
-                    + "Use only [include_execution_metadata]"
+                "Both [include_execution_metadata] and [include_ccs_metadata] query parameters are set. Use only one"
             );
         }
 
-        Boolean includeCcsMetadata = request.includeExecutionMetadata();
-        if (includeCcsMetadata == null) {
-            // include_ccs_metadata is considered only if include_execution_metadata is not set
-            includeCcsMetadata = Boolean.TRUE.equals(request.includeCCSMetadata());
+        EsqlExecutionInfo.IncludeExecutionMetadata includeExecutionMetadata;
+        if (Boolean.TRUE.equals(request.includeExecutionMetadata())) {
+            includeExecutionMetadata = EsqlExecutionInfo.IncludeExecutionMetadata.ALWAYS;
+        } else if (Boolean.TRUE.equals(request.includeCCSMetadata())) {
+            includeExecutionMetadata = EsqlExecutionInfo.IncludeExecutionMetadata.CCS_ONLY;
+        } else {
+            includeExecutionMetadata = EsqlExecutionInfo.IncludeExecutionMetadata.NEVER;
         }
         Boolean allowPartialResults = request.allowPartialResults() != null ? request.allowPartialResults() : defaultAllowPartialResults;
         return new EsqlExecutionInfo(
             clusterAlias -> remoteClusterService.shouldSkipOnFailure(clusterAlias, allowPartialResults),
-            includeCcsMetadata
+            includeExecutionMetadata
         );
     }
 

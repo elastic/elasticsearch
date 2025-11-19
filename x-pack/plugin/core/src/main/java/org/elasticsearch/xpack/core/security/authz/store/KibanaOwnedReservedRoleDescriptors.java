@@ -334,7 +334,8 @@ class KibanaOwnedReservedRoleDescriptors {
                         TransportUpdateSettingsAction.TYPE.name(),
                         TransportPutMappingAction.TYPE.name(),
                         RolloverAction.NAME,
-                        "indices:admin/data_stream/lifecycle/put"
+                        "indices:admin/data_stream/lifecycle/put",
+                        "indices:admin/forcemerge*"
                     )
                     .build(),
                 // Endpoint specific action responses. Kibana reads and writes (for third party
@@ -521,6 +522,7 @@ class KibanaOwnedReservedRoleDescriptors {
                         "logs-google_scc.finding-*",
                         "logs-aws.securityhub_findings-*",
                         "logs-aws.securityhub_findings_full_posture-*",
+                        "logs-aws_securityhub.finding-*",
                         "logs-aws.inspector-*",
                         "logs-aws.config-*",
                         "logs-amazon_security_lake.findings-*",
@@ -540,6 +542,8 @@ class KibanaOwnedReservedRoleDescriptors {
                         "logs-m365_defender.vulnerability-*",
                         "logs-microsoft_defender_endpoint.vulnerability-*",
                         "logs-microsoft_defender_cloud.assessment-*",
+                        "logs-prisma_cloud.misconfiguration-*",
+                        "logs-prisma_cloud.vulnerability-*",
                         "logs-sentinel_one.application_risk-*"
                     )
                     .privileges(
@@ -549,7 +553,7 @@ class KibanaOwnedReservedRoleDescriptors {
                         TransportDeleteIndexAction.TYPE.name()
                     )
                     .build(),
-                // For ExtraHop, QualysGAV, SentinelOne Application Dataset, Island Browser and Cyera specific actions.
+                // For ExtraHop, QualysGAV, SentinelOne, Island Browser and Cyera specific actions.
                 // Kibana reads, writes and manages this index
                 // for configured ILM policies.
                 RoleDescriptor.IndicesPrivileges.builder()
@@ -557,6 +561,7 @@ class KibanaOwnedReservedRoleDescriptors {
                         "logs-extrahop.investigation-*",
                         "logs-qualys_gav.asset-*",
                         "logs-sentinel_one.application-*",
+                        "logs-sentinel_one.threat_event-*",
                         "logs-island_browser.user-*",
                         "logs-island_browser.device-*",
                         "logs-cyera.classification-*",

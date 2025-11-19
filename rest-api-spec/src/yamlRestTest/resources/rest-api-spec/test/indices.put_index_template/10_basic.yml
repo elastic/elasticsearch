@@ -197,3 +197,37 @@
         name: baz
 
   - match: {index_templates.0.name: baz}
+
+---
+"Add data stream lifecycle with downsampling":
+  - requires:
+      capabilities:
+        - method: PUT
+          path: /_index_template/{name}
+          capabilities: [ "dlm.downsampling_method" ]
+      test_runner_features: [ "capabilities" ]
+      reason: "Downsampling method was added to data stream lifecycle was available from 9.3"
+
+  - do:
+      indices.put_index_template:
+        name: test-lifecycle
+        body:
+          index_patterns: downsampling-*
+          data_stream: {}
+          template:
+            lifecycle:
+              data_retention: "10d"
+              downsampling_method: last_value
+              downsampling:
+                - {"after": "1d", "fixed_interval": "5m"}
+
+  - do:
+      indices.get_index_template:
+        name: test-lifecycle
+
+  - match: {index_templates.0.name: test-lifecycle}
+  - match: {index_templates.0.index_template.template.lifecycle.enabled: true}
+  - match: {index_templates.0.index_template.template.lifecycle.data_retention: "10d"}
+  - match: {index_templates.0.index_template.template.lifecycle.downsampling_method: "last_value"}
+  - match: {index_templates.0.index_template.template.lifecycle.downsampling.0.after: "1d"}
+  - match: {index_templates.0.index_template.template.lifecycle.downsampling.0.fixed_interval: "5m"}

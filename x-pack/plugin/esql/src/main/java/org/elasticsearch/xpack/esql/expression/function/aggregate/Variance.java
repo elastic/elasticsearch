@@ -42,11 +42,11 @@ public class Variance extends AggregateFunction implements ToAggregator {
         examples = { @Example(file = "stats", tag = "variance") }
     )
     public Variance(Source source, @Param(name = "number", type = { "double", "integer", "long" }) Expression field) {
-        this(source, field, Literal.TRUE);
+        this(source, field, Literal.TRUE, NO_WINDOW);
     }
 
-    public Variance(Source source, Expression field, Expression filter) {
-        super(source, field, filter, emptyList());
+    public Variance(Source source, Expression field, Expression filter, Expression window) {
+        super(source, field, filter, window, emptyList());
     }
 
     private Variance(StreamInput in) throws IOException {
@@ -76,16 +76,16 @@ public class Variance extends AggregateFunction implements ToAggregator {
 
     @Override
     protected NodeInfo<Variance> info() {
-        return NodeInfo.create(this, Variance::new, field(), filter());
+        return NodeInfo.create(this, Variance::new, field(), filter(), window());
     }
 
     @Override
     public Variance replaceChildren(List<Expression> newChildren) {
-        return new Variance(source(), newChildren.get(0), newChildren.get(1));
+        return new Variance(source(), newChildren.get(0), newChildren.get(1), newChildren.get(2));
     }
 
     public Variance withFilter(Expression filter) {
-        return new Variance(source(), field(), filter);
+        return new Variance(source(), field(), filter, window());
     }
 
     @Override

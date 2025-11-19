@@ -328,6 +328,19 @@ public class IteratorsTests extends ESTestCase {
         }
     }
 
+    public void testAssertReadOnly() {
+        assumeTrue("assertions enabled", Assertions.ENABLED);
+        final List<Integer> innerList = new ArrayList<>(List.of(1, 2, 3, 4));
+        assertTrue(Iterators.equals(innerList.iterator(), Iterators.assertReadOnly(innerList.iterator()), Objects::equals));
+
+        final var readonly = Iterators.assertReadOnly(innerList.iterator());
+        assertTrue(readonly.hasNext());
+        assertEquals(Integer.valueOf(1), readonly.next());
+        expectThrows(AssertionError.class, readonly::remove);
+
+        assertEquals(List.of(1, 2, 3, 4), innerList);
+    }
+
     public void testEquals() {
         final BiPredicate<Object, Object> notCalled = (a, b) -> { throw new AssertionError("not called"); };
 

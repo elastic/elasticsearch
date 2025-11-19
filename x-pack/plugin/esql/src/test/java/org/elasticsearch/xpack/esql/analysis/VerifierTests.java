@@ -16,6 +16,7 @@ import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.core.InvalidArgumentException;
+import org.elasticsearch.xpack.esql.core.expression.UnresolvedTimestamp;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.DataTypeConverter;
@@ -1151,7 +1152,8 @@ public class VerifierTests extends ESTestCase {
             error("FROM test | STATS min(network.bytes_in)", tsdb),
             equalTo(
                 "1:19: argument of [min(network.bytes_in)] must be"
-                    + " [boolean, date, ip, string, version, aggregate_metric_double or numeric except counter types],"
+                    + " [boolean, date, ip, string, version, aggregate_metric_double,"
+                    + " exponential_histogram or numeric except counter types],"
                     + " found value [network.bytes_in] type [counter_long]"
             )
         );
@@ -1160,7 +1162,8 @@ public class VerifierTests extends ESTestCase {
             error("FROM test | STATS max(network.bytes_in)", tsdb),
             equalTo(
                 "1:19: argument of [max(network.bytes_in)] must be"
-                    + " [boolean, date, ip, string, version, aggregate_metric_double or numeric except counter types],"
+                    + " [boolean, date, ip, string, version, aggregate_metric_double, exponential_histogram"
+                    + " or numeric except counter types],"
                     + " found value [network.bytes_in] type [counter_long]"
             )
         );
@@ -1189,12 +1192,12 @@ public class VerifierTests extends ESTestCase {
     public void testRenameOrDropTimestmapWithRate() {
         assertThat(
             error("TS k8s | RENAME @timestamp AS newTs | STATS max(rate(network.total_cost))  BY tbucket = bucket(newTs, 1hour)", k8s),
-            equalTo("1:49: Rate aggregation requires @timestamp field, but @timestamp was renamed or dropped")
+            equalTo("1:49: [rate(network.total_cost)] " + UnresolvedTimestamp.UNRESOLVED_SUFFIX)
         );
 
         assertThat(
             error("TS k8s | DROP @timestamp | STATS max(rate(network.total_cost))", k8s),
-            equalTo("1:38: Rate aggregation requires @timestamp field, but @timestamp was renamed or dropped")
+            equalTo("1:38: [rate(network.total_cost)] " + UnresolvedTimestamp.UNRESOLVED_SUFFIX)
         );
     }
 
@@ -1204,12 +1207,12 @@ public class VerifierTests extends ESTestCase {
                 "TS k8s | RENAME @timestamp AS newTs | STATS max(last_over_time(network.eth0.tx))  BY tbucket = bucket(newTs, 1hour)",
                 k8s
             ),
-            equalTo("1:49: Last Over Time aggregation requires @timestamp field, but @timestamp was renamed or dropped")
+            equalTo("1:49: [last_over_time(network.eth0.tx)] " + UnresolvedTimestamp.UNRESOLVED_SUFFIX)
         );
 
         assertThat(
             error("TS k8s | DROP @timestamp | STATS max(last_over_time(network.eth0.tx))", k8s),
-            equalTo("1:38: Last Over Time aggregation requires @timestamp field, but @timestamp was renamed or dropped")
+            equalTo("1:38: [last_over_time(network.eth0.tx)] " + UnresolvedTimestamp.UNRESOLVED_SUFFIX)
         );
     }
 
@@ -1219,72 +1222,72 @@ public class VerifierTests extends ESTestCase {
                 "TS k8s | RENAME @timestamp AS newTs | STATS max(first_over_time(network.eth0.tx))  BY tbucket = bucket(newTs, 1hour)",
                 k8s
             ),
-            equalTo("1:49: First Over Time aggregation requires @timestamp field, but @timestamp was renamed or dropped")
+            equalTo("1:49: [first_over_time(network.eth0.tx)] " + UnresolvedTimestamp.UNRESOLVED_SUFFIX)
         );
 
         assertThat(
             error("TS k8s | DROP @timestamp | STATS max(first_over_time(network.eth0.tx))", k8s),
-            equalTo("1:38: First Over Time aggregation requires @timestamp field, but @timestamp was renamed or dropped")
+            equalTo("1:38: [first_over_time(network.eth0.tx)] " + UnresolvedTimestamp.UNRESOLVED_SUFFIX)
         );
     }
 
     public void testRenameOrDropTimestmapWithIncrease() {
         assertThat(
             error("TS k8s | RENAME @timestamp AS newTs | STATS max(increase(network.eth0.tx))  BY tbucket = bucket(newTs, 1hour)", k8s),
-            equalTo("1:49: Increase aggregation requires @timestamp field, but @timestamp was renamed or dropped")
+            equalTo("1:49: [increase(network.eth0.tx)] " + UnresolvedTimestamp.UNRESOLVED_SUFFIX)
         );
 
         assertThat(
             error("TS k8s | DROP @timestamp | STATS max(increase(network.eth0.tx))", k8s),
-            equalTo("1:38: Increase aggregation requires @timestamp field, but @timestamp was renamed or dropped")
+            equalTo("1:38: [increase(network.eth0.tx)] " + UnresolvedTimestamp.UNRESOLVED_SUFFIX)
         );
     }
 
     public void testRenameOrDropTimestmapWithIRate() {
         assertThat(
             error("TS k8s | RENAME @timestamp AS newTs | STATS max(irate(network.eth0.tx))  BY tbucket = bucket(newTs, 1hour)", k8s),
-            equalTo("1:49: Irate aggregation requires @timestamp field, but @timestamp was renamed or dropped")
+            equalTo("1:49: [irate(network.eth0.tx)] " + UnresolvedTimestamp.UNRESOLVED_SUFFIX)
         );
 
         assertThat(
             error("TS k8s | DROP @timestamp | STATS max(irate(network.eth0.tx))", k8s),
-            equalTo("1:38: Irate aggregation requires @timestamp field, but @timestamp was renamed or dropped")
+            equalTo("1:38: [irate(network.eth0.tx)] " + UnresolvedTimestamp.UNRESOLVED_SUFFIX)
         );
     }
 
     public void testRenameOrDropTimestmapWithDelta() {
         assertThat(
             error("TS k8s | RENAME @timestamp AS newTs | STATS max(delta(network.eth0.tx))  BY tbucket = bucket(newTs, 1hour)", k8s),
-            equalTo("1:49: Delta aggregation requires @timestamp field, but @timestamp was renamed or dropped")
+            equalTo("1:49: [delta(network.eth0.tx)] " + UnresolvedTimestamp.UNRESOLVED_SUFFIX)
         );
 
         assertThat(
             error("TS k8s | DROP @timestamp | STATS max(delta(network.eth0.tx))", k8s),
-            equalTo("1:38: Delta aggregation requires @timestamp field, but @timestamp was renamed or dropped")
+            equalTo("1:38: [delta(network.eth0.tx)] " + UnresolvedTimestamp.UNRESOLVED_SUFFIX)
         );
     }
 
     public void testRenameOrDropTimestmapWithIDelta() {
         assertThat(
             error("TS k8s | RENAME @timestamp AS newTs | STATS max(idelta(network.eth0.tx))  BY tbucket = bucket(newTs, 1hour)", k8s),
-            equalTo("1:49: IDelta aggregation requires @timestamp field, but @timestamp was renamed or dropped")
+            equalTo("1:49: [idelta(network.eth0.tx)] " + UnresolvedTimestamp.UNRESOLVED_SUFFIX)
         );
 
         assertThat(
             error("TS k8s | DROP @timestamp | STATS max(idelta(network.eth0.tx))", k8s),
-            equalTo("1:38: IDelta aggregation requires @timestamp field, but @timestamp was renamed or dropped")
+            equalTo("1:38: [idelta(network.eth0.tx)] " + UnresolvedTimestamp.UNRESOLVED_SUFFIX)
         );
     }
 
     public void testRenameOrDropTimestampWithTBucket() {
         assertThat(
             error("TS k8s | RENAME @timestamp AS newTs | STATS max(max_over_time(network.eth0.tx))  BY tbucket = tbucket(1hour)", k8s),
-            equalTo("1:95: TBucket function requires @timestamp field, but @timestamp was renamed or dropped")
+            equalTo("1:95: [tbucket(1hour)] " + UnresolvedTimestamp.UNRESOLVED_SUFFIX)
         );
 
         assertThat(
             error("TS k8s | DROP @timestamp | STATS max(max_over_time(network.eth0.tx)) BY tbucket = tbucket(1hour)", k8s),
-            equalTo("1:83: TBucket function requires @timestamp field, but @timestamp was renamed or dropped")
+            equalTo("1:83: [tbucket(1hour)] " + UnresolvedTimestamp.UNRESOLVED_SUFFIX)
         );
     }
 
@@ -1412,8 +1415,7 @@ public class VerifierTests extends ESTestCase {
 
     public void testMatchInsideEval() throws Exception {
         assertEquals(
-            "1:36: [:] operator is only supported in WHERE and STATS commands"
-                + (EsqlCapabilities.Cap.SCORE_FUNCTION.isEnabled() ? ", or in EVAL within score(.) function" : "")
+            "1:36: [:] operator is only supported in WHERE and STATS commands or in EVAL within score(.) function"
                 + "\n"
                 + "line 1:36: [:] operator cannot operate on [title], which is not a field from an index mapping",
             error("row title = \"brown fox\" | eval x = title:\"fox\" ")
@@ -1581,8 +1583,7 @@ public class VerifierTests extends ESTestCase {
                     + functionName
                     + "] "
                     + functionType
-                    + " is only supported in WHERE and STATS commands"
-                    + (EsqlCapabilities.Cap.SCORE_FUNCTION.isEnabled() ? ", or in EVAL within score(.) function" : "")
+                    + " is only supported in WHERE and STATS commands or in EVAL within score(.) function"
             )
         );
         assertThat(
@@ -1602,8 +1603,7 @@ public class VerifierTests extends ESTestCase {
                         + functionName
                         + "] "
                         + functionType
-                        + " is only supported in WHERE and STATS commands"
-                        + (EsqlCapabilities.Cap.SCORE_FUNCTION.isEnabled() ? ", or in EVAL within score(.) function" : "")
+                        + " is only supported in WHERE and STATS commands or in EVAL within score(.) function"
                 )
             );
         }
@@ -2590,17 +2590,17 @@ public class VerifierTests extends ESTestCase {
     }
 
     public void testFullTextFunctionsNullArgs() throws Exception {
-        checkFullTextFunctionNullArgs("match(null, \"query\")", "first");
         checkFullTextFunctionNullArgs("match(title, null)", "second");
+        checkFullTextFunctionAcceptsNullField("match(null, \"test\")");
         checkFullTextFunctionNullArgs("qstr(null)", "");
         checkFullTextFunctionNullArgs("kql(null)", "");
-        checkFullTextFunctionNullArgs("match_phrase(null, \"query\")", "first");
         checkFullTextFunctionNullArgs("match_phrase(title, null)", "second");
-        checkFullTextFunctionNullArgs("knn(null, [0, 1, 2])", "first");
+        checkFullTextFunctionAcceptsNullField("match_phrase(null, \"test\")");
         checkFullTextFunctionNullArgs("knn(vector, null)", "second");
+        checkFullTextFunctionAcceptsNullField("knn(null, [0, 1, 2])");
         if (EsqlCapabilities.Cap.MULTI_MATCH_FUNCTION.isEnabled()) {
             checkFullTextFunctionNullArgs("multi_match(null, title)", "first");
-            checkFullTextFunctionNullArgs("multi_match(\"query\", null)", "second");
+            checkFullTextFunctionAcceptsNullField("multi_match(\"test\", null)");
         }
         if (EsqlCapabilities.Cap.TERM_FUNCTION.isEnabled()) {
             checkFullTextFunctionNullArgs("term(null, \"query\")", "first");
@@ -2613,6 +2613,10 @@ public class VerifierTests extends ESTestCase {
             error("from test | where " + functionInvocation, fullTextAnalyzer),
             containsString(argOrdinal + " argument of [" + functionInvocation + "] cannot be null, received [null]")
         );
+    }
+
+    private void checkFullTextFunctionAcceptsNullField(String functionInvocation) throws Exception {
+        fullTextAnalyzer.analyze(parser.createStatement("from test | where " + functionInvocation));
     }
 
     public void testInsistNotOnTopOfFrom() {
@@ -2636,9 +2640,7 @@ public class VerifierTests extends ESTestCase {
         }
     }
 
-    public void testDecayFunctionNullArgs() {
-        assumeTrue("Decay function not enabled", EsqlCapabilities.Cap.DECAY_FUNCTION.isEnabled());
-
+    public void testDecayArgs() {
         // First arg cannot be null
         assertEquals(
             "2:23: first argument of [decay(null, origin, scale, "
@@ -2666,6 +2668,49 @@ public class VerifierTests extends ESTestCase {
             error(
                 "row value = 10, origin = 10\n"
                     + "| eval decay_result = decay(value, origin, null, {\"offset\": 0, \"decay\": 0.5, \"type\": \"linear\"})"
+            )
+        );
+
+        // Offset value type
+        assertEquals(
+            "2:23: offset option has invalid type, expected [numeric], found [keyword]",
+            error(
+                "row value = 10, origin = 10, scale = 1\n"
+                    + "| eval decay_result = decay(value, origin, scale, {\"offset\": \"aaa\", \"decay\": 0.5, \"type\": \"linear\"})"
+            )
+        );
+
+        assertEquals(
+            "1:118: offset option has invalid type, expected [time_duration], found [keyword]",
+            error(
+                "row value =  TO_DATETIME(\"2023-01-01T00:00:00Z\"), origin =  TO_DATETIME(\"2023-01-01T00:00:00Z\")"
+                    + "| eval decay_result = decay(value, origin, 24 hours, {\"offset\": \"aaa\", \"decay\": 0.5, \"type\": \"linear\"})"
+            )
+        );
+
+        assertEquals(
+            "1:110: offset option has invalid type, expected [numeric], found [keyword]",
+            error(
+                "row value =  TO_CARTESIANPOINT(\"POINT(10 0)\"), origin = TO_CARTESIANPOINT(\"POINT(0 0)\")"
+                    + "| eval decay_result = decay(value, origin, 10.0, {\"offset\": \"aaa\", \"decay\": 0.5, \"type\": \"linear\"})"
+            )
+        );
+
+        // Type option value
+        assertEquals(
+            "2:23: Invalid option [type] in "
+                + "[decay(value, origin, scale, {\"offset\": 1, \"decay\": 0.5, \"type\": 123})], allowed types [[KEYWORD]]",
+            error(
+                "row value = 10, origin = 10, scale = 1\n"
+                    + "| eval decay_result = decay(value, origin, scale, {\"offset\": 1, \"decay\": 0.5, \"type\": 123})"
+            )
+        );
+
+        assertEquals(
+            "2:23: type option has invalid value, expected one of [gauss, linear, exp], found [\"foobar\"]",
+            error(
+                "row value = 10, origin = 10, scale = 1\n"
+                    + "| eval decay_result = decay(value, origin, scale, {\"offset\": 1, \"decay\": 0.5, \"type\": \"foobar\"})"
             )
         );
     }
@@ -2735,7 +2780,7 @@ public class VerifierTests extends ESTestCase {
     public void testInvalidTBucketCalls() {
         assertThat(
             error("from test | stats max(emp_no) by tbucket(1 hour)"),
-            equalTo("1:34: TBucket function requires @timestamp field, but @timestamp was renamed or dropped")
+            equalTo("1:34: [tbucket(1 hour)] " + UnresolvedTimestamp.UNRESOLVED_SUFFIX)
         );
         assertThat(
             error("from test | stats max(event_duration) by tbucket()", sampleDataAnalyzer, ParsingException.class),
@@ -2761,7 +2806,7 @@ public class VerifierTests extends ESTestCase {
         assertThat(
             error("from test | stats max(event_duration) by tbucket(\"1 hour\")", oddSampleDataAnalyzer),
             equalTo(
-                "1:42: second argument of [tbucket(\"1 hour\")] must be [date_nanos or datetime], found value [@timestamp] type [boolean]"
+                "1:42: implicit argument of [tbucket(\"1 hour\")] must be [date_nanos or datetime], found value [@timestamp] type [boolean]"
             )
         );
         for (String interval : List.of("1 minu", "1 dy", "1.5 minutes", "0.5 days", "minutes 1", "day 5")) {
@@ -3271,6 +3316,43 @@ public class VerifierTests extends ESTestCase {
             | KEEP emp_no, languages, language_name
             """, ESQL_LOOKUP_JOIN_FULL_TEXT_FUNCTION);
         assertThat(errorMessage, containsString("5:3: [MATCH] function cannot be used after test, (FROM test_mixed_types"));
+    }
+
+    public void testChunkFunctionInvalidInputs() {
+        if (EsqlCapabilities.Cap.CHUNK_FUNCTION.isEnabled()) {
+            assertThat(
+                error(
+                    "from test | EVAL chunks = CHUNK(body, {\"num_chunks\": null, \"chunk_size\": 20})",
+                    fullTextAnalyzer,
+                    ParsingException.class
+                ),
+                equalTo("1:39: Invalid named parameter [\"num_chunks\":null], NULL is not supported")
+            );
+            assertThat(
+                error(
+                    "from test | EVAL chunks = CHUNK(body, {\"num_chunks\": 3, \"chunk_size\": null})",
+                    fullTextAnalyzer,
+                    ParsingException.class
+                ),
+                equalTo("1:39: Invalid named parameter [\"chunk_size\":null], NULL is not supported")
+            );
+            assertThat(
+                error("from test | EVAL chunks = CHUNK(body, {\"num_chunks\":\"foo\"})", fullTextAnalyzer),
+                equalTo("1:27: Invalid option [num_chunks] in [CHUNK(body, {\"num_chunks\":\"foo\"})], cannot cast [foo] to [integer]")
+            );
+            assertThat(
+                error("from test | EVAL chunks = CHUNK(body, {\"chunk_size\":\"foo\"})", fullTextAnalyzer),
+                equalTo("1:27: Invalid option [chunk_size] in [CHUNK(body, {\"chunk_size\":\"foo\"})], cannot cast [foo] to [integer]")
+            );
+            assertThat(
+                error("from test | EVAL chunks = CHUNK(body, {\"num_chunks\":-1})", fullTextAnalyzer),
+                equalTo("1:27: [num_chunks] cannot be negative, found [-1]")
+            );
+            assertThat(
+                error("from test | EVAL chunks = CHUNK(body, {\"chunk_size\":-1})", fullTextAnalyzer),
+                equalTo("1:27: [chunk_size] cannot be negative, found [-1]")
+            );
+        }
     }
 
     private void checkVectorFunctionsNullArgs(String functionInvocation) throws Exception {

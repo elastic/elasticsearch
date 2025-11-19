@@ -1486,7 +1486,7 @@ public class FiltersAggregatorTests extends AggregatorTestCase {
         NumberFieldMapper.NumberFieldType ft = new NumberFieldMapper.NumberFieldType("f", numberType);
         docValuesFieldExistsTestCase(new ExistsQueryBuilder("f"), ft, true, i -> {
             final LuceneDocument document = new LuceneDocument();
-            numberType.addFields(document, "f", i, true, true, false);
+            numberType.addFields(document, "f", i, IndexType.points(true, true), false);
             return document;
         });
     }

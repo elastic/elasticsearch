@@ -31,8 +31,13 @@
               "description": "The name of behavioral analytics collection"
             },
             "event_type": {
-              "type": "string",
-              "description": "Behavioral analytics event type. Available: page_view, search, search_click"
+              "type": "enum",
+              "description": "Behavioral analytics event type. Available: page_view, search, search_click",
+              "options": [
+                "page_view",
+                "search",
+                "search_click"
+              ]
             }
           }
         }

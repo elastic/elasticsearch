@@ -438,6 +438,20 @@ public class BlockFactory {
         return new AggregateMetricDoubleBlockBuilder(estimatedSize, this);
     }
 
+    public final AggregateMetricDoubleBlock newAggregateMetricDoubleBlock(
+        Block minBlock,
+        Block maxBlock,
+        Block sumBlock,
+        Block countBlock
+    ) {
+        return new AggregateMetricDoubleArrayBlock(
+            (DoubleBlock) minBlock,
+            (DoubleBlock) maxBlock,
+            (DoubleBlock) sumBlock,
+            (IntBlock) countBlock
+        );
+    }
+
     public final AggregateMetricDoubleBlock newConstantAggregateMetricDoubleBlock(
         AggregateMetricDoubleBlockBuilder.AggregateMetricDoubleLiteral value,
         int positions
@@ -467,6 +481,15 @@ public class BlockFactory {
             }
             return builder.build();
         }
+    }
+
+    public BlockLoader.Block newAggregateMetricDoubleBlockFromDocValues(
+        DoubleBlock minBlock,
+        DoubleBlock maxBlock,
+        DoubleBlock sumBlock,
+        IntBlock countBlock
+    ) {
+        return new AggregateMetricDoubleArrayBlock(minBlock, maxBlock, sumBlock, countBlock);
     }
 
     public ExponentialHistogramBlockBuilder newExponentialHistogramBlockBuilder(int estimatedSize) {

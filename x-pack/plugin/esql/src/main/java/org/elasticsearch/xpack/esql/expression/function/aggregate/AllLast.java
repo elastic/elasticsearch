@@ -10,11 +10,11 @@ package org.elasticsearch.xpack.esql.expression.function.aggregate;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.compute.aggregation.AggregatorFunctionSupplier;
-import org.elasticsearch.compute.aggregation.AllFirstBytesRefByTimestampAggregatorFunctionSupplier;
-import org.elasticsearch.compute.aggregation.AllFirstDoubleByTimestampAggregatorFunctionSupplier;
-import org.elasticsearch.compute.aggregation.AllFirstFloatByTimestampAggregatorFunctionSupplier;
-import org.elasticsearch.compute.aggregation.AllFirstIntByTimestampAggregatorFunctionSupplier;
-import org.elasticsearch.compute.aggregation.AllFirstLongByTimestampAggregatorFunctionSupplier;
+import org.elasticsearch.compute.aggregation.AllLastBytesRefByTimestampAggregatorFunctionSupplier;
+import org.elasticsearch.compute.aggregation.AllLastDoubleByTimestampAggregatorFunctionSupplier;
+import org.elasticsearch.compute.aggregation.AllLastFloatByTimestampAggregatorFunctionSupplier;
+import org.elasticsearch.compute.aggregation.AllLastIntByTimestampAggregatorFunctionSupplier;
+import org.elasticsearch.compute.aggregation.AllLastLongByTimestampAggregatorFunctionSupplier;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
@@ -37,11 +37,11 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.Param
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.SECOND;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
 
-public class AllFirst extends AggregateFunction implements ToAggregator {
+public class AllLast extends AggregateFunction implements ToAggregator {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         Expression.class,
-        "AllFirst",
-        AllFirst::readFrom
+        "AllLast",
+        AllLast::readFrom
     );
 
     private final Expression sort;
@@ -50,11 +50,11 @@ public class AllFirst extends AggregateFunction implements ToAggregator {
         type = FunctionType.AGGREGATE,
         preview = true,
         returnType = { "long", "integer", "double", "keyword" },
-        description = "Calculates the earliest value of a field, and can operate on null values.",
+        description = "Calculates the latest value of a field, and can operate on null values.",
         appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.DEVELOPMENT) },
-        examples = @Example(file = "stats_all_first_all_last", tag = "all_first")
+        examples = @Example(file = "stats_all_first_all_last", tag = "all_last")
     )
-    public AllFirst(
+    public AllLast(
         Source source,
         @Param(
             name = "value",
@@ -66,19 +66,19 @@ public class AllFirst extends AggregateFunction implements ToAggregator {
         this(source, field, Literal.TRUE, NO_WINDOW, sort);
     }
 
-    private AllFirst(Source source, Expression field, Expression filter, Expression window, Expression sort) {
+    private AllLast(Source source, Expression field, Expression filter, Expression window, Expression sort) {
         super(source, field, filter, window, List.of(sort));
         this.sort = sort;
     }
 
-    private static AllFirst readFrom(StreamInput in) throws IOException {
+    private static AllLast readFrom(StreamInput in) throws IOException {
         Source source = Source.readFrom((PlanStreamInput) in);
         Expression field = in.readNamedWriteable(Expression.class);
         Expression filter = in.readNamedWriteable(Expression.class);
         Expression window = readWindow(in);
         List<Expression> params = in.readNamedWriteableCollectionAsList(Expression.class);
         Expression sort = params.getFirst();
-        return new AllFirst(source, field, filter, window, sort);
+        return new AllLast(source, field, filter, window, sort);
     }
 
     @Override
@@ -87,18 +87,18 @@ public class AllFirst extends AggregateFunction implements ToAggregator {
     }
 
     @Override
-    protected NodeInfo<AllFirst> info() {
-        return NodeInfo.create(this, AllFirst::new, field(), sort);
+    protected NodeInfo<AllLast> info() {
+        return NodeInfo.create(this, AllLast::new, field(), sort);
     }
 
     @Override
-    public AllFirst replaceChildren(List<Expression> newChildren) {
-        return new AllFirst(source(), newChildren.get(0), newChildren.get(1), newChildren.get(2), newChildren.get(3));
+    public AllLast replaceChildren(List<Expression> newChildren) {
+        return new AllLast(source(), newChildren.get(0), newChildren.get(1), newChildren.get(2), newChildren.get(3));
     }
 
     @Override
-    public AllFirst withFilter(Expression filter) {
-        return new AllFirst(source(), field(), filter, window(), sort);
+    public AllLast withFilter(Expression filter) {
+        return new AllLast(source(), field(), filter, window(), sort);
     }
 
     public Expression sort() {
@@ -144,17 +144,17 @@ public class AllFirst extends AggregateFunction implements ToAggregator {
     public AggregatorFunctionSupplier supplier() {
         final DataType type = field().dataType();
         return switch (type) {
-            case LONG -> new AllFirstLongByTimestampAggregatorFunctionSupplier();
-            case INTEGER -> new AllFirstIntByTimestampAggregatorFunctionSupplier();
-            case DOUBLE -> new AllFirstDoubleByTimestampAggregatorFunctionSupplier();
-            case FLOAT -> new AllFirstFloatByTimestampAggregatorFunctionSupplier();
-            case KEYWORD, TEXT -> new AllFirstBytesRefByTimestampAggregatorFunctionSupplier();
+            case LONG -> new AllLastLongByTimestampAggregatorFunctionSupplier();
+            case INTEGER -> new AllLastIntByTimestampAggregatorFunctionSupplier();
+            case DOUBLE -> new AllLastDoubleByTimestampAggregatorFunctionSupplier();
+            case FLOAT -> new AllLastFloatByTimestampAggregatorFunctionSupplier();
+            case KEYWORD, TEXT -> new AllLastBytesRefByTimestampAggregatorFunctionSupplier();
             default -> throw EsqlIllegalArgumentException.illegalDataType(type);
         };
     }
 
     @Override
     public String toString() {
-        return "all_first(" + field() + ", " + sort + ")";
+        return "all_last(" + field() + ", " + sort + ")";
     }
 }

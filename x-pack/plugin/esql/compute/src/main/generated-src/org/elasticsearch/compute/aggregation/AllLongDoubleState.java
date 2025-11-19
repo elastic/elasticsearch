@@ -8,20 +8,24 @@
 package org.elasticsearch.compute.aggregation;
 
 // begin generated imports
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.operator.DriverContext;
+import org.elasticsearch.compute.operator.BreakingBytesRefBuilder;
+import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.core.Releasables;
 // end generated imports
 
 /**
- * Aggregator state for a single {@code long} and a single {@code long}.
- * This class is not generated yet, but will be eventually by something like {@code X-2State.java.st}.
+ * Aggregator state for a single {@code long} and a single {@code double}, with support for null v2 values.
+ * This class is generated. Edit {@code X-All2State.java.st} instead.
  */
-final class AllLongLongState implements AggregatorState {
+final class AllLongDoubleState implements AggregatorState {
     // the timestamp
     private long v1;
 
     // the value
-    private long v2;
+    private double v2;
 
     // whether we've seen a first/last timestamp
     private boolean seen;
@@ -29,7 +33,7 @@ final class AllLongLongState implements AggregatorState {
     // because we might observe a first/last timestamp without observing a value (e.g.: value was null)
     private boolean v2Seen;
 
-    AllLongLongState(long v1, long v2) {
+    AllLongDoubleState(long v1, double v2) {
         this.v1 = v1;
         this.v2 = v2;
     }
@@ -42,11 +46,11 @@ final class AllLongLongState implements AggregatorState {
         this.v1 = v1;
     }
 
-    long v2() {
+    double v2() {
         return v2;
     }
 
-    void v2(long v2) {
+    void v2(double v2) {
         this.v2 = v2;
     }
 
@@ -71,7 +75,7 @@ final class AllLongLongState implements AggregatorState {
     public void toIntermediate(Block[] blocks, int offset, DriverContext driverContext) {
         assert blocks.length >= offset + 4;
         blocks[offset + 0] = driverContext.blockFactory().newConstantLongBlockWith(v1, 1);
-        blocks[offset + 1] = driverContext.blockFactory().newConstantLongBlockWith(v2, 1);
+        blocks[offset + 1] = driverContext.blockFactory().newConstantDoubleBlockWith(v2, 1);
         blocks[offset + 2] = driverContext.blockFactory().newConstantBooleanBlockWith(seen, 1);
         blocks[offset + 3] = driverContext.blockFactory().newConstantBooleanBlockWith(v2Seen, 1);
     }

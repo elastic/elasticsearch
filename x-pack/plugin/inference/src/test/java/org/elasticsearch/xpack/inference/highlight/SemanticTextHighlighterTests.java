@@ -51,7 +51,6 @@ import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.search.lookup.Source;
 import org.elasticsearch.search.rank.RankDoc;
 import org.elasticsearch.search.vectors.KnnVectorQueryBuilder;
-import org.elasticsearch.search.vectors.VectorSimilarityQuery;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.ml.search.SparseVectorQueryBuilder;
 import org.elasticsearch.xpack.inference.InferencePlugin;

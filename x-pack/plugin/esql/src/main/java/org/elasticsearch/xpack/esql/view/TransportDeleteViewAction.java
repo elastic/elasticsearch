@@ -53,7 +53,7 @@ public class TransportDeleteViewAction extends AcknowledgedTransportMasterNodePr
         ProjectState state,
         ActionListener<AcknowledgedResponse> listener
     ) {
-        viewService.delete(state.projectId(), request, request.name(), listener.map(v -> AcknowledgedResponse.TRUE));
+        viewService.delete(state.projectId(), request, listener.map(v -> AcknowledgedResponse.TRUE));
     }
 
     @Override

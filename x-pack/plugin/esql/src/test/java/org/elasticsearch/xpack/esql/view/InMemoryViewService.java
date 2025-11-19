@@ -11,7 +11,6 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.metadata.ProjectId;
-import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 
 import java.util.Map;
 import java.util.function.Function;
@@ -24,13 +23,21 @@ public class InMemoryViewService extends ViewService {
 
     private ViewMetadata metadata;
 
-    public InMemoryViewService(EsqlFunctionRegistry functionRegistry) {
-        this(functionRegistry, ViewServiceConfig.DEFAULT);
+    public InMemoryViewService() {
+        this(ViewServiceConfig.DEFAULT);
     }
 
-    public InMemoryViewService(EsqlFunctionRegistry functionRegistry, ViewServiceConfig config) {
-        super(functionRegistry, config);
-        this.metadata = ViewMetadata.EMPTY;
+    public InMemoryViewService(ViewServiceConfig config) {
+        this(config, ViewMetadata.EMPTY);
+    }
+
+    private InMemoryViewService(ViewServiceConfig config, ViewMetadata metadata) {
+        super(config);
+        this.metadata = metadata;
+    }
+
+    InMemoryViewService withConfig(ViewServiceConfig config) {
+        return new InMemoryViewService(config, this.metadata);
     }
 
     @Override

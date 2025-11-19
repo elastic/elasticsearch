@@ -21,7 +21,6 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.service.MasterServiceTaskQueue;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.core.SuppressForbidden;
-import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.plugin.EsqlFeatures;
 
 import java.util.Locale;
@@ -36,13 +35,8 @@ public class ClusterViewService extends ViewService {
     private final ProjectResolver projectResolver;
     private final MasterServiceTaskQueue<ViewMetadataUpdateTask> taskQueue;
 
-    public ClusterViewService(
-        EsqlFunctionRegistry functionRegistry,
-        ClusterService clusterService,
-        ProjectResolver projectResolver,
-        ViewServiceConfig config
-    ) {
-        super(functionRegistry, config);
+    public ClusterViewService(ClusterService clusterService, ProjectResolver projectResolver, ViewServiceConfig config) {
+        super(config);
         this.clusterService = clusterService;
         this.projectResolver = projectResolver;
         this.taskQueue = clusterService.createTaskQueue(

@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.view;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.parser.AbstractStatementParserTests;
@@ -21,9 +22,8 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.startsWith;
 
 public class InMemoryViewServiceTests extends AbstractStatementParserTests {
-    EsqlFunctionRegistry functionRegistry = new EsqlFunctionRegistry();
-    InMemoryViewService viewService = new InMemoryViewService(functionRegistry);
-    PlanTelemetry telemetry = new PlanTelemetry(functionRegistry);
+    InMemoryViewService viewService = new InMemoryViewService();
+    PlanTelemetry telemetry = new PlanTelemetry(new EsqlFunctionRegistry());
     ProjectId projectId = ProjectId.fromId("1");
 
     public void testPutGet() throws Exception {
@@ -68,7 +68,7 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
 
     public void testModifiedViewDepth() {
         var config = new ViewService.ViewServiceConfig(100, 10_000, 1);
-        InMemoryViewService customViewService = new InMemoryViewService(functionRegistry, config);
+        InMemoryViewService customViewService = viewService.withConfig(config);
         try {
             addView("view1", "from emp", customViewService);
             addView("view2", "from view1", customViewService);
@@ -101,7 +101,7 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
 
     public void testModifiedViewCount() {
         var config = new ViewService.ViewServiceConfig(1, 10_000, 10);
-        InMemoryViewService customViewService = new InMemoryViewService(functionRegistry, config);
+        InMemoryViewService customViewService = viewService.withConfig(config);
         try {
             addView("view1", "from emp", customViewService);
 
@@ -127,7 +127,7 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
 
     public void testModifiedViewLength() {
         var config = new ViewService.ViewServiceConfig(100, 6, 10);
-        InMemoryViewService customViewService = new InMemoryViewService(functionRegistry, config);
+        InMemoryViewService customViewService = viewService.withConfig(config);
         try {
             addView("view1", "from a", customViewService);
 
@@ -140,8 +140,7 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
     }
 
     public void testInvalidViewNames() {
-        var config = ViewService.ViewServiceConfig.DEFAULT;
-        InMemoryViewService customViewService = new InMemoryViewService(functionRegistry, config);
+        InMemoryViewService customViewService = viewService.withConfig(ViewService.ViewServiceConfig.DEFAULT);
         for (var name : Map.of(
             "viewX",
             "Invalid view name [viewX], must be lowercase",
@@ -168,7 +167,8 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
     }
 
     private void addView(String name, String query, ViewService viewService) {
-        viewService.put(projectId, null, name, new View(query), ActionListener.noop());
+        PutViewAction.Request request = new PutViewAction.Request(TimeValue.ONE_MINUTE, TimeValue.ONE_MINUTE, name, new View(query));
+        viewService.put(projectId, request, ActionListener.noop());
     }
 
 }

@@ -35,7 +35,7 @@ import java.util.function.Function;
 
 public abstract class ViewService {
     private final ViewServiceConfig config;
-    private final EsqlFunctionRegistry functionRegistry;
+    private final PlanTelemetry telemetry;
 
     public record ViewServiceConfig(int maxViews, int maxViewSize, int maxViewDepth) {
 
@@ -53,8 +53,8 @@ public abstract class ViewService {
         }
     }
 
-    public ViewService(EsqlFunctionRegistry functionRegistry, ViewServiceConfig config) {
-        this.functionRegistry = functionRegistry;
+    public ViewService(ViewServiceConfig config) {
+        this.telemetry = new PlanTelemetry(new EsqlFunctionRegistry());
         this.config = config;
     }
 
@@ -147,20 +147,14 @@ public abstract class ViewService {
     /**
      * Adds or modifies a view by name. This method can only be invoked on the master node.
      */
-    public void put(
-        ProjectId projectId,
-        AcknowledgedRequest<?> request,
-        String name,
-        View view,
-        ActionListener<? extends AcknowledgedResponse> callback
-    ) {
+    public void put(ProjectId projectId, PutViewAction.Request request, ActionListener<? extends AcknowledgedResponse> callback) {
         assertMasterNode();
         if (viewsFeatureEnabled()) {
-            validatePutView(projectId, name, view);
+            validatePutView(projectId, request.name(), request.view());
             updateViewMetadata("PUT", projectId, request, callback, current -> {
                 Map<String, View> original = getMetadata(projectId).views();
                 Map<String, View> updated = new HashMap<>(original);
-                updated.put(name, view);
+                updated.put(request.name(), request.view());
                 return updated;
             });
         }
@@ -194,7 +188,7 @@ public abstract class ViewService {
             throw new IllegalArgumentException("cannot add view, the maximum number of views is reached: " + config.maxViews);
         }
         // Parse the query to ensure it's valid, this will throw appropriate exceptions if not
-        new EsqlParser().createStatement(view.query(), new QueryParams(), new PlanTelemetry(functionRegistry));
+        new EsqlParser().createStatement(view.query(), new QueryParams(), telemetry);
     }
 
     /**
@@ -217,13 +211,9 @@ public abstract class ViewService {
     /**
      * Removes a view from the cluster state. This method can only be invoked on the master node.
      */
-    public void delete(
-        ProjectId projectId,
-        AcknowledgedRequest<?> request,
-        String name,
-        ActionListener<? extends AcknowledgedResponse> callback
-    ) {
+    public void delete(ProjectId projectId, DeleteViewAction.Request request, ActionListener<? extends AcknowledgedResponse> callback) {
         assertMasterNode();
+        String name = request.name();
         if (Strings.hasText(name) == false) {
             throw new IllegalArgumentException("name is missing or empty");
         }

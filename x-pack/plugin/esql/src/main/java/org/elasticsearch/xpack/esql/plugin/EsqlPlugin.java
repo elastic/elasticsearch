@@ -202,7 +202,6 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
         var blockFactoryProvider = blockFactoryProvider(circuitBreaker, bigArrays, maxPrimitiveArrayBlockSize);
         EsqlFunctionRegistry functionRegistry = new EsqlFunctionRegistry();
         ViewService viewService = new ClusterViewService(
-            functionRegistry,
             services.clusterService(),
             services.projectResolver(),
             ViewService.ViewServiceConfig.fromSettings(settings)
@@ -227,7 +226,6 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
                 blockFactoryProvider.blockFactory()
             ),
             blockFactoryProvider,
-            functionRegistry,
             viewService
         );
     }

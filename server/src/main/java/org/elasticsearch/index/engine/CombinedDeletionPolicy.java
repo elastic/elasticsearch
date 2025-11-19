@@ -29,7 +29,6 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.LongSupplier;
-import java.util.stream.Collectors;
 
 import static org.elasticsearch.index.engine.ElasticsearchIndexDeletionPolicy.CommitsListener.listOfNewFileNames;
 

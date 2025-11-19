@@ -3325,11 +3325,7 @@ public class VerifierTests extends ESTestCase {
                 equalTo("1:27: chunking_settings must be a map")
             );
             assertThat(
-                error(
-                    "from test | EVAL chunks = CHUNK(body, {\"strategy\": \"invalid\"})",
-                    fullTextAnalyzer,
-                    VerificationException.class
-                ),
+                error("from test | EVAL chunks = CHUNK(body, {\"strategy\": \"invalid\"})", fullTextAnalyzer, VerificationException.class),
                 equalTo("1:27: Invalid chunkingStrategy invalid")
             );
             assertThat(
@@ -3338,8 +3334,10 @@ public class VerifierTests extends ESTestCase {
                     fullTextAnalyzer,
                     VerificationException.class
                 ),
-                equalTo("1:27: Validation Failed: 1: [chunking_settings] Invalid value [5.0]. " +
-                    "[max_chunk_size] must be a greater than or equal to [20.0];")
+                equalTo(
+                    "1:27: Validation Failed: 1: [chunking_settings] Invalid value [5.0]. "
+                        + "[max_chunk_size] must be a greater than or equal to [20.0];"
+                )
             );
             assertThat(
                 error(
@@ -3347,13 +3345,15 @@ public class VerifierTests extends ESTestCase {
                     fullTextAnalyzer,
                     VerificationException.class
                 ),
-                equalTo("1:27: Validation Failed: 1: [chunking_settings] Invalid value [5.0]. " +
-                    "[max_chunk_size] must be a greater than or equal to [20.0];2: sentence_overlap[5] must be either 0 or 1;")
+                equalTo(
+                    "1:27: Validation Failed: 1: [chunking_settings] Invalid value [5.0]. "
+                        + "[max_chunk_size] must be a greater than or equal to [20.0];2: sentence_overlap[5] must be either 0 or 1;"
+                )
             );
             assertThat(
                 error(
-                    "from test | EVAL chunks = CHUNK(body, {\"strategy\": \"sentence\", \"max_chunk_size\": 20, " +
-                    "\"sentence_overlap\": 1, \"extra_value\": \"foo\"})",
+                    "from test | EVAL chunks = CHUNK(body, {\"strategy\": \"sentence\", \"max_chunk_size\": 20, "
+                        + "\"sentence_overlap\": 1, \"extra_value\": \"foo\"})",
                     fullTextAnalyzer,
                     VerificationException.class
                 ),

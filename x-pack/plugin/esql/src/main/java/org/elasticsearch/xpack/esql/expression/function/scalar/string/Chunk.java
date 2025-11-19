@@ -122,7 +122,7 @@ public class Chunk extends EsqlScalarFunction implements OptionalArgument {
     }
 
     private TypeResolution validateChunkingSettings() {
-        if (chunkingSettings instanceof  MapExpression == false) {
+        if (chunkingSettings instanceof MapExpression == false) {
             return new TypeResolution("chunking_settings must be a map");
         }
         MapExpression chunkingSettingsMap = (MapExpression) chunkingSettings;

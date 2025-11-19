@@ -193,9 +193,8 @@ public abstract class ViewService {
         if (views.containsKey(name) == false && views.size() >= config.maxViews) {
             throw new IllegalArgumentException("cannot add view, the maximum number of views is reached: " + config.maxViews);
         }
+        // Parse the query to ensure it's valid, this will throw appropriate exceptions if not
         new EsqlParser().createStatement(view.query(), new QueryParams(), new PlanTelemetry(functionRegistry));
-        // TODO should we validate this in the transport action and make it async? like plan like a query
-        // TODO postgresql does.
     }
 
     /**

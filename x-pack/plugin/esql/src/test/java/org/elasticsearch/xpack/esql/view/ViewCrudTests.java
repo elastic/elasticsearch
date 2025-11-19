@@ -129,6 +129,11 @@ public class ViewCrudTests extends AbstractViewTestCase {
             ParsingException error = expectThrows(ParsingException.class, () -> viewsApi.save("name", invalidView));
             assertThat(error.getMessage(), containsString("mismatched input 'FROMMM'"));
         }
+        {
+            View invalidView = new View("FROM abc | SELECT 1 AS");
+            ParsingException error = expectThrows(ParsingException.class, () -> viewsApi.save("name", invalidView));
+            assertThat(error.getMessage(), containsString("mismatched input 'SELECT'"));
+        }
     }
 
     public void testDeleteValidation() {

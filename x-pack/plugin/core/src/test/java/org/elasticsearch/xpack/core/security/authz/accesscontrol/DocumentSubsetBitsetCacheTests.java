@@ -598,8 +598,7 @@ public class DocumentSubsetBitsetCacheTests extends ESTestCase {
                 writableRegistry(),
                 client,
                 newSearcher(directoryReader),
-                () -> nowInMillis,
-                null
+                () -> nowInMillis
             );
 
             context = new TestIndexContext(directory, iw, directoryReader, searchExecutionContext, leaf);

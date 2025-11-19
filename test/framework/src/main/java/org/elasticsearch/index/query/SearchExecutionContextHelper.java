@@ -37,8 +37,7 @@ public class SearchExecutionContextHelper {
             namedWriteableRegistry,
             null,
             null,
-            System::currentTimeMillis,
-            null
+            System::currentTimeMillis
         );
     }
 

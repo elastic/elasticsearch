@@ -179,8 +179,7 @@ public class SearchExecutionContext extends QueryRewriteContext {
         NamedWriteableRegistry namedWriteableRegistry,
         Client client,
         IndexSearcher searcher,
-        LongSupplier nowInMillis,
-        Predicate<String> indexNameMatcher
+        LongSupplier nowInMillis
     ) {
         this(
             shardId,
@@ -198,7 +197,7 @@ public class SearchExecutionContext extends QueryRewriteContext {
             searcher,
             nowInMillis,
             null,
-            indexNameMatcher,
+            null,
             () -> true,
             null,
             Collections.emptyMap(),

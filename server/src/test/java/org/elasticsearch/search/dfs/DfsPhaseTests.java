@@ -135,7 +135,6 @@ public class DfsPhaseTests extends IndexShardTestCase {
                 null,
                 null,
                 null,
-                null,
                 null
             );
 

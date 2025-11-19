@@ -311,8 +311,7 @@ public class HighlightBuilderTests extends ESTestCase {
             namedWriteableRegistry,
             null,
             null,
-            System::currentTimeMillis,
-            null
+            System::currentTimeMillis
         ) {
             @Override
             public MappedFieldType getFieldType(String name) {

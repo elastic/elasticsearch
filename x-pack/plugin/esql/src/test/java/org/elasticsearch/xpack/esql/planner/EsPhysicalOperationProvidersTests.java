@@ -160,8 +160,7 @@ public class EsPhysicalOperationProvidersTests extends ESTestCase {
             null,
             null,
             null,
-            () -> 0,
-            null
+            () -> 0
         ) {
             @Override
             public MappedFieldType getFieldType(String name) {

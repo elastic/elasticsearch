@@ -650,8 +650,7 @@ public class DateFieldTypeTests extends FieldTypeTestCase {
             writableRegistry(),
             null,
             null,
-            () -> nowInMillis,
-            null
+            () -> nowInMillis
         );
     }
 

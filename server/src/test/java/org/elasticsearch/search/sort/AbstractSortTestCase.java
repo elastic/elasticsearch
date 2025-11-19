@@ -212,8 +212,7 @@ public abstract class AbstractSortTestCase<T extends SortBuilder<T>> extends EST
             namedWriteableRegistry,
             null,
             searcher,
-            ESTestCase::randomNonNegativeLong,
-            null
+            ESTestCase::randomNonNegativeLong
         ) {
 
             @Override

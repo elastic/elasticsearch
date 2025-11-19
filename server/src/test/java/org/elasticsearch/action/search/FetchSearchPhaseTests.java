@@ -1020,7 +1020,6 @@ public class FetchSearchPhaseTests extends ESTestCase {
             null,
             null,
             null,
-            null,
             null
         );
         TestSearchContext searchContext = new TestSearchContext(searchExecutionContext, null, contextIndexSearcher) {

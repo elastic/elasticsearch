@@ -105,8 +105,7 @@ public class SecurityIndexReaderWrapperIntegrationTests extends AbstractBuilderT
             writableRegistry(),
             client,
             null,
-            () -> nowInMillis,
-            null
+            () -> nowInMillis
         );
         SearchExecutionContext searchExecutionContext = spy(realSearchExecutionContext);
         DocumentSubsetBitsetCache bitsetCache = new DocumentSubsetBitsetCache(Settings.EMPTY);
@@ -256,8 +255,7 @@ public class SecurityIndexReaderWrapperIntegrationTests extends AbstractBuilderT
             writableRegistry(),
             client,
             null,
-            () -> nowInMillis,
-            null
+            () -> nowInMillis
         );
         SearchExecutionContext searchExecutionContext = spy(realSearchExecutionContext);
         DocumentSubsetBitsetCache bitsetCache = new DocumentSubsetBitsetCache(Settings.EMPTY);

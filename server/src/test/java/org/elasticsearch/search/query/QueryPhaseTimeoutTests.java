@@ -430,8 +430,7 @@ public class QueryPhaseTimeoutTests extends IndexShardTestCase {
             writableRegistry(),
             null,
             null,
-            () -> nowInMillis,
-            null
+            () -> nowInMillis
         );
     }
 

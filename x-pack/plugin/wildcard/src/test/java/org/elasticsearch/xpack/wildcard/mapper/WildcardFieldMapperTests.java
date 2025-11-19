@@ -1100,8 +1100,7 @@ public class WildcardFieldMapperTests extends MapperTestCase {
             null,
             null,
             null,
-            ESTestCase::randomNonNegativeLong,
-            null
+            ESTestCase::randomNonNegativeLong
         ) {
             @Override
             public MappedFieldType getFieldType(String name) {

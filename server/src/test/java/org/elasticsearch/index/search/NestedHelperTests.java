@@ -84,8 +84,7 @@ public class NestedHelperTests extends MapperServiceTestCase {
             writableRegistry(),
             null,
             null,
-            System::currentTimeMillis,
-            null
+            System::currentTimeMillis
         );
     }
 

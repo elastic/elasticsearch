@@ -41,7 +41,6 @@ public class RangeQueryRewriteTests extends ESSingleNodeTestCase {
             writableRegistry(),
             null,
             newSearcher(reader),
-            null,
             null
         );
         RangeQueryBuilder range = new RangeQueryBuilder("foo");
@@ -75,7 +74,6 @@ public class RangeQueryRewriteTests extends ESSingleNodeTestCase {
             null,
             parserConfig(),
             writableRegistry(),
-            null,
             null,
             null,
             null
@@ -115,7 +113,6 @@ public class RangeQueryRewriteTests extends ESSingleNodeTestCase {
             writableRegistry(),
             null,
             newSearcher(reader),
-            null,
             null
         );
         RangeQueryBuilder range = new RangeQueryBuilder("foo");

@@ -151,8 +151,7 @@ public class QueryRescorerBuilderTests extends ESTestCase {
             namedWriteableRegistry,
             null,
             null,
-            () -> nowInMillis,
-            null
+            () -> nowInMillis
         ) {
             @Override
             public MappedFieldType getFieldType(String name) {
@@ -209,8 +208,7 @@ public class QueryRescorerBuilderTests extends ESTestCase {
             namedWriteableRegistry,
             null,
             null,
-            () -> nowInMillis,
-            null
+            () -> nowInMillis
         ) {
             @Override
             public MappedFieldType getFieldType(String name) {

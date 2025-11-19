@@ -169,8 +169,7 @@ public class QueryPhaseTests extends IndexShardTestCase {
             writableRegistry(),
             null,
             null,
-            () -> nowInMillis,
-            null
+            () -> nowInMillis
         );
     }
 

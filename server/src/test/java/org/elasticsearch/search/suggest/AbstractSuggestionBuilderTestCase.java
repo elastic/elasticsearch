@@ -182,8 +182,7 @@ public abstract class AbstractSuggestionBuilderTestCase<SB extends SuggestionBui
                 namedWriteableRegistry,
                 null,
                 null,
-                System::currentTimeMillis,
-                null
+                System::currentTimeMillis
             );
 
             SuggestionContext suggestionContext = suggestionBuilder.build(mockContext);
@@ -234,8 +233,7 @@ public abstract class AbstractSuggestionBuilderTestCase<SB extends SuggestionBui
             namedWriteableRegistry,
             null,
             null,
-            System::currentTimeMillis,
-            null
+            System::currentTimeMillis
         );
         if (randomBoolean()) {
             mockContext.setAllowUnmappedFields(randomBoolean());

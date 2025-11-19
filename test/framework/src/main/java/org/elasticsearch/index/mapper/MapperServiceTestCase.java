@@ -819,8 +819,7 @@ public abstract class MapperServiceTestCase extends FieldTypeTestCase {
             writableRegistry(),
             null,
             searcher,
-            () -> nowInMillis,
-            null
+            () -> nowInMillis
         );
     }
 

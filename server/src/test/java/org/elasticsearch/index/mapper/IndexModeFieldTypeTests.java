@@ -19,6 +19,7 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.query.SearchExecutionContext;
 
+import java.util.Collections;
 import java.util.List;
 import java.util.function.Predicate;
 
@@ -87,7 +88,14 @@ public class IndexModeFieldTypeTests extends ConstantFieldTypeTestCase {
             null,
             null,
             System::currentTimeMillis,
-            indexNameMatcher
+            null,
+            indexNameMatcher,
+            () -> true,
+            null,
+            Collections.emptyMap(),
+            null,
+            MapperMetrics.NOOP,
+            null
         );
     }
 }

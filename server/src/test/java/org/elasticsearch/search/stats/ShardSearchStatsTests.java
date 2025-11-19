@@ -297,7 +297,6 @@ public class ShardSearchStatsTests extends IndexShardTestCase {
             null,
             null,
             null,
-            null,
             null
         );
         return new TestSearchContext(searchExecutionContext) {

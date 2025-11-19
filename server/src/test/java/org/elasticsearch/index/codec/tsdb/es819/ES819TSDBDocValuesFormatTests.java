@@ -75,7 +75,7 @@ import static org.hamcrest.Matchers.instanceOf;
 
 public class ES819TSDBDocValuesFormatTests extends ES87TSDBDocValuesFormatTests {
 
-    private final Codec codec = new Elasticsearch92Lucene103Codec() {
+    protected final Codec codec = new Elasticsearch92Lucene103Codec() {
 
         final ES819TSDBDocValuesFormat docValuesFormat = new ES819TSDBDocValuesFormat(
             randomIntBetween(2, 4096),
@@ -105,7 +105,8 @@ public class ES819TSDBDocValuesFormatTests extends ES87TSDBDocValuesFormatTests 
                 DATA_CODEC,
                 DATA_EXTENSION,
                 META_CODEC,
-                META_EXTENSION
+                META_EXTENSION,
+                NUMERIC_BLOCK_SHIFT
             );
         }
     }

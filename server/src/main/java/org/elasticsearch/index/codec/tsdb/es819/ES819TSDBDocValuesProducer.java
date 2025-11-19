@@ -68,9 +68,18 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
     private final int maxDoc;
     final int version;
     private final boolean merging;
+    private final int numericBlockShift;
+    private final int numericBlockSize;
+    private final int numericBlockMask;
 
-    ES819TSDBDocValuesProducer(SegmentReadState state, String dataCodec, String dataExtension, String metaCodec, String metaExtension)
-        throws IOException {
+    ES819TSDBDocValuesProducer(
+        SegmentReadState state,
+        String dataCodec,
+        String dataExtension,
+        String metaCodec,
+        String metaExtension,
+        int numericBlockShift
+    ) throws IOException {
         this.numerics = new IntObjectHashMap<>();
         this.binaries = new IntObjectHashMap<>();
         this.sorted = new IntObjectHashMap<>();
@@ -80,6 +89,9 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
         this.maxDoc = state.segmentInfo.maxDoc();
         this.primarySortFieldNumber = primarySortFieldNumber(state.segmentInfo, state.fieldInfos);
         this.merging = false;
+        this.numericBlockShift = numericBlockShift;
+        this.numericBlockSize = 1 << numericBlockShift;
+        this.numericBlockMask = numericBlockSize - 1;
 
         // read in the entries from the metadata file.
         int version = -1;
@@ -149,7 +161,8 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
         int maxDoc,
         int version,
         int primarySortFieldNumber,
-        boolean merging
+        boolean merging,
+        int numericBlockShift
     ) {
         this.numerics = numerics;
         this.binaries = binaries;
@@ -162,6 +175,9 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
         this.version = version;
         this.primarySortFieldNumber = primarySortFieldNumber;
         this.merging = merging;
+        this.numericBlockShift = numericBlockShift;
+        this.numericBlockSize = 1 << numericBlockShift;
+        this.numericBlockMask = numericBlockSize - 1;
     }
 
     @Override
@@ -177,7 +193,8 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
             maxDoc,
             version,
             primarySortFieldNumber,
-            true
+            true,
+            numericBlockShift
         );
     }
 
@@ -497,7 +514,7 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
                     }
                     // Falling back to tryRead(...) is safe here, given that current block index wasn't altered by looking ahead.
                     try (var builder = factory.singletonOrdinalsBuilder(this, docs.count() - offset, true)) {
-                        BlockLoader.SingletonLongBuilder delegate = new SingletonLongToSingletonOrdinalDelegate(builder);
+                        BlockLoader.SingletonLongBuilder delegate = new SingletonLongToSingletonOrdinalDelegate(builder, numericBlockSize);
                         var result = denseOrds.tryRead(delegate, docs, offset);
                         if (result != null) {
                             return result;
@@ -1220,7 +1237,7 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
         }
     }
 
-    private static NumericEntry readNumeric(IndexInput meta) throws IOException {
+    private NumericEntry readNumeric(IndexInput meta) throws IOException {
         NumericEntry entry = new NumericEntry();
         readNumeric(meta, entry);
         return entry;
@@ -1237,7 +1254,7 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
         return new DocValuesSkipperEntry(offset, length, minValue, maxValue, docCount, maxDocID);
     }
 
-    private static void readNumeric(IndexInput meta, NumericEntry entry) throws IOException {
+    private void readNumeric(IndexInput meta, NumericEntry entry) throws IOException {
         entry.numValues = meta.readLong();
         // Change compared to ES87TSDBDocValuesProducer:
         entry.numDocsWithField = meta.readInt();
@@ -1251,11 +1268,7 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
                 final int blockShift = meta.readByte();
                 entry.sortedOrdinals = DirectMonotonicReader.loadMeta(meta, numOrds + 1, blockShift);
             } else {
-                entry.indexMeta = DirectMonotonicReader.loadMeta(
-                    meta,
-                    1 + ((entry.numValues - 1) >>> ES819TSDBDocValuesFormat.NUMERIC_BLOCK_SHIFT),
-                    indexBlockShift
-                );
+                entry.indexMeta = DirectMonotonicReader.loadMeta(meta, 1 + ((entry.numValues - 1) >>> numericBlockShift), indexBlockShift);
             }
             entry.indexOffset = meta.readLong();
             entry.indexLength = meta.readLong();
@@ -1293,13 +1306,13 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
         return entry;
     }
 
-    private static SortedNumericEntry readSortedNumeric(IndexInput meta) throws IOException {
+    private SortedNumericEntry readSortedNumeric(IndexInput meta) throws IOException {
         SortedNumericEntry entry = new SortedNumericEntry();
         readSortedNumeric(meta, entry);
         return entry;
     }
 
-    private static SortedNumericEntry readSortedNumeric(IndexInput meta, SortedNumericEntry entry) throws IOException {
+    private SortedNumericEntry readSortedNumeric(IndexInput meta, SortedNumericEntry entry) throws IOException {
         readNumeric(meta, entry);
         // We don't read numDocsWithField here any more.
         if (entry.numDocsWithField != entry.numValues) {
@@ -1475,9 +1488,9 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
         if (entry.docsWithFieldOffset == -1) {
             // dense
             return new BaseDenseNumericValues(maxDoc) {
-                private final TSDBDocValuesEncoder decoder = new TSDBDocValuesEncoder(ES819TSDBDocValuesFormat.NUMERIC_BLOCK_SIZE);
+                private final TSDBDocValuesEncoder decoder = new TSDBDocValuesEncoder(numericBlockSize);
                 private long currentBlockIndex = -1;
-                private final long[] currentBlock = new long[ES819TSDBDocValuesFormat.NUMERIC_BLOCK_SIZE];
+                private final long[] currentBlock = new long[numericBlockSize];
                 // lookahead block
                 private long lookaheadBlockIndex = -1;
                 private long[] lookaheadBlock;
@@ -1491,8 +1504,8 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
                 @Override
                 public long longValue() throws IOException {
                     final int index = doc;
-                    final int blockIndex = index >>> ES819TSDBDocValuesFormat.NUMERIC_BLOCK_SHIFT;
-                    final int blockInIndex = index & ES819TSDBDocValuesFormat.NUMERIC_BLOCK_MASK;
+                    final int blockIndex = index >>> numericBlockShift;
+                    final int blockInIndex = index & numericBlockMask;
                     if (blockIndex == currentBlockIndex) {
                         return currentBlock[blockInIndex];
                     }
@@ -1533,8 +1546,8 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
                     doc = docs.get(docsCount - 1);
                     for (int i = offset; i < docsCount;) {
                         int index = docs.get(i);
-                        final int blockIndex = index >>> ES819TSDBDocValuesFormat.NUMERIC_BLOCK_SHIFT;
-                        final int blockInIndex = index & ES819TSDBDocValuesFormat.NUMERIC_BLOCK_MASK;
+                        final int blockIndex = index >>> numericBlockShift;
+                        final int blockInIndex = index & numericBlockMask;
                         if (blockIndex != currentBlockIndex) {
                             assert blockIndex > currentBlockIndex : blockIndex + " < " + currentBlockIndex;
                             // no need to seek if the loading block is the next block
@@ -1553,7 +1566,7 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
                         // Instead of iterating over docs and find the max length, take an optimistic approach to avoid as
                         // many comparisons as there are remaining docs and instead do at most 7 comparisons:
                         int length = 1;
-                        int remainingBlockLength = Math.min(ES819TSDBDocValuesFormat.NUMERIC_BLOCK_SIZE - blockInIndex, docsCount - i);
+                        int remainingBlockLength = Math.min(numericBlockSize - blockInIndex, docsCount - i);
                         for (int newLength = remainingBlockLength; newLength > 1; newLength = newLength >> 1) {
                             int lastIndex = i + newLength - 1;
                             if (isDense(index, docs.get(lastIndex), newLength)) {
@@ -1569,15 +1582,15 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
 
                 @Override
                 long lookAheadValueAt(int targetDoc) throws IOException {
-                    final int blockIndex = targetDoc >>> ES819TSDBDocValuesFormat.NUMERIC_BLOCK_SHIFT;
-                    final int valueIndex = targetDoc & ES819TSDBDocValuesFormat.NUMERIC_BLOCK_MASK;
+                    final int blockIndex = targetDoc >>> numericBlockShift;
+                    final int valueIndex = targetDoc & numericBlockMask;
                     if (blockIndex == currentBlockIndex) {
                         return currentBlock[valueIndex];
                     }
                     // load data to the lookahead block
                     if (lookaheadBlockIndex != blockIndex) {
                         if (lookaheadBlock == null) {
-                            lookaheadBlock = new long[ES819TSDBDocValuesFormat.NUMERIC_BLOCK_SIZE];
+                            lookaheadBlock = new long[numericBlockSize];
                             lookaheadData = data.slice("look_ahead_values", entry.valuesOffset, entry.valuesLength);
                         }
                         if (lookaheadBlockIndex + 1 != blockIndex) {
@@ -1608,10 +1621,10 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
                 entry.numValues
             );
             return new BaseSparseNumericValues(disi) {
-                private final TSDBDocValuesEncoder decoder = new TSDBDocValuesEncoder(ES819TSDBDocValuesFormat.NUMERIC_BLOCK_SIZE);
+                private final TSDBDocValuesEncoder decoder = new TSDBDocValuesEncoder(numericBlockSize);
                 private IndexedDISI lookAheadDISI;
                 private long currentBlockIndex = -1;
-                private final long[] currentBlock = new long[ES819TSDBDocValuesFormat.NUMERIC_BLOCK_SIZE];
+                private final long[] currentBlock = new long[numericBlockSize];
 
                 @Override
                 public int docIDRunEnd() throws IOException {
@@ -1621,8 +1634,8 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
                 @Override
                 public long longValue() throws IOException {
                     final int index = disi.index();
-                    final int blockIndex = index >>> ES819TSDBDocValuesFormat.NUMERIC_BLOCK_SHIFT;
-                    final int blockInIndex = index & ES819TSDBDocValuesFormat.NUMERIC_BLOCK_MASK;
+                    final int blockIndex = index >>> numericBlockShift;
+                    final int blockInIndex = index & numericBlockMask;
                     if (blockIndex != currentBlockIndex) {
                         assert blockIndex > currentBlockIndex : blockIndex + "<=" + currentBlockIndex;
                         // no need to seek if the loading block is the next block
@@ -1690,8 +1703,8 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
                     try (var singletonLongBuilder = singletonLongBuilder(factory, toDouble, valueCount, toInt)) {
                         for (int i = 0; i < valueCount;) {
                             final int index = firstIndex + i;
-                            final int blockIndex = index >>> ES819TSDBDocValuesFormat.NUMERIC_BLOCK_SHIFT;
-                            final int blockStartIndex = index & ES819TSDBDocValuesFormat.NUMERIC_BLOCK_MASK;
+                            final int blockIndex = index >>> numericBlockShift;
+                            final int blockStartIndex = index & numericBlockMask;
                             if (blockIndex != currentBlockIndex) {
                                 assert blockIndex > currentBlockIndex : blockIndex + "<=" + currentBlockIndex;
                                 if (currentBlockIndex + 1 != blockIndex) {
@@ -1700,7 +1713,7 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
                                 currentBlockIndex = blockIndex;
                                 decoder.decode(valuesData, currentBlock);
                             }
-                            final int count = Math.min(ES819TSDBDocValuesFormat.NUMERIC_BLOCK_SIZE - blockStartIndex, valueCount - i);
+                            final int count = Math.min(numericBlockSize - blockStartIndex, valueCount - i);
                             singletonLongBuilder.appendLongs(currentBlock, blockStartIndex, count);
                             i += count;
                         }
@@ -1777,11 +1790,11 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
         final int bitsPerOrd = maxOrd >= 0 ? PackedInts.bitsRequired(maxOrd - 1) : -1;
 
         final long[] currentBlockIndex = { -1 };
-        final long[] currentBlock = new long[ES819TSDBDocValuesFormat.NUMERIC_BLOCK_SIZE];
-        final TSDBDocValuesEncoder decoder = new TSDBDocValuesEncoder(ES819TSDBDocValuesFormat.NUMERIC_BLOCK_SIZE);
+        final long[] currentBlock = new long[numericBlockSize];
+        final TSDBDocValuesEncoder decoder = new TSDBDocValuesEncoder(numericBlockSize);
         return index -> {
-            final long blockIndex = index >>> ES819TSDBDocValuesFormat.NUMERIC_BLOCK_SHIFT;
-            final int blockInIndex = (int) (index & ES819TSDBDocValuesFormat.NUMERIC_BLOCK_MASK);
+            final long blockIndex = index >>> numericBlockShift;
+            final int blockInIndex = (int) (index & numericBlockMask);
             if (blockIndex != currentBlockIndex[0]) {
                 // no need to seek if the loading block is the next block
                 if (currentBlockIndex[0] + 1 != blockIndex) {
@@ -2018,10 +2031,11 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
 
     static final class SingletonLongToSingletonOrdinalDelegate implements BlockLoader.SingletonLongBuilder {
         private final BlockLoader.SingletonOrdinalsBuilder builder;
-        private final int[] buffer = new int[ES819TSDBDocValuesFormat.NUMERIC_BLOCK_SIZE];
+        private final int[] buffer;
 
-        SingletonLongToSingletonOrdinalDelegate(BlockLoader.SingletonOrdinalsBuilder builder) {
+        SingletonLongToSingletonOrdinalDelegate(BlockLoader.SingletonOrdinalsBuilder builder, int bufferSize) {
             this.builder = builder;
+            this.buffer = new int[bufferSize];
         }
 
         @Override

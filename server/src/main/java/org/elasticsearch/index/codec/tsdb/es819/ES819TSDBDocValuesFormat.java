@@ -31,9 +31,8 @@ import java.io.IOException;
  */
 public class ES819TSDBDocValuesFormat extends org.apache.lucene.codecs.DocValuesFormat {
 
-    static final int NUMERIC_BLOCK_SHIFT = 7;
-    public static final int NUMERIC_BLOCK_SIZE = 1 << NUMERIC_BLOCK_SHIFT;
-    static final int NUMERIC_BLOCK_MASK = NUMERIC_BLOCK_SIZE - 1;
+    static final int NUMERIC_BLOCK_SHIFT = 7;  // block size: 128
+
     static final int DIRECT_MONOTONIC_BLOCK_SHIFT = 16;
     static final String CODEC_NAME = "ES819TSDB";
     static final String DATA_CODEC = "ES819TSDBDocValuesData";
@@ -122,12 +121,25 @@ public class ES819TSDBDocValuesFormat extends org.apache.lucene.codecs.DocValues
 
     /** Default constructor. */
     public ES819TSDBDocValuesFormat() {
-        this(DEFAULT_SKIP_INDEX_INTERVAL_SIZE, ORDINAL_RANGE_ENCODING_MIN_DOC_PER_ORDINAL, OPTIMIZED_MERGE_ENABLE_DEFAULT);
+        this(CODEC_NAME);
+    }
+
+    protected ES819TSDBDocValuesFormat(String name) {
+        this(name, DEFAULT_SKIP_INDEX_INTERVAL_SIZE, ORDINAL_RANGE_ENCODING_MIN_DOC_PER_ORDINAL, OPTIMIZED_MERGE_ENABLE_DEFAULT);
     }
 
     /** Doc values fields format with specified skipIndexIntervalSize. */
     public ES819TSDBDocValuesFormat(int skipIndexIntervalSize, int minDocsPerOrdinalForRangeEncoding, boolean enableOptimizedMerge) {
-        super(CODEC_NAME);
+        this(CODEC_NAME, skipIndexIntervalSize, minDocsPerOrdinalForRangeEncoding, enableOptimizedMerge);
+    }
+
+    protected ES819TSDBDocValuesFormat(
+        String name,
+        int skipIndexIntervalSize,
+        int minDocsPerOrdinalForRangeEncoding,
+        boolean enableOptimizedMerge
+    ) {
+        super(name);
         if (skipIndexIntervalSize < 2) {
             throw new IllegalArgumentException("skipIndexIntervalSize must be > 1, got [" + skipIndexIntervalSize + "]");
         }
@@ -146,12 +158,13 @@ public class ES819TSDBDocValuesFormat extends org.apache.lucene.codecs.DocValues
             DATA_CODEC,
             DATA_EXTENSION,
             META_CODEC,
-            META_EXTENSION
+            META_EXTENSION,
+            NUMERIC_BLOCK_SHIFT
         );
     }
 
     @Override
     public DocValuesProducer fieldsProducer(SegmentReadState state) throws IOException {
-        return new ES819TSDBDocValuesProducer(state, DATA_CODEC, DATA_EXTENSION, META_CODEC, META_EXTENSION);
+        return new ES819TSDBDocValuesProducer(state, DATA_CODEC, DATA_EXTENSION, META_CODEC, META_EXTENSION, NUMERIC_BLOCK_SHIFT);
     }
 }

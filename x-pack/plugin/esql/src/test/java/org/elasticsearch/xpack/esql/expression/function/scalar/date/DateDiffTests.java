@@ -21,7 +21,7 @@ import org.elasticsearch.xpack.esql.session.Configuration;
 
 import java.time.Instant;
 import java.time.ZoneId;
-import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
 import java.util.function.Supplier;
 import java.util.stream.Stream;
@@ -36,69 +36,92 @@ public class DateDiffTests extends AbstractConfigurationFunctionTestCase {
 
     @ParametersFactory
     public static Iterable<Object[]> parameters() {
-
-        List<TestCaseSupplier> suppliers = new ArrayList<>();
-        suppliers.addAll(makeSuppliers("2023-12-04T10:15:30Z", "2023-12-05T10:45:00Z", "seconds", 88170, "Z"));
-        suppliers.addAll(makeSuppliers("2023-12-12T00:01:01Z", "2024-12-12T00:01:01Z", "year", 1, "Z"));
-        suppliers.addAll(makeSuppliers("2023-12-12T00:01:01.001Z", "2024-12-12T00:01:01Z", "year", 0, "Z"));
-
-        suppliers.addAll(makeSuppliers("2023-12-04T10:15:00Z", "2023-12-04T10:15:01Z", "nanoseconds", 1000000000, "Z"));
-        suppliers.addAll(makeSuppliers("2023-12-04T10:15:00Z", "2023-12-04T10:15:01Z", "ns", 1000000000, "Z"));
-        suppliers.addAll(makeSuppliers("2023-12-04T10:15:00Z", "2023-12-04T10:15:01Z", "microseconds", 1000000, "Z"));
-        suppliers.addAll(makeSuppliers("2023-12-04T10:15:00Z", "2023-12-04T10:15:01Z", "mcs", 1000000, "Z"));
-        suppliers.addAll(makeSuppliers("2023-12-04T10:15:00Z", "2023-12-04T10:15:01Z", "milliseconds", 1000, "Z"));
-        suppliers.addAll(makeSuppliers("2023-12-04T10:15:00Z", "2023-12-04T10:15:01Z", "ms", 1000, "Z"));
-        suppliers.addAll(makeSuppliers("2023-12-04T10:15:00Z", "2023-12-04T10:15:01Z", "seconds", 1, "Z"));
-        suppliers.addAll(makeSuppliers("2023-12-04T10:15:00Z", "2023-12-04T10:15:01Z", "ss", 1, "Z"));
-        suppliers.addAll(makeSuppliers("2023-12-04T10:15:00Z", "2023-12-04T10:15:01Z", "s", 1, "Z"));
-
         String zdtStart = "2023-12-04T10:15:00Z";
         String zdtEnd = "2024-12-04T10:15:01Z";
 
-        suppliers.addAll(makeSuppliers(zdtStart, zdtEnd, "minutes", 527040, "Z"));
-        suppliers.addAll(makeSuppliers(zdtStart, zdtEnd, "mi", 527040, "Z"));
-        suppliers.addAll(makeSuppliers(zdtStart, zdtEnd, "n", 527040, "Z"));
-        suppliers.addAll(makeSuppliers(zdtStart, zdtEnd, "hours", 8784, "Z"));
-        suppliers.addAll(makeSuppliers(zdtStart, zdtEnd, "hh", 8784, "Z"));
+        List<TestCaseSupplier> suppliers = Stream.of(
+            ///
+            /// UTC
+            ///
+            makeSuppliers("2023-12-04T10:15:30Z", "2023-12-05T10:45:00Z", "Z", "seconds", 88170),
+            makeSuppliers("2023-12-12T00:01:01Z", "2024-12-12T00:01:01Z", "Z", "year", 1),
+            makeSuppliers("2023-12-12T00:01:01.001Z", "2024-12-12T00:01:01Z", "Z", "year", 0),
 
-        // 2024 is a leap year, so the dates are 366 days apart
-        suppliers.addAll(makeSuppliers(zdtStart, zdtEnd, "weekdays", 366, "Z"));
-        suppliers.addAll(makeSuppliers(zdtStart, zdtEnd, "dw", 366, "Z"));
-        suppliers.addAll(makeSuppliers(zdtStart, zdtEnd, "days", 366, "Z"));
-        suppliers.addAll(makeSuppliers(zdtStart, zdtEnd, "dd", 366, "Z"));
-        suppliers.addAll(makeSuppliers(zdtStart, zdtEnd, "d", 366, "Z"));
-        suppliers.addAll(makeSuppliers(zdtStart, zdtEnd, "dy", 366, "Z"));
-        suppliers.addAll(makeSuppliers(zdtStart, zdtEnd, "y", 366, "Z"));
+            makeSuppliers("2023-12-04T10:15:00Z", "2023-12-04T10:15:01Z", "Z", "nanoseconds", 1000000000),
+            makeSuppliers("2023-12-04T10:15:00Z", "2023-12-04T10:15:01Z", "Z", "ns", 1000000000),
+            makeSuppliers("2023-12-04T10:15:00Z", "2023-12-04T10:15:01Z", "Z", "microseconds", 1000000),
+            makeSuppliers("2023-12-04T10:15:00Z", "2023-12-04T10:15:01Z", "Z", "mcs", 1000000),
+            makeSuppliers("2023-12-04T10:15:00Z", "2023-12-04T10:15:01Z", "Z", "milliseconds", 1000),
+            makeSuppliers("2023-12-04T10:15:00Z", "2023-12-04T10:15:01Z", "Z", "ms", 1000),
+            makeSuppliers("2023-12-04T10:15:00Z", "2023-12-04T10:15:01Z", "Z", "seconds", 1),
+            makeSuppliers("2023-12-04T10:15:00Z", "2023-12-04T10:15:01Z", "Z", "ss", 1),
+            makeSuppliers("2023-12-04T10:15:00Z", "2023-12-04T10:15:01Z", "Z", "s", 1),
 
-        suppliers.addAll(makeSuppliers(zdtStart, zdtEnd, "weeks", 52, "Z"));
-        suppliers.addAll(makeSuppliers(zdtStart, zdtEnd, "wk", 52, "Z"));
-        suppliers.addAll(makeSuppliers(zdtStart, zdtEnd, "ww", 52, "Z"));
-        suppliers.addAll(makeSuppliers(zdtStart, zdtEnd, "months", 12, "Z"));
-        suppliers.addAll(makeSuppliers(zdtStart, zdtEnd, "mm", 12, "Z"));
-        suppliers.addAll(makeSuppliers(zdtStart, zdtEnd, "m", 12, "Z"));
-        suppliers.addAll(makeSuppliers(zdtStart, zdtEnd, "quarters", 4, "Z"));
-        suppliers.addAll(makeSuppliers(zdtStart, zdtEnd, "qq", 4, "Z"));
-        suppliers.addAll(makeSuppliers(zdtStart, zdtEnd, "q", 4, "Z"));
-        suppliers.addAll(makeSuppliers(zdtStart, zdtEnd, "years", 1, "Z"));
-        suppliers.addAll(makeSuppliers(zdtStart, zdtEnd, "yyyy", 1, "Z"));
-        suppliers.addAll(makeSuppliers(zdtStart, zdtEnd, "yy", 1, "Z"));
+            makeSuppliers(zdtStart, zdtEnd, "Z", "minutes", 527040),
+            makeSuppliers(zdtStart, zdtEnd, "Z", "mi", 527040),
+            makeSuppliers(zdtStart, zdtEnd, "Z", "n", 527040),
+            makeSuppliers(zdtStart, zdtEnd, "Z", "hours", 8784),
+            makeSuppliers(zdtStart, zdtEnd, "Z", "hh", 8784),
 
-        // Error cases
-        String zdtStart2 = "2023-12-04T10:15:00Z";
-        String zdtEnd2 = "2023-12-04T10:20:00Z";
-        suppliers.addAll(
+            // 2024 is a leap year, so the dates are 366 days apart
+            makeSuppliers(zdtStart, zdtEnd, "Z", "weekdays", 366),
+            makeSuppliers(zdtStart, zdtEnd, "Z", "dw", 366),
+            makeSuppliers(zdtStart, zdtEnd, "Z", "days", 366),
+            makeSuppliers(zdtStart, zdtEnd, "Z", "dd", 366),
+            makeSuppliers(zdtStart, zdtEnd, "Z", "d", 366),
+            makeSuppliers(zdtStart, zdtEnd, "Z", "dy", 366),
+            makeSuppliers(zdtStart, zdtEnd, "Z", "y", 366),
+
+            makeSuppliers(zdtStart, zdtEnd, "Z", "weeks", 52),
+            makeSuppliers(zdtStart, zdtEnd, "Z", "wk", 52),
+            makeSuppliers(zdtStart, zdtEnd, "Z", "ww", 52),
+            makeSuppliers(zdtStart, zdtEnd, "Z", "months", 12),
+            makeSuppliers(zdtStart, zdtEnd, "Z", "mm", 12),
+            makeSuppliers(zdtStart, zdtEnd, "Z", "m", 12),
+            makeSuppliers(zdtStart, zdtEnd, "Z", "quarters", 4),
+            makeSuppliers(zdtStart, zdtEnd, "Z", "qq", 4),
+            makeSuppliers(zdtStart, zdtEnd, "Z", "q", 4),
+            makeSuppliers(zdtStart, zdtEnd, "Z", "years", 1),
+            makeSuppliers(zdtStart, zdtEnd, "Z", "yyyy", 1),
+            makeSuppliers(zdtStart, zdtEnd, "Z", "yy", 1),
+
+            ///
+            /// DST zones cases
+            ///
+            // Europe/Paris, 1h DST
+            // - +1 -> +2 at 2025-03-30T02:00:00+01:00
+            makeSuppliers("2025-03-30T01:00:00+01:00", "2025-03-30T03:00:00+02:00", "Europe/Paris", "hours", 2),
+            makeSuppliers("2025-03-30T01:00:00+01:00", "2025-03-30T03:00:00+02:00", "Z", "hours", 1),
+            // - +2 -> +1 at 2025-10-26T03:00:00+02:,
+            makeSuppliers("2025-10-26T02:00:00+02:00", "2025-10-26T02:00:00+01:00", "Europe/Paris", "hours", 0),
+            makeSuppliers("2025-10-26T02:00:00+02:00", "2025-10-26T02:00:00+01:00", "Z", "hours", 1),
+
+            // America/Goose_Bay, midnight DST: -3 to -4 at 2010-11-07T00:01:00-03:00)
+            makeSuppliers("2010-11-07T00:00:00-03:00", "2010-11-06T23:01:00-04:00", "America/Goose_Bay", "hours", -1),
+            makeSuppliers("2010-11-07T00:00:00-03:00", "2010-11-06T23:01:00-04:00", "America/Goose_Bay", "days", -1),
+            makeSuppliers("2010-11-07T00:00:00-03:00", "2010-11-06T23:01:00-04:00", "Z", "minutes", 1),
+            makeSuppliers("2010-11-07T00:00:00-03:00", "2010-11-06T23:01:00-04:00", "Z", "hours", 0),
+            makeSuppliers("2010-11-07T00:00:00-03:00", "2010-11-06T23:01:00-04:00", "Z", "days", 0),
+
+            // Error cases
             makeSuppliersForWarning(
-                zdtStart2,
-                zdtEnd2,
+                "2023-12-04T10:15:00Z",
+                "2023-12-04T10:20:00Z",
                 "nanoseconds",
                 "Line 1:1: org.elasticsearch.xpack.esql.core.InvalidArgumentException: [300000000000] out of [integer] range"
             )
-        );
+        ).flatMap(Collection::stream).toList();
 
         return parameterSuppliersFromTypedDataWithDefaultChecks(true, suppliers);
     }
 
-    private static List<TestCaseSupplier> makeSuppliers(String startTimestampString, String endTimestampString, String unit, int expected, String timezone) {
+    private static List<TestCaseSupplier> makeSuppliers(
+        String startTimestampString,
+        String endTimestampString,
+        String timezone,
+        String unit,
+        int expected
+    ) {
         Instant startTimestamp = Instant.parse(startTimestampString);
         Instant endTimestamp = Instant.parse(endTimestampString);
         ZoneId zoneId = ZoneId.of(timezone);

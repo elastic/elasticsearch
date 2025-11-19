@@ -70,7 +70,7 @@ public class WildcardLike extends RegexMatch<WildcardPattern> {
 
             <<load-esql-example, file=where-like tag=likeListDocExample>>
 
-            Patterns may be specified with ReST query placeholders as well
+            Patterns may be specified with REST query placeholders as well
 
             ```esql
             FROM employees

@@ -94,6 +94,10 @@ public abstract class AbstractMultiClustersTestCase extends ESTestCase {
         return true;
     }
 
+    protected NodeConfigurationSource nodeConfigurationSource() {
+        return null;
+    }
+
     @Before
     public final void startClusters() throws Exception {
         if (clusterGroup != null && reuseClusters()) {
@@ -265,27 +269,40 @@ public abstract class AbstractMultiClustersTestCase extends ESTestCase {
         }
     }
 
-    static NodeConfigurationSource nodeConfigurationSource(Settings nodeSettings, Collection<Class<? extends Plugin>> nodePlugins) {
+    private NodeConfigurationSource nodeConfigurationSource(Settings nodeSettings, Collection<Class<? extends Plugin>> nodePlugins) {
         final Settings.Builder builder = Settings.builder();
         builder.putList(DISCOVERY_SEED_HOSTS_SETTING.getKey()); // empty list disables a port scan for other nodes
         builder.putList(DISCOVERY_SEED_PROVIDERS_SETTING.getKey(), "file");
         builder.put(NetworkModule.TRANSPORT_TYPE_KEY, getTestTransportType());
-        builder.put(nodeSettings);
 
+        NodeConfigurationSource nodeConfigurationSource = nodeConfigurationSource();
         return new NodeConfigurationSource() {
             @Override
             public Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
+                if (nodeConfigurationSource != null) {
+                    builder.put(nodeConfigurationSource.nodeSettings(nodeOrdinal, otherSettings));
+                }
+                builder.put(nodeSettings);
+
                 return builder.build();
             }
 
             @Override
             public Path nodeConfigPath(int nodeOrdinal) {
-                return null;
+                return nodeConfigurationSource != null ? nodeConfigurationSource.nodeConfigPath(nodeOrdinal) : null;
             }
 
             @Override
             public Collection<Class<? extends Plugin>> nodePlugins() {
-                return nodePlugins;
+                Collection<Class<? extends Plugin>> plugins;
+                if (nodeConfigurationSource != null) {
+                    plugins = new ArrayList<>(nodeConfigurationSource.nodePlugins());
+                    plugins.addAll(nodePlugins);
+                } else {
+                    plugins = nodePlugins;
+                }
+
+                return plugins;
             }
         };
     }

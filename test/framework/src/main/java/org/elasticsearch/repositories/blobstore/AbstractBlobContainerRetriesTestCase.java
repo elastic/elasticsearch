@@ -302,7 +302,7 @@ public abstract class AbstractBlobContainerRetriesTestCase extends ESTestCase {
         return randomValueOtherThan(OperationPurpose.REPOSITORY_ANALYSIS, BlobStoreTestUtil::randomPurpose);
     }
 
-    protected OperationPurpose randomFiniteRetryingPurpose() {
+    public static OperationPurpose randomFiniteRetryingPurpose() {
         return randomValueOtherThanMany(
             purpose -> purpose == OperationPurpose.REPOSITORY_ANALYSIS || purpose == OperationPurpose.INDICES,
             BlobStoreTestUtil::randomPurpose

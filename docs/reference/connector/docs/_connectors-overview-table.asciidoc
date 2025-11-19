@@ -35,7 +35,6 @@ NOTE: All connectors are available as self-managed <<es-build-connector,self-man
 |<<es-connectors-network-drive,Network drive>>|*GA*|8.9+|8.10+|8.14+|8.13+|8.11+|https://github.com/elastic/connectors/tree/8.19/connectors/sources/network_drive.py[View code]
 |<<es-connectors-notion,Notion>>|*GA*|8.14+|8.14+|-|-|-|https://github.com/elastic/connectors/tree/8.19/connectors/sources/notion.py[View code]
 |<<es-connectors-onedrive,OneDrive>>|*GA*|8.11+|8.11+|8.11+|8.13+|8.11+|https://github.com/elastic/connectors/tree/8.19/connectors/sources/onedrive.py[View code]
-|<<es-connectors-opentext,Opentext Documentum>>|Example|n/a|n/a|n/a|n/a|-|https://github.com/elastic/connectors/tree/8.19/connectors/sources/opentext_documentum.py[View code]
 |<<es-connectors-oracle,Oracle>>|*GA*|8.12+|-|-|-|-|https://github.com/elastic/connectors/tree/8.19/connectors/sources/oracle.py[View code]
 |<<es-connectors-outlook,Outlook>>|*GA*|8.13+|-|8.11+|8.13+|8.14+|https://github.com/elastic/connectors/tree/8.19/connectors/sources/outlook.py[View code]
 |<<es-connectors-postgresql,PostgreSQL>>|*GA*|8.8+|8.11+|-|-|-|https://github.com/elastic/connectors/tree/8.19/connectors/sources/postgresql.py[View code]

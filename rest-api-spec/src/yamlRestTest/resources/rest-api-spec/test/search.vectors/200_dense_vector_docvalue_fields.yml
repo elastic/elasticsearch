@@ -163,12 +163,8 @@ setup:
 ---
 "Dense vector cosine docvalue_fields with sparse documents after force merge":
   - requires:
-      capabilities:
-        - method: POST
-          path: /_search
-          capabilities: [ fix_dense_vector_wrong_fields ]
-      test_runner_features: [ capabilities, close_to ]
-      reason: "Support for dense vector doc value fields capability required"
+      cluster_features: [ "mapper.fix_dense_vector_wrong_fields" ]
+      reason: Support for dense vector doc value fields capability required
   - do:
       indices.create:
         index: test_cosine

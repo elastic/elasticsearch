@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.optimizer.rules.physical.local;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CollectionUtils;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.MatchQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -153,7 +154,7 @@ public class SubstituteRoundToTests extends AbstractLocalPhysicalPlanOptimizerTe
     }
 
     // Pushing count to source isn't supported when there is a filter on the count at the moment.
-    public void testDateTruncBucketTransformToQueryAndTagsWithFilter() {
+    public void testDateTruncBucketTransformToQueryAndTagsWithWhereInsideAggregation() {
         for (String dateHistogram : dateHistograms) {
             String query = LoggerMessageFormat.format(null, """
                 from test
@@ -178,6 +179,38 @@ public class SubstituteRoundToTests extends AbstractLocalPhysicalPlanOptimizerTe
                 List.of(),
                 new Source(2, 40, dateHistogram),
                 null
+            );
+            verifyQueryAndTags(expectedQueryBuilderAndTags, queryBuilderAndTags);
+            assertThrows(UnsupportedOperationException.class, esQueryExec::query);
+        }
+    }
+
+    // FIXME(gal, NOCOMMIT) rename and document
+    public void testDateTruncBucketTransformToQueryAndTagsWithEsFilter() {
+        for (String dateHistogram : dateHistograms) {
+            String query = LoggerMessageFormat.format(null, """
+                from test
+                | stats count(*) by x = {}
+                """, dateHistogram);
+
+            RangeQueryBuilder esFilter = rangeQuery("date").from("2023-10-21T00:00:00.000Z").to("2023-10-22T00:00:00.000Z");
+            ExchangeExec exchange = validatePlanBeforeExchange(query, DataType.DATETIME, List.of("count(*)"), esFilter);
+
+            AggregateExec agg = as(exchange.child(), AggregateExec.class);
+            EvalExec evalExec = as(agg.child(), EvalExec.class);
+            List<Alias> aliases = evalExec.fields();
+            assertEquals(1, aliases.size());
+            FieldAttribute roundToTag = as(aliases.get(0).child(), FieldAttribute.class);
+            assertEquals("$$date$round_to$datetime", roundToTag.name());
+            EsQueryExec esQueryExec = as(evalExec.child(), EsQueryExec.class);
+
+            List<EsQueryExec.QueryBuilderAndTags> queryBuilderAndTags = esQueryExec.queryBuilderAndTags();
+            List<EsQueryExec.QueryBuilderAndTags> expectedQueryBuilderAndTags = expectedQueryBuilderAndTags(
+                query,
+                "date",
+                List.of(),
+                new Source(2, 24, dateHistogram),
+                esFilter
             );
             verifyQueryAndTags(expectedQueryBuilderAndTags, queryBuilderAndTags);
             assertThrows(UnsupportedOperationException.class, esQueryExec::query);
@@ -306,8 +339,15 @@ public class SubstituteRoundToTests extends AbstractLocalPhysicalPlanOptimizerTe
 
                 ExchangeExec exchange = validatePlanBeforeExchange(query, DataType.DATETIME);
 
-                var queryBuilderAndTags = getBuilderAndTagsFromStats(exchange, DataType.DATETIME);
+                AggregateExec agg = as(exchange.child(), AggregateExec.class);
+                EvalExec eval = as(agg.child(), EvalExec.class);
+                List<Alias> aliases = eval.fields();
+                assertEquals(1, aliases.size());
+                FieldAttribute roundToTag = as(aliases.get(0).child(), FieldAttribute.class);
+                assertEquals("$$date$round_to$datetime", roundToTag.name());
+                EsQueryExec esQueryExec = as(eval.child(), EsQueryExec.class);
 
+                List<EsQueryExec.QueryBuilderAndTags> queryBuilderAndTags = esQueryExec.queryBuilderAndTags();
                 List<EsQueryExec.QueryBuilderAndTags> expectedQueryBuilderAndTags = expectedQueryBuilderAndTags(
                     query,
                     "date",
@@ -316,6 +356,7 @@ public class SubstituteRoundToTests extends AbstractLocalPhysicalPlanOptimizerTe
                     mainQueryBuilder
                 );
                 verifyQueryAndTags(expectedQueryBuilderAndTags, queryBuilderAndTags);
+                assertThrows(UnsupportedOperationException.class, esQueryExec::query);
             }
         }
     }
@@ -551,8 +592,17 @@ public class SubstituteRoundToTests extends AbstractLocalPhysicalPlanOptimizerTe
     }
 
     private ExchangeExec validatePlanBeforeExchange(String query, DataType aggregateType, List<String> aggregation) {
+        return validatePlanBeforeExchange(query, aggregateType, aggregation, null);
+    }
+
+    private ExchangeExec validatePlanBeforeExchange(
+        String query,
+        DataType aggregateType,
+        List<String> aggregation,
+        @Nullable QueryBuilder esFilter
+    ) {
         return validatePlanBeforeExchange(
-            plannerOptimizer.plan(query, searchStats, makeAnalyzer("mapping-all-types.json")),
+            plannerOptimizer.plan(query, searchStats, makeAnalyzer("mapping-all-types.json"), esFilter),
             aggregateType,
             aggregation
         );
@@ -607,7 +657,7 @@ public class SubstituteRoundToTests extends AbstractLocalPhysicalPlanOptimizerTe
                 | stats count(*) by x = round_to(integer, %s)
                 """, pointArray(points));
             var plan = plannerOptimizer.plan(q, searchStats, makeAnalyzer("mapping-all-types.json"));
-            int queryAndTags = statsQueryAndTags(plan);
+            int queryAndTags = plainQueryAndTags(plan);
             assertThat(queryAndTags, equalTo(points + 1)); // include null bucket
         }
         {
@@ -630,7 +680,7 @@ public class SubstituteRoundToTests extends AbstractLocalPhysicalPlanOptimizerTe
                 | stats count(*) by x = round_to(integer, %s)
                 """, pointArray(points));
             var plan = plannerOptimizer.plan(q, searchStats, makeAnalyzer("mapping-all-types.json"));
-            int queryAndTags = statsQueryAndTags(plan);
+            int queryAndTags = plainQueryAndTags(plan);
             assertThat("points=" + points, queryAndTags, equalTo(points + 1)); // include null bucket
         }
         {

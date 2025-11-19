@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.optimizer.rules.physical.local;
 
+import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
@@ -22,6 +23,7 @@ import org.elasticsearch.xpack.esql.plan.physical.EsStatsQueryExec;
 import org.elasticsearch.xpack.esql.plan.physical.EvalExec;
 import org.elasticsearch.xpack.esql.plan.physical.FilterExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
+import org.elasticsearch.xpack.esql.querydsl.query.SingleValueQuery;
 
 /**
  * Pushes count aggregations on top of query and tags to source.
@@ -54,7 +56,7 @@ public class PushCountQueryAndTagsToSource extends PhysicalOptimizerRules.Parame
             && aggregateExec.child() instanceof EvalExec evalExec
             && evalExec.child() instanceof EsQueryExec queryExec
             && queryExec.queryBuilderAndTags().size() > 1 // Ensures there are query and tags to push down.
-        ) {
+            && queryExec.queryBuilderAndTags().stream().allMatch(PushCountQueryAndTagsToSource::isSingleFilterQuery)) {
             EsStatsQueryExec statsQueryExec = new EsStatsQueryExec(
                 queryExec.source(),
                 queryExec.indexPattern(),
@@ -69,6 +71,14 @@ public class PushCountQueryAndTagsToSource extends PhysicalOptimizerRules.Parame
             return new FilterExec(Source.EMPTY, statsQueryExec, new GreaterThan(Source.EMPTY, countAttr, ZERO));
         }
         return aggregateExec;
+    }
+
+    private static boolean isSingleFilterQuery(EsQueryExec.QueryBuilderAndTags queryBuilderAndTags) {
+        return switch (queryBuilderAndTags.query()) {
+            case SingleValueQuery.Builder unused -> true;
+            case BoolQueryBuilder bq -> bq.filter().size() + bq.must().size() + bq.should().size() + bq.mustNot().size() <= 1;
+            default -> false;
+        };
     }
 
     private static final Literal ZERO = new Literal(Source.EMPTY, 0L, DataType.LONG);

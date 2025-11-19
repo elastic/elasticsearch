@@ -15,6 +15,7 @@ import org.elasticsearch.inference.ChunkedInference;
 import org.elasticsearch.inference.ChunkingSettings;
 import org.elasticsearch.inference.ChunkingStrategy;
 import org.elasticsearch.inference.InferenceServiceResults;
+import org.elasticsearch.inference.InferenceString;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.core.inference.chunking.Chunker.ChunkOffset;
 import org.elasticsearch.xpack.core.inference.results.ChunkedInferenceEmbedding;
@@ -36,7 +37,7 @@ import java.util.stream.Collectors;
  * chunks. Multiple inputs may be fit into a single batch or
  * a single large input that has been chunked may spread over
  * multiple batches.
- *
+ * <p>
  * The final aspect is to gather the responses from the batch
  * processing and map the results back to the original element
  * in the input list.
@@ -44,14 +45,18 @@ import java.util.stream.Collectors;
 public class EmbeddingRequestChunker<E extends EmbeddingResults.Embedding<E>> {
 
     // Visible for testing
-    record Request(int inputIndex, int chunkIndex, ChunkOffset chunk, String input) {
-        public String chunkText() {
-            return input.substring(chunk.start(), chunk.end());
+    record Request(int inputIndex, int chunkIndex, ChunkOffset chunk, InferenceString input) {
+        public InferenceString chunkText() {
+            if (chunk.start() == 0 && chunk.end() == input.value().length()) {
+                return input;
+            } else {
+                return new InferenceString(input.value().substring(chunk.start(), chunk.end()), input.dataType());
+            }
         }
     }
 
     public record BatchRequest(List<Request> requests) {
-        public Supplier<List<String>> inputs() {
+        public Supplier<List<InferenceString>> inputs() {
             return () -> requests.stream().map(Request::chunkText).collect(Collectors.toList());
         }
     }
@@ -116,13 +121,21 @@ public class EmbeddingRequestChunker<E extends EmbeddingResults.Embedding<E>> {
 
         List<Request> allRequests = new ArrayList<>();
         for (int inputIndex = 0; inputIndex < inputs.size(); inputIndex++) {
-            ChunkingSettings chunkingSettings = inputs.get(inputIndex).chunkingSettings();
+            ChunkInferenceInput chunkInferenceInput = inputs.get(inputIndex);
+            ChunkingSettings chunkingSettings = chunkInferenceInput.chunkingSettings();
             if (chunkingSettings == null) {
                 chunkingSettings = defaultChunkingSettings;
             }
-            Chunker chunker = chunkers.getOrDefault(chunkingSettings.getChunkingStrategy(), defaultChunker);
-            String inputString = inputs.get(inputIndex).input();
-            List<ChunkOffset> chunks = chunker.chunk(inputString, chunkingSettings);
+            Chunker chunker;
+            if (chunkInferenceInput.input().isText()) {
+                chunker = chunkers.getOrDefault(chunkingSettings.getChunkingStrategy(), defaultChunker);
+            } else {
+                // Do not chunk non-text inputs
+                chunker = NoopChunker.INSTANCE;
+                chunkingSettings = NoneChunkingSettings.INSTANCE;
+            }
+            InferenceString inputString = chunkInferenceInput.input();
+            List<ChunkOffset> chunks = chunker.chunk(inputString.value(), chunkingSettings);
             int resultCount = Math.min(chunks.size(), MAX_CHUNKS);
             resultEmbeddings.add(new AtomicReferenceArray<>(resultCount));
             resultOffsetStarts.add(new ArrayList<>(resultCount));

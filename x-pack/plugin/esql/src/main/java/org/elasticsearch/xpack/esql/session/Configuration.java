@@ -24,7 +24,6 @@ import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.ZoneId;
-import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
 import java.util.Locale;
 import java.util.Map;
@@ -35,7 +34,6 @@ import static org.elasticsearch.common.unit.ByteSizeUnit.KB;
 public class Configuration implements Writeable {
 
     public static final int QUERY_COMPRESS_THRESHOLD_CHARS = KB.toIntBytes(5);
-    public static final ZoneId DEFAULT_TZ = ZoneOffset.UTC;
 
     private static final TransportVersion TIMESERIES_DEFAULT_LIMIT = TransportVersion.fromName("timeseries_default_limit");
 
@@ -202,7 +200,7 @@ public class Configuration implements Writeable {
     /**
      * @return Start time of the ESQL query in nanos
      */
-    public long getQueryStartTimeNanos() {
+    public long queryStartTimeNanos() {
         return queryStartTimeNanos;
     }
 

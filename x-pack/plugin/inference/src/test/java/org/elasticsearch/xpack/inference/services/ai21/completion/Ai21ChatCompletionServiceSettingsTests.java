@@ -135,7 +135,17 @@ public class Ai21ChatCompletionServiceSettingsTests extends AbstractBWCWireSeria
 
     @Override
     protected Ai21ChatCompletionServiceSettings mutateInstance(Ai21ChatCompletionServiceSettings instance) throws IOException {
-        return randomValueOtherThan(instance, Ai21ChatCompletionServiceSettingsTests::createRandom);
+        if (randomBoolean()) {
+            return new Ai21ChatCompletionServiceSettings(
+                randomValueOtherThan(instance.modelId(), () -> randomAlphaOfLength(8)),
+                instance.rateLimitSettings()
+            );
+        } else {
+            return new Ai21ChatCompletionServiceSettings(
+                instance.modelId(),
+                randomValueOtherThan(instance.rateLimitSettings(), RateLimitSettingsTests::createRandom)
+            );
+        }
     }
 
     @Override

@@ -66,12 +66,12 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
         "Plan \\[ProjectExec\\[\\[<no-fields>.* optimized incorrectly due to missing references",
         "The incoming YAML document exceeds the limit:", // still to investigate, but it seems to be specific to the test framework
         "Data too large", // Circuit breaker exceptions eg. https://github.com/elastic/elasticsearch/issues/130072
-        "optimized incorrectly due to missing references", // https://github.com/elastic/elasticsearch/issues/131509
         "long overflow", // https://github.com/elastic/elasticsearch/issues/135759
         "cannot be cast to class", // https://github.com/elastic/elasticsearch/issues/133992
         "can't find input for", // https://github.com/elastic/elasticsearch/issues/136596
         "unexpected byte", // https://github.com/elastic/elasticsearch/issues/136598
         "out of bounds for length", // https://github.com/elastic/elasticsearch/issues/136851
+        "optimized incorrectly due to missing references", // https://github.com/elastic/elasticsearch/issues/138231
 
         // Awaiting fixes for correctness
         "Expecting at most \\[.*\\] columns, got \\[.*\\]", // https://github.com/elastic/elasticsearch/issues/129561
@@ -82,7 +82,9 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
         "time_series aggregate.* can only be used with the TS command",
         "implicit time-series aggregation function .* doesn't support type .*",
         "INLINE STATS .* can only be used after STATS when used with TS command",
-        "cannot group by a metric field .* in a time-series aggregation"
+        "cannot group by a metric field .* in a time-series aggregation",
+        "a @timestamp field of type date or date_nanos to be present when run with the TS command, but it was not present",
+        "Output has changed from \\[.*\\] to \\[.*\\]" // https://github.com/elastic/elasticsearch/issues/134794
     );
 
     public static final Set<Pattern> ALLOWED_ERROR_PATTERNS = ALLOWED_ERRORS.stream()
@@ -263,7 +265,7 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
     }
 
     private List<String> availableIndices() throws IOException {
-        return availableDatasetsForEs(true, supportsSourceFieldMapping(), false, requiresTimeSeries()).stream()
+        return availableDatasetsForEs(true, supportsSourceFieldMapping(), false, requiresTimeSeries(), false).stream()
             .filter(x -> x.requiresInferenceEndpoint() == false)
             .map(x -> x.indexName())
             .toList();

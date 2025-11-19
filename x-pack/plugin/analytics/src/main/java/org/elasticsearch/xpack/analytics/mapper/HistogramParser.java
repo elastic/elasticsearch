@@ -14,6 +14,7 @@ import org.elasticsearch.xcontent.XContentParser;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
 
 import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
 
@@ -21,6 +22,12 @@ public class HistogramParser {
 
     private static final ParseField COUNTS_FIELD = new ParseField("counts");
     private static final ParseField VALUES_FIELD = new ParseField("values");
+
+    private static final Set<String> ROOT_FIELD_NAMES = Set.of(COUNTS_FIELD.getPreferredName(), VALUES_FIELD.getPreferredName());
+
+    public static boolean isHistogramSubFieldName(String subFieldName) {
+        return ROOT_FIELD_NAMES.contains(subFieldName);
+    }
 
     /**
      * A parsed histogram field, can represent either a T-Digest or a HDR histogram.
@@ -31,7 +38,7 @@ public class HistogramParser {
 
     /**
      * Parses an XContent object into a histogram.
-     * The parse is expected to point at the next token after {@link XContentParser.Token#START_OBJECT}.
+     * The parser is expected to point at the next token after {@link XContentParser.Token#START_OBJECT}.
      *
      * @param mappedFieldName the name of the field being parsed, used for error messages
      * @param parser the parser to use

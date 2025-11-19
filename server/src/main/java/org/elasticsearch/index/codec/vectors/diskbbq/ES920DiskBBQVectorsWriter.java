@@ -129,7 +129,7 @@ public class ES920DiskBBQVectorsWriter extends IVFVectorsWriter {
         // write the posting lists
         final PackedLongValues.Builder offsets = PackedLongValues.monotonicBuilder(PackedInts.COMPACT);
         final PackedLongValues.Builder lengths = PackedLongValues.monotonicBuilder(PackedInts.COMPACT);
-        DiskBBQBulkWriter bulkWriter = new DiskBBQBulkWriter.OneBitDiskBBQBulkWriter(ES91OSQVectorsScorer.BULK_SIZE, postingsOutput);
+        DiskBBQBulkWriter bulkWriter = DiskBBQBulkWriter.fromBitSize(1, ES91OSQVectorsScorer.BULK_SIZE, postingsOutput);
         OnHeapQuantizedVectors onHeapQuantizedVectors = new OnHeapQuantizedVectors(
             floatVectorValues,
             fieldInfo.getVectorDimension(),
@@ -280,7 +280,7 @@ public class ES920DiskBBQVectorsWriter extends IVFVectorsWriter {
                 quantizedVectorsInput,
                 fieldInfo.getVectorDimension()
             );
-            DiskBBQBulkWriter bulkWriter = new DiskBBQBulkWriter.OneBitDiskBBQBulkWriter(ES91OSQVectorsScorer.BULK_SIZE, postingsOutput);
+            DiskBBQBulkWriter bulkWriter = DiskBBQBulkWriter.fromBitSize(1, ES91OSQVectorsScorer.BULK_SIZE, postingsOutput);
             final ByteBuffer buffer = ByteBuffer.allocate(fieldInfo.getVectorDimension() * Float.BYTES).order(ByteOrder.LITTLE_ENDIAN);
             // write the max posting list size
             postingsOutput.writeVInt(maxPostingListSize);
@@ -382,6 +382,7 @@ public class ES920DiskBBQVectorsWriter extends IVFVectorsWriter {
     public void writeCentroids(
         FieldInfo fieldInfo,
         CentroidSupplier centroidSupplier,
+        int[] centroidAssignments,
         float[] globalCentroid,
         CentroidOffsetAndLength centroidOffsetAndLength,
         IndexOutput centroidOutput
@@ -408,10 +409,7 @@ public class ES920DiskBBQVectorsWriter extends IVFVectorsWriter {
         CentroidOffsetAndLength centroidOffsetAndLength,
         IndexOutput centroidOutput
     ) throws IOException {
-        DiskBBQBulkWriter.SevenBitDiskBBQBulkWriter bulkWriter = new DiskBBQBulkWriter.SevenBitDiskBBQBulkWriter(
-            ES92Int7VectorsScorer.BULK_SIZE,
-            centroidOutput
-        );
+        DiskBBQBulkWriter bulkWriter = DiskBBQBulkWriter.fromBitSize(7, ES92Int7VectorsScorer.BULK_SIZE, centroidOutput);
         final OptimizedScalarQuantizer osq = new OptimizedScalarQuantizer(fieldInfo.getVectorSimilarityFunction());
         final CentroidGroups centroidGroups = buildCentroidGroups(fieldInfo, centroidSupplier);
         centroidOutput.writeVInt(centroidGroups.centroids.length);
@@ -459,10 +457,7 @@ public class ES920DiskBBQVectorsWriter extends IVFVectorsWriter {
         IndexOutput centroidOutput
     ) throws IOException {
         centroidOutput.writeVInt(0);
-        DiskBBQBulkWriter.SevenBitDiskBBQBulkWriter bulkWriter = new DiskBBQBulkWriter.SevenBitDiskBBQBulkWriter(
-            ES92Int7VectorsScorer.BULK_SIZE,
-            centroidOutput
-        );
+        DiskBBQBulkWriter bulkWriter = DiskBBQBulkWriter.fromBitSize(7, ES92Int7VectorsScorer.BULK_SIZE, centroidOutput);
         final OptimizedScalarQuantizer osq = new OptimizedScalarQuantizer(fieldInfo.getVectorSimilarityFunction());
         QuantizedCentroids quantizedCentroids = new QuantizedCentroids(
             centroidSupplier,

@@ -9,15 +9,12 @@ package org.elasticsearch.xpack.ml;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
-import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequestBuilder;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesResponse;
 import org.elasticsearch.action.admin.indices.alias.TransportIndicesAliasesAction;
 import org.elasticsearch.action.admin.indices.rollover.RolloverAction;
 import org.elasticsearch.action.admin.indices.rollover.RolloverRequest;
 import org.elasticsearch.action.admin.indices.rollover.RolloverResponse;
 import org.elasticsearch.client.internal.Client;
-import org.elasticsearch.client.internal.ElasticsearchClient;
-import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
@@ -32,14 +29,11 @@ import org.elasticsearch.indices.TestIndexNameExpressionResolver;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
-import org.elasticsearch.xpack.core.ml.utils.MlIndexAndAlias;
 
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.hasSize;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.same;
 import static org.mockito.Mockito.doAnswer;
@@ -51,18 +45,6 @@ import static org.mockito.Mockito.when;
 
 public class MlAnomaliesIndexUpdateTests extends ESTestCase {
 
-    public void testIsAnomaliesWriteAlias() {
-        assertTrue(MlAnomaliesIndexUpdate.isAnomaliesWriteAlias(AnomalyDetectorsIndex.resultsWriteAlias("foo")));
-        assertFalse(MlAnomaliesIndexUpdate.isAnomaliesWriteAlias(AnomalyDetectorsIndex.jobResultsAliasedName("foo")));
-        assertFalse(MlAnomaliesIndexUpdate.isAnomaliesWriteAlias("some-index"));
-    }
-
-    public void testIsAnomaliesAlias() {
-        assertTrue(MlAnomaliesIndexUpdate.isAnomaliesReadAlias(AnomalyDetectorsIndex.jobResultsAliasedName("foo")));
-        assertFalse(MlAnomaliesIndexUpdate.isAnomaliesReadAlias(AnomalyDetectorsIndex.resultsWriteAlias("foo")));
-        assertFalse(MlAnomaliesIndexUpdate.isAnomaliesReadAlias("some-index"));
-    }
-
     public void testIsAbleToRun_IndicesDoNotExist() {
         RoutingTable.Builder routingTable = RoutingTable.builder();
         var updater = new MlAnomaliesIndexUpdate(TestIndexNameExpressionResolver.newInstance(), mock(Client.class));
@@ -73,7 +55,7 @@ public class MlAnomaliesIndexUpdateTests extends ESTestCase {
     }
 
     public void testIsAbleToRun_IndicesHaveNoRouting() {
-        IndexMetadata.Builder indexMetadata = IndexMetadata.builder(".ml-anomalies-shared");
+        IndexMetadata.Builder indexMetadata = IndexMetadata.builder(".ml-anomalies-shared-000001");
         indexMetadata.settings(
             Settings.builder()
                 .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
@@ -93,59 +75,8 @@ public class MlAnomaliesIndexUpdateTests extends ESTestCase {
         assertFalse(updater.isAbleToRun(csBuilder.build()));
     }
 
-    public void testBuildIndexAliasesRequest() {
-        var anomaliesIndex = ".ml-anomalies-sharedindex";
-        var jobs = List.of("job1", "job2");
-        IndexMetadata.Builder indexMetadata = createSharedResultsIndex(anomaliesIndex, IndexVersion.current(), jobs);
-        Metadata.Builder metadata = Metadata.builder();
-        metadata.put(indexMetadata);
-        ClusterState.Builder csBuilder = ClusterState.builder(new ClusterName("_name"));
-        csBuilder.metadata(metadata);
-
-        var updater = new MlAnomaliesIndexUpdate(
-            TestIndexNameExpressionResolver.newInstance(),
-            new OriginSettingClient(mock(Client.class), "doesn't matter")
-        );
-
-        IndicesAliasesRequestBuilder aliasRequestBuilder = new IndicesAliasesRequestBuilder(
-            mock(ElasticsearchClient.class),
-            TEST_REQUEST_TIMEOUT,
-            TEST_REQUEST_TIMEOUT
-        );
-
-        var newIndex = anomaliesIndex + "-000001";
-        var request = updater.addIndexAliasesRequests(aliasRequestBuilder, anomaliesIndex, newIndex, csBuilder.build());
-        var actions = request.request().getAliasActions();
-        assertThat(actions, hasSize(6));
-
-        // The order in which the alias actions are created
-        // is not preserved so look for the item in the list
-        for (var job : jobs) {
-            var expected = new AliasActionMatcher(
-                AnomalyDetectorsIndex.resultsWriteAlias(job),
-                newIndex,
-                IndicesAliasesRequest.AliasActions.Type.ADD
-            );
-            assertThat(actions.stream().filter(expected::matches).count(), equalTo(1L));
-
-            expected = new AliasActionMatcher(
-                AnomalyDetectorsIndex.resultsWriteAlias(job),
-                anomaliesIndex,
-                IndicesAliasesRequest.AliasActions.Type.REMOVE
-            );
-            assertThat(actions.stream().filter(expected::matches).count(), equalTo(1L));
-
-            expected = new AliasActionMatcher(
-                AnomalyDetectorsIndex.jobResultsAliasedName(job),
-                newIndex,
-                IndicesAliasesRequest.AliasActions.Type.ADD
-            );
-            assertThat(actions.stream().filter(expected::matches).count(), equalTo(1L));
-        }
-    }
-
     public void testRunUpdate_UpToDateIndices() {
-        String indexName = ".ml-anomalies-sharedindex";
+        String indexName = ".ml-anomalies-sharedindex-000001";
         var jobs = List.of("job1", "job2");
         IndexMetadata.Builder indexMetadata = createSharedResultsIndex(indexName, IndexVersion.current(), jobs);
 
@@ -184,78 +115,6 @@ public class MlAnomaliesIndexUpdateTests extends ESTestCase {
         verify(client, times(2)).execute(same(TransportIndicesAliasesAction.TYPE), any(), any());  // create rollover alias and update
         verify(client).execute(same(RolloverAction.INSTANCE), any(), any());  // index rolled over
         verifyNoMoreInteractions(client);
-    }
-
-    public void testLatestIndexMatchingBaseName_isLatest() {
-        Metadata.Builder metadata = Metadata.builder();
-        metadata.put(createSharedResultsIndex(".ml-anomalies-custom-foo", IndexVersion.current(), List.of("job1")));
-        metadata.put(createSharedResultsIndex(".ml-anomalies-custom-bar", IndexVersion.current(), List.of("job2")));
-        metadata.put(createSharedResultsIndex(".ml-anomalies-custom-bax", IndexVersion.current(), List.of("job3")));
-        ClusterState.Builder csBuilder = ClusterState.builder(new ClusterName("_name"));
-        csBuilder.metadata(metadata);
-
-        var latest = MlAnomaliesIndexUpdate.latestIndexMatchingBaseName(
-            ".ml-anomalies-custom-foo",
-            TestIndexNameExpressionResolver.newInstance(),
-            csBuilder.build()
-        );
-        assertEquals(".ml-anomalies-custom-foo", latest);
-    }
-
-    public void testLatestIndexMatchingBaseName_hasLater() {
-        Metadata.Builder metadata = Metadata.builder();
-        metadata.put(createSharedResultsIndex(".ml-anomalies-custom-foo", IndexVersion.current(), List.of("job1")));
-        metadata.put(createSharedResultsIndex(".ml-anomalies-custom-bar", IndexVersion.current(), List.of("job2")));
-        metadata.put(createSharedResultsIndex(".ml-anomalies-custom-foo-000001", IndexVersion.current(), List.of("job3")));
-        metadata.put(createSharedResultsIndex(".ml-anomalies-custom-foo-000002", IndexVersion.current(), List.of("job4")));
-        metadata.put(createSharedResultsIndex(".ml-anomalies-custom-baz-000001", IndexVersion.current(), List.of("job5")));
-        metadata.put(createSharedResultsIndex(".ml-anomalies-custom-baz-000002", IndexVersion.current(), List.of("job6")));
-        metadata.put(createSharedResultsIndex(".ml-anomalies-custom-baz-000003", IndexVersion.current(), List.of("job7")));
-        ClusterState.Builder csBuilder = ClusterState.builder(new ClusterName("_name"));
-        csBuilder.metadata(metadata);
-        var state = csBuilder.build();
-
-        assertTrue(MlIndexAndAlias.has6DigitSuffix(".ml-anomalies-custom-foo-000002"));
-
-        var latest = MlAnomaliesIndexUpdate.latestIndexMatchingBaseName(
-            ".ml-anomalies-custom-foo",
-            TestIndexNameExpressionResolver.newInstance(),
-            state
-        );
-        assertEquals(".ml-anomalies-custom-foo-000002", latest);
-
-        latest = MlAnomaliesIndexUpdate.latestIndexMatchingBaseName(
-            ".ml-anomalies-custom-baz-000001",
-            TestIndexNameExpressionResolver.newInstance(),
-            state
-        );
-        assertEquals(".ml-anomalies-custom-baz-000003", latest);
-    }
-
-    public void testLatestIndexMatchingBaseName_CollidingIndexNames() {
-        Metadata.Builder metadata = Metadata.builder();
-        metadata.put(createSharedResultsIndex(".ml-anomalies-custom-foo", IndexVersion.current(), List.of("job1")));
-        metadata.put(createSharedResultsIndex(".ml-anomalies-custom-bar", IndexVersion.current(), List.of("job2")));
-        metadata.put(createSharedResultsIndex(".ml-anomalies-custom-foodifferent000001", IndexVersion.current(), List.of("job3")));
-        metadata.put(createSharedResultsIndex(".ml-anomalies-custom-foo-notthisone-000001", IndexVersion.current(), List.of("job4")));
-        metadata.put(createSharedResultsIndex(".ml-anomalies-custom-foo-notthisone-000002", IndexVersion.current(), List.of("job5")));
-        ClusterState.Builder csBuilder = ClusterState.builder(new ClusterName("_name"));
-        csBuilder.metadata(metadata);
-        var state = csBuilder.build();
-
-        var latest = MlAnomaliesIndexUpdate.latestIndexMatchingBaseName(
-            ".ml-anomalies-custom-foo",
-            TestIndexNameExpressionResolver.newInstance(),
-            state
-        );
-        assertEquals(".ml-anomalies-custom-foo", latest);
-
-        latest = MlAnomaliesIndexUpdate.latestIndexMatchingBaseName(
-            ".ml-anomalies-custom-foo-notthisone-000001",
-            TestIndexNameExpressionResolver.newInstance(),
-            state
-        );
-        assertEquals(".ml-anomalies-custom-foo-notthisone-000002", latest);
     }
 
     private record AliasActionMatcher(String aliasName, String index, IndicesAliasesRequest.AliasActions.Type actionType) {

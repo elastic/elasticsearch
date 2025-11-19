@@ -9,8 +9,8 @@ package org.elasticsearch.xpack.eql.planner;
 
 import org.elasticsearch.xpack.eql.EqlClientException;
 import org.elasticsearch.xpack.eql.analysis.VerificationException;
+import org.elasticsearch.xpack.ql.InvalidArgumentException;
 import org.elasticsearch.xpack.ql.ParsingException;
-import org.elasticsearch.xpack.ql.QlIllegalArgumentException;
 
 import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.startsWith;
@@ -189,8 +189,8 @@ public class QueryTranslatorFailTests extends AbstractQueryTranslatorTestCase {
     }
 
     public void testPropertyEquationFilterUnsupported() {
-        QlIllegalArgumentException e = expectThrows(
-            QlIllegalArgumentException.class,
+        InvalidArgumentException e = expectThrows(
+            InvalidArgumentException.class,
             () -> plan("process where (serial_event_id<9 and serial_event_id >= 7) or (opcode == pid)")
         );
         String msg = e.getMessage();

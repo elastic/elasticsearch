@@ -44,7 +44,10 @@ import static org.elasticsearch.common.xcontent.support.XContentMapValues.extrac
 import static org.elasticsearch.test.ListMatcher.matchesList;
 import static org.elasticsearch.test.MapMatcher.assertMap;
 import static org.elasticsearch.test.MapMatcher.matchesMap;
-import static org.elasticsearch.xpack.esql.action.EsqlResolveFieldsResponse.RESOLVE_FIELDS_RESPONSE_CREATED_TV;
+import static org.elasticsearch.xpack.esql.action.EsqlResolveFieldsResponse.RESOLVE_FIELDS_RESPONSE_USED_TV;
+import static org.elasticsearch.xpack.esql.core.type.DataType.DataTypesTransportVersions.ESQL_AGGREGATE_METRIC_DOUBLE_CREATED_VERSION;
+import static org.elasticsearch.xpack.esql.core.type.DataType.DataTypesTransportVersions.ESQL_DENSE_VECTOR_CREATED_VERSION;
+import static org.elasticsearch.xpack.esql.core.type.DataType.DataTypesTransportVersions.INDEX_SOURCE;
 import static org.hamcrest.Matchers.any;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.containsString;
@@ -70,8 +73,6 @@ import static org.hamcrest.Matchers.nullValue;
  */
 public class AllSupportedFieldsTestCase extends ESRestTestCase {
     private static final Logger logger = LogManager.getLogger(FieldExtractorTestCase.class);
-
-    private static final TransportVersion INDEX_SOURCE = TransportVersion.fromName("index_source");
 
     @Rule(order = Integer.MIN_VALUE)
     public ProfileLogger profileLogger = new ProfileLogger();
@@ -329,6 +330,76 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
         assertMap(indexToRow(columns, values), expectedAllValues);
     }
 
+    /**
+     * Tests fetching {@code aggregate_metric_double} if possible. Uses the {@code dense_vector_agg_metric_double_if_fns}
+     * work around if required.
+     */
+    public final void testFetchAggregateMetricDouble() throws IOException {
+        Map<String, Object> response;
+        try {
+            String request = """
+                | EVAL strjunk = TO_STRING(f_aggregate_metric_double)
+                | KEEP _index, f_aggregate_metric_double
+                | LIMIT 1000
+                """;
+            if (denseVectorAggMetricDoubleIfVersion() == false) {
+                request = """
+                    | EVAL junk = TO_AGGREGATE_METRIC_DOUBLE(1)  // workaround to enable fetching aggregate_metric_double
+                    """ + request;
+            }
+            response = esql(request);
+            if ((Boolean) response.get("is_partial")) {
+                Map<?, ?> clusters = (Map<?, ?>) response.get("_clusters");
+                Map<?, ?> details = (Map<?, ?>) clusters.get("details");
+
+                boolean foundError = false;
+                for (Map.Entry<?, ?> cluster : details.entrySet()) {
+                    String failures = cluster.getValue().toString();
+                    if (denseVectorAggMetricDoubleIfFns()) {
+                        throw new AssertionError("should correctly fetch the aggregate_metric_double: " + failures);
+                    }
+                    foundError |= failures.contains("doesn't understand data type [AGGREGATE_METRIC_DOUBLE]");
+                }
+                assertTrue("didn't find errors: " + details, foundError);
+                return;
+            }
+        } catch (ResponseException e) {
+            if (denseVectorAggMetricDoubleIfFns()) {
+                throw new AssertionError("should correctly fetch the aggregate_metric_double", e);
+            }
+            assertThat(
+                "old version should fail with this error",
+                EntityUtils.toString(e.getResponse().getEntity()),
+                anyOf(
+                    containsString("Unknown function [TO_AGGREGATE_METRIC_DOUBLE]"),
+                    containsString("Cannot use field [f_aggregate_metric_double] with unsupported type"),
+                    containsString("doesn't understand data type [AGGREGATE_METRIC_DOUBLE]")
+                )
+            );
+            // Failure is expected and fine
+            return;
+        }
+        List<?> columns = (List<?>) response.get("columns");
+        List<?> values = (List<?>) response.get("values");
+
+        MapMatcher expectedColumns = matchesMap().entry("f_aggregate_metric_double", "aggregate_metric_double").entry("_index", "keyword");
+        assertMap(nameToType(columns), expectedColumns);
+
+        MapMatcher expectedAllValues = matchesMap();
+        for (Map.Entry<String, NodeInfo> e : expectedIndices().entrySet()) {
+            String indexName = e.getKey();
+            NodeInfo nodeInfo = e.getValue();
+            MapMatcher expectedValues = matchesMap();
+            expectedValues = expectedValues.entry(
+                "f_aggregate_metric_double",
+                "{\"min\":-302.5,\"max\":702.3,\"sum\":200.0,\"value_count\":25}"
+            );
+            expectedValues = expectedValues.entry("_index", indexName);
+            expectedAllValues = expectedAllValues.entry(indexName, expectedValues);
+        }
+        assertMap(indexToRow(columns, values), expectedAllValues);
+    }
+
     private Map<String, Object> esql(String query) throws IOException {
         Request request = new Request("POST", "_query");
         XContentBuilder body = JsonXContent.contentBuilder().startObject();
@@ -473,21 +544,15 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
             case GEO_SHAPE -> equalTo("POINT (-71.34 41.12)");
             case NULL -> nullValue();
             case AGGREGATE_METRIC_DOUBLE -> {
-                /*
-                 * We need both AGGREGATE_METRIC_DOUBLE_CREATED and RESOLVE_FIELDS_RESPONSE_CREATED_TV
-                 * but RESOLVE_FIELDS_RESPONSE_CREATED_TV came last so it's enough to check just it.
-                 */
-                if (minVersion().supports(RESOLVE_FIELDS_RESPONSE_CREATED_TV) == false) {
+                if (minVersion().supports(RESOLVE_FIELDS_RESPONSE_USED_TV) == false
+                    || minVersion().supports(ESQL_AGGREGATE_METRIC_DOUBLE_CREATED_VERSION) == false) {
                     yield nullValue();
                 }
                 yield equalTo("{\"min\":-302.5,\"max\":702.3,\"sum\":200.0,\"value_count\":25}");
             }
             case DENSE_VECTOR -> {
-                /*
-                 * We need both DENSE_VECTOR_CREATED and RESOLVE_FIELDS_RESPONSE_CREATED_TV
-                 * but RESOLVE_FIELDS_RESPONSE_CREATED_TV came last so it's enough to check just it.
-                 */
-                if (minVersion().supports(RESOLVE_FIELDS_RESPONSE_CREATED_TV) == false) {
+                if (minVersion().supports(RESOLVE_FIELDS_RESPONSE_USED_TV) == false
+                    || minVersion().supports(ESQL_DENSE_VECTOR_CREATED_VERSION) == false) {
                     yield nullValue();
                 }
                 yield equalTo(List.of(0.5, 10.0, 5.9999995));
@@ -514,6 +579,9 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
                 UNSUPPORTED, PARTIAL_AGG,
                 // You can't index these - they are just constants.
                 DATE_PERIOD, TIME_DURATION, GEOTILE, GEOHASH, GEOHEX,
+                // TODO(b/133393): Once we remove the feature-flag of the exp-histo field type (!= ES|QL type),
+                // replace this with a capability check
+                EXPONENTIAL_HISTOGRAM,
                 // TODO fix geo
                 CARTESIAN_POINT, CARTESIAN_SHAPE -> false;
             default -> true;
@@ -572,15 +640,24 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
             case BYTE, SHORT -> equalTo("integer");
             case HALF_FLOAT, SCALED_FLOAT, FLOAT -> equalTo("double");
             case NULL -> equalTo("keyword");
-            case AGGREGATE_METRIC_DOUBLE, DENSE_VECTOR -> {
-                /*
-                 * We need both <type_name>_CREATED and RESOLVE_FIELDS_RESPONSE_CREATED_TV
-                 * but RESOLVE_FIELDS_RESPONSE_CREATED_TV came last so it's enough to check just it.
-                 */
-                if (minVersion().supports(RESOLVE_FIELDS_RESPONSE_CREATED_TV) == false) {
+            case AGGREGATE_METRIC_DOUBLE -> {
+                // RESOLVE_FIELDS_RESPONSE_USED_TV is newer and technically sufficient to check.
+                // We also check for ESQL_AGGREGATE_METRIC_DOUBLE_CREATED_VERSION for clarity.
+                // Future data types added here should only require the TV when they were created,
+                // because it will be after RESOLVE_FIELDS_RESPONSE_USED_TV.
+                if (minVersion().supports(RESOLVE_FIELDS_RESPONSE_USED_TV) == false
+                    || minVersion().supports(ESQL_AGGREGATE_METRIC_DOUBLE_CREATED_VERSION) == false) {
                     yield equalTo("unsupported");
                 }
-                yield equalTo(type.esType());
+                yield equalTo("aggregate_metric_double");
+            }
+            case DENSE_VECTOR -> {
+                logger.error("ADFDAFAF " + minVersion());
+                if (minVersion().supports(RESOLVE_FIELDS_RESPONSE_USED_TV) == false
+                    || minVersion().supports(ESQL_DENSE_VECTOR_CREATED_VERSION) == false) {
+                    yield equalTo("unsupported");
+                }
+                yield equalTo("dense_vector");
             }
             default -> equalTo(type.esType());
         };

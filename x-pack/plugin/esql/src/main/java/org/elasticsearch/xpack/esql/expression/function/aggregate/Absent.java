@@ -84,11 +84,11 @@ public class Absent extends AggregateFunction implements SurrogateExpression {
             description = "Expression that outputs values to be checked for absence."
         ) Expression field
     ) {
-        this(source, field, Literal.TRUE);
+        this(source, field, Literal.TRUE, NO_WINDOW);
     }
 
-    public Absent(Source source, Expression field, Expression filter) {
-        super(source, field, filter, emptyList());
+    public Absent(Source source, Expression field, Expression filter, Expression window) {
+        super(source, field, filter, window, emptyList());
     }
 
     private Absent(StreamInput in) throws IOException {
@@ -102,17 +102,17 @@ public class Absent extends AggregateFunction implements SurrogateExpression {
 
     @Override
     protected NodeInfo<Absent> info() {
-        return NodeInfo.create(this, Absent::new, field(), filter());
+        return NodeInfo.create(this, Absent::new, field(), filter(), window());
     }
 
     @Override
     public AggregateFunction withFilter(Expression filter) {
-        return new Absent(source(), field(), filter);
+        return new Absent(source(), field(), filter, window());
     }
 
     @Override
     public Absent replaceChildren(List<Expression> newChildren) {
-        return new Absent(source(), newChildren.get(0), newChildren.get(1));
+        return new Absent(source(), newChildren.get(0), newChildren.get(1), newChildren.get(2));
     }
 
     @Override
@@ -138,6 +138,6 @@ public class Absent extends AggregateFunction implements SurrogateExpression {
 
     @Override
     public Expression surrogate() {
-        return new Not(source(), new Present(source(), field(), filter()));
+        return new Not(source(), new Present(source(), field(), filter(), window()));
     }
 }

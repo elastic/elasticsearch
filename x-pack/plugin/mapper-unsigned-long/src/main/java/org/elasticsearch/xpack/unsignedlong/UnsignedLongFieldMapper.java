@@ -18,10 +18,8 @@ import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Explicit;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
@@ -73,6 +71,7 @@ import java.util.Set;
 import java.util.function.Function;
 
 import static org.elasticsearch.index.mapper.FieldArrayContext.getOffsetsFieldName;
+import static org.elasticsearch.index.mapper.FieldMapper.Parameter.useTimeSeriesDocValuesSkippers;
 import static org.elasticsearch.xpack.unsignedlong.UnsignedLongLeafFieldData.convertUnsignedLongToDouble;
 
 public class UnsignedLongFieldMapper extends FieldMapper {
@@ -106,33 +105,15 @@ public class UnsignedLongFieldMapper extends FieldMapper {
          */
         private final Parameter<MetricType> metric;
 
-        private final IndexVersion indexCreatedVersion;
-        private final IndexMode indexMode;
-        private final SourceKeepMode indexSourceKeepMode;
+        private final IndexSettings indexSettings;
 
-        public Builder(
-            String name,
-            Settings settings,
-            IndexVersion indexCreatedVersion,
-            IndexMode mode,
-            SourceKeepMode indexSourceKeepMode
-        ) {
-            this(name, IGNORE_MALFORMED_SETTING.get(settings), indexCreatedVersion, mode, indexSourceKeepMode);
-        }
-
-        public Builder(
-            String name,
-            boolean ignoreMalformedByDefault,
-            IndexVersion indexCreatedVersion,
-            IndexMode mode,
-            SourceKeepMode indexSourceKeepMode
-        ) {
+        public Builder(String name, IndexSettings indexSettings) {
             super(name);
             this.ignoreMalformed = Parameter.explicitBoolParam(
                 "ignore_malformed",
                 true,
                 m -> toType(m).ignoreMalformed,
-                ignoreMalformedByDefault
+                IGNORE_MALFORMED_SETTING.get(indexSettings.getSettings())
             );
             this.nullValue = new Parameter<>(
                 "null_value",
@@ -143,26 +124,16 @@ public class UnsignedLongFieldMapper extends FieldMapper {
                 XContentBuilder::field,
                 Objects::toString
             ).acceptsNull();
-            this.indexMode = mode;
+            this.dimension = TimeSeriesParams.dimensionParam(m -> toType(m).dimension, hasDocValues::get);
             this.indexed = Parameter.indexParam(m -> toType(m).indexed, () -> {
-                if (indexMode == IndexMode.TIME_SERIES) {
+                if (useTimeSeriesDocValuesSkippers(indexSettings, dimension.get())) {
+                    return false;
+                }
+                if (indexSettings.getMode() == IndexMode.TIME_SERIES) {
                     var metricType = getMetric().getValue();
                     return metricType != MetricType.COUNTER && metricType != MetricType.GAUGE;
                 } else {
                     return true;
-                }
-            });
-            this.dimension = TimeSeriesParams.dimensionParam(m -> toType(m).dimension).addValidator(v -> {
-                if (v && (indexed.getValue() == false || hasDocValues.getValue() == false)) {
-                    throw new IllegalArgumentException(
-                        "Field ["
-                            + TimeSeriesParams.TIME_SERIES_DIMENSION_PARAM
-                            + "] requires that ["
-                            + indexed.name
-                            + "] and ["
-                            + hasDocValues.name
-                            + "] are true"
-                    );
                 }
             });
 
@@ -174,8 +145,7 @@ public class UnsignedLongFieldMapper extends FieldMapper {
                 }
             }).precludesParameters(dimension);
 
-            this.indexCreatedVersion = indexCreatedVersion;
-            this.indexSourceKeepMode = indexSourceKeepMode;
+            this.indexSettings = indexSettings;
         }
 
         private String parseNullValueAsString(Object o) {
@@ -220,6 +190,13 @@ public class UnsignedLongFieldMapper extends FieldMapper {
             return parsed >= 0 ? parsed : BigInteger.valueOf(parsed).and(BIGINTEGER_2_64_MINUS_ONE);
         }
 
+        private IndexType indexType() {
+            if (indexed.get() == false && hasDocValues.get() && useTimeSeriesDocValuesSkippers(indexSettings, dimension.get())) {
+                return IndexType.skippers();
+            }
+            return IndexType.points(indexed.get(), hasDocValues.get());
+        }
+
         @Override
         public UnsignedLongFieldMapper build(MapperBuilderContext context) {
             if (inheritDimensionParameterFromParentObject(context)) {
@@ -227,22 +204,22 @@ public class UnsignedLongFieldMapper extends FieldMapper {
             }
             UnsignedLongFieldType fieldType = new UnsignedLongFieldType(
                 context.buildFullName(leafName()),
-                IndexType.points(indexed.get(), hasDocValues.get()),
+                indexType(),
                 stored.getValue(),
                 parsedNullValue(),
                 meta.getValue(),
                 dimension.getValue(),
                 metric.getValue(),
-                indexMode,
+                indexSettings.getMode(),
                 context.isSourceSynthetic()
             );
             String offsetsFieldName = getOffsetsFieldName(
                 context,
-                indexSourceKeepMode,
+                indexSettings.sourceKeepMode(),
                 hasDocValues.getValue(),
                 stored.getValue(),
                 this,
-                indexCreatedVersion,
+                indexSettings.getIndexVersionCreated(),
                 IndexVersions.SYNTHETIC_SOURCE_STORE_ARRAYS_NATIVELY_UNSIGNED_LONG
             );
             return new UnsignedLongFieldMapper(
@@ -256,15 +233,7 @@ public class UnsignedLongFieldMapper extends FieldMapper {
         }
     }
 
-    public static final TypeParser PARSER = new TypeParser(
-        (n, c) -> new Builder(
-            n,
-            c.getSettings(),
-            c.indexVersionCreated(),
-            c.getIndexSettings().getMode(),
-            c.getIndexSettings().sourceKeepMode()
-        )
-    );
+    public static final TypeParser PARSER = new TypeParser((n, c) -> new Builder(n, c.getIndexSettings()));
 
     public static final class UnsignedLongFieldType extends SimpleMappedFieldType {
 
@@ -698,15 +667,12 @@ public class UnsignedLongFieldMapper extends FieldMapper {
     private final boolean hasDocValues;
     private final boolean stored;
     private final Explicit<Boolean> ignoreMalformed;
-    private final boolean ignoreMalformedByDefault;
     private final String nullValue;
     private final Long nullValueIndexed; // null value to use for indexing, represented as shifted to signed long range
     private final boolean dimension;
     private final MetricType metricType;
-    private final IndexVersion indexCreatedVersion;
-    private final IndexMode indexMode;
+    private final IndexSettings indexSettings;
     private final String offsetsFieldName;
-    private final SourceKeepMode indexSourceKeepMode;
 
     private UnsignedLongFieldMapper(
         String simpleName,
@@ -722,7 +688,6 @@ public class UnsignedLongFieldMapper extends FieldMapper {
         this.hasDocValues = builder.hasDocValues.getValue();
         this.stored = builder.stored.getValue();
         this.ignoreMalformed = builder.ignoreMalformed.getValue();
-        this.ignoreMalformedByDefault = builder.ignoreMalformed.getDefaultValue().value();
         this.nullValue = builder.nullValue.getValue();
         if (nullValue == null) {
             this.nullValueIndexed = null;
@@ -732,10 +697,8 @@ public class UnsignedLongFieldMapper extends FieldMapper {
         }
         this.dimension = builder.dimension.getValue();
         this.metricType = builder.metric.getValue();
-        this.indexMode = builder.indexMode;
-        this.indexCreatedVersion = builder.indexCreatedVersion;
+        this.indexSettings = builder.indexSettings;
         this.offsetsFieldName = offsetsFieldName;
-        this.indexSourceKeepMode = builder.indexSourceKeepMode;
     }
 
     @Override
@@ -803,7 +766,11 @@ public class UnsignedLongFieldMapper extends FieldMapper {
             if (indexed && hasDocValues) {
                 fields.add(new LongField(fieldType().name(), numericValue, Field.Store.NO));
             } else if (hasDocValues) {
-                fields.add(new SortedNumericDocValuesField(fieldType().name(), numericValue));
+                if (fieldType().indexType().hasDocValuesSkipper()) {
+                    fields.add(SortedNumericDocValuesField.indexedField(fieldType().name(), numericValue));
+                } else {
+                    fields.add(new SortedNumericDocValuesField(fieldType().name(), numericValue));
+                }
             } else if (indexed) {
                 fields.add(new LongPoint(fieldType().name(), numericValue));
             }
@@ -830,9 +797,7 @@ public class UnsignedLongFieldMapper extends FieldMapper {
 
     @Override
     public FieldMapper.Builder getMergeBuilder() {
-        return new Builder(leafName(), ignoreMalformedByDefault, indexCreatedVersion, indexMode, indexSourceKeepMode).dimension(dimension)
-            .metric(metricType)
-            .init(this);
+        return new Builder(leafName(), indexSettings).dimension(dimension).metric(metricType).init(this);
     }
 
     /**

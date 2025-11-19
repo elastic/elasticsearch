@@ -13,7 +13,10 @@ import org.elasticsearch.xpack.esql.qa.rest.EsqlSpecTestCase;
 import java.io.IOException;
 import java.util.List;
 
-import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.*;
+import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.FORK_V9;
+import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.METRICS_GROUP_BY_ALL;
+import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND;
+import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.UNMAPPED_FIELDS;
 import static org.elasticsearch.xpack.esql.qa.rest.RestEsqlTestCase.hasCapabilities;
 
 /**
@@ -58,6 +61,11 @@ public abstract class GenerativeForkRestTest extends EsqlSpecTestCase {
         assumeFalse(
             "Tests using subqueries are skipped since we don't support nested subqueries",
             testCase.requiredCapabilities.contains(SUBQUERY_IN_FROM_COMMAND.capabilityName())
+        );
+
+        assumeFalse(
+            "Tests using GROUP_BY_ALL are skipped since we add a new _timeseries field",
+            testCase.requiredCapabilities.contains(METRICS_GROUP_BY_ALL.capabilityName())
         );
 
         assumeTrue("Cluster needs to support FORK", hasCapabilities(adminClient(), List.of(FORK_V9.capabilityName())));

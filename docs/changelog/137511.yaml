@@ -1,0 +1,5 @@
+pr: 137511
+summary: Fixes esql class cast bug in STATS at planning level
+area: ES|QL
+type: bug
+issues: []

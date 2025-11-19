@@ -59,6 +59,7 @@ import org.elasticsearch.xpack.esql.expression.function.fulltext.MultiMatch;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.QueryString;
 import org.elasticsearch.xpack.esql.expression.function.grouping.Bucket;
 import org.elasticsearch.xpack.esql.expression.function.grouping.TBucket;
+import org.elasticsearch.xpack.esql.expression.function.inference.CompletionFunction;
 import org.elasticsearch.xpack.esql.expression.function.inference.TextEmbedding;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDateNanos;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDatetime;
@@ -4289,6 +4290,67 @@ public class AnalyzerTests extends ESTestCase {
         EsRelation esRelation = as(completion.child(), EsRelation.class);
         assertThat(getAttributeByName(completion.output(), "description"), equalTo(completion.targetField()));
         assertThat(getAttributeByName(esRelation.output(), "description"), not(equalTo(completion.targetField())));
+    }
+
+    public void testFoldableCompletionTransformedToEval() {
+        // Test that a foldable Completion plan (with literal prompt) is transformed to Eval with CompletionFunction
+        LogicalPlan plan = analyze("""
+            FROM books METADATA _score
+            | COMPLETION "Translate this text in French" WITH { "inference_id" : "completion-inference-id" }
+            """, "mapping-books.json");
+
+        Eval eval = as(as(plan, Limit.class).child(), Eval.class);
+        assertThat(eval.fields().size(), equalTo(1));
+
+        Alias alias = eval.fields().get(0);
+        assertThat(alias.name(), equalTo("completion"));
+        assertThat(alias.child(), instanceOf(CompletionFunction.class));
+
+        CompletionFunction completionFunction = as(alias.child(), CompletionFunction.class);
+        assertThat(completionFunction.prompt(), equalTo(string("Translate this text in French")));
+        assertThat(completionFunction.inferenceId(), equalTo(string("completion-inference-id")));
+        assertThat(completionFunction.taskType(), equalTo(org.elasticsearch.inference.TaskType.COMPLETION));
+    }
+
+    public void testFoldableCompletionWithCustomTargetFieldTransformedToEval() {
+        // Test that a foldable Completion plan with custom target field is transformed correctly
+        LogicalPlan plan = analyze("""
+            FROM books METADATA _score
+            | COMPLETION translation = "Translate this text" WITH { "inference_id" : "completion-inference-id" }
+            """, "mapping-books.json");
+
+        Eval eval = as(as(plan, Limit.class).child(), Eval.class);
+        assertThat(eval.fields().size(), equalTo(1));
+
+        Alias alias = eval.fields().get(0);
+        assertThat(alias.name(), equalTo("translation"));
+        assertThat(alias.child(), instanceOf(CompletionFunction.class));
+
+        CompletionFunction completionFunction = as(alias.child(), CompletionFunction.class);
+        assertThat(completionFunction.prompt(), equalTo(string("Translate this text")));
+        assertThat(completionFunction.inferenceId(), equalTo(string("completion-inference-id")));
+    }
+
+    public void testFoldableCompletionWithFoldableExpressionTransformedToEval() {
+        // Test that a foldable Completion plan with a foldable expression (not just a literal) is transformed correctly
+        // Using CONCAT with all literal arguments to ensure it's foldable during analysis
+        LogicalPlan plan = analyze("""
+            FROM books METADATA _score
+            | COMPLETION CONCAT("Translate", " ", "this text") WITH { "inference_id" : "completion-inference-id" }
+            """, "mapping-books.json");
+
+        Eval eval = as(as(plan, Limit.class).child(), Eval.class);
+        assertThat(eval.fields().size(), equalTo(1));
+
+        Alias alias = eval.fields().get(0);
+        assertThat(alias.name(), equalTo("completion"));
+        assertThat(alias.child(), instanceOf(CompletionFunction.class));
+
+        CompletionFunction completionFunction = as(alias.child(), CompletionFunction.class);
+        // The prompt should be a Concat expression that is foldable (all arguments are literals)
+        assertThat(completionFunction.prompt(), instanceOf(Concat.class));
+        assertThat(completionFunction.prompt().foldable(), equalTo(true));
+        assertThat(completionFunction.inferenceId(), equalTo(string("completion-inference-id")));
     }
 
     public void testResolveGroupingsBeforeResolvingImplicitReferencesToGroupings() {

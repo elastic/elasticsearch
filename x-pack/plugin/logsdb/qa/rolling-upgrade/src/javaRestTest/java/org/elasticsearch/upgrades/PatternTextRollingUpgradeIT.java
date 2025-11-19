@@ -21,4 +21,10 @@ public class PatternTextRollingUpgradeIT extends AbstractStringTypeRollingUpgrad
     public String stringType() {
         return "pattern_text";
     }
+
+    @Override
+    protected void testIndexing(boolean shouldIncludeKeywordMultiField) throws Exception {
+        assumeTrue("pattern_text only available from 9.2.0 onward", oldClusterHasFeature("gte_v9.2.0"));
+        super.testIndexing(shouldIncludeKeywordMultiField);
+    }
 }

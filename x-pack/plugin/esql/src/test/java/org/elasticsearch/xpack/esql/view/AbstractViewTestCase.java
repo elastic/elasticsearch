@@ -8,11 +8,11 @@ package org.elasticsearch.xpack.esql.view;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
+import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
@@ -35,13 +35,13 @@ public abstract class AbstractViewTestCase extends ESSingleNodeTestCase {
 
     protected ViewService viewService(ProjectResolver projectResolver) {
         ClusterService clusterService = getInstanceFromNode(ClusterService.class);
-        FeatureService featureService = getInstanceFromNode(FeatureService.class);
-        return new ClusterViewService(new EsqlFunctionRegistry(), clusterService, featureService, projectResolver, DEFAULT);
+        return new ClusterViewService(new EsqlFunctionRegistry(), clusterService, projectResolver, DEFAULT);
     }
 
     protected class TestViewsApi {
         protected final ViewService viewService;
         protected final ProjectId projectId;
+        private final ProjectState projectState;
 
         public TestViewsApi() {
             if (ESQL_VIEWS_FEATURE_FLAG.isEnabled() == false) {
@@ -51,6 +51,8 @@ public abstract class AbstractViewTestCase extends ESSingleNodeTestCase {
             ProjectResolver projectResolver = getInstanceFromNode(ProjectResolver.class);
             this.viewService = viewService(projectResolver);
             this.projectId = projectResolver.getProjectId();
+            ClusterService clusterService = getInstanceFromNode(ClusterService.class);
+            this.projectState = clusterService.state().projectState(projectId);
         }
 
         protected AtomicReference<Exception> save(String name, View view) throws InterruptedException {
@@ -74,14 +76,15 @@ public abstract class AbstractViewTestCase extends ESSingleNodeTestCase {
         }
 
         public Map<String, View> get(String... names) throws Exception {
-            if (names == null || names.length == 1 && names[0] == null) {
+            if (names == null || (names.length == 1 && names[0] == null)) {
                 // This is only for consistent testing, in production this is already checked in the REST API
                 throw new IllegalArgumentException("name is missing or empty");
             }
             TestResponseCapture<GetViewAction.Response> responseCapture = new TestResponseCapture<>();
             TransportGetViewAction getViewAction = getInstanceFromNode(TransportGetViewAction.class);
             GetViewAction.Request request = new GetViewAction.Request(TimeValue.THIRTY_SECONDS, names);
-            getViewAction.doExecute(null, request, responseCapture);
+            getViewAction.localClusterStateOperation(null, request, projectState, responseCapture);
+            responseCapture.latch.await();
             if (responseCapture.error.get() != null) {
                 throw responseCapture.error.get();
             }
@@ -97,8 +100,8 @@ public abstract class AbstractViewTestCase extends ESSingleNodeTestCase {
     }
 
     protected static class TestResponseCapture<T> implements ActionListener<T> {
-        CountDownLatch latch = new CountDownLatch(1);
-        AtomicReference<Exception> error = new AtomicReference<>();
+        private final CountDownLatch latch = new CountDownLatch(1);
+        final AtomicReference<Exception> error = new AtomicReference<>();
         T response;
 
         @Override

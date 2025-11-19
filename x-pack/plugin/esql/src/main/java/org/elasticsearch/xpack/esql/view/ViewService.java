@@ -167,7 +167,7 @@ public abstract class ViewService {
     }
 
     private void validatePutView(ProjectId projectId, String name, View view) {
-        if (Strings.isNullOrEmpty(name)) {
+        if (Strings.hasText(name) == false) {
             throw new IllegalArgumentException("name is missing or empty");
         }
         // The view name is used in a similar context to an index name and therefore has the same restrictions as an index name
@@ -202,7 +202,7 @@ public abstract class ViewService {
      * Gets the view by name.
      */
     public View get(ProjectId projectId, String name) {
-        if (Strings.isNullOrEmpty(name)) {
+        if (Strings.hasText(name) == false) {
             throw new IllegalArgumentException("name is missing or empty");
         }
         return viewsFeatureEnabled() ? getMetadata(projectId).views().get(name) : null;
@@ -225,7 +225,7 @@ public abstract class ViewService {
         ActionListener<? extends AcknowledgedResponse> callback
     ) {
         assertMasterNode();
-        if (Strings.isNullOrEmpty(name)) {
+        if (Strings.hasText(name) == false) {
             throw new IllegalArgumentException("name is missing or empty");
         }
 

@@ -20,7 +20,7 @@ import java.io.IOException;
 import java.util.Objects;
 
 /**
- * Represents an enrich policy including its configuration.
+ * Represents a single view definition, which is simply a name and a query string.
  */
 public final class View implements Writeable, ToXContentFragment {
     private static final ParseField QUERY = new ParseField("query");

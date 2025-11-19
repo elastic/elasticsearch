@@ -204,7 +204,6 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
         ViewService viewService = new ClusterViewService(
             functionRegistry,
             services.clusterService(),
-            services.featureService(),
             services.projectResolver(),
             ViewService.ViewServiceConfig.fromSettings(settings)
         );

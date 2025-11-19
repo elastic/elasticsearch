@@ -6,12 +6,18 @@
  */
 package org.elasticsearch.xpack.esql.view;
 
+import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.admin.cluster.remote.RemoteInfoResponse;
 import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.action.support.HandledTransportAction;
+import org.elasticsearch.action.support.local.TransportLocalProjectMetadataAction;
+import org.elasticsearch.cluster.ProjectState;
+import org.elasticsearch.cluster.block.ClusterBlockException;
+import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.cluster.project.ProjectResolver;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.Task;
@@ -23,19 +29,37 @@ import java.util.Collections;
 import java.util.List;
 import java.util.TreeMap;
 
-public class TransportGetViewAction extends HandledTransportAction<GetViewAction.Request, GetViewAction.Response> {
+public class TransportGetViewAction extends TransportLocalProjectMetadataAction<GetViewAction.Request, GetViewAction.Response> {
     public static final ActionType<RemoteInfoResponse> TYPE = new ActionType<>(GetViewAction.NAME);
     private final ClusterViewService viewService;
 
     @Inject
-    public TransportGetViewAction(TransportService transportService, ActionFilters actionFilters, ClusterViewService viewService) {
-        super(GetViewAction.NAME, transportService, actionFilters, GetViewAction.Request::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
+    public TransportGetViewAction(
+        TransportService transportService,
+        ActionFilters actionFilters,
+        ClusterService clusterService,
+        ProjectResolver projectResolver,
+        ClusterViewService viewService
+    ) {
+        super(
+            GetViewAction.NAME,
+            actionFilters,
+            transportService.getTaskManager(),
+            clusterService,
+            EsExecutors.DIRECT_EXECUTOR_SERVICE,
+            projectResolver
+        );
         this.viewService = viewService;
     }
 
     @Override
-    protected void doExecute(Task task, GetViewAction.Request request, ActionListener<GetViewAction.Response> listener) {
-        ProjectId projectId = viewService.getProjectId();
+    protected void localClusterStateOperation(
+        Task task,
+        GetViewAction.Request request,
+        ProjectState project,
+        ActionListener<GetViewAction.Response> listener
+    ) {
+        ProjectId projectId = project.projectId();
         TreeMap<String, View> views = new TreeMap<>();
         List<String> missing = new ArrayList<>();
         Collection<String> names = request.names();
@@ -51,9 +75,14 @@ public class TransportGetViewAction extends HandledTransportAction<GetViewAction
             }
         }
         if (missing.isEmpty() == false) {
-            listener.onFailure(new IllegalArgumentException("Views do not exist: " + String.join(", ", missing)));
+            listener.onFailure(new ResourceNotFoundException("Views do not exist: " + String.join(", ", missing)));
         } else {
             listener.onResponse(new GetViewAction.Response(views));
         }
+    }
+
+    @Override
+    protected ClusterBlockException checkBlock(GetViewAction.Request request, ProjectState state) {
+        return state.blocks().globalBlockedException(state.projectId(), ClusterBlockLevel.METADATA_READ);
     }
 }

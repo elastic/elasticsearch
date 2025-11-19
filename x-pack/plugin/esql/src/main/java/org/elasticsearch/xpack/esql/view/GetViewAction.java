@@ -47,6 +47,7 @@ public class GetViewAction extends ActionType<GetViewAction.Response> {
 
         public Request(StreamInput in) throws IOException {
             super(in);
+            TransportAction.localOnly();
         }
 
         @Override
@@ -120,7 +121,7 @@ public class GetViewAction extends ActionType<GetViewAction.Response> {
 
         @Override
         public String toString() {
-            return "GetViewAction.Response{" + views.toString() + '}';
+            return "GetViewAction.Response" + views.keySet();
         }
     }
 }

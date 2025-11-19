@@ -121,12 +121,25 @@ public class ES819TSDBDocValuesFormat extends org.apache.lucene.codecs.DocValues
 
     /** Default constructor. */
     public ES819TSDBDocValuesFormat() {
-        this(DEFAULT_SKIP_INDEX_INTERVAL_SIZE, ORDINAL_RANGE_ENCODING_MIN_DOC_PER_ORDINAL, OPTIMIZED_MERGE_ENABLE_DEFAULT);
+        this(CODEC_NAME);
+    }
+
+    protected ES819TSDBDocValuesFormat(String name) {
+        this(name, DEFAULT_SKIP_INDEX_INTERVAL_SIZE, ORDINAL_RANGE_ENCODING_MIN_DOC_PER_ORDINAL, OPTIMIZED_MERGE_ENABLE_DEFAULT);
     }
 
     /** Doc values fields format with specified skipIndexIntervalSize. */
     public ES819TSDBDocValuesFormat(int skipIndexIntervalSize, int minDocsPerOrdinalForRangeEncoding, boolean enableOptimizedMerge) {
-        super(CODEC_NAME);
+        this(CODEC_NAME, skipIndexIntervalSize, minDocsPerOrdinalForRangeEncoding, enableOptimizedMerge);
+    }
+
+    protected ES819TSDBDocValuesFormat(
+        String name,
+        int skipIndexIntervalSize,
+        int minDocsPerOrdinalForRangeEncoding,
+        boolean enableOptimizedMerge
+    ) {
+        super(name);
         if (skipIndexIntervalSize < 2) {
             throw new IllegalArgumentException("skipIndexIntervalSize must be > 1, got [" + skipIndexIntervalSize + "]");
         }

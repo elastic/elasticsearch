@@ -21,11 +21,12 @@ import java.io.IOException;
  */
 public class ES819TSDBLargeBlockDocValuesFormat extends ES819TSDBDocValuesFormat {
 
-    static final int NUMERIC_BLOCK_SHIFT = 9;  // block size: 512
+    static final int NUMERIC_BLOCK_SHIFT = 9;
+    static final String CODEC_NAME = "ES819TSDBLB";// block size: 512
 
     /** Default constructor. */
     public ES819TSDBLargeBlockDocValuesFormat() {
-        super();
+        super(CODEC_NAME);
     }
 
     /** Doc values fields format with specified skipIndexIntervalSize. */
@@ -34,7 +35,7 @@ public class ES819TSDBLargeBlockDocValuesFormat extends ES819TSDBDocValuesFormat
         int minDocsPerOrdinalForRangeEncoding,
         boolean enableOptimizedMerge
     ) {
-        super(skipIndexIntervalSize, minDocsPerOrdinalForRangeEncoding, enableOptimizedMerge);
+        super(CODEC_NAME, skipIndexIntervalSize, minDocsPerOrdinalForRangeEncoding, enableOptimizedMerge);
     }
 
     @Override

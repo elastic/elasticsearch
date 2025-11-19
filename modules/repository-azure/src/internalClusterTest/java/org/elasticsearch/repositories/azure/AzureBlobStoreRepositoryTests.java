@@ -8,13 +8,13 @@
  */
 package org.elasticsearch.repositories.azure;
 
-import fixture.azure.AzureHttpHandler;
-import fixture.azure.MockAzureBlobStore;
-
 import com.azure.storage.common.policy.RequestRetryOptions;
 import com.azure.storage.common.policy.RetryPolicyType;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpHandler;
+
+import fixture.azure.AzureHttpHandler;
+import fixture.azure.MockAzureBlobStore;
 
 import org.elasticsearch.action.support.broadcast.BroadcastResponse;
 import org.elasticsearch.cluster.project.ProjectResolver;
@@ -348,10 +348,7 @@ public class AzureBlobStoreRepositoryTests extends ESMockAPIBasedRepositoryInteg
     public void testNotFoundErrorMessageContainsFullKey() throws Exception {
         try (BlobStore store = newBlobStore()) {
             BlobContainer container = store.blobContainer(BlobPath.EMPTY.add("nested").add("dir"));
-            NoSuchFileException exception = expectThrows(
-                NoSuchFileException.class,
-                () -> container.readBlob(randomRetryingPurpose(), "blob")
-            );
+            NoSuchFileException exception = expectThrows(NoSuchFileException.class, () -> container.readBlob(randomPurpose(), "blob"));
             assertThat(exception.getMessage(), containsString("nested/dir/blob] not found"));
         }
     }

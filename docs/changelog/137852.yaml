@@ -1,0 +1,6 @@
+pr: 137852
+summary: Fixing get data stream API when data stream index mode has been changed
+  to `time_series`
+area: Data streams
+type: bug
+issues: []

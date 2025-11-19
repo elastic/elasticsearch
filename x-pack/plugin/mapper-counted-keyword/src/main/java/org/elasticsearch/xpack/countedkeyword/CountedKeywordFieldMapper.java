@@ -34,6 +34,7 @@ import org.elasticsearch.index.mapper.BinaryFieldMapper;
 import org.elasticsearch.index.mapper.CustomDocValuesField;
 import org.elasticsearch.index.mapper.DocumentParserContext;
 import org.elasticsearch.index.mapper.FieldMapper;
+import org.elasticsearch.index.mapper.IndexType;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
@@ -109,14 +110,13 @@ public class CountedKeywordFieldMapper extends FieldMapper {
 
         CountedKeywordFieldType(
             String name,
-            boolean isIndexed,
+            IndexType indexType,
             boolean isStored,
-            boolean hasDocValues,
             TextSearchInfo textSearchInfo,
             Map<String, String> meta,
             MappedFieldType countFieldType
         ) {
-            super(name, isIndexed, isStored, hasDocValues, textSearchInfo, meta);
+            super(name, indexType, isStored, textSearchInfo, meta);
             this.countFieldType = countFieldType;
         }
 
@@ -180,7 +180,7 @@ public class CountedKeywordFieldMapper extends FieldMapper {
                     XFieldComparatorSource.Nested nested,
                     boolean reverse
                 ) {
-                    throw new UnsupportedOperationException("can't sort on the [" + CONTENT_TYPE + "] field");
+                    throw new IllegalArgumentException("can't sort on the [" + CONTENT_TYPE + "] field");
                 }
 
                 @Override
@@ -305,9 +305,8 @@ public class CountedKeywordFieldMapper extends FieldMapper {
                 ft,
                 new CountedKeywordFieldType(
                     context.buildFullName(leafName()),
-                    isIndexed,
+                    IndexType.terms(isIndexed, true),
                     false,
-                    true,
                     new TextSearchInfo(ft, null, KEYWORD_ANALYZER, KEYWORD_ANALYZER),
                     meta.getValue(),
                     countFieldMapper.fieldType()

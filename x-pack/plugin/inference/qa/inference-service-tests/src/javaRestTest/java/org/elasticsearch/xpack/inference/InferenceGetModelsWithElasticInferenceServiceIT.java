@@ -18,6 +18,7 @@ import java.util.Map;
 
 import static org.elasticsearch.xpack.inference.InferenceBaseRestTest.getAllModels;
 import static org.elasticsearch.xpack.inference.InferenceBaseRestTest.getModels;
+import static org.elasticsearch.xpack.inference.services.elastic.InternalPreconfiguredEndpoints.DEFAULT_ELSER_ENDPOINT_ID_V2;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 
@@ -51,7 +52,7 @@ public class InferenceGetModelsWithElasticInferenceServiceIT extends BaseMockEIS
 
         assertInferenceIdTaskType(allModels, ".rainbow-sprinkles-elastic", TaskType.CHAT_COMPLETION);
         assertInferenceIdTaskType(allModels, ".gp-llm-v2-chat_completion", TaskType.CHAT_COMPLETION);
-        assertInferenceIdTaskType(allModels, ".elser-2-elastic", TaskType.SPARSE_EMBEDDING);
+        assertInferenceIdTaskType(allModels, DEFAULT_ELSER_ENDPOINT_ID_V2, TaskType.SPARSE_EMBEDDING);
         assertInferenceIdTaskType(allModels, ".jina-embeddings-v3", TaskType.TEXT_EMBEDDING);
         assertInferenceIdTaskType(allModels, ".elastic-rerank-v1", TaskType.RERANK);
     }

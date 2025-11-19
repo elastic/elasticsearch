@@ -18,7 +18,6 @@ import org.elasticsearch.xpack.core.inference.action.GetInferenceModelAction;
 import org.elasticsearch.xpack.inference.LocalStateInferencePlugin;
 import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceService;
 import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceSettings;
-import org.elasticsearch.xpack.inference.services.elastic.InternalPreconfiguredEndpoints;
 import org.elasticsearch.xpack.inference.services.elastic.authorization.AuthorizationPoller;
 import org.elasticsearch.xpack.inference.services.elastic.ccm.CCMSettings;
 import org.junit.AfterClass;
@@ -34,6 +33,7 @@ import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.xpack.inference.external.http.Utils.getUrl;
 import static org.elasticsearch.xpack.inference.integration.AuthorizationTaskExecutorIT.AUTHORIZED_RAINBOW_SPRINKLES_RESPONSE;
+import static org.elasticsearch.xpack.inference.integration.AuthorizationTaskExecutorIT.DEFAULT_CHAT_COMPLETION_ENDPOINT_ID_V1;
 import static org.elasticsearch.xpack.inference.integration.AuthorizationTaskExecutorIT.EMPTY_AUTH_RESPONSE;
 import static org.elasticsearch.xpack.inference.integration.AuthorizationTaskExecutorIT.cancelAuthorizationTask;
 import static org.elasticsearch.xpack.inference.integration.AuthorizationTaskExecutorIT.waitForTask;
@@ -130,10 +130,7 @@ public class AuthorizationTaskExecutorMultipleNodesIT extends ESIntegTestCase {
 
             var rainbowSprinklesEndpoint = eisEndpoints.get(0);
             assertThat(rainbowSprinklesEndpoint.getService(), is(ElasticInferenceService.NAME));
-            assertThat(
-                rainbowSprinklesEndpoint.getInferenceEntityId(),
-                is(InternalPreconfiguredEndpoints.DEFAULT_CHAT_COMPLETION_ENDPOINT_ID_V1)
-            );
+            assertThat(rainbowSprinklesEndpoint.getInferenceEntityId(), is(DEFAULT_CHAT_COMPLETION_ENDPOINT_ID_V1));
             assertThat(rainbowSprinklesEndpoint.getTaskType(), is(TaskType.CHAT_COMPLETION));
         });
     }

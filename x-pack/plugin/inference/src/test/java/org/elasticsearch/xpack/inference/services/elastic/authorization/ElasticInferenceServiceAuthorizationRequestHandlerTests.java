@@ -45,6 +45,7 @@ import static org.elasticsearch.xpack.inference.external.http.Utils.getUrl;
 import static org.elasticsearch.xpack.inference.external.http.retry.RetryingHttpSender.MAX_RETIES;
 import static org.elasticsearch.xpack.inference.external.request.RequestUtils.bearerToken;
 import static org.elasticsearch.xpack.inference.services.SenderServiceTests.createMockSender;
+import static org.elasticsearch.xpack.inference.services.elastic.InternalPreconfiguredEndpoints.DEFAULT_ELSER_ENDPOINT_ID_V2;
 import static org.elasticsearch.xpack.inference.services.elastic.ccm.CCMAuthenticationApplierFactoryTests.createApplierFactory;
 import static org.elasticsearch.xpack.inference.services.elastic.ccm.CCMAuthenticationApplierFactoryTests.createNoopApplierFactory;
 import static org.elasticsearch.xpack.inference.services.elastic.response.AuthorizationResponseEntityTests.getEisElserAuthorizationResponse;
@@ -192,9 +193,7 @@ public class ElasticInferenceServiceAuthorizationRequestHandlerTests extends EST
         );
 
         try (var sender = senderFactory.createSender()) {
-            var responseData = AuthorizationResponseEntityTests.getEisAuthorizationResponseWithMultipleEndpoints(
-                eisGatewayUrl
-            );
+            var responseData = AuthorizationResponseEntityTests.getEisAuthorizationResponseWithMultipleEndpoints(eisGatewayUrl);
 
             webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseData.responseJson()));
 
@@ -252,7 +251,7 @@ public class ElasticInferenceServiceAuthorizationRequestHandlerTests extends EST
             var authResponse = listener.actionGet(TIMEOUT);
             assertThat(authResponse.getTaskTypes(), is(EnumSet.of(TaskType.SPARSE_EMBEDDING)));
 
-            assertThat(authResponse.getEndpointIds(), is(Set.of(".elastic-elser-v2")));
+            assertThat(authResponse.getEndpointIds(), is(Set.of(DEFAULT_ELSER_ENDPOINT_ID_V2)));
             assertTrue(authResponse.isAuthorized());
 
             var loggerArgsCaptor = ArgumentCaptor.forClass(String.class);
@@ -292,13 +291,11 @@ public class ElasticInferenceServiceAuthorizationRequestHandlerTests extends EST
             authHandler.getAuthorization(onlyOnceListener, sender);
             authHandler.waitForAuthRequestCompletion(TIMEOUT);
 
-            var endpointId = ".elastic-elser-v2";
-
             var authResponse = listener.actionGet(TIMEOUT);
             assertThat(authResponse.getTaskTypes(), is(EnumSet.of(TaskType.SPARSE_EMBEDDING)));
-            assertThat(authResponse.getEndpointIds(), is(Set.of(endpointId)));
+            assertThat(authResponse.getEndpointIds(), is(Set.of(DEFAULT_ELSER_ENDPOINT_ID_V2)));
             assertTrue(authResponse.isAuthorized());
-            assertThat(authResponse.getEndpoints(Set.of(endpointId)), is(elserResponse.expectedEndpoints()));
+            assertThat(authResponse.getEndpoints(Set.of(DEFAULT_ELSER_ENDPOINT_ID_V2)), is(elserResponse.expectedEndpoints()));
 
             var loggerArgsCaptor = ArgumentCaptor.forClass(String.class);
             verify(logger, times(1)).debug(loggerArgsCaptor.capture());

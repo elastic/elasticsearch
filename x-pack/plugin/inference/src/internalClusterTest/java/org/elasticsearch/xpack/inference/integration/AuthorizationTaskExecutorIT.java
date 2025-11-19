@@ -25,7 +25,6 @@ import org.elasticsearch.xpack.inference.LocalStateInferencePlugin;
 import org.elasticsearch.xpack.inference.registry.ModelRegistry;
 import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceService;
 import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceSettings;
-import org.elasticsearch.xpack.inference.services.elastic.InternalPreconfiguredEndpoints;
 import org.elasticsearch.xpack.inference.services.elastic.authorization.AuthorizationPoller;
 import org.elasticsearch.xpack.inference.services.elastic.authorization.AuthorizationTaskExecutor;
 import org.elasticsearch.xpack.inference.services.elastic.ccm.CCMSettings;
@@ -37,6 +36,7 @@ import org.junit.BeforeClass;
 import java.io.IOException;
 import java.util.Collection;
 import java.util.List;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -47,6 +47,30 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 
 public class AuthorizationTaskExecutorIT extends ESSingleNodeTestCase {
+
+    // rainbow-sprinkles
+    public static final String DEFAULT_CHAT_COMPLETION_ENDPOINT_ID_V1 = ".rainbow-sprinkles-elastic";
+
+    // gp-llm-v2
+    public static final String GP_LLM_V2_CHAT_COMPLETION_ENDPOINT_ID = ".gp-llm-v2-chat_completion";
+
+    // elser-2
+    public static final String DEFAULT_ELSER_ENDPOINT_ID_V2 = ".elser-2-elastic";
+
+    // multilingual-text-embed
+    public static final String DEFAULT_MULTILINGUAL_EMBED_ENDPOINT_ID = ".jina-embeddings-v3";
+
+    // rerank-v1
+    public static final String DEFAULT_RERANK_ENDPOINT_ID_V1 = ".elastic-rerank-v1";
+
+    public static final Set<String> EIS_PRECONFIGURED_ENDPOINT_IDS = Set.of(
+        DEFAULT_CHAT_COMPLETION_ENDPOINT_ID_V1,
+        GP_LLM_V2_CHAT_COMPLETION_ENDPOINT_ID,
+        DEFAULT_ELSER_ENDPOINT_ID_V2,
+        DEFAULT_MULTILINGUAL_EMBED_ENDPOINT_ID,
+        DEFAULT_RERANK_ENDPOINT_ID_V1
+    );
+
     public static final String AUTH_TASK_ACTION = AuthorizationPoller.TASK_NAME + "[c]";
 
     public static final String EMPTY_AUTH_RESPONSE = """
@@ -94,7 +118,7 @@ public class AuthorizationTaskExecutorIT extends ESSingleNodeTestCase {
     static void removeEisPreconfiguredEndpoints(ModelRegistry modelRegistry) {
         // Delete all the eis preconfigured endpoints
         var listener = new PlainActionFuture<Boolean>();
-        modelRegistry.deleteModels(InternalPreconfiguredEndpoints.EIS_PRECONFIGURED_ENDPOINT_IDS, listener);
+        modelRegistry.deleteModels(EIS_PRECONFIGURED_ENDPOINT_IDS, listener);
         listener.actionGet(TimeValue.THIRTY_SECONDS);
     }
 
@@ -149,7 +173,7 @@ public class AuthorizationTaskExecutorIT extends ESSingleNodeTestCase {
         var eisEndpoints = getEisEndpoints(modelRegistry);
         assertThat(eisEndpoints, empty());
 
-        for (String eisPreconfiguredEndpoints : InternalPreconfiguredEndpoints.EIS_PRECONFIGURED_ENDPOINT_IDS) {
+        for (String eisPreconfiguredEndpoints : EIS_PRECONFIGURED_ENDPOINT_IDS) {
             assertFalse(modelRegistry.containsPreconfiguredInferenceEndpointId(eisPreconfiguredEndpoints));
         }
     }
@@ -250,15 +274,13 @@ public class AuthorizationTaskExecutorIT extends ESSingleNodeTestCase {
 
         var rainbowSprinklesModel = eisEndpoints.get(0);
         assertChatCompletionUnparsedModel(rainbowSprinklesModel);
-        assertTrue(
-            modelRegistry.containsPreconfiguredInferenceEndpointId(InternalPreconfiguredEndpoints.DEFAULT_CHAT_COMPLETION_ENDPOINT_ID_V1)
-        );
+        assertTrue(modelRegistry.containsPreconfiguredInferenceEndpointId(DEFAULT_CHAT_COMPLETION_ENDPOINT_ID_V1));
     }
 
     static void assertChatCompletionUnparsedModel(UnparsedModel rainbowSprinklesModel) {
         assertThat(rainbowSprinklesModel.taskType(), is(TaskType.CHAT_COMPLETION));
         assertThat(rainbowSprinklesModel.service(), is(ElasticInferenceService.NAME));
-        assertThat(rainbowSprinklesModel.inferenceEntityId(), is(InternalPreconfiguredEndpoints.DEFAULT_CHAT_COMPLETION_ENDPOINT_ID_V1));
+        assertThat(rainbowSprinklesModel.inferenceEntityId(), is(DEFAULT_CHAT_COMPLETION_ENDPOINT_ID_V1));
     }
 
     public void testCreatesChatCompletion_AndThenCreatesTextEmbedding() throws Exception {
@@ -293,12 +315,12 @@ public class AuthorizationTaskExecutorIT extends ESSingleNodeTestCase {
         var eisEndpoints = getEisEndpoints().stream().collect(Collectors.toMap(UnparsedModel::inferenceEntityId, Function.identity()));
         assertThat(eisEndpoints.size(), is(2));
 
-        assertTrue(eisEndpoints.containsKey(InternalPreconfiguredEndpoints.DEFAULT_CHAT_COMPLETION_ENDPOINT_ID_V1));
-        assertChatCompletionUnparsedModel(eisEndpoints.get(InternalPreconfiguredEndpoints.DEFAULT_CHAT_COMPLETION_ENDPOINT_ID_V1));
+        assertTrue(eisEndpoints.containsKey(DEFAULT_CHAT_COMPLETION_ENDPOINT_ID_V1));
+        assertChatCompletionUnparsedModel(eisEndpoints.get(DEFAULT_CHAT_COMPLETION_ENDPOINT_ID_V1));
 
-        assertTrue(eisEndpoints.containsKey(InternalPreconfiguredEndpoints.DEFAULT_MULTILINGUAL_EMBED_ENDPOINT_ID));
+        assertTrue(eisEndpoints.containsKey(DEFAULT_MULTILINGUAL_EMBED_ENDPOINT_ID));
 
-        var textEmbeddingEndpoint = eisEndpoints.get(InternalPreconfiguredEndpoints.DEFAULT_MULTILINGUAL_EMBED_ENDPOINT_ID);
+        var textEmbeddingEndpoint = eisEndpoints.get(DEFAULT_MULTILINGUAL_EMBED_ENDPOINT_ID);
         assertThat(textEmbeddingEndpoint.taskType(), is(TaskType.TEXT_EMBEDDING));
         assertThat(textEmbeddingEndpoint.service(), is(ElasticInferenceService.NAME));
     }

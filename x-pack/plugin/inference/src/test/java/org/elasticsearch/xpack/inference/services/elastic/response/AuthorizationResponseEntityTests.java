@@ -39,6 +39,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.xpack.inference.services.elastic.InternalPreconfiguredEndpoints.DEFAULT_ELSER_ENDPOINT_ID_V2;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.is;
 
@@ -143,7 +144,7 @@ public class AuthorizationResponseEntityTests extends AbstractBWCWireSerializati
 
         var authorizedEndpoints = List.of(
             new AuthorizationResponseEntity.AuthorizedEndpoint(
-                ".elastic-elser-v2",
+                DEFAULT_ELSER_ENDPOINT_ID_V2,
                 "elser_model_2",
                 "sparse_embedding",
                 "preview",
@@ -166,7 +167,7 @@ public class AuthorizationResponseEntityTests extends AbstractBWCWireSerializati
             new AuthorizationResponseEntity(authorizedEndpoints),
             List.of(
                 new ElasticInferenceServiceSparseEmbeddingsModel(
-                    ".elastic-elser-v2",
+                    DEFAULT_ELSER_ENDPOINT_ID_V2,
                     TaskType.SPARSE_EMBEDDING,
                     ElasticInferenceService.NAME,
                     new ElasticInferenceServiceSparseEmbeddingsServiceSettings("elser_model_2", null),
@@ -194,7 +195,7 @@ public class AuthorizationResponseEntityTests extends AbstractBWCWireSerializati
                 null
             ),
             new AuthorizationResponseEntity.AuthorizedEndpoint(
-                ".elastic-elser-v2",
+                DEFAULT_ELSER_ENDPOINT_ID_V2,
                 "elser_model_2",
                 "sparse_embedding",
                 "preview",
@@ -251,7 +252,7 @@ public class AuthorizationResponseEntityTests extends AbstractBWCWireSerializati
                     new ElasticInferenceServiceComponents(url)
                 ),
                 new ElasticInferenceServiceSparseEmbeddingsModel(
-                    ".elastic-elser-v2",
+                    DEFAULT_ELSER_ENDPOINT_ID_V2,
                     TaskType.SPARSE_EMBEDDING,
                     ElasticInferenceService.NAME,
                     new ElasticInferenceServiceSparseEmbeddingsServiceSettings("elser_model_2", null),

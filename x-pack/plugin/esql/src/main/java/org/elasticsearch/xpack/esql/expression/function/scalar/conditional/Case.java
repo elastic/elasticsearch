@@ -82,7 +82,7 @@ public final class Case extends EsqlScalarFunction {
             "long",
             "unsigned_long",
             "version",
-            "exponential_histogram"},
+            "exponential_histogram" },
         description = """
             Accepts pairs of conditions and values. The function returns the value that
             belongs to the first condition that evaluates to `true`.

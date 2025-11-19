@@ -16,6 +16,7 @@ import java.util.Set;
 import java.util.stream.Stream;
 
 import static java.util.stream.Collectors.toMap;
+import static org.elasticsearch.action.ResolvedIndexExpression.LocalIndexResolutionResult.SUCCESS;
 
 public record ResolvedIndexExpression(Set<String> expression, Set<String> resolved) {
 
@@ -33,6 +34,7 @@ public record ResolvedIndexExpression(Set<String> expression, Set<String> resolv
                         .expressions()
                         .stream()
                         .filter(e -> e.localExpressions().indices().isEmpty() == false)
+                        .filter(e -> e.localExpressions().localIndexResolutionResult() == SUCCESS)
                         .map(e -> new ResolvedIndexExpression(Set.of(e.original()), e.localExpressions().indices()))
                         .reduce(EMPTY, ResolvedIndexExpression::merge)
                 )

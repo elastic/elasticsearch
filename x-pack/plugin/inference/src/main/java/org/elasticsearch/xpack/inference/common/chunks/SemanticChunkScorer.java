@@ -67,7 +67,6 @@ public class SemanticChunkScorer {
 
         IndexSearcher searcher = searchContext.searcher();
         int docId = hit.docId();
-        Map<String, Object> source = hit.getSourceAsMap();
         List<LeafReaderContext> leaves = searcher.getIndexReader().leaves();
         // Find the leaf that contains this doc
         LeafReaderContext leafContext = null;

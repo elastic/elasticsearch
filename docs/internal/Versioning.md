@@ -113,7 +113,7 @@ In the above case CI will not know what transport version name to update, so you
 must run the generate task again as described. After merging the updated
 transport version it will need to be backported to all the applicable branches.
 Backport branches that already included the original change can use
-auto-backport in CI or cherry-pick the new transport version change. Backport
+auto-backport in CI or cherry-pick the updated transport version. Backport
 branches that did not include the original change need to cherry-pick both the
 original change and the new transport version change. For example with the above
 change that is first backported to `9.1`, and subsequently added to `8.19`, the

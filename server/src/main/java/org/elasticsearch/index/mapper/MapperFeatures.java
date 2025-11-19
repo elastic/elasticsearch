@@ -49,6 +49,7 @@ public class MapperFeatures implements FeatureSpecification {
     static final NodeFeature SEARCH_LOAD_PER_SHARD = new NodeFeature("mapper.search_load_per_shard");
     static final NodeFeature PATTERNED_TEXT = new NodeFeature("mapper.patterned_text");
     public static final NodeFeature MULTI_FIELD_UNICODE_OPTIMISATION_FIX = new NodeFeature("mapper.multi_field.unicode_optimisation_fix");
+    public static final NodeFeature FIX_DENSE_VECTOR_WRONG_FIELDS = new NodeFeature("mapper.fix_dense_vector_wrong_fields");
 
     @Override
     public Set<NodeFeature> getTestFeatures() {
@@ -83,7 +84,8 @@ public class MapperFeatures implements FeatureSpecification {
             SPARSE_VECTOR_INDEX_OPTIONS_FEATURE,
             PATTERNED_TEXT,
             MULTI_FIELD_UNICODE_OPTIMISATION_FIX,
-            MATCH_ONLY_TEXT_BLOCK_LOADER_FIX
+            MATCH_ONLY_TEXT_BLOCK_LOADER_FIX,
+            FIX_DENSE_VECTOR_WRONG_FIELDS
         );
     }
 }

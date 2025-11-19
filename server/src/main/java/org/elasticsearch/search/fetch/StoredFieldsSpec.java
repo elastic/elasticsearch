@@ -82,9 +82,17 @@ public record StoredFieldsSpec(
             mergedSourcePaths = new HashSet<>(this.sourcePaths);
             mergedSourcePaths.addAll(other.sourcePaths);
         } else if (this.sourcePaths.isEmpty() == false) {
-            mergedSourcePaths = this.sourcePaths;
+            if (other.requiresSource) {
+                mergedSourcePaths = Set.of();
+            } else {
+                mergedSourcePaths = this.sourcePaths;
+            }
         } else if (other.sourcePaths.isEmpty() == false) {
-            mergedSourcePaths = other.sourcePaths;
+            if (this.requiresSource) {
+                mergedSourcePaths = Set.of();
+            } else {
+                mergedSourcePaths = other.sourcePaths;
+            }
         } else {
             mergedSourcePaths = Set.of();
         }

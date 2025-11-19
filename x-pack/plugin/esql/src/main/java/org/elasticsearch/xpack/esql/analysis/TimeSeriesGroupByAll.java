@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.esql.analysis;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
-import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -62,29 +61,16 @@ public class TimeSeriesGroupByAll extends Rule<LogicalPlan, LogicalPlan> {
             return aggregate;
         }
 
-        Attribute tsidAttr = getTsFields(aggregate);
+        Attribute tsidAttr = getTsId(aggregate);
 
         List<Expression> groupings = new ArrayList<>();
         groupings.add(tsidAttr);
         groupings.addAll(aggregate.groupings());
 
-        // Add user-defined groupings to aggregates if they're attributes
-        for (Expression userGrouping : aggregate.groupings()) {
-            if (userGrouping instanceof Attribute attr) {
-                boolean alreadyInAggregates = newAggregateFunctions.stream().anyMatch(agg -> {
-                    Attribute aggAttr = Expressions.attribute(agg);
-                    return aggAttr != null && aggAttr.id().equals(attr.id());
-                });
-                if (alreadyInAggregates == false) {
-                    newAggregateFunctions.add(attr);
-                }
-            }
-        }
-
         return new TimeSeriesAggregate(aggregate.source(), aggregate.child(), groupings, newAggregateFunctions, null);
     }
 
-    private static Attribute getTsFields(TimeSeriesAggregate aggregate) {
+    private static Attribute getTsId(TimeSeriesAggregate aggregate) {
         Holder<Attribute> tsidHolder = new Holder<>();
         aggregate.forEachDown(
             EsRelation.class,

@@ -14,7 +14,6 @@ import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.core.util.CollectionUtils;
 import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.TimeSeriesAggregateFunction;
@@ -44,7 +43,6 @@ public class TimeSeriesGroupByAll extends Rule<LogicalPlan, LogicalPlan> {
 
     public LogicalPlan rule(TimeSeriesAggregate aggregate) {
         boolean hasTopLevelOverTimeAggs = false;
-        // the new `Value(dimension)` aggregation functions we intend to add to the query, along with the translated over time aggs
         List<NamedExpression> newAggregateFunctions = new ArrayList<>();
         for (NamedExpression agg : aggregate.aggregates()) {
             if (agg instanceof Alias alias && alias.child() instanceof AggregateFunction af) {
@@ -64,41 +62,15 @@ public class TimeSeriesGroupByAll extends Rule<LogicalPlan, LogicalPlan> {
             return aggregate;
         }
 
+        Attribute tsidAttr = getTsFields(aggregate);
+
         List<Expression> groupings = new ArrayList<>();
-
-        Holder<Attribute> tsid = new Holder<>();
-        getTsFields(aggregate, tsid);
-
-        LogicalPlan newChild = aggregate.child().transformUp(EsRelation.class, r -> {
-            List<Attribute> attributesToAdd = new ArrayList<>();
-
-            boolean tsidFoundInOutput = r.output().stream().anyMatch(attr -> attr.name().equalsIgnoreCase(MetadataAttribute.TSID_FIELD));
-            if (tsidFoundInOutput == false) {
-                attributesToAdd.add(tsid.get());
-            }
-
-            if (attributesToAdd.isEmpty()) {
-                return r;
-            }
-
-            return new EsRelation(
-                r.source(),
-                r.indexPattern(),
-                r.indexMode(),
-                r.indexNameWithModes(),
-                CollectionUtils.combine(r.output(), attributesToAdd)
-            );
-        });
-
-        // Group the new aggregations by tsid. This is equivalent to grouping by all dimensions.
-        groupings.add(tsid.get());
-
-        // Add the user defined grouping
+        groupings.add(tsidAttr);
         groupings.addAll(aggregate.groupings());
 
         // We add the tsid to the aggregates list because we want to include it in the output of the first pass in
         // TranslateTimeSeriesAggregate
-        newAggregateFunctions.add(tsid.get());
+        newAggregateFunctions.add(tsidAttr);
 
         // Add user-defined groupings to aggregates if they're attributes
         for (Expression userGrouping : aggregate.groupings()) {
@@ -113,10 +85,11 @@ public class TimeSeriesGroupByAll extends Rule<LogicalPlan, LogicalPlan> {
             }
         }
 
-        return new TimeSeriesAggregate(aggregate.source(), newChild, groupings, newAggregateFunctions, null);
+        return new TimeSeriesAggregate(aggregate.source(), aggregate.child(), groupings, newAggregateFunctions, null);
     }
 
-    private static void getTsFields(TimeSeriesAggregate aggregate, Holder<Attribute> tsidHolder) {
+    private static Attribute getTsFields(TimeSeriesAggregate aggregate) {
+        Holder<Attribute> tsidHolder = new Holder<>();
         aggregate.forEachDown(
             EsRelation.class,
             r -> r.output()
@@ -130,5 +103,6 @@ public class TimeSeriesGroupByAll extends Rule<LogicalPlan, LogicalPlan> {
                     )
                 )
         );
+        return tsidHolder.get();
     }
 }

@@ -177,7 +177,7 @@ public final class TranslateTimeSeriesAggregate extends OptimizerRules.Parameter
             }
         });
         if (tsid.get() == null) {
-            tsid.set(new MetadataAttribute(aggregate.source(), MetadataAttribute.TSID_FIELD, DataType.KEYWORD, false));
+            tsid.set(new MetadataAttribute(aggregate.source(), MetadataAttribute.TSID_FIELD, DataType.TSID_DATA_TYPE, false));
         }
         if (timestamp.get() == null) {
             throw new IllegalArgumentException("_tsid or @timestamp field are missing from the time-series source");
@@ -411,14 +411,17 @@ public final class TranslateTimeSeriesAggregate extends OptimizerRules.Parameter
 
         // Add _timeseries field containing string representation of _tsid
         if (tsidInAggregates) {
-            Attribute tsidAttrFromInput = firstPhase.child()
-                .output()
+            Attribute tsidAttr = finalPlan.output()
                 .stream()
                 .filter(attr -> attr.name().equals(MetadataAttribute.TSID_FIELD))
                 .findFirst()
                 .orElse(null);
 
-            ToString toStringTsid = new ToString(aggregate.source(), tsidAttrFromInput);
+            if (tsidAttr == null) {
+                throw new IllegalArgumentException("_tsid must be in the final plan output");
+            }
+
+            ToString toStringTsid = new ToString(aggregate.source(), tsidAttr);
 
             // Create _timeseries
             MetadataAttribute timeseriesAttr = MetadataAttribute.create(aggregate.source(), MetadataAttribute.TIMESERIES);

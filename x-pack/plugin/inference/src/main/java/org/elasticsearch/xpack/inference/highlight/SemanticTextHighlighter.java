@@ -33,6 +33,7 @@ import org.elasticsearch.search.fetch.subphase.highlight.HighlightField;
 import org.elasticsearch.search.fetch.subphase.highlight.HighlightUtils;
 import org.elasticsearch.search.fetch.subphase.highlight.Highlighter;
 import org.elasticsearch.search.vectors.DenseVectorQuery;
+import org.elasticsearch.search.vectors.IVFKnnFloatVectorQuery;
 import org.elasticsearch.search.vectors.RescoreKnnVectorQuery;
 import org.elasticsearch.search.vectors.SparseVectorQueryWrapper;
 import org.elasticsearch.search.vectors.VectorData;
@@ -268,35 +269,31 @@ public class SemanticTextHighlighter implements Highlighter {
                 super.consumeTerms(query, terms);
             }
 
-            @Override
-            public void visitLeaf(Query query) {
+            private void visitLeaf(Query query, Float similarity) {
                 if (query instanceof KnnFloatVectorQuery knnQuery) {
-                    queries.add(fieldType.createExactKnnQuery(VectorData.fromFloats(knnQuery.getTargetCopy()), null));
+                    queries.add(fieldType.createExactKnnQuery(VectorData.fromFloats(knnQuery.getTargetCopy()), similarity));
                 } else if (query instanceof KnnByteVectorQuery knnQuery) {
-                    queries.add(fieldType.createExactKnnQuery(VectorData.fromBytes(knnQuery.getTargetCopy()), null));
+                    queries.add(fieldType.createExactKnnQuery(VectorData.fromBytes(knnQuery.getTargetCopy()), similarity));
                 } else if (query instanceof MatchAllDocsQuery) {
                     queries.add(new MatchAllDocsQuery());
                 } else if (query instanceof DenseVectorQuery.Floats floatsQuery) {
-                    queries.add(fieldType.createExactKnnQuery(VectorData.fromFloats(floatsQuery.getQuery()), null));
+                    queries.add(fieldType.createExactKnnQuery(VectorData.fromFloats(floatsQuery.getQuery()), similarity));
+                } else if (query instanceof IVFKnnFloatVectorQuery ivfQuery) {
+                    queries.add(fieldType.createExactKnnQuery(VectorData.fromFloats(ivfQuery.getQuery()), similarity));
+                } else if (query instanceof RescoreKnnVectorQuery rescoreQuery) {
+                    visitLeaf(rescoreQuery.innerQuery(), similarity);
                 } else if (query instanceof VectorSimilarityQuery similarityQuery) {
-                    VectorData vectorData = extractVectorData(similarityQuery.getInnerKnnQuery());
-                    if (vectorData != null) queries.add(fieldType.createExactKnnQuery(vectorData, similarityQuery.getSimilarity()));
+                    visitLeaf(similarityQuery.getInnerKnnQuery(), similarityQuery.getSimilarity());
                 }
+            }
+
+            @Override
+            public void visitLeaf(Query query) {
+                visitLeaf(query, null);
+
             }
         });
         return queries;
-    }
-
-    private VectorData extractVectorData(Query vectorQuery) {
-        if (vectorQuery instanceof KnnFloatVectorQuery knnQuery) {
-            return VectorData.fromFloats(knnQuery.getTargetCopy());
-        } else if (vectorQuery instanceof KnnByteVectorQuery knnQuery) {
-            return VectorData.fromBytes(knnQuery.getTargetCopy());
-        } else if (vectorQuery instanceof RescoreKnnVectorQuery rescoreQuery) {
-            return extractVectorData(rescoreQuery.innerQuery());
-        }
-        //TODO: do we care about AbstractIVFKnnVectorQuery?
-        return null;
     }
 
     private List<Query> extractSparseVectorQueries(SparseVectorFieldType fieldType, Query querySection) {

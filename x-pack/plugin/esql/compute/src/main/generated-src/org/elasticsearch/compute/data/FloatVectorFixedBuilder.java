@@ -50,7 +50,7 @@ public final class FloatVectorFixedBuilder implements FloatVector.FixedBuilder {
         return size == 1
             ? ConstantFloatVector.RAM_BYTES_USED
             : FloatArrayVector.BASE_RAM_BYTES_USED + RamUsageEstimator.alignObjectSize(
-                (long) RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + size * Float.BYTES
+                (long) RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + (long) size * Float.BYTES
             );
     }
 

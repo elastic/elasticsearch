@@ -1734,6 +1734,7 @@ public class ReservedRolesStoreTests extends ESTestCase {
             "logs-google_scc.finding-" + randomAlphaOfLength(randomIntBetween(0, 13)),
             "logs-aws.securityhub_findings-" + randomAlphaOfLength(randomIntBetween(0, 13)),
             "logs-aws.securityhub_findings_full_posture-" + randomAlphaOfLength(randomIntBetween(0, 13)),
+            "logs-aws_securityhub.finding-" + randomAlphaOfLength(randomIntBetween(0, 13)),
             "logs-aws.inspector-" + randomAlphaOfLength(randomIntBetween(0, 13)),
             "logs-aws.config-" + randomAlphaOfLength(randomIntBetween(0, 13)),
             "logs-amazon_security_lake.findings-" + randomAlphaOfLength(randomIntBetween(0, 13)),
@@ -1777,6 +1778,8 @@ public class ReservedRolesStoreTests extends ESTestCase {
             "logs-m365_defender.vulnerability-" + randomAlphaOfLength(randomIntBetween(0, 13)),
             "logs-microsoft_defender_endpoint.vulnerability-" + randomAlphaOfLength(randomIntBetween(0, 13)),
             "logs-microsoft_defender_cloud.assessment-" + randomAlphaOfLength(randomIntBetween(0, 13)),
+            "logs-prisma_cloud.misconfiguration-" + randomAlphaOfLength(randomIntBetween(0, 13)),
+            "logs-prisma_cloud.vulnerability-" + randomAlphaOfLength(randomIntBetween(0, 13)),
             "logs-sentinel_one.application_risk-" + randomAlphaOfLength(randomIntBetween(0, 13))
         ).forEach(indexName -> {
             final IndexAbstraction indexAbstraction = mockIndexAbstraction(indexName);

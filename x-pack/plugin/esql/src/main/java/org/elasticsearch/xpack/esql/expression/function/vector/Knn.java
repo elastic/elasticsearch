@@ -222,6 +222,7 @@ public class Knn extends SingleFieldFullTextFunction implements OptionalArgument
                 // Knn won't be pushed down so it's safe not to translate all filters and check them when creating an evaluator
                 // for the non-pushed down query
                 if (translationAware.translatable(pushdownPredicates) == Translatable.YES) {
+                    // Avoid using the handler for translating the prefilters, as that results in wrapping in a SingleValueQuery
                     filterQueries.add(translationAware.asQuery(pushdownPredicates, handler).toQueryBuilder());
                 }
             }

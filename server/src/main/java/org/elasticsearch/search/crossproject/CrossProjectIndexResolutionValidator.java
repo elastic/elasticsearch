@@ -78,7 +78,7 @@ public class CrossProjectIndexResolutionValidator {
         ResolvedIndexExpressions localResolvedExpressions,
         Map<String, ResolvedIndexExpressions> remoteResolvedExpressions
     ) {
-        ElasticsearchException baseException = null;
+        ElasticsearchException exception = null;
 
         if (indicesOptions.allowNoIndices() && indicesOptions.ignoreUnavailable()) {
             logger.debug("Skipping index existence check in lenient mode");
@@ -105,9 +105,14 @@ public class CrossProjectIndexResolutionValidator {
             ResolvedIndexExpression.LocalExpressions localExpressions = localResolvedIndices.localExpressions();
             ResolvedIndexExpression.LocalIndexResolutionResult result = localExpressions.localIndexResolutionResult();
             if (isQualifiedExpression) {
-                ElasticsearchException e = checkResolutionFailure(localExpressions, result, originalExpression, indicesOptions);
-                if (e != null) {
-                    baseException = recordException(baseException, e);
+                ElasticsearchException localException = checkResolutionFailure(
+                    localExpressions,
+                    result,
+                    originalExpression,
+                    indicesOptions
+                );
+                if (localException != null) {
+                    exception = recordException(exception, localException);
                 }
                 // qualified linked project expression
                 for (String remoteExpression : remoteExpressions) {
@@ -131,7 +136,7 @@ public class CrossProjectIndexResolutionValidator {
                                 projectAlias
                             )
                             : remoteException;
-                        baseException = recordException(baseException, wrapped);
+                        exception = recordException(exception, wrapped);
                     }
                 }
             } else {
@@ -173,31 +178,31 @@ public class CrossProjectIndexResolutionValidator {
                             resource,
                             projectAlias
                         );
-                        baseException = recordException(baseException, wrapped);
+                        exception = recordException(exception, wrapped);
                     }
                 }
                 if (foundFlat) {
                     continue;
                 }
                 if (isUnauthorized) {
-                    baseException = recordException(baseException, localException);
+                    exception = recordException(exception, localException);
                     continue;
                 }
-                baseException = recordException(baseException, new IndexNotFoundException(originalExpression));
+                exception = recordException(exception, new IndexNotFoundException(originalExpression));
             }
         }
 
-        return baseException;
+        return exception;
     }
 
     private static ElasticsearchException recordException(
         @Nullable ElasticsearchException baseException,
-        ElasticsearchException exception
+        ElasticsearchException nextException
     ) {
         if (baseException == null) {
-            return exception;
+            return nextException;
         } else {
-            baseException.addSuppressed(exception);
+            baseException.addSuppressed(nextException);
             return baseException;
         }
     }

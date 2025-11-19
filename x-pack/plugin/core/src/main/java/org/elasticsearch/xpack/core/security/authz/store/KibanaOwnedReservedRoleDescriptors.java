@@ -527,6 +527,8 @@ class KibanaOwnedReservedRoleDescriptors {
                         "logs-m365_defender.vulnerability-*",
                         "logs-microsoft_defender_endpoint.vulnerability-*",
                         "logs-microsoft_defender_cloud.assessment-*",
+                        "logs-prisma_cloud.misconfiguration-*",
+                        "logs-prisma_cloud.vulnerability-*",
                         "logs-sentinel_one.application_risk-*"
                     )
                     .privileges(

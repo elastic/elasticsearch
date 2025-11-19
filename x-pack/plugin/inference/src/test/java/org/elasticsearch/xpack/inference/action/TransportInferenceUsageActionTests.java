@@ -19,6 +19,7 @@ import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ServiceSettings;
@@ -51,15 +52,16 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.ExecutionException;
 
 import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_HIDDEN_SETTING;
+import static org.elasticsearch.xpack.inference.InferenceFeatures.EMBEDDING_TASK_TYPE;
 import static org.elasticsearch.xpack.inference.Utils.TIMEOUT;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.core.Is.is;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -72,6 +74,7 @@ public class TransportInferenceUsageActionTests extends ESTestCase {
     private ModelRegistry modelRegistry;
     private ClusterState clusterState;
     private TransportInferenceUsageAction action;
+    private FeatureService featureServiceMock;
 
     @Before
     public void init() {
@@ -85,13 +88,15 @@ public class TransportInferenceUsageActionTests extends ESTestCase {
 
         TransportService transportService = MockUtils.setupTransportServiceWithThreadpoolExecutor(mock(ThreadPool.class));
 
+        featureServiceMock = mock(FeatureService.class);
         action = new TransportInferenceUsageAction(
             transportService,
             mock(ClusterService.class),
             mock(ThreadPool.class),
             mock(ActionFilters.class),
             modelRegistry,
-            client
+            client,
+            featureServiceMock
         );
     }
 
@@ -453,6 +458,20 @@ public class TransportInferenceUsageActionTests extends ESTestCase {
         assertThat(inferenceUsage, is(InferenceFeatureSetUsage.EMPTY));
     }
 
+    public void testEmbeddingTaskTypeNotReturned_whenClusterDoesNotSupportEmbedding() throws IOException {
+        when(featureServiceMock.clusterHasFeature(any(), eq(EMBEDDING_TASK_TYPE))).thenReturn(false);
+        givenInferenceEndpoints();
+
+        XContentSource response = executeAction();
+
+        assertThat(response.getValue("models"), hasSize(5));
+        assertStats(response, 0, new ModelStats("_all", TaskType.CHAT_COMPLETION, 0, null));
+        assertStats(response, 1, new ModelStats("_all", TaskType.COMPLETION, 0, null));
+        assertStats(response, 2, new ModelStats("_all", TaskType.RERANK, 0, null));
+        assertStats(response, 3, new ModelStats("_all", TaskType.SPARSE_EMBEDDING, 0, EMPTY_SEMANTIC_TEXT_STATS));
+        assertStats(response, 4, new ModelStats("_all", TaskType.TEXT_EMBEDDING, 0, EMPTY_SEMANTIC_TEXT_STATS));
+    }
+
     private void givenClusterState(Map<String, IndexMetadata> indices) {
         clusterState = ClusterState.builder(ClusterState.EMPTY_STATE)
             .metadata(Metadata.builder().put(ProjectMetadata.builder(ProjectId.DEFAULT).indices(indices).build()))
@@ -500,12 +519,12 @@ public class TransportInferenceUsageActionTests extends ESTestCase {
         givenClusterState(indices);
     }
 
-    private XContentSource executeAction() throws ExecutionException, InterruptedException, IOException {
+    private XContentSource executeAction() throws IOException {
         PlainActionFuture<XPackUsageFeatureResponse> future = new PlainActionFuture<>();
         action.localClusterStateOperation(mock(Task.class), mock(XPackUsageRequest.class), clusterState, future);
 
         BytesStreamOutput out = new BytesStreamOutput();
-        future.get().getUsage().writeTo(out);
+        future.actionGet(ESTestCase.TEST_REQUEST_TIMEOUT).getUsage().writeTo(out);
         XPackFeatureUsage usage = new InferenceFeatureSetUsage(out.bytes().streamInput());
 
         assertThat(usage.name(), is(XPackField.INFERENCE));

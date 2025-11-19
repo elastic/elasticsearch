@@ -106,6 +106,9 @@ public class ParsedHistogramConverter {
     }
 
     private static void appendCentroidWithCountAsBucket(double centroid, long count, int scale, List<IndexWithCount> outputBuckets) {
+        if (count == 0) {
+            return; // zero counts are allowed in T-Digests but not in exponential histograms
+        }
         long index = ExponentialScaleUtils.computeIndex(centroid, scale);
         assert outputBuckets.isEmpty() || outputBuckets.getLast().index() < index;
         outputBuckets.add(new IndexWithCount(index, count));

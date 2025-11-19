@@ -77,6 +77,7 @@ import org.elasticsearch.xpack.esql.expression.function.aggregate.SumOverTime;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.SummationMode;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Values;
 import org.elasticsearch.xpack.esql.expression.function.grouping.GroupingFunction;
+import org.elasticsearch.xpack.esql.expression.function.inference.CompletionFunction;
 import org.elasticsearch.xpack.esql.expression.function.inference.InferenceFunction;
 import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlScalarFunction;
 import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.Case;
@@ -1465,8 +1466,8 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
 
         @Override
         public LogicalPlan apply(LogicalPlan plan, AnalyzerContext context) {
-            return plan.transformDown(InferencePlan.class, p -> resolveInferencePlan(p, context))
-                .transformExpressionsOnly(InferenceFunction.class, f -> resolveInferenceFunction(f, context));
+            return plan.transformExpressionsOnly(InferenceFunction.class, f -> resolveInferenceFunction(f, context))
+                .transformDown(InferencePlan.class, p -> resolveInferencePlan(p, context));
         }
 
         private LogicalPlan resolveInferencePlan(InferencePlan<?> plan, AnalyzerContext context) {
@@ -1491,6 +1492,28 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                     + plan.taskType()
                     + "] are supported.";
                 return plan.withInferenceResolutionError(inferenceId, error);
+            }
+
+            if (plan.isFoldable()) {
+                // Transform foldable InferencePlan to Eval with function call
+                return transformToEval(plan, inferenceId);
+            }
+
+            return plan;
+        }
+
+        /**
+         * Transforms a foldable InferencePlan to an Eval with the appropriate function call.
+         */
+        private LogicalPlan transformToEval(InferencePlan<?> plan, String inferenceId) {
+            Expression inferenceIdLiteral = Literal.keyword(plan.inferenceId().source(), inferenceId);
+            Source source = plan.source();
+            LogicalPlan child = plan.child();
+
+            if (plan instanceof Completion completion) {
+                CompletionFunction completionFunction = new CompletionFunction(source, completion.prompt(), inferenceIdLiteral);
+                Alias alias = new Alias(source, completion.targetField().name(), completionFunction, completion.targetField().id());
+                return new Eval(source, child, List.of(alias));
             }
 
             return plan;
@@ -1942,13 +1965,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 }
 
                 if (missing.isEmpty() == false) {
-                    return new EsRelation(
-                        esr.source(),
-                        esr.indexPattern(),
-                        esr.indexMode(),
-                        esr.indexNameWithModes(),
-                        CollectionUtils.combine(esr.output(), missing)
-                    );
+                    return esr.withAttributes(CollectionUtils.combine(esr.output(), missing));
                 }
                 return esr;
             });

@@ -12,8 +12,6 @@ import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.BytesRefVector;
-import org.elasticsearch.compute.data.IntBlock;
-import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
@@ -33,8 +31,6 @@ public final class ChunkBytesRefEvaluator implements EvalOperator.ExpressionEval
 
   private final EvalOperator.ExpressionEvaluator str;
 
-  private final EvalOperator.ExpressionEvaluator numChunks;
-
   private final ChunkingSettings chunkingSettings;
 
   private final DriverContext driverContext;
@@ -42,11 +38,9 @@ public final class ChunkBytesRefEvaluator implements EvalOperator.ExpressionEval
   private Warnings warnings;
 
   public ChunkBytesRefEvaluator(Source source, EvalOperator.ExpressionEvaluator str,
-      EvalOperator.ExpressionEvaluator numChunks, ChunkingSettings chunkingSettings,
-      DriverContext driverContext) {
+      ChunkingSettings chunkingSettings, DriverContext driverContext) {
     this.source = source;
     this.str = str;
-    this.numChunks = numChunks;
     this.chunkingSettings = chunkingSettings;
     this.driverContext = driverContext;
   }
@@ -54,17 +48,11 @@ public final class ChunkBytesRefEvaluator implements EvalOperator.ExpressionEval
   @Override
   public Block eval(Page page) {
     try (BytesRefBlock strBlock = (BytesRefBlock) str.eval(page)) {
-      try (IntBlock numChunksBlock = (IntBlock) numChunks.eval(page)) {
-        BytesRefVector strVector = strBlock.asVector();
-        if (strVector == null) {
-          return eval(page.getPositionCount(), strBlock, numChunksBlock);
-        }
-        IntVector numChunksVector = numChunksBlock.asVector();
-        if (numChunksVector == null) {
-          return eval(page.getPositionCount(), strBlock, numChunksBlock);
-        }
-        return eval(page.getPositionCount(), strVector, numChunksVector);
+      BytesRefVector strVector = strBlock.asVector();
+      if (strVector == null) {
+        return eval(page.getPositionCount(), strBlock);
       }
+      return eval(page.getPositionCount(), strVector);
     }
   }
 
@@ -72,11 +60,10 @@ public final class ChunkBytesRefEvaluator implements EvalOperator.ExpressionEval
   public long baseRamBytesUsed() {
     long baseRamBytesUsed = BASE_RAM_BYTES_USED;
     baseRamBytesUsed += str.baseRamBytesUsed();
-    baseRamBytesUsed += numChunks.baseRamBytesUsed();
     return baseRamBytesUsed;
   }
 
-  public BytesRefBlock eval(int positionCount, BytesRefBlock strBlock, IntBlock numChunksBlock) {
+  public BytesRefBlock eval(int positionCount, BytesRefBlock strBlock) {
     try(BytesRefBlock.Builder result = driverContext.blockFactory().newBytesRefBlockBuilder(positionCount)) {
       BytesRef strScratch = new BytesRef();
       position: for (int p = 0; p < positionCount; p++) {
@@ -91,33 +78,19 @@ public final class ChunkBytesRefEvaluator implements EvalOperator.ExpressionEval
               result.appendNull();
               continue position;
         }
-        switch (numChunksBlock.getValueCount(p)) {
-          case 0:
-              result.appendNull();
-              continue position;
-          case 1:
-              break;
-          default:
-              warnings().registerException(new IllegalArgumentException("single-value function encountered multi-value"));
-              result.appendNull();
-              continue position;
-        }
         BytesRef str = strBlock.getBytesRef(strBlock.getFirstValueIndex(p), strScratch);
-        int numChunks = numChunksBlock.getInt(numChunksBlock.getFirstValueIndex(p));
-        Chunk.process(result, str, numChunks, this.chunkingSettings);
+        Chunk.process(result, str, this.chunkingSettings);
       }
       return result.build();
     }
   }
 
-  public BytesRefBlock eval(int positionCount, BytesRefVector strVector,
-      IntVector numChunksVector) {
+  public BytesRefBlock eval(int positionCount, BytesRefVector strVector) {
     try(BytesRefBlock.Builder result = driverContext.blockFactory().newBytesRefBlockBuilder(positionCount)) {
       BytesRef strScratch = new BytesRef();
       position: for (int p = 0; p < positionCount; p++) {
         BytesRef str = strVector.getBytesRef(p, strScratch);
-        int numChunks = numChunksVector.getInt(p);
-        Chunk.process(result, str, numChunks, this.chunkingSettings);
+        Chunk.process(result, str, this.chunkingSettings);
       }
       return result.build();
     }
@@ -125,12 +98,12 @@ public final class ChunkBytesRefEvaluator implements EvalOperator.ExpressionEval
 
   @Override
   public String toString() {
-    return "ChunkBytesRefEvaluator[" + "str=" + str + ", numChunks=" + numChunks + ", chunkingSettings=" + chunkingSettings + "]";
+    return "ChunkBytesRefEvaluator[" + "str=" + str + ", chunkingSettings=" + chunkingSettings + "]";
   }
 
   @Override
   public void close() {
-    Releasables.closeExpectNoException(str, numChunks);
+    Releasables.closeExpectNoException(str);
   }
 
   private Warnings warnings() {
@@ -150,26 +123,23 @@ public final class ChunkBytesRefEvaluator implements EvalOperator.ExpressionEval
 
     private final EvalOperator.ExpressionEvaluator.Factory str;
 
-    private final EvalOperator.ExpressionEvaluator.Factory numChunks;
-
     private final ChunkingSettings chunkingSettings;
 
     public Factory(Source source, EvalOperator.ExpressionEvaluator.Factory str,
-        EvalOperator.ExpressionEvaluator.Factory numChunks, ChunkingSettings chunkingSettings) {
+        ChunkingSettings chunkingSettings) {
       this.source = source;
       this.str = str;
-      this.numChunks = numChunks;
       this.chunkingSettings = chunkingSettings;
     }
 
     @Override
     public ChunkBytesRefEvaluator get(DriverContext context) {
-      return new ChunkBytesRefEvaluator(source, str.get(context), numChunks.get(context), chunkingSettings, context);
+      return new ChunkBytesRefEvaluator(source, str.get(context), chunkingSettings, context);
     }
 
     @Override
     public String toString() {
-      return "ChunkBytesRefEvaluator[" + "str=" + str + ", numChunks=" + numChunks + ", chunkingSettings=" + chunkingSettings + "]";
+      return "ChunkBytesRefEvaluator[" + "str=" + str + ", chunkingSettings=" + chunkingSettings + "]";
     }
   }
 }

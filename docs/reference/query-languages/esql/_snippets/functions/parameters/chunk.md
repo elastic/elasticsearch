@@ -5,6 +5,6 @@
 `field`
 :   The input to chunk.
 
-`options`
-:   Options to customize chunking behavior.
+`chunking_settings`
+:   Options to customize chunking behavior. Refer to the [Inference API documentation](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-inference-put#operation-inference-put-body-application-json-chunking_settings) for valid values for `chunking_settings`.
 

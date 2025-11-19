@@ -43,7 +43,6 @@ public class TimeSeriesGroupByAll extends Rule<LogicalPlan, LogicalPlan> {
     }
 
     public LogicalPlan rule(TimeSeriesAggregate aggregate) {
-        // Flag to check if we should apply this rule.
         boolean hasTopLevelOverTimeAggs = false;
         // the new `Value(dimension)` aggregation functions we intend to add to the query, along with the translated over time aggs
         List<NamedExpression> newAggregateFunctions = new ArrayList<>();
@@ -94,17 +93,16 @@ public class TimeSeriesGroupByAll extends Rule<LogicalPlan, LogicalPlan> {
         // Group the new aggregations by tsid. This is equivalent to grouping by all dimensions.
         groupings.add(tsid.get());
 
+        // Add the user defined grouping
+        groupings.addAll(aggregate.groupings());
+
         // We add the tsid to the aggregates list because we want to include it in the output of the first pass in
         // TranslateTimeSeriesAggregate
         newAggregateFunctions.add(tsid.get());
 
-        // Add the user defined grouping
-        groupings.addAll(aggregate.groupings());
-
-        // Add user-defined groupings to aggregates if they're attributes (expressions like TBUCKET are handled later)
+        // Add user-defined groupings to aggregates if they're attributes
         for (Expression userGrouping : aggregate.groupings()) {
             if (userGrouping instanceof Attribute attr) {
-                // Check if it's already in aggregates (might be if it was in SELECT)
                 boolean alreadyInAggregates = newAggregateFunctions.stream().anyMatch(agg -> {
                     Attribute aggAttr = Expressions.attribute(agg);
                     return aggAttr != null && aggAttr.id().equals(attr.id());

@@ -1186,18 +1186,21 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         OriginalIndices localIndices,
         ActionListener<Map.Entry<String, ResolveIndexAction.Response>> listener
     ) {
-        var resolveIndexRequest = new ResolveIndexAction.Request(
-            localIndices.indices(),
-            resolutionIdxOpts,
-            null,
-            rewritten.getProjectRouting()
-        );
+        SubscribableListener.<ResolveIndexAction.Response>newForked(l -> {
+            var resolveIndexRequest = new ResolveIndexAction.Request(
+                localIndices.indices(),
+                resolutionIdxOpts,
+                null,
+                rewritten.getProjectRouting()
+            );
 
-        client.execute(
-            ResolveIndexAction.INSTANCE,
-            resolveIndexRequest,
-            listener.map(response -> Map.entry(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY, response))
-        );
+            client.execute(ResolveIndexAction.INSTANCE, resolveIndexRequest, l);
+        })
+            .addListener(
+                listener.map(response -> Map.entry(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY, response)),
+                threadPool.executor(ThreadPool.Names.SEARCH_COORDINATION),
+                threadPool.getThreadContext()
+            );
     }
 
     private void resolveRemoteCrossProjectIndex(

@@ -13,13 +13,14 @@ A guide to the general Elasticsearch components can be found [here](https://gith
 # Networking
 
 Every elasticsearch node maintains various networking clients and servers,
-protocols, and synchronous/asynchronous handling.
+protocols, and synchronous/asynchronous handling. Our public docs cover user
+facing settings and some internal aspects - [Network Settings](https://www.elastic.co/docs/reference/elasticsearch/configuration-reference/networking-settings).
 
-## HTTP Transport
-The HTTP Transport Server (simply HTTP Transport) is a single entry point for
-all external clients (excluding cross-cluster communication). Management,
-ingestion, search, and all other external operations pass through the HTTP
-server.
+## HTTP Server
+
+The HTTP Server is a single entry point for all external clients (excluding
+cross-cluster communication). Management,ingestion, search, and all other
+external operations pass through the HTTP server.
 
 Elasticsearch works over HTTP 1.1 and supports features such as TLS, chunked
 transfer encoding, content compression, and pipelining. While attempting to
@@ -30,32 +31,39 @@ by middle boxes.
 
 There is no connection limit, but a limit on payload size exists. The default
 maximum payload is 100MB after compression. It's a very large number and almost
-never a good target that the client should approach.
+never a good target that the client should approach. See
+`HttpTransportSettings` class.
 
-Security features, including basic security (authc/authz/TLS) in the free tier,
-are achieved with separate x-pack modules.
+Security features, including basic security: authentication(authc),
+authorization(authz), Transport Layer Security (TLS) are available in the free
+tier and achieved with separate x-pack modules.
 
-HTTP transport provides two options for content processing: aggregate fully and
-incremental. Aggregated content is a preferable choice for small messages that
-do not fit for incremental parsing (e.g., JSON). Aggregation has drawbacks, it
-requires more memory, which is reserved until all bytes are received. Concurrent
-incomplete requests can lead to unbounded memory growth and potential OOMs.
-Large delimited content, such as bulk indexing, which is processed in byte
-chunks. It's more complicated for application code, but provides better control
-over memory usage.
+The HTTP server provides two options for content processing: full aggregation
+and incremental processing. Aggregated content is a preferable choice for small
+messages that do not fit for incremental parsing (e.g., JSON). Aggregation has
+drawbacks: it requires more memory, which is reserved until all bytes are
+received. Concurrent incomplete requests can lead to unbounded memory growth and
+potential OOMs. Large delimited content, such as bulk indexing, which is
+processed in byte chunks, provides better control over memory usage but is more
+complicated for application code.
 
-Incremental bulk indexing includes a back-pressure feature.When memory pressure
-grows high, reading bytes from TCP sockets is paused for some connections,
-allowing only a few to proceed until the pressure is resolved. This mechanism
-protects against unbounded memory usage and OutOfMemory errors (OOMs).
+Incremental bulk indexing includes a back-pressure feature. See `org.
+elasticsearch.index.IndexingPressure`. When memory pressure grows high
+(`LOW_WATERMARK`), reading bytes from TCP sockets is paused for some
+connections, allowing only a few to proceed until the pressure is resolved.
+When memory grows too high (`HIGH_WATERMARK`) bulk items are rejected with 429.
+This mechanism protects against unbounded memory usage and `OutOfMemory`
+errors (OOMs).
 
-ES supports multiple `Content-Types` for the payload, collectively referred to
-internally as `XContentType`: CBOR, JSON, SMILE, YAML, and their versioned types.
-Any class that implements `toXContent` can be serialized and sent over HTTP/REST
+ES supports multiple `Content-Types` for the payload. These are
+implementations of `MediaType` interface. A common ones internally called
+`XContentType`: CBOR, JSON, SMILE, YAML, and their versioned types. X-pack
+extensions includes PLAIN_TEXT, CSV, etc. Classes that implement
+`ToXContent...` can be serialized and sent over HTTP.
 
 HTTP routing is based on a combination of Method and URI. For example,
 `RestCreateIndexAction` handler uses `("PUT", "/{index}")`, where curly braces
-indicate path variables. RestBulkAction specifies a list of routes
+indicate path variables. `RestBulkAction` specifies a list of routes
 
 ```java
 @Override
@@ -92,7 +100,7 @@ Request handling flow from Java classes view goes as:
 
 `Netty4HttpServerTransport` is a single implementation of
 `AbstractHttpServerTransport` from the `transport-netty4`
-module. Security module injects SSL and headers validator.
+module. Security module injects TLS and headers validator.
 
 ## Transport
 
@@ -179,7 +187,7 @@ ThreadPool` (e.g.,4 threads for 4 cores) serves all HTTP and Transport
 servers and clients, handling potentially hundreds or thousands of connections.
 
 Event-loop threads serve many connections each, it's critical to not block
-threads for a long time.Fork any blocking operation or heavy computation to
+threads for a long time. Fork any blocking operation or heavy computation to
 another thread pool. Forking, however, comes with overhead. Do not fork
 simple requests that can be served from memory and do not require heavy
 computations (milliseconds).

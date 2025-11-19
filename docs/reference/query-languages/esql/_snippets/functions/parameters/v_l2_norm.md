@@ -3,8 +3,8 @@
 **Parameters**
 
 `left`
-:   first dense_vector to calculate l2 norm similarity
+:   first dense_vector to calculate l2 distance similarity
 
 `right`
-:   second dense_vector to calculate l2 norm similarity
+:   second dense_vector to calculate l2 distance similarity
 

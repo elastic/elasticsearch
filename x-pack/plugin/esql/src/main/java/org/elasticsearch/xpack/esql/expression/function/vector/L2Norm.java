@@ -53,7 +53,7 @@ public class L2Norm extends VectorSimilarityFunction {
     @FunctionInfo(
         returnType = "double",
         preview = true,
-        description = "Calculates the l2 norm between two dense_vectors.",
+        description = "Calculates the L2 distance (Euclidean distance) between two dense_vectors.",
         examples = { @Example(file = "vector-l2-norm", tag = "vector-l2-norm") },
         appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW, version = "9.3.0") }
     )
@@ -62,12 +62,12 @@ public class L2Norm extends VectorSimilarityFunction {
         @Param(
             name = "left",
             type = { "dense_vector" },
-            description = "first dense_vector to calculate l2 norm similarity"
+            description = "first dense_vector to calculate l2 distance similarity"
         ) Expression left,
         @Param(
             name = "right",
             type = { "dense_vector" },
-            description = "second dense_vector to calculate l2 norm similarity"
+            description = "second dense_vector to calculate l2 distance similarity"
         ) Expression right
     ) {
         super(source, left, right);

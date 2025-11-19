@@ -2,5 +2,5 @@
 
 **Description**
 
-Calculates the l2 norm between two dense_vectors.
+Calculates the L2 distance (Euclidean distance) between two dense_vectors.
 

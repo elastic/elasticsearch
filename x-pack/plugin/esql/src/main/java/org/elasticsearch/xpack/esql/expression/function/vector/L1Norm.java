@@ -65,7 +65,7 @@ public class L1Norm extends VectorSimilarityFunction {
     @FunctionInfo(
         returnType = "double",
         preview = true,
-        description = "Calculates the l1 norm between two dense_vectors.",
+        description = "Calculates the L1 distance (Manhattan distance) between two dense_vectors.",
         examples = { @Example(file = "vector-l1-norm", tag = "vector-l1-norm") },
         appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW, version = "9.3.0") }
     )
@@ -74,12 +74,12 @@ public class L1Norm extends VectorSimilarityFunction {
         @Param(
             name = "left",
             type = { "dense_vector" },
-            description = "first dense_vector to calculate l1 norm similarity"
+            description = "first dense_vector to calculate L1 distance similarity"
         ) Expression left,
         @Param(
             name = "right",
             type = { "dense_vector" },
-            description = "second dense_vector to calculate l1 norm similarity"
+            description = "second dense_vector to calculate L1 distance similarity"
         ) Expression right
     ) {
         super(source, left, right);

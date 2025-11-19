@@ -11,7 +11,7 @@ mapped_pages:
 
 {{esql}} supports dense vector functions for vector similarity calculations and
 k-nearest neighbor search.
-Dsense vector functions work with [
+Dense vector functions work with [
 `dense_vector` fields](/reference/elasticsearch/mapping-reference/dense-vector.md)
 and require appropriate field mappings.
 

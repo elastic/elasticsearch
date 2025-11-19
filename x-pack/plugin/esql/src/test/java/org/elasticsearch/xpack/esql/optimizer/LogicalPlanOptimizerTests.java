@@ -5733,10 +5733,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         var stub = as(agg.child(), StubRelation.class);
         assertThat(Expressions.names(stub.output()), contains("emp_no", "gender", "languages", "salary", "emo"));
 
-        assertWarnings(
-            "No limit defined, adding default limit of [1000]",
-            "Line 3:16: Field 'languages' shadowed by field at line 3:102"
-        );
+        assertWarnings("No limit defined, adding default limit of [1000]", "Line 3:16: Field 'languages' shadowed by field at line 3:102");
     }
 
     // if non-null, the `query` must have "INLINE STATS" capitalized

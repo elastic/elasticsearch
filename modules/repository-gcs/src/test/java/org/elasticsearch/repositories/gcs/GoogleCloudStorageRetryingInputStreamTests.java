@@ -151,7 +151,8 @@ public class GoogleCloudStorageRetryingInputStreamTests extends ESTestCase {
         }
 
         final GoogleCloudStorageBlobStore mockBlobStore = mock(GoogleCloudStorageBlobStore.class);
-        when(mockBlobStore.client()).thenReturn(meteredStorage);
+        when(mockBlobStore.clientNoRetries()).thenReturn(meteredStorage);
+        when(mockBlobStore.getMaxRetries()).thenReturn(6);
 
         return new GoogleCloudStorageRetryingInputStream(
             mockBlobStore,

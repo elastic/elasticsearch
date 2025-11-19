@@ -140,7 +140,7 @@ class GoogleCloudStorageRetryingInputStream extends RetryingInputStream<Long> {
 
         @Override
         public int getMaxRetries() {
-            return blobStore.clientSettings().getMaxRetries();
+            return blobStore.getMaxRetries();
         }
 
         @Override

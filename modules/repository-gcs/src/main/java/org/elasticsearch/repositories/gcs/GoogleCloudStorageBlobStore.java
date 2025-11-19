@@ -163,11 +163,8 @@ class GoogleCloudStorageBlobStore implements BlobStore {
         return storageService.client(projectId, clientName, repositoryName, statsCollector, GoogleCloudStorageService.RetryBehaviour.None);
     }
 
-    /**
-     * @return The settings for the configured client
-     */
-    GoogleCloudStorageClientSettings clientSettings() {
-        return storageService.clientSettings(projectId, clientName);
+    int getMaxRetries() {
+        return storageService.clientSettings(projectId, clientName).getMaxRetries();
     }
 
     @Override

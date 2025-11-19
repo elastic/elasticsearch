@@ -196,8 +196,6 @@ public class TransportDownsampleActionTests extends ESTestCase {
             updateTask.listener.onResponse(AcknowledgedResponse.TRUE);
             return null;
         }).when(taskQueue).submitTask(startsWith("create-downsample-index"), any(), any());
-
-        // Mocks for mapping retrieval & merging
         when(indicesService.createIndexMapperServiceForValidation(any())).thenReturn(mapperService);
         MappedFieldType timestampFieldMock = mock(MappedFieldType.class);
         when(timestampFieldMock.meta()).thenReturn(Map.of());

@@ -33,7 +33,8 @@
     "params": {
       "timeout": {
         "default": "30m",
-        "type": "time"
+        "type": "time",
+        "description": "Controls the time to wait until a job has opened."
       }
     },
     "body": {

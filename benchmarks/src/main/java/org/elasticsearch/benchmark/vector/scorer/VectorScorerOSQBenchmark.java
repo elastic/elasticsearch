@@ -6,7 +6,7 @@
  * your election, the "Elastic License 2.0", the "GNU Affero General Public
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
-package org.elasticsearch.benchmark.vector;
+package org.elasticsearch.benchmark.vector.scorer;
 
 import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.store.Directory;
@@ -50,13 +50,13 @@ import java.util.concurrent.TimeUnit;
 @Measurement(iterations = 5, time = 1)
 // engage some noise reduction
 @Fork(value = 1)
-public class OSQScorerBenchmark {
+public class VectorScorerOSQBenchmark {
 
     static {
         LogConfigurator.configureESLogging(); // native access requires logging to be initialized
     }
 
-    @Param({ "384", "782", "1024" })
+    @Param({ "384", "768", "1024" })
     int dims;
 
     @Param({ "1", "2", "4" })
@@ -168,7 +168,7 @@ public class OSQScorerBenchmark {
         IOUtils.close(dirMmap, inMmap, dirNiofs, inNiofs);
     }
 
-    @Benchmark
+    //@Benchmark
     public void scoreFromMemorySegmentOnlyVectorMmapScalar(Blackhole bh) throws IOException {
         scoreFromMemorySegmentOnlyVector(bh, inMmap, scorerMmap);
     }
@@ -179,7 +179,7 @@ public class OSQScorerBenchmark {
         scoreFromMemorySegmentOnlyVector(bh, inMmap, scorerMmap);
     }
 
-    @Benchmark
+    //@Benchmark
     public void scoreFromMemorySegmentOnlyVectorNiofsScalar(Blackhole bh) throws IOException {
         scoreFromMemorySegmentOnlyVector(bh, inNiofs, scorerNfios);
     }
@@ -215,56 +215,7 @@ public class OSQScorerBenchmark {
         }
     }
 
-    @Benchmark
-    public void scoreFromMemorySegmentOnlyVectorBulkMmapScalar(Blackhole bh) throws IOException {
-        scoreFromMemorySegmentOnlyVectorBulk(bh, inMmap, scorerMmap);
-    }
-
-    @Benchmark
-    @Fork(jvmArgsPrepend = { "--add-modules=jdk.incubator.vector" })
-    public void scoreFromMemorySegmentOnlyVectorBulkMmapVect(Blackhole bh) throws IOException {
-        scoreFromMemorySegmentOnlyVectorBulk(bh, inMmap, scorerMmap);
-    }
-
-    @Benchmark
-    public void scoreFromMemorySegmentOnlyVectorBulkNiofsScalar(Blackhole bh) throws IOException {
-        scoreFromMemorySegmentOnlyVectorBulk(bh, inNiofs, scorerNfios);
-    }
-
-    @Benchmark
-    @Fork(jvmArgsPrepend = { "--add-modules=jdk.incubator.vector" })
-    public void scoreFromMemorySegmentOnlyVectorBulkNiofsVect(Blackhole bh) throws IOException {
-        scoreFromMemorySegmentOnlyVectorBulk(bh, inNiofs, scorerNfios);
-    }
-
-    private void scoreFromMemorySegmentOnlyVectorBulk(Blackhole bh, IndexInput in, ESNextOSQVectorsScorer scorer) throws IOException {
-        for (int j = 0; j < numQueries; j++) {
-            in.seek(0);
-            for (int i = 0; i < numVectors; i += 16) {
-                scorer.quantizeScoreBulk(binaryQueries[j], ES91OSQVectorsScorer.BULK_SIZE, scratchScores);
-                for (int k = 0; k < ES91OSQVectorsScorer.BULK_SIZE; k++) {
-                    in.readFloats(corrections, 0, corrections.length);
-                    int addition = Short.toUnsignedInt(in.readShort());
-                    float score = scorer.score(
-                        result.lowerInterval(),
-                        result.upperInterval(),
-                        result.quantizedComponentSum(),
-                        result.additionalCorrection(),
-                        VectorSimilarityFunction.EUCLIDEAN,
-                        centroidDp,
-                        corrections[0],
-                        corrections[1],
-                        addition,
-                        corrections[2],
-                        scratchScores[k]
-                    );
-                    bh.consume(score);
-                }
-            }
-        }
-    }
-
-    @Benchmark
+    //@Benchmark
     public void scoreFromMemorySegmentAllBulkMmapScalar(Blackhole bh) throws IOException {
         scoreFromMemorySegmentAllBulk(bh, inMmap, scorerMmap);
     }
@@ -275,7 +226,7 @@ public class OSQScorerBenchmark {
         scoreFromMemorySegmentAllBulk(bh, inMmap, scorerMmap);
     }
 
-    @Benchmark
+    //@Benchmark
     public void scoreFromMemorySegmentAllBulkNiofsScalar(Blackhole bh) throws IOException {
         scoreFromMemorySegmentAllBulk(bh, inNiofs, scorerNfios);
     }

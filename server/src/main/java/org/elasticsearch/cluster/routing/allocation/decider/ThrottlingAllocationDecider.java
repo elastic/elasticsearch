@@ -127,11 +127,16 @@ public class ThrottlingAllocationDecider extends AllocationDecider {
 
             // Count the primaries currently doing recovery on the node, to ensure the primariesInitialRecoveries setting is obeyed.
             int primariesInRecovery = 0;
+            final var returnUnexplainedDecision = allocation.debugDecision() == false;
             for (ShardRouting shard : node.initializing()) {
                 // when a primary shard is INITIALIZING, it can be because of *initial recovery* or *relocation from another node*
                 // we only count initial recoveries here, so we need to make sure that relocating node is null
                 if (shard.primary() && shard.relocatingNodeId() == null) {
                     primariesInRecovery++;
+                    if (returnUnexplainedDecision && primariesInRecovery >= primariesInitialRecoveries) {
+                        // bail out early if we don't need the final total
+                        return THROTTLE;
+                    }
                 }
             }
             if (primariesInRecovery >= primariesInitialRecoveries) {

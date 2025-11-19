@@ -209,6 +209,40 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
                         bytesSlice.readBytes((long) doc * length, bytes.bytes, 0, length);
                         return bytes;
                     }
+
+                    @Override
+                    public BlockLoader.Block tryRead(
+                        BlockLoader.BlockFactory factory,
+                        BlockLoader.Docs docs,
+                        int offset,
+                        boolean nullsFiltered,
+                        BlockDocValuesReader.ToDouble toDouble,
+                        boolean toInt
+                    ) throws IOException {
+                        int count = docs.count() - offset;
+                        int firstDocId = docs.get(offset);
+                        int lastDocId = docs.get(count - 1);
+                        doc = lastDocId;
+
+                        if (isDense(firstDocId, lastDocId, count)) {
+                            try (var builder = factory.singletonBytesRefs(count)) {
+                                int bulkLength = length * count;
+                                byte[] bytes = new byte[bulkLength];
+                                bytesSlice.readBytes((long) firstDocId * length, bytes, 0, bulkLength);
+                                builder.appendBytesRefs(bytes, length);
+                                return builder.build();
+                            }
+                        } else {
+                            try (var builder = factory.bytesRefs(count)) {
+                                for (int i = offset; i < docs.count(); i++) {
+                                    int docId = docs.get(i);
+                                    bytesSlice.readBytes((long) docId * length, bytes.bytes, 0, length);
+                                    builder.appendBytesRef(bytes);
+                                }
+                                return builder.build();
+                            }
+                        }
+                    }
                 };
             } else {
                 // variable length
@@ -223,6 +257,52 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
                         bytes.length = (int) (addresses.get(doc + 1L) - startOffset);
                         bytesSlice.readBytes(startOffset, bytes.bytes, 0, bytes.length);
                         return bytes;
+                    }
+
+                    @Override
+                    public BlockLoader.Block tryRead(
+                        BlockLoader.BlockFactory factory,
+                        BlockLoader.Docs docs,
+                        int offset,
+                        boolean nullsFiltered,
+                        BlockDocValuesReader.ToDouble toDouble,
+                        boolean toInt
+                    ) throws IOException {
+                        int count = docs.count() - offset;
+                        int firstDocId = docs.get(offset);
+                        int lastDocId = docs.get(count - 1);
+                        doc = lastDocId;
+
+                        if (isDense(firstDocId, lastDocId, count)) {
+                            try (var builder = factory.singletonBytesRefs(count)) {
+                                long[] offsets = new long[count + 1];
+
+                                // Normalize offsets so that first offset is 0
+                                long startOffset = addresses.get(firstDocId);
+                                for (int i = offset, j = 1; i < docs.count(); i++, j++) {
+                                    int docId = docs.get(i);
+                                    long nextOffset = addresses.get(docId + 1) - startOffset;
+                                    offsets[j] = nextOffset;
+                                }
+
+                                int length = Math.toIntExact(addresses.get(lastDocId + 1L) - startOffset);
+                                byte[] bytes = new byte[length];
+                                bytesSlice.readBytes(startOffset, bytes, 0, length);
+                                builder.appendBytesRefs(bytes, offsets);
+                                return builder.build();
+                            }
+                        } else {
+                            try (var builder = factory.bytesRefs(count)) {
+                                for (int i = offset; i < docs.count(); i++) {
+                                    int docId = docs.get(i);
+                                    long startOffset = addresses.get(docId);
+                                    bytes.length = (int) (addresses.get(docId + 1L) - startOffset);
+                                    bytesSlice.readBytes(startOffset, bytes.bytes, 0, bytes.length);
+                                    builder.appendBytesRef(bytes);
+                                }
+                                return builder.build();
+                            }
+                        }
                     }
                 };
             }
@@ -268,7 +348,7 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
         }
     }
 
-    private abstract static class DenseBinaryDocValues extends BinaryDocValues {
+    abstract static class DenseBinaryDocValues extends BinaryDocValues implements BlockLoader.OptionalColumnAtATimeReader {
 
         final int maxDoc;
         int doc = -1;
@@ -981,16 +1061,12 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
     public DocValuesSkipper getSkipper(FieldInfo field) throws IOException {
         final DocValuesSkipperEntry entry = skippers.get(field.number);
 
-        final IndexInput input = data.slice("doc value skipper", entry.offset, entry.length);
-        // Prefetch the first page of data. Following pages are expected to get prefetched through
-        // read-ahead.
-        if (input.length() > 0) {
-            input.prefetch(0, 1);
-        }
         // TODO: should we write to disk the actual max level for this segment?
         return new DocValuesSkipper() {
             final int[] minDocID = new int[SKIP_INDEX_MAX_LEVEL];
             final int[] maxDocID = new int[SKIP_INDEX_MAX_LEVEL];
+
+            IndexInput input;
 
             {
                 for (int i = 0; i < SKIP_INDEX_MAX_LEVEL; i++) {
@@ -1011,8 +1087,11 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
                         minDocID[i] = maxDocID[i] = DocIdSetIterator.NO_MORE_DOCS;
                     }
                 } else {
+                    if (input == null) {
+                        input = data.slice("doc value skipper", entry.offset, entry.length);
+                    }
                     // find next interval
-                    assert target > maxDocID[0] : "target must be bigger that current interval";
+                    assert target > maxDocID[0] : "target must be bigger than current interval";
                     while (true) {
                         levels = input.readByte();
                         assert levels <= SKIP_INDEX_MAX_LEVEL && levels > 0 : "level out of range [" + levels + "]";
@@ -1514,13 +1593,6 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
                     return lookaheadBlock[valueIndex];
                 }
 
-                static boolean isDense(int firstDocId, int lastDocId, int length) {
-                    // This does not detect duplicate docids (e.g [1, 1, 2, 4] would be detected as dense),
-                    // this can happen with enrich or lookup. However this codec isn't used for enrich / lookup.
-                    // This codec is only used in the context of logsdb and tsdb, so this is fine here.
-                    return lastDocId - firstDocId == length - 1;
-                }
-
                 @Override
                 SortedOrdinalReader sortedOrdinalReader() {
                     return null;
@@ -1637,6 +1709,13 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
                 }
             };
         }
+    }
+
+    private static boolean isDense(int firstDocId, int lastDocId, int length) {
+        // This does not detect duplicate docids (e.g [1, 1, 2, 4] would be detected as dense),
+        // this can happen with enrich or lookup. However this codec isn't used for enrich / lookup.
+        // This codec is only used in the context of logsdb and tsdb, so this is fine here.
+        return lastDocId - firstDocId == length - 1;
     }
 
     private NumericDocValues getRangeEncodedNumericDocValues(NumericEntry entry, long maxOrd) throws IOException {

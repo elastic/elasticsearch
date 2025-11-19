@@ -65,7 +65,7 @@
         "description": "Refresh the shard containing the document before performing the operation"
       },
       "routing": {
-        "type": "string",
+        "type": "list",
         "description": "Specific routing value"
       },
       "_source": {

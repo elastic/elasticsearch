@@ -46,6 +46,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Objects;
+import java.util.function.Supplier;
 
 public class CommonStats implements Writeable, ToXContentFragment {
 
@@ -154,7 +155,12 @@ public class CommonStats implements Writeable, ToXContentFragment {
     /**
      * Filters the given flags for {@link CommonStatsFlags#SHARD_LEVEL} flags and calculates the corresponding statistics.
      */
-    public static CommonStats getShardLevelStats(IndicesQueryCache indicesQueryCache, IndexShard indexShard, CommonStatsFlags flags) {
+    public static CommonStats getShardLevelStats(
+        IndicesQueryCache indicesQueryCache,
+        IndexShard indexShard,
+        CommonStatsFlags flags,
+        Supplier<Long> precomputedSharedRam
+    ) {
         // Filter shard level flags
         CommonStatsFlags filteredFlags = flags.clone();
         for (CommonStatsFlags.Flag flag : filteredFlags.getFlags()) {
@@ -174,7 +180,7 @@ public class CommonStats implements Writeable, ToXContentFragment {
                     case Refresh -> stats.refresh = indexShard.refreshStats();
                     case Flush -> stats.flush = indexShard.flushStats();
                     case Warmer -> stats.warmer = indexShard.warmerStats();
-                    case QueryCache -> stats.queryCache = indicesQueryCache.getStats(indexShard.shardId());
+                    case QueryCache -> stats.queryCache = indicesQueryCache.getStats(indexShard.shardId(), precomputedSharedRam);
                     case FieldData -> stats.fieldData = indexShard.fieldDataStats(flags.fieldDataFields());
                     case Completion -> stats.completion = indexShard.completionStats(flags.completionDataFields());
                     case Segments -> stats.segments = indexShard.segmentStats(

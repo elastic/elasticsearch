@@ -122,8 +122,7 @@ public class Chunk extends EsqlScalarFunction implements OptionalArgument {
     }
 
     private TypeResolution validateChunkingSettings() {
-        // Just ensure all keys and values are literals - defer valid chunking settings for validation later
-        if (chunkingSettings instanceof MapExpression == false) {
+        if (chunkingSettings instanceof  MapExpression == false) {
             return new TypeResolution("chunking_settings must be a map");
         }
         MapExpression chunkingSettingsMap = (MapExpression) chunkingSettings;
@@ -135,6 +134,13 @@ public class Chunk extends EsqlScalarFunction implements OptionalArgument {
                 return new TypeResolution("chunking_settings values must be constants");
             }
         }
+
+        try {
+            ChunkingSettingsBuilder.fromMap(toMap(chunkingSettingsMap));
+        } catch (IllegalArgumentException e) {
+            return new TypeResolution(e.getMessage());
+        }
+
         return TypeResolution.TYPE_RESOLVED;
     }
 

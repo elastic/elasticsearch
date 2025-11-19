@@ -68,7 +68,14 @@ public class RestEqlSearchAction extends BaseRestHandler {
             eqlRequest = EqlSearchRequest.fromXContent(parser);
             indices = request.param("index");
             eqlRequest.indices(Strings.splitStringByCommaToArray(indices));
-            eqlRequest.indicesOptions(IndicesOptions.fromRequest(request, eqlRequest.indicesOptions()));
+            IndicesOptions indicesOptions = IndicesOptions.fromRequest(request, eqlRequest.indicesOptions());
+            if (crossProjectEnabled) {
+                indicesOptions = IndicesOptions.builder(indicesOptions)
+                    .crossProjectModeOptions(new IndicesOptions.CrossProjectModeOptions(true))
+                    .build();
+                eqlRequest.projectRouting(request.param("project_routing"));
+            }
+            eqlRequest.indicesOptions(indicesOptions);
             if (request.hasParam("wait_for_completion_timeout")) {
                 eqlRequest.waitForCompletionTimeout(
                     request.paramAsTime("wait_for_completion_timeout", eqlRequest.waitForCompletionTimeout())

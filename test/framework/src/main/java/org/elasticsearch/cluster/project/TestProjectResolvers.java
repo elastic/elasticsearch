@@ -117,6 +117,11 @@ public final class TestProjectResolvers {
         public boolean supportsMultipleProjects() {
             throw new UnsupportedOperationException("Method on the dummy ProjectResolver is not meant to be invoked");
         }
+
+        @Override
+        public boolean hasProject(Metadata metadata) {
+            return false;
+        }
     };
 
     /**

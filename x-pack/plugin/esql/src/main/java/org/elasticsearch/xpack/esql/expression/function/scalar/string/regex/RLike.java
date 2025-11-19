@@ -60,7 +60,7 @@ public class RLike extends RegexMatch<RLikePattern> {
 
             <<load-esql-example, file=where-like tag=rlikeListDocExample>>
 
-            Patterns may be specified with ReST query placeholders as well
+            Patterns may be specified with REST query placeholders as well
 
             ```esql
             FROM employees

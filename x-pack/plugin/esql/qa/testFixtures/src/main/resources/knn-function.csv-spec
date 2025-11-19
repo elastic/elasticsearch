@@ -278,21 +278,20 @@ from colors metadata _score
 | where (knn(rgb_vector, [128,128,0], {"min_candidates": 2}) and length(color) > 10) or (knn(rgb_vector, [128,0,128], {"min_candidates": 2}) and primary == true) 
 | sort _score desc, color asc
 | keep color, primary
+| limit 10
 ;
 
 color:text   | primary:boolean
-gray          | true
-green         | true
-red           | true
-black         | true
-magenta       | true
-yellow        | true
-blue          | true
-aqua marine   | false
-papaya whip   | false
-lemon chiffon | false
-white         | true
-cyan          | true
+olive      | false
+purple     | false
+indigo     | false
+sienna     | false
+brown      | false
+firebrick  | false
+chocolate  | false
+peru       | false
+gray       | true
+maroon     | false
 ;
 
 testKnnWithStats

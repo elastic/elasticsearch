@@ -31,6 +31,7 @@ import org.elasticsearch.action.support.DestructiveOperations;
 import org.elasticsearch.action.support.RefCountingRunnable;
 import org.elasticsearch.action.support.replication.TransportReplicationAction;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.NodeConnectionsService;
@@ -159,6 +160,7 @@ import static org.elasticsearch.test.NodeRoles.noRoles;
 import static org.elasticsearch.test.NodeRoles.nonDataNode;
 import static org.elasticsearch.test.NodeRoles.onlyRole;
 import static org.elasticsearch.test.NodeRoles.removeRoles;
+import static org.elasticsearch.xpack.core.ClientHelper.MONITORING_ORIGIN;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
@@ -948,6 +950,15 @@ public final class InternalTestCluster extends TestCluster {
         throw new AssertionError("No smart client found");
     }
 
+    private Client clientWithOrigin(String origin) {
+        return clientWithOrigin(origin, null);
+    }
+
+    private Client clientWithOrigin(String origin, @Nullable String nodeName) {
+        Client client = nodeName != null ? client(nodeName) : client();
+        return new OriginSettingClient(client, origin);
+    }
+
     @Override
     public synchronized void close() throws IOException {
         if (this.open.compareAndSet(true, false)) {
@@ -1282,7 +1293,7 @@ public final class InternalTestCluster extends TestCluster {
         try {
             assertBusy(() -> {
                 try {
-                    final boolean timeout = client().admin()
+                    final boolean timeout = clientWithOrigin(MONITORING_ORIGIN).admin()
                         .cluster()
                         .prepareHealth(TEST_REQUEST_TIMEOUT)
                         .setWaitForEvents(Priority.LANGUID)
@@ -1552,7 +1563,7 @@ public final class InternalTestCluster extends TestCluster {
      */
     public void assertSameDocIdsOnShards() throws Exception {
         assertBusy(() -> {
-            ClusterState state = client().admin().cluster().prepareState(TEST_REQUEST_TIMEOUT).get().getState();
+            ClusterState state = clientWithOrigin(MONITORING_ORIGIN).admin().cluster().prepareState(TEST_REQUEST_TIMEOUT).get().getState();
             for (var indexRoutingTable : state.routingTable().indicesRouting().values()) {
                 for (int i = 0; i < indexRoutingTable.size(); i++) {
                     IndexShardRoutingTable indexShardRoutingTable = indexRoutingTable.shard(i);
@@ -1999,7 +2010,7 @@ public final class InternalTestCluster extends TestCluster {
 
                 logger.info("adding voting config exclusions {} prior to restart/shutdown", excludedNodeNames);
                 try {
-                    client().execute(
+                    clientWithOrigin(MONITORING_ORIGIN).execute(
                         TransportAddVotingConfigExclusionsAction.TYPE,
                         new AddVotingConfigExclusionsRequest(TEST_REQUEST_TIMEOUT, excludedNodeNames.toArray(Strings.EMPTY_ARRAY))
                     ).get();
@@ -2016,7 +2027,10 @@ public final class InternalTestCluster extends TestCluster {
         if (autoManageVotingExclusions && excludedNodeIds.isEmpty() == false) {
             logger.info("removing voting config exclusions for {} after restart/shutdown", excludedNodeIds);
             try {
-                Client client = getRandomNodeAndClient(node -> excludedNodeIds.contains(node.name) == false).client();
+                Client client = new OriginSettingClient(
+                    getRandomNodeAndClient(node -> excludedNodeIds.contains(node.name) == false).client(),
+                    MONITORING_ORIGIN
+                );
                 client.execute(
                     TransportClearVotingConfigExclusionsAction.TYPE,
                     new ClearVotingConfigExclusionsRequest(TEST_REQUEST_TIMEOUT)
@@ -2080,7 +2094,7 @@ public final class InternalTestCluster extends TestCluster {
         }
         try {
             ClusterServiceUtils.awaitClusterState(state -> state.nodes().getMasterNode() != null, clusterService(viaNode));
-            final ClusterState state = client(viaNode).admin()
+            final ClusterState state = clientWithOrigin(MONITORING_ORIGIN, viaNode).admin()
                 .cluster()
                 .prepareState(TEST_REQUEST_TIMEOUT)
                 .clear()

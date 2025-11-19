@@ -37,13 +37,13 @@ public class MvFirstErrorTests extends ErrorsForCasesWithoutExamplesTestCase {
                 false,
                 validPerPosition,
                 signature,
-                (v, p) -> "any type except counter types, dense_vector, or aggregate_metric_double"
+                (v, p) -> "any type except counter types, dense_vector, aggregate_metric_double or date_range"
             )
         );
     }
 
     @Override
     protected void assertNumberOfCheckedSignatures(int checked) {
-        assertThat("all signatures except dense_vector and aggregate_metric_double should be supported", checked, equalTo(2));
+        assertThat("all signatures except dense_vector, aggregate_metric_double or date_range should be supported", checked, equalTo(3));
     }
 }

@@ -1537,6 +1537,8 @@ public class EsqlCapabilities {
          */
         DOTS_IN_FUSE,
 
+        DATE_RANGE_FIELD_TYPE,
+
         /**
          * Network direction function.
          */

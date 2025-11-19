@@ -523,6 +523,8 @@ public interface BlockLoader {
 
         AggregateMetricDoubleBuilder aggregateMetricDoubleBuilder(int count);
 
+        LongRangeBuilder dateRangeBuilder(int count);
+
         Block buildAggregateMetricDoubleDirect(Block minBlock, Block maxBlock, Block sumBlock, Block countBlock);
 
         ExponentialHistogramBuilder exponentialHistogramBlockBuilder(int count);
@@ -682,6 +684,12 @@ public interface BlockLoader {
         DoubleBuilder sum();
 
         IntBuilder count();
+    }
+
+    interface LongRangeBuilder extends Builder {
+        LongBuilder from();
+
+        LongBuilder to();
     }
 
     interface ExponentialHistogramBuilder extends Builder {

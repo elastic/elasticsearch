@@ -171,6 +171,7 @@ public class CsvTestsDataLoader {
     private static final TestDataset MV_TEXT = new TestDataset("mv_text");
     private static final TestDataset DENSE_VECTOR = new TestDataset("dense_vector");
     private static final TestDataset COLORS = new TestDataset("colors");
+    private static final TestDataset DATE_RANGES = new TestDataset("date_ranges");
     private static final TestDataset COLORS_CMYK_LOOKUP = new TestDataset("colors_cmyk").withSetting("lookup-settings.json");
     private static final TestDataset EXP_HISTO_SAMPLE = new TestDataset("exp_histo_sample");
 
@@ -241,6 +242,7 @@ public class CsvTestsDataLoader {
         Map.entry(COLORS_CMYK_LOOKUP.indexName, COLORS_CMYK_LOOKUP),
         Map.entry(MULTI_COLUMN_JOINABLE.indexName, MULTI_COLUMN_JOINABLE),
         Map.entry(MULTI_COLUMN_JOINABLE_LOOKUP.indexName, MULTI_COLUMN_JOINABLE_LOOKUP),
+        Map.entry(DATE_RANGES.indexName, DATE_RANGES),
         Map.entry(EXP_HISTO_SAMPLE.indexName, EXP_HISTO_SAMPLE)
     );
 

@@ -39,6 +39,7 @@ import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
+import org.elasticsearch.compute.data.LongRangeBlockBuilder;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.lucene.DataPartitioning;
 import org.elasticsearch.core.PathUtils;
@@ -176,6 +177,7 @@ import java.util.zip.ZipEntry;
 import static java.util.Collections.emptyList;
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.unmodifiableMap;
+import static org.elasticsearch.common.time.DateUtils.MAX_MILLIS_BEFORE_9999;
 import static org.elasticsearch.test.ESTestCase.assertEquals;
 import static org.elasticsearch.test.ESTestCase.between;
 import static org.elasticsearch.test.ESTestCase.randomAlphaOfLength;
@@ -1038,6 +1040,11 @@ public final class EsqlTestUtils {
                 randomDouble(),
                 randomInt()
             );
+            case DATE_RANGE -> {
+                var from = randomMillisUpToYear9999();
+                var to = randomLongBetween(from + 1, MAX_MILLIS_BEFORE_9999);
+                yield new LongRangeBlockBuilder.LongRange(from, to);
+            }
             case NULL -> null;
             case SOURCE -> {
                 try {

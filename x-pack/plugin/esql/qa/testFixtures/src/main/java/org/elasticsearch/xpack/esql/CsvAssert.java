@@ -11,6 +11,7 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.compute.data.AggregateMetricDoubleBlockBuilder;
+import org.elasticsearch.compute.data.LongRangeBlockBuilder;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.exponentialhistogram.ExponentialHistogram;
 import org.elasticsearch.geometry.utils.Geohash;
@@ -20,6 +21,7 @@ import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.bucket.geogrid.GeoTileUtils;
 import org.elasticsearch.test.ListMatcher;
 import org.elasticsearch.xpack.esql.CsvTestUtils.ActualResults;
+import org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter;
 import org.elasticsearch.xpack.versionfield.Version;
 import org.hamcrest.Description;
 import org.hamcrest.Matchers;
@@ -437,6 +439,11 @@ public final class CsvAssert {
                 expectedValue,
                 ExponentialHistogram.class,
                 x -> exponentialHistogramToString((ExponentialHistogram) x)
+            );
+            case DATE_RANGE -> rebuildExpected(
+                expectedValue,
+                LongRangeBlockBuilder.LongRange.class,
+                x -> EsqlDataTypeConverter.dateRangeToString((LongRangeBlockBuilder.LongRange) x)
             );
             default -> expectedValue;
         };

@@ -135,7 +135,7 @@ update `TV0` (`TV1`) for `8.19`
    creates a source branch for `8.19` (`SB819`) that does not contain `C0`.
    3. Cherry-pick `C0` into the source branch `SB819`
 
-Note there are several ways to do potentially do each of these steps. This
+Note there are several ways to achieve the desired end state. This
 specific example takes advantage of the available CI tooling to simplify the
 process.
 

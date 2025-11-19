@@ -15,6 +15,7 @@ import org.elasticsearch.action.admin.cluster.remote.RemoteInfoRequest;
 import org.elasticsearch.action.admin.cluster.remote.TransportRemoteInfoAction;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsResponse;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
@@ -45,6 +46,7 @@ import java.util.stream.Collectors;
 
 import static org.elasticsearch.discovery.DiscoveryModule.DISCOVERY_SEED_PROVIDERS_SETTING;
 import static org.elasticsearch.discovery.SettingsBasedSeedHostsProvider.DISCOVERY_SEED_HOSTS_SETTING;
+import static org.elasticsearch.xpack.core.ClientHelper.MONITORING_ORIGIN;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.hasKey;
@@ -96,6 +98,15 @@ public abstract class AbstractMultiClustersTestCase extends ESTestCase {
 
     protected NodeConfigurationSource nodeConfigurationSource() {
         return null;
+    }
+
+    private Client internalClient() {
+        return internalClient(LOCAL_CLUSTER);
+    }
+
+    private Client internalClient(String clusterAlias) {
+        Client client = client(clusterAlias);
+        return new OriginSettingClient(client, MONITORING_ORIGIN);
     }
 
     @Before
@@ -174,7 +185,11 @@ public abstract class AbstractMultiClustersTestCase extends ESTestCase {
         settings.putNull("cluster.remote." + clusterAlias + ".seeds");
         settings.putNull("cluster.remote." + clusterAlias + ".mode");
         settings.putNull("cluster.remote." + clusterAlias + ".proxy_address");
-        client().admin().cluster().prepareUpdateSettings(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT).setPersistentSettings(settings).get();
+        internalClient().admin()
+            .cluster()
+            .prepareUpdateSettings(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT)
+            .setPersistentSettings(settings)
+            .get();
         assertBusy(() -> {
             for (TransportService transportService : cluster(LOCAL_CLUSTER).getInstances(TransportService.class)) {
                 assertThat(transportService.getRemoteClusterService().getRegisteredRemoteClusterNames(), not(contains(clusterAlias)));
@@ -226,7 +241,7 @@ public abstract class AbstractMultiClustersTestCase extends ESTestCase {
         }
         builder.build();
 
-        ClusterUpdateSettingsResponse resp = client().admin()
+        ClusterUpdateSettingsResponse resp = internalClient().admin()
             .cluster()
             .prepareUpdateSettings(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT)
             .setPersistentSettings(settings)
@@ -237,7 +252,10 @@ public abstract class AbstractMultiClustersTestCase extends ESTestCase {
         }
 
         assertBusy(() -> {
-            List<RemoteConnectionInfo> remoteConnectionInfos = client().execute(TransportRemoteInfoAction.TYPE, new RemoteInfoRequest())
+            List<RemoteConnectionInfo> remoteConnectionInfos = internalClient().execute(
+                TransportRemoteInfoAction.TYPE,
+                new RemoteInfoRequest()
+            )
                 .actionGet()
                 .getInfos()
                 .stream()

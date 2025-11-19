@@ -444,6 +444,15 @@ tests:
 - class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
   method: test {p0=search/95_sort_mixed_numeric_types/Simple sort}
   issue: https://github.com/elastic/elasticsearch/issues/138297
+- class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeMetricsIT
+  method: test
+  issue: https://github.com/elastic/elasticsearch/issues/138311
+- class: org.elasticsearch.xpack.esql.qa.multi_node.GenerativeIT
+  method: test
+  issue: https://github.com/elastic/elasticsearch/issues/137909
+- class: org.elasticsearch.xpack.ml.integration.RegressionIT
+  method: testTwoJobsWithSameRandomizeSeedUseSameTrainingSet
+  issue: https://github.com/elastic/elasticsearch/issues/138319
 
 # Examples:
 #

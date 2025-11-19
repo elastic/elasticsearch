@@ -81,8 +81,6 @@ public class PartitionedRoutingIT extends ESIntegTestCase {
             verifyGets(index, routingToDocumentIds);
             verifyBroadSearches(index, routingToDocumentIds, currentShards);
 
-            // we need the floor and ceiling of the routing_partition_size / factor since the partition size of the shrunken
-            // index will be one of those, depending on the routing value
             verifyRoutedSearches(index, routingToDocumentIds, Math.min(partitionSize, currentShards));
 
             updateIndexSettings(

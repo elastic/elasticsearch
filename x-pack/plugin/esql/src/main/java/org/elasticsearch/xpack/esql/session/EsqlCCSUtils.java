@@ -156,6 +156,31 @@ public class EsqlCCSUtils {
         }
     }
 
+    // TODO Remove once we implement this same logic in ExecutionInfo.clusters...
+    static String createIndexExpressionFromAvailableClusters(String indexPattern, EsqlExecutionInfo executionInfo) {
+        StringBuilder sb = new StringBuilder();
+        for (String clusterAlias : executionInfo.clusterAliases()) {
+            EsqlExecutionInfo.Cluster cluster = executionInfo.getCluster(clusterAlias);
+            // Exclude clusters which are either skipped or have no indices matching wildcard, or filtered out.
+            if (cluster.getStatus() != Cluster.Status.SKIPPED && cluster.getStatus() != Cluster.Status.SUCCESSFUL) {
+                if (indexPattern.equals("*") || cluster.getIndexExpression().contains(indexPattern)) {
+                    if (sb.isEmpty() == false) {
+                        sb.append(',');
+                    }
+                    if (cluster.getClusterAlias().equals(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY)) {
+                        sb.append(indexPattern);
+                    } else {
+                        for (String index : indexPattern.split(",")) {
+                            sb.append(clusterAlias).append(':').append(index);
+                        }
+                    }
+                }
+            }
+        }
+
+        return sb.toString();
+    }
+
     static String createQualifiedLookupIndexExpressionFromAvailableClusters(EsqlExecutionInfo executionInfo, String localPattern) {
         if (executionInfo.getClusters().isEmpty()) {
             return localPattern;

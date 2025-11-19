@@ -1094,6 +1094,21 @@ public class EsqlCapabilities {
         SUBQUERY_IN_FROM_COMMAND(Build.current().isSnapshot()),
 
         /**
+         * Support for views in cluster state (and REST API).
+         */
+        VIEWS_IN_CLUSTER_STATE(EsqlFeatures.ESQL_VIEWS_FEATURE_FLAG.isEnabled()),
+
+        /**
+         * Views.
+         */
+        VIEWS_WITH_NO_BRANCHING(Build.current().isSnapshot()),
+
+        /**
+         * Views with branching (requires FORK).
+         */
+        VIEWS_WITH_BRANCHING(VIEWS_WITH_NO_BRANCHING.isEnabled() && SUBQUERY_IN_FROM_COMMAND.isEnabled()),
+
+        /**
          * Support for the {@code leading_zeros} named parameter.
          */
         TO_IP_LEADING_ZEROS,

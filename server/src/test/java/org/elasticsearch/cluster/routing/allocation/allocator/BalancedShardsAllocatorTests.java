@@ -1027,7 +1027,7 @@ public class BalancedShardsAllocatorTests extends ESAllocationTestCase {
                 RoutingNode node,
                 RoutingAllocation allocation
             ) {
-                return new Decision.Single(Decision.Type.NOT_PREFERRED, "test_decider", "Always NOT_PREFERRED");
+                return allocation.decision(Decision.NOT_PREFERRED, "test_decider", "Always NOT_PREFERRED");
             }
         })), clusterState.getRoutingNodes().mutableCopy(), clusterState, ClusterInfo.EMPTY, SnapshotShardSizeInfo.EMPTY, 0L);
 
@@ -1039,7 +1039,7 @@ public class BalancedShardsAllocatorTests extends ESAllocationTestCase {
                 "moved a NOT_PREFERRED allocation",
                 notPreferredLoggerName,
                 Level.DEBUG,
-                "Moving shard [*] to [*] from a NOT_PREFERRED allocation, explanation is [Always NOT_PREFERRED]"
+                "Moving shard [*] to [*] from a NOT_PREFERRED allocation: [NOT_PREFERRED(Always NOT_PREFERRED)]"
             )
         );
     }

@@ -33,7 +33,6 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -45,11 +44,14 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.AbstractMultiClustersTestCase;
+import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.NodeConfigurationSource;
+import org.elasticsearch.test.SecuritySettingsSource;
 import org.elasticsearch.transport.NoSuchRemoteClusterException;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
-import org.elasticsearch.xpack.security.LocalStateSecurity;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -69,6 +71,7 @@ import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.is;
 
+@ESTestCase.WithoutEntitlements
 public class QueryRewriteContextMultiClustersIT extends AbstractMultiClustersTestCase {
     private static final String REMOTE_CLUSTER_A = "cluster-a";
     private static final String REMOTE_CLUSTER_B = "cluster-b";
@@ -79,8 +82,6 @@ public class QueryRewriteContextMultiClustersIT extends AbstractMultiClustersTes
     private static final ConcurrentHashMap<String, AtomicInteger> INSTRUMENTED_ACTION_CALL_MAP = new ConcurrentHashMap<>();
 
     private final boolean securityEnabled;
-
-    private boolean clustersConfigured = false;
 
     @ParametersFactory
     public static Iterable<Object[]> parameters() throws Exception {
@@ -104,19 +105,12 @@ public class QueryRewriteContextMultiClustersIT extends AbstractMultiClustersTes
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins(String clusterAlias) {
-        return List.of(TestPlugin.class, LocalStateSecurity.class);
+        return List.of(TestPlugin.class);
     }
 
     @Override
-    protected Settings nodeSettings() {
-        Settings.Builder builder = Settings.builder().put(super.nodeSettings());
-        builder.put("xpack.security.enabled", false)
-            .put("xpack.security.authc.api_key.enabled", "true")
-            .put("xpack.security.http.ssl.enabled", "false")
-            .put("xpack.security.transport.ssl.enabled", "false")
-            .put("xpack.monitoring.templates.enabled", "false");
-
-        return builder.build();
+    protected NodeConfigurationSource nodeConfigurationSource() {
+        return securityEnabled ? new SecuritySettingsSource(false, createTempDir(), ESIntegTestCase.Scope.TEST) : null;
     }
 
     @Before
@@ -124,10 +118,7 @@ public class QueryRewriteContextMultiClustersIT extends AbstractMultiClustersTes
     public void setUp() throws Exception {
         super.setUp();
         INSTRUMENTED_ACTION_CALL_MAP.clear();
-        if (clustersConfigured == false) {
-            setupClusters();
-            clustersConfigured = true;
-        }
+        setupClusters();
     }
 
     public QueryRewriteContextMultiClustersIT(boolean securityEnabled) {

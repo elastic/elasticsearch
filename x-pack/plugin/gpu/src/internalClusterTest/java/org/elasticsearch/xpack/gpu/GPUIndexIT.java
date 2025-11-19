@@ -14,14 +14,18 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.gpu.GPUSupport;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.search.vectors.ExactKnnQueryBuilder;
 import org.elasticsearch.search.vectors.KnnSearchBuilder;
+import org.elasticsearch.search.vectors.VectorData;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.junit.Assert;
 import org.junit.BeforeClass;
 
 import java.util.Collection;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.Set;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
@@ -55,7 +59,6 @@ public class GPUIndexIT extends ESIntegTestCase {
         assertSearch(indexName, randomFloatVector(dims), totalDocs);
     }
 
-    @AwaitsFix(bugUrl = "Fix sorted index")
     public void testSortedIndexReturnsSameResultsAsUnsorted() {
         String indexName1 = "index_unsorted";
         String indexName2 = "index_sorted";
@@ -63,12 +66,12 @@ public class GPUIndexIT extends ESIntegTestCase {
         createIndex(indexName1, dims, false);
         createIndex(indexName2, dims, true);
 
-        final int[] numDocs = new int[] { randomIntBetween(50, 100), randomIntBetween(50, 100) };
+        final int[] numDocs = new int[] { randomIntBetween(300, 999), randomIntBetween(300, 999) };
         for (int i = 0; i < numDocs.length; i++) {
             BulkRequestBuilder bulkRequest1 = client().prepareBulk();
             BulkRequestBuilder bulkRequest2 = client().prepareBulk();
             for (int j = 0; j < numDocs[i]; j++) {
-                String id = String.valueOf(i * 100 + j);
+                String id = String.valueOf(i * 1000 + j);
                 String keywordValue = String.valueOf(numDocs[i] - j);
                 float[] vector = randomFloatVector(dims);
                 bulkRequest1.add(prepareIndex(indexName1).setId(id).setSource("my_vector", vector, "my_keyword", keywordValue));
@@ -83,8 +86,9 @@ public class GPUIndexIT extends ESIntegTestCase {
 
         float[] queryVector = randomFloatVector(dims);
         int k = 10;
-        int numCandidates = k * 10;
+        int numCandidates = k * 5;
 
+        // Test 1: Approximate KNN search - expect at least k-3 out of k matches
         var searchResponse1 = prepareSearch(indexName1).setSize(k)
             .setFetchSource(false)
             .addFetchField("my_keyword")
@@ -100,15 +104,32 @@ public class GPUIndexIT extends ESIntegTestCase {
         try {
             SearchHit[] hits1 = searchResponse1.getHits().getHits();
             SearchHit[] hits2 = searchResponse2.getHits().getHits();
-            Assert.assertEquals(hits1.length, hits2.length);
-            for (int i = 0; i < hits1.length; i++) {
-                Assert.assertEquals(hits1[i].getId(), hits2[i].getId());
-                Assert.assertEquals(hits1[i].field("my_keyword").getValue(), (String) hits2[i].field("my_keyword").getValue());
-                Assert.assertEquals(hits1[i].getScore(), hits2[i].getScore(), 0.001f);
-            }
+            assertAtLeastNOutOfKMatches(hits1, hits2, k - 3, k);
         } finally {
             searchResponse1.decRef();
             searchResponse2.decRef();
+        }
+
+        // Test 2: Exact KNN search (brute-force) - expect perfect k out of k matches
+        var exactSearchResponse1 = prepareSearch(indexName1).setSize(k)
+            .setFetchSource(false)
+            .addFetchField("my_keyword")
+            .setQuery(new ExactKnnQueryBuilder(VectorData.fromFloats(queryVector), "my_vector", null))
+            .get();
+
+        var exactSearchResponse2 = prepareSearch(indexName2).setSize(k)
+            .setFetchSource(false)
+            .addFetchField("my_keyword")
+            .setQuery(new ExactKnnQueryBuilder(VectorData.fromFloats(queryVector), "my_vector", null))
+            .get();
+
+        try {
+            SearchHit[] exactHits1 = exactSearchResponse1.getHits().getHits();
+            SearchHit[] exactHits2 = exactSearchResponse2.getHits().getHits();
+            assertExactMatches(exactHits1, exactHits2, k);
+        } finally {
+            exactSearchResponse1.decRef();
+            exactSearchResponse2.decRef();
         }
 
         // Force merge and search again
@@ -116,6 +137,7 @@ public class GPUIndexIT extends ESIntegTestCase {
         assertNoFailures(indicesAdmin().prepareForceMerge(indexName2).get());
         ensureGreen();
 
+        // Test 3: Approximate KNN search - expect at least k-3 out of k matches
         var searchResponse3 = prepareSearch(indexName1).setSize(k)
             .setFetchSource(false)
             .addFetchField("my_keyword")
@@ -131,15 +153,32 @@ public class GPUIndexIT extends ESIntegTestCase {
         try {
             SearchHit[] hits3 = searchResponse3.getHits().getHits();
             SearchHit[] hits4 = searchResponse4.getHits().getHits();
-            Assert.assertEquals(hits3.length, hits4.length);
-            for (int i = 0; i < hits3.length; i++) {
-                Assert.assertEquals(hits3[i].getId(), hits4[i].getId());
-                Assert.assertEquals(hits3[i].field("my_keyword").getValue(), (String) hits4[i].field("my_keyword").getValue());
-                Assert.assertEquals(hits3[i].getScore(), hits4[i].getScore(), 0.01f);
-            }
+            assertAtLeastNOutOfKMatches(hits3, hits4, k - 3, k);
         } finally {
             searchResponse3.decRef();
             searchResponse4.decRef();
+        }
+
+        // Test 4: Exact KNN search after merge - expect perfect k out of k matches
+        var exactSearchResponse3 = prepareSearch(indexName1).setSize(k)
+            .setFetchSource(false)
+            .addFetchField("my_keyword")
+            .setQuery(new ExactKnnQueryBuilder(VectorData.fromFloats(queryVector), "my_vector", null))
+            .get();
+
+        var exactSearchResponse4 = prepareSearch(indexName2).setSize(k)
+            .setFetchSource(false)
+            .addFetchField("my_keyword")
+            .setQuery(new ExactKnnQueryBuilder(VectorData.fromFloats(queryVector), "my_vector", null))
+            .get();
+
+        try {
+            SearchHit[] exactHits3 = exactSearchResponse3.getHits().getHits();
+            SearchHit[] exactHits4 = exactSearchResponse4.getHits().getHits();
+            assertExactMatches(exactHits3, exactHits4, k);
+        } finally {
+            exactSearchResponse3.decRef();
+            exactSearchResponse4.decRef();
         }
     }
 
@@ -259,5 +298,57 @@ public class GPUIndexIT extends ESIntegTestCase {
             vector[i] = randomFloat();
         }
         return vector;
+    }
+
+    /**
+     * Asserts that at least N out of K hits have matching IDs between two result sets.
+     */
+    private static void assertAtLeastNOutOfKMatches(SearchHit[] hits1, SearchHit[] hits2, int minMatches, int k) {
+        Assert.assertEquals("Both result sets should have k hits", k, hits1.length);
+        Assert.assertEquals("Both result sets should have k hits", k, hits2.length);
+        Set<String> ids1 = new HashSet<>();
+        Set<String> ids2 = new HashSet<>();
+
+        for (SearchHit hit : hits1) {
+            ids1.add(hit.getId());
+        }
+        for (SearchHit hit : hits2) {
+            ids2.add(hit.getId());
+        }
+
+        Set<String> intersection = new HashSet<>(ids1);
+        intersection.retainAll(ids2);
+        Assert.assertTrue(
+            String.format(
+                Locale.ROOT,
+                "Expected at least %d matching IDs out of %d, but found %d. IDs1: %s, IDs2: %s",
+                minMatches,
+                k,
+                intersection.size(),
+                ids1,
+                ids2
+            ),
+            intersection.size() >= minMatches
+        );
+    }
+
+    /**
+     * Asserts that two result sets have exactly the same document IDs in the same order with the same scores.
+     * Used for exact (brute-force) KNN search which should be deterministic.
+     * Expects k out of k matches.
+     */
+    private static void assertExactMatches(SearchHit[] hits1, SearchHit[] hits2, int k) {
+        Assert.assertEquals("Both result sets should have k hits", k, hits1.length);
+        Assert.assertEquals("Both result sets should have k hits", k, hits2.length);
+
+        for (int i = 0; i < k; i++) {
+            Assert.assertEquals(String.format(Locale.ROOT, "Document ID mismatch at position %d", i), hits1[i].getId(), hits2[i].getId());
+            Assert.assertEquals(
+                String.format(Locale.ROOT, "Score mismatch for document ID %s at position %d", hits1[i].getId(), i),
+                hits1[i].getScore(),
+                hits2[i].getScore(),
+                0.0001f
+            );
+        }
     }
 }

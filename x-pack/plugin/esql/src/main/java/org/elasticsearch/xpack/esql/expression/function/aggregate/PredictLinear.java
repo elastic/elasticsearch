@@ -76,6 +76,12 @@ public class PredictLinear extends TimeSeriesAggregateFunction implements ToAggr
         this.t = tsAndT.get(1);
     }
 
+    public PredictLinear(Source source, Expression field, Expression filter, Expression window, Expression ts, Expression t) {
+        super(source, field, filter, window, List.of(ts, t));
+        this.timestamp = ts;
+        this.t = t;
+    }
+
     private PredictLinear(org.elasticsearch.common.io.stream.StreamInput in) throws java.io.IOException {
         this(
             Source.readFrom((PlanStreamInput) in),

@@ -1,0 +1,5 @@
+pr: 138269
+summary: Fix `min_score` filtering for text similarity reranker
+area: Relevance
+type: bug
+issues: []

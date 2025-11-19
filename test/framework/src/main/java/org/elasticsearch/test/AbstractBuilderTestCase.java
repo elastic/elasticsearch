@@ -612,7 +612,7 @@ public abstract class AbstractBuilderTestCase extends ESTestCase {
                 indexNameMatcher(),
                 () -> true,
                 null,
-                Map.of(),
+                emptyMap(),
                 MapperMetrics.NOOP,
                 null
             );

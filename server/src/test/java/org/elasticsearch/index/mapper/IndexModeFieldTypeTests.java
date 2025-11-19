@@ -93,7 +93,6 @@ public class IndexModeFieldTypeTests extends ConstantFieldTypeTestCase {
             () -> true,
             null,
             Collections.emptyMap(),
-            null,
             MapperMetrics.NOOP,
             null
         );

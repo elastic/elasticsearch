@@ -12,20 +12,6 @@ The columns provide specific information about each connector:
 
 NOTE: All connectors are available as self-managed <<es-build-connector,self-managed connectors>>.
 
-This table provides an overview of our available connectors, their current support status, and the features they support.
-
-The columns provide specific information about each connector:
-
-* *Status*: Indicates whether the connector is in General Availability (GA), Technical Preview, Beta, or is an Example connector.
-* *Native (Elastic Cloud)*: Specifies the versions in which the connector is available as a managed service, if applicable.
-* *Advanced sync rules*: Specifies the versions in which advanced sync rules are supported, if applicable.
-* *Local binary extraction service*: Specifies the versions in which the local binary extraction service is supported, if applicable.
-* *Incremental syncs*: Specifies the version in which incremental syncs are supported, if applicable.
-* *Document level security*: Specifies the version in which document level security is supported, if applicable.
-* *Code*: Provides a link to the connector's source code in the https://github.com/elastic/connectors[`elastic/connectors` GitHub repository].
-
-NOTE: All connectors are available as self-managed <<es-build-connector,self-managed connectors>>.
-
 [options="header"]
 |====================================================================================================================================================================================================
 | Connector| Status| Native (Elastic Cloud) | <<es-sync-rules-advanced,Advanced sync rules>> | <<es-connectors-content-extraction-local,Local binary extraction service>> | <<es-connectors-sync-types-incremental,Incremental syncs>> | <<es-dls, Document level security>> | Source code

@@ -90,7 +90,7 @@ public class DateDiffTests extends AbstractConfigurationFunctionTestCase {
         ).forEach(suppliers::addAll);
 
         ///
-        /// DST timezones; they shouldn't change the result
+        /// DST timezones: Cases where the result doesn't change
         ///
         List.of("Z", "Europe/Paris", "America/Goose_Bay")
             .forEach(
@@ -107,6 +107,19 @@ public class DateDiffTests extends AbstractConfigurationFunctionTestCase {
                     makeSuppliers("2010-11-07T00:00:00-03:00", "2010-11-06T23:01:00-04:00", timezone, "days", 0)
                 ).forEach(suppliers::addAll)
             );
+
+        ///
+        /// DST timezones: Cases where the result changes
+        ///
+        List.of(
+            // America/Goose_Bay, midnight DST: -3 to -4 at 2010-11-07T00:01:00-03:00)
+            makeSuppliers("2010-11-06T00:00:00-03:00", "2010-11-06T23:01:00-04:00", "America/Goose_Bay", "days", 0),
+            makeSuppliers("2010-11-06T00:00:00-03:00", "2010-11-06T23:01:00-04:00", "Z", "days", 1),
+            makeSuppliers("2010-10-07T00:00:00-03:00", "2010-11-06T23:01:00-04:00", "America/Goose_Bay", "months", 0),
+            makeSuppliers("2010-10-07T00:00:00-03:00", "2010-11-06T23:01:00-04:00", "Z", "months", 1),
+            makeSuppliers("2009-10-07T00:00:00-03:00", "2010-11-06T23:01:00-04:00", "America/Goose_Bay", "months", 12),
+            makeSuppliers("2009-10-07T00:00:00-03:00", "2010-11-06T23:01:00-04:00", "Z", "months", 13)
+        ).forEach(suppliers::addAll);
 
         // Error cases
         suppliers.addAll(

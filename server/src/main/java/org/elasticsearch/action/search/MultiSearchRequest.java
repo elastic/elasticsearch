@@ -259,7 +259,7 @@ public class MultiSearchRequest extends LegacyActionRequest implements Composite
                             searchRequest.searchType(nodeStringValue(value, null));
                         } else if ("ccs_minimize_roundtrips".equals(entry.getKey()) || "ccsMinimizeRoundtrips".equals(entry.getKey())) {
                             searchRequest.setCcsMinimizeRoundtrips(crossProjectEnabled.orElse(false) || nodeBooleanValue(value));
-                            if (warnedMrtForCps == false) {
+                            if (crossProjectEnabled.orElse(false) && warnedMrtForCps == false) {
                                 HeaderWarning.addWarning(SearchParamsParser.MRT_SET_IN_CPS_WARN);
                                 warnedMrtForCps = true;
                             }

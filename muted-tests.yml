@@ -426,9 +426,9 @@ tests:
 - class: org.elasticsearch.xpack.inference.integration.AuthorizationTaskExecutorMultipleNodesIT
   method: testCancellingAuthorizationTaskRestartsIt
   issue: https://github.com/elastic/elasticsearch/issues/138099
-- class: org.elasticsearch.simdvec.ESVectorUtilTests
-  method: testSoarDistanceBulk
-  issue: https://github.com/elastic/elasticsearch/issues/138117
+- class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeIT
+  method: test
+  issue: https://github.com/elastic/elasticsearch/issues/137909
 - class: org.elasticsearch.search.basic.SearchWithRandomDisconnectsIT
   method: testSearchWithRandomDisconnects
   issue: https://github.com/elastic/elasticsearch/issues/138128
@@ -441,6 +441,12 @@ tests:
 - class: org.elasticsearch.xpack.inference.integration.CCMServiceIT
   method: testCreatesEisChatCompletionEndpoint
   issue: https://github.com/elastic/elasticsearch/issues/138206
+- class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
+  method: test {p0=search/95_sort_mixed_numeric_types/Simple sort}
+  issue: https://github.com/elastic/elasticsearch/issues/138297
+- class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeMetricsIT
+  method: test
+  issue: https://github.com/elastic/elasticsearch/issues/138311
 
 # Examples:
 #

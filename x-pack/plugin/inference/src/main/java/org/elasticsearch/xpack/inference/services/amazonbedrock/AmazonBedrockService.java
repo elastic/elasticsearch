@@ -134,15 +134,13 @@ public class AmazonBedrockService extends SenderService {
         doInfer(model, inputs, timeout, listener);
     }
 
-    private void doInfer(
-        Model model,
-        InferenceInputs inputs,
-        TimeValue timeout,
-        ActionListener<InferenceServiceResults> listener
-    ) {
+    private void doInfer(Model model, InferenceInputs inputs, TimeValue timeout, ActionListener<InferenceServiceResults> listener) {
         if (model instanceof AmazonBedrockChatCompletionModel amazonBedrockChatCompletionModel) {
-            var manager = new AmazonBedrockChatCompletionRequestManager(amazonBedrockChatCompletionModel,
-                this.getServiceComponents().threadPool(), timeout);
+            var manager = new AmazonBedrockChatCompletionRequestManager(
+                amazonBedrockChatCompletionModel,
+                this.getServiceComponents().threadPool(),
+                timeout
+            );
             var errorMessage = constructFailedToSendRequestMessage(AmazonBedrockService.CHAT_COMPLETION_ERROR_PREFIX);
             var action = new SenderExecutableAction(amazonBedrockSender, manager, errorMessage);
             action.execute(inputs, timeout, listener);

@@ -55,7 +55,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
-import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -343,7 +342,8 @@ public class SemanticQueryBuilder extends AbstractQueryBuilder<SemanticQueryBuil
         );
     }
 
-    private static class InferenceRewriteAsyncAction extends QueryRewriteAsyncAction {
+    private static class InferenceRewriteAsyncAction extends QueryRewriteAsyncAction<
+        Collection<Tuple<FullyQualifiedInferenceId, InferenceResults>>> {
         private final List<String> inferenceIds;
         private final String query;
 
@@ -368,7 +368,7 @@ public class SemanticQueryBuilder extends AbstractQueryBuilder<SemanticQueryBuil
         }
 
         @Override
-        public void execute(Client client, ActionListener<?> listener, List<Consumer<Object>> consumers) {
+        public void execute(Client client, ActionListener<Collection<Tuple<FullyQualifiedInferenceId, InferenceResults>>> listener) {
             List<InferenceAction.Request> inferenceRequests = inferenceIds.stream()
                 .map(
                     i -> new InferenceAction.Request(
@@ -388,10 +388,7 @@ public class SemanticQueryBuilder extends AbstractQueryBuilder<SemanticQueryBuil
 
             GroupedActionListener<Tuple<FullyQualifiedInferenceId, InferenceResults>> gal = new GroupedActionListener<>(
                 inferenceRequests.size(),
-                listener.delegateFailureAndWrap((l, inferenceResponse) -> {
-                    consumers.forEach(consumer -> consumer.accept(inferenceResponse));
-                    l.onResponse(null);
-                })
+                listener
             );
             for (InferenceAction.Request inferenceRequest : inferenceRequests) {
                 FullyQualifiedInferenceId fullyQualifiedInferenceId = new FullyQualifiedInferenceId(
@@ -427,19 +424,6 @@ public class SemanticQueryBuilder extends AbstractQueryBuilder<SemanticQueryBuil
         // - On the remote coordinating node, getting inference results for remote cluster inference IDs. In this case, we can guarantee
         // that only remote cluster inference results are required to handle the query.
         return newInferenceResultsMap != null ? copyGenerator.apply(newInferenceResultsMap) : currentQueryBuilder;
-    }
-
-    private static GroupedActionListener<Tuple<FullyQualifiedInferenceId, InferenceResults>> createGroupedActionListener(
-        SetOnce<Map<FullyQualifiedInferenceId, InferenceResults>> inferenceResultsMapSupplier,
-        int inferenceRequestCount,
-        ActionListener<?> listener
-    ) {
-        return new GroupedActionListener<>(inferenceRequestCount, listener.delegateFailureAndWrap((l, responses) -> {
-            Map<FullyQualifiedInferenceId, InferenceResults> inferenceResultsMap = new HashMap<>(responses.size());
-            responses.forEach(r -> inferenceResultsMap.put(r.v1(), r.v2()));
-            inferenceResultsMapSupplier.set(inferenceResultsMap);
-            l.onResponse(null);
-        }));
     }
 
     static Map<FullyQualifiedInferenceId, InferenceResults> convertFromBwcInferenceResultsMap(

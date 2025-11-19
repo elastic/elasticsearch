@@ -21,29 +21,58 @@ import java.util.function.Consumer;
  * {@link QueryRewriteContext#registerUniqueRewriteAction(QueryRewriteAsyncAction, Consumer)}.
  * This is useful when we want to remove duplicate and costly async actions that take part in query rewriting, such as generating
  * embeddings for semantic search.
+ * Since we need to determine whether an action has already been registered, we require implementors to provide implementations for
+ * {@link #hashCode()} and {@link #equals(Object)},
  */
-public abstract class QueryRewriteAsyncAction {
-
-    /**
-     * The execute method will:
-     * - Execute the action
-     * - Pass the action result to the consumers and execute the consumers
-     * - Call the listener
-     *
-     * @param client A rest client that can be used during execution.
-     * @param listener The listener that will be called after the action and consumers have been executed.
-     * @param consumers A list of consumer that expect the result of the action. It is the responsibility of the implementor to execute
-     *                  the consumers.
-     */
-    public abstract void execute(Client client, ActionListener<?> listener, List<Consumer<Object>> consumers);
-
+public abstract class QueryRewriteAsyncAction<T> {
     private final QueryRewriteContext queryRewriteContext;
 
     public QueryRewriteAsyncAction(QueryRewriteContext queryRewriteContext) {
         this.queryRewriteContext = queryRewriteContext;
     }
 
+    /**
+     * The execute method will:
+     * - Execute the action using {@link #execute(Client, ActionListener)}
+     * - Pass the action result to the consumers and execute the consumers
+     * - Call the final listener
+     *
+     * @param client A rest client that can be used during execution.
+     * @param listener The listener that will be called after the action and consumers have been executed.
+     * @param consumers A list of consumer that expect the result of the action.
+     */
+    public void execute(Client client, ActionListener<?> listener, List<Consumer<Object>> consumers) {
+        ActionListener<T> actionListener = new ActionListener<T>() {
+            @Override
+            public void onResponse(T result) {
+                consumers.forEach(consumer -> consumer.accept((Object) result));
+                listener.onResponse(null);
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                listener.onFailure(e);
+            }
+        };
+
+        execute(client, actionListener);
+    }
+
     protected QueryRewriteContext getQueryRewriteContext() {
         return queryRewriteContext;
     }
+
+    /**
+     * This method will execute the async action and pass its result to the listener.
+     *
+     * @param client A rest client that can be used during execution.
+     * @param listener The listener that will be called with the action result
+     */
+    protected abstract void execute(Client client, ActionListener<T> listener);
+
+    @Override
+    public abstract int hashCode();
+
+    @Override
+    public abstract boolean equals(Object obj);
 }

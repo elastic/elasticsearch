@@ -171,6 +171,10 @@ public class MultiSearchRequest extends LegacyActionRequest implements Composite
         String searchType,
         Boolean ccsMinimizeRoundtrips,
         boolean allowExplicitIndex,
+        /*
+         * Refer to RestSearchAction#parseSearchRequest()'s JavaDoc to understand why this is an Optional
+         * and what its values mean with respect to an endpoint's Cross Project Search status/support.
+         */
         Optional<Boolean> crossProjectEnabled
     ) throws IOException {
         readMultiLineFormat(
@@ -202,6 +206,10 @@ public class MultiSearchRequest extends LegacyActionRequest implements Composite
         Boolean ccsMinimizeRoundtrips,
         boolean allowExplicitIndex,
         TriFunction<String, Object, SearchRequest, Boolean> extraParamParser,
+        /*
+         * Refer to RestSearchAction#parseSearchRequest()'s JavaDoc to understand why this is an Optional
+         * and what its values mean with respect to an endpoint's Cross Project Search status/support.
+         */
         Optional<Boolean> crossProjectEnabled
     ) throws IOException {
         int from = 0;
@@ -226,7 +234,11 @@ public class MultiSearchRequest extends LegacyActionRequest implements Composite
             if (searchType != null) {
                 searchRequest.searchType(searchType);
             }
-            // When crossProjectEnabled is true, ccsMinimizeRoundtrips is guaranteed to be true.
+            /*
+             * This `ccsMinimizeRoundtrips` refers to the value specified as the query parameter and is extracted in
+             * `RestMultiSearchAction#parseMultiLineRequest()`. If in a Cross Project Search environment, it is
+             * guaranteed to be `true`. Otherwise, its value is whatever that the user is provided.
+             */
             if (ccsMinimizeRoundtrips != null) {
                 searchRequest.setCcsMinimizeRoundtrips(ccsMinimizeRoundtrips);
             }

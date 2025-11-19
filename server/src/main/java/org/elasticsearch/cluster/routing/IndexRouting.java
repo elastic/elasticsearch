@@ -142,7 +142,7 @@ public abstract class IndexRouting {
      */
     public abstract void collectSearchShards(String routing, IntConsumer consumer);
 
-    private static boolean shouldUseShardCountModRouting(final IndexVersion creationVersion) {
+    public static boolean shouldUseShardCountModRouting(final IndexVersion creationVersion) {
         return creationVersion.onOrAfter(IndexVersions.MOD_ROUTING_FUNCTION);
     }
 

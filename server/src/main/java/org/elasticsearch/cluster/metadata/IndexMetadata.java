@@ -3177,12 +3177,10 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
                 "the number of target shards (" + numTargetShards + ") must be greater than the shard id: " + shardId
             );
         }
-        // TODO: Simplify validation for new version
         final int routingFactor = getRoutingFactor(numSourceShards, numTargetShards);
         assertSplitMetadata(numSourceShards, numTargetShards, sourceIndexMetadata);
-        if (sourceIndexMetadata.getCreationVersion().onOrAfter(IndexVersions.MOD_ROUTING_FUNCTION)) {
+        if (IndexRouting.shouldUseShardCountModRouting(sourceIndexMetadata.getCreationVersion())) {
             return new ShardId(sourceIndexMetadata.getIndex(), Math.floorMod(shardId, sourceIndexMetadata.getNumberOfShards()));
-
         } else {
             return new ShardId(sourceIndexMetadata.getIndex(), shardId / routingFactor);
         }
@@ -3275,7 +3273,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         }
         int routingFactor = getRoutingFactor(sourceIndexMetadata.getNumberOfShards(), numTargetShards);
         Set<ShardId> shards = Sets.newHashSetWithExpectedSize(routingFactor);
-        if (sourceIndexMetadata.getCreationVersion().onOrAfter(IndexVersions.MOD_ROUTING_FUNCTION)) {
+        if (IndexRouting.shouldUseShardCountModRouting(sourceIndexMetadata.getCreationVersion())) {
             for (int i = shardId; i < sourceIndexMetadata.getNumberOfShards(); i += numTargetShards) {
                 assert Math.floorMod(i, numTargetShards) == shardId;
                 shards.add(new ShardId(sourceIndexMetadata.getIndex(), i));

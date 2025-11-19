@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.gpu;
 
 import org.apache.lucene.codecs.Codec;
 import org.apache.lucene.codecs.KnnVectorsFormat;
-import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.gpu.GPUSupport;
 import org.elasticsearch.index.codec.CodecService;
@@ -33,7 +32,7 @@ public class GPUDenseVectorFieldMapperTests extends DenseVectorFieldMapperTests 
 
     @BeforeClass
     public static void setup() {
-        LuceneTestCase.assumeTrue("cuvs not supported", GPUSupport.isSupported());
+        assumeTrue("cuvs not supported", GPUSupport.isSupported());
     }
 
     @Override

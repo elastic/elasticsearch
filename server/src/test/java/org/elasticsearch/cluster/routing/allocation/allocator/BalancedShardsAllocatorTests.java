@@ -1008,7 +1008,7 @@ public class BalancedShardsAllocatorTests extends ESAllocationTestCase {
     }
 
     @TestLogging(
-        value = "org.elasticsearch.cluster.routing.allocation.allocator.BalancedShardsAllocator.not-preferred:DEBUG",
+        value = "org.elasticsearch.cluster.routing.allocation.allocator.BalancedShardsAllocator.not_preferred:DEBUG",
         reason = "debug logging for test"
     )
     public void testNotPreferredMovementIsLoggedAtDebugLevel() {
@@ -1031,7 +1031,7 @@ public class BalancedShardsAllocatorTests extends ESAllocationTestCase {
             }
         })), clusterState.getRoutingNodes().mutableCopy(), clusterState, ClusterInfo.EMPTY, SnapshotShardSizeInfo.EMPTY, 0L);
 
-        final var notPreferredLoggerName = BalancedShardsAllocator.class.getName() + ".not-preferred";
+        final var notPreferredLoggerName = BalancedShardsAllocator.class.getName() + ".not_preferred";
         MockLog.assertThatLogger(
             () -> balancedShardsAllocator.allocate(allocation),
             notPreferredLoggerName,

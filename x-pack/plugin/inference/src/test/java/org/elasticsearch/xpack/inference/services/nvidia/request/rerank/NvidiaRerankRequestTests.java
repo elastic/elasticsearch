@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.inference.services.nvidia.request.rerank;
 
 import org.apache.http.HttpHeaders;
 import org.apache.http.client.methods.HttpPost;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentType;
@@ -20,27 +21,33 @@ import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.xpack.inference.external.http.Utils.entityAsMap;
+import static org.elasticsearch.xpack.inference.services.nvidia.NvidiaRequestFields.MODEL_FIELD_NAME;
+import static org.elasticsearch.xpack.inference.services.nvidia.NvidiaRequestFields.PASSAGES_FIELD_NAME;
+import static org.elasticsearch.xpack.inference.services.nvidia.NvidiaRequestFields.QUERY_FIELD_NAME;
+import static org.elasticsearch.xpack.inference.services.nvidia.NvidiaRequestFields.TEXT_FIELD_NAME;
 import static org.hamcrest.Matchers.aMapWithSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 
 public class NvidiaRerankRequestTests extends ESTestCase {
-    private static final String PASSAGES = "passages";
-    private static final String QUERY = "query";
-    private static final String MODEL_ID = "model";
 
-    private static final String AUTH_HEADER_VALUE = "Bearer secret";
+    private static final String URL_VALUE = "http://www.abc.com";
+    private static final String PASSAGE_VALUE = "some document";
+    private static final String QUERY_VALUE = "some query";
+    private static final String MODEL_VALUE = "some_model";
+    private static final String API_KEY_VALUE = "test_api_key";
+    private static final String URL_DEFAULT_VALUE = "https://ai.api.nvidia.com/v1/retrieval/nvidia/reranking";
 
     public void testCreateRequest_AllFieldsSet() throws IOException {
-        testCreateRequest(createRequest(MODEL_ID, "url"), "url");
+        testCreateRequest(createRequest(MODEL_VALUE, URL_VALUE), URL_VALUE);
     }
 
-    public void testCreateRequest_NoUrl() throws IOException {
-        testCreateRequest(createRequest(MODEL_ID, null), "https://ai.api.nvidia.com/v1/retrieval/nvidia/reranking");
+    public void testCreateRequest_DefaultUrl() throws IOException {
+        testCreateRequest(createRequest(MODEL_VALUE, null), URL_DEFAULT_VALUE);
     }
 
     public void testCreateRequest_NoModel_ThrowsException() {
-        expectThrows(NullPointerException.class, () -> createRequest(null, "url"));
+        expectThrows(NullPointerException.class, () -> createRequest(null, URL_VALUE));
     }
 
     private void testCreateRequest(NvidiaRerankRequest request, String expectedUrl) throws IOException {
@@ -51,18 +58,18 @@ public class NvidiaRerankRequestTests extends ESTestCase {
 
         assertThat(httpPost.getURI().toString(), Matchers.is(expectedUrl));
         assertThat(httpPost.getLastHeader(HttpHeaders.CONTENT_TYPE).getValue(), is(XContentType.JSON.mediaTypeWithoutParameters()));
-        assertThat(httpPost.getLastHeader(HttpHeaders.AUTHORIZATION).getValue(), is(AUTH_HEADER_VALUE));
+        assertThat(httpPost.getLastHeader(HttpHeaders.AUTHORIZATION).getValue(), is(Strings.format("Bearer %s", API_KEY_VALUE)));
 
         var requestMap = entityAsMap(httpPost.getEntity().getContent());
 
-        assertThat(requestMap.get(PASSAGES), is(List.of(Map.of("text", PASSAGES))));
-        assertThat(requestMap.get(QUERY), is(Map.of("text", QUERY)));
-        assertThat(requestMap.get("model"), is(MODEL_ID));
+        assertThat(requestMap.get(PASSAGES_FIELD_NAME), is(List.of(Map.of(TEXT_FIELD_NAME, PASSAGE_VALUE))));
+        assertThat(requestMap.get(QUERY_FIELD_NAME), is(Map.of(TEXT_FIELD_NAME, QUERY_VALUE)));
+        assertThat(requestMap.get(MODEL_FIELD_NAME), is(MODEL_VALUE));
         assertThat(requestMap, aMapWithSize(3));
     }
 
     private static NvidiaRerankRequest createRequest(@Nullable String modelId, @Nullable String url) {
-        var rerankModel = NvidiaRerankModelTests.createModel(url, "secret", modelId);
-        return new NvidiaRerankRequest(QUERY, List.of(PASSAGES), rerankModel);
+        var rerankModel = NvidiaRerankModelTests.createRerankModel(url, API_KEY_VALUE, modelId);
+        return new NvidiaRerankRequest(QUERY_VALUE, List.of(PASSAGE_VALUE), rerankModel);
     }
 }

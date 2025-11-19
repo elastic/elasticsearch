@@ -26,7 +26,8 @@ import java.util.Objects;
 
 import static org.elasticsearch.inference.InputType.invalidInputTypeMessage;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalEnum;
-import static org.elasticsearch.xpack.inference.services.cohere.CohereServiceFields.TRUNCATE;
+import static org.elasticsearch.xpack.inference.services.nvidia.NvidiaRequestFields.INPUT_TYPE_FIELD_NAME;
+import static org.elasticsearch.xpack.inference.services.nvidia.NvidiaRequestFields.TRUNCATE_FIELD_NAME;
 import static org.elasticsearch.xpack.inference.services.nvidia.NvidiaService.VALID_INPUT_TYPE_VALUES;
 
 /**
@@ -36,7 +37,6 @@ public class NvidiaEmbeddingsTaskSettings implements TaskSettings {
 
     public static final String NAME = "nvidia_embeddings_task_settings";
     public static final NvidiaEmbeddingsTaskSettings EMPTY_SETTINGS = new NvidiaEmbeddingsTaskSettings(null, null);
-    static final String INPUT_TYPE = "input_type";
 
     private final InputType inputType;
     private final CohereTruncation truncation;
@@ -56,7 +56,7 @@ public class NvidiaEmbeddingsTaskSettings implements TaskSettings {
 
         InputType inputType = extractOptionalEnum(
             map,
-            INPUT_TYPE,
+            INPUT_TYPE_FIELD_NAME,
             ModelConfigurations.TASK_SETTINGS,
             InputType::fromString,
             VALID_INPUT_TYPE_VALUES,
@@ -64,7 +64,7 @@ public class NvidiaEmbeddingsTaskSettings implements TaskSettings {
         );
         CohereTruncation truncation = extractOptionalEnum(
             map,
-            TRUNCATE,
+            TRUNCATE_FIELD_NAME,
             ModelConfigurations.TASK_SETTINGS,
             CohereTruncation::fromString,
             CohereTruncation.ALL,
@@ -145,10 +145,10 @@ public class NvidiaEmbeddingsTaskSettings implements TaskSettings {
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         if (inputType != null) {
-            builder.field(INPUT_TYPE, inputType);
+            builder.field(INPUT_TYPE_FIELD_NAME, inputType);
         }
         if (truncation != null) {
-            builder.field(TRUNCATE, truncation);
+            builder.field(TRUNCATE_FIELD_NAME, truncation);
         }
         builder.endObject();
         return builder;

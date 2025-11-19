@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.inference.services.nvidia.embeddings;
 
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.inference.ChunkingSettings;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.inference.TaskType;
@@ -16,33 +17,31 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.inference.services.cohere.CohereTruncation;
 import org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettings;
 
+import java.util.Map;
+
+import static org.elasticsearch.xpack.inference.services.nvidia.embeddings.NvidiaEmbeddingsTaskSettingsTests.buildTaskSettingsMap;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.sameInstance;
+
 public class NvidiaEmbeddingsModelTests extends ESTestCase {
-    public static NvidiaEmbeddingsModel createModel(String url, String apiKey, @Nullable String modelId) {
-        return createModel(url, apiKey, modelId, 1234);
-    }
 
-    public static NvidiaEmbeddingsModel createModel(String url, String apiKey, @Nullable String modelId, int maxInputTokens) {
-        return createModel(url, apiKey, modelId, maxInputTokens, 1536);
-    }
+    private static final String URL_VALUE = "http://www.abc.com";
+    private static final String API_KEY_VALUE = "test_api_key";
+    private static final String MODEL_VALUE = "some_model";
+    private static final InputType INPUT_TYPE_INITIAL_ELASTIC_VALUE = InputType.INGEST;
+    private static final CohereTruncation TRUNCATE_INITIAL_ELASTIC_VALUE = CohereTruncation.START;
+    private static final InputType INPUT_TYPE_OVERRIDDEN_ELASTIC_VALUE = InputType.SEARCH;
+    private static final CohereTruncation TRUNCATE_OVERRIDDEN_ELASTIC_VALUE = CohereTruncation.END;
 
-    public static NvidiaEmbeddingsModel createModel(
-        @Nullable String url,
-        String apiKey,
-        @Nullable String modelId,
-        @Nullable Integer maxInputTokens,
-        @Nullable Integer dimensions
-    ) {
-        return createModel(url, apiKey, modelId, maxInputTokens, dimensions, InputType.SEARCH, CohereTruncation.NONE);
-    }
-
-    public static NvidiaEmbeddingsModel createModel(
+    public static NvidiaEmbeddingsModel createEmbeddingsModel(
         @Nullable String url,
         String apiKey,
         @Nullable String modelId,
         @Nullable Integer maxInputTokens,
         @Nullable Integer dimensions,
         @Nullable InputType inputType,
-        @Nullable CohereTruncation truncation
+        @Nullable CohereTruncation truncation,
+        @Nullable ChunkingSettings chunkingSettings
     ) {
         return new NvidiaEmbeddingsModel(
             "inferenceEntityId",
@@ -50,9 +49,88 @@ public class NvidiaEmbeddingsModelTests extends ESTestCase {
             "service",
             new NvidiaEmbeddingsServiceSettings(modelId, url, dimensions, SimilarityMeasure.DOT_PRODUCT, maxInputTokens, null),
             new NvidiaEmbeddingsTaskSettings(inputType, truncation),
-            null,
+            chunkingSettings,
             new DefaultSecretSettings(new SecureString(apiKey.toCharArray()))
         );
+    }
+
+    public void testOverrideWith_SameParams_KeepsSameModel() {
+        testOverrideWith_KeepsSameModel(buildTaskSettingsMap(INPUT_TYPE_INITIAL_ELASTIC_VALUE, TRUNCATE_INITIAL_ELASTIC_VALUE));
+    }
+
+    public void testOverrideWith_EmptyParams_KeepsSameModel() {
+        testOverrideWith_KeepsSameModel(buildTaskSettingsMap(null, null));
+    }
+
+    private static void testOverrideWith_KeepsSameModel(Map<String, Object> taskSettings) {
+        var model = createEmbeddingsModel(
+            URL_VALUE,
+            API_KEY_VALUE,
+            MODEL_VALUE,
+            null,
+            null,
+            INPUT_TYPE_INITIAL_ELASTIC_VALUE,
+            TRUNCATE_INITIAL_ELASTIC_VALUE,
+            null
+        );
+        var overriddenModel = NvidiaEmbeddingsModel.of(model, taskSettings);
+        assertThat(overriddenModel, is(sameInstance(model)));
+    }
+
+    public void testOverride_OverridesAllTaskSettings() {
+        test_OverriddenParams(
+            buildTaskSettingsMap(INPUT_TYPE_OVERRIDDEN_ELASTIC_VALUE, TRUNCATE_OVERRIDDEN_ELASTIC_VALUE),
+            INPUT_TYPE_OVERRIDDEN_ELASTIC_VALUE,
+            TRUNCATE_OVERRIDDEN_ELASTIC_VALUE
+        );
+    }
+
+    public void testOverride_OverridesOnlyTruncation() {
+        test_OverriddenParams(
+            buildTaskSettingsMap(null, TRUNCATE_OVERRIDDEN_ELASTIC_VALUE),
+            INPUT_TYPE_INITIAL_ELASTIC_VALUE,
+            TRUNCATE_OVERRIDDEN_ELASTIC_VALUE
+        );
+    }
+
+    public void testOverride_OverridesOnlyTopN() {
+        test_OverriddenParams(
+            buildTaskSettingsMap(INPUT_TYPE_OVERRIDDEN_ELASTIC_VALUE, null),
+            INPUT_TYPE_OVERRIDDEN_ELASTIC_VALUE,
+            TRUNCATE_INITIAL_ELASTIC_VALUE
+        );
+    }
+
+    public void testOverride_OverridesNullValues() {
+        var model = createEmbeddingsModel(URL_VALUE, API_KEY_VALUE, MODEL_VALUE, null, null, null, null, null);
+        var overriddenModel = NvidiaEmbeddingsModel.of(
+            model,
+            buildTaskSettingsMap(INPUT_TYPE_OVERRIDDEN_ELASTIC_VALUE, TRUNCATE_OVERRIDDEN_ELASTIC_VALUE)
+        );
+
+        assertThat(overriddenModel.getTaskSettings().getInputType(), is(INPUT_TYPE_OVERRIDDEN_ELASTIC_VALUE));
+        assertThat(overriddenModel.getTaskSettings().getTruncation(), is(TRUNCATE_OVERRIDDEN_ELASTIC_VALUE));
+    }
+
+    private static void test_OverriddenParams(
+        Map<String, Object> taskSettings,
+        InputType expectedInputType,
+        CohereTruncation expectedTruncate
+    ) {
+        var model = createEmbeddingsModel(
+            URL_VALUE,
+            API_KEY_VALUE,
+            MODEL_VALUE,
+            null,
+            null,
+            INPUT_TYPE_INITIAL_ELASTIC_VALUE,
+            TRUNCATE_INITIAL_ELASTIC_VALUE,
+            null
+        );
+        var overriddenModel = NvidiaEmbeddingsModel.of(model, taskSettings);
+
+        assertThat(overriddenModel.getTaskSettings().getInputType(), is(expectedInputType));
+        assertThat(overriddenModel.getTaskSettings().getTruncation(), is(expectedTruncate));
     }
 
 }

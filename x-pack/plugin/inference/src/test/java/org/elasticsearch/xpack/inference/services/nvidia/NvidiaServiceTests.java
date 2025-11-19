@@ -12,6 +12,7 @@ import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -42,7 +43,7 @@ import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
-import org.elasticsearch.xpack.core.inference.chunking.ChunkingSettingsTests;
+import org.elasticsearch.xpack.core.inference.chunking.ChunkingSettingsBuilder;
 import org.elasticsearch.xpack.core.inference.results.ChunkedInferenceEmbedding;
 import org.elasticsearch.xpack.core.inference.results.DenseEmbeddingFloatResults;
 import org.elasticsearch.xpack.core.inference.results.UnifiedChatCompletionException;
@@ -53,13 +54,14 @@ import org.elasticsearch.xpack.inference.logging.ThrottlerManager;
 import org.elasticsearch.xpack.inference.services.AbstractInferenceServiceTests;
 import org.elasticsearch.xpack.inference.services.InferenceEventsAssertion;
 import org.elasticsearch.xpack.inference.services.SenderService;
-import org.elasticsearch.xpack.inference.services.ServiceFields;
 import org.elasticsearch.xpack.inference.services.nvidia.completion.NvidiaChatCompletionModel;
 import org.elasticsearch.xpack.inference.services.nvidia.completion.NvidiaChatCompletionModelTests;
+import org.elasticsearch.xpack.inference.services.nvidia.completion.NvidiaChatCompletionServiceSettingsTests;
 import org.elasticsearch.xpack.inference.services.nvidia.embeddings.NvidiaEmbeddingsModel;
 import org.elasticsearch.xpack.inference.services.nvidia.embeddings.NvidiaEmbeddingsModelTests;
 import org.elasticsearch.xpack.inference.services.nvidia.embeddings.NvidiaEmbeddingsServiceSettings;
 import org.elasticsearch.xpack.inference.services.nvidia.embeddings.NvidiaEmbeddingsTaskSettings;
+import org.elasticsearch.xpack.inference.services.nvidia.embeddings.NvidiaEmbeddingsTaskSettingsTests;
 import org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettings;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 import org.hamcrest.Matchers;
@@ -73,6 +75,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
@@ -84,23 +87,38 @@ import static org.elasticsearch.inference.TaskType.RERANK;
 import static org.elasticsearch.inference.TaskType.TEXT_EMBEDDING;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertToXContentEquivalent;
 import static org.elasticsearch.xcontent.ToXContent.EMPTY_PARAMS;
-import static org.elasticsearch.xpack.core.inference.chunking.ChunkingSettingsTests.createRandomChunkingSettingsMap;
+import static org.elasticsearch.xpack.core.inference.chunking.ChunkingSettingsTests.createRandomChunkingSettings;
 import static org.elasticsearch.xpack.inference.Utils.inferenceUtilityExecutors;
 import static org.elasticsearch.xpack.inference.Utils.mockClusterServiceEmpty;
 import static org.elasticsearch.xpack.inference.external.http.Utils.entityAsMap;
 import static org.elasticsearch.xpack.inference.external.http.Utils.getUrl;
 import static org.elasticsearch.xpack.inference.services.ServiceComponentsTests.createWithEmptySettings;
+import static org.elasticsearch.xpack.inference.services.nvidia.NvidiaRequestFields.INPUT_FIELD_NAME;
+import static org.elasticsearch.xpack.inference.services.nvidia.NvidiaRequestFields.MODEL_FIELD_NAME;
 import static org.elasticsearch.xpack.inference.services.nvidia.completion.NvidiaChatCompletionModelTests.createChatCompletionModel;
 import static org.elasticsearch.xpack.inference.services.nvidia.embeddings.NvidiaEmbeddingsServiceSettingsTests.buildServiceSettingsMap;
 import static org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettingsTests.getSecretSettingsMap;
-import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.isA;
+import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.Mockito.mock;
 
 public class NvidiaServiceTests extends AbstractInferenceServiceTests {
+    private static final String API_KEY_FIELD_NAME = "api_key";
+    private static final String URL_VALUE = "http://www.abc.com";
+    private static final String MODEL_VALUE = "some_model";
+    private static final String ROLE_VALUE = "user";
+    private static final String API_KEY_VALUE = "test_api_key";
+    private static final String INFERENCE_ID_VALUE = "id";
+    private static final int DIMENSIONS_VALUE = 1536;
+    private static final SimilarityMeasure SIMILARITY_MEASURE_VALUE = SimilarityMeasure.COSINE;
+    private static final int MAX_INPUT_TOKENS_VALUE = 512;
+    private static final String FIRST_PART_OF_INPUT_VALUE = "abc";
+    private static final String SECOND_PART_OF_INPUT_VALUE = "def";
+    private static final String CONTENT_VALUE = "hello";
+
     private final MockWebServer webServer = new MockWebServer();
     private ThreadPool threadPool;
     private HttpClientManager clientManager;
@@ -129,7 +147,7 @@ public class NvidiaServiceTests extends AbstractInferenceServiceTests {
 
                 @Override
                 protected Map<String, Object> createTaskSettingsMap() {
-                    return new HashMap<>();
+                    return NvidiaEmbeddingsTaskSettingsTests.buildTaskSettingsMap(null, null);
                 }
 
                 @Override
@@ -168,31 +186,35 @@ public class NvidiaServiceTests extends AbstractInferenceServiceTests {
         assertThat(model, instanceOf(NvidiaModel.class));
 
         var nvidiaModel = (NvidiaModel) model;
-        assertThat(nvidiaModel.getServiceSettings().modelId(), is("model_id"));
-        assertThat(nvidiaModel.getServiceSettings().uri().toString(), Matchers.is("http://www.abc.com"));
-
+        assertThat(nvidiaModel.getServiceSettings().modelId(), is(MODEL_VALUE));
+        assertThat(nvidiaModel.getServiceSettings().uri().toString(), is(URL_VALUE));
         if (modelIncludesSecrets) {
-            assertThat(nvidiaModel.getSecretSettings().apiKey(), Matchers.is(new SecureString("secret".toCharArray())));
+            assertThat(nvidiaModel.getSecretSettings().apiKey(), is(new SecureString(API_KEY_VALUE.toCharArray())));
         }
-
         return nvidiaModel;
     }
 
     private static void assertTextEmbeddingModel(Model model, boolean modelIncludesSecrets) {
         var nvidiaModel = assertCommonModelFields(model, modelIncludesSecrets);
-        assertThat(nvidiaModel.getTaskSettings(), Matchers.is(NvidiaEmbeddingsTaskSettings.EMPTY_SETTINGS));
-        assertThat(nvidiaModel.getTaskType(), Matchers.is(TaskType.TEXT_EMBEDDING));
+
+        assertThat(nvidiaModel.getTaskType(), is(TaskType.TEXT_EMBEDDING));
+        assertThat(model, instanceOf(NvidiaEmbeddingsModel.class));
+        var embeddingsModel = (NvidiaEmbeddingsModel) model;
+        assertThat(embeddingsModel.getTaskSettings(), is(NvidiaEmbeddingsTaskSettings.EMPTY_SETTINGS));
+        assertThat(embeddingsModel.getServiceSettings().dimensions(), is(DIMENSIONS_VALUE));
+        assertThat(embeddingsModel.getServiceSettings().similarity(), is(SIMILARITY_MEASURE_VALUE));
+        assertThat(embeddingsModel.getServiceSettings().maxInputTokens(), is(MAX_INPUT_TOKENS_VALUE));
     }
 
     private static void assertCompletionModel(Model model, boolean modelIncludesSecrets) {
         var nvidiaModel = assertCommonModelFields(model, modelIncludesSecrets);
-        assertThat(nvidiaModel.getTaskSettings(), Matchers.is(EmptyTaskSettings.INSTANCE));
+        assertThat(nvidiaModel.getTaskSettings(), is(EmptyTaskSettings.INSTANCE));
         assertThat(nvidiaModel.getTaskType(), Matchers.is(TaskType.COMPLETION));
     }
 
     private static void assertChatCompletionModel(Model model, boolean modelIncludesSecrets) {
         var nvidiaModel = assertCommonModelFields(model, modelIncludesSecrets);
-        assertThat(nvidiaModel.getTaskSettings(), Matchers.is(EmptyTaskSettings.INSTANCE));
+        assertThat(nvidiaModel.getTaskSettings(), is(EmptyTaskSettings.INSTANCE));
         assertThat(nvidiaModel.getTaskType(), Matchers.is(TaskType.CHAT_COMPLETION));
     }
 
@@ -202,48 +224,39 @@ public class NvidiaServiceTests extends AbstractInferenceServiceTests {
     }
 
     private static Map<String, Object> createServiceSettingsMap(TaskType taskType) {
-        Map<String, Object> settingsMap = new HashMap<>(
-            Map.of(ServiceFields.URL, "http://www.abc.com", ServiceFields.MODEL_ID, "model_id")
-        );
-
-        if (taskType == TaskType.TEXT_EMBEDDING) {
-            settingsMap.putAll(
-                Map.of(
-                    ServiceFields.SIMILARITY,
-                    SimilarityMeasure.COSINE.toString(),
-                    ServiceFields.DIMENSIONS,
-                    1536,
-                    ServiceFields.MAX_INPUT_TOKENS,
-                    512
-                )
+        if (Objects.requireNonNull(taskType) == TEXT_EMBEDDING) {
+            return buildServiceSettingsMap(
+                MODEL_VALUE,
+                URL_VALUE,
+                SIMILARITY_MEASURE_VALUE.toString(),
+                DIMENSIONS_VALUE,
+                MAX_INPUT_TOKENS_VALUE,
+                null
             );
         }
-
-        return settingsMap;
+        return NvidiaChatCompletionServiceSettingsTests.buildServiceSettingsMap(MODEL_VALUE, URL_VALUE, null);
     }
 
     private static Map<String, Object> createSecretSettingsMap() {
-        return new HashMap<>(Map.of("api_key", "secret"));
+        return new HashMap<>(Map.of(API_KEY_FIELD_NAME, API_KEY_VALUE));
     }
 
     private static NvidiaEmbeddingsModel createInternalEmbeddingModel(@Nullable SimilarityMeasure similarityMeasure) {
-        var inferenceId = "inference_id";
-
         return new NvidiaEmbeddingsModel(
-            inferenceId,
+            INFERENCE_ID_VALUE,
             TaskType.TEXT_EMBEDDING,
             NvidiaService.NAME,
             new NvidiaEmbeddingsServiceSettings(
-                "model_id",
-                "http://www.abc.com",
-                1536,
+                MODEL_VALUE,
+                URL_VALUE,
+                DIMENSIONS_VALUE,
                 similarityMeasure,
-                512,
+                MAX_INPUT_TOKENS_VALUE,
                 new RateLimitSettings(10_000)
             ),
             NvidiaEmbeddingsTaskSettings.EMPTY_SETTINGS,
-            ChunkingSettingsTests.createRandomChunkingSettings(),
-            new DefaultSecretSettings(new SecureString("secret".toCharArray()))
+            createRandomChunkingSettings(),
+            new DefaultSecretSettings(new SecureString(API_KEY_VALUE.toCharArray()))
         );
     }
 
@@ -262,23 +275,26 @@ public class NvidiaServiceTests extends AbstractInferenceServiceTests {
     }
 
     public void testParseRequestConfig_CreatesAnEmbeddingsModelWhenChunkingSettingsProvided() throws IOException {
+        var chunkingSettings = createRandomChunkingSettings();
         try (var service = createService()) {
             ActionListener<Model> modelVerificationActionListener = ActionListener.wrap(model -> {
                 assertThat(model, instanceOf(NvidiaEmbeddingsModel.class));
 
                 var embeddingsModel = (NvidiaEmbeddingsModel) model;
-                assertThat(embeddingsModel.getServiceSettings().uri().toString(), is("http://www.abc.com"));
+                assertThat(embeddingsModel.getServiceSettings().uri().toString(), is(URL_VALUE));
+                assertThat(embeddingsModel.getServiceSettings().modelId(), is(MODEL_VALUE));
                 assertThat(embeddingsModel.getConfigurations().getChunkingSettings(), instanceOf(ChunkingSettings.class));
-                assertThat(embeddingsModel.getSecretSettings().apiKey().toString(), is("secret"));
+                assertThat(embeddingsModel.getConfigurations().getChunkingSettings().asMap(), is(chunkingSettings.asMap()));
+                assertThat(embeddingsModel.getSecretSettings().apiKey().toString(), is(API_KEY_VALUE));
             }, e -> fail("parse request should not fail " + e.getMessage()));
 
             service.parseRequestConfig(
-                "id",
+                INFERENCE_ID_VALUE,
                 TaskType.TEXT_EMBEDDING,
                 getRequestConfigMap(
                     createServiceSettingsMap(TEXT_EMBEDDING),
-                    createRandomChunkingSettingsMap(),
-                    getSecretSettingsMap("secret")
+                    chunkingSettings.asMap(),
+                    getSecretSettingsMap(API_KEY_VALUE)
                 ),
                 modelVerificationActionListener
             );
@@ -291,70 +307,63 @@ public class NvidiaServiceTests extends AbstractInferenceServiceTests {
                 assertThat(model, instanceOf(NvidiaEmbeddingsModel.class));
 
                 var embeddingsModel = (NvidiaEmbeddingsModel) model;
-                assertThat(embeddingsModel.getServiceSettings().uri().toString(), is("http://www.abc.com"));
-                assertThat(embeddingsModel.getConfigurations().getChunkingSettings(), instanceOf(ChunkingSettings.class));
-                assertThat(embeddingsModel.getSecretSettings().apiKey().toString(), is("secret"));
+                assertThat(embeddingsModel.getServiceSettings().uri().toString(), is(URL_VALUE));
+                assertThat(embeddingsModel.getServiceSettings().modelId(), is(MODEL_VALUE));
+                assertThat(embeddingsModel.getConfigurations().getChunkingSettings(), is(ChunkingSettingsBuilder.DEFAULT_SETTINGS));
+                assertThat(embeddingsModel.getSecretSettings().apiKey().toString(), is(API_KEY_VALUE));
             }, e -> fail("parse request should not fail " + e.getMessage()));
 
             service.parseRequestConfig(
-                "id",
+                INFERENCE_ID_VALUE,
                 TaskType.TEXT_EMBEDDING,
-                getRequestConfigMap(createServiceSettingsMap(TEXT_EMBEDDING), null, getSecretSettingsMap("secret")),
+                getRequestConfigMap(createServiceSettingsMap(TEXT_EMBEDDING), getSecretSettingsMap(API_KEY_VALUE)),
                 modelVerificationActionListener
             );
         }
     }
 
-    public void testParseRequestConfig_WithoutModelId_ThrowsException() throws IOException {
-        var url = "url";
-        var secret = "secret";
-
+    public void testParseRequestConfig_NoModelId_ThrowsException() throws IOException {
         try (var service = createService()) {
-            ActionListener<Model> modelVerificationListener = ActionListener.wrap(m -> {
-                assertThat(m, instanceOf(NvidiaChatCompletionModel.class));
-
-                var chatCompletionModel = (NvidiaChatCompletionModel) m;
-
-                assertThat(chatCompletionModel.getServiceSettings().uri().toString(), is(url));
-                assertNull(chatCompletionModel.getServiceSettings().modelId());
-                assertThat(chatCompletionModel.getSecretSettings().apiKey().toString(), is("secret"));
-
-            }, exception -> {
-                assertThat(exception, instanceOf(ValidationException.class));
-                assertThat(
-                    exception.getMessage(),
-                    is("Validation Failed: 1: [service_settings] does not contain the required setting [model_id];")
-                );
-            });
+            ActionListener<Model> modelVerificationListener = ActionListener.wrap(
+                m -> fail("Expected exception, but got model: " + m),
+                exception -> {
+                    assertThat(exception, instanceOf(ValidationException.class));
+                    assertThat(
+                        exception.getMessage(),
+                        is("Validation Failed: 1: [service_settings] does not contain the required setting [model_id];")
+                    );
+                }
+            );
 
             service.parseRequestConfig(
-                "id",
+                INFERENCE_ID_VALUE,
                 TaskType.CHAT_COMPLETION,
-                getRequestConfigMap(buildServiceSettingsMap(null, url, null, null, null, null), getSecretSettingsMap(secret)),
+                getRequestConfigMap(buildServiceSettingsMap(null, URL_VALUE, null, null, null, null), getSecretSettingsMap(API_KEY_VALUE)),
                 modelVerificationListener
             );
         }
     }
 
-    public void testParseRequestConfig_WithoutUrl_Success() throws IOException {
-        var model = "model";
-        var secret = "secret";
-
+    public void testParseRequestConfig_NoUrl_Success() throws IOException {
         try (var service = createService()) {
             ActionListener<Model> modelVerificationListener = ActionListener.wrap(m -> {
                 assertThat(m, instanceOf(NvidiaChatCompletionModel.class));
 
                 var chatCompletionModel = (NvidiaChatCompletionModel) m;
 
-                assertThat(chatCompletionModel.getServiceSettings().modelId(), is(model));
-                assertThat(chatCompletionModel.getSecretSettings().apiKey().toString(), is("secret"));
+                assertThat(chatCompletionModel.getServiceSettings().uri(), is(nullValue()));
+                assertThat(chatCompletionModel.getServiceSettings().modelId(), is(MODEL_VALUE));
+                assertThat(chatCompletionModel.getSecretSettings().apiKey().toString(), is(API_KEY_VALUE));
 
             }, exception -> fail("parse request should not fail " + exception.getMessage()));
 
             service.parseRequestConfig(
-                "id",
+                INFERENCE_ID_VALUE,
                 TaskType.CHAT_COMPLETION,
-                getRequestConfigMap(buildServiceSettingsMap(model, null, null, null, null, null), getSecretSettingsMap(secret)),
+                getRequestConfigMap(
+                    buildServiceSettingsMap(MODEL_VALUE, null, null, null, null, null),
+                    getSecretSettingsMap(API_KEY_VALUE)
+                ),
                 modelVerificationListener
             );
         }
@@ -384,12 +393,19 @@ public class NvidiaServiceTests extends AbstractInferenceServiceTests {
 
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
         try (var service = new NvidiaService(senderFactory, createWithEmptySettings(threadPool), mockClusterServiceEmpty())) {
-            var model = createChatCompletionModel(getUrl(webServer), "secret", "model");
+            var model = createChatCompletionModel(getUrl(webServer), API_KEY_VALUE, MODEL_VALUE);
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
             service.unifiedCompletionInfer(
                 model,
                 UnifiedCompletionRequest.of(
-                    List.of(new UnifiedCompletionRequest.Message(new UnifiedCompletionRequest.ContentString("hello"), "user", null, null))
+                    List.of(
+                        new UnifiedCompletionRequest.Message(
+                            new UnifiedCompletionRequest.ContentString(CONTENT_VALUE),
+                            ROLE_VALUE,
+                            null,
+                            null
+                        )
+                    )
                 ),
                 InferenceAction.Request.DEFAULT_TIMEOUT,
                 listener
@@ -421,12 +437,19 @@ public class NvidiaServiceTests extends AbstractInferenceServiceTests {
 
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
         try (var service = new NvidiaService(senderFactory, createWithEmptySettings(threadPool), mockClusterServiceEmpty())) {
-            var model = createChatCompletionModel(getUrl(webServer), "secret", "model");
+            var model = createChatCompletionModel(getUrl(webServer), API_KEY_VALUE, MODEL_VALUE);
             var latch = new CountDownLatch(1);
             service.unifiedCompletionInfer(
                 model,
                 UnifiedCompletionRequest.of(
-                    List.of(new UnifiedCompletionRequest.Message(new UnifiedCompletionRequest.ContentString("hello"), "user", null, null))
+                    List.of(
+                        new UnifiedCompletionRequest.Message(
+                            new UnifiedCompletionRequest.ContentString(CONTENT_VALUE),
+                            ROLE_VALUE,
+                            null,
+                            null
+                        )
+                    )
                 ),
                 InferenceAction.Request.DEFAULT_TIMEOUT,
                 ActionListener.runAfter(ActionTestUtils.assertNoSuccessListener(e -> {
@@ -504,12 +527,19 @@ public class NvidiaServiceTests extends AbstractInferenceServiceTests {
     private void testStreamError(String expectedResponse) throws Exception {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
         try (var service = new NvidiaService(senderFactory, createWithEmptySettings(threadPool), mockClusterServiceEmpty())) {
-            var model = createChatCompletionModel(getUrl(webServer), "secret", "model");
+            var model = createChatCompletionModel(getUrl(webServer), API_KEY_VALUE, MODEL_VALUE);
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
             service.unifiedCompletionInfer(
                 model,
                 UnifiedCompletionRequest.of(
-                    List.of(new UnifiedCompletionRequest.Message(new UnifiedCompletionRequest.ContentString("hello"), "user", null, null))
+                    List.of(
+                        new UnifiedCompletionRequest.Message(
+                            new UnifiedCompletionRequest.ContentString(CONTENT_VALUE),
+                            ROLE_VALUE,
+                            null,
+                            null
+                        )
+                    )
                 ),
                 InferenceAction.Request.DEFAULT_TIMEOUT,
                 listener
@@ -542,8 +572,8 @@ public class NvidiaServiceTests extends AbstractInferenceServiceTests {
         webServer.enqueue(new MockResponse().setResponseCode(404).setBody(responseJson));
 
         var e = assertThrows(ElasticsearchStatusException.class, this::streamCompletion);
-        assertThat(e.status(), equalTo(RestStatus.NOT_FOUND));
-        assertThat(e.getMessage(), equalTo(String.format(Locale.ROOT, """
+        assertThat(e.status(), is(RestStatus.NOT_FOUND));
+        assertThat(e.getMessage(), is(Strings.format("""
             Resource not found at [%s] for request from inference entity id [inferenceEntityId] status [404]. \
             Error message: [404 page not found]""", getUrl(webServer))));
     }
@@ -583,7 +613,7 @@ public class NvidiaServiceTests extends AbstractInferenceServiceTests {
 
     public void testParseRequestConfig_ThrowsWhenAnExtraKeyExistsInEmbeddingSecretSettingsMap() throws IOException {
         try (var service = createService()) {
-            var secretSettings = getSecretSettingsMap("secret");
+            var secretSettings = getSecretSettingsMap(API_KEY_VALUE);
             secretSettings.put("extra_key", "value");
 
             var config = getRequestConfigMap(getEmbeddingsServiceSettingsMap(), secretSettings);
@@ -599,18 +629,36 @@ public class NvidiaServiceTests extends AbstractInferenceServiceTests {
                 }
             );
 
-            service.parseRequestConfig("id", TaskType.TEXT_EMBEDDING, config, modelVerificationListener);
+            service.parseRequestConfig(INFERENCE_ID_VALUE, TaskType.TEXT_EMBEDDING, config, modelVerificationListener);
         }
     }
 
     public void testChunkedInfer_ChunkingSettingsNotSet() throws IOException {
-        var model = NvidiaEmbeddingsModelTests.createModel(getUrl(webServer), "api_key", "model");
+        var model = NvidiaEmbeddingsModelTests.createEmbeddingsModel(
+            getUrl(webServer),
+            API_KEY_VALUE,
+            MODEL_VALUE,
+            1234,
+            DIMENSIONS_VALUE,
+            null,
+            null,
+            null
+        );
 
         testChunkedInfer(model);
     }
 
     public void testChunkedInfer_ChunkingSettingsSet() throws IOException {
-        var model = NvidiaEmbeddingsModelTests.createModel(getUrl(webServer), "api_key", "model");
+        var model = NvidiaEmbeddingsModelTests.createEmbeddingsModel(
+            getUrl(webServer),
+            API_KEY_VALUE,
+            MODEL_VALUE,
+            1234,
+            DIMENSIONS_VALUE,
+            null,
+            null,
+            createRandomChunkingSettings()
+        );
 
         testChunkedInfer(model);
     }
@@ -655,9 +703,9 @@ public class NvidiaServiceTests extends AbstractInferenceServiceTests {
             service.chunkedInfer(
                 model,
                 null,
-                List.of(new ChunkInferenceInput("abc"), new ChunkInferenceInput("def")),
+                List.of(new ChunkInferenceInput(FIRST_PART_OF_INPUT_VALUE), new ChunkInferenceInput(SECOND_PART_OF_INPUT_VALUE)),
                 new HashMap<>(),
-                InputType.INTERNAL_INGEST,
+                null,
                 InferenceAction.Request.DEFAULT_TIMEOUT,
                 listener
             );
@@ -693,19 +741,20 @@ public class NvidiaServiceTests extends AbstractInferenceServiceTests {
             }
 
             assertThat(webServer.requests(), hasSize(1));
-            assertNull(webServer.requests().getFirst().getUri().getQuery());
+            assertThat(webServer.requests().getFirst().getUri().getQuery(), is(nullValue()));
             assertThat(
                 webServer.requests().getFirst().getHeader(HttpHeaders.CONTENT_TYPE),
-                equalTo(XContentType.JSON.mediaTypeWithoutParameters())
+                is(XContentType.JSON.mediaTypeWithoutParameters())
             );
-            assertThat(webServer.requests().getFirst().getHeader(HttpHeaders.AUTHORIZATION), equalTo("Bearer api_key"));
+            assertThat(
+                webServer.requests().getFirst().getHeader(HttpHeaders.AUTHORIZATION),
+                is(Strings.format("Bearer %s", API_KEY_VALUE))
+            );
 
             var requestMap = entityAsMap(webServer.requests().getFirst().getBody());
-            assertThat(requestMap.size(), Matchers.is(4));
-            assertThat(requestMap.get("input"), Matchers.is(List.of("abc", "def")));
-            assertThat(requestMap.get("model"), Matchers.is("model"));
-            assertThat(requestMap.get("input_type"), Matchers.is("passage"));
-            assertThat(requestMap.get("truncate"), Matchers.is("none"));
+            assertThat(requestMap.size(), Matchers.is(2));
+            assertThat(requestMap.get(INPUT_FIELD_NAME), is(List.of(FIRST_PART_OF_INPUT_VALUE, SECOND_PART_OF_INPUT_VALUE)));
+            assertThat(requestMap.get(MODEL_FIELD_NAME), is(MODEL_VALUE));
         }
     }
 
@@ -775,14 +824,14 @@ public class NvidiaServiceTests extends AbstractInferenceServiceTests {
     private InferenceEventsAssertion streamCompletion() throws Exception {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
         try (var service = new NvidiaService(senderFactory, createWithEmptySettings(threadPool), mockClusterServiceEmpty())) {
-            var model = NvidiaChatCompletionModelTests.createCompletionModel(getUrl(webServer), "secret", "model");
+            var model = NvidiaChatCompletionModelTests.createCompletionModel(getUrl(webServer), API_KEY_VALUE, MODEL_VALUE);
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
             service.infer(
                 model,
                 null,
                 null,
                 null,
-                List.of("abc"),
+                List.of(FIRST_PART_OF_INPUT_VALUE),
                 true,
                 new HashMap<>(),
                 InputType.INGEST,
@@ -818,7 +867,7 @@ public class NvidiaServiceTests extends AbstractInferenceServiceTests {
     }
 
     private static Map<String, Object> getEmbeddingsServiceSettingsMap() {
-        return buildServiceSettingsMap("id", "url", SimilarityMeasure.COSINE.toString(), null, null, null);
+        return buildServiceSettingsMap(INFERENCE_ID_VALUE, URL_VALUE, SIMILARITY_MEASURE_VALUE.toString(), null, null, null);
     }
 
     @Override
@@ -828,7 +877,6 @@ public class NvidiaServiceTests extends AbstractInferenceServiceTests {
 
     @Override
     protected void assertRerankerWindowSize(RerankingInferenceService rerankingInferenceService) {
-        assertThat(rerankingInferenceService.rerankerWindowSize("any model"), is(300));
+        assertThat(rerankingInferenceService.rerankerWindowSize(MODEL_VALUE), is(300));
     }
-
 }

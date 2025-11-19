@@ -13,22 +13,29 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
-import org.elasticsearch.xpack.inference.services.cohere.CohereServiceFields;
 import org.elasticsearch.xpack.inference.services.cohere.CohereTruncation;
 import org.hamcrest.MatcherAssert;
 
 import java.io.IOException;
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
 
+import static org.elasticsearch.xpack.inference.services.nvidia.NvidiaRequestFields.INPUT_TYPE_FIELD_NAME;
+import static org.elasticsearch.xpack.inference.services.nvidia.NvidiaRequestFields.TRUNCATE_FIELD_NAME;
 import static org.elasticsearch.xpack.inference.services.nvidia.NvidiaService.VALID_INPUT_TYPE_VALUES;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.sameInstance;
 
 public class NvidiaEmbeddingsTaskSettingsTests extends AbstractWireSerializingTestCase<NvidiaEmbeddingsTaskSettings> {
+    private static final InputType INPUT_TYPE_INITIAL_VALUE = InputType.INGEST;
+    private static final CohereTruncation TRUNCATE_INITIAL_VALUE = CohereTruncation.START;
+    private static final InputType INPUT_TYPE_OVERRIDDEN_VALUE = InputType.SEARCH;
+    private static final CohereTruncation TRUNCATE_OVERRIDDEN_VALUE = CohereTruncation.END;
+    private static final InputType INPUT_TYPE_INVALID_VALUE = InputType.UNSPECIFIED;
+    private static final String TRUNCATE_INVALID_VALUE = "invalid_truncation_value";
 
     public static NvidiaEmbeddingsTaskSettings createRandom() {
         var inputType = randomBoolean() ? randomFrom(VALID_INPUT_TYPE_VALUES) : null;
@@ -38,17 +45,17 @@ public class NvidiaEmbeddingsTaskSettingsTests extends AbstractWireSerializingTe
     }
 
     public void testIsEmpty_AllFieldsPresent_False() {
-        var taskSettings = new NvidiaEmbeddingsTaskSettings(InputType.INGEST, CohereTruncation.START);
+        var taskSettings = new NvidiaEmbeddingsTaskSettings(INPUT_TYPE_INITIAL_VALUE, TRUNCATE_INITIAL_VALUE);
         assertThat(taskSettings.isEmpty(), is(false));
     }
 
     public void testIsEmpty_NoInputType_False() {
-        var taskSettings = new NvidiaEmbeddingsTaskSettings(null, CohereTruncation.START);
+        var taskSettings = new NvidiaEmbeddingsTaskSettings(null, TRUNCATE_INITIAL_VALUE);
         assertThat(taskSettings.isEmpty(), is(false));
     }
 
     public void testIsEmpty_NoTruncation_False() {
-        var taskSettings = new NvidiaEmbeddingsTaskSettings(InputType.INGEST, null);
+        var taskSettings = new NvidiaEmbeddingsTaskSettings(INPUT_TYPE_INITIAL_VALUE, null);
         assertThat(taskSettings.isEmpty(), is(false));
     }
 
@@ -57,32 +64,53 @@ public class NvidiaEmbeddingsTaskSettingsTests extends AbstractWireSerializingTe
         assertThat(taskSettings.isEmpty(), is(true));
     }
 
-    public void testUpdatedTaskSettings_NotUpdated_UseInitialSettings() {
-        var initialSettings = new NvidiaEmbeddingsTaskSettings(InputType.INGEST, CohereTruncation.START);
+    public void testUpdatedTaskSettings_EmptySettings_UseInitialSettings() {
+        var initialSettings = new NvidiaEmbeddingsTaskSettings(INPUT_TYPE_INITIAL_VALUE, TRUNCATE_INITIAL_VALUE);
         NvidiaEmbeddingsTaskSettings updatedSettings = (NvidiaEmbeddingsTaskSettings) initialSettings.updatedTaskSettings(
-            Collections.unmodifiableMap(new HashMap<>())
+            buildTaskSettingsMap(null, null)
         );
-        assertThat(updatedSettings.getInputType(), is(initialSettings.getInputType()));
-        assertThat(updatedSettings.getTruncation(), is(initialSettings.getTruncation()));
+        assertThat(updatedSettings, is(sameInstance(initialSettings)));
     }
 
-    public void testUpdatedTaskSettings_Updated_UseNewSettings() {
-        var initialSettings = new NvidiaEmbeddingsTaskSettings(InputType.SEARCH, CohereTruncation.END);
-        var newSettings = new NvidiaEmbeddingsTaskSettings(InputType.INGEST, CohereTruncation.START);
-        Map<String, Object> newSettingsMap = new HashMap<>();
-        newSettingsMap.put(NvidiaEmbeddingsTaskSettings.INPUT_TYPE, newSettings.getInputType().toString());
-        newSettingsMap.put(CohereServiceFields.TRUNCATE, newSettings.getTruncation().toString());
+    public void testUpdatedTaskSettings_SameSettings_UseInitialSettings() {
+        var initialSettings = new NvidiaEmbeddingsTaskSettings(INPUT_TYPE_INITIAL_VALUE, TRUNCATE_INITIAL_VALUE);
         NvidiaEmbeddingsTaskSettings updatedSettings = (NvidiaEmbeddingsTaskSettings) initialSettings.updatedTaskSettings(
-            Collections.unmodifiableMap(newSettingsMap)
+            buildTaskSettingsMap(INPUT_TYPE_INITIAL_VALUE, TRUNCATE_INITIAL_VALUE)
         );
-        assertThat(updatedSettings.getInputType(), is(newSettings.getInputType()));
-        assertThat(updatedSettings.getTruncation(), is(newSettings.getTruncation()));
+        assertThat(updatedSettings, is(sameInstance(initialSettings)));
+    }
+
+    public void testUpdatedTaskSettings_UpdatedSettings_UseNewSettings() {
+        var initialSettings = new NvidiaEmbeddingsTaskSettings(INPUT_TYPE_INITIAL_VALUE, TRUNCATE_INITIAL_VALUE);
+        NvidiaEmbeddingsTaskSettings updatedSettings = (NvidiaEmbeddingsTaskSettings) initialSettings.updatedTaskSettings(
+            buildTaskSettingsMap(INPUT_TYPE_OVERRIDDEN_VALUE, TRUNCATE_OVERRIDDEN_VALUE)
+        );
+        assertThat(updatedSettings.getInputType(), is(INPUT_TYPE_OVERRIDDEN_VALUE));
+        assertThat(updatedSettings.getTruncation(), is(TRUNCATE_OVERRIDDEN_VALUE));
+    }
+
+    public void testUpdatedTaskSettings_OnlyInputType_MergeSettings() {
+        var initialSettings = new NvidiaEmbeddingsTaskSettings(INPUT_TYPE_INITIAL_VALUE, TRUNCATE_INITIAL_VALUE);
+        NvidiaEmbeddingsTaskSettings updatedSettings = (NvidiaEmbeddingsTaskSettings) initialSettings.updatedTaskSettings(
+            buildTaskSettingsMap(INPUT_TYPE_OVERRIDDEN_VALUE, null)
+        );
+        assertThat(updatedSettings.getInputType(), is(INPUT_TYPE_OVERRIDDEN_VALUE));
+        assertThat(updatedSettings.getTruncation(), is(TRUNCATE_INITIAL_VALUE));
+    }
+
+    public void testUpdatedTaskSettings_OnlyTruncation_MergeSettings() {
+        var initialSettings = new NvidiaEmbeddingsTaskSettings(INPUT_TYPE_INITIAL_VALUE, TRUNCATE_INITIAL_VALUE);
+        NvidiaEmbeddingsTaskSettings updatedSettings = (NvidiaEmbeddingsTaskSettings) initialSettings.updatedTaskSettings(
+            buildTaskSettingsMap(null, TRUNCATE_OVERRIDDEN_VALUE)
+        );
+        assertThat(updatedSettings.getInputType(), is(INPUT_TYPE_INITIAL_VALUE));
+        assertThat(updatedSettings.getTruncation(), is(TRUNCATE_OVERRIDDEN_VALUE));
     }
 
     public void testFromMap_CreatesEmptySettings_WhenAllFieldsAreNull() {
         MatcherAssert.assertThat(
-            NvidiaEmbeddingsTaskSettings.fromMap(new HashMap<>(Map.of())),
-            is(NvidiaEmbeddingsTaskSettings.EMPTY_SETTINGS)
+            NvidiaEmbeddingsTaskSettings.fromMap(buildTaskSettingsMap(null, null)),
+            is(sameInstance(NvidiaEmbeddingsTaskSettings.EMPTY_SETTINGS))
         );
     }
 
@@ -92,31 +120,23 @@ public class NvidiaEmbeddingsTaskSettingsTests extends AbstractWireSerializingTe
 
     public void testFromMap_CreatesSettings_WhenAllFieldsOfSettingsArePresent() {
         MatcherAssert.assertThat(
-            NvidiaEmbeddingsTaskSettings.fromMap(
-                new HashMap<>(
-                    Map.of(
-                        NvidiaEmbeddingsTaskSettings.INPUT_TYPE,
-                        InputType.INGEST.toString(),
-                        CohereServiceFields.TRUNCATE,
-                        CohereTruncation.START.toString()
-                    )
-                )
-            ),
-            is(new NvidiaEmbeddingsTaskSettings(InputType.INGEST, CohereTruncation.START))
+            NvidiaEmbeddingsTaskSettings.fromMap(buildTaskSettingsMap(INPUT_TYPE_INITIAL_VALUE, TRUNCATE_INITIAL_VALUE)),
+            is(new NvidiaEmbeddingsTaskSettings(INPUT_TYPE_INITIAL_VALUE, TRUNCATE_INITIAL_VALUE))
         );
     }
 
     public void testFromMap_ReturnsFailure_WhenInputTypeIsInvalid() {
         var exception = expectThrows(
             ValidationException.class,
-            () -> NvidiaEmbeddingsTaskSettings.fromMap(new HashMap<>(Map.of(NvidiaEmbeddingsTaskSettings.INPUT_TYPE, "abc")))
+            () -> NvidiaEmbeddingsTaskSettings.fromMap(buildTaskSettingsMap(INPUT_TYPE_INVALID_VALUE, null))
         );
 
         MatcherAssert.assertThat(
             exception.getMessage(),
             is(
                 Strings.format(
-                    "Validation Failed: 1: [task_settings] Invalid value [abc] received. [input_type] must be one of [%s];",
+                    "Validation Failed: 1: [task_settings] Invalid value [%s] received. [input_type] must be one of [%s];",
+                    INPUT_TYPE_INVALID_VALUE,
                     getValidValuesSortedAndCombined(VALID_INPUT_TYPE_VALUES)
                 )
             )
@@ -126,34 +146,16 @@ public class NvidiaEmbeddingsTaskSettingsTests extends AbstractWireSerializingTe
     public void testFromMap_ReturnsFailure_WhenTruncationIsInvalid() {
         var exception = expectThrows(
             ValidationException.class,
-            () -> NvidiaEmbeddingsTaskSettings.fromMap(new HashMap<>(Map.of(CohereServiceFields.TRUNCATE, "abc")))
+            () -> NvidiaEmbeddingsTaskSettings.fromMap(new HashMap<>(Map.of(TRUNCATE_FIELD_NAME, TRUNCATE_INVALID_VALUE)))
         );
 
         MatcherAssert.assertThat(
             exception.getMessage(),
             is(
                 Strings.format(
-                    "Validation Failed: 1: [task_settings] Invalid value [abc] received. [truncate] must be one of [%s];",
+                    "Validation Failed: 1: [task_settings] Invalid value [%s] received. [truncate] must be one of [%s];",
+                    TRUNCATE_INVALID_VALUE,
                     getValidValuesSortedAndCombined(CohereTruncation.ALL)
-                )
-            )
-        );
-    }
-
-    public void testFromMap_ReturnsFailure_WhenInputTypeIsUnspecified() {
-        var exception = expectThrows(
-            ValidationException.class,
-            () -> NvidiaEmbeddingsTaskSettings.fromMap(
-                new HashMap<>(Map.of(NvidiaEmbeddingsTaskSettings.INPUT_TYPE, InputType.UNSPECIFIED.toString()))
-            )
-        );
-
-        MatcherAssert.assertThat(
-            exception.getMessage(),
-            is(
-                Strings.format(
-                    "Validation Failed: 1: [task_settings] Invalid value [unspecified] received. [input_type] must be one of [%s];",
-                    getValidValuesSortedAndCombined(VALID_INPUT_TYPE_VALUES)
                 )
             )
         );
@@ -167,7 +169,7 @@ public class NvidiaEmbeddingsTaskSettingsTests extends AbstractWireSerializingTe
     }
 
     public void testXContent_ThrowsAssertionFailure_WhenInputTypeIsUnspecified() {
-        var thrownException = expectThrows(AssertionError.class, () -> new NvidiaEmbeddingsTaskSettings(InputType.UNSPECIFIED, null));
+        var thrownException = expectThrows(AssertionError.class, () -> new NvidiaEmbeddingsTaskSettings(INPUT_TYPE_INVALID_VALUE, null));
         MatcherAssert.assertThat(thrownException.getMessage(), is("received invalid input type value [unspecified]"));
     }
 
@@ -209,14 +211,20 @@ public class NvidiaEmbeddingsTaskSettingsTests extends AbstractWireSerializingTe
         return new NvidiaEmbeddingsTaskSettings(inputType, truncation);
     }
 
+    /**
+     * Helper method to build a task settings map for testing.
+     * @param inputType the input type to include in the map
+     * @param truncation the truncation to include in the map
+     * @return a map representing the task settings
+     */
     public static Map<String, Object> buildTaskSettingsMap(@Nullable InputType inputType, @Nullable CohereTruncation truncation) {
         var map = new HashMap<String, Object>();
 
         if (inputType != null) {
-            map.put(NvidiaEmbeddingsTaskSettings.INPUT_TYPE, inputType.toString());
+            map.put(INPUT_TYPE_FIELD_NAME, inputType.toString());
         }
         if (truncation != null) {
-            map.put(CohereServiceFields.TRUNCATE, truncation.toString());
+            map.put(TRUNCATE_FIELD_NAME, truncation.toString());
         }
 
         return map;

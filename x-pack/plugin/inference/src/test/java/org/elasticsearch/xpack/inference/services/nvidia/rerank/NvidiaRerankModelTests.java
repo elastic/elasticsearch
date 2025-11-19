@@ -9,19 +9,49 @@ package org.elasticsearch.xpack.inference.services.nvidia.rerank;
 
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettings;
 
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.nullValue;
+
 public class NvidiaRerankModelTests extends ESTestCase {
 
-    public static NvidiaRerankModel createModel(@Nullable String url, String apiKey, @Nullable String modelId) {
+    private static final String MODEL_VALUE = "some_model";
+    private static final String API_KEY_VALUE = "test_api_key";
+    private static final String URL_VALUE = "http://www.abc.com";
+    private static final String INVALID_URL_VALUE = "^^^";
+
+    public static NvidiaRerankModel createRerankModel(@Nullable String url, String apiKey, @Nullable String modelId) {
         return new NvidiaRerankModel(
             "inferenceEntityId",
             TaskType.RERANK,
             "service",
             new NvidiaRerankServiceSettings(modelId, url, null),
             new DefaultSecretSettings(new SecureString(apiKey.toCharArray()))
+        );
+    }
+
+    public void testCreateModel_NoModelId_ThrowsException() {
+        expectThrows(NullPointerException.class, () -> createRerankModel(URL_VALUE, API_KEY_VALUE, null));
+    }
+
+    public void testCreateModel_NoUrl_DefaultUrl() {
+        var model = createRerankModel(null, API_KEY_VALUE, MODEL_VALUE);
+
+        assertThat(model.getServiceSettings().uri(), is(nullValue()));
+    }
+
+    public void testCreateModel_InvalidUrl_ThrowsException() {
+        var thrownException = expectThrows(
+            IllegalArgumentException.class,
+            () -> createRerankModel(INVALID_URL_VALUE, API_KEY_VALUE, MODEL_VALUE)
+        );
+        assertThat(
+            thrownException.getMessage(),
+            is(Strings.format("unable to parse url [%s]. Reason: Illegal character in path", INVALID_URL_VALUE))
         );
     }
 

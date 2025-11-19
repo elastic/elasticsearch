@@ -9,8 +9,6 @@ package org.elasticsearch.xpack.inference.services.nvidia.embeddings;
 
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.ValidationException;
-import org.elasticsearch.common.io.stream.ByteArrayStreamInput;
-import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
@@ -34,22 +32,26 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
 
 public class NvidiaEmbeddingsServiceSettingsTests extends AbstractWireSerializingTestCase<NvidiaEmbeddingsServiceSettings> {
-    private static final String MODEL_ID = "some model";
-    private static final String CORRECT_URL = "https://www.elastic.co";
-    private static final int DIMENSIONS = 384;
-    private static final SimilarityMeasure SIMILARITY_MEASURE = SimilarityMeasure.DOT_PRODUCT;
-    private static final int MAX_INPUT_TOKENS = 128;
-    private static final int RATE_LIMIT = 2;
+    private static final String MODEL_VALUE = "some_model";
+    private static final String CORRECT_URL_VALUE = "http://www.abc.com";
+    private static final String INVALID_URL_VALUE = "^^^";
+    private static final int DIMENSIONS_VALUE = 384;
+    private static final SimilarityMeasure SIMILARITY_MEASURE_VALUE = SimilarityMeasure.DOT_PRODUCT;
+    private static final int MAX_INPUT_TOKENS_VALUE = 128;
+    private static final int RATE_LIMIT_VALUE = 2;
+    private static final int MAX_INPUT_TOKENS_NEGATIVE_VALUE = -10;
+    private static final int DIMENSIONS_NEGATIVE_VALUE = -10;
+    private static final String SIMILARITY_INVALID_VALUE = "by_size";
 
     public void testFromMap_AllFields_Success() {
         var serviceSettings = NvidiaEmbeddingsServiceSettings.fromMap(
             buildServiceSettingsMap(
-                MODEL_ID,
-                CORRECT_URL,
-                SIMILARITY_MEASURE.toString(),
-                DIMENSIONS,
-                MAX_INPUT_TOKENS,
-                new HashMap<>(Map.of(RateLimitSettings.REQUESTS_PER_MINUTE_FIELD, RATE_LIMIT))
+                MODEL_VALUE,
+                CORRECT_URL_VALUE,
+                SIMILARITY_MEASURE_VALUE.toString(),
+                DIMENSIONS_VALUE,
+                MAX_INPUT_TOKENS_VALUE,
+                new HashMap<>(Map.of(RateLimitSettings.REQUESTS_PER_MINUTE_FIELD, RATE_LIMIT_VALUE))
             ),
             ConfigurationParseContext.PERSISTENT
         );
@@ -58,12 +60,12 @@ public class NvidiaEmbeddingsServiceSettingsTests extends AbstractWireSerializin
             serviceSettings,
             is(
                 new NvidiaEmbeddingsServiceSettings(
-                    MODEL_ID,
-                    CORRECT_URL,
-                    DIMENSIONS,
-                    SIMILARITY_MEASURE,
-                    MAX_INPUT_TOKENS,
-                    new RateLimitSettings(RATE_LIMIT)
+                    MODEL_VALUE,
+                    CORRECT_URL_VALUE,
+                    DIMENSIONS_VALUE,
+                    SIMILARITY_MEASURE_VALUE,
+                    MAX_INPUT_TOKENS_VALUE,
+                    new RateLimitSettings(RATE_LIMIT_VALUE)
                 )
             )
         );
@@ -75,11 +77,11 @@ public class NvidiaEmbeddingsServiceSettingsTests extends AbstractWireSerializin
             () -> NvidiaEmbeddingsServiceSettings.fromMap(
                 buildServiceSettingsMap(
                     null,
-                    CORRECT_URL,
-                    SIMILARITY_MEASURE.toString(),
-                    DIMENSIONS,
-                    MAX_INPUT_TOKENS,
-                    new HashMap<>(Map.of(RateLimitSettings.REQUESTS_PER_MINUTE_FIELD, RATE_LIMIT))
+                    CORRECT_URL_VALUE,
+                    SIMILARITY_MEASURE_VALUE.toString(),
+                    DIMENSIONS_VALUE,
+                    MAX_INPUT_TOKENS_VALUE,
+                    new HashMap<>(Map.of(RateLimitSettings.REQUESTS_PER_MINUTE_FIELD, RATE_LIMIT_VALUE))
                 ),
                 ConfigurationParseContext.PERSISTENT
             )
@@ -94,12 +96,12 @@ public class NvidiaEmbeddingsServiceSettingsTests extends AbstractWireSerializin
     public void testFromMap_NoUrl_Success() {
         var serviceSettings = NvidiaEmbeddingsServiceSettings.fromMap(
             buildServiceSettingsMap(
-                MODEL_ID,
+                MODEL_VALUE,
                 null,
-                SIMILARITY_MEASURE.toString(),
-                DIMENSIONS,
-                MAX_INPUT_TOKENS,
-                new HashMap<>(Map.of(RateLimitSettings.REQUESTS_PER_MINUTE_FIELD, RATE_LIMIT))
+                SIMILARITY_MEASURE_VALUE.toString(),
+                DIMENSIONS_VALUE,
+                MAX_INPUT_TOKENS_VALUE,
+                new HashMap<>(Map.of(RateLimitSettings.REQUESTS_PER_MINUTE_FIELD, RATE_LIMIT_VALUE))
             ),
             ConfigurationParseContext.PERSISTENT
 
@@ -108,12 +110,12 @@ public class NvidiaEmbeddingsServiceSettingsTests extends AbstractWireSerializin
             serviceSettings,
             is(
                 new NvidiaEmbeddingsServiceSettings(
-                    MODEL_ID,
+                    MODEL_VALUE,
                     ServiceUtils.createOptionalUri(null),
-                    DIMENSIONS,
-                    SIMILARITY_MEASURE,
-                    MAX_INPUT_TOKENS,
-                    new RateLimitSettings(RATE_LIMIT)
+                    DIMENSIONS_VALUE,
+                    SIMILARITY_MEASURE_VALUE,
+                    MAX_INPUT_TOKENS_VALUE,
+                    new RateLimitSettings(RATE_LIMIT_VALUE)
                 )
             )
         );
@@ -124,12 +126,12 @@ public class NvidiaEmbeddingsServiceSettingsTests extends AbstractWireSerializin
             ValidationException.class,
             () -> NvidiaEmbeddingsServiceSettings.fromMap(
                 buildServiceSettingsMap(
-                    MODEL_ID,
+                    MODEL_VALUE,
                     "",
-                    SIMILARITY_MEASURE.toString(),
-                    DIMENSIONS,
-                    MAX_INPUT_TOKENS,
-                    new HashMap<>(Map.of(RateLimitSettings.REQUESTS_PER_MINUTE_FIELD, RATE_LIMIT))
+                    SIMILARITY_MEASURE_VALUE.toString(),
+                    DIMENSIONS_VALUE,
+                    MAX_INPUT_TOKENS_VALUE,
+                    new HashMap<>(Map.of(RateLimitSettings.REQUESTS_PER_MINUTE_FIELD, RATE_LIMIT_VALUE))
                 ),
                 ConfigurationParseContext.PERSISTENT
             )
@@ -145,34 +147,30 @@ public class NvidiaEmbeddingsServiceSettingsTests extends AbstractWireSerializin
             ValidationException.class,
             () -> NvidiaEmbeddingsServiceSettings.fromMap(
                 buildServiceSettingsMap(
-                    MODEL_ID,
-                    "^^^",
-                    SIMILARITY_MEASURE.toString(),
-                    DIMENSIONS,
-                    MAX_INPUT_TOKENS,
-                    new HashMap<>(Map.of(RateLimitSettings.REQUESTS_PER_MINUTE_FIELD, RATE_LIMIT))
+                    MODEL_VALUE,
+                    INVALID_URL_VALUE,
+                    SIMILARITY_MEASURE_VALUE.toString(),
+                    DIMENSIONS_VALUE,
+                    MAX_INPUT_TOKENS_VALUE,
+                    new HashMap<>(Map.of(RateLimitSettings.REQUESTS_PER_MINUTE_FIELD, RATE_LIMIT_VALUE))
                 ),
                 ConfigurationParseContext.PERSISTENT
             )
         );
-        assertThat(
-            thrownException.getMessage(),
-            containsString(
-                "Validation Failed: 1: [service_settings] Invalid url [^^^] received for field [url]. "
-                    + "Error: unable to parse url [^^^]. Reason: Illegal character in path;"
-            )
-        );
+        assertThat(thrownException.getMessage(), containsString(Strings.format("""
+            Validation Failed: 1: [service_settings] Invalid url [%s] received for field [url]. \
+            Error: unable to parse url [%s]. Reason: Illegal character in path;""", INVALID_URL_VALUE, INVALID_URL_VALUE)));
     }
 
     public void testFromMap_NoSimilarity_Success() {
         var serviceSettings = NvidiaEmbeddingsServiceSettings.fromMap(
             buildServiceSettingsMap(
-                MODEL_ID,
-                CORRECT_URL,
+                MODEL_VALUE,
+                CORRECT_URL_VALUE,
                 null,
-                DIMENSIONS,
-                MAX_INPUT_TOKENS,
-                new HashMap<>(Map.of(RateLimitSettings.REQUESTS_PER_MINUTE_FIELD, RATE_LIMIT))
+                DIMENSIONS_VALUE,
+                MAX_INPUT_TOKENS_VALUE,
+                new HashMap<>(Map.of(RateLimitSettings.REQUESTS_PER_MINUTE_FIELD, RATE_LIMIT_VALUE))
             ),
             ConfigurationParseContext.PERSISTENT
         );
@@ -181,12 +179,12 @@ public class NvidiaEmbeddingsServiceSettingsTests extends AbstractWireSerializin
             serviceSettings,
             is(
                 new NvidiaEmbeddingsServiceSettings(
-                    MODEL_ID,
-                    CORRECT_URL,
-                    DIMENSIONS,
+                    MODEL_VALUE,
+                    CORRECT_URL_VALUE,
+                    DIMENSIONS_VALUE,
                     null,
-                    MAX_INPUT_TOKENS,
-                    new RateLimitSettings(RATE_LIMIT)
+                    MAX_INPUT_TOKENS_VALUE,
+                    new RateLimitSettings(RATE_LIMIT_VALUE)
                 )
             )
         );
@@ -197,34 +195,30 @@ public class NvidiaEmbeddingsServiceSettingsTests extends AbstractWireSerializin
             ValidationException.class,
             () -> NvidiaEmbeddingsServiceSettings.fromMap(
                 buildServiceSettingsMap(
-                    MODEL_ID,
-                    CORRECT_URL,
-                    "by_size",
-                    DIMENSIONS,
-                    MAX_INPUT_TOKENS,
-                    new HashMap<>(Map.of(RateLimitSettings.REQUESTS_PER_MINUTE_FIELD, RATE_LIMIT))
+                    MODEL_VALUE,
+                    CORRECT_URL_VALUE,
+                    SIMILARITY_INVALID_VALUE,
+                    DIMENSIONS_VALUE,
+                    MAX_INPUT_TOKENS_VALUE,
+                    new HashMap<>(Map.of(RateLimitSettings.REQUESTS_PER_MINUTE_FIELD, RATE_LIMIT_VALUE))
                 ),
                 ConfigurationParseContext.PERSISTENT
             )
         );
-        assertThat(
-            thrownException.getMessage(),
-            containsString(
-                "Validation Failed: 1: [service_settings] Invalid value [by_size] received. "
-                    + "[similarity] must be one of [cosine, dot_product, l2_norm];"
-            )
-        );
+        assertThat(thrownException.getMessage(), containsString(Strings.format("""
+            Validation Failed: 1: [service_settings] Invalid value [%s] received. \
+            [similarity] must be one of [cosine, dot_product, l2_norm];""", SIMILARITY_INVALID_VALUE)));
     }
 
     public void testFromMap_NoDimensions_Persistent_Success() {
         var serviceSettings = NvidiaEmbeddingsServiceSettings.fromMap(
             buildServiceSettingsMap(
-                MODEL_ID,
-                CORRECT_URL,
-                SIMILARITY_MEASURE.toString(),
+                MODEL_VALUE,
+                CORRECT_URL_VALUE,
+                SIMILARITY_MEASURE_VALUE.toString(),
                 null,
-                MAX_INPUT_TOKENS,
-                new HashMap<>(Map.of(RateLimitSettings.REQUESTS_PER_MINUTE_FIELD, RATE_LIMIT))
+                MAX_INPUT_TOKENS_VALUE,
+                new HashMap<>(Map.of(RateLimitSettings.REQUESTS_PER_MINUTE_FIELD, RATE_LIMIT_VALUE))
             ),
             ConfigurationParseContext.PERSISTENT
         );
@@ -233,12 +227,12 @@ public class NvidiaEmbeddingsServiceSettingsTests extends AbstractWireSerializin
             serviceSettings,
             is(
                 new NvidiaEmbeddingsServiceSettings(
-                    MODEL_ID,
-                    CORRECT_URL,
+                    MODEL_VALUE,
+                    CORRECT_URL_VALUE,
                     null,
-                    SIMILARITY_MEASURE,
-                    MAX_INPUT_TOKENS,
-                    new RateLimitSettings(RATE_LIMIT)
+                    SIMILARITY_MEASURE_VALUE,
+                    MAX_INPUT_TOKENS_VALUE,
+                    new RateLimitSettings(RATE_LIMIT_VALUE)
                 )
             )
         );
@@ -247,12 +241,12 @@ public class NvidiaEmbeddingsServiceSettingsTests extends AbstractWireSerializin
     public void testFromMap_NoDimensions_Request_Success() {
         var serviceSettings = NvidiaEmbeddingsServiceSettings.fromMap(
             buildServiceSettingsMap(
-                MODEL_ID,
-                CORRECT_URL,
-                SIMILARITY_MEASURE.toString(),
+                MODEL_VALUE,
+                CORRECT_URL_VALUE,
+                SIMILARITY_MEASURE_VALUE.toString(),
                 null,
-                MAX_INPUT_TOKENS,
-                new HashMap<>(Map.of(RateLimitSettings.REQUESTS_PER_MINUTE_FIELD, RATE_LIMIT))
+                MAX_INPUT_TOKENS_VALUE,
+                new HashMap<>(Map.of(RateLimitSettings.REQUESTS_PER_MINUTE_FIELD, RATE_LIMIT_VALUE))
             ),
             ConfigurationParseContext.REQUEST
         );
@@ -261,12 +255,12 @@ public class NvidiaEmbeddingsServiceSettingsTests extends AbstractWireSerializin
             serviceSettings,
             is(
                 new NvidiaEmbeddingsServiceSettings(
-                    MODEL_ID,
-                    CORRECT_URL,
+                    MODEL_VALUE,
+                    CORRECT_URL_VALUE,
                     null,
-                    SIMILARITY_MEASURE,
-                    MAX_INPUT_TOKENS,
-                    new RateLimitSettings(RATE_LIMIT)
+                    SIMILARITY_MEASURE_VALUE,
+                    MAX_INPUT_TOKENS_VALUE,
+                    new RateLimitSettings(RATE_LIMIT_VALUE)
                 )
             )
         );
@@ -275,12 +269,12 @@ public class NvidiaEmbeddingsServiceSettingsTests extends AbstractWireSerializin
     public void testFromMap_WithDimensions_Request_Success() {
         var serviceSettings = NvidiaEmbeddingsServiceSettings.fromMap(
             buildServiceSettingsMap(
-                MODEL_ID,
-                CORRECT_URL,
-                SIMILARITY_MEASURE.toString(),
-                DIMENSIONS,
-                MAX_INPUT_TOKENS,
-                new HashMap<>(Map.of(RateLimitSettings.REQUESTS_PER_MINUTE_FIELD, RATE_LIMIT))
+                MODEL_VALUE,
+                CORRECT_URL_VALUE,
+                SIMILARITY_MEASURE_VALUE.toString(),
+                DIMENSIONS_VALUE,
+                MAX_INPUT_TOKENS_VALUE,
+                new HashMap<>(Map.of(RateLimitSettings.REQUESTS_PER_MINUTE_FIELD, RATE_LIMIT_VALUE))
             ),
             ConfigurationParseContext.REQUEST
         );
@@ -289,12 +283,12 @@ public class NvidiaEmbeddingsServiceSettingsTests extends AbstractWireSerializin
             serviceSettings,
             is(
                 new NvidiaEmbeddingsServiceSettings(
-                    MODEL_ID,
-                    CORRECT_URL,
-                    DIMENSIONS,
-                    SIMILARITY_MEASURE,
-                    MAX_INPUT_TOKENS,
-                    new RateLimitSettings(RATE_LIMIT)
+                    MODEL_VALUE,
+                    CORRECT_URL_VALUE,
+                    DIMENSIONS_VALUE,
+                    SIMILARITY_MEASURE_VALUE,
+                    MAX_INPUT_TOKENS_VALUE,
+                    new RateLimitSettings(RATE_LIMIT_VALUE)
                 )
             )
         );
@@ -305,12 +299,12 @@ public class NvidiaEmbeddingsServiceSettingsTests extends AbstractWireSerializin
             ValidationException.class,
             () -> NvidiaEmbeddingsServiceSettings.fromMap(
                 buildServiceSettingsMap(
-                    MODEL_ID,
-                    CORRECT_URL,
-                    SIMILARITY_MEASURE.toString(),
+                    MODEL_VALUE,
+                    CORRECT_URL_VALUE,
+                    SIMILARITY_MEASURE_VALUE.toString(),
                     0,
-                    MAX_INPUT_TOKENS,
-                    new HashMap<>(Map.of(RateLimitSettings.REQUESTS_PER_MINUTE_FIELD, RATE_LIMIT))
+                    MAX_INPUT_TOKENS_VALUE,
+                    new HashMap<>(Map.of(RateLimitSettings.REQUESTS_PER_MINUTE_FIELD, RATE_LIMIT_VALUE))
                 ),
                 ConfigurationParseContext.PERSISTENT
             )
@@ -326,31 +320,36 @@ public class NvidiaEmbeddingsServiceSettingsTests extends AbstractWireSerializin
             ValidationException.class,
             () -> NvidiaEmbeddingsServiceSettings.fromMap(
                 buildServiceSettingsMap(
-                    MODEL_ID,
-                    CORRECT_URL,
-                    SIMILARITY_MEASURE.toString(),
-                    -10,
-                    MAX_INPUT_TOKENS,
-                    new HashMap<>(Map.of(RateLimitSettings.REQUESTS_PER_MINUTE_FIELD, RATE_LIMIT))
+                    MODEL_VALUE,
+                    CORRECT_URL_VALUE,
+                    SIMILARITY_MEASURE_VALUE.toString(),
+                    DIMENSIONS_NEGATIVE_VALUE,
+                    MAX_INPUT_TOKENS_VALUE,
+                    new HashMap<>(Map.of(RateLimitSettings.REQUESTS_PER_MINUTE_FIELD, RATE_LIMIT_VALUE))
                 ),
                 ConfigurationParseContext.PERSISTENT
             )
         );
         assertThat(
             thrownException.getMessage(),
-            containsString("Validation Failed: 1: [service_settings] Invalid value [-10]. [dimensions] must be a positive integer;")
+            containsString(
+                Strings.format(
+                    "Validation Failed: 1: [service_settings] Invalid value [%s]. [dimensions] must be a positive integer;",
+                    DIMENSIONS_NEGATIVE_VALUE
+                )
+            )
         );
     }
 
     public void testFromMap_NoInputTokens_Success() {
         var serviceSettings = NvidiaEmbeddingsServiceSettings.fromMap(
             buildServiceSettingsMap(
-                MODEL_ID,
-                CORRECT_URL,
-                SIMILARITY_MEASURE.toString(),
-                DIMENSIONS,
+                MODEL_VALUE,
+                CORRECT_URL_VALUE,
+                SIMILARITY_MEASURE_VALUE.toString(),
+                DIMENSIONS_VALUE,
                 null,
-                new HashMap<>(Map.of(RateLimitSettings.REQUESTS_PER_MINUTE_FIELD, RATE_LIMIT))
+                new HashMap<>(Map.of(RateLimitSettings.REQUESTS_PER_MINUTE_FIELD, RATE_LIMIT_VALUE))
             ),
             ConfigurationParseContext.PERSISTENT
         );
@@ -359,12 +358,12 @@ public class NvidiaEmbeddingsServiceSettingsTests extends AbstractWireSerializin
             serviceSettings,
             is(
                 new NvidiaEmbeddingsServiceSettings(
-                    MODEL_ID,
-                    CORRECT_URL,
-                    DIMENSIONS,
-                    SIMILARITY_MEASURE,
+                    MODEL_VALUE,
+                    CORRECT_URL_VALUE,
+                    DIMENSIONS_VALUE,
+                    SIMILARITY_MEASURE_VALUE,
                     null,
-                    new RateLimitSettings(RATE_LIMIT)
+                    new RateLimitSettings(RATE_LIMIT_VALUE)
                 )
             )
         );
@@ -375,12 +374,12 @@ public class NvidiaEmbeddingsServiceSettingsTests extends AbstractWireSerializin
             ValidationException.class,
             () -> NvidiaEmbeddingsServiceSettings.fromMap(
                 buildServiceSettingsMap(
-                    MODEL_ID,
-                    CORRECT_URL,
-                    SIMILARITY_MEASURE.toString(),
-                    DIMENSIONS,
+                    MODEL_VALUE,
+                    CORRECT_URL_VALUE,
+                    SIMILARITY_MEASURE_VALUE.toString(),
+                    DIMENSIONS_VALUE,
                     0,
-                    new HashMap<>(Map.of(RateLimitSettings.REQUESTS_PER_MINUTE_FIELD, RATE_LIMIT))
+                    new HashMap<>(Map.of(RateLimitSettings.REQUESTS_PER_MINUTE_FIELD, RATE_LIMIT_VALUE))
                 ),
                 ConfigurationParseContext.PERSISTENT
             )
@@ -396,25 +395,37 @@ public class NvidiaEmbeddingsServiceSettingsTests extends AbstractWireSerializin
             ValidationException.class,
             () -> NvidiaEmbeddingsServiceSettings.fromMap(
                 buildServiceSettingsMap(
-                    MODEL_ID,
-                    CORRECT_URL,
-                    SIMILARITY_MEASURE.toString(),
-                    DIMENSIONS,
-                    -10,
-                    new HashMap<>(Map.of(RateLimitSettings.REQUESTS_PER_MINUTE_FIELD, RATE_LIMIT))
+                    MODEL_VALUE,
+                    CORRECT_URL_VALUE,
+                    SIMILARITY_MEASURE_VALUE.toString(),
+                    DIMENSIONS_VALUE,
+                    MAX_INPUT_TOKENS_NEGATIVE_VALUE,
+                    new HashMap<>(Map.of(RateLimitSettings.REQUESTS_PER_MINUTE_FIELD, RATE_LIMIT_VALUE))
                 ),
                 ConfigurationParseContext.PERSISTENT
             )
         );
         assertThat(
             thrownException.getMessage(),
-            containsString("Validation Failed: 1: [service_settings] Invalid value [-10]. [max_input_tokens] must be a positive integer;")
+            containsString(
+                Strings.format(
+                    "Validation Failed: 1: [service_settings] Invalid value [%s]. [max_input_tokens] must be a positive integer;",
+                    MAX_INPUT_TOKENS_NEGATIVE_VALUE
+                )
+            )
         );
     }
 
     public void testFromMap_NoRateLimit_Success() {
         var serviceSettings = NvidiaEmbeddingsServiceSettings.fromMap(
-            buildServiceSettingsMap(MODEL_ID, CORRECT_URL, SIMILARITY_MEASURE.toString(), DIMENSIONS, MAX_INPUT_TOKENS, null),
+            buildServiceSettingsMap(
+                MODEL_VALUE,
+                CORRECT_URL_VALUE,
+                SIMILARITY_MEASURE_VALUE.toString(),
+                DIMENSIONS_VALUE,
+                MAX_INPUT_TOKENS_VALUE,
+                null
+            ),
             ConfigurationParseContext.PERSISTENT
         );
 
@@ -422,11 +433,11 @@ public class NvidiaEmbeddingsServiceSettingsTests extends AbstractWireSerializin
             serviceSettings,
             is(
                 new NvidiaEmbeddingsServiceSettings(
-                    MODEL_ID,
-                    CORRECT_URL,
-                    DIMENSIONS,
-                    SIMILARITY_MEASURE,
-                    MAX_INPUT_TOKENS,
+                    MODEL_VALUE,
+                    CORRECT_URL_VALUE,
+                    DIMENSIONS_VALUE,
+                    SIMILARITY_MEASURE_VALUE,
+                    MAX_INPUT_TOKENS_VALUE,
                     new RateLimitSettings(3000)
                 )
             )
@@ -435,11 +446,11 @@ public class NvidiaEmbeddingsServiceSettingsTests extends AbstractWireSerializin
 
     public void testToXContent_WritesAllValues() throws IOException {
         var entity = new NvidiaEmbeddingsServiceSettings(
-            MODEL_ID,
-            CORRECT_URL,
-            DIMENSIONS,
-            SIMILARITY_MEASURE,
-            MAX_INPUT_TOKENS,
+            MODEL_VALUE,
+            CORRECT_URL_VALUE,
+            DIMENSIONS_VALUE,
+            SIMILARITY_MEASURE_VALUE,
+            MAX_INPUT_TOKENS_VALUE,
             new RateLimitSettings(3)
         );
 
@@ -447,10 +458,10 @@ public class NvidiaEmbeddingsServiceSettingsTests extends AbstractWireSerializin
         entity.toXContent(builder, null);
         String xContentResult = Strings.toString(builder);
 
-        assertThat(xContentResult, is(XContentHelper.stripWhitespace("""
+        assertThat(xContentResult, is(XContentHelper.stripWhitespace(Strings.format("""
             {
-                "model_id": "some model",
-                "url": "https://www.elastic.co",
+                "model_id": "%s",
+                "url": "%s",
                 "rate_limit": {
                     "requests_per_minute": 3
                 },
@@ -458,27 +469,7 @@ public class NvidiaEmbeddingsServiceSettingsTests extends AbstractWireSerializin
                 "similarity": "dot_product",
                 "max_input_tokens": 128
             }
-            """)));
-    }
-
-    public void testStreamInputAndOutput_WritesValuesCorrectly() throws IOException {
-        var outputBuffer = new BytesStreamOutput();
-        var settings = new NvidiaEmbeddingsServiceSettings(
-            MODEL_ID,
-            CORRECT_URL,
-            DIMENSIONS,
-            SIMILARITY_MEASURE,
-            MAX_INPUT_TOKENS,
-            new RateLimitSettings(3)
-        );
-        settings.writeTo(outputBuffer);
-
-        var outputBufferRef = outputBuffer.bytes();
-        var inputBuffer = new ByteArrayStreamInput(outputBufferRef.array());
-
-        var settingsFromBuffer = new NvidiaEmbeddingsServiceSettings(inputBuffer);
-
-        assertThat(settingsFromBuffer, is(settings));
+            """, MODEL_VALUE, CORRECT_URL_VALUE))));
     }
 
     @Override
@@ -528,6 +519,16 @@ public class NvidiaEmbeddingsServiceSettingsTests extends AbstractWireSerializin
         );
     }
 
+    /**
+     * Helper method to build a service settings map.
+     * @param modelId the model id to set
+     * @param url the url to set
+     * @param similarity the similarity measure to set
+     * @param dimensions the dimensions to set
+     * @param maxInputTokens the max input tokens to set
+     * @param rateLimitSettings the rate limit settings to set
+     * @return a map representing the service settings
+     */
     public static HashMap<String, Object> buildServiceSettingsMap(
         @Nullable String modelId,
         @Nullable String url,

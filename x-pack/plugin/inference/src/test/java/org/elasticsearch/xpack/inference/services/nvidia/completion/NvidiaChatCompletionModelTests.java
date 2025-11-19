@@ -8,22 +8,22 @@
 package org.elasticsearch.xpack.inference.services.nvidia.completion;
 
 import org.elasticsearch.common.settings.SecureString;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettings;
 
-import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.sameInstance;
 
 public class NvidiaChatCompletionModelTests extends ESTestCase {
 
-    private static final String MODEL_VALUE = "model_name";
+    private static final String MODEL_VALUE = "some_model";
     private static final String API_KEY_VALUE = "test_api_key";
     private static final String URL_VALUE = "http://www.abc.com";
     private static final String INVALID_URL_VALUE = "^^^";
-    private static final String ALTERNATE_MODEL_VALUE = "different_model";
+    private static final String ALTERNATE_MODEL_VALUE = "other_model";
 
     public static NvidiaChatCompletionModel createCompletionModel(String url, String apiKey, String modelName) {
         return createModelWithTaskType(url, apiKey, modelName, TaskType.COMPLETION);
@@ -79,6 +79,9 @@ public class NvidiaChatCompletionModelTests extends ESTestCase {
             IllegalArgumentException.class,
             () -> createCompletionModel(INVALID_URL_VALUE, API_KEY_VALUE, MODEL_VALUE)
         );
-        assertThat(thrownException.getMessage(), containsString("unable to parse url [^^^]"));
+        assertThat(
+            thrownException.getMessage(),
+            is(Strings.format("unable to parse url [%s]. Reason: Illegal character in path", INVALID_URL_VALUE))
+        );
     }
 }

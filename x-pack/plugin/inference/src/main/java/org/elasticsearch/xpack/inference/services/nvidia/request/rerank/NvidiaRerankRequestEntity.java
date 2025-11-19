@@ -14,6 +14,11 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Objects;
 
+import static org.elasticsearch.xpack.inference.services.nvidia.NvidiaRequestFields.MODEL_FIELD_NAME;
+import static org.elasticsearch.xpack.inference.services.nvidia.NvidiaRequestFields.PASSAGES_FIELD_NAME;
+import static org.elasticsearch.xpack.inference.services.nvidia.NvidiaRequestFields.QUERY_FIELD_NAME;
+import static org.elasticsearch.xpack.inference.services.nvidia.NvidiaRequestFields.TEXT_FIELD_NAME;
+
 /**
  * Entity representing the request body for Nvidia rerank requests.
  *
@@ -22,11 +27,6 @@ import java.util.Objects;
  * @param passages the list of passages to be reranked
  */
 public record NvidiaRerankRequestEntity(String modelId, String query, List<String> passages) implements ToXContentObject {
-
-    private static final String MODEL_FIELD = "model";
-    private static final String QUERY_FIELD = "query";
-    private static final String PASSAGES_FIELD = "passages";
-    private static final String TEXT_FIELD = "text";
 
     public NvidiaRerankRequestEntity {
         Objects.requireNonNull(modelId);
@@ -38,16 +38,16 @@ public record NvidiaRerankRequestEntity(String modelId, String query, List<Strin
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
 
-        builder.field(MODEL_FIELD, modelId);
+        builder.field(MODEL_FIELD_NAME, modelId);
 
-        builder.startObject(QUERY_FIELD);
-        builder.field(TEXT_FIELD, query);
+        builder.startObject(QUERY_FIELD_NAME);
+        builder.field(TEXT_FIELD_NAME, query);
         builder.endObject();
 
-        builder.startArray(PASSAGES_FIELD);
+        builder.startArray(PASSAGES_FIELD_NAME);
         for (String passage : passages) {
             builder.startObject();
-            builder.field(TEXT_FIELD, passage);
+            builder.field(TEXT_FIELD_NAME, passage);
             builder.endObject();
         }
         builder.endArray();

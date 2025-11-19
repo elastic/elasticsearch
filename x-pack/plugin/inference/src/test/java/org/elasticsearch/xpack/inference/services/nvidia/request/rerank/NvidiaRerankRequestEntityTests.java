@@ -21,23 +21,27 @@ import static org.elasticsearch.common.xcontent.XContentHelper.stripWhitespace;
 import static org.hamcrest.Matchers.is;
 
 public class NvidiaRerankRequestEntityTests extends ESTestCase {
-    private static final String INPUT = "documents";
-    private static final String QUERY = "query";
-    private static final String MODEL = "model";
+    private static final List<String> PASSAGES_VALUE = List.of("some document");
+    private static final String QUERY_VALUE = "some query";
+    private static final String MODEL_VALUE = "some_model";
 
-    public void testXContent_WritesAllFields_WhenTheyAreDefined() throws IOException {
-        var entity = new NvidiaRerankRequestEntity(MODEL, QUERY, List.of(INPUT));
+    public void testXContent_WritesAllFields() throws IOException {
+        var entity = new NvidiaRerankRequestEntity(MODEL_VALUE, QUERY_VALUE, PASSAGES_VALUE);
 
         XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
         entity.toXContent(builder, ToXContent.EMPTY_PARAMS);
         String result = Strings.toString(builder);
         String expected = """
             {
-                "model": "model",
-                "query": {"text":"query"},
-                "passages": [{"text":"documents"}]
+                "model": "some_model",
+                "query": {"text":"some query"},
+                "passages": [{"text":"some document"}]
             }
             """;
         assertThat(result, is(stripWhitespace(expected)));
+    }
+
+    public void testCreateRequestEntity_ModelIdNull_ThrowsException() {
+        expectThrows(NullPointerException.class, () -> new NvidiaRerankRequestEntity(null, QUERY_VALUE, PASSAGES_VALUE));
     }
 }

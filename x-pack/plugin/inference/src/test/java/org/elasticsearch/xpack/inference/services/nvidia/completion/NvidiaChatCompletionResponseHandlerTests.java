@@ -11,6 +11,7 @@ import org.apache.http.HttpResponse;
 import org.apache.http.StatusLine;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xpack.core.inference.results.UnifiedChatCompletionException;
@@ -31,6 +32,8 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 public class NvidiaChatCompletionResponseHandlerTests extends ESTestCase {
+    private static final String URL_VALUE = "http://www.abc.com";
+    private static final String INFERENCE_ID = "id";
     private final NvidiaChatCompletionResponseHandler responseHandler = new NvidiaChatCompletionResponseHandler(
         "chat completions",
         (a, b) -> mock()
@@ -43,15 +46,15 @@ public class NvidiaChatCompletionResponseHandlerTests extends ESTestCase {
 
         var errorJson = invalidResponseJson(responseJson, 404);
 
-        assertThat(errorJson, is(XContentHelper.stripWhitespace("""
+        assertThat(errorJson, is(XContentHelper.stripWhitespace(Strings.format("""
             {
               "error" : {
                 "code" : "not_found",
-                "message" : "Resource not found at [https://integrate.api.nvidia.com/v1/chat/completions] for request from inference\
-             entity id [id] status [404]. Error message: [404 page not found\\n]",
+                "message" : "Resource not found at [%s] for request from inference entity id [%s] status [404]. \
+            Error message: [404 page not found\\n]",
                 "type" : "nvidia_error"
               }
-            }""")));
+            }""", URL_VALUE, INFERENCE_ID))));
     }
 
     public void testFailBadRequest() throws IOException {
@@ -64,17 +67,17 @@ public class NvidiaChatCompletionResponseHandlerTests extends ESTestCase {
 
         var errorJson = invalidResponseJson(responseJson, 400);
 
-        assertThat(errorJson, is(XContentHelper.stripWhitespace("""
+        assertThat(errorJson, is(XContentHelper.stripWhitespace(Strings.format("""
             {
                 "error": {
                     "code": "bad_request",
-                    "message": "Received a bad request status code for request from inference entity id [id] status [400]. Error message: \
+                    "message": "Received a bad request status code for request from inference entity id [%s] status [400]. Error message: \
             [{\\"error\\":\\"[{'type': 'too_short', 'loc': ('body', 'messages'), 'msg': 'List should have at least 1 item after va\
             lidation, not 0', 'input': [], 'ctx': {'field_type': 'List', 'min_length': 1, 'actual_length': 0}}]\\"}]",
                     "type": "nvidia_error"
                 }
             }
-            """)));
+            """, INFERENCE_ID))));
     }
 
     public void testFailServerError() throws IOException {
@@ -84,16 +87,16 @@ public class NvidiaChatCompletionResponseHandlerTests extends ESTestCase {
 
         var errorJson = invalidResponseJson(responseJson, 500);
 
-        assertThat(errorJson, is(XContentHelper.stripWhitespace("""
+        assertThat(errorJson, is(XContentHelper.stripWhitespace(Strings.format("""
             {
                 "error": {
                     "code": "bad_request",
-                    "message": "Received a server error status code for request from inference entity id [id] status [500]. Error message: \
-            [failed to decode json body: json: bool unexpected end of JSON input\\n]",
+                    "message": "Received a server error status code for request from inference entity id [%s] status [500]. \
+            Error message: [failed to decode json body: json: bool unexpected end of JSON input\\n]",
                     "type": "nvidia_error"
                 }
             }
-            """)));
+            """, INFERENCE_ID))));
     }
 
     private String invalidResponseJson(String responseJson, int statusCode) throws IOException {
@@ -117,9 +120,9 @@ public class NvidiaChatCompletionResponseHandlerTests extends ESTestCase {
 
     private static Request mockRequest() throws URISyntaxException {
         var request = mock(Request.class);
-        when(request.getInferenceEntityId()).thenReturn("id");
+        when(request.getInferenceEntityId()).thenReturn(INFERENCE_ID);
         when(request.isStreaming()).thenReturn(true);
-        when(request.getURI()).thenReturn(new URI("https://integrate.api.nvidia.com/v1/chat/completions"));
+        when(request.getURI()).thenReturn(new URI(URL_VALUE));
         return request;
     }
 

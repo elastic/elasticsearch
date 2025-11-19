@@ -11,13 +11,17 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xpack.inference.services.cohere.CohereServiceFields;
 import org.elasticsearch.xpack.inference.services.cohere.CohereTruncation;
 import org.elasticsearch.xpack.inference.services.nvidia.NvidiaUtils;
 
 import java.io.IOException;
 import java.util.List;
 import java.util.Objects;
+
+import static org.elasticsearch.xpack.inference.services.nvidia.NvidiaRequestFields.INPUT_FIELD_NAME;
+import static org.elasticsearch.xpack.inference.services.nvidia.NvidiaRequestFields.INPUT_TYPE_FIELD_NAME;
+import static org.elasticsearch.xpack.inference.services.nvidia.NvidiaRequestFields.MODEL_FIELD_NAME;
+import static org.elasticsearch.xpack.inference.services.nvidia.NvidiaRequestFields.TRUNCATE_FIELD_NAME;
 
 /**
  * NvidiaEmbeddingsRequestEntity is responsible for creating the request entity for Nvidia embeddings.
@@ -30,10 +34,6 @@ public record NvidiaEmbeddingsRequestEntity(
     @Nullable CohereTruncation truncation
 ) implements ToXContentObject {
 
-    private static final String INPUT_FIELD = "input";
-    private static final String MODEL_FIELD = "model";
-    private static final String INPUT_TYPE_FIELD = "input_type";
-
     public NvidiaEmbeddingsRequestEntity {
         Objects.requireNonNull(input);
         Objects.requireNonNull(modelId);
@@ -42,14 +42,14 @@ public record NvidiaEmbeddingsRequestEntity(
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        builder.field(INPUT_FIELD, input);
-        builder.field(MODEL_FIELD, modelId);
+        builder.field(INPUT_FIELD_NAME, input);
+        builder.field(MODEL_FIELD_NAME, modelId);
         var inputTypeToUse = NvidiaUtils.inputTypeToString(inputType);
         if (inputTypeToUse != null) {
-            builder.field(INPUT_TYPE_FIELD, inputTypeToUse);
+            builder.field(INPUT_TYPE_FIELD_NAME, inputTypeToUse);
         }
         if (truncation != null) {
-            builder.field(CohereServiceFields.TRUNCATE, truncation);
+            builder.field(TRUNCATE_FIELD_NAME, truncation);
         }
         builder.endObject();
         return builder;

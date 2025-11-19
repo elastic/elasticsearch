@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.inference.services.nvidia.request.embeddings;
 
 import org.apache.http.HttpHeaders;
 import org.apache.http.client.methods.HttpPost;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.test.ESTestCase;
@@ -24,50 +25,86 @@ import java.io.IOException;
 import java.util.List;
 
 import static org.elasticsearch.xpack.inference.external.http.Utils.entityAsMap;
+import static org.elasticsearch.xpack.inference.services.nvidia.NvidiaRequestFields.INPUT_FIELD_NAME;
+import static org.elasticsearch.xpack.inference.services.nvidia.NvidiaRequestFields.INPUT_TYPE_FIELD_NAME;
+import static org.elasticsearch.xpack.inference.services.nvidia.NvidiaRequestFields.MODEL_FIELD_NAME;
+import static org.elasticsearch.xpack.inference.services.nvidia.NvidiaRequestFields.TRUNCATE_FIELD_NAME;
 import static org.hamcrest.Matchers.aMapWithSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 
 public class NvidiaEmbeddingsRequestTests extends ESTestCase {
-    public void testCreateRequest_AllFields_InputTypeFromRequest_Success() throws IOException {
-        var request = createRequest("url", "some model", InputType.SEARCH, CohereTruncation.START, InputType.INGEST);
-        testCreateRequest_AllFields(request);
+
+    // Test values
+    private static final String MODEL_VALUE = "some_model";
+    private static final String INPUT_VALUE = "ABCD";
+    private static final String URL_VALUE = "http://www.abc.com";
+    private static final String URL_DEFAULT_VALUE = "https://integrate.api.nvidia.com/v1/embeddings";
+    private static final String API_KEY_VALUE = "test_api_key";
+    private static final InputType INPUT_TYPE_EXPEDIA_INITIAL_VALUE = InputType.INGEST;
+    private static final InputType INPUT_TYPE_EXPEDIA_IGNORED_VALUE = InputType.SEARCH;
+    private static final CohereTruncation TRUNCATE_EXPEDIA_VALUE = CohereTruncation.START;
+    private static final String INPUT_TYPE_NVIDIA_VALUE = "passage";
+    private static final String TRUNCATE_NVIDIA_VALUE = "start";
+
+    public void testCreateRequest_InputTypeFromTaskSettings_Success() throws IOException {
+        var request = createRequest(URL_VALUE, MODEL_VALUE, INPUT_TYPE_EXPEDIA_INITIAL_VALUE, TRUNCATE_EXPEDIA_VALUE, null);
+        testCreateRequest(request, INPUT_TYPE_NVIDIA_VALUE, TRUNCATE_NVIDIA_VALUE, URL_VALUE);
     }
 
-    public void testCreateRequest_AllFields_InputTypeFromTaskSettings_Success() throws IOException {
-        var request = createRequest("url", "some model", InputType.INGEST, CohereTruncation.START, null);
-        testCreateRequest_AllFields(request);
+    public void testCreateRequest_InputTypeFromRequest_Success() throws IOException {
+        var request = createRequest(URL_VALUE, MODEL_VALUE, null, TRUNCATE_EXPEDIA_VALUE, INPUT_TYPE_EXPEDIA_INITIAL_VALUE);
+        testCreateRequest(request, INPUT_TYPE_NVIDIA_VALUE, TRUNCATE_NVIDIA_VALUE, URL_VALUE);
     }
 
-    private void testCreateRequest_AllFields(NvidiaEmbeddingsRequest request) throws IOException {
-        var httpRequest = request.createHttpRequest();
-        var httpPost = validateRequestUrlAndContentType(httpRequest, "url");
+    public void testCreateRequest_InputTypeFromRequestPrioritized_Success() throws IOException {
+        var request = createRequest(
+            URL_VALUE,
+            MODEL_VALUE,
+            INPUT_TYPE_EXPEDIA_IGNORED_VALUE,
+            TRUNCATE_EXPEDIA_VALUE,
+            INPUT_TYPE_EXPEDIA_INITIAL_VALUE
+        );
+        testCreateRequest(request, INPUT_TYPE_NVIDIA_VALUE, TRUNCATE_NVIDIA_VALUE, URL_VALUE);
+    }
 
-        var requestMap = entityAsMap(httpPost.getEntity().getContent());
-        assertThat(requestMap.get("input"), Matchers.is(List.of("ABCD")));
-        assertThat(requestMap.get("model"), Matchers.is("some model"));
-        assertThat(requestMap.get("input_type"), Matchers.is("passage"));
-        assertThat(requestMap.get("truncate"), Matchers.is("start"));
-        assertThat(httpPost.getFirstHeader(HttpHeaders.AUTHORIZATION).getValue(), Matchers.is("Bearer apikey"));
+    public void testCreateRequest_OnlyMandatoryFields_Success() throws IOException {
+        var request = createRequest(URL_VALUE, MODEL_VALUE, null, null, null);
+        testCreateRequest(request, null, null, URL_VALUE);
     }
 
     public void testCreateRequest_DefaultUrl_Success() throws IOException {
-        var request = createRequest(null, "some model");
+        var request = createRequest(null, MODEL_VALUE, INPUT_TYPE_EXPEDIA_INITIAL_VALUE, TRUNCATE_EXPEDIA_VALUE, null);
+        testCreateRequest(request, INPUT_TYPE_NVIDIA_VALUE, TRUNCATE_NVIDIA_VALUE, URL_DEFAULT_VALUE);
+    }
+
+    private void testCreateRequest(NvidiaEmbeddingsRequest request, String expectedInputType, String expectedTruncation, String expectedUrl)
+        throws IOException {
         var httpRequest = request.createHttpRequest();
-        var httpPost = validateRequestUrlAndContentType(httpRequest, "https://integrate.api.nvidia.com/v1/embeddings");
+        var httpPost = validateRequestUrlAndContentType(httpRequest, expectedUrl);
 
         var requestMap = entityAsMap(httpPost.getEntity().getContent());
-        assertThat(requestMap.get("input"), Matchers.is(List.of("ABCD")));
-        assertThat(requestMap.get("model"), Matchers.is("some model"));
-        assertThat(httpPost.getFirstHeader(HttpHeaders.AUTHORIZATION).getValue(), Matchers.is("Bearer apikey"));
+        int size = 2;
+        assertThat(requestMap.get(INPUT_FIELD_NAME), Matchers.is(List.of(INPUT_VALUE)));
+        assertThat(requestMap.get(MODEL_FIELD_NAME), Matchers.is(MODEL_VALUE));
+        if (expectedInputType != null) {
+            size++;
+            assertThat(requestMap.get(INPUT_TYPE_FIELD_NAME), Matchers.is(expectedInputType));
+        }
+        if (expectedTruncation != null) {
+            size++;
+            assertThat(requestMap.get(TRUNCATE_FIELD_NAME), Matchers.is(expectedTruncation));
+        }
+        assertThat(requestMap, aMapWithSize(size));
+        assertThat(httpPost.getFirstHeader(HttpHeaders.AUTHORIZATION).getValue(), Matchers.is(Strings.format("Bearer %s", API_KEY_VALUE)));
     }
 
     public void testCreateRequest_NoModel_ThrowsException() {
-        expectThrows(NullPointerException.class, () -> createRequest("url", null));
+        expectThrows(NullPointerException.class, () -> createRequest(URL_VALUE, null, null, null, null));
     }
 
     public void testTruncate_ReducesInputTextSizeByHalf() throws IOException {
-        var request = createRequest("url", "some model");
+        var request = createRequest(URL_VALUE, MODEL_VALUE, null, null, null);
         var truncatedRequest = request.truncate();
 
         var httpRequest = truncatedRequest.createHttpRequest();
@@ -76,12 +113,12 @@ public class NvidiaEmbeddingsRequestTests extends ESTestCase {
         var httpPost = (HttpPost) httpRequest.httpRequestBase();
         var requestMap = entityAsMap(httpPost.getEntity().getContent());
         assertThat(requestMap, aMapWithSize(2));
-        assertThat(requestMap.get("input"), Matchers.is(List.of("AB")));
-        assertThat(requestMap.get("model"), Matchers.is("some model"));
+        assertThat(requestMap.get(INPUT_FIELD_NAME), Matchers.is(List.of(INPUT_VALUE.substring(0, INPUT_VALUE.length() / 2))));
+        assertThat(requestMap.get(MODEL_FIELD_NAME), Matchers.is(MODEL_VALUE));
     }
 
     public void testIsTruncated_ReturnsTrue() {
-        var request = createRequest("url", "some model");
+        var request = createRequest(URL_VALUE, MODEL_VALUE, null, null, null);
         assertThat(request.getTruncationInfo()[0], is(false));
 
         var truncatedRequest = request.truncate();
@@ -99,10 +136,6 @@ public class NvidiaEmbeddingsRequestTests extends ESTestCase {
         return httpPost;
     }
 
-    private static NvidiaEmbeddingsRequest createRequest(@Nullable String url, @Nullable String modelId) {
-        return createRequest(url, modelId, null, null, null);
-    }
-
     private static NvidiaEmbeddingsRequest createRequest(
         @Nullable String url,
         @Nullable String modelId,
@@ -110,10 +143,19 @@ public class NvidiaEmbeddingsRequestTests extends ESTestCase {
         @Nullable CohereTruncation truncation,
         @Nullable InputType requestInputType
     ) {
-        var embeddingsModel = NvidiaEmbeddingsModelTests.createModel(url, "apikey", modelId, 123, 1536, inputType, truncation);
+        var embeddingsModel = NvidiaEmbeddingsModelTests.createEmbeddingsModel(
+            url,
+            API_KEY_VALUE,
+            modelId,
+            null,
+            null,
+            inputType,
+            truncation,
+            null
+        );
         return new NvidiaEmbeddingsRequest(
             TruncatorTests.createTruncator(),
-            new Truncator.TruncationResult(List.of("ABCD"), new boolean[] { false }),
+            new Truncator.TruncationResult(List.of(INPUT_VALUE), new boolean[] { false }),
             embeddingsModel,
             requestInputType
         );

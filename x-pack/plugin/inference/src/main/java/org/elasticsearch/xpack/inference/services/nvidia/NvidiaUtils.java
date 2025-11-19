@@ -63,6 +63,9 @@ public final class NvidiaUtils {
         return version.supports(ML_INFERENCE_NVIDIA_ADDED);
     }
 
+    /**
+     * Private constructor to prevent instantiation of this utility class.
+     */
     private NvidiaUtils() {}
 
 }

@@ -41,7 +41,6 @@ import org.junit.After;
 import org.junit.Before;
 
 import java.io.IOException;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -56,8 +55,15 @@ import static org.elasticsearch.xpack.inference.external.http.retry.RetrySetting
 import static org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSenderTests.createSender;
 import static org.elasticsearch.xpack.inference.logging.ThrottlerManagerTests.mockThrottlerManager;
 import static org.elasticsearch.xpack.inference.services.ServiceComponentsTests.createWithEmptySettings;
+import static org.elasticsearch.xpack.inference.services.nvidia.NvidiaRequestFields.INPUT_FIELD_NAME;
+import static org.elasticsearch.xpack.inference.services.nvidia.NvidiaRequestFields.INPUT_TYPE_FIELD_NAME;
+import static org.elasticsearch.xpack.inference.services.nvidia.NvidiaRequestFields.MODEL_FIELD_NAME;
+import static org.elasticsearch.xpack.inference.services.nvidia.NvidiaRequestFields.PASSAGES_FIELD_NAME;
+import static org.elasticsearch.xpack.inference.services.nvidia.NvidiaRequestFields.QUERY_FIELD_NAME;
+import static org.elasticsearch.xpack.inference.services.nvidia.NvidiaRequestFields.TEXT_FIELD_NAME;
+import static org.elasticsearch.xpack.inference.services.nvidia.NvidiaRequestFields.TRUNCATE_FIELD_NAME;
+import static org.elasticsearch.xpack.inference.services.nvidia.embeddings.NvidiaEmbeddingsTaskSettingsTests.buildTaskSettingsMap;
 import static org.hamcrest.Matchers.aMapWithSize;
-import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
@@ -71,14 +77,6 @@ public class NvidiaActionCreatorTests extends ESTestCase {
     private static final String MESSAGES_FIELD_NAME = "messages";
     private static final String ROLE_FIELD_NAME = "role";
     private static final String CONTENT_FIELD_NAME = "content";
-
-    private static final String PASSAGES_FIELD_NAME = "passages";
-    private static final String MODEL_FIELD_NAME = "model";
-    private static final String QUERY_FIELD_NAME = "query";
-    private static final String INPUT_FIELD_NAME = "input";
-    private static final String TEXT_FIELD_NAME = "text";
-    private static final String INPUT_TYPE_FIELD_NAME = "input_type";
-    private static final String TRUNCATE_FIELD_NAME = "truncate";
 
     // Test values
     private static final String API_KEY_VALUE = "test_api_key";
@@ -166,7 +164,16 @@ public class NvidiaActionCreatorTests extends ESTestCase {
 
             webServer.enqueue(new MockResponse().setResponseCode(200).setBody(EMBEDDING_RESPONSE_JSON));
 
-            var model = NvidiaEmbeddingsModelTests.createModel(getUrl(webServer), API_KEY_VALUE, MODEL_VALUE, null, null, null, null);
+            var model = NvidiaEmbeddingsModelTests.createEmbeddingsModel(
+                getUrl(webServer),
+                API_KEY_VALUE,
+                MODEL_VALUE,
+                null,
+                null,
+                null,
+                null,
+                null
+            );
             var actionCreator = new NvidiaActionCreator(sender, createWithEmptySettings(threadPool));
             var action = actionCreator.create(model, null);
 
@@ -188,14 +195,15 @@ public class NvidiaActionCreatorTests extends ESTestCase {
 
             webServer.enqueue(new MockResponse().setResponseCode(200).setBody(EMBEDDING_RESPONSE_JSON));
 
-            var model = NvidiaEmbeddingsModelTests.createModel(
+            var model = NvidiaEmbeddingsModelTests.createEmbeddingsModel(
                 getUrl(webServer),
                 API_KEY_VALUE,
                 MODEL_VALUE,
                 null,
                 null,
                 INPUT_TYPE_INITIAL_ELASTIC_VALUE,
-                TRUNCATE_INITIAL_ELASTIC_VALUE
+                TRUNCATE_INITIAL_ELASTIC_VALUE,
+                null
             );
             var actionCreator = new NvidiaActionCreator(sender, createWithEmptySettings(threadPool));
             var action = actionCreator.create(model, null);
@@ -218,26 +226,20 @@ public class NvidiaActionCreatorTests extends ESTestCase {
 
             webServer.enqueue(new MockResponse().setResponseCode(200).setBody(EMBEDDING_RESPONSE_JSON));
 
-            var model = NvidiaEmbeddingsModelTests.createModel(
+            var model = NvidiaEmbeddingsModelTests.createEmbeddingsModel(
                 getUrl(webServer),
                 API_KEY_VALUE,
                 MODEL_VALUE,
                 null,
                 null,
                 INPUT_TYPE_INITIAL_ELASTIC_VALUE,
-                TRUNCATE_INITIAL_ELASTIC_VALUE
+                TRUNCATE_INITIAL_ELASTIC_VALUE,
+                null
             );
             var actionCreator = new NvidiaActionCreator(sender, createWithEmptySettings(threadPool));
             var action = actionCreator.create(
                 model,
-                new HashMap<>(
-                    Map.of(
-                        INPUT_TYPE_FIELD_NAME,
-                        INPUT_TYPE_OVERRIDDEN_ELASTIC_VALUE.toString(),
-                        TRUNCATE_FIELD_NAME,
-                        TRUNCATE_OVERRIDDEN_ELASTIC_VALUE.toString()
-                    )
-                )
+                buildTaskSettingsMap(INPUT_TYPE_OVERRIDDEN_ELASTIC_VALUE, TRUNCATE_OVERRIDDEN_ELASTIC_VALUE)
             );
 
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
@@ -258,7 +260,16 @@ public class NvidiaActionCreatorTests extends ESTestCase {
 
             webServer.enqueue(new MockResponse().setResponseCode(200).setBody(EMBEDDING_RESPONSE_JSON));
 
-            var model = NvidiaEmbeddingsModelTests.createModel(getUrl(webServer), API_KEY_VALUE, MODEL_VALUE, null, null, null, null);
+            var model = NvidiaEmbeddingsModelTests.createEmbeddingsModel(
+                getUrl(webServer),
+                API_KEY_VALUE,
+                MODEL_VALUE,
+                null,
+                null,
+                null,
+                null,
+                null
+            );
             var actionCreator = new NvidiaActionCreator(sender, createWithEmptySettings(threadPool));
             var action = actionCreator.create(model, null);
 
@@ -284,14 +295,15 @@ public class NvidiaActionCreatorTests extends ESTestCase {
 
             webServer.enqueue(new MockResponse().setResponseCode(200).setBody(EMBEDDING_RESPONSE_JSON));
 
-            var model = NvidiaEmbeddingsModelTests.createModel(
+            var model = NvidiaEmbeddingsModelTests.createEmbeddingsModel(
                 getUrl(webServer),
                 API_KEY_VALUE,
                 MODEL_VALUE,
                 null,
                 null,
                 INPUT_TYPE_INITIAL_ELASTIC_VALUE,
-                TRUNCATE_INITIAL_ELASTIC_VALUE
+                TRUNCATE_INITIAL_ELASTIC_VALUE,
+                null
             );
             var actionCreator = new NvidiaActionCreator(sender, createWithEmptySettings(threadPool));
             var action = actionCreator.create(model, null);
@@ -318,18 +330,20 @@ public class NvidiaActionCreatorTests extends ESTestCase {
 
             webServer.enqueue(new MockResponse().setResponseCode(200).setBody(EMBEDDING_RESPONSE_JSON));
 
-            var model = NvidiaEmbeddingsModelTests.createModel(getUrl(webServer), API_KEY_VALUE, MODEL_VALUE, null, null, null, null);
+            var model = NvidiaEmbeddingsModelTests.createEmbeddingsModel(
+                getUrl(webServer),
+                API_KEY_VALUE,
+                MODEL_VALUE,
+                null,
+                null,
+                null,
+                null,
+                null
+            );
             var actionCreator = new NvidiaActionCreator(sender, createWithEmptySettings(threadPool));
             var action = actionCreator.create(
                 model,
-                new HashMap<>(
-                    Map.of(
-                        INPUT_TYPE_FIELD_NAME,
-                        INPUT_TYPE_INITIAL_ELASTIC_VALUE.toString(),
-                        TRUNCATE_FIELD_NAME,
-                        TRUNCATE_INITIAL_ELASTIC_VALUE.toString()
-                    )
-                )
+                buildTaskSettingsMap(INPUT_TYPE_INITIAL_ELASTIC_VALUE, TRUNCATE_INITIAL_ELASTIC_VALUE)
             );
 
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
@@ -402,7 +416,16 @@ public class NvidiaActionCreatorTests extends ESTestCase {
                 """;
             webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
 
-            var model = NvidiaEmbeddingsModelTests.createModel(getUrl(webServer), API_KEY_VALUE, MODEL_VALUE, null, null, null, null);
+            var model = NvidiaEmbeddingsModelTests.createEmbeddingsModel(
+                getUrl(webServer),
+                API_KEY_VALUE,
+                MODEL_VALUE,
+                null,
+                null,
+                null,
+                null,
+                null
+            );
             var action = new NvidiaActionCreator(sender, createWithEmptySettings(threadPool)).create(model, null);
 
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
@@ -568,7 +591,16 @@ public class NvidiaActionCreatorTests extends ESTestCase {
             webServer.enqueue(new MockResponse().setResponseCode(413).setBody(responseJsonContentTooLarge));
             webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
 
-            var model = NvidiaEmbeddingsModelTests.createModel(getUrl(webServer), API_KEY_VALUE, MODEL_VALUE, null, null, null, null);
+            var model = NvidiaEmbeddingsModelTests.createEmbeddingsModel(
+                getUrl(webServer),
+                API_KEY_VALUE,
+                MODEL_VALUE,
+                null,
+                null,
+                null,
+                null,
+                null
+            );
             var actionCreator = new NvidiaActionCreator(sender, createWithEmptySettings(threadPool));
             var action = actionCreator.create(model, null);
 
@@ -625,7 +657,16 @@ public class NvidiaActionCreatorTests extends ESTestCase {
             webServer.enqueue(new MockResponse().setResponseCode(400).setBody(responseJsonContentTooLarge));
             webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
 
-            var model = NvidiaEmbeddingsModelTests.createModel(getUrl(webServer), API_KEY_VALUE, MODEL_VALUE, null, null, null, null);
+            var model = NvidiaEmbeddingsModelTests.createEmbeddingsModel(
+                getUrl(webServer),
+                API_KEY_VALUE,
+                MODEL_VALUE,
+                null,
+                null,
+                null,
+                null,
+                null
+            );
             var action = new NvidiaActionCreator(sender, createWithEmptySettings(threadPool)).create(model, null);
 
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
@@ -665,7 +706,16 @@ public class NvidiaActionCreatorTests extends ESTestCase {
             webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
 
             // truncated to 1 token = 3 characters
-            var model = NvidiaEmbeddingsModelTests.createModel(getUrl(webServer), API_KEY_VALUE, MODEL_VALUE, 1, null, null, null);
+            var model = NvidiaEmbeddingsModelTests.createEmbeddingsModel(
+                getUrl(webServer),
+                API_KEY_VALUE,
+                MODEL_VALUE,
+                1,
+                null,
+                null,
+                null,
+                null
+            );
             var action = new NvidiaActionCreator(sender, createWithEmptySettings(threadPool)).create(model, null);
 
             var listener = new PlainActionFuture<InferenceServiceResults>();
@@ -709,7 +759,7 @@ public class NvidiaActionCreatorTests extends ESTestCase {
                 """;
             webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
 
-            var model = NvidiaRerankModelTests.createModel(getUrl(webServer), API_KEY_VALUE, MODEL_VALUE);
+            var model = NvidiaRerankModelTests.createRerankModel(getUrl(webServer), API_KEY_VALUE, MODEL_VALUE);
             var actionCreator = new NvidiaActionCreator(
                 sender,
                 new ServiceComponents(threadPool, mockThrottlerManager(), NO_RETRY_SETTINGS, TruncatorTests.createTruncator())
@@ -759,7 +809,7 @@ public class NvidiaActionCreatorTests extends ESTestCase {
                 """;
             webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
 
-            var model = NvidiaRerankModelTests.createModel(getUrl(webServer), API_KEY_VALUE, MODEL_VALUE);
+            var model = NvidiaRerankModelTests.createRerankModel(getUrl(webServer), API_KEY_VALUE, MODEL_VALUE);
             var actionCreator = new NvidiaActionCreator(
                 sender,
                 new ServiceComponents(threadPool, mockThrottlerManager(), NO_RETRY_SETTINGS, TruncatorTests.createTruncator())
@@ -782,8 +832,8 @@ public class NvidiaActionCreatorTests extends ESTestCase {
     }
 
     private static void assertContentTypeAndAuthorization(MockRequest request) {
-        assertThat(request.getHeader(HttpHeaders.CONTENT_TYPE), equalTo(XContentType.JSON.mediaTypeWithoutParameters()));
-        assertThat(request.getHeader(HttpHeaders.AUTHORIZATION), equalTo(Strings.format("Bearer %s", API_KEY_VALUE)));
+        assertThat(request.getHeader(HttpHeaders.CONTENT_TYPE), is(XContentType.JSON.mediaTypeWithoutParameters()));
+        assertThat(request.getHeader(HttpHeaders.AUTHORIZATION), is(Strings.format("Bearer %s", API_KEY_VALUE)));
     }
 
 }

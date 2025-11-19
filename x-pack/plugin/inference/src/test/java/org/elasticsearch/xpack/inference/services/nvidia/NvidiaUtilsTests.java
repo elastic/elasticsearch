@@ -11,27 +11,31 @@ import org.elasticsearch.inference.InputType;
 import org.elasticsearch.test.ESTestCase;
 
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.nullValue;
 
 public class NvidiaUtilsTests extends ESTestCase {
 
+    private static final String PASSAGE_VALUE = "passage";
+    private static final String QUERY_VALUE = "query";
+
     public void testInputTypeToString_Search() {
-        assertThat(NvidiaUtils.inputTypeToString(InputType.SEARCH), is("query"));
+        assertThat(NvidiaUtils.inputTypeToString(InputType.SEARCH), is(QUERY_VALUE));
     }
 
     public void testInputTypeToString_InternalSearch() {
-        assertThat(NvidiaUtils.inputTypeToString(InputType.INTERNAL_SEARCH), is("query"));
+        assertThat(NvidiaUtils.inputTypeToString(InputType.INTERNAL_SEARCH), is(QUERY_VALUE));
     }
 
     public void testInputTypeToString_Ingest() {
-        assertThat(NvidiaUtils.inputTypeToString(InputType.INGEST), is("passage"));
+        assertThat(NvidiaUtils.inputTypeToString(InputType.INGEST), is(PASSAGE_VALUE));
     }
 
     public void testInputTypeToString_InternalIngest() {
-        assertThat(NvidiaUtils.inputTypeToString(InputType.INTERNAL_INGEST), is("passage"));
+        assertThat(NvidiaUtils.inputTypeToString(InputType.INTERNAL_INGEST), is(PASSAGE_VALUE));
     }
 
     public void testInputTypeToString_Null() {
-        assertNull(NvidiaUtils.inputTypeToString(null));
+        assertThat(NvidiaUtils.inputTypeToString(null), is(nullValue()));
     }
 
     public void testInputTypeToString_Unspecified() {

@@ -19,7 +19,7 @@ import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.ml.AbstractBWCWireSerializationTestCase;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.ServiceFields;
-import org.elasticsearch.xpack.inference.services.ServiceUtils;
+import org.elasticsearch.xpack.inference.services.nvidia.completion.NvidiaChatCompletionServiceSettings;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettingsTests;
 
@@ -28,43 +28,38 @@ import java.net.URI;
 import java.util.HashMap;
 import java.util.Map;
 
+import static org.elasticsearch.xpack.inference.services.ServiceUtils.createOptionalUri;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
 
 public class NvidiaRerankServiceSettingsTests extends AbstractBWCWireSerializationTestCase<NvidiaRerankServiceSettings> {
-    public static final String MODEL_ID = "some model";
-    public static final String CORRECT_URL = "https://www.elastic.co";
-    public static final int RATE_LIMIT = 2;
+
+    private static final String MODEL_VALUE = "some_model";
+    private static final String URL_VALUE = "http://www.abc.com";
+    private static final String INVALID_URL_VALUE = "^^^";
+    private static final int RATE_LIMIT_VALUE = 2;
 
     public void testFromMap_AllFields_Success() {
         var serviceSettings = NvidiaRerankServiceSettings.fromMap(
-            new HashMap<>(
-                Map.of(
-                    ServiceFields.MODEL_ID,
-                    MODEL_ID,
-                    ServiceFields.URL,
-                    CORRECT_URL,
-                    RateLimitSettings.FIELD_NAME,
-                    new HashMap<>(Map.of(RateLimitSettings.REQUESTS_PER_MINUTE_FIELD, RATE_LIMIT))
-                )
+            buildServiceSettingsMap(
+                MODEL_VALUE,
+                URL_VALUE,
+                new HashMap<>(Map.of(RateLimitSettings.REQUESTS_PER_MINUTE_FIELD, RATE_LIMIT_VALUE))
             ),
             ConfigurationParseContext.PERSISTENT
         );
 
-        assertThat(serviceSettings, is(new NvidiaRerankServiceSettings(MODEL_ID, CORRECT_URL, new RateLimitSettings(RATE_LIMIT))));
+        assertThat(serviceSettings, is(new NvidiaRerankServiceSettings(MODEL_VALUE, URL_VALUE, new RateLimitSettings(RATE_LIMIT_VALUE))));
     }
 
-    public void testFromMap_MissingModelId_ThrowsException() {
+    public void testFromMap_NoModelId_ThrowsException() {
         var thrownException = expectThrows(
             ValidationException.class,
             () -> NvidiaRerankServiceSettings.fromMap(
-                new HashMap<>(
-                    Map.of(
-                        ServiceFields.URL,
-                        CORRECT_URL,
-                        RateLimitSettings.FIELD_NAME,
-                        new HashMap<>(Map.of(RateLimitSettings.REQUESTS_PER_MINUTE_FIELD, RATE_LIMIT))
-                    )
+                buildServiceSettingsMap(
+                    null,
+                    URL_VALUE,
+                    new HashMap<>(Map.of(RateLimitSettings.REQUESTS_PER_MINUTE_FIELD, RATE_LIMIT_VALUE))
                 ),
                 ConfigurationParseContext.PERSISTENT
             )
@@ -73,85 +68,94 @@ public class NvidiaRerankServiceSettingsTests extends AbstractBWCWireSerializati
             thrownException.getMessage(),
             containsString("Validation Failed: 1: [service_settings] does not contain the required setting [model_id];")
         );
-
     }
 
-    public void testFromMap_MissingUrl_Success() {
+    public void testFromMap_NoUrl_Success() {
         var serviceSettings = NvidiaRerankServiceSettings.fromMap(
-            new HashMap<>(
-                Map.of(
-                    ServiceFields.MODEL_ID,
-                    MODEL_ID,
-                    RateLimitSettings.FIELD_NAME,
-                    new HashMap<>(Map.of(RateLimitSettings.REQUESTS_PER_MINUTE_FIELD, RATE_LIMIT))
-                )
+            buildServiceSettingsMap(
+                MODEL_VALUE,
+                null,
+                new HashMap<>(Map.of(RateLimitSettings.REQUESTS_PER_MINUTE_FIELD, RATE_LIMIT_VALUE))
             ),
             ConfigurationParseContext.PERSISTENT
         );
         assertThat(
             serviceSettings,
-            is(new NvidiaRerankServiceSettings(MODEL_ID, ServiceUtils.createOptionalUri(null), new RateLimitSettings(RATE_LIMIT)))
+            is(new NvidiaRerankServiceSettings(MODEL_VALUE, createOptionalUri(null), new RateLimitSettings(RATE_LIMIT_VALUE)))
         );
 
     }
 
-    public void testFromMap_MissingRateLimit_Success() {
+    public void testFromMap_InvalidUrl_ThrowsException() {
+        testFromMap_InvalidUrl(
+            buildServiceSettingsMap(
+                MODEL_VALUE,
+                INVALID_URL_VALUE,
+                new HashMap<>(Map.of(RateLimitSettings.REQUESTS_PER_MINUTE_FIELD, RATE_LIMIT_VALUE))
+            ),
+            Strings.format("""
+                Validation Failed: 1: [service_settings] Invalid url [%s] received for field [url]. \
+                Error: unable to parse url [%s]. Reason: Illegal character in path;""", INVALID_URL_VALUE, INVALID_URL_VALUE)
+        );
+    }
+
+    public void testFromMap_EmptyUrl_ThrowsException() {
+        testFromMap_InvalidUrl(
+            buildServiceSettingsMap(MODEL_VALUE, "", new HashMap<>(Map.of(RateLimitSettings.REQUESTS_PER_MINUTE_FIELD, RATE_LIMIT_VALUE))),
+            "Validation Failed: 1: [service_settings] Invalid value empty string. [url] must be a non-empty string;"
+        );
+    }
+
+    private static void testFromMap_InvalidUrl(Map<String, Object> serviceSettingsMap, String expectedErrorMessage) {
+        var thrownException = expectThrows(
+            ValidationException.class,
+            () -> NvidiaRerankServiceSettings.fromMap(new HashMap<>(serviceSettingsMap), ConfigurationParseContext.PERSISTENT)
+        );
+
+        assertThat(thrownException.getMessage(), containsString(expectedErrorMessage));
+    }
+
+    public void testFromMap_NoRateLimit_Success() {
         var serviceSettings = NvidiaRerankServiceSettings.fromMap(
-            new HashMap<>(Map.of(ServiceFields.MODEL_ID, MODEL_ID, ServiceFields.URL, CORRECT_URL)),
+            buildServiceSettingsMap(MODEL_VALUE, URL_VALUE, null),
             ConfigurationParseContext.PERSISTENT
         );
 
-        assertThat(serviceSettings, is(new NvidiaRerankServiceSettings(MODEL_ID, CORRECT_URL, null)));
+        assertThat(serviceSettings, is(new NvidiaRerankServiceSettings(MODEL_VALUE, URL_VALUE, null)));
     }
 
     public void testToXContent_WritesAllValues() throws IOException {
-        var serviceSettings = NvidiaRerankServiceSettings.fromMap(
-            new HashMap<>(
-                Map.of(
-                    ServiceFields.MODEL_ID,
-                    MODEL_ID,
-                    ServiceFields.URL,
-                    CORRECT_URL,
-                    RateLimitSettings.FIELD_NAME,
-                    new HashMap<>(Map.of(RateLimitSettings.REQUESTS_PER_MINUTE_FIELD, RATE_LIMIT))
-                )
-            ),
-            ConfigurationParseContext.PERSISTENT
-        );
+        var serviceSettings = new NvidiaRerankServiceSettings(MODEL_VALUE, URL_VALUE, new RateLimitSettings(RATE_LIMIT_VALUE));
 
         XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
         serviceSettings.toXContent(builder, null);
         String xContentResult = Strings.toString(builder);
-        var expected = XContentHelper.stripWhitespace("""
+        var expected = XContentHelper.stripWhitespace(Strings.format("""
             {
-                "model_id": "some model",
-                "url": "https://www.elastic.co",
+                "model_id": "%s",
+                "url": "%s",
                 "rate_limit": {
                     "requests_per_minute": 2
                 }
             }
-            """);
+            """, MODEL_VALUE, URL_VALUE));
 
         assertThat(xContentResult, is(expected));
     }
 
     public void testToXContent_DoesNotWriteOptionalValues_DefaultRateLimit() throws IOException {
-        var serviceSettings = NvidiaRerankServiceSettings.fromMap(
-            new HashMap<>(Map.of(ServiceFields.MODEL_ID, MODEL_ID)),
-            ConfigurationParseContext.PERSISTENT
-        );
-
+        var serviceSettings = new NvidiaChatCompletionServiceSettings(MODEL_VALUE, createOptionalUri(null), null);
         XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
         serviceSettings.toXContent(builder, null);
         String xContentResult = Strings.toString(builder);
-        var expected = XContentHelper.stripWhitespace("""
+        var expected = XContentHelper.stripWhitespace(Strings.format("""
             {
-                "model_id": "some model",
+                "model_id": "%s",
                 "rate_limit": {
                     "requests_per_minute": 3000
                 }
             }
-            """);
+            """, MODEL_VALUE));
         assertThat(xContentResult, is(expected));
     }
 
@@ -173,7 +177,7 @@ public class NvidiaRerankServiceSettingsTests extends AbstractBWCWireSerializati
 
         switch (between(0, 2)) {
             case 0 -> modelId = randomValueOtherThan(modelId, () -> randomAlphaOfLength(8));
-            case 1 -> uri = randomValueOtherThan(uri, () -> ServiceUtils.createOptionalUri(randomAlphaOfLengthOrNull(15)));
+            case 1 -> uri = randomValueOtherThan(uri, () -> createOptionalUri(randomAlphaOfLengthOrNull(15)));
             case 2 -> rateLimitSettings = randomValueOtherThan(rateLimitSettings, RateLimitSettingsTests::createRandom);
             default -> throw new AssertionError("Illegal randomisation branch");
         }
@@ -188,9 +192,16 @@ public class NvidiaRerankServiceSettingsTests extends AbstractBWCWireSerializati
     private static NvidiaRerankServiceSettings createRandom() {
         var modelId = randomAlphaOfLength(8);
         var url = randomAlphaOfLengthOrNull(15);
-        return new NvidiaRerankServiceSettings(modelId, ServiceUtils.createOptionalUri(url), RateLimitSettingsTests.createRandom());
+        return new NvidiaRerankServiceSettings(modelId, createOptionalUri(url), RateLimitSettingsTests.createRandom());
     }
 
+    /**
+     * Helper method to build a service settings map.
+     * @param modelId the model ID
+     * @param url the service URL
+     * @param rateLimitSettings the rate limit settings
+     * @return a map representing the service settings
+     */
     public static Map<String, Object> buildServiceSettingsMap(
         @Nullable String modelId,
         @Nullable String url,

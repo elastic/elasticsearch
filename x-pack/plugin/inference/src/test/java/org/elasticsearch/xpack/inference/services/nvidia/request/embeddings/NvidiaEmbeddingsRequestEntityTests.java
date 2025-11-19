@@ -22,38 +22,47 @@ import java.util.List;
 import static org.hamcrest.Matchers.is;
 
 public class NvidiaEmbeddingsRequestEntityTests extends ESTestCase {
+    // Test values
+    private static final String MODEL_VALUE = "some_model";
+    private static final List<String> INPUT_VALUE = List.of("some input");
+    private static final InputType INPUT_TYPE_VALUE = InputType.INGEST;
+    private static final CohereTruncation TRUNCATE_VALUE = CohereTruncation.START;
+
     public void testXContent_AllFields() throws IOException {
-        var entity = new NvidiaEmbeddingsRequestEntity(List.of("abc"), "model", InputType.SEARCH, CohereTruncation.START);
+        var entity = new NvidiaEmbeddingsRequestEntity(INPUT_VALUE, MODEL_VALUE, INPUT_TYPE_VALUE, TRUNCATE_VALUE);
         XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
         entity.toXContent(builder, null);
         String xContentResult = Strings.toString(builder);
 
         assertThat(xContentResult, is(XContentHelper.stripWhitespace("""
             {
-                "input": ["abc"],
-                "model": "model",
-                "input_type": "query",
+                "input": ["some input"],
+                "model": "some_model",
+                "input_type": "passage",
                 "truncate": "start"
             }
             """)));
     }
 
     public void testXContent_OnlyMandatoryFields() throws IOException {
-        var entity = new NvidiaEmbeddingsRequestEntity(List.of("abc"), "model", null, null);
+        var entity = new NvidiaEmbeddingsRequestEntity(INPUT_VALUE, MODEL_VALUE, null, null);
         XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
         entity.toXContent(builder, null);
         String xContentResult = Strings.toString(builder);
 
         assertThat(xContentResult, is(XContentHelper.stripWhitespace("""
             {
-                "input": ["abc"],
-                "model": "model"
+                "input": ["some input"],
+                "model": "some_model"
             }
             """)));
     }
 
-    public void testXContent_ModelIdNull_ThrowsException() {
-        expectThrows(NullPointerException.class, () -> new NvidiaEmbeddingsRequestEntity(List.of("abc"), null, null, null));
+    public void testCreateRequestEntity_ModelIdNull_ThrowsException() {
+        expectThrows(
+            NullPointerException.class,
+            () -> new NvidiaEmbeddingsRequestEntity(INPUT_VALUE, null, INPUT_TYPE_VALUE, TRUNCATE_VALUE)
+        );
     }
 
 }

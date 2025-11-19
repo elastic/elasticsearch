@@ -24,11 +24,6 @@ regexBooleanExpression
     | valueExpression (NOT)? RLIKE LP stringOrParameter (COMMA stringOrParameter )* RP  #rlikeListExpression
     ;
 
-stringOrParameter
-    : string
-    | parameter
-    ;
-
 matchBooleanExpression
     : fieldExp=qualifiedName (CAST_OP fieldType=dataType)? COLON matchQuery=constant
     ;

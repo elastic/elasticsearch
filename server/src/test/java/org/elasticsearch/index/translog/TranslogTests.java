@@ -124,7 +124,6 @@ import java.util.stream.IntStream;
 import java.util.stream.LongStream;
 import java.util.stream.Stream;
 
-import static org.elasticsearch.common.util.BigArrays.NON_RECYCLING_INSTANCE;
 import static org.elasticsearch.index.translog.SnapshotMatchers.containsOperationsInAnyOrder;
 import static org.elasticsearch.index.translog.TranslogOperationsUtils.indexOp;
 import static org.hamcrest.CoreMatchers.hasItem;
@@ -301,7 +300,7 @@ public class TranslogTests extends ESTestCase {
             shardId,
             path,
             indexSettings,
-            NON_RECYCLING_INSTANCE,
+            BytesRefRecycler.NON_RECYCLING_INSTANCE,
             bufferSize,
             randomBoolean() ? DiskIoBufferPool.INSTANCE : RANDOMIZING_IO_BUFFERS,
             Objects.requireNonNullElse(listener, (d, s, l) -> {}),
@@ -1398,7 +1397,7 @@ public class TranslogTests extends ESTestCase {
             temp.getShardId(),
             temp.getTranslogPath(),
             temp.getIndexSettings(),
-            temp.getBigArrays(),
+            temp.getBytesRecycler(),
             ByteSizeValue.of(1, ByteSizeUnit.KB),
             randomBoolean() ? DiskIoBufferPool.INSTANCE : RANDOMIZING_IO_BUFFERS,
             TranslogConfig.NOOP_OPERATION_LISTENER,
@@ -4086,7 +4085,7 @@ public class TranslogTests extends ESTestCase {
             shardId,
             translogDir,
             IndexSettingsModule.newIndexSettings(shardId.getIndex(), Settings.EMPTY),
-            NON_RECYCLING_INSTANCE,
+            BytesRefRecycler.NON_RECYCLING_INSTANCE,
             ByteSizeValue.of(1, ByteSizeUnit.KB),
             randomBoolean() ? DiskIoBufferPool.INSTANCE : RANDOMIZING_IO_BUFFERS,
             TranslogConfig.NOOP_OPERATION_LISTENER,

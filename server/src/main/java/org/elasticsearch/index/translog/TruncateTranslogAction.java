@@ -20,7 +20,6 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexNotFoundException;
@@ -29,6 +28,7 @@ import org.elasticsearch.index.engine.TranslogOperationAsserter;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.RemoveCorruptedShardDataCommand;
 import org.elasticsearch.index.shard.ShardPath;
+import org.elasticsearch.transport.BytesRefRecycler;
 
 import java.io.IOException;
 import java.nio.channels.FileChannel;
@@ -161,7 +161,7 @@ public class TruncateTranslogAction {
                 shardPath.getShardId(),
                 translogPath,
                 indexSettings,
-                BigArrays.NON_RECYCLING_INSTANCE
+                BytesRefRecycler.NON_RECYCLING_INSTANCE
             );
             long primaryTerm = indexSettings.getIndexMetadata().primaryTerm(shardPath.getShardId().id());
             final TranslogDeletionPolicy translogDeletionPolicy = new TranslogDeletionPolicy();

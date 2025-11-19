@@ -26,6 +26,7 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.TriFunction;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.recycler.VariableRecycler;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
@@ -81,6 +82,7 @@ import java.util.function.BiFunction;
 import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
 import java.util.function.Function;
+import java.util.function.Supplier;
 
 /**
  * IndexModule represents the central extension point for index level custom implementations like:
@@ -482,6 +484,7 @@ public final class IndexModule {
         IndexService.ShardStoreDeleter shardStoreDeleter,
         CircuitBreakerService circuitBreakerService,
         BigArrays bigArrays,
+        Supplier<VariableRecycler> bytesRecycler,
         ThreadPool threadPool,
         ThreadPoolMergeExecutorService threadPoolMergeExecutorService,
         ScriptService scriptService,
@@ -535,6 +538,7 @@ public final class IndexModule {
                 engineFactory,
                 circuitBreakerService,
                 bigArrays,
+                bytesRecycler,
                 threadPool,
                 threadPoolMergeExecutorService,
                 scriptService,

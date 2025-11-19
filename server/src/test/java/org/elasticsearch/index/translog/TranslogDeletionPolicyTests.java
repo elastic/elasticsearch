@@ -12,13 +12,13 @@ package org.elasticsearch.index.translog;
 import org.apache.lucene.store.ByteArrayDataOutput;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.engine.TranslogOperationAsserter;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.transport.BytesRefRecycler;
 import org.mockito.Mockito;
 
 import java.io.IOException;
@@ -93,7 +93,7 @@ public class TranslogDeletionPolicyTests extends ESTestCase {
                 randomNonNegativeLong(),
                 new TragicExceptionHolder(),
                 seqNo -> {},
-                BigArrays.NON_RECYCLING_INSTANCE,
+                BytesRefRecycler.NON_RECYCLING_INSTANCE,
                 TranslogTests.RANDOMIZING_IO_BUFFERS,
                 TranslogConfig.NOOP_OPERATION_LISTENER,
                 TranslogOperationAsserter.DEFAULT,

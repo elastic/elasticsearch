@@ -101,6 +101,7 @@ import org.elasticsearch.test.IndexSettingsModule;
 import org.elasticsearch.test.engine.MockEngineFactory;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.BytesRefRecycler;
 import org.hamcrest.Matchers;
 
 import java.io.Closeable;
@@ -232,6 +233,7 @@ public class IndexModuleTests extends ESTestCase {
             deleter,
             circuitBreakerService,
             bigArrays,
+            () -> BytesRefRecycler.NON_RECYCLING_INSTANCE,
             threadPool,
             threadPoolMergeExecutorService,
             scriptService,

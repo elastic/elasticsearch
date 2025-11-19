@@ -14,6 +14,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.component.LifecycleComponent;
 import org.elasticsearch.common.io.stream.RecyclerBytesStreamOutput;
+import org.elasticsearch.common.recycler.VariableRecycler;
 import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.util.Maps;
@@ -90,6 +91,10 @@ public interface Transport extends LifecycleComponent {
 
     default RecyclerBytesStreamOutput newNetworkBytesStream() {
         return new RecyclerBytesStreamOutput(NON_RECYCLING_INSTANCE);
+    }
+
+    default VariableRecycler variableRecycler() {
+        return NON_RECYCLING_INSTANCE;
     }
 
     /**

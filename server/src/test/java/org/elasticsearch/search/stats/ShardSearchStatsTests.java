@@ -16,7 +16,6 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
-import org.elasticsearch.index.mapper.MapperMetrics;
 import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.search.stats.SearchStats;
@@ -37,7 +36,6 @@ import org.junit.Before;
 
 import java.io.IOException;
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.TimeUnit;
@@ -300,13 +298,7 @@ public class ShardSearchStatsTests extends IndexShardTestCase {
             null,
             null,
             null,
-            null,
-            null,
-            null,
-            null,
-            Collections.emptyMap(),
-            null,
-            MapperMetrics.NOOP
+            null
         );
         return new TestSearchContext(searchExecutionContext) {
             private final SearchRequest searchquest = new SearchRequest().allowPartialSearchResults(true);

@@ -164,6 +164,50 @@ public class SearchExecutionContext extends QueryRewriteContext {
         );
     }
 
+    // Reduced ctor for tests
+    public SearchExecutionContext(
+        int shardId,
+        int shardRequestIndex,
+        IndexSettings indexSettings,
+        BitsetFilterCache bitsetFilterCache,
+        BiFunction<MappedFieldType, FieldDataContext, IndexFieldData<?>> indexFieldDataLookup,
+        MapperService mapperService,
+        MappingLookup mappingLookup,
+        SimilarityService similarityService,
+        ScriptCompiler scriptService,
+        XContentParserConfiguration parserConfiguration,
+        NamedWriteableRegistry namedWriteableRegistry,
+        Client client,
+        IndexSearcher searcher,
+        LongSupplier nowInMillis,
+        Predicate<String> indexNameMatcher
+    ) {
+        this(
+            shardId,
+            shardRequestIndex,
+            indexSettings,
+            bitsetFilterCache,
+            indexFieldDataLookup,
+            mapperService,
+            mappingLookup,
+            similarityService,
+            scriptService,
+            parserConfiguration,
+            namedWriteableRegistry,
+            client,
+            searcher,
+            nowInMillis,
+            null,
+            indexNameMatcher,
+            () -> true,
+            null,
+            Collections.emptyMap(),
+            null,
+            MapperMetrics.NOOP,
+            null
+        );
+    }
+
     public SearchExecutionContext(
         int shardId,
         int shardRequestIndex,

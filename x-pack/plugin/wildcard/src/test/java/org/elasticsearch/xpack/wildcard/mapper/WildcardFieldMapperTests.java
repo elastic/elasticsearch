@@ -60,7 +60,6 @@ import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.LuceneDocument;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
-import org.elasticsearch.index.mapper.MapperMetrics;
 import org.elasticsearch.index.mapper.MapperTestCase;
 import org.elasticsearch.index.mapper.Mapping;
 import org.elasticsearch.index.mapper.MappingLookup;
@@ -69,6 +68,7 @@ import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.sort.FieldSortBuilder;
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.wildcard.Wildcard;
@@ -85,7 +85,6 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.function.BiFunction;
 
-import static java.util.Collections.emptyMap;
 import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -1101,13 +1100,8 @@ public class WildcardFieldMapperTests extends MapperTestCase {
             null,
             null,
             null,
-            () -> randomNonNegativeLong(),
-            null,
-            null,
-            () -> true,
-            null,
-            emptyMap(),
-            MapperMetrics.NOOP
+            ESTestCase::randomNonNegativeLong,
+            null
         ) {
             @Override
             public MappedFieldType getFieldType(String name) {

@@ -35,7 +35,6 @@ import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
-import org.elasticsearch.index.mapper.MapperMetrics;
 import org.elasticsearch.index.mapper.Mapping;
 import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.mapper.MetadataFieldMapper;
@@ -487,12 +486,7 @@ public class SearchServiceTests extends IndexShardTestCase {
             null,
             searcher,
             System::currentTimeMillis,
-            null,
-            indexNameMatcher,
-            () -> true,
-            null,
-            Collections.emptyMap(),
-            MapperMetrics.NOOP
+            indexNameMatcher
         );
     }
 

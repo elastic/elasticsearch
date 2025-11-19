@@ -25,7 +25,6 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
-import org.elasticsearch.index.mapper.MapperMetrics;
 import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.mapper.TextFieldMapper;
 import org.elasticsearch.index.query.IdsQueryBuilder;
@@ -63,7 +62,6 @@ import java.util.function.BiConsumer;
 import java.util.function.Function;
 
 import static java.util.Collections.emptyList;
-import static java.util.Collections.emptyMap;
 import static org.elasticsearch.search.fetch.subphase.highlight.AbstractHighlighterBuilder.MAX_ANALYZED_OFFSET_FIELD;
 import static org.elasticsearch.test.EqualsHashCodeTestUtils.checkEqualsAndHashCode;
 import static org.hamcrest.Matchers.containsString;
@@ -314,12 +312,7 @@ public class HighlightBuilderTests extends ESTestCase {
             null,
             null,
             System::currentTimeMillis,
-            null,
-            null,
-            () -> true,
-            null,
-            emptyMap(),
-            MapperMetrics.NOOP
+            null
         ) {
             @Override
             public MappedFieldType getFieldType(String name) {

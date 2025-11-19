@@ -152,12 +152,7 @@ public class QueryParserHelperBenchmark {
             null,
             new IndexSearcher(indexReader),
             () -> nowInMillis,
-            null,
-            null,
-            () -> true,
-            null,
-            Collections.emptyMap(),
-            MapperMetrics.NOOP
+            null
         );
     }
 

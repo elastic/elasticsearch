@@ -92,7 +92,6 @@ import org.elasticsearch.xcontent.json.JsonXContent;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -821,12 +820,7 @@ public abstract class MapperServiceTestCase extends FieldTypeTestCase {
             null,
             searcher,
             () -> nowInMillis,
-            null,
-            null,
-            () -> true,
-            null,
-            Collections.emptyMap(),
-            MapperMetrics.NOOP
+            null
         );
     }
 

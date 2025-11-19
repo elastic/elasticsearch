@@ -17,7 +17,6 @@ import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.join.ScoreMode;
-import org.elasticsearch.index.mapper.MapperMetrics;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MapperServiceTestCase;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
@@ -28,7 +27,6 @@ import org.elasticsearch.index.query.TermQueryBuilder;
 import java.io.IOException;
 import java.util.Collections;
 
-import static java.util.Collections.emptyMap;
 import static org.mockito.Mockito.mock;
 
 public class NestedHelperTests extends MapperServiceTestCase {
@@ -87,12 +85,7 @@ public class NestedHelperTests extends MapperServiceTestCase {
             null,
             null,
             System::currentTimeMillis,
-            null,
-            null,
-            () -> true,
-            null,
-            emptyMap(),
-            MapperMetrics.NOOP
+            null
         );
     }
 

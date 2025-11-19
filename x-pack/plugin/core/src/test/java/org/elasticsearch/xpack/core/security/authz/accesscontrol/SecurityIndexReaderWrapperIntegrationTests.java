@@ -35,7 +35,6 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper.KeywordFieldType;
 import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.mapper.MapperMetrics;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.Mapping;
 import org.elasticsearch.index.mapper.MappingLookup;
@@ -107,12 +106,7 @@ public class SecurityIndexReaderWrapperIntegrationTests extends AbstractBuilderT
             client,
             null,
             () -> nowInMillis,
-            null,
-            null,
-            () -> true,
-            null,
-            Map.of(),
-            MapperMetrics.NOOP
+            null
         );
         SearchExecutionContext searchExecutionContext = spy(realSearchExecutionContext);
         DocumentSubsetBitsetCache bitsetCache = new DocumentSubsetBitsetCache(Settings.EMPTY);
@@ -263,12 +257,7 @@ public class SecurityIndexReaderWrapperIntegrationTests extends AbstractBuilderT
             client,
             null,
             () -> nowInMillis,
-            null,
-            null,
-            () -> true,
-            null,
-            Map.of(),
-            MapperMetrics.NOOP
+            null
         );
         SearchExecutionContext searchExecutionContext = spy(realSearchExecutionContext);
         DocumentSubsetBitsetCache bitsetCache = new DocumentSubsetBitsetCache(Settings.EMPTY);

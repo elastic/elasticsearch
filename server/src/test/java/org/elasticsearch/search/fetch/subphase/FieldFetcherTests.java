@@ -26,7 +26,6 @@ import org.elasticsearch.index.mapper.FieldNamesFieldMapper;
 import org.elasticsearch.index.mapper.LongFieldScriptTests;
 import org.elasticsearch.index.mapper.LuceneDocument;
 import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.mapper.MapperMetrics;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MapperServiceTestCase;
 import org.elasticsearch.index.mapper.NestedPathFieldMapper;
@@ -53,7 +52,6 @@ import java.util.Map;
 import java.util.Set;
 import java.util.function.BiFunction;
 
-import static java.util.Collections.emptyMap;
 import static org.elasticsearch.xcontent.ObjectPath.eval;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
@@ -1694,12 +1692,7 @@ public class FieldFetcherTests extends MapperServiceTestCase {
             null,
             null,
             null,
-            null,
-            null,
-            null,
-            null,
-            emptyMap(),
-            MapperMetrics.NOOP
+            null
         );
     }
 

@@ -32,7 +32,6 @@ import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
-import org.elasticsearch.index.mapper.MapperMetrics;
 import org.elasticsearch.index.mapper.Mapping;
 import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.mapper.MockFieldMapper;
@@ -600,12 +599,7 @@ public class DocumentSubsetBitsetCacheTests extends ESTestCase {
                 client,
                 newSearcher(directoryReader),
                 () -> nowInMillis,
-                null,
-                null,
-                () -> true,
-                null,
-                Map.of(),
-                MapperMetrics.NOOP
+                null
             );
 
             context = new TestIndexContext(directory, iw, directoryReader, searchExecutionContext, leaf);

@@ -420,7 +420,8 @@ public abstract class AggregatorTestCase extends ESTestCase {
             () -> true,
             valuesSourceRegistry,
             emptyMap(),
-            MapperMetrics.NOOP
+            MapperMetrics.NOOP,
+            null
         ) {
             @Override
             public Iterable<MappedFieldType> dimensionFields() {

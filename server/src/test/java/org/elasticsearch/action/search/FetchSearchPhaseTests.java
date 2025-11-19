@@ -40,7 +40,6 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
 import org.elasticsearch.index.mapper.IdLoader;
-import org.elasticsearch.index.mapper.MapperMetrics;
 import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.shard.ShardId;
@@ -1022,13 +1021,7 @@ public class FetchSearchPhaseTests extends ESTestCase {
             null,
             null,
             null,
-            null,
-            null,
-            null,
-            null,
-            Collections.emptyMap(),
-            null,
-            MapperMetrics.NOOP
+            null
         );
         TestSearchContext searchContext = new TestSearchContext(searchExecutionContext, null, contextIndexSearcher) {
             private final FetchSearchResult fetchSearchResult = new FetchSearchResult();

@@ -24,7 +24,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
-import org.elasticsearch.index.mapper.MapperMetrics;
 import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.query.ParsedQuery;
 import org.elasticsearch.index.query.SearchExecutionContext;
@@ -137,13 +136,7 @@ public class DfsPhaseTests extends IndexShardTestCase {
                 null,
                 null,
                 null,
-                null,
-                null,
-                null,
-                null,
-                Collections.emptyMap(),
-                null,
-                MapperMetrics.NOOP
+                null
             );
 
             Query query = new KnnFloatVectorQuery("float_vector", new float[] { 0, 0, 0 }, numDocs, null);

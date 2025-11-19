@@ -25,7 +25,6 @@ import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
-import org.elasticsearch.index.mapper.MapperMetrics;
 import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.mapper.NestedLookup;
 import org.elasticsearch.index.mapper.NestedObjectMapper;
@@ -61,7 +60,6 @@ import java.util.function.BiFunction;
 import java.util.function.Function;
 
 import static java.util.Collections.emptyList;
-import static java.util.Collections.emptyMap;
 import static org.elasticsearch.test.EqualsHashCodeTestUtils.checkEqualsAndHashCode;
 import static org.mockito.Mockito.mock;
 
@@ -214,13 +212,8 @@ public abstract class AbstractSortTestCase<T extends SortBuilder<T>> extends EST
             namedWriteableRegistry,
             null,
             searcher,
-            () -> randomNonNegativeLong(),
-            null,
-            null,
-            () -> true,
-            null,
-            emptyMap(),
-            MapperMetrics.NOOP
+            ESTestCase::randomNonNegativeLong,
+            null
         ) {
 
             @Override

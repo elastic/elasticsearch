@@ -608,12 +608,7 @@ public abstract class AbstractBuilderTestCase extends ESTestCase {
                 this.client,
                 searcher,
                 () -> nowInMillis,
-                null,
-                indexNameMatcher(),
-                () -> true,
-                null,
-                emptyMap(),
-                MapperMetrics.NOOP
+                indexNameMatcher()
             );
         }
 

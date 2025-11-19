@@ -651,12 +651,7 @@ public class DateFieldTypeTests extends FieldTypeTestCase {
             null,
             null,
             () -> nowInMillis,
-            null,
-            null,
-            () -> true,
-            null,
-            Collections.emptyMap(),
-            MapperMetrics.NOOP
+            null
         );
     }
 

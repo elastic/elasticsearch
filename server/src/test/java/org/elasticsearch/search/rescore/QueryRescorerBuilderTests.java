@@ -19,7 +19,6 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
-import org.elasticsearch.index.mapper.MapperMetrics;
 import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.mapper.TextFieldMapper;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
@@ -48,7 +47,6 @@ import java.io.IOException;
 import java.util.Set;
 
 import static java.util.Collections.emptyList;
-import static java.util.Collections.emptyMap;
 import static org.elasticsearch.test.EqualsHashCodeTestUtils.checkEqualsAndHashCode;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
@@ -154,12 +152,7 @@ public class QueryRescorerBuilderTests extends ESTestCase {
             null,
             null,
             () -> nowInMillis,
-            null,
-            null,
-            () -> true,
-            null,
-            emptyMap(),
-            MapperMetrics.NOOP
+            null
         ) {
             @Override
             public MappedFieldType getFieldType(String name) {
@@ -217,12 +210,7 @@ public class QueryRescorerBuilderTests extends ESTestCase {
             null,
             null,
             () -> nowInMillis,
-            null,
-            null,
-            () -> true,
-            null,
-            emptyMap(),
-            MapperMetrics.NOOP
+            null
         ) {
             @Override
             public MappedFieldType getFieldType(String name) {

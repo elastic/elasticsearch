@@ -72,7 +72,6 @@ import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.mapper.MapperMetrics;
 import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.query.ParsedQuery;
@@ -171,12 +170,7 @@ public class QueryPhaseTests extends IndexShardTestCase {
             null,
             null,
             () -> nowInMillis,
-            null,
-            null,
-            () -> true,
-            null,
-            Collections.emptyMap(),
-            MapperMetrics.NOOP
+            null
         );
     }
 

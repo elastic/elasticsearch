@@ -20,6 +20,7 @@ import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServic
 import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceSettings;
 import org.elasticsearch.xpack.inference.services.elastic.authorization.AuthorizationPoller;
 import org.elasticsearch.xpack.inference.services.elastic.ccm.CCMSettings;
+import org.elasticsearch.xpack.inference.services.elastic.response.AuthorizationResponseEntityTests;
 import org.junit.AfterClass;
 import org.junit.Before;
 import org.junit.BeforeClass;
@@ -32,11 +33,11 @@ import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.xpack.inference.external.http.Utils.getUrl;
-import static org.elasticsearch.xpack.inference.integration.AuthorizationTaskExecutorIT.AUTHORIZED_RAINBOW_SPRINKLES_RESPONSE;
-import static org.elasticsearch.xpack.inference.integration.AuthorizationTaskExecutorIT.DEFAULT_CHAT_COMPLETION_ENDPOINT_ID_V1;
-import static org.elasticsearch.xpack.inference.integration.AuthorizationTaskExecutorIT.EMPTY_AUTH_RESPONSE;
 import static org.elasticsearch.xpack.inference.integration.AuthorizationTaskExecutorIT.cancelAuthorizationTask;
 import static org.elasticsearch.xpack.inference.integration.AuthorizationTaskExecutorIT.waitForTask;
+import static org.elasticsearch.xpack.inference.services.elastic.response.AuthorizationResponseEntityTests.EIS_EMPTY_RESPONSE;
+import static org.elasticsearch.xpack.inference.services.elastic.response.AuthorizationResponseEntityTests.RAINBOW_SPRINKLES_ENDPOINT_ID_V1;
+import static org.elasticsearch.xpack.inference.services.elastic.response.AuthorizationResponseEntityTests.getEisRainbowSprinklesAuthorizationResponse;
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.not;
@@ -54,12 +55,14 @@ public class AuthorizationTaskExecutorMultipleNodesIT extends ESIntegTestCase {
     private static final String AUTH_TASK_ACTION = AuthorizationPoller.TASK_NAME + "[c]";
     private static final MockWebServer webServer = new MockWebServer();
     private static String gatewayUrl;
+    private static AuthorizationResponseEntityTests.EisAuthorizationResponse chatCompletionResponse;
 
     @BeforeClass
     public static void initClass() throws IOException {
         webServer.start();
         gatewayUrl = getUrl(webServer);
-        webServer.enqueue(new MockResponse().setResponseCode(200).setBody(EMPTY_AUTH_RESPONSE));
+        webServer.enqueue(new MockResponse().setResponseCode(200).setBody(EIS_EMPTY_RESPONSE));
+        chatCompletionResponse = getEisRainbowSprinklesAuthorizationResponse(gatewayUrl);
     }
 
     @Before
@@ -110,7 +113,7 @@ public class AuthorizationTaskExecutorMultipleNodesIT extends ESIntegTestCase {
         );
 
         // queue a response that authorizes one model
-        webServer.enqueue(new MockResponse().setResponseCode(200).setBody(AUTHORIZED_RAINBOW_SPRINKLES_RESPONSE));
+        webServer.enqueue(new MockResponse().setResponseCode(200).setBody(chatCompletionResponse.responseJson()));
 
         assertTrue("expected the node to shutdown properly", internalCluster().stopNode(nodeNameMapping.get(pollerTask.node())));
 
@@ -130,7 +133,7 @@ public class AuthorizationTaskExecutorMultipleNodesIT extends ESIntegTestCase {
 
             var rainbowSprinklesEndpoint = eisEndpoints.get(0);
             assertThat(rainbowSprinklesEndpoint.getService(), is(ElasticInferenceService.NAME));
-            assertThat(rainbowSprinklesEndpoint.getInferenceEntityId(), is(DEFAULT_CHAT_COMPLETION_ENDPOINT_ID_V1));
+            assertThat(rainbowSprinklesEndpoint.getInferenceEntityId(), is(RAINBOW_SPRINKLES_ENDPOINT_ID_V1));
             assertThat(rainbowSprinklesEndpoint.getTaskType(), is(TaskType.CHAT_COMPLETION));
         });
     }

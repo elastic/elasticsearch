@@ -39,11 +39,26 @@ import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.xpack.inference.services.elastic.InternalPreconfiguredEndpoints.DEFAULT_ELSER_ENDPOINT_ID_V2;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.is;
 
 public class AuthorizationResponseEntityTests extends AbstractBWCWireSerializationTestCase<AuthorizationResponseEntity> {
+
+    // rainbow-sprinkles
+    public static final String RAINBOW_SPRINKLES_ENDPOINT_ID_V1 = ".rainbow-sprinkles-elastic";
+    public static final String RAINBOW_SPRINKLES_MODEL_NAME = "rainbow-sprinkles";
+
+    // elser-2
+    public static final String ELSER_V2_ENDPOINT_ID = ".elser-2-elastic";
+    public static final String ELSER_V2_MODEL_NAME = "elser_model_2";
+
+    // multilingual-text-embed
+    public static final String JINA_EMBED_ENDPOINT_ID = ".jina-embeddings-v3";
+    public static final String JINA_EMBED_MODEL_NAME = "jina-embeddings-v3";
+
+    // rerank-v1
+    public static final String RERANK_V1_ENDPOINT_ID = ".elastic-rerank-v1";
+    public static final String RERANK_V1_MODEL_NAME = "elastic-rerank-v2";
 
     public record EisAuthorizationResponse(
         String responseJson,
@@ -51,6 +66,58 @@ public class AuthorizationResponseEntityTests extends AbstractBWCWireSerializati
         List<ElasticInferenceServiceModel> expectedEndpoints,
         Set<String> inferenceIds
     ) {}
+
+    public static final String EIS_EMPTY_RESPONSE = """
+        {
+          "inference_endpoints": []
+        }
+        """;
+
+    public static final String EIS_RAINBOW_SPRINKLES_RESPONSE = """
+        {
+          "inference_endpoints": [
+            {
+              "id": ".rainbow-sprinkles-elastic",
+              "model_name": "rainbow-sprinkles",
+              "task_type": "chat_completion",
+              "status": "ga",
+              "properties": [
+                "multilingual"
+              ],
+              "release_date": "2024-05-01",
+              "end_of_life_date": "2025-12-31"
+            }
+          ]
+        }
+        """;
+
+    public static final String EIS_JINA_EMBED_RESPONSE = """
+        {
+          "inference_endpoints": [
+            {
+              "id": ".jina-embeddings-v3",
+              "model_name": "jina-embeddings-v3",
+              "task_type": "text_embedding",
+              "status": "beta",
+              "properties": [
+                "multilingual",
+                "open-weights"
+              ],
+              "release_date": "2024-05-01",
+              "configuration": {
+                "similarity": "cosine",
+                "dimensions": 1024,
+                "element_type": "float",
+                "chunking_settings": {
+                  "strategy": "word",
+                  "max_chunk_size": 500,
+                  "overlap": 2
+                }
+              }
+            }
+          ]
+        }
+        """;
 
     public static final String EIS_ELSER_RESPONSE = """
         {
@@ -141,92 +208,57 @@ public class AuthorizationResponseEntityTests extends AbstractBWCWireSerializati
         """;
 
     public static EisAuthorizationResponse getEisElserAuthorizationResponse(String url) {
-
-        var authorizedEndpoints = List.of(
-            new AuthorizationResponseEntity.AuthorizedEndpoint(
-                DEFAULT_ELSER_ENDPOINT_ID_V2,
-                "elser_model_2",
-                "sparse_embedding",
-                "preview",
-                List.of("english"),
-                "2024-05-01",
-                null,
-                new AuthorizationResponseEntity.Configuration(
-                    null,
-                    null,
-                    null,
-                    Map.of("strategy", "sentence", "max_chunk_size", 250, "sentence_overlap", 1)
-                )
-            )
-        );
+        var authorizedEndpoints = List.of(createElserAuthorizedEndpoint());
 
         var inferenceIds = authorizedEndpoints.stream().map(AuthorizationResponseEntity.AuthorizedEndpoint::id).collect(Collectors.toSet());
 
         return new EisAuthorizationResponse(
             EIS_ELSER_RESPONSE,
             new AuthorizationResponseEntity(authorizedEndpoints),
-            List.of(
-                new ElasticInferenceServiceSparseEmbeddingsModel(
-                    DEFAULT_ELSER_ENDPOINT_ID_V2,
-                    TaskType.SPARSE_EMBEDDING,
-                    ElasticInferenceService.NAME,
-                    new ElasticInferenceServiceSparseEmbeddingsServiceSettings("elser_model_2", null),
-                    EmptyTaskSettings.INSTANCE,
-                    EmptySecretSettings.INSTANCE,
-                    new ElasticInferenceServiceComponents(url),
-                    new SentenceBoundaryChunkingSettings(250, 1)
-                )
-            ),
+            List.of(createElserExpectedEndpoint(url)),
             inferenceIds
         );
     }
 
-    public static EisAuthorizationResponse getEisAuthorizationResponseWithMultipleEndpoints(String url) {
+    private static ElasticInferenceServiceModel createElserExpectedEndpoint(String url) {
+        return new ElasticInferenceServiceSparseEmbeddingsModel(
+            ELSER_V2_ENDPOINT_ID,
+            TaskType.SPARSE_EMBEDDING,
+            ElasticInferenceService.NAME,
+            new ElasticInferenceServiceSparseEmbeddingsServiceSettings(ELSER_V2_MODEL_NAME, null),
+            EmptyTaskSettings.INSTANCE,
+            EmptySecretSettings.INSTANCE,
+            new ElasticInferenceServiceComponents(url),
+            new SentenceBoundaryChunkingSettings(250, 1)
+        );
+    }
 
+    private static AuthorizationResponseEntity.AuthorizedEndpoint createElserAuthorizedEndpoint() {
+        return new AuthorizationResponseEntity.AuthorizedEndpoint(
+            ELSER_V2_ENDPOINT_ID,
+            ELSER_V2_MODEL_NAME,
+            "sparse_embedding",
+            "preview",
+            List.of("english"),
+            "2024-05-01",
+            null,
+            new AuthorizationResponseEntity.Configuration(
+                null,
+                null,
+                null,
+                Map.of("strategy", "sentence", "max_chunk_size", 250, "sentence_overlap", 1)
+            )
+        );
+    }
+
+    public static EisAuthorizationResponse getEisAuthorizationResponseWithMultipleEndpoints(String url) {
         var authorizedEndpoints = List.of(
+            createRainbowSprinklesAuthorizedEndpoint(),
+            createElserAuthorizedEndpoint(),
+            createJinaEmbedAuthorizedEndpoint(),
             new AuthorizationResponseEntity.AuthorizedEndpoint(
-                ".rainbow-sprinkles-elastic",
-                "rainbow-sprinkles",
-                "chat_completion",
-                "ga",
-                List.of("multilingual"),
-                "2024-05-01",
-                "2025-12-31",
-                null
-            ),
-            new AuthorizationResponseEntity.AuthorizedEndpoint(
-                DEFAULT_ELSER_ENDPOINT_ID_V2,
-                "elser_model_2",
-                "sparse_embedding",
-                "preview",
-                List.of("english"),
-                "2024-05-01",
-                null,
-                new AuthorizationResponseEntity.Configuration(
-                    null,
-                    null,
-                    null,
-                    Map.of("strategy", "sentence", "max_chunk_size", 250, "sentence_overlap", 1)
-                )
-            ),
-            new AuthorizationResponseEntity.AuthorizedEndpoint(
-                ".jina-embeddings-v3",
-                "jina-embeddings-v3",
-                "text_embedding",
-                "beta",
-                List.of("multilingual", "open-weights"),
-                "2024-05-01",
-                null,
-                new AuthorizationResponseEntity.Configuration(
-                    "cosine",
-                    1024,
-                    "float",
-                    Map.of("strategy", "word", "max_chunk_size", 500, "overlap", 2)
-                )
-            ),
-            new AuthorizationResponseEntity.AuthorizedEndpoint(
-                ".elastic-rerank-v1",
-                "elastic-rerank-v1",
+                RERANK_V1_ENDPOINT_ID,
+                RERANK_V1_MODEL_NAME,
                 "rerank",
                 "preview",
                 List.of(),
@@ -242,51 +274,102 @@ public class AuthorizationResponseEntityTests extends AbstractBWCWireSerializati
             EIS_AUTHORIZATION_RESPONSE_V2,
             new AuthorizationResponseEntity(authorizedEndpoints),
             List.of(
-                new ElasticInferenceServiceCompletionModel(
-                    ".rainbow-sprinkles-elastic",
-                    TaskType.CHAT_COMPLETION,
-                    ElasticInferenceService.NAME,
-                    new ElasticInferenceServiceCompletionServiceSettings("rainbow-sprinkles"),
-                    EmptyTaskSettings.INSTANCE,
-                    EmptySecretSettings.INSTANCE,
-                    new ElasticInferenceServiceComponents(url)
-                ),
-                new ElasticInferenceServiceSparseEmbeddingsModel(
-                    DEFAULT_ELSER_ENDPOINT_ID_V2,
-                    TaskType.SPARSE_EMBEDDING,
-                    ElasticInferenceService.NAME,
-                    new ElasticInferenceServiceSparseEmbeddingsServiceSettings("elser_model_2", null),
-                    EmptyTaskSettings.INSTANCE,
-                    EmptySecretSettings.INSTANCE,
-                    new ElasticInferenceServiceComponents(url),
-                    new SentenceBoundaryChunkingSettings(250, 1)
-                ),
-                new ElasticInferenceServiceDenseTextEmbeddingsModel(
-                    ".jina-embeddings-v3",
-                    TaskType.TEXT_EMBEDDING,
-                    ElasticInferenceService.NAME,
-                    new ElasticInferenceServiceDenseTextEmbeddingsServiceSettings(
-                        "jina-embeddings-v3",
-                        SimilarityMeasure.COSINE,
-                        1024,
-                        null
-                    ),
-                    EmptyTaskSettings.INSTANCE,
-                    EmptySecretSettings.INSTANCE,
-                    new ElasticInferenceServiceComponents(url),
-                    new WordBoundaryChunkingSettings(500, 2)
-                ),
+                createRainbowSprinklesExpectedEndpoint(url),
+                createElserExpectedEndpoint(url),
+                createJinaExpectedEndpoint(url),
                 new ElasticInferenceServiceRerankModel(
-                    ".elastic-rerank-v1",
+                    RERANK_V1_ENDPOINT_ID,
                     TaskType.RERANK,
                     ElasticInferenceService.NAME,
-                    new ElasticInferenceServiceRerankServiceSettings("elastic-rerank-v1"),
+                    new ElasticInferenceServiceRerankServiceSettings(RERANK_V1_MODEL_NAME),
                     EmptyTaskSettings.INSTANCE,
                     EmptySecretSettings.INSTANCE,
                     new ElasticInferenceServiceComponents(url)
                 )
             ),
             inferenceIds
+        );
+    }
+
+    private static AuthorizationResponseEntity.AuthorizedEndpoint createRainbowSprinklesAuthorizedEndpoint() {
+        return new AuthorizationResponseEntity.AuthorizedEndpoint(
+            RAINBOW_SPRINKLES_ENDPOINT_ID_V1,
+            RAINBOW_SPRINKLES_MODEL_NAME,
+            "chat_completion",
+            "ga",
+            List.of("multilingual"),
+            "2024-05-01",
+            "2025-12-31",
+            null
+        );
+    }
+
+    private static ElasticInferenceServiceModel createRainbowSprinklesExpectedEndpoint(String url) {
+        return new ElasticInferenceServiceCompletionModel(
+            RAINBOW_SPRINKLES_ENDPOINT_ID_V1,
+            TaskType.CHAT_COMPLETION,
+            ElasticInferenceService.NAME,
+            new ElasticInferenceServiceCompletionServiceSettings(RAINBOW_SPRINKLES_MODEL_NAME),
+            EmptyTaskSettings.INSTANCE,
+            EmptySecretSettings.INSTANCE,
+            new ElasticInferenceServiceComponents(url)
+        );
+    }
+
+    public static EisAuthorizationResponse getEisRainbowSprinklesAuthorizationResponse(String url) {
+        var authorizedEndpoints = List.of(createRainbowSprinklesAuthorizedEndpoint());
+
+        var inferenceIds = authorizedEndpoints.stream().map(AuthorizationResponseEntity.AuthorizedEndpoint::id).collect(Collectors.toSet());
+
+        return new EisAuthorizationResponse(
+            EIS_RAINBOW_SPRINKLES_RESPONSE,
+            new AuthorizationResponseEntity(authorizedEndpoints),
+            List.of(createRainbowSprinklesExpectedEndpoint(url)),
+            inferenceIds
+        );
+    }
+
+    public static EisAuthorizationResponse getEisJinaEmbedAuthorizationResponse(String url) {
+        var authorizedEndpoints = List.of(createJinaEmbedAuthorizedEndpoint());
+
+        var inferenceIds = authorizedEndpoints.stream().map(AuthorizationResponseEntity.AuthorizedEndpoint::id).collect(Collectors.toSet());
+
+        return new EisAuthorizationResponse(
+            EIS_JINA_EMBED_RESPONSE,
+            new AuthorizationResponseEntity(authorizedEndpoints),
+            List.of(createJinaExpectedEndpoint(url)),
+            inferenceIds
+        );
+    }
+
+    private static AuthorizationResponseEntity.AuthorizedEndpoint createJinaEmbedAuthorizedEndpoint() {
+        return new AuthorizationResponseEntity.AuthorizedEndpoint(
+            JINA_EMBED_ENDPOINT_ID,
+            JINA_EMBED_MODEL_NAME,
+            "text_embedding",
+            "beta",
+            List.of("multilingual", "open-weights"),
+            "2024-05-01",
+            null,
+            new AuthorizationResponseEntity.Configuration(
+                "cosine",
+                1024,
+                "float",
+                Map.of("strategy", "word", "max_chunk_size", 500, "overlap", 2)
+            )
+        );
+    }
+
+    private static ElasticInferenceServiceModel createJinaExpectedEndpoint(String url) {
+        return new ElasticInferenceServiceDenseTextEmbeddingsModel(
+            JINA_EMBED_ENDPOINT_ID,
+            TaskType.TEXT_EMBEDDING,
+            ElasticInferenceService.NAME,
+            new ElasticInferenceServiceDenseTextEmbeddingsServiceSettings(JINA_EMBED_MODEL_NAME, SimilarityMeasure.COSINE, 1024, null),
+            EmptyTaskSettings.INSTANCE,
+            EmptySecretSettings.INSTANCE,
+            new ElasticInferenceServiceComponents(url),
+            new WordBoundaryChunkingSettings(500, 2)
         );
     }
 

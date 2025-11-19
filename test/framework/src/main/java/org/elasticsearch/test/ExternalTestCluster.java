@@ -17,6 +17,7 @@ import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
 import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -45,6 +46,7 @@ import java.util.stream.Collectors;
 
 import static org.elasticsearch.test.ESTestCase.getTestTransportPlugin;
 import static org.elasticsearch.test.ESTestCase.getTestTransportType;
+import static org.elasticsearch.xpack.core.ClientHelper.MONITORING_ORIGIN;
 import static org.hamcrest.Matchers.equalTo;
 import static org.junit.Assert.assertThat;
 
@@ -162,6 +164,11 @@ public final class ExternalTestCluster extends TestCluster {
     }
 
     @Override
+    protected Client internalClient() {
+        return new OriginSettingClient(client(), MONITORING_ORIGIN);
+    }
+
+    @Override
     public int size() {
         return httpAddresses.length;
     }
@@ -189,7 +196,13 @@ public final class ExternalTestCluster extends TestCluster {
     @Override
     public void ensureEstimatedStats() {
         if (size() > 0) {
-            NodesStatsResponse nodeStats = client().admin().cluster().prepareNodesStats().clear().setBreaker(true).setIndices(true).get();
+            NodesStatsResponse nodeStats = internalClient().admin()
+                .cluster()
+                .prepareNodesStats()
+                .clear()
+                .setBreaker(true)
+                .setIndices(true)
+                .get();
             for (NodeStats stats : nodeStats.getNodes()) {
                 assertThat(
                     "Fielddata breaker not reset to 0 on node: " + stats.getNode(),

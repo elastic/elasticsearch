@@ -876,6 +876,20 @@ public final class InternalTestCluster extends TestCluster {
         return c.client();
     }
 
+    @Override
+    protected Client internalClient() {
+        return internalClient(null);
+    }
+
+    private Client internalClient(@Nullable String nodeName) {
+        Client client = nodeName != null ? client(nodeName) : client();
+        return makeInternal(client);
+    }
+
+    private Client makeInternal(Client client) {
+        return new OriginSettingClient(client, MONITORING_ORIGIN);
+    }
+
     /**
      * Returns a node client to a data node in the cluster.
      * Note: use this with care tests should not rely on a certain nodes client.
@@ -948,15 +962,6 @@ public final class InternalTestCluster extends TestCluster {
             return randomNodeAndClient.nodeClient();
         }
         throw new AssertionError("No smart client found");
-    }
-
-    private Client clientWithOrigin(String origin) {
-        return clientWithOrigin(origin, null);
-    }
-
-    private Client clientWithOrigin(String origin, @Nullable String nodeName) {
-        Client client = nodeName != null ? client(nodeName) : client();
-        return new OriginSettingClient(client, origin);
     }
 
     @Override
@@ -1293,7 +1298,7 @@ public final class InternalTestCluster extends TestCluster {
         try {
             assertBusy(() -> {
                 try {
-                    final boolean timeout = clientWithOrigin(MONITORING_ORIGIN).admin()
+                    final boolean timeout = internalClient().admin()
                         .cluster()
                         .prepareHealth(TEST_REQUEST_TIMEOUT)
                         .setWaitForEvents(Priority.LANGUID)
@@ -1563,7 +1568,7 @@ public final class InternalTestCluster extends TestCluster {
      */
     public void assertSameDocIdsOnShards() throws Exception {
         assertBusy(() -> {
-            ClusterState state = clientWithOrigin(MONITORING_ORIGIN).admin().cluster().prepareState(TEST_REQUEST_TIMEOUT).get().getState();
+            ClusterState state = internalClient().admin().cluster().prepareState(TEST_REQUEST_TIMEOUT).get().getState();
             for (var indexRoutingTable : state.routingTable().indicesRouting().values()) {
                 for (int i = 0; i < indexRoutingTable.size(); i++) {
                     IndexShardRoutingTable indexShardRoutingTable = indexRoutingTable.shard(i);
@@ -2010,7 +2015,7 @@ public final class InternalTestCluster extends TestCluster {
 
                 logger.info("adding voting config exclusions {} prior to restart/shutdown", excludedNodeNames);
                 try {
-                    clientWithOrigin(MONITORING_ORIGIN).execute(
+                    internalClient().execute(
                         TransportAddVotingConfigExclusionsAction.TYPE,
                         new AddVotingConfigExclusionsRequest(TEST_REQUEST_TIMEOUT, excludedNodeNames.toArray(Strings.EMPTY_ARRAY))
                     ).get();
@@ -2027,10 +2032,7 @@ public final class InternalTestCluster extends TestCluster {
         if (autoManageVotingExclusions && excludedNodeIds.isEmpty() == false) {
             logger.info("removing voting config exclusions for {} after restart/shutdown", excludedNodeIds);
             try {
-                Client client = new OriginSettingClient(
-                    getRandomNodeAndClient(node -> excludedNodeIds.contains(node.name) == false).client(),
-                    MONITORING_ORIGIN
-                );
+                Client client = makeInternal(getRandomNodeAndClient(node -> excludedNodeIds.contains(node.name) == false).client());
                 client.execute(
                     TransportClearVotingConfigExclusionsAction.TYPE,
                     new ClearVotingConfigExclusionsRequest(TEST_REQUEST_TIMEOUT)
@@ -2094,7 +2096,7 @@ public final class InternalTestCluster extends TestCluster {
         }
         try {
             ClusterServiceUtils.awaitClusterState(state -> state.nodes().getMasterNode() != null, clusterService(viaNode));
-            final ClusterState state = clientWithOrigin(MONITORING_ORIGIN, viaNode).admin()
+            final ClusterState state = internalClient(viaNode).admin()
                 .cluster()
                 .prepareState(TEST_REQUEST_TIMEOUT)
                 .clear()

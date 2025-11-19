@@ -229,7 +229,7 @@ public class UnsignedLongFieldMapperTests extends WholeNumberFieldMapperTests {
         assertDimension(true, UnsignedLongFieldMapper.UnsignedLongFieldType::isDimension);
         assertDimension(false, UnsignedLongFieldMapper.UnsignedLongFieldType::isDimension);
 
-        assertDimensionIndexing();
+        assertTimeSeriesIndexing();
     }
 
     public void testDimensionIndexedAndDocvalues() {

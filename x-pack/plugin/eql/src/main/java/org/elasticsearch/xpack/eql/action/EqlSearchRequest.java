@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.xpack.eql.action;
 
-import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.IndicesRequest;
@@ -45,8 +44,6 @@ import static org.elasticsearch.xpack.eql.action.RequestDefaults.FIELD_EVENT_CAT
 import static org.elasticsearch.xpack.eql.action.RequestDefaults.FIELD_TIMESTAMP;
 
 public class EqlSearchRequest extends LegacyActionRequest implements IndicesRequest.Replaceable, ToXContent {
-
-    private static final TransportVersion EQL_PROJECT_ROUTING = TransportVersion.fromName("eql_project_routing");
 
     public static final long MIN_KEEP_ALIVE = TimeValue.timeValueMinutes(1).millis();
     public static final TimeValue DEFAULT_KEEP_ALIVE = TimeValue.timeValueDays(5);
@@ -145,10 +142,6 @@ public class EqlSearchRequest extends LegacyActionRequest implements IndicesRequ
         } else {
             allowPartialSearchResults = false;
             allowPartialSequenceResults = false;
-        }
-        if (in.getTransportVersion().supports(EQL_PROJECT_ROUTING)) {
-            projectRouting = in.readOptionalString();
-            resolvedIndexExpressions = in.readOptionalWriteable(ResolvedIndexExpressions::new);
         }
     }
 
@@ -529,10 +522,6 @@ public class EqlSearchRequest extends LegacyActionRequest implements IndicesRequ
         if (out.getTransportVersion().supports(TransportVersions.V_8_18_0)) {
             out.writeOptionalBoolean(allowPartialSearchResults);
             out.writeOptionalBoolean(allowPartialSequenceResults);
-        }
-        if (out.getTransportVersion().supports(EQL_PROJECT_ROUTING)) {
-            out.writeOptionalString(projectRouting);
-            out.writeOptionalWriteable(resolvedIndexExpressions);
         }
     }
 

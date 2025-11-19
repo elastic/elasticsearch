@@ -378,9 +378,6 @@ public class IndexResolver {
         FieldCapabilitiesRequest fieldRequest = createFieldCapsRequest(indexWildcard, fieldNames, iOpts, runtimeMappings);
         if (crossProjectEnabled) {
             fieldRequest.includeResolvedTo(true);
-            if (projectRouting != null) {
-                fieldRequest.projectRouting(projectRouting);
-            }
         }
         client.fieldCaps(fieldRequest, listener.delegateFailureAndWrap((l, response) -> {
             if (crossProjectEnabled) {

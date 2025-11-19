@@ -7,11 +7,14 @@
 
 package org.elasticsearch.xpack.searchablesnapshots.cache.common;
 
+import org.elasticsearch.blobcache.shared.SharedBlobCacheService;
 import org.elasticsearch.index.shard.ShardId;
 
 import java.util.Objects;
 
-public record CacheKey(String snapshotUUID, String snapshotIndexName, ShardId shardId, String fileName) {
+public record CacheKey(String snapshotUUID, String snapshotIndexName, ShardId shardId, String fileName)
+    implements
+        SharedBlobCacheService.KeyBase {
 
     public CacheKey(String snapshotUUID, String snapshotIndexName, ShardId shardId, String fileName) {
         this.snapshotUUID = Objects.requireNonNull(snapshotUUID);

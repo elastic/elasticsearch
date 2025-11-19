@@ -3120,9 +3120,7 @@ NULL
 stSimplifyCartesianPoint
 required_capability: st_simplify
 
-# TODO Why cannot we use a latitud outside of -90, 90 when there are tests
-# that use the TO_CARTESIANPOINT that are doing it already?
-ROW wkt = ["POINT(97.11 75.53)", "POINT(80.93 72.77)"]
+ROW wkt = ["POINT(-97.11 95.53)", "POINT(80.93 72.77)"]
 | MV_EXPAND wkt
 | EVAL pt = TO_CARTESIANPOINT(wkt)
 | EVAL result = ST_SIMPLIFY(pt, 2.0)
@@ -3130,7 +3128,7 @@ ROW wkt = ["POINT(97.11 75.53)", "POINT(80.93 72.77)"]
 ;
 
 result:cartesian_point
-POINT (97.11 75.53)
+POINT (-97.11 95.53)
 POINT (80.93 72.77)
 ;
 

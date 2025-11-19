@@ -2,5 +2,5 @@
 
 **Description**
 
-Simplifies the input geometry with a given tolerance.
+Simplifies he input geometry by applying the Douglas-Peucker algorithm with a specified tolerance. Vertices that fall within the tolerance distance from the simplified shape are removed. Note that the resulting geometry may be invalid, even if the original input was valid.
 

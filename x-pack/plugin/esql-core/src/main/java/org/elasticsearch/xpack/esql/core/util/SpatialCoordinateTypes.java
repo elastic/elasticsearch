@@ -21,6 +21,7 @@ import org.locationtech.jts.io.WKTReader;
 import org.locationtech.jts.io.WKTWriter;
 
 import java.nio.ByteOrder;
+import java.util.Locale;
 
 import static org.apache.lucene.geo.GeoEncodingUtils.encodeLatitude;
 import static org.apache.lucene.geo.GeoEncodingUtils.encodeLongitude;
@@ -142,6 +143,7 @@ public enum SpatialCoordinateTypes {
             double rightY = Double.parseDouble(bboxValues[3].trim());
 
             wkt = String.format(
+                Locale.ROOT,
                 "POLYGON ((%f %f, %f %f, %f %f, %f %f, %f %f))",
                 topX,
                 leftY, // upper left

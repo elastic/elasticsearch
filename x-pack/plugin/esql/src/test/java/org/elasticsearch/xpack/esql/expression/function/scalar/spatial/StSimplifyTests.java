@@ -48,11 +48,18 @@ public class StSimplifyTests extends AbstractScalarFunctionTestCase {
     @ParametersFactory
     public static Iterable<Object[]> parameters() {
         final List<TestCaseSupplier> suppliers = new ArrayList<>();
-        addTestCaseSuppliers(suppliers, new DataType[] { GEO_POINT }, GEO_SHAPE, StSimplifyTests::valueOf);
-        addTestCaseSuppliers(suppliers, new DataType[] { CARTESIAN_POINT }, GEO_SHAPE, StSimplifyTests::valueOf);
-        addTestCaseSuppliers(suppliers, new DataType[] { CARTESIAN_SHAPE }, GEO_SHAPE, StSimplifyTests::valueOf);
-        addTestCaseSuppliers(suppliers, new DataType[] { GEO_SHAPE }, GEO_SHAPE, StSimplifyTests::valueOf);
-        return parameterSuppliersFromTypedDataWithDefaultChecks(true, suppliers);
+        addTestCaseSuppliers(suppliers, GEO_POINT, StSimplifyTests::valueOf);
+        addTestCaseSuppliers(suppliers, CARTESIAN_POINT, StSimplifyTests::valueOf);
+        addTestCaseSuppliers(suppliers, CARTESIAN_SHAPE, StSimplifyTests::valueOf);
+        addTestCaseSuppliers(suppliers, GEO_SHAPE, StSimplifyTests::valueOf);
+
+        var testSuppliers = anyNullIsNull(
+            randomizeBytesRefsOffset(suppliers),
+            (nullPosition, nullValueDataType, original) -> nullValueDataType == DataType.NULL ? DataType.NULL : original.expectedType(),
+            (nullPosition, nullData, original) -> nullData.isForceLiteral() ? Matchers.equalTo("LiteralsEvaluator[lit=null]") : original
+        );
+
+        return parameterSuppliersFromTypedData(testSuppliers);
     }
 
     public static TestCaseSupplier.TypedDataSupplier testCaseSupplier(DataType dataType) {
@@ -73,33 +80,30 @@ public class StSimplifyTests extends AbstractScalarFunctionTestCase {
 
     protected static void addTestCaseSuppliers(
         List<TestCaseSupplier> suppliers,
-        DataType[] dataTypes,
-        DataType gridType,
+        DataType spatialType,
         BiFunction<BytesRef, Double, BytesRef> expectedValue
     ) {
-        for (DataType spatialType : dataTypes) {
-            TestCaseSupplier.TypedDataSupplier geometrySupplier = testCaseSupplier(spatialType);
-            String testName = spatialType.typeName() + " with tolerance.";
+        TestCaseSupplier.TypedDataSupplier geometrySupplier = testCaseSupplier(spatialType);
+        String testName = spatialType.typeName() + " with tolerance.";
 
-            suppliers.add(new TestCaseSupplier(testName, List.of(spatialType, DOUBLE), () -> {
-                TestCaseSupplier.TypedData geoTypedData = geometrySupplier.get();
-                BytesRef geometry = (BytesRef) geoTypedData.data();
-                double tolerance = randomDoubleBetween(0, 100, true);
-                TestCaseSupplier.TypedData toleranceData = new TestCaseSupplier.TypedData(tolerance, DOUBLE, "tolerance");
-                toleranceData = toleranceData.forceLiteral();
-                String evaluatorName = "NonFoldableGeoAndFoldableToleranceEvaluator[inputGeometry=Attribute[channel=0], inputTolerance="
-                    + tolerance
-                    + "]";
-                var expectedResult = expectedValue.apply(geometry, tolerance);
+        suppliers.add(new TestCaseSupplier(testName, List.of(spatialType, DOUBLE), () -> {
+            TestCaseSupplier.TypedData geoTypedData = geometrySupplier.get();
+            BytesRef geometry = (BytesRef) geoTypedData.data();
+            double tolerance = randomDoubleBetween(0, 100, true);
+            TestCaseSupplier.TypedData toleranceData = new TestCaseSupplier.TypedData(tolerance, DOUBLE, "tolerance");
+            toleranceData = toleranceData.forceLiteral();
+            String evaluatorName = "NonFoldableGeometryAndFoldableToleranceEvaluator[inputGeometry=Attribute[channel=0], inputTolerance="
+                + tolerance
+                + "]";
+            var expectedResult = expectedValue.apply(geometry, tolerance);
 
-                return new TestCaseSupplier.TestCase(
-                    List.of(geoTypedData, toleranceData),
-                    getFunctionClassName() + evaluatorName,
-                    gridType,
-                    Matchers.equalTo(expectedResult)
-                );
-            }));
-        }
+            return new TestCaseSupplier.TestCase(
+                List.of(geoTypedData, toleranceData),
+                getFunctionClassName() + evaluatorName,
+                spatialType,
+                Matchers.equalTo(expectedResult)
+            );
+        }));
     }
 
     private static BytesRef valueOf(BytesRef wkb, double tolerance) {

@@ -6,11 +6,11 @@
 FROM airports
 | SORT name
 | LIMIT 5
-| EVAL result = st_simplify(location, 0.0)
+| EVAL result = ST_SIMPLIFY(location, 0.0)
 | KEEP location, result
 ```
 
-| location:geo_point | result:geo_shape |
+| location:geo_point | result:geo_point |
 | --- | --- |
 | POINT (41.857756722253 9.61267784753569) | POINT (41.857756722253 9.61267784753569) |
 | POINT (112.711418617258 -7.92998002840567) | POINT (112.711418617258 -7.92998002840567) |

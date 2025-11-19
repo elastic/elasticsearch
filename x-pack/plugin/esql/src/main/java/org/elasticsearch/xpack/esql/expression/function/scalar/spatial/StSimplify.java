@@ -15,6 +15,7 @@ import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.ann.Fixed;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -68,7 +69,7 @@ public class StSimplify extends EsqlScalarFunction {
 
     @Override
     public DataType dataType() {
-        return geometry.dataType();
+        return tolerance.dataType() == DataType.NULL ? DataType.NULL : geometry.dataType();
     }
 
     @Override
@@ -115,10 +116,6 @@ public class StSimplify extends EsqlScalarFunction {
         }
         var toleranceExpression = tolerance.fold(toEvaluator.foldCtx());
         double inputTolerance = getInputTolerance(toleranceExpression);
-        if (geometry.foldable()) {
-            BytesRef inputGeometry = (BytesRef) geometry.fold(toEvaluator.foldCtx());
-            return new StSimplifyFoldableGeometryAndFoldableToleranceEvaluator.Factory(source(), inputGeometry, inputTolerance);
-        }
         return new StSimplifyNonFoldableGeometryAndFoldableToleranceEvaluator.Factory(source(), geometryEvaluator, inputTolerance);
     }
 
@@ -144,13 +141,16 @@ public class StSimplify extends EsqlScalarFunction {
         return geoSourceAndConstantTolerance(inputGeometry, inputTolerance);
     }
 
-    @Evaluator(extraName = "FoldableGeometryAndFoldableTolerance", warnExceptions = { IllegalArgumentException.class })
-    static BytesRef processFoldableGeometryAndFoldableTolerance(@Fixed BytesRef inputGeometry, @Fixed double inputTolerance) {
-        return geoSourceAndConstantTolerance(inputGeometry, inputTolerance);
-    }
-
     @Override
     public boolean foldable() {
         return geometry.foldable() && tolerance.foldable();
+    }
+
+    @Override
+    public Object fold(FoldContext foldCtx) {
+        var toleranceExpression = tolerance.fold(foldCtx);
+        double inputTolerance = getInputTolerance(toleranceExpression);
+        BytesRef inputGeometry = (BytesRef) geometry.fold(foldCtx);
+        return geoSourceAndConstantTolerance(inputGeometry, inputTolerance);
     }
 }

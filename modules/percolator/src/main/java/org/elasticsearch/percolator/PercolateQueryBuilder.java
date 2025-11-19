@@ -67,7 +67,6 @@ import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.search.lookup.Source;
-import org.elasticsearch.search.lookup.SourceFilter;
 import org.elasticsearch.search.lookup.SourceProvider;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
@@ -578,7 +577,7 @@ public class PercolateQueryBuilder extends AbstractQueryBuilder<PercolateQueryBu
                             "Reading percolator query from source. For best performance, reindexing of index [{}] is required.",
                             context.index().getName()
                         );
-                        SourceProvider sourceProvider = context.createSourceProvider(new SourceFilter(null, null));
+                        SourceProvider sourceProvider = context.createSourceProvider();
                         Source source = sourceProvider.getSource(ctx, docId);
                         SourceToParse sourceToParse = new SourceToParse(
                             String.valueOf(docId),

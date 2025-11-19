@@ -8,6 +8,8 @@
 package org.elasticsearch.xpack.esql.view;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.master.AcknowledgedRequest;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 
@@ -43,8 +45,10 @@ public class InMemoryViewService extends ViewService {
 
     @Override
     protected void updateViewMetadata(
+        String verb,
         ProjectId projectId,
-        ActionListener<Void> callback,
+        AcknowledgedRequest<?> request,
+        ActionListener<? extends AcknowledgedResponse> callback,
         Function<ViewMetadata, Map<String, View>> function
     ) {
         Map<String, View> updated = function.apply(metadata);

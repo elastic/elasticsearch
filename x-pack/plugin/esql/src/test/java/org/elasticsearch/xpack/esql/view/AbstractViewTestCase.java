@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.esql.view;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -52,16 +53,20 @@ public abstract class AbstractViewTestCase extends ESSingleNodeTestCase {
             this.projectId = projectResolver.getProjectId();
         }
 
-        protected AtomicReference<Exception> save(String name, View policy) throws InterruptedException {
-            TestResponseCapture<Void> responseCapture = new TestResponseCapture<>();
-            viewService.put(projectId, name, policy, responseCapture);
+        protected AtomicReference<Exception> save(String name, View view) throws InterruptedException {
+            assertNotNull(name);
+            TestResponseCapture<AcknowledgedResponse> responseCapture = new TestResponseCapture<>();
+            PutViewAction.Request request = new PutViewAction.Request(TimeValue.MAX_VALUE, TimeValue.MAX_VALUE, name, view);
+            viewService.put(projectId, request, name, view, responseCapture);
             responseCapture.latch.await();
             return responseCapture.error;
         }
 
         protected void delete(String name) throws Exception {
-            TestResponseCapture<Void> responseCapture = new TestResponseCapture<>();
-            viewService.delete(projectId, name, responseCapture);
+            assertNotNull(name);
+            TestResponseCapture<AcknowledgedResponse> responseCapture = new TestResponseCapture<>();
+            DeleteViewAction.Request request = new DeleteViewAction.Request(TimeValue.MAX_VALUE, TimeValue.MAX_VALUE, name);
+            viewService.delete(projectId, request, name, responseCapture);
             responseCapture.latch.await();
             if (responseCapture.error.get() != null) {
                 throw responseCapture.error.get();
@@ -81,6 +86,13 @@ public abstract class AbstractViewTestCase extends ESSingleNodeTestCase {
                 throw responseCapture.error.get();
             }
             return responseCapture.response.getViews();
+        }
+
+        /** This is just to ensure tests behave similarly to production */
+        private void assertNotNull(String name) {
+            if (name == null) {
+                throw new IllegalArgumentException("name is missing or empty");
+            }
         }
     }
 

@@ -168,7 +168,7 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
     }
 
     private void addView(String name, String query, ViewService viewService) {
-        viewService.put(projectId, name, new View(query), ActionListener.noop());
+        viewService.put(projectId, null, name, new View(query), ActionListener.noop());
     }
 
 }

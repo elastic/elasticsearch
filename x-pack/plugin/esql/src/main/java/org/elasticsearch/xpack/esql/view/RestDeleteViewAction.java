@@ -33,7 +33,11 @@ public class RestDeleteViewAction extends BaseRestHandler {
 
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) {
-        DeleteViewAction.Request req = new DeleteViewAction.Request(RestUtils.getMasterNodeTimeout(request), request.param("name"));
+        DeleteViewAction.Request req = new DeleteViewAction.Request(
+            RestUtils.getMasterNodeTimeout(request),
+            RestUtils.getAckTimeout(request),
+            request.param("name")
+        );
         return channel -> client.execute(DeleteViewAction.INSTANCE, req, new RestToXContentListener<>(channel));
     }
 }

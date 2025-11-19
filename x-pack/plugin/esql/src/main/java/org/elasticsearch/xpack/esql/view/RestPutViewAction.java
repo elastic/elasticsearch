@@ -38,6 +38,7 @@ public class RestPutViewAction extends BaseRestHandler {
         try (XContentParser parser = request.contentOrSourceParamParser()) {
             PutViewAction.Request req = new PutViewAction.Request(
                 RestUtils.getMasterNodeTimeout(request),
+                RestUtils.getAckTimeout(request),
                 request.param("name"),
                 View.PARSER.parse(parser, null)
             );

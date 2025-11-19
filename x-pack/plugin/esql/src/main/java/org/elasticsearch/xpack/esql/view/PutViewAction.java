@@ -6,10 +6,9 @@
  */
 package org.elasticsearch.xpack.esql.view;
 
-import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionType;
+import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
-import org.elasticsearch.action.support.master.MasterNodeRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.TimeValue;
@@ -26,12 +25,12 @@ public class PutViewAction extends ActionType<AcknowledgedResponse> {
         super(NAME);
     }
 
-    public static class Request extends MasterNodeRequest<PutViewAction.Request> {
+    public static class Request extends AcknowledgedRequest<Request> {
         private final String name;
         private final View view;
 
-        public Request(TimeValue masterNodeTimeout, String name, View view) {
-            super(masterNodeTimeout);
+        public Request(TimeValue masterNodeTimeout, TimeValue ackTimeout, String name, View view) {
+            super(masterNodeTimeout, ackTimeout);
             this.name = Objects.requireNonNull(name, "name cannot be null");
             this.view = view;
         }
@@ -55,11 +54,6 @@ public class PutViewAction extends ActionType<AcknowledgedResponse> {
 
         public View view() {
             return view;
-        }
-
-        @Override
-        public ActionRequestValidationException validate() {
-            return null;
         }
 
         @Override

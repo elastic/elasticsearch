@@ -57,11 +57,6 @@ public class RestEqlSearchAction extends BaseRestHandler {
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
         boolean crossProjectEnabled = crossProjectModeDecider.crossProjectEnabled();
-        if (crossProjectEnabled) {
-            // accept but drop project_routing param until fully supported
-            request.param("project_routing");
-        }
-
         EqlSearchRequest eqlRequest;
         String indices;
         try (XContentParser parser = request.contentOrSourceParamParser()) {

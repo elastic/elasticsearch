@@ -84,8 +84,8 @@ public class TransportPutInferenceModelActionTests extends ESTestCase {
         var request = new PutInferenceModelAction.Request(
             TaskType.EMBEDDING,
             randomIdentifier(),
-            new BytesArray(randomAlphanumericOfLength(10)),
-            randomFrom(XContentType.values()),
+            new BytesArray(""),
+            XContentType.JSON,
             InferenceAction.Request.DEFAULT_TIMEOUT
         );
         var state = mock(ClusterState.class);

@@ -89,6 +89,7 @@ public class TransportInferenceUsageActionTests extends ESTestCase {
         TransportService transportService = MockUtils.setupTransportServiceWithThreadpoolExecutor(mock(ThreadPool.class));
 
         featureServiceMock = mock(FeatureService.class);
+        when(featureServiceMock.clusterHasFeature(any(), eq(EMBEDDING_TASK_TYPE))).thenReturn(true);
         action = new TransportInferenceUsageAction(
             transportService,
             mock(ClusterService.class),

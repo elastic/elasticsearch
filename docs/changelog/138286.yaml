@@ -1,0 +1,5 @@
+pr: 138286
+summary: ES|QL - Improve prefiltering in KNN function
+area: ES|QL
+type: enhancement
+issues: []

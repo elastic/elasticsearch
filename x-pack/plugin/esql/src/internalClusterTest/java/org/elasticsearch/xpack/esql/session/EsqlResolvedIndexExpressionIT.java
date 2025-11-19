@@ -16,7 +16,7 @@ import java.util.Set;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.hasEntry;
 
-public class ResolvedIndexExpressionIT extends AbstractCrossClusterTestCase {
+public class EsqlResolvedIndexExpressionIT extends AbstractCrossClusterTestCase {
 
     public void testLocalIndices() {
         createIndex(LOCAL_CLUSTER, "index-1");
@@ -63,8 +63,8 @@ public class ResolvedIndexExpressionIT extends AbstractCrossClusterTestCase {
         );
     }
 
-    private Map<String, ResolvedIndexExpression> resolveIndices(String indices) {
-        return ResolvedIndexExpression.from(
+    private Map<String, EsqlResolvedIndexExpression> resolveIndices(String indices) {
+        return EsqlResolvedIndexExpression.from(
             client(LOCAL_CLUSTER).prepareFieldCaps(Strings.splitStringByCommaToArray(indices))
                 .setFields("*")
                 .setIncludeResolvedTo(true)
@@ -80,8 +80,8 @@ public class ResolvedIndexExpressionIT extends AbstractCrossClusterTestCase {
         client(clusterAlias).admin().indices().prepareAliases(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT).addAlias(index, alias).get();
     }
 
-    private static ResolvedIndexExpression resolvedIndexExpression(String expression, String resolved) {
-        return new ResolvedIndexExpression(
+    private static EsqlResolvedIndexExpression resolvedIndexExpression(String expression, String resolved) {
+        return new EsqlResolvedIndexExpression(
             Set.of(Strings.splitStringByCommaToArray(expression)),
             Set.of(Strings.splitStringByCommaToArray(resolved))
         );

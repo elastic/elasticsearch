@@ -18,11 +18,11 @@ import java.util.stream.Stream;
 import static java.util.stream.Collectors.toMap;
 import static org.elasticsearch.action.ResolvedIndexExpression.LocalIndexResolutionResult.SUCCESS;
 
-public record ResolvedIndexExpression(Set<String> expression, Set<String> resolved) {
+public record EsqlResolvedIndexExpression(Set<String> expression, Set<String> resolved) {
 
-    private static final ResolvedIndexExpression EMPTY = new ResolvedIndexExpression(Set.of(), Set.of());
+    private static final EsqlResolvedIndexExpression EMPTY = new EsqlResolvedIndexExpression(Set.of(), Set.of());
 
-    public static Map<String, ResolvedIndexExpression> from(FieldCapabilitiesResponse response) {
+    public static Map<String, EsqlResolvedIndexExpression> from(FieldCapabilitiesResponse response) {
         return Stream.concat(
             Stream.of(Map.entry(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY, response.getResolvedLocally())),
             response.getResolvedRemotely().entrySet().stream()
@@ -35,14 +35,14 @@ public record ResolvedIndexExpression(Set<String> expression, Set<String> resolv
                         .stream()
                         .filter(e -> e.localExpressions().indices().isEmpty() == false)
                         .filter(e -> e.localExpressions().localIndexResolutionResult() == SUCCESS)
-                        .map(e -> new ResolvedIndexExpression(Set.of(e.original()), e.localExpressions().indices()))
-                        .reduce(EMPTY, ResolvedIndexExpression::merge)
+                        .map(e -> new EsqlResolvedIndexExpression(Set.of(e.original()), e.localExpressions().indices()))
+                        .reduce(EMPTY, EsqlResolvedIndexExpression::merge)
                 )
             )
             .collect(toMap(Map.Entry::getKey, Map.Entry::getValue));
     }
 
-    private static ResolvedIndexExpression merge(ResolvedIndexExpression a, ResolvedIndexExpression b) {
-        return new ResolvedIndexExpression(Sets.union(a.expression(), b.expression()), Sets.union(a.resolved(), b.resolved()));
+    private static EsqlResolvedIndexExpression merge(EsqlResolvedIndexExpression a, EsqlResolvedIndexExpression b) {
+        return new EsqlResolvedIndexExpression(Sets.union(a.expression(), b.expression()), Sets.union(a.resolved(), b.resolved()));
     }
 }

@@ -35,6 +35,7 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.core.inference.chunking.ChunkingSettingsBuilder;
 import org.elasticsearch.xpack.core.inference.chunking.EmbeddingRequestChunker;
 import org.elasticsearch.xpack.inference.common.amazon.AwsSecretSettings;
+import org.elasticsearch.xpack.inference.external.action.SenderExecutableAction;
 import org.elasticsearch.xpack.inference.external.http.sender.EmbeddingsInput;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSender;
 import org.elasticsearch.xpack.inference.external.http.sender.InferenceInputs;
@@ -58,6 +59,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+import static org.elasticsearch.xpack.inference.external.action.ActionUtils.constructFailedToSendRequestMessage;
 import static org.elasticsearch.xpack.inference.services.ServiceFields.DIMENSIONS;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.createInvalidModelException;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.createInvalidTaskTypeException;
@@ -83,6 +85,7 @@ import static org.elasticsearch.xpack.inference.services.amazonbedrock.AmazonBed
 public class AmazonBedrockService extends SenderService {
     public static final String NAME = "amazonbedrock";
     private static final String SERVICE_NAME = "Amazon Bedrock";
+    public static final String CHAT_COMPLETION_ERROR_PREFIX = "Amazon Bedrock chat completion";
 
     private final Sender amazonBedrockSender;
 
@@ -128,7 +131,24 @@ public class AmazonBedrockService extends SenderService {
         TimeValue timeout,
         ActionListener<InferenceServiceResults> listener
     ) {
-        infer(model, inputs, null, timeout, listener);
+        doInfer(model, inputs, timeout, listener);
+    }
+
+    private void doInfer(
+        Model model,
+        InferenceInputs inputs,
+        TimeValue timeout,
+        ActionListener<InferenceServiceResults> listener
+    ) {
+        if (model instanceof AmazonBedrockChatCompletionModel amazonBedrockChatCompletionModel) {
+            var manager = new AmazonBedrockChatCompletionRequestManager(amazonBedrockChatCompletionModel,
+                this.getServiceComponents().threadPool(), timeout);
+            var errorMessage = constructFailedToSendRequestMessage(AmazonBedrockService.CHAT_COMPLETION_ERROR_PREFIX);
+            var action = new SenderExecutableAction(amazonBedrockSender, manager, errorMessage);
+            action.execute(inputs, timeout, listener);
+        } else {
+            listener.onFailure(createInvalidModelException(model));
+        }
     }
 
     @Override
@@ -151,9 +171,7 @@ public class AmazonBedrockService extends SenderService {
     ) {
         var actionCreator = new AmazonBedrockActionCreator(amazonBedrockSender, this.getServiceComponents(), timeout);
         if (model instanceof AmazonBedrockModel baseAmazonBedrockModel) {
-            var action = taskSettings == null
-                ? baseAmazonBedrockModel.accept(actionCreator)
-                : baseAmazonBedrockModel.accept(actionCreator, taskSettings);
+            var action = baseAmazonBedrockModel.accept(actionCreator, taskSettings);
             action.execute(inputs, timeout, listener);
         } else {
             listener.onFailure(createInvalidModelException(model));

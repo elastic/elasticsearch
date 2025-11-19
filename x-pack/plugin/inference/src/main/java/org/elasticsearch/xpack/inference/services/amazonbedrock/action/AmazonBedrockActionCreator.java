@@ -55,11 +55,4 @@ public class AmazonBedrockActionCreator implements AmazonBedrockActionVisitor {
         var errorMessage = constructFailedToSendRequestMessage("Amazon Bedrock completion");
         return new SenderExecutableAction(sender, requestManager, errorMessage);
     }
-
-    @Override
-    public ExecutableAction create(AmazonBedrockChatCompletionModel completionModel) {
-        var requestManager = new AmazonBedrockChatCompletionRequestManager(completionModel, serviceComponents.threadPool(), timeout);
-        var errorMessage = constructFailedToSendRequestMessage("Amazon Bedrock unified completion");
-        return new SenderExecutableAction(sender, requestManager, errorMessage);
-    }
 }

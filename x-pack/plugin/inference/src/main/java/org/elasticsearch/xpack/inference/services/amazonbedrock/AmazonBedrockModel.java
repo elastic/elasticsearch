@@ -76,8 +76,6 @@ public abstract class AmazonBedrockModel extends Model {
 
     public abstract ExecutableAction accept(AmazonBedrockActionVisitor creator, Map<String, Object> taskSettings);
 
-    public abstract ExecutableAction accept(AmazonBedrockActionVisitor creator);
-
     @Override
     public AmazonBedrockServiceSettings getServiceSettings() {
         return (AmazonBedrockServiceSettings) super.getServiceSettings();

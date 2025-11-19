@@ -2,5 +2,4 @@ pr: 137367
 summary: GROUP BY ALL
 area: ES|QL
 type: enhancement
-issues:
- - 136253
+issues: []

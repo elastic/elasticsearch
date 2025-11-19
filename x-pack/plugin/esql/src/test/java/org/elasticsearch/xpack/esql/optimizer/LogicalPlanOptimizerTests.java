@@ -19,7 +19,6 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.dissect.DissectParser;
 import org.elasticsearch.index.IndexMode;
-import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.VerificationException;
@@ -217,7 +216,7 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.startsWith;
 
-@TestLogging(value = "org.elasticsearch.xpack.esql:TRACE", reason = "debug")
+//@TestLogging(value = "org.elasticsearch.xpack.esql:TRACE", reason = "debug")
 public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests {
     private static final LiteralsOnTheRight LITERALS_ON_THE_RIGHT = new LiteralsOnTheRight();
 
@@ -8686,25 +8685,14 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
             """;
         var optimized = planTypes(query);
 
-        // Verify plan structure: Limit[1000] -> Filter[KNN(...)] -> EsRelation[types]
         var limit = as(optimized, Limit.class);
-        assertThat(((Literal) limit.limit()).value(), equalTo(1000));
-
         var filter = as(limit.child(), Filter.class);
-        var knn = as(filter.condition(), Knn.class);
-
-        var knnField = as(knn.field(), FieldAttribute.class);
-        assertThat(knnField.name(), equalTo("dense_vector"));
-
-        // Verify KNN prefilters contain "integer > 10"
+        var and = as(filter.condition(), And.class);
+        var knn = as(and.left(), Knn.class);
         List<Expression> filterExpressions = knn.filterExpressions();
         assertThat(filterExpressions.size(), equalTo(1));
-        var prefilter = as(filterExpressions.getFirst(), GreaterThan.class);
-        var field = as(prefilter.left(), FieldAttribute.class);
-        assertThat(field.name(), equalTo("integer"));
-        var literal = as(prefilter.right(), Literal.class);
-        assertThat(literal.value(), equalTo(10));
-
+        var prefilter = as(filterExpressions.get(0), GreaterThan.class);
+        assertThat(and.right(), equalTo(prefilter));
         var esRelation = as(filter.child(), EsRelation.class);
     }
 
@@ -8717,47 +8705,16 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
             """;
         var optimized = planTypes(query);
 
-        // Verify plan structure: Limit[1000] -> Filter[KNN(...)] -> EsRelation[types]
-        // The multiple where clauses are all pushed down as prefilters inside the KNN function
         var limit = as(optimized, Limit.class);
-        assertThat(((Literal) limit.limit()).value(), equalTo(1000));
-
         var filter = as(limit.child(), Filter.class);
-
-        // The filter condition should just be the KNN function (with prefilters inside)
-        var knn = as(filter.condition(), Knn.class);
-
-        // Verify KNN function field and query vector
-        var knnField = as(knn.field(), FieldAttribute.class);
-        assertThat(knnField.name(), equalTo("dense_vector"));
-        assertThat(knnField.dataType(), equalTo(org.elasticsearch.xpack.esql.core.type.DataType.DENSE_VECTOR));
-
-        var queryVector = as(knn.query(), Literal.class);
-        assertThat(queryVector.value(), equalTo(List.of(0.0f, 1.0f, 2.0f)));
-
-        // Verify the KNN prefilters contain both filters combined with AND
+        var firstAnd = as(filter.condition(), And.class);
+        var knn = as(firstAnd.left(), Knn.class);
+        var prefilterAnd = as(firstAnd.right(), And.class);
+        as(prefilterAnd.left(), GreaterThan.class);
+        as(prefilterAnd.right(), Equals.class);
         List<Expression> filterExpressions = knn.filterExpressions();
         assertThat(filterExpressions.size(), equalTo(1));
-
-        // The single prefilter should be an AND expression combining both conditions
-        var prefilterAnd = as(filterExpressions.getFirst(), And.class);
-
-        // Verify the two prefilter conditions
-        var integerGtPrefilter = as(prefilterAnd.left(), GreaterThan.class);
-        var integerField = as(integerGtPrefilter.left(), FieldAttribute.class);
-        assertThat(integerField.name(), equalTo("integer"));
-        var integerLiteral = as(integerGtPrefilter.right(), Literal.class);
-        assertThat(integerLiteral.value(), equalTo(10));
-
-        var keywordEqPrefilter = as(prefilterAnd.right(), Equals.class);
-        var keywordField = as(keywordEqPrefilter.left(), FieldAttribute.class);
-        assertThat(keywordField.name(), equalTo("keyword"));
-        var keywordLiteral = as(keywordEqPrefilter.right(), Literal.class);
-        assertThat(keywordLiteral.value(), equalTo(new BytesRef("test")));
-
-        // Verify EsRelation
-        var esRelation = as(filter.child(), EsRelation.class);
-        assertThat(esRelation.indexPattern(), equalTo("types"));
+        assertThat(prefilterAnd, equalTo(filterExpressions.get(0)));
     }
 
     public void testNotPushDownDisjunctionsToKnnPrefilter() {
@@ -8810,7 +8767,6 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
 
     public void testMorePushDownConjunctionsAndNotDisjunctionsToKnnPrefilter() {
         /*
-            Original query structure:
             or
                 or
                     and
@@ -8820,16 +8776,6 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
                  and
                      short < 5
                      double > 5.0
-
-            After optimization, the AND with "integer > 10" is pushed into KNN prefilter,
-            and the OR expressions are flattened to:
-            or
-                or
-                    knn(dense_vector, [0, 1, 2])  // with integer > 10 as prefilter
-                    keyword == "test"
-                and
-                    short < 5
-                    double > 5.0
          */
         // Just the conjunction is pushed down to knn prefilters, disjunctions are not
         var query = """
@@ -8839,56 +8785,14 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
             """;
         var optimized = planTypes(query);
 
-        // Verify plan structure: Limit[1000] -> Filter[OR(...)] -> EsRelation[types]
         var limit = as(optimized, Limit.class);
-        assertThat(((Literal) limit.limit()).value(), equalTo(1000));
-
         var filter = as(limit.child(), Filter.class);
-
-        // After optimization, the structure is flattened: OR(OR(KNN, keyword), AND(short, double))
-        var topOr = as(filter.condition(), Or.class);
-
-        // Left side is OR(KNN, keyword)
-        var leftOr = as(topOr.left(), Or.class);
-        var knn = as(leftOr.left(), Knn.class);
-
-        // Verify KNN function field and query vector
-        var knnField = as(knn.field(), FieldAttribute.class);
-        assertThat(knnField.name(), equalTo("dense_vector"));
-        var queryVector = as(knn.query(), Literal.class);
-        assertThat(queryVector.value(), equalTo(List.of(0.0f, 1.0f, 2.0f)));
-
-        // Verify the conjunction "integer > 10" is pushed down as a prefilter
-        List<Expression> filterExpressions = knn.filterExpressions();
-        assertThat(filterExpressions.size(), equalTo(1));
-        var integerGtPrefilter = as(filterExpressions.getFirst(), GreaterThan.class);
-        var integerField = as(integerGtPrefilter.left(), FieldAttribute.class);
-        assertThat(integerField.name(), equalTo("integer"));
-        var integerLiteral = as(integerGtPrefilter.right(), Literal.class);
-        assertThat(integerLiteral.value(), equalTo(10));
-
-        // Verify right side of leftOr is keyword == "test" (not pushed to prefilter)
-        var keywordEquals = as(leftOr.right(), Equals.class);
-        var keywordField = as(keywordEquals.left(), FieldAttribute.class);
-        assertThat(keywordField.name(), equalTo("keyword"));
-        var keywordLiteral = as(keywordEquals.right(), Literal.class);
-        assertThat(keywordLiteral.value(), equalTo(new BytesRef("test")));
-
-        // Verify right side of top OR is AND(short < 5, double > 5.0) (not pushed to prefilter)
-        var rightAnd = as(topOr.right(), And.class);
-        var shortLt = as(rightAnd.left(), LessThan.class);
-        var shortField = as(shortLt.left(), FieldAttribute.class);
-        assertThat(shortField.name(), equalTo("short"));
-        var shortLiteral = as(shortLt.right(), Literal.class);
-        assertThat(shortLiteral.value(), equalTo(5));
-
-        var doubleGt = as(rightAnd.right(), GreaterThan.class);
-        var doubleField = as(doubleGt.left(), FieldAttribute.class);
-        assertThat(doubleField.name(), equalTo("double"));
-        var doubleLiteral = as(doubleGt.right(), Literal.class);
-        assertThat(doubleLiteral.value(), equalTo(5.0));
-
-        var esRelation = as(filter.child(), EsRelation.class);
+        var or = as(filter.condition(), Or.class);
+        var leftOr = as(or.left(), Or.class);
+        var leftAnd = as(leftOr.left(), And.class);
+        var knn = as(leftAnd.left(), Knn.class);
+        var rightAndPrefilter = as(knn.filterExpressions().get(0), GreaterThan.class);
+        assertThat(leftAnd.right(), equalTo(rightAndPrefilter));
     }
 
     public void testMultipleKnnQueriesInPrefilters() {
@@ -9018,41 +8922,15 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
             """;
         var optimized = planTypes(query);
 
-        // Verify plan structure: TopN[[Order[_score,ASC,LAST]],10] -> Filter[AND(...)] -> EsRelation[types]
         var topN = as(optimized, TopN.class);
         assertThat(topN.limit().fold(FoldContext.small()), equalTo(10));
-
-        // Verify filter structure: AND(KNN[0,1,2], KNN[1,2,3])
-        // The match clause is pushed down as a prefilter for both KNN queries
         var filter = as(topN.child(), Filter.class);
-        var and = as(filter.condition(), And.class);
-
-        // Left side: first KNN with query vector [0, 1, 2]
-        var firstKnn = as(and.left(), Knn.class);
-        var firstKnnField = as(firstKnn.field(), FieldAttribute.class);
-        assertThat(firstKnnField.name(), equalTo("dense_vector"));
-
-        // Right side: second KNN with query vector [1, 2, 3]
-        var secondKnn = as(and.right(), Knn.class);
-        var secondKnnField = as(secondKnn.field(), FieldAttribute.class);
-        assertThat(secondKnnField.name(), equalTo("dense_vector"));
-
-        // Verify that the match clause is included as a prefilter for the FIRST KNN query
-        List<Expression> firstKnnPrefilters = firstKnn.filterExpressions();
-        assertThat(firstKnnPrefilters.size(), equalTo(1));
-        var firstKnnMatchPrefilter = as(firstKnnPrefilters.getFirst(), Match.class);
-        var firstMatchField = as(firstKnnMatchPrefilter.field(), FieldAttribute.class);
-        assertThat(firstMatchField.name(), equalTo("keyword"));
-        var firstMatchQuery = as(firstKnnMatchPrefilter.query(), Literal.class);
-        assertThat(firstMatchQuery.value(), equalTo(new BytesRef("test")));
-
-        // Verify that the match clause is ALSO included as a prefilter for the SECOND KNN query
-        List<Expression> secondKnnPrefilters = secondKnn.filterExpressions();
-        assertThat(secondKnnPrefilters.size(), equalTo(1));
-        var secondKnnMatchPrefilter = as(secondKnnPrefilters.getFirst(), Match.class);
-        assertThat(firstKnnMatchPrefilter, equalTo(secondKnnMatchPrefilter));
-
-        var esRelation = as(filter.child(), EsRelation.class);
+        var firstAnd = as(filter.condition(), And.class);
+        var fistKnn = as(firstAnd.right(), Knn.class);
+        assertThat(((Literal) fistKnn.query()).value(), is(List.of(1.0f, 2.0f, 3.0f)));
+        var secondAnd = as(firstAnd.left(), And.class);
+        var secondKnn = as(secondAnd.left(), Knn.class);
+        assertThat(((Literal) secondKnn.query()).value(), is(List.of(0.0f, 1.0f, 2.0f)));
     }
 
     public void testKnnWithStats() {

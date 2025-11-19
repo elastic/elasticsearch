@@ -18,6 +18,7 @@ import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.PushLimitToSo
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.PushSampleToSource;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.PushStatsToSource;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.PushTopNToSource;
+import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.RemoveKnnPushablePrefiltersFromConjunctions;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.ReplaceRoundToWithQueryAndTags;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.ReplaceSourceAttributes;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.SpatialDocValuesExtraction;
@@ -61,9 +62,10 @@ public class LocalPhysicalPlanOptimizer extends ParameterizedRuleExecutor<Physic
     }
 
     protected static List<Batch<PhysicalPlan>> rules(boolean optimizeForEsSource) {
-        List<Rule<?, PhysicalPlan>> esSourceRules = new ArrayList<>(7);
+        List<Rule<?, PhysicalPlan>> esSourceRules = new ArrayList<>(8);
         esSourceRules.add(new ReplaceSourceAttributes());
         if (optimizeForEsSource) {
+            esSourceRules.add(new RemoveKnnPushablePrefiltersFromConjunctions());
             esSourceRules.add(new PushTopNToSource());
             esSourceRules.add(new PushLimitToSource());
             esSourceRules.add(new PushFiltersToSource());

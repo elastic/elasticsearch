@@ -24,6 +24,7 @@ import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.vectors.KnnVectorQueryBuilder;
 import org.elasticsearch.search.vectors.RescoreVectorBuilder;
 import org.elasticsearch.test.VersionUtils;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.EsqlTestUtils.TestSearchStats;
 import org.elasticsearch.xpack.esql.VerificationException;
@@ -131,7 +132,7 @@ import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
 
-//@TestLogging(value = "org.elasticsearch.xpack.esql:TRACE,org.elasticsearch.compute:TRACE", reason = "debug")
+@TestLogging(value = "org.elasticsearch.xpack.esql:TRACE,org.elasticsearch.compute:TRACE", reason = "debug")
 public class LocalPhysicalPlanOptimizerTests extends AbstractLocalPhysicalPlanOptimizerTests {
 
     public static final List<DataType> UNNECESSARY_CASTING_DATA_TYPES = List.of(
@@ -1807,13 +1808,8 @@ public class LocalPhysicalPlanOptimizerTests extends AbstractLocalPhysicalPlanOp
         var project = as(exchange.child(), ProjectExec.class);
         var field = as(project.child(), FieldExtractExec.class);
         var queryExec = as(field.child(), EsQueryExec.class);
-        QueryBuilder expectedFilterQueryBuilder = wrapWithSingleQuery(
-            query,
-            unscore(rangeQuery("integer").gt(10)),
-            "integer",
-            new Source(2, 41, "integer > 10")
-        );
-        KnnVectorQueryBuilder expectedKnnQueryBuilder = new KnnVectorQueryBuilder(
+        QueryBuilder expectedFilterQueryBuilder = unscore(rangeQuery("integer").gt(10));
+        KnnVectorQueryBuilder expectedQuery = new KnnVectorQueryBuilder(
             "dense_vector",
             new float[] { 0, 1, 2 },
             1000,
@@ -1822,7 +1818,6 @@ public class LocalPhysicalPlanOptimizerTests extends AbstractLocalPhysicalPlanOp
             null,
             null
         ).addFilterQuery(expectedFilterQueryBuilder);
-        var expectedQuery = boolQuery().must(expectedKnnQueryBuilder).must(expectedFilterQueryBuilder);
         assertEquals(expectedQuery.toString(), queryExec.query().toString());
     }
 
@@ -1848,16 +1843,9 @@ public class LocalPhysicalPlanOptimizerTests extends AbstractLocalPhysicalPlanOp
             new Source(4, 8, "keyword == \"test\"")
         );
         QueryBuilder expectedFilterQueryBuilder = boolQuery().must(integerFilter).must(keywordFilter);
-        KnnVectorQueryBuilder expectedKnnQueryBuilder = new KnnVectorQueryBuilder(
-            "dense_vector",
-            new float[] { 0, 1, 2 },
-            1000,
-            null,
-            null,
-            null,
-            null
-        ).addFilterQuery(expectedFilterQueryBuilder);
-        var expectedQuery = boolQuery().must(expectedKnnQueryBuilder).must(integerFilter).must(keywordFilter);
+        var expectedQuery = new KnnVectorQueryBuilder("dense_vector", new float[] { 0, 1, 2 }, 1000, null, null, null, null).addFilterQuery(
+            expectedFilterQueryBuilder
+        );
         assertEquals(expectedQuery.toString(), queryExec.query().toString());
     }
 
@@ -1875,24 +1863,11 @@ public class LocalPhysicalPlanOptimizerTests extends AbstractLocalPhysicalPlanOp
         var queryExec = as(field.child(), EsQueryExec.class);
 
         // The filter condition should be pushed down to both the KNN query and the main query
-        QueryBuilder expectedFilterQueryBuilder = wrapWithSingleQuery(
-            query,
-            unscore(rangeQuery("integer").gt(10)),
-            "integer",
-            new Source(2, 41, "integer > 10")
+        QueryBuilder expectedFilterQueryBuilder = unscore(rangeQuery("integer").gt(10));
+
+        var expectedQuery = new KnnVectorQueryBuilder("dense_vector", new float[] { 0, 1, 2 }, 1000, null, null, null, null).addFilterQuery(
+            expectedFilterQueryBuilder
         );
-
-        KnnVectorQueryBuilder expectedKnnQueryBuilder = new KnnVectorQueryBuilder(
-            "dense_vector",
-            new float[] { 0, 1, 2 },
-            1000,
-            null,
-            null,
-            null,
-            null
-        ).addFilterQuery(expectedFilterQueryBuilder);
-
-        var expectedQuery = boolQuery().must(expectedKnnQueryBuilder).must(expectedFilterQueryBuilder);
 
         assertEquals(expectedQuery.toString(), queryExec.query().toString());
     }
@@ -1918,17 +1893,9 @@ public class LocalPhysicalPlanOptimizerTests extends AbstractLocalPhysicalPlanOp
             new Source(2, 41, "NOT integer > 10")
         );
 
-        KnnVectorQueryBuilder expectedKnnQueryBuilder = new KnnVectorQueryBuilder(
-            "dense_vector",
-            new float[] { 0, 1, 2 },
-            1000,
-            null,
-            null,
-            null,
-            null
-        ).addFilterQuery(expectedFilterQueryBuilder);
-
-        var expectedQuery = boolQuery().must(expectedKnnQueryBuilder).must(expectedFilterQueryBuilder);
+        var expectedQuery = new KnnVectorQueryBuilder("dense_vector", new float[] { 0, 1, 2 }, 1000, null, null, null, null).addFilterQuery(
+            expectedFilterQueryBuilder
+        );
 
         assertEquals(expectedQuery.toString(), queryExec.query().toString());
     }
@@ -2071,9 +2038,10 @@ public class LocalPhysicalPlanOptimizerTests extends AbstractLocalPhysicalPlanOp
             null
         );
         // Integer range query (right side of first OR)
-        QueryBuilder integerRangeQuery = wrapWithSingleQuery(
+        QueryBuilder integerRangeQuery = unscore(rangeQuery("integer").gt(10));
+        QueryBuilder integerRangeQuerySingleValue = wrapWithSingleQuery(
             query,
-            unscore(rangeQuery("integer").gt(10)),
+            integerRangeQuery,
             "integer",
             new Source(2, 42, "integer > 10")
         );
@@ -2090,17 +2058,18 @@ public class LocalPhysicalPlanOptimizerTests extends AbstractLocalPhysicalPlanOp
         );
 
         // Keyword term query (left side of second OR)
-        QueryBuilder keywordQuery = wrapWithSingleQuery(
+        QueryBuilder keywordQuery = unscore(termQuery("keyword", "test"));
+        QueryBuilder keywordQuerySingleValue = wrapWithSingleQuery(
             query,
-            unscore(termQuery("keyword", "test")),
+            keywordQuery,
             "keyword",
             new Source(2, 62, "keyword == \"test\"")
         );
 
         // First OR (knn1 OR integer > 10)
-        var firstOr = boolQuery().should(firstKnnQuery).should(integerRangeQuery);
+        var firstOr = boolQuery().should(firstKnnQuery).should(integerRangeQuerySingleValue);
         // Second OR (keyword == "test" OR knn2)
-        var secondOr = boolQuery().should(keywordQuery).should(secondKnnQuery);
+        var secondOr = boolQuery().should(keywordQuerySingleValue).should(secondKnnQuery);
         firstKnnQuery.addFilterQuery(keywordQuery);
         secondKnnQuery.addFilterQuery(integerRangeQuery);
 

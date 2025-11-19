@@ -48,6 +48,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.StringJoiner;
 
 import static java.util.Map.entry;
 import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
@@ -326,6 +327,22 @@ public class Knn extends SingleFieldFullTextFunction implements OptionalArgument
     @Override
     protected Map<String, DataType> getAllowedOptions() {
         return ALLOWED_OPTIONS;
+    }
+
+    @Override
+    public String nodeString() {
+        StringJoiner sj = new StringJoiner(",", functionName() + "(", ")");
+        for (Expression ex : arguments()) {
+            sj.add(ex.nodeString());
+        }
+        if (filterExpressions.isEmpty() == false) {
+            StringJoiner prefiltersSj = new StringJoiner(", ", "prefilters=[", "]");
+            for (Expression filterExpression : filterExpressions) {
+                prefiltersSj.add(filterExpression.nodeString());
+            }
+            sj.add(prefiltersSj.toString());
+        }
+        return sj.toString();
     }
 
     @Override

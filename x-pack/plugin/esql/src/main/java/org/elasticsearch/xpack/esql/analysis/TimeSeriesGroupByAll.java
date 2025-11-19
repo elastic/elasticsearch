@@ -68,10 +68,6 @@ public class TimeSeriesGroupByAll extends Rule<LogicalPlan, LogicalPlan> {
         groupings.add(tsidAttr);
         groupings.addAll(aggregate.groupings());
 
-        // We add the tsid to the aggregates list because we want to include it in the output of the first pass in
-        // TranslateTimeSeriesAggregate
-        newAggregateFunctions.add(tsidAttr);
-
         // Add user-defined groupings to aggregates if they're attributes
         for (Expression userGrouping : aggregate.groupings()) {
             if (userGrouping instanceof Attribute attr) {

@@ -188,6 +188,7 @@ public final class TranslateTimeSeriesAggregate extends OptimizerRules.Parameter
         Holder<Boolean> requiredTimeSeriesSource = new Holder<>(Boolean.FALSE);
         var internalNames = new InternalNames();
         boolean tsidInAggregates = false;
+        boolean hasBareOverTimeAggregations = false;
         for (NamedExpression agg : aggregate.aggregates()) {
             if (agg instanceof Attribute attr && attr.name().equals(MetadataAttribute.TSID_FIELD)) {
                 tsidInAggregates = true;
@@ -197,6 +198,11 @@ public final class TranslateTimeSeriesAggregate extends OptimizerRules.Parameter
                 continue;
             }
             if (agg instanceof Alias alias && alias.child() instanceof AggregateFunction af) {
+                // Detect bare over-time aggregations: Values wrapping TimeSeriesAggregateFunction
+                // This indicates TimeSeriesGroupByAll has wrapped the aggregation
+                if (af instanceof Values values && values.field() instanceof TimeSeriesAggregateFunction) {
+                    hasBareOverTimeAggregations = true;
+                }
                 Holder<Boolean> changed = new Holder<>(Boolean.FALSE);
                 final Expression inlineFilter;
                 if (af.hasFilter()) {
@@ -353,9 +359,10 @@ public final class TranslateTimeSeriesAggregate extends OptimizerRules.Parameter
         );
         checkWindow(firstPhase);
         // Ensure _tsid is in secondPassGroupings so it's available in finalPlan.inputSet()
-        // This is only needed when creating the _timeseries field (i.e., when tsidInAggregates is true)
+        // This is needed when creating the _timeseries field (i.e., when tsidInAggregates is true
+        // or when we have bare over-time aggregations)
         // Get the _tsid attribute from firstPhase.output() to ensure we use the correct reference
-        if (tsidInAggregates) {
+        if (tsidInAggregates || hasBareOverTimeAggregations) {
             boolean tsidInSecondPass = secondPassGroupings.stream().anyMatch(g -> {
                 Attribute attr = Expressions.attribute(g);
                 return attr != null && attr.name().equals(MetadataAttribute.TSID_FIELD);
@@ -410,7 +417,9 @@ public final class TranslateTimeSeriesAggregate extends OptimizerRules.Parameter
         }
 
         // Add _timeseries field containing string representation of _tsid
-        if (tsidInAggregates) {
+        // Create _timeseries for bare over-time aggregations (detected by TimeSeriesGroupByAll wrapping with Values)
+        // or when _tsid is explicitly requested in aggregates
+        if (tsidInAggregates || hasBareOverTimeAggregations) {
             Attribute tsidAttr = finalPlan.output()
                 .stream()
                 .filter(attr -> attr.name().equals(MetadataAttribute.TSID_FIELD))

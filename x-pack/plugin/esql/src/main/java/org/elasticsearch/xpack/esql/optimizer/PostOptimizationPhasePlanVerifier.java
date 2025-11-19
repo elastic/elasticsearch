@@ -87,11 +87,10 @@ public abstract class PostOptimizationPhasePlanVerifier<P extends QueryPlan<P>> 
                     && ts.aggregates().stream().anyMatch(g -> Alias.unwrap(g) instanceof Values v && v.field().dataType() == DataType.TEXT)
             );
 
-            // TranslateTimeSeriesAggregate may replace _tsid with _timeseries in the output
+            // TranslateTimeSeriesAggregate may add a _timeseries attribute into the projection
             boolean hasTimeseriesReplacingTsid = expectedOutputAttributes.stream()
-                .anyMatch(a -> a.name().equals(MetadataAttribute.TSID_FIELD))
-                && optimizedPlan.output().stream().anyMatch(a -> a.name().equals(MetadataAttribute.TIMESERIES))
-                && optimizedPlan.output().stream().noneMatch(a -> a.name().equals(MetadataAttribute.TSID_FIELD));
+                .noneMatch(a -> a.name().equals(MetadataAttribute.TIMESERIES))
+                && optimizedPlan.output().stream().anyMatch(a -> a.name().equals(MetadataAttribute.TIMESERIES));
 
             boolean ignoreError = hasProjectAwayColumns || hasLookupJoinExec || hasTextGroupingInTimeSeries || hasTimeseriesReplacingTsid;
             if (ignoreError == false) {

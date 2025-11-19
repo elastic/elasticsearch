@@ -15,7 +15,6 @@ import org.elasticsearch.index.codec.CodecService;
 import org.elasticsearch.index.codec.LegacyPerFieldMapperCodec;
 import org.elasticsearch.index.codec.PerFieldMapperCodec;
 import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.index.mapper.MapperServiceTestCase;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapperTests;
 import org.elasticsearch.plugins.Plugin;
 import org.junit.BeforeClass;
@@ -59,7 +58,7 @@ public class GPUDenseVectorFieldMapperTests extends DenseVectorFieldMapperTests 
 
     private KnnVectorsFormat getKnnVectorsFormat(String indexOptionsType) throws IOException {
         final int dims = randomIntBetween(128, 4096);
-        MapperService mapperService = createMapperService(MapperServiceTestCase.fieldMapping(b -> {
+        MapperService mapperService = createMapperService(fieldMapping(b -> {
             b.field("type", "dense_vector");
             b.field("dims", dims);
             b.field("index", true);

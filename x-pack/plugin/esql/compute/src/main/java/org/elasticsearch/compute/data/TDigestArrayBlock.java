@@ -112,7 +112,10 @@ public final class TDigestArrayBlock extends AbstractNonThreadSafeRefCounted imp
 
     @Override
     public Block filter(int... positions) {
-        // TODO: Refactor this degelation pattern
+        /*
+         TODO: Refactor this degelation pattern.  In fact, both AggregateMetricDoubleArrayBlock and ExponentialHistogramArrayBlock
+               use the same pattern.  We should extract a composite block abstract class, I think.
+        */
         DoubleBlock filteredMinima = null;
         DoubleBlock filteredMaxima = null;
         DoubleBlock filteredSums = null;

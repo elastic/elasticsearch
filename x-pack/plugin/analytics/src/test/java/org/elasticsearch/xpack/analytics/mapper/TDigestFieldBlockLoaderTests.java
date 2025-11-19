@@ -14,6 +14,7 @@ import org.elasticsearch.datageneration.datasource.DataSourceRequest;
 import org.elasticsearch.datageneration.datasource.DataSourceResponse;
 import org.elasticsearch.index.mapper.BlockLoaderTestCase;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.search.aggregations.metrics.TDigestState;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.analytics.AnalyticsPlugin;
 import org.junit.Before;
@@ -58,8 +59,9 @@ public class TDigestFieldBlockLoaderTests extends BlockLoaderTestCase {
             return new DataSourceResponse.LeafMappingParametersGenerator(() -> {
                 var map = new HashMap<String, Object>();
                 if (ESTestCase.randomBoolean()) {
-                    // NOCOMMIT TODO - randomize the other parameters to the field here
                     map.put("ignore_malformed", ESTestCase.randomBoolean());
+                    map.put("compression", randomDoubleBetween(1.0, 1000.0, true));
+                    map.put("digest_type", randomFrom(TDigestState.Type.values()));
                 }
                 return map;
             });
@@ -70,8 +72,9 @@ public class TDigestFieldBlockLoaderTests extends BlockLoaderTestCase {
             if (request.fieldType().equals(TDigestFieldMapper.CONTENT_TYPE) == false) {
                 return null;
             }
-            // NOCOMMIT TODO - randomize the data size here?
-            return new DataSourceResponse.FieldDataGenerator(mapping -> TDigestFieldMapperTests.generateRandomFieldValues(100));
+            return new DataSourceResponse.FieldDataGenerator(
+                mapping -> TDigestFieldMapperTests.generateRandomFieldValues(randomIntBetween(0, 1_000))
+            );
         }
     };
 
@@ -89,6 +92,7 @@ public class TDigestFieldBlockLoaderTests extends BlockLoaderTestCase {
 
         long totalCount = 0;
 
+        // TODO - refactor this, it's duplicated from the parser
         for (int i = 0; i < centroids.size(); i++) {
             long count = counts.get(i);
             totalCount += count;

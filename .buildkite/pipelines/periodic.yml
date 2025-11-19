@@ -567,6 +567,8 @@ steps:
           ES_RUNTIME_JAVA: "{{matrix.ES_RUNTIME_JAVA}}"
           GRADLE_TASK: "{{matrix.GRADLE_TASK}}"
 
+      # BWC tests are backwards compatible tests that will create an ES build and then upgrade it to the
+      # current build under tests and then invoke the tests to check for regression.
       - label: "{{matrix.ES_RUNTIME_JAVA}} / {{matrix.BWC_VERSION}} / java-matrix-bwc"
         command: .ci/scripts/run-gradle.sh --continue -Dbwc.checkout.align=true v$$BWC_VERSION#bwcTest
         timeout_in_minutes: 300
@@ -574,23 +576,8 @@ steps:
           setup:
             ES_RUNTIME_JAVA:
               - openjdk21
-              - openjdk23
-              - openjdk24
               - openjdk25
             BWC_VERSION: ["8.19.8", "9.1.8", "9.2.2", "9.3.0"]
-          adjustments:
-            - with:
-                BWC_VERSION: "8.19.8"
-                ES_RUNTIME_JAVA: openjdk23
-              skip: true
-            - with:
-                BWC_VERSION: "9.1.8"
-                ES_RUNTIME_JAVA: openjdk23
-              skip: true
-            - with:
-                BWC_VERSION: "9.1.8"
-                ES_RUNTIME_JAVA: [openjdk24, openjdk23]
-              skip: true
         agents:
           provider: gcp
           image: family/elasticsearch-ubuntu-2404

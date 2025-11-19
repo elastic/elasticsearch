@@ -1565,6 +1565,16 @@ public class EsqlCapabilities {
         EXPONENTIAL_HISTOGRAM_TOPN(EXPONENTIAL_HISTOGRAM_FEATURE_FLAG),
 
         /**
+         * Support for exponential_histogram type in PERCENTILES aggregation.
+         */
+        EXPONENTIAL_HISTOGRAM_PERCENTILES_SUPPORT(EXPONENTIAL_HISTOGRAM_FEATURE_FLAG),
+
+        /**
+         * Support for exponential_histogram type in MIN/MAX aggregation.
+         */
+        EXPONENTIAL_HISTOGRAM_MINMAX_SUPPORT(EXPONENTIAL_HISTOGRAM_FEATURE_FLAG),
+
+        /**
          * Create new block when filtering OrdinalBytesRefBlock
          */
         FIX_FILTER_ORDINALS,
@@ -1599,6 +1609,13 @@ public class EsqlCapabilities {
          * https://github.com/elastic/elasticsearch/issues/133462
          */
         PUSHING_DOWN_EVAL_WITH_SCORE,
+
+        /**
+         * Fix for ClassCastException in STATS
+         * https://github.com/elastic/elasticsearch/issues/133992
+         * https://github.com/elastic/elasticsearch/issues/136598
+         */
+        FIX_STATS_CLASSCAST_EXCEPTION,
 
         /**
          * Fix attribute equality to respect the name id of the attribute.
@@ -1655,11 +1672,6 @@ public class EsqlCapabilities {
         FULL_TEXT_FUNCTIONS_ACCEPT_NULL_FIELD,
 
         /**
-         * Support for exponential_histogram type in PERCENTILES aggregation.
-         */
-        EXPONENTIAL_HISTOGRAM_PERCENTILES_SUPPORT(EXPONENTIAL_HISTOGRAM_FEATURE_FLAG),
-
-        /**
          * Support for the temporary work to eventually allow FIRST to work with null and multi-value fields, among other things.
          */
         ALL_FIRST(Build.current().isSnapshot()),
@@ -1668,6 +1680,11 @@ public class EsqlCapabilities {
          * Allow ST_EXTENT_AGG to gracefully handle missing spatial shapes
          */
         ST_EXTENT_AGG_NULL_SUPPORT,
+
+        /**
+         * Support grouping window in time-series for example: rate(counter, "1m") or avg_over_time(field, "5m")
+         */
+        TIME_SERIES_WINDOW_V0,
 
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.

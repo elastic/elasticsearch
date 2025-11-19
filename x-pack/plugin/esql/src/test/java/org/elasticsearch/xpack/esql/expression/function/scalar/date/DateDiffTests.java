@@ -21,13 +21,14 @@ import org.elasticsearch.xpack.esql.session.Configuration;
 
 import java.time.Instant;
 import java.time.ZoneId;
-import java.util.Collection;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Supplier;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier.TEST_SOURCE;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.startsWith;
 
 public class DateDiffTests extends AbstractConfigurationFunctionTestCase {
     public DateDiffTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
@@ -36,13 +37,15 @@ public class DateDiffTests extends AbstractConfigurationFunctionTestCase {
 
     @ParametersFactory
     public static Iterable<Object[]> parameters() {
+        List<TestCaseSupplier> suppliers = new ArrayList<>();
+
         String zdtStart = "2023-12-04T10:15:00Z";
         String zdtEnd = "2024-12-04T10:15:01Z";
 
-        List<TestCaseSupplier> suppliers = Stream.of(
-            ///
-            /// UTC
-            ///
+        ///
+        /// UTC
+        ///
+        List.of(
             makeSuppliers("2023-12-04T10:15:30Z", "2023-12-05T10:45:00Z", "Z", "seconds", 88170),
             makeSuppliers("2023-12-12T00:01:01Z", "2024-12-12T00:01:01Z", "Z", "year", 1),
             makeSuppliers("2023-12-12T00:01:01.001Z", "2024-12-12T00:01:01Z", "Z", "year", 0),
@@ -83,34 +86,37 @@ public class DateDiffTests extends AbstractConfigurationFunctionTestCase {
             makeSuppliers(zdtStart, zdtEnd, "Z", "q", 4),
             makeSuppliers(zdtStart, zdtEnd, "Z", "years", 1),
             makeSuppliers(zdtStart, zdtEnd, "Z", "yyyy", 1),
-            makeSuppliers(zdtStart, zdtEnd, "Z", "yy", 1),
+            makeSuppliers(zdtStart, zdtEnd, "Z", "yy", 1)
+        ).forEach(suppliers::addAll);
 
-            ///
-            /// DST zones cases
-            ///
-            // Europe/Paris, 1h DST
-            // - +1 -> +2 at 2025-03-30T02:00:00+01:00
-            makeSuppliers("2025-03-30T01:00:00+01:00", "2025-03-30T03:00:00+02:00", "Europe/Paris", "hours", 2),
-            makeSuppliers("2025-03-30T01:00:00+01:00", "2025-03-30T03:00:00+02:00", "Z", "hours", 1),
-            // - +2 -> +1 at 2025-10-26T03:00:00+02:,
-            makeSuppliers("2025-10-26T02:00:00+02:00", "2025-10-26T02:00:00+01:00", "Europe/Paris", "hours", 0),
-            makeSuppliers("2025-10-26T02:00:00+02:00", "2025-10-26T02:00:00+01:00", "Z", "hours", 1),
+        ///
+        /// DST timezones; they shouldn't change the result
+        ///
+        List.of("Z", "Europe/Paris", "America/Goose_Bay")
+            .forEach(
+                timezone -> List.of(
+                    // Europe/Paris, 1h DST
+                    // - +1 -> +2 at 2025-03-30T02:00:00+01:00
+                    makeSuppliers("2025-03-30T01:00:00+01:00", "2025-03-30T03:00:00+02:00", timezone, "hours", 1),
+                    // - +2 -> +1 at 2025-10-26T03:00:00+02:,
+                    makeSuppliers("2025-10-26T02:00:00+02:00", "2025-10-26T02:00:00+01:00", timezone, "hours", 1),
 
-            // America/Goose_Bay, midnight DST: -3 to -4 at 2010-11-07T00:01:00-03:00)
-            makeSuppliers("2010-11-07T00:00:00-03:00", "2010-11-06T23:01:00-04:00", "America/Goose_Bay", "hours", -1),
-            makeSuppliers("2010-11-07T00:00:00-03:00", "2010-11-06T23:01:00-04:00", "America/Goose_Bay", "days", -1),
-            makeSuppliers("2010-11-07T00:00:00-03:00", "2010-11-06T23:01:00-04:00", "Z", "minutes", 1),
-            makeSuppliers("2010-11-07T00:00:00-03:00", "2010-11-06T23:01:00-04:00", "Z", "hours", 0),
-            makeSuppliers("2010-11-07T00:00:00-03:00", "2010-11-06T23:01:00-04:00", "Z", "days", 0),
+                    // America/Goose_Bay, midnight DST: -3 to -4 at 2010-11-07T00:01:00-03:00)
+                    makeSuppliers("2010-11-07T00:00:00-03:00", "2010-11-06T23:01:00-04:00", timezone, "minutes", 1),
+                    makeSuppliers("2010-11-07T00:00:00-03:00", "2010-11-06T23:01:00-04:00", timezone, "hours", 0),
+                    makeSuppliers("2010-11-07T00:00:00-03:00", "2010-11-06T23:01:00-04:00", timezone, "days", 0)
+                ).forEach(suppliers::addAll)
+            );
 
-            // Error cases
+        // Error cases
+        suppliers.addAll(
             makeSuppliersForWarning(
                 "2023-12-04T10:15:00Z",
                 "2023-12-04T10:20:00Z",
                 "nanoseconds",
                 "Line 1:1: org.elasticsearch.xpack.esql.core.InvalidArgumentException: [300000000000] out of [integer] range"
             )
-        ).flatMap(Collection::stream).toList();
+        );
 
         return parameterSuppliersFromTypedDataWithDefaultChecks(true, suppliers);
     }
@@ -137,9 +143,9 @@ public class DateDiffTests extends AbstractConfigurationFunctionTestCase {
                             + ">, "
                             + timezone
                             + ", "
-                            + startTimestamp
+                            + startTimestampString
                             + "<MILLIS>, "
-                            + endTimestamp
+                            + endTimestampString
                             + "<MILLIS>) == "
                             + expected,
                         List.of(unitType, DataType.DATETIME, DataType.DATETIME),
@@ -150,7 +156,9 @@ public class DateDiffTests extends AbstractConfigurationFunctionTestCase {
                                 new TestCaseSupplier.TypedData(endTimestamp.toEpochMilli(), DataType.DATETIME, "endTimestamp")
                             ),
                             "DateDiffMillisEvaluator[unit=Attribute[channel=0], startTimestamp=Attribute[channel=1], "
-                                + "endTimestamp=Attribute[channel=2]]",
+                                + "endTimestamp=Attribute[channel=2], zoneId="
+                                + zoneId
+                                + "]",
                             DataType.INTEGER,
                             equalTo(expected)
                         ).withConfiguration(TEST_SOURCE, configurationForTimezone(zoneId))
@@ -163,9 +171,9 @@ public class DateDiffTests extends AbstractConfigurationFunctionTestCase {
                             + ">, "
                             + timezone
                             + ", "
-                            + startTimestamp
+                            + startTimestampString
                             + "<NANOS>, "
-                            + endTimestamp
+                            + endTimestampString
                             + "<NANOS>) == "
                             + expected,
                         List.of(unitType, DataType.DATE_NANOS, DataType.DATE_NANOS),
@@ -176,10 +184,12 @@ public class DateDiffTests extends AbstractConfigurationFunctionTestCase {
                                 new TestCaseSupplier.TypedData(DateUtils.toLong(endTimestamp), DataType.DATE_NANOS, "endTimestamp")
                             ),
                             "DateDiffNanosEvaluator[unit=Attribute[channel=0], startTimestamp=Attribute[channel=1], "
-                                + "endTimestamp=Attribute[channel=2]]",
+                                + "endTimestamp=Attribute[channel=2], zoneId="
+                                + zoneId
+                                + "]",
                             DataType.INTEGER,
                             equalTo(expected)
-                        )
+                        ).withConfiguration(TEST_SOURCE, configurationForTimezone(zoneId))
                     ),
                     new TestCaseSupplier(
                         "DateDiff("
@@ -189,9 +199,9 @@ public class DateDiffTests extends AbstractConfigurationFunctionTestCase {
                             + ">, "
                             + timezone
                             + ", "
-                            + startTimestamp
+                            + startTimestampString
                             + "<NANOS>, "
-                            + endTimestamp
+                            + endTimestampString
                             + "<MILLIS>) == "
                             + expected,
                         List.of(unitType, DataType.DATE_NANOS, DataType.DATETIME),
@@ -202,10 +212,12 @@ public class DateDiffTests extends AbstractConfigurationFunctionTestCase {
                                 new TestCaseSupplier.TypedData(endTimestamp.toEpochMilli(), DataType.DATETIME, "endTimestamp")
                             ),
                             "DateDiffNanosMillisEvaluator[unit=Attribute[channel=0], startTimestampNanos=Attribute[channel=1], "
-                                + "endTimestampMillis=Attribute[channel=2]]",
+                                + "endTimestampMillis=Attribute[channel=2], zoneId="
+                                + zoneId
+                                + "]",
                             DataType.INTEGER,
                             equalTo(expected)
-                        )
+                        ).withConfiguration(TEST_SOURCE, configurationForTimezone(zoneId))
                     ),
                     new TestCaseSupplier(
                         "DateDiff("
@@ -215,9 +227,9 @@ public class DateDiffTests extends AbstractConfigurationFunctionTestCase {
                             + ">, "
                             + timezone
                             + ", "
-                            + startTimestamp
+                            + startTimestampString
                             + "<MILLIS>, "
-                            + endTimestamp
+                            + endTimestampString
                             + "<NANOS>) == "
                             + expected,
                         List.of(unitType, DataType.DATETIME, DataType.DATE_NANOS),
@@ -228,10 +240,12 @@ public class DateDiffTests extends AbstractConfigurationFunctionTestCase {
                                 new TestCaseSupplier.TypedData(DateUtils.toLong(endTimestamp), DataType.DATE_NANOS, "endTimestamp")
                             ),
                             "DateDiffMillisNanosEvaluator[unit=Attribute[channel=0], startTimestampMillis=Attribute[channel=1], "
-                                + "endTimestampNanos=Attribute[channel=2]]",
+                                + "endTimestampNanos=Attribute[channel=2], zoneId="
+                                + zoneId
+                                + "]",
                             DataType.INTEGER,
                             equalTo(expected)
-                        )
+                        ).withConfiguration(TEST_SOURCE, configurationForTimezone(zoneId))
                     )
                 )
             )
@@ -251,7 +265,7 @@ public class DateDiffTests extends AbstractConfigurationFunctionTestCase {
             .flatMap(
                 unitType -> Stream.of(
                     new TestCaseSupplier(
-                        "DateDiff(" + unit + "<KEYWORD>, " + startTimestamp + ", " + endTimestamp + ") -> warning ",
+                        "warning -> " + unit + "<KEYWORD>, " + startTimestamp + ", " + endTimestamp,
                         List.of(DataType.KEYWORD, DataType.DATETIME, DataType.DATETIME),
                         () -> new TestCaseSupplier.TestCase(
                             List.of(
@@ -259,8 +273,10 @@ public class DateDiffTests extends AbstractConfigurationFunctionTestCase {
                                 new TestCaseSupplier.TypedData(startTimestamp.toEpochMilli(), DataType.DATETIME, "startTimestamp"),
                                 new TestCaseSupplier.TypedData(endTimestamp.toEpochMilli(), DataType.DATETIME, "endTimestamp")
                             ),
-                            "DateDiffMillisEvaluator[unit=Attribute[channel=0], startTimestamp=Attribute[channel=1], "
-                                + "endTimestamp=Attribute[channel=2]]",
+                            startsWith(
+                                "DateDiffMillisEvaluator[unit=Attribute[channel=0], startTimestamp=Attribute[channel=1], "
+                                    + "endTimestamp=Attribute[channel=2], zoneId="
+                            ),
                             DataType.INTEGER,
                             equalTo(null)
                         ).withWarning("Line 1:1: evaluation of [source] failed, treating result as null. Only first 20 failures recorded.")
@@ -276,8 +292,10 @@ public class DateDiffTests extends AbstractConfigurationFunctionTestCase {
                                 new TestCaseSupplier.TypedData(startTimestamp.toEpochMilli(), DataType.DATETIME, "startTimestamp"),
                                 new TestCaseSupplier.TypedData(endTimestamp.toEpochMilli(), DataType.DATETIME, "endTimestamp")
                             ),
-                            "DateDiffMillisEvaluator[unit=Attribute[channel=0], startTimestamp=Attribute[channel=1], "
-                                + "endTimestamp=Attribute[channel=2]]",
+                            startsWith(
+                                "DateDiffMillisEvaluator[unit=Attribute[channel=0], startTimestamp=Attribute[channel=1], "
+                                    + "endTimestamp=Attribute[channel=2], zoneId="
+                            ),
                             DataType.INTEGER,
                             equalTo(null)
                         ).withWarning("Line 1:1: evaluation of [source] failed, treating result as null. Only first 20 failures recorded.")

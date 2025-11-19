@@ -39,10 +39,10 @@ import java.util.stream.Stream;
 import static org.elasticsearch.xpack.inference.InferencePlugin.UTILITY_THREAD_POOL_NAME;
 
 @SuppressWarnings("checkstyle:LineLength")
-class AmazonBedrockUnifiedStreamingChatProcessor
+class AmazonBedrockChatCompletionProcessor
     implements
         Flow.Processor<ConverseStreamOutput, StreamingUnifiedChatCompletionResults.Results> {
-    private static final Logger logger = LogManager.getLogger(AmazonBedrockStreamingChatProcessor.class);
+    private static final Logger logger = LogManager.getLogger(AmazonBedrockCompletionProcessor.class);
 
     private final AtomicReference<Throwable> error = new AtomicReference<>(null);
     private final AtomicLong demand = new AtomicLong(0);
@@ -53,7 +53,7 @@ class AmazonBedrockUnifiedStreamingChatProcessor
     private volatile Flow.Subscriber<? super StreamingUnifiedChatCompletionResults.Results> downstream;
     private volatile Flow.Subscription upstream;
 
-    AmazonBedrockUnifiedStreamingChatProcessor(ThreadPool threadPool) {
+    AmazonBedrockChatCompletionProcessor(ThreadPool threadPool) {
         this.threadPool = threadPool;
     }
 

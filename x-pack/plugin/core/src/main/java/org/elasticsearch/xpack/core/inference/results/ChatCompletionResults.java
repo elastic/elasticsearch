@@ -26,7 +26,7 @@ import java.util.Map;
 import java.util.stream.Collectors;
 
 /**
- * Writes a chat completion result in the following json format:
+ * Writes a completion result in the following json format:
  * {
  *    "completion": [
  *      {

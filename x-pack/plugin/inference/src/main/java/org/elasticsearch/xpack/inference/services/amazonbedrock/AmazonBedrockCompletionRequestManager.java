@@ -21,7 +21,7 @@ import org.elasticsearch.xpack.inference.external.http.sender.ChatCompletionInpu
 import org.elasticsearch.xpack.inference.external.http.sender.InferenceInputs;
 import org.elasticsearch.xpack.inference.services.amazonbedrock.completion.AmazonBedrockChatCompletionModel;
 import org.elasticsearch.xpack.inference.services.amazonbedrock.request.completion.AmazonBedrockChatCompletionEntityFactory;
-import org.elasticsearch.xpack.inference.services.amazonbedrock.request.completion.AmazonBedrockChatCompletionRequest;
+import org.elasticsearch.xpack.inference.services.amazonbedrock.request.completion.AmazonBedrockCompletionRequest;
 import org.elasticsearch.xpack.inference.services.amazonbedrock.response.completion.AmazonBedrockChatCompletionResponseHandler;
 
 import java.util.function.Supplier;
@@ -50,7 +50,7 @@ public class AmazonBedrockCompletionRequestManager extends AmazonBedrockRequestM
         var inputs = chatCompletionInput.getInputs();
         var stream = chatCompletionInput.stream();
         var requestEntity = AmazonBedrockChatCompletionEntityFactory.createEntity(model, inputs);
-        var request = new AmazonBedrockChatCompletionRequest(model, requestEntity, timeout, stream);
+        var request = new AmazonBedrockCompletionRequest(model, requestEntity, timeout, stream);
         var responseHandler = new AmazonBedrockChatCompletionResponseHandler();
 
         try {

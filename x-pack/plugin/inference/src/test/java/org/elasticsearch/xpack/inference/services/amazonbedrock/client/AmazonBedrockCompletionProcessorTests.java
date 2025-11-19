@@ -43,15 +43,15 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
-public class AmazonBedrockStreamingChatProcessorTests extends ESTestCase {
-    private AmazonBedrockStreamingChatProcessor processor;
+public class AmazonBedrockCompletionProcessorTests extends ESTestCase {
+    private AmazonBedrockCompletionProcessor processor;
 
     @Before
     public void setUp() throws Exception {
         super.setUp();
         ThreadPool threadPool = mock();
         when(threadPool.executor(UTILITY_THREAD_POOL_NAME)).thenReturn(EsExecutors.DIRECT_EXECUTOR_SERVICE);
-        processor = new AmazonBedrockStreamingChatProcessor(threadPool);
+        processor = new AmazonBedrockCompletionProcessor(threadPool);
     }
 
     /**
@@ -126,7 +126,7 @@ public class AmazonBedrockStreamingChatProcessorTests extends ESTestCase {
         ExecutorService executorService = mock();
         ThreadPool threadPool = mock();
         when(threadPool.executor(UTILITY_THREAD_POOL_NAME)).thenReturn(executorService);
-        processor = new AmazonBedrockStreamingChatProcessor(threadPool);
+        processor = new AmazonBedrockCompletionProcessor(threadPool);
         doAnswer(ans -> {
             Runnable command = ans.getArgument(0);
             command.run();

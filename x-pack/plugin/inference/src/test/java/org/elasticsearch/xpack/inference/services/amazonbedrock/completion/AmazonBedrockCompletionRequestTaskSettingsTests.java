@@ -22,7 +22,7 @@ import static org.elasticsearch.xpack.inference.services.amazonbedrock.AmazonBed
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
 
-public class AmazonBedrockChatCompletionRequestTaskSettingsTests extends ESTestCase {
+public class AmazonBedrockCompletionRequestTaskSettingsTests extends ESTestCase {
     public void testFromMap_ReturnsEmptySettings_WhenTheMapIsEmpty() {
         var settings = AmazonBedrockChatCompletionRequestTaskSettings.fromMap(new HashMap<>(Map.of()));
         assertThat(settings, is(AmazonBedrockChatCompletionRequestTaskSettings.EMPTY_SETTINGS));

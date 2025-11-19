@@ -11,14 +11,14 @@ import org.elasticsearch.core.Nullable;
 
 import java.util.List;
 
-public record AmazonBedrockConverseRequestEntity(
+public record AmazonBedrockCompletionRequestEntity(
     List<String> messages,
     @Nullable Double temperature,
     @Nullable Double topP,
     @Nullable Integer maxTokenCount,
     @Nullable List<String> additionalModelFields
 ) {
-    public AmazonBedrockConverseRequestEntity(
+    public AmazonBedrockCompletionRequestEntity(
         List<String> messages,
         @Nullable Double temperature,
         @Nullable Double topP,

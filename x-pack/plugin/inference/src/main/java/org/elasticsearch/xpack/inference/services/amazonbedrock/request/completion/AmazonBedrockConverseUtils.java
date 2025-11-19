@@ -40,7 +40,7 @@ public final class AmazonBedrockConverseUtils {
             .toList();
     }
 
-    public static Optional<InferenceConfiguration> inferenceConfig(AmazonBedrockConverseRequestEntity request) {
+    public static Optional<InferenceConfiguration> inferenceConfig(AmazonBedrockCompletionRequestEntity request) {
         if (request.temperature() != null || request.topP() != null || request.maxTokenCount() != null) {
             var builder = InferenceConfiguration.builder();
             if (request.temperature() != null) {
@@ -59,7 +59,7 @@ public final class AmazonBedrockConverseUtils {
         return Optional.empty();
     }
 
-    public static Optional<InferenceConfiguration> inferenceConfig(AmazonBedrockUnifiedConverseRequestEntity request) {
+    public static Optional<InferenceConfiguration> inferenceConfig(AmazonBedrockChatCompletionRequestEntity request) {
         if (request.temperature() != null || request.topP() != null || request.maxCompletionTokens() != null) {
             var builder = InferenceConfiguration.builder();
             if (request.temperature() != null) {

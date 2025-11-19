@@ -16,14 +16,14 @@ import java.util.Objects;
 import static org.elasticsearch.xpack.inference.services.amazonbedrock.request.completion.AmazonBedrockConverseUtils.additionalTopK;
 
 public final class AmazonBedrockChatCompletionEntityFactory {
-    public static AmazonBedrockConverseRequestEntity createEntity(AmazonBedrockChatCompletionModel model, List<String> messages) {
+    public static AmazonBedrockCompletionRequestEntity createEntity(AmazonBedrockChatCompletionModel model, List<String> messages) {
         Objects.requireNonNull(model);
         Objects.requireNonNull(messages);
         var serviceSettings = model.getServiceSettings();
         var taskSettings = model.getTaskSettings();
         switch (serviceSettings.provider()) {
             case AI21LABS, AMAZONTITAN, META -> {
-                return new AmazonBedrockConverseRequestEntity(
+                return new AmazonBedrockCompletionRequestEntity(
                     messages,
                     taskSettings.temperature(),
                     taskSettings.topP(),
@@ -31,7 +31,7 @@ public final class AmazonBedrockChatCompletionEntityFactory {
                 );
             }
             case ANTHROPIC, COHERE, MISTRAL -> {
-                return new AmazonBedrockConverseRequestEntity(
+                return new AmazonBedrockCompletionRequestEntity(
                     messages,
                     taskSettings.temperature(),
                     taskSettings.topP(),
@@ -45,7 +45,7 @@ public final class AmazonBedrockChatCompletionEntityFactory {
         }
     }
 
-    public static AmazonBedrockUnifiedConverseRequestEntity createEntity(
+    public static AmazonBedrockChatCompletionRequestEntity createEntity(
         AmazonBedrockChatCompletionModel model,
         UnifiedCompletionRequest request
     ) {
@@ -67,7 +67,7 @@ public final class AmazonBedrockChatCompletionEntityFactory {
 
         switch (serviceSettings.provider()) {
             case ANTHROPIC, AI21LABS, AMAZONTITAN, COHERE, META, MISTRAL -> {
-                return new AmazonBedrockUnifiedConverseRequestEntity(
+                return new AmazonBedrockChatCompletionRequestEntity(
                     messages,
                     request.model(),
                     request.maxCompletionTokens(),

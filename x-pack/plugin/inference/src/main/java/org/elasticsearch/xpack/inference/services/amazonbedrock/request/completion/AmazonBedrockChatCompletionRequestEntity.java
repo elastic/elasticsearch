@@ -12,7 +12,7 @@ import org.elasticsearch.inference.UnifiedCompletionRequest;
 
 import java.util.List;
 
-public record AmazonBedrockUnifiedConverseRequestEntity(
+public record AmazonBedrockChatCompletionRequestEntity(
     List<UnifiedCompletionRequest.Message> messages,
     @Nullable String model,
     @Nullable Long maxCompletionTokens,

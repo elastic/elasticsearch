@@ -49,7 +49,10 @@ import org.elasticsearch.xpack.esql.stats.SearchStats;
  *         multivalued fields.
  *     </li>
  * </ul>
- * NOCOMMIT see {@link EsqlScalarFunction} for a discussion around when we implement these optimizations
+ * <p>
+ *     See the docs for {@link EsqlScalarFunction} for how this optimization fits in with
+ *     all the other optimizations we've implemented.
+ * </p>
  * <h2>How to implement</h2>
  * <ol>
  *     <li>Implement some block loaders</li>

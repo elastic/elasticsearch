@@ -479,7 +479,7 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
                     matchesMap().extraOk().entry("breakers", matchesMap().extraOk().entry("request", breakersEmpty))
                 );
             }
-            // assertMap("circuit breakers not reset to 0", stats, matchesMap().extraOk().entry("nodes", nodesMatcher));
+            assertMap("circuit breakers not reset to 0", stats, matchesMap().extraOk().entry("nodes", nodesMatcher));
         });
     }
 

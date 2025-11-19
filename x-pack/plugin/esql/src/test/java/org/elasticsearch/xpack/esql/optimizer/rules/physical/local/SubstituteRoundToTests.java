@@ -185,7 +185,7 @@ public class SubstituteRoundToTests extends AbstractLocalPhysicalPlanOptimizerTe
         }
     }
 
-    // FIXME(gal, NOCOMMIT) rename and document
+    // We do not support count pushdown when there is an ES filter at the moment, even if it's on the same field.
     public void testDateTruncBucketTransformToQueryAndTagsWithEsFilter() {
         for (String dateHistogram : dateHistograms) {
             String query = LoggerMessageFormat.format(null, """

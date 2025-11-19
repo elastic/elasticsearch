@@ -33,9 +33,6 @@ public class EsStatsQueryExec extends LeafExec implements EstimatesRowSize {
 
     public enum StatsType {
         COUNT,
-        MIN,
-        MAX,
-        EXISTS
     }
 
     public sealed interface Stat {

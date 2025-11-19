@@ -15,7 +15,6 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThan;
-import org.elasticsearch.xpack.esql.optimizer.LocalPhysicalOptimizerContext;
 import org.elasticsearch.xpack.esql.optimizer.PhysicalOptimizerRules;
 import org.elasticsearch.xpack.esql.plan.physical.AggregateExec;
 import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
@@ -40,12 +39,9 @@ import org.elasticsearch.xpack.esql.querydsl.query.SingleValueQuery;
  *  </pre>
  *  Where the filter is needed since the original Aggregate would not produce buckets with count = 0.
  */
-public class PushCountQueryAndTagsToSource extends PhysicalOptimizerRules.ParameterizedOptimizerRule<
-    AggregateExec,
-    LocalPhysicalOptimizerContext> {
-
+public class PushCountQueryAndTagsToSource extends PhysicalOptimizerRules.OptimizerRule<AggregateExec> {
     @Override
-    protected PhysicalPlan rule(AggregateExec aggregateExec, LocalPhysicalOptimizerContext ctx) {
+    protected PhysicalPlan rule(AggregateExec aggregateExec) {
         if (
         // Ensures we are only grouping by one field (2 aggregates: count + group by field).
         aggregateExec.aggregates().size() == 2

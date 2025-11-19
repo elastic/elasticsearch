@@ -97,7 +97,7 @@ public class AmazonBedrockInferenceClient extends AmazonBedrockBaseClient {
             ConverseStreamResponseHandler.builder().subscriber(() -> FlowAdapters.toSubscriber(awsResponseProcessor)).build()
         ).exceptionally(e -> {
             awsResponseProcessor.onError(e);
-            return null; // Void
+            return null; // return value ignored
         });
         return awsResponseProcessor;
     }
@@ -111,7 +111,7 @@ public class AmazonBedrockInferenceClient extends AmazonBedrockBaseClient {
             ConverseStreamResponseHandler.builder().subscriber(() -> FlowAdapters.toSubscriber(awsResponseProcessor)).build()
         ).exceptionally(e -> {
             awsResponseProcessor.onError(e);
-            return null; // Void
+            return null; // return value ignored
         });
         return awsResponseProcessor;
     }

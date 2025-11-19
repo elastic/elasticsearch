@@ -62,6 +62,8 @@ public final class SearchCapabilities {
     private static final String CLUSTER_STATS_EXTENDED_USAGE = "extended-search-usage-stats";
     private static final String REJECT_INVALID_REVERSE_NESTING = "reject_invalid_reverse_nesting";
 
+    private static final String FIX_DENSE_VECTOR_WRONG_FIELDS = "fix_dense_vector_wrong_fields";
+
     public static final Set<String> CAPABILITIES;
     static {
         HashSet<String> capabilities = new HashSet<>();
@@ -92,6 +94,7 @@ public final class SearchCapabilities {
         capabilities.add(EXCLUDE_SOURCE_VECTORS_SETTING);
         capabilities.add(CLUSTER_STATS_EXTENDED_USAGE);
         capabilities.add(REJECT_INVALID_REVERSE_NESTING);
+        capabilities.add(FIX_DENSE_VECTOR_WRONG_FIELDS);
         CAPABILITIES = Set.copyOf(capabilities);
     }
 }

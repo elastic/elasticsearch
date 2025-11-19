@@ -166,7 +166,7 @@ setup:
       capabilities:
         - method: POST
           path: /_search
-          capabilities: [ dense_vector_docvalue_fields ]
+          capabilities: [ fix_dense_vector_wrong_fields ]
       test_runner_features: [ capabilities, close_to ]
       reason: "Support for dense vector doc value fields capability required"
   - do:
@@ -236,7 +236,7 @@ setup:
   - match: { hits.hits.0._id: "3" }
   - length: { hits.hits.0.fields.vec.0: 2 }
   - close_to: { hits.hits.0.fields.vec.0.0: { value: 1.0, error: 0.001 } }
-  - close_to: { hits.hits.0.fields.vec.0.1: { value: 2.0, error: 0.001 } }  
+  - close_to: { hits.hits.0.fields.vec.0.1: { value: 2.0, error: 0.001 } }
 
 ---
 "dense_vector docvalues with bfloat16":

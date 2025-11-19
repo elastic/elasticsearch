@@ -999,8 +999,8 @@ public abstract class Engine implements Closeable {
     // Called before a {@link Searcher} is created, to allow subclasses to perform any stats or logging operations.
     protected void onSearcherCreation(String source, SearcherScope scope) {}
 
-    // Allows subclasses to wrap the DirectoryReader before it is used to create Searchers
-    protected DirectoryReader wrapDirectoryReader(DirectoryReader reader, SplitShardCountSummary ignored) throws IOException {
+    // Allows subclasses to wrap the DirectoryReader before it is used to create external Searchers
+    protected DirectoryReader wrapExternalDirectoryReader(DirectoryReader reader, SplitShardCountSummary ignored) throws IOException {
         return reader;
     }
 
@@ -1026,7 +1026,12 @@ public abstract class Engine implements Closeable {
         try {
             ReferenceManager<ElasticsearchDirectoryReader> referenceManager = getReferenceManager(scope);
             ElasticsearchDirectoryReader acquire = referenceManager.acquire();
-            DirectoryReader wrappedDirectoryReader = wrapDirectoryReader(acquire, splitShardCountSummary);
+            final DirectoryReader maybeWrappedDirectoryReader;
+            if (scope == SearcherScope.EXTERNAL) {
+                maybeWrappedDirectoryReader = wrapExternalDirectoryReader(acquire, splitShardCountSummary);
+            } else {
+                maybeWrappedDirectoryReader = acquire;
+            }
             SearcherSupplier reader = new SearcherSupplier(wrapper) {
                 @Override
                 public Searcher acquireSearcherInternal(String source) {
@@ -1034,7 +1039,7 @@ public abstract class Engine implements Closeable {
                     onSearcherCreation(source, scope);
                     return new Searcher(
                         source,
-                        wrappedDirectoryReader,
+                        maybeWrappedDirectoryReader,
                         engineConfig.getSimilarity(),
                         engineConfig.getQueryCache(),
                         engineConfig.getQueryCachingPolicy(),

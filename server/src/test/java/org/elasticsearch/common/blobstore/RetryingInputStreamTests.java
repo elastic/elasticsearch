@@ -190,6 +190,30 @@ public class RetryingInputStreamTests extends ESTestCase {
         assertThat(services.getRetrySucceeded(), empty());
     }
 
+    public void testBlobVersionIsRequestedForSecondAndSubsequentAttempts() throws IOException {
+        final var resourceBytes = randomBytesReference((int) ByteSizeValue.ofKb(randomIntBetween(5, 200)).getBytes());
+        final int numberOfFailures = randomIntBetween(1, 10);
+        final AtomicInteger failureCounter = new AtomicInteger(numberOfFailures);
+        final var eTag = randomUUID();
+
+        final var services = new BlobStoreServicesAdapter(0) {
+            @Override
+            public RetryingInputStream.InputStreamAtVersion<String> doGetInputStream(String version, long start, long end)
+                throws IOException {
+                if (getAttempts() > 1) {
+                    assertEquals(eTag, version);
+                } else {
+                    assertNull(version);
+                }
+                final var inputStream = new FailureAtIndexInputStream(resourceBytes, (int) start, failureCounter.getAndDecrement() > 0);
+                return new RetryingInputStream.InputStreamAtVersion<>(inputStream, eTag);
+            }
+        };
+
+        copyToBytes(new RetryingInputStream<>(services, OperationPurpose.INDICES) {
+        });
+    }
+
     private static byte[] copyToBytes(InputStream inputStream) throws IOException {
         final var outputStream = new ByteArrayOutputStream();
         if (randomBoolean()) {

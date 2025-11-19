@@ -17,6 +17,7 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.codec.tsdb.TSDBSyntheticIdCodec;
 import org.elasticsearch.index.codec.zstd.Zstd814StoredFieldsFormat;
 import org.elasticsearch.index.mapper.MapperService;
@@ -49,7 +50,19 @@ public class CodecService implements CodecProvider {
         final var codecs = new HashMap<String, Codec>();
 
         Codec legacyBestSpeedCodec = new LegacyPerFieldMapperCodec(Lucene103Codec.Mode.BEST_SPEED, mapperService, bigArrays);
-        if (ZSTD_STORED_FIELDS_FEATURE_FLAG) {
+        if (IndexSettings.USE_STORED_FIELDS_BLOOM_FILTER_FOR_ID_FEATURE_FLAG) {
+            if (ZSTD_STORED_FIELDS_FEATURE_FLAG) {
+                codecs.put(
+                    DEFAULT_CODEC,
+                    new PerFieldMapperCodecZstdCompression(Zstd814StoredFieldsFormat.Mode.BEST_SPEED, mapperService, bigArrays)
+                );
+            } else {
+                codecs.put(
+                    DEFAULT_CODEC,
+                    new PerFieldMapperCodecDefaultCompression(Lucene103Codec.Mode.BEST_SPEED, mapperService, bigArrays)
+                );
+            }
+        } else if (ZSTD_STORED_FIELDS_FEATURE_FLAG) {
             codecs.put(DEFAULT_CODEC, new PerFieldMapperCodec(Zstd814StoredFieldsFormat.Mode.BEST_SPEED, mapperService, bigArrays));
         } else {
             codecs.put(DEFAULT_CODEC, legacyBestSpeedCodec);

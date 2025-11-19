@@ -15,11 +15,14 @@ import org.apache.lucene.codecs.PostingsFormat;
 import org.apache.lucene.codecs.lucene90.Lucene90DocValuesFormat;
 import org.apache.lucene.codecs.lucene99.Lucene99HnswVectorsFormat;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.codec.bloomfilter.ES87BloomFilterPostingsFormat;
+import org.elasticsearch.index.codec.bloomfilter.ES93BloomFilterStoredFieldsFormat;
 import org.elasticsearch.index.codec.postings.ES812PostingsFormat;
+import org.elasticsearch.index.codec.storedfields.ESStoredFieldsFormat;
 import org.elasticsearch.index.codec.tsdb.es819.ES819TSDBDocValuesFormat;
 import org.elasticsearch.index.mapper.CompletionFieldMapper;
 import org.elasticsearch.index.mapper.IdFieldMapper;
@@ -33,6 +36,8 @@ import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.Set;
+
+import static org.elasticsearch.index.codec.bloomfilter.ES93BloomFilterStoredFieldsFormat.DEFAULT_BLOOM_FILTER_SIZE;
 
 /**
  * Class that encapsulates the logic of figuring out the most appropriate file format for a given field, across postings, doc values and
@@ -66,10 +71,25 @@ public class PerFieldFormatSupplier {
 
     private final PostingsFormat defaultPostingsFormat;
 
+    private final ES93BloomFilterStoredFieldsFormat bloomFilterStoredFieldsFormat;
+    private final ESStoredFieldsFormat defaultStoredFieldsFormat;
+
     public PerFieldFormatSupplier(MapperService mapperService, BigArrays bigArrays) {
+        this(mapperService, bigArrays, null);
+    }
+
+    public PerFieldFormatSupplier(
+        MapperService mapperService,
+        BigArrays bigArrays,
+        @Nullable ESStoredFieldsFormat defaultStoredFieldsFormat
+    ) {
         this.mapperService = mapperService;
         this.bloomFilterPostingsFormat = new ES87BloomFilterPostingsFormat(bigArrays, this::internalGetPostingsFormatForField);
         this.defaultPostingsFormat = getDefaultPostingsFormat(mapperService);
+        this.bloomFilterStoredFieldsFormat = defaultStoredFieldsFormat == null
+            ? null
+            : new ES93BloomFilterStoredFieldsFormat(bigArrays, DEFAULT_BLOOM_FILTER_SIZE, IdFieldMapper.NAME);
+        this.defaultStoredFieldsFormat = defaultStoredFieldsFormat;
     }
 
     private static PostingsFormat getDefaultPostingsFormat(final MapperService mapperService) {
@@ -138,6 +158,23 @@ public class PerFieldFormatSupplier {
             return tsdbDocValuesFormat;
         }
         return docValuesFormat;
+    }
+
+    public ESStoredFieldsFormat getStoredFieldsFormatForField(String field) {
+        if (defaultStoredFieldsFormat == null) {
+            throw new IllegalStateException("No default stored fields format available");
+        }
+
+        if (useStoredFieldsBloomFilter(field)) {
+            return bloomFilterStoredFieldsFormat;
+        }
+        return defaultStoredFieldsFormat;
+    }
+
+    private boolean useStoredFieldsBloomFilter(String field) {
+        return field.equals(IdFieldMapper.NAME)
+            && mapperService != null
+            && mapperService.getIndexSettings().useStoredFieldsBloomFilterForId();
     }
 
     boolean useTSDBDocValuesFormat(final String field) {

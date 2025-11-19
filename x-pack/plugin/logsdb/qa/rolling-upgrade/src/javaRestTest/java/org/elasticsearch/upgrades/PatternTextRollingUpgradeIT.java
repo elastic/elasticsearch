@@ -91,10 +91,7 @@ public class PatternTextRollingUpgradeIT extends AbstractRollingUpgradeWithSecur
     }
 
     public void testIndexing() throws Exception {
-        assumeTrue(
-            "Match only text block loader fix is not present in this cluster",
-            oldClusterHasFeature(MapperFeatures.MATCH_ONLY_TEXT_BLOCK_LOADER_FIX)
-        );
+        assumeTrue("pattern_text only available from 9.2.0 onward", oldClusterHasFeature("gte_v9.2.0"));
 
         if (isOldCluster()) {
             // given - enable logsdb and create a template

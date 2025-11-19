@@ -444,6 +444,9 @@ tests:
 - class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
   method: test {p0=search/95_sort_mixed_numeric_types/Simple sort}
   issue: https://github.com/elastic/elasticsearch/issues/138297
+- class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeMetricsIT
+  method: test
+  issue: https://github.com/elastic/elasticsearch/issues/138311
 
 # Examples:
 #

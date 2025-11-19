@@ -241,4 +241,4 @@ setup:
   - match: {columns.1.type: "_source"}
 
   - match: {values.0.0: null}
-  - match: {values.0.1: { "baz": "dasd" }
+  - match: {values.0.1: { "baz": "dasd" }}

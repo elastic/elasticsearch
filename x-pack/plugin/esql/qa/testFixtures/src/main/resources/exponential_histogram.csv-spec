@@ -80,6 +80,19 @@ NULL       | NULL       | NULL
 ;
 
 
+histoAsCaseValue
+required_capability: exponential_histogram_minmax_support
+
+FROM exp_histo_sample 
+ | INLINE STATS p50 = PERCENTILE(responseTime, 50) BY instance, @timestamp
+ | EVAL filteredHisto = CASE(p50 > 0.1, responseTime)
+ | INLINE STATS filteredMax = MAX(filteredHisto) BY instance, @timestamp //MAX is null if the histogram is null
+ | STATS filteredCount = COUNT(filteredMax)
+;
+
+filteredCount:long
+3
+;
 
 ungroupedPercentiles
 required_capability: exponential_histogram_percentiles_support

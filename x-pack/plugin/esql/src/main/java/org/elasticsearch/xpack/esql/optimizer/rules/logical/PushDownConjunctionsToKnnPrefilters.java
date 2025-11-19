@@ -57,9 +57,13 @@ public class PushDownConjunctionsToKnnPrefilters extends OptimizerRules.Optimize
                 if (newLeft.equals(and.left()) && newRight.equals(and.right())) {
                     yield and;
                 }
-                if (newLeft instanceof Knn ^ newRight instanceof Knn) {
-                    // One side is a knn, the other can be removed as it's already contained in the knn prefilters
-                    yield newLeft instanceof Knn ? newLeft : newRight;
+                // One of the sides is a knn function and the other side is used as a prefilter - return knn as the other side is redundant
+                if (newLeft instanceof Knn leftKnn && newRight instanceof Knn == false && leftKnn.filterExpressions().contains(newRight)) {
+                    yield newLeft;
+                } else if (newRight instanceof Knn rightKn
+                    && newLeft instanceof Knn == false
+                    && rightKn.filterExpressions().contains(newLeft)) {
+                        yield newRight;
                 }
                 yield and.replaceChildrenSameSize(List.of(newLeft, newRight));
             case Knn knn:

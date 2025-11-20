@@ -136,13 +136,7 @@ public class StoredFieldsSpecTests extends ESTestCase {
 
         // Clears source paths, because the spec requires complete source (since no source paths are defined)
         spec = spec.merge(
-            new StoredFieldsSpec(
-                true,
-                false,
-                Set.of(),
-                IgnoredSourceFieldMapper.IgnoredSourceFormat.NO_IGNORED_SOURCE,
-                Set.of()
-            )
+            new StoredFieldsSpec(true, false, Set.of(), IgnoredSourceFieldMapper.IgnoredSourceFormat.NO_IGNORED_SOURCE, Set.of())
         );
         assertThat(spec.ignoredSourceFormat(), equalTo(IgnoredSourceFieldMapper.IgnoredSourceFormat.NO_IGNORED_SOURCE));
         assertThat(spec.requiresSource(), equalTo(true));

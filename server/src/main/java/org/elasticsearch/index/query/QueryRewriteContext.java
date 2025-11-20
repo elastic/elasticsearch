@@ -421,8 +421,9 @@ public class QueryRewriteContext {
                 action.accept(client, internalListener);
             }
 
-            // TODO: Need to make a copy of remoteAsyncActions?
-            for (var entry : remoteAsyncActions.entrySet()) {
+            var remoteAsyncActionsCopy = new HashMap<>(remoteAsyncActions);
+            remoteAsyncActions.clear();
+            for (var entry : remoteAsyncActionsCopy.entrySet()) {
                 String clusterAlias = entry.getKey();
                 List<TriConsumer<RemoteClusterClient, ThreadContext, ActionListener<?>>> remoteTriConsumers = entry.getValue();
 
@@ -436,7 +437,6 @@ public class QueryRewriteContext {
                     action.apply(remoteClient, threadContext, internalListener);
                 }
             }
-            remoteAsyncActions.clear();
         }
     }
 

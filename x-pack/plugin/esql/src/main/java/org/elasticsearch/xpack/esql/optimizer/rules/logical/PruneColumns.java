@@ -25,6 +25,7 @@ import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.Sample;
 import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
+import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
 import org.elasticsearch.xpack.esql.plan.logical.join.InlineJoin;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalSupplier;
@@ -207,7 +208,7 @@ public final class PruneColumns extends Rule<LogicalPlan, LogicalPlan> {
         LogicalPlan p = fork;
 
         // should exit early for UnionAll
-        if (fork instanceof Fork) {
+        if (fork instanceof UnionAll) {
             return p;
         }
         boolean changed = false;

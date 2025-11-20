@@ -66,3 +66,39 @@
   - match: { my-templated-index.mappings.properties.my_histogram.time_series_metric: histogram }
   - match: { my-templated-index.mappings.properties.my_counter.type: long }
   - match: { my-templated-index.mappings.properties.my_counter.time_series_metric: counter }
+
+---
+"Exponential histogram cannot be a gauge":
+  - do:
+      catch: /Unknown value \[gauge\] for field \[time_series_metric\] - accepted values are \[histogram\]/
+      indices.create:
+        index: invalid_exponential_histogram_metric
+        body:
+          settings:
+            index:
+              mapping:
+                source:
+                  mode: synthetic
+          mappings:
+            properties:
+              my_metric:
+                type: exponential_histogram
+                time_series_metric: gauge
+
+---
+"Exponential histogram cannot be a counter":
+  - do:
+      catch: /Unknown value \[counter\] for field \[time_series_metric\] - accepted values are \[histogram\]/
+      indices.create:
+        index: invalid_exponential_histogram_metric
+        body:
+          settings:
+            index:
+              mapping:
+                source:
+                  mode: synthetic
+          mappings:
+            properties:
+              my_metric:
+                type: exponential_histogram
+                time_series_metric: counter

@@ -131,6 +131,7 @@ import org.elasticsearch.search.builder.PointInTimeBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
 import org.elasticsearch.search.crossproject.ProjectRoutingInfo;
+import org.elasticsearch.search.crossproject.ProjectRoutingResolver;
 import org.elasticsearch.search.crossproject.ProjectTags;
 import org.elasticsearch.search.crossproject.TargetProjects;
 import org.elasticsearch.search.internal.AliasFilter;
@@ -284,6 +285,7 @@ public class AuthorizationServiceTests extends ESTestCase {
     private LinkedProjectConfigService linkedProjectConfigService;
     private AuthorizedProjectsResolver authorizedProjectsResolver;
     private CrossProjectModeDecider crossProjectModeDecider;
+    private ProjectRoutingResolver routingResolver;
 
     @SuppressWarnings("unchecked")
     @Before
@@ -347,6 +349,7 @@ public class AuthorizationServiceTests extends ESTestCase {
         crossProjectModeDecider = mock(CrossProjectModeDecider.class);
         when(crossProjectModeDecider.crossProjectEnabled()).thenReturn(false);
         when(crossProjectModeDecider.resolvesCrossProject(any())).thenReturn(false);
+        routingResolver = mock(ProjectRoutingResolver.class);
         authorizationService = new AuthorizationService(
             settings,
             rolesStore,
@@ -366,7 +369,8 @@ public class AuthorizationServiceTests extends ESTestCase {
             linkedProjectConfigService,
             projectResolver,
             authorizedProjectsResolver,
-            crossProjectModeDecider
+            crossProjectModeDecider,
+            routingResolver
         );
     }
 
@@ -1331,7 +1335,8 @@ public class AuthorizationServiceTests extends ESTestCase {
             linkedProjectConfigService,
             projectResolver,
             authorizedProjectsResolver,
-            crossProjectModeDecider
+            crossProjectModeDecider,
+            routingResolver
         );
 
         RoleDescriptor role = new RoleDescriptor(
@@ -1394,7 +1399,8 @@ public class AuthorizationServiceTests extends ESTestCase {
             linkedProjectConfigService,
             projectResolver,
             authorizedProjectsResolver,
-            crossProjectModeDecider
+            crossProjectModeDecider,
+            routingResolver
         );
 
         RoleDescriptor role = new RoleDescriptor(
@@ -1941,7 +1947,8 @@ public class AuthorizationServiceTests extends ESTestCase {
             linkedProjectConfigService,
             projectResolver,
             new AuthorizedProjectsResolver.Default(),
-            new CrossProjectModeDecider(settings)
+            new CrossProjectModeDecider(settings),
+            routingResolver
         );
 
         RoleDescriptor role = new RoleDescriptor(
@@ -1994,7 +2001,8 @@ public class AuthorizationServiceTests extends ESTestCase {
             linkedProjectConfigService,
             projectResolver,
             new AuthorizedProjectsResolver.Default(),
-            new CrossProjectModeDecider(settings)
+            new CrossProjectModeDecider(settings),
+            routingResolver
         );
 
         RoleDescriptor role = new RoleDescriptor(
@@ -3535,7 +3543,8 @@ public class AuthorizationServiceTests extends ESTestCase {
             linkedProjectConfigService,
             projectResolver,
             new AuthorizedProjectsResolver.Default(),
-            new CrossProjectModeDecider(Settings.EMPTY)
+            new CrossProjectModeDecider(Settings.EMPTY),
+            routingResolver
         );
 
         Subject subject = new Subject(new User("test", "a role"), mock(RealmRef.class));
@@ -3694,7 +3703,8 @@ public class AuthorizationServiceTests extends ESTestCase {
             linkedProjectConfigService,
             projectResolver,
             new AuthorizedProjectsResolver.Default(),
-            new CrossProjectModeDecider(Settings.EMPTY)
+            new CrossProjectModeDecider(Settings.EMPTY),
+            routingResolver
         );
         Authentication authentication;
         try (StoredContext ignore = threadContext.stashContext()) {

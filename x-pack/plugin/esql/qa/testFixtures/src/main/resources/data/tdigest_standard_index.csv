@@ -1,0 +1,2 @@
+@timestamp:date,instance:keyword,responseTime:tdigest
+2025-01-01T00:00:00Z,hand-rolled,{"centroids": [2.1, 3.2]\,"counts": [1, 1]}

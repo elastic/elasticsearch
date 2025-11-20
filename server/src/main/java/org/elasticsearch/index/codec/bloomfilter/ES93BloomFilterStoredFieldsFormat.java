@@ -547,7 +547,7 @@ public class ES93BloomFilterStoredFieldsFormat extends ESStoredFieldsFormat {
         }
     }
 
-    private static class Reader extends StoredFieldsReader implements BloomFilterProvider {
+    private static class Reader extends StoredFieldsReader implements BloomFilter {
         @Nullable
         private final BloomFilterFieldReader bloomFilterFieldReader;
 
@@ -578,8 +578,13 @@ public class ES93BloomFilterStoredFieldsFormat extends ESStoredFieldsFormat {
         }
 
         @Override
-        public BloomFilter getBloomFilter() throws IOException {
-            return bloomFilterFieldReader;
+        public boolean mayContainTerm(String field, BytesRef term) throws IOException {
+            return bloomFilterFieldReader == null || bloomFilterFieldReader.mayContainTerm(field, term);
+        }
+
+        @Override
+        public boolean isFilterAvailable() {
+            return bloomFilterFieldReader != null;
         }
     }
 
@@ -609,7 +614,7 @@ public class ES93BloomFilterStoredFieldsFormat extends ESStoredFieldsFormat {
         }
     }
 
-    static class BloomFilterFieldReader implements BloomFilter {
+    static class BloomFilterFieldReader implements Closeable {
         private final FieldInfo fieldInfo;
         private final IndexInput bloomFilterData;
         private final RandomAccessInput bloomFilterIn;
@@ -739,21 +744,5 @@ public class ES93BloomFilterStoredFieldsFormat extends ESStoredFieldsFormat {
 
     private static String bloomFilterFileName(SegmentInfo segmentInfo) {
         return IndexFileNames.segmentFileName(segmentInfo.name, DEFAULT_SEGMENT_SUFFIX, STORED_FIELDS_BLOOM_FILTER_EXTENSION);
-    }
-
-    public interface BloomFilter extends Closeable {
-        /**
-         * Tests whether the given term may exist in the specified field.
-         *
-         * @param field the field name to check
-         * @param term the term to test for membership
-         * @return true if term may be present, false if definitely absent
-         */
-        boolean mayContainTerm(String field, BytesRef term) throws IOException;
-    }
-
-    public interface BloomFilterProvider extends Closeable {
-        @Nullable
-        BloomFilter getBloomFilter() throws IOException;
     }
 }

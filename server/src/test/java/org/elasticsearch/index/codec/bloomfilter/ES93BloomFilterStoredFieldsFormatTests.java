@@ -181,7 +181,7 @@ public class ES93BloomFilterStoredFieldsFormatTests extends ESTestCase {
     private void assertBloomFilterTestsPositiveForExistingDocs(IndexWriter writer, List<BytesRef> indexedIds) throws IOException {
         try (var directoryReader = StandardDirectoryReader.open(writer)) {
             for (LeafReaderContext leaf : directoryReader.leaves()) {
-                try (ES93BloomFilterStoredFieldsFormat.BloomFilter bloomFilter = getBloomFilterProvider(leaf)) {
+                try (BloomFilter bloomFilter = getBloomFilter(leaf)) {
                     // the bloom filter reader is null only if the _id field is not stored during indexing
                     assertThat(bloomFilter, is(not(nullValue())));
 
@@ -211,7 +211,7 @@ public class ES93BloomFilterStoredFieldsFormatTests extends ESTestCase {
         return new BytesRef(string.getBytes(StandardCharsets.UTF_8));
     }
 
-    private ES93BloomFilterStoredFieldsFormat.BloomFilter getBloomFilterProvider(LeafReaderContext leafReaderContext) throws IOException {
+    private BloomFilter getBloomFilter(LeafReaderContext leafReaderContext) throws IOException {
         LeafReader reader = leafReaderContext.reader();
         FieldInfos fieldInfos = reader.getFieldInfos();
         assertThat(reader, is(instanceOf(SegmentReader.class)));
@@ -227,15 +227,18 @@ public class ES93BloomFilterStoredFieldsFormatTests extends ESTestCase {
 
         StoredFieldsReader bloomFilterReader = perFieldStoredFieldsReader.getReaderForField(IdFieldMapper.NAME);
 
-        assertThat(bloomFilterReader, is(instanceOf(ES93BloomFilterStoredFieldsFormat.BloomFilterProvider.class)));
-        ES93BloomFilterStoredFieldsFormat.BloomFilterProvider bloomFilterProvider =
-            (ES93BloomFilterStoredFieldsFormat.BloomFilterProvider) bloomFilterReader;
-        var bloomFilter = bloomFilterProvider.getBloomFilter();
+        assertThat(bloomFilterReader, is(instanceOf(BloomFilter.class)));
+        BloomFilter bloomFilter = (BloomFilter) bloomFilterReader;
         // Wrap the reader in a bloom filter so we can close it after we're done with it
-        return new ES93BloomFilterStoredFieldsFormat.BloomFilter() {
+        return new BloomFilter() {
             @Override
             public boolean mayContainTerm(String field, BytesRef term) throws IOException {
                 return bloomFilter.mayContainTerm(field, term);
+            }
+
+            @Override
+            public boolean isFilterAvailable() {
+                return bloomFilter.isFilterAvailable();
             }
 
             @Override

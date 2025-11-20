@@ -16,7 +16,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.lucene.tests.util.LuceneTestCase;
 import org.apache.lucene.util.Constants;
 import org.elasticsearch.Version;
-import org.elasticsearch.common.logging.LogConfigurator;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
@@ -63,7 +62,6 @@ public class SpawnerNoBootstrapTests extends LuceneTestCase {
 
     static {
         // normally done by ESTestCase, but need here because spawner depends on logging
-        LogConfigurator.loadLog4jPlugins();
         MockLog.init();
     }
 

@@ -296,7 +296,6 @@ public abstract class ESTestCase extends LuceneTestCase {
         TEST_WORKER_VM_ID = System.getProperty(TEST_WORKER_SYS_PROPERTY, DEFAULT_TEST_WORKER_ID);
         setTestSysProps(random);
         // TODO: consolidate logging initialization for tests so it all occurs in logconfigurator
-        LogConfigurator.loadLog4jPlugins();
         LogConfigurator.configureESLogging();
         MockLog.init();
 

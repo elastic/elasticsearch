@@ -21,7 +21,6 @@ import org.junit.BeforeClass;
 public class ES92GpuHnswVectorsFormatTests extends BaseKnnVectorsFormatTestCase {
 
     static {
-        LogConfigurator.loadLog4jPlugins();
         LogConfigurator.configureESLogging(); // native access requires logging to be initialized
     }
 

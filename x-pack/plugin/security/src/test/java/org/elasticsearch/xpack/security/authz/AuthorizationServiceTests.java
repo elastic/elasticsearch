@@ -130,6 +130,7 @@ import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.builder.PointInTimeBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
+import org.elasticsearch.search.crossproject.CrossProjectRoutingResolver;
 import org.elasticsearch.search.crossproject.ProjectRoutingInfo;
 import org.elasticsearch.search.crossproject.ProjectRoutingResolver;
 import org.elasticsearch.search.crossproject.ProjectTags;
@@ -1336,7 +1337,7 @@ public class AuthorizationServiceTests extends ESTestCase {
             projectResolver,
             authorizedProjectsResolver,
             crossProjectModeDecider,
-            routingResolver
+            new CrossProjectRoutingResolver()
         );
 
         RoleDescriptor role = new RoleDescriptor(
@@ -3878,6 +3879,9 @@ public class AuthorizationServiceTests extends ESTestCase {
 
         when(crossProjectModeDecider.crossProjectEnabled()).thenReturn(true);
         when(crossProjectModeDecider.resolvesCrossProject(any())).thenReturn(true);
+
+        // return unchanged second argument for resolver
+        when(routingResolver.resolve(any(), any())).thenAnswer(invocation -> invocation.getArgument(1));
 
         final var metadataBuilder = ProjectMetadata.builder(projectId).put(createIndexMetadata("accessible-index"), true);
         if (randomBoolean()) {

@@ -96,11 +96,11 @@ public class AllocationDeciders {
 
     public Decision canRebalance(ShardRouting shardRouting, RoutingAllocation allocation) {
         assert shardRouting.started() : "Only started shard could be rebalanced: " + shardRouting;
-        return withDeciders(allocation, decider -> {
-            assert decider.canRebalance(shardRouting, allocation).type() != Decision.Type.THROTTLE
-                : decider.getClass().getSimpleName() + " throttled unexpectedly in canRebalance";
-            return decider.canRebalance(shardRouting, allocation);
-        }, (decider, decision) -> Strings.format("Can not rebalance [%s]. [%s]: %s", shardRouting, decider, decision));
+        return withDeciders(
+            allocation,
+            decider -> decider.canRebalance(shardRouting, allocation),
+            (decider, decision) -> Strings.format("Can not rebalance [%s]. [%s]: %s", shardRouting, decider, decision)
+        );
     }
 
     public Decision canRemain(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {

@@ -61,7 +61,6 @@ public enum AllocationDecision implements Writeable {
      * No attempt was made to allocate the shard
      */
     NO_ATTEMPT((byte) 7),
-
     /**
      * It is _not_ preferred to allocate a shard to this node, preference should be given to a YES node.
      * This can happen when the shard allocation to a node is allowed, but the node resource usage is

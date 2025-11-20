@@ -267,7 +267,6 @@ public class AllocateUnassignedDecision extends AbstractAllocationDecision {
         checkDecisionState();
         return switch (getAllocationDecision()) {
             case YES -> Explanations.Allocation.YES;
-            case NOT_PREFERRED -> Explanations.Allocation.NOT_PREFERRED;
             case THROTTLED -> Explanations.Allocation.THROTTLED;
             case AWAITING_INFO -> Explanations.Allocation.AWAITING_INFO;
             case NO_VALID_SHARD_COPY -> hasNodeWithStaleOrCorruptShard()
@@ -281,7 +280,7 @@ public class AllocateUnassignedDecision extends AbstractAllocationDecision {
                 TimeValue.timeValueMillis(remainingDelayInMillis)
             );
             case NO -> reuseStore ? Explanations.Allocation.EXISTING_STORES_FORBIDDEN : Explanations.Allocation.ALL_NODES_FORBIDDEN;
-            case WORSE_BALANCE, NO_ATTEMPT -> {
+            case WORSE_BALANCE, NO_ATTEMPT, NOT_PREFERRED -> {
                 assert false : getAllocationDecision();
                 yield getAllocationDecision().toString();
             }

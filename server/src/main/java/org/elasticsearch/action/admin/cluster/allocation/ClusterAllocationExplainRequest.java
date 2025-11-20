@@ -81,13 +81,7 @@ public class ClusterAllocationExplainRequest extends MasterNodeRequest<ClusterAl
      * be explained.
      */
     // Public for testing.
-    public ClusterAllocationExplainRequest(
-        TimeValue masterNodeTimeout,
-        String index,
-        int shard,
-        boolean primary,
-        @Nullable String currentNode
-    ) {
+    ClusterAllocationExplainRequest(TimeValue masterNodeTimeout, String index, int shard, boolean primary, @Nullable String currentNode) {
         super(masterNodeTimeout);
         this.index = index;
         this.shard = shard;

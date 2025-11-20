@@ -11,14 +11,11 @@ package org.elasticsearch.cluster.routing.allocation;
 
 public final class Explanations {
 
+    // Reasons for a shard to remain unassigned.
     public static final class Allocation {
 
         public static final String YES = """
             Elasticsearch can allocate the shard.""";
-
-        public static final String NOT_PREFERRED = """
-            Elasticsearch can allocate the shard, but the assignment is not preferred due to resource usage of the cluster nodes.
-            Assignment will proceed if either the shard is unassigned or cannot remain on its currently assigned node.""";
 
         public static final String THROTTLED = """
             Elasticsearch is currently busy with other activities. It expects to be able to allocate this shard when those activities \
@@ -66,7 +63,7 @@ public final class Explanations {
             Elasticsearch can rebalance this shard to another node.""";
 
         public static final String NOT_PREFERRED = """
-            Elasticsearch will not rebalance this shard to another node because all other eligible nodes have high resource usage. The \
+            Elasticsearch will not rebalance this shard to another node because it could lead to poorer performance. The \
             total cluster balance weights might improve, were the shard relocated, but it would push one resource usage dimension \
             too high and threaten performance. See the node-by-node explanation to understand what resource usage is high.""";
 
@@ -111,8 +108,8 @@ public final class Explanations {
             This shard may not remain on its current node. Elasticsearch will move it to another node.""";
 
         public static final String NOT_PREFERRED = """
-            This shard may not remain on its current node. Elasticsearch can only move it to cluster nodes with already significant \
-            resource usage, but will do so anyway.""";
+            This shard may not remain on its current node. Elasticsearch can only move it to cluster nodes where performance could be \
+            made worse, but will do so anyway.""";
 
         public static final String THROTTLED = """
             This shard may not remain on its current node. Elasticsearch is currently busy with other activities and will move this shard \
@@ -126,7 +123,7 @@ public final class Explanations {
         public static final String NOT_PREFERRED_TO_YES = SHOULD_NOT_REMAIN_PREFIX + ". Elasticsearch will move it to another node.";
 
         public static final String NOT_PREFERRED_TO_NOT_PREFERRED = SHOULD_NOT_REMAIN_PREFIX
-            + ", but there are no other eligible nodes without already high resource usage";
+            + ", but there are no other eligible nodes that would lead to better resource availability.";
 
         public static final String NOT_PREFERRED_TO_NO = SHOULD_NOT_REMAIN_PREFIX
             + ", but Elasticsearch isn't allowed to move it to "
@@ -138,5 +135,5 @@ public final class Explanations {
             + "activities and will move this shard to another node when those activities finish. Please wait.";
     }
 
-    private static final String SHOULD_NOT_REMAIN_PREFIX = "This shard should not remain on its current node due to resource usage";
+    private static final String SHOULD_NOT_REMAIN_PREFIX = "This shard should not remain on its current node for resource usage reasons";
 }

@@ -281,14 +281,16 @@ public class WriteLoadConstraintDeciderIT extends ESIntegTestCase {
         // return {@link AllocationDeciders#canAllocate} {@link Decision#NOT_PREFERRED} responses. This should exercise NOT_PREFERRED in
         // the allocation/explain paths for remaining on a node AND assignment to other nodes.
         runCanRemainNotPreferredIsIgnoredWhenAllOtherNodesReturnNotPreferred(harness);
-
-        ClusterAllocationExplainRequest allocationExplainRequest = new ClusterAllocationExplainRequest(
-            TEST_REQUEST_TIMEOUT,
-            harness.indexName,
-            0,
-            true,
-            null
+        int numDataNodes = internalCluster().numDataNodes();
+        assertThat(
+            "test requires at least two nodes, one node for canRemain explanation, one for canAllocation explanation",
+            numDataNodes,
+            greaterThanOrEqualTo(2)
         );
+
+        ClusterAllocationExplainRequest allocationExplainRequest = new ClusterAllocationExplainRequest(TEST_REQUEST_TIMEOUT).setIndex(
+            harness.indexName
+        ).setShard(0).setPrimary(true);
         var allocationExplainResponse = safeGet(client().execute(TransportClusterAllocationExplainAction.TYPE, allocationExplainRequest));
         logger.info("---> Allocation explain response: " + Strings.toString(allocationExplainResponse.getExplanation(), true, true));
 
@@ -302,7 +304,7 @@ public class WriteLoadConstraintDeciderIT extends ESIntegTestCase {
             .getShardAllocationDecision()
             .getMoveDecision()
             .getNodeDecisions();
-        assertThat(canAllocateDecisions.size(), equalTo(2));
+        assertThat(canAllocateDecisions.size(), equalTo(/* number of nodes to which the shard can be relocated = */ numDataNodes - 1));
         canAllocateDecisions.forEach(nodeDecision -> assertThat(nodeDecision.getNodeDecision(), equalTo(AllocationDecision.NOT_PREFERRED)));
     }
 
@@ -553,13 +555,9 @@ public class WriteLoadConstraintDeciderIT extends ESIntegTestCase {
 
         logger.info("---> Rebalancing is now allowed");
 
-        ClusterAllocationExplainRequest allocationExplainRequest = new ClusterAllocationExplainRequest(
-            TEST_REQUEST_TIMEOUT,
-            harness.indexName,
-            0,
-            true,
-            null
-        );
+        ClusterAllocationExplainRequest allocationExplainRequest = new ClusterAllocationExplainRequest(TEST_REQUEST_TIMEOUT).setIndex(
+            harness.indexName
+        ).setShard(0).setPrimary(true);
         var allocationExplainResponse = safeGet(client().execute(TransportClusterAllocationExplainAction.TYPE, allocationExplainRequest));
         logger.info("---> Allocation explain response: " + Strings.toString(allocationExplainResponse.getExplanation(), true, true));
 
@@ -727,8 +725,6 @@ public class WriteLoadConstraintDeciderIT extends ESIntegTestCase {
                 WriteLoadConstraintSettings.WRITE_LOAD_DECIDER_QUEUE_LATENCY_THRESHOLD_SETTING.getKey(),
                 TimeValue.timeValueMillis(queueLatencyThresholdMillis)
             )
-            // Keep all the debug logging, no throttling of decider messages.
-            .put(WriteLoadConstraintSettings.WRITE_LOAD_DECIDER_MINIMUM_LOGGING_INTERVAL.getKey(), TimeValue.timeValueMinutes(0))
             // Disable rebalancing so that testing can see Decider change outcomes only.
             .put(EnableAllocationDecider.CLUSTER_ROUTING_REBALANCE_ENABLE_SETTING.getKey(), "none")
             .build();

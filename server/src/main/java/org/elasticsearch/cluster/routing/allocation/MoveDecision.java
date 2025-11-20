@@ -257,14 +257,10 @@ public final class MoveDecision extends AbstractAllocationDecision {
             if (canMoveDecision == AllocationDecision.AWAITING_INFO) {
                 return Explanations.Rebalance.AWAITING_INFO;
             }
-            // TODO (ES-13482): clusterRebalanceDecision is set to the result of AllocationDecider#canRebalance, which does not return
-            // NOT_PREFERRED or THROTTLE. This switch statement, and how MoveDecision uses clusterRebalanceDecision, should be
-            // refactored.
             return switch (clusterRebalanceDecision.type()) {
                 case NO -> atLeastOneNodeWithYesDecision()
                     ? Explanations.Rebalance.CANNOT_REBALANCE_CAN_ALLOCATE
                     : Explanations.Rebalance.CANNOT_REBALANCE_CANNOT_ALLOCATE;
-                // TODO (ES-13482): dead code path
                 case THROTTLE -> Explanations.Rebalance.CLUSTER_THROTTLE;
                 case YES -> {
                     if (getTargetNode() != null) {
@@ -277,7 +273,6 @@ public final class MoveDecision extends AbstractAllocationDecision {
                             : Explanations.Rebalance.ALREADY_BALANCED;
                     }
                 }
-                // TODO (ES-13482): dead code path
                 case NOT_PREFERRED -> Explanations.Rebalance.NOT_PREFERRED;
             };
         } else {

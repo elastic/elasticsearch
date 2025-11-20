@@ -3789,6 +3789,29 @@ null               |1995-08-22T00:00:00.000Z|10     |1995-01-01T00:00:00.000Z
 null               |1995-08-22T00:00:00.000Z|10     |1995-01-01T00:00:00.000Z
 ;
 
+DateTruncInlinestatsCountStar
+required_capability: inline_stats
+
+FROM employees
+| KEEP emp_no, hire_date
+| INLINE STATS c = count(*) by yr=date_trunc(1 year, hire_date)
+| SORT hire_date DESC
+| LIMIT 10
+;
+
+emp_no:integer | hire_date:datetime       |c:long  | yr:datetime
+10019          | 1999-04-30T00:00:00.000Z | 1      | 1999-01-01T00:00:00.000Z
+10024          | 1997-05-19T00:00:00.000Z | 1      | 1997-01-01T00:00:00.000Z
+10093          | 1996-11-05T00:00:00.000Z | 1      | 1996-01-01T00:00:00.000Z
+10084          | 1995-12-15T00:00:00.000Z | 5      | 1995-01-01T00:00:00.000Z
+10022          | 1995-08-22T00:00:00.000Z | 5      | 1995-01-01T00:00:00.000Z
+10026          | 1995-03-20T00:00:00.000Z | 5      | 1995-01-01T00:00:00.000Z
+10054          | 1995-03-13T00:00:00.000Z | 5      | 1995-01-01T00:00:00.000Z
+10016          | 1995-01-27T00:00:00.000Z | 5      | 1995-01-01T00:00:00.000Z
+10008          | 1994-09-15T00:00:00.000Z | 4      | 1994-01-01T00:00:00.000Z
+10044          | 1994-05-21T00:00:00.000Z | 4      | 1994-01-01T00:00:00.000Z
+;
+
 ImplicitCastingMultiTypedBucketDateNanosByYear
 required_capability: inline_stats
 

@@ -44,30 +44,36 @@ public class Count extends AggregateFunction implements ToAggregator, SurrogateE
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Count", Count::new);
 
     @FunctionInfo(
-        returnType = "long", description = "Returns the total number (count) of input values.", type = FunctionType.AGGREGATE, examples = {
-        @Example(file = "stats", tag = "count"),
-        @Example(description = "To count the number of rows, use `COUNT()` or `COUNT(*)`", file = "docs", tag = "countAll"),
-        @Example(
-            description = "The expression can use inline functions. This example splits a string into "
-                + "multiple values using the `SPLIT` function and counts the values", file = "stats", tag = "docsCountWithExpression"
-        ),
-        @Example(
-            description = "To count the number of times an expression returns `TRUE` use "
-                + "a [`WHERE`](/reference/query-languages/esql/commands/where.md) command to remove rows that shouldn’t be included",
-            file = "stats",
-            tag = "count-where"
-        ),
-        @Example(
-            description = "To count the same stream of data based on two different expressions "
-                + "use the pattern `COUNT(<expression> OR NULL)`. This builds on the three-valued logic "
-                + "({wikipedia}/Three-valued_logic[3VL]) of the language: `TRUE OR NULL` is `TRUE`, but `FALSE OR NULL` is `NULL`, "
-                + "plus the way COUNT handles `NULL`s: `COUNT(TRUE)` and `COUNT(FALSE)` are both 1, but `COUNT(NULL)` is 0.",
-            file = "stats",
-            tag = "count-or-null"
-        ) }
+        returnType = "long",
+        description = "Returns the total number (count) of input values.",
+        type = FunctionType.AGGREGATE,
+        examples = {
+            @Example(file = "stats", tag = "count"),
+            @Example(description = "To count the number of rows, use `COUNT()` or `COUNT(*)`", file = "docs", tag = "countAll"),
+            @Example(
+                description = "The expression can use inline functions. This example splits a string into "
+                    + "multiple values using the `SPLIT` function and counts the values",
+                file = "stats",
+                tag = "docsCountWithExpression"
+            ),
+            @Example(
+                description = "To count the number of times an expression returns `TRUE` use "
+                    + "a [`WHERE`](/reference/query-languages/esql/commands/where.md) command to remove rows that shouldn’t be included",
+                file = "stats",
+                tag = "count-where"
+            ),
+            @Example(
+                description = "To count the same stream of data based on two different expressions "
+                    + "use the pattern `COUNT(<expression> OR NULL)`. This builds on the three-valued logic "
+                    + "({wikipedia}/Three-valued_logic[3VL]) of the language: `TRUE OR NULL` is `TRUE`, but `FALSE OR NULL` is `NULL`, "
+                    + "plus the way COUNT handles `NULL`s: `COUNT(TRUE)` and `COUNT(FALSE)` are both 1, but `COUNT(NULL)` is 0.",
+                file = "stats",
+                tag = "count-or-null"
+            ) }
     )
     public Count(
-        Source source, @Param(
+        Source source,
+        @Param(
             optional = true,
             name = "field",
             type = {

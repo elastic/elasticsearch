@@ -14,6 +14,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.operator.PlanTimeProfile;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.common.Failure;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
@@ -74,7 +75,6 @@ import org.elasticsearch.xpack.esql.plan.logical.Sample;
 import org.elasticsearch.xpack.esql.plan.logical.TopN;
 import org.elasticsearch.xpack.esql.plan.logical.inference.Completion;
 import org.elasticsearch.xpack.esql.plan.logical.inference.Rerank;
-import org.elasticsearch.xpack.esql.plan.logical.local.EsqlProject;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.session.Configuration;
 import org.elasticsearch.xpack.esql.session.EsqlSession;
@@ -120,17 +120,24 @@ import java.util.stream.Collectors;
  * To obtain an appropriate sample probability, first a target number of rows
  * is set. For now this is a fixed number ({@link Approximate#SAMPLE_ROW_COUNT}).
  * Next, the total number of rows in the source index is counted via the plan
- * {@link Approximate#sourceCountPlan}. This plan should execute fast. When
+ * {@link Approximate#sourceCountPlan}. This plan always executes fast. When
  * there are no commands that can change the number of rows, the sample
  * probability can be directly computed as a ratio of the target number of rows
  * and this total number.
  * <p>
  * In the presence of commands that can change to number of rows, another step
- * is needed. The initial sample probability is set to the ratio above and the
- * number of rows is sampled with the plan {@link Approximate#countPlan}. As
- * long as the sampled number of rows is smaller than intended, the probability
- * is scaled up until a good probability is reached. This final probability is
- * used for approximating the original plan.
+ * is needed. The first goal is to find a sample probability that leads to
+ * {@link Approximate#SAMPLE_ROW_COUNT_FOR_COUNT_ESTIMATION} rows, and when is
+ * probability is found, a sample probability leading to the target number of
+ * row is computed.
+ * <p>
+ * This is done by setting the initial sample probability to the ratio of
+ * {@link Approximate#SAMPLE_ROW_COUNT_FOR_COUNT_ESTIMATION} and the total number
+ * of rows in the source index, and a number of rows is sampled with the plan
+ * {@link Approximate#countPlan}. As long as the sampled number of rows is too
+ * small, the probability is scaled up until a good probability is reached. This
+ * final probability is used to compute the probability using for approximating
+ * the original query.
  */
 public class Approximate {
 
@@ -146,7 +153,6 @@ public class Approximate {
         Dissect.class,
         Drop.class,
         Enrich.class,
-        EsqlProject.class,
         EsRelation.class,
         Eval.class,
         Filter.class,
@@ -174,7 +180,6 @@ public class Approximate {
         Dissect.class,
         Drop.class,
         Enrich.class,
-        EsqlProject.class,
         Eval.class,
         Grok.class,
         Insist.class,
@@ -278,6 +283,7 @@ public class Approximate {
     private final Function<LogicalPlan, PhysicalPlan> toPhysicalPlan;
     private final Configuration configuration;
     private final FoldContext foldContext;
+    private final PlanTimeProfile planTimeProfile;
 
     private long sourceRowCount;
 
@@ -287,7 +293,8 @@ public class Approximate {
         Function<LogicalPlan, PhysicalPlan> toPhysicalPlan,
         EsqlSession.PlanRunner runner,
         Configuration configuration,
-        FoldContext foldContext
+        FoldContext foldContext,
+        PlanTimeProfile planTimeProfile
     ) {
         this.logicalPlan = logicalPlan;
         this.queryProperties = verifyPlan(logicalPlan);
@@ -296,6 +303,7 @@ public class Approximate {
         this.runner = runner;
         this.configuration = configuration;
         this.foldContext = foldContext;
+        this.planTimeProfile = planTimeProfile;
     }
 
     /**
@@ -380,6 +388,7 @@ public class Approximate {
             toPhysicalPlan.apply(logicalPlan),
             configuration.throwOnNonEsStatsQuery(true),
             foldContext,
+            planTimeProfile,
             approximateListener(listener)
         );
     }
@@ -397,14 +406,26 @@ public class Approximate {
                     listener.onResponse(result);
                 } else {
                     result.pages().forEach(Page::close);
-                    runner.run(toPhysicalPlan.apply(sourceCountPlan()), configuration, foldContext, sourceCountListener(listener));
+                    runner.run(
+                        toPhysicalPlan.apply(sourceCountPlan()),
+                        configuration,
+                        foldContext,
+                        planTimeProfile,
+                        sourceCountListener(listener)
+                    );
                 }
             }
 
             @Override
             public void onFailure(Exception e) {
                 if (isCausedByUnsupported(e)) {
-                    runner.run(toPhysicalPlan.apply(sourceCountPlan()), configuration, foldContext, sourceCountListener(listener));
+                    runner.run(
+                        toPhysicalPlan.apply(sourceCountPlan()),
+                        configuration,
+                        foldContext,
+                        planTimeProfile,
+                        sourceCountListener(listener)
+                    );
                 } else {
                     logger.debug("stats query failed; returning error", e);
                     listener.onFailure(e);
@@ -452,20 +473,20 @@ public class Approximate {
             if (sourceRowCount == 0) {
                 // If there are no rows, run the original query.
                 resetExecutionInfo(countResult);
-                runner.run(toPhysicalPlan.apply(logicalPlan), configuration, foldContext, listener);
+                runner.run(toPhysicalPlan.apply(logicalPlan), configuration, foldContext, planTimeProfile, listener);
                 return;
             }
             double sampleProbability = Math.min(1.0, (double) SAMPLE_ROW_COUNT / sourceRowCount);
             if (queryProperties.canIncreaseRowCount == false && queryProperties.canDecreaseRowCount == false) {
                 // If the query preserves all rows, we can directly approximate with the sample probability.
                 resetExecutionInfo(countResult);
-                runner.run(toPhysicalPlan.apply(approximatePlan(sampleProbability)), configuration, foldContext, listener);
+                runner.run(toPhysicalPlan.apply(approximatePlan(sampleProbability)), configuration, foldContext, planTimeProfile, listener);
             } else if (queryProperties.canIncreaseRowCount == false && sampleProbability > SAMPLE_PROBABILITY_THRESHOLD) {
                 // If the query cannot increase the number of rows, and the sample probability is large,
                 // we can directly run the original query without sampling.
                 logger.debug("using original plan (too few rows)");
                 resetExecutionInfo(countResult);
-                runner.run(toPhysicalPlan.apply(logicalPlan), configuration, foldContext, listener);
+                runner.run(toPhysicalPlan.apply(logicalPlan), configuration, foldContext, planTimeProfile, listener);
             } else {
                 // Otherwise, we need to sample the number of rows first to obtain a good sample probability.
                 sampleProbability = Math.min(1.0, (double) SAMPLE_ROW_COUNT_FOR_COUNT_ESTIMATION / sourceRowCount);
@@ -473,6 +494,7 @@ public class Approximate {
                     toPhysicalPlan.apply(countPlan(sampleProbability)),
                     configuration,
                     foldContext,
+                    planTimeProfile,
                     countListener(sampleProbability, listener)
                 );
             }
@@ -538,7 +560,7 @@ public class Approximate {
                 // If the new sample probability is large, run the original query.
                 logger.debug("using original plan (too few rows)");
                 resetExecutionInfo(countResult);
-                runner.run(toPhysicalPlan.apply(logicalPlan), configuration, foldContext, listener);
+                runner.run(toPhysicalPlan.apply(logicalPlan), configuration, foldContext, planTimeProfile, listener);
             } else if (rowCount <= SAMPLE_ROW_COUNT_FOR_COUNT_ESTIMATION / 2) {
                 // Not enough rows are sampled yet; increase the sample probability and try again.
                 newSampleProbability = Math.min(1.0, sampleProbability * SAMPLE_ROW_COUNT_FOR_COUNT_ESTIMATION / Math.max(1, rowCount));
@@ -546,11 +568,18 @@ public class Approximate {
                     toPhysicalPlan.apply(countPlan(newSampleProbability)),
                     configuration,
                     foldContext,
+                    planTimeProfile,
                     countListener(newSampleProbability, listener)
                 );
             } else {
                 resetExecutionInfo(countResult);
-                runner.run(toPhysicalPlan.apply(approximatePlan(newSampleProbability)), configuration, foldContext, listener);
+                runner.run(
+                    toPhysicalPlan.apply(approximatePlan(newSampleProbability)),
+                    configuration,
+                    foldContext,
+                    planTimeProfile,
+                    listener
+                );
             }
         });
     }

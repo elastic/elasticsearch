@@ -421,10 +421,16 @@ public class EsqlSession {
             new Approximate(
                 optimizedPlan,
                 logicalPlanOptimizer,
-                p -> logicalPlanToPhysicalPlan(optimizedPlan(p, logicalPlanOptimizer, planTimeProfile), request, physicalPlanOptimizer, planTimeProfile),
+                p -> logicalPlanToPhysicalPlan(
+                    optimizedPlan(p, logicalPlanOptimizer, planTimeProfile),
+                    request,
+                    physicalPlanOptimizer,
+                    planTimeProfile
+                ),
                 runner,
                 configuration,
-                foldContext
+                foldContext,
+                planTimeProfile
             ).approximate(listener);
         } else {
             PhysicalPlan physicalPlan = logicalPlanToPhysicalPlan(optimizedPlan, request, physicalPlanOptimizer, planTimeProfile);

@@ -233,7 +233,7 @@ setup:
   - do:
       esql.query:
         body:
-          query: 'FROM my-index2 METADATA _source LIMIT 10'
+          query: 'FROM my-index2 METADATA _source | LIMIT 10'
 
   - match: {columns.0.name: "foo"}
   - match: {columns.0.type: "text"}

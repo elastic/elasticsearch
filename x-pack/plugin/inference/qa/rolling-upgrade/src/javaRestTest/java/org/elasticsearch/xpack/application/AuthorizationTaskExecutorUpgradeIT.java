@@ -9,6 +9,8 @@ package org.elasticsearch.xpack.application;
 
 import com.carrotsearch.randomizedtesting.annotations.Name;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
@@ -21,14 +23,17 @@ import java.io.IOException;
 import java.util.Map;
 
 import static org.elasticsearch.xpack.inference.InferenceBaseRestTest.assertStatusOkOrCreated;
-import static org.elasticsearch.xpack.inference.InferenceFeatures.INFERENCE_AUTH_POLLER_PERSISTENT_TASK;
 import static org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceSettings.ELASTIC_INFERENCE_SERVICE_URL;
 import static org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceSettings.PERIODIC_AUTHORIZATION_ENABLED;
 import static org.hamcrest.Matchers.is;
 
 public class AuthorizationTaskExecutorUpgradeIT extends ParameterizedRollingUpgradeTestCase {
 
-    private static final String BEFORE_AUTHORIZATION_TASK_FEATURE = "gte_v9.2.0";
+    private static final Logger logger = LogManager.getLogger(AuthorizationTaskExecutorUpgradeIT.class);
+    private static final String BEFORE_AUTHORIZATION_TASK_FEATURE = "gte_v9.1.0";
+    // The bug where the authorization task is registered before the upgrade is complete was introduced in 9.3.0
+    // This is the currently latest version before that
+    private static final String MAX_CLUSTER_VERSION_BEFORE_BUG_INTRODUCED = "gte_v9.2.2";
 
     @ClassRule
     public static ElasticsearchCluster cluster = ElasticsearchCluster.local()
@@ -56,25 +61,31 @@ public class AuthorizationTaskExecutorUpgradeIT extends ParameterizedRollingUpgr
 
     public void testUpgradeAuthorizationTaskExecutor() throws Exception {
         assumeTrue(
-            "Only test a version prior to v9.3.0 so we start in a version before the authorization polling task existed",
+            "Only test a version prior to v9.3.0 but not on v9.3.0 so we start in a"
+                + " version before the authorization polling task existed",
             oldClusterHasFeature(BEFORE_AUTHORIZATION_TASK_FEATURE)
+                && oldClusterHasFeature(MAX_CLUSTER_VERSION_BEFORE_BUG_INTRODUCED) == false
         );
 
-        final var oldHasAuthTaskFeature = oldClusterHasFeature(INFERENCE_AUTH_POLLER_PERSISTENT_TASK);
+        final var isBeforeAnyNodesUpgraded = isOldCluster();
+        final var isDuringNodeUpgrades = isMixedCluster();
 
-        if (isOldCluster() || isMixedCluster()) {
-            if (oldHasAuthTaskFeature == false) {
-                // If cluster version does not have the authorization polling task feature:
-                // The task must not exist on a non-upgraded or mixed cluster.
-                assertFalse(doesAuthPollingTaskExist());
-            } else {
-                // If cluster version already has the feature:
-                // The task must already exist on non-upgraded or mixed cluster.
-                assertBusy(() -> assertTrue(doesAuthPollingTaskExist()));
-            }
+        if (isBeforeAnyNodesUpgraded || isDuringNodeUpgrades) {
+            logger.info(
+                Strings.format(
+                    "Is before any nodes upgraded: %s, is during node upgrades: %s",
+                    isBeforeAnyNodesUpgraded,
+                    isDuringNodeUpgrades
+                )
+            );
+            logger.info(Strings.format("Original cluster version: %s", getOldClusterVersion()));
+            // If cluster version does not have the authorization polling task feature:
+            // The task must not exist on a non-upgraded or mixed cluster.
+            assertFalse(doesAuthPollingTaskExist());
         }
 
         if (isUpgradedCluster()) {
+            logger.info("Cluster is fully upgraded scenario");
             // once fully upgraded, the authorization polling task should be created
             assertBusy(() -> assertTrue(doesAuthPollingTaskExist()));
         }

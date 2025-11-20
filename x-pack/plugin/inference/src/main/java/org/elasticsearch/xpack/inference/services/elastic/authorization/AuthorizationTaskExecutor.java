@@ -144,7 +144,6 @@ public class AuthorizationTaskExecutor extends PersistentTasksExecutor<Authoriza
             return;
         }
 
-        logger.info("Creating authorization poller task");
         persistentTasksService.sendClusterStartRequest(
             TASK_NAME,
             TASK_NAME,

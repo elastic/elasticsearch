@@ -7,7 +7,7 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.benchmark.vector;
+package org.elasticsearch.benchmark.vector.scorer;
 
 import org.apache.lucene.codecs.lucene99.Lucene99ScalarQuantizedVectorScorer;
 import org.apache.lucene.codecs.lucene99.OffHeapQuantizedByteVectorValues;
@@ -59,12 +59,12 @@ import static org.elasticsearch.simdvec.VectorSimilarityType.EUCLIDEAN;
  * implementations;: scalar, lucene's panama-ized, and Elasticsearch's native.
  * Run with ./gradlew -p benchmarks run --args 'Int7uScorerBenchmark'
  */
-public class Int7uScorerBenchmark {
+public class VectorScorerInt7uBenchmark {
 
     static {
         LogConfigurator.configureESLogging(); // native access requires logging to be initialized
         if (supportsHeapSegments() == false) {
-            final Logger LOG = LogManager.getLogger(Int7uScorerBenchmark.class);
+            final Logger LOG = LogManager.getLogger(VectorScorerInt7uBenchmark.class);
             LOG.warn("*Query targets cannot run on " + "JDK " + Runtime.version());
         }
     }

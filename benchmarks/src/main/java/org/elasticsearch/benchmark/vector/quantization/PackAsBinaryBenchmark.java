@@ -6,7 +6,7 @@
  * your election, the "Elastic License 2.0", the "GNU Affero General Public
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
-package org.elasticsearch.benchmark.vector;
+package org.elasticsearch.benchmark.vector.quantization;
 
 import org.elasticsearch.common.logging.LogConfigurator;
 import org.elasticsearch.index.codec.vectors.BQVectorUtils;
@@ -37,7 +37,7 @@ import java.util.concurrent.TimeUnit;
 @Measurement(iterations = 5, time = 1)
 // engage some noise reduction
 @Fork(value = 1)
-public class TransposeHalfByteBenchmark {
+public class PackAsBinaryBenchmark {
 
     static {
         LogConfigurator.configureESLogging(); // native access requires logging to be initialized
@@ -57,61 +57,53 @@ public class TransposeHalfByteBenchmark {
     public void setup() throws IOException {
         Random random = new Random(123);
 
-        this.length = 4 * BQVectorUtils.discretize(dims, 64) / 8;
+        this.length = BQVectorUtils.discretize(dims, 64) / 8;
         this.packed = new byte[length];
 
         qVectors = new int[numVectors][dims];
         for (int[] qVector : qVectors) {
             for (int i = 0; i < dims; i++) {
-                qVector[i] = random.nextInt(16);
+                qVector[i] = random.nextInt(2);
             }
         }
     }
 
     @Benchmark
-    public void transposeHalfByte(Blackhole bh) {
+    public void packAsBinary(Blackhole bh) {
         for (int i = 0; i < numVectors; i++) {
-            ESVectorUtil.transposeHalfByte(qVectors[i], packed);
+            ESVectorUtil.packAsBinary(qVectors[i], packed);
             bh.consume(packed);
         }
     }
 
     @Benchmark
-    public void transposeHalfByteLegacy(Blackhole bh) {
+    public void packAsBinaryLegacy(Blackhole bh) {
         for (int i = 0; i < numVectors; i++) {
-            transposeHalfByteLegacy(qVectors[i], packed);
+            packAsBinaryLegacy(qVectors[i], packed);
             bh.consume(packed);
         }
     }
 
     @Benchmark
     @Fork(jvmArgsPrepend = { "--add-modules=jdk.incubator.vector" })
-    public void transposeHalfBytePanama(Blackhole bh) {
+    public void packAsBinaryPanama(Blackhole bh) {
         for (int i = 0; i < numVectors; i++) {
-            ESVectorUtil.transposeHalfByte(qVectors[i], packed);
+            ESVectorUtil.packAsBinary(qVectors[i], packed);
             bh.consume(packed);
         }
     }
 
-    public static void transposeHalfByteLegacy(int[] q, byte[] quantQueryByte) {
-        for (int i = 0; i < q.length;) {
-            assert q[i] >= 0 && q[i] <= 15;
-            int lowerByte = 0;
-            int lowerMiddleByte = 0;
-            int upperMiddleByte = 0;
-            int upperByte = 0;
-            for (int j = 7; j >= 0 && i < q.length; j--) {
-                lowerByte |= (q[i] & 1) << j;
-                lowerMiddleByte |= ((q[i] >> 1) & 1) << j;
-                upperMiddleByte |= ((q[i] >> 2) & 1) << j;
-                upperByte |= ((q[i] >> 3) & 1) << j;
-                i++;
+    private static void packAsBinaryLegacy(int[] vector, byte[] packed) {
+        for (int i = 0; i < vector.length;) {
+            byte result = 0;
+            for (int j = 7; j >= 0 && i < vector.length; j--) {
+                assert vector[i] == 0 || vector[i] == 1;
+                result |= (byte) ((vector[i] & 1) << j);
+                ++i;
             }
             int index = ((i + 7) / 8) - 1;
-            quantQueryByte[index] = (byte) lowerByte;
-            quantQueryByte[index + quantQueryByte.length / 4] = (byte) lowerMiddleByte;
-            quantQueryByte[index + quantQueryByte.length / 2] = (byte) upperMiddleByte;
-            quantQueryByte[index + 3 * quantQueryByte.length / 4] = (byte) upperByte;
+            assert index < packed.length;
+            packed[index] = result;
         }
     }
 }

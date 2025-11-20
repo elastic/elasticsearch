@@ -7,7 +7,7 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.benchmark.vector;
+package org.elasticsearch.benchmark.vector.quantization;
 
 import org.apache.lucene.index.VectorSimilarityFunction;
 import org.elasticsearch.common.logging.LogConfigurator;

@@ -6,7 +6,9 @@
  */
 package org.elasticsearch.xpack.esql.core.expression;
 
+import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -35,7 +37,9 @@ import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.GEO;
 /**
  * Literal or constant.
  */
-public class Literal extends LeafExpression {
+public class Literal extends LeafExpression implements Accountable {
+    private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(Literal.class);
+
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         Expression.class,
         "Literal",
@@ -167,6 +171,17 @@ public class Literal extends LeafExpression {
     @Override
     public String nodeString() {
         return toString() + "[" + dataType + "]";
+    }
+
+    @Override
+    public long ramBytesUsed() {
+        long ramBytesUsed = BASE_RAM_BYTES_USED;
+        if (value instanceof BytesRef b) {
+            ramBytesUsed += b.length;
+        } else {
+            ramBytesUsed += RamUsageEstimator.sizeOfObject(value);
+        }
+        return ramBytesUsed;
     }
 
     /**

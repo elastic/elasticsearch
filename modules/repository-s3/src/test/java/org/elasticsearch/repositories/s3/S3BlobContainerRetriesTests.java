@@ -90,6 +90,7 @@ import static org.elasticsearch.repositories.s3.S3ClientSettings.ENDPOINT_SETTIN
 import static org.elasticsearch.repositories.s3.S3ClientSettings.MAX_CONNECTIONS_SETTING;
 import static org.elasticsearch.repositories.s3.S3ClientSettings.MAX_RETRIES_SETTING;
 import static org.elasticsearch.repositories.s3.S3ClientSettings.READ_TIMEOUT_SETTING;
+import static org.elasticsearch.repositories.s3.S3ClientSettingsTests.DEFAULT_REGION_UNAVAILABLE;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.contains;
@@ -118,7 +119,12 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
     @Before
     public void setUp() throws Exception {
         shouldErrorOnDns = false;
-        service = new S3Service(Mockito.mock(Environment.class), Settings.EMPTY, Mockito.mock(ResourceWatcherService.class), () -> null) {
+        service = new S3Service(
+            Mockito.mock(Environment.class),
+            Settings.EMPTY,
+            Mockito.mock(ResourceWatcherService.class),
+            DEFAULT_REGION_UNAVAILABLE
+        ) {
             private InetAddress[] resolveHost(String host) throws UnknownHostException {
                 assertEquals("127.0.0.1", host);
                 if (shouldErrorOnDns && randomBoolean() && randomBoolean()) {

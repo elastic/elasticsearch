@@ -41,7 +41,7 @@ class LegacyYamlRestCompatTestPluginFuncTest extends AbstractRestResourcesFuncTe
         given:
         internalBuild()
 
-        subProject(":distribution:bwc:maintenance") << """
+        subProject(":distribution:bwc:major1") << """
         configurations { checkout }
         artifacts {
             checkout(new File(projectDir, "checkoutDir"))
@@ -62,11 +62,11 @@ class LegacyYamlRestCompatTestPluginFuncTest extends AbstractRestResourcesFuncTe
         result.task(transformTask).outcome == TaskOutcome.NO_SOURCE
     }
 
-    def "yamlRestCompatTest executes and copies api and transforms tests from :bwc:maintenance"() {
+    def "yamlRestCompatTest executes and copies api and transforms tests from :bwc:major1"() {
         given:
         internalBuild()
 
-        subProject(":distribution:bwc:maintenance") << """
+        subProject(":distribution:bwc:major1") << """
         configurations { checkout }
         artifacts {
             checkout(new File(projectDir, "checkoutDir"))
@@ -99,8 +99,8 @@ class LegacyYamlRestCompatTestPluginFuncTest extends AbstractRestResourcesFuncTe
         String api = "foo.json"
         String test = "10_basic.yml"
         //add the compatible test and api files, these are the prior version's normal yaml rest tests
-        file("distribution/bwc/maintenance/checkoutDir/rest-api-spec/src/main/resources/rest-api-spec/api/" + api) << ""
-        file("distribution/bwc/maintenance/checkoutDir/src/yamlRestTest/resources/rest-api-spec/test/" + test) << ""
+        file("distribution/bwc/major1/checkoutDir/rest-api-spec/src/main/resources/rest-api-spec/api/" + api) << ""
+        file("distribution/bwc/major1/checkoutDir/src/yamlRestTest/resources/rest-api-spec/test/" + test) << ""
 
         when:
         def result = gradleRunner("yamlRestTestV${compatibleVersion}CompatTest").build()
@@ -146,7 +146,7 @@ class LegacyYamlRestCompatTestPluginFuncTest extends AbstractRestResourcesFuncTe
         given:
         internalBuild()
         withVersionCatalogue()
-        subProject(":distribution:bwc:maintenance") << """
+        subProject(":distribution:bwc:major1") << """
         configurations { checkout }
         artifacts {
             checkout(new File(projectDir, "checkoutDir"))
@@ -187,7 +187,7 @@ class LegacyYamlRestCompatTestPluginFuncTest extends AbstractRestResourcesFuncTe
         given:
         internalBuild()
 
-        subProject(":distribution:bwc:maintenance") << """
+        subProject(":distribution:bwc:major1") << """
         configurations { checkout }
         artifacts {
             checkout(new File(projectDir, "checkoutDir"))
@@ -231,7 +231,7 @@ class LegacyYamlRestCompatTestPluginFuncTest extends AbstractRestResourcesFuncTe
 
         setupRestResources([], [])
 
-        file("distribution/bwc/maintenance/checkoutDir/src/yamlRestTest/resources/rest-api-spec/test/test.yml" ) << """
+        file("distribution/bwc/major1/checkoutDir/src/yamlRestTest/resources/rest-api-spec/test/test.yml" ) << """
         "one":
           - do:
               do_.some.key_to_replace:

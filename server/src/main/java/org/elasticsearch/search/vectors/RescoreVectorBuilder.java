@@ -10,6 +10,7 @@
 package org.elasticsearch.search.vectors;
 
 import org.elasticsearch.ElasticsearchStatusException;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -22,8 +23,6 @@ import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Objects;
-
-import static org.elasticsearch.TransportVersions.RESCORE_VECTOR_ALLOW_ZERO_BACKPORT_8_19;
 
 public class RescoreVectorBuilder implements Writeable, ToXContentObject {
 
@@ -38,6 +37,8 @@ public class RescoreVectorBuilder implements Writeable, ToXContentObject {
     static {
         PARSER.declareFloat(ConstructingObjectParser.constructorArg(), OVERSAMPLE_FIELD);
     }
+
+    private static final TransportVersion RESCORE_VECTOR_ALLOW_ZERO = TransportVersion.fromName("rescore_vector_allow_zero");
 
     // Oversample is required as of now as it is the only field in the rescore vector
     private final float oversample;
@@ -57,12 +58,12 @@ public class RescoreVectorBuilder implements Writeable, ToXContentObject {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         // We don't want to serialize a `0` oversample to a node that doesn't know what to do with it.
-        if (oversample == NO_OVERSAMPLE && out.getTransportVersion().isPatchFrom(RESCORE_VECTOR_ALLOW_ZERO_BACKPORT_8_19) == false) {
+        if (oversample == NO_OVERSAMPLE && out.getTransportVersion().supports(RESCORE_VECTOR_ALLOW_ZERO) == false) {
             throw new ElasticsearchStatusException(
                 "[rescore_vector] does not support a 0 for ["
                     + OVERSAMPLE_FIELD.getPreferredName()
                     + "] before version ["
-                    + RESCORE_VECTOR_ALLOW_ZERO_BACKPORT_8_19.toReleaseVersion()
+                    + RESCORE_VECTOR_ALLOW_ZERO.toReleaseVersion()
                     + "]",
                 RestStatus.BAD_REQUEST
             );

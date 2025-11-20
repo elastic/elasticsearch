@@ -118,6 +118,11 @@ public class ReservedSnapshotAction implements ReservedClusterStateHandler<List<
     }
 
     @Override
+    public ClusterState remove(TransformState prevState) throws Exception {
+        return transform(List.of(), prevState).state();
+    }
+
+    @Override
     public List<SnapshotLifecyclePolicy> fromXContent(XContentParser parser) throws IOException {
         List<SnapshotLifecyclePolicy> result = new ArrayList<>();
 

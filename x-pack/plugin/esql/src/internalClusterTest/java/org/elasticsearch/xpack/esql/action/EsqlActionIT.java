@@ -38,6 +38,8 @@ import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.extras.MapperExtrasPlugin;
+import org.elasticsearch.index.query.BoolQueryBuilder;
+import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.RangeQueryBuilder;
 import org.elasticsearch.index.shard.IndexShard;
@@ -86,6 +88,7 @@ import static org.elasticsearch.test.ListMatcher.matchesList;
 import static org.elasticsearch.test.MapMatcher.assertMap;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.getValuesList;
+import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.syncEsqlQueryRequest;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.contains;
@@ -144,6 +147,28 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
         try (EsqlQueryResponse response = run("row " + value)) {
             assertEquals(List.of(List.of(value)), getValuesList(response));
         }
+    }
+
+    public void testRowWithFilter() {
+        long value = randomLongBetween(0, Long.MAX_VALUE);
+        EsqlQueryRequest request = syncEsqlQueryRequest();
+        request.query("ROW " + value);
+        request.filter(randomQueryFilter());
+        try (EsqlQueryResponse response = run(request)) {
+            assertEquals(List.of(List.of(value)), getValuesList(response));
+        }
+    }
+
+    public void testInvalidRowWithFilter() {
+        long value = randomLongBetween(0, Long.MAX_VALUE);
+        EsqlQueryRequest request = syncEsqlQueryRequest();
+        request.query("ROW " + value + " | EVAL x==NULL");
+        request.filter(randomQueryFilter());
+        expectThrows(VerificationException.class, containsString("Unknown column [x]"), () -> run(request));
+    }
+
+    private static QueryBuilder randomQueryFilter() {
+        return randomFrom(new MatchAllQueryBuilder(), new BoolQueryBuilder().boost(1.0f));
     }
 
     public void testFromStatsGroupingAvgWithSort() {

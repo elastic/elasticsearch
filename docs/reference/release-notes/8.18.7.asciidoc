@@ -1,0 +1,56 @@
+[[release-notes-8.18.7]]
+== {es} version 8.18.7
+
+Also see <<breaking-changes-8.18,Breaking changes in 8.18>>.
+
+[[bug-8.18.7]]
+[float]
+=== Bug fixes
+
+Authorization::
+* Remove `DocumentSubsetBitsetCache` locking {es-pull}133681[#133681] (issue: {es-issue}132842[#132842])
+
+ES|QL::
+* Reserve memory for Lucene's TopN {es-pull}134235[#134235]
+
+Infra/Scripting::
+* Update `DefBootstrap` to handle Error from `ClassValue` {es-pull}133604[#133604]
+
+Infra/Settings::
+* Use latest setting value when initializing setting watch {es-pull}134091[#134091] (issue: {es-issue}133701[#133701])
+
+Ingest Node::
+* Fix `allow_duplicates` edge case bug in append processor {es-pull}134319[#134319]
+* Fix enrich caches outdated value after policy run {es-pull}133680[#133680]
+
+Machine Learning::
+* Ensuring only a single request executor object is created {es-pull}133424[#133424]
+* Fix double-counting of inference memory in the assignment rebalancer {es-pull}133919[#133919]
+
+Mapping::
+* Allow trailing empty string field names in paths of flattened field {es-pull}133611[#133611] (issue: {es-issue}130139[#130139])
+
+Relevance::
+* Disallow creating `semantic_text` fields in indices created prior to 8.11.0 {es-pull}133080[#133080]
+
+[[enhancement-8.18.7]]
+[float]
+=== Enhancements
+
+Authorization::
+* [Sentinel One] Add `manage`, `create_index`, `read`, `index`, `write`, `delete`, permission for third party agent indices `kibana_system` {es-pull}133793[#133793] (issue: {es-issue}133703[#133703])
+
+[[upgrade-8.18.7]]
+[float]
+=== Upgrades
+
+FIPS::
+* Bump bc-fips to 1.0.2.6 {es-pull}133198[#133198]
+
+Network::
+* Upgrade Netty to 4.1.126.Final {es-pull}134182[#134182]
+
+Security::
+* Bump bcpkix version {es-pull}132853[#132853]
+
+

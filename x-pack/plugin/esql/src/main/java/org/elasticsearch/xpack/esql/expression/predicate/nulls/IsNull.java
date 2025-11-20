@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.esql.expression.predicate.nulls;
 
+import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.compute.data.Block;
@@ -113,6 +114,8 @@ public class IsNull extends UnaryScalarFunction implements EvaluatorMapper, Nega
     record IsNullEvaluator(DriverContext driverContext, EvalOperator.ExpressionEvaluator field)
         implements
             EvalOperator.ExpressionEvaluator {
+        private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(IsNullEvaluator.class);
+
         @Override
         public Block eval(Page page) {
             try (Block fieldBlock = field.eval(page)) {
@@ -126,6 +129,11 @@ public class IsNull extends UnaryScalarFunction implements EvaluatorMapper, Nega
                     return builder.build().asBlock();
                 }
             }
+        }
+
+        @Override
+        public long baseRamBytesUsed() {
+            return BASE_RAM_BYTES_USED + field.baseRamBytesUsed();
         }
 
         @Override

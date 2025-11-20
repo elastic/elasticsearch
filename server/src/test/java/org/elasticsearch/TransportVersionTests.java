@@ -27,6 +27,7 @@ import java.util.regex.Pattern;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.endsWith;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThan;
@@ -40,7 +41,7 @@ public class TransportVersionTests extends ESTestCase {
      * If the test fails, there is something wrong with your backport PR.
      */
     public void testMaximumAllowedTransportVersion() {
-        assertThat(TransportVersion.current().isPatchFrom(TransportVersions.INITIAL_ELASTICSEARCH_8_19), is(true));
+        assertThat(TransportVersion.current().isPatchFrom(TransportVersion.fromId(8841000)), is(true));
     }
 
     public void testVersionComparison() {
@@ -185,7 +186,7 @@ public class TransportVersionTests extends ESTestCase {
     }
 
     public void testVersionConstantPresent() {
-        Set<TransportVersion> ignore = Set.of(TransportVersions.ZERO, TransportVersion.current(), TransportVersions.MINIMUM_COMPATIBLE);
+        Set<TransportVersion> ignore = Set.of(TransportVersion.zero(), TransportVersion.current(), TransportVersion.minimumCompatible());
         assertThat(TransportVersion.current(), sameInstance(TransportVersion.fromId(TransportVersion.current().id())));
         final int iters = scaledRandomIntBetween(20, 100);
         for (int i = 0; i < iters; i++) {
@@ -234,7 +235,7 @@ public class TransportVersionTests extends ESTestCase {
         Set<Integer> missingVersions = new TreeSet<>();
         TransportVersion previous = null;
         for (var tv : TransportVersion.getAllVersions()) {
-            if (tv.before(TransportVersions.V_8_16_0)) {
+            if (tv.before(TransportVersions.V_8_18_0)) {
                 continue;
             }
             if (previous == null) {
@@ -400,5 +401,73 @@ public class TransportVersionTests extends ESTestCase {
         assertThat(new TransportVersion(null, 3004000, null).supports(test4), is(true));
         assertThat(new TransportVersion(null, 100001000, null).supports(test4), is(true));
         assertThat(new TransportVersion(null, 100001001, null).supports(test4), is(true));
+    }
+
+    public void testComment() {
+        byte[] data1 = ("#comment" + System.lineSeparator() + "1000000").getBytes(StandardCharsets.UTF_8);
+        TransportVersion test1 = TransportVersion.fromBufferedReader(
+            "<test>",
+            "testSupports3",
+            false,
+            true,
+            new BufferedReader(new InputStreamReader(new ByteArrayInputStream(data1), StandardCharsets.UTF_8)),
+            5000000
+        );
+        assertThat(new TransportVersion(null, 1000000, null).supports(test1), is(true));
+
+        byte[] data2 = (" # comment" + System.lineSeparator() + "1000000").getBytes(StandardCharsets.UTF_8);
+        TransportVersion test2 = TransportVersion.fromBufferedReader(
+            "<test>",
+            "testSupports3",
+            false,
+            true,
+            new BufferedReader(new InputStreamReader(new ByteArrayInputStream(data2), StandardCharsets.UTF_8)),
+            5000000
+        );
+        assertThat(new TransportVersion(null, 1000000, null).supports(test2), is(true));
+
+        byte[] data3 = ("#comment" + System.lineSeparator() + "# comment3" + System.lineSeparator() + "1000000").getBytes(
+            StandardCharsets.UTF_8
+        );
+        TransportVersion test3 = TransportVersion.fromBufferedReader(
+            "<test>",
+            "testSupports3",
+            false,
+            true,
+            new BufferedReader(new InputStreamReader(new ByteArrayInputStream(data3), StandardCharsets.UTF_8)),
+            5000000
+        );
+        assertThat(new TransportVersion(null, 1000000, null).supports(test3), is(true));
+    }
+
+    public void testMoreLikeThis() {
+        IllegalStateException ise = expectThrows(IllegalStateException.class, () -> TransportVersion.fromName("esql_ixed_index_like"));
+        assertThat(
+            ise.getMessage(),
+            is(
+                "Unknown transport version [esql_ixed_index_like]. "
+                    + "Did you mean [esql_fixed_index_like]? "
+                    + "If this is a new transport version, run './gradle generateTransportVersion'."
+            )
+        );
+
+        ise = expectThrows(IllegalStateException.class, () -> TransportVersion.fromName("brand_new_version_unrelated_to_others"));
+        assertThat(
+            ise.getMessage(),
+            is(
+                "Unknown transport version [brand_new_version_unrelated_to_others]. "
+                    + "If this is a new transport version, run './gradle generateTransportVersion'."
+            )
+        );
+    }
+
+    public void testTransportVersionsLocked() {
+        List<TransportVersion> versions = TransportVersions.DEFINED_VERSIONS;
+        assertThat(
+            "TransportVersions.java is locked. Generate transport versions with TransportVersion.fromName "
+                + "and generateTransportVersion gradle task",
+            versions.get(versions.size() - 1).id(),
+            equalTo(8_840_0_00)
+        );
     }
 }

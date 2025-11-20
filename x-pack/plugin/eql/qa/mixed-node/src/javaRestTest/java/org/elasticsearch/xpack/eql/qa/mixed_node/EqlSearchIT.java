@@ -282,9 +282,7 @@ public class EqlSearchIT extends ESRestTestCase {
             StringBuilder payload = new StringBuilder("{\"query\":\"" + event + " where true\",\"size\":15");
             // Older versions don't support this option
             if (nodesList.stream()
-                .allMatch(
-                    x -> x.transportVersion() != null && x.transportVersion().onOrAfter(TransportVersions.EQL_ALLOW_PARTIAL_SEARCH_RESULTS)
-                )) {
+                .allMatch(x -> x.transportVersion() != null && x.transportVersion().supports(TransportVersions.V_8_18_0))) {
                 if (randomBoolean()) {
                     payload.append(", \"allow_partial_search_results\": " + randomBoolean());
                 }
@@ -313,9 +311,7 @@ public class EqlSearchIT extends ESRestTestCase {
             StringBuilder payload = new StringBuilder("{\"query\":\"" + query + "\",\"filter\":" + filter);
             // Older versions don't support this option
             if (nodesList.stream()
-                .allMatch(
-                    x -> x.transportVersion() != null && x.transportVersion().onOrAfter(TransportVersions.EQL_ALLOW_PARTIAL_SEARCH_RESULTS)
-                )) {
+                .allMatch(x -> x.transportVersion() != null && x.transportVersion().supports(TransportVersions.V_8_18_0))) {
                 if (randomBoolean()) {
                     payload.append(", \"allow_partial_search_results\": " + randomBoolean());
                 }

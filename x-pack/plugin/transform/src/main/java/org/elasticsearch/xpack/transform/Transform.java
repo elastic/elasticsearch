@@ -128,6 +128,7 @@ import java.util.function.UnaryOperator;
 import static org.elasticsearch.xpack.core.ClientHelper.TRANSFORM_ORIGIN;
 import static org.elasticsearch.xpack.core.transform.TransformMessages.FAILED_TO_UNSET_RESET_MODE;
 import static org.elasticsearch.xpack.core.transform.transforms.persistence.TransformInternalIndexConstants.AUDIT_INDEX_PATTERN;
+import static org.elasticsearch.xpack.core.transform.transforms.persistence.TransformInternalIndexConstants.AUDIT_INDEX_PATTERN_DEPRECATED;
 import static org.elasticsearch.xpack.core.transform.transforms.persistence.TransformInternalIndexConstants.TRANSFORM_PREFIX;
 import static org.elasticsearch.xpack.core.transform.transforms.persistence.TransformInternalIndexConstants.TRANSFORM_PREFIX_DEPRECATED;
 
@@ -436,7 +437,10 @@ public class Transform extends Plugin implements SystemIndexPlugin, PersistentTa
 
     @Override
     public Collection<AssociatedIndexDescriptor> getAssociatedIndexDescriptors() {
-        return List.of(new AssociatedIndexDescriptor(AUDIT_INDEX_PATTERN, "Audit index"));
+        return List.of(
+            new AssociatedIndexDescriptor(AUDIT_INDEX_PATTERN, "Audit index"),
+            new AssociatedIndexDescriptor(AUDIT_INDEX_PATTERN_DEPRECATED, "Legacy audit index")
+        );
     }
 
     @Override

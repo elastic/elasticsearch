@@ -9,7 +9,7 @@
 
 package org.elasticsearch.cluster.metadata;
 
-import org.elasticsearch.TransportVersions;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.test.AbstractXContentSerializingTestCase;
 import org.elasticsearch.xcontent.XContentParser;
@@ -21,6 +21,7 @@ import static org.hamcrest.Matchers.equalTo;
 public class DataStreamOptionsTemplateTests extends AbstractXContentSerializingTestCase<DataStreamOptions.Template> {
 
     public static final DataStreamOptions.Template RESET = new DataStreamOptions.Template(ResettableValue.reset());
+    private static final TransportVersion SETTINGS_IN_DATA_STREAMS = TransportVersion.fromName("settings_in_data_streams");
 
     @Override
     protected Writeable.Reader<DataStreamOptions.Template> instanceReader() {
@@ -126,16 +127,15 @@ public class DataStreamOptionsTemplateTests extends AbstractXContentSerializingT
     }
 
     public void testBackwardCompatibility() throws IOException {
-        DataStreamOptions.Template result = copyInstance(
-            DataStreamOptions.Template.EMPTY,
-            TransportVersions.SEARCH_INCREMENTAL_TOP_DOCS_NULL_BACKPORT_8_19
-        );
+        TransportVersion searchIncrementalTopDocsNull = TransportVersion.fromName("search_incremental_top_docs_null");
+
+        DataStreamOptions.Template result = copyInstance(DataStreamOptions.Template.EMPTY, searchIncrementalTopDocsNull);
         assertThat(result, equalTo(DataStreamOptions.Template.EMPTY));
 
         DataStreamOptions.Template withEnabled = new DataStreamOptions.Template(
             new DataStreamFailureStore.Template(randomBoolean(), DataStreamLifecycleTemplateTests.randomFailuresLifecycleTemplate())
         );
-        result = copyInstance(withEnabled, TransportVersions.SEARCH_INCREMENTAL_TOP_DOCS_NULL_BACKPORT_8_19);
+        result = copyInstance(withEnabled, searchIncrementalTopDocsNull);
         assertThat(result.failureStore().get().enabled(), equalTo(withEnabled.failureStore().get().enabled()));
         assertThat(result.failureStore().get().lifecycle(), equalTo(ResettableValue.undefined()));
 
@@ -147,13 +147,14 @@ public class DataStreamOptionsTemplateTests extends AbstractXContentSerializingT
                     : ResettableValue.create(DataStreamLifecycleTemplateTests.randomFailuresLifecycleTemplate())
             )
         );
-        result = copyInstance(withoutEnabled, TransportVersions.SEARCH_INCREMENTAL_TOP_DOCS_NULL_BACKPORT_8_19);
+        result = copyInstance(withoutEnabled, searchIncrementalTopDocsNull);
         assertThat(result, equalTo(DataStreamOptions.Template.EMPTY));
 
         DataStreamOptions.Template withEnabledReset = new DataStreamOptions.Template(
             new DataStreamFailureStore.Template(ResettableValue.reset(), ResettableValue.undefined())
         );
-        result = copyInstance(withEnabledReset, TransportVersions.SEARCH_INCREMENTAL_TOP_DOCS_NULL_BACKPORT_8_19);
+
+        result = copyInstance(withEnabledReset, searchIncrementalTopDocsNull);
         assertThat(result, equalTo(new DataStreamOptions.Template(ResettableValue.reset())));
     }
 }

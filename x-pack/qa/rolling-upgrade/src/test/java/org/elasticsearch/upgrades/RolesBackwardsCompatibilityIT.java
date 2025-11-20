@@ -317,10 +317,10 @@ public class RolesBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
         TransportVersion nodeTransportVersion = getTransportVersionWithFallback(
             nodeVersionString,
             nodeDetails.get("transport_version"),
-            () -> TransportVersions.ZERO
+            () -> TransportVersion.zero()
         );
 
-        if (nodeTransportVersion.equals(TransportVersions.ZERO)) {
+        if (nodeTransportVersion.equals(TransportVersion.zero())) {
             // In cases where we were not able to find a TransportVersion, a pre-8.8.0 node answered about a newer (upgraded) node.
             // In that case, the node will be current (upgraded), and remote indices are supported for sure.
             var nodeIsCurrent = nodeVersionString.equals(Build.current().version());

@@ -10,7 +10,9 @@
 package org.elasticsearch.ingest.geoip;
 
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.test.ESTestCase;
 
+@ESTestCase.WithoutEntitlements // some tests with geo use command line
 public class GeoIpDownloaderCliIT extends GeoIpDownloaderIT {
 
     @Override

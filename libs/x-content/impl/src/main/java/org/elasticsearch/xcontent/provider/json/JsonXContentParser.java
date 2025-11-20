@@ -16,6 +16,7 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.JsonToken;
 import com.fasterxml.jackson.core.exc.InputCoercionException;
 import com.fasterxml.jackson.core.exc.StreamConstraintsException;
+import com.fasterxml.jackson.core.filter.FilteringParserDelegate;
 import com.fasterxml.jackson.core.io.JsonEOFException;
 
 import org.elasticsearch.core.IOUtils;
@@ -148,6 +149,10 @@ public class JsonXContentParser extends AbstractXContentParser {
     public XContentString optimizedText() throws IOException {
         if (currentToken().isValue() == false) {
             throwOnNoText();
+        }
+        var parser = this.parser;
+        if (parser instanceof FilteringParserDelegate delegate) {
+            parser = delegate.delegate();
         }
         if (parser instanceof ESUTF8StreamJsonParser esParser) {
             var bytesRef = esParser.getValueAsText();

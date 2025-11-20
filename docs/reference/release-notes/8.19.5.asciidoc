@@ -1,0 +1,71 @@
+[[release-notes-8.19.5]]
+== {es} version 8.19.5
+
+Also see <<breaking-changes-8.19,Breaking changes in 8.19>>.
+
+[IMPORTANT]
+====
+The 8.19.5 release contains fixes for potential security vulnerabilities.
+Please see our https://discuss.elastic.co/c/announcements/security-announcements/31[security advisory] for more details.
+====
+
+[[bug-8.19.5]]
+[float]
+=== Bug fixes
+
+Aggregations::
+* Propagates filter() to aggregation functions' surrogates {es-pull}134461[#134461] (issue: {es-issue}134380[#134380])
+
+Codec::
+* Address es819 tsdb doc values format performance bug {es-pull}135505[#135505] (issue: {es-issue}135340[#135340])
+
+ES|QL::
+* Ban Limit + `MvExpand` before remote Enrich {es-pull}135051[#135051]
+* Fix async get results with inconsistent headers {es-pull}135078[#135078] (issue: {es-issue}135042[#135042])
+* Fix expiration time in ES|QL async {es-pull}135209[#135209] (issue: {es-issue}135169[#135169])
+
+Engine::
+* Bypass MMap arena grouping as this has caused issues with too many regions being mapped {es-pull}135012[#135012]
+* Fix deadlock in `ThreadPoolMergeScheduler` when a failing merge closes the `IndexWriter` {es-pull}134656[#134656]
+
+Geo::
+* `CentroidCalculator` does not return negative summation weights {es-pull}135176[#135176] (issue: {es-issue}131861[#131861])
+
+Infra/Core::
+* Bug fix: Facilitate second retrieval of the same value {es-pull}134790[#134790] (issue: {es-issue}134770[#134770])
+
+Infra/Node Lifecycle::
+* Fix systemd notify to use a shared arena {es-pull}135235[#135235]
+
+Ingest Node::
+* Correctly apply field path to JSON processor when adding contents to document root {es-pull}135479[#135479]
+
+Machine Learning::
+* Add .reindexed-v7-ml-anomalies-* to anomaly results template index pattern {es-pull}135270[#135270]
+* Gracefully shutdown model deployment when node is removed from assignment routing {es-pull}134673[#134673]
+* Reset health status on successful empty checkpoint {es-pull}135653[#135653] (issue: {es-issue}135650[#135650])
+* Tolerate mixed types in datafeed stats sort {es-pull}135096[#135096]
+
+Mapping::
+* Avoid holding references to `SearchExecutionContext` in `SourceConfirmedTextQuery` {es-pull}134887[#134887]
+* Fix for creating semantic_text fields on pre-8.11 indices crashing Elasticsearch {es-pull}135845[#135845]
+* Fixed match only text block loader not working when a keyword multi field is present {es-pull}134582[#134582]
+
+Search::
+* Fix KQL case-sensitivity for keyword fields in ES|QL {es-pull}135776[#135776] (issue: {es-issue}135772[#135772])
+
+Transform::
+* Fix a bug in the GET _transform API that incorrectly claims some Transform configurations are missing {es-pull}134963[#134963] (issue: {es-issue}134263[#134263])
+* Prevent Transform from queuing too many PIT close requests by waiting for PIT to close before finishing the checkpoint {es-pull}134955[#134955] (issue: {es-issue}134925[#134925])
+
+[[enhancement-8.19.5]]
+[float]
+=== Enhancements
+
+Audit::
+* Change reindex to use ::es-redacted:: filtering {es-pull}135414[#135414]
+
+Authorization::
+* [Island Browser] Add `manage`, `create_index`, `read`, `index`, `write`, `delete`, permission for third party agent indices `kibana_system` {es-pull}134636[#134636] (issue: {es-issue}134136[#134136])
+
+

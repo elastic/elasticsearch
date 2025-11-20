@@ -166,6 +166,28 @@ public class JsonProcessorTests extends ESTestCase {
         assertEquals("see", sourceAndMetadata.get("c"));
     }
 
+    public void testAddToRootNestedField() throws Exception {
+        String processorTag = randomAlphaOfLength(3);
+        String randomTargetField = randomAlphaOfLength(2);
+        JsonProcessor jsonProcessor = new JsonProcessor(processorTag, null, "a.b", randomTargetField, true, REPLACE, false);
+
+        String json = "{\"a\": 1, \"b\": 2}";
+        Map<String, Object> subfield = new HashMap<>();
+        subfield.put("b", json);
+
+        Map<String, Object> document = new HashMap<>();
+        document.put("a", subfield);
+        document.put("c", "see");
+
+        IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), document);
+        jsonProcessor.execute(ingestDocument);
+
+        Map<String, Object> sourceAndMetadata = ingestDocument.getSourceAndMetadata();
+        assertEquals(1, sourceAndMetadata.get("a"));
+        assertEquals(2, sourceAndMetadata.get("b"));
+        assertEquals("see", sourceAndMetadata.get("c"));
+    }
+
     public void testDuplicateKeys() throws Exception {
         String processorTag = randomAlphaOfLength(3);
         JsonProcessor lenientJsonProcessor = new JsonProcessor(processorTag, null, "a", null, true, REPLACE, true);

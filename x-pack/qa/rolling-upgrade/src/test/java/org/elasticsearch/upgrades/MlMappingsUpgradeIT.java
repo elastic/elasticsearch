@@ -25,6 +25,7 @@ import org.junit.BeforeClass;
 
 import java.io.IOException;
 import java.util.Collection;
+import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -82,6 +83,14 @@ public class MlMappingsUpgradeIT extends AbstractUpgradeTestCase {
                 assertLegacyIndicesRollover();
                 assertAnomalyIndicesRollover();
                 assertNotificationsIndexAliasCreated();
+                assertBusy(
+                    () -> IndexMappingTemplateAsserter.assertTemplateVersionAndPattern(
+                        client(),
+                        ".ml-anomalies-",
+                        10000005,
+                        List.of(".ml-anomalies-*", ".reindexed-v7-ml-anomalies-*")
+                    )
+                );
                 break;
             default:
                 throw new UnsupportedOperationException("Unknown cluster type [" + CLUSTER_TYPE + "]");

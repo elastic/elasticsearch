@@ -3,6 +3,7 @@ import org.elasticsearch.gradle.internal.info.BuildParams
 import org.elasticsearch.gradle.Version
 
 import java.nio.file.Paths
+import org.elasticsearch.gradle.internal.AbstractDependenciesTask
 
 apply plugin: 'elasticsearch.internal-es-plugin'
 apply plugin: 'elasticsearch.publish'
@@ -24,7 +25,7 @@ esplugin {
   requiresKeystore =false
 }
 
-tasks.named("dependencyLicenses").configure {
+tasks.withType(AbstractDependenciesTask).configureEach {
   mapping from: /http.*/, to: 'httpclient' // pulled in by rest client
   mapping from: /commons-.*/, to: 'commons' // pulled in by rest client
 }
@@ -50,7 +51,7 @@ dependencies {
   testImplementation project(':modules:mapper-extras')
 
   // security deps
-  api 'com.unboundid:unboundid-ldapsdk:6.0.3'
+  api "com.unboundid:unboundid-ldapsdk:${versions.ldapsdk}"
 
   implementation project(":x-pack:plugin:core:template-resources")
 
@@ -65,7 +66,7 @@ dependencies {
   testImplementation project(path: ':modules:rest-root')
   testImplementation project(path: ':modules:health-shards-availability')
   // Needed for Fips140ProviderVerificationTests
-  testCompileOnly('org.bouncycastle:bc-fips:1.0.2.5')
+  testCompileOnly('org.bouncycastle:bc-fips:1.0.2.6')
 
   testImplementation(project(':x-pack:license-tools')) {
     transitive = false

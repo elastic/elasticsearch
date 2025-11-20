@@ -1215,3 +1215,63 @@ create logsdb data stream with custom sorting on timestamp:
         index: $backing_index
 
   - match: { .$backing_index.mappings.properties.@timestamp.type: date }
+
+---
+rollover with host as keyword:
+  - do:
+      indices.put_index_template:
+        name: "example"
+        body:
+          "index_patterns": [ "example*" ]
+          "template":
+            "settings":
+              "mode": "logsdb"
+            "mappings":
+              "properties":
+                "host":
+                  "type": "text"
+                "@timestamp":
+                  "type": "date"
+          "composed_of": []
+          "priority": 500
+          "data_stream": {}
+
+  - do:
+      index:
+        index: "example"
+        body:
+          "@timestamp": "2025-01-01T00:00:00.000Z"
+          "host": "test-host"
+
+  - do:
+      indices.rollover:
+        alias: "example"
+  - match: { rolled_over: true }
+
+  - do:
+      indices.get_data_stream:
+        name: "example"
+        expand_wildcards: hidden
+  - length: { data_streams: 1 }
+  - set: { data_streams.0.indices.0.index_name: backing_index_0 }
+  - set: { data_streams.0.indices.1.index_name: backing_index_1 }
+
+  - do:
+      indices.get_settings:
+        index: $backing_index_0
+  - is_false: .$backing_index_0.settings.index.logsdb.add_host_name_field
+
+  - do:
+      indices.get_mapping:
+        index: $backing_index_0
+  - match: { .$backing_index_0.mappings.properties.host.properties: null }
+
+  - do:
+      indices.get_settings:
+        index: $backing_index_1
+  - is_false: .$backing_index_1.settings.index.logsdb.add_host_name_field
+
+  - do:
+      indices.get_mapping:
+        index: $backing_index_1
+  - match: { .$backing_index_1.mappings.properties.host.properties: null }

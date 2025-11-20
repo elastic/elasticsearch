@@ -10,6 +10,7 @@
 package org.elasticsearch.gradle;
 
 import org.elasticsearch.gradle.internal.BwcVersions;
+import org.elasticsearch.gradle.internal.info.DevelopmentBranch;
 import org.gradle.api.NamedDomainObjectContainer;
 import org.gradle.api.Project;
 import org.gradle.testfixtures.ProjectBuilder;
@@ -29,7 +30,12 @@ public class AbstractDistributionDownloadPluginTests {
     protected static final Version BWC_STAGED_VERSION = Version.fromString("1.0.0");
     protected static final Version BWC_BUGFIX_VERSION = Version.fromString("1.0.1");
     protected static final Version BWC_MAINTENANCE_VERSION = Version.fromString("0.90.1");
-    protected static final List<String> DEVELOPMENT_BRANCHES = Arrays.asList("main", "1.1", "1.0", "0.90");
+    protected static final List<DevelopmentBranch> DEVELOPMENT_BRANCHES = Arrays.asList(
+        new DevelopmentBranch("main", Version.fromString("2.0.0")),
+        new DevelopmentBranch("1.1", Version.fromString("1.1.0")),
+        new DevelopmentBranch("1.0", Version.fromString("1.0.1")),
+        new DevelopmentBranch("0.90", Version.fromString("0.90.1"))
+    );
 
     protected static final BwcVersions BWC_MINOR = new BwcVersions(
         BWC_MAJOR_VERSION,

@@ -87,7 +87,6 @@ public class PackageUpgradeTests extends PackagingTestCase {
         );
 
         assertDocsExist();
-
         stopElasticsearch();
     }
 

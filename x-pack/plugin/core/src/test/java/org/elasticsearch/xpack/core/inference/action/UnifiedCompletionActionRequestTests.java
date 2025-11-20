@@ -25,6 +25,8 @@ import static org.hamcrest.Matchers.is;
 
 public class UnifiedCompletionActionRequestTests extends AbstractBWCWireSerializationTestCase<UnifiedCompletionAction.Request> {
 
+    private static final TransportVersion INFERENCE_CONTEXT = TransportVersion.fromName("inference_context");
+
     public void testValidation_ReturnsException_When_UnifiedCompletionRequestMessage_Is_Null() {
         var request = new UnifiedCompletionAction.Request(
             "inference_id",
@@ -80,7 +82,7 @@ public class UnifiedCompletionActionRequestTests extends AbstractBWCWireSerializ
             instance,
             getNamedWriteableRegistry(),
             instanceReader(),
-            TransportVersions.ELASTIC_INFERENCE_SERVICE_UNIFIED_CHAT_COMPLETIONS_INTEGRATION
+            TransportVersions.SOURCE_MODE_TELEMETRY_FIX_8_17
         );
 
         // Verify that hasBeenRerouted is true after deserializing a request coming from an older transport version
@@ -100,14 +102,14 @@ public class UnifiedCompletionActionRequestTests extends AbstractBWCWireSerializ
             instance,
             getNamedWriteableRegistry(),
             instanceReader(),
-            TransportVersions.ELASTIC_INFERENCE_SERVICE_UNIFIED_CHAT_COMPLETIONS_INTEGRATION
+            TransportVersions.V_8_18_0
         );
         assertThat(deserializedInstance.getContext(), equalTo(InferenceContext.EMPTY_INSTANCE));
     }
 
     @Override
     protected UnifiedCompletionAction.Request mutateInstanceForVersion(UnifiedCompletionAction.Request instance, TransportVersion version) {
-        if (version.before(TransportVersions.INFERENCE_CONTEXT_8_X)) {
+        if (version.supports(INFERENCE_CONTEXT) == false) {
             return new UnifiedCompletionAction.Request(
                 instance.getInferenceEntityId(),
                 instance.getTaskType(),

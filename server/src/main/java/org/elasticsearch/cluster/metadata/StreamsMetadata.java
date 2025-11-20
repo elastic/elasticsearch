@@ -10,7 +10,6 @@
 package org.elasticsearch.cluster.metadata;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.cluster.AbstractNamedDiffable;
 import org.elasticsearch.cluster.NamedDiff;
 import org.elasticsearch.common.collect.Iterators;
@@ -43,6 +42,7 @@ public class StreamsMetadata extends AbstractNamedDiffable<Metadata.Custom> impl
     static {
         PARSER.declareBoolean(ConstructingObjectParser.constructorArg(), LOGS_ENABLED);
     }
+    private static final TransportVersion STREAMS_LOGS_SUPPORT = TransportVersion.fromName("streams_logs_support");
 
     public boolean logsEnabled;
 
@@ -70,11 +70,7 @@ public class StreamsMetadata extends AbstractNamedDiffable<Metadata.Custom> impl
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        // While technically the version returned here is correct, in reality this code
-        // was backported from 9.1 to 8.19 and isn't compatible with 9.0 but as we don't
-        // support migrating from 8.19 to 9.0, we can safely return this version rather than
-        // modifying many classes down stream.
-        return TransportVersions.STREAMS_LOGS_SUPPORT_8_19;
+        return STREAMS_LOGS_SUPPORT;
     }
 
     public static NamedDiff<Metadata.Custom> readDiffFrom(StreamInput in) throws IOException {

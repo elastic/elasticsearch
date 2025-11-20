@@ -1,10 +1,12 @@
 [[synthetic-source]]
 ==== Synthetic `_source`
 
+NOTE: This feature requires a https://www.elastic.co/subscriptions[subscription].
+
 Though very handy to have around, the source field takes up a significant amount
 of space on disk. Instead of storing source documents on disk exactly as you
 send them, Elasticsearch can reconstruct source content on the fly upon retrieval.
-To enable this https://www.elastic.co/subscriptions[subscription] feature, use the value `synthetic` for the index setting `index.mapping.source.mode`:
+To enable this feature, use the value `synthetic` for the index setting `index.mapping.source.mode`:
 
 [source,console,id=enable-synthetic-source-example]
 ----

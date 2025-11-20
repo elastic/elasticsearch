@@ -9,7 +9,7 @@
 
 package org.elasticsearch.cluster.metadata;
 
-import org.elasticsearch.TransportVersions;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.test.AbstractXContentSerializingTestCase;
 import org.elasticsearch.xcontent.XContentParser;
@@ -57,20 +57,22 @@ public class DataStreamOptionsTests extends AbstractXContentSerializingTestCase<
     }
 
     public void testBackwardCompatibility() throws IOException {
-        DataStreamOptions result = copyInstance(DataStreamOptions.EMPTY, TransportVersions.SEARCH_INCREMENTAL_TOP_DOCS_NULL_BACKPORT_8_19);
+        TransportVersion searchIncrementalTopDocsNull = TransportVersion.fromName("search_incremental_top_docs_null");
+
+        DataStreamOptions result = copyInstance(DataStreamOptions.EMPTY, searchIncrementalTopDocsNull);
         assertThat(result, equalTo(DataStreamOptions.EMPTY));
 
         DataStreamOptions withEnabled = new DataStreamOptions(
             new DataStreamFailureStore(randomBoolean(), DataStreamLifecycleTests.randomFailuresLifecycle())
         );
-        result = copyInstance(withEnabled, TransportVersions.SEARCH_INCREMENTAL_TOP_DOCS_NULL_BACKPORT_8_19);
+        result = copyInstance(withEnabled, searchIncrementalTopDocsNull);
         assertThat(result.failureStore().enabled(), equalTo(withEnabled.failureStore().enabled()));
         assertThat(result.failureStore().lifecycle(), nullValue());
 
         DataStreamOptions withoutEnabled = new DataStreamOptions(
             new DataStreamFailureStore(null, DataStreamLifecycleTests.randomFailuresLifecycle())
         );
-        result = copyInstance(withoutEnabled, TransportVersions.SEARCH_INCREMENTAL_TOP_DOCS_NULL_BACKPORT_8_19);
+        result = copyInstance(withoutEnabled, searchIncrementalTopDocsNull);
         assertThat(result, equalTo(DataStreamOptions.EMPTY));
     }
 }

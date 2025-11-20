@@ -9,7 +9,7 @@ package org.elasticsearch.compute.data;
 
 import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.RamUsageEstimator;
-import org.elasticsearch.TransportVersions;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -40,6 +40,9 @@ import java.io.IOException;
  * the same block at the same time.
  */
 public interface Block extends Accountable, BlockLoader.Block, Writeable, RefCounted, Releasable {
+
+    TransportVersion ESQL_AGGREGATE_METRIC_DOUBLE_BLOCK = TransportVersion.fromName("esql_aggregate_metric_double_block");
+
     /**
      * The maximum number of values that can be added to one position via lookup.
      * TODO maybe make this everywhere?
@@ -344,7 +347,7 @@ public interface Block extends Accountable, BlockLoader.Block, Writeable, RefCou
      * This should be paired with {@link #readTypedBlock(BlockStreamInput)}
      */
     static void writeTypedBlock(Block block, StreamOutput out) throws IOException {
-        if (out.getTransportVersion().before(TransportVersions.ESQL_AGGREGATE_METRIC_DOUBLE_BLOCK_8_19)
+        if (supportsAggregateMetricDoubleBlock(out.getTransportVersion()) == false
             && block instanceof AggregateMetricDoubleArrayBlock aggregateMetricDoubleBlock) {
             block = aggregateMetricDoubleBlock.asCompositeBlock();
         }
@@ -359,11 +362,14 @@ public interface Block extends Accountable, BlockLoader.Block, Writeable, RefCou
     static Block readTypedBlock(BlockStreamInput in) throws IOException {
         ElementType elementType = ElementType.readFrom(in);
         Block block = elementType.reader.readBlock(in);
-        if (in.getTransportVersion().before(TransportVersions.ESQL_AGGREGATE_METRIC_DOUBLE_BLOCK_8_19)
-            && block instanceof CompositeBlock compositeBlock) {
+        if (supportsAggregateMetricDoubleBlock(in.getTransportVersion()) == false && block instanceof CompositeBlock compositeBlock) {
             block = AggregateMetricDoubleArrayBlock.fromCompositeBlock(compositeBlock);
         }
         return block;
+    }
+
+    static boolean supportsAggregateMetricDoubleBlock(TransportVersion version) {
+        return version.supports(ESQL_AGGREGATE_METRIC_DOUBLE_BLOCK);
     }
 
     /**

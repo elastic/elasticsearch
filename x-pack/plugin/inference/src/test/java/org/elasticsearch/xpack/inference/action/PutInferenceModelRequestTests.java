@@ -17,6 +17,11 @@ import org.elasticsearch.xpack.core.inference.action.PutInferenceModelAction;
 import org.elasticsearch.xpack.core.ml.AbstractBWCWireSerializationTestCase;
 
 public class PutInferenceModelRequestTests extends AbstractBWCWireSerializationTestCase<PutInferenceModelAction.Request> {
+
+    private static final TransportVersion INFERENCE_ADD_TIMEOUT_PUT_ENDPOINT = TransportVersion.fromName(
+        "inference_add_timeout_put_endpoint"
+    );
+
     @Override
     protected Writeable.Reader<PutInferenceModelAction.Request> instanceReader() {
         return PutInferenceModelAction.Request::new;
@@ -40,7 +45,7 @@ public class PutInferenceModelRequestTests extends AbstractBWCWireSerializationT
 
     @Override
     protected PutInferenceModelAction.Request mutateInstanceForVersion(PutInferenceModelAction.Request instance, TransportVersion version) {
-        if (version.onOrAfter(TransportVersions.INFERENCE_ADD_TIMEOUT_PUT_ENDPOINT_8_19)) {
+        if (version.supports(INFERENCE_ADD_TIMEOUT_PUT_ENDPOINT)) {
             return instance;
         } else if (version.onOrAfter(TransportVersions.V_8_0_0)) {
             return new PutInferenceModelAction.Request(

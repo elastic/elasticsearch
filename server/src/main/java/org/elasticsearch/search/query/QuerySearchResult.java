@@ -11,6 +11,7 @@ package org.elasticsearch.search.query;
 
 import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.TotalHits;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.DelayableWriteable;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -43,6 +44,9 @@ import static org.elasticsearch.common.lucene.Lucene.readTopDocs;
 import static org.elasticsearch.common.lucene.Lucene.writeTopDocs;
 
 public final class QuerySearchResult extends SearchPhaseResult {
+
+    private static final TransportVersion BATCHED_QUERY_PHASE_VERSION = TransportVersion.fromName("batched_query_phase_version");
+
     private int from;
     private int size;
     private TopDocsAndMaxScore topDocsAndMaxScore;
@@ -93,7 +97,7 @@ public final class QuerySearchResult extends SearchPhaseResult {
         super(in);
         isNull = in.readBoolean();
         if (isNull == false) {
-            ShardSearchContextId id = in.getTransportVersion().onOrAfter(TransportVersions.BATCHED_QUERY_PHASE_VERSION_BACKPORT_8_X)
+            ShardSearchContextId id = versionSupportsBatchedExecution(in.getTransportVersion())
                 ? in.readOptionalWriteable(ShardSearchContextId::new)
                 : new ShardSearchContextId(in);
             readFromWithId(id, in, delayedAggregations);
@@ -411,7 +415,7 @@ public final class QuerySearchResult extends SearchPhaseResult {
                 sortValueFormats[i] = in.readNamedWriteable(DocValueFormat.class);
             }
         }
-        if (in.getTransportVersion().onOrAfter(TransportVersions.BATCHED_QUERY_PHASE_VERSION_BACKPORT_8_X)) {
+        if (versionSupportsBatchedExecution(in.getTransportVersion())) {
             if (in.readBoolean()) {
                 setTopDocs(readTopDocs(in));
             }
@@ -441,7 +445,7 @@ public final class QuerySearchResult extends SearchPhaseResult {
             setRescoreDocIds(new RescoreDocIds(in));
             if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_8_0)) {
                 rankShardResult = in.readOptionalNamedWriteable(RankShardResult.class);
-                if (in.getTransportVersion().onOrAfter(TransportVersions.BATCHED_QUERY_PHASE_VERSION_BACKPORT_8_X)) {
+                if (versionSupportsBatchedExecution(in.getTransportVersion())) {
                     reduced = in.readBoolean();
                 }
             }
@@ -462,7 +466,7 @@ public final class QuerySearchResult extends SearchPhaseResult {
         }
         out.writeBoolean(isNull);
         if (isNull == false) {
-            if (out.getTransportVersion().onOrAfter(TransportVersions.BATCHED_QUERY_PHASE_VERSION_BACKPORT_8_X)) {
+            if (versionSupportsBatchedExecution(out.getTransportVersion())) {
                 out.writeOptionalWriteable(contextId);
             } else {
                 contextId.writeTo(out);
@@ -482,12 +486,11 @@ public final class QuerySearchResult extends SearchPhaseResult {
                 out.writeNamedWriteable(sortValueFormats[i]);
             }
         }
-        if (out.getTransportVersion().onOrAfter(TransportVersions.BATCHED_QUERY_PHASE_VERSION_BACKPORT_8_X)) {
+        if (versionSupportsBatchedExecution(out.getTransportVersion())) {
             if (topDocsAndMaxScore != null) {
                 out.writeBoolean(true);
                 writeTopDocs(out, topDocsAndMaxScore);
             } else {
-                assert isPartiallyReduced();
                 out.writeBoolean(false);
             }
         } else {
@@ -512,7 +515,7 @@ public final class QuerySearchResult extends SearchPhaseResult {
         } else if (rankShardResult != null) {
             throw new IllegalArgumentException("cannot serialize [rank] to version [" + out.getTransportVersion().toReleaseVersion() + "]");
         }
-        if (out.getTransportVersion().onOrAfter(TransportVersions.BATCHED_QUERY_PHASE_VERSION_BACKPORT_8_X)) {
+        if (versionSupportsBatchedExecution(out.getTransportVersion())) {
             out.writeBoolean(reduced);
         }
     }
@@ -561,5 +564,9 @@ public final class QuerySearchResult extends SearchPhaseResult {
             return refCounted.hasReferences();
         }
         return super.hasReferences();
+    }
+
+    private static boolean versionSupportsBatchedExecution(TransportVersion transportVersion) {
+        return transportVersion.supports(BATCHED_QUERY_PHASE_VERSION);
     }
 }

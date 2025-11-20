@@ -1072,7 +1072,6 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
         final ActionFuture<AcknowledgedResponse> deleteResponse = startDeleteSnapshot(repoName, snapshotName);
 
         awaitClusterState(
-            logger,
             otherDataNode,
             state -> SnapshotsInProgress.get(state)
                 .forRepo(repoName)

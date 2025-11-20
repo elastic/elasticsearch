@@ -8,7 +8,7 @@
 package org.elasticsearch.compute.data;
 
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.TransportVersions;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 
@@ -65,6 +65,8 @@ public enum ElementType {
         BlockFactory::newAggregateMetricDoubleBlockBuilder,
         AggregateMetricDoubleArrayBlock::readFrom
     );
+
+    private static final TransportVersion ESQL_SERIALIZE_BLOCK_TYPE_CODE = TransportVersion.fromName("esql_serialize_block_type_code");
 
     private interface BuilderSupplier {
         Block.Builder newBlockBuilder(BlockFactory blockFactory, int estimatedSize);
@@ -137,7 +139,7 @@ public enum ElementType {
      * Read element type from an input stream
      */
     static ElementType readFrom(StreamInput in) throws IOException {
-        if (in.getTransportVersion().onOrAfter(TransportVersions.ESQL_SERIALIZE_BLOCK_TYPE_CODE)) {
+        if (in.getTransportVersion().supports(ESQL_SERIALIZE_BLOCK_TYPE_CODE)) {
             byte b = in.readByte();
             return values()[b];
         } else {
@@ -151,7 +153,7 @@ public enum ElementType {
     }
 
     void writeTo(StreamOutput out) throws IOException {
-        if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_SERIALIZE_BLOCK_TYPE_CODE)) {
+        if (out.getTransportVersion().supports(ESQL_SERIALIZE_BLOCK_TYPE_CODE)) {
             out.writeByte(writableCode);
         } else {
             out.writeString(legacyWritableName);

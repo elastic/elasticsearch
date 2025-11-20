@@ -9,6 +9,7 @@
 
 package org.elasticsearch.cluster.metadata;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.admin.indices.rollover.MaxAgeCondition;
 import org.elasticsearch.action.admin.indices.rollover.MaxDocsCondition;
 import org.elasticsearch.action.admin.indices.rollover.MaxPrimaryShardDocsCondition;
@@ -66,6 +67,8 @@ import static org.hamcrest.Matchers.nullValue;
 
 public class IndexMetadataTests extends ESTestCase {
 
+    private static final TransportVersion ESQL_FAILURE_FROM_REMOTE = TransportVersion.fromName("esql_failure_from_remote");
+
     @Before
     public void setUp() throws Exception {
         super.setUp();
@@ -97,6 +100,7 @@ public class IndexMetadataTests extends ESTestCase {
 
         IndexMetadata metadata = IndexMetadata.builder("foo")
             .settings(indexSettings(numShard, numberOfReplicas).put("index.version.created", 1))
+            .transportVersion(TransportVersion.current())
             .creationDate(randomLong())
             .primaryTerm(0, 2)
             .setRoutingNumShards(32)
@@ -147,6 +151,7 @@ public class IndexMetadataTests extends ESTestCase {
         );
         assertEquals(metadata.hashCode(), fromXContentMeta.hashCode());
 
+        assertEquals(metadata.getTransportVersion(), fromXContentMeta.getTransportVersion());
         assertEquals(metadata.getNumberOfReplicas(), fromXContentMeta.getNumberOfReplicas());
         assertEquals(metadata.getNumberOfShards(), fromXContentMeta.getNumberOfShards());
         assertEquals(metadata.getCreationVersion(), fromXContentMeta.getCreationVersion());
@@ -173,6 +178,7 @@ public class IndexMetadataTests extends ESTestCase {
             assertEquals(metadata, deserialized);
             assertEquals(metadata.hashCode(), deserialized.hashCode());
 
+            assertEquals(metadata.getTransportVersion(), deserialized.getTransportVersion());
             assertEquals(metadata.getNumberOfReplicas(), deserialized.getNumberOfReplicas());
             assertEquals(metadata.getNumberOfShards(), deserialized.getNumberOfShards());
             assertEquals(metadata.getCreationVersion(), deserialized.getCreationVersion());
@@ -208,6 +214,7 @@ public class IndexMetadataTests extends ESTestCase {
 
         IndexMetadata metadata = IndexMetadata.builder("foo")
             .settings(indexSettings(numShard, numberOfReplicas).put("index.version.created", 1))
+            .transportVersion(TransportVersion.current())
             .creationDate(randomLong())
             .primaryTerm(0, 2)
             .setRoutingNumShards(32)
@@ -276,6 +283,7 @@ public class IndexMetadataTests extends ESTestCase {
             fromXContentMeta
         );
         assertEquals(metadata.hashCode(), fromXContentMeta.hashCode());
+        assertEquals(metadata.getTransportVersion(), fromXContentMeta.getTransportVersion());
         assertEquals(metadata.getNumberOfReplicas(), fromXContentMeta.getNumberOfReplicas());
         assertEquals(metadata.getNumberOfShards(), fromXContentMeta.getNumberOfShards());
         assertEquals(metadata.getCreationVersion(), fromXContentMeta.getCreationVersion());

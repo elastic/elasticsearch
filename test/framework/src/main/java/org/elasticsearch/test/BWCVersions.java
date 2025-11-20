@@ -10,7 +10,6 @@
 package org.elasticsearch.test;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 
 import java.util.Collections;
 import java.util.List;
@@ -21,7 +20,7 @@ public final class BWCVersions {
     private BWCVersions() {}
 
     public static List<TransportVersion> getAllBWCVersions() {
-        int minCompatVersion = Collections.binarySearch(ALL_VERSIONS, TransportVersions.MINIMUM_COMPATIBLE);
+        int minCompatVersion = Collections.binarySearch(ALL_VERSIONS, TransportVersion.minimumCompatible());
         return ALL_VERSIONS.subList(minCompatVersion, ALL_VERSIONS.size());
     }
 

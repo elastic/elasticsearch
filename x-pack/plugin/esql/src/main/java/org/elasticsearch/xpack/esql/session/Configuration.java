@@ -39,6 +39,8 @@ public class Configuration implements Writeable {
 
     private static final TransportVersion ESQL_SUPPORT_PARTIAL_RESULTS = TransportVersion.fromName("esql_support_partial_results");
 
+    private static final TransportVersion ESQL_QUERY_APPROXIMATION = TransportVersion.fromName("esql_query_approximation");
+
     private final String clusterName;
     private final String username;
     private final ZonedDateTime now;
@@ -168,8 +170,11 @@ public class Configuration implements Writeable {
 
         // not needed on the data nodes for now
         this.projectRouting = null;
-        // TODO: TransportVersion
-        this.throwOnNonEsStatsQuery = in.readBoolean();
+        if (in.getTransportVersion().supports(ESQL_QUERY_APPROXIMATION)) {
+            this.throwOnNonEsStatsQuery = in.readBoolean();
+        } else {
+            this.throwOnNonEsStatsQuery = false;
+        }
     }
 
     @Override
@@ -195,8 +200,9 @@ public class Configuration implements Writeable {
             out.writeVInt(resultTruncationMaxSizeTimeseries);
             out.writeVInt(resultTruncationDefaultSizeTimeseries);
         }
-        // TODO: TransportVersion
-        out.writeBoolean(throwOnNonEsStatsQuery);
+        if (out.getTransportVersion().supports(ESQL_QUERY_APPROXIMATION)) {
+            out.writeBoolean(throwOnNonEsStatsQuery);
+        }
     }
 
     public ZoneId zoneId() {

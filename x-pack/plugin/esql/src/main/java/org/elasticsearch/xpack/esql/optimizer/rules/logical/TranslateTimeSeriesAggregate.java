@@ -13,6 +13,7 @@ import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
+import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
@@ -38,10 +39,12 @@ import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
 
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 
 /**
  * Time-series aggregation is special because it must be computed per time series, regardless of the grouping keys.
@@ -218,7 +221,7 @@ public final class TranslateTimeSeriesAggregate extends OptimizerRules.Parameter
                 } else {
                     // TODO: reject over_time_aggregation only
                     final Expression aggField = af.field();
-                    var tsAgg = new LastOverTime(af.source(), aggField, timestamp.get());
+                    var tsAgg = new LastOverTime(af.source(), aggField, af.window(), timestamp.get());
                     final AggregateFunction firstStageFn;
                     if (inlineFilter != null) {
                         firstStageFn = tsAgg.perTimeSeriesAggregation().withFilter(inlineFilter);
@@ -326,12 +329,13 @@ public final class TranslateTimeSeriesAggregate extends OptimizerRules.Parameter
             }
         });
         final var firstPhase = new TimeSeriesAggregate(
-            newChild.source(),
+            aggregate.source(),
             newChild,
             firstPassGroupings,
             mergeExpressions(firstPassAggs, firstPassGroupings),
             (Bucket) Alias.unwrap(timeBucket)
         );
+        checkWindow(firstPhase);
         if (packDimensions.isEmpty()) {
             return new Aggregate(
                 firstPhase.source(),
@@ -390,5 +394,51 @@ public final class TranslateTimeSeriesAggregate extends OptimizerRules.Parameter
             int id = next.merge(prefix, 1, Integer::sum);
             return prefix + "_$" + id;
         }
+    }
+
+    void checkWindow(TimeSeriesAggregate agg) {
+        boolean hasWindow = false;
+        for (NamedExpression aggregate : agg.aggregates()) {
+            if (Alias.unwrap(aggregate) instanceof AggregateFunction af && af.hasWindow()) {
+                hasWindow = true;
+                break;
+            }
+        }
+        if (hasWindow == false) {
+            return;
+        }
+        final long bucketInMillis = getTimeBucketInMillis(agg);
+        if (bucketInMillis <= 0) {
+            throw new EsqlIllegalArgumentException(
+                "Using a window in aggregation [{}] requires a time bucket in groupings",
+                agg.sourceText()
+            );
+        }
+        for (NamedExpression aggregate : agg.aggregates()) {
+            if (Alias.unwrap(aggregate) instanceof AggregateFunction af && af.hasWindow()) {
+                Expression window = af.window();
+                if (window.foldable() && window.fold(FoldContext.small()) instanceof Duration d) {
+                    final long windowInMills = d.toMillis();
+                    if (windowInMills >= bucketInMillis && windowInMills % bucketInMillis == 0) {
+                        continue;
+                    }
+                }
+                throw new EsqlIllegalArgumentException(
+                    "Unsupported window [{}] for aggregate function [{}]; "
+                        + "the window must be larger than the time bucket [{}] and an exact multiple of it",
+                    window.sourceText(),
+                    af.sourceText(),
+                    Objects.requireNonNull(agg.timeBucket()).sourceText()
+                );
+            }
+        }
+    }
+
+    private long getTimeBucketInMillis(TimeSeriesAggregate agg) {
+        final Bucket bucket = agg.timeBucket();
+        if (bucket != null && bucket.buckets().foldable() && bucket.buckets().fold(FoldContext.small()) instanceof Duration d) {
+            return d.toMillis();
+        }
+        return -1L;
     }
 }

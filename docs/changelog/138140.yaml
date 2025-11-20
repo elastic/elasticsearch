@@ -1,5 +1,5 @@
 pr: 138140
-summary: "Fix(semantic highlighter): handle vector similarity queries"
+summary: "Fix semantic highlighting when using a `knn` query with minimum `similarity` and when using `bbq_disk`"
 area: Relevance
 type: bug
 issues: []

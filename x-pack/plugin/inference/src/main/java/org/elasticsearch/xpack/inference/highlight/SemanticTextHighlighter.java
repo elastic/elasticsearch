@@ -290,7 +290,6 @@ public class SemanticTextHighlighter implements Highlighter {
             @Override
             public void visitLeaf(Query query) {
                 visitLeaf(query, null);
-
             }
         });
         return queries;

@@ -464,7 +464,7 @@ public final class KeywordFieldMapper extends FieldMapper {
 
         private boolean shouldUseHostnameSkipper(final String fullFieldName) {
             return hasDocValues.get()
-                && indexSettings.useDocValuesSkipper()
+                && IndexSettings.USE_DOC_VALUES_SKIPPER.get(indexSettings.getSettings())
                 && indexSettings.getIndexVersionCreated().onOrAfter(IndexVersions.SKIPPERS_ENABLED_BY_DEFAULT)
                 && IndexMode.LOGSDB.equals(indexSettings.getMode())
                 && HOST_NAME.equals(fullFieldName)

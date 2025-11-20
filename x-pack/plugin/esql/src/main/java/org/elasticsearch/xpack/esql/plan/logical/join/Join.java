@@ -330,38 +330,10 @@ public class Join extends BinaryPlan implements PostAnalysisVerificationAware, S
                     )
                 );
             }
-            // When joinOnConditions is present, we only verify the matching pairs
-            int minSize = Math.min(config.leftFields().size(), config.rightFields().size());
-            for (int i = 0; i < minSize; i++) {
-                Attribute leftField = config.leftFields().get(i);
-                Attribute rightField = config.rightFields().get(i);
-                if (comparableTypes(leftField, rightField) == false) {
-                    failures.add(
-                        fail(
-                            leftField,
-                            "JOIN left field [{}] of type [{}] is incompatible with right field [{}] of type [{}]",
-                            leftField.name(),
-                            leftField.dataType(),
-                            rightField.name(),
-                            rightField.dataType()
-                        )
-                    );
-                }
-                // TODO: Add support for VERSION by implementing QueryList.versionTermQueryList similar to ipTermQueryList
-                if (Arrays.stream(UNSUPPORTED_TYPES).anyMatch(t -> rightField.dataType().equals(t))) {
-                    failures.add(
-                        fail(
-                            leftField,
-                            "JOIN with right field [{}] of type [{}] is not supported",
-                            rightField.name(),
-                            rightField.dataType()
-                        )
-                    );
-                }
-            }
             return;
         }
-        for (int i = 0; i < config.leftFields().size(); i++) {
+        int minSize = Math.min(config.leftFields().size(), config.rightFields().size());
+        for (int i = 0; i < minSize; i++) {
             Attribute leftField = config.leftFields().get(i);
             Attribute rightField = config.rightFields().get(i);
             if (comparableTypes(leftField, rightField) == false) {

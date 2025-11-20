@@ -59,12 +59,12 @@ public class IngestLoadProbe implements IndexEventListener {
     );
 
     /**
-     * The amount that we'll allow the queue contribution to be relative to the size of the current node. Default value of 3
-     * means 3*thread count, i.e., a max scale up of 4x.
+     * The amount that we'll allow the queue contribution to be relative to the size of the current node. Default value of 7
+     * means 7*thread count, i.e., a max scale up of 8x.
      */
     public static final Setting<Float> MAX_QUEUE_CONTRIBUTION_FACTOR = Setting.floatSetting(
         "serverless.autoscaling.indexing.sampler.max_queue_contribution_factor",
-        3,
+        7,
         Setting.Property.NodeScope,
         Setting.Property.OperatorDynamic
     );

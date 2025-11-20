@@ -307,6 +307,8 @@ class KnnSearcher {
         finalResults.averageVisited = (double) totalVisited / numQueryVectors;
         finalResults.netCpuTimeMS = (double) totalCpuTimeMS / numQueryVectors;
         finalResults.avgCpuCount = (double) totalCpuTimeMS / elapsed;
+        finalResults.filterCached = this.filterCached;
+        finalResults.overSamplingFactor = this.overSamplingFactor;
     }
 
     private static Query generateRandomQuery(Random random, Path indexPath, int size, float selectivity, boolean filterCached)

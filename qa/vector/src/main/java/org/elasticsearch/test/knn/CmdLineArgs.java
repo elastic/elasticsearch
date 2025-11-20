@@ -40,7 +40,7 @@ record CmdLineArgs(
     int k,
     double[] visitPercentages,
     int ivfClusterSize,
-    int overSamplingFactor,
+    float overSamplingFactor,
     int hnswM,
     int hnswEfConstruction,
     int searchThreads,
@@ -120,7 +120,7 @@ record CmdLineArgs(
         // PARSER.declareIntArray(Builder::setNProbe, N_PROBE_FIELD);
         PARSER.declareDoubleArray(Builder::setVisitPercentages, VISIT_PERCENTAGE_FIELD);
         PARSER.declareInt(Builder::setIvfClusterSize, IVF_CLUSTER_SIZE_FIELD);
-        PARSER.declareInt(Builder::setOverSamplingFactor, OVER_SAMPLING_FACTOR_FIELD);
+        PARSER.declareFloat(Builder::setOverSamplingFactor, OVER_SAMPLING_FACTOR_FIELD);
         PARSER.declareInt(Builder::setHnswM, HNSW_M_FIELD);
         PARSER.declareInt(Builder::setHnswEfConstruction, HNSW_EF_CONSTRUCTION_FIELD);
         PARSER.declareInt(Builder::setSearchThreads, SEARCH_THREADS_FIELD);
@@ -202,7 +202,7 @@ record CmdLineArgs(
         private int k = 10;
         private double[] visitPercentages = new double[] { 1.0 };
         private int ivfClusterSize = 1000;
-        private int overSamplingFactor = 1;
+        private float overSamplingFactor = 0;
         private int hnswM = 16;
         private int hnswEfConstruction = 200;
         private int searchThreads = 1;
@@ -278,7 +278,7 @@ record CmdLineArgs(
             return this;
         }
 
-        public Builder setOverSamplingFactor(int overSamplingFactor) {
+        public Builder setOverSamplingFactor(float overSamplingFactor) {
             this.overSamplingFactor = overSamplingFactor;
             return this;
         }

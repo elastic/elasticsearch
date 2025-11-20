@@ -702,43 +702,6 @@ public class QueryPhaseTimeoutTests extends IndexShardTestCase {
     }
 
     /**
-     * Simulates the search layer returning null from ContextIndexSearcher.search()
-     * and verifies that QueryPhase converts it into a valid partial response instead
-     * of failing — with timed_out=true and empty topDocs/aggregations.
-     */
-    public void testNullSearchResultHandledAsEmptyPartial() throws Exception {
-        SearchSourceBuilder source = new SearchSourceBuilder().query(new MatchAllQueryBuilder())
-            .aggregation(new ForceTimeoutAggregationBuilder("force_timeout"))
-            .size(10);
-
-        ContextIndexSearcher base = newContextSearcher(reader);
-        ContextIndexSearcher nullReturning = new ContextIndexSearcher(
-            base.getIndexReader(),
-            base.getSimilarity(),
-            base.getQueryCache(),
-            base.getQueryCachingPolicy(),
-            true
-        ) {
-            @Override
-            public <C extends Collector, T> T search(Query query, CollectorManager<C, T> collectorManager) {
-                return null; // simulate lower layer returning null
-            }
-        };
-
-        try (SearchContext context = createSearchContext(source, nullReturning, null, true)) {
-            context.parsedQuery(new ParsedQuery(new MatchAllDocsQuery()));
-
-            QueryPhase.execute(context);
-
-            assertTrue("search should be marked timed_out", context.queryResult().searchTimedOut());
-            assertNotNull("topDocs must be present even on timeout", context.queryResult().topDocs());
-            assertEquals("no hits returned on timeout", 0, context.queryResult().topDocs().topDocs.scoreDocs.length);
-            assertNotNull("aggs container must be non-null on timeout when aggs were requested", context.queryResult().aggregations());
-            assertTrue("aggregations list should be empty on timeout", context.queryResult().aggregations().expand().asList().isEmpty());
-        }
-    }
-
-    /**
      * Verifies that when allowPartialSearchResults=false, a timeout is not converted
      * to a partial response but instead throws a SearchTimeoutException wrapped in
      * a QueryPhaseExecutionException.

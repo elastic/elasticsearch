@@ -64,9 +64,9 @@ public class ToBase64 extends UnaryScalarFunction {
         if (childrenResolved() == false) {
             return new TypeResolution("Unresolved children");
         }
-        return isString(field, sourceText(), TypeResolutions.ParamOrdinal.DEFAULT).or(
-            TypeResolutions.isType(field, dt -> dt == TSID_DATA_TYPE, sourceText(), TypeResolutions.ParamOrdinal.DEFAULT, "_tsid")
-        );
+
+        return TypeResolutions.isType(field, dt -> dt == TSID_DATA_TYPE, sourceText(), TypeResolutions.ParamOrdinal.DEFAULT, "_tsid")
+            .or(isString(field, sourceText(), TypeResolutions.ParamOrdinal.DEFAULT));
     }
 
     @Override

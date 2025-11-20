@@ -376,12 +376,6 @@ public class Approximate {
         // them come from Lucene's metadata and are computed fast. Approximation would
         // only slow things down in that case. When the query is not an ES stats query,
         // an exception is thrown and approximation is attempted.
-
-        // TODO: the final listener should do something with the Result's ExecutionInfo.
-        // Right now it contains the error "UnsupportedOperationException" when it's no
-        // ES stats query, which is bad. Furthermore, it contains the runtime of the
-        // last executed query, while it probably should contain the total runtime
-        // aggregated over the multiple queries executed here.
         runner.run(
             toPhysicalPlan.apply(logicalPlan),
             configuration.throwOnNonEsStatsQuery(true),
@@ -457,17 +451,20 @@ public class Approximate {
             logger.debug("sourceCountPlan result: {} rows", sourceRowCount);
             if (sourceRowCount == 0) {
                 // If there are no rows, run the original query.
+                resetExecutionInfo(countResult);
                 runner.run(toPhysicalPlan.apply(logicalPlan), configuration, foldContext, listener);
                 return;
             }
             double sampleProbability = Math.min(1.0, (double) SAMPLE_ROW_COUNT / sourceRowCount);
             if (queryProperties.canIncreaseRowCount == false && queryProperties.canDecreaseRowCount == false) {
                 // If the query preserves all rows, we can directly approximate with the sample probability.
+                resetExecutionInfo(countResult);
                 runner.run(toPhysicalPlan.apply(approximatePlan(sampleProbability)), configuration, foldContext, listener);
             } else if (queryProperties.canIncreaseRowCount == false && sampleProbability > SAMPLE_PROBABILITY_THRESHOLD) {
                 // If the query cannot increase the number of rows, and the sample probability is large,
                 // we can directly run the original query without sampling.
                 logger.debug("using original plan (too few rows)");
+                resetExecutionInfo(countResult);
                 runner.run(toPhysicalPlan.apply(logicalPlan), configuration, foldContext, listener);
             } else {
                 // Otherwise, we need to sample the number of rows first to obtain a good sample probability.
@@ -480,6 +477,12 @@ public class Approximate {
                 );
             }
         });
+    }
+
+    private void resetExecutionInfo(Result result) {
+        if (result.executionInfo() != null) {
+            result.executionInfo().reset();
+        }
     }
 
     /**
@@ -534,6 +537,7 @@ public class Approximate {
             if (newSampleProbability > SAMPLE_PROBABILITY_THRESHOLD) {
                 // If the new sample probability is large, run the original query.
                 logger.debug("using original plan (too few rows)");
+                resetExecutionInfo(countResult);
                 runner.run(toPhysicalPlan.apply(logicalPlan), configuration, foldContext, listener);
             } else if (rowCount <= SAMPLE_ROW_COUNT_FOR_COUNT_ESTIMATION / 2) {
                 // Not enough rows are sampled yet; increase the sample probability and try again.
@@ -545,6 +549,7 @@ public class Approximate {
                     countListener(newSampleProbability, listener)
                 );
             } else {
+                resetExecutionInfo(countResult);
                 runner.run(toPhysicalPlan.apply(approximatePlan(newSampleProbability)), configuration, foldContext, listener);
             }
         });

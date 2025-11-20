@@ -94,12 +94,7 @@ public class GroqServiceTests extends ESTestCase {
             taskSettings.put("model", "task-defined-model");
 
             PlainActionFuture<Model> future = new PlainActionFuture<>();
-            service.parseRequestConfig(
-                "groq-test",
-                TaskType.CHAT_COMPLETION,
-                wrapRequestConfig(serviceSettings, taskSettings),
-                future
-            );
+            service.parseRequestConfig("groq-test", TaskType.CHAT_COMPLETION, wrapRequestConfig(serviceSettings, taskSettings), future);
 
             GroqChatCompletionModel model = (GroqChatCompletionModel) future.actionGet();
             assertThat(model.getServiceSettings().modelId(), equalTo("task-defined-model"));
@@ -112,12 +107,7 @@ public class GroqServiceTests extends ESTestCase {
             serviceSettings.put(DefaultSecretSettings.API_KEY, "secret-key");
             PlainActionFuture<Model> future = new PlainActionFuture<>();
 
-            service.parseRequestConfig(
-                "groq-test",
-                TaskType.CHAT_COMPLETION,
-                wrapRequestConfig(serviceSettings, Map.of()),
-                future
-            );
+            service.parseRequestConfig("groq-test", TaskType.CHAT_COMPLETION, wrapRequestConfig(serviceSettings, Map.of()), future);
 
             expectThrows(ValidationException.class, future::actionGet);
         }
@@ -143,10 +133,7 @@ public class GroqServiceTests extends ESTestCase {
             config.put(ModelConfigurations.SERVICE_SETTINGS, new HashMap<>(Map.of(ServiceFields.MODEL_ID, "persisted-model")));
 
             Map<String, Object> secrets = new HashMap<>();
-            secrets.put(
-                ModelSecrets.SECRET_SETTINGS,
-                new HashMap<>(Map.of(DefaultSecretSettings.API_KEY, "persisted-secret"))
-            );
+            secrets.put(ModelSecrets.SECRET_SETTINGS, new HashMap<>(Map.of(DefaultSecretSettings.API_KEY, "persisted-secret")));
 
             GroqChatCompletionModel model = service.parsePersistedConfigWithSecrets("groq-test", TaskType.CHAT_COMPLETION, config, secrets);
             assertTrue(model.getSecretSettings().apiKey().equals("persisted-secret"));
@@ -207,4 +194,3 @@ public class GroqServiceTests extends ESTestCase {
         return new Model(configurations);
     }
 }
-

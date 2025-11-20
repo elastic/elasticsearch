@@ -11,7 +11,6 @@ import org.apache.http.client.utils.URIBuilder;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
-import org.elasticsearch.inference.TaskSettings;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.inference.UnifiedCompletionRequest;
 import org.elasticsearch.xpack.inference.external.action.ExecutableAction;
@@ -133,5 +132,3 @@ public class GroqChatCompletionModel extends GroqModel {
         return creator.create(this, taskSettings);
     }
 }
-
-

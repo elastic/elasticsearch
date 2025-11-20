@@ -60,5 +60,3 @@ public class GroqChatCompletionTaskSettings extends OpenAiTaskSettings<GroqChatC
         return new GroqChatCompletionTaskSettings(user, headers);
     }
 }
-
-

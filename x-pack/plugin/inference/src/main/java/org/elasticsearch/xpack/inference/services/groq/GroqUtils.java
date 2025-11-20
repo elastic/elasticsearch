@@ -26,5 +26,3 @@ public final class GroqUtils {
 
     private GroqUtils() {}
 }
-
-

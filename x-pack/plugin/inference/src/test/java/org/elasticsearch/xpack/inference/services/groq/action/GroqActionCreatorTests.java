@@ -25,7 +25,6 @@ import org.elasticsearch.xpack.inference.Utils;
 import org.elasticsearch.xpack.inference.external.action.ExecutableAction;
 import org.elasticsearch.xpack.inference.external.http.HttpClientManager;
 import org.elasticsearch.xpack.inference.external.http.sender.ChatCompletionInput;
-import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSender;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSenderTests;
 import org.elasticsearch.xpack.inference.external.http.sender.Sender;
 import org.elasticsearch.xpack.inference.logging.ThrottlerManager;
@@ -173,10 +172,6 @@ public class GroqActionCreatorTests extends ESTestCase {
         assertThat(payload.get("n"), is(1));
         assertThat(payload.get("stream"), is(false));
         assertNull(payload.get("stream_options"));
-        assertThat(
-            payload.get("messages"),
-            is(List.of(Map.of("role", "user", "content", "hello")))
-        );
+        assertThat(payload.get("messages"), is(List.of(Map.of("role", "user", "content", "hello"))));
     }
 }
-

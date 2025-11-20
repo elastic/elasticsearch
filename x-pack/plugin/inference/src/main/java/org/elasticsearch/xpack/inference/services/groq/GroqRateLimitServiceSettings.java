@@ -13,5 +13,3 @@ import org.elasticsearch.xpack.inference.services.openai.OpenAiRateLimitServiceS
  * The service setting fields for Groq to determine how to rate limit requests.
  */
 public interface GroqRateLimitServiceSettings extends OpenAiRateLimitServiceSettings {}
-
-

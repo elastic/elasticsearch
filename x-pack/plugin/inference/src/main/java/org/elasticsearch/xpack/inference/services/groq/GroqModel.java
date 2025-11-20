@@ -52,5 +52,3 @@ public abstract class GroqModel extends OpenAiModel {
 
     public abstract ExecutableAction accept(GroqActionVisitor creator, Map<String, Object> taskSettings);
 }
-
-

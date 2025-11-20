@@ -15,5 +15,3 @@ import java.util.Map;
 public interface GroqActionVisitor {
     ExecutableAction create(GroqChatCompletionModel model, Map<String, Object> taskSettings);
 }
-
-

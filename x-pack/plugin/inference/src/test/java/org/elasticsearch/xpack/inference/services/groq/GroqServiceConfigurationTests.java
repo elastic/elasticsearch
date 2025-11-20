@@ -27,5 +27,3 @@ public class GroqServiceConfigurationTests extends ESTestCase {
         assertThat(configuration.getConfigurations().keySet(), hasItems("model_id", "url", "api_key"));
     }
 }
-
-

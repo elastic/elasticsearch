@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.inference.services.groq.completion;
 
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
-import org.elasticsearch.core.Tuple;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.inference.services.openai.OpenAiServiceFields;
 
@@ -51,5 +50,3 @@ public class GroqChatCompletionTaskSettingsTests extends ESTestCase {
         assertThat(updated.headers(), equalTo(Map.of("X-Test", "value")));
     }
 }
-
-

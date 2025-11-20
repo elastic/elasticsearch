@@ -17,8 +17,8 @@ import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ServiceSettings;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
-import org.elasticsearch.xpack.inference.services.ServiceUtils;
 import org.elasticsearch.xpack.inference.services.ServiceFields;
+import org.elasticsearch.xpack.inference.services.ServiceUtils;
 import org.elasticsearch.xpack.inference.services.groq.GroqRateLimitServiceSettings;
 import org.elasticsearch.xpack.inference.services.groq.GroqService;
 import org.elasticsearch.xpack.inference.services.openai.OpenAiServiceFields;
@@ -40,14 +40,20 @@ public class GroqChatCompletionServiceSettings extends FilteredXContentObject im
 
     public static final String NAME = "groq_completion_service_settings";
 
-    // The rate limit for dev tier depends on the model used. For example, the rate limit for the `openai/gpt-oss-20b` model is 1,000 requests per minute.
+    // The rate limit for dev tier depends on the model used. For example, the rate limit for the `openai/gpt-oss-20b` model is 1,000
+    // requests per minute.
     // To find this information you need to access your account's limits https://console.groq.com/docs/rate-limits.
     private static final RateLimitSettings DEFAULT_RATE_LIMIT_SETTINGS = new RateLimitSettings(1_000);
 
     public static GroqChatCompletionServiceSettings fromMap(Map<String, Object> map, ConfigurationParseContext context) {
         ValidationException validationException = new ValidationException();
 
-        String modelId = ServiceUtils.extractRequiredString(map, ServiceFields.MODEL_ID, ModelConfigurations.SERVICE_SETTINGS, validationException);
+        String modelId = ServiceUtils.extractRequiredString(
+            map,
+            ServiceFields.MODEL_ID,
+            ModelConfigurations.SERVICE_SETTINGS,
+            validationException
+        );
         String organizationId = ServiceUtils.extractOptionalString(
             map,
             OpenAiServiceFields.ORGANIZATION,
@@ -181,5 +187,3 @@ public class GroqChatCompletionServiceSettings extends FilteredXContentObject im
         return Objects.hash(modelId, uri, organizationId, rateLimitSettings);
     }
 }
-
-

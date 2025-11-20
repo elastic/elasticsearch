@@ -152,5 +152,3 @@ public class GroqUnifiedChatCompletionRequestTests extends ESTestCase {
         );
     }
 }
-
-

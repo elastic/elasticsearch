@@ -69,5 +69,3 @@ public class GroqChatCompletionServiceSettingsTests extends ESTestCase {
         }
     }
 }
-
-

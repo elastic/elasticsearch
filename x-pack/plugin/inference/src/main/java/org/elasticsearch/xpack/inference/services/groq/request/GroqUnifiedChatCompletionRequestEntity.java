@@ -46,5 +46,3 @@ class GroqUnifiedChatCompletionRequestEntity implements ToXContentObject {
         return builder;
     }
 }
-
-

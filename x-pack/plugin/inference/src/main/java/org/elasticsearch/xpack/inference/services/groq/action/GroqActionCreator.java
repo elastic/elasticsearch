@@ -15,7 +15,6 @@ import org.elasticsearch.xpack.inference.external.http.sender.GenericRequestMana
 import org.elasticsearch.xpack.inference.external.http.sender.Sender;
 import org.elasticsearch.xpack.inference.external.http.sender.UnifiedChatInput;
 import org.elasticsearch.xpack.inference.services.ServiceComponents;
-import org.elasticsearch.xpack.inference.services.groq.GroqService;
 import org.elasticsearch.xpack.inference.services.groq.completion.GroqChatCompletionModel;
 import org.elasticsearch.xpack.inference.services.groq.request.GroqUnifiedChatCompletionRequest;
 import org.elasticsearch.xpack.inference.services.openai.OpenAiChatCompletionResponseHandler;
@@ -59,5 +58,3 @@ public class GroqActionCreator implements GroqActionVisitor {
         return new SingleInputSenderExecutableAction(sender, manager, errorMessage, COMPLETION_ERROR_PREFIX);
     }
 }
-
-

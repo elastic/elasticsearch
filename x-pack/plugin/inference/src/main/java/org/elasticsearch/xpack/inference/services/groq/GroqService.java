@@ -39,14 +39,12 @@ import org.elasticsearch.xpack.inference.services.SenderService;
 import org.elasticsearch.xpack.inference.services.ServiceComponents;
 import org.elasticsearch.xpack.inference.services.ServiceFields;
 import org.elasticsearch.xpack.inference.services.ServiceUtils;
+import org.elasticsearch.xpack.inference.services.groq.action.GroqActionCreator;
+import org.elasticsearch.xpack.inference.services.groq.completion.GroqChatCompletionModel;
+import org.elasticsearch.xpack.inference.services.groq.request.GroqUnifiedChatCompletionRequest;
 import org.elasticsearch.xpack.inference.services.openai.OpenAiServiceFields;
 import org.elasticsearch.xpack.inference.services.openai.OpenAiUnifiedChatCompletionResponseHandler;
 import org.elasticsearch.xpack.inference.services.openai.response.OpenAiChatCompletionResponseEntity;
-import org.elasticsearch.xpack.inference.services.groq.action.GroqActionCreator;
-import org.elasticsearch.xpack.inference.services.groq.completion.GroqChatCompletionModel;
-import org.elasticsearch.xpack.inference.services.groq.completion.GroqChatCompletionServiceSettings;
-import org.elasticsearch.xpack.inference.services.groq.completion.GroqChatCompletionTaskSettings;
-import org.elasticsearch.xpack.inference.services.groq.request.GroqUnifiedChatCompletionRequest;
 import org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettings;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 
@@ -178,15 +176,7 @@ public class GroqService extends SenderService {
             throw ServiceUtils.createInvalidTaskTypeException(inferenceEntityId, NAME, taskType, context);
         }
 
-        return new GroqChatCompletionModel(
-            inferenceEntityId,
-            taskType,
-            NAME,
-            serviceSettings,
-            taskSettings,
-            secretSettings,
-            context
-        );
+        return new GroqChatCompletionModel(inferenceEntityId, taskType, NAME, serviceSettings, taskSettings, secretSettings, context);
     }
 
     @Override
@@ -354,5 +344,3 @@ public class GroqService extends SenderService {
         );
     }
 }
-
-

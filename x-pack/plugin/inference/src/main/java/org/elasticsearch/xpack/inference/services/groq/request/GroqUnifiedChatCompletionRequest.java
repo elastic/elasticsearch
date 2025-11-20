@@ -84,5 +84,3 @@ public class GroqUnifiedChatCompletionRequest implements Request {
         return unifiedChatInput.stream();
     }
 }
-
-

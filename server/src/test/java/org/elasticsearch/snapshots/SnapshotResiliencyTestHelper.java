@@ -21,6 +21,7 @@ import org.apache.lucene.tests.util.LuceneTestCase;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.RequestValidators;
+import org.elasticsearch.action.admin.cluster.health.TransportClusterHealthAction;
 import org.elasticsearch.action.admin.cluster.repositories.cleanup.TransportCleanupRepositoryAction;
 import org.elasticsearch.action.admin.cluster.repositories.put.TransportPutRepositoryAction;
 import org.elasticsearch.action.admin.cluster.reroute.TransportClusterRerouteAction;
@@ -78,6 +79,7 @@ import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.project.DefaultProjectResolver;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.project.TestProjectResolvers;
 import org.elasticsearch.cluster.routing.BatchedRerouteService;
 import org.elasticsearch.cluster.routing.RerouteService;
@@ -401,6 +403,8 @@ public class SnapshotResiliencyTestHelper {
 
     public static class TestClusterNode {
 
+        protected final ProjectResolver projectResolver = TestProjectResolvers.DEFAULT_PROJECT_ONLY;
+
         private final DiscoveryNode node;
 
         private final Path tempDir;
@@ -435,6 +439,8 @@ public class SnapshotResiliencyTestHelper {
 
         private PeerRecoverySourceService peerRecoverySourceService;
 
+        protected ShardStateAction shardStateAction;
+
         private NodeConnectionsService nodeConnectionsService;
 
         protected RepositoriesService repositoriesService;
@@ -444,6 +450,8 @@ public class SnapshotResiliencyTestHelper {
         private SnapshotShardsService snapshotShardsService;
 
         protected IndicesService indicesService;
+
+        protected PeerRecoveryTargetService peerRecoveryTargetService;
 
         private IndicesClusterStateService indicesClusterStateService;
 
@@ -461,7 +469,9 @@ public class SnapshotResiliencyTestHelper {
 
         protected ThreadPool threadPool;
 
-        private BigArrays bigArrays;
+        protected IndexNameExpressionResolver indexNameExpressionResolver;
+
+        protected BigArrays bigArrays;
 
         private UsageService usageService;
 
@@ -491,7 +501,7 @@ public class SnapshotResiliencyTestHelper {
             return mock(PluginsService.class);
         }
 
-        protected void init() throws IOException {
+        public final void init() throws IOException {
             threadPool = deterministicTaskQueue.getThreadPool(wrapRunnable(), extraExecutorServices());
             masterService = new FakeThreadPoolMasterService(node.getName(), threadPool, deterministicTaskQueue::scheduleNow);
             client = new NodeClient(settings, threadPool, TestProjectResolvers.alwaysThrow());
@@ -581,7 +591,8 @@ public class SnapshotResiliencyTestHelper {
                 null,
                 emptySet()
             );
-            IndexNameExpressionResolver indexNameExpressionResolver = TestIndexNameExpressionResolver.newInstance();
+            // TODO: The indexNameExpressionResolver does not use the same threadContext and projectResolver
+            indexNameExpressionResolver = TestIndexNameExpressionResolver.newInstance();
             bigArrays = new BigArrays(new PageCacheRecycler(settings), null, "test");
             repositoriesService = new RepositoriesService(
                 settings,
@@ -689,13 +700,7 @@ public class SnapshotResiliencyTestHelper {
                 transportService,
                 indicesService
             );
-            final ShardStateAction shardStateAction = new ShardStateAction(
-                clusterService,
-                transportService,
-                allocationService,
-                rerouteService,
-                threadPool
-            );
+            shardStateAction = new ShardStateAction(clusterService, transportService, allocationService, rerouteService, threadPool);
             nodeConnectionsService = new NodeConnectionsService(clusterService.getSettings(), threadPool, transportService);
             final ActionFilters actionFilters = new ActionFilters(emptySet());
             Map<ActionType<?>, TransportAction<?, ?>> actions = new HashMap<>();
@@ -764,19 +769,20 @@ public class SnapshotResiliencyTestHelper {
             );
 
             final SnapshotFilesProvider snapshotFilesProvider = new SnapshotFilesProvider(repositoriesService);
+            peerRecoveryTargetService = new PeerRecoveryTargetService(
+                client,
+                threadPool,
+                transportService,
+                recoverySettings,
+                clusterService,
+                snapshotFilesProvider
+            );
             indicesClusterStateService = new IndicesClusterStateService(
                 settings,
                 indicesService,
                 clusterService,
                 threadPool,
-                new PeerRecoveryTargetService(
-                    client,
-                    threadPool,
-                    transportService,
-                    recoverySettings,
-                    clusterService,
-                    snapshotFilesProvider
-                ),
+                peerRecoveryTargetService,
                 shardStateAction,
                 repositoriesService,
                 searchService,
@@ -1096,7 +1102,20 @@ public class SnapshotResiliencyTestHelper {
                     TestProjectResolvers.DEFAULT_PROJECT_ONLY
                 )
             );
-            actions.putAll(getActions(actionFilters));
+            actions.put(
+                TransportClusterHealthAction.TYPE,
+                new TransportClusterHealthAction(
+                    transportService,
+                    clusterService,
+                    threadPool,
+                    actionFilters,
+                    indexNameExpressionResolver,
+                    allocationService,
+                    projectResolver
+                )
+            );
+
+            doInit(actions, actionFilters);
 
             client.initialize(
                 actions,
@@ -1106,6 +1125,8 @@ public class SnapshotResiliencyTestHelper {
                 transportService.getRemoteClusterService()
             );
         }
+
+        protected void doInit(Map<ActionType<?>, TransportAction<?, ?>> actions, ActionFilters actionFilters) {}
 
         public void restart() {
             testClusterNodes.disconnectNode(this);
@@ -1173,10 +1194,6 @@ public class SnapshotResiliencyTestHelper {
 
         protected Set<IndexSettingProvider> getIndexSettingProviders() {
             return Set.of();
-        }
-
-        protected Map<ActionType<?>, TransportAction<?, ?>> getActions(ActionFilters actionFilters) {
-            return Map.of();
         }
 
         protected Map<String, CachedSupplier<ExecutorService>> extraExecutorServices() {

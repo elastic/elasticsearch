@@ -14,6 +14,7 @@ import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
+import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.repositories.cleanup.CleanupRepositoryRequest;
 import org.elasticsearch.action.admin.cluster.repositories.cleanup.CleanupRepositoryResponse;
 import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteRequest;
@@ -51,6 +52,7 @@ import org.elasticsearch.cluster.SnapshotDeletionsInProgress;
 import org.elasticsearch.cluster.SnapshotsInProgress;
 import org.elasticsearch.cluster.coordination.AbstractCoordinatorTestCase;
 import org.elasticsearch.cluster.coordination.CoordinationMetadata.VotingConfiguration;
+import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -62,6 +64,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
 import org.elasticsearch.common.util.concurrent.ThrottledTaskRunner;
 import org.elasticsearch.core.CheckedConsumer;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.repositories.Repository;
@@ -111,6 +114,7 @@ import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.either;
 import static org.hamcrest.Matchers.empty;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
@@ -221,20 +225,8 @@ public class SnapshotResiliencyTests extends ESTestCase {
             createSnapshotResponse -> client().admin().indices().delete(new DeleteIndexRequest(index), deleteIndexListener)
         );
 
-        final SubscribableListener<RestoreSnapshotResponse> restoreSnapshotResponseListener = new SubscribableListener<>();
-        continueOrDie(
-            deleteIndexListener,
-            ignored -> client().admin()
-                .cluster()
-                .restoreSnapshot(
-                    new RestoreSnapshotRequest(TEST_REQUEST_TIMEOUT, repoName, snapshotName).waitForCompletion(true),
-                    restoreSnapshotResponseListener
-                )
-        );
-
         final SubscribableListener<SearchResponse> searchResponseListener = new SubscribableListener<>();
-        continueOrDie(restoreSnapshotResponseListener, restoreSnapshotResponse -> {
-            assertEquals(shards, restoreSnapshotResponse.getRestoreInfo().totalShards());
+        continueOrDie(restoreSnapshotAndWaitForGreen(deleteIndexListener, repoName, snapshotName, index, shards), ignore -> {
             client().search(
                 new SearchRequest(index).source(new SearchSourceBuilder().size(0).trackTotalHits(true)),
                 searchResponseListener
@@ -249,7 +241,6 @@ public class SnapshotResiliencyTests extends ESTestCase {
 
         runUntil(documentCountVerified::get, TimeUnit.MINUTES.toMillis(5L));
         assertNotNull(safeResult(createSnapshotResponseListener));
-        assertNotNull(safeResult(restoreSnapshotResponseListener));
         assertTrue(documentCountVerified.get());
         assertTrue(SnapshotsInProgress.get(masterNode.clusterService().state()).isEmpty());
         final Repository repository = masterNode.repositoriesService().repository(repoName);
@@ -1823,6 +1814,42 @@ public class SnapshotResiliencyTests extends ESTestCase {
         return createIndexResponseStepListener;
     }
 
+    protected <T> SubscribableListener<Void> restoreSnapshotAndWaitForGreen(
+        SubscribableListener<T> listener,
+        String repoName,
+        String snapshotName,
+        String indexName,
+        int expectedNumShards
+    ) {
+        final SubscribableListener<RestoreSnapshotResponse> restoreSnapshotResponseListener = new SubscribableListener<>();
+        continueOrDie(
+            listener,
+            ignored -> client().admin()
+                .cluster()
+                .restoreSnapshot(
+                    new RestoreSnapshotRequest(TEST_REQUEST_TIMEOUT, repoName, snapshotName).waitForCompletion(true),
+                    restoreSnapshotResponseListener
+                )
+        );
+        final SubscribableListener<ClusterHealthResponse> clusterHealthResponseListener = new SubscribableListener<>();
+        continueOrDie(restoreSnapshotResponseListener, restoreSnapshotResponse -> {
+            assertEquals(expectedNumShards, restoreSnapshotResponse.getRestoreInfo().totalShards());
+
+            client().admin()
+                .cluster()
+                .prepareHealth(TimeValue.MINUS_ONE, indexName)
+                .setWaitForGreenStatus()
+                .execute(clusterHealthResponseListener);
+        });
+
+        final SubscribableListener<Void> greenHealthListener = new SubscribableListener<>();
+        continueOrDie(clusterHealthResponseListener, clusterHealthResponse -> {
+            assertThat(clusterHealthResponse.getStatus(), equalTo(ClusterHealthStatus.GREEN));
+            greenHealthListener.onResponse(null);
+        });
+        return greenHealthListener;
+    }
+
     private void clearDisruptionsAndAwaitSync() {
         testClusterNodes.clearNetworkDisruptions();
         stabilize();
@@ -1953,10 +1980,9 @@ public class SnapshotResiliencyTests extends ESTestCase {
         deterministicTaskQueue.scheduleNow(runnable);
     }
 
-    private static Settings defaultIndexSettings(int shards) {
+    protected Settings defaultIndexSettings(int shards) {
         // TODO: randomize replica count settings once recovery operations aren't blocking anymore
-        return indexSettings(shards, 0).put("index.refresh_interval", -1) // disable refreshes to avoid background operations during tests
-            .build();
+        return indexSettings(shards, 0).build();
     }
 
     protected static <T> void continueOrDie(SubscribableListener<T> listener, CheckedConsumer<T, Exception> onResponse) {

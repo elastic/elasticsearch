@@ -8,7 +8,8 @@
 package org.elasticsearch.xpack.esql.stats;
 
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
+import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.blockloader.BlockLoaderFunctionConfig;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute.FieldName;
 
 /**
@@ -41,10 +42,22 @@ public interface SearchStats {
     boolean canUseEqualityOnSyntheticSourceDelegate(FieldName name, String value);
 
     /**
+     * Do all fields with the matching name support this loader config?
+     */
+    boolean supportsLoaderConfig(FieldName name, BlockLoaderFunctionConfig config, MappedFieldType.FieldExtractPreference preference);
+
+    /**
      * Returns the value for a field if it's a constant (eg. a constant_keyword with only one value for the involved indices).
      * NULL if the field is not a constant.
      */
-    default String constantValue(FieldAttribute.FieldName name) {
+    default String constantValue(FieldName name) {
+        return null;
+    }
+
+    /**
+     * Returns the mapped field type for the given field name, or null if the field is not found.
+     */
+    default MappedFieldType fieldType(FieldName name) {
         return null;
     }
 
@@ -70,6 +83,15 @@ public interface SearchStats {
 
         @Override
         public boolean hasExactSubfield(FieldName field) {
+            return false;
+        }
+
+        @Override
+        public boolean supportsLoaderConfig(
+            FieldName name,
+            BlockLoaderFunctionConfig config,
+            MappedFieldType.FieldExtractPreference preference
+        ) {
             return false;
         }
 
@@ -132,6 +154,15 @@ public interface SearchStats {
         @Override
         public boolean hasExactSubfield(FieldName field) {
             throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public boolean supportsLoaderConfig(
+            FieldName name,
+            BlockLoaderFunctionConfig config,
+            MappedFieldType.FieldExtractPreference preference
+        ) {
+            return false;
         }
 
         @Override

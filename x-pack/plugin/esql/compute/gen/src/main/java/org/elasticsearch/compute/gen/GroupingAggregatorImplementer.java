@@ -468,7 +468,8 @@ public class GroupingAggregatorImplementer {
                 builder.endControlFlow();
             }
             builder.addStatement("int valuesPosition = groupPosition + positionOffset");
-            if (valuesAreVector == false) {
+
+            if (valuesAreVector == false && hasOnlyBlockArguments == false) {
                 for (Argument a : aggParams) {
                     builder.beginControlFlow("if ($L.isNull(valuesPosition))", a.blockName());
                     builder.addStatement("continue");
@@ -497,16 +498,10 @@ public class GroupingAggregatorImplementer {
                 combineRawInput(builder);
             } else {
                 if (hasOnlyBlockArguments) {
-                    if (aggParams.size() > 1) {
-                        throw new IllegalArgumentException("array mode not supported for multiple args");
-                    }
+                    String params = aggParams.stream().map(Argument::blockName).collect(joining(", "));
                     warningsBlock(
                         builder,
-                        () -> builder.addStatement(
-                            "$T.combine(state, groupId, valuesPosition, $L)",
-                            declarationType,
-                            aggParams.getFirst().blockName()
-                        )
+                        () -> builder.addStatement("$T.combine(state, groupId, valuesPosition, $L)", declarationType, params)
                     );
                 } else {
                     for (Argument a : aggParams) {

@@ -7,19 +7,42 @@
 
 package org.elasticsearch.xpack.exponentialhistogram;
 
+import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.IndexWriterConfig;
+import org.apache.lucene.index.IndexableField;
+import org.apache.lucene.index.LeafReader;
+import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.store.Directory;
+import org.apache.lucene.tests.analysis.MockAnalyzer;
+import org.apache.lucene.tests.index.RandomIndexWriter;
+import org.apache.lucene.tests.util.LuceneTestCase;
+import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.NumericUtils;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.core.Types;
+import org.elasticsearch.exponentialhistogram.CompressedExponentialHistogram;
+import org.elasticsearch.exponentialhistogram.ExponentialHistogram;
+import org.elasticsearch.exponentialhistogram.ExponentialHistogramCircuitBreaker;
+import org.elasticsearch.exponentialhistogram.ExponentialHistogramTestUtils;
 import org.elasticsearch.exponentialhistogram.ExponentialHistogramUtils;
 import org.elasticsearch.exponentialhistogram.ZeroBucket;
+import org.elasticsearch.index.fielddata.FormattedDocValues;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.DocumentParsingException;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MapperTestCase;
+import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.analytics.mapper.ExponentialHistogramParser;
+import org.elasticsearch.xpack.analytics.mapper.HistogramParser;
 import org.elasticsearch.xpack.analytics.mapper.IndexWithCount;
+import org.elasticsearch.xpack.analytics.mapper.ParsedHistogramConverter;
+import org.elasticsearch.xpack.exponentialhistogram.aggregations.ExponentialHistogramAggregatorTestCase;
 import org.junit.AssumptionViolatedException;
 import org.junit.Before;
 
@@ -35,12 +58,14 @@ import java.util.List;
 import java.util.Map;
 import java.util.OptionalDouble;
 import java.util.Set;
+import java.util.stream.IntStream;
 
 import static org.elasticsearch.exponentialhistogram.ExponentialHistogram.MAX_INDEX;
 import static org.elasticsearch.exponentialhistogram.ExponentialHistogram.MAX_SCALE;
 import static org.elasticsearch.exponentialhistogram.ExponentialHistogram.MIN_INDEX;
 import static org.elasticsearch.exponentialhistogram.ExponentialHistogram.MIN_SCALE;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
 
 public class ExponentialHistogramFieldMapperTests extends MapperTestCase {
 
@@ -98,6 +123,83 @@ public class ExponentialHistogramFieldMapperTests extends MapperTestCase {
     @Override
     protected void registerParameters(ParameterChecker checker) throws IOException {
         checker.registerUpdateCheck(b -> b.field("ignore_malformed", true), m -> assertTrue(m.ignoreMalformed()));
+        checker.registerUpdateCheck(b -> b.field("coerce", false), m -> assertFalse(((ExponentialHistogramFieldMapper) m).coerce()));
+    }
+
+    public void testCoerce() throws IOException {
+        List<Double> centroids = randomDoubles().map(val -> val * 1_000_000 - 500_000)
+            .map(val -> randomBoolean() ? val : 0)
+            .distinct()
+            .limit(randomIntBetween(0, 100))
+            .sorted()
+            .boxed()
+            .toList();
+        List<Long> counts = IntStream.range(0, centroids.size()).mapToLong(i -> randomIntBetween(0, 100)).boxed().toList();
+
+        HistogramParser.ParsedHistogram input = new HistogramParser.ParsedHistogram(centroids, counts);
+
+        XContentBuilder inputJson = XContentFactory.jsonBuilder();
+        inputJson.startObject()
+            .field("field")
+            .startObject()
+            .array("values", centroids.toArray())
+            .array("counts", counts.toArray())
+            .endObject()
+            .endObject();
+        BytesReference inputDocBytes = BytesReference.bytes(inputJson);
+
+        ExponentialHistogramParser.ParsedExponentialHistogram expectedCoerced = ParsedHistogramConverter.tDigestToExponential(input);
+
+        DocumentMapper defaultMapper = createDocumentMapper(fieldMapping(this::minimalMapping));
+
+        ParsedDocument doc = defaultMapper.parse(new SourceToParse("1", inputDocBytes, XContentType.JSON));
+        ExponentialHistogramParser.ParsedExponentialHistogram ingestedHisto = docValueToParsedHistogram(doc, "field");
+        assertThat(ingestedHisto, equalTo(expectedCoerced));
+
+        DocumentMapper coerceDisabledMapper = createDocumentMapper(
+            fieldMapping(b -> b.field("type", "exponential_histogram").field("coerce", false))
+        );
+        ThrowingRunnable runnable = () -> coerceDisabledMapper.parse(new SourceToParse("1", inputDocBytes, XContentType.JSON));
+        DocumentParsingException e = expectThrows(DocumentParsingException.class, runnable);
+        assertThat(e.getCause().getMessage(), containsString("unknown parameter [values]"));
+    }
+
+    private static IndexableField getSingleField(ParsedDocument doc, String fieldName) {
+        List<IndexableField> fields = doc.rootDoc().getFields(fieldName);
+        assertThat(fields.size(), equalTo(1));
+        return fields.getFirst();
+    }
+
+    private static ExponentialHistogramParser.ParsedExponentialHistogram docValueToParsedHistogram(ParsedDocument doc, String fieldName) {
+        BytesRef encodedBytes = getSingleField(doc, fieldName).binaryValue();
+        long valueCount = getSingleField(doc, ExponentialHistogramFieldMapper.valuesCountSubFieldName(fieldName)).numericValue()
+            .longValue();
+        double zeroThreshold = NumericUtils.sortableLongToDouble(
+            getSingleField(doc, ExponentialHistogramFieldMapper.zeroThresholdSubFieldName(fieldName)).numericValue().longValue()
+        );
+
+        // min max and sum are not relevant for these tests, so we use fake ones
+        double min = valueCount == 0 ? Double.NaN : 0.0;
+        double max = valueCount == 0 ? Double.NaN : 0.0;
+        double sum = 0;
+
+        CompressedExponentialHistogram histogram = new CompressedExponentialHistogram();
+        try {
+            histogram.reset(zeroThreshold, valueCount, sum, min, max, encodedBytes);
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
+
+        return new ExponentialHistogramParser.ParsedExponentialHistogram(
+            histogram.scale(),
+            histogram.zeroBucket().zeroThreshold(),
+            histogram.zeroBucket().count(),
+            IndexWithCount.fromIterator(histogram.negativeBuckets().iterator()),
+            IndexWithCount.fromIterator(histogram.positiveBuckets().iterator()),
+            null,
+            null,
+            null
+        );
     }
 
     @Override
@@ -594,6 +696,51 @@ public class ExponentialHistogramFieldMapperTests extends MapperTestCase {
                 return List.of();
             }
         };
+    }
+
+    public void testFormattedDocValues() throws IOException {
+        try (Directory directory = newDirectory()) {
+            ExponentialHistogramCircuitBreaker noopBreaker = ExponentialHistogramCircuitBreaker.noop();
+
+            List<? extends ExponentialHistogram> inputHistograms = IntStream.range(0, randomIntBetween(1, 100))
+                .mapToObj(i -> ExponentialHistogramTestUtils.randomHistogram(noopBreaker))
+                .map(
+                    histo -> ExponentialHistogram.builder(histo, noopBreaker)
+                        // make sure we have a double-based zero bucket, as we can only serialize those exactly
+                        .zeroBucket(ZeroBucket.create(histo.zeroBucket().zeroThreshold(), histo.zeroBucket().count()))
+                        .build()
+                )
+                .map(histogram -> randomBoolean() ? null : histogram)
+                .toList();
+
+            IndexWriterConfig config = LuceneTestCase.newIndexWriterConfig(random(), new MockAnalyzer(random()));
+            RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory, config);
+            inputHistograms.forEach(histo -> ExponentialHistogramAggregatorTestCase.addHistogramDoc(indexWriter, "field", histo));
+            indexWriter.close();
+
+            try (DirectoryReader reader = DirectoryReader.open(directory)) {
+                for (int i = 0; i < reader.leaves().size(); i++) {
+                    LeafReaderContext leaf = reader.leaves().get(i);
+                    int docBase = leaf.docBase;
+                    LeafReader leafReader = leaf.reader();
+                    int maxDoc = leafReader.maxDoc();
+                    FormattedDocValues docValues = ExponentialHistogramFieldMapper.createFormattedDocValues(leafReader, "field");
+                    for (int j = 0; j < maxDoc; j++) {
+                        var expectedHistogram = inputHistograms.get(docBase + j);
+                        if (expectedHistogram == null) {
+                            assertThat(docValues.advanceExact(j), equalTo(false));
+                            expectThrows(IllegalStateException.class, docValues::nextValue);
+                        } else {
+                            assertThat(docValues.advanceExact(j), equalTo(true));
+                            assertThat(docValues.docValueCount(), equalTo(1));
+                            Object actualHistogram = docValues.nextValue();
+                            assertThat(actualHistogram, equalTo(expectedHistogram));
+                            expectThrows(IllegalStateException.class, docValues::nextValue);
+                        }
+                    }
+                }
+            }
+        }
     }
 
     @Override

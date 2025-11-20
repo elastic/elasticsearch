@@ -17,8 +17,11 @@ import org.hamcrest.Matcher;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.equalTo;
 
 public class CrossProjectIndexExpressionsRewriterTests extends ESTestCase {
 
@@ -29,15 +32,19 @@ public class CrossProjectIndexExpressionsRewriterTests extends ESTestCase {
             createRandomProjectWithAlias("P2"),
             createRandomProjectWithAlias("P3")
         );
-        String[] requestedResources = new String[] { "logs*", "metrics*" };
+        String[] requestedResources = new String[] { "logs*", "metrics*", "<traces-{now/d}>" };
 
         var actual = CrossProjectIndexExpressionsRewriter.rewriteIndexExpressions(origin, linked, requestedResources);
 
-        assertThat(actual.keySet(), containsInAnyOrder("logs*", "metrics*"));
+        assertThat(actual.keySet(), containsInAnyOrder("logs*", "metrics*", "<traces-{now/d}>"));
         assertIndexRewriteResultsContains(actual.get("logs*"), containsInAnyOrder("logs*", "P1:logs*", "P2:logs*", "P3:logs*"));
         assertIndexRewriteResultsContains(
             actual.get("metrics*"),
             containsInAnyOrder("metrics*", "P1:metrics*", "P2:metrics*", "P3:metrics*")
+        );
+        assertIndexRewriteResultsContains(
+            actual.get("<traces-{now/d}>"),
+            containsInAnyOrder("<traces-{now/d}>", "P1:<traces-{now/d}>", "P2:<traces-{now/d}>", "P3:<traces-{now/d}>")
         );
     }
 
@@ -48,16 +55,17 @@ public class CrossProjectIndexExpressionsRewriterTests extends ESTestCase {
             createRandomProjectWithAlias("P2"),
             createRandomProjectWithAlias("P3")
         );
-        String[] requestedResources = new String[] { "P1:logs*", "metrics*" };
+        String[] requestedResources = new String[] { "P1:logs*", "metrics*", "P2:<traces-{now/d}>" };
 
         var actual = CrossProjectIndexExpressionsRewriter.rewriteIndexExpressions(origin, linked, requestedResources);
 
-        assertThat(actual.keySet(), containsInAnyOrder("P1:logs*", "metrics*"));
+        assertThat(actual.keySet(), containsInAnyOrder("P1:logs*", "metrics*", "P2:<traces-{now/d}>"));
         assertIndexRewriteResultsContains(actual.get("P1:logs*"), containsInAnyOrder("P1:logs*"));
         assertIndexRewriteResultsContains(
             actual.get("metrics*"),
             containsInAnyOrder("metrics*", "P1:metrics*", "P2:metrics*", "P3:metrics*")
         );
+        assertIndexRewriteResultsContains(actual.get("P2:<traces-{now/d}>"), containsInAnyOrder("P2:<traces-{now/d}>"));
     }
 
     public void testQualifiedOnlyRewrite() {
@@ -67,13 +75,14 @@ public class CrossProjectIndexExpressionsRewriterTests extends ESTestCase {
             createRandomProjectWithAlias("P2"),
             createRandomProjectWithAlias("P3")
         );
-        String[] requestedResources = new String[] { "P1:logs*", "P2:metrics*" };
+        String[] requestedResources = new String[] { "P1:logs*", "P2:metrics*", "P3:<traces-{now/d}>" };
 
         var actual = CrossProjectIndexExpressionsRewriter.rewriteIndexExpressions(origin, linked, requestedResources);
 
-        assertThat(actual.keySet(), containsInAnyOrder("P1:logs*", "P2:metrics*"));
+        assertThat(actual.keySet(), containsInAnyOrder("P1:logs*", "P2:metrics*", "P3:<traces-{now/d}>"));
         assertIndexRewriteResultsContains(actual.get("P1:logs*"), containsInAnyOrder("P1:logs*"));
         assertIndexRewriteResultsContains(actual.get("P2:metrics*"), containsInAnyOrder("P2:metrics*"));
+        assertIndexRewriteResultsContains(actual.get("P3:<traces-{now/d}>"), containsInAnyOrder("P3:<traces-{now/d}>"));
     }
 
     public void testOriginQualifiedOnlyRewrite() {
@@ -83,13 +92,14 @@ public class CrossProjectIndexExpressionsRewriterTests extends ESTestCase {
             createRandomProjectWithAlias("P2"),
             createRandomProjectWithAlias("P3")
         );
-        String[] requestedResources = new String[] { "_origin:logs*", "_origin:metrics*" };
+        String[] requestedResources = new String[] { "_origin:logs*", "_origin:metrics*", "_origin:<traces-{now/d}>" };
 
         var actual = CrossProjectIndexExpressionsRewriter.rewriteIndexExpressions(origin, linked, requestedResources);
 
-        assertThat(actual.keySet(), containsInAnyOrder("_origin:logs*", "_origin:metrics*"));
+        assertThat(actual.keySet(), containsInAnyOrder("_origin:logs*", "_origin:metrics*", "_origin:<traces-{now/d}>"));
         assertIndexRewriteResultsContains(actual.get("_origin:logs*"), containsInAnyOrder("logs*"));
         assertIndexRewriteResultsContains(actual.get("_origin:metrics*"), containsInAnyOrder("metrics*"));
+        assertIndexRewriteResultsContains(actual.get("_origin:<traces-{now/d}>"), containsInAnyOrder("<traces-{now/d}>"));
     }
 
     public void testOriginQualifiedOnlyRewriteWithNoLikedProjects() {
@@ -149,12 +159,16 @@ public class CrossProjectIndexExpressionsRewriterTests extends ESTestCase {
             createRandomProjectWithAlias("Q1"),
             createRandomProjectWithAlias("Q2")
         );
-        String[] requestedResources = new String[] { "Q*:metrics*" };
+        String[] requestedResources = new String[] { "Q*:metrics*", "P*:<traces-{now/d}>" };
 
         var actual = CrossProjectIndexExpressionsRewriter.rewriteIndexExpressions(origin, linked, requestedResources);
 
-        assertThat(actual.keySet(), containsInAnyOrder("Q*:metrics*"));
+        assertThat(actual.keySet(), containsInAnyOrder("Q*:metrics*", "P*:<traces-{now/d}>"));
         assertIndexRewriteResultsContains(actual.get("Q*:metrics*"), containsInAnyOrder("Q1:metrics*", "Q2:metrics*"));
+        assertIndexRewriteResultsContains(
+            actual.get("P*:<traces-{now/d}>"),
+            containsInAnyOrder("<traces-{now/d}>", "P1:<traces-{now/d}>", "P2:<traces-{now/d}>")
+        );
     }
 
     public void testQualifiedEndsWithProjectWildcardRewrite() {
@@ -343,19 +357,43 @@ public class CrossProjectIndexExpressionsRewriterTests extends ESTestCase {
     }
 
     public void testRewritingShouldThrowIfNotProjectMatchExpression() {
-        ProjectRoutingInfo origin = createRandomProjectWithAlias("P0");
-        List<ProjectRoutingInfo> linked = List.of(
-            createRandomProjectWithAlias("P1"),
-            createRandomProjectWithAlias("P2"),
-            createRandomProjectWithAlias("Q1"),
-            createRandomProjectWithAlias("Q2")
-        );
-        String[] requestedResources = new String[] { "X*:metrics" };
+        {
+            final var projectRouting = "_alias:" + randomAlphaOfLengthBetween(1, 10);
 
-        expectThrows(
-            NoMatchingProjectException.class,
-            () -> CrossProjectIndexExpressionsRewriter.rewriteIndexExpressions(origin, linked, requestedResources)
-        );
+            final var e = expectThrows(
+                NoMatchingProjectException.class,
+                () -> CrossProjectIndexExpressionsRewriter.rewriteIndexExpression(randomIdentifier(), null, Set.of(), projectRouting)
+            );
+            assertThat(e.getMessage(), equalTo("no matching project after applying project routing [" + projectRouting + "]"));
+        }
+
+        {
+            ProjectRoutingInfo origin = createRandomProjectWithAlias("P0");
+            List<ProjectRoutingInfo> linked = List.of(
+                createRandomProjectWithAlias("P1"),
+                createRandomProjectWithAlias("P2"),
+                createRandomProjectWithAlias("Q1"),
+                createRandomProjectWithAlias("Q2")
+            );
+            String indexExpression = "X*:metrics";
+            final var projectRouting = randomBoolean() ? "_alias:" + randomAlphaOfLengthBetween(1, 10) : null;
+
+            final var e = expectThrows(
+                NoMatchingProjectException.class,
+                () -> CrossProjectIndexExpressionsRewriter.rewriteIndexExpression(
+                    indexExpression,
+                    origin.projectAlias(),
+                    linked.stream().map(ProjectRoutingInfo::projectAlias).collect(Collectors.toUnmodifiableSet()),
+                    projectRouting
+                )
+            );
+
+            if (projectRouting != null) {
+                assertThat(e.getMessage(), equalTo("No such project: [X*] with project routing [" + projectRouting + "]"));
+            } else {
+                assertThat(e.getMessage(), equalTo("No such project: [X*]"));
+            }
+        }
     }
 
     private ProjectRoutingInfo createRandomProjectWithAlias(String alias) {

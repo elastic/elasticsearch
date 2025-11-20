@@ -40,10 +40,8 @@ public class SnapshotShardsServiceTests extends ESTestCase {
             assertTrue(SnapshotShardsService.shouldActivateSnapshotShardsService(settings));
         }
 
-        // Compute random combinations of all roles, with a minimum of one role that contains data, and expect the SnapshotShardsService to
+        // Compute a random combination of all roles, with a minimum of one role that contains data, and expect the SnapshotShardsService to
         // be activated.
-        // NB In practice a specific combination of roles may not be possible, but to enumerate all valid role configurations
-        // would bloat this test, when all we're trying to prove is that >=1 data role activates the SnapshotShardsService
         // NB The VOTING_ONLY_NODE_ROLE also requires MASTER_ROLE to be set which we can't guarantee so we remove it
         List<String> nodeRolesThatDoNotContainData = DiscoveryNodeRole.roles()
             .stream()

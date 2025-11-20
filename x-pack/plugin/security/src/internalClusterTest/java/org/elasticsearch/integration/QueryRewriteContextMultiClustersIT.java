@@ -20,14 +20,19 @@ import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.RemoteClusterActionType;
 import org.elasticsearch.action.ResolvedIndices;
+import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
+import org.elasticsearch.action.admin.indices.get.GetIndexRequest;
+import org.elasticsearch.action.admin.indices.get.GetIndexResponse;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.GroupedActionListener;
 import org.elasticsearch.action.support.HandledTransportAction;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -50,6 +55,7 @@ import org.elasticsearch.transport.NoSuchRemoteClusterException;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
+import org.junit.After;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -66,6 +72,8 @@ import java.util.stream.Collectors;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
 import static org.elasticsearch.xpack.core.ClientHelper.MONITORING_ORIGIN;
+import static org.elasticsearch.xpack.core.ClientHelper.SECURITY_ORIGIN;
+import static org.elasticsearch.xpack.security.support.SecuritySystemIndices.SECURITY_MAIN_ALIAS;
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.is;
@@ -83,7 +91,7 @@ public class QueryRewriteContextMultiClustersIT extends AbstractMultiClustersTes
     private final boolean securityEnabled;
 
     @ParametersFactory
-    public static Iterable<Object[]> parameters() throws Exception {
+    public static Iterable<Object[]> parameters() {
         return List.of(new Object[] { true }, new Object[] { false });
     }
 
@@ -123,6 +131,16 @@ public class QueryRewriteContextMultiClustersIT extends AbstractMultiClustersTes
         super.setUp();
         INSTRUMENTED_ACTION_CALL_MAP.clear();
         setupClusters();
+    }
+
+    @After
+    public void cleanupSecurityIndex() {
+        if (securityEnabled) {
+            deleteSecurityIndex(LOCAL_CLUSTER);
+            for (String clusterAlias : remoteClusterAlias()) {
+                deleteSecurityIndex(clusterAlias);
+            }
+        }
     }
 
     public QueryRewriteContextMultiClustersIT(boolean securityEnabled) {
@@ -168,6 +186,20 @@ public class QueryRewriteContextMultiClustersIT extends AbstractMultiClustersTes
         final Client client = client(clusterAlias);
         assertAcked(client.admin().indices().prepareCreate(INDEX_1));
         assertAcked(client.admin().indices().prepareCreate(INDEX_2));
+    }
+
+    private void deleteSecurityIndex(String clusterAlias) {
+        final Client client = new OriginSettingClient(client(clusterAlias), SECURITY_ORIGIN);
+
+        GetIndexRequest getIndexRequest = new GetIndexRequest(TEST_REQUEST_TIMEOUT);
+        getIndexRequest.indices(SECURITY_MAIN_ALIAS);
+        getIndexRequest.indicesOptions(IndicesOptions.lenientExpandOpen());
+        GetIndexResponse getIndexResponse = client.admin().indices().getIndex(getIndexRequest).actionGet(TEST_REQUEST_TIMEOUT);
+
+        if (getIndexResponse.getIndices().length > 0) {
+            DeleteIndexRequest deleteIndexRequest = new DeleteIndexRequest(getIndexResponse.getIndices());
+            assertAcked(client.admin().indices().delete(deleteIndexRequest).actionGet(TEST_REQUEST_TIMEOUT));
+        }
     }
 
     private SearchRequestBuilder buildSearchRequest(List<String> indices, List<String> clusterAliases) {

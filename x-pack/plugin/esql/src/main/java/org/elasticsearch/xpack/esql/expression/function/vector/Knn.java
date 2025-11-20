@@ -52,7 +52,9 @@ import java.util.Set;
 import static java.util.Map.entry;
 import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
 import static org.elasticsearch.index.query.AbstractQueryBuilder.BOOST_FIELD;
+import static org.elasticsearch.search.vectors.KnnVectorQueryBuilder.K_FIELD;
 import static org.elasticsearch.search.vectors.KnnVectorQueryBuilder.VECTOR_SIMILARITY_FIELD;
+import static org.elasticsearch.search.vectors.KnnVectorQueryBuilder.VISIT_PERCENTAGE_FIELD;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.FOURTH;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DENSE_VECTOR;
 import static org.elasticsearch.xpack.esql.core.type.DataType.FLOAT;
@@ -72,8 +74,10 @@ public class Knn extends SingleFieldFullTextFunction implements OptionalArgument
     public static final String MIN_CANDIDATES_OPTION = "min_candidates";
 
     public static final Map<String, DataType> ALLOWED_OPTIONS = Map.ofEntries(
+        entry(K_FIELD.getPreferredName(), INTEGER),
         entry(MIN_CANDIDATES_OPTION, INTEGER),
         entry(VECTOR_SIMILARITY_FIELD.getPreferredName(), FLOAT),
+        entry(VISIT_PERCENTAGE_FIELD.getPreferredName(), FLOAT),
         entry(BOOST_FIELD.getPreferredName(), FLOAT),
         entry(KnnQuery.RESCORE_OVERSAMPLE_FIELD, FLOAT)
     );
@@ -103,6 +107,15 @@ public class Knn extends SingleFieldFullTextFunction implements OptionalArgument
             name = "options",
             params = {
                 @MapParam.MapParamEntry(
+                    name = "k",
+                    type = "integer",
+                    valueHint = { "10" },
+                    description = "The number of nearest neighbors to return from each shard. "
+                        + "Elasticsearch collects k results from each shard, then merges them to find the global top results. "
+                        + "This value must be less than or equal to num_candidates. "
+                        + "This value is automatically set with any LIMIT applied to the function."
+                ),
+                @MapParam.MapParamEntry(
                     name = "boost",
                     type = "float",
                     valueHint = { "2.5" },
@@ -116,7 +129,17 @@ public class Knn extends SingleFieldFullTextFunction implements OptionalArgument
                     description = "The minimum number of nearest neighbor candidates to consider per shard while doing knn search. "
                         + " KNN may use a higher number of candidates in case the query can't use a approximate results. "
                         + "Cannot exceed 10,000. Increasing min_candidates tends to improve the accuracy of the final results. "
-                        + "Defaults to 1.5 * LIMIT used for the query."
+                        + "Defaults to 1.5 * k (or LIMIT) used for the query."
+                ),
+                @MapParam.MapParamEntry(
+                    name = "visit_percentage",
+                    type = "float",
+                    valueHint = { "10" },
+                    description = "The percentage of vectors to explore per shard while doing knn search with bbq_disk. "
+                        + "Must be between 0 and 100. 0 will default to using num_candidates for calculating the percent visited. "
+                        + "Increasing visit_percentage tends to improve the accuracy of the final results. "
+                        + "If visit_percentage is set for bbq_disk, num_candidates is ignored. "
+                        + "Defaults to ~1% per shard for every 1 million vectors"
                 ),
                 @MapParam.MapParamEntry(
                     name = "similarity",

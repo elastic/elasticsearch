@@ -440,7 +440,7 @@ public class TransportDownsampleActionTests extends ESTestCase {
                     sourceIndex,
                     targetIndex,
                     TimeValue.ONE_HOUR,
-                    new DownsampleConfig(new DateHistogramInterval("5m"), randomSamplingMethod())
+                    new DownsampleConfig(new DateHistogramInterval("5m"))
                 ),
                 clusterState,
                 listener

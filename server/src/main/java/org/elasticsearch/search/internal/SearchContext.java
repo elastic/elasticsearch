@@ -104,6 +104,16 @@ public abstract class SearchContext implements Releasable {
         return timeoutRunnable == null ? List.of() : List.of(timeoutRunnable);
     }
 
+    private long requestBreakerBytes;
+
+    public void addRequestBreakerBytes(long delta) {
+        requestBreakerBytes += delta;
+    }
+
+    public long getRequestBreakerBytes() {
+        return requestBreakerBytes;
+    }
+
     public abstract void setTask(CancellableTask task);
 
     public abstract CancellableTask getTask();
@@ -394,7 +404,7 @@ public abstract class SearchContext implements Releasable {
      */
     public final boolean checkRealMemoryCB(int locallyAccumulatedBytes, String label) {
         if (locallyAccumulatedBytes >= memAccountingBufferSize()) {
-            circuitBreaker().addEstimateBytesAndMaybeBreak(0, label);
+            circuitBreaker().addEstimateBytesAndMaybeBreak(locallyAccumulatedBytes, label);
             return true;
         }
         return false;

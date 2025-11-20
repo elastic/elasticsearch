@@ -13,12 +13,14 @@ import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.ReaderUtil;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
+import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.internal.ContextIndexSearcher;
 import org.elasticsearch.search.query.QuerySearchResult;
 import org.elasticsearch.search.query.SearchTimeoutException;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -31,6 +33,19 @@ import java.util.Arrays;
  * into an array and returns them in the order of the original doc ids.
  */
 abstract class FetchPhaseDocsIterator {
+
+    protected FetchPhaseDocsIterator() {}
+
+    protected FetchPhaseDocsIterator(SearchContext context) {
+        CircuitBreaker breaker = context.circuitBreaker();
+
+        context.addReleasable(() -> {
+            long bytes = context.getRequestBreakerBytes();
+            if (bytes > 0L) {
+                breaker.addWithoutBreaking(-bytes);
+            }
+        });
+    }
 
     /**
      * Called when a new leaf reader is reached

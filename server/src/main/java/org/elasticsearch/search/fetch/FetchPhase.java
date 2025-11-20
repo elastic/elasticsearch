@@ -172,7 +172,7 @@ public final class FetchPhase {
         final int[] locallyAccumulatedBytes = new int[1];
         NestedDocuments nestedDocuments = context.getSearchExecutionContext().getNestedDocuments();
 
-        FetchPhaseDocsIterator docsIterator = new FetchPhaseDocsIterator() {
+        FetchPhaseDocsIterator docsIterator = new FetchPhaseDocsIterator(context) {
 
             LeafReaderContext ctx;
             LeafNestedDocuments leafNestedDocuments;
@@ -206,10 +206,10 @@ public final class FetchPhase {
                 if (context.isCancelled()) {
                     throw new TaskCancelledException("cancelled");
                 }
-                if (context.checkRealMemoryCB(locallyAccumulatedBytes[0], "fetch source")) {
+           /*     if (context.checkRealMemoryCB(locallyAccumulatedBytes[0], "fetch source")) {
                     // if we checked the real memory breaker, we restart our local accounting
                     locallyAccumulatedBytes[0] = 0;
-                }
+                }*/
 
                 HitContext hit = prepareHitContext(
                     context,
@@ -234,6 +234,11 @@ public final class FetchPhase {
                     BytesReference sourceRef = hit.hit().getSourceRef();
                     if (sourceRef != null) {
                         locallyAccumulatedBytes[0] += sourceRef.length();
+
+                        if (context.checkRealMemoryCB(locallyAccumulatedBytes[0], "fetch source")) {
+                            context.addRequestBreakerBytes(locallyAccumulatedBytes[0]);
+                            locallyAccumulatedBytes[0] = 0;
+                        }
                     }
                     success = true;
                     return hit.hit();

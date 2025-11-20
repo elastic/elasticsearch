@@ -878,3 +878,19 @@ book_no:keyword | author:text
 2883            | William Faulkner
 3293            | Danny Faulkner
 ;
+
+testMatchFunctionUnionAll
+required_capability: subquery_in_from_command
+required_capability: full_text_functions_accept_null_field
+
+from books, (from hosts)
+| where match(author, "Marquez")
+| sort year 
+| keep year, author, host
+;
+
+year:integer | author:text            | host:keyword
+1979         | Gabriel Garcia Marquez | null
+2005         | Gabriel Garcia Marquez | null
+2014         | Gabriel Garcia Marquez | null
+;

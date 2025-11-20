@@ -513,4 +513,19 @@ class TransportVersionGenerationFuncTest extends AbstractTransportVersionFuncTes
         assertGenerateAndValidateSuccess(result)
         assertUpperBound("9.2", "existing_92,8123000")
     }
+
+    def "generation cannot run on release branch"() {
+        given:
+        file("myserver/build.gradle") << """
+            tasks.named('generateTransportVersion') {
+                currentUpperBoundName = '9.1'
+            }
+        """
+
+        when:
+        def result = runGenerateTask().buildAndFail()
+
+        then:
+        assertGenerateFailure(result, "Transport version generation cannot run on release branches")
+    }
 }

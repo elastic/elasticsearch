@@ -13,7 +13,9 @@ import org.apache.lucene.codecs.DocValuesConsumer;
 import org.apache.lucene.codecs.DocValuesProducer;
 import org.apache.lucene.index.SegmentReadState;
 import org.apache.lucene.index.SegmentWriteState;
+import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.core.SuppressForbidden;
+import org.elasticsearch.index.codec.tsdb.BinaryDVCompressionMode;
 
 import java.io.IOException;
 
@@ -27,9 +29,15 @@ import java.io.IOException;
  *     view of all values. If index sorting is active merging a doc value field requires a merge sort which can be very cpu intensive.
  *     The previous format always has to merge sort a doc values field multiple times, so doing the merge sort just once saves on
  *     cpu resources.</li>
+ *     <li>Version 1 adds block-wise compression to binary doc values. Each block contains a variable number of values so that each
+ *     block is approximately the same size. To map a given value's index to the block containing the value, there are two parallel
+ *     arrays. These contain the starting address for each block, and the starting value index for each block. Additional compression
+ *     types may be added by creating a new mode in {@link org.elasticsearch.index.codec.tsdb.BinaryDVCompressionMode}.</li>
  * </ul>
  */
 public class ES819TSDBDocValuesFormat extends org.apache.lucene.codecs.DocValuesFormat {
+
+    public static final boolean BINARY_DV_COMPRESSION_FEATURE_FLAG = new FeatureFlag("binary_dv_compression").isEnabled();
 
     static final int NUMERIC_BLOCK_SHIFT = 7;
     public static final int NUMERIC_BLOCK_SIZE = 1 << NUMERIC_BLOCK_SHIFT;
@@ -47,7 +55,8 @@ public class ES819TSDBDocValuesFormat extends org.apache.lucene.codecs.DocValues
     static final byte SORTED_NUMERIC = 4;
 
     static final int VERSION_START = 0;
-    static final int VERSION_CURRENT = VERSION_START;
+    static final int VERSION_BINARY_DV_COMPRESSION = 1;
+    static final int VERSION_CURRENT = VERSION_BINARY_DV_COMPRESSION;
 
     static final int TERMS_DICT_BLOCK_LZ4_SHIFT = 6;
     static final int TERMS_DICT_BLOCK_LZ4_SIZE = 1 << TERMS_DICT_BLOCK_LZ4_SHIFT;
@@ -56,6 +65,14 @@ public class ES819TSDBDocValuesFormat extends org.apache.lucene.codecs.DocValues
     static final int TERMS_DICT_REVERSE_INDEX_SHIFT = 10;
     static final int TERMS_DICT_REVERSE_INDEX_SIZE = 1 << TERMS_DICT_REVERSE_INDEX_SHIFT;
     static final int TERMS_DICT_REVERSE_INDEX_MASK = TERMS_DICT_REVERSE_INDEX_SIZE - 1;
+
+    /**
+     * These thresholds determine the size of a compressed binary block. We build a new block if the uncompressed data in the block
+     * is 128k, or if the number of values is 1024. These values are a tradeoff between the high compression ratio and decompression
+     * speed of large blocks, and the ability to avoid decompressing unneeded values provided by small blocks.
+      */
+    public static final int BLOCK_BYTES_THRESHOLD = 128 * 1024;
+    public static final int BLOCK_COUNT_THRESHOLD = 1024;
 
     // number of documents in an interval
     private static final int DEFAULT_SKIP_INDEX_INTERVAL_SIZE = 4096;
@@ -118,15 +135,49 @@ public class ES819TSDBDocValuesFormat extends org.apache.lucene.codecs.DocValues
 
     final int skipIndexIntervalSize;
     final int minDocsPerOrdinalForRangeEncoding;
-    private final boolean enableOptimizedMerge;
+    final boolean enableOptimizedMerge;
+    final BinaryDVCompressionMode binaryDVCompressionMode;
+    final boolean enablePerBlockCompression;
 
     /** Default constructor. */
     public ES819TSDBDocValuesFormat() {
-        this(DEFAULT_SKIP_INDEX_INTERVAL_SIZE, ORDINAL_RANGE_ENCODING_MIN_DOC_PER_ORDINAL, OPTIMIZED_MERGE_ENABLE_DEFAULT);
+        this(
+            DEFAULT_SKIP_INDEX_INTERVAL_SIZE,
+            ORDINAL_RANGE_ENCODING_MIN_DOC_PER_ORDINAL,
+            OPTIMIZED_MERGE_ENABLE_DEFAULT,
+            BINARY_DV_COMPRESSION_FEATURE_FLAG ? BinaryDVCompressionMode.COMPRESSED_ZSTD_LEVEL_1 : BinaryDVCompressionMode.NO_COMPRESS,
+            true
+        );
+    }
+
+    public ES819TSDBDocValuesFormat(BinaryDVCompressionMode binaryDVCompressionMode) {
+        this(
+            DEFAULT_SKIP_INDEX_INTERVAL_SIZE,
+            ORDINAL_RANGE_ENCODING_MIN_DOC_PER_ORDINAL,
+            OPTIMIZED_MERGE_ENABLE_DEFAULT,
+            binaryDVCompressionMode,
+            true
+        );
+    }
+
+    public ES819TSDBDocValuesFormat(BinaryDVCompressionMode binaryDVCompressionMode, boolean enablePerBlockCompression) {
+        this(
+            DEFAULT_SKIP_INDEX_INTERVAL_SIZE,
+            ORDINAL_RANGE_ENCODING_MIN_DOC_PER_ORDINAL,
+            OPTIMIZED_MERGE_ENABLE_DEFAULT,
+            binaryDVCompressionMode,
+            enablePerBlockCompression
+        );
     }
 
     /** Doc values fields format with specified skipIndexIntervalSize. */
-    public ES819TSDBDocValuesFormat(int skipIndexIntervalSize, int minDocsPerOrdinalForRangeEncoding, boolean enableOptimizedMerge) {
+    public ES819TSDBDocValuesFormat(
+        int skipIndexIntervalSize,
+        int minDocsPerOrdinalForRangeEncoding,
+        boolean enableOptimizedMerge,
+        BinaryDVCompressionMode binaryDVCompressionMode,
+        final boolean enablePerBlockCompression
+    ) {
         super(CODEC_NAME);
         if (skipIndexIntervalSize < 2) {
             throw new IllegalArgumentException("skipIndexIntervalSize must be > 1, got [" + skipIndexIntervalSize + "]");
@@ -134,11 +185,15 @@ public class ES819TSDBDocValuesFormat extends org.apache.lucene.codecs.DocValues
         this.skipIndexIntervalSize = skipIndexIntervalSize;
         this.minDocsPerOrdinalForRangeEncoding = minDocsPerOrdinalForRangeEncoding;
         this.enableOptimizedMerge = enableOptimizedMerge;
+        this.binaryDVCompressionMode = binaryDVCompressionMode;
+        this.enablePerBlockCompression = enablePerBlockCompression;
     }
 
     @Override
     public DocValuesConsumer fieldsConsumer(SegmentWriteState state) throws IOException {
         return new ES819TSDBDocValuesConsumer(
+            binaryDVCompressionMode,
+            enablePerBlockCompression,
             state,
             skipIndexIntervalSize,
             minDocsPerOrdinalForRangeEncoding,

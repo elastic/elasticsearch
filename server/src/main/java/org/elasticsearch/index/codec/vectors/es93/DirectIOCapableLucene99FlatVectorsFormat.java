@@ -266,22 +266,25 @@ public class DirectIOCapableLucene99FlatVectorsFormat extends DirectIOCapableFla
                     buffer.docs[size++] = indexIterator.index();
                 }
             }
-            int loopBound = size - (size % bulkSize);
+            final int firstBulkSize = Math.min(bulkSize, size);
+            for (int j = 0; j < firstBulkSize; j++) {
+                final long ord = buffer.docs[j];
+                inputSlice.prefetch(ord * byteSize, byteSize);
+            }
+            final int loopBound = size - (size % bulkSize);
             int i = 0;
             for (; i < loopBound; i += bulkSize) {
-                for (int j = 0; j < bulkSize; j++) {
-                    long ord = buffer.docs[i + j];
+                final int nextI = i + bulkSize;
+                final int nextBulkSize = Math.min(bulkSize, size - nextI);
+                for (int j = 0; j < nextBulkSize; j++) {
+                    final long ord = buffer.docs[nextI + j];
                     inputSlice.prefetch(ord * byteSize, byteSize);
                 }
                 System.arraycopy(buffer.docs, i, docBuffer, 0, bulkSize);
                 inner.bulkScore(docBuffer, scoreBuffer, bulkSize);
                 System.arraycopy(scoreBuffer, 0, buffer.features, i, bulkSize);
             }
-            int countLeft = size - i;
-            for (int j = i; j < size; j++) {
-                long ord = buffer.docs[j];
-                inputSlice.prefetch(ord * byteSize, byteSize);
-            }
+            final int countLeft = size - i;
             System.arraycopy(buffer.docs, i, docBuffer, 0, countLeft);
             inner.bulkScore(docBuffer, scoreBuffer, countLeft);
             System.arraycopy(scoreBuffer, 0, buffer.features, i, countLeft);

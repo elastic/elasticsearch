@@ -71,6 +71,19 @@ public record ResolvedIndexExpression(String original, LocalExpressions localExp
      * or unauthorized concrete resources.
      * A wildcard expression resolving to nothing is still considered a successful resolution.
      * The NONE result indicates that no local resolution was attempted because the expression is known to be remote-only.
+     *
+     * This distinction is needed to return either 403 (forbidden) or 404 (not found) to the user,
+     * and must be propagated by the linked projects to the request coordinator.
+     *
+     * CONCRETE_RESOURCE_NOT_VISIBLE: Indicates that a non-wildcard expression was resolved to nothing,
+     * either because the index does not exist or is closed.
+     *
+     * CONCRETE_RESOURCE_UNAUTHORIZED: Indicates that the expression could be resolved to a concrete index,
+     * but the requesting user is not authorized to access it.
+     *
+     * NONE: No local resolution was attempted, typically because the expression is remote-only.
+     *
+     * SUCCESS: Local index resolution was successful.
      */
     public enum LocalIndexResolutionResult {
         NONE,

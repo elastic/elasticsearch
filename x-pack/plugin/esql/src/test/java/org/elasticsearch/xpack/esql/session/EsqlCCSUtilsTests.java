@@ -29,6 +29,7 @@ import org.elasticsearch.transport.RemoteTransportException;
 import org.elasticsearch.xpack.esql.action.EsqlExecutionInfo;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.index.EsIndex;
+import org.elasticsearch.xpack.esql.index.EsIndexGenerator;
 import org.elasticsearch.xpack.esql.index.IndexResolution;
 import org.elasticsearch.xpack.esql.plan.IndexPattern;
 import org.elasticsearch.xpack.esql.type.EsFieldTests;
@@ -204,7 +205,7 @@ public class EsqlCCSUtilsTests extends ESTestCase {
                 (k, v) -> new EsqlExecutionInfo.Cluster(REMOTE2_ALIAS, "mylogs1,mylogs2,logs*", randomBoolean())
             );
 
-            EsIndex esIndex = new EsIndex(
+            EsIndex esIndex = EsIndexGenerator.esIndex(
                 "logs*,remote1:*,remote2:mylogs1,remote2:mylogs2,remote2:logs*", // original user-provided index expression
                 randomMapping(),
                 Map.of(
@@ -250,7 +251,7 @@ public class EsqlCCSUtilsTests extends ESTestCase {
                 (k, v) -> new EsqlExecutionInfo.Cluster(REMOTE2_ALIAS, "mylogs1,mylogs2,logs*", randomBoolean())
             );
 
-            EsIndex esIndex = new EsIndex(
+            EsIndex esIndex = EsIndexGenerator.esIndex(
                 "logs*,remote2:mylogs1,remote2:mylogs2,remote2:logs*",  // original user-provided index expression
                 randomMapping(),
                 Map.of(
@@ -299,7 +300,7 @@ public class EsqlCCSUtilsTests extends ESTestCase {
                 (k, v) -> new EsqlExecutionInfo.Cluster(REMOTE2_ALIAS, "mylogs1*,mylogs2*,logs*", randomBoolean())
             );
 
-            EsIndex esIndex = new EsIndex(
+            EsIndex esIndex = EsIndexGenerator.esIndex(
                 "logs*,remote2:mylogs1*,remote2:mylogs2*,remote2:logs*", // original user-provided index expression
                 randomMapping(),
                 Map.of("logs-a", IndexMode.STANDARD) // resolved indices from field-caps (none from either remote)
@@ -341,7 +342,7 @@ public class EsqlCCSUtilsTests extends ESTestCase {
                 (k, v) -> new EsqlExecutionInfo.Cluster(REMOTE2_ALIAS, "mylogs1,mylogs2*", randomBoolean())
             );
 
-            EsIndex esIndex = new EsIndex(
+            EsIndex esIndex = EsIndexGenerator.esIndex(
                 "logs*,remote2:mylogs1,remote2:mylogs2*,remote1:logs*",  // original user-provided index expression
                 randomMapping(),
                 Map.of("logs-a", IndexMode.STANDARD)  // resolved indices from field-caps (none from either remote)
@@ -388,7 +389,7 @@ public class EsqlCCSUtilsTests extends ESTestCase {
                 )
             );
 
-            EsIndex esIndex = new EsIndex(
+            EsIndex esIndex = EsIndexGenerator.esIndex(
                 "logs*,remote2:mylogs1,remote2:mylogs2,remote2:logs*",  // original user-provided index expression
                 randomMapping(),
                 Map.of("logs-a", IndexMode.STANDARD)  // resolved indices from field-caps (none from either remote)
@@ -554,6 +555,14 @@ public class EsqlCCSUtilsTests extends ESTestCase {
         return result;
     }
 
+    private EsqlExecutionInfo randomExecutionInfo(Predicate<String> skipOnPlanTimeFailurePredicate) {
+        boolean includeCcsMetadata = randomBoolean();
+        return new EsqlExecutionInfo(
+            skipOnPlanTimeFailurePredicate,
+            includeCcsMetadata ? EsqlExecutionInfo.IncludeExecutionMetadata.CCS_ONLY : EsqlExecutionInfo.IncludeExecutionMetadata.NEVER
+        );
+    }
+
     public void testReturnSuccessWithEmptyResult() {
         String remote3Alias = "remote3";
         NoClustersToSearchException noClustersException = new NoClustersToSearchException();
@@ -571,14 +580,14 @@ public class EsqlCCSUtilsTests extends ESTestCase {
 
         // not a cross-cluster cluster search, so do not return empty result
         {
-            EsqlExecutionInfo executionInfo = new EsqlExecutionInfo(skipUnPredicate, randomBoolean());
+            EsqlExecutionInfo executionInfo = randomExecutionInfo(skipUnPredicate);
             executionInfo.swapCluster(LOCAL_CLUSTER_ALIAS, (k, v) -> localCluster);
             assertFalse(EsqlCCSUtils.returnSuccessWithEmptyResult(executionInfo, noClustersException));
         }
 
         // local cluster is present, so do not return empty result
         {
-            EsqlExecutionInfo executionInfo = new EsqlExecutionInfo(skipUnPredicate, randomBoolean());
+            EsqlExecutionInfo executionInfo = randomExecutionInfo(skipUnPredicate);
             executionInfo.swapCluster(LOCAL_CLUSTER_ALIAS, (k, v) -> localCluster);
             executionInfo.swapCluster(REMOTE1_ALIAS, (k, v) -> remote1);
             // TODO: this logic will be added in the follow-on PR that handles missing indices
@@ -587,7 +596,7 @@ public class EsqlCCSUtilsTests extends ESTestCase {
 
         // remote-only, one cluster is skip_unavailable=false, so do not return empty result
         {
-            EsqlExecutionInfo executionInfo = new EsqlExecutionInfo(skipUnPredicate, randomBoolean());
+            EsqlExecutionInfo executionInfo = randomExecutionInfo(skipUnPredicate);
             executionInfo.swapCluster(REMOTE1_ALIAS, (k, v) -> remote1);
             executionInfo.swapCluster(REMOTE2_ALIAS, (k, v) -> remote2);
             assertFalse(EsqlCCSUtils.returnSuccessWithEmptyResult(executionInfo, noClustersException));
@@ -596,7 +605,7 @@ public class EsqlCCSUtilsTests extends ESTestCase {
         // remote-only, all clusters are skip_unavailable=true, so should return empty result with
         // NoSuchClustersException or "remote unavailable" type exception
         {
-            EsqlExecutionInfo executionInfo = new EsqlExecutionInfo(skipUnPredicate, randomBoolean());
+            EsqlExecutionInfo executionInfo = randomExecutionInfo(skipUnPredicate);
             executionInfo.swapCluster(REMOTE2_ALIAS, (k, v) -> remote2);
             executionInfo.swapCluster(remote3Alias, (k, v) -> remote3);
             Exception e = randomFrom(
@@ -611,7 +620,7 @@ public class EsqlCCSUtilsTests extends ESTestCase {
         // remote-only, all clusters are skip_unavailable=true, but exception is not "remote unavailable" so return false
         // Note: this functionality may change in follow-on PRs, so remove this test in that case
         {
-            EsqlExecutionInfo executionInfo = new EsqlExecutionInfo(skipUnPredicate, randomBoolean());
+            EsqlExecutionInfo executionInfo = randomExecutionInfo(skipUnPredicate);
             executionInfo.swapCluster(REMOTE2_ALIAS, (k, v) -> remote2);
             executionInfo.swapCluster(remote3Alias, (k, v) -> remote3);
             assertFalse(EsqlCCSUtils.returnSuccessWithEmptyResult(executionInfo, new NullPointerException()));
@@ -635,7 +644,7 @@ public class EsqlCCSUtilsTests extends ESTestCase {
         EsqlExecutionInfo.Cluster remote2 = new EsqlExecutionInfo.Cluster(REMOTE2_ALIAS, "logs*", true);
         EsqlExecutionInfo.Cluster remote3 = new EsqlExecutionInfo.Cluster(remote3Alias, "logs*", true);
 
-        EsqlExecutionInfo executionInfo = new EsqlExecutionInfo(skipUnPredicate, randomBoolean());
+        EsqlExecutionInfo executionInfo = randomExecutionInfo(skipUnPredicate);
         executionInfo.swapCluster(localCluster.getClusterAlias(), (k, v) -> localCluster);
         executionInfo.swapCluster(remote1.getClusterAlias(), (k, v) -> remote1);
         executionInfo.swapCluster(remote2.getClusterAlias(), (k, v) -> remote2);

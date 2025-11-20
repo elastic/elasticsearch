@@ -2410,7 +2410,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         if (mappedFieldType instanceof DateFieldMapper.DateFieldType == false || mappedFieldType.name().equals(fieldName) == false) {
             return ShardLongFieldRange.UNKNOWN; // field is missing, an alias (as the field type has a different name) or not a date field
         }
-        if (mappedFieldType.indexType().hasPoints() == false) {
+        if (mappedFieldType.indexType().hasPoints() == false && mappedFieldType.indexType().hasDocValuesSkipper() == false) {
             return ShardLongFieldRange.UNKNOWN; // range information missing
         }
 
@@ -3842,7 +3842,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 this.warmer.warm(reader);
             }
         };
-        final boolean isTimeBasedIndex = mapperService == null ? false : mapperService.mappingLookup().hasTimestampField();
+        final boolean isTimeBasedIndex = mapperService == null ? false : mapperService.mappingLookup().getTimestampFieldType() != null;
         return new EngineConfig(
             shardId,
             threadPool,

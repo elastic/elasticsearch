@@ -153,6 +153,31 @@ EXPORT int32_t dot7u(int8_t* a, int8_t* b, size_t dims) {
     return res;
 }
 
+EXPORT void dot7u_bulk(int8_t* a, const int8_t* b, const int32_t dims, const int32_t count, float_t* results) {
+    int32_t res = 0;
+    if (dims > STRIDE_BYTES_LEN) {
+        const int limit = dims & ~(STRIDE_BYTES_LEN - 1);
+        for (size_t c = 0; c < count; c++) {
+            int i = limit;
+            res = dot7u_inner(a, b, i);
+            for (; i < dims; i++) {
+                res += a[i] * b[i];
+            }
+            results[c] = (float_t)res;
+            a += dims;
+        }
+    } else {
+        for (size_t c = 0; c < count; c++) {
+            res = 0;
+            for (size_t i = 0; i < dims; i++) {
+                res += a[i] * b[i];
+            }
+            results[c] = (float_t)res;
+            a += dims;
+        }
+    }
+}
+
 static inline int32_t sqr7u_inner(int8_t *a, int8_t *b, size_t dims) {
     // Init accumulator(s) with 0
     __m256i acc1 = _mm256_setzero_si256();

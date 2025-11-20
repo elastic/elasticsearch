@@ -40,7 +40,11 @@ abstract sealed class CoalesceLongEvaluator implements EvalOperator.ExpressionEv
             return new ExpressionEvaluator.Factory() {
                 @Override
                 public ExpressionEvaluator get(DriverContext context) {
-                    return new CoalesceLongEagerEvaluator(context, childEvaluators.stream().map(x -> x.get(context)).toList());
+                    return new CoalesceLongEagerEvaluator(
+                        // comment to make spotless happy about line breaks
+                        context,
+                        childEvaluators.stream().map(x -> x.get(context)).toList()
+                    );
                 }
 
                 @Override
@@ -52,7 +56,11 @@ abstract sealed class CoalesceLongEvaluator implements EvalOperator.ExpressionEv
         return new ExpressionEvaluator.Factory() {
             @Override
             public ExpressionEvaluator get(DriverContext context) {
-                return new CoalesceLongLazyEvaluator(context, childEvaluators.stream().map(x -> x.get(context)).toList());
+                return new CoalesceLongLazyEvaluator(
+                    // comment to make spotless happy about line breaks
+                    context,
+                    childEvaluators.stream().map(x -> x.get(context)).toList()
+                );
             }
 
             @Override
@@ -170,7 +178,10 @@ abstract sealed class CoalesceLongEvaluator implements EvalOperator.ExpressionEv
                 for (int f = 1; f < flatten.length; f++) {
                     flatten[f] = (LongBlock) evaluators.get(firstToEvaluate + f - 1).eval(page);
                 }
-                try (LongBlock.Builder result = driverContext.blockFactory().newLongBlockBuilder(positionCount)) {
+                try (
+                    LongBlock.Builder result = driverContext.blockFactory() //
+                        .newLongBlockBuilder(positionCount)
+                ) {
                     position: for (int p = 0; p < positionCount; p++) {
                         for (LongBlock f : flatten) {
                             if (false == f.isNull(p)) {
@@ -207,7 +218,10 @@ abstract sealed class CoalesceLongEvaluator implements EvalOperator.ExpressionEv
         @Override
         protected LongBlock perPosition(Page page, LongBlock lastFullBlock, int firstToEvaluate) {
             int positionCount = page.getPositionCount();
-            try (LongBlock.Builder result = driverContext.blockFactory().newLongBlockBuilder(positionCount)) {
+            try (
+                LongBlock.Builder result = driverContext.blockFactory() //
+                    .newLongBlockBuilder(positionCount)
+            ) {
                 position: for (int p = 0; p < positionCount; p++) {
                     if (lastFullBlock.isNull(p) == false) {
                         result.copyFrom(lastFullBlock, p, p + 1);

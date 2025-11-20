@@ -206,7 +206,7 @@ public final class FetchPhase {
                 if (context.isCancelled()) {
                     throw new TaskCancelledException("cancelled");
                 }
-           /*     if (context.checkRealMemoryCB(locallyAccumulatedBytes[0], "fetch source")) {
+                /*     if (context.checkRealMemoryCB(locallyAccumulatedBytes[0], "fetch source")) {
                     // if we checked the real memory breaker, we restart our local accounting
                     locallyAccumulatedBytes[0] = 0;
                 }*/

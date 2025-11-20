@@ -18,22 +18,20 @@ public final class IndexResolution {
 
     /**
      * @param index EsIndex encapsulating requested index expression, resolved mappings and index modes from field-caps.
-     * @param resolvedIndices Set of concrete indices resolved by field-caps. (This information is not always present in the EsIndex).
      * @param failures failures occurred during field-caps.
      * @return valid IndexResolution
      */
-    public static IndexResolution valid(EsIndex index, Set<String> resolvedIndices, Map<String, List<FieldCapabilitiesFailure>> failures) {
+    public static IndexResolution valid(EsIndex index, Map<String, List<FieldCapabilitiesFailure>> failures) {
         Objects.requireNonNull(index, "index must not be null if it was found");
-        Objects.requireNonNull(resolvedIndices, "resolvedIndices must not be null");
         Objects.requireNonNull(failures, "failures must not be null");
-        return new IndexResolution(index, null, resolvedIndices, failures);
+        return new IndexResolution(index, null, failures);
     }
 
     /**
      * Use this method only if the set of concrete resolved indices is the same as EsIndex#concreteIndices().
      */
     public static IndexResolution valid(EsIndex index) {
-        return valid(index, index.concreteIndices(), Map.of());
+        return valid(index, Map.of());
     }
 
     public static IndexResolution empty(String indexPattern) {
@@ -42,7 +40,7 @@ public final class IndexResolution {
 
     public static IndexResolution invalid(String invalid) {
         Objects.requireNonNull(invalid, "invalid must not be null to signal that the index is invalid");
-        return new IndexResolution(null, invalid, Set.of(), Map.of());
+        return new IndexResolution(null, invalid, Map.of());
     }
 
     public static IndexResolution notFound(String name) {
@@ -53,21 +51,12 @@ public final class IndexResolution {
     private final EsIndex index;
     @Nullable
     private final String invalid;
-
-    // all indices found by field-caps
-    private final Set<String> resolvedIndices;
     // map from cluster alias to failures that occurred during field-caps.
     private final Map<String, List<FieldCapabilitiesFailure>> failures;
 
-    private IndexResolution(
-        EsIndex index,
-        @Nullable String invalid,
-        Set<String> resolvedIndices,
-        Map<String, List<FieldCapabilitiesFailure>> failures
-    ) {
+    private IndexResolution(EsIndex index, @Nullable String invalid, Map<String, List<FieldCapabilitiesFailure>> failures) {
         this.index = index;
         this.invalid = invalid;
-        this.resolvedIndices = resolvedIndices;
         this.failures = failures;
     }
 
@@ -101,44 +90,24 @@ public final class IndexResolution {
         return failures;
     }
 
-    /**
-     * @return all indices found by field-caps (regardless of whether they had any mappings)
-     */
-    public Set<String> resolvedIndices() {
-        return resolvedIndices;
-    }
-
     @Override
     public boolean equals(Object obj) {
         if (obj == null || obj.getClass() != getClass()) {
             return false;
         }
         IndexResolution other = (IndexResolution) obj;
-        return Objects.equals(index, other.index)
-            && Objects.equals(invalid, other.invalid)
-            && Objects.equals(resolvedIndices, other.resolvedIndices)
-            && Objects.equals(failures, other.failures);
+        return Objects.equals(index, other.index) && Objects.equals(invalid, other.invalid) && Objects.equals(failures, other.failures);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(index, invalid, resolvedIndices, failures);
+        return Objects.hash(index, invalid, failures);
     }
 
     @Override
     public String toString() {
         return invalid != null
             ? invalid
-            : "IndexResolution{"
-                + "index="
-                + index
-                + ", invalid='"
-                + invalid
-                + '\''
-                + ", resolvedIndices="
-                + resolvedIndices
-                + ", unavailableClusters="
-                + failures
-                + '}';
+            : "IndexResolution{" + "index=" + index + ", invalid='" + invalid + "', unavailableClusters=" + failures + '}';
     }
 }

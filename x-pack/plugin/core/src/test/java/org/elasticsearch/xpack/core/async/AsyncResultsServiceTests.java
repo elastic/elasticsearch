@@ -17,6 +17,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
@@ -377,6 +378,6 @@ public class AsyncResultsServiceTests extends ESSingleNodeTestCase {
         PlainActionFuture<TestAsyncResponse> listener = new PlainActionFuture<>();
         // not waiting for completion, so should return immediately with timeout
         service.retrieveResult(new GetAsyncResultRequest(task.getExecutionId().getEncoded()), listener);
-        assertFutureThrows(listener, IllegalStateException.class);
+        assertFutureThrows(listener, IllegalArgumentException.class, RestStatus.BAD_REQUEST);
     }
 }

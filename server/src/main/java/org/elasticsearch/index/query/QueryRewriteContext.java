@@ -17,11 +17,13 @@ import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.routing.allocation.DataTier;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.TriConsumer;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.CountDown;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
@@ -77,7 +79,8 @@ public class QueryRewriteContext {
     protected final Client client;
     protected final LongSupplier nowInMillis;
     private final List<BiConsumer<Client, ActionListener<?>>> asyncActions = new ArrayList<>();
-    private final Map<String, List<BiConsumer<RemoteClusterClient, ActionListener<?>>>> remoteAsyncActions = new HashMap<>();
+    private final Map<String, List<TriConsumer<RemoteClusterClient, ThreadContext, ActionListener<?>>>> remoteAsyncActions =
+        new HashMap<>();
     protected boolean allowUnmappedFields;
     protected boolean mapUnmappedFieldAsString;
     protected Predicate<String> allowedFields;
@@ -363,8 +366,11 @@ public class QueryRewriteContext {
         asyncActions.add(asyncAction);
     }
 
-    public void registerRemoteAsyncAction(String clusterAlias, BiConsumer<RemoteClusterClient, ActionListener<?>> asyncAction) {
-        List<BiConsumer<RemoteClusterClient, ActionListener<?>>> asyncActions = remoteAsyncActions.computeIfAbsent(
+    public void registerRemoteAsyncAction(
+        String clusterAlias,
+        TriConsumer<RemoteClusterClient, ThreadContext, ActionListener<?>> asyncAction
+    ) {
+        List<TriConsumer<RemoteClusterClient, ThreadContext, ActionListener<?>>> asyncActions = remoteAsyncActions.computeIfAbsent(
             clusterAlias,
             k -> new ArrayList<>()
         );
@@ -418,15 +424,16 @@ public class QueryRewriteContext {
             // TODO: Need to make a copy of remoteAsyncActions?
             for (var entry : remoteAsyncActions.entrySet()) {
                 String clusterAlias = entry.getKey();
-                List<BiConsumer<RemoteClusterClient, ActionListener<?>>> remoteBiConsumers = entry.getValue();
+                List<TriConsumer<RemoteClusterClient, ThreadContext, ActionListener<?>>> remoteTriConsumers = entry.getValue();
 
                 RemoteClusterClient remoteClient = client.getRemoteClusterClient(
                     clusterAlias,
                     client.threadPool().executor(SEARCH_COORDINATION), // TODO: Is this the right thread pool for remote async actions?
                     RemoteClusterService.DisconnectedStrategy.RECONNECT_UNLESS_SKIP_UNAVAILABLE
                 );
-                for (var action : remoteBiConsumers) {
-                    action.accept(remoteClient, internalListener);
+                ThreadContext threadContext = client.threadPool().getThreadContext();
+                for (var action : remoteTriConsumers) {
+                    action.apply(remoteClient, threadContext, internalListener);
                 }
             }
             remoteAsyncActions.clear();

@@ -71,8 +71,10 @@ import java.util.stream.Collectors;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
+import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.MONITORING_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.SECURITY_ORIGIN;
+import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
 import static org.elasticsearch.xpack.security.support.SecuritySystemIndices.SECURITY_MAIN_ALIAS;
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.equalTo;
@@ -384,15 +386,21 @@ public class QueryRewriteContextMultiClustersIT extends AbstractMultiClustersTes
                 List<InstrumentedAction.Request> clusterRequestList = clusterRequestMap.get(clusterAlias);
 
                 for (InstrumentedAction.Request clusterRequest : clusterRequestList) {
-                    queryRewriteContext.registerRemoteAsyncAction(clusterAlias, (client, listener) -> {
-                        client.execute(InstrumentedAction.REMOTE_TYPE, clusterRequest, listener.delegateFailureAndWrap((l, r) -> {
-                            if (r.isAcknowledged()) {
-                                gal.onResponse(null);
-                                l.onResponse(null);
-                            } else {
-                                l.onFailure(new IllegalStateException("Unacknowledged response from cluster [" + clusterAlias + "]"));
-                            }
-                        }));
+                    queryRewriteContext.registerRemoteAsyncAction(clusterAlias, (client, threadContext, listener) -> {
+                        executeAsyncWithOrigin(
+                            threadContext,
+                            ML_ORIGIN,
+                            clusterRequest,
+                            listener.<InstrumentedAction.Response>delegateFailureAndWrap((l, r) -> {
+                                if (r.isAcknowledged()) {
+                                    gal.onResponse(null);
+                                    l.onResponse(null);
+                                } else {
+                                    l.onFailure(new IllegalStateException("Unacknowledged response from cluster [" + clusterAlias + "]"));
+                                }
+                            }),
+                            (r, l) -> client.execute(InstrumentedAction.REMOTE_TYPE, r, l)
+                        );
                     });
                 }
             }

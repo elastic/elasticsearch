@@ -361,12 +361,6 @@ tests:
   method: test {yaml=ingest/100_sampling_with_reroute/Test get sample with multiple reroutes}
   issue: https://github.com/elastic/elasticsearch/issues/137457
 - class: org.elasticsearch.xpack.ilm.CCRIndexLifecycleIT
-  method: testBasicCCRAndILMIntegration {targetCluster=FOLLOWER}
-  issue: https://github.com/elastic/elasticsearch/issues/137494
-- class: org.elasticsearch.xpack.ilm.CCRIndexLifecycleIT
-  method: testCcrAndIlmWithRollover {targetCluster=FOLLOWER}
-  issue: https://github.com/elastic/elasticsearch/issues/137528
-- class: org.elasticsearch.xpack.ilm.CCRIndexLifecycleIT
   method: testTsdbLeaderIndexRolloverAndSyncAfterWaitUntilEndTime {targetCluster=FOLLOWER}
   issue: https://github.com/elastic/elasticsearch/issues/137565
 - class: org.elasticsearch.xpack.inference.action.filter.ShardBulkInferenceActionFilterBasicLicenseIT

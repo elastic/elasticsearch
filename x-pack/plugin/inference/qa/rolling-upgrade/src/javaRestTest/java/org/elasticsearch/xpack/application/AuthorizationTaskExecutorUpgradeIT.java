@@ -55,7 +55,10 @@ public class AuthorizationTaskExecutorUpgradeIT extends ParameterizedRollingUpgr
     }
 
     public void testUpgradeAuthorizationTaskExecutor() throws Exception {
-        assumeTrue("Authorization Polling Task supported", oldClusterHasFeature(BEFORE_AUTHORIZATION_TASK_FEATURE));
+        assumeTrue(
+            "Only test a version prior to v9.3.0 so we start in a version before the authorization polling task existed",
+            oldClusterHasFeature(BEFORE_AUTHORIZATION_TASK_FEATURE)
+        );
 
         // If the old cluster already has the feature for the authorization polling task, the task should already exist
         // We only want to test when upgrading from a version that does not have the task

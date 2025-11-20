@@ -7,7 +7,7 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.benchmark.vector;
+package org.elasticsearch.benchmark.vector.scorer;
 
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
@@ -18,12 +18,12 @@ import org.openjdk.jmh.annotations.Param;
 
 import java.util.Arrays;
 
-public class JDKVectorFloat32BenchmarkTests extends ESTestCase {
+public class VectorScorerJDKFloat32BenchmarkTests extends ESTestCase {
 
     final double delta;
     final int size;
 
-    public JDKVectorFloat32BenchmarkTests(int size) {
+    public VectorScorerJDKFloat32BenchmarkTests(int size) {
         this.size = size;
         delta = 1e-3 * size;
     }
@@ -39,7 +39,7 @@ public class JDKVectorFloat32BenchmarkTests extends ESTestCase {
 
     public void testCosine() {
         for (int i = 0; i < 100; i++) {
-            var bench = new JDKVectorFloat32Benchmark();
+            var bench = new VectorScorerJDKFloat32Benchmark();
             bench.size = size;
             bench.init();
             try {
@@ -58,7 +58,7 @@ public class JDKVectorFloat32BenchmarkTests extends ESTestCase {
 
     public void testDotProduct() {
         for (int i = 0; i < 100; i++) {
-            var bench = new JDKVectorFloat32Benchmark();
+            var bench = new VectorScorerJDKFloat32Benchmark();
             bench.size = size;
             bench.init();
             try {
@@ -77,7 +77,7 @@ public class JDKVectorFloat32BenchmarkTests extends ESTestCase {
 
     public void testSquareDistance() {
         for (int i = 0; i < 100; i++) {
-            var bench = new JDKVectorFloat32Benchmark();
+            var bench = new VectorScorerJDKFloat32Benchmark();
             bench.size = size;
             bench.init();
             try {
@@ -97,7 +97,7 @@ public class JDKVectorFloat32BenchmarkTests extends ESTestCase {
     @ParametersFactory
     public static Iterable<Object[]> parametersFactory() {
         try {
-            var params = JDKVectorFloat32Benchmark.class.getField("size").getAnnotationsByType(Param.class)[0].value();
+            var params = VectorScorerJDKFloat32Benchmark.class.getField("size").getAnnotationsByType(Param.class)[0].value();
             return () -> Arrays.stream(params).map(Integer::parseInt).map(i -> new Object[] { i }).iterator();
         } catch (NoSuchFieldException e) {
             throw new AssertionError(e);

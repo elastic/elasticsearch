@@ -1,5 +1,5 @@
 loadFiltered
-required_capability: exponential_histogram_topn
+required_capability: exponential_histogram_pre_tech_preview_v1
 
 FROM exp_histo_sample | WHERE STARTS_WITH(instance, "dummy") | SORT instance | KEEP instance, responseTime
 ;
@@ -17,7 +17,7 @@ dummy-zero_threshold_only | "{""scale"":0,""sum"":0.0,""zero"":{""threshold"":2.
 
 
 allAggsGrouped
-required_capability: exponential_histogram_sum_avg_support
+required_capability: exponential_histogram_pre_tech_preview_v1
 
 FROM exp_histo_sample 
  | EVAL instance = CASE(STARTS_WITH(instance, "dummy"), "dummy-grouped", instance)
@@ -37,7 +37,7 @@ instance-2       | 2.2E-4     | 2.744054   | 0.0016068  | 27.706021000000003 | 0
 
 
 allAggsInlineGrouped
-required_capability: exponential_histogram_sum_avg_support
+required_capability: exponential_histogram_pre_tech_preview_v1
 
 FROM exp_histo_sample 
  | INLINE STATS min = MIN(responseTime), max = MAX(responseTime), p75 = PERCENTILE(responseTime,75), sum = SUM(responseTime), avg = AVG(responseTime)  BY instance
@@ -68,7 +68,7 @@ instance-0                | 2.4E-4     | 6.786232   | 0.2608237   | 1472.744209 
 
 
 allAggsOnEmptyHistogram
-required_capability: exponential_histogram_minmax_support
+required_capability: exponential_histogram_pre_tech_preview_v1
 
 FROM exp_histo_sample | WHERE instance == "dummy-empty"
  | STATS min = MIN(responseTime), max = MAX(responseTime), p75 = PERCENTILE(responseTime,75)
@@ -82,7 +82,7 @@ NULL       | NULL       | NULL
 
 
 ungroupedPercentiles
-required_capability: exponential_histogram_percentiles_support
+required_capability: exponential_histogram_pre_tech_preview_v1
 
 FROM exp_histo_sample | WHERE NOT STARTS_WITH(instance, "dummy") 
  | STATS p0 = PERCENTILE(responseTime,0),  p50 = PERCENTILE(responseTime,50),  p99 = PERCENTILE(responseTime, 99),  p100 = PERCENTILE(responseTime,100)
@@ -97,7 +97,7 @@ p0:double | p50:double | p99:double | p100:double
 
 
 groupedPercentiles
-required_capability: exponential_histogram_percentiles_support
+required_capability: exponential_histogram_pre_tech_preview_v1
 
 FROM exp_histo_sample | WHERE NOT STARTS_WITH(instance, "dummy") 
  | STATS p0 = PERCENTILE(responseTime,0),  p50 = PERCENTILE(responseTime,50),  p99 = PERCENTILE(responseTime, 99),  p100 = PERCENTILE(responseTime,100) BY instance
@@ -115,7 +115,7 @@ instance-2       | 2.2E-4    | 6.469E-4   | 0.0857672  | 2.7059714542564097
 
 
 percentileOnEmptyHistogram
-required_capability: exponential_histogram_percentiles_support
+required_capability: exponential_histogram_pre_tech_preview_v1
 
 FROM exp_histo_sample | WHERE instance == "dummy-empty"
  | STATS  p50 = PERCENTILE(responseTime,50)
@@ -129,7 +129,7 @@ NULL
 
 
 ungroupedMinMax
-required_capability: exponential_histogram_minmax_support
+required_capability: exponential_histogram_pre_tech_preview_v1
 
 FROM exp_histo_sample | WHERE NOT STARTS_WITH(instance, "dummy") 
  | STATS min = MIN(responseTime),  max = MAX(responseTime)
@@ -143,7 +143,7 @@ min:double | max:double
 
 
 groupedMinMax
-required_capability: exponential_histogram_minmax_support
+required_capability: exponential_histogram_pre_tech_preview_v1
 
 FROM exp_histo_sample | WHERE NOT STARTS_WITH(instance, "dummy") 
  | STATS min = MIN(responseTime),  max = MAX(responseTime) BY instance
@@ -160,7 +160,7 @@ instance-2       | 2.2E-4     | 2.744054
 
 
 minMaxOnEmptyHistogram
-required_capability: exponential_histogram_minmax_support
+required_capability: exponential_histogram_pre_tech_preview_v1
 
 FROM exp_histo_sample | WHERE instance == "dummy-empty"
  | STATS  min = MIN(responseTime), max = MAX(responseTime)
@@ -173,7 +173,7 @@ NULL       | NULL
 
 
 ungroupedAvg
-required_capability: exponential_histogram_sum_avg_support
+required_capability: exponential_histogram_pre_tech_preview_v1
 
 FROM exp_histo_sample | WHERE NOT STARTS_WITH(instance, "dummy") 
  | STATS avg = AVG(responseTime)
@@ -186,7 +186,7 @@ avg:double
 
 
 groupedAvg
-required_capability: exponential_histogram_sum_avg_support
+required_capability: exponential_histogram_pre_tech_preview_v1
 
 FROM exp_histo_sample | WHERE NOT STARTS_WITH(instance, "dummy") 
  | STATS avg = AVG(responseTime) BY instance
@@ -202,7 +202,7 @@ instance-2       | 0.008197047633136096
 
 
 avgOnEmptyHistogram
-required_capability: exponential_histogram_sum_avg_support
+required_capability: exponential_histogram_pre_tech_preview_v1
 
 FROM exp_histo_sample | WHERE instance == "dummy-empty"
  | STATS  avg = AVG(responseTime)
@@ -215,7 +215,7 @@ NULL
 
 
 ungroupedSum
-required_capability: exponential_histogram_sum_avg_support
+required_capability: exponential_histogram_pre_tech_preview_v1
 
 FROM exp_histo_sample | WHERE NOT STARTS_WITH(instance, "dummy") 
  | STATS sum = SUM(responseTime)
@@ -228,7 +228,7 @@ sum:double
 
 
 groupedSum
-required_capability: exponential_histogram_sum_avg_support
+required_capability: exponential_histogram_pre_tech_preview_v1
 
 FROM exp_histo_sample | WHERE NOT STARTS_WITH(instance, "dummy") 
  | STATS sum = SUM(responseTime) BY instance

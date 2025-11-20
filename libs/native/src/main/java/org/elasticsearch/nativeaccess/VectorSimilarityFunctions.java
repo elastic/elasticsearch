@@ -39,7 +39,7 @@ public interface VectorSimilarityFunctions {
      *
      * <p> The type of the method handle will have {@code void} as return type. The type of
      * its first and second arguments will be {@code MemorySegment}, the former contains the
-     * vector data bytes for several vectors, while the latter just a single vector.The
+     * vector data bytes for several vectors, while the latter just a single vector. The
      * type of the third argument is an int, representing the dimensions of each vector. The
      * type of the fourth argument is an int, representing the number of vectors in the
      * first argument. The type of the final argument is a MemorySegment, into which the

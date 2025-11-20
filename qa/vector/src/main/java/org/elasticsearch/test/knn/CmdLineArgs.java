@@ -180,6 +180,10 @@ record CmdLineArgs(
         builder.field(WRITER_BUFFER_DOCS_FIELD.getPreferredName(), writerMaxBufferedDocs);
         builder.field(FORCE_MERGE_MAX_NUM_SEGMENTS_FIELD.getPreferredName(), forceMergeMaxNumSegments);
         builder.field(ON_DISK_RESCORE_FIELD.getPreferredName(), onDiskRescore);
+        builder.field(FILTER_CACHED.getPreferredName(), filterCached);
+        if (mergePolicy != null) {
+            builder.field(MERGE_POLICY_FIELD.getPreferredName(), mergePolicy.name().toLowerCase(Locale.ROOT));
+        }
         return builder.endObject();
     }
 

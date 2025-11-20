@@ -140,7 +140,9 @@ class KnnSearcher {
     }
 
     void runSearch(KnnIndexTester.Results finalResults, boolean earlyTermination) throws IOException {
-        Query filterQuery = this.selectivity < 1f ? generateRandomQuery(new Random(randomSeed), indexPath, numDocs, selectivity, filterCached) : null;
+        Query filterQuery = this.selectivity < 1f
+            ? generateRandomQuery(new Random(randomSeed), indexPath, numDocs, selectivity, filterCached)
+            : null;
         TopDocs[] results = new TopDocs[numQueryVectors];
         int[][] resultIds = new int[numQueryVectors][];
         long elapsed, totalCpuTimeMS, totalVisited = 0;

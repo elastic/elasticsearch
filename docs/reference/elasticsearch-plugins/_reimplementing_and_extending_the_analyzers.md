@@ -3,7 +3,7 @@ mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/plugins/current/_reimplementing_and_extending_the_analyzers.html
 ---
 
-# Reimplementing and extending the analyzers [_reimplementing_and_extending_the_analyzers]
+# Reimplementing and extending the `smartcn` analyzer [_reimplementing_and_extending_the_analyzers]
 
 The `smartcn` analyzer could be reimplemented as a `custom` analyzer that can then be extended and configured as follows:
 
@@ -25,4 +25,3 @@ PUT smartcn_example
   }
 }
 ```
-

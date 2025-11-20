@@ -15,6 +15,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
+import org.elasticsearch.index.mapper.DateFieldMapper.DateFieldType;
 import org.elasticsearch.inference.InferenceService;
 import org.elasticsearch.search.lookup.SourceFilter;
 
@@ -347,7 +348,7 @@ public final class MappingLookup {
         }
     }
 
-    private void checkFieldNameLengthLimit(long limit) {
+    void checkFieldNameLengthLimit(long limit) {
         validateMapperNameIn(objectMappers.values(), limit);
         validateMapperNameIn(fieldMappers.values(), limit);
     }
@@ -530,18 +531,18 @@ public final class MappingLookup {
     }
 
     /**
-     * Returns if this mapping contains a timestamp field that is of type date, has doc values, and is either indexed or uses a doc values
-     * skipper.
-     * @return {@code true} if contains a timestamp field of type date that has doc values and is either indexed or uses a doc values
-     * skipper, {@code false} otherwise.
+     * If this mapping contains a timestamp field that is of type date, has doc values, and is either indexed or uses a doc values
+     * skipper, this returns the field type for it.
      */
-    public boolean hasTimestampField() {
+    public @Nullable DateFieldType getTimestampFieldType() {
         final MappedFieldType mappedFieldType = fieldTypesLookup().get(DataStream.TIMESTAMP_FIELD_NAME);
-        if (mappedFieldType instanceof DateFieldMapper.DateFieldType dateMappedFieldType) {
-            return dateMappedFieldType.hasDocValues() && (dateMappedFieldType.isIndexed() || dateMappedFieldType.hasDocValuesSkipper());
-        } else {
-            return false;
+        if (mappedFieldType instanceof DateFieldType dateMappedFieldType) {
+            IndexType indexType = dateMappedFieldType.indexType();
+            if (indexType.hasPoints() || indexType.hasDocValuesSkipper()) {
+                return dateMappedFieldType;
+            }
         }
+        return null;
     }
 
     /**

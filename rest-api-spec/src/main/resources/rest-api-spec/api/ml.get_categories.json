@@ -1,65 +1,72 @@
 {
-  "ml.get_categories":{
-    "documentation":{
-      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/ml-get-category.html",
-      "description":"Retrieves anomaly detection job results for one or more categories."
+  "ml.get_categories": {
+    "documentation": {
+      "url": "https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-ml-get-categories",
+      "description": "Get anomaly detection job results for categories"
     },
-    "stability":"stable",
-    "visibility":"public",
-    "headers":{
-      "accept": [ "application/json"],
-      "content_type": ["application/json"]
+    "stability": "stable",
+    "visibility": "public",
+    "headers": {
+      "accept": [
+        "application/json"
+      ],
+      "content_type": [
+        "application/json"
+      ]
     },
-    "url":{
-      "paths":[
+    "url": {
+      "paths": [
         {
-          "path":"/_ml/anomaly_detectors/{job_id}/results/categories/{category_id}",
-          "methods":[
+          "path": "/_ml/anomaly_detectors/{job_id}/results/categories/{category_id}",
+          "methods": [
             "GET",
             "POST"
           ],
-          "parts":{
-            "job_id":{
-              "type":"string",
-              "description":"The name of the job"
+          "parts": {
+            "job_id": {
+              "type": "string",
+              "description": "The name of the job"
             },
-            "category_id":{
-              "type":"long",
-              "description":"The identifier of the category definition of interest"
+            "category_id": {
+              "type": "long",
+              "description": "The identifier of the category definition of interest"
             }
           }
         },
         {
-          "path":"/_ml/anomaly_detectors/{job_id}/results/categories",
-          "methods":[
+          "path": "/_ml/anomaly_detectors/{job_id}/results/categories",
+          "methods": [
             "GET",
             "POST"
           ],
-          "parts":{
-            "job_id":{
-              "type":"string",
-              "description":"The name of the job"
+          "parts": {
+            "job_id": {
+              "type": "string",
+              "description": "The name of the job"
             }
           }
         }
       ]
     },
-    "params":{
-      "from":{
-        "type":"int",
-        "description":"skips a number of categories"
+    "params": {
+      "from": {
+        "type": "int",
+        "default": 0,
+        "description": "skips a number of categories"
       },
-      "size":{
-        "type":"int",
-        "description":"specifies a max number of categories to get"
+      "size": {
+        "type": "int",
+        "default": 100,
+        "description": "specifies a max number of categories to get"
       },
-      "partition_field_value":{
-        "type":"string",
-        "description":"Specifies the partition to retrieve categories for. This is optional, and should never be used for jobs where per-partition categorization is disabled."
+      "partition_field_value": {
+        "type": "string",
+        "description": "Specifies the partition to retrieve categories for. This is optional, and should never be used for jobs where per-partition categorization is disabled."
       }
     },
-    "body":{
-      "description":"Category selection details if not provided in URI"
+    "body": {
+      "description": "Category selection details if not provided in URI",
+      "required": false
     }
   }
 }

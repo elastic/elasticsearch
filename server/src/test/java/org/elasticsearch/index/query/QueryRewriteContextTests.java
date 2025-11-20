@@ -54,6 +54,10 @@ public class QueryRewriteContextTests extends ESTestCase {
                 null,
                 null,
                 null,
+                null,
+                null,
+                null,
+                false,
                 false
             );
 
@@ -83,6 +87,10 @@ public class QueryRewriteContextTests extends ESTestCase {
                 null,
                 null,
                 null,
+                null,
+                null,
+                null,
+                false,
                 false
             );
 

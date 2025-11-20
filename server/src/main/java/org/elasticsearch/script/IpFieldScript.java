@@ -57,6 +57,11 @@ public abstract class IpFieldScript extends AbstractFieldScript {
         public boolean isResultDeterministic() {
             return true;
         }
+
+        @Override
+        public boolean isParsedFromSource() {
+            return true;
+        }
     };
 
     public static Factory leafAdapter(Function<SearchLookup, CompositeFieldScript.LeafFactory> parentFactory) {

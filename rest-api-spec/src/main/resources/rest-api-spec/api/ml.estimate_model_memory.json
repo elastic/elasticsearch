@@ -1,29 +1,32 @@
 {
-  "ml.estimate_model_memory":{
-    "documentation":{
-      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/ml-apis.html",
-      "description":"Estimates the model memory"
+  "ml.estimate_model_memory": {
+    "documentation": {
+      "url": "https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-ml-estimate-model-memory",
+      "description": "Estimate job model memory usage"
     },
-    "stability":"stable",
-    "visibility":"public",
-    "headers":{
-      "accept": [ "application/json"],
-      "content_type": ["application/json"]
+    "stability": "stable",
+    "visibility": "public",
+    "headers": {
+      "accept": [
+        "application/json"
+      ],
+      "content_type": [
+        "application/json"
+      ]
     },
-    "url":{
-      "paths":[
+    "url": {
+      "paths": [
         {
-          "path":"/_ml/anomaly_detectors/_estimate_model_memory",
-          "methods":[
+          "path": "/_ml/anomaly_detectors/_estimate_model_memory",
+          "methods": [
             "POST"
           ]
         }
       ]
     },
-    "params":{},
-    "body":{
-      "description":"The analysis config, plus cardinality estimates for fields it references",
-      "required":true
+    "body": {
+      "description": "The analysis config, plus cardinality estimates for fields it references",
+      "required": true
     }
   }
 }

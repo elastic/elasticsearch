@@ -33,20 +33,23 @@ public final class StdDevFloatAggregatorFunction implements AggregatorFunction {
 
   private final DriverContext driverContext;
 
-  private final StdDevStates.SingleState state;
+  private final VarianceStates.SingleState state;
 
   private final List<Integer> channels;
 
+  private final boolean stdDev;
+
   public StdDevFloatAggregatorFunction(DriverContext driverContext, List<Integer> channels,
-      StdDevStates.SingleState state) {
+      VarianceStates.SingleState state, boolean stdDev) {
     this.driverContext = driverContext;
     this.channels = channels;
     this.state = state;
+    this.stdDev = stdDev;
   }
 
   public static StdDevFloatAggregatorFunction create(DriverContext driverContext,
-      List<Integer> channels) {
-    return new StdDevFloatAggregatorFunction(driverContext, channels, StdDevFloatAggregator.initSingle());
+      List<Integer> channels, boolean stdDev) {
+    return new StdDevFloatAggregatorFunction(driverContext, channels, StdDevFloatAggregator.initSingle(stdDev), stdDev);
   }
 
   public static List<IntermediateStateDesc> intermediateStateDesc() {
@@ -108,11 +111,12 @@ public final class StdDevFloatAggregatorFunction implements AggregatorFunction {
 
   private void addRawBlock(FloatBlock valueBlock) {
     for (int p = 0; p < valueBlock.getPositionCount(); p++) {
-      if (valueBlock.isNull(p)) {
+      int valueValueCount = valueBlock.getValueCount(p);
+      if (valueValueCount == 0) {
         continue;
       }
       int valueStart = valueBlock.getFirstValueIndex(p);
-      int valueEnd = valueStart + valueBlock.getValueCount(p);
+      int valueEnd = valueStart + valueValueCount;
       for (int valueOffset = valueStart; valueOffset < valueEnd; valueOffset++) {
         float valueValue = valueBlock.getFloat(valueOffset);
         StdDevFloatAggregator.combine(state, valueValue);
@@ -125,11 +129,12 @@ public final class StdDevFloatAggregatorFunction implements AggregatorFunction {
       if (mask.getBoolean(p) == false) {
         continue;
       }
-      if (valueBlock.isNull(p)) {
+      int valueValueCount = valueBlock.getValueCount(p);
+      if (valueValueCount == 0) {
         continue;
       }
       int valueStart = valueBlock.getFirstValueIndex(p);
-      int valueEnd = valueStart + valueBlock.getValueCount(p);
+      int valueEnd = valueStart + valueValueCount;
       for (int valueOffset = valueStart; valueOffset < valueEnd; valueOffset++) {
         float valueValue = valueBlock.getFloat(valueOffset);
         StdDevFloatAggregator.combine(state, valueValue);

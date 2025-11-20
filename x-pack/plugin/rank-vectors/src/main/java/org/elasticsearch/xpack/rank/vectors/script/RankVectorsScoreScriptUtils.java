@@ -55,7 +55,7 @@ public class RankVectorsScoreScriptUtils {
             if (queryVector.isEmpty()) {
                 throw new IllegalArgumentException("The query vector is empty.");
             }
-            field.getElementType().checkDimensions(field.get().getDims(), queryVector.get(0).size());
+            field.getElement().checkDimensions(field.get().getDims(), queryVector.get(0).size());
             this.queryVector = new byte[queryVector.size()][queryVector.get(0).size()];
             float[] validateValues = new float[queryVector.size()];
             int lastSize = -1;
@@ -72,7 +72,7 @@ public class RankVectorsScoreScriptUtils {
                     this.queryVector[i][j] = value;
                     validateValues[i] = number.floatValue();
                 }
-                field.getElementType().checkVectorBounds(validateValues);
+                field.getElement().checkVectorBounds(validateValues);
             }
         }
 
@@ -118,7 +118,7 @@ public class RankVectorsScoreScriptUtils {
                 for (int j = 0; j < queryVector.get(i).size(); j++) {
                     this.queryVector[i][j] = queryVector.get(i).get(j).floatValue();
                 }
-                field.getElementType().checkVectorBounds(this.queryVector[i]);
+                field.getElement().checkVectorBounds(this.queryVector[i]);
             }
         }
     }
@@ -357,6 +357,7 @@ public class RankVectorsScoreScriptUtils {
                     }
                     throw new IllegalArgumentException("Unsupported input object for float vectors: " + queryVector.getClass().getName());
                 }
+                case BFLOAT16 -> throw new IllegalArgumentException("Unsupported element type: bfloat16");
             };
         }
 

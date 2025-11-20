@@ -46,9 +46,15 @@ abstract class AbstractNativeAccess implements NativeAccess {
     }
 
     @Override
-    public CloseableByteBuffer newBuffer(int len) {
+    public CloseableByteBuffer newSharedBuffer(int len) {
         assert len > 0;
-        return javaLib.newBuffer(len);
+        return javaLib.newSharedBuffer(len);
+    }
+
+    @Override
+    public CloseableByteBuffer newConfinedBuffer(int len) {
+        assert len > 0;
+        return javaLib.newConfinedBuffer(len);
     }
 
     @Override

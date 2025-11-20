@@ -32,6 +32,8 @@ public final class XPackField {
     public static final String UPGRADE = "upgrade";
     // inside of YAML settings we still use xpack do not having handle issues with dashes
     public static final String SETTINGS_NAME = "xpack";
+    /** Name constant for the EIS feature. */
+    public static final String ELASTIC_INFERENCE_SERVICE = "Elastic Inference Service";
     /** Name constant for the eql feature. */
     public static final String EQL = "eql";
     /** Name constant for the esql feature. */
@@ -74,6 +76,8 @@ public final class XPackField {
     public static final String DATA_STREAMS = "data_streams";
     /** Name constant for the data stream lifecycle feature. */
     public static final String DATA_STREAM_LIFECYCLE = "data_lifecycle";
+    /** Name constant for the time series data streams feature. */
+    public static final String TIME_SERIES_DATA_STREAMS = "time_series";
     /** Name constant for the data tiers feature. */
     public static final String DATA_TIERS = "data_tiers";
     /** Name constant for the aggregate_metric plugin. */

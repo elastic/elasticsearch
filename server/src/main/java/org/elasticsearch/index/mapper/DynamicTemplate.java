@@ -31,6 +31,8 @@ import java.util.regex.PatternSyntaxException;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import static org.elasticsearch.index.mapper.TimeSeriesParams.TIME_SERIES_DIMENSION_PARAM;
+
 public class DynamicTemplate implements ToXContentObject {
 
     public enum MatchType {
@@ -445,6 +447,24 @@ public class DynamicTemplate implements ToXContentObject {
 
     public List<String> match() {
         return match;
+    }
+
+    public boolean isTimeSeriesDimension() {
+        if (mapping != null) {
+            Object value = mapping.get(TIME_SERIES_DIMENSION_PARAM);
+            if (value instanceof Boolean bool) return bool;
+        }
+        return false;
+    }
+
+    public boolean isSimplePathMatch() {
+        return pathMatch.isEmpty() == false
+            && pathUnmatch.isEmpty()
+            && match.isEmpty()
+            && unmatch.isEmpty()
+            && matchMappingType.isEmpty()
+            && unmatchMappingType.isEmpty()
+            && matchType != MatchType.REGEX;
     }
 
     public boolean match(String templateName, String path, String fieldName, XContentFieldType xcontentFieldType) {

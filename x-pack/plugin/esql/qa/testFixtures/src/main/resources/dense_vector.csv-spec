@@ -1,5 +1,7 @@
 retrieveDenseVectorData
-required_capability: dense_vector_field_type
+required_capability: dense_vector_field_type_released
+required_capability: dense_vector_agg_metric_double_if_version
+required_capability: l2_norm_vector_similarity_function
 
 FROM dense_vector
 | KEEP id, float_vector
@@ -14,7 +16,8 @@ id:l | float_vector:dense_vector
 ;
 
 denseVectorWithEval
-required_capability: dense_vector_field_type
+required_capability: dense_vector_agg_metric_double_if_version
+required_capability: l2_norm_vector_similarity_function
 
 FROM dense_vector
 | EVAL v = float_vector
@@ -30,12 +33,13 @@ id:l | v:dense_vector
 ;
 
 denseVectorWithRenameAndDrop
-required_capability: dense_vector_field_type
+required_capability: dense_vector_agg_metric_double_if_version
+required_capability: l2_norm_vector_similarity_function
 
 FROM dense_vector 
 | EVAL v = float_vector 
 | RENAME v AS new_vector 
-| DROP float_vector, byte_vector
+| DROP float_vector, byte_vector, bit_vector
 | SORT id
 ;
 
@@ -44,4 +48,60 @@ id:l | new_vector:dense_vector
 1    | [4.0, 5.0, 6.0]
 2    | [9.0, 8.0, 7.0]
 3    | [0.054, 0.032, 0.012]
+;
+
+convertIntsToDenseVector
+required_capability: dense_vector_field_type_released
+required_capability: to_dense_vector_function
+
+// tag::to_dense_vector-ints[]
+row ints = [1, 2, 3]
+| eval vector = to_dense_vector(ints)
+| keep vector
+// end::to_dense_vector-ints[]
+;
+
+// tag::to_dense_vector-ints-result[]
+vector:dense_vector
+[1.0, 2.0, 3.0]
+// end::to_dense_vector-ints-result[]
+;
+
+convertLongsToDenseVector
+required_capability: dense_vector_field_type_released
+required_capability: to_dense_vector_function
+
+row longs = [5013792, 2147483647, 501379200000]
+| eval vector = to_dense_vector(longs)
+| keep vector
+;
+
+vector:dense_vector
+[5013792.0, 2147483647.0, 501379200000.0]
+;
+
+convertDoublesToDenseVector
+required_capability: dense_vector_field_type_released
+required_capability: to_dense_vector_function
+
+row doubles = [123.4, 567.8, 901.2]
+| eval vector = to_dense_vector(doubles)
+| keep vector
+;
+
+vector:dense_vector
+[123.4, 567.8, 901.2]
+;
+
+convertHexStringToDenseVector
+required_capability: dense_vector_field_type_released
+required_capability: to_dense_vector_function
+
+row hex_str = "0102030405060708090a0b0c0d0e0f"
+| eval vector = to_dense_vector(hex_str)
+| keep vector
+;
+
+vector:dense_vector
+ [1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 10.0, 11.0, 12.0, 13.0, 14.0, 15.0]
 ;

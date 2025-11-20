@@ -1,0 +1,142 @@
+version: 9.1.4
+released: true
+generated: 2025-09-18T15:14:33.719368457Z
+changelogs:
+  - pr: 132853
+    summary: Bump bcpkix version
+    area: Security
+    type: upgrade
+    issues: []
+  - pr: 133080
+    summary: Disallow creating `semantic_text` fields in indices created prior to 8.11.0
+    area: Relevance
+    type: bug
+    issues: []
+  - pr: 133198
+    summary: Bump bc-fips to 1.0.2.6
+    area: FIPS
+    type: upgrade
+    issues: []
+  - pr: 133392
+    summary: Track memory in evaluators
+    area: ES|QL
+    type: bug
+    issues: []
+  - pr: 133398
+    summary: "Aggs: Fix CB on reduction phase"
+    area: Aggregations
+    type: bug
+    issues: []
+  - pr: 133424
+    summary: Ensuring only a single request executor object is created
+    area: Machine Learning
+    type: bug
+    issues: []
+  - pr: 133604
+    summary: Update `DefBootstrap` to handle Error from `ClassValue`
+    area: Infra/Scripting
+    type: bug
+    issues: []
+  - pr: 133611
+    summary: Allow trailing empty string field names in paths of flattened field
+    area: Mapping
+    type: bug
+    issues:
+      - 130139
+  - pr: 133671
+    summary: Remove `java.xml` from system modules
+    area: Infra/Core
+    type: bug
+    issues: []
+  - pr: 133680
+    summary: Fix enrich caches outdated value after policy run
+    area: Ingest Node
+    type: bug
+    issues: []
+  - pr: 133681
+    summary: Remove `DocumentSubsetBitsetCache` locking
+    area: Authorization
+    type: bug
+    issues:
+      - 132842
+  - pr: 133737
+    summary: "KQL: Support boolean operators in field queries"
+    area: Search
+    type: bug
+    issues:
+      - 132366
+  - pr: 133752
+    summary: Avoid stale enrich results after policy execution
+    area: Ingest Node
+    type: bug
+    issues: []
+  - pr: 133775
+    summary: Remove Transfer-Encoding from HTTP request with no content
+    area: Network
+    type: bug
+    issues: []
+  - pr: 133793
+    summary: "[Sentinel One] Add `manage`, `create_index`, `read`, `index`, `write`, `delete`, permission for third party agent indices `kibana_system`"
+    area: Authorization
+    type: enhancement
+    issues:
+      - 133703
+  - pr: 133848
+    summary: Delay S3 repo warning if default region absent
+    area: Snapshot/Restore
+    type: bug
+    issues: []
+  - pr: 133919
+    summary: Fix double-counting of inference memory in the assignment rebalancer
+    area: Machine Learning
+    type: bug
+    issues: []
+  - pr: 134091
+    summary: Use latest setting value when initializing setting watch
+    area: Infra/Settings
+    type: bug
+    issues:
+      - 133701
+  - pr: 134134
+    summary: Prevent field caps from failing due to can match failure
+    area: Search
+    type: bug
+    issues:
+      - 116106
+  - pr: 134182
+    summary: Upgrade Netty to 4.1.126.Final
+    area: Network
+    type: upgrade
+    issues: []
+  - pr: 134231
+    summary: Fix unnecessary determinization in index pattern conflict checks
+    area: Indices APIs
+    type: bug
+    issues:
+      - 133652
+  - pr: 134235
+    summary: Reserve memory for Lucene's TopN
+    area: ES|QL
+    type: bug
+    issues: []
+  - pr: 134253
+    summary: Fixed a bug where text fields in LogsDB indices did not use their keyword multi fields for block loading
+    area: Mapping
+    type: bug
+    issues: []
+  - pr: 134319
+    summary: Fix `allow_duplicates` edge case bug in append processor
+    area: Ingest Node
+    type: bug
+    issues: []
+  - pr: 134451
+    summary: Use inner query for equals/hashCode() in `SourceConfirmedTextQuery`
+    area: Search
+    type: bug
+    issues:
+      - 134432
+  - pr: 134711
+    summary: Add Reason field to elastic-agent upgrade details metadata
+    area: Infra/Plugins
+    type: enhancement
+    issues: []

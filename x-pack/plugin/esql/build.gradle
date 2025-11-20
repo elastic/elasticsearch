@@ -42,6 +42,7 @@ dependencies {
   implementation project('compute:ann')
   implementation project(':libs:dissect')
   implementation project(':libs:grok')
+  implementation project(':libs:exponential-histogram')
   api "org.apache.lucene:lucene-spatial3d:${versions.lucene}"
   api project(":libs:h3")
   implementation project('arrow')
@@ -96,6 +97,11 @@ interface Injected {
 }
 
 tasks.named("test").configure {
+  // prevent empty stacktraces on JDK 25 for intrinsic Math.*Exact invocations
+  // https://bugs.openjdk.org/browse/JDK-8367990
+  // https://github.com/elastic/elasticsearch/issues/135009
+  jvmArgs '-XX:-OmitStackTraceInFastThrow'
+
   def injected = project.objects.newInstance(Injected)
   // Define the folder to delete and recreate
   def tempDir = file("build/testrun/test/temp/esql")
@@ -462,6 +468,7 @@ tasks.named('stringTemplates').configure {
   var doubleProperties = prop("Double", "Double", "double", "DOUBLE", "Double.BYTES", "DoubleArray")
   var bytesRefProperties = prop("BytesRef", "BytesRef", "BytesRef", "BYTES_REF", "org.apache.lucene.util.RamUsageEstimator.NUM_BYTES_OBJECT_REF", "")
   var booleanProperties = prop("Boolean", "Boolean", "boolean", "BOOLEAN", "Byte.BYTES", "BitArray")
+  var expHistoProperties = prop("ExponentialHistogram", "ExponentialHistogram", "ExponentialHistogram", "EXPONENTIAL_HISTOGRAM", "", "")
 
   File inInputFile = file("src/main/java/org/elasticsearch/xpack/esql/expression/predicate/operator/comparison/X-InEvaluator.java.st")
   template {
@@ -525,6 +532,11 @@ tasks.named('stringTemplates').configure {
     it.properties = bytesRefProperties
     it.inputFile = coalesceInputFile
     it.outputFile = "org/elasticsearch/xpack/esql/expression/function/scalar/nulls/CoalesceBytesRefEvaluator.java"
+  }
+  template {
+    it.properties = expHistoProperties
+    it.inputFile = coalesceInputFile
+    it.outputFile = "org/elasticsearch/xpack/esql/expression/function/scalar/nulls/CoalesceExponentialHistogramEvaluator.java"
   }
 
   File roundToInput = file("src/main/java/org/elasticsearch/xpack/esql/expression/function/scalar/math/X-RoundTo.java.st")

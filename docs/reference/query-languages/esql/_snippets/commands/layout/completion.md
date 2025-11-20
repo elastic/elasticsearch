@@ -6,6 +6,19 @@ stack: preview 9.1.0
 
 The `COMPLETION` command allows you to send prompts and context to a Large Language Model (LLM) directly within your ES|QL queries, to perform text generation tasks.
 
+:::{important}
+**Every row processed by the COMPLETION command generates a separate API call to the LLM endpoint.**
+
+Be careful to test with small datasets first before running on production data or in automated workflows, to avoid unexpected costs.
+
+Best practices:
+
+1. **Start with dry runs**: Validate your query logic and row counts by running without `COMPLETION` initially. Use `| STATS count = COUNT(*)` to check result size.
+2. **Filter first**: Use `WHERE` clauses to limit rows before applying `COMPLETION`.
+3. **Test with `LIMIT`**: Always start with a low [`LIMIT`](/reference/query-languages/esql/commands/limit.md) and gradually increase.
+4. **Monitor usage**: Track your LLM API consumption and costs.
+:::
+
 **Syntax**
 
 ::::{tab-set}

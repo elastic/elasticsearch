@@ -8,7 +8,7 @@ mapped_pages:
 ::::{admonition} Difference between {{es}} tokenization and neural tokenization
 :class: note
 
-{{es}}'s tokenization process produces linguistic tokens, optimized for search and retrieval. This differs from neural tokenization in the context of machine learning and natural language processing. Neural tokenizers translate strings into smaller, subword tokens, which are encoded into vectors for consumptions by neural networks. {{es}} does not have built-in neural tokenizers.
+{{es}}'s tokenization process produces linguistic tokens, optimized for search and retrieval. This differs from neural tokenization in the context of machine learning and natural language processing. Neural tokenizers translate strings into smaller, subword tokens, which are encoded into vectors for consumption by neural networks. {{es}} does not have built-in neural tokenizers.
 
 ::::
 

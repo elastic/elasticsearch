@@ -7,7 +7,7 @@
 
 package org.elasticsearch.compute.operator;
 
-import org.elasticsearch.TransportVersions;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -38,10 +38,15 @@ public record DriverSleeps(Map<String, Long> counts, List<Sleep> first, List<Sle
      * @param wake       Millis since epoch when the driver woke, or 0 if it is currently sleeping
      */
     public record Sleep(String reason, String threadName, long sleep, long wake) implements Writeable, ToXContentObject {
+
+        private static final TransportVersion ESQL_THREAD_NAME_IN_DRIVER_PROFILE = TransportVersion.fromName(
+            "esql_thread_name_in_driver_profile"
+        );
+
         Sleep(StreamInput in) throws IOException {
             this(
                 in.readString(),
-                in.getTransportVersion().onOrAfter(TransportVersions.ESQL_THREAD_NAME_IN_DRIVER_PROFILE) ? in.readString() : "",
+                in.getTransportVersion().supports(ESQL_THREAD_NAME_IN_DRIVER_PROFILE) ? in.readString() : "",
                 in.readLong(),
                 in.readLong()
             );
@@ -50,7 +55,7 @@ public record DriverSleeps(Map<String, Long> counts, List<Sleep> first, List<Sle
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeString(reason);
-            if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_THREAD_NAME_IN_DRIVER_PROFILE)) {
+            if (out.getTransportVersion().supports(ESQL_THREAD_NAME_IN_DRIVER_PROFILE)) {
                 out.writeString(threadName);
             }
             out.writeLong(sleep);
@@ -87,9 +92,6 @@ public record DriverSleeps(Map<String, Long> counts, List<Sleep> first, List<Sle
     static final int RECORDS = 10;
 
     public static DriverSleeps read(StreamInput in) throws IOException {
-        if (in.getTransportVersion().before(TransportVersions.V_8_16_0)) {
-            return empty();
-        }
         return new DriverSleeps(
             in.readImmutableMap(StreamInput::readVLong),
             in.readCollectionAsList(Sleep::new),
@@ -99,9 +101,6 @@ public record DriverSleeps(Map<String, Long> counts, List<Sleep> first, List<Sle
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        if (out.getTransportVersion().before(TransportVersions.V_8_16_0)) {
-            return;
-        }
         out.writeMap(counts, StreamOutput::writeVLong);
         out.writeCollection(first);
         out.writeCollection(last);

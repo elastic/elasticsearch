@@ -10,7 +10,6 @@
 package org.elasticsearch.cluster.metadata;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.admin.indices.rollover.MaxAgeCondition;
 import org.elasticsearch.action.admin.indices.rollover.MaxDocsCondition;
 import org.elasticsearch.action.admin.indices.rollover.MaxPrimaryShardDocsCondition;
@@ -58,6 +57,7 @@ import java.util.Set;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_HIDDEN_SETTING;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.parseIndexNameCounter;
 import static org.elasticsearch.index.IndexModule.INDEX_STORE_TYPE_SETTING;
+import static org.elasticsearch.index.IndexSettings.DEFAULT_FIELD_SETTING;
 import static org.elasticsearch.snapshots.SearchableSnapshotsSettings.SNAPSHOT_PARTIAL_SETTING;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -66,6 +66,8 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
 
 public class IndexMetadataTests extends ESTestCase {
+
+    private static final TransportVersion ESQL_FAILURE_FROM_REMOTE = TransportVersion.fromName("esql_failure_from_remote");
 
     @Before
     public void setUp() throws Exception {
@@ -99,6 +101,7 @@ public class IndexMetadataTests extends ESTestCase {
 
         IndexMetadata metadata = IndexMetadata.builder("foo")
             .settings(indexSettings(numShard, numberOfReplicas).put("index.version.created", 1))
+            .transportVersion(TransportVersion.current())
             .creationDate(randomLong())
             .primaryTerm(0, 2)
             .setRoutingNumShards(32)
@@ -150,6 +153,7 @@ public class IndexMetadataTests extends ESTestCase {
         );
         assertEquals(metadata.hashCode(), fromXContentMeta.hashCode());
 
+        assertEquals(metadata.getTransportVersion(), fromXContentMeta.getTransportVersion());
         assertEquals(metadata.getNumberOfReplicas(), fromXContentMeta.getNumberOfReplicas());
         assertEquals(metadata.getNumberOfShards(), fromXContentMeta.getNumberOfShards());
         assertEquals(metadata.getCreationVersion(), fromXContentMeta.getCreationVersion());
@@ -177,6 +181,7 @@ public class IndexMetadataTests extends ESTestCase {
             assertEquals(metadata, deserialized);
             assertEquals(metadata.hashCode(), deserialized.hashCode());
 
+            assertEquals(metadata.getTransportVersion(), deserialized.getTransportVersion());
             assertEquals(metadata.getNumberOfReplicas(), deserialized.getNumberOfReplicas());
             assertEquals(metadata.getNumberOfShards(), deserialized.getNumberOfShards());
             assertEquals(metadata.getCreationVersion(), deserialized.getCreationVersion());
@@ -213,6 +218,7 @@ public class IndexMetadataTests extends ESTestCase {
 
         IndexMetadata metadata = IndexMetadata.builder("foo")
             .settings(indexSettings(numShard, numberOfReplicas).put("index.version.created", 1))
+            .transportVersion(TransportVersion.current())
             .creationDate(randomLong())
             .primaryTerm(0, 2)
             .setRoutingNumShards(32)
@@ -281,6 +287,7 @@ public class IndexMetadataTests extends ESTestCase {
             fromXContentMeta
         );
         assertEquals(metadata.hashCode(), fromXContentMeta.hashCode());
+        assertEquals(metadata.getTransportVersion(), fromXContentMeta.getTransportVersion());
         assertEquals(metadata.getNumberOfReplicas(), fromXContentMeta.getNumberOfReplicas());
         assertEquals(metadata.getNumberOfShards(), fromXContentMeta.getNumberOfShards());
         assertEquals(metadata.getCreationVersion(), fromXContentMeta.getCreationVersion());
@@ -680,6 +687,104 @@ public class IndexMetadataTests extends ESTestCase {
         assertThat(idxMeta2.getInferenceFields(), equalTo(dynamicFields));
     }
 
+    public void testGetMatchingInferenceFields() {
+        final String inferenceField1 = "inference-field-1";
+        final String inferenceField2 = "inference-field-2";
+        final String inferenceField3 = "inference-field-3";
+        final Map<String, InferenceFieldMetadata> inferenceFields = Map.of(
+            inferenceField1,
+            randomInferenceFieldMetadata(inferenceField1),
+            inferenceField2,
+            randomInferenceFieldMetadata(inferenceField2),
+            inferenceField3,
+            randomInferenceFieldMetadata(inferenceField3)
+        );
+
+        Settings.Builder settings = indexSettings(IndexVersion.current(), randomIntBetween(1, 8), 0);
+        IndexMetadata indexMetadata = IndexMetadata.builder("test").settings(settings).putInferenceFields(inferenceFields).build();
+
+        final Map<String, Float> fieldPatternMap = Map.of(inferenceField1, 1.5f, "inference-field-*", 2.0f, "*-field-3", 1.75f);
+
+        // Explicit matches only
+        assertThat(
+            indexMetadata.getMatchingInferenceFields(fieldPatternMap, false, false),
+            equalTo(Map.of(inferenceFields.get(inferenceField1), 1.5f))
+        );
+
+        // Resolve wildcards
+        assertThat(
+            indexMetadata.getMatchingInferenceFields(fieldPatternMap, true, false),
+            equalTo(
+                Map.of(
+                    inferenceFields.get(inferenceField1),
+                    3.0f,
+                    inferenceFields.get(inferenceField2),
+                    2.0f,
+                    inferenceFields.get(inferenceField3),
+                    3.5f
+                )
+            )
+        );
+    }
+
+    public void testGetMatchingInferenceFieldsUsingDefaultFields() {
+        final String inferenceField1 = "inference-field-1";
+        final String inferenceField2 = "inference-field-2";
+        final String inferenceField3 = "inference-field-3";
+        final Map<String, InferenceFieldMetadata> inferenceFields = Map.of(
+            inferenceField1,
+            randomInferenceFieldMetadata(inferenceField1),
+            inferenceField2,
+            randomInferenceFieldMetadata(inferenceField2),
+            inferenceField3,
+            randomInferenceFieldMetadata(inferenceField3)
+        );
+
+        Settings.Builder index1Settings = indexSettings(IndexVersion.current(), randomIntBetween(1, 8), 0).putList(
+            DEFAULT_FIELD_SETTING.getKey(),
+            List.of(inferenceField1 + "^1.5", "inference-field-*^2.0", "*-field-3^1.75")
+        );
+        IndexMetadata index1Metadata = IndexMetadata.builder("test1").settings(index1Settings).putInferenceFields(inferenceFields).build();
+
+        Settings.Builder index2Settings = indexSettings(IndexVersion.current(), randomIntBetween(1, 8), 0);
+        IndexMetadata index2Metadata = IndexMetadata.builder("test2").settings(index2Settings).putInferenceFields(inferenceFields).build();
+
+        // Explicit matches only
+        assertThat(
+            index1Metadata.getMatchingInferenceFields(Map.of(), false, true),
+            equalTo(Map.of(inferenceFields.get(inferenceField1), 1.5f))
+        );
+        assertThat(index2Metadata.getMatchingInferenceFields(Map.of(), false, true), equalTo(Map.of()));
+
+        // Resolve wildcards
+        assertThat(
+            index1Metadata.getMatchingInferenceFields(Map.of(), true, true),
+            equalTo(
+                Map.of(
+                    inferenceFields.get(inferenceField1),
+                    3.0f,
+                    inferenceFields.get(inferenceField2),
+                    2.0f,
+                    inferenceFields.get(inferenceField3),
+                    3.5f
+                )
+            )
+        );
+        assertThat(
+            index2Metadata.getMatchingInferenceFields(Map.of(), true, true),
+            equalTo(
+                Map.of(
+                    inferenceFields.get(inferenceField1),
+                    1.0f,
+                    inferenceFields.get(inferenceField2),
+                    1.0f,
+                    inferenceFields.get(inferenceField3),
+                    1.0f
+                )
+            )
+        );
+    }
+
     public void testReshardingBWCSerialization() throws IOException {
         final int numShards = randomIntBetween(1, 8);
         final var settings = indexSettings(IndexVersion.current(), numShards, 0);
@@ -687,7 +792,7 @@ public class IndexMetadataTests extends ESTestCase {
         IndexMetadata idx = IndexMetadata.builder("test").settings(settings).reshardingMetadata(reshardingMetadata).build();
 
         // the version prior to TransportVersions.INDEX_RESHARDING_METADATA
-        final var version = TransportVersions.ESQL_FAILURE_FROM_REMOTE;
+        final var version = ESQL_FAILURE_FROM_REMOTE;
         // should round trip
         final var deserialized = roundTripWithVersion(idx, version);
 

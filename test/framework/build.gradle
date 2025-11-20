@@ -17,10 +17,23 @@ dependencies {
   api project(":server")
   api project(":libs:cli")
   api project(":libs:entitlement:bridge")
-  api "com.carrotsearch.randomizedtesting:randomizedtesting-runner:${versions.randomizedrunner}"
-  api "junit:junit:${versions.junit}"
+  api ("com.carrotsearch.randomizedtesting:randomizedtesting-runner:${versions.randomizedrunner}") {
+    exclude group: "junit", module: "junit"
+  }
+
+  // we do not want to expose a version conflict in transitive dependencies by
+  // bringing in different versions of dependencies.
+  // Therefore we exclude mismatches in our transitive dependencies explicitly.
+  // This also avoids jarHell issues with different hamcrest related dependencies
+  // like hamcrest and hamcrest-core
   api "org.hamcrest:hamcrest:${versions.hamcrest}"
-  api "org.apache.lucene:lucene-test-framework:${versions.lucene}"
+  api("junit:junit:${versions.junit}") {
+    exclude group: 'org.hamcrest', module: 'hamcrest-core'
+  }
+  api("org.apache.lucene:lucene-test-framework:${versions.lucene}") {
+    exclude group: "junit", module: "junit"
+    exclude group: 'com.carrotsearch.randomizedtesting', module: 'randomizedtesting-runner'
+  }
   api "org.apache.lucene:lucene-codecs:${versions.lucene}"
   api "commons-logging:commons-logging:${versions.commonslogging}"
   api "commons-codec:commons-codec:${versions.commonscodec}"

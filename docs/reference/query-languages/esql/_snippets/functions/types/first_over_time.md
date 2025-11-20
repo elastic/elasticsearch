@@ -4,6 +4,9 @@
 
 | field | result |
 | --- | --- |
+| counter_double | double |
+| counter_integer | integer |
+| counter_long | long |
 | double | double |
 | integer | integer |
 | long | long |

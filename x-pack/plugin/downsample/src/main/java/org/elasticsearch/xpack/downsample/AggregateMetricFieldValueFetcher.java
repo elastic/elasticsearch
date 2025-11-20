@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.downsample;
 
+import org.elasticsearch.action.downsample.DownsampleConfig;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
@@ -22,18 +23,19 @@ public final class AggregateMetricFieldValueFetcher extends FieldValueFetcher {
     AggregateMetricFieldValueFetcher(
         MappedFieldType fieldType,
         AggregateMetricDoubleFieldType aggMetricFieldType,
-        IndexFieldData<?> fieldData
+        IndexFieldData<?> fieldData,
+        DownsampleConfig.SamplingMethod samplingMethod
     ) {
-        super(fieldType.name(), fieldType, fieldData);
+        super(fieldType.name(), fieldType, fieldData, samplingMethod);
         this.aggMetricFieldType = aggMetricFieldType;
-        this.fieldProducer = createFieldProducer();
+        this.fieldProducer = createFieldProducer(samplingMethod);
     }
 
     public AbstractDownsampleFieldProducer fieldProducer() {
         return fieldProducer;
     }
 
-    private AbstractDownsampleFieldProducer createFieldProducer() {
+    private AbstractDownsampleFieldProducer createFieldProducer(DownsampleConfig.SamplingMethod samplingMethod) {
         AggregateMetricDoubleFieldMapper.Metric metric = null;
         for (var e : aggMetricFieldType.getMetricFields().entrySet()) {
             NumberFieldMapper.NumberFieldType metricSubField = e.getValue();
@@ -45,9 +47,13 @@ public final class AggregateMetricFieldValueFetcher extends FieldValueFetcher {
         assert metric != null : "Cannot resolve metric type for field " + name();
 
         if (aggMetricFieldType.getMetricType() != null) {
-            // If the field is an aggregate_metric_double field, we should use the correct subfields
-            // for each aggregation. This is a downsample-of-downsample case
-            return new MetricFieldProducer.AggregatedGaugeMetricFieldProducer(aggMetricFieldType.name(), metric);
+            if (samplingMethod != DownsampleConfig.SamplingMethod.LAST_VALUE) {
+                // If the field is an aggregate_metric_double field, we should use the correct subfields
+                // for each aggregation. This is a downsample-of-downsample case
+                return new MetricFieldProducer.AggregatePreAggregatedMetricFieldProducer(aggMetricFieldType.name(), metric);
+            } else {
+                return new MetricFieldProducer.LastValueScalarMetricFieldProducer(aggMetricFieldType.name(), metric);
+            }
         } else {
             // If field is not a metric, we downsample it as a label
             return new LabelFieldProducer.AggregateMetricFieldProducer.AggregateMetricFieldProducer(aggMetricFieldType.name(), metric);

@@ -18,7 +18,7 @@ import org.elasticsearch.xpack.inference.external.http.sender.Sender;
 
 import java.util.Objects;
 
-public class SingleInputSenderExecutableAction extends SenderExecutableAction {
+public final class SingleInputSenderExecutableAction extends SenderExecutableAction {
     private final String requestTypeForInputValidationError;
 
     public SingleInputSenderExecutableAction(

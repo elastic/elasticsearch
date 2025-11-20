@@ -159,6 +159,8 @@ public class ClusterState implements ChunkedToXContent, Diffable<ClusterState> {
 
     public static final long UNKNOWN_VERSION = -1;
 
+    private static final TransportVersion MULTI_PROJECT = TransportVersion.fromName("multi_project");
+
     /**
      * Monotonically increasing on (and therefore uniquely identifies) <i>committed</i> states. However sometimes a state is created/applied
      * without committing it, for instance to add a {@link NoMasterBlockService#getNoMasterBlock}.
@@ -241,7 +243,7 @@ public class ClusterState implements ChunkedToXContent, Diffable<ClusterState> {
         assert assertConsistentRoutingNodes(routingTable, nodes, routingNodes);
         assert assertConsistentProjectState(routingTable, metadata);
         this.minVersions = blocks.hasGlobalBlock(STATE_NOT_RECOVERED_BLOCK)
-            ? new CompatibilityVersions(TransportVersions.MINIMUM_COMPATIBLE, Map.of()) // empty map because cluster state is unknown
+            ? new CompatibilityVersions(TransportVersion.minimumCompatible(), Map.of()) // empty map because cluster state is unknown
             : CompatibilityVersions.minimumVersions(compatibilityVersions.values());
 
         assert compatibilityVersions.isEmpty()
@@ -1291,7 +1293,7 @@ public class ClusterState implements ChunkedToXContent, Diffable<ClusterState> {
         builder.version = in.readLong();
         builder.uuid = in.readString();
         builder.metadata = Metadata.readFrom(in);
-        if (in.getTransportVersion().onOrAfter(TransportVersions.MULTI_PROJECT)) {
+        if (in.getTransportVersion().supports(MULTI_PROJECT)) {
             builder.routingTable = GlobalRoutingTable.readFrom(in);
         } else {
             final RoutingTable rt = RoutingTable.readFrom(in);
@@ -1317,7 +1319,7 @@ public class ClusterState implements ChunkedToXContent, Diffable<ClusterState> {
         out.writeLong(version);
         out.writeString(stateUUID);
         metadata.writeTo(out);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.MULTI_PROJECT)) {
+        if (out.getTransportVersion().supports(MULTI_PROJECT)) {
             routingTable.writeTo(out);
         } else {
             routingTable.getRoutingTable().writeTo(out);

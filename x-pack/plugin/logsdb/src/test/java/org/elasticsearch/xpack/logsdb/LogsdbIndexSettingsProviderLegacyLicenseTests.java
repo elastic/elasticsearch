@@ -27,7 +27,6 @@ import java.time.ZoneOffset;
 import java.util.List;
 
 import static org.elasticsearch.xpack.logsdb.LogsdbLicenseServiceTests.createGoldOrPlatinumLicense;
-import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -64,30 +63,68 @@ public class LogsdbIndexSettingsProviderLegacyLicenseTests extends ESTestCase {
         Settings settings = Settings.builder().put(IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), "SYNTHETIC").build();
         String dataStreamName = "metrics-my-app";
         String indexName = DataStream.getDefaultBackingIndexName(dataStreamName, 0);
-        var result = provider.getAdditionalIndexSettings(indexName, dataStreamName, null, null, null, settings, List.of());
-        assertThat(result.size(), equalTo(1));
-        assertThat(result.get(IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey()), equalTo("STORED"));
+        Settings.Builder builder = Settings.builder();
+        provider.provideAdditionalSettings(
+            indexName,
+            dataStreamName,
+            null,
+            null,
+            null,
+            settings,
+            List.of(),
+            IndexVersion.current(),
+            builder
+        );
+        var result = builder.build();
+        var expected = Settings.builder().put(IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), "STORED").build();
+        assertEquals(expected, result);
     }
 
     public void testGetAdditionalIndexSettingsApm() throws IOException {
         Settings settings = Settings.builder().put(IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), "SYNTHETIC").build();
         String dataStreamName = "metrics-apm.app.test";
         String indexName = DataStream.getDefaultBackingIndexName(dataStreamName, 0);
-        var result = provider.getAdditionalIndexSettings(indexName, dataStreamName, null, null, null, settings, List.of());
-        assertThat(result.size(), equalTo(0));
+        Settings.Builder builder = Settings.builder();
+        provider.provideAdditionalSettings(
+            indexName,
+            dataStreamName,
+            null,
+            null,
+            null,
+            settings,
+            List.of(),
+            IndexVersion.current(),
+            builder
+        );
+        var result = builder.build();
+        assertEquals(Settings.EMPTY, result);
     }
 
     public void testGetAdditionalIndexSettingsProfiling() throws IOException {
         Settings settings = Settings.builder().put(IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), "SYNTHETIC").build();
         for (String dataStreamName : new String[] { "profiling-metrics", "profiling-events" }) {
             String indexName = DataStream.getDefaultBackingIndexName(dataStreamName, 0);
-            var result = provider.getAdditionalIndexSettings(indexName, dataStreamName, null, null, null, settings, List.of());
-            assertThat(result.size(), equalTo(0));
+            Settings.Builder builder = Settings.builder();
+            provider.provideAdditionalSettings(
+                indexName,
+                dataStreamName,
+                null,
+                null,
+                null,
+                settings,
+                List.of(),
+                IndexVersion.current(),
+                builder
+            );
+            var result = builder.build();
+            assertEquals(Settings.EMPTY, result);
         }
 
         for (String indexName : new String[] { ".profiling-sq-executables", ".profiling-sq-leafframes", ".profiling-stacktraces" }) {
-            var result = provider.getAdditionalIndexSettings(indexName, null, null, null, null, settings, List.of());
-            assertThat(result.size(), equalTo(0));
+            Settings.Builder builder = Settings.builder();
+            provider.provideAdditionalSettings(indexName, null, null, null, null, settings, List.of(), IndexVersion.current(), builder);
+            var result = builder.build();
+            assertEquals(Settings.EMPTY, result);
         }
     }
 
@@ -95,8 +132,20 @@ public class LogsdbIndexSettingsProviderLegacyLicenseTests extends ESTestCase {
         Settings settings = Settings.builder().put(IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), "SYNTHETIC").build();
         String dataStreamName = "metrics-my-app";
         String indexName = DataStream.getDefaultBackingIndexName(dataStreamName, 0);
-        var result = provider.getAdditionalIndexSettings(indexName, dataStreamName, IndexMode.TIME_SERIES, null, null, settings, List.of());
-        assertThat(result.size(), equalTo(0));
+        Settings.Builder builder = Settings.builder();
+        provider.provideAdditionalSettings(
+            indexName,
+            dataStreamName,
+            IndexMode.TIME_SERIES,
+            null,
+            null,
+            settings,
+            List.of(),
+            IndexVersion.current(),
+            builder
+        );
+        var result = builder.build();
+        assertEquals(Settings.EMPTY, result);
     }
 
     public void testGetAdditionalIndexSettingsTsdbAfterCutoffDate() throws Exception {
@@ -126,8 +175,21 @@ public class LogsdbIndexSettingsProviderLegacyLicenseTests extends ESTestCase {
         Settings settings = Settings.builder().put(IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), "SYNTHETIC").build();
         String dataStreamName = "metrics-my-app";
         String indexName = DataStream.getDefaultBackingIndexName(dataStreamName, 0);
-        var result = provider.getAdditionalIndexSettings(indexName, dataStreamName, IndexMode.TIME_SERIES, null, null, settings, List.of());
-        assertThat(result.size(), equalTo(1));
-        assertThat(result.get(IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey()), equalTo("STORED"));
+        Settings.Builder builder = Settings.builder();
+        provider.provideAdditionalSettings(
+            indexName,
+            dataStreamName,
+            IndexMode.TIME_SERIES,
+            null,
+            null,
+            settings,
+            List.of(),
+            IndexVersion.current(),
+            builder
+        );
+
+        var result = builder.build();
+        var expected = Settings.builder().put(IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), "STORED").build();
+        assertEquals(expected, result);
     }
 }

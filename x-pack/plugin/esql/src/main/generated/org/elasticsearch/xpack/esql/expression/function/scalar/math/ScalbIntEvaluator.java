@@ -8,6 +8,7 @@ import java.lang.ArithmeticException;
 import java.lang.IllegalArgumentException;
 import java.lang.Override;
 import java.lang.String;
+import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.DoubleVector;
@@ -25,6 +26,8 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
  * This class is generated. Edit {@code EvaluatorImplementer} instead.
  */
 public final class ScalbIntEvaluator implements EvalOperator.ExpressionEvaluator {
+  private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(ScalbIntEvaluator.class);
+
   private final Source source;
 
   private final EvalOperator.ExpressionEvaluator d;
@@ -60,33 +63,43 @@ public final class ScalbIntEvaluator implements EvalOperator.ExpressionEvaluator
     }
   }
 
+  @Override
+  public long baseRamBytesUsed() {
+    long baseRamBytesUsed = BASE_RAM_BYTES_USED;
+    baseRamBytesUsed += d.baseRamBytesUsed();
+    baseRamBytesUsed += scaleFactor.baseRamBytesUsed();
+    return baseRamBytesUsed;
+  }
+
   public DoubleBlock eval(int positionCount, DoubleBlock dBlock, IntBlock scaleFactorBlock) {
     try(DoubleBlock.Builder result = driverContext.blockFactory().newDoubleBlockBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
-        if (dBlock.isNull(p)) {
-          result.appendNull();
-          continue position;
+        switch (dBlock.getValueCount(p)) {
+          case 0:
+              result.appendNull();
+              continue position;
+          case 1:
+              break;
+          default:
+              warnings().registerException(new IllegalArgumentException("single-value function encountered multi-value"));
+              result.appendNull();
+              continue position;
         }
-        if (dBlock.getValueCount(p) != 1) {
-          if (dBlock.getValueCount(p) > 1) {
-            warnings().registerException(new IllegalArgumentException("single-value function encountered multi-value"));
-          }
-          result.appendNull();
-          continue position;
+        switch (scaleFactorBlock.getValueCount(p)) {
+          case 0:
+              result.appendNull();
+              continue position;
+          case 1:
+              break;
+          default:
+              warnings().registerException(new IllegalArgumentException("single-value function encountered multi-value"));
+              result.appendNull();
+              continue position;
         }
-        if (scaleFactorBlock.isNull(p)) {
-          result.appendNull();
-          continue position;
-        }
-        if (scaleFactorBlock.getValueCount(p) != 1) {
-          if (scaleFactorBlock.getValueCount(p) > 1) {
-            warnings().registerException(new IllegalArgumentException("single-value function encountered multi-value"));
-          }
-          result.appendNull();
-          continue position;
-        }
+        double d = dBlock.getDouble(dBlock.getFirstValueIndex(p));
+        int scaleFactor = scaleFactorBlock.getInt(scaleFactorBlock.getFirstValueIndex(p));
         try {
-          result.appendDouble(Scalb.process(dBlock.getDouble(dBlock.getFirstValueIndex(p)), scaleFactorBlock.getInt(scaleFactorBlock.getFirstValueIndex(p))));
+          result.appendDouble(Scalb.process(d, scaleFactor));
         } catch (ArithmeticException e) {
           warnings().registerException(e);
           result.appendNull();
@@ -99,8 +112,10 @@ public final class ScalbIntEvaluator implements EvalOperator.ExpressionEvaluator
   public DoubleBlock eval(int positionCount, DoubleVector dVector, IntVector scaleFactorVector) {
     try(DoubleBlock.Builder result = driverContext.blockFactory().newDoubleBlockBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
+        double d = dVector.getDouble(p);
+        int scaleFactor = scaleFactorVector.getInt(p);
         try {
-          result.appendDouble(Scalb.process(dVector.getDouble(p), scaleFactorVector.getInt(p)));
+          result.appendDouble(Scalb.process(d, scaleFactor));
         } catch (ArithmeticException e) {
           warnings().registerException(e);
           result.appendNull();

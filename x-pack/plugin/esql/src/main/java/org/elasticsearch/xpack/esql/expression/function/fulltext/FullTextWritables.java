@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.expression.function.fulltext;
 
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
+import org.elasticsearch.xpack.esql.expression.function.scalar.score.Decay;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -24,12 +25,11 @@ public class FullTextWritables {
         entries.add(MultiMatch.ENTRY);
         entries.add(Kql.ENTRY);
         entries.add(MatchPhrase.ENTRY);
+        entries.add(Score.ENTRY);
+        entries.add(Decay.ENTRY);
 
         if (EsqlCapabilities.Cap.TERM_FUNCTION.isEnabled()) {
             entries.add(Term.ENTRY);
-        }
-        if (EsqlCapabilities.Cap.SCORE_FUNCTION.isEnabled()) {
-            entries.add(Score.ENTRY);
         }
 
         return Collections.unmodifiableList(entries);

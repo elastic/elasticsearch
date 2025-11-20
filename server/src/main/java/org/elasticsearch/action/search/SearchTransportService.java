@@ -21,6 +21,7 @@ import org.elasticsearch.action.support.ChannelActionListener;
 import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -384,10 +385,14 @@ public class SearchTransportService {
         }
     }
 
-    public static void registerRequestHandler(TransportService transportService, SearchService searchService) {
+    public static void registerRequestHandler(
+        TransportService transportService,
+        SearchService searchService,
+        NamedWriteableRegistry namedWriteableRegistry
+    ) {
         final TransportRequestHandler<ScrollFreeContextRequest> freeContextHandler = (request, channel, task) -> {
-            logger.trace("releasing search context [{}]", request.id());
             boolean freed = searchService.freeReaderContext(request.id());
+            logger.trace("releasing search context [{}], [{}]", request.id(), freed);
             channel.sendResponse(SearchFreeContextResponse.of(freed));
         };
         final Executor freeContextExecutor = buildFreeContextExecutor(transportService);
@@ -401,7 +406,8 @@ public class SearchTransportService {
             transportService,
             FREE_CONTEXT_SCROLL_ACTION_NAME,
             false,
-            SearchFreeContextResponse::readFrom
+            SearchFreeContextResponse::readFrom,
+            namedWriteableRegistry
         );
 
         // TODO: remove this handler once the lowest compatible version stops using it
@@ -411,7 +417,13 @@ public class SearchTransportService {
             OriginalIndices.readOriginalIndices(in);
             return res;
         }, freeContextHandler);
-        TransportActionProxy.registerProxyAction(transportService, FREE_CONTEXT_ACTION_NAME, false, SearchFreeContextResponse::readFrom);
+        TransportActionProxy.registerProxyAction(
+            transportService,
+            FREE_CONTEXT_ACTION_NAME,
+            false,
+            SearchFreeContextResponse::readFrom,
+            namedWriteableRegistry
+        );
 
         transportService.registerRequestHandler(
             CLEAR_SCROLL_CONTEXTS_ACTION_NAME,
@@ -426,7 +438,8 @@ public class SearchTransportService {
             transportService,
             CLEAR_SCROLL_CONTEXTS_ACTION_NAME,
             false,
-            (in) -> ActionResponse.Empty.INSTANCE
+            (in) -> ActionResponse.Empty.INSTANCE,
+            namedWriteableRegistry
         );
 
         transportService.registerRequestHandler(
@@ -435,7 +448,7 @@ public class SearchTransportService {
             ShardSearchRequest::new,
             (request, channel, task) -> searchService.executeDfsPhase(request, (SearchShardTask) task, new ChannelActionListener<>(channel))
         );
-        TransportActionProxy.registerProxyAction(transportService, DFS_ACTION_NAME, true, DfsSearchResult::new);
+        TransportActionProxy.registerProxyAction(transportService, DFS_ACTION_NAME, true, DfsSearchResult::new, namedWriteableRegistry);
 
         transportService.registerRequestHandler(
             QUERY_ACTION_NAME,
@@ -451,7 +464,8 @@ public class SearchTransportService {
             transportService,
             QUERY_ACTION_NAME,
             true,
-            (request) -> ((ShardSearchRequest) request).numberOfShards() == 1 ? QueryFetchSearchResult::new : QuerySearchResult::new
+            (request) -> ((ShardSearchRequest) request).numberOfShards() == 1 ? QueryFetchSearchResult::new : QuerySearchResult::new,
+            namedWriteableRegistry
         );
 
         transportService.registerRequestHandler(
@@ -465,7 +479,13 @@ public class SearchTransportService {
                 channel.getVersion()
             )
         );
-        TransportActionProxy.registerProxyAction(transportService, QUERY_ID_ACTION_NAME, true, QuerySearchResult::new);
+        TransportActionProxy.registerProxyAction(
+            transportService,
+            QUERY_ID_ACTION_NAME,
+            true,
+            QuerySearchResult::new,
+            namedWriteableRegistry
+        );
 
         transportService.registerRequestHandler(
             QUERY_SCROLL_ACTION_NAME,
@@ -478,7 +498,13 @@ public class SearchTransportService {
                 channel.getVersion()
             )
         );
-        TransportActionProxy.registerProxyAction(transportService, QUERY_SCROLL_ACTION_NAME, true, ScrollQuerySearchResult::new);
+        TransportActionProxy.registerProxyAction(
+            transportService,
+            QUERY_SCROLL_ACTION_NAME,
+            true,
+            ScrollQuerySearchResult::new,
+            namedWriteableRegistry
+        );
 
         transportService.registerRequestHandler(
             QUERY_FETCH_SCROLL_ACTION_NAME,
@@ -490,7 +516,13 @@ public class SearchTransportService {
                 new ChannelActionListener<>(channel)
             )
         );
-        TransportActionProxy.registerProxyAction(transportService, QUERY_FETCH_SCROLL_ACTION_NAME, true, ScrollQueryFetchSearchResult::new);
+        TransportActionProxy.registerProxyAction(
+            transportService,
+            QUERY_FETCH_SCROLL_ACTION_NAME,
+            true,
+            ScrollQueryFetchSearchResult::new,
+            namedWriteableRegistry
+        );
 
         final TransportRequestHandler<RankFeatureShardRequest> rankShardFeatureRequest = (request, channel, task) -> searchService
             .executeRankFeaturePhase(request, (SearchShardTask) task, new ChannelActionListener<>(channel));
@@ -500,7 +532,13 @@ public class SearchTransportService {
             RankFeatureShardRequest::new,
             rankShardFeatureRequest
         );
-        TransportActionProxy.registerProxyAction(transportService, RANK_FEATURE_SHARD_ACTION_NAME, true, RankFeatureResult::new);
+        TransportActionProxy.registerProxyAction(
+            transportService,
+            RANK_FEATURE_SHARD_ACTION_NAME,
+            true,
+            RankFeatureResult::new,
+            namedWriteableRegistry
+        );
 
         final TransportRequestHandler<ShardFetchRequest> shardFetchRequestHandler = (request, channel, task) -> searchService
             .executeFetchPhase(request, (SearchShardTask) task, new ChannelActionListener<>(channel));
@@ -510,7 +548,13 @@ public class SearchTransportService {
             ShardFetchRequest::new,
             shardFetchRequestHandler
         );
-        TransportActionProxy.registerProxyAction(transportService, FETCH_ID_SCROLL_ACTION_NAME, true, FetchSearchResult::new);
+        TransportActionProxy.registerProxyAction(
+            transportService,
+            FETCH_ID_SCROLL_ACTION_NAME,
+            true,
+            FetchSearchResult::new,
+            namedWriteableRegistry
+        );
 
         transportService.registerRequestHandler(
             FETCH_ID_ACTION_NAME,
@@ -520,7 +564,13 @@ public class SearchTransportService {
             ShardFetchSearchRequest::new,
             shardFetchRequestHandler
         );
-        TransportActionProxy.registerProxyAction(transportService, FETCH_ID_ACTION_NAME, true, FetchSearchResult::new);
+        TransportActionProxy.registerProxyAction(
+            transportService,
+            FETCH_ID_ACTION_NAME,
+            true,
+            FetchSearchResult::new,
+            namedWriteableRegistry
+        );
 
         transportService.registerRequestHandler(
             QUERY_CAN_MATCH_NODE_NAME,
@@ -528,7 +578,13 @@ public class SearchTransportService {
             CanMatchNodeRequest::new,
             (request, channel, task) -> searchService.canMatch(request, new ChannelActionListener<>(channel))
         );
-        TransportActionProxy.registerProxyAction(transportService, QUERY_CAN_MATCH_NODE_NAME, true, CanMatchNodeResponse::new);
+        TransportActionProxy.registerProxyAction(
+            transportService,
+            QUERY_CAN_MATCH_NODE_NAME,
+            true,
+            CanMatchNodeResponse::new,
+            namedWriteableRegistry
+        );
     }
 
     private static Executor buildFreeContextExecutor(TransportService transportService) {

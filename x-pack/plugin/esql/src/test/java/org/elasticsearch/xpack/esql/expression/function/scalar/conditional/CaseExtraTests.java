@@ -35,6 +35,7 @@ import java.util.function.Function;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.compute.data.BlockUtils.toJavaObject;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.equalToIgnoringIds;
 import static org.elasticsearch.xpack.esql.expression.function.AbstractFunctionTestCase.field;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.sameInstance;
@@ -51,14 +52,14 @@ public class CaseExtraTests extends ESTestCase {
                 field("first_cond", DataType.BOOLEAN),
                 List.of(field("v", DataType.LONG), field("e", DataType.LONG))
             ).children(),
-            equalTo(List.of(field("first_cond", DataType.BOOLEAN), field("v", DataType.LONG), field("e", DataType.LONG)))
+            equalToIgnoringIds(List.of(field("first_cond", DataType.BOOLEAN), field("v", DataType.LONG), field("e", DataType.LONG)))
         );
     }
 
     public void testElseValueImplied() {
         assertThat(
             new Case(Source.synthetic("case"), field("first_cond", DataType.BOOLEAN), List.of(field("v", DataType.LONG))).children(),
-            equalTo(List.of(field("first_cond", DataType.BOOLEAN), field("v", DataType.LONG)))
+            equalToIgnoringIds(List.of(field("first_cond", DataType.BOOLEAN), field("v", DataType.LONG)))
         );
     }
 
@@ -71,7 +72,9 @@ public class CaseExtraTests extends ESTestCase {
         assertThat(c.foldable(), equalTo(false));
         assertThat(
             c.partiallyFold(FoldContext.small()),
-            equalTo(new Case(Source.synthetic("case"), field("last_cond", DataType.BOOLEAN), List.of(field("last", DataType.LONG))))
+            equalToIgnoringIds(
+                new Case(Source.synthetic("case"), field("last_cond", DataType.BOOLEAN), List.of(field("last", DataType.LONG)))
+            )
         );
     }
 
@@ -84,7 +87,9 @@ public class CaseExtraTests extends ESTestCase {
         assertThat(c.foldable(), equalTo(false));
         assertThat(
             c.partiallyFold(FoldContext.small()),
-            equalTo(new Case(Source.synthetic("case"), field("last_cond", DataType.BOOLEAN), List.of(field("last", DataType.LONG))))
+            equalToIgnoringIds(
+                new Case(Source.synthetic("case"), field("last_cond", DataType.BOOLEAN), List.of(field("last", DataType.LONG)))
+            )
         );
     }
 
@@ -105,7 +110,7 @@ public class CaseExtraTests extends ESTestCase {
             List.of(field("first", DataType.LONG), field("last", DataType.LONG))
         );
         assertThat(c.foldable(), equalTo(false));
-        assertThat(c.partiallyFold(FoldContext.small()), equalTo(field("first", DataType.LONG)));
+        assertThat(c.partiallyFold(FoldContext.small()), equalToIgnoringIds(field("first", DataType.LONG)));
     }
 
     public void testPartialFoldFirstAfterKeepingUnknown() {
@@ -122,7 +127,7 @@ public class CaseExtraTests extends ESTestCase {
         assertThat(c.foldable(), equalTo(false));
         assertThat(
             c.partiallyFold(FoldContext.small()),
-            equalTo(
+            equalToIgnoringIds(
                 new Case(
                     Source.synthetic("case"),
                     field("keep_me_cond", DataType.BOOLEAN),
@@ -144,7 +149,7 @@ public class CaseExtraTests extends ESTestCase {
             )
         );
         assertThat(c.foldable(), equalTo(false));
-        assertThat(c.partiallyFold(FoldContext.small()), equalTo(field("second", DataType.LONG)));
+        assertThat(c.partiallyFold(FoldContext.small()), equalToIgnoringIds(field("second", DataType.LONG)));
     }
 
     public void testPartialFoldSecondAfterDroppingFalse() {
@@ -159,7 +164,7 @@ public class CaseExtraTests extends ESTestCase {
             )
         );
         assertThat(c.foldable(), equalTo(false));
-        assertThat(c.partiallyFold(FoldContext.small()), equalTo(field("second", DataType.LONG)));
+        assertThat(c.partiallyFold(FoldContext.small()), equalToIgnoringIds(field("second", DataType.LONG)));
     }
 
     public void testPartialFoldLast() {
@@ -174,7 +179,7 @@ public class CaseExtraTests extends ESTestCase {
             )
         );
         assertThat(c.foldable(), equalTo(false));
-        assertThat(c.partiallyFold(FoldContext.small()), equalTo(field("last", DataType.LONG)));
+        assertThat(c.partiallyFold(FoldContext.small()), equalToIgnoringIds(field("last", DataType.LONG)));
     }
 
     public void testPartialFoldLastAfterKeepingUnknown() {
@@ -191,7 +196,7 @@ public class CaseExtraTests extends ESTestCase {
         assertThat(c.foldable(), equalTo(false));
         assertThat(
             c.partiallyFold(FoldContext.small()),
-            equalTo(
+            equalToIgnoringIds(
                 new Case(
                     Source.synthetic("case"),
                     field("keep_me_cond", DataType.BOOLEAN),
@@ -278,6 +283,11 @@ public class CaseExtraTests extends ESTestCase {
                         public Block eval(Page page) {
                             fail("Unexpected evaluation of 4th argument");
                             return null;
+                        }
+
+                        @Override
+                        public long baseRamBytesUsed() {
+                            return 0;
                         }
 
                         @Override

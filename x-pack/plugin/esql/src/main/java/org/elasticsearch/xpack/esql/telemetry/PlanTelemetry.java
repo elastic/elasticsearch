@@ -46,7 +46,7 @@ public class PlanTelemetry {
     }
 
     public void function(Class<? extends Function> clazz) {
-        add(functions, functionRegistry.functionName(clazz));
+        add(functions, functionRegistry.snapshotRegistry().functionName(clazz));
     }
 
     public Map<String, Integer> commands() {

@@ -1,29 +1,31 @@
 {
-  "ml.put_calendar_job":{
-    "documentation":{
-      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/ml-put-calendar-job.html",
-      "description":"Adds an anomaly detection job to a calendar."
+  "ml.put_calendar_job": {
+    "documentation": {
+      "url": "https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-ml-put-calendar-job",
+      "description": "Add anomaly detection job to calendar"
     },
-    "stability":"stable",
-    "visibility":"public",
-    "headers":{
-      "accept": [ "application/json"]
+    "stability": "stable",
+    "visibility": "public",
+    "headers": {
+      "accept": [
+        "application/json"
+      ]
     },
-    "url":{
-      "paths":[
+    "url": {
+      "paths": [
         {
-          "path":"/_ml/calendars/{calendar_id}/jobs/{job_id}",
-          "methods":[
+          "path": "/_ml/calendars/{calendar_id}/jobs/{job_id}",
+          "methods": [
             "PUT"
           ],
-          "parts":{
-            "calendar_id":{
-              "type":"string",
-              "description":"The ID of the calendar to modify"
+          "parts": {
+            "calendar_id": {
+              "type": "string",
+              "description": "The ID of the calendar to modify"
             },
-            "job_id":{
-              "type":"string",
-              "description":"The ID of the job to add to the calendar"
+            "job_id": {
+              "type": "list",
+              "description": "An identifier for the anomaly detection jobs. It can be a job identifier, a group name, or a comma-separated list of jobs or groups."
             }
           }
         }

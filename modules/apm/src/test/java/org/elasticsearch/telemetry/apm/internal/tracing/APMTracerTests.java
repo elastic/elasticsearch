@@ -23,8 +23,11 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.telemetry.apm.internal.APMAgentSettings;
+import org.elasticsearch.telemetry.tracing.TraceContext;
 import org.elasticsearch.telemetry.tracing.Traceable;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.junit.annotations.TestLogging;
+import org.mockito.Mockito;
 
 import java.time.Instant;
 import java.util.HashMap;
@@ -40,10 +43,12 @@ import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 
+@TestLogging(reason = "improved visibility", value = "org.elasticsearch.telemetry.apm.internal.tracing:TRACE")
 public class APMTracerTests extends ESTestCase {
 
     private static final Traceable TRACEABLE1 = new TestTraceable("id1");
@@ -84,8 +89,49 @@ public class APMTracerTests extends ESTestCase {
         Settings settings = Settings.builder().put(APMAgentSettings.TELEMETRY_TRACING_ENABLED_SETTING.getKey(), true).build();
         APMTracer apmTracer = buildTracer(settings);
 
-        apmTracer.startTrace(new ThreadContext(settings), TRACEABLE1, "name1", null);
+        ThreadContext traceContext = new ThreadContext(settings);
+        apmTracer.startTrace(traceContext, TRACEABLE1, "name1", null);
 
+        assertThat(traceContext.getTransient(Task.APM_TRACE_CONTEXT), notNullValue());
+        assertThat(apmTracer.getSpans(), aMapWithSize(1));
+        assertThat(apmTracer.getSpans(), hasKey(TRACEABLE1.getSpanId()));
+    }
+
+    /**
+     * Check that when a root trace is started, but it is not recorded, e.g. due to sampling,
+     * the tracer tracks it but doesn't start tracing.
+     */
+    public void test_onTraceStarted_ifNotRecorded_doesNotStartTracing() {
+        Settings settings = Settings.builder().put(APMAgentSettings.TELEMETRY_TRACING_ENABLED_SETTING.getKey(), true).build();
+        APMTracer apmTracer = buildTracer(settings);
+
+        ThreadContext traceContext = new ThreadContext(settings);
+        apmTracer.startTrace(traceContext, TRACEABLE1, "name1_discard", null);
+
+        assertThat(traceContext.getTransient(Task.APM_TRACE_CONTEXT), nullValue());
+        // the root span (transaction) is tracked
+        assertThat(apmTracer.getSpans(), aMapWithSize(1));
+        assertThat(apmTracer.getSpans(), hasKey(TRACEABLE1.getSpanId()));
+    }
+
+    /**
+     * Check that when a nested trace is discarded e.g.g due to transaction_max_spans exceeded, the tracer does not record it.
+     */
+    public void test_onNestedTraceStarted_ifNotRecorded_doesNotStartTrace() {
+        Settings settings = Settings.builder().put(APMAgentSettings.TELEMETRY_TRACING_ENABLED_SETTING.getKey(), true).build();
+        APMTracer apmTracer = buildTracer(settings);
+
+        ThreadContext traceContext = new ThreadContext(settings);
+        apmTracer.startTrace(traceContext, TRACEABLE1, "name1", null);
+        try (var ignore1 = traceContext.newTraceContext()) {
+            apmTracer.startTrace(traceContext, TRACEABLE2, "name2_discard", null);
+            assertThat(traceContext.getTransient(Task.APM_TRACE_CONTEXT), nullValue());
+
+            try (var ignore2 = traceContext.newTraceContext()) {
+                apmTracer.startTrace(traceContext, TRACEABLE3, "name3_discard", null);
+                assertThat(traceContext.getTransient(Task.APM_TRACE_CONTEXT), nullValue());
+            }
+        }
         assertThat(apmTracer.getSpans(), aMapWithSize(1));
         assertThat(apmTracer.getSpans(), hasKey(TRACEABLE1.getSpanId()));
     }
@@ -97,12 +143,13 @@ public class APMTracerTests extends ESTestCase {
         Settings settings = Settings.builder().put(APMAgentSettings.TELEMETRY_TRACING_ENABLED_SETTING.getKey(), true).build();
         APMTracer apmTracer = buildTracer(settings);
 
-        ThreadContext threadContext = new ThreadContext(settings);
+        TraceContext traceContext = new ThreadContext(settings);
         // 1_000_000L because of "toNanos" conversions that overflow for large long millis
         Instant spanStartTime = Instant.ofEpochMilli(randomLongBetween(0, Long.MAX_VALUE / 1_000_000L));
-        threadContext.putTransient(Task.TRACE_START_TIME, spanStartTime);
-        apmTracer.startTrace(threadContext, TRACEABLE1, "name1", null);
+        traceContext.putTransient(Task.TRACE_START_TIME, spanStartTime);
+        apmTracer.startTrace(traceContext, TRACEABLE1, "name1", null);
 
+        assertThat(traceContext.getTransient(Task.APM_TRACE_CONTEXT), notNullValue());
         assertThat(apmTracer.getSpans(), aMapWithSize(1));
         assertThat(apmTracer.getSpans(), hasKey(TRACEABLE1.getSpanId()));
         assertThat(((SpyAPMTracer) apmTracer).getSpanStartTime("name1"), is(spanStartTime));
@@ -117,6 +164,7 @@ public class APMTracerTests extends ESTestCase {
 
         apmTracer.startTrace(new ThreadContext(settings), TRACEABLE1, "name1", null);
         apmTracer.stopTrace(TRACEABLE1);
+        apmTracer.stopTrace(TRACEABLE2); // stopping a non-existent trace is a noop
 
         assertThat(apmTracer.getSpans(), anEmptyMap());
     }
@@ -266,8 +314,7 @@ public class APMTracerTests extends ESTestCase {
             Tracer mockTracer = mock(Tracer.class);
             doAnswer(invocation -> {
                 String spanName = (String) invocation.getArguments()[0];
-                // spy the spanBuilder
-                return new SpySpanBuilder(apmServices.tracer(), spanName);
+                return new MockSpanBuilder(spanName);
             }).when(mockTracer).spanBuilder(anyString());
             return new APMServices(mockTracer, apmServices.openTelemetry());
         }
@@ -276,81 +323,81 @@ public class APMTracerTests extends ESTestCase {
             return spanStartTimeMap.get(spanName);
         }
 
-        class SpySpanBuilder implements SpanBuilder {
+        /**
+         * There's no APM agent in unit tests. Spans created by the default span builder would be NOOP spans that are not recorded.
+         * This builder simulates recorded spans so that we can test the tracer behavior.
+         */
+        class MockSpanBuilder implements SpanBuilder {
 
-            SpanBuilder delegatedSpanBuilder;
+            Span span;
             Instant startTime;
             String spanName;
 
-            SpySpanBuilder(Tracer tracer, String spanName) {
-                this.delegatedSpanBuilder = tracer.spanBuilder(spanName);
+            MockSpanBuilder(String spanName) {
                 this.spanName = spanName;
+                this.span = Mockito.mock(Span.class, spanName);
+                // simulate discarded span due to transaction_max_spans exceeded
+                Mockito.when(span.isRecording()).thenReturn(spanName.endsWith("_discard") == false);
+                Mockito.when(span.storeInContext(Mockito.any(Context.class))).thenCallRealMethod();
             }
 
             @Override
             public SpanBuilder setParent(Context context) {
-                delegatedSpanBuilder.setParent(context);
+                SpanContext spanContext = Span.fromContext(context).getSpanContext();
+                Mockito.when(span.getSpanContext()).thenReturn(spanContext);
                 return this;
             }
 
             @Override
             public SpanBuilder setNoParent() {
-                delegatedSpanBuilder.setNoParent();
+                SpanContext invalid = SpanContext.getInvalid();
+                Mockito.when(span.getSpanContext()).thenReturn(invalid);
                 return this;
             }
 
             @Override
             public SpanBuilder addLink(SpanContext spanContext) {
-                delegatedSpanBuilder.addLink(spanContext);
                 return this;
             }
 
             @Override
             public SpanBuilder addLink(SpanContext spanContext, Attributes attributes) {
-                delegatedSpanBuilder.addLink(spanContext, attributes);
                 return this;
             }
 
             @Override
             public SpanBuilder setAttribute(String key, String value) {
-                delegatedSpanBuilder.setAttribute(key, value);
                 return this;
             }
 
             @Override
             public SpanBuilder setAttribute(String key, long value) {
-                delegatedSpanBuilder.setAttribute(key, value);
                 return this;
             }
 
             @Override
             public SpanBuilder setAttribute(String key, double value) {
-                delegatedSpanBuilder.setAttribute(key, value);
                 return this;
             }
 
             @Override
             public SpanBuilder setAttribute(String key, boolean value) {
-                delegatedSpanBuilder.setAttribute(key, value);
                 return this;
             }
 
             @Override
             public <T> SpanBuilder setAttribute(AttributeKey<T> key, T value) {
-                delegatedSpanBuilder.setAttribute(key, value);
                 return this;
             }
 
             @Override
             public SpanBuilder setSpanKind(SpanKind spanKind) {
-                delegatedSpanBuilder.setSpanKind(spanKind);
                 return this;
             }
 
             @Override
             public SpanBuilder setStartTimestamp(long startTimestamp, TimeUnit unit) {
                 startTime = Instant.ofEpochMilli(TimeUnit.MILLISECONDS.convert(startTimestamp, unit));
-                delegatedSpanBuilder.setStartTimestamp(startTimestamp, unit);
                 return this;
             }
 
@@ -358,7 +405,7 @@ public class APMTracerTests extends ESTestCase {
             public Span startSpan() {
                 // finally record the spanName-startTime association when the span is actually started
                 spanStartTimeMap.put(spanName, startTime);
-                return delegatedSpanBuilder.startSpan();
+                return span;
             }
         }
     }

@@ -23,13 +23,15 @@ public class RenderQueryResponseSerializingTests extends AbstractNamedWriteableT
 
     @Override
     protected RenderSearchApplicationQueryAction.Response createTestInstance() {
-        return new RenderSearchApplicationQueryAction.Response(randomAlphaOfLengthBetween(5, 15), randomSearchSourceBuilder());
+        return new RenderSearchApplicationQueryAction.Response(randomSearchSourceBuilder());
     }
 
     @Override
     protected RenderSearchApplicationQueryAction.Response mutateInstance(RenderSearchApplicationQueryAction.Response instance)
         throws IOException {
-        return randomValueOtherThan(instance, this::createTestInstance);
+        return new RenderSearchApplicationQueryAction.Response(
+            randomValueOtherThan(instance.searchSourceBuilder(), this::randomSearchSourceBuilder)
+        );
     }
 
     protected SearchSourceBuilder randomSearchSourceBuilder() {

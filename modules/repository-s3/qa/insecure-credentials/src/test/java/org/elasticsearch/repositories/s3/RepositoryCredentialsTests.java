@@ -12,6 +12,7 @@ package org.elasticsearch.repositories.s3;
 import software.amazon.awssdk.auth.credentials.AwsCredentials;
 import software.amazon.awssdk.auth.credentials.AwsCredentialsProvider;
 import software.amazon.awssdk.http.SdkHttpClient;
+import software.amazon.awssdk.regions.Region;
 import software.amazon.awssdk.services.s3.S3Client;
 
 import org.apache.logging.log4j.LogManager;
@@ -306,7 +307,7 @@ public class RepositoryCredentialsTests extends ESSingleNodeTestCase {
                 ProjectResolver projectResolver,
                 ResourceWatcherService resourceWatcherService
             ) {
-                super(environment, clusterService, projectResolver, resourceWatcherService, () -> null);
+                super(environment, clusterService, projectResolver, resourceWatcherService, () -> Region.of(randomIdentifier()));
             }
 
             @Override

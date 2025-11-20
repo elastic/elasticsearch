@@ -10,7 +10,6 @@
 package org.elasticsearch.cluster.metadata;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.cluster.coordination.CoordinationMetadata;
@@ -102,6 +101,8 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 public class MetadataTests extends ESTestCase {
+
+    private static final TransportVersion MULTI_PROJECT = TransportVersion.fromName("multi_project");
 
     public void testUnknownFieldClusterMetadata() throws IOException {
         BytesReference metadata = BytesReference.bytes(
@@ -620,7 +621,7 @@ public class MetadataTests extends ESTestCase {
         Metadata metadata = Metadata.builder().put(ProjectMetadata.builder(projectId)).build();
 
         try (BytesStreamOutput output = new BytesStreamOutput()) {
-            output.setTransportVersion(TransportVersionUtils.getPreviousVersion(TransportVersions.MULTI_PROJECT));
+            output.setTransportVersion(TransportVersionUtils.getPreviousVersion(MULTI_PROJECT));
             var e = assertThrows(UnsupportedOperationException.class, () -> metadata.writeTo(output));
             assertEquals("There is 1 project, but it has id [" + projectId + "] rather than default", e.getMessage());
         }
@@ -827,6 +828,7 @@ public class MetadataTests extends ESTestCase {
                 "indices": {
                   "index-1": {
                     "version": 1,
+                    "transport_version": "0",
                     "mapping_version": 1,
                     "settings_version": 1,
                     "aliases_version": 1,
@@ -861,6 +863,7 @@ public class MetadataTests extends ESTestCase {
                   },
                   "index-2": {
                     "version": 1,
+                    "transport_version": "0",
                     "mapping_version": 1,
                     "settings_version": 1,
                     "aliases_version": 1,
@@ -969,10 +972,6 @@ public class MetadataTests extends ESTestCase {
             .sum();
 
         int reservedStateSize = metadata.reservedStateMetadata().size();
-        if (params.paramAsBoolean("multi-project", false) == false) {
-            // only one project if not multi-project, add its reserved state to the cluster's collection
-            reservedStateSize += metadata.projects().values().iterator().next().reservedStateMetadata().size();
-        }
 
         // 2 chunks for wrapping reserved state + 1 chunk for each item
         chunkCount += 2 + reservedStateSize;

@@ -14,7 +14,6 @@ The next example shows how it's possible to find the structure of some New York 
 ```
 curl -s "s3.amazonaws.com/nyc-tlc/trip+data/yellow_tripdata_2018-06.csv" | head -20000 | curl -s -H "Content-Type: application/json" -XPOST "localhost:9200/_text_structure/find_structure?pretty&lines_to_sample=20000" -T -
 ```
-
 % NOTCONSOLE
 % Not converting to console because this shows how curl can be used
 
@@ -306,7 +305,6 @@ If the request does not encounter errors, you receive the following result:
   }
 }
 ```
-
 % NOTCONSOLE
 
 1. `num_messages_analyzed` is 2 lower than `num_lines_analyzed` because only data records count as messages. The first line contains the column names and in this sample the second line is blank.
@@ -327,7 +325,6 @@ If you try to analyze a lot of data then the analysis will take a long time. If 
 ```
 curl -s "s3.amazonaws.com/nyc-tlc/trip+data/yellow_tripdata_2018-06.csv" | head -200000 | curl -s -H "Content-Type: application/json" -XPOST "localhost:9200/_text_structure/find_structure?pretty&lines_to_sample=200000&timeout=1s" -T -
 ```
-
 % NOTCONSOLE
 % Not converting to console because this shows how curl can be used
 
@@ -348,7 +345,6 @@ Unless you are using an incredibly fast computer you'll receive a timeout error:
   "status" : 500
 }
 ```
-
 % NOTCONSOLE
 
 ::::{note}
@@ -363,7 +359,6 @@ This is an example of analyzing an {{es}} log file:
 curl -s -H "Content-Type: application/json" -XPOST
 "localhost:9200/_text_structure/find_structure?pretty&ecs_compatibility=disabled" -T "$ES_HOME/logs/elasticsearch.log"
 ```
-
 % NOTCONSOLE
 % Not converting to console because this shows how curl can be used
 
@@ -498,7 +493,6 @@ If the request does not encounter errors, the result will look something like th
   }
 }
 ```
-
 % NOTCONSOLE
 
 1. This time the `format` has been identified as `semi_structured_text`.
@@ -515,7 +509,6 @@ In the case of the {{es}} log a more complete Grok pattern is `\[%{TIMESTAMP_ISO
 ```
 curl -s -H "Content-Type: application/json" -XPOST "localhost:9200/_text_structure/find_structure?pretty&format=semi_structured_text&grok_pattern=%5C%5B%25%7BTIMESTAMP_ISO8601:timestamp%7D%5C%5D%5C%5B%25%7BLOGLEVEL:loglevel%7D%20*%5C%5D%5C%5B%25%7BJAVACLASS:class%7D%20*%5C%5D%20%5C%5B%25%7BHOSTNAME:node%7D%5C%5D%20%25%7BJAVALOGMESSAGE:message%7D" -T "$ES_HOME/logs/elasticsearch.log"
 ```
-
 % NOTCONSOLE
 % Not converting to console because this shows how curl can be used
 
@@ -758,7 +751,6 @@ If the request does not encounter errors, the result will look something like th
   }
 }
 ```
-
 % NOTCONSOLE
 
 1. The `grok_pattern` in the output is now the overridden one supplied in the query parameter.

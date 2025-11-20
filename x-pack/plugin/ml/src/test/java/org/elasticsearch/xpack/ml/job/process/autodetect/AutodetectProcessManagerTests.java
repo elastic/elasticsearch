@@ -907,19 +907,18 @@ public class AutodetectProcessManagerTests extends ESTestCase {
 
     public void testSetJobState_withHandler_onFailure_triggersHandlerException() throws IOException {
         // Verifies that when updatePersistentTaskState reports a failure, the handler receives that exception
-        when(threadPool.schedule(any(Runnable.class), any(TimeValue.class), any(Executor.class)))
-            .thenAnswer(invocation -> {
-                Runnable r = invocation.getArgument(0);
-                r.run();
-                return mock(ThreadPool.Cancellable.class);
-            });
+        when(threadPool.schedule(any(Runnable.class), any(TimeValue.class), any(Executor.class))).thenAnswer(invocation -> {
+            Runnable r = invocation.getArgument(0);
+            r.run();
+            return mock(ThreadPool.Cancellable.class);
+        });
         AutodetectProcessManager manager = createSpyManager();
         JobTask jobTask = mock(JobTask.class);
         ResourceNotFoundException boom = new ResourceNotFoundException("boom");
         doAnswer(invocation -> {
             @SuppressWarnings("unchecked")
-            ActionListener<PersistentTasksCustomMetadata.PersistentTask<?>> listener =
-                (ActionListener<PersistentTasksCustomMetadata.PersistentTask<?>>) invocation.getArguments()[1];
+            ActionListener<PersistentTasksCustomMetadata.PersistentTask<?>> listener = (ActionListener<
+                PersistentTasksCustomMetadata.PersistentTask<?>>) invocation.getArguments()[1];
             listener.onFailure(boom);
             return null;
         }).when(jobTask).updatePersistentTaskState(any(), any());

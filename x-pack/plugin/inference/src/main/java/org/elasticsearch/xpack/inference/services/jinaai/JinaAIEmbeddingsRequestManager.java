@@ -52,8 +52,8 @@ public class JinaAIEmbeddingsRequestManager extends JinaAIRequestManager {
         Supplier<Boolean> hasRequestCompletedFunction,
         ActionListener<InferenceServiceResults> listener
     ) {
-        EmbeddingsInput input = EmbeddingsInput.of(inferenceInputs);
-        List<String> docsInput = input.getStringInputs();
+        EmbeddingsInput input = inferenceInputs.castTo(EmbeddingsInput.class);
+        List<String> docsInput = input.getTextInputs();
         InputType inputType = input.getInputType();
 
         JinaAIEmbeddingsRequest request = new JinaAIEmbeddingsRequest(docsInput, inputType, model);

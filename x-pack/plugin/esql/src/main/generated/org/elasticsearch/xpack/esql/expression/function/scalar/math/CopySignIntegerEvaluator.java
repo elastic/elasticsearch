@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.math;
 import java.lang.IllegalArgumentException;
 import java.lang.Override;
 import java.lang.String;
+import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.DoubleVector;
@@ -24,6 +25,8 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
  * This class is generated. Edit {@code EvaluatorImplementer} instead.
  */
 public final class CopySignIntegerEvaluator implements EvalOperator.ExpressionEvaluator {
+  private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(CopySignIntegerEvaluator.class);
+
   private final Source source;
 
   private final EvalOperator.ExpressionEvaluator magnitude;
@@ -59,32 +62,42 @@ public final class CopySignIntegerEvaluator implements EvalOperator.ExpressionEv
     }
   }
 
+  @Override
+  public long baseRamBytesUsed() {
+    long baseRamBytesUsed = BASE_RAM_BYTES_USED;
+    baseRamBytesUsed += magnitude.baseRamBytesUsed();
+    baseRamBytesUsed += sign.baseRamBytesUsed();
+    return baseRamBytesUsed;
+  }
+
   public IntBlock eval(int positionCount, IntBlock magnitudeBlock, DoubleBlock signBlock) {
     try(IntBlock.Builder result = driverContext.blockFactory().newIntBlockBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
-        if (magnitudeBlock.isNull(p)) {
-          result.appendNull();
-          continue position;
+        switch (magnitudeBlock.getValueCount(p)) {
+          case 0:
+              result.appendNull();
+              continue position;
+          case 1:
+              break;
+          default:
+              warnings().registerException(new IllegalArgumentException("single-value function encountered multi-value"));
+              result.appendNull();
+              continue position;
         }
-        if (magnitudeBlock.getValueCount(p) != 1) {
-          if (magnitudeBlock.getValueCount(p) > 1) {
-            warnings().registerException(new IllegalArgumentException("single-value function encountered multi-value"));
-          }
-          result.appendNull();
-          continue position;
+        switch (signBlock.getValueCount(p)) {
+          case 0:
+              result.appendNull();
+              continue position;
+          case 1:
+              break;
+          default:
+              warnings().registerException(new IllegalArgumentException("single-value function encountered multi-value"));
+              result.appendNull();
+              continue position;
         }
-        if (signBlock.isNull(p)) {
-          result.appendNull();
-          continue position;
-        }
-        if (signBlock.getValueCount(p) != 1) {
-          if (signBlock.getValueCount(p) > 1) {
-            warnings().registerException(new IllegalArgumentException("single-value function encountered multi-value"));
-          }
-          result.appendNull();
-          continue position;
-        }
-        result.appendInt(CopySign.processInteger(magnitudeBlock.getInt(magnitudeBlock.getFirstValueIndex(p)), signBlock.getDouble(signBlock.getFirstValueIndex(p))));
+        int magnitude = magnitudeBlock.getInt(magnitudeBlock.getFirstValueIndex(p));
+        double sign = signBlock.getDouble(signBlock.getFirstValueIndex(p));
+        result.appendInt(CopySign.processInteger(magnitude, sign));
       }
       return result.build();
     }
@@ -93,7 +106,9 @@ public final class CopySignIntegerEvaluator implements EvalOperator.ExpressionEv
   public IntVector eval(int positionCount, IntVector magnitudeVector, DoubleVector signVector) {
     try(IntVector.FixedBuilder result = driverContext.blockFactory().newIntVectorFixedBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
-        result.appendInt(p, CopySign.processInteger(magnitudeVector.getInt(p), signVector.getDouble(p)));
+        int magnitude = magnitudeVector.getInt(p);
+        double sign = signVector.getDouble(p);
+        result.appendInt(p, CopySign.processInteger(magnitude, sign));
       }
       return result.build();
     }

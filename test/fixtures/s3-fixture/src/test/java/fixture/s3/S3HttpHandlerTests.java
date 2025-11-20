@@ -32,10 +32,14 @@ import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
+import java.util.function.Consumer;
 
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.hasSize;
 
 public class S3HttpHandlerTests extends ESTestCase {
 
@@ -383,6 +387,91 @@ public class S3HttpHandlerTests extends ESTestCase {
 
     }
 
+    public void testPreventObjectOverwrite() throws InterruptedException {
+        final var handler = new S3HttpHandler("bucket", "path");
+
+        var tasks = List.of(
+            createPutObjectTask(handler),
+            createPutObjectTask(handler),
+            createMultipartUploadTask(handler),
+            createMultipartUploadTask(handler)
+        );
+
+        try (var executor = Executors.newVirtualThreadPerTaskExecutor()) {
+            tasks.forEach(task -> executor.submit(task.consumer));
+            executor.shutdown();
+            var done = executor.awaitTermination(SAFE_AWAIT_TIMEOUT.seconds(), TimeUnit.SECONDS);
+            assertTrue(done);
+        }
+
+        List<TestWriteTask> successfulTasks = tasks.stream().filter(task -> task.status == RestStatus.OK).toList();
+        assertThat(successfulTasks, hasSize(1));
+
+        tasks.stream().filter(task -> task.uploadId != null).forEach(task -> {
+            if (task.status == RestStatus.PRECONDITION_FAILED) {
+                assertNotNull(handler.getUpload(task.uploadId));
+            } else {
+                assertNull(handler.getUpload(task.uploadId));
+            }
+        });
+
+        assertEquals(
+            new TestHttpResponse(RestStatus.OK, successfulTasks.getFirst().body, TestHttpExchange.EMPTY_HEADERS),
+            handleRequest(handler, "GET", "/bucket/path/blob")
+        );
+    }
+
+    private static TestWriteTask createPutObjectTask(S3HttpHandler handler) {
+        return new TestWriteTask(
+            (task) -> task.status = handleRequest(handler, "PUT", "/bucket/path/blob", task.body, ifNoneMatchHeader()).status()
+        );
+    }
+
+    private static TestWriteTask createMultipartUploadTask(S3HttpHandler handler) {
+        final var multipartUploadTask = new TestWriteTask(
+            (task) -> task.status = handleRequest(
+                handler,
+                "POST",
+                "/bucket/path/blob?uploadId=" + task.uploadId,
+                new BytesArray(Strings.format("""
+                    <?xml version="1.0" encoding="UTF-8"?>
+                    <CompleteMultipartUpload xmlns="http://s3.amazonaws.com/doc/2006-03-01/">
+                       <Part>
+                          <ETag>%s</ETag>
+                          <PartNumber>1</PartNumber>
+                       </Part>
+                    </CompleteMultipartUpload>""", task.etag)),
+                ifNoneMatchHeader()
+            ).status()
+        );
+
+        final var createUploadResponse = handleRequest(handler, "POST", "/bucket/path/blob?uploads");
+        multipartUploadTask.uploadId = getUploadId(createUploadResponse.body());
+
+        final var uploadPart1Response = handleRequest(
+            handler,
+            "PUT",
+            "/bucket/path/blob?uploadId=" + multipartUploadTask.uploadId + "&partNumber=1",
+            multipartUploadTask.body
+        );
+        multipartUploadTask.etag = Objects.requireNonNull(uploadPart1Response.etag());
+
+        return multipartUploadTask;
+    }
+
+    private static class TestWriteTask {
+        final BytesReference body;
+        final Runnable consumer;
+        String uploadId;
+        String etag;
+        RestStatus status;
+
+        TestWriteTask(Consumer<TestWriteTask> consumer) {
+            this.body = randomBytesReference(50);
+            this.consumer = () -> consumer.accept(this);
+        }
+    }
+
     private void runExtractPartETagsTest(String body, String... expectedTags) {
         assertEquals(List.of(expectedTags), S3HttpHandler.extractPartEtags(new BytesArray(body.getBytes(StandardCharsets.UTF_8))));
     }
@@ -464,6 +553,12 @@ public class S3HttpHandlerTests extends ESTestCase {
     private static Headers contentRangeHeader(long start, long end, long length) {
         var headers = new Headers();
         headers.put("Content-Range", List.of(Strings.format("bytes %d-%d/%d", start, end, length)));
+        return headers;
+    }
+
+    private static Headers ifNoneMatchHeader() {
+        var headers = new Headers();
+        headers.put("If-None-Match", List.of("*"));
         return headers;
     }
 

@@ -1,24 +1,25 @@
 {
-  "ssl.certificates":{
-    "documentation":{
-      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/security-api-ssl.html",
-      "description":"Retrieves information about the X.509 certificates used to encrypt communications in the cluster."
+  "ssl.certificates": {
+    "documentation": {
+      "url": "https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-ssl-certificates",
+      "description": "Get SSL certificates"
     },
-    "stability":"stable",
-    "visibility":"public",
-    "headers":{
-      "accept": [ "application/json"]
+    "stability": "stable",
+    "visibility": "public",
+    "headers": {
+      "accept": [
+        "application/json"
+      ]
     },
-    "url":{
-      "paths":[
+    "url": {
+      "paths": [
         {
-          "path":"/_ssl/certificates",
-          "methods":[
+          "path": "/_ssl/certificates",
+          "methods": [
             "GET"
           ]
         }
       ]
-    },
-    "params":{}
+    }
   }
 }

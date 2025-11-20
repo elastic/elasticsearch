@@ -25,7 +25,6 @@ import java.util.Arrays;
 class RoundToDouble {
     static final RoundTo.Build BUILD = (source, field, points) -> {
         double[] f = points.stream().mapToDouble(p -> ((Number) p).doubleValue()).toArray();
-        Arrays.sort(f);
         return switch (f.length) {
             // TODO should be a consistent way to do the 0 version - is CASE(MV_COUNT(f) == 1, f[0])
             case 1 -> new RoundToDouble1Evaluator.Factory(source, field, f[0]);

@@ -40,7 +40,9 @@ public class PutQueryRulesetActionRequestBWCSerializingTests extends AbstractBWC
 
     @Override
     protected PutQueryRulesetAction.Request mutateInstance(PutQueryRulesetAction.Request instance) {
-        return randomValueOtherThan(instance, this::createTestInstance);
+        return new PutQueryRulesetAction.Request(
+            randomValueOtherThan(instance.queryRuleset(), () -> EnterpriseSearchModuleTestUtils.randomQueryRuleset())
+        );
     }
 
     @Override

@@ -2,7 +2,9 @@
 
 ### ST GEOTILE
 Calculates the `geotile` of the supplied geo_point at the specified precision.
-The result is long encoded. Use [ST_GEOTILE_TO_STRING](#esql-st_geotile_to_string) to convert the result to a string.
+The result is long encoded. Use [TO_STRING](#esql-to_string) to convert the result to a string,
+[TO_LONG](#esql-to_long) to convert it to a `long`, or [TO_GEOSHAPE](#esql-to_geoshape) to calculate
+the `geo_shape` bounding geometry.
 
 These functions are related to the [`geo_grid` query](https://www.elastic.co/docs/reference/query-languages/query-dsl/query-dsl-geo-grid-query)
 and the [`geotile_grid` aggregation](https://www.elastic.co/docs/reference/aggregations/search-aggregations-bucket-geotilegrid-aggregation).
@@ -11,10 +13,10 @@ and the [`geotile_grid` aggregation](https://www.elastic.co/docs/reference/aggre
 FROM airports
 | EVAL geotile = ST_GEOTILE(location, 2)
 | STATS
-    count = COUNT(*),
+    count = COUNT(geotile),
     centroid = ST_CENTROID_AGG(location)
       BY geotile
-| EVAL geotileString = ST_GEOTILE_TO_STRING(geotile)
+| EVAL geotileString = TO_STRING(geotile)
 | SORT count DESC, geotileString ASC
 | KEEP count, centroid, geotileString
 ```

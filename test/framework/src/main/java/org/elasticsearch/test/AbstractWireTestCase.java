@@ -200,8 +200,8 @@ public abstract class AbstractWireTestCase<T> extends ESTestCase {
                     for (int r = 0; r < rounds; r++) {
                         assertSerialization(testInstance);
                     }
-                } catch (IOException e) {
-                    throw new AssertionError("error serializing", e);
+                } catch (IOException | AssertionError e) {
+                    throw new AssertionError("error serializing [" + testInstance + "]", e);
                 }
             });
         } finally {

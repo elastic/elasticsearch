@@ -1,13 +1,15 @@
 {
   "searchable_snapshots.clear_cache": {
     "documentation": {
-      "url": "https://www.elastic.co/guide/en/elasticsearch/reference/master/searchable-snapshots-apis.html",
-      "description" : "Clear the cache of searchable snapshots."
+      "url": "https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-searchable-snapshots-clear-cache",
+      "description": "Clear the cache of searchable snapshots."
     },
     "stability": "experimental",
-    "visibility":"public",
-    "headers":{
-      "accept": [ "application/json"]
+    "visibility": "public",
+    "headers": {
+      "accept": [
+        "application/json"
+      ]
     },
     "url": {
       "paths": [
@@ -25,7 +27,7 @@
           "parts": {
             "index": {
               "type": "list",
-              "description": "A comma-separated list of index names"
+              "description": "Clear the cache"
             }
           }
         }
@@ -41,10 +43,11 @@
         "description": "Whether to ignore if a wildcard indices expression resolves into no concrete indices. (This includes `_all` string or when no indices have been specified)"
       },
       "expand_wildcards": {
-        "type": "enum",
+        "type": "list",
         "options": [
           "open",
           "closed",
+          "hidden",
           "none",
           "all"
         ],

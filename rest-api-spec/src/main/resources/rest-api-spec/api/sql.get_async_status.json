@@ -1,8 +1,8 @@
 {
   "sql.get_async_status": {
     "documentation": {
-      "url": "https://www.elastic.co/guide/en/elasticsearch/reference/master/get-async-sql-search-status-api.html",
-      "description": "Returns the current status of an async SQL search or a stored synchronous SQL search"
+      "url": "https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-sql-get-async-status",
+      "description": "Get the async SQL search status"
     },
     "stability": "stable",
     "visibility": "public",

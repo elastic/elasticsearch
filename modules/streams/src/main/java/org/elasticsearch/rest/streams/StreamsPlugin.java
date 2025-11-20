@@ -9,7 +9,6 @@
 
 package org.elasticsearch.rest.streams;
 
-import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -29,7 +28,6 @@ import org.elasticsearch.rest.streams.logs.StreamsStatusAction;
 import org.elasticsearch.rest.streams.logs.TransportLogsStreamsToggleActivation;
 import org.elasticsearch.rest.streams.logs.TransportStreamsStatusAction;
 
-import java.util.Collections;
 import java.util.List;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
@@ -53,10 +51,7 @@ public class StreamsPlugin extends Plugin implements ActionPlugin {
         Supplier<DiscoveryNodes> nodesInCluster,
         Predicate<NodeFeature> clusterSupportsFeature
     ) {
-        if (DataStream.LOGS_STREAM_FEATURE_FLAG) {
-            return List.of(new RestSetLogStreamsEnabledAction(), new RestStreamsStatusAction());
-        }
-        return Collections.emptyList();
+        return List.of(new RestSetLogStreamsEnabledAction(), new RestStreamsStatusAction());
     }
 
     @Override

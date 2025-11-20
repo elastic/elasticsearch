@@ -18,11 +18,14 @@ import java.util.function.Predicate;
 import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
 import static org.elasticsearch.xpack.esql.core.expression.Expressions.name;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.DEFAULT;
+import static org.elasticsearch.xpack.esql.core.type.DataType.AGGREGATE_METRIC_DOUBLE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.BOOLEAN;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DATETIME;
+import static org.elasticsearch.xpack.esql.core.type.DataType.DENSE_VECTOR;
 import static org.elasticsearch.xpack.esql.core.type.DataType.IP;
 import static org.elasticsearch.xpack.esql.core.type.DataType.NULL;
-import static org.elasticsearch.xpack.esql.core.type.DataType.isSpatial;
+import static org.elasticsearch.xpack.esql.core.type.DataType.isRepresentable;
+import static org.elasticsearch.xpack.esql.core.type.DataType.isSpatialOrGrid;
 
 public final class TypeResolutions {
 
@@ -32,10 +35,11 @@ public final class TypeResolutions {
         SECOND,
         THIRD,
         FOURTH,
-        FIFTH;
+        FIFTH,
+        IMPLICIT;
 
         public static ParamOrdinal fromIndex(int index) {
-            return switch (index) {
+            return index < 0 ? IMPLICIT : switch (index) {
                 case 0 -> FIRST;
                 case 1 -> SECOND;
                 case 2 -> THIRD;
@@ -75,17 +79,31 @@ public final class TypeResolutions {
     /**
      * @see DataType#isRepresentable(DataType)
      */
-    public static TypeResolution isRepresentableExceptCounters(Expression e, String operationName, ParamOrdinal paramOrd) {
-        return isType(e, DataType::isRepresentable, operationName, paramOrd, "any type except counter types");
-    }
-
-    public static TypeResolution isRepresentableExceptCountersAndSpatial(Expression e, String operationName, ParamOrdinal paramOrd) {
+    public static TypeResolution isRepresentableExceptCountersDenseVectorAndAggregateMetricDouble(
+        Expression e,
+        String operationName,
+        ParamOrdinal paramOrd
+    ) {
         return isType(
             e,
-            (t) -> isSpatial(t) == false && DataType.isRepresentable(t),
+            dt -> isRepresentable(dt) && dt != DENSE_VECTOR && dt != AGGREGATE_METRIC_DOUBLE,
             operationName,
             paramOrd,
-            "any type except counter and spatial types"
+            "any type except counter types, dense_vector, or aggregate_metric_double"
+        );
+    }
+
+    public static TypeResolution isRepresentableExceptCountersSpatialDenseVectorAndAggregateMetricDouble(
+        Expression e,
+        String operationName,
+        ParamOrdinal paramOrd
+    ) {
+        return isType(
+            e,
+            (t) -> isSpatialOrGrid(t) == false && DataType.isRepresentable(t) && t != DENSE_VECTOR && t != AGGREGATE_METRIC_DOUBLE,
+            operationName,
+            paramOrd,
+            "any type except counter, spatial types, dense_vector, or aggregate_metric_double"
         );
     }
 
@@ -195,6 +213,18 @@ public final class TypeResolutions {
         boolean allowUnionTypes,
         String... acceptedTypes
     ) {
+        return isType(e, predicate, null, operationName, paramOrd, allowUnionTypes, acceptedTypes);
+    }
+
+    public static TypeResolution isType(
+        Expression e,
+        Predicate<DataType> predicate,
+        String errorMessagePrefix,
+        String operationName,
+        ParamOrdinal paramOrd,
+        boolean allowUnionTypes,
+        String... acceptedTypes
+    ) {
         if (predicate.test(e.dataType()) || e.dataType() == NULL) {
             return TypeResolution.TYPE_RESOLVED;
         }
@@ -208,11 +238,19 @@ public final class TypeResolutions {
         }
 
         return new TypeResolution(
-            errorStringIncompatibleTypes(operationName, paramOrd, name(e), e.dataType(), acceptedTypesForErrorMsg(acceptedTypes))
+            errorStringIncompatibleTypes(
+                errorMessagePrefix,
+                operationName,
+                paramOrd,
+                name(e),
+                e.dataType(),
+                acceptedTypesForErrorMsg(acceptedTypes)
+            )
         );
     }
 
     private static String errorStringIncompatibleTypes(
+        String errorMessagePrefix,
         String operationName,
         ParamOrdinal paramOrd,
         String argumentName,
@@ -220,7 +258,7 @@ public final class TypeResolutions {
         String... acceptedTypes
     ) {
         return format(
-            null,
+            errorMessagePrefix,
             "{}argument of [{}] must be [{}], found value [{}] type [{}]",
             paramOrd == null || paramOrd == DEFAULT ? "" : paramOrd.name().toLowerCase(Locale.ROOT) + " ",
             operationName,

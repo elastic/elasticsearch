@@ -667,6 +667,11 @@ public class AggregatorBenchmark {
             }
 
             @Override
+            public long baseRamBytesUsed() {
+                return 0;
+            }
+
+            @Override
             public void close() {
                 mask.close();
             }

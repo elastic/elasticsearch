@@ -16,10 +16,13 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasKey;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.not;
 
 public class RemoteClusterAwareTests extends ESTestCase {
@@ -158,15 +161,30 @@ public class RemoteClusterAwareTests extends ESTestCase {
 
     }
 
+    public void testGetRemoteIndexExpressions() {
+        {
+            List<String> remoteIndexExpressions = RemoteClusterAware.getRemoteIndexExpressions("index-1");
+            assertThat(remoteIndexExpressions, empty());
+        }
+        {
+            List<String> remoteIndexExpressions = RemoteClusterAware.getRemoteIndexExpressions(
+                "index-1",
+                "remote:index-1",
+                "idx-*",
+                "remote-2:idx-5"
+            );
+            assertThat(remoteIndexExpressions, hasSize(2));
+            assertThat(remoteIndexExpressions, contains("remote:index-1", "remote-2:idx-5"));
+        }
+    }
+
     private static class RemoteClusterAwareTest extends RemoteClusterAware {
         RemoteClusterAwareTest() {
             super(Settings.EMPTY);
         }
 
         @Override
-        protected void updateRemoteCluster(String clusterAlias, Settings settings) {
-
-        }
+        public void updateLinkedProject(LinkedProjectConfig config) {}
 
         @Override
         public Map<String, List<String>> groupClusterIndices(Set<String> remoteClusterNames, String[] requestIndices) {

@@ -23,7 +23,6 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.Stack;
-import java.util.stream.Collectors;
 
 /**
  * Block loader for fields that use fallback synthetic source implementation.
@@ -66,14 +65,7 @@ public abstract class FallbackSyntheticSourceBlockLoader implements BlockLoader 
 
     @Override
     public StoredFieldsSpec rowStrideStoredFieldSpec() {
-        Set<String> ignoredFieldNames;
-        if (ignoredSourceFormat == IgnoredSourceFieldMapper.IgnoredSourceFormat.PER_FIELD_IGNORED_SOURCE) {
-            ignoredFieldNames = fieldPaths.stream().map(IgnoredSourceFieldMapper::ignoredFieldName).collect(Collectors.toSet());
-        } else {
-            ignoredFieldNames = Set.of(IgnoredSourceFieldMapper.NAME);
-        }
-
-        return new StoredFieldsSpec(false, false, ignoredFieldNames);
+        return StoredFieldsSpec.withSourcePaths(ignoredSourceFormat, Set.of(fieldName));
     }
 
     @Override

@@ -36,10 +36,13 @@ import java.util.Collections;
 import java.util.Date;
 import java.util.Deque;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.ListIterator;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 import java.util.function.BiConsumer;
 import java.util.stream.Collectors;
@@ -201,15 +204,18 @@ public final class IngestDocument {
      * or if the field that is found at the provided path is not of the expected type.
      */
     public <T> T getFieldValue(String path, Class<T> clazz, boolean ignoreMissing) {
-        final FieldPath fieldPath = FieldPath.of(path);
+        final FieldPath fieldPath = FieldPath.of(path, getCurrentAccessPatternSafe());
         Object context = fieldPath.initialContext(this);
-        ResolveResult result = resolve(fieldPath.pathElements, fieldPath.pathElements.length, path, context);
+        ResolveResult result = resolve(fieldPath.pathElements, fieldPath.pathElements.length, path, context, getCurrentAccessPatternSafe());
         if (result.wasSuccessful) {
             return cast(path, result.resolvedObject, clazz);
         } else if (ignoreMissing) {
             return null;
         } else {
-            throw new IllegalArgumentException(result.errorMessage);
+            // Reconstruct the error message if the resolve result was incomplete
+            throw new IllegalArgumentException(
+                Objects.requireNonNullElseGet(result.errorMessage, () -> Errors.notPresent(path, result.missingFields))
+            );
         }
     }
 
@@ -267,17 +273,91 @@ public final class IngestDocument {
      * @throws IllegalArgumentException if the path is null, empty or invalid.
      */
     public boolean hasField(String path, boolean failOutOfRange) {
-        final FieldPath fieldPath = FieldPath.of(path);
+        final FieldPath fieldPath = FieldPath.of(path, getCurrentAccessPatternSafe());
         Object context = fieldPath.initialContext(this);
-        for (int i = 0; i < fieldPath.pathElements.length - 1; i++) {
+        int leafKeyIndex = fieldPath.pathElements.length - 1;
+        int lastContainerIndex = fieldPath.pathElements.length - 2;
+        String leafKey = fieldPath.pathElements[leafKeyIndex];
+        for (int i = 0; i <= lastContainerIndex; i++) {
             String pathElement = fieldPath.pathElements[i];
             if (context == null) {
                 return false;
             } else if (context instanceof IngestCtxMap map) { // optimization: handle IngestCtxMap separately from Map
-                context = map.get(pathElement);
+                switch (getCurrentAccessPatternSafe()) {
+                    case CLASSIC -> context = map.get(pathElement);
+                    case FLEXIBLE -> {
+                        Object object = map.getOrDefault(pathElement, NOT_FOUND);
+                        if (object != NOT_FOUND) {
+                            context = object;
+                        } else if (i == lastContainerIndex) {
+                            // This is the last path element, update the leaf key to use this path element as a dotted prefix.
+                            // Leave the context as it is.
+                            leafKey = pathElement + "." + leafKey;
+                        } else {
+                            // Iterate through the remaining path elements, joining them with dots, until we get a hit
+                            String combinedPath = pathElement;
+                            for (int j = i + 1; j <= lastContainerIndex; j++) {
+                                combinedPath = combinedPath + "." + fieldPath.pathElements[j];
+                                object = map.getOrDefault(combinedPath, NOT_FOUND); // getOrDefault is faster than containsKey + get
+                                if (object != NOT_FOUND) {
+                                    // Found one, update the outer loop index to skip past the elements we've used
+                                    context = object;
+                                    i = j;
+                                    break;
+                                }
+                            }
+                            if (object == NOT_FOUND) {
+                                // Made it to the last path element without finding the field.
+                                // Update the leaf key to use the visited combined path elements as a dotted prefix.
+                                leafKey = combinedPath + "." + leafKey;
+                                // Update outer loop index to skip past the elements we've used
+                                i = lastContainerIndex;
+                            }
+                        }
+                    }
+                }
             } else if (context instanceof Map<?, ?> map) {
-                context = map.get(pathElement);
+                switch (getCurrentAccessPatternSafe()) {
+                    case CLASSIC -> context = map.get(pathElement);
+                    case FLEXIBLE -> {
+                        @SuppressWarnings("unchecked")
+                        Map<String, Object> typedMap = (Map<String, Object>) context;
+                        Object object = typedMap.getOrDefault(pathElement, NOT_FOUND);
+                        if (object != NOT_FOUND) {
+                            context = object;
+                        } else if (i == lastContainerIndex) {
+                            // This is the last path element, update the leaf key to use this path element as a dotted prefix.
+                            // Leave the context as it is.
+                            leafKey = pathElement + "." + leafKey;
+                        } else {
+                            // Iterate through the remaining path elements, joining them with dots, until we get a hit
+                            String combinedPath = pathElement;
+                            for (int j = i + 1; j <= lastContainerIndex; j++) {
+                                combinedPath = combinedPath + "." + fieldPath.pathElements[j];
+                                object = typedMap.getOrDefault(combinedPath, NOT_FOUND); // getOrDefault is faster than containsKey + get
+                                if (object != NOT_FOUND) {
+                                    // Found one, update the outer loop index to skip past the elements we've used
+                                    context = object;
+                                    i = j;
+                                    break;
+                                }
+                            }
+                            if (object == NOT_FOUND) {
+                                // Made it to the last path element without finding the field.
+                                // Update the leaf key to use the visited combined path elements as a dotted prefix.
+                                leafKey = combinedPath + "." + leafKey;
+                                // Update outer loop index to skip past the elements we've used.
+                                i = lastContainerIndex;
+                            }
+                        }
+                    }
+                }
             } else if (context instanceof List<?> list) {
+                if (getCurrentAccessPatternSafe() == IngestPipelineFieldAccessPattern.FLEXIBLE) {
+                    // Flexible access pattern cannot yet access array values, new syntax must be added.
+                    // Handle this as if the path element was not parsable as an integer in the classic mode
+                    return false;
+                }
                 int index;
                 try {
                     index = Integer.parseInt(pathElement);
@@ -298,7 +378,6 @@ public final class IngestDocument {
             }
         }
 
-        String leafKey = fieldPath.pathElements[fieldPath.pathElements.length - 1];
         if (context == null) {
             return false;
         } else if (context instanceof IngestCtxMap map) { // optimization: handle IngestCtxMap separately from Map
@@ -306,6 +385,11 @@ public final class IngestDocument {
         } else if (context instanceof Map<?, ?> map) {
             return map.containsKey(leafKey);
         } else if (context instanceof List<?> list) {
+            if (getCurrentAccessPatternSafe() == IngestPipelineFieldAccessPattern.FLEXIBLE) {
+                // Flexible access pattern cannot yet access array values, new syntax must be added.
+                // Handle this as if the path element was not parsable as an integer in the classic mode
+                return false;
+            }
             try {
                 int index = Integer.parseInt(leafKey);
                 if (index >= 0 && index < list.size()) {
@@ -343,10 +427,21 @@ public final class IngestDocument {
      * @throws IllegalArgumentException if the path is null, empty, or invalid; or if the field doesn't exist (and ignoreMissing is false).
      */
     public void removeField(String path, boolean ignoreMissing) {
-        final FieldPath fieldPath = FieldPath.of(path);
+        final FieldPath fieldPath = FieldPath.of(path, getCurrentAccessPatternSafe());
         Object context = fieldPath.initialContext(this);
-        ResolveResult result = resolve(fieldPath.pathElements, fieldPath.pathElements.length - 1, path, context);
+        String leafKey = fieldPath.pathElements[fieldPath.pathElements.length - 1];
+        ResolveResult result = resolve(
+            fieldPath.pathElements,
+            fieldPath.pathElements.length - 1,
+            path,
+            context,
+            getCurrentAccessPatternSafe()
+        );
         if (result.wasSuccessful) {
+            context = result.resolvedObject;
+        } else if (result.missingFields != null) {
+            // Incomplete result, update the leaf key and context to continue the operation
+            leafKey = result.missingFields + "." + leafKey;
             context = result.resolvedObject;
         } else if (ignoreMissing) {
             return; // nothing was found, so there's nothing to remove :shrug:
@@ -354,7 +449,6 @@ public final class IngestDocument {
             throw new IllegalArgumentException(result.errorMessage);
         }
 
-        String leafKey = fieldPath.pathElements[fieldPath.pathElements.length - 1];
         if (context == null && ignoreMissing == false) {
             throw new IllegalArgumentException(Errors.cannotRemove(path, leafKey, null));
         } else if (context instanceof IngestCtxMap map) { // optimization: handle IngestCtxMap separately from Map
@@ -370,6 +464,15 @@ public final class IngestDocument {
                 throw new IllegalArgumentException(Errors.notPresent(path, leafKey));
             }
         } else if (context instanceof List<?> list) {
+            if (getCurrentAccessPatternSafe() == IngestPipelineFieldAccessPattern.FLEXIBLE) {
+                // Flexible access pattern cannot yet access array values, new syntax must be added.
+                if (ignoreMissing == false) {
+                    throw new IllegalArgumentException("path [" + path + "] is not valid");
+                } else {
+                    // ignoreMissing is true, so treat this as if we had just not found the field.
+                    return;
+                }
+            }
             int index = -1;
             try {
                 index = Integer.parseInt(leafKey);
@@ -394,28 +497,102 @@ public final class IngestDocument {
      * Resolves the path elements (up to the limit) within the context. The result of such resolution can either be successful,
      * or can indicate a failure.
      */
-    private static ResolveResult resolve(final String[] pathElements, final int limit, final String fullPath, Object context) {
+    private static ResolveResult resolve(
+        final String[] pathElements,
+        final int limit,
+        final String fullPath,
+        Object context,
+        IngestPipelineFieldAccessPattern accessPattern
+    ) {
         for (int i = 0; i < limit; i++) {
             String pathElement = pathElements[i];
             if (context == null) {
                 return ResolveResult.error(Errors.cannotResolve(fullPath, pathElement, null));
             } else if (context instanceof IngestCtxMap map) { // optimization: handle IngestCtxMap separately from Map
-                Object object = map.getOrDefault(pathElement, NOT_FOUND); // getOrDefault is faster than containsKey + get
-                if (object == NOT_FOUND) {
-                    return ResolveResult.error(Errors.notPresent(fullPath, pathElement));
-                } else {
-                    context = object;
+                switch (accessPattern) {
+                    case CLASSIC -> {
+                        Object object = map.getOrDefault(pathElement, NOT_FOUND); // getOrDefault is faster than containsKey + get
+                        if (object == NOT_FOUND) {
+                            return ResolveResult.error(Errors.notPresent(fullPath, pathElement));
+                        } else {
+                            context = object;
+                        }
+                    }
+                    case FLEXIBLE -> {
+                        Object object = map.getOrDefault(pathElement, NOT_FOUND); // getOrDefault is faster than containsKey + get
+                        if (object != NOT_FOUND) {
+                            context = object;
+                        } else if (i == (limit - 1)) {
+                            // This is our last path element, return incomplete
+                            return ResolveResult.incomplete(context, pathElement);
+                        } else {
+                            // Attempt a flexible lookup
+                            // Iterate through the remaining elements until we get a hit
+                            String combinedPath = pathElement;
+                            for (int j = i + 1; j < limit; j++) {
+                                combinedPath = combinedPath + "." + pathElements[j];
+                                object = map.getOrDefault(combinedPath, NOT_FOUND); // getOrDefault is faster than containsKey + get
+                                if (object != NOT_FOUND) {
+                                    // Found one, update the outer loop index to skip past the elements we've used
+                                    context = object;
+                                    i = j;
+                                    break;
+                                }
+                            }
+                            if (object == NOT_FOUND) {
+                                // Not found, and out of path elements, return an incomplete result
+                                return ResolveResult.incomplete(context, combinedPath);
+                            }
+                        }
+                    }
                 }
             } else if (context instanceof Map<?, ?>) {
-                @SuppressWarnings("unchecked")
-                Map<String, Object> map = (Map<String, Object>) context;
-                Object object = map.getOrDefault(pathElement, NOT_FOUND); // getOrDefault is faster than containsKey + get
-                if (object == NOT_FOUND) {
-                    return ResolveResult.error(Errors.notPresent(fullPath, pathElement));
-                } else {
-                    context = object;
+                switch (accessPattern) {
+                    case CLASSIC -> {
+                        @SuppressWarnings("unchecked")
+                        Map<String, Object> map = (Map<String, Object>) context;
+                        Object object = map.getOrDefault(pathElement, NOT_FOUND); // getOrDefault is faster than containsKey + get
+                        if (object == NOT_FOUND) {
+                            return ResolveResult.error(Errors.notPresent(fullPath, pathElement));
+                        } else {
+                            context = object;
+                        }
+                    }
+                    case FLEXIBLE -> {
+                        @SuppressWarnings("unchecked")
+                        Map<String, Object> map = (Map<String, Object>) context;
+                        Object object = map.getOrDefault(pathElement, NOT_FOUND); // getOrDefault is faster than containsKey + get
+                        if (object != NOT_FOUND) {
+                            context = object;
+                        } else if (i == (limit - 1)) {
+                            // This is our last path element, return incomplete
+                            return ResolveResult.incomplete(context, pathElement);
+                        } else {
+                            // Attempt a flexible lookup
+                            // Iterate through the remaining elements until we get a hit
+                            String combinedPath = pathElement;
+                            for (int j = i + 1; j < limit; j++) {
+                                combinedPath = combinedPath + "." + pathElements[j];
+                                object = map.getOrDefault(combinedPath, NOT_FOUND); // getOrDefault is faster than containsKey + get
+                                if (object != NOT_FOUND) {
+                                    // Found one, update the outer loop index to skip past the elements we've used
+                                    context = object;
+                                    i = j;
+                                    break;
+                                }
+                            }
+                            if (object == NOT_FOUND) {
+                                // Not found, and out of path elements, return an incomplete result
+                                return ResolveResult.incomplete(context, combinedPath);
+                            }
+                        }
+                    }
                 }
             } else if (context instanceof List<?> list) {
+                if (accessPattern == IngestPipelineFieldAccessPattern.FLEXIBLE) {
+                    // Flexible access pattern cannot yet access array values, new syntax must be added.
+                    return ResolveResult.error(Errors.invalidPath(fullPath));
+                }
                 int index;
                 try {
                     index = Integer.parseInt(pathElement);
@@ -464,7 +641,25 @@ public final class IngestDocument {
      * @throws IllegalArgumentException if the path is null, empty or invalid.
      */
     public void appendFieldValue(String path, Object value, boolean allowDuplicates) {
-        setFieldValue(path, value, true, allowDuplicates);
+        setFieldValue(path, value, true, allowDuplicates, false);
+    }
+
+    /**
+     * Appends the provided value to the provided path in the document.
+     * Any non existing path element will be created.
+     * If the path identifies a list, the value will be appended to the existing list.
+     * If the path identifies a scalar, the scalar will be converted to a list and
+     * the provided value will be added to the newly created list.
+     * Supports multiple values too provided in forms of list, in that case all the values will be appended to the
+     * existing (or newly created) list.
+     * @param path The path within the document in dot-notation
+     * @param value The value or values to append to the existing ones
+     * @param allowDuplicates When false, any values that already exist in the field will not be added
+     * @param ignoreEmptyValues When true, values that resolve to empty strings will not be added
+     * @throws IllegalArgumentException if the path is null, empty or invalid.
+     */
+    public void appendFieldValue(String path, Object value, boolean allowDuplicates, boolean ignoreEmptyValues) {
+        setFieldValue(path, value, true, allowDuplicates, ignoreEmptyValues);
     }
 
     /**
@@ -478,10 +673,11 @@ public final class IngestDocument {
      * @param path The path within the document in dot-notation
      * @param valueSource The value source that will produce the value or values to append to the existing ones
      * @param allowDuplicates When false, any values that already exist in the field will not be added
+     * @param ignoreEmptyValues When true, values that resolve to empty strings will not be added
      * @throws IllegalArgumentException if the path is null, empty or invalid.
      */
-    public void appendFieldValue(String path, ValueSource valueSource, boolean allowDuplicates) {
-        appendFieldValue(path, valueSource.copyAndResolve(templateModel), allowDuplicates);
+    public void appendFieldValue(String path, ValueSource valueSource, boolean allowDuplicates, boolean ignoreEmptyValues) {
+        appendFieldValue(path, valueSource.copyAndResolve(templateModel), allowDuplicates, ignoreEmptyValues);
     }
 
     /**
@@ -495,7 +691,7 @@ public final class IngestDocument {
      * item identified by the provided path.
      */
     public void setFieldValue(String path, Object value) {
-        setFieldValue(path, value, false, true);
+        setFieldValue(path, value, false, false, false);
     }
 
     /**
@@ -523,16 +719,17 @@ public final class IngestDocument {
      */
     public void setFieldValue(String path, ValueSource valueSource, boolean ignoreEmptyValue) {
         Object value = valueSource.copyAndResolve(templateModel);
-        if (ignoreEmptyValue && valueSource instanceof ValueSource.TemplatedValue) {
-            if (value == null) {
-                return;
+        if (valueSource instanceof ValueSource.TemplatedValue) {
+            if (ignoreEmptyValue == false || valueNotEmpty(value)) {
+                setFieldValue(path, value);
             }
-            String valueStr = (String) value;
-            if (valueStr.isEmpty()) {
-                return;
-            }
+        } else {
+            // it may seem a little surprising to not bother checking ignoreEmptyValue value here.
+            // but this corresponds to the case of, e.g., a set processor with a literal value.
+            // so if you have `"value": ""` and `"ignore_empty_value": true` right next to each other
+            // in your processor definition, then, well, that's on you for being a bit silly. ;)
+            setFieldValue(path, value);
         }
-        setFieldValue(path, value);
     }
 
     /**
@@ -546,47 +743,118 @@ public final class IngestDocument {
      * item identified by the provided path.
      */
     public void setFieldValue(String path, Object value, boolean ignoreEmptyValue) {
-        if (ignoreEmptyValue) {
-            if (value == null) {
-                return;
-            }
-            if (value instanceof String string) {
-                if (string.isEmpty()) {
-                    return;
-                }
-            }
+        if (ignoreEmptyValue == false || valueNotEmpty(value)) {
+            setFieldValue(path, value);
         }
-        setFieldValue(path, value);
     }
 
-    private void setFieldValue(String path, Object value, boolean append, boolean allowDuplicates) {
-        final FieldPath fieldPath = FieldPath.of(path);
+    private void setFieldValue(String path, Object value, boolean append, boolean allowDuplicates, boolean ignoreEmptyValues) {
+        assert append || (allowDuplicates == false && ignoreEmptyValues == false)
+            : "allowDuplicates and ignoreEmptyValues only apply if append is true";
+        final FieldPath fieldPath = FieldPath.of(path, getCurrentAccessPatternSafe());
         Object context = fieldPath.initialContext(this);
-        for (int i = 0; i < fieldPath.pathElements.length - 1; i++) {
+        int leafKeyIndex = fieldPath.pathElements.length - 1;
+        int lastContainerIndex = fieldPath.pathElements.length - 2;
+        String leafKey = fieldPath.pathElements[leafKeyIndex];
+        for (int i = 0; i <= lastContainerIndex; i++) {
             String pathElement = fieldPath.pathElements[i];
             if (context == null) {
                 throw new IllegalArgumentException(Errors.cannotResolve(path, pathElement, null));
             } else if (context instanceof IngestCtxMap map) { // optimization: handle IngestCtxMap separately from Map
-                Object object = map.getOrDefault(pathElement, NOT_FOUND); // getOrDefault is faster than containsKey + get
-                if (object == NOT_FOUND) {
-                    Map<Object, Object> newMap = new HashMap<>();
-                    map.put(pathElement, newMap);
-                    context = newMap;
-                } else {
-                    context = object;
+                switch (getCurrentAccessPatternSafe()) {
+                    case CLASSIC -> {
+                        Object object = map.getOrDefault(pathElement, NOT_FOUND); // getOrDefault is faster than containsKey + get
+                        if (object == NOT_FOUND) {
+                            Map<Object, Object> newMap = new HashMap<>();
+                            map.put(pathElement, newMap);
+                            context = newMap;
+                        } else {
+                            context = object;
+                        }
+                    }
+                    case FLEXIBLE -> {
+                        Object object = map.getOrDefault(pathElement, NOT_FOUND); // getOrDefault is faster than containsKey + get
+                        if (object != NOT_FOUND) {
+                            context = object;
+                        } else if (i == lastContainerIndex) {
+                            // This is our last path element, update the leaf key to use this path element as a dotted prefix.
+                            // Leave the context as it is.
+                            leafKey = pathElement + "." + leafKey;
+                        } else {
+                            // Iterate through the remaining path elements, joining them with dots, until we get a hit
+                            String combinedPath = pathElement;
+                            for (int j = i + 1; j <= lastContainerIndex; j++) {
+                                combinedPath = combinedPath + "." + fieldPath.pathElements[j];
+                                object = map.getOrDefault(combinedPath, NOT_FOUND); // getOrDefault is faster than containsKey + get
+                                if (object != NOT_FOUND) {
+                                    // Found one, update the outer loop index to skip past the elements we've used
+                                    context = object;
+                                    i = j;
+                                    break;
+                                }
+                            }
+                            if (object == NOT_FOUND) {
+                                // Made it to the last path element without finding the field.
+                                // Update the leaf key to use the visited combined path elements as a dotted prefix.
+                                leafKey = combinedPath + "." + leafKey;
+                                // Update outer loop index to skip past the elements we've used
+                                i = lastContainerIndex;
+                            }
+                        }
+                    }
                 }
             } else if (context instanceof Map<?, ?>) {
-                @SuppressWarnings("unchecked")
-                Map<String, Object> map = (Map<String, Object>) context;
-                Object object = map.getOrDefault(pathElement, NOT_FOUND); // getOrDefault is faster than containsKey + get
-                if (object == NOT_FOUND) {
-                    Map<Object, Object> newMap = new HashMap<>();
-                    map.put(pathElement, newMap);
-                    context = newMap;
-                } else {
-                    context = object;
+                switch (getCurrentAccessPatternSafe()) {
+                    case CLASSIC -> {
+                        @SuppressWarnings("unchecked")
+                        Map<String, Object> map = (Map<String, Object>) context;
+                        Object object = map.getOrDefault(pathElement, NOT_FOUND); // getOrDefault is faster than containsKey + get
+                        if (object == NOT_FOUND) {
+                            Map<Object, Object> newMap = new HashMap<>();
+                            map.put(pathElement, newMap);
+                            context = newMap;
+                        } else {
+                            context = object;
+                        }
+                    }
+                    case FLEXIBLE -> {
+                        @SuppressWarnings("unchecked")
+                        Map<String, Object> map = (Map<String, Object>) context;
+                        Object object = map.getOrDefault(pathElement, NOT_FOUND); // getOrDefault is faster than containsKey + get
+                        if (object != NOT_FOUND) {
+                            context = object;
+                        } else if (i == lastContainerIndex) {
+                            // This is our last path element, update the leaf key to use this path element as a dotted prefix.
+                            // Leave the context as it is.
+                            leafKey = pathElement + "." + leafKey;
+                        } else {
+                            // Iterate through the remaining path elements, joining them with dots, until we get a hit
+                            String combinedPath = pathElement;
+                            for (int j = i + 1; j <= lastContainerIndex; j++) {
+                                combinedPath = combinedPath + "." + fieldPath.pathElements[j];
+                                object = map.getOrDefault(combinedPath, NOT_FOUND); // getOrDefault is faster than containsKey + get
+                                if (object != NOT_FOUND) {
+                                    // Found one, update the outer loop index to skip past the elements we've used
+                                    context = object;
+                                    i = j;
+                                    break;
+                                }
+                            }
+                            if (object == NOT_FOUND) {
+                                // Made it to the last path element without finding the field.
+                                // Update the leaf key to use the visited combined path elements as a dotted prefix.
+                                leafKey = combinedPath + "." + leafKey;
+                                // Update outer loop index to skip past the elements we've used
+                                i = lastContainerIndex;
+                            }
+                        }
+                    }
                 }
             } else if (context instanceof List<?> list) {
+                if (getCurrentAccessPatternSafe() == IngestPipelineFieldAccessPattern.FLEXIBLE) {
+                    // Flexible access pattern cannot yet access array values, new syntax must be added.
+                    throw new IllegalArgumentException("path [" + path + "] is not valid");
+                }
                 int index;
                 try {
                     index = Integer.parseInt(pathElement);
@@ -603,7 +871,6 @@ public final class IngestDocument {
             }
         }
 
-        String leafKey = fieldPath.pathElements[fieldPath.pathElements.length - 1];
         if (context == null) {
             throw new IllegalArgumentException(Errors.cannotSet(path, leafKey, null));
         } else if (context instanceof IngestCtxMap map) { // optimization: handle IngestCtxMap separately from Map
@@ -611,10 +878,12 @@ public final class IngestDocument {
                 Object object = map.getOrDefault(leafKey, NOT_FOUND); // getOrDefault is faster than containsKey + get
                 if (object == NOT_FOUND) {
                     List<Object> list = new ArrayList<>();
-                    appendValues(list, value);
-                    map.put(leafKey, list);
+                    appendValues(list, value, allowDuplicates, ignoreEmptyValues);
+                    if (list.isEmpty() == false) {
+                        map.put(leafKey, list);
+                    }
                 } else {
-                    Object list = appendValues(object, value, allowDuplicates);
+                    Object list = appendValues(object, value, allowDuplicates, ignoreEmptyValues);
                     if (list != object) {
                         map.put(leafKey, list);
                     }
@@ -629,10 +898,12 @@ public final class IngestDocument {
                 Object object = map.getOrDefault(leafKey, NOT_FOUND); // getOrDefault is faster than containsKey + get
                 if (object == NOT_FOUND) {
                     List<Object> list = new ArrayList<>();
-                    appendValues(list, value);
-                    map.put(leafKey, list);
+                    appendValues(list, value, allowDuplicates, ignoreEmptyValues);
+                    if (list.isEmpty() == false) {
+                        map.put(leafKey, list);
+                    }
                 } else {
-                    Object list = appendValues(object, value, allowDuplicates);
+                    Object list = appendValues(object, value, allowDuplicates, ignoreEmptyValues);
                     if (list != object) {
                         map.put(leafKey, list);
                     }
@@ -641,6 +912,10 @@ public final class IngestDocument {
             }
             map.put(leafKey, value);
         } else if (context instanceof List<?>) {
+            if (getCurrentAccessPatternSafe() == IngestPipelineFieldAccessPattern.FLEXIBLE) {
+                // Flexible access pattern cannot yet access array values, new syntax must be added.
+                throw new IllegalArgumentException("path [" + path + "] is not valid");
+            }
             @SuppressWarnings("unchecked")
             List<Object> list = (List<Object>) context;
             int index;
@@ -654,7 +929,7 @@ public final class IngestDocument {
             } else {
                 if (append) {
                     Object object = list.get(index);
-                    Object newList = appendValues(object, value, allowDuplicates);
+                    Object newList = appendValues(object, value, allowDuplicates, ignoreEmptyValues);
                     if (newList != object) {
                         list.set(index, newList);
                     }
@@ -668,7 +943,7 @@ public final class IngestDocument {
     }
 
     @SuppressWarnings("unchecked")
-    private static Object appendValues(Object maybeList, Object value, boolean allowDuplicates) {
+    private static Object appendValues(Object maybeList, Object value, boolean allowDuplicates, boolean ignoreEmptyValues) {
         List<Object> list;
         if (maybeList instanceof List) {
             // maybeList is already a list, we append the provided values to it
@@ -678,39 +953,34 @@ public final class IngestDocument {
             list = new ArrayList<>();
             list.add(maybeList);
         }
-        if (allowDuplicates) {
-            appendValues(list, value);
-            return list;
-        } else {
-            // if no values were appended due to duplication, return the original object so the ingest document remains unmodified
-            return appendValuesWithoutDuplicates(list, value) ? list : maybeList;
-        }
-    }
 
-    private static void appendValues(List<Object> list, Object value) {
-        if (value instanceof List<?> l) {
-            list.addAll(l);
-        } else {
-            list.add(value);
-        }
-    }
-
-    private static boolean appendValuesWithoutDuplicates(List<Object> list, Object value) {
         boolean valuesWereAppended = false;
         if (value instanceof List<?> valueList) {
             for (Object val : valueList) {
-                if (list.contains(val) == false) {
+                if ((allowDuplicates || list.contains(val) == false) && (ignoreEmptyValues == false || valueNotEmpty(val))) {
                     list.add(val);
                     valuesWereAppended = true;
                 }
             }
         } else {
-            if (list.contains(value) == false) {
+            if ((allowDuplicates || list.contains(value) == false) && (ignoreEmptyValues == false || valueNotEmpty(value))) {
                 list.add(value);
                 valuesWereAppended = true;
             }
         }
-        return valuesWereAppended;
+
+        // if no values were appended due to duplication/empties, return the original object so the ingest document remains unmodified
+        return valuesWereAppended ? list : maybeList;
+    }
+
+    private static boolean valueNotEmpty(Object value) {
+        if (value == null) {
+            return false;
+        }
+        if (value instanceof String string) {
+            return string.isEmpty() == false;
+        }
+        return true;
     }
 
     private static <T> T cast(String path, Object object, Class<T> clazz) {
@@ -747,6 +1017,18 @@ public final class IngestDocument {
      */
     public Map<String, Object> getSourceAndMetadata() {
         return ctxMap;
+    }
+
+    /*
+     * This returns the same information as getSourceAndMetadata(), but in an unmodifiable map that is safe to send into a script that is
+     * not supposed to be modifying the data. If an attempt is made to modify this Map, or a Map, List, or Set nested within it, an
+     * UnsupportedOperationException is thrown. If an attempt is made to modify a byte[] within this Map, the attempt succeeds, but the
+     * results are not reflected on this IngestDocument. If a user has put any other mutable Object into the IngestDocument, this method
+     * makes no attempt to make it immutable. This method just protects users against accidentally modifying the most common types of
+     * Objects found in IngestDocuments.
+     */
+    public Map<String, Object> getUnmodifiableSourceAndMetadata() {
+        return new UnmodifiableIngestData(ctxMap);
     }
 
     /**
@@ -899,10 +1181,18 @@ public final class IngestDocument {
     }
 
     /**
-     * @return The access pattern for any currently executing pipelines, or null if no pipelines are in progress for this doc
+     * @return The access pattern for any currently executing pipelines, or empty if no pipelines are in progress for this doc
      */
-    public IngestPipelineFieldAccessPattern getCurrentAccessPattern() {
-        return accessPatternStack.peek();
+    public Optional<IngestPipelineFieldAccessPattern> getCurrentAccessPattern() {
+        return Optional.ofNullable(accessPatternStack.peek());
+    }
+
+    /**
+     * @return The access pattern for any currently executing pipelines, or {@link IngestPipelineFieldAccessPattern#CLASSIC} if no
+     * pipelines are in progress for this doc for the sake of backwards compatibility
+     */
+    public IngestPipelineFieldAccessPattern getCurrentAccessPatternSafe() {
+        return getCurrentAccessPattern().orElse(IngestPipelineFieldAccessPattern.CLASSIC);
     }
 
     /**
@@ -1026,8 +1316,15 @@ public final class IngestDocument {
 
     private static final class FieldPath {
 
+        /**
+         * A compound cache key for tracking previously parsed field paths
+         * @param path The field path as given by the caller
+         * @param accessPattern The access pattern used to parse the field path
+         */
+        private record CacheKey(String path, IngestPipelineFieldAccessPattern accessPattern) {}
+
         private static final int MAX_SIZE = 512;
-        private static final Map<String, FieldPath> CACHE = ConcurrentCollections.newConcurrentMapWithAggressiveConcurrency();
+        private static final Map<CacheKey, FieldPath> CACHE = ConcurrentCollections.newConcurrentMapWithAggressiveConcurrency();
 
         // constructing a new FieldPath requires that we parse a String (e.g. "foo.bar.baz") into an array
         // of path elements (e.g. ["foo", "bar", "baz"]). Calling String#split results in the allocation
@@ -1036,19 +1333,20 @@ public final class IngestDocument {
         // do some processing ourselves on the path and path elements to validate and prepare them.
         // the above CACHE and the below 'FieldPath.of' method allow us to almost always avoid this work.
 
-        static FieldPath of(String path) {
+        static FieldPath of(String path, IngestPipelineFieldAccessPattern accessPattern) {
             if (Strings.isEmpty(path)) {
                 throw new IllegalArgumentException("path cannot be null nor empty");
             }
-            FieldPath res = CACHE.get(path);
+            CacheKey cacheKey = new CacheKey(path, accessPattern);
+            FieldPath res = CACHE.get(cacheKey);
             if (res != null) {
                 return res;
             }
-            res = new FieldPath(path);
+            res = new FieldPath(path, accessPattern);
             if (CACHE.size() > MAX_SIZE) {
                 CACHE.clear();
             }
-            CACHE.put(path, res);
+            CACHE.put(cacheKey, res);
             return res;
         }
 
@@ -1056,7 +1354,7 @@ public final class IngestDocument {
         private final boolean useIngestContext;
 
         // you shouldn't call this directly, use the FieldPath.of method above instead!
-        private FieldPath(String path) {
+        private FieldPath(String path, IngestPipelineFieldAccessPattern accessPattern) {
             String newPath;
             if (path.startsWith(INGEST_KEY_PREFIX)) {
                 useIngestContext = true;
@@ -1069,10 +1367,47 @@ public final class IngestDocument {
                     newPath = path;
                 }
             }
-            this.pathElements = newPath.split("\\.");
-            if (pathElements.length == 1 && pathElements[0].isEmpty()) {
-                throw new IllegalArgumentException("path [" + path + "] is not valid");
+            String[] pathParts = newPath.split("\\.");
+            this.pathElements = processPathParts(path, pathParts, accessPattern);
+        }
+
+        private static String[] processPathParts(String fullPath, String[] pathParts, IngestPipelineFieldAccessPattern accessPattern) {
+            return switch (accessPattern) {
+                case CLASSIC -> validateClassicFields(fullPath, pathParts);
+                case FLEXIBLE -> parseFlexibleFields(fullPath, pathParts);
+            };
+        }
+
+        /**
+         * Parses path syntax that is specific to the {@link IngestPipelineFieldAccessPattern#CLASSIC} ingest doc access pattern. Supports
+         * syntax like context aware array access.
+         * @param fullPath The un-split path to use for error messages
+         * @param pathParts The tokenized field path to parse
+         * @return An array of Strings
+         */
+        private static String[] validateClassicFields(String fullPath, String[] pathParts) {
+            for (String pathPart : pathParts) {
+                if (pathPart.isEmpty()) {
+                    throw new IllegalArgumentException("path [" + fullPath + "] is not valid");
+                }
             }
+            return pathParts;
+        }
+
+        /**
+         * Parses path syntax that is specific to the {@link IngestPipelineFieldAccessPattern#FLEXIBLE} ingest doc access pattern. Supports
+         * syntax like square bracket array access, which is the only way to index arrays in flexible mode.
+         * @param fullPath The un-split path to use for error messages
+         * @param pathParts The tokenized field path to parse
+         * @return An array of Strings
+         */
+        private static String[] parseFlexibleFields(String fullPath, String[] pathParts) {
+            for (String pathPart : pathParts) {
+                if (pathPart.isEmpty() || pathPart.contains("[") || pathPart.contains("]")) {
+                    throw new IllegalArgumentException("path [" + fullPath + "] is not valid");
+                }
+            }
+            return pathParts;
         }
 
         public Object initialContext(IngestDocument document) {
@@ -1080,13 +1415,36 @@ public final class IngestDocument {
         }
     }
 
-    private record ResolveResult(boolean wasSuccessful, Object resolvedObject, String errorMessage) {
+    private record ResolveResult(boolean wasSuccessful, Object resolvedObject, String errorMessage, String missingFields) {
+        /**
+         * The resolve operation ended with a successful result, locating the resolved object at the given path location
+         * @param resolvedObject The resolved object
+         * @return Successful result
+         */
         static ResolveResult success(Object resolvedObject) {
-            return new ResolveResult(true, resolvedObject, null);
+            return new ResolveResult(true, resolvedObject, null, null);
         }
 
+        /**
+         * Due to the access pattern, the resolve operation was only partially completed. The last resolved context object is returned,
+         * along with the fields that have been tried up until running into the field limit. The result's success flag is set to false,
+         * but it contains additional information about further resolving the operation.
+         * @param lastResolvedObject The last successfully resolved context object from the document
+         * @param missingFields The fields from the given path that have not been located yet
+         * @return Incomplete result
+         */
+        static ResolveResult incomplete(Object lastResolvedObject, String missingFields) {
+            return new ResolveResult(false, lastResolvedObject, null, missingFields);
+        }
+
+        /**
+         * The resolve operation ended with an error. The object at the given path location could not be resolved, either due to it
+         * being missing, or the path being invalid.
+         * @param errorMessage The error message to be returned.
+         * @return Error result
+         */
         static ResolveResult error(String errorMessage) {
-            return new ResolveResult(false, null, errorMessage);
+            return new ResolveResult(false, null, errorMessage, null);
         }
     }
 
@@ -1218,6 +1576,413 @@ public final class IngestDocument {
 
         private static String notStringOrByteArray(String path, Object value) {
             return "Content field [" + path + "] of unknown type [" + value.getClass().getName() + "], must be string or byte array";
+        }
+
+        private static String invalidPath(String fullPath) {
+            return "path [" + fullPath + "] is not valid";
+        }
+    }
+
+    @SuppressWarnings("unchecked")
+    private static Object wrapUnmodifiable(Object raw) {
+        /*
+         * This method makes an attempt to make the raw Object and its children immutable, if it is one of a known set of classes. If raw
+         * is a Map, List, or Set, an immutable version will be returned, and an UnsupportedOperationException will be thrown if an attempt
+         * to modify it is made. All the Objects in those collections are also made unmodifiable by this method. If raw is a byte[], a copy
+         * of the byte[] will be returned so that changes to it will not be reflected in the original data. No exception will be thrown if
+         * a user modifies it though.
+         */
+        if (raw instanceof Map<?, ?> rawMap) {
+            return new UnmodifiableIngestData((Map<String, Object>) rawMap);
+        } else if (raw instanceof List) {
+            return new UnmodifiableIngestList((List<Object>) raw);
+        } else if (raw instanceof Set<?> rawSet) {
+            return new UnmodifiableIngestSet((Set<Object>) rawSet);
+        } else if (raw instanceof byte[] bytes) {
+            return bytes.clone();
+        }
+        return raw;
+    }
+
+    private static UnsupportedOperationException unmodifiableException() {
+        return new UnsupportedOperationException("Mutating ingest documents in conditionals is not supported");
+    }
+
+    private static final class UnmodifiableIngestData implements Map<String, Object> {
+
+        private final Map<String, Object> data;
+
+        UnmodifiableIngestData(Map<String, Object> data) {
+            this.data = data;
+        }
+
+        @Override
+        public int size() {
+            return data.size();
+        }
+
+        @Override
+        public boolean isEmpty() {
+            return data.isEmpty();
+        }
+
+        @Override
+        public boolean containsKey(final Object key) {
+            return data.containsKey(key);
+        }
+
+        @Override
+        public boolean containsValue(final Object value) {
+            return data.containsValue(value);
+        }
+
+        @Override
+        public Object get(final Object key) {
+            return wrapUnmodifiable(data.get(key));
+        }
+
+        @Override
+        public Object put(final String key, final Object value) {
+            throw unmodifiableException();
+        }
+
+        @Override
+        public Object remove(final Object key) {
+            throw unmodifiableException();
+        }
+
+        @Override
+        public void putAll(final Map<? extends String, ?> m) {
+            throw unmodifiableException();
+        }
+
+        @Override
+        public void clear() {
+            throw unmodifiableException();
+        }
+
+        @Override
+        public Set<String> keySet() {
+            return Collections.unmodifiableSet(data.keySet());
+        }
+
+        @Override
+        public Collection<Object> values() {
+            return new UnmodifiableIngestList(new ArrayList<>(data.values()));
+        }
+
+        @Override
+        public Set<Entry<String, Object>> entrySet() {
+            return data.entrySet().stream().map(entry -> new Entry<String, Object>() {
+                @Override
+                public String getKey() {
+                    return entry.getKey();
+                }
+
+                @Override
+                public Object getValue() {
+                    return wrapUnmodifiable(entry.getValue());
+                }
+
+                @Override
+                public Object setValue(final Object value) {
+                    throw unmodifiableException();
+                }
+
+                @Override
+                public boolean equals(final Object o) {
+                    return entry.equals(o);
+                }
+
+                @Override
+                public int hashCode() {
+                    return entry.hashCode();
+                }
+            }).collect(Collectors.toSet());
+        }
+    }
+
+    private static final class UnmodifiableIngestList implements List<Object> {
+
+        private final List<Object> data;
+
+        UnmodifiableIngestList(List<Object> data) {
+            this.data = data;
+        }
+
+        @Override
+        public int size() {
+            return data.size();
+        }
+
+        @Override
+        public boolean isEmpty() {
+            return data.isEmpty();
+        }
+
+        @Override
+        public boolean contains(final Object o) {
+            return data.contains(o);
+        }
+
+        @Override
+        public Iterator<Object> iterator() {
+            return new UnmodifiableIterator(data.iterator());
+        }
+
+        @Override
+        public Object[] toArray() {
+            Object[] wrapped = data.toArray(new Object[0]);
+            for (int i = 0; i < wrapped.length; i++) {
+                wrapped[i] = wrapUnmodifiable(wrapped[i]);
+            }
+            return wrapped;
+        }
+
+        @Override
+        @SuppressWarnings("unchecked")
+        public <T> T[] toArray(final T[] a) {
+            Object[] raw = data.toArray(new Object[0]);
+            T[] wrapped = (T[]) Arrays.copyOf(raw, a.length, a.getClass());
+            for (int i = 0; i < wrapped.length; i++) {
+                wrapped[i] = (T) wrapUnmodifiable(wrapped[i]);
+            }
+            return wrapped;
+        }
+
+        @Override
+        public boolean add(final Object o) {
+            throw unmodifiableException();
+        }
+
+        @Override
+        public boolean remove(final Object o) {
+            throw unmodifiableException();
+        }
+
+        @Override
+        public boolean containsAll(final Collection<?> c) {
+            return data.contains(c);
+        }
+
+        @Override
+        public boolean addAll(final Collection<?> c) {
+            throw unmodifiableException();
+        }
+
+        @Override
+        public boolean addAll(final int index, final Collection<?> c) {
+            throw unmodifiableException();
+        }
+
+        @Override
+        public boolean removeAll(final Collection<?> c) {
+            throw unmodifiableException();
+        }
+
+        @Override
+        public boolean retainAll(final Collection<?> c) {
+            throw unmodifiableException();
+        }
+
+        @Override
+        public void clear() {
+            throw unmodifiableException();
+        }
+
+        @Override
+        public Object get(final int index) {
+            return wrapUnmodifiable(data.get(index));
+        }
+
+        @Override
+        public Object set(final int index, final Object element) {
+            throw unmodifiableException();
+        }
+
+        @Override
+        public void add(final int index, final Object element) {
+            throw unmodifiableException();
+        }
+
+        @Override
+        public Object remove(final int index) {
+            throw unmodifiableException();
+        }
+
+        @Override
+        public int indexOf(final Object o) {
+            return data.indexOf(o);
+        }
+
+        @Override
+        public int lastIndexOf(final Object o) {
+            return data.lastIndexOf(o);
+        }
+
+        @Override
+        public ListIterator<Object> listIterator() {
+            return new UnmodifiableListIterator(data.listIterator());
+        }
+
+        @Override
+        public ListIterator<Object> listIterator(final int index) {
+            return new UnmodifiableListIterator(data.listIterator(index));
+        }
+
+        @Override
+        public List<Object> subList(final int fromIndex, final int toIndex) {
+            return new UnmodifiableIngestList(data.subList(fromIndex, toIndex));
+        }
+
+        private static final class UnmodifiableListIterator implements ListIterator<Object> {
+
+            private final ListIterator<Object> data;
+
+            UnmodifiableListIterator(ListIterator<Object> data) {
+                this.data = data;
+            }
+
+            @Override
+            public boolean hasNext() {
+                return data.hasNext();
+            }
+
+            @Override
+            public Object next() {
+                return wrapUnmodifiable(data.next());
+            }
+
+            @Override
+            public boolean hasPrevious() {
+                return data.hasPrevious();
+            }
+
+            @Override
+            public Object previous() {
+                return wrapUnmodifiable(data.previous());
+            }
+
+            @Override
+            public int nextIndex() {
+                return data.nextIndex();
+            }
+
+            @Override
+            public int previousIndex() {
+                return data.previousIndex();
+            }
+
+            @Override
+            public void remove() {
+                throw unmodifiableException();
+            }
+
+            @Override
+            public void set(final Object o) {
+                throw unmodifiableException();
+            }
+
+            @Override
+            public void add(final Object o) {
+                throw unmodifiableException();
+            }
+        }
+    }
+
+    private static final class UnmodifiableIngestSet implements Set<Object> {
+        private final Set<Object> data;
+
+        UnmodifiableIngestSet(Set<Object> data) {
+            this.data = data;
+        }
+
+        @Override
+        public int size() {
+            return data.size();
+        }
+
+        @Override
+        public boolean isEmpty() {
+            return data.isEmpty();
+        }
+
+        @Override
+        public boolean contains(Object o) {
+            return data.contains(o);
+        }
+
+        @Override
+        public Iterator<Object> iterator() {
+            return new UnmodifiableIterator(data.iterator());
+        }
+
+        @Override
+        public Object[] toArray() {
+            return data.toArray();
+        }
+
+        @Override
+        public <T> T[] toArray(T[] a) {
+            return data.toArray(a);
+        }
+
+        @Override
+        public boolean add(Object o) {
+            throw unmodifiableException();
+        }
+
+        @Override
+        public boolean remove(Object o) {
+            throw unmodifiableException();
+        }
+
+        @Override
+        public boolean containsAll(Collection<?> c) {
+            return data.containsAll(c);
+        }
+
+        @Override
+        public boolean addAll(Collection<?> c) {
+            throw unmodifiableException();
+        }
+
+        @Override
+        public boolean retainAll(Collection<?> c) {
+            throw unmodifiableException();
+        }
+
+        @Override
+        public boolean removeAll(Collection<?> c) {
+            throw unmodifiableException();
+        }
+
+        @Override
+        public void clear() {
+            throw unmodifiableException();
+        }
+    }
+
+    private static final class UnmodifiableIterator implements Iterator<Object> {
+        private final Iterator<Object> it;
+
+        UnmodifiableIterator(Iterator<Object> it) {
+            this.it = it;
+        }
+
+        @Override
+        public boolean hasNext() {
+            return it.hasNext();
+        }
+
+        @Override
+        public Object next() {
+            return wrapUnmodifiable(it.next());
+        }
+
+        @Override
+        public void remove() {
+            throw unmodifiableException();
         }
     }
 }

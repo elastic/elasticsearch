@@ -85,6 +85,7 @@ public class XPackLicenseState {
                 "Existing follower indices will continue to replicate data" }
         );
         messages.put(XPackField.REDACT_PROCESSOR, new String[] { "Executing a redact processor in an ingest pipeline will fail." });
+        messages.put(XPackField.INFERENCE, new String[] { "The Inference API is disabled" });
         EXPIRATION_MESSAGES = Collections.unmodifiableMap(messages);
     }
 
@@ -107,6 +108,7 @@ public class XPackLicenseState {
         messages.put(XPackField.ENTERPRISE_SEARCH, XPackLicenseState::enterpriseSearchAcknowledgementMessages);
         messages.put(XPackField.REDACT_PROCESSOR, XPackLicenseState::redactProcessorAcknowledgementMessages);
         messages.put(XPackField.ESQL, XPackLicenseState::esqlAcknowledgementMessages);
+        messages.put(XPackField.INFERENCE, XPackLicenseState::inferenceApiAcknowledgementMessages);
         ACKNOWLEDGMENT_MESSAGES = Collections.unmodifiableMap(messages);
     }
 
@@ -258,6 +260,26 @@ public class XPackLicenseState {
                     case TRIAL:
                     case ENTERPRISE:
                         return new String[] { "ES|QL cross-cluster search will be disabled." };
+                }
+                break;
+        }
+        return Strings.EMPTY_ARRAY;
+    }
+
+    private static String[] inferenceApiAcknowledgementMessages(OperationMode currentMode, OperationMode newMode) {
+        /*
+         * Provide an acknowledgement warning to customers that downgrade from Trial or Enterprise to a lower
+         * license level (Basic, Standard, Gold or Premium) that they will no longer be able to use the Inference API
+         */
+        switch (newMode) {
+            case TRIAL:
+            case ENTERPRISE:
+                break;
+            default:
+                switch (currentMode) {
+                    case TRIAL:
+                    case ENTERPRISE:
+                        return new String[] { "The Inference API will be disabled" };
                 }
                 break;
         }

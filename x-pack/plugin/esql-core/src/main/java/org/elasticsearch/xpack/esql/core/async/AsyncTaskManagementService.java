@@ -177,7 +177,6 @@ public class AsyncTaskManagementService<
     public void asyncExecute(
         Request request,
         TimeValue waitForCompletionTimeout,
-        TimeValue keepAlive,
         boolean keepOnCompletion,
         ActionListener<Response> listener
     ) {
@@ -190,7 +189,7 @@ public class AsyncTaskManagementService<
                 operation.execute(
                     request,
                     searchTask,
-                    wrapStoringListener(searchTask, waitForCompletionTimeout, keepAlive, keepOnCompletion, listener)
+                    wrapStoringListener(searchTask, waitForCompletionTimeout, keepOnCompletion, listener)
                 );
                 operationStarted = true;
             } finally {
@@ -205,7 +204,6 @@ public class AsyncTaskManagementService<
     private ActionListener<Response> wrapStoringListener(
         T searchTask,
         TimeValue waitForCompletionTimeout,
-        TimeValue keepAlive,
         boolean keepOnCompletion,
         ActionListener<Response> listener
     ) {
@@ -227,7 +225,7 @@ public class AsyncTaskManagementService<
                 if (keepOnCompletion) {
                     storeResults(
                         searchTask,
-                        new StoredAsyncResponse<>(response, threadPool.absoluteTimeInMillis() + keepAlive.getMillis()),
+                        new StoredAsyncResponse<>(response, searchTask.getExpirationTimeMillis()),
                         ActionListener.running(() -> acquiredListener.onResponse(response))
                     );
                 } else {
@@ -239,7 +237,7 @@ public class AsyncTaskManagementService<
                 // We finished after timeout - saving results
                 storeResults(
                     searchTask,
-                    new StoredAsyncResponse<>(response, threadPool.absoluteTimeInMillis() + keepAlive.getMillis()),
+                    new StoredAsyncResponse<>(response, searchTask.getExpirationTimeMillis()),
                     ActionListener.running(response::decRef)
                 );
             }
@@ -251,7 +249,7 @@ public class AsyncTaskManagementService<
                 if (keepOnCompletion) {
                     storeResults(
                         searchTask,
-                        new StoredAsyncResponse<>(e, threadPool.absoluteTimeInMillis() + keepAlive.getMillis()),
+                        new StoredAsyncResponse<>(e, searchTask.getExpirationTimeMillis()),
                         ActionListener.running(() -> acquiredListener.onFailure(e))
                     );
                 } else {
@@ -261,7 +259,7 @@ public class AsyncTaskManagementService<
                 }
             } else {
                 // We finished after timeout - saving exception
-                storeResults(searchTask, new StoredAsyncResponse<>(e, threadPool.absoluteTimeInMillis() + keepAlive.getMillis()));
+                storeResults(searchTask, new StoredAsyncResponse<>(e, searchTask.getExpirationTimeMillis()));
             }
         });
     }

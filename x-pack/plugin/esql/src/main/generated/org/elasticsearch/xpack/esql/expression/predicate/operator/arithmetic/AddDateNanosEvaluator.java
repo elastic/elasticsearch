@@ -10,6 +10,7 @@ import java.lang.Override;
 import java.lang.String;
 import java.time.DateTimeException;
 import java.time.temporal.TemporalAmount;
+import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.LongVector;
@@ -25,6 +26,8 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
  * This class is generated. Edit {@code EvaluatorImplementer} instead.
  */
 public final class AddDateNanosEvaluator implements EvalOperator.ExpressionEvaluator {
+  private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(AddDateNanosEvaluator.class);
+
   private final Source source;
 
   private final EvalOperator.ExpressionEvaluator dateNanos;
@@ -54,22 +57,30 @@ public final class AddDateNanosEvaluator implements EvalOperator.ExpressionEvalu
     }
   }
 
+  @Override
+  public long baseRamBytesUsed() {
+    long baseRamBytesUsed = BASE_RAM_BYTES_USED;
+    baseRamBytesUsed += dateNanos.baseRamBytesUsed();
+    return baseRamBytesUsed;
+  }
+
   public LongBlock eval(int positionCount, LongBlock dateNanosBlock) {
     try(LongBlock.Builder result = driverContext.blockFactory().newLongBlockBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
-        if (dateNanosBlock.isNull(p)) {
-          result.appendNull();
-          continue position;
+        switch (dateNanosBlock.getValueCount(p)) {
+          case 0:
+              result.appendNull();
+              continue position;
+          case 1:
+              break;
+          default:
+              warnings().registerException(new IllegalArgumentException("single-value function encountered multi-value"));
+              result.appendNull();
+              continue position;
         }
-        if (dateNanosBlock.getValueCount(p) != 1) {
-          if (dateNanosBlock.getValueCount(p) > 1) {
-            warnings().registerException(new IllegalArgumentException("single-value function encountered multi-value"));
-          }
-          result.appendNull();
-          continue position;
-        }
+        long dateNanos = dateNanosBlock.getLong(dateNanosBlock.getFirstValueIndex(p));
         try {
-          result.appendLong(Add.processDateNanos(dateNanosBlock.getLong(dateNanosBlock.getFirstValueIndex(p)), this.temporalAmount));
+          result.appendLong(Add.processDateNanos(dateNanos, this.temporalAmount));
         } catch (ArithmeticException | DateTimeException e) {
           warnings().registerException(e);
           result.appendNull();
@@ -82,8 +93,9 @@ public final class AddDateNanosEvaluator implements EvalOperator.ExpressionEvalu
   public LongBlock eval(int positionCount, LongVector dateNanosVector) {
     try(LongBlock.Builder result = driverContext.blockFactory().newLongBlockBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
+        long dateNanos = dateNanosVector.getLong(p);
         try {
-          result.appendLong(Add.processDateNanos(dateNanosVector.getLong(p), this.temporalAmount));
+          result.appendLong(Add.processDateNanos(dateNanos, this.temporalAmount));
         } catch (ArithmeticException | DateTimeException e) {
           warnings().registerException(e);
           result.appendNull();

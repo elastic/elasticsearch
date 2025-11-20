@@ -1855,15 +1855,19 @@ cs1:double | cs2:integer | cs3:integer
 copySignWithMixedNumericValuesWithMV
 required_capability: copy_sign
 
+// tag::copy_sign[]
 FROM employees
 | EVAL cs1 = COPY_SIGN(salary, LEAST(salary_change))
+// end::copy_sign[]
 | KEEP emp_no, salary, salary_change, cs1
 | SORT emp_no
 | LIMIT 3
 ;
 
-    emp_no:integer | salary:integer | salary_change:double | cs1:integer
-    10001          | 57305          | 1.19                 | 57305
-    10002          | 56371          | [-7.23, 11.17]       | -56371  
-    10003          | 61805          | [12.82, 14.68]       | 61805  
+// tag::copy_sign-result[]
+emp_no:integer | salary:integer | salary_change:double | cs1:integer
+10001          | 57305          | 1.19                 | 57305
+10002          | 56371          | [-7.23, 11.17]       | -56371
+10003          | 61805          | [12.82, 14.68]       | 61805
+// end::copy_sign-result[]
 ;

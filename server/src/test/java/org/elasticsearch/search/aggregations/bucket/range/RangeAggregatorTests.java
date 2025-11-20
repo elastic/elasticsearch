@@ -22,6 +22,7 @@ import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.DateFieldMapper.Resolution;
+import org.elasticsearch.index.mapper.IndexType;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.LongScriptFieldType;
 import org.elasticsearch.index.mapper.LuceneDocument;
@@ -234,7 +235,7 @@ public class RangeAggregatorTests extends AggregatorTestCase {
         MappedFieldType field = new NumberFieldMapper.NumberFieldType(fieldName, NumberType.FLOAT);
         testCase(iw -> {
             LuceneDocument doc = new LuceneDocument();
-            NumberType.FLOAT.addFields(doc, fieldName, 0.04F, false, true, false);
+            NumberType.FLOAT.addFields(doc, fieldName, 0.04F, IndexType.points(false, true), false);
             iw.addDocument(doc);
         }, result -> {
             InternalRange<?, ?> range = (InternalRange<?, ?>) result;
@@ -258,7 +259,7 @@ public class RangeAggregatorTests extends AggregatorTestCase {
         MappedFieldType field = new NumberFieldMapper.NumberFieldType(fieldName, NumberType.HALF_FLOAT);
         testCase(iw -> {
             LuceneDocument doc = new LuceneDocument();
-            NumberType.HALF_FLOAT.addFields(doc, fieldName, 0.0152F, false, true, false);
+            NumberType.HALF_FLOAT.addFields(doc, fieldName, 0.0152F, IndexType.points(false, true), false);
             iw.addDocument(doc);
         }, result -> {
             InternalRange<?, ?> range = (InternalRange<?, ?>) result;
@@ -302,9 +303,8 @@ public class RangeAggregatorTests extends AggregatorTestCase {
                 new NumberFieldMapper.NumberFieldType(
                     NUMBER_FIELD_NAME,
                     NumberType.INTEGER,
+                    IndexType.points(randomBoolean(), true),
                     randomBoolean(),
-                    randomBoolean(),
-                    true,
                     false,
                     null,
                     Collections.emptyMap(),
@@ -321,9 +321,8 @@ public class RangeAggregatorTests extends AggregatorTestCase {
     public void testDateFieldMillisecondResolution() throws IOException {
         DateFieldMapper.DateFieldType fieldType = new DateFieldMapper.DateFieldType(
             DATE_FIELD_NAME,
+            IndexType.points(randomBoolean(), true),
             randomBoolean(),
-            randomBoolean(),
-            true,
             DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER,
             Resolution.MILLISECONDS,
             null,
@@ -351,9 +350,8 @@ public class RangeAggregatorTests extends AggregatorTestCase {
     public void testDateFieldNanosecondResolution() throws IOException {
         DateFieldMapper.DateFieldType fieldType = new DateFieldMapper.DateFieldType(
             DATE_FIELD_NAME,
-            true,
+            IndexType.points(true, true),
             false,
-            true,
             DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER,
             DateFieldMapper.Resolution.NANOSECONDS,
             null,
@@ -382,9 +380,8 @@ public class RangeAggregatorTests extends AggregatorTestCase {
     public void testMissingDateWithDateNanosField() throws IOException {
         DateFieldMapper.DateFieldType fieldType = new DateFieldMapper.DateFieldType(
             DATE_FIELD_NAME,
-            true,
+            IndexType.points(true, true),
             false,
-            true,
             DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER,
             DateFieldMapper.Resolution.NANOSECONDS,
             null,
@@ -415,21 +412,7 @@ public class RangeAggregatorTests extends AggregatorTestCase {
     }
 
     public void testNotFitIntoDouble() throws IOException {
-        MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType(
-            NUMBER_FIELD_NAME,
-            NumberType.LONG,
-            true,
-            false,
-            true,
-            false,
-            null,
-            Collections.emptyMap(),
-            null,
-            false,
-            null,
-            null,
-            false
-        );
+        MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType(NUMBER_FIELD_NAME, NumberType.LONG);
 
         long start = 2L << 54; // Double stores 53 bits of mantissa, so we aggregate a bunch of bigger values
 
@@ -592,7 +575,7 @@ public class RangeAggregatorTests extends AggregatorTestCase {
     /**
      * If the top level query is a runtime field we use the standard aggregator
      * because it's marginally faster. You'd expect it to be a *ton* faster but
-     * usually the ranges drive the iteration and they are still fairly fast.
+     * usually the ranges drive the iteration, and they are still fairly fast.
      * But the union operation overhead that comes with combining the range with
      * the top level query tends to slow us down more than the standard aggregator.
      */
@@ -608,7 +591,8 @@ public class RangeAggregatorTests extends AggregatorTestCase {
         Query query = new StringScriptFieldTermQuery(new Script("dummy"), scriptFactory, "dummy", "cat", false);
         debugTestCase(new RangeAggregationBuilder("r").field(NUMBER_FIELD_NAME).addRange(0, 1).addRange(1, 2).addRange(2, 3), query, iw -> {
             for (int d = 0; d < totalDocs; d++) {
-                iw.addDocument(List.of(new IntPoint(NUMBER_FIELD_NAME, 0), new SortedNumericDocValuesField(NUMBER_FIELD_NAME, 0)));
+                int v = d % 2;
+                iw.addDocument(List.of(new IntPoint(NUMBER_FIELD_NAME, v), new SortedNumericDocValuesField(NUMBER_FIELD_NAME, v)));
             }
         }, (InternalRange<?, ?> r, Class<? extends Aggregator> impl, Map<String, Map<String, Object>> debug) -> {
             assertThat(
@@ -619,7 +603,7 @@ public class RangeAggregatorTests extends AggregatorTestCase {
             assertThat(r.getBuckets().stream().map(InternalRange.Bucket::getTo).collect(toList()), equalTo(List.of(1.0, 2.0, 3.0)));
             assertThat(
                 r.getBuckets().stream().map(InternalRange.Bucket::getDocCount).collect(toList()),
-                equalTo(List.of(totalDocs, 0L, 0L))
+                equalTo(List.of(totalDocs / 2, totalDocs / 2, 0L))
             );
             assertThat(impl, equalTo(RangeAggregator.NoOverlap.class));
             assertMap(
@@ -700,9 +684,8 @@ public class RangeAggregatorTests extends AggregatorTestCase {
         MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType(
             NUMBER_FIELD_NAME,
             NumberFieldMapper.NumberType.INTEGER,
+            IndexType.points(randomBoolean(), true),
             randomBoolean(),
-            randomBoolean(),
-            true,
             false,
             null,
             Collections.emptyMap(),

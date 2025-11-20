@@ -186,6 +186,16 @@ public class ExponentialScaleUtils {
     }
 
     /**
+     * Returns a scale at to which the given index can be scaled down without changing the exponentially scaled number it represents.
+     * @param index the index of the number
+     * @param scale the current scale of the number
+     * @return the new scale
+     */
+    static int normalizeScale(long index, int scale) {
+        return Math.max(MIN_SCALE, scale - Long.numberOfTrailingZeros(index));
+    }
+
+    /**
      * Returns the upper boundary of the bucket with the given index and scale.
      *
      * @param index the index of the bucket
@@ -234,9 +244,19 @@ public class ExponentialScaleUtils {
      */
     public static double getPointOfLeastRelativeError(long bucketIndex, int scale) {
         checkIndexAndScaleBounds(bucketIndex, scale);
-        double upperBound = getUpperBucketBoundary(bucketIndex, scale);
         double histogramBase = Math.pow(2, Math.scalb(1, -scale));
-        return 2 / (histogramBase + 1) * upperBound;
+        if (Double.isFinite(histogramBase)) {
+            double upperBound = getUpperBucketBoundary(bucketIndex, scale);
+            return 2 / (histogramBase + 1) * upperBound;
+        } else {
+            if (bucketIndex >= 0) {
+                // the bucket is (1, +inf), approximate point of least error as inf
+                return Double.POSITIVE_INFINITY;
+            } else {
+                // the bucket is (1/(Inf), 1), approximate point of least error as 0
+                return 0;
+            }
+        }
     }
 
     /**

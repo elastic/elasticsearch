@@ -20,6 +20,5 @@ public record HuggingFaceModelParameters(
     Map<String, Object> taskSettings,
     ChunkingSettings chunkingSettings,
     Map<String, Object> secretSettings,
-    String failureMessage,
     ConfigurationParseContext context
 ) {}

@@ -56,11 +56,7 @@ public class CertificateInfo implements ToXContentObject, Writeable, Comparable<
     }
 
     public CertificateInfo(StreamInput in) throws IOException {
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_0_0)) {
-            this.path = in.readOptionalString();
-        } else {
-            this.path = in.readString();
-        }
+        this.path = in.readOptionalString();
         this.format = in.readString();
         this.alias = in.readOptionalString();
         this.subjectDn = in.readString();
@@ -76,11 +72,7 @@ public class CertificateInfo implements ToXContentObject, Writeable, Comparable<
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_0_0)) {
-            out.writeOptionalString(this.path);
-        } else {
-            out.writeString(this.path == null ? "" : this.path);
-        }
+        out.writeOptionalString(this.path);
         out.writeString(format);
         out.writeOptionalString(alias);
         out.writeString(subjectDn);

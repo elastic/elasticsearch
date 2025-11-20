@@ -10,7 +10,6 @@
 package org.elasticsearch.cluster.routing;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.Diff;
@@ -55,9 +54,8 @@ import static org.hamcrest.Matchers.sameInstance;
 
 public class GlobalRoutingTableTests extends AbstractWireSerializingTestCase<GlobalRoutingTable> {
 
-    private static final TransportVersion PRE_MULTI_PROJECT_TRANSPORT_VERSION = TransportVersionUtils.getPreviousVersion(
-        TransportVersions.MULTI_PROJECT
-    );
+    private static final TransportVersion MULTI_PROJECT = TransportVersion.fromName("multi_project");
+    private static final TransportVersion PRE_MULTI_PROJECT_TRANSPORT_VERSION = TransportVersionUtils.getPreviousVersion(MULTI_PROJECT);
 
     /**
      * We intentionally don't want production code comparing two routing tables for equality.

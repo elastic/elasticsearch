@@ -1,58 +1,62 @@
 {
-  "indices.delete_alias":{
-    "documentation":{
-      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/master/indices-aliases.html",
-      "description":"Deletes an alias."
+  "indices.delete_alias": {
+    "documentation": {
+      "url": "https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-indices-delete-alias",
+      "description": "Delete an alias"
     },
-    "stability":"stable",
-    "visibility":"public",
-    "headers":{
-      "accept": [ "application/json"]
+    "stability": "stable",
+    "visibility": "public",
+    "headers": {
+      "accept": [
+        "application/json"
+      ]
     },
-    "url":{
-      "paths":[
+    "url": {
+      "paths": [
         {
-          "path":"/{index}/_alias/{name}",
-          "methods":[
+          "path": "/{index}/_alias/{name}",
+          "methods": [
             "DELETE"
           ],
-          "parts":{
-            "index":{
-              "type":"list",
-              "description":"A comma-separated list of index names (supports wildcards); use `_all` for all indices"
+          "parts": {
+            "index": {
+              "type": "list",
+              "description": "A comma-separated list of index names (supports wildcards); use `_all` for all indices"
             },
-            "name":{
-              "type":"list",
-              "description":"A comma-separated list of aliases to delete (supports wildcards); use `_all` to delete all aliases for the specified indices."
+            "name": {
+              "type": "list",
+              "description": "A comma-separated list of aliases to delete (supports wildcards); use `_all` to delete all aliases for the specified indices."
             }
           }
         },
         {
-          "path":"/{index}/_aliases/{name}",
-          "methods":[
+          "path": "/{index}/_aliases/{name}",
+          "methods": [
             "DELETE"
           ],
-          "parts":{
-            "index":{
-              "type":"list",
-              "description":"A comma-separated list of index names (supports wildcards); use `_all` for all indices"
+          "parts": {
+            "index": {
+              "type": "list",
+              "description": "A comma-separated list of index names (supports wildcards); use `_all` for all indices"
             },
-            "name":{
-              "type":"list",
-              "description":"A comma-separated list of aliases to delete (supports wildcards); use `_all` to delete all aliases for the specified indices."
+            "name": {
+              "type": "list",
+              "description": "A comma-separated list of aliases to delete (supports wildcards); use `_all` to delete all aliases for the specified indices."
             }
           }
         }
       ]
     },
-    "params":{
-      "timeout":{
-        "type":"time",
-        "description":"Explicit timestamp for the document"
+    "params": {
+      "timeout": {
+        "type": "time",
+        "default": "30s",
+        "description": "Explicit timestamp for the document"
       },
-      "master_timeout":{
-        "type":"time",
-        "description":"Specify timeout for connection to master"
+      "master_timeout": {
+        "type": "time",
+        "default": "30s",
+        "description": "Specify timeout for connection to master"
       }
     }
   }

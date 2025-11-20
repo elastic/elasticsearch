@@ -12,7 +12,7 @@ import software.amazon.awssdk.services.sagemakerruntime.model.InvokeEndpointResp
 
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.TaskType;
-import org.elasticsearch.xpack.core.inference.results.TextEmbeddingFloatResults;
+import org.elasticsearch.xpack.core.inference.results.DenseEmbeddingFloatResults;
 import org.elasticsearch.xpack.inference.services.sagemaker.SageMakerInferenceRequest;
 import org.elasticsearch.xpack.inference.services.sagemaker.model.SageMakerModel;
 import org.elasticsearch.xpack.inference.services.sagemaker.schema.SageMakerSchemaPayloadTestCase;
@@ -145,11 +145,11 @@ public class OpenAiTextEmbeddingPayloadTests extends SageMakerSchemaPayloadTestC
             .body(SdkBytes.fromString(responseJson, StandardCharsets.UTF_8))
             .build();
 
-        var textEmbeddingFloatResults = payload.responseBody(mock(), invokeEndpointResponse);
+        var denseEmbeddingFloatResults = payload.responseBody(mock(), invokeEndpointResponse);
 
         assertThat(
-            textEmbeddingFloatResults.embeddings(),
-            is(List.of(new TextEmbeddingFloatResults.Embedding(new float[] { 0.014539449F, -0.015288644F })))
+            denseEmbeddingFloatResults.embeddings(),
+            is(List.of(new DenseEmbeddingFloatResults.Embedding(new float[] { 0.014539449F, -0.015288644F })))
         );
     }
 }

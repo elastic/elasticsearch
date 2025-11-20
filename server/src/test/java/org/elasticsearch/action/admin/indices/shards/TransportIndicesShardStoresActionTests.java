@@ -24,10 +24,12 @@ import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.RoutingTable;
+import org.elasticsearch.cluster.service.ClusterApplierService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.gateway.TransportNodesListGatewayStartedShards;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.shard.ShardId;
@@ -192,7 +194,11 @@ public class TransportIndicesShardStoresActionTests extends ESTestCase {
 
             final var threadPool = deterministicTaskQueue.getThreadPool();
 
-            final var settings = Settings.EMPTY;
+            final var settings = Settings.builder()
+                // disable thread watchdog to avoid infinitely repeating task
+                .put(ClusterApplierService.CLUSTER_APPLIER_THREAD_WATCHDOG_INTERVAL.getKey(), TimeValue.ZERO)
+                .build();
+
             final var clusterSettings = ClusterSettings.createBuiltInClusterSettings(settings);
 
             final var transportService = new TransportService(

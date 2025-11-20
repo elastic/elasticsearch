@@ -36,7 +36,7 @@ import java.util.function.Supplier;
 public class CustomRequestManager extends BaseRequestManager {
     private static final Logger logger = LogManager.getLogger(CustomRequestManager.class);
 
-    record RateLimitGrouping(int apiKeyHash) {
+    record RateLimitGrouping(int serviceSettingsHash) {
         public static RateLimitGrouping of(CustomModel model) {
             Objects.requireNonNull(model);
 
@@ -75,7 +75,7 @@ public class CustomRequestManager extends BaseRequestManager {
             requestParameters = CompletionParameters.of(chatInputs);
         } else if (inferenceInputs instanceof EmbeddingsInput) {
             requestParameters = EmbeddingParameters.of(
-                EmbeddingsInput.of(inferenceInputs),
+                inferenceInputs.castTo(EmbeddingsInput.class),
                 model.getServiceSettings().getInputTypeTranslator()
             );
         } else {

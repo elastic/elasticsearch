@@ -57,7 +57,7 @@ public class VoyageAIActionCreator implements VoyageAIActionVisitor {
             overriddenModel,
             EMBEDDINGS_HANDLER,
             (embeddingsInput) -> new VoyageAIEmbeddingsRequest(
-                embeddingsInput.getStringInputs(),
+                embeddingsInput.getTextInputs(),
                 embeddingsInput.getInputType(),
                 overriddenModel
             ),

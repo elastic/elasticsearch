@@ -32,6 +32,7 @@ import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.core.CheckedConsumer;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.mapper.IpFieldMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
@@ -39,6 +40,8 @@ import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.mapper.RangeFieldMapper;
 import org.elasticsearch.index.mapper.RangeType;
+import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
+import org.elasticsearch.index.mapper.vectors.SparseVectorFieldMapper;
 import org.elasticsearch.script.MockScriptEngine;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptEngine;
@@ -222,6 +225,51 @@ public class CardinalityAggregatorTests extends AggregatorTestCase {
             assertEquals(0.0, card.getValue(), 0);
             assertFalse(AggregationInspectionHelper.hasValue(card));
         });
+    }
+
+    public void testVectorValueThrows() {
+        final CardinalityAggregationBuilder aggregationBuilder = new CardinalityAggregationBuilder("card_agg_name").field("vector_value");
+        final MappedFieldType mappedFieldTypes;
+        boolean isDense = randomBoolean();
+        if (isDense) {
+            mappedFieldTypes = new DenseVectorFieldMapper.DenseVectorFieldType(
+                "vector_value",
+                IndexVersion.current(),
+                DenseVectorFieldMapper.ElementType.FLOAT,
+                64,
+                true,
+                DenseVectorFieldMapper.VectorSimilarity.COSINE,
+                DenseVectorFieldMapper.VectorIndexType.FLAT.parseIndexOptions("vector_value", new HashMap<>(), IndexVersion.current()),
+                new HashMap<>(),
+                false
+            );
+        } else {
+            mappedFieldTypes = new SparseVectorFieldMapper.SparseVectorFieldType(
+                IndexVersion.current(),
+                "vector_value",
+                false,
+                new HashMap<>()
+            );
+        }
+
+        IllegalArgumentException exception = assertThrows(
+            IllegalArgumentException.class,
+            () -> testAggregation(aggregationBuilder, new MatchAllDocsQuery(), iw -> {
+                iw.addDocument(singleton(new SortedDocValuesField("vector_value", new BytesRef("one"))));
+                iw.addDocument(singleton(new SortedDocValuesField("unrelatedField", new BytesRef("two"))));
+                iw.addDocument(singleton(new SortedDocValuesField("str_value", new BytesRef("three"))));
+                iw.addDocument(singleton(new SortedDocValuesField("str_value", new BytesRef("one"))));
+            }, card -> {
+                assertEquals(2, card.getValue(), 0);
+                assertTrue(AggregationInspectionHelper.hasValue(card));
+            }, mappedFieldTypes)
+        );
+
+        if (isDense) {
+            assertEquals("Cardinality aggregation [card_agg_name] does not support vector fields", exception.getMessage());
+        } else {
+            assertEquals("[sparse_vector] fields do not support sorting, scripting or aggregating", exception.getMessage());
+        }
     }
 
     public void testSingleValuedString() throws IOException {

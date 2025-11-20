@@ -1,0 +1,6 @@
+pr: 136086
+summary: Delay automaton creation in `BinaryDvConfirmedQuery` to avoid OOM on queries
+  against `WildCard` fields
+area: Search
+type: bug
+issues: []

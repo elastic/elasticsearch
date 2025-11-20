@@ -1,7 +1,7 @@
 {
   "inference.get": {
     "documentation": {
-      "url": "https://www.elastic.co/guide/en/elasticsearch/reference/master/get-inference-api.html",
+      "url": "https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-inference-get",
       "description": "Get an inference endpoint"
     },
     "stability": "stable",
@@ -38,8 +38,15 @@
           ],
           "parts": {
             "task_type": {
-              "type": "string",
-              "description": "The task type"
+              "type": "enum",
+              "description": "The task type",
+              "options": [
+                "sparse_embedding",
+                "text_embedding",
+                "rerank",
+                "completion",
+                "chat_completion"
+              ]
             },
             "inference_id": {
               "type": "string",

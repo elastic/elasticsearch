@@ -13,7 +13,6 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.join.BitSetProducer;
 import org.apache.lucene.search.join.ToChildBlockJoinQuery;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.search.Queries;
@@ -29,6 +28,9 @@ import java.util.Objects;
  */
 public class ToChildBlockJoinQueryBuilder extends AbstractQueryBuilder<ToChildBlockJoinQueryBuilder> {
     public static final String NAME = "to_child_block_join";
+
+    private static final TransportVersion TO_CHILD_BLOCK_JOIN_QUERY = TransportVersion.fromName("to_child_block_join_query");
+
     private final QueryBuilder parentQueryBuilder;
 
     public ToChildBlockJoinQueryBuilder(QueryBuilder parentQueryBuilder) {
@@ -108,6 +110,6 @@ public class ToChildBlockJoinQueryBuilder extends AbstractQueryBuilder<ToChildBl
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.TO_CHILD_BLOCK_JOIN_QUERY;
+        return TO_CHILD_BLOCK_JOIN_QUERY;
     }
 }

@@ -9,8 +9,8 @@
 package org.elasticsearch.benchmark.vector;
 
 import org.elasticsearch.common.logging.LogConfigurator;
-import org.elasticsearch.index.codec.vectors.BQSpaceUtils;
 import org.elasticsearch.index.codec.vectors.BQVectorUtils;
+import org.elasticsearch.simdvec.ESVectorUtil;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
 import org.openjdk.jmh.annotations.Fork;
@@ -71,7 +71,7 @@ public class TransposeHalfByteBenchmark {
     @Benchmark
     public void transposeHalfByte(Blackhole bh) {
         for (int i = 0; i < numVectors; i++) {
-            BQSpaceUtils.transposeHalfByte(qVectors[i], packed);
+            ESVectorUtil.transposeHalfByte(qVectors[i], packed);
             bh.consume(packed);
         }
     }
@@ -79,7 +79,7 @@ public class TransposeHalfByteBenchmark {
     @Benchmark
     public void transposeHalfByteLegacy(Blackhole bh) {
         for (int i = 0; i < numVectors; i++) {
-            BQSpaceUtils.transposeHalfByteLegacy(qVectors[i], packed);
+            transposeHalfByteLegacy(qVectors[i], packed);
             bh.consume(packed);
         }
     }
@@ -88,8 +88,30 @@ public class TransposeHalfByteBenchmark {
     @Fork(jvmArgsPrepend = { "--add-modules=jdk.incubator.vector" })
     public void transposeHalfBytePanama(Blackhole bh) {
         for (int i = 0; i < numVectors; i++) {
-            BQSpaceUtils.transposeHalfByte(qVectors[i], packed);
+            ESVectorUtil.transposeHalfByte(qVectors[i], packed);
             bh.consume(packed);
+        }
+    }
+
+    public static void transposeHalfByteLegacy(int[] q, byte[] quantQueryByte) {
+        for (int i = 0; i < q.length;) {
+            assert q[i] >= 0 && q[i] <= 15;
+            int lowerByte = 0;
+            int lowerMiddleByte = 0;
+            int upperMiddleByte = 0;
+            int upperByte = 0;
+            for (int j = 7; j >= 0 && i < q.length; j--) {
+                lowerByte |= (q[i] & 1) << j;
+                lowerMiddleByte |= ((q[i] >> 1) & 1) << j;
+                upperMiddleByte |= ((q[i] >> 2) & 1) << j;
+                upperByte |= ((q[i] >> 3) & 1) << j;
+                i++;
+            }
+            int index = ((i + 7) / 8) - 1;
+            quantQueryByte[index] = (byte) lowerByte;
+            quantQueryByte[index + quantQueryByte.length / 4] = (byte) lowerMiddleByte;
+            quantQueryByte[index + quantQueryByte.length / 2] = (byte) upperMiddleByte;
+            quantQueryByte[index + 3 * quantQueryByte.length / 4] = (byte) upperByte;
         }
     }
 }

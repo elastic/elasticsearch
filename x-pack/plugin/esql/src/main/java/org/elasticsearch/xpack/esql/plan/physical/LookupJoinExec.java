@@ -7,11 +7,13 @@
 
 package org.elasticsearch.xpack.esql.plan.physical;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
+import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -28,6 +30,7 @@ public class LookupJoinExec extends BinaryExec implements EstimatesRowSize {
         "LookupJoinExec",
         LookupJoinExec::new
     );
+    private static final TransportVersion ESQL_LOOKUP_JOIN_ON_EXPRESSION = TransportVersion.fromName("esql_lookup_join_on_expression");
 
     private final List<Attribute> leftFields;
     private final List<Attribute> rightFields;
@@ -37,6 +40,7 @@ public class LookupJoinExec extends BinaryExec implements EstimatesRowSize {
      * the right hand side by a {@link EsQueryExec}, and thus lose the information of which fields we'll get from the lookup index.
      */
     private final List<Attribute> addedFields;
+    private final Expression joinOnConditions;
     private List<Attribute> lazyOutput;
 
     public LookupJoinExec(
@@ -45,12 +49,14 @@ public class LookupJoinExec extends BinaryExec implements EstimatesRowSize {
         PhysicalPlan lookup,
         List<Attribute> leftFields,
         List<Attribute> rightFields,
-        List<Attribute> addedFields
+        List<Attribute> addedFields,
+        Expression joinOnConditions
     ) {
         super(source, left, lookup);
         this.leftFields = leftFields;
         this.rightFields = rightFields;
         this.addedFields = addedFields;
+        this.joinOnConditions = joinOnConditions;
     }
 
     private LookupJoinExec(StreamInput in) throws IOException {
@@ -58,6 +64,11 @@ public class LookupJoinExec extends BinaryExec implements EstimatesRowSize {
         this.leftFields = in.readNamedWriteableCollectionAsList(Attribute.class);
         this.rightFields = in.readNamedWriteableCollectionAsList(Attribute.class);
         this.addedFields = in.readNamedWriteableCollectionAsList(Attribute.class);
+        if (in.getTransportVersion().supports(ESQL_LOOKUP_JOIN_ON_EXPRESSION)) {
+            this.joinOnConditions = in.readOptionalNamedWriteable(Expression.class);
+        } else {
+            this.joinOnConditions = null;
+        }
     }
 
     @Override
@@ -66,6 +77,11 @@ public class LookupJoinExec extends BinaryExec implements EstimatesRowSize {
         out.writeNamedWriteableCollection(leftFields);
         out.writeNamedWriteableCollection(rightFields);
         out.writeNamedWriteableCollection(addedFields);
+        if (out.getTransportVersion().supports(ESQL_LOOKUP_JOIN_ON_EXPRESSION)) {
+            out.writeOptionalNamedWriteable(joinOnConditions);
+        } else if (joinOnConditions != null) {
+            throw new IllegalArgumentException("LOOKUP JOIN with ON conditions is not supported on remote node");
+        }
     }
 
     @Override
@@ -136,12 +152,12 @@ public class LookupJoinExec extends BinaryExec implements EstimatesRowSize {
 
     @Override
     public LookupJoinExec replaceChildren(PhysicalPlan left, PhysicalPlan right) {
-        return new LookupJoinExec(source(), left, right, leftFields, rightFields, addedFields);
+        return new LookupJoinExec(source(), left, right, leftFields, rightFields, addedFields, joinOnConditions);
     }
 
     @Override
     protected NodeInfo<? extends PhysicalPlan> info() {
-        return NodeInfo.create(this, LookupJoinExec::new, left(), right(), leftFields, rightFields, addedFields);
+        return NodeInfo.create(this, LookupJoinExec::new, left(), right(), leftFields, rightFields, addedFields, joinOnConditions);
     }
 
     @Override
@@ -156,11 +172,22 @@ public class LookupJoinExec extends BinaryExec implements EstimatesRowSize {
             return false;
         }
         LookupJoinExec other = (LookupJoinExec) o;
-        return leftFields.equals(other.leftFields) && rightFields.equals(other.rightFields) && addedFields.equals(other.addedFields);
+        return leftFields.equals(other.leftFields)
+            && rightFields.equals(other.rightFields)
+            && addedFields.equals(other.addedFields)
+            && Objects.equals(joinOnConditions, other.joinOnConditions);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(super.hashCode(), leftFields, rightFields, addedFields);
+        return Objects.hash(super.hashCode(), leftFields, rightFields, addedFields, joinOnConditions);
+    }
+
+    public boolean isOnJoinExpression() {
+        return joinOnConditions != null;
+    }
+
+    public Expression joinOnConditions() {
+        return joinOnConditions;
     }
 }

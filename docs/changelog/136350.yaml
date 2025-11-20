@@ -1,0 +1,5 @@
+pr: 136350
+summary: Prevent NPE when generating snapshot metrics before initial cluster state is set
+area: Snapshot/Restore
+type: bug
+issues: []

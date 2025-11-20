@@ -1,5 +1,0 @@
-pr: 131706
-summary: Add extension points to remediate index metadata in during snapshot restore
-area: Snapshot/Restore
-type: enhancement
-issues: []

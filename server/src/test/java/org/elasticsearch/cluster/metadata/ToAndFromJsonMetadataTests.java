@@ -127,13 +127,11 @@ public class ToAndFromJsonMetadataTests extends ESTestCase {
             .put(idx2, false)
             .put(DataStreamTestHelper.newInstance("data-stream1", List.of(idx1.getIndex())))
             .put(DataStreamTestHelper.newInstance("data-stream2", List.of(idx2.getIndex())))
-            .put(reservedStateMetadata)
-            .put(reservedStateMetadata1)
             .build();
 
         XContentBuilder builder = JsonXContent.contentBuilder();
         builder.startObject();
-        ChunkedToXContent.wrapAsToXContent(Metadata.builder().put(project).build())
+        ChunkedToXContent.wrapAsToXContent(Metadata.builder().put(project).put(reservedStateMetadata).put(reservedStateMetadata1).build())
             .toXContent(
                 builder,
                 new ToXContent.MapParams(Map.of("binary", "true", Metadata.CONTEXT_MODE_PARAM, Metadata.CONTEXT_MODE_GATEWAY))
@@ -282,8 +280,7 @@ public class ToAndFromJsonMetadataTests extends ESTestCase {
                     },
                     "index-graveyard" : {
                       "tombstones" : [ ]
-                    },
-                    "reserved_state" : { }
+                    }
                   }
                 ],
                 "reserved_state" : { }
@@ -401,6 +398,7 @@ public class ToAndFromJsonMetadataTests extends ESTestCase {
                 "indices" : {
                   "index" : {
                     "version" : 2,
+                    "transport_version" : "0",
                     "mapping_version" : 1,
                     "settings_version" : 1,
                     "aliases_version" : 1,
@@ -568,6 +566,7 @@ public class ToAndFromJsonMetadataTests extends ESTestCase {
                 "indices" : {
                   "index" : {
                     "version" : 2,
+                    "transport_version" : "0",
                     "mapping_version" : 1,
                     "settings_version" : 1,
                     "aliases_version" : 1,
@@ -678,6 +677,7 @@ public class ToAndFromJsonMetadataTests extends ESTestCase {
                 "indices" : {
                   "index" : {
                     "version" : 2,
+                    "transport_version" : "0",
                     "mapping_version" : 1,
                     "settings_version" : 1,
                     "aliases_version" : 1,
@@ -818,6 +818,7 @@ public class ToAndFromJsonMetadataTests extends ESTestCase {
                 "indices" : {
                   "index" : {
                     "version" : 2,
+                    "transport_version" : "0",
                     "mapping_version" : 1,
                     "settings_version" : 1,
                     "aliases_version" : 1,

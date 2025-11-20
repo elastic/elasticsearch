@@ -1,20 +1,24 @@
 {
-  "mget":{
-    "documentation":{
-      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/master/docs-multi-get.html",
-      "description":"Allows to get multiple documents in one request."
+  "mget": {
+    "documentation": {
+      "url": "https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-mget",
+      "description": "Get multiple documents"
     },
-    "stability":"stable",
-    "visibility":"public",
-    "headers":{
-      "accept": [ "application/json"],
-      "content_type": ["application/json"]
+    "stability": "stable",
+    "visibility": "public",
+    "headers": {
+      "accept": [
+        "application/json"
+      ],
+      "content_type": [
+        "application/json"
+      ]
     },
-    "url":{
-      "paths":[
+    "url": {
+      "paths": [
         {
-          "path":"/_mget",
-          "methods":[
+          "path": "/_mget",
+          "methods": [
             "GET",
             "POST"
           ]
@@ -34,49 +38,52 @@
         }
       ]
     },
-    "params":{
+    "params": {
       "force_synthetic_source": {
         "type": "boolean",
         "description": "Should this request force synthetic _source? Use this to test if the mapping supports synthetic _source and to get a sense of the worst case performance. Fetches with this enabled will be slower the enabling synthetic source natively in the index.",
         "visibility": "feature_flag",
         "feature_flag": "es.index_mode_feature_flag_registered"
       },
-      "stored_fields":{
-        "type":"list",
-        "description":"A comma-separated list of stored fields to return in the response"
+      "stored_fields": {
+        "type": "list",
+        "default": "false",
+        "description": "A comma-separated list of stored fields to return in the response"
       },
-      "preference":{
-        "type":"string",
-        "description":"Specify the node or shard the operation should be performed on (default: random)"
+      "preference": {
+        "type": "string",
+        "description": "Specify the node or shard the operation should be performed on (default: random)"
       },
-      "realtime":{
-        "type":"boolean",
-        "description":"Specify whether to perform the operation in realtime or search mode"
+      "realtime": {
+        "type": "boolean",
+        "default": true,
+        "description": "Specify whether to perform the operation in realtime or search mode"
       },
-      "refresh":{
-        "type":"boolean",
-        "description":"Refresh the shard containing the document before performing the operation"
+      "refresh": {
+        "type": "boolean",
+        "default": false,
+        "description": "Refresh the shard containing the document before performing the operation"
       },
-      "routing":{
-        "type":"string",
-        "description":"Specific routing value"
+      "routing": {
+        "type": "list",
+        "description": "Specific routing value"
       },
-      "_source":{
-        "type":"list",
-        "description":"True or false to return the _source field or not, or a list of fields to return"
+      "_source": {
+        "type": "list",
+        "description": "True or false to return the _source field or not, or a list of fields to return"
       },
-      "_source_excludes":{
-        "type":"list",
-        "description":"A list of fields to exclude from the returned _source field"
+      "_source_excludes": {
+        "type": "list",
+        "description": "A list of fields to exclude from the returned _source field"
       },
-      "_source_includes":{
-        "type":"list",
-        "description":"A list of fields to extract and return from the _source field"
+      "_source_includes": {
+        "type": "list",
+        "description": "A list of fields to extract and return from the _source field"
       }
     },
-    "body":{
-      "description":"Document identifiers; can be either `docs` (containing full document information) or `ids` (when index is provided in the URL.",
-      "required":true
+    "body": {
+      "description": "Document identifiers; can be either `docs` (containing full document information) or `ids` (when index is provided in the URL.",
+      "required": true
     }
   }
 }

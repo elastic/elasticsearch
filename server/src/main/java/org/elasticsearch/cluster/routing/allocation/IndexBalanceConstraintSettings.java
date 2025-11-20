@@ -11,7 +11,6 @@ package org.elasticsearch.cluster.routing.allocation;
 
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
-import org.elasticsearch.common.util.FeatureFlag;
 
 /**
  * Settings definitions for the index shard count allocation decider and associated infrastructure
@@ -19,11 +18,10 @@ import org.elasticsearch.common.util.FeatureFlag;
 public class IndexBalanceConstraintSettings {
 
     private static final String SETTING_PREFIX = "cluster.routing.allocation.index_balance_decider.";
-    private static final FeatureFlag INDEX_BALANCE_DECIDER_FEATURE_FLAG = new FeatureFlag("index_balance_decider");
 
     public static final Setting<Boolean> INDEX_BALANCE_DECIDER_ENABLED_SETTING = Setting.boolSetting(
         SETTING_PREFIX + "enabled",
-        INDEX_BALANCE_DECIDER_FEATURE_FLAG.isEnabled(),
+        false,
         Setting.Property.Dynamic,
         Setting.Property.NodeScope
     );

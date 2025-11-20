@@ -379,7 +379,7 @@ public class TransportDownsampleActionTests extends ESTestCase {
         verify(downsampleMetrics).recordOperation(anyLong(), eq(DownsampleMetrics.ActionStatus.SUCCESS));
     }
 
-    public void testDownsamplingWhenTargetIndexGetsDeleted() {
+    public void testDownsamplingWhenTargetIndexGetsDeleted() throws IOException {
         String mapping = switch (randomIntBetween(0, 2)) {
             case 0 -> NO_METADATA_MAPPING;
             case 1 -> OTHER_METADATA_MAPPING;

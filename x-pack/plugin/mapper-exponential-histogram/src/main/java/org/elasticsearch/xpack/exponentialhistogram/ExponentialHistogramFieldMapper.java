@@ -586,10 +586,14 @@ public class ExponentialHistogramFieldMapper extends FieldMapper {
         long thresholdAsLong = NumericUtils.doubleToSortableLong(zeroThreshold);
         NumericDocValuesField zeroThresholdField = new NumericDocValuesField(zeroThresholdSubFieldName(fieldName), thresholdAsLong);
         NumericDocValuesField valuesCountField = new NumericDocValuesField(valuesCountSubFieldName(fieldName), totalValueCount);
-        NumericDocValuesField sumField = new NumericDocValuesField(
-            valuesSumSubFieldName(fieldName),
-            NumericUtils.doubleToSortableLong(sum)
-        );
+        // for empty histograms, we store null as sum so that SUM() / COUNT() in ESQL yields NULL without warnings
+        NumericDocValuesField sumField = null;
+        if (totalValueCount > 0) {
+            sumField = new NumericDocValuesField(valuesSumSubFieldName(fieldName), NumericUtils.doubleToSortableLong(sum));
+        } else {
+            // empty histogram must have a sum of 0.0
+            assert sum == 0.0;
+        }
         NumericDocValuesField minField = null;
         if (Double.isNaN(min) == false) {
             minField = new NumericDocValuesField(valuesMinSubFieldName(fieldName), NumericUtils.doubleToSortableLong(min));
@@ -614,7 +618,7 @@ public class ExponentialHistogramFieldMapper extends FieldMapper {
         BinaryDocValuesField histo,
         NumericDocValuesField zeroThreshold,
         NumericDocValuesField valuesCount,
-        NumericDocValuesField sumField,
+        @Nullable NumericDocValuesField sumField,
         @Nullable NumericDocValuesField minField,
         @Nullable NumericDocValuesField maxField
     ) {
@@ -623,7 +627,9 @@ public class ExponentialHistogramFieldMapper extends FieldMapper {
             doc.addWithKey(histo.name(), histo);
             doc.add(zeroThreshold);
             doc.add(valuesCount);
-            doc.add(sumField);
+            if (sumField != null) {
+                doc.add(sumField);
+            }
             if (minField != null) {
                 doc.add(minField);
             }
@@ -637,7 +643,9 @@ public class ExponentialHistogramFieldMapper extends FieldMapper {
             fields.add(histo);
             fields.add(zeroThreshold);
             fields.add(valuesCount);
-            fields.add(sumField);
+            if (sumField != null) {
+                fields.add(sumField);
+            }
             if (minField != null) {
                 fields.add(minField);
             }
@@ -766,13 +774,19 @@ public class ExponentialHistogramFieldMapper extends FieldMapper {
             }
             boolean histoPresent = histoDocValues.advanceExact(currentDocId);
             boolean zeroThresholdPresent = zeroThresholds.advanceExact(currentDocId);
-            boolean valueSumsPresent = valueSums.advanceExact(currentDocId);
-            assert zeroThresholdPresent && histoPresent && valueSumsPresent;
+            assert zeroThresholdPresent && histoPresent;
 
             BytesRef encodedHistogram = histoDocValues.binaryValue();
             double zeroThreshold = NumericUtils.sortableLongToDouble(zeroThresholds.longValue());
             long valueCount = valueCounts.longValue();
-            double valueSum = NumericUtils.sortableLongToDouble(valueSums.longValue());
+            double valueSum;
+            if (valueCount > 0) {
+                boolean valueSumsPresent = valueSums.advanceExact(currentDocId);
+                assert valueSumsPresent;
+                valueSum = NumericUtils.sortableLongToDouble(valueSums.longValue());
+            } else {
+                valueSum = 0.0; // empty histogram has sum of 0.0, but we store null in the doc values
+            }
             double valueMin;
             if (valueMinima != null && valueMinima.advanceExact(currentDocId)) {
                 valueMin = NumericUtils.sortableLongToDouble(valueMinima.longValue());
@@ -799,8 +813,10 @@ public class ExponentialHistogramFieldMapper extends FieldMapper {
             if (currentDocId == -1) {
                 throw new IllegalStateException("No histogram present for current document");
             }
-            boolean valueSumsPresent = valueSums.advanceExact(currentDocId);
-            assert valueSumsPresent;
+            if (valueSums == null || valueSums.advanceExact(currentDocId) == false) {
+                // empty histogram, must have sum of 0.0
+                return 0.0;
+            }
             return NumericUtils.sortableLongToDouble(valueSums.longValue());
         }
     }

@@ -46,17 +46,15 @@ FROM exp_histo_sample
  | SORT instance
  | Limit 15
 ;
-warningRegex: Line 2:132: evaluation of \[AVG\(responseTime\)\] failed, treating result as null. Only first 20 failures recorded
-warningRegex: Line 2:132: java.lang.ArithmeticException: / by zero
 
 instance:keyword          | min:double | max:double | p75:double  | sum:double  | avg:double
-dummy-empty               | null       | null       | null        | 0.0         | null
+dummy-empty               | null       | null       | null        | null        | null
 dummy-full                | -100.0     | 50.0       | 10.6666667  | -3775.0     | -25.0
 dummy-negative_only       | -50.0      | -1.0       | -12.8729318 | -1275.0     | -25.5
 dummy-no_zero_bucket      | -100.0     | 50.0       | 10.6666667  | -3775.0     | -25.166666666666668
 dummy-positive_only       | 1.0        | 50.0       | 34.7656715  | 1275.0      | 25.5
 dummy-zero_count_only     | 0.0        | 0.0        | 0.0         | 0.0         | 0.0
-dummy-zero_threshold_only | null       | null       | null        | 0.0         | null
+dummy-zero_threshold_only | null       | null       | null        | null        | null
 instance-0                | 2.4E-4     | 6.786232   | 0.2608237   | 1472.744209 | 0.1665811796176903
 instance-0                | 2.4E-4     | 6.786232   | 0.2608237   | 1472.744209 | 0.1665811796176903
 instance-0                | 2.4E-4     | 6.786232   | 0.2608237   | 1472.744209 | 0.1665811796176903
@@ -208,10 +206,8 @@ required_capability: exponential_histogram_sum_avg_support
 
 FROM exp_histo_sample | WHERE instance == "dummy-empty"
  | STATS  avg = AVG(responseTime)
- | KEEP avg //TODO handle without triggering warnings, but this currently triggers a planner issue
+ | KEEP avg
 ;
-warningRegex: Line 2:16: evaluation of \[AVG\(responseTime\)\] failed, treating result as null. Only first 20 failures recorded
-warningRegex: Line 2:16: java.lang.ArithmeticException: / by zero
 
 avg:double
 NULL

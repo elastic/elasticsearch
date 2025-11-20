@@ -15,7 +15,6 @@ module org.elasticsearch.legacy.geo {
     requires org.apache.lucene.core;
     requires org.apache.lucene.spatial_extras;
     requires org.apache.logging.log4j;
-    requires jts.core;
     requires spatial4j;
 
     exports org.elasticsearch.legacygeo.mapper;

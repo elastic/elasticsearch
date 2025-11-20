@@ -163,7 +163,7 @@ public class PlannerUtils {
             return Set.of();
         }
         var indices = new LinkedHashSet<String>();
-        forEachRelation(plan, relation -> indices.addAll(relation.concreteIndices()));
+        forEachRelation(plan, relation -> indices.addAll(relation.concreteQualifiedIndices()));
         return indices;
     }
 

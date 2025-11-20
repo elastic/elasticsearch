@@ -33,6 +33,9 @@ public class EsRelation extends LeafPlan {
 
     private final String indexPattern;
     private final IndexMode indexMode;
+    // the below data structures are only needed on coordinator and are transient for now
+    private final transient Map<String, List<String>> originalIndices; // keyed by cluster alias
+    private final transient Map<String, List<String>> concreteIndices; // keyed by cluster alias
     private final Map<String, IndexMode> indexNameWithModes;
     private final List<Attribute> attrs;
 
@@ -40,12 +43,16 @@ public class EsRelation extends LeafPlan {
         Source source,
         String indexPattern,
         IndexMode indexMode,
+        Map<String, List<String>> originalIndices,
+        Map<String, List<String>> concreteIndices,
         Map<String, IndexMode> indexNameWithModes,
         List<Attribute> attributes
     ) {
         super(source);
         this.indexPattern = indexPattern;
         this.indexMode = indexMode;
+        this.originalIndices = originalIndices;
+        this.concreteIndices = concreteIndices;
         this.indexNameWithModes = indexNameWithModes;
         this.attrs = attributes;
     }
@@ -63,7 +70,7 @@ public class EsRelation extends LeafPlan {
         if (in.getTransportVersion().supports(TransportVersions.V_8_18_0) == false) {
             in.readBoolean();
         }
-        return new EsRelation(source, indexPattern, indexMode, indexNameWithModes, attributes);
+        return new EsRelation(source, indexPattern, indexMode, Map.of(), Map.of(), indexNameWithModes, attributes);
     }
 
     @Override
@@ -89,7 +96,7 @@ public class EsRelation extends LeafPlan {
 
     @Override
     protected NodeInfo<EsRelation> info() {
-        return NodeInfo.create(this, EsRelation::new, indexPattern, indexMode, indexNameWithModes, attrs);
+        return NodeInfo.create(this, EsRelation::new, indexPattern, indexMode, originalIndices, concreteIndices, indexNameWithModes, attrs);
     }
 
     public String indexPattern() {
@@ -98,6 +105,14 @@ public class EsRelation extends LeafPlan {
 
     public IndexMode indexMode() {
         return indexMode;
+    }
+
+    public Map<String, List<String>> originalIndices() {
+        return originalIndices;
+    }
+
+    public Map<String, List<String>> concreteIndices() {
+        return concreteIndices;
     }
 
     public Map<String, IndexMode> indexNameWithModes() {
@@ -109,7 +124,7 @@ public class EsRelation extends LeafPlan {
         return attrs;
     }
 
-    public Set<String> concreteIndices() {
+    public Set<String> concreteQualifiedIndices() {
         return indexNameWithModes.keySet();
     }
 
@@ -122,7 +137,7 @@ public class EsRelation extends LeafPlan {
 
     @Override
     public int hashCode() {
-        return Objects.hash(indexPattern, indexMode, indexNameWithModes, attrs);
+        return Objects.hash(indexPattern, indexMode, originalIndices, concreteIndices, indexNameWithModes, attrs);
     }
 
     @Override
@@ -138,6 +153,8 @@ public class EsRelation extends LeafPlan {
         EsRelation other = (EsRelation) obj;
         return Objects.equals(indexPattern, other.indexPattern)
             && Objects.equals(indexMode, other.indexMode)
+            && Objects.equals(originalIndices, other.originalIndices)
+            && Objects.equals(concreteIndices, other.concreteIndices)
             && Objects.equals(indexNameWithModes, other.indexNameWithModes)
             && Objects.equals(attrs, other.attrs);
     }
@@ -153,10 +170,10 @@ public class EsRelation extends LeafPlan {
     }
 
     public EsRelation withAttributes(List<Attribute> newAttributes) {
-        return new EsRelation(source(), indexPattern, indexMode, indexNameWithModes, newAttributes);
+        return new EsRelation(source(), indexPattern, indexMode, originalIndices, concreteIndices, indexNameWithModes, newAttributes);
     }
 
     public EsRelation withIndexMode(IndexMode indexMode) {
-        return new EsRelation(source(), indexPattern, indexMode, indexNameWithModes, attrs);
+        return new EsRelation(source(), indexPattern, indexMode, originalIndices, concreteIndices, indexNameWithModes, attrs);
     }
 }

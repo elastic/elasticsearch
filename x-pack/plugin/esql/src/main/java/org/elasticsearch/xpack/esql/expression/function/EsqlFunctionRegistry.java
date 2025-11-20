@@ -22,6 +22,7 @@ import org.elasticsearch.xpack.esql.expression.SurrogateExpression;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Absent;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AbsentOverTime;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AllFirst;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.AllLast;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Avg;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AvgOverTime;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
@@ -531,7 +532,7 @@ public class EsqlFunctionRegistry {
                 def(Score.class, uni(Score::new), "score") },
             // time-series functions
             new FunctionDefinition[] {
-                defTS(Rate.class, bi(Rate::new), "rate"),
+                defTS3(Rate.class, Rate::new, "rate"),
                 defTS(Irate.class, bi(Irate::new), "irate"),
                 defTS(Idelta.class, bi(Idelta::new), "idelta"),
                 defTS(Delta.class, bi(Delta::new), "delta"),
@@ -545,8 +546,8 @@ public class EsqlFunctionRegistry {
                 def(CountDistinctOverTime.class, bi(CountDistinctOverTime::new), "count_distinct_over_time"),
                 def(PresentOverTime.class, uni(PresentOverTime::new), "present_over_time"),
                 def(AbsentOverTime.class, uni(AbsentOverTime::new), "absent_over_time"),
-                def(AvgOverTime.class, uni(AvgOverTime::new), "avg_over_time"),
-                defTS(LastOverTime.class, bi(LastOverTime::new), "last_over_time"),
+                def(AvgOverTime.class, bi(AvgOverTime::new), "avg_over_time"),
+                defTS3(LastOverTime.class, LastOverTime::new, "last_over_time"),
                 defTS(FirstOverTime.class, bi(FirstOverTime::new), "first_over_time"),
                 def(PercentileOverTime.class, bi(PercentileOverTime::new), "percentile_over_time"),
                 // dense vector function
@@ -561,6 +562,7 @@ public class EsqlFunctionRegistry {
                 def(Delay.class, Delay::new, "delay"),
                 def(First.class, bi(First::new), "first"),
                 def(AllFirst.class, bi(AllFirst::new), "all_first"),
+                def(AllLast.class, bi(AllLast::new), "all_last"),
                 def(Last.class, bi(Last::new), "last"),
                 def(Term.class, bi(Term::new), "term"),
                 def(CosineSimilarity.class, CosineSimilarity::new, "v_cosine"),
@@ -1332,6 +1334,20 @@ public class EsqlFunctionRegistry {
                 children.size() == 2 ? children.get(1) : null,
                 UnresolvedTimestamp.withSource(source),
                 cfg
+            );
+        };
+        return def(function, builder, names);
+    }
+
+    protected static <T extends Function> FunctionDefinition defTS3(Class<T> function, TernaryBuilder<T> ctorRef, String... names) {
+        checkIsTimestampAware(function);
+        FunctionBuilder builder = (source, children, cfg) -> {
+            checkIsOptionalBiFunction(function, children.size());
+            return ctorRef.build(
+                source,
+                children.get(0),
+                children.size() == 2 ? children.get(1) : null,
+                UnresolvedTimestamp.withSource(source)
             );
         };
         return def(function, builder, names);

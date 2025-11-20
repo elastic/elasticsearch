@@ -535,6 +535,8 @@ public interface BlockLoader {
             Block zeroThresholds,
             Block encodedHistograms
         );
+
+        Block buildTDigestBlockDirect(Block encodedDigests, Block minima, Block maxima, Block sums, Block valueCounts);
     }
 
     /**
@@ -696,5 +698,17 @@ public interface BlockLoader {
         DoubleBuilder zeroThresholds();
 
         BytesRefBuilder encodedHistograms();
+    }
+
+    interface TDigestBuilder extends Builder {
+        DoubleBuilder minima();
+
+        DoubleBuilder maxima();
+
+        DoubleBuilder sums();
+
+        LongBuilder valueCounts();
+
+        BytesRefBuilder encodedDigests();
     }
 }

@@ -537,7 +537,7 @@ public class EsqlFunctionRegistry {
                 defTS(Idelta.class, bi(Idelta::new), "idelta"),
                 defTS(Delta.class, bi(Delta::new), "delta"),
                 defTS(Increase.class, bi(Increase::new), "increase"),
-                def(Deriv.class, uni(Deriv::new), "deriv"),
+                defTS(Deriv.class, bi(Deriv::new), "deriv"),
                 def(MaxOverTime.class, uni(MaxOverTime::new), "max_over_time"),
                 def(MinOverTime.class, uni(MinOverTime::new), "min_over_time"),
                 def(SumOverTime.class, uni(SumOverTime::new), "sum_over_time"),

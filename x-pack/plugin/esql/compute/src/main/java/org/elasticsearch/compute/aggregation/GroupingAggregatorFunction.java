@@ -142,10 +142,6 @@ public interface GroupingAggregatorFunction extends Releasable {
      * Build the intermediate results for this aggregation.
      * @param selected the groupIds that have been selected to be included in
      *                 the results. Always ascending.
-     *
-     * <p>This function may be called in the coordinator node after all intermediate
-     *    blocks have been gathered from the data nodes, or on data nodes during
-     *    node-level or cluster-level reduction with intermediate input to intermediate output.</p>
      */
     void evaluateIntermediate(Block[] blocks, int offset, IntVector selected);
 

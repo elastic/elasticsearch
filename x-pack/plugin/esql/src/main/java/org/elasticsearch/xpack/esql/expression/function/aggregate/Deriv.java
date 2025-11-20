@@ -14,7 +14,6 @@ import org.elasticsearch.compute.aggregation.DerivLongAggregatorFunctionSupplier
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
-import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -43,11 +42,7 @@ public class Deriv extends TimeSeriesAggregateFunction implements ToAggregator {
         description = "Calculates the derivative over time of a numeric field using linear regression.",
         examples = { @Example(file = "k8s-timeseries", tag = "deriv") }
     )
-    public Deriv(Source source, @Param(name = "field", type = { "long", "integer", "double" }) Expression field) {
-        this(source, field, new UnresolvedAttribute(source, "@timestamp"));
-    }
-
-    public Deriv(Source source, Expression field, Expression timestamp) {
+    public Deriv(Source source, @Param(name = "field", type = { "long", "integer", "double" }) Expression field, Expression timestamp) {
         this(source, field, Literal.TRUE, NO_WINDOW, timestamp);
     }
 
@@ -73,7 +68,7 @@ public class Deriv extends TimeSeriesAggregateFunction implements ToAggregator {
 
     @Override
     public AggregateFunction withFilter(Expression filter) {
-        return new Deriv(source(), field(), filter, timestamp, window());
+        return new Deriv(source(), field(), filter, window(), timestamp);
     }
 
     @Override
@@ -112,7 +107,8 @@ public class Deriv extends TimeSeriesAggregateFunction implements ToAggregator {
         final DataType type = field().dataType();
         return switch (type) {
             case DOUBLE -> new DerivDoubleAggregatorFunctionSupplier();
-            case LONG, INTEGER -> new DerivLongAggregatorFunctionSupplier();
+            case LONG -> new DerivLongAggregatorFunctionSupplier();
+            case INTEGER -> new DerivLongAggregatorFunctionSupplier();
             default -> throw new IllegalArgumentException("Unsupported data type for deriv aggregation: " + type);
         };
     }

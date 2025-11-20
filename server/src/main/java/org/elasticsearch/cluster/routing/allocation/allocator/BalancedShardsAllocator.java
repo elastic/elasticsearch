@@ -862,7 +862,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
             for (var storedShardMovement : bestNonPreferredShardMovementsTracker.getBestShardMovements()) {
                 final var shardRouting = storedShardMovement.shardRouting();
                 final var index = projectIndex(shardRouting);
-                final var moveDecision = reassessDecisionIfRequired(index, storedShardMovement, shardMoved);
+                final var moveDecision = refreshDecisionIfRequired(index, storedShardMovement, shardMoved);
                 if (moveDecision.isDecisionTaken() && moveDecision.cannotRemainAndCanMove()) {
                     if (notPreferredLogger.isDebugEnabled()) {
                         notPreferredLogger.debug(
@@ -884,15 +884,26 @@ public class BalancedShardsAllocator implements ShardsAllocator {
         }
 
         /**
-         * If a shard has moved we need to re-run the decision to check that it's still valid. If {@link #notPreferredLogger} is
-         * set to debug, we re-run the decision with explain turned on so we can populate the explanation in our log message
+         * Re-run the allocation deciders if we need to
+         * <p>
+         * Reasons to re-run the deciders include:
+         * <ul>
+         *  <li>A shard has been moved since the decision was made, we need to
+         *      re-run the deciders to ensure the decision is still valid
+         *  </li>
+         *  <li>The {@link #notPreferredLogger} is set to <code>DEBUG</code>,
+         *      we need to re-run the deciders with
+         *      {@link org.elasticsearch.cluster.routing.allocation.RoutingAllocation.DebugMode#EXCLUDE_YES_DECISIONS},
+         *      so the explanation(s) are populated for the log message
+         *  </li>
+         * </ul>
          *
          * @param index The index of the shard
          * @param storedShardMovement The existing shard movement decision
          * @param shardMoved True if a shard moved in this balancing round, false otherwise
-         * @return The move decision to act on
+         * @return The move decision to act on, recalculated if necessary
          */
-        private MoveDecision reassessDecisionIfRequired(
+        private MoveDecision refreshDecisionIfRequired(
             ProjectIndex index,
             BestShardMovementsTracker.StoredShardMovement storedShardMovement,
             boolean shardMoved

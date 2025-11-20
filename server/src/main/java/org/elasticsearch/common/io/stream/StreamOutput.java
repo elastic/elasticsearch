@@ -1092,6 +1092,18 @@ public abstract class StreamOutput extends OutputStream {
     }
 
     /**
+     * Write an optional {@link Throwable} to the stream.
+     */
+    public void writeOptionalException(@Nullable Throwable throwable) throws IOException {
+        if (throwable == null) {
+            writeBoolean(false);
+        } else {
+            writeBoolean(true);
+            writeException(throwable);
+        }
+    }
+
+    /**
      * Writes a {@link NamedWriteable} to the current stream, by first writing its name and then the object itself
      */
     public void writeNamedWriteable(NamedWriteable namedWriteable) throws IOException {

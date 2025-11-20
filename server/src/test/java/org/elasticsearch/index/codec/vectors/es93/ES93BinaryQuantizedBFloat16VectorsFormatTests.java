@@ -46,6 +46,7 @@ import org.apache.lucene.tests.util.TestUtil;
 import org.elasticsearch.common.logging.LogConfigurator;
 import org.elasticsearch.index.codec.vectors.BFloat16;
 import org.elasticsearch.index.codec.vectors.BaseBFloat16KnnVectorsFormatTestCase;
+import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.junit.AssumptionViolatedException;
 
 import java.io.IOException;
@@ -75,7 +76,7 @@ public class ES93BinaryQuantizedBFloat16VectorsFormatTests extends BaseBFloat16K
 
     @Override
     public void setUp() throws Exception {
-        format = new ES93BinaryQuantizedVectorsFormat(ES93GenericFlatVectorsFormat.ElementType.BFLOAT16, random().nextBoolean());
+        format = new ES93BinaryQuantizedVectorsFormat(DenseVectorFieldMapper.ElementType.BFLOAT16, random().nextBoolean());
         super.setUp();
     }
 
@@ -196,7 +197,7 @@ public class ES93BinaryQuantizedBFloat16VectorsFormatTests extends BaseBFloat16K
         var defaultScorer = expected.replaceAll("\\{}", "DefaultFlatVectorScorer");
         var memSegScorer = expected.replaceAll("\\{}", "Lucene99MemorySegmentFlatVectorsScorer");
 
-        KnnVectorsFormat format = new ES93BinaryQuantizedVectorsFormat(ES93GenericFlatVectorsFormat.ElementType.BFLOAT16, false);
+        KnnVectorsFormat format = new ES93BinaryQuantizedVectorsFormat(DenseVectorFieldMapper.ElementType.BFLOAT16, false);
         assertThat(format, hasToString(oneOf(defaultScorer, memSegScorer)));
     }
 

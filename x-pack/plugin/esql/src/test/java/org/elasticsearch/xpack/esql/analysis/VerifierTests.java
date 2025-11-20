@@ -31,6 +31,7 @@ import org.elasticsearch.xpack.esql.expression.function.fulltext.MultiMatch;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.QueryString;
 import org.elasticsearch.xpack.esql.expression.function.vector.Knn;
 import org.elasticsearch.xpack.esql.index.EsIndex;
+import org.elasticsearch.xpack.esql.index.EsIndexGenerator;
 import org.elasticsearch.xpack.esql.index.IndexResolution;
 import org.elasticsearch.xpack.esql.parser.EsqlParser;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
@@ -102,7 +103,7 @@ public class VerifierTests extends ESTestCase {
     {
         // Load Time Series mappings for these tests
         Map<String, EsField> mappingK8s = EsqlTestUtils.loadMapping("k8s-mappings.json");
-        EsIndex k8sIndex = new EsIndex("k8s", mappingK8s, Map.of("k8s", IndexMode.TIME_SERIES));
+        EsIndex k8sIndex = EsIndexGenerator.esIndex("k8s", mappingK8s, Map.of("k8s", IndexMode.TIME_SERIES));
         IndexResolution getIndexResult = IndexResolution.valid(k8sIndex);
         k8s = new Analyzer(
             testAnalyzerContext(
@@ -150,7 +151,7 @@ public class VerifierTests extends ESTestCase {
         // Also add an unsupported/multityped field under the names `int` and `double` so we can use `LOOKUP int_number_names ...` and
         // `LOOKUP double_number_names` without renaming the fields first.
         IndexResolution indexWithUnsupportedAndMultiTypedField = IndexResolution.valid(
-            new EsIndex(
+            EsIndexGenerator.esIndex(
                 "test*",
                 Map.of(unsupported, unsupportedField, multiTyped, multiTypedField, "int", unsupportedField, "double", multiTypedField)
             )
@@ -409,7 +410,8 @@ public class VerifierTests extends ESTestCase {
             error("from test | stats max(max(salary)) by first_name")
         );
         assertEquals(
-            "1:25: argument of [avg(first_name)] must be [aggregate_metric_double or numeric except unsigned_long or counter types],"
+            "1:25: argument of [avg(first_name)] must be [aggregate_metric_double,"
+                + " exponential_histogram or numeric except unsigned_long or counter types],"
                 + " found value [first_name] type [keyword]",
             error("from test | stats count(avg(first_name)) by first_name")
         );
@@ -837,7 +839,8 @@ public class VerifierTests extends ESTestCase {
 
     public void testSumOnDate() {
         assertEquals(
-            "1:19: argument of [sum(hire_date)] must be [aggregate_metric_double or numeric except unsigned_long or counter types],"
+            "1:19: argument of [sum(hire_date)] must be [aggregate_metric_double,"
+                + " exponential_histogram or numeric except unsigned_long or counter types],"
                 + " found value [hire_date] type [datetime]",
             error("from test | stats sum(hire_date)")
         );
@@ -1152,7 +1155,8 @@ public class VerifierTests extends ESTestCase {
             error("FROM test | STATS min(network.bytes_in)", tsdb),
             equalTo(
                 "1:19: argument of [min(network.bytes_in)] must be"
-                    + " [boolean, date, ip, string, version, aggregate_metric_double or numeric except counter types],"
+                    + " [boolean, date, ip, string, version, aggregate_metric_double,"
+                    + " exponential_histogram or numeric except counter types],"
                     + " found value [network.bytes_in] type [counter_long]"
             )
         );
@@ -1161,7 +1165,8 @@ public class VerifierTests extends ESTestCase {
             error("FROM test | STATS max(network.bytes_in)", tsdb),
             equalTo(
                 "1:19: argument of [max(network.bytes_in)] must be"
-                    + " [boolean, date, ip, string, version, aggregate_metric_double or numeric except counter types],"
+                    + " [boolean, date, ip, string, version, aggregate_metric_double, exponential_histogram"
+                    + " or numeric except counter types],"
                     + " found value [network.bytes_in] type [counter_long]"
             )
         );
@@ -2638,9 +2643,7 @@ public class VerifierTests extends ESTestCase {
         }
     }
 
-    public void testDecayFunctionNullArgs() {
-        assumeTrue("Decay function not enabled", EsqlCapabilities.Cap.DECAY_FUNCTION.isEnabled());
-
+    public void testDecayArgs() {
         // First arg cannot be null
         assertEquals(
             "2:23: first argument of [decay(null, origin, scale, "
@@ -2668,6 +2671,49 @@ public class VerifierTests extends ESTestCase {
             error(
                 "row value = 10, origin = 10\n"
                     + "| eval decay_result = decay(value, origin, null, {\"offset\": 0, \"decay\": 0.5, \"type\": \"linear\"})"
+            )
+        );
+
+        // Offset value type
+        assertEquals(
+            "2:23: offset option has invalid type, expected [numeric], found [keyword]",
+            error(
+                "row value = 10, origin = 10, scale = 1\n"
+                    + "| eval decay_result = decay(value, origin, scale, {\"offset\": \"aaa\", \"decay\": 0.5, \"type\": \"linear\"})"
+            )
+        );
+
+        assertEquals(
+            "1:118: offset option has invalid type, expected [time_duration], found [keyword]",
+            error(
+                "row value =  TO_DATETIME(\"2023-01-01T00:00:00Z\"), origin =  TO_DATETIME(\"2023-01-01T00:00:00Z\")"
+                    + "| eval decay_result = decay(value, origin, 24 hours, {\"offset\": \"aaa\", \"decay\": 0.5, \"type\": \"linear\"})"
+            )
+        );
+
+        assertEquals(
+            "1:110: offset option has invalid type, expected [numeric], found [keyword]",
+            error(
+                "row value =  TO_CARTESIANPOINT(\"POINT(10 0)\"), origin = TO_CARTESIANPOINT(\"POINT(0 0)\")"
+                    + "| eval decay_result = decay(value, origin, 10.0, {\"offset\": \"aaa\", \"decay\": 0.5, \"type\": \"linear\"})"
+            )
+        );
+
+        // Type option value
+        assertEquals(
+            "2:23: Invalid option [type] in "
+                + "[decay(value, origin, scale, {\"offset\": 1, \"decay\": 0.5, \"type\": 123})], allowed types [[KEYWORD]]",
+            error(
+                "row value = 10, origin = 10, scale = 1\n"
+                    + "| eval decay_result = decay(value, origin, scale, {\"offset\": 1, \"decay\": 0.5, \"type\": 123})"
+            )
+        );
+
+        assertEquals(
+            "2:23: type option has invalid value, expected one of [gauss, linear, exp], found [\"foobar\"]",
+            error(
+                "row value = 10, origin = 10, scale = 1\n"
+                    + "| eval decay_result = decay(value, origin, scale, {\"offset\": 1, \"decay\": 0.5, \"type\": \"foobar\"})"
             )
         );
     }
@@ -3332,7 +3378,7 @@ public class VerifierTests extends ESTestCase {
         return error(query, defaultAnalyzer, VerificationException.class, params);
     }
 
-    private String error(String query, Analyzer analyzer, Object... params) {
+    public static String error(String query, Analyzer analyzer, Object... params) {
         return error(query, analyzer, VerificationException.class, params);
     }
 
@@ -3340,7 +3386,7 @@ public class VerifierTests extends ESTestCase {
         return error(query, transportVersion, VerificationException.class, params);
     }
 
-    private String error(String query, Analyzer analyzer, Class<? extends Exception> exception, Object... params) {
+    public static String error(String query, Analyzer analyzer, Class<? extends Exception> exception, Object... params) {
         List<QueryParam> parameters = new ArrayList<>();
         for (Object param : params) {
             if (param == null) {

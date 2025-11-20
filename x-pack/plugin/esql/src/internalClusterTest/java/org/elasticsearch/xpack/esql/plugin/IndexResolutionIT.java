@@ -23,6 +23,7 @@ import org.elasticsearch.index.query.MatchNoneQueryBuilder;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.action.AbstractEsqlIntegTestCase;
+import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.action.EsqlQueryResponse;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 
@@ -229,27 +230,35 @@ public class IndexResolutionIT extends AbstractEsqlIntegTestCase {
 
     public void testPartialResolution() {
         assertAcked(client().admin().indices().prepareCreate("index-1"));
-        assertAcked(client().admin().indices().prepareCreate("index-2"));
-        indexRandom(true, "index-2", 1);
+        indexRandom(true, "index-1", 1);
 
-        try (var response = run(syncEsqlQueryRequest().query("FROM index-1,nonexisting-1"))) {
-            assertOk(response); // okay when present index is empty
-        }
         expectThrows(
             IndexNotFoundException.class,
             equalTo("no such index [nonexisting-1]"), // fails when present index is non-empty
-            () -> run(syncEsqlQueryRequest().query("FROM index-2,nonexisting-1"))
+            () -> run(syncEsqlQueryRequest().query("FROM index-1,nonexisting-1"))
         );
         expectThrows(
             IndexNotFoundException.class,
             equalTo("no such index [nonexisting-1]"), // fails when present index is non-empty even if allow_partial=true
-            () -> run(syncEsqlQueryRequest().query("FROM index-2,nonexisting-1").allowPartialResults(true))
+            () -> run(syncEsqlQueryRequest().query("FROM index-1,nonexisting-1").allowPartialResults(true))
         );
         expectThrows(
             IndexNotFoundException.class,
             equalTo("no such index [nonexisting-1]"), // only the first missing index is reported
-            () -> run(syncEsqlQueryRequest().query("FROM index-2,nonexisting-1,nonexisting-2"))
+            () -> run(syncEsqlQueryRequest().query("FROM index-1,nonexisting-1,nonexisting-2"))
         );
+
+        assertAcked(client().admin().indices().prepareCreate("index-2").setMapping("field", "type=keyword"));
+        expectThrows(
+            IndexNotFoundException.class,
+            equalTo("no such index [nonexisting-1]"), // fails when present index has no documents and non-empty mapping
+            () -> run(syncEsqlQueryRequest().query("FROM index-2,nonexisting-1"))
+        );
+
+        assertAcked(client().admin().indices().prepareCreate("index-3"));
+        try (var response = run(syncEsqlQueryRequest().query("FROM index-3,nonexisting-1"))) {
+            assertOk(response); // passes when the present index has no fields and no documents
+        }
     }
 
     public void testResolutionWithFilter() {
@@ -263,6 +272,20 @@ public class IndexResolutionIT extends AbstractEsqlIntegTestCase {
         try (var response = run(syncEsqlQueryRequest().query("FROM data METADATA _index").filter(new MatchNoneQueryBuilder()))) {
             assertOk(response);
             assertResultConcreteIndices(response);
+        }
+    }
+
+    public void testSubqueryResolution() {
+        assumeTrue("Requires subqueries feature", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
+
+        assertAcked(client().admin().indices().prepareCreate("index-1"));
+        indexRandom(true, "index-1", 1);
+        assertAcked(client().admin().indices().prepareCreate("index-2"));
+        indexRandom(true, "index-2", 1);
+
+        try (var response = run(syncEsqlQueryRequest().query("FROM (FROM index-1 METADATA _index), (FROM index-2 METADATA _index)"))) {
+            assertOk(response);
+            assertResultConcreteIndices(response, "index-1", "index-2");
         }
     }
 

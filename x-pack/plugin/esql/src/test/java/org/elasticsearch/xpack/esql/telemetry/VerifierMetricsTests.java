@@ -39,6 +39,7 @@ import static org.elasticsearch.xpack.esql.telemetry.FeatureMetric.LIMIT;
 import static org.elasticsearch.xpack.esql.telemetry.FeatureMetric.LOOKUP_JOIN;
 import static org.elasticsearch.xpack.esql.telemetry.FeatureMetric.LOOKUP_JOIN_ON_EXPRESSION;
 import static org.elasticsearch.xpack.esql.telemetry.FeatureMetric.MV_EXPAND;
+import static org.elasticsearch.xpack.esql.telemetry.FeatureMetric.PROMQL;
 import static org.elasticsearch.xpack.esql.telemetry.FeatureMetric.RENAME;
 import static org.elasticsearch.xpack.esql.telemetry.FeatureMetric.ROW;
 import static org.elasticsearch.xpack.esql.telemetry.FeatureMetric.SHOW;
@@ -61,6 +62,7 @@ public class VerifierMetricsTests extends ESTestCase {
         assertEquals(0, limit(c));
         assertEquals(0, sort(c));
         assertEquals(0, stats(c));
+        assertEquals(0, promql(c));
         assertEquals(0, where(c));
         assertEquals(0, enrich(c));
         assertEquals(0, mvExpand(c));
@@ -86,6 +88,7 @@ public class VerifierMetricsTests extends ESTestCase {
         assertEquals(0, limit(c));
         assertEquals(0, sort(c));
         assertEquals(0, stats(c));
+        assertEquals(0, promql(c));
         assertEquals(0, where(c));
         assertEquals(0, enrich(c));
         assertEquals(0, mvExpand(c));
@@ -111,6 +114,7 @@ public class VerifierMetricsTests extends ESTestCase {
         assertEquals(0, limit(c));
         assertEquals(0, sort(c));
         assertEquals(0, stats(c));
+        assertEquals(0, promql(c));
         assertEquals(0, where(c));
         assertEquals(0, enrich(c));
         assertEquals(0, mvExpand(c));
@@ -136,6 +140,7 @@ public class VerifierMetricsTests extends ESTestCase {
         assertEquals(1L, limit(c));
         assertEquals(0, sort(c));
         assertEquals(0, stats(c));
+        assertEquals(0, promql(c));
         assertEquals(0, where(c));
         assertEquals(0, enrich(c));
         assertEquals(0, mvExpand(c));
@@ -160,6 +165,7 @@ public class VerifierMetricsTests extends ESTestCase {
         assertEquals(0, limit(c));
         assertEquals(1L, sort(c));
         assertEquals(0, stats(c));
+        assertEquals(0, promql(c));
         assertEquals(0, where(c));
         assertEquals(0, enrich(c));
         assertEquals(0, mvExpand(c));
@@ -184,6 +190,7 @@ public class VerifierMetricsTests extends ESTestCase {
         assertEquals(0, limit(c));
         assertEquals(0, sort(c));
         assertEquals(1L, stats(c));
+        assertEquals(0, promql(c));
         assertEquals(0, where(c));
         assertEquals(0, enrich(c));
         assertEquals(0, mvExpand(c));
@@ -209,6 +216,7 @@ public class VerifierMetricsTests extends ESTestCase {
         assertEquals(0, limit(c));
         assertEquals(0, sort(c));
         assertEquals(0, stats(c));
+        assertEquals(0, promql(c));
         assertEquals(1L, where(c));
         assertEquals(0, enrich(c));
         assertEquals(0, mvExpand(c));
@@ -233,6 +241,7 @@ public class VerifierMetricsTests extends ESTestCase {
         assertEquals(1L, limit(c));
         assertEquals(1L, sort(c));
         assertEquals(0, stats(c));
+        assertEquals(0, promql(c));
         assertEquals(1L, where(c));
         assertEquals(0, enrich(c));
         assertEquals(0, mvExpand(c));
@@ -277,6 +286,7 @@ public class VerifierMetricsTests extends ESTestCase {
         assertEquals(1L, limit(c));
         assertEquals(2L, sort(c));
         assertEquals(1L, stats(c));
+        assertEquals(0, promql(c));
         assertEquals(2L, where(c));
         assertEquals(0, enrich(c));
         assertEquals(0, mvExpand(c));
@@ -365,6 +375,7 @@ public class VerifierMetricsTests extends ESTestCase {
         assertEquals(1L, limit(c));
         assertEquals(1L, sort(c));
         assertEquals(0, stats(c));
+        assertEquals(0, promql(c));
         assertEquals(0, where(c));
         assertEquals(1L, enrich(c));
         assertEquals(0, mvExpand(c));
@@ -399,6 +410,7 @@ public class VerifierMetricsTests extends ESTestCase {
         assertEquals(1L, limit(c));
         assertEquals(0, sort(c));
         assertEquals(0, stats(c));
+        assertEquals(0, promql(c));
         assertEquals(1L, where(c));
         assertEquals(0, enrich(c));
         assertEquals(1L, mvExpand(c));
@@ -423,6 +435,7 @@ public class VerifierMetricsTests extends ESTestCase {
         assertEquals(0, limit(c));
         assertEquals(0, sort(c));
         assertEquals(1L, stats(c));
+        assertEquals(0, promql(c));
         assertEquals(0, where(c));
         assertEquals(0, enrich(c));
         assertEquals(1L, mvExpand(c));
@@ -448,6 +461,7 @@ public class VerifierMetricsTests extends ESTestCase {
         assertEquals(0, limit(c));
         assertEquals(0, sort(c));
         assertEquals(0, stats(c));
+        assertEquals(0, promql(c));
         assertEquals(0, where(c));
         assertEquals(1L, enrich(c));
         assertEquals(0, mvExpand(c));
@@ -472,6 +486,7 @@ public class VerifierMetricsTests extends ESTestCase {
         assertEquals(0, limit(c));
         assertEquals(1L, sort(c));
         assertEquals(1L, stats(c));
+        assertEquals(0, promql(c));
         assertEquals(0, where(c));
         assertEquals(0, enrich(c));
         assertEquals(0, mvExpand(c));
@@ -502,6 +517,7 @@ public class VerifierMetricsTests extends ESTestCase {
         assertEquals(0, limit(c));
         assertEquals(0, sort(c));
         assertEquals(0, stats(c));
+        assertEquals(0, promql(c));
         assertEquals(1L, where(c));
         assertEquals(0, enrich(c));
         assertEquals(0, mvExpand(c));
@@ -530,6 +546,7 @@ public class VerifierMetricsTests extends ESTestCase {
         assertEquals(0, limit(c));
         assertEquals(0, sort(c));
         assertEquals(1L, stats(c));
+        assertEquals(0, promql(c));
         assertEquals(1L, where(c));
         assertEquals(0, enrich(c));
         assertEquals(0, mvExpand(c));
@@ -560,6 +577,7 @@ public class VerifierMetricsTests extends ESTestCase {
         assertEquals(0, limit(c));
         assertEquals(0, sort(c));
         assertEquals(0, stats(c));
+        assertEquals(0, promql(c));
         assertEquals(1L, where(c));
         assertEquals(0, enrich(c));
         assertEquals(0, mvExpand(c));
@@ -590,6 +608,7 @@ public class VerifierMetricsTests extends ESTestCase {
         assertEquals(0, limit(c));
         assertEquals(0, sort(c));
         assertEquals(1L, stats(c));
+        assertEquals(0, promql(c));
         assertEquals(1L, where(c));
         assertEquals(0, enrich(c));
         assertEquals(0, mvExpand(c));
@@ -619,6 +638,7 @@ public class VerifierMetricsTests extends ESTestCase {
         assertEquals(0, limit(c));
         assertEquals(0, sort(c));
         assertEquals(1L, stats(c));
+        assertEquals(0, promql(c));
         assertEquals(0, where(c));
         assertEquals(0, enrich(c));
         assertEquals(0, mvExpand(c));
@@ -653,6 +673,7 @@ public class VerifierMetricsTests extends ESTestCase {
         assertEquals(0, limit(c));
         assertEquals(0, sort(c));
         assertEquals(1L, stats(c));
+        assertEquals(0, promql(c));
         assertEquals(0, where(c));
         assertEquals(0, enrich(c));
         assertEquals(0, mvExpand(c));
@@ -683,6 +704,7 @@ public class VerifierMetricsTests extends ESTestCase {
         assertEquals(0, limit(c));
         assertEquals(0, sort(c));
         assertEquals(0, stats(c));
+        assertEquals(0, promql(c));
         assertEquals(0, where(c));
         assertEquals(0, enrich(c));
         assertEquals(0, mvExpand(c));
@@ -711,6 +733,7 @@ public class VerifierMetricsTests extends ESTestCase {
         assertEquals(0, limit(c));
         assertEquals(0, sort(c));
         assertEquals(1L, stats(c));
+        assertEquals(0, promql(c));
         assertEquals(0, where(c));
         assertEquals(0, enrich(c));
         assertEquals(0, mvExpand(c));
@@ -740,6 +763,7 @@ public class VerifierMetricsTests extends ESTestCase {
         assertEquals(0, limit(c));
         assertEquals(0, sort(c));
         assertEquals(0, stats(c));
+        assertEquals(0, promql(c));
         assertEquals(0, where(c));
         assertEquals(0, enrich(c));
         assertEquals(0, mvExpand(c));
@@ -771,6 +795,7 @@ public class VerifierMetricsTests extends ESTestCase {
         assertEquals(0, limit(c));
         assertEquals(0, sort(c));
         assertEquals(1L, stats(c));
+        assertEquals(0, promql(c));
         assertEquals(1L, where(c));
         assertEquals(0, enrich(c));
         assertEquals(0, mvExpand(c));
@@ -787,6 +812,35 @@ public class VerifierMetricsTests extends ESTestCase {
         assertEquals(1L, subqueryInFromCommand(c));
         assertEquals(1L, function("max", c));
         assertEquals(1L, function("min", c));
+    }
+
+    @AwaitsFix(bugUrl = "unresolved @timestamp field")
+    public void testPromql() {
+        assumeTrue("PromQL required", EsqlCapabilities.Cap.PROMQL_V0.isEnabled());
+        Counters c = esql("""
+            TS metrics
+            | PROMQL step 5m (sum(salary))""");
+        assertEquals(0, dissect(c));
+        assertEquals(0, eval(c));
+        assertEquals(0, grok(c));
+        assertEquals(0, limit(c));
+        assertEquals(0, sort(c));
+        assertEquals(0, stats(c));
+        assertEquals(1, promql(c));
+        assertEquals(0, where(c));
+        assertEquals(0, enrich(c));
+        assertEquals(0, mvExpand(c));
+        assertEquals(0, show(c));
+        assertEquals(0, row(c));
+        assertEquals(0, from(c));
+        assertEquals(1L, ts(c));
+        assertEquals(0, drop(c));
+        assertEquals(0, keep(c));
+        assertEquals(0, rename(c));
+        assertEquals(0, inlineStats(c));
+        assertEquals(0, lookupJoinOnFields(c));
+        assertEquals(0, lookupJoinOnExpression(c));
+        assertEquals(0, subqueryInFromCommand(c));
     }
 
     private long dissect(Counters c) {
@@ -839,6 +893,10 @@ public class VerifierMetricsTests extends ESTestCase {
 
     private long ts(Counters c) {
         return c.get(FEATURES_PREFIX + TS);
+    }
+
+    private long promql(Counters c) {
+        return c.get(FEATURES_PREFIX + PROMQL);
     }
 
     private long drop(Counters c) {

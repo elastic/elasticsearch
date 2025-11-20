@@ -77,6 +77,7 @@ import org.elasticsearch.xpack.esql.expression.function.aggregate.SumOverTime;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.SummationMode;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Values;
 import org.elasticsearch.xpack.esql.expression.function.grouping.GroupingFunction;
+import org.elasticsearch.xpack.esql.expression.function.inference.CompletionFunction;
 import org.elasticsearch.xpack.esql.expression.function.inference.InferenceFunction;
 import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlScalarFunction;
 import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.Case;
@@ -139,6 +140,7 @@ import org.elasticsearch.xpack.esql.plan.logical.join.LookupJoin;
 import org.elasticsearch.xpack.esql.plan.logical.local.EsqlProject;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalSupplier;
+import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlCommand;
 import org.elasticsearch.xpack.esql.rule.ParameterizedRule;
 import org.elasticsearch.xpack.esql.rule.ParameterizedRuleExecutor;
 import org.elasticsearch.xpack.esql.rule.Rule;
@@ -516,6 +518,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 case Insist i -> resolveInsist(i, childrenOutput, context);
                 case Fuse fuse -> resolveFuse(fuse, childrenOutput);
                 case Rerank r -> resolveRerank(r, childrenOutput);
+                case PromqlCommand promql -> resolvePromql(promql, childrenOutput);
                 default -> plan.transformExpressionsOnly(UnresolvedAttribute.class, ua -> maybeResolveAttribute(ua, childrenOutput));
             };
         }
@@ -1104,6 +1107,15 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             return resolveAggregate(new Aggregate(source, scoreEval, new ArrayList<>(keys), aggregates), childrenOutput);
         }
 
+        private LogicalPlan resolvePromql(PromqlCommand promql, List<Attribute> childrenOutput) {
+            LogicalPlan promqlPlan = promql.promqlPlan();
+            Function<UnresolvedAttribute, Expression> lambda = ua -> maybeResolveAttribute(ua, childrenOutput);
+            // resolve the nested plan
+            return promql.withPromqlPlan(promqlPlan.transformExpressionsDown(UnresolvedAttribute.class, lambda))
+                // but also any unresolved expressions
+                .transformExpressionsOnly(UnresolvedAttribute.class, lambda);
+        }
+
         private Attribute maybeResolveAttribute(UnresolvedAttribute ua, List<Attribute> childrenOutput) {
             return maybeResolveAttribute(ua, childrenOutput, log);
         }
@@ -1465,8 +1477,8 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
 
         @Override
         public LogicalPlan apply(LogicalPlan plan, AnalyzerContext context) {
-            return plan.transformDown(InferencePlan.class, p -> resolveInferencePlan(p, context))
-                .transformExpressionsOnly(InferenceFunction.class, f -> resolveInferenceFunction(f, context));
+            return plan.transformExpressionsOnly(InferenceFunction.class, f -> resolveInferenceFunction(f, context))
+                .transformDown(InferencePlan.class, p -> resolveInferencePlan(p, context));
         }
 
         private LogicalPlan resolveInferencePlan(InferencePlan<?> plan, AnalyzerContext context) {
@@ -1491,6 +1503,28 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                     + plan.taskType()
                     + "] are supported.";
                 return plan.withInferenceResolutionError(inferenceId, error);
+            }
+
+            if (plan.isFoldable()) {
+                // Transform foldable InferencePlan to Eval with function call
+                return transformToEval(plan, inferenceId);
+            }
+
+            return plan;
+        }
+
+        /**
+         * Transforms a foldable InferencePlan to an Eval with the appropriate function call.
+         */
+        private LogicalPlan transformToEval(InferencePlan<?> plan, String inferenceId) {
+            Expression inferenceIdLiteral = Literal.keyword(plan.inferenceId().source(), inferenceId);
+            Source source = plan.source();
+            LogicalPlan child = plan.child();
+
+            if (plan instanceof Completion completion) {
+                CompletionFunction completionFunction = new CompletionFunction(source, completion.prompt(), inferenceIdLiteral);
+                Alias alias = new Alias(source, completion.targetField().name(), completionFunction, completion.targetField().id());
+                return new Eval(source, child, List.of(alias));
             }
 
             return plan;
@@ -1942,13 +1976,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 }
 
                 if (missing.isEmpty() == false) {
-                    return new EsRelation(
-                        esr.source(),
-                        esr.indexPattern(),
-                        esr.indexMode(),
-                        esr.indexNameWithModes(),
-                        CollectionUtils.combine(esr.output(), missing)
-                    );
+                    return esr.withAttributes(CollectionUtils.combine(esr.output(), missing));
                 }
                 return esr;
             });

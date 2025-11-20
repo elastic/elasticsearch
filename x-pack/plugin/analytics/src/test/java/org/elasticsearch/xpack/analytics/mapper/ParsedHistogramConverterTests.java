@@ -16,6 +16,7 @@ import org.elasticsearch.exponentialhistogram.ExponentialHistogramCircuitBreaker
 import org.elasticsearch.exponentialhistogram.ExponentialHistogramMerger;
 import org.elasticsearch.exponentialhistogram.ExponentialHistogramTestUtils;
 import org.elasticsearch.exponentialhistogram.ExponentialHistogramXContent;
+import org.elasticsearch.exponentialhistogram.ExponentialScaleUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
@@ -26,12 +27,96 @@ import org.elasticsearch.xpack.oteldata.otlp.datapoint.DataPoint;
 import org.elasticsearch.xpack.oteldata.otlp.docbuilder.MappingHints;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.stream.LongStream;
 
 import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.lessThan;
 
 public class ParsedHistogramConverterTests extends ESTestCase {
+
+    public void testExponentialHistogramRoundTrip() {
+        ExponentialHistogram input = ExponentialHistogramTestUtils.randomHistogram();
+        HistogramParser.ParsedHistogram tdigest = ParsedHistogramConverter.exponentialToTDigest(toParsed(input));
+        ExponentialHistogramParser.ParsedExponentialHistogram output = ParsedHistogramConverter.tDigestToExponential(tdigest);
+
+        // the conversion looses the width of the original buckets, but the bucket centers (arithmetic mean of boundaries)
+        // should be very close
+
+        assertThat(output.zeroCount(), equalTo(input.zeroBucket().count()));
+        assertArithmeticBucketCentersClose(input.negativeBuckets().iterator(), output.negativeBuckets(), output.scale());
+        assertArithmeticBucketCentersClose(input.positiveBuckets().iterator(), output.positiveBuckets(), output.scale());
+    }
+
+    private static void assertArithmeticBucketCentersClose(
+        BucketIterator originalBuckets,
+        List<IndexWithCount> convertedBuckets,
+        int convertedScale
+    ) {
+        for (IndexWithCount convertedBucket : convertedBuckets) {
+            assertThat(originalBuckets.hasNext(), equalTo(true));
+
+            double originalCenter = (ExponentialScaleUtils.getLowerBucketBoundary(originalBuckets.peekIndex(), originalBuckets.scale())
+                + ExponentialScaleUtils.getUpperBucketBoundary(originalBuckets.peekIndex(), originalBuckets.scale())) / 2.0;
+            double convertedCenter = (ExponentialScaleUtils.getLowerBucketBoundary(convertedBucket.index(), convertedScale)
+                + ExponentialScaleUtils.getUpperBucketBoundary(convertedBucket.index(), convertedScale)) / 2.0;
+
+            double relativeError = Math.abs(convertedCenter - originalCenter) / Math.abs(originalCenter);
+            assertThat(
+                "original center=" + originalCenter + ", converted center=" + convertedCenter + ", relative error=" + relativeError,
+                relativeError,
+                closeTo(0, 0.0000001)
+            );
+
+            originalBuckets.advance();
+        }
+        assertThat(originalBuckets.hasNext(), equalTo(false));
+    }
+
+    public void testToExponentialHistogramConversionWithCloseCentroids() {
+        // build a t-digest with two centroids very close to each other
+        List<Double> centroids = List.of(1.0, Math.nextAfter(1.0, 2));
+        List<Long> counts = List.of(1L, 2L);
+
+        HistogramParser.ParsedHistogram input = new HistogramParser.ParsedHistogram(centroids, counts);
+        ExponentialHistogramParser.ParsedExponentialHistogram converted = ParsedHistogramConverter.tDigestToExponential(input);
+
+        assertThat(converted.zeroCount(), equalTo(0L));
+        List<IndexWithCount> posBuckets = converted.positiveBuckets();
+        assertThat(posBuckets.size(), equalTo(2));
+        assertThat(posBuckets.get(0).index(), lessThan(posBuckets.get(1).index()));
+        assertThat(posBuckets.get(0).count(), equalTo(1L));
+        assertThat(posBuckets.get(1).count(), equalTo(2L));
+    }
+
+    public void testToExponentialHistogramConversionWithZeroCounts() {
+        // build a t-digest with two centroids very close to each other
+        List<Double> centroids = List.of(1.0, 2.0, 3.0);
+        List<Long> counts = List.of(1L, 0L, 2L);
+
+        HistogramParser.ParsedHistogram input = new HistogramParser.ParsedHistogram(centroids, counts);
+        ExponentialHistogramParser.ParsedExponentialHistogram converted = ParsedHistogramConverter.tDigestToExponential(input);
+
+        assertThat(converted.zeroCount(), equalTo(0L));
+        List<IndexWithCount> posBuckets = converted.positiveBuckets();
+        assertThat(posBuckets.size(), equalTo(2));
+        assertThat(posBuckets.get(0).index(), lessThan(posBuckets.get(1).index()));
+        assertThat(posBuckets.get(0).count(), equalTo(1L));
+        assertThat(posBuckets.get(1).count(), equalTo(2L));
+    }
+
+    public void testToTDigestConversionMergesCentroids() {
+        // build a histogram with two buckets very close to zero
+        ExponentialHistogram input = ExponentialHistogram.builder(ExponentialHistogram.MAX_SCALE, ExponentialHistogramCircuitBreaker.noop())
+            .setPositiveBucket(ExponentialHistogram.MIN_INDEX, 1)
+            .setPositiveBucket(ExponentialHistogram.MIN_INDEX + 1, 2)
+            .build();
+        // due to rounding errors they end up as the same centroid, but should have the count merged
+        HistogramParser.ParsedHistogram converted = ParsedHistogramConverter.exponentialToTDigest(toParsed(input));
+        assertThat(converted.values(), equalTo(List.of(0.0)));
+        assertThat(converted.counts(), equalTo(List.of(3L)));
+    }
 
     public void testSameConversionBehaviourAsOtlpMetricsEndpoint() {
         // our histograms are sparse, opentelemetry ones are dense.

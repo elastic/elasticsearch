@@ -7,11 +7,11 @@
 
 package org.elasticsearch.xpack.analytics.rate;
 
+import org.apache.lucene.search.DoubleValues;
 import org.elasticsearch.common.Rounding;
 import org.elasticsearch.common.util.DoubleArray;
 import org.elasticsearch.common.util.LongArray;
 import org.elasticsearch.core.Releasables;
-import org.elasticsearch.index.fielddata.NumericDoubleValues;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.MultiValueMode;
 import org.elasticsearch.search.aggregations.AggregationExecutionContext;
@@ -107,7 +107,7 @@ public final class TimeSeriesRateAggregator extends NumericMetricsAggregator.Sin
 
     @Override
     protected LeafBucketCollector getLeafCollector(AggregationExecutionContext aggCtx, LeafBucketCollector sub) throws IOException {
-        NumericDoubleValues leafValues = MultiValueMode.MAX.select(valuesSource.doubleValues(aggCtx.getLeafReaderContext()));
+        DoubleValues leafValues = MultiValueMode.MAX.select(valuesSource.doubleValues(aggCtx.getLeafReaderContext()));
         return new LeafBucketCollectorBase(sub, null) {
             @Override
             public void collect(int doc, long bucket) throws IOException {

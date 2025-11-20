@@ -18,14 +18,12 @@ import org.openjdk.jmh.annotations.Param;
 
 import java.util.Arrays;
 
-import static org.elasticsearch.benchmark.vector.BenchmarkUtils.supportsHeapSegments;
+public class Int7uBulkScorerBenchmarkTests extends ESTestCase {
 
-public class Int7uScorerBenchmarkTests extends ESTestCase {
-
-    final double delta = 1e-3;
+    final float delta = 1e-3f;
     final int dims;
 
-    public Int7uScorerBenchmarkTests(int dims) {
+    public Int7uBulkScorerBenchmarkTests(int dims) {
         this.dims = dims;
     }
 
@@ -34,40 +32,35 @@ public class Int7uScorerBenchmarkTests extends ESTestCase {
         assumeFalse("doesn't work on windows yet", Constants.WINDOWS);
     }
 
-    public void testDotProduct() throws Exception {
+    public void testDotProductSequential() throws Exception {
         for (int i = 0; i < 100; i++) {
-            var bench = new Int7uScorerBenchmark();
+            var bench = new Int7uBulkScorerBenchmark();
             bench.dims = dims;
+            bench.numVectors = 1000;
+            bench.numVectorsToScore = 200;
             bench.setup();
             try {
-                float expected = bench.dotProductScalar();
-                assertEquals(expected, bench.dotProductLucene(), delta);
-                assertEquals(expected, bench.dotProductNative(), delta);
-
-                if (supportsHeapSegments()) {
-                    expected = bench.dotProductLuceneQuery();
-                    assertEquals(expected, bench.dotProductNativeQuery(), delta);
-                }
+                float[] expected = bench.dotProductScalarMultipleSequential();
+                assertArrayEquals(expected, bench.dotProductLuceneMultipleSequential(), delta);
+                assertArrayEquals(expected, bench.dotProductNativeMultipleSequential(), delta);
             } finally {
                 bench.teardown();
             }
         }
     }
 
-    public void testSquareDistance() throws Exception {
+    public void testDotProductRandom() throws Exception {
         for (int i = 0; i < 100; i++) {
-            var bench = new Int7uScorerBenchmark();
+            var bench = new Int7uBulkScorerBenchmark();
             bench.dims = dims;
+            bench.numVectors = 1000;
+            bench.numVectorsToScore = 200;
             bench.setup();
             try {
-                float expected = bench.squareDistanceScalar();
-                assertEquals(expected, bench.squareDistanceLucene(), delta);
-                assertEquals(expected, bench.squareDistanceNative(), delta);
-
-                if (supportsHeapSegments()) {
-                    expected = bench.squareDistanceLuceneQuery();
-                    assertEquals(expected, bench.squareDistanceNativeQuery(), delta);
-                }
+                float[] expected = bench.dotProductScalarMultipleRandom();
+                assertArrayEquals(expected, bench.dotProductLuceneMultipleRandom(), delta);
+                assertArrayEquals(expected, bench.dotProductNativeMultipleRandom(), delta);
+                assertArrayEquals(expected, bench.dotProductNativeMultipleRandomBulk(), delta);
             } finally {
                 bench.teardown();
             }

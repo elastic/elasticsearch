@@ -60,6 +60,7 @@ processingCommand
     | mvExpandCommand
     | joinCommand
     | changePointCommand
+    | sparklineCommand
     | completionCommand
     | sampleCommand
     | forkCommand
@@ -297,6 +298,10 @@ sampleCommand
 
 changePointCommand
     : CHANGE_POINT value=qualifiedName (ON key=qualifiedName)? (AS targetType=qualifiedName COMMA targetPvalue=qualifiedName)?
+    ;
+
+sparklineCommand
+    : SPARKLINE value=field ON key=field (BY grouping=fields)?
     ;
 
 forkCommand

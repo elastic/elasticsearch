@@ -45,6 +45,7 @@ import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.expression.Order;
 import org.elasticsearch.xpack.esql.expression.UnresolvedNamePattern;
 import org.elasticsearch.xpack.esql.expression.function.UnresolvedFunction;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.Top;
 import org.elasticsearch.xpack.esql.expression.predicate.Predicates;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.BinaryLogic;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.Not;
@@ -469,7 +470,10 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
     private Stats stats(Source source, EsqlBaseParser.FieldsContext groupingsCtx, EsqlBaseParser.AggFieldsContext aggregatesCtx) {
         List<NamedExpression> groupings = visitGrouping(groupingsCtx);
         List<NamedExpression> aggregates = new ArrayList<>(visitAggFields(aggregatesCtx));
+        return stats(source, groupings, aggregates);
+    }
 
+    private Stats stats(Source source, List<? extends NamedExpression> groupings, List<NamedExpression> aggregates) {
         if (aggregates.isEmpty() && groupings.isEmpty()) {
             throw new ParsingException(source, "At least one aggregation or grouping expression required in [{}]", source.text());
         }
@@ -672,6 +676,36 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
             DataType.DOUBLE
         );
         return child -> new ChangePoint(src, child, value, key, targetType, targetPvalue);
+    }
+
+    @Override
+    public PlanFactory visitSparklineCommand(EsqlBaseParser.SparklineCommandContext ctx) {
+        Source src = source(ctx);
+
+        Alias value = visitField(ctx.value, "Trend");
+        Alias key = visitField(ctx.key, "Timestamps");
+        List<NamedExpression> groupings = visitGrouping(ctx.grouping);
+
+        Literal limit = new Literal(Source.EMPTY, 50, DataType.INTEGER);
+        Literal order = new Literal(Source.EMPTY, new BytesRef("asc"), DataType.KEYWORD);
+
+        List<NamedExpression> intermediateGroupings = new ArrayList<>(groupings);
+        intermediateGroupings.add(key);
+        List<NamedExpression> intermediateAggregates = List.of(value);
+        Stats intermediateStats = stats(src, intermediateGroupings, new ArrayList<>(intermediateAggregates));
+
+        Top topKeysAgg = new Top(Source.EMPTY, key.child(), limit, order, null);
+        Alias topKeysAttribute = new Alias(Source.EMPTY, key.name(), topKeysAgg);
+        Top topValuesAgg = new Top(Source.EMPTY, key.child(), limit, order, value.child());
+        Alias topValuesAttribute = new Alias(Source.EMPTY, value.name(), topValuesAgg);
+        List<Alias> aggregates = List.of(topKeysAttribute, topValuesAttribute);
+        Stats stats = stats(src, groupings, new ArrayList<>(aggregates));
+
+        return child -> {
+            Aggregate intermediateAggregate = new Aggregate(source(ctx), child, intermediateStats.groupings, intermediateStats.aggregates);
+            Aggregate aggregate = new Aggregate(source(ctx), intermediateAggregate, stats.groupings, stats.aggregates);
+            return aggregate;
+        };
     }
 
     private static Tuple<Mode, String> parsePolicyName(EsqlBaseParser.EnrichPolicyNameContext ctx) {

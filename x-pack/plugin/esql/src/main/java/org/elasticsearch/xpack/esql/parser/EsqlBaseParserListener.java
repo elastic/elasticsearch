@@ -642,6 +642,16 @@ public interface EsqlBaseParserListener extends ParseTreeListener {
    */
   void exitChangePointCommand(EsqlBaseParser.ChangePointCommandContext ctx);
   /**
+   * Enter a parse tree produced by {@link EsqlBaseParser#sparklineCommand}.
+   * @param ctx the parse tree
+   */
+  void enterSparklineCommand(EsqlBaseParser.SparklineCommandContext ctx);
+  /**
+   * Exit a parse tree produced by {@link EsqlBaseParser#sparklineCommand}.
+   * @param ctx the parse tree
+   */
+  void exitSparklineCommand(EsqlBaseParser.SparklineCommandContext ctx);
+  /**
    * Enter a parse tree produced by {@link EsqlBaseParser#forkCommand}.
    * @param ctx the parse tree
    */

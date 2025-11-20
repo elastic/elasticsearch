@@ -18,6 +18,7 @@ RERANK : 'rerank'             -> pushMode(EXPRESSION_MODE);
 ROW : 'row'                   -> pushMode(EXPRESSION_MODE);
 SAMPLE : 'sample'             -> pushMode(EXPRESSION_MODE);
 SORT : 'sort'                 -> pushMode(EXPRESSION_MODE);
+SPARKLINE : 'sparkline'       -> pushMode(EXPRESSION_MODE);
 STATS : 'stats'               -> pushMode(EXPRESSION_MODE);
 WHERE : 'where'               -> pushMode(EXPRESSION_MODE);
 

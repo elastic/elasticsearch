@@ -925,12 +925,20 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
     }
 
     private Alias visitField(EsqlBaseParser.FieldContext ctx, Source source) {
+        return visitField(ctx, source, source.text());
+    }
+
+    public Alias visitField(EsqlBaseParser.FieldContext ctx, String defaultName) {
+        return visitField(ctx, source(ctx), defaultName);
+    }
+
+    private Alias visitField(EsqlBaseParser.FieldContext ctx, Source source, String defaultName) {
         UnresolvedAttribute id = visitQualifiedName(ctx.qualifiedName());
         if (id != null && id.qualifier() != null) {
             throw qualifiersUnsupportedInFieldDefinitions(source, ctx.qualifiedName().getText());
         }
         Expression value = expression(ctx.booleanExpression());
-        String name = id == null ? source.text() : id.name();
+        String name = id == null ? defaultName : id.name();
         return new Alias(source, name, value);
     }
 

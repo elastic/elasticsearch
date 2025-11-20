@@ -492,7 +492,8 @@ public class BalancedShardsAllocator implements ShardsAllocator {
             // balance the shard, if a better node can be found
             final float currentWeight = sorter.getWeightFunction().calculateNodeWeightWithIndex(this, currentNode, index);
             final AllocationDeciders deciders = allocation.deciders();
-            // Rebalancing should not relocate a shard to a NO or NOT_PREFERRED node.
+            // Rebalancing should not relocate a shard to a NO or NOT_PREFERRED node. The target node will only be chosen if a better
+            // decision than this default is found.
             Type bestRebalanceCanAllocateDecisionType = Type.NOT_PREFERRED;
             ModelNode targetNode = null;
             List<Tuple<ModelNode, Decision>> betterBalanceNodes = new ArrayList<>();

@@ -104,6 +104,8 @@ import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
+import org.elasticsearch.search.crossproject.CrossProjectRoutingResolver;
+import org.elasticsearch.search.crossproject.ProjectRoutingResolver;
 import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.threadpool.ExecutorBuilder;
@@ -645,6 +647,7 @@ public class Security extends Plugin
     private final SetOnce<RemoteClusterSecurityExtension.Provider> remoteClusterSecurityExtensionProvider = new SetOnce<>();
     private final SetOnce<RemoteClusterSecurityExtension> remoteClusterSecurityExtension = new SetOnce<>();
     private final SetOnce<RemoteClusterAuthenticationService> remoteClusterAuthenticationService = new SetOnce<>();
+    private final SetOnce<ProjectRoutingResolver> projectRoutingResolver = new SetOnce<>();
 
     private final SetOnce<SecurityMigrations.Manager> migrationManager = new SetOnce<>();
     private final SetOnce<List<Closeable>> closableComponents = new SetOnce<>();
@@ -1166,8 +1169,11 @@ public class Security extends Plugin
             linkedProjectConfigService,
             projectResolver,
             authorizedProjectsResolver,
-            new CrossProjectModeDecider(settings)
+            new CrossProjectModeDecider(settings),
+            projectRoutingResolver.get()
         );
+
+        components.add(new PluginComponentBinding<>(ProjectRoutingResolver.class, projectRoutingResolver.get()));
 
         components.add(nativeRolesStore); // used by roles actions
         components.add(reservedRolesStore); // used by roles actions
@@ -2557,6 +2563,7 @@ public class Security extends Plugin
             RemoteClusterSecurityExtension.Provider.class,
             CrossClusterAccessSecurityExtension.Provider::new
         );
+        loadSingletonExtensionAndSetOnce(loader, projectRoutingResolver, ProjectRoutingResolver.class, CrossProjectRoutingResolver::new);
     }
 
     private <T> void loadSingletonExtensionAndSetOnce(ExtensionLoader loader, SetOnce<T> setOnce, Class<T> clazz) {

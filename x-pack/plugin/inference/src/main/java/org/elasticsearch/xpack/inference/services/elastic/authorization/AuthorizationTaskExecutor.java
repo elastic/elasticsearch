@@ -26,6 +26,7 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.FixForMultiProject;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.persistent.AllocatedPersistentTask;
 import org.elasticsearch.persistent.ClusterPersistentTasksCustomMetadata;
@@ -40,6 +41,7 @@ import org.elasticsearch.transport.RemoteTransportException;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xpack.inference.InferenceFeatures;
 import org.elasticsearch.xpack.inference.common.BroadcastMessageAction;
 
 import java.io.IOException;
@@ -68,14 +70,20 @@ public class AuthorizationTaskExecutor extends PersistentTasksExecutor<Authoriza
     private final AuthorizationPoller.Parameters pollerParameters;
     private final AtomicReference<AuthorizationPoller> currentTask = new AtomicReference<>();
     private final AtomicBoolean running = new AtomicBoolean(false);
+    private final FeatureService featureService;
 
-    public static AuthorizationTaskExecutor create(ClusterService clusterService, AuthorizationPoller.Parameters parameters) {
+    public static AuthorizationTaskExecutor create(
+        ClusterService clusterService,
+        FeatureService featureService,
+        AuthorizationPoller.Parameters parameters
+    ) {
         Objects.requireNonNull(clusterService);
         Objects.requireNonNull(parameters);
 
         return new AuthorizationTaskExecutor(
             clusterService,
             new PersistentTasksService(clusterService, parameters.serviceComponents().threadPool(), parameters.client()),
+            featureService,
             parameters
         );
     }
@@ -84,10 +92,12 @@ public class AuthorizationTaskExecutor extends PersistentTasksExecutor<Authoriza
     AuthorizationTaskExecutor(
         ClusterService clusterService,
         PersistentTasksService persistentTasksService,
+        FeatureService featureService,
         AuthorizationPoller.Parameters pollerParameters
     ) {
         super(TASK_NAME, pollerParameters.serviceComponents().threadPool().executor(UTILITY_THREAD_POOL_NAME));
         this.clusterService = Objects.requireNonNull(clusterService);
+        this.featureService = Objects.requireNonNull(featureService);
         this.persistentTasksService = Objects.requireNonNull(persistentTasksService);
         this.pollerParameters = Objects.requireNonNull(pollerParameters);
     }
@@ -130,7 +140,7 @@ public class AuthorizationTaskExecutor extends PersistentTasksExecutor<Authoriza
     }
 
     private void sendStartRequest(@Nullable ClusterState state) {
-        if (running.get() == false || authorizationTaskExists(state)) {
+        if (shouldSkipCreatingTask(state)) {
             return;
         }
 
@@ -150,6 +160,22 @@ public class AuthorizationTaskExecutor extends PersistentTasksExecutor<Authoriza
                 }
             )
         );
+    }
+
+    private boolean shouldSkipCreatingTask(@Nullable ClusterState state) {
+        if (state == null) {
+            return true;
+        }
+
+        return clusterCanSupportFeature(state) == false || running.get() == false || authorizationTaskExists(state);
+    }
+
+    private boolean clusterCanSupportFeature(@Nullable ClusterState state) {
+        if (state == null) {
+            return false;
+        }
+
+        return state.clusterRecovered() && featureService.clusterHasFeature(state, InferenceFeatures.INFERENCE_AUTH_POLLER_PERSISTENT_TASK);
     }
 
     private static boolean authorizationTaskExists(@Nullable ClusterState state) {

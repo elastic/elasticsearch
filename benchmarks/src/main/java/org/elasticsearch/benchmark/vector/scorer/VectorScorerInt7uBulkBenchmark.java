@@ -65,23 +65,23 @@ import static org.elasticsearch.simdvec.VectorSimilarityType.DOT_PRODUCT;
 @BenchmarkMode(Mode.Throughput)
 @OutputTimeUnit(TimeUnit.SECONDS)
 @State(Scope.Thread)
-public class VectorScorerInt7uBulkScorerBenchmark {
+public class VectorScorerInt7uBulkBenchmark {
 
     static {
         LogConfigurator.configureESLogging(); // native access requires logging to be initialized
         if (supportsHeapSegments() == false) {
-            final Logger LOG = LogManager.getLogger(VectorScorerInt7uBulkScorerBenchmark.class);
+            final Logger LOG = LogManager.getLogger(VectorScorerInt7uBulkBenchmark.class);
             LOG.warn("*Query targets cannot run on " + "JDK " + Runtime.version());
         }
     }
 
-    @Param({"1024"})
+    @Param({ "1024" })
     public int dims;
 
     // 128k is typically enough to not fit in L1 (core) cache for most processors;
     // 1.5M is typically enough to not fit in L2 (core) cache;
     // 40M is typically enough to not fit in L3 cache
-    @Param({"128000", "1500000", "30000000"})
+    @Param({ "128000", "1500000", "30000000" })
     public int numVectors;
     public int numVectorsToScore = 20_000;
 
@@ -124,7 +124,8 @@ public class VectorScorerInt7uBulkScorerBenchmark {
         luceneDotScorer = luceneScoreSupplier(dotProductValues, VectorSimilarityFunction.DOT_PRODUCT).scorer();
         luceneDotScorer.setScoringOrdinal(targetOrd);
         nativeDotScorer = factory.getInt7SQVectorScorerSupplier(DOT_PRODUCT, in, dotProductValues, scoreCorrectionConstant)
-            .orElseThrow().scorer();
+            .orElseThrow()
+            .scorer();
         nativeDotScorer.setScoringOrdinal(targetOrd);
     }
 

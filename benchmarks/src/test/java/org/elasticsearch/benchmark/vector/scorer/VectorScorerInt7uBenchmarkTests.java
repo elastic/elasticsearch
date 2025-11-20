@@ -18,7 +18,7 @@ import org.openjdk.jmh.annotations.Param;
 
 import java.util.Arrays;
 
-import static org.elasticsearch.benchmark.vector.BenchmarkUtils.supportsHeapSegments;
+import static org.elasticsearch.benchmark.vector.scorer.BenchmarkUtils.supportsHeapSegments;
 
 public class VectorScorerInt7uBenchmarkTests extends ESTestCase {
 

@@ -40,20 +40,20 @@ import java.nio.file.Path;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.TimeUnit;
 
-import static org.elasticsearch.benchmark.vector.BenchmarkUtils.createRandomInt7VectorData;
-import static org.elasticsearch.benchmark.vector.BenchmarkUtils.getScorerFactoryOrDie;
-import static org.elasticsearch.benchmark.vector.BenchmarkUtils.luceneScoreSupplier;
-import static org.elasticsearch.benchmark.vector.BenchmarkUtils.luceneScorer;
-import static org.elasticsearch.benchmark.vector.BenchmarkUtils.readNodeCorrectionConstant;
-import static org.elasticsearch.benchmark.vector.BenchmarkUtils.supportsHeapSegments;
-import static org.elasticsearch.benchmark.vector.BenchmarkUtils.vectorValues;
+import static org.elasticsearch.benchmark.vector.scorer.BenchmarkUtils.createRandomInt7VectorData;
+import static org.elasticsearch.benchmark.vector.scorer.BenchmarkUtils.getScorerFactoryOrDie;
+import static org.elasticsearch.benchmark.vector.scorer.BenchmarkUtils.luceneScoreSupplier;
+import static org.elasticsearch.benchmark.vector.scorer.BenchmarkUtils.luceneScorer;
+import static org.elasticsearch.benchmark.vector.scorer.BenchmarkUtils.readNodeCorrectionConstant;
+import static org.elasticsearch.benchmark.vector.scorer.BenchmarkUtils.supportsHeapSegments;
+import static org.elasticsearch.benchmark.vector.scorer.BenchmarkUtils.vectorValues;
 import static org.elasticsearch.simdvec.VectorSimilarityType.DOT_PRODUCT;
 import static org.elasticsearch.simdvec.VectorSimilarityType.EUCLIDEAN;
 
 /**
  * Benchmark that compares various scalar quantized vector similarity function
  * implementations: scalar, lucene's panama-ized, and Elasticsearch's native.
- * Run with ./gradlew -p benchmarks run --args 'Int7uScorerBenchmark'
+ * Run with ./gradlew -p benchmarks run --args 'VectorScorerInt7uBenchmark'
  */
 @Fork(value = 1, jvmArgsPrepend = { "--add-modules=jdk.incubator.vector" })
 @Warmup(iterations = 3, time = 3)
@@ -114,9 +114,9 @@ public class VectorScorerInt7uBenchmark {
             .scorer();
         nativeDotScorer.setScoringOrdinal(0);
 
-        vec1 = dotProductValues.vectorValue(0);
+        vec1 = dotProductValues.vectorValue(0).clone();
         vec1CorrectionConstant = readNodeCorrectionConstant(dotProductValues, 0);
-        vec2 = dotProductValues.vectorValue(1);
+        vec2 = dotProductValues.vectorValue(1).clone();
         vec2CorrectionConstant = readNodeCorrectionConstant(dotProductValues, 1);
 
         final var euclideanValues = vectorValues(dims, numVectors, in, VectorSimilarityFunction.EUCLIDEAN);

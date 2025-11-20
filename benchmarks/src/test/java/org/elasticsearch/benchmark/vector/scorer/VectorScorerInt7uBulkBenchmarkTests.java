@@ -18,12 +18,12 @@ import org.openjdk.jmh.annotations.Param;
 
 import java.util.Arrays;
 
-public class VectorScorerInt7UBulkScorerBenchmarkTests extends ESTestCase {
+public class VectorScorerInt7uBulkBenchmarkTests extends ESTestCase {
 
     final float delta = 1e-3f;
     final int dims;
 
-    public VectorScorerInt7UBulkScorerBenchmarkTests(int dims) {
+    public VectorScorerInt7uBulkBenchmarkTests(int dims) {
         this.dims = dims;
     }
 
@@ -34,7 +34,7 @@ public class VectorScorerInt7UBulkScorerBenchmarkTests extends ESTestCase {
 
     public void testDotProductSequential() throws Exception {
         for (int i = 0; i < 100; i++) {
-            var bench = new VectorScorerInt7uBulkScorerBenchmark();
+            var bench = new VectorScorerInt7uBulkBenchmark();
             bench.dims = dims;
             bench.numVectors = 1000;
             bench.numVectorsToScore = 200;
@@ -51,7 +51,7 @@ public class VectorScorerInt7UBulkScorerBenchmarkTests extends ESTestCase {
 
     public void testDotProductRandom() throws Exception {
         for (int i = 0; i < 100; i++) {
-            var bench = new VectorScorerInt7uBulkScorerBenchmark();
+            var bench = new VectorScorerInt7uBulkBenchmark();
             bench.dims = dims;
             bench.numVectors = 1000;
             bench.numVectorsToScore = 200;
@@ -70,7 +70,7 @@ public class VectorScorerInt7UBulkScorerBenchmarkTests extends ESTestCase {
     @ParametersFactory
     public static Iterable<Object[]> parametersFactory() {
         try {
-            var params = Int7uScorerBenchmark.class.getField("dims").getAnnotationsByType(Param.class)[0].value();
+            var params = VectorScorerInt7uBulkBenchmark.class.getField("dims").getAnnotationsByType(Param.class)[0].value();
             return () -> Arrays.stream(params).map(Integer::parseInt).map(i -> new Object[] { i }).iterator();
         } catch (NoSuchFieldException e) {
             throw new AssertionError(e);

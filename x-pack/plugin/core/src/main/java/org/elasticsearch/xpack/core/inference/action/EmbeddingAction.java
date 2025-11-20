@@ -32,36 +32,27 @@ public class EmbeddingAction extends ActionType<InferenceAction.Response> {
         public static Request parseRequest(
             String inferenceEntityId,
             TaskType taskType,
-            boolean isStreaming,
             TimeValue timeout,
             InferenceContext context,
             XContentParser parser
         ) throws IOException {
             var embeddingRequest = EmbeddingRequest.PARSER.apply(parser, null);
-            return new Request(inferenceEntityId, taskType, embeddingRequest, isStreaming, context, timeout);
+            return new Request(inferenceEntityId, taskType, embeddingRequest, context, timeout);
         }
 
         private final String inferenceEntityId;
         private final TaskType taskType;
         private final EmbeddingRequest embeddingRequest;
-        private final boolean isStreaming;
         private final TimeValue timeout;
 
-        public Request(
-            String inferenceEntityId,
-            TaskType taskType,
-            EmbeddingRequest embeddingRequest,
-            boolean isStreaming,
-            TimeValue timeout
-        ) {
-            this(inferenceEntityId, taskType, embeddingRequest, isStreaming, InferenceContext.EMPTY_INSTANCE, timeout);
+        public Request(String inferenceEntityId, TaskType taskType, EmbeddingRequest embeddingRequest, TimeValue timeout) {
+            this(inferenceEntityId, taskType, embeddingRequest, InferenceContext.EMPTY_INSTANCE, timeout);
         }
 
         public Request(
             String inferenceEntityId,
             TaskType taskType,
             EmbeddingRequest embeddingRequest,
-            boolean isStreaming,
             InferenceContext context,
             TimeValue timeout
         ) {
@@ -69,7 +60,6 @@ public class EmbeddingAction extends ActionType<InferenceAction.Response> {
             this.inferenceEntityId = Objects.requireNonNull(inferenceEntityId);
             this.taskType = Objects.requireNonNull(taskType);
             this.embeddingRequest = Objects.requireNonNull(embeddingRequest);
-            this.isStreaming = isStreaming;
             this.timeout = Objects.requireNonNull(timeout);
         }
 
@@ -78,7 +68,6 @@ public class EmbeddingAction extends ActionType<InferenceAction.Response> {
             this.inferenceEntityId = in.readString();
             this.taskType = TaskType.fromStream(in);
             this.embeddingRequest = new EmbeddingRequest(in);
-            this.isStreaming = in.readBoolean();
             this.timeout = in.readTimeValue();
         }
 
@@ -95,7 +84,8 @@ public class EmbeddingAction extends ActionType<InferenceAction.Response> {
         }
 
         public boolean isStreaming() {
-            return isStreaming;
+            // streaming is not supported for the EMBEDDING task
+            return false;
         }
 
         public TimeValue getTimeout() {
@@ -131,7 +121,6 @@ public class EmbeddingAction extends ActionType<InferenceAction.Response> {
             out.writeString(inferenceEntityId);
             taskType.writeTo(out);
             embeddingRequest.writeTo(out);
-            out.writeBoolean(isStreaming);
             out.writeTimeValue(timeout);
         }
 
@@ -143,13 +132,12 @@ public class EmbeddingAction extends ActionType<InferenceAction.Response> {
                 && Objects.equals(inferenceEntityId, request.inferenceEntityId)
                 && taskType == request.taskType
                 && Objects.equals(embeddingRequest, request.embeddingRequest)
-                && isStreaming == request.isStreaming
                 && Objects.equals(timeout, request.timeout);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(super.hashCode(), inferenceEntityId, taskType, embeddingRequest, isStreaming, timeout);
+            return Objects.hash(super.hashCode(), inferenceEntityId, taskType, embeddingRequest, timeout);
         }
     }
 

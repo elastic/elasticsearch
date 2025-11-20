@@ -119,7 +119,6 @@ public class TransportInferenceActionProxy extends HandledTransportAction<Infere
             embeddingRequest = EmbeddingAction.Request.parseRequest(
                 request.getInferenceEntityId(),
                 request.getTaskType(),
-                request.isStreaming(),
                 request.getTimeout(),
                 request.getContext(),
                 parser

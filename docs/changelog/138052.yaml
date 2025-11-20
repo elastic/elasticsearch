@@ -2,4 +2,5 @@ pr: 138052
 summary: Include Secure Setting Names and Keystore Modified Time in Reload API Response
 area: Security
 type: enhancement
-issues: []
+issues:
+  - 112268

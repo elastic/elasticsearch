@@ -59,7 +59,9 @@ record CmdLineArgs(
     double writerBufferSizeInMb,
     int writerMaxBufferedDocs,
     int forceMergeMaxNumSegments,
-    boolean onDiskRescore
+    boolean onDiskRescore,
+    boolean doPrecondition,
+    int preconditioningDims
 ) implements ToXContentObject {
 
     static final ParseField DOC_VECTORS_FIELD = new ParseField("doc_vectors");
@@ -92,6 +94,8 @@ record CmdLineArgs(
     static final ParseField WRITER_BUFFER_MB_FIELD = new ParseField("writer_buffer_mb");
     static final ParseField WRITER_BUFFER_DOCS_FIELD = new ParseField("writer_buffer_docs");
     static final ParseField ON_DISK_RESCORE_FIELD = new ParseField("on_disk_rescore");
+    static final ParseField DO_PRECONDITION = new ParseField("do_precondition");
+    static final ParseField PRECONDITIONING_DIMS = new ParseField("preconditioning_dims");
 
     /** By default, in ES the default writer buffer size is 10% of the heap space
      * (see {@code IndexingMemoryController.INDEX_BUFFER_SIZE_SETTING}).
@@ -138,6 +142,8 @@ record CmdLineArgs(
         PARSER.declareInt(Builder::setWriterMaxBufferedDocs, WRITER_BUFFER_DOCS_FIELD);
         PARSER.declareInt(Builder::setForceMergeMaxNumSegments, FORCE_MERGE_MAX_NUM_SEGMENTS_FIELD);
         PARSER.declareBoolean(Builder::setOnDiskRescore, ON_DISK_RESCORE_FIELD);
+        PARSER.declareBoolean(Builder::setDoPrecondition, DO_PRECONDITION);
+        PARSER.declareInt(Builder::setPreconditioningDims, PRECONDITIONING_DIMS);
     }
 
     @Override
@@ -213,6 +219,8 @@ record CmdLineArgs(
         private KnnIndexTester.MergePolicyType mergePolicy = null;
         private double writerBufferSizeInMb = DEFAULT_WRITER_BUFFER_MB;
         private boolean onDiskRescore = false;
+        private boolean doPrecondition = false;
+        private int preconditioningDims = 64;
 
         /**
          * Elasticsearch does not set this explicitly, and in Lucene this setting is
@@ -369,6 +377,16 @@ record CmdLineArgs(
             return this;
         }
 
+        public Builder setDoPrecondition(boolean doPrecondition) {
+            this.doPrecondition = doPrecondition;
+            return this;
+        }
+
+        public Builder setPreconditioningDims(int preconditioningDims) {
+            this.preconditioningDims = preconditioningDims;
+            return this;
+        }
+
         public CmdLineArgs build() {
             if (docVectors == null) {
                 throw new IllegalArgumentException("Document vectors path must be provided");
@@ -407,7 +425,9 @@ record CmdLineArgs(
                 writerBufferSizeInMb,
                 writerMaxBufferedDocs,
                 forceMergeMaxNumSegments,
-                onDiskRescore
+                onDiskRescore,
+                doPrecondition,
+                preconditioningDims
             );
         }
     }

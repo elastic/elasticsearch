@@ -897,8 +897,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
             BestShardMovementsTracker.StoredShardMovement storedShardMovement,
             boolean shardMoved
         ) {
-            final boolean needToReassess = notPreferredLogger.isDebugEnabled() || shardMoved;
-            if (needToReassess == false) {
+            if (notPreferredLogger.isDebugEnabled() == false && shardMoved == false) {
                 return storedShardMovement.moveDecision();
             }
 

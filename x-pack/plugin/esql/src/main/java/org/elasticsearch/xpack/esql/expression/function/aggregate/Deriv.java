@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.expression.function.aggregate;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.compute.aggregation.AggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.DerivDoubleAggregatorFunctionSupplier;
+import org.elasticsearch.compute.aggregation.DerivIntAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.DerivLongAggregatorFunctionSupplier;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
@@ -108,7 +109,7 @@ public class Deriv extends TimeSeriesAggregateFunction implements ToAggregator {
         return switch (type) {
             case DOUBLE -> new DerivDoubleAggregatorFunctionSupplier();
             case LONG -> new DerivLongAggregatorFunctionSupplier();
-            case INTEGER -> new DerivLongAggregatorFunctionSupplier();
+            case INTEGER -> new DerivIntAggregatorFunctionSupplier();
             default -> throw new IllegalArgumentException("Unsupported data type for deriv aggregation: " + type);
         };
     }

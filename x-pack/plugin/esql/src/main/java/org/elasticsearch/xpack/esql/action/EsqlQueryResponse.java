@@ -147,7 +147,7 @@ public class EsqlQueryResponse extends org.elasticsearch.xpack.core.esql.action.
 
         long startTimeMillis = 0L;
         long expirationTimeMillis = 0L;
-        if(in.getTransportVersion().supports(ESQL_TIMESTAMPS_INFO)){
+        if (in.getTransportVersion().supports(ESQL_TIMESTAMPS_INFO)) {
             startTimeMillis = in.readLong();
             expirationTimeMillis = in.readLong();
         }
@@ -183,7 +183,7 @@ public class EsqlQueryResponse extends org.elasticsearch.xpack.core.esql.action.
         out.writeOptionalWriteable(profile);
         out.writeBoolean(columnar);
 
-        if(out.getTransportVersion().supports(ESQL_TIMESTAMPS_INFO)) {
+        if (out.getTransportVersion().supports(ESQL_TIMESTAMPS_INFO)) {
             out.writeLong(startTimeMillis);
             out.writeLong(expirationTimeMillis);
         }
@@ -276,44 +276,36 @@ public class EsqlQueryResponse extends org.elasticsearch.xpack.core.esql.action.
             }));
         }
         if (executionInfo != null && executionInfo.overallTook() != null) {
-            content.add(
-                ChunkedToXContentHelper.chunk(
-                    (builder, p) -> {
-                        builder //
-                            .field("took", executionInfo.overallTook().millis())
-                            .field(EsqlExecutionInfo.IS_PARTIAL_FIELD.getPreferredName(), executionInfo.isPartial());
+            content.add(ChunkedToXContentHelper.chunk((builder, p) -> {
+                builder //
+                    .field("took", executionInfo.overallTook().millis())
+                    .field(EsqlExecutionInfo.IS_PARTIAL_FIELD.getPreferredName(), executionInfo.isPartial());
 
-                        if(startTimeMillis != 0L){
-                            builder.timestampFieldsFromUnixEpochMillis(
-                                "completion_time_in_millis",
-                                "completion_time",
-                                startTimeMillis + executionInfo.overallTook().millis()
-                            );
-                        }
-
-                        return builder;
-                    }
-                )
-            );
-        }
-        content.add(
-            ChunkedToXContentHelper.chunk(
-                (builder, p) -> {
-                    builder //
-                        .field("documents_found", documentsFound)
-                        .field("values_loaded", valuesLoaded);
-
-                    if(startTimeMillis != 0L){
-                        builder.timestampFieldsFromUnixEpochMillis("start_time_in_millis", "start_time", startTimeMillis);
-                    }
-                    if(expirationTimeMillis != 0L){
-                        builder.timestampFieldsFromUnixEpochMillis("expiration_time_in_millis", "expiration_time", expirationTimeMillis);
-                    }
-
-                    return builder;
+                if (startTimeMillis != 0L) {
+                    builder.timestampFieldsFromUnixEpochMillis(
+                        "completion_time_in_millis",
+                        "completion_time",
+                        startTimeMillis + executionInfo.overallTook().millis()
+                    );
                 }
-            )
-        );
+
+                return builder;
+            }));
+        }
+        content.add(ChunkedToXContentHelper.chunk((builder, p) -> {
+            builder //
+                .field("documents_found", documentsFound)
+                .field("values_loaded", valuesLoaded);
+
+            if (startTimeMillis != 0L) {
+                builder.timestampFieldsFromUnixEpochMillis("start_time_in_millis", "start_time", startTimeMillis);
+            }
+            if (expirationTimeMillis != 0L) {
+                builder.timestampFieldsFromUnixEpochMillis("expiration_time_in_millis", "expiration_time", expirationTimeMillis);
+            }
+
+            return builder;
+        }));
         if (dropNullColumns) {
             content.add(ResponseXContentUtils.allColumns(columns, "all_columns"));
             content.add(ResponseXContentUtils.nonNullColumns(columns, nullColumns, "columns"));

@@ -24,6 +24,7 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.xpack.esql.action.EsqlResolveFieldsAction;
 import org.elasticsearch.xpack.esql.action.EsqlResolveFieldsResponse;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
@@ -257,15 +258,17 @@ public class IndexResolver {
             }
         }
 
-        Map<String, IndexMode> concreteIndices = Maps.newMapWithExpectedSize(fieldsInfo.caps.getIndexResponses().size());
-        for (FieldCapabilitiesIndexResponse ir : fieldsInfo.caps.getIndexResponses()) {
-            concreteIndices.put(ir.getIndexName(), ir.getIndexMode());
-        }
-
         boolean allEmpty = true;
+        Map<String, IndexMode> indexNameWithModes = Maps.newMapWithExpectedSize(fieldsInfo.caps.getIndexResponses().size());
+        Map<String, List<String>> concreteIndices = Maps.newHashMapWithExpectedSize(8);
         for (FieldCapabilitiesIndexResponse ir : fieldsInfo.caps.getIndexResponses()) {
             allEmpty &= ir.get().isEmpty();
+            indexNameWithModes.put(ir.getIndexName(), ir.getIndexMode());
+            var parts = RemoteClusterAware.splitIndexName(ir.getIndexName());
+            concreteIndices.computeIfAbsent(RemoteClusterAware.getClusterAlias(parts), k -> new ArrayList<>())
+                .add(RemoteClusterAware.getLocalIndexName(parts));
         }
+
         // If all the mappings are empty we return an empty set of resolved indices to line up with QL
         // Introduced with #46775
         // We need to be able to differentiate between an empty mapping index and an empty index due to fields not being found. An empty
@@ -275,13 +278,13 @@ public class IndexResolver {
         var index = new EsIndex(
             indexPattern,
             rootFields,
-            allEmpty ? Map.of() : concreteIndices,
+            allEmpty ? Map.of() : indexNameWithModes,
             Map.of(),
-            Map.of(),
+            concreteIndices,
             partiallyUnmappedFields
         );
         var failures = EsqlCCSUtils.groupFailuresPerCluster(fieldsInfo.caps.getFailures());
-        return IndexResolution.valid(index, concreteIndices.keySet(), failures);
+        return IndexResolution.valid(index, indexNameWithModes.keySet(), failures);
     }
 
     private record IndexFieldCapabilitiesWithSourceHash(List<IndexFieldCapabilities> fieldCapabilities, String indexMappingHash) {}

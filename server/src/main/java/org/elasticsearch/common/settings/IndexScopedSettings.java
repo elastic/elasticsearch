@@ -210,6 +210,7 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
                 IndexSettings.USE_TIME_SERIES_DOC_VALUES_FORMAT_SETTING,
                 InferenceMetadataFieldsMapper.USE_LEGACY_SEMANTIC_TEXT_FORMAT,
                 IndexSettings.USE_ES_812_POSTINGS_FORMAT,
+                IndexSettings.INTRA_MERGE_PARALLELISM_ENABLED_SETTING,
 
                 // validate that built-in similarities don't get redefined
                 Setting.groupSetting("index.similarity.", (s) -> {

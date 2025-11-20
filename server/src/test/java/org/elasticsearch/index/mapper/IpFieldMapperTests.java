@@ -225,7 +225,7 @@ public class IpFieldMapperTests extends MapperTestCase {
         assertDimension(true, IpFieldMapper.IpFieldType::isDimension);
         assertDimension(false, IpFieldMapper.IpFieldType::isDimension);
 
-        assertDimensionIndexing();
+        assertTimeSeriesIndexing();
     }
 
     public void testDimensionIndexedAndDocvalues() {

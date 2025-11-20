@@ -28,6 +28,10 @@ import java.io.IOException;
 
 import static org.elasticsearch.snapshots.SnapshotShardsService.getShardStateId;
 
+/**
+ * A factory implementation for creating {@link LocalPrimarySnapshotShardContext} instance from the primary shard
+ * running on the local node.
+ */
 public class LocalPrimarySnapshotShardContextFactory implements SnapshotShardContextFactory {
 
     private static final Logger logger = LogManager.getLogger(LocalPrimarySnapshotShardContextFactory.class);

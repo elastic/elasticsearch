@@ -35,6 +35,9 @@ import org.elasticsearch.snapshots.SnapshotId;
 import java.io.IOException;
 import java.util.Collection;
 
+/**
+ * A {@link SnapshotShardContext} implementation that reads data from a local primary shard for snapshotting.
+ */
 public final class LocalPrimarySnapshotShardContext extends SnapshotShardContext {
 
     private static final Logger logger = LogManager.getLogger(LocalPrimarySnapshotShardContext.class);

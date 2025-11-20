@@ -6,7 +6,7 @@
  * your election, the "Elastic License 2.0", the "GNU Affero General Public
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
-package org.elasticsearch.benchmark.vector;
+package org.elasticsearch.benchmark.vector.scorer;
 
 import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.store.Directory;
@@ -48,7 +48,7 @@ import java.util.concurrent.TimeUnit;
 @Measurement(iterations = 5, time = 1)
 // engage some noise reduction
 @Fork(value = 1)
-public class Int7ScorerBenchmark {
+public class VectorScorerInt7Benchmark {
 
     static {
         LogConfigurator.configureESLogging(); // native access requires logging to be initialized

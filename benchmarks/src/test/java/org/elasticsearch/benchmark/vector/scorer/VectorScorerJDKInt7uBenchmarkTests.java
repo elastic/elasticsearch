@@ -7,7 +7,7 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.benchmark.vector;
+package org.elasticsearch.benchmark.vector.scorer;
 
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
@@ -18,12 +18,12 @@ import org.openjdk.jmh.annotations.Param;
 
 import java.util.Arrays;
 
-public class JDKVectorInt7uBenchmarkTests extends ESTestCase {
+public class VectorScorerJDKInt7uBenchmarkTests extends ESTestCase {
 
     final double delta = 1e-3;
     final int size;
 
-    public JDKVectorInt7uBenchmarkTests(int size) {
+    public VectorScorerJDKInt7uBenchmarkTests(int size) {
         this.size = size;
     }
 
@@ -38,7 +38,7 @@ public class JDKVectorInt7uBenchmarkTests extends ESTestCase {
 
     public void testDotProduct() {
         for (int i = 0; i < 100; i++) {
-            var bench = new JDKVectorInt7uBenchmark();
+            var bench = new VectorScorerJDKInt7uBenchmark();
             bench.size = size;
             bench.init();
             try {
@@ -57,7 +57,7 @@ public class JDKVectorInt7uBenchmarkTests extends ESTestCase {
     @ParametersFactory
     public static Iterable<Object[]> parametersFactory() {
         try {
-            var params = JDKVectorInt7uBenchmark.class.getField("size").getAnnotationsByType(Param.class)[0].value();
+            var params = VectorScorerJDKInt7uBenchmark.class.getField("size").getAnnotationsByType(Param.class)[0].value();
             return () -> Arrays.stream(params).map(Integer::parseInt).map(i -> new Object[] { i }).iterator();
         } catch (NoSuchFieldException e) {
             throw new AssertionError(e);

@@ -7,7 +7,7 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.benchmark.vector;
+package org.elasticsearch.benchmark.vector.scorer;
 
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
@@ -18,12 +18,12 @@ import org.openjdk.jmh.annotations.Param;
 
 import java.util.Arrays;
 
-public class Int7uScorerBenchmarkTests extends ESTestCase {
+public class VectorScorerInt7uBenchmarkTests extends ESTestCase {
 
     final double delta = 1e-3;
     final int dims;
 
-    public Int7uScorerBenchmarkTests(int dims) {
+    public VectorScorerInt7uBenchmarkTests(int dims) {
         this.dims = dims;
     }
 
@@ -34,7 +34,7 @@ public class Int7uScorerBenchmarkTests extends ESTestCase {
 
     public void testDotProduct() throws Exception {
         for (int i = 0; i < 100; i++) {
-            var bench = new Int7uScorerBenchmark();
+            var bench = new VectorScorerInt7uBenchmark();
             bench.dims = dims;
             bench.setup();
             try {
@@ -42,7 +42,7 @@ public class Int7uScorerBenchmarkTests extends ESTestCase {
                 assertEquals(expected, bench.dotProductLucene(), delta);
                 assertEquals(expected, bench.dotProductNative(), delta);
 
-                if (Int7uScorerBenchmark.supportsHeapSegments()) {
+                if (VectorScorerInt7uBenchmark.supportsHeapSegments()) {
                     expected = bench.dotProductLuceneQuery();
                     assertEquals(expected, bench.dotProductNativeQuery(), delta);
                 }
@@ -54,7 +54,7 @@ public class Int7uScorerBenchmarkTests extends ESTestCase {
 
     public void testSquareDistance() throws Exception {
         for (int i = 0; i < 100; i++) {
-            var bench = new Int7uScorerBenchmark();
+            var bench = new VectorScorerInt7uBenchmark();
             bench.dims = dims;
             bench.setup();
             try {
@@ -62,7 +62,7 @@ public class Int7uScorerBenchmarkTests extends ESTestCase {
                 assertEquals(expected, bench.squareDistanceLucene(), delta);
                 assertEquals(expected, bench.squareDistanceNative(), delta);
 
-                if (Int7uScorerBenchmark.supportsHeapSegments()) {
+                if (VectorScorerInt7uBenchmark.supportsHeapSegments()) {
                     expected = bench.squareDistanceLuceneQuery();
                     assertEquals(expected, bench.squareDistanceNativeQuery(), delta);
                 }
@@ -75,7 +75,7 @@ public class Int7uScorerBenchmarkTests extends ESTestCase {
     @ParametersFactory
     public static Iterable<Object[]> parametersFactory() {
         try {
-            var params = Int7uScorerBenchmark.class.getField("dims").getAnnotationsByType(Param.class)[0].value();
+            var params = VectorScorerInt7uBenchmark.class.getField("dims").getAnnotationsByType(Param.class)[0].value();
             return () -> Arrays.stream(params).map(Integer::parseInt).map(i -> new Object[] { i }).iterator();
         } catch (NoSuchFieldException e) {
             throw new AssertionError(e);

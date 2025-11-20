@@ -117,7 +117,6 @@ public class Deriv extends TimeSeriesAggregateFunction implements ToAggregator, 
     @Override
     public AggregatorFunctionSupplier supplier() {
         final DataType type = field().dataType();
-
         SimpleLinearRegressionWithTimeseries.SimpleLinearModelFunction fn = (SimpleLinearRegressionWithTimeseries model) -> model.slope();
         return switch (type) {
             case DOUBLE -> new DerivDoubleAggregatorFunctionSupplier(fn);

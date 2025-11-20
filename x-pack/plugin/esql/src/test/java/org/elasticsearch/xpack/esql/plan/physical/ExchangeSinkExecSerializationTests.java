@@ -19,6 +19,7 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.core.type.InvalidMappedField;
 import org.elasticsearch.xpack.esql.index.EsIndex;
+import org.elasticsearch.xpack.esql.index.EsIndexGenerator;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamOutput;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
@@ -175,7 +176,7 @@ public class ExchangeSinkExecSerializationTests extends AbstractPhysicalPlanSeri
          * History: 4996b - initial
          */
 
-        var index = new EsIndex(
+        var index = EsIndexGenerator.esIndex(
             "index*",
             Map.of(),
             IntStream.range(0, 100)
@@ -272,14 +273,13 @@ public class ExchangeSinkExecSerializationTests extends AbstractPhysicalPlanSeri
         Map<String, IndexMode> concrete = new TreeMap<>();
         keywordIndices.forEach(index -> concrete.put(index, randomFrom(IndexMode.values())));
         textIndices.forEach(index -> concrete.put(index, randomFrom(IndexMode.values())));
-        return new EsIndex("name", fields, concrete);
+        return EsIndexGenerator.esIndex("name", fields, concrete);
     }
 
     private static EsIndex deeplyNestedIndex(int depth, int childrenPerLevel) {
         String rootFieldName = "root";
         Map<String, EsField> fields = Map.of(rootFieldName, fieldWithRecursiveChildren(depth, childrenPerLevel, rootFieldName));
-
-        return new EsIndex("deeply-nested", fields);
+        return EsIndexGenerator.esIndex("deeply-nested", fields);
     }
 
     private static EsField fieldWithRecursiveChildren(int depth, int childrenPerLevel, String name) {

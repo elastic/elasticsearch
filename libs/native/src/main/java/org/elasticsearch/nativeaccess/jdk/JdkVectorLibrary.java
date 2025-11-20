@@ -155,6 +155,9 @@ public final class JdkVectorLibrary implements VectorLibrary {
         }
 
         static void dotProduct7uBulk(MemorySegment a, MemorySegment b, int length, int count, MemorySegment result) {
+            Objects.checkFromIndexSize(0, length * count, (int) a.byteSize());
+            Objects.checkFromIndexSize(0, length, (int) b.byteSize());
+            Objects.checkFromIndexSize(0, count * Float.BYTES, (int) result.byteSize());
             dot7uBulk(a, b, length, count, result);
         }
 
@@ -278,12 +281,10 @@ public final class JdkVectorLibrary implements VectorLibrary {
                 var lookup = MethodHandles.lookup();
                 var mt = MethodType.methodType(int.class, MemorySegment.class, MemorySegment.class, int.class);
                 DOT_HANDLE_7U = lookup.findStatic(JdkVectorSimilarityFunctions.class, "dotProduct7u", mt);
-                DOT_HANDLE_7U_BULK = lookup.findStatic(
-                    JdkVectorSimilarityFunctions.class,
-                    "dotProduct7uBulk",
-                    MethodType.methodType(void.class, MemorySegment.class, MemorySegment.class, int.class, int.class, MemorySegment.class)
-                );
                 SQR_HANDLE_7U = lookup.findStatic(JdkVectorSimilarityFunctions.class, "squareDistance7u", mt);
+
+                mt = MethodType.methodType(void.class, MemorySegment.class, MemorySegment.class, int.class, int.class, MemorySegment.class);
+                DOT_HANDLE_7U_BULK = lookup.findStatic(JdkVectorSimilarityFunctions.class, "dotProduct7uBulk", mt);
 
                 mt = MethodType.methodType(float.class, MemorySegment.class, MemorySegment.class, int.class);
                 COS_HANDLE_FLOAT32 = lookup.findStatic(JdkVectorSimilarityFunctions.class, "cosineF32", mt);

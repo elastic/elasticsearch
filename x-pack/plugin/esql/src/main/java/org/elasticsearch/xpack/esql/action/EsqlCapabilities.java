@@ -1498,6 +1498,7 @@ public class EsqlCapabilities {
          */
         PERCENTILE_OVER_TIME,
         VARIANCE_STDDEV_OVER_TIME,
+        TS_LINREG_DERIVATIVE,
         /**
          * INLINE STATS fix incorrect prunning of null filtering
          * https://github.com/elastic/elasticsearch/pull/135011
@@ -1573,6 +1574,11 @@ public class EsqlCapabilities {
         EXPONENTIAL_HISTOGRAM_MINMAX_SUPPORT(EXPONENTIAL_HISTOGRAM_FEATURE_FLAG),
 
         /**
+         * Support for exponential_histogram type in SUM and AVG aggregation.
+         */
+        EXPONENTIAL_HISTOGRAM_SUM_AVG_SUPPORT(EXPONENTIAL_HISTOGRAM_FEATURE_FLAG),
+
+        /**
          * Create new block when filtering OrdinalBytesRefBlock
          */
         FIX_FILTER_ORDINALS,
@@ -1607,6 +1613,13 @@ public class EsqlCapabilities {
          * https://github.com/elastic/elasticsearch/issues/133462
          */
         PUSHING_DOWN_EVAL_WITH_SCORE,
+
+        /**
+         * Fix for ClassCastException in STATS
+         * https://github.com/elastic/elasticsearch/issues/133992
+         * https://github.com/elastic/elasticsearch/issues/136598
+         */
+        FIX_STATS_CLASSCAST_EXCEPTION,
 
         /**
          * Fix attribute equality to respect the name id of the attribute.
@@ -1666,6 +1679,8 @@ public class EsqlCapabilities {
          * Support for the temporary work to eventually allow FIRST to work with null and multi-value fields, among other things.
          */
         ALL_FIRST(Build.current().isSnapshot()),
+
+        ALL_LAST(Build.current().isSnapshot()),
 
         /**
          * Allow ST_EXTENT_AGG to gracefully handle missing spatial shapes

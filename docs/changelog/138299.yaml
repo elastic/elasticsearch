@@ -1,0 +1,5 @@
+pr: 138299
+summary: Add `PerFieldStoredFieldsFormat` to allow multiple stored field formats
+area: Codec
+type: enhancement
+issues: []

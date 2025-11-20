@@ -13,6 +13,7 @@ import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.Table;
@@ -65,7 +66,13 @@ public class RestCountAction extends AbstractCatAction {
         countRequest.source(searchSourceBuilder);
         if (crossProjectModeDecider.crossProjectEnabled()) {
             countRequest.setProjectRouting(request.param("project_routing"));
-            // MP TODO: do I also need to adjust indicesOptions here?
+            // MP TODO: check with Pawan about these additional if checks - needed here?
+            if (countRequest.allowsCrossProject() && countRequest.pointInTimeBuilder() == null) {
+                IndicesOptions indicesOptions = IndicesOptions.builder()
+                    .crossProjectModeOptions(new IndicesOptions.CrossProjectModeOptions(true))
+                    .build();
+                countRequest.indicesOptions(indicesOptions);
+            }
         }
         try {
             request.withContentOrSourceParamParserOrNull(parser -> {

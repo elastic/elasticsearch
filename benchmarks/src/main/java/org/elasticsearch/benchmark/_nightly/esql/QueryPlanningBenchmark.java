@@ -52,6 +52,7 @@ import org.openjdk.jmh.infra.Blackhole;
 import java.util.LinkedHashMap;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
 import static java.util.Collections.emptyMap;
@@ -101,7 +102,7 @@ public class QueryPlanningBenchmark {
             mapping.put("field" + i, new EsField("field-" + i, TEXT, emptyMap(), true, EsField.TimeSeriesFieldType.NONE));
         }
 
-        var esIndex = new EsIndex("test", mapping, Map.of("test", IndexMode.STANDARD));
+        var esIndex = new EsIndex("test", mapping, Map.of("test", IndexMode.STANDARD), Set.of());
 
         var functionRegistry = new EsqlFunctionRegistry();
 

@@ -150,4 +150,5 @@ public class FetchPhaseDocsIteratorTests extends ESTestCase {
         Collections.shuffle(integers, random());
         return integers.stream().mapToInt(i -> i).toArray();
     }
+    
 }

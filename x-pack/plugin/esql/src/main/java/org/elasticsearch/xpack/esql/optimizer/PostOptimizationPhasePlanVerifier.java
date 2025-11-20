@@ -88,11 +88,13 @@ public abstract class PostOptimizationPhasePlanVerifier<P extends QueryPlan<P>> 
             );
 
             // TranslateTimeSeriesAggregate may add a _timeseries attribute into the projection
-            boolean hasTimeseriesReplacingTsid = expectedOutputAttributes.stream()
-                .noneMatch(a -> a.name().equals(MetadataAttribute.TIMESERIES))
-                && optimizedPlan.output().stream().anyMatch(a -> a.name().equals(MetadataAttribute.TIMESERIES));
+            boolean hasTimeSeriesReplacingTsId = optimizedPlan.anyMatch(
+                a -> a instanceof TimeSeriesAggregate ts
+                    && ts.output().stream().anyMatch(g -> g.name().equals(MetadataAttribute.TIMESERIES))
+                    && expectedOutputAttributes.stream().noneMatch(g -> g.name().equals(MetadataAttribute.TIMESERIES))
+            );
 
-            boolean ignoreError = hasProjectAwayColumns || hasLookupJoinExec || hasTextGroupingInTimeSeries || hasTimeseriesReplacingTsid;
+            boolean ignoreError = hasProjectAwayColumns || hasLookupJoinExec || hasTextGroupingInTimeSeries || hasTimeSeriesReplacingTsId;
             if (ignoreError == false) {
                 failures.add(
                     fail(

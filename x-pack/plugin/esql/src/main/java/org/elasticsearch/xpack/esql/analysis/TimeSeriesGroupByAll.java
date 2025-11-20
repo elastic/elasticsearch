@@ -10,10 +10,11 @@ package org.elasticsearch.xpack.esql.analysis;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.core.util.Holder;
+import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.TimeSeriesAggregateFunction;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Values;
@@ -24,6 +25,7 @@ import org.elasticsearch.xpack.esql.rule.Rule;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 
 /**
  * This rule implements the "group by all" logic for time series aggregations.  It is intended to work in conjunction with
@@ -42,7 +44,7 @@ public class TimeSeriesGroupByAll extends Rule<LogicalPlan, LogicalPlan> {
 
     public LogicalPlan rule(TimeSeriesAggregate aggregate) {
         boolean hasTopLevelOverTimeAggs = false;
-        List<NamedExpression> newAggregateFunctions = new ArrayList<>();
+        List<NamedExpression> newAggregateFunctions = new ArrayList<>(aggregate.aggregates().size());
         for (NamedExpression agg : aggregate.aggregates()) {
             if (agg instanceof Alias alias && alias.child() instanceof AggregateFunction af) {
                 if (af instanceof TimeSeriesAggregateFunction tsAgg) {
@@ -60,31 +62,28 @@ public class TimeSeriesGroupByAll extends Rule<LogicalPlan, LogicalPlan> {
         if (hasTopLevelOverTimeAggs == false) {
             return aggregate;
         }
-
-        Attribute tsidAttr = getTsId(aggregate);
-
-        List<Expression> groupings = new ArrayList<>();
-        groupings.add(tsidAttr);
-        groupings.addAll(aggregate.groupings());
-
-        return new TimeSeriesAggregate(aggregate.source(), aggregate.child(), groupings, newAggregateFunctions, null);
-    }
-
-    private static Attribute getTsId(TimeSeriesAggregate aggregate) {
-        Holder<Attribute> tsidHolder = new Holder<>();
-        aggregate.forEachDown(
-            EsRelation.class,
-            r -> r.output()
-                .stream()
-                .filter(attr -> attr.name().equalsIgnoreCase(MetadataAttribute.TSID_FIELD))
-                .findFirst()
-                .ifPresentOrElse(
-                    tsidHolder::set,
-                    () -> tsidHolder.set(
-                        new MetadataAttribute(aggregate.source(), MetadataAttribute.TSID_FIELD, DataType.TSID_DATA_TYPE, false)
-                    )
-                )
+        var timeSeries = new FieldAttribute(
+            aggregate.source(),
+            null,
+            null,
+            MetadataAttribute.TIMESERIES,
+            new EsField(MetadataAttribute.TIMESERIES, DataType.KEYWORD, Map.of(), false, EsField.TimeSeriesFieldType.DIMENSION)
         );
-        return tsidHolder.get();
+        List<Expression> groupings = new ArrayList<>();
+        groupings.add(timeSeries);
+        groupings.addAll(aggregate.groupings());
+        TimeSeriesAggregate newStats = new TimeSeriesAggregate(
+            aggregate.source(),
+            aggregate.child(),
+            groupings,
+            newAggregateFunctions,
+            null
+        );
+        // insert the time_series
+        return newStats.transformDown(EsRelation.class, r -> {
+            ArrayList<Attribute> attributes = new ArrayList<>(r.output());
+            attributes.add(timeSeries);
+            return new EsRelation(r.source(), r.indexPattern(), r.indexMode(), r.indexNameWithModes(), attributes);
+        });
     }
 }

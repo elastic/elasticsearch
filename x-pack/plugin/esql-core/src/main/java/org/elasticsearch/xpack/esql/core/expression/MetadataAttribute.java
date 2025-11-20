@@ -47,8 +47,7 @@ public class MetadataAttribute extends TypedAttribute {
         Map.entry(SourceFieldMapper.NAME, new MetadataAttributeConfiguration(DataType.SOURCE, false)),
         Map.entry(IndexModeFieldMapper.NAME, new MetadataAttributeConfiguration(DataType.KEYWORD, true)),
         Map.entry(SCORE, new MetadataAttributeConfiguration(DataType.DOUBLE, false)),
-        Map.entry(TSID_FIELD, new MetadataAttributeConfiguration(DataType.TSID_DATA_TYPE, false)),
-        Map.entry(TIMESERIES, new MetadataAttributeConfiguration(DataType.KEYWORD, false))
+        Map.entry(TSID_FIELD, new MetadataAttributeConfiguration(DataType.TSID_DATA_TYPE, false))
     );
 
     private record MetadataAttributeConfiguration(DataType dataType, boolean searchable) {}

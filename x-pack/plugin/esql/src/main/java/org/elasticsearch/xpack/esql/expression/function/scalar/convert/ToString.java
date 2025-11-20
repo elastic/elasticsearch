@@ -12,7 +12,6 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.compute.ann.ConvertEvaluator;
 import org.elasticsearch.compute.ann.Fixed;
-import org.elasticsearch.index.mapper.TimeSeriesIdFieldMapper;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -44,7 +43,6 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.IP;
 import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
 import static org.elasticsearch.xpack.esql.core.type.DataType.LONG;
 import static org.elasticsearch.xpack.esql.core.type.DataType.TEXT;
-import static org.elasticsearch.xpack.esql.core.type.DataType.TSID_DATA_TYPE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.UNSIGNED_LONG;
 import static org.elasticsearch.xpack.esql.core.type.DataType.VERSION;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.dateTimeToString;
@@ -79,8 +77,7 @@ public class ToString extends AbstractConvertFunction implements EvaluatorMapper
         Map.entry(GEOHASH, (source, fieldEval) -> new ToStringFromGeoGridEvaluator.Factory(source, fieldEval, GEOHASH)),
         Map.entry(GEOTILE, (source, fieldEval) -> new ToStringFromGeoGridEvaluator.Factory(source, fieldEval, GEOTILE)),
         Map.entry(GEOHEX, (source, fieldEval) -> new ToStringFromGeoGridEvaluator.Factory(source, fieldEval, GEOHEX)),
-        Map.entry(AGGREGATE_METRIC_DOUBLE, ToStringFromAggregateMetricDoubleEvaluator.Factory::new),
-        Map.entry(TSID_DATA_TYPE, ToStringFromTsidEvaluator.Factory::new)
+        Map.entry(AGGREGATE_METRIC_DOUBLE, ToStringFromAggregateMetricDoubleEvaluator.Factory::new)
     );
 
     @FunctionInfo(
@@ -113,7 +110,6 @@ public class ToString extends AbstractConvertFunction implements EvaluatorMapper
                 "keyword",
                 "long",
                 "text",
-                "_tsid",
                 "unsigned_long",
                 "version" },
             description = "Input value. The input can be a single- or multi-valued column or an expression."
@@ -224,10 +220,5 @@ public class ToString extends AbstractConvertFunction implements EvaluatorMapper
     @ConvertEvaluator(extraName = "FromGeoGrid")
     static BytesRef fromGeoGrid(long gridId, @Fixed DataType dataType) {
         return new BytesRef(geoGridToString(gridId, dataType));
-    }
-
-    @ConvertEvaluator(extraName = "FromTsid")
-    static BytesRef fromTsid(BytesRef tsid) {
-        return new BytesRef((String) TimeSeriesIdFieldMapper.encodeTsid(tsid));
     }
 }

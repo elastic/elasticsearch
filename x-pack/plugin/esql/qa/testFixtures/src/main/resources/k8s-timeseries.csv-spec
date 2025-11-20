@@ -729,13 +729,13 @@ TS k8s
 ;
   
 count:long | _timeseries:keyword
-29         | KBGrBhmEnziumfgfOq1dn9NyLSzHbdLj0kfy_m-tXh-yxVR6b3E17ss
-29         | KBGrBhmEnziumfgfOq1dn9NyLSzHck3A2MQiFrxrlvTQFP7YxbJ0rYg
-24         | KBGrBhmEnziumfgfOq1dn9NyLSzHmDfU38IhLHmDYPRNCcqXvvDolM4
-13         | LAhW8dgJbuvWP9LgvcDhXAYU6Nh3bdLj0lKjdGjLA-rkYcBfHLSx-bhGbGPB
-20         | LAhW8dgJbuvWP9LgvcDhXAYU6Nh3ck3A2FKjdGi_h3SR4-8pqYaQpJ7ugp3H
-24         | LAhW8dgJbuvWP9LgvcDhXAYU6Nh3mDfU31KjdGhvDlv8ZkMvESD7elSu_RKt
-23         | LAhW8dgJbuvWP9LgvcDhXAbo6om1bdLj0gEKCKoCwWbTcgIrvk8UnM8-ysUC
+29         | KBGrBhmEnziumfgfOq1dn9NyLSzHbdLj0kfy/m+tXh+yxVR6b3E17ss=
+29         | KBGrBhmEnziumfgfOq1dn9NyLSzHck3A2MQiFrxrlvTQFP7YxbJ0rYg=
+24         | KBGrBhmEnziumfgfOq1dn9NyLSzHmDfU38IhLHmDYPRNCcqXvvDolM4=
+13         | LAhW8dgJbuvWP9LgvcDhXAYU6Nh3bdLj0lKjdGjLA+rkYcBfHLSx+bhGbGPB
+20         | LAhW8dgJbuvWP9LgvcDhXAYU6Nh3ck3A2FKjdGi/h3SR4+8pqYaQpJ7ugp3H
+24         | LAhW8dgJbuvWP9LgvcDhXAYU6Nh3mDfU31KjdGhvDlv8ZkMvESD7elSu/RKt
+23         | LAhW8dgJbuvWP9LgvcDhXAbo6om1bdLj0gEKCKoCwWbTcgIrvk8UnM8+ysUC
 16         | LAhW8dgJbuvWP9LgvcDhXAbo6om1ck3A2AEKCKqbxalopXodUMoz3uMBXeY3
 22         | LAhW8dgJbuvWP9LgvcDhXAbo6om1mDfU3wEKCKoEKNc42gDQvRlUNqiHo1HG
 ;
@@ -769,13 +769,13 @@ TS k8s
 ;
 
 avg:double         | _timeseries:keyword
-7.262931034482759  | KBGrBhmEnziumfgfOq1dn9NyLSzHbdLj0kfy_m-tXh-yxVR6b3E17ss
-6.870689655172414  | KBGrBhmEnziumfgfOq1dn9NyLSzHck3A2MQiFrxrlvTQFP7YxbJ0rYg
-6.635416666666667  | KBGrBhmEnziumfgfOq1dn9NyLSzHmDfU38IhLHmDYPRNCcqXvvDolM4
-5.1826923076923075 | LAhW8dgJbuvWP9LgvcDhXAYU6Nh3bdLj0lKjdGjLA-rkYcBfHLSx-bhGbGPB
-6.46875            | LAhW8dgJbuvWP9LgvcDhXAYU6Nh3ck3A2FKjdGi_h3SR4-8pqYaQpJ7ugp3H
-5.869791666666667  | LAhW8dgJbuvWP9LgvcDhXAYU6Nh3mDfU31KjdGhvDlv8ZkMvESD7elSu_RKt
-5.586956521739131  | LAhW8dgJbuvWP9LgvcDhXAbo6om1bdLj0gEKCKoCwWbTcgIrvk8UnM8-ysUC
+7.262931034482759  | KBGrBhmEnziumfgfOq1dn9NyLSzHbdLj0kfy/m+tXh+yxVR6b3E17ss=
+6.870689655172414  | KBGrBhmEnziumfgfOq1dn9NyLSzHck3A2MQiFrxrlvTQFP7YxbJ0rYg=
+6.635416666666667  | KBGrBhmEnziumfgfOq1dn9NyLSzHmDfU38IhLHmDYPRNCcqXvvDolM4=
+5.1826923076923075 | LAhW8dgJbuvWP9LgvcDhXAYU6Nh3bdLj0lKjdGjLA+rkYcBfHLSx+bhGbGPB
+6.46875            | LAhW8dgJbuvWP9LgvcDhXAYU6Nh3ck3A2FKjdGi/h3SR4+8pqYaQpJ7ugp3H
+5.869791666666667  | LAhW8dgJbuvWP9LgvcDhXAYU6Nh3mDfU31KjdGhvDlv8ZkMvESD7elSu/RKt
+5.586956521739131  | LAhW8dgJbuvWP9LgvcDhXAbo6om1bdLj0gEKCKoCwWbTcgIrvk8UnM8+ysUC
 4.0703125          | LAhW8dgJbuvWP9LgvcDhXAbo6om1ck3A2AEKCKqbxalopXodUMoz3uMBXeY3
 8.375              | LAhW8dgJbuvWP9LgvcDhXAbo6om1mDfU3wEKCKoEKNc42gDQvRlUNqiHo1HG
 ;
@@ -808,16 +808,16 @@ TS k8s
 | STATS sum = sum_over_time(network.cost)
 ;
 
-sum:double  | _timeseries:keyword
-210.625     | KBGrBhmEnziumfgfOq1dn9NyLSzHbdLj0kfy_m-tXh-yxVR6b3E17ss
-199.25      | KBGrBhmEnziumfgfOq1dn9NyLSzHck3A2MQiFrxrlvTQFP7YxbJ0rYg
-159.25      | KBGrBhmEnziumfgfOq1dn9NyLSzHmDfU38IhLHmDYPRNCcqXvvDolM4
-67.375      | LAhW8dgJbuvWP9LgvcDhXAYU6Nh3bdLj0lKjdGjLA-rkYcBfHLSx-bhGbGPB
-129.375     | LAhW8dgJbuvWP9LgvcDhXAYU6Nh3ck3A2FKjdGi_h3SR4-8pqYaQpJ7ugp3H
-140.875     | LAhW8dgJbuvWP9LgvcDhXAYU6Nh3mDfU31KjdGhvDlv8ZkMvESD7elSu_RKt
-128.5       | LAhW8dgJbuvWP9LgvcDhXAbo6om1bdLj0gEKCKoCwWbTcgIrvk8UnM8-ysUC
-65.125      | LAhW8dgJbuvWP9LgvcDhXAbo6om1ck3A2AEKCKqbxalopXodUMoz3uMBXeY3
-184.25      | LAhW8dgJbuvWP9LgvcDhXAbo6om1mDfU3wEKCKoEKNc42gDQvRlUNqiHo1HG
+sum:double | _timeseries:keyword
+210.625    | KBGrBhmEnziumfgfOq1dn9NyLSzHbdLj0kfy/m+tXh+yxVR6b3E17ss=
+199.25     | KBGrBhmEnziumfgfOq1dn9NyLSzHck3A2MQiFrxrlvTQFP7YxbJ0rYg=
+159.25     | KBGrBhmEnziumfgfOq1dn9NyLSzHmDfU38IhLHmDYPRNCcqXvvDolM4=
+67.375     | LAhW8dgJbuvWP9LgvcDhXAYU6Nh3bdLj0lKjdGjLA+rkYcBfHLSx+bhGbGPB
+129.375    | LAhW8dgJbuvWP9LgvcDhXAYU6Nh3ck3A2FKjdGi/h3SR4+8pqYaQpJ7ugp3H
+140.875    | LAhW8dgJbuvWP9LgvcDhXAYU6Nh3mDfU31KjdGhvDlv8ZkMvESD7elSu/RKt
+128.5      | LAhW8dgJbuvWP9LgvcDhXAbo6om1bdLj0gEKCKoCwWbTcgIrvk8UnM8+ysUC
+65.125     | LAhW8dgJbuvWP9LgvcDhXAbo6om1ck3A2AEKCKqbxalopXodUMoz3uMBXeY3
+184.25     | LAhW8dgJbuvWP9LgvcDhXAbo6om1mDfU3wEKCKoEKNc42gDQvRlUNqiHo1HG
 ;
 
 bare_sum_over_time_with_tbucket_outputs_dimensions
@@ -849,13 +849,13 @@ TS k8s
 ;
 
 rate:double        | _timeseries:keyword
-10.649149922720246 | KBGrBhmEnziumfgfOq1dn9NyLSzHbdLj0kfy_m-tXh-yxVR6b3E17ss
-13.17372515125324  | KBGrBhmEnziumfgfOq1dn9NyLSzHck3A2MQiFrxrlvTQFP7YxbJ0rYg
-9.485643970467596  | KBGrBhmEnziumfgfOq1dn9NyLSzHmDfU38IhLHmDYPRNCcqXvvDolM4
-4.689830508474576  | LAhW8dgJbuvWP9LgvcDhXAYU6Nh3bdLj0lKjdGjLA-rkYcBfHLSx-bhGbGPB
-7.377611940298507  | LAhW8dgJbuvWP9LgvcDhXAYU6Nh3ck3A2FKjdGi_h3SR4-8pqYaQpJ7ugp3H
-6.54326561324304   | LAhW8dgJbuvWP9LgvcDhXAYU6Nh3mDfU31KjdGhvDlv8ZkMvESD7elSu_RKt
-8.716707021791768  | LAhW8dgJbuvWP9LgvcDhXAbo6om1bdLj0gEKCKoCwWbTcgIrvk8UnM8-ysUC
+10.649149922720246 | KBGrBhmEnziumfgfOq1dn9NyLSzHbdLj0kfy/m+tXh+yxVR6b3E17ss=
+13.17372515125324  | KBGrBhmEnziumfgfOq1dn9NyLSzHck3A2MQiFrxrlvTQFP7YxbJ0rYg=
+9.485643970467596  | KBGrBhmEnziumfgfOq1dn9NyLSzHmDfU38IhLHmDYPRNCcqXvvDolM4=
+4.689830508474576  | LAhW8dgJbuvWP9LgvcDhXAYU6Nh3bdLj0lKjdGjLA+rkYcBfHLSx+bhGbGPB
+7.377611940298507  | LAhW8dgJbuvWP9LgvcDhXAYU6Nh3ck3A2FKjdGi/h3SR4+8pqYaQpJ7ugp3H
+6.54326561324304   | LAhW8dgJbuvWP9LgvcDhXAYU6Nh3mDfU31KjdGhvDlv8ZkMvESD7elSu/RKt
+8.716707021791768  | LAhW8dgJbuvWP9LgvcDhXAbo6om1bdLj0gEKCKoCwWbTcgIrvk8UnM8+ysUC
 7.340495867768595  | LAhW8dgJbuvWP9LgvcDhXAbo6om1ck3A2AEKCKqbxalopXodUMoz3uMBXeY3
 8.434290687554395  | LAhW8dgJbuvWP9LgvcDhXAbo6om1mDfU3wEKCKoEKNc42gDQvRlUNqiHo1HG
 ;

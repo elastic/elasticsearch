@@ -120,7 +120,7 @@ public class StoredFieldsSpecTests extends ESTestCase {
 
         spec = spec.merge(
             new StoredFieldsSpec(
-                true,
+                false,
                 false,
                 Set.of("other_field"),
                 IgnoredSourceFieldMapper.IgnoredSourceFormat.NO_IGNORED_SOURCE,
@@ -133,6 +133,22 @@ public class StoredFieldsSpecTests extends ESTestCase {
         assertThat(spec.requiredStoredFields(), containsInAnyOrder("other_field"));
         assertThat(spec.sourcePaths(), containsInAnyOrder("cat", "dog", "hamster"));
         assertThat(spec.sourcePaths(), sameInstance(pref));
+
+        // Clears source paths, because the spec requires complete source (since no source paths are defined)
+        spec = spec.merge(
+            new StoredFieldsSpec(
+                true,
+                false,
+                Set.of(),
+                IgnoredSourceFieldMapper.IgnoredSourceFormat.NO_IGNORED_SOURCE,
+                Set.of()
+            )
+        );
+        assertThat(spec.ignoredSourceFormat(), equalTo(IgnoredSourceFieldMapper.IgnoredSourceFormat.NO_IGNORED_SOURCE));
+        assertThat(spec.requiresSource(), equalTo(true));
+        assertThat(spec.requiresMetadata(), equalTo(false));
+        assertThat(spec.requiredStoredFields(), containsInAnyOrder("other_field"));
+        assertThat(spec.sourcePaths(), empty());
     }
 
     private static SearchContext searchContext(SearchSourceBuilder sourceBuilder) {

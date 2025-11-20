@@ -355,7 +355,7 @@ public enum DataType implements Writeable {
             .docValues()
             .underConstruction()
     ),
-    
+
      */
 
     /**

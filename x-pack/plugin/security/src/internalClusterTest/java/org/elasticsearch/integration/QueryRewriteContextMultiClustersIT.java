@@ -37,6 +37,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
@@ -69,13 +70,13 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.BiConsumer;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.test.SecuritySettingsSource.TEST_USER_NAME;
 import static org.elasticsearch.test.SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
-import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.MONITORING_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.SECURITY_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
@@ -278,6 +279,7 @@ public class QueryRewriteContextMultiClustersIT extends AbstractMultiClustersTes
     private static class TestQueryBuilder extends AbstractQueryBuilder<TestQueryBuilder> {
         private static final String NAME = "test";
 
+        private final String origin;
         private final Boolean actionsAcknowledged;
         private final ActionFuture<Boolean> actionsAcknowledgedSupplier;
 
@@ -286,17 +288,24 @@ public class QueryRewriteContextMultiClustersIT extends AbstractMultiClustersTes
         }
 
         private TestQueryBuilder() {
+            this((String) null);
+        }
+
+        private TestQueryBuilder(@Nullable String origin) {
+            this.origin = origin;
             this.actionsAcknowledged = null;
             this.actionsAcknowledgedSupplier = null;
         }
 
         private TestQueryBuilder(StreamInput in) throws IOException {
             super(in);
+            this.origin = in.readOptionalString();
             this.actionsAcknowledged = in.readOptionalBoolean();
             this.actionsAcknowledgedSupplier = null;
         }
 
-        private TestQueryBuilder(Boolean actionsAcknowledged, ActionFuture<Boolean> actionsAcknowledgedSupplier) {
+        private TestQueryBuilder(TestQueryBuilder other, Boolean actionsAcknowledged, ActionFuture<Boolean> actionsAcknowledgedSupplier) {
+            this.origin = other.origin;
             this.actionsAcknowledged = actionsAcknowledged;
             this.actionsAcknowledgedSupplier = actionsAcknowledgedSupplier;
         }
@@ -309,6 +318,7 @@ public class QueryRewriteContextMultiClustersIT extends AbstractMultiClustersTes
                 );
             }
 
+            out.writeOptionalString(origin);
             out.writeOptionalBoolean(this.actionsAcknowledged);
         }
 
@@ -327,11 +337,11 @@ public class QueryRewriteContextMultiClustersIT extends AbstractMultiClustersTes
                 if (actionsAcknowledgedSupplier != null) {
                     Boolean actionsAcknowledged = actionsAcknowledgedSupplier.isDone() ? actionsAcknowledgedSupplier.actionGet() : null;
                     if (actionsAcknowledged != null) {
-                        rewritten = new TestQueryBuilder(actionsAcknowledged, null);
+                        rewritten = new TestQueryBuilder(this, actionsAcknowledged, null);
                     }
                 } else if (actionsAcknowledged == null) {
-                    ActionFuture<Boolean> actionsAcknowledgedSupplier = registerActions(queryRewriteContext);
-                    rewritten = new TestQueryBuilder(null, actionsAcknowledgedSupplier);
+                    ActionFuture<Boolean> actionsAcknowledgedSupplier = registerActions(queryRewriteContext, origin);
+                    rewritten = new TestQueryBuilder(this, null, actionsAcknowledgedSupplier);
                 }
 
                 return rewritten;
@@ -358,16 +368,17 @@ public class QueryRewriteContextMultiClustersIT extends AbstractMultiClustersTes
 
         @Override
         protected boolean doEquals(TestQueryBuilder other) {
-            return Objects.equals(this.actionsAcknowledged, other.actionsAcknowledged)
+            return Objects.equals(this.origin, other.origin)
+                && Objects.equals(this.actionsAcknowledged, other.actionsAcknowledged)
                 && Objects.equals(this.actionsAcknowledgedSupplier, other.actionsAcknowledgedSupplier);
         }
 
         @Override
         protected int doHashCode() {
-            return Objects.hash(actionsAcknowledged, actionsAcknowledgedSupplier);
+            return Objects.hash(origin, actionsAcknowledged, actionsAcknowledgedSupplier);
         }
 
-        private static ActionFuture<Boolean> registerActions(QueryRewriteContext queryRewriteContext) {
+        private static ActionFuture<Boolean> registerActions(QueryRewriteContext queryRewriteContext, String origin) {
             var remoteClusterIndices = queryRewriteContext.getResolvedIndices().getRemoteClusterIndices();
 
             int requestCount = 0;
@@ -398,20 +409,23 @@ public class QueryRewriteContextMultiClustersIT extends AbstractMultiClustersTes
 
                 for (InstrumentedAction.Request clusterRequest : clusterRequestList) {
                     queryRewriteContext.registerRemoteAsyncAction(clusterAlias, (client, threadContext, listener) -> {
-                        executeAsyncWithOrigin(
-                            threadContext,
-                            ML_ORIGIN,
-                            clusterRequest,
-                            listener.<InstrumentedAction.Response>delegateFailureAndWrap((l, r) -> {
-                                if (r.isAcknowledged()) {
-                                    gal.onResponse(null);
-                                    l.onResponse(null);
-                                } else {
-                                    l.onFailure(new IllegalStateException("Unacknowledged response from cluster [" + clusterAlias + "]"));
-                                }
-                            }),
-                            (r, l) -> client.execute(InstrumentedAction.REMOTE_TYPE, r, l)
-                        );
+                        ActionListener<InstrumentedAction.Response> wrappedListener = listener.delegateFailureAndWrap((l, r) -> {
+                            if (r.isAcknowledged()) {
+                                gal.onResponse(null);
+                                l.onResponse(null);
+                            } else {
+                                l.onFailure(new IllegalStateException("Unacknowledged response from cluster [" + clusterAlias + "]"));
+                            }
+                        });
+                        BiConsumer<InstrumentedAction.Request, ActionListener<InstrumentedAction.Response>> requestConsumer = (
+                            r,
+                            l) -> client.execute(InstrumentedAction.REMOTE_TYPE, r, l);
+
+                        if (origin != null) {
+                            executeAsyncWithOrigin(threadContext, origin, clusterRequest, wrappedListener, requestConsumer);
+                        } else {
+                            requestConsumer.accept(clusterRequest, wrappedListener);
+                        }
                     });
                 }
             }

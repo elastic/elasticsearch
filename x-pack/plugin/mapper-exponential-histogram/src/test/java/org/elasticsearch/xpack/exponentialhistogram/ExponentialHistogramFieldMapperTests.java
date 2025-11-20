@@ -31,6 +31,7 @@ import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.DocumentParsingException;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperParsingException;
+import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MapperTestCase;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.SourceToParse;
@@ -740,6 +741,42 @@ public class ExponentialHistogramFieldMapperTests extends MapperTestCase {
                     }
                 }
             }
+        }
+    }
+
+    public void testMetricType() throws IOException {
+        // Test default setting
+        MapperService mapperService = createMapperService(fieldMapping(this::minimalMapping));
+        ExponentialHistogramFieldMapper.ExponentialHistogramFieldType ft =
+            (ExponentialHistogramFieldMapper.ExponentialHistogramFieldType) mapperService.fieldType("field");
+        assertNull(ft.getMetricType());
+
+        assertMetricType("histogram", ExponentialHistogramFieldMapper.ExponentialHistogramFieldType::getMetricType);
+
+        {
+            String unsupportedMetricTypes = randomFrom("counter", "gauge", "position");
+            // Test invalid metric type for this field type
+            Exception e = expectThrows(MapperParsingException.class, () -> createMapperService(fieldMapping(b -> {
+                minimalMapping(b);
+                b.field("time_series_metric", unsupportedMetricTypes);
+            })));
+            assertThat(
+                e.getCause().getMessage(),
+                containsString(
+                    "Unknown value [" + unsupportedMetricTypes + "] for field [time_series_metric] - accepted values are [histogram]"
+                )
+            );
+        }
+        {
+            // Test invalid metric type
+            Exception e = expectThrows(MapperParsingException.class, () -> createMapperService(fieldMapping(b -> {
+                minimalMapping(b);
+                b.field("time_series_metric", "unknown");
+            })));
+            assertThat(
+                e.getCause().getMessage(),
+                containsString("Unknown value [unknown] for field [time_series_metric] - accepted values are [histogram]")
+            );
         }
     }
 

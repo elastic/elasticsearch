@@ -11,6 +11,7 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
+import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.ActionListener;
@@ -71,12 +72,14 @@ import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiConsumer;
+import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.test.SecuritySettingsSource.TEST_USER_NAME;
 import static org.elasticsearch.test.SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
+import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.MONITORING_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.SECURITY_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
@@ -156,30 +159,76 @@ public class QueryRewriteContextMultiClustersIT extends AbstractMultiClustersTes
         this.securityEnabled = securityEnabled;
     }
 
-    public void testCallRemoteAsyncAction() {
+    public void testCallRemoteAsyncActionWithOrigin() {
         SearchRequestBuilder allClustersAllIndicesRequest = buildSearchRequest(
             List.of(INDEX_1, INDEX_2),
-            List.of(REMOTE_CLUSTER_A, REMOTE_CLUSTER_B)
+            List.of(REMOTE_CLUSTER_A, REMOTE_CLUSTER_B),
+            ML_ORIGIN
         );
         assertSearchResponse(allClustersAllIndicesRequest);
         assertInstrumentedActionCalls(2, 2);
 
         SearchRequestBuilder allClustersSingleIndexRequest = buildSearchRequest(
             List.of(INDEX_1),
-            List.of(REMOTE_CLUSTER_A, REMOTE_CLUSTER_B)
+            List.of(REMOTE_CLUSTER_A, REMOTE_CLUSTER_B),
+            ML_ORIGIN
         );
         assertSearchResponse(allClustersSingleIndexRequest);
         assertInstrumentedActionCalls(3, 3);
 
-        SearchRequestBuilder singleClusterSingleIndexRequest = buildSearchRequest(List.of(INDEX_1), List.of(REMOTE_CLUSTER_A));
+        SearchRequestBuilder singleClusterSingleIndexRequest = buildSearchRequest(List.of(INDEX_1), List.of(REMOTE_CLUSTER_A), ML_ORIGIN);
         assertSearchResponse(singleClusterSingleIndexRequest);
         assertInstrumentedActionCalls(4, 3);
+    }
+
+    public void testCallRemoteAsyncActionWithoutOrigin() {
+        Consumer<SearchRequestBuilder> assertSecurityEnabled = r -> {
+            assertSearchFailure(
+                r,
+                ElasticsearchSecurityException.class,
+                "action [cluster:internal/test/instrumented] is unauthorized for user [test_user] with effective roles [user]"
+            );
+            assertInstrumentedActionCalls(0, 0);
+        };
+
+        SearchRequestBuilder allClustersAllIndicesRequest = buildSearchRequest(
+            List.of(INDEX_1, INDEX_2),
+            List.of(REMOTE_CLUSTER_A, REMOTE_CLUSTER_B),
+            null
+        );
+        if (securityEnabled) {
+            assertSecurityEnabled.accept(allClustersAllIndicesRequest);
+        } else {
+            assertSearchResponse(allClustersAllIndicesRequest);
+            assertInstrumentedActionCalls(2, 2);
+        }
+
+        SearchRequestBuilder allClustersSingleIndexRequest = buildSearchRequest(
+            List.of(INDEX_1),
+            List.of(REMOTE_CLUSTER_A, REMOTE_CLUSTER_B),
+            null
+        );
+        if (securityEnabled) {
+            assertSecurityEnabled.accept(allClustersSingleIndexRequest);
+        } else {
+            assertSearchResponse(allClustersSingleIndexRequest);
+            assertInstrumentedActionCalls(3, 3);
+        }
+
+        SearchRequestBuilder singleClusterSingleIndexRequest = buildSearchRequest(List.of(INDEX_1), List.of(REMOTE_CLUSTER_A), null);
+        if (securityEnabled) {
+            assertSecurityEnabled.accept(singleClusterSingleIndexRequest);
+        } else {
+            assertSearchResponse(singleClusterSingleIndexRequest);
+            assertInstrumentedActionCalls(4, 3);
+        }
     }
 
     public void testInvalidClusterAlias() {
         SearchRequestBuilder request = buildSearchRequest(
             List.of(INDEX_1, INDEX_2),
-            List.of(REMOTE_CLUSTER_A, REMOTE_CLUSTER_B, "missing-cluster-alias")
+            List.of(REMOTE_CLUSTER_A, REMOTE_CLUSTER_B, "missing-cluster-alias"),
+            null
         );
         assertSearchFailure(request, NoSuchRemoteClusterException.class, "no such remote cluster: [missing-cluster-alias]");
         assertInstrumentedActionCalls(0, 0);
@@ -211,13 +260,13 @@ public class QueryRewriteContextMultiClustersIT extends AbstractMultiClustersTes
         }
     }
 
-    private SearchRequestBuilder buildSearchRequest(List<String> indices, List<String> clusterAliases) {
+    private SearchRequestBuilder buildSearchRequest(List<String> indices, List<String> clusterAliases, @Nullable String origin) {
         Client client = client();
         if (securityEnabled) {
             client = client.filterWithHeader(Map.of(BASIC_AUTH_HEADER, basicAuthHeaderValue(TEST_USER_NAME, TEST_PASSWORD_SECURE_STRING)));
         }
 
-        return client.prepareSearch(generateFullyQualifiedIndices(indices, clusterAliases)).setQuery(new TestQueryBuilder());
+        return client.prepareSearch(generateFullyQualifiedIndices(indices, clusterAliases)).setQuery(new TestQueryBuilder(origin));
     }
 
     private static String[] generateFullyQualifiedIndices(List<String> indices, List<String> clusterAliases) {

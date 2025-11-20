@@ -160,7 +160,17 @@ public class EsqlExecutionInfo implements ChunkedToXContentObject, Writeable {
 
     public void reset() {
         isPartial = false;
-        clusterInfo.entrySet().forEach(e -> e.setValue(new Cluster(e.getValue().clusterAlias, e.getValue().indexExpression)));
+        clusterInfo.entrySet()
+            .forEach(
+                e -> e.setValue(
+                    new Cluster(
+                        e.getValue().clusterAlias,
+                        e.getValue().displayClusterAlias,
+                        e.getValue().indexExpression,
+                        e.getValue().skipUnavailable
+                    )
+                )
+            );
     }
 
     // this is still here for testing only, use includeExecutionMetadata() in production code

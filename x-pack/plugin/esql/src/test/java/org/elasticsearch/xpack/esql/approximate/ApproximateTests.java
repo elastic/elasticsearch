@@ -17,6 +17,7 @@ import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.operator.PlanTimeProfile;
 import org.elasticsearch.compute.test.MockBlockFactory;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
@@ -121,7 +122,13 @@ public class ApproximateTests extends ESTestCase {
         }
 
         @Override
-        public void run(PhysicalPlan physicalPlan, Configuration configuration, FoldContext foldContext, ActionListener<Result> listener) {
+        public void run(
+            PhysicalPlan physicalPlan,
+            Configuration configuration,
+            FoldContext foldContext,
+            PlanTimeProfile planTimeProfile,
+            ActionListener<Result> listener
+        ) {
             LogicalPlan logicalPlan = toLogicalPlan.get(physicalPlan);
             invocations.add(logicalPlan);
             List<LogicalPlan> filtersAndMvExpands = logicalPlan.collect(plan -> plan instanceof Filter || plan instanceof MvExpand);
@@ -133,7 +140,6 @@ public class ApproximateTests extends ESTestCase {
             LongBlock block = blockFactory.newConstantLongBlockWith(numResults, 1);
             listener.onResponse(new Result(null, List.of(new Page(block)), null, null));
         }
-
     }
 
     @Override
@@ -523,7 +529,8 @@ public class ApproximateTests extends ESTestCase {
             runner,
             runner,
             EsqlTestUtils.TEST_CFG,
-            FoldContext.small()
+            FoldContext.small(),
+            new PlanTimeProfile()
         );
     }
 

@@ -13,7 +13,6 @@ import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.util.CollectionUtils;
-import org.elasticsearch.xpack.esql.expression.Order;
 import org.elasticsearch.xpack.esql.optimizer.LocalPhysicalOptimizerContext;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.InsertFieldExtraction;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.PushTopNToSource;
@@ -32,10 +31,8 @@ import org.elasticsearch.xpack.esql.plan.physical.TopNExec;
 import org.elasticsearch.xpack.esql.planner.mapper.LocalMapper;
 import org.elasticsearch.xpack.esql.stats.SearchStats;
 
-import java.util.HashSet;
 import java.util.List;
 import java.util.Optional;
-import java.util.Set;
 import java.util.function.Function;
 
 /**
@@ -78,7 +75,7 @@ import java.util.function.Function;
 *  The above actually reads the {@code x} field "unnecessarily", since it's only needed to conform to the output schema of the original
 *  plan. See #134363 for a way to optimize this little problem.
 */
-public class LateMaterializationPlanner {
+class LateMaterializationPlanner {
     public static Optional<ReductionPlan> planReduceDriverTopN(
         Function<SearchStats, LocalPhysicalOptimizerContext> contextFactory,
         ExchangeSinkExec originalPlan
@@ -100,12 +97,6 @@ public class LateMaterializationPlanner {
 
         LocalPhysicalOptimizerContext context = contextFactory.apply(SEARCH_STATS_TOP_N_REPLACEMENT);
 
-        AttributeSet expectedDataOutputAttrSet = AttributeSet.builder().addAll(topLevelProject.output()).build();
-        for (Order order : topN.order()) {
-            expectedDataOutputAttrSet = expectedDataOutputAttrSet.combine(order.references());
-        }
-
-        Set<Attribute> topLevelProjectAttrs = new HashSet<>(expectedDataOutputAttrSet);
         List<Attribute> physicalDataOutput = toPhysical(topN, context).output();
         Attribute doc = physicalDataOutput.stream().filter(EsQueryExec::isDocAttribute).findFirst().orElse(null);
         if (doc == null) {
@@ -131,11 +122,7 @@ public class LateMaterializationPlanner {
         // driver, the resulting ProjectExec won't have the doc attribute in its output, which is needed by the reduce driver.
         expectedDataOutputAttrs.add(doc);
         // Add all references used in the ordering
-        AttributeSet.Builder orderRefs = AttributeSet.builder();
-        for (Order order : topN.order()) {
-            orderRefs.addAll(order.references());
-        }
-        AttributeSet orderRefsSet = orderRefs.build();
+        AttributeSet orderRefsSet = AttributeSet.of(topN.order().stream().flatMap(o -> o.references().stream()).toList());
         // Get the output from the physical plan below the TopN, and filter it to only the attributes needed for the final output (either
         // because they are in the top-level Project's output, or because they are needed for ordering)
         expectedDataOutputAttrs.addAll(

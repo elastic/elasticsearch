@@ -115,6 +115,7 @@ public class KnnVectorQueryBuilder extends AbstractQueryBuilder<KnnVectorQueryBu
             ObjectParser.ValueType.OBJECT_ARRAY
         );
         declareStandardFields(PARSER);
+
     }
 
     public static KnnVectorQueryBuilder fromXContent(XContentParser parser) {

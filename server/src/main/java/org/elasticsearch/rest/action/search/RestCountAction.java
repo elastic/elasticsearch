@@ -47,7 +47,7 @@ public class RestCountAction extends BaseRestHandler {
     @Override
     public List<Route> routes() {
         return List.of(
-            new Route(GET, "/_count"),
+            new Route(GET, "/_count"),   // MP TODO: make sure to also test this with project_routing
             new Route(POST, "/_count"),
             new Route(GET, "/{index}/_count"),
             new Route(POST, "/{index}/_count")
@@ -62,11 +62,19 @@ public class RestCountAction extends BaseRestHandler {
     @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
         SearchRequest countRequest = new SearchRequest(Strings.splitStringByCommaToArray(request.param("index")));
-        countRequest.indicesOptions(IndicesOptions.fromRequest(request, countRequest.indicesOptions()));
+        IndicesOptions indicesOptions = IndicesOptions.fromRequest(request, countRequest.indicesOptions());
         if (crossProjectModeDecider.crossProjectEnabled()) {
             countRequest.setProjectRouting(request.param("project_routing"));
-            // MP TODO: do I also need to adjust indicesOptions here?
+
+            // MP TODO: check with Pawan about these additional if checks - needed here?
+            if (countRequest.allowsCrossProject() && countRequest.pointInTimeBuilder() == null) {
+                indicesOptions = IndicesOptions.builder(indicesOptions)
+                    .crossProjectModeOptions(new IndicesOptions.CrossProjectModeOptions(true))
+                    .build();
+            }
         }
+        countRequest.indicesOptions(indicesOptions);
+
         SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder().size(0).trackTotalHits(true);
         countRequest.source(searchSourceBuilder);
         request.withContentOrSourceParamParserOrNull(parser -> {

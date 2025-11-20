@@ -132,8 +132,7 @@ public class Chunk extends EsqlScalarFunction implements OptionalArgument {
             .entrySet()
             .stream()
             .filter(e -> e.getValue() instanceof Literal == false)
-            .map(e -> "invalid option for [" + e.getKey() + "], expected a constant, found [" +
-                e.getValue().dataType() + "]")
+            .map(e -> "invalid option for [" + e.getKey() + "], expected a constant, found [" + e.getValue().dataType() + "]")
             .toList();
 
         if (errors.isEmpty() == false) {
@@ -224,13 +223,10 @@ public class Chunk extends EsqlScalarFunction implements OptionalArgument {
     }
 
     private static ChunkingSettings toChunkingSettings(MapExpression map) {
-        Map<String, Object> chunkingSettingsMap = map.keyFoldedMap()
-            .entrySet()
-            .stream()
-            .collect(Collectors.toMap(Map.Entry::getKey, e -> {
-                Object value = e.getValue().fold(FoldContext.small());
-                return value instanceof BytesRef ? ((BytesRef) value).utf8ToString() : value;
-            }));
+        Map<String, Object> chunkingSettingsMap = map.keyFoldedMap().entrySet().stream().collect(Collectors.toMap(Map.Entry::getKey, e -> {
+            Object value = e.getValue().fold(FoldContext.small());
+            return value instanceof BytesRef ? ((BytesRef) value).utf8ToString() : value;
+        }));
         return ChunkingSettingsBuilder.fromMap(chunkingSettingsMap);
     }
 }

@@ -66,8 +66,8 @@ public class Knn extends SingleFieldFullTextFunction implements OptionalArgument
 
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Knn", Knn::readFrom);
 
-    // k is not serialized as it's already included in the query builder on the rewrite step before being sent to data nodes
-    private final transient Integer k;
+    // Implicit k is not serialized as it's already included in the query builder on the rewrite step before being sent to data nodes
+    private final transient Integer implicitK;
     // Expressions to be used as prefilters in knn query
     private final List<Expression> filterExpressions;
 
@@ -169,12 +169,12 @@ public class Knn extends SingleFieldFullTextFunction implements OptionalArgument
         Expression field,
         Expression query,
         Expression options,
-        Integer k,
+        Integer implicitK,
         QueryBuilder queryBuilder,
         List<Expression> filterExpressions
     ) {
         super(source, field, query, options, expressionList(field, query, options), queryBuilder);
-        this.k = k;
+        this.implicitK = implicitK;
         this.filterExpressions = filterExpressions;
     }
 
@@ -188,15 +188,15 @@ public class Knn extends SingleFieldFullTextFunction implements OptionalArgument
         return result;
     }
 
-    public Integer k() {
-        return k;
+    public Integer implicitK() {
+        return implicitK;
     }
 
     public List<Expression> filterExpressions() {
         return filterExpressions;
     }
 
-    public Knn replaceK(Integer k) {
+    public Knn withImplicitK(Integer k) {
         Check.notNull(k, "k must not be null");
         return new Knn(source(), field(), query(), options(), k, queryBuilder(), filterExpressions());
     }
@@ -214,7 +214,7 @@ public class Knn extends SingleFieldFullTextFunction implements OptionalArgument
 
     @Override
     public Expression replaceQueryBuilder(QueryBuilder queryBuilder) {
-        return new Knn(source(), field(), query(), options(), k(), queryBuilder, filterExpressions());
+        return new Knn(source(), field(), query(), options(), implicitK(), queryBuilder, filterExpressions());
     }
 
     @Override
@@ -230,7 +230,7 @@ public class Knn extends SingleFieldFullTextFunction implements OptionalArgument
 
     @Override
     protected Query translate(LucenePushdownPredicates pushdownPredicates, TranslatorHandler handler) {
-        assert k() != null : "Knn function must have a k value set before translation";
+        assert implicitK() != null : "Knn function must have a k value set before translation";
         var fieldAttribute = fieldAsFieldAttribute(field());
 
         Check.notNull(fieldAttribute, "Knn must have a field attribute as the first argument");
@@ -249,7 +249,10 @@ public class Knn extends SingleFieldFullTextFunction implements OptionalArgument
             }
         }
 
-        return new KnnQuery(source(), fieldName, queryAsFloats, k(), queryOptions(), filterQueries);
+        Map<String, Object> options = queryOptions();
+        Integer explicitK = (Integer) options.get(K_FIELD.getPreferredName());
+
+        return new KnnQuery(source(), fieldName, queryAsFloats, explicitK != null ? explicitK : implicitK(), options, filterQueries);
     }
 
     private float[] queryAsFloats() {
@@ -262,7 +265,7 @@ public class Knn extends SingleFieldFullTextFunction implements OptionalArgument
     }
 
     public Expression withFilters(List<Expression> filterExpressions) {
-        return new Knn(source(), field(), query(), options(), k(), queryBuilder(), filterExpressions);
+        return new Knn(source(), field(), query(), options(), implicitK(), queryBuilder(), filterExpressions);
     }
 
     private Map<String, Object> queryOptions() throws InvalidArgumentException {
@@ -287,7 +290,7 @@ public class Knn extends SingleFieldFullTextFunction implements OptionalArgument
     @Override
     public void postOptimizationVerification(Failures failures) {
         // Check that a k has been set
-        if (k() == null) {
+        if (implicitK() == null) {
             failures.add(
                 Failure.fail(this, "Knn function must be used with a LIMIT clause after it to set the number of nearest neighbors to find")
             );
@@ -301,7 +304,7 @@ public class Knn extends SingleFieldFullTextFunction implements OptionalArgument
             newChildren.get(0),
             newChildren.get(1),
             newChildren.size() > 2 ? newChildren.get(2) : null,
-            k(),
+            implicitK(),
             queryBuilder(),
             filterExpressions()
         );
@@ -309,7 +312,7 @@ public class Knn extends SingleFieldFullTextFunction implements OptionalArgument
 
     @Override
     protected NodeInfo<? extends Expression> info() {
-        return NodeInfo.create(this, Knn::new, field(), query(), options(), k(), queryBuilder(), filterExpressions());
+        return NodeInfo.create(this, Knn::new, field(), query(), options(), implicitK(), queryBuilder(), filterExpressions());
     }
 
     @Override
@@ -357,12 +360,14 @@ public class Knn extends SingleFieldFullTextFunction implements OptionalArgument
         // ignore options when comparing two Knn functions
         if (o == null || getClass() != o.getClass()) return false;
         Knn knn = (Knn) o;
-        return super.equals(knn) && Objects.equals(k(), knn.k()) && Objects.equals(filterExpressions(), knn.filterExpressions());
+        return super.equals(knn)
+            && Objects.equals(implicitK(), knn.implicitK())
+            && Objects.equals(filterExpressions(), knn.filterExpressions());
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(field(), query(), queryBuilder(), k(), filterExpressions());
+        return Objects.hash(field(), query(), queryBuilder(), implicitK(), filterExpressions());
     }
 
 }

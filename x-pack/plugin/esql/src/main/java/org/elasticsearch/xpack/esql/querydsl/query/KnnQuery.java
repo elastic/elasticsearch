@@ -21,7 +21,6 @@ import java.util.Map;
 import java.util.Objects;
 
 import static org.elasticsearch.index.query.AbstractQueryBuilder.BOOST_FIELD;
-import static org.elasticsearch.search.vectors.KnnVectorQueryBuilder.K_FIELD;
 import static org.elasticsearch.search.vectors.KnnVectorQueryBuilder.VECTOR_SIMILARITY_FIELD;
 import static org.elasticsearch.search.vectors.KnnVectorQueryBuilder.VISIT_PERCENTAGE_FIELD;
 
@@ -53,10 +52,9 @@ public class KnnQuery extends Query {
         if (oversample != null) {
             rescoreVectorBuilder = new RescoreVectorBuilder(oversample);
         }
-        Integer k = (Integer) options.get(K_FIELD);
         Float vectorSimilarity = (Float) options.get(VECTOR_SIMILARITY_FIELD.getPreferredName());
         Integer minCandidates = (Integer) options.get(Knn.MIN_CANDIDATES_OPTION);
-        Float visitPercentage = (Float) options.get(VISIT_PERCENTAGE_FIELD);
+        Float visitPercentage = (Float) options.get(VISIT_PERCENTAGE_FIELD.getPreferredName());
         minCandidates = minCandidates == null ? null : Math.max(minCandidates, k);
 
         // TODO: expose visit_percentage in ESQL

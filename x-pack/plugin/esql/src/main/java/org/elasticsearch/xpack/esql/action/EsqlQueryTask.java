@@ -45,6 +45,19 @@ public class EsqlQueryTask extends StoredAsyncTask<EsqlQueryResponse> {
     @Override
     public EsqlQueryResponse getCurrentResult() {
         // TODO it'd be nice to have the number of documents we've read from completed drivers here
-        return new EsqlQueryResponse(List.of(), List.of(), 0, 0, null, false, getExecutionId().getEncoded(), true, true, executionInfo);
+        return new EsqlQueryResponse(
+            List.of(),
+            List.of(),
+            0,
+            0,
+            null,
+            false,
+            getExecutionId().getEncoded(),
+            true,
+            true,
+            getStartTime(),
+            getExpirationTimeMillis(),
+            executionInfo
+        );
     }
 }

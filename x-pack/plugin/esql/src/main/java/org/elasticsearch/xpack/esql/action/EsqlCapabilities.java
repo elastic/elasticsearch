@@ -1693,6 +1693,11 @@ public class EsqlCapabilities {
          */
         TIME_SERIES_WINDOW_V0,
 
+        /**
+         * PromQL support in ESQL
+         */
+        PROMQL_V0(Build.current().isSnapshot()),
+
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.
         ;

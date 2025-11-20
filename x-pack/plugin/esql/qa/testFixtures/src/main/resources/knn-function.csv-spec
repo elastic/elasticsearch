@@ -229,7 +229,7 @@ required_capability: knn_function_v5
 
 from colors metadata _score
 | eval composed_name = locate(color, " ") > 0 
-| where knn(rgb_vector, [128,128,0], {"min_candidates": 100}) and composed_name == false
+| where knn(rgb_vector, [128,128,0], {"k": 100}) and composed_name == false
 | sort _score desc, color asc
 | keep color, composed_name
 | limit 10

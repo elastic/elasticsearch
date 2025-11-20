@@ -23,7 +23,6 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.xpack.inference.external.http.retry.ResponseHandler;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSender;
 import org.elasticsearch.xpack.inference.services.ServiceComponentsTests;
 import org.elasticsearch.xpack.inference.services.ServiceFields;
@@ -33,7 +32,6 @@ import org.elasticsearch.xpack.inference.services.openai.OpenAiServiceFields;
 import org.elasticsearch.xpack.inference.services.openai.OpenAiUnifiedChatCompletionResponseHandler;
 import org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettings;
 
-import java.lang.reflect.Field;
 import java.net.URI;
 import java.util.HashMap;
 import java.util.List;
@@ -60,11 +58,8 @@ public class GroqServiceTests extends ESTestCase {
         terminate(threadPool);
     }
 
-    public void testUnifiedHandlerUsesOpenAiUnifiedChatCompletionHandler() throws Exception {
-        Field field = GroqService.class.getDeclaredField("UNIFIED_CHAT_COMPLETION_HANDLER");
-        field.setAccessible(true);
-
-        ResponseHandler handler = (ResponseHandler) field.get(null);
+    public void testUnifiedHandlerUsesOpenAiUnifiedChatCompletionHandler() {
+        var handler = GroqService.UNIFIED_CHAT_COMPLETION_HANDLER;
         assertThat(handler, instanceOf(OpenAiUnifiedChatCompletionResponseHandler.class));
     }
 

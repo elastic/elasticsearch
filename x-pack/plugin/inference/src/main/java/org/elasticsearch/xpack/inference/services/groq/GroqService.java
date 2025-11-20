@@ -62,7 +62,7 @@ public class GroqService extends SenderService {
 
     private static final EnumSet<TaskType> SUPPORTED_TASK_TYPES = EnumSet.of(TaskType.CHAT_COMPLETION);
     private static final TransportVersion GROQ_SERVICE_VERSION = TransportVersions.V_8_18_0;
-    private static final ResponseHandler UNIFIED_CHAT_COMPLETION_HANDLER = new OpenAiUnifiedChatCompletionResponseHandler(
+    static final ResponseHandler UNIFIED_CHAT_COMPLETION_HANDLER = new OpenAiUnifiedChatCompletionResponseHandler(
         GroqActionCreator.COMPLETION_REQUEST_TYPE,
         OpenAiChatCompletionResponseEntity::fromResponse
     );

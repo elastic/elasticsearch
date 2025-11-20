@@ -73,8 +73,7 @@ public class AzureRetryingInputStream extends RetryingInputStream<String> {
 
         @Override
         public long getMeaningfulProgressSize() {
-            // Any progress is meaningful for Azure
-            return 1;
+            return Math.max(1L, blobStore.getReadChunkSize() / 100L);
         }
 
         @Override

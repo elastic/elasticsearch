@@ -134,8 +134,7 @@ class GoogleCloudStorageRetryingInputStream extends RetryingInputStream<Long> {
 
         @Override
         public long getMeaningfulProgressSize() {
-            // Any progress is meaningful for GCS
-            return 1;
+            return Math.max(1L, GoogleCloudStorageBlobStore.SDK_DEFAULT_CHUNK_SIZE / 100L);
         }
 
         @Override

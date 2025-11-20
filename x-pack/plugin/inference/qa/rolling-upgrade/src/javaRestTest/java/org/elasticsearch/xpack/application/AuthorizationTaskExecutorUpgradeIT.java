@@ -60,17 +60,17 @@ public class AuthorizationTaskExecutorUpgradeIT extends ParameterizedRollingUpgr
             oldClusterHasFeature(BEFORE_AUTHORIZATION_TASK_FEATURE)
         );
 
-        // If the old cluster already has the feature for the authorization polling task, the task should already exist
-        // We only want to test when upgrading from a version that does not have the task
-        if (oldClusterHasFeature(INFERENCE_AUTH_POLLER_PERSISTENT_TASK) == false) {
-            if (isOldCluster()) {
-                // if we're on a version prior to the authorization polling task, the task should not be created
+        final var oldHasAuthTaskFeature = oldClusterHasFeature(INFERENCE_AUTH_POLLER_PERSISTENT_TASK);
+
+        if (isOldCluster() || isMixedCluster()) {
+            if (oldHasAuthTaskFeature == false) {
+                // If cluster version does not have the authorization polling task feature:
+                // The task must not exist on a non-upgraded or mixed cluster.
                 assertFalse(doesAuthPollingTaskExist());
-            }
-            if (isMixedCluster()) {
-                // if we're in the middle of an upgrade where some nodes are upgraded and some are not, the task should
-                // still not be created. It should wait until all nodes are upgraded
-                assertFalse(doesAuthPollingTaskExist());
+            } else {
+                // If cluster version already has the feature:
+                // The task must already exist on non-upgraded or mixed cluster.
+                assertBusy(() -> assertTrue(doesAuthPollingTaskExist()));
             }
         }
 

@@ -37,12 +37,12 @@ public class AuthorizationTaskExecutorUpgradeIT extends ParameterizedRollingUpgr
         .setting("xpack.security.enabled", "false")
         .setting("xpack.license.self_generated.type", "trial")
         .setting(PERIODIC_AUTHORIZATION_ENABLED.getKey(), "false")
-        // We need a url set for the authorization task to be scheduled, but we don't actually care if we get a valid response
+        // We need a url set for the authorization task to be created, but we don't actually care if we get a valid response
         // just that the task will be created upon upgrade
         .setting(ELASTIC_INFERENCE_SERVICE_URL.getKey(), "http://localhost:12345")
         .build();
 
-    static final String GET_METHOD = "GET";
+    private static final String GET_METHOD = "GET";
 
     public AuthorizationTaskExecutorUpgradeIT(@Name("upgradedNodes") int upgradedNodes) {
         super(upgradedNodes);
@@ -64,7 +64,8 @@ public class AuthorizationTaskExecutorUpgradeIT extends ParameterizedRollingUpgr
                 assertFalse(doesAuthPollingTaskExist());
             }
             if (isMixedCluster()) {
-                // if we're in a mixed cluster state wh
+                // if we're in the middle of an upgrade where some nodes are upgraded and some are not, the task should
+                // still not be created. It should wait until all nodes are upgraded
                 assertFalse(doesAuthPollingTaskExist());
             }
         }
@@ -117,10 +118,10 @@ public class AuthorizationTaskExecutorUpgradeIT extends ParameterizedRollingUpgr
             return false;
         }
 
-        for (Object taskObj : tasks.values()) {
+        for (var taskObj : tasks.values()) {
             var task = (Map<String, Object>) taskObj;
             var action = (String) task.get("action");
-            if ((action != null && action.startsWith(AuthorizationPoller.TASK_NAME))) {
+            if (action != null && action.startsWith(AuthorizationPoller.TASK_NAME)) {
                 return true;
             }
         }

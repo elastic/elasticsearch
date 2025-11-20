@@ -8,15 +8,15 @@
 package org.elasticsearch.xpack.inference.services.groq.completion;
 
 import org.elasticsearch.common.ValidationException;
-import org.elasticsearch.common.io.stream.BytesStreamOutput;
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.ServiceFields;
 import org.elasticsearch.xpack.inference.services.openai.OpenAiServiceFields;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
+import org.elasticsearch.xpack.inference.services.settings.RateLimitSettingsTests;
 
-import java.io.IOException;
+import java.net.URI;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -58,14 +58,35 @@ public class GroqChatCompletionServiceSettingsTests extends AbstractWireSerializ
         }
     }
 
-    public void testSerializationRoundTrip() throws IOException {
-        var rateLimit = new RateLimitSettings(randomIntBetween(1, 1000));
-        var settings = new GroqChatCompletionServiceSettings("model", (java.net.URI) null, null, rateLimit);
-        try (BytesStreamOutput out = new BytesStreamOutput()) {
-            settings.writeTo(out);
-            StreamInput in = out.bytes().streamInput();
-            var restored = new GroqChatCompletionServiceSettings(in);
-            assertThat(restored, equalTo(settings));
+    @Override
+    protected Writeable.Reader<GroqChatCompletionServiceSettings> instanceReader() {
+        return GroqChatCompletionServiceSettings::new;
+    }
+
+    @Override
+    protected GroqChatCompletionServiceSettings createTestInstance() {
+        String modelId = randomAlphaOfLength(8);
+        URI uri = randomBoolean() ? URI.create("https://api.groq.com/" + randomAlphaOfLength(5)) : null;
+        String organizationId = randomBoolean() ? randomAlphaOfLength(6) : null;
+        RateLimitSettings rateLimitSettings = RateLimitSettingsTests.createRandom();
+        return new GroqChatCompletionServiceSettings(modelId, uri, organizationId, rateLimitSettings);
+    }
+
+    @Override
+    protected GroqChatCompletionServiceSettings mutateInstance(GroqChatCompletionServiceSettings instance) {
+        String modelId = instance.modelId();
+        URI uri = instance.uri();
+        String organizationId = instance.organizationId();
+        RateLimitSettings rateLimitSettings = instance.rateLimitSettings();
+
+        switch (between(0, 3)) {
+            case 0 -> modelId = randomValueOtherThan(modelId, () -> randomAlphaOfLength(8));
+            case 1 -> uri = randomValueOtherThan(uri, () -> URI.create("https://api.groq.com/" + randomAlphaOfLength(6)));
+            case 2 -> organizationId = randomValueOtherThan(organizationId, () -> randomAlphaOfLength(5));
+            case 3 -> rateLimitSettings = randomValueOtherThan(rateLimitSettings, RateLimitSettingsTests::createRandom);
+            default -> throw new AssertionError("Unsupported branch");
         }
+
+        return new GroqChatCompletionServiceSettings(modelId, uri, organizationId, rateLimitSettings);
     }
 }

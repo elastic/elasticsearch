@@ -8,10 +8,10 @@
 package org.elasticsearch.xpack.inference.services.groq.completion;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.xpack.inference.services.groq.GroqService;
 import org.elasticsearch.xpack.inference.services.openai.OpenAiTaskSettings;
 
 import java.io.IOException;
@@ -46,7 +46,7 @@ public class GroqChatCompletionTaskSettings extends OpenAiTaskSettings<GroqChatC
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.V_8_18_0;
+        return GroqService.GROQ_INFERENCE_SERVICE;
     }
 
     @Override

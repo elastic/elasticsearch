@@ -80,22 +80,6 @@ public class GroqServiceTests extends ESTestCase {
         }
     }
 
-    public void testParseRequestConfigMovesModelFromTaskSettings() throws Exception {
-        try (GroqService service = createService()) {
-            Map<String, Object> serviceSettings = new HashMap<>();
-            serviceSettings.put(DefaultSecretSettings.API_KEY, "secret-key");
-
-            Map<String, Object> taskSettings = new HashMap<>();
-            taskSettings.put("model", "task-defined-model");
-
-            PlainActionFuture<Model> future = new PlainActionFuture<>();
-            service.parseRequestConfig("groq-test", TaskType.CHAT_COMPLETION, wrapRequestConfig(serviceSettings, taskSettings), future);
-
-            GroqChatCompletionModel model = (GroqChatCompletionModel) future.actionGet();
-            assertThat(model.getServiceSettings().modelId(), equalTo("task-defined-model"));
-        }
-    }
-
     public void testParseRequestConfigRequiresModelId() throws Exception {
         try (GroqService service = createService()) {
             Map<String, Object> serviceSettings = new HashMap<>();

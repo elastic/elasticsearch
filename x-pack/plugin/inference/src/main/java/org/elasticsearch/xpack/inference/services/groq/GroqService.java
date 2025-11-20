@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.inference.services.groq;
 
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.ValidationException;
@@ -61,7 +60,7 @@ public class GroqService extends SenderService {
     private static final String SERVICE_NAME = "Groq";
 
     private static final EnumSet<TaskType> SUPPORTED_TASK_TYPES = EnumSet.of(TaskType.CHAT_COMPLETION);
-    private static final TransportVersion GROQ_INFERENCE_SERVICE = TransportVersion.fromName("ml_groq_inference_service");
+    public static final TransportVersion GROQ_INFERENCE_SERVICE = TransportVersion.fromName("ml_groq_inference_service");
     static final ResponseHandler UNIFIED_CHAT_COMPLETION_HANDLER = new OpenAiUnifiedChatCompletionResponseHandler(
         GroqActionCreator.COMPLETION_REQUEST_TYPE,
         OpenAiChatCompletionResponseEntity::fromResponse
@@ -96,7 +95,7 @@ public class GroqService extends SenderService {
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return GROQ_SERVICE_VERSION;
+        return GROQ_INFERENCE_SERVICE;
     }
 
     @Override
@@ -109,7 +108,6 @@ public class GroqService extends SenderService {
         try {
             Map<String, Object> serviceSettingsMap = ServiceUtils.removeFromMapOrThrowIfNull(config, ModelConfigurations.SERVICE_SETTINGS);
             Map<String, Object> taskSettingsMap = ServiceUtils.removeFromMapOrDefaultEmpty(config, ModelConfigurations.TASK_SETTINGS);
-
 
             GroqChatCompletionModel model = createModel(
                 inferenceEntityId,
@@ -141,7 +139,6 @@ public class GroqService extends SenderService {
         Map<String, Object> taskSettingsMap = ServiceUtils.removeFromMapOrDefaultEmpty(config, ModelConfigurations.TASK_SETTINGS);
         Map<String, Object> secretSettingsMap = ServiceUtils.removeFromMapOrDefaultEmpty(secrets, ModelSecrets.SECRET_SETTINGS);
 
-
         return createModel(
             inferenceEntityId,
             taskType,
@@ -156,7 +153,6 @@ public class GroqService extends SenderService {
     public GroqChatCompletionModel parsePersistedConfig(String inferenceEntityId, TaskType taskType, Map<String, Object> config) {
         Map<String, Object> serviceSettingsMap = ServiceUtils.removeFromMapOrThrowIfNull(config, ModelConfigurations.SERVICE_SETTINGS);
         Map<String, Object> taskSettingsMap = ServiceUtils.removeFromMapOrDefaultEmpty(config, ModelConfigurations.TASK_SETTINGS);
-
 
         return createModel(inferenceEntityId, taskType, serviceSettingsMap, taskSettingsMap, null, ConfigurationParseContext.PERSISTENT);
     }
@@ -243,7 +239,6 @@ public class GroqService extends SenderService {
     public InferenceServiceConfiguration getConfiguration() {
         return Configuration.get();
     }
-
 
     public static class Configuration {
         public static InferenceServiceConfiguration get() {

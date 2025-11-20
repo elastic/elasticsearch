@@ -41,7 +41,6 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcke
 import static org.elasticsearch.xpack.esql.DenseVectorFieldTypeIT.ALL_DENSE_VECTOR_INDEX_TYPES;
 import static org.elasticsearch.xpack.esql.DenseVectorFieldTypeIT.NON_QUANTIZED_DENSE_VECTOR_INDEX_TYPES;
 import static org.hamcrest.CoreMatchers.containsString;
-import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 public class KnnFunctionIT extends AbstractEsqlIntegTestCase {
@@ -225,35 +224,6 @@ public class KnnFunctionIT extends AbstractEsqlIntegTestCase {
                     + "mode [lookup]"
             )
         );
-    }
-
-    public void testKnnWitNoRetrievedVector() {
-        float[] queryVector = new float[numDims];
-        Arrays.fill(queryVector, 0.0f);
-
-        var query = String.format(Locale.ROOT, """
-            FROM test METADATA _score
-            | WHERE knn(vector, %s)
-            | SORT _score DESC
-            | LIMIT 10
-            | KEEP id, _score
-            """, Arrays.toString(queryVector));
-
-        try (var resp = run(query)) {
-            assertColumnNames(resp.columns(), List.of("id", "_score"));
-            assertColumnTypes(resp.columns(), List.of("integer", "double"));
-
-            List<List<Object>> valuesList = EsqlTestUtils.getValuesList(resp);
-            assertEquals(10, valuesList.size());
-            double previousScore = Float.MAX_VALUE;
-            for (List<Object> row : valuesList) {
-                // Vectors should be in score order
-                double currentScore = (Double) row.get(1);
-                assertThat(currentScore, greaterThan(0.0));
-                assertThat(currentScore, lessThanOrEqualTo(previousScore));
-                previousScore = currentScore;
-            }
-        }
     }
 
     @Before

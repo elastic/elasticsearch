@@ -654,7 +654,13 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
                 }
             }
         );
-        TransportActionProxy.registerProxyAction(transportService, NODE_SEARCH_ACTION_NAME, true, NodeQueryResponse::new);
+        TransportActionProxy.registerProxyAction(
+            transportService,
+            NODE_SEARCH_ACTION_NAME,
+            true,
+            NodeQueryResponse::new,
+            namedWriteableRegistry
+        );
     }
 
     private static void releaseLocalContext(
@@ -843,6 +849,8 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
             var channelListener = new ChannelActionListener<>(channel);
             RecyclerBytesStreamOutput out = dependencies.transportService.newNetworkBytesStream();
             out.setTransportVersion(channel.getVersion());
+
+            boolean success = false;
             try (queryPhaseResultConsumer) {
                 Exception reductionFailure = queryPhaseResultConsumer.failure.get();
                 if (reductionFailure == null) {
@@ -850,12 +858,20 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
                 } else {
                     writeReductionFailureResponse(out, reductionFailure);
                 }
+                success = true;
             } catch (IOException e) {
                 releaseAllResultsContexts();
                 channelListener.onFailure(e);
                 return;
+            } finally {
+                if (success == false) {
+                    out.close();
+                }
             }
-            ActionListener.respondAndRelease(channelListener, new BytesTransportResponse(out.moveToBytesReference()));
+            ActionListener.respondAndRelease(
+                channelListener,
+                new BytesTransportResponse(out.moveToBytesReference(), out.getTransportVersion())
+            );
         }
 
         // Writes the "successful" response (see NodeQueryResponse for the corresponding read logic)
@@ -979,7 +995,10 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
                     out.close();
                 }
             }
-            ActionListener.respondAndRelease(channelListener, new BytesTransportResponse(out.moveToBytesReference()));
+            ActionListener.respondAndRelease(
+                channelListener,
+                new BytesTransportResponse(out.moveToBytesReference(), out.getTransportVersion())
+            );
         }
 
         private void maybeFreeContext(

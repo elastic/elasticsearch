@@ -18,6 +18,7 @@ import org.apache.lucene.codecs.hnsw.FlatFieldVectorsWriter;
 import org.apache.lucene.codecs.hnsw.FlatVectorsWriter;
 import org.apache.lucene.codecs.lucene99.Lucene99FlatVectorsWriter;
 import org.apache.lucene.index.ByteVectorValues;
+import org.apache.lucene.index.DocsWithFieldSet;
 import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.FloatVectorValues;
 import org.apache.lucene.index.IndexFileNames;
@@ -42,6 +43,7 @@ import org.elasticsearch.index.codec.vectors.ES814ScalarQuantizedVectorsFormat;
 import org.elasticsearch.index.codec.vectors.reflect.VectorsFormatReflectionUtils;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
+import org.elasticsearch.xpack.gpu.GPUSupport;
 
 import java.io.IOException;
 import java.lang.foreign.Arena;
@@ -70,6 +72,9 @@ final class ES92GpuHnswVectorsWriter extends KnnVectorsWriter {
     private static final long SHALLOW_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(ES92GpuHnswVectorsWriter.class);
     private static final int LUCENE99_HNSW_DIRECT_MONOTONIC_BLOCK_SHIFT = 16;
     private static final long DIRECT_COPY_THRESHOLD_IN_BYTES = 128 * 1024 * 1024; // 128MB
+
+    // TODO: lower the numVectors threshold when to switch to IVF_PQ based on more benchmarks
+    private static final long MAX_NUM_VECTORS_FOR_NN_DESCENT = 5_000_000L;
 
     private final CuVSResourceManager cuVSResourceManager;
     private final SegmentWriteState segmentWriteState;
@@ -159,7 +164,6 @@ final class ES92GpuHnswVectorsWriter extends KnnVectorsWriter {
      * </p>
      */
     @Override
-    // TODO: fix sorted index case
     public void flush(int maxDoc, Sorter.DocMap sortMap) throws IOException {
         var started = System.nanoTime();
         flatVectorWriter.flush(maxDoc, sortMap);
@@ -178,19 +182,21 @@ final class ES92GpuHnswVectorsWriter extends KnnVectorsWriter {
             var started = System.nanoTime();
             var fieldInfo = field.fieldInfo;
 
-            CagraIndexParams cagraIndexParams = createCagraIndexParams(fieldInfo.getVectorSimilarityFunction());
+            var originalVectors = field.flatFieldVectorsWriter.getVectors();
+            final List<float[]> vectorsInSortedOrder = sortMap == null
+                ? originalVectors
+                : getVectorsInSortedOrder(field, sortMap, originalVectors);
+            int numVectors = vectorsInSortedOrder.size();
+            CagraIndexParams cagraIndexParams = createCagraIndexParams(
+                fieldInfo.getVectorSimilarityFunction(),
+                numVectors,
+                fieldInfo.getVectorDimension()
+            );
 
-            var numVectors = field.flatFieldVectorsWriter.getVectors().size();
             if (numVectors < MIN_NUM_VECTORS_FOR_GPU_BUILD) {
-                if (logger.isDebugEnabled()) {
-                    logger.debug(
-                        "Skip building carga index; vectors length {} < {} (min for GPU)",
-                        numVectors,
-                        MIN_NUM_VECTORS_FOR_GPU_BUILD
-                    );
-                }
+                logger.debug("Skip building carga index; vectors length {} < {} (min for GPU)", numVectors, MIN_NUM_VECTORS_FOR_GPU_BUILD);
                 // Will not be indexed on the GPU
-                flushFieldWithMockGraph(fieldInfo, numVectors, sortMap);
+                generateMockGraphAndWriteMeta(fieldInfo, numVectors);
             } else {
                 try (
                     var resourcesHolder = new ResourcesHolder(
@@ -204,11 +210,11 @@ final class ES92GpuHnswVectorsWriter extends KnnVectorsWriter {
                         fieldInfo.getVectorDimension(),
                         CuVSMatrix.DataType.FLOAT
                     );
-                    for (var vector : field.flatFieldVectorsWriter.getVectors()) {
+                    for (var vector : vectorsInSortedOrder) {
                         builder.addVector(vector);
                     }
                     try (var dataset = builder.build()) {
-                        flushFieldWithGpuGraph(resourcesHolder, fieldInfo, dataset, sortMap, cagraIndexParams);
+                        generateGpuGraphAndWriteMeta(resourcesHolder, fieldInfo, dataset, cagraIndexParams);
                     }
                 }
             }
@@ -217,28 +223,17 @@ final class ES92GpuHnswVectorsWriter extends KnnVectorsWriter {
         }
     }
 
-    private void flushFieldWithMockGraph(FieldInfo fieldInfo, int numVectors, Sorter.DocMap sortMap) throws IOException {
-        if (sortMap == null) {
-            generateMockGraphAndWriteMeta(fieldInfo, numVectors);
-        } else {
-            // TODO: use sortMap
-            generateMockGraphAndWriteMeta(fieldInfo, numVectors);
+    private List<float[]> getVectorsInSortedOrder(FieldWriter field, Sorter.DocMap sortMap, List<float[]> originalVectors)
+        throws IOException {
+        DocsWithFieldSet docsWithField = field.getDocsWithFieldSet();
+        int[] ordMap = new int[docsWithField.cardinality()];
+        DocsWithFieldSet newDocsWithField = new DocsWithFieldSet();
+        KnnVectorsWriter.mapOldOrdToNewOrd(docsWithField, sortMap, null, ordMap, newDocsWithField);
+        List<float[]> vectorsInSortedOrder = new ArrayList<>(ordMap.length);
+        for (int oldOrd : ordMap) {
+            vectorsInSortedOrder.add(originalVectors.get(oldOrd));
         }
-    }
-
-    private void flushFieldWithGpuGraph(
-        ResourcesHolder resourcesHolder,
-        FieldInfo fieldInfo,
-        CuVSMatrix dataset,
-        Sorter.DocMap sortMap,
-        CagraIndexParams cagraIndexParams
-    ) throws IOException {
-        if (sortMap == null) {
-            generateGpuGraphAndWriteMeta(resourcesHolder, fieldInfo, dataset, cagraIndexParams);
-        } else {
-            // TODO: use sortMap
-            generateGpuGraphAndWriteMeta(resourcesHolder, fieldInfo, dataset, cagraIndexParams);
-        }
+        return vectorsInSortedOrder;
     }
 
     @Override
@@ -334,7 +329,7 @@ final class ES92GpuHnswVectorsWriter extends KnnVectorsWriter {
         return index;
     }
 
-    private CagraIndexParams createCagraIndexParams(VectorSimilarityFunction similarityFunction) {
+    private CagraIndexParams createCagraIndexParams(VectorSimilarityFunction similarityFunction, int numVectors, int dims) {
         CagraIndexParams.CuvsDistanceType distanceType = switch (similarityFunction) {
             case COSINE -> CagraIndexParams.CuvsDistanceType.CosineExpanded;
             case EUCLIDEAN -> CagraIndexParams.CuvsDistanceType.L2Expanded;
@@ -350,14 +345,50 @@ final class ES92GpuHnswVectorsWriter extends KnnVectorsWriter {
             }
         };
 
-        // TODO: expose cagra index params for algorithm, NNDescentNumIterations
-        return new CagraIndexParams.Builder().withNumWriterThreads(1) // TODO: how many CPU threads we can use?
-            .withCagraGraphBuildAlgo(CagraIndexParams.CagraGraphBuildAlgo.NN_DESCENT)
-            .withGraphDegree(M)
-            .withIntermediateGraphDegree(beamWidth)
-            .withNNDescentNumIterations(5)
-            .withMetric(distanceType)
-            .build();
+        int numCPUThreads = 1; // TODO: how many CPU threads we can use?
+        CagraIndexParams params;
+
+        boolean useIvfPQ = false;
+        // Check if we should use IVF_PQ based on vector count and distance type
+        // IVF_PQ doesn't support Cosine distance in CUVS 25.10
+        // TODO: Remove this check on distance when updating to CUVS 25.12+
+        if ((distanceType != CagraIndexParams.CuvsDistanceType.CosineExpanded) && (numVectors >= MAX_NUM_VECTORS_FOR_NN_DESCENT)) {
+            useIvfPQ = true;
+        }
+
+        // Check if we should use IVF_PQ due to insufficient GPU memory for NN_DESCENT
+        if ((useIvfPQ == false) && distanceType != CagraIndexParams.CuvsDistanceType.CosineExpanded) {
+            long totalDeviceMemory = GPUSupport.getTotalGpuMemory();
+            if (totalDeviceMemory > 0) {
+                long requiredMemoryForNnDescent = CuVSResourceManager.estimateNNDescentMemory(numVectors, dims, dataType);
+                if (requiredMemoryForNnDescent > totalDeviceMemory) {
+                    useIvfPQ = true;
+                    logger.debug(
+                        "Using IVF_PQ algorithm due to insufficient GPU memory for NN_DESCENT; required [{}B] > total [{}B]",
+                        requiredMemoryForNnDescent,
+                        totalDeviceMemory
+                    );
+                }
+            }
+        }
+
+        if (useIvfPQ) {
+            var ivfPqParams = CuVSIvfPqParamsFactory.create(numVectors, dims, distanceType, beamWidth);
+            params = new CagraIndexParams.Builder().withNumWriterThreads(numCPUThreads)
+                .withCagraGraphBuildAlgo(CagraIndexParams.CagraGraphBuildAlgo.IVF_PQ)
+                .withCuVSIvfPqParams(ivfPqParams)
+                .withMetric(distanceType)
+                .build();
+        } else {
+            params = new CagraIndexParams.Builder().withNumWriterThreads(numCPUThreads)
+                .withCagraGraphBuildAlgo(CagraIndexParams.CagraGraphBuildAlgo.NN_DESCENT)
+                .withGraphDegree(M)
+                .withIntermediateGraphDegree(beamWidth)
+                .withNNDescentNumIterations(5)
+                .withMetric(distanceType)
+                .build();
+        }
+        return params;
     }
 
     private HnswGraph writeGraph(CuVSMatrix cagraGraph, int[][] levelNodeOffsets) throws IOException {
@@ -474,8 +505,10 @@ final class ES92GpuHnswVectorsWriter extends KnnVectorsWriter {
 
     // TODO check with deleted documents
     @Override
-    // fix sorted index case
     public void mergeOneField(FieldInfo fieldInfo, MergeState mergeState) throws IOException {
+        // Note: Merged raw vectors are already in sorted order. The flatVectorWriter and MergedVectorValues utilities
+        // apply mergeState.docMaps internally, so vectors are returned in the final sorted document order.
+        // Unlike flush(), we don't need to explicitly handle sorting here.
         try (var scorerSupplier = flatVectorWriter.mergeOneFieldToIndex(fieldInfo, mergeState)) {
             var started = System.nanoTime();
             int numVectors = scorerSupplier.totalVectorCount();
@@ -515,7 +548,11 @@ final class ES92GpuHnswVectorsWriter extends KnnVectorsWriter {
             ? null
             : VectorsFormatReflectionUtils.getByteScoringSupplierVectorOrNull(randomScorerSupplier);
 
-        CagraIndexParams cagraIndexParams = createCagraIndexParams(fieldInfo.getVectorSimilarityFunction());
+        CagraIndexParams cagraIndexParams = createCagraIndexParams(
+            fieldInfo.getVectorSimilarityFunction(),
+            numVectors,
+            fieldInfo.getVectorDimension()
+        );
 
         if (vectorValues != null) {
             IndexInput slice = vectorValues.getSlice();
@@ -612,7 +649,11 @@ final class ES92GpuHnswVectorsWriter extends KnnVectorsWriter {
         var vectorValues = randomScorerSupplier == null
             ? null
             : VectorsFormatReflectionUtils.getFloatScoringSupplierVectorOrNull(randomScorerSupplier);
-        CagraIndexParams cagraIndexParams = createCagraIndexParams(fieldInfo.getVectorSimilarityFunction());
+        CagraIndexParams cagraIndexParams = createCagraIndexParams(
+            fieldInfo.getVectorSimilarityFunction(),
+            numVectors,
+            fieldInfo.getVectorDimension()
+        );
 
         if (vectorValues != null) {
             IndexInput slice = vectorValues.getSlice();
@@ -797,6 +838,10 @@ final class ES92GpuHnswVectorsWriter extends KnnVectorsWriter {
         @Override
         public long ramBytesUsed() {
             return SHALLOW_SIZE + flatFieldVectorsWriter.ramBytesUsed();
+        }
+
+        public DocsWithFieldSet getDocsWithFieldSet() {
+            return flatFieldVectorsWriter.getDocsWithFieldSet();
         }
     }
 }

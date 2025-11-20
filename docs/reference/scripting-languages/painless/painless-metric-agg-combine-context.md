@@ -12,7 +12,11 @@ products:
 
 Use a Painless script to [combine](/reference/aggregations/search-aggregations-metrics-scripted-metric-aggregation.md) values for use in a scripted metric aggregation. A combine script is run once per shard following a [map script](/reference/scripting-languages/painless/painless-metric-agg-map-context.md) and is optional as part of a full metric aggregation.
 
-**Variables**
+:::{warning}  
+`scripted_metric` is not available in {{serverless-full}}.  
+:::
+
+## Variables
 
 `params` (`Map`, read-only)
 :   User-defined parameters passed in as part of the query.
@@ -20,12 +24,50 @@ Use a Painless script to [combine](/reference/aggregations/search-aggregations-m
 `state` (`Map`)
 :   `Map` with values available from the prior map script.
 
-**Return**
+## Return
 
 `List`, `Map`, `String`, or primitive
 :   A value collected for use in a [reduce script](/reference/scripting-languages/painless/painless-metric-agg-reduce-context.md). If no reduce script is specified, the value is used as part of the result.
 
-**API**
+## API
 
 The standard [Painless API](https://www.elastic.co/guide/en/elasticsearch/painless/current/painless-api-reference-shared.html) is available.
 
+## Example
+
+To run the example, first follow the [eCommerce sample data installation steps](/reference/scripting-languages/painless/painless-context-examples.md#painless-sample-data-install).
+
+:::{tip}You are viewing Phase 3 of 4 in the scripted metric aggregation pipeline. This combined script runs once per shard to prepare results for the final reduce phase. This is the same complete example shown across all metric aggregation contexts.
+:::
+
+In the following example, we build a query that analyzes the data to calculate the total number of products sold across all orders, using the map-reduce pattern where each shard processes documents locally and results are combined into a final total.
+
+**Initialization phase (sets up data structures):**  
+The first code snippet is contained by the `init_script` that initializes an empty array to collect quantity values from each document. Runs once per shard.
+
+```java
+state.quantities = []
+```
+
+**Map phase (processes each document):**  
+The code in the `map_script` section is executed for each document. It extracts the total quantity of products in each order and adds it to the shard's collection array.
+
+```java
+state.quantities.add(doc['total_quantity'].value)
+```
+
+**>Combine phase (this context - returns shard results):**  
+In the `combine_script`, we process all the quantities collected in this shard by iterating through the array and summing all values. This reduces the data sent to the reduce phase from an array of individual quantities to a single total per shard.
+
+```java
+int shardTotal = 0;
+ 
+for (qty in state.quantities) {
+  shardTotal += qty;
+}
+
+return shardTotal;
+```
+
+**Reduce phase (merges all shard results):**  
+Finally, the `reduce_script` merges results from all shards by iterating through each shard's total and adding the results together to get the grand total of products sold across the entire dataset.

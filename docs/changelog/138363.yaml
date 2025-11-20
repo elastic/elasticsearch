@@ -1,5 +1,5 @@
 pr: 138363
-summary:Fix StringIndexOutOfBoundsException in COMPLETION command when options are omitted.
+summary: Fix StringIndexOutOfBoundsException in COMPLETION command when options are omitted.
 area: ES|QL
 type: bug
 issues:

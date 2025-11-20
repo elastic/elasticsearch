@@ -394,8 +394,7 @@ public class KnnIndexTester {
                     String.format(Locale.ROOT, "%.2f", queryResult.averageVisited),
                     String.format(Locale.ROOT, "%.2f", queryResult.filterSelectivity),
                     Boolean.toString(queryResult.filterCached),
-                    String.format(Locale.ROOT, "%.2f", queryResult.overSamplingFactor)
-                };
+                    String.format(Locale.ROOT, "%.2f", queryResult.overSamplingFactor) };
             }
 
             printBlock(sb, searchHeaders, queryResultsArray);

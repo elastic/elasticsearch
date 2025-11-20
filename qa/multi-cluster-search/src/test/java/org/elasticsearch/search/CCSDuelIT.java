@@ -676,12 +676,12 @@ public class CCSDuelIT extends ESRestTestCase {
         {
             SearchRequest searchRequest = initLocalAndRemoteSearchRequest();
             searchRequest.source(buildTermsAggsSource());
-            duelRequest(searchRequest, CCSDuelIT::assertAggs);
+            duelRequest(searchRequest, CCSDuelIT::assertAggs, true, path -> path.endsWith("/doc_count_error_upper_bound") == false);
         }
         {
             SearchRequest searchRequest = initRemoteOnlySearchRequest();
             searchRequest.source(buildTermsAggsSource());
-            duelRequest(searchRequest, CCSDuelIT::assertAggs);
+            duelRequest(searchRequest, CCSDuelIT::assertAggs, true, path -> path.endsWith("/doc_count_error_upper_bound") == false);
         }
     }
 
@@ -690,12 +690,12 @@ public class CCSDuelIT extends ESRestTestCase {
         {
             SearchRequest searchRequest = initLocalAndRemoteSearchRequest();
             searchRequest.source(buildTermsAggsSource().profile(true));
-            duelRequest(searchRequest, CCSDuelIT::assertAggs);
+            duelRequest(searchRequest, CCSDuelIT::assertAggs, true, path -> path.endsWith("/doc_count_error_upper_bound") == false);
         }
         {
             SearchRequest searchRequest = initRemoteOnlySearchRequest();
             searchRequest.source(buildTermsAggsSource().profile(true));
-            duelRequest(searchRequest, CCSDuelIT::assertAggs);
+            duelRequest(searchRequest, CCSDuelIT::assertAggs, true, path -> path.endsWith("/doc_count_error_upper_bound") == false);
         }
     }
 

@@ -223,7 +223,7 @@ public class VectorScorerDistanceFunctionBenchmark {
     }
 
     @Fork(1)
-    //@Benchmark
+    // @Benchmark
     public void benchmark(Blackhole blackhole) {
         for (int i = 0; i < OPERATIONS; ++i) {
             blackhole.consume(benchmarkImpl.getAsDouble());

@@ -168,7 +168,7 @@ public class VectorScorerOSQBenchmark {
         IOUtils.close(dirMmap, inMmap, dirNiofs, inNiofs);
     }
 
-    //@Benchmark
+    // @Benchmark
     public void scoreFromMemorySegmentOnlyVectorMmapScalar(Blackhole bh) throws IOException {
         scoreFromMemorySegmentOnlyVector(bh, inMmap, scorerMmap);
     }
@@ -179,7 +179,7 @@ public class VectorScorerOSQBenchmark {
         scoreFromMemorySegmentOnlyVector(bh, inMmap, scorerMmap);
     }
 
-    //@Benchmark
+    // @Benchmark
     public void scoreFromMemorySegmentOnlyVectorNiofsScalar(Blackhole bh) throws IOException {
         scoreFromMemorySegmentOnlyVector(bh, inNiofs, scorerNfios);
     }
@@ -215,7 +215,7 @@ public class VectorScorerOSQBenchmark {
         }
     }
 
-    //@Benchmark
+    // @Benchmark
     public void scoreFromMemorySegmentAllBulkMmapScalar(Blackhole bh) throws IOException {
         scoreFromMemorySegmentAllBulk(bh, inMmap, scorerMmap);
     }
@@ -226,7 +226,7 @@ public class VectorScorerOSQBenchmark {
         scoreFromMemorySegmentAllBulk(bh, inMmap, scorerMmap);
     }
 
-    //@Benchmark
+    // @Benchmark
     public void scoreFromMemorySegmentAllBulkNiofsScalar(Blackhole bh) throws IOException {
         scoreFromMemorySegmentAllBulk(bh, inNiofs, scorerNfios);
     }

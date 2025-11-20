@@ -99,13 +99,13 @@ public class GoogleCloudStorageService {
         ClientConfigured {
             @Override
             public RetrySettings createRetrySettings(GoogleCloudStorageClientSettings settings) {
-                return RetrySettings.newBuilder().setMaxAttempts(settings.getMaxRetries() + 1).build();
+                return ServiceOptions.getDefaultRetrySettings().toBuilder().setMaxAttempts(settings.getMaxRetries() + 1).build();
             }
         },
         None {
             @Override
             public RetrySettings createRetrySettings(GoogleCloudStorageClientSettings settings) {
-                return RetrySettings.newBuilder().setMaxAttempts(1).build();
+                return ServiceOptions.getNoRetrySettings();
             }
         };
 

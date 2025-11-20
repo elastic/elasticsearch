@@ -17,7 +17,6 @@ import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.search.DocIdSetIterator;
 
 import java.io.IOException;
-import java.io.UncheckedIOException;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.function.IntFunction;
@@ -44,7 +43,6 @@ class CachedDirectoryReader extends FilterDirectoryReader {
 
     static class CachedLeafReader extends FilterLeafReader {
         final Map<String, NumericDocValues> docValues = new HashMap<>();
-        final Map<String, Terms> termsCache = new HashMap<>();
 
         CachedLeafReader(LeafReader in) {
             super(in);
@@ -66,13 +64,7 @@ class CachedDirectoryReader extends FilterDirectoryReader {
 
         @Override
         public Terms terms(String field) throws IOException {
-            Terms terms = termsCache.computeIfAbsent(field, k -> {
-                try {
-                    return super.terms(k);
-                } catch (IOException e) {
-                    throw new UncheckedIOException(e);
-                }
-            });
+            Terms terms = super.terms(field);
             if (terms == null) {
                 return null;
             }

@@ -249,7 +249,8 @@ public class KnnIndexTester {
                 cmdLineArgs.docVectors().get(0).getFileName().toString(),
                 indexType,
                 cmdLineArgs.numDocs(),
-                cmdLineArgs.filterSelectivity()
+                cmdLineArgs.filterSelectivity(),
+                cmdLineArgs.dynamicPostFilterTransform()
             );
             Results[] results = new Results[visitPercentages.length];
             for (int i = 0; i < visitPercentages.length; i++) {
@@ -257,7 +258,8 @@ public class KnnIndexTester {
                     cmdLineArgs.docVectors().get(0).getFileName().toString(),
                     indexType,
                     cmdLineArgs.numDocs(),
-                    cmdLineArgs.filterSelectivity()
+                    cmdLineArgs.filterSelectivity(),
+                    cmdLineArgs.dynamicPostFilterTransform()
                 );
             }
             logger.info("Running with Java: " + Runtime.version());
@@ -358,7 +360,8 @@ public class KnnIndexTester {
                 "QPS",
                 "recall",
                 "visited",
-                "filter_selectivity" };
+                "filter_selectivity",
+                "dynamicPostFilterTransform"};
 
             // Calculate appropriate column widths based on headers and data
 
@@ -390,7 +393,8 @@ public class KnnIndexTester {
                     String.format(Locale.ROOT, "%.2f", queryResult.qps),
                     String.format(Locale.ROOT, "%.2f", queryResult.avgRecall),
                     String.format(Locale.ROOT, "%.2f", queryResult.averageVisited),
-                    String.format(Locale.ROOT, "%.2f", queryResult.filterSelectivity), };
+                    String.format(Locale.ROOT, "%.2f", queryResult.filterSelectivity),
+                    String.format(Locale.ROOT, "%.2f", queryResult.dynamicPostFilterTransform)};
             }
 
             printBlock(sb, searchHeaders, queryResultsArray);
@@ -467,12 +471,14 @@ public class KnnIndexTester {
         double averageVisited;
         double netCpuTimeMS;
         double avgCpuCount;
+        final float dynamicPostFilterTransform;
 
-        Results(String indexName, String indexType, int numDocs, float filterSelectivity) {
+        Results(String indexName, String indexType, int numDocs, float filterSelectivity, float dynamicPostFilterTransform) {
             this.indexName = indexName;
             this.indexType = indexType;
             this.numDocs = numDocs;
             this.filterSelectivity = filterSelectivity;
+            this.dynamicPostFilterTransform = dynamicPostFilterTransform;
         }
     }
 

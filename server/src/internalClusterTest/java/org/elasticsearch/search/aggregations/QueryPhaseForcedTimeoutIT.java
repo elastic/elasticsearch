@@ -127,7 +127,7 @@ public class QueryPhaseForcedTimeoutIT extends ESIntegTestCase {
      * It has no parameters and its factory immediately triggers a timeout exception
      * when the search collectors are being prepared.
      */
-    static class ForceTimeoutAggregationBuilder extends AggregationBuilder {
+    static class ForceTimeoutAggregationBuilder extends AbstractAggregationBuilder<ForceTimeoutAggregationBuilder> {
 
         public static final String TYPE = ForceTimeoutAggPlugin.NAME;
 
@@ -138,7 +138,7 @@ public class QueryPhaseForcedTimeoutIT extends ESIntegTestCase {
         }
 
         ForceTimeoutAggregationBuilder(StreamInput in) throws IOException {
-            super(in.readString());
+            super(in);
         }
 
         static ForceTimeoutAggregationBuilder parse(XContentParser parser, String name) {
@@ -146,26 +146,10 @@ public class QueryPhaseForcedTimeoutIT extends ESIntegTestCase {
         }
 
         @Override
-        protected AggregatorFactory build(AggregationContext context, AggregatorFactory parent) throws IOException {
+        protected AggregatorFactory doBuild(AggregationContext context,
+                                            AggregatorFactory parent,
+                                            AggregatorFactories.Builder subfactoriesBuilder) throws IOException {
             return new ForceTimeoutAggregatorFactory(getName(), context, parent, factoriesBuilder, getMetadata());
-        }
-
-        @Override
-        public AggregationBuilder subAggregation(AggregationBuilder aggregation) {
-            this.factoriesBuilder.addAggregator(aggregation);
-            return this;
-        }
-
-        @Override
-        public AggregationBuilder subAggregation(PipelineAggregationBuilder aggregation) {
-            this.factoriesBuilder.addPipelineAggregator(aggregation);
-            return this;
-        }
-
-        @Override
-        public AggregationBuilder subAggregations(AggregatorFactories.Builder subFactories) {
-            this.factoriesBuilder = subFactories;
-            return this;
         }
 
         @Override
@@ -174,12 +158,6 @@ public class QueryPhaseForcedTimeoutIT extends ESIntegTestCase {
             copy.factoriesBuilder = factoriesBuilder;
             copy.setMetadata(metadata);
             return copy;
-        }
-
-        @Override
-        public AggregationBuilder setMetadata(Map<String, Object> metadata) {
-            this.metadata = metadata;
-            return this;
         }
 
         @Override
@@ -193,22 +171,17 @@ public class QueryPhaseForcedTimeoutIT extends ESIntegTestCase {
         }
 
         @Override
-        public String getWriteableName() {
-            return TYPE;
-        }
-
-        @Override
         public TransportVersion getMinimalSupportedVersion() {
-            return TransportVersion.current();
+            return TransportVersion.zero();
         }
 
         @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            out.writeString(getName());
+        protected void doWriteTo(StreamOutput out) {
+            // Empty
         }
 
         @Override
-        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        protected XContentBuilder internalXContent(XContentBuilder builder, Params params) {
             return builder;
         }
 

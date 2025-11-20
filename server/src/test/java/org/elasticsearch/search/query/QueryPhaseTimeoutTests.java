@@ -63,14 +63,16 @@ import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardTestCase;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
+import org.elasticsearch.search.aggregations.AbstractAggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
 import org.elasticsearch.search.aggregations.CardinalityUpperBound;
-import org.elasticsearch.search.aggregations.PipelineAggregationBuilder;
 import org.elasticsearch.search.aggregations.SearchContextAggregations;
+import org.elasticsearch.search.aggregations.bucket.global.GlobalAggregationBuilder;
+import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.internal.AliasFilter;
@@ -853,15 +855,18 @@ public class QueryPhaseTimeoutTests extends IndexShardTestCase {
      * Test aggregation builder that simulates a timeout during collector setup
      * to verify QueryPhase timeout handling behavior.
      */
-    private static final class ForceTimeoutAggregationBuilder extends AggregationBuilder {
-        private Map<String, Object> metadata;
+    private static final class ForceTimeoutAggregationBuilder extends AbstractAggregationBuilder<ForceTimeoutAggregationBuilder> {
 
         ForceTimeoutAggregationBuilder(String name) {
             super(name);
         }
 
         @Override
-        protected AggregatorFactory build(AggregationContext ctx, AggregatorFactory parent) throws IOException {
+        protected AggregatorFactory doBuild(
+            AggregationContext ctx,
+            AggregatorFactory parent,
+            AggregatorFactories.Builder subfactoriesBuilder
+        ) throws IOException {
             return new AggregatorFactory(getName(), ctx, parent, AggregatorFactories.builder(), getMetadata()) {
                 @Override
                 protected Aggregator createInternal(Aggregator parent, CardinalityUpperBound cardinality, Map<String, Object> metadata) {
@@ -874,24 +879,6 @@ public class QueryPhaseTimeoutTests extends IndexShardTestCase {
         }
 
         @Override
-        public AggregationBuilder subAggregation(AggregationBuilder aggregation) {
-            this.factoriesBuilder.addAggregator(aggregation);
-            return this;
-        }
-
-        @Override
-        public AggregationBuilder subAggregation(PipelineAggregationBuilder aggregation) {
-            this.factoriesBuilder.addPipelineAggregator(aggregation);
-            return this;
-        }
-
-        @Override
-        public AggregationBuilder subAggregations(AggregatorFactories.Builder subFactories) {
-            this.factoriesBuilder = subFactories;
-            return this;
-        }
-
-        @Override
         protected AggregationBuilder shallowCopy(AggregatorFactories.Builder factoriesBuilder, Map<String, Object> metadata) {
             ForceTimeoutAggregationBuilder copy = new ForceTimeoutAggregationBuilder(getName());
             copy.factoriesBuilder = factoriesBuilder;
@@ -900,44 +887,33 @@ public class QueryPhaseTimeoutTests extends IndexShardTestCase {
         }
 
         @Override
-        public AggregationBuilder setMetadata(Map<String, Object> metadata) {
-            this.metadata = metadata;
-            return this;
-        }
-
-        @Override
-        public Map<String, Object> getMetadata() {
-            return metadata;
-        }
-
-        @Override
         public BucketCardinality bucketCardinality() {
             return BucketCardinality.ONE;
         }
 
         @Override
-        public String getWriteableName() {
-            return "force-timeout`";
-        }
-
-        @Override
-        public TransportVersion getMinimalSupportedVersion() {
-            return TransportVersion.current();
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
+        protected void doWriteTo(StreamOutput out) throws IOException {
             out.writeString(getName());
         }
 
         @Override
-        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        protected XContentBuilder internalXContent(XContentBuilder builder, Params params) {
             return builder;
         }
 
         @Override
         public String getType() {
-            return "force-timeout`";
+            return GlobalAggregationBuilder.NAME;
+        }
+
+        @Override
+        public TransportVersion getMinimalSupportedVersion() {
+            return TransportVersion.zero();
+        }
+
+        @Override
+        public boolean supportsVersion(TransportVersion version) {
+            return super.supportsVersion(version);
         }
     }
 }

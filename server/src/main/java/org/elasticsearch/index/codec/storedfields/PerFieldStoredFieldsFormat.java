@@ -25,6 +25,7 @@ import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.index.codec.bloomfilter.ES93BloomFilterStoredFieldsFormat;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -43,6 +44,17 @@ import java.util.Set;
  */
 public abstract class PerFieldStoredFieldsFormat extends StoredFieldsFormat {
     public static final String STORED_FIELD_FORMAT_ATTRIBUTE_KEY = "stored_field_format";
+
+    // We don't need to add support for loading stored fields format through SPI since we control
+    // all the implementations, thus a simple static map is enough to load them on read time.
+    private static final Map<String, ESStoredFieldsFormat> AVAILABLE_FORMATS = Map.of(
+        ESLucene90StoredFieldsFormat.FORMAT_NAME,
+        new ESLucene90StoredFieldsFormat(),
+        ESZstd814StoredFieldsFormat.FORMAT_NAME,
+        new ESZstd814StoredFieldsFormat(),
+        ES93BloomFilterStoredFieldsFormat.FORMAT_NAME,
+        new ES93BloomFilterStoredFieldsFormat()
+    );
 
     @Override
     public StoredFieldsReader fieldsReader(Directory directory, SegmentInfo si, FieldInfos fn, IOContext context) throws IOException {
@@ -269,7 +281,7 @@ public abstract class PerFieldStoredFieldsFormat extends StoredFieldsFormat {
                     if (formatName != null) {
                         var storedFieldsReader = formatStoredFieldReaders.get(formatName);
                         if (storedFieldsReader == null) {
-                            ESStoredFieldsFormat format = ESStoredFieldsFormat.forName(formatName);
+                            ESStoredFieldsFormat format = AVAILABLE_FORMATS.get(formatName);
                             storedFieldsReader = format.fieldsReader(directory, si, fn, context);
                             var previous = formatStoredFieldReaders.put(formatName, storedFieldsReader);
                             assert previous == null;

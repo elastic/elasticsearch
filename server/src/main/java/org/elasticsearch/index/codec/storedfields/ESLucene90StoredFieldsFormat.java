@@ -24,6 +24,7 @@ public class ESLucene90StoredFieldsFormat extends FilterESStoredFieldsFormat {
         Lucene90CompressingStoredFieldsWriter.INDEX_EXTENSION,
         Lucene90CompressingStoredFieldsWriter.META_EXTENSION
     );
+    public static final String FORMAT_NAME = "ESLucene90StoredFieldsFormat";
 
     public ESLucene90StoredFieldsFormat() {
         this(Lucene103Codec.Mode.BEST_SPEED);
@@ -31,7 +32,7 @@ public class ESLucene90StoredFieldsFormat extends FilterESStoredFieldsFormat {
 
     public ESLucene90StoredFieldsFormat(Lucene103Codec.Mode mode) {
         super(
-            "ESLucene90StoredFieldsFormat",
+            FORMAT_NAME,
             new Lucene90StoredFieldsFormat(
                 mode == Lucene103Codec.Mode.BEST_COMPRESSION
                     ? Lucene90StoredFieldsFormat.Mode.BEST_COMPRESSION

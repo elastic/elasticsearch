@@ -19,26 +19,7 @@ import java.util.Set;
  * This is required because {@link PerFieldStoredFieldsFormat} uses SPI to load stored field formats
  * when reading fields.
  */
-public abstract class ESStoredFieldsFormat extends StoredFieldsFormat implements NamedSPILoader.NamedSPI {
-    private static final class Holder {
-        public static final NamedSPILoader<ESStoredFieldsFormat> LOADER = new NamedSPILoader<>(ESStoredFieldsFormat.class);
-
-        private Holder() {}
-
-        static NamedSPILoader<ESStoredFieldsFormat> getLoader() {
-            if (LOADER == null) {
-                throw new IllegalStateException(
-                    "You tried to lookup a ESStoredFieldsFormat by name before all formats could be initialized."
-                );
-            }
-            return LOADER;
-        }
-    }
-
-    public static ESStoredFieldsFormat forName(String name) {
-        return Holder.getLoader().lookup(name);
-    }
-
+public abstract class ESStoredFieldsFormat extends StoredFieldsFormat {
     /**
      * Unique name that's used to retrieve this format when reading the index.
      */
@@ -49,7 +30,6 @@ public abstract class ESStoredFieldsFormat extends StoredFieldsFormat implements
         this.name = name;
     }
 
-    @Override
     public String getName() {
         return name;
     }

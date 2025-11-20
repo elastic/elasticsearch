@@ -74,12 +74,12 @@ import static org.elasticsearch.index.codec.bloomfilter.BloomFilterHashFunctions
  * </ol>
  */
 public class ES93BloomFilterStoredFieldsFormat extends ESStoredFieldsFormat {
-    public static final String STORED_FIELDS_BLOOM_FILTER_FORMAT_NAME = "ES93BloomFilterStoredFieldsFormat";
+    public static final String FORMAT_NAME = "ES93BloomFilterStoredFieldsFormat";
     public static final String STORED_FIELDS_BLOOM_FILTER_EXTENSION = "sfbf";
     public static final String STORED_FIELDS_METADATA_BLOOM_FILTER_EXTENSION = "sfbfm";
     private static final Set<String> FILE_EXTENSIONS = Set.of(
         STORED_FIELDS_METADATA_BLOOM_FILTER_EXTENSION,
-        STORED_FIELDS_BLOOM_FILTER_FORMAT_NAME
+        STORED_FIELDS_BLOOM_FILTER_EXTENSION
     );
     private static final int VERSION_START = 0;
     private static final int VERSION_CURRENT = VERSION_START;
@@ -100,7 +100,7 @@ public class ES93BloomFilterStoredFieldsFormat extends ESStoredFieldsFormat {
 
     // Public constructor SPI use for reads only
     public ES93BloomFilterStoredFieldsFormat() {
-        super(STORED_FIELDS_BLOOM_FILTER_FORMAT_NAME);
+        super(FORMAT_NAME);
         bigArrays = null;
         bloomFilterFieldName = null;
         numHashFunctions = 0;
@@ -108,7 +108,7 @@ public class ES93BloomFilterStoredFieldsFormat extends ESStoredFieldsFormat {
     }
 
     public ES93BloomFilterStoredFieldsFormat(BigArrays bigArrays, ByteSizeValue bloomFilterSize, String bloomFilterFieldName) {
-        super(STORED_FIELDS_BLOOM_FILTER_FORMAT_NAME);
+        super(FORMAT_NAME);
         this.bigArrays = bigArrays;
         this.bloomFilterFieldName = bloomFilterFieldName;
         this.numHashFunctions = DEFAULT_NUM_HASH_FUNCTIONS;
@@ -196,13 +196,7 @@ public class ES93BloomFilterStoredFieldsFormat extends ESStoredFieldsFormat {
             try {
                 metadataOut = directory.createOutput(bloomFilterMetadataFileName(segmentInfo), context);
                 toClose.add(metadataOut);
-                CodecUtil.writeIndexHeader(
-                    metadataOut,
-                    STORED_FIELDS_BLOOM_FILTER_FORMAT_NAME,
-                    VERSION_CURRENT,
-                    segmentInfo.getId(),
-                    DEFAULT_SEGMENT_SUFFIX
-                );
+                CodecUtil.writeIndexHeader(metadataOut, FORMAT_NAME, VERSION_CURRENT, segmentInfo.getId(), DEFAULT_SEGMENT_SUFFIX);
 
                 success = true;
             } finally {
@@ -463,7 +457,7 @@ public class ES93BloomFilterStoredFieldsFormat extends ESStoredFieldsFormat {
                 try {
                     CodecUtil.writeIndexHeader(
                         bloomFilterDataOut,
-                        STORED_FIELDS_BLOOM_FILTER_FORMAT_NAME,
+                        FORMAT_NAME,
                         VERSION_CURRENT,
                         segmentInfo.getId(),
                         DEFAULT_SEGMENT_SUFFIX
@@ -629,7 +623,7 @@ public class ES93BloomFilterStoredFieldsFormat extends ESStoredFieldsFormat {
             try (var metaInput = directory.openChecksumInput(bloomFilterMetadataFileName(si))) {
                 var metadataVersion = CodecUtil.checkIndexHeader(
                     metaInput,
-                    STORED_FIELDS_BLOOM_FILTER_FORMAT_NAME,
+                    FORMAT_NAME,
                     VERSION_START,
                     VERSION_CURRENT,
                     si.getId(),
@@ -646,7 +640,7 @@ public class ES93BloomFilterStoredFieldsFormat extends ESStoredFieldsFormat {
                 toClose.add(bloomFilterData);
                 var bloomFilterDataVersion = CodecUtil.checkIndexHeader(
                     bloomFilterData,
-                    STORED_FIELDS_BLOOM_FILTER_FORMAT_NAME,
+                    FORMAT_NAME,
                     VERSION_START,
                     VERSION_CURRENT,
                     si.getId(),

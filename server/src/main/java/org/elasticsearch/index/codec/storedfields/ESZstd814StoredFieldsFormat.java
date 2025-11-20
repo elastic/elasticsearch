@@ -23,13 +23,14 @@ public class ESZstd814StoredFieldsFormat extends FilterESStoredFieldsFormat {
         Lucene90CompressingStoredFieldsWriter.INDEX_EXTENSION,
         Lucene90CompressingStoredFieldsWriter.META_EXTENSION
     );
+    public static final String FORMAT_NAME = "ESZstd814StoredFieldsFormat";
 
     public ESZstd814StoredFieldsFormat() {
         this(Zstd814StoredFieldsFormat.Mode.BEST_SPEED);
     }
 
     public ESZstd814StoredFieldsFormat(Zstd814StoredFieldsFormat.Mode mode) {
-        super("ESZstd814StoredFieldsFormat", mode.getFormat());
+        super(FORMAT_NAME, mode.getFormat());
     }
 
     @Override

@@ -469,13 +469,6 @@ module org.elasticsearch.server {
             org.elasticsearch.index.codec.vectors.es93.ES93BinaryQuantizedVectorsFormat,
             org.elasticsearch.index.codec.vectors.es93.ES93HnswVectorsFormat,
             org.elasticsearch.index.codec.vectors.es93.ES93HnswBinaryQuantizedVectorsFormat;
-    provides org.elasticsearch.index.codec.storedfields.ESStoredFieldsFormat
-        with
-            org.elasticsearch.index.codec.storedfields.ESZstd814StoredFieldsFormat,
-            org.elasticsearch.index.codec.storedfields.ESLucene90StoredFieldsFormat,
-            org.elasticsearch.index.codec.bloomfilter.ES93BloomFilterStoredFieldsFormat;
-
-    uses org.elasticsearch.index.codec.storedfields.ESStoredFieldsFormat;
 
     provides org.apache.lucene.codecs.Codec
         with

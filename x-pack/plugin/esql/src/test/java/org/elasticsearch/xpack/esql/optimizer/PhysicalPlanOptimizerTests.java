@@ -99,6 +99,7 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Gre
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThan;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThanOrEqual;
 import org.elasticsearch.xpack.esql.index.EsIndex;
+import org.elasticsearch.xpack.esql.index.EsIndexGenerator;
 import org.elasticsearch.xpack.esql.index.IndexResolution;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.ProjectAwayColumns;
 import org.elasticsearch.xpack.esql.parser.EsqlParser;
@@ -401,7 +402,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
     ) {
         Map<String, EsField> mapping = loadMapping(mappingFileName);
         EsIndex[] indexes = new EsIndex[1 + lookupResolution.size()];
-        indexes[0] = new EsIndex(indexName, mapping, Map.of(indexName, IndexMode.STANDARD));
+        indexes[0] = EsIndexGenerator.esIndex(indexName, mapping, Map.of(indexName, IndexMode.STANDARD));
         for (int i = 0; i < lookupResolution.size(); i++) {
             indexes[i + 1] = lookupResolution.values().toArray(new IndexResolution[0])[i].get();
         }
@@ -3251,7 +3252,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
             new EsField("some_field1", DataType.KEYWORD, Map.of(), true, EsField.TimeSeriesFieldType.NONE),
             new EsField("some_field2", DataType.KEYWORD, Map.of(), true, EsField.TimeSeriesFieldType.NONE)
         );
-        var index = new EsIndex("test", esField.stream().collect(Collectors.toMap(EsField::getName, Function.identity())));
+        var index = EsIndexGenerator.esIndex("test", esField.stream().collect(Collectors.toMap(EsField::getName, Function.identity())));
         var relation = new EsRelation(
             Source.EMPTY,
             index.name(),
@@ -8156,7 +8157,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
             String lookupIndexName = entry.getKey();
             Map<String, EsField> lookup_fields = fields(entry.getValue());
 
-            EsIndex lookupIndex = new EsIndex(lookupIndexName, lookup_fields, Map.of(lookupIndexName, IndexMode.LOOKUP));
+            EsIndex lookupIndex = EsIndexGenerator.esIndex(lookupIndexName, lookup_fields, Map.of(lookupIndexName, IndexMode.LOOKUP));
             lookupIndices.put(lookupIndexName, IndexResolution.valid(lookupIndex));
         }
 

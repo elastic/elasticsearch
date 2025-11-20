@@ -147,7 +147,7 @@ public class GoogleCloudStorageClientsManagerTests extends ESTestCase {
         final ProjectId projectId = randomUniqueProjectId();
         final String clientName = randomFrom(clientNames);
         final String anotherClientName = randomValueOtherThan(clientName, () -> randomFrom(clientNames));
-        final GoogleCloudStorageService.RetryBehaviour retryBehaviour = randomFrom(GoogleCloudStorageService.RetryBehaviour.values());
+        final GoogleCloudStorageService.RetryBehaviour retryBehaviour = randomRetryBehaviour();
         final GoogleCloudStorageService.RetryBehaviour otherRetryBehaviour = randomValueOtherThan(
             retryBehaviour,
             () -> randomFrom(GoogleCloudStorageService.RetryBehaviour.values())
@@ -198,7 +198,7 @@ public class GoogleCloudStorageClientsManagerTests extends ESTestCase {
 
     public void testClientsWithNoCredentialsAreFilteredOut() throws IOException {
         final ProjectId projectId = randomUniqueProjectId();
-        final GoogleCloudStorageService.RetryBehaviour retryBehaviour = randomFrom(GoogleCloudStorageService.RetryBehaviour.values());
+        final GoogleCloudStorageService.RetryBehaviour retryBehaviour = randomRetryBehaviour();
         updateProjectInClusterState(projectId, newProjectClientsSecrets(projectId, clientNames.toArray(String[]::new)));
         for (var clientName : clientNames) {
             assertNotNull(getClientFromManager(projectId, clientName, retryBehaviour));
@@ -225,7 +225,7 @@ public class GoogleCloudStorageClientsManagerTests extends ESTestCase {
 
     public void testClientsForMultipleProjects() throws InterruptedException {
         final List<ProjectId> projectIds = randomList(2, 8, ESTestCase::randomUniqueProjectId);
-        final GoogleCloudStorageService.RetryBehaviour retryBehaviour = randomFrom(GoogleCloudStorageService.RetryBehaviour.values());
+        final GoogleCloudStorageService.RetryBehaviour retryBehaviour = randomRetryBehaviour();
 
         final List<Thread> threads = projectIds.stream().map(projectId -> new Thread(() -> {
             final int iterations = between(1, 3);
@@ -263,7 +263,7 @@ public class GoogleCloudStorageClientsManagerTests extends ESTestCase {
         final ProjectId projectId = randomUniqueProjectId();
         final String clientName = randomFrom(clientNames);
         final boolean configureProjectClientsFirst = randomBoolean();
-        final GoogleCloudStorageService.RetryBehaviour retryBehaviour = randomFrom(GoogleCloudStorageService.RetryBehaviour.values());
+        final GoogleCloudStorageService.RetryBehaviour retryBehaviour = randomRetryBehaviour();
         if (configureProjectClientsFirst) {
             updateProjectInClusterState(projectId, newProjectClientsSecrets(projectId, clientName));
         }
@@ -303,9 +303,7 @@ public class GoogleCloudStorageClientsManagerTests extends ESTestCase {
 
         // Cluster client still works
         final String clientName = randomFrom(clientNames);
-        assertNotNull(
-            getClientFromService(projectIdForClusterClient(), clientName, randomFrom(GoogleCloudStorageService.RetryBehaviour.values()))
-        );
+        assertNotNull(getClientFromService(projectIdForClusterClient(), clientName, randomRetryBehaviour()));
     }
 
     private MeteredStorage getClientFromManager(
@@ -314,6 +312,10 @@ public class GoogleCloudStorageClientsManagerTests extends ESTestCase {
         GoogleCloudStorageService.RetryBehaviour retryBehaviour
     ) throws IOException {
         return gcsClientsManager.client(projectId, clientName, repoNameForClient(clientName), statsCollector, retryBehaviour);
+    }
+
+    private static GoogleCloudStorageService.RetryBehaviour randomRetryBehaviour() {
+        return randomFrom(GoogleCloudStorageService.RetryBehaviour.values());
     }
 
     private MeteredStorage getClientFromService(

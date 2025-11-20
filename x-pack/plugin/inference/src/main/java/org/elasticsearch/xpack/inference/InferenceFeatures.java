@@ -104,8 +104,7 @@ public class InferenceFeatures implements FeatureSpecification {
                 TEXT_SIMILARITY_RERANKER_SNIPPETS,
                 ModelStats.SEMANTIC_TEXT_USAGE,
                 SEARCH_USAGE_EXTENDED_DATA,
-                TEXT_SIMILARITY_RANK_DOC_EXPLAIN_CHUNKS,
-                INFERENCE_AUTH_POLLER_PERSISTENT_TASK
+                TEXT_SIMILARITY_RANK_DOC_EXPLAIN_CHUNKS
             )
         );
         testFeatures.addAll(getFeatures());

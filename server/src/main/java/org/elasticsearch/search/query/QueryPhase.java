@@ -246,7 +246,6 @@ public class QueryPhase {
                 }
             } catch (ContextIndexSearcher.TimeExceededException tee) {
                 finalizeAsTimedOutResult(searchContext);
-                return;
             }
         } catch (Exception e) {
             throw new QueryPhaseExecutionException(searchContext.shardTarget(), "Failed to execute main query", e);

@@ -54,6 +54,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.LongSupplier;
 
@@ -125,6 +126,8 @@ public class MemoryMetricsService implements ClusterStateListener {
         "es.autoscaling.indexing.memory.heap_required_large_operations.current";
     public static final String INDEXING_MEMORY_HEAP_DIFFERENCE_WITH_SELF_REPORTED_SHARD_OVERHEAD_METRIC_NAME =
         "es.autoscaling.indexing.memory.heap.diff_self_reported_overhead.current";
+    public static final String INDEXING_MEMORY_MERGE_MEMORY_ESTIMATE_METRIC_NAME =
+        "es.autoscaling.indexing.memory.merge_memory_estimate.current";
 
     // We clean up a node's reported max merge when the node leaves the cluster. In order to ensure a node's reported max merges are
     // consumed in the correct sequence, we rely on keeping a sequence no of the last reported value to be able to reject out of order
@@ -181,7 +184,11 @@ public class MemoryMetricsService implements ClusterStateListener {
     private volatile boolean mergeMemoryEstimateEnabled;
     private volatile double adaptiveExtraOverheadRatio;
     private final Map<String, ShardMergeMemoryEstimatePublication> maxShardMergeMemoryEstimatePerNode = new ConcurrentHashMap<>();
+    // Stores the shard merge memory estimate used in autoscaling decisions to be emitted by the
+    // INDEXING_MEMORY_MERGE_MEMORY_ESTIMATE_METRIC_NAME metric
+    private final AtomicLong currentShardMergeMemoryEstimate;
 
+    @SuppressWarnings("this-escape")
     public MemoryMetricsService(
         LongSupplier relativeTimeInNanosSupplier,
         ClusterSettings clusterSettings,
@@ -204,10 +211,12 @@ public class MemoryMetricsService implements ClusterStateListener {
         clusterSettings.initializeAndWatch(FIXED_SHARD_MEMORY_OVERHEAD_SETTING, value -> fixedShardMemoryOverhead = value);
         clusterSettings.initializeAndWatch(MERGE_MEMORY_ESTIMATE_ENABLED_SETTING, value -> mergeMemoryEstimateEnabled = value);
         clusterSettings.initializeAndWatch(ADAPTIVE_EXTRA_OVERHEAD_SETTING, value -> adaptiveExtraOverheadRatio = value.getAsRatio());
+        currentShardMergeMemoryEstimate = new AtomicLong(0);
         setupMetrics(meterRegistry);
     }
 
     private void setupMetrics(MeterRegistry meterRegistry) {
+        // Emits heap usage estimation metrics to diagnose when it affects autoscaling decisions
         meterRegistry.registerLongsGauge(
             INDEXING_MEMORY_MINIMUM_HEAP_REQUIRED_TO_ACCEPT_LARGE_OPERATIONS_METRIC_NAME,
             "Minimum heap required to accept large indexing operations",
@@ -221,6 +230,21 @@ public class MemoryMetricsService implements ClusterStateListener {
                 return List.of(new LongWithAttributes(latestIndexingOperationsMemoryRequirements.minimumRequiredHeapInBytes()));
             }
         );
+        meterRegistry.registerLongsGauge(
+            INDEXING_MEMORY_MERGE_MEMORY_ESTIMATE_METRIC_NAME,
+            "Current merge memory estimate used in serverless autoscaling",
+            "bytes",
+            () -> {
+                if (initialized == false) {
+                    return List.of();
+                }
+                // Since mergeMemoryEstimation() removes nodes from maxShardMergeMemoryEstimatePerNode, recomputing the current
+                // shard merge memory estimate may produce a different value than the one used by the autoscaler. Therefore, we emit
+                // the value used in the previous autoscaler decision for more accurate metrics
+                return List.of(new LongWithAttributes(currentShardMergeMemoryEstimate.get()));
+            }
+        );
+
         // TODO: Remove this metric (and the associated field and method) in phase 3 after we enable the new estimation method for hollow
         // shards, as then we can compare the true
         // memory savings (the number of machines and memory assigned) (ES-13103)
@@ -347,7 +371,13 @@ public class MemoryMetricsService implements ClusterStateListener {
                 }
             }
         }
-        return maxShardMergeMemoryEstimatePerNode.values().stream().mapToLong(e -> e.estimate.estimateInBytes()).max().orElse(0L);
+        long maxShardMergeMemoryEstimate = maxShardMergeMemoryEstimatePerNode.values()
+            .stream()
+            .mapToLong(e -> e.estimate.estimateInBytes())
+            .max()
+            .orElse(0L);
+        currentShardMergeMemoryEstimate.set(maxShardMergeMemoryEstimate);
+        return maxShardMergeMemoryEstimate;
     }
 
     long postingsMemoryEstimation() {

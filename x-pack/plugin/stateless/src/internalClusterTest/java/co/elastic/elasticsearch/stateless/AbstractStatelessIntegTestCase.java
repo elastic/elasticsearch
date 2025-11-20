@@ -299,10 +299,19 @@ public abstract class AbstractStatelessIntegTestCase extends ESIntegTestCase {
     }
 
     private boolean useBasePath;
+    private boolean hollowIndexShardsDisabled;
+    private boolean hollowIndexShardsZeroTtl;
 
     @Before
     public void setup() {
         useBasePath = randomBoolean();
+        if (randomBoolean()) {
+            // Randomly disable hollow shards
+            hollowIndexShardsDisabled = true;
+        } else if (randomBoolean()) {
+            // Randomly make TTL zero for hollowing shards
+            hollowIndexShardsZeroTtl = true;
+        }
     }
 
     /**
@@ -387,11 +396,9 @@ public abstract class AbstractStatelessIntegTestCase extends ESIntegTestCase {
             builder.put(ObjectStoreService.BASE_PATH_SETTING.getKey(), "base_path");
         }
         builder.put(StatelessCommitService.STATELESS_UPLOAD_MAX_AMOUNT_COMMITS.getKey(), getUploadMaxCommits());
-        if (randomBoolean()) {
-            // Randomly disable hollow shards
+        if (hollowIndexShardsDisabled) {
             builder.put(STATELESS_HOLLOW_INDEX_SHARDS_ENABLED.getKey(), false);
-        } else if (randomBoolean()) {
-            // Randomly make TTL zero for hollowing shards
+        } else if (hollowIndexShardsZeroTtl) {
             builder.put(HollowShardsService.SETTING_HOLLOW_INGESTION_DS_NON_WRITE_TTL.getKey(), TimeValue.ZERO);
             builder.put(HollowShardsService.SETTING_HOLLOW_INGESTION_TTL.getKey(), TimeValue.ZERO);
         }

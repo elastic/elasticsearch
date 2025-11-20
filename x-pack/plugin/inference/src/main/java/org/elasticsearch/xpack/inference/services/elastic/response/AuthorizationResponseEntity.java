@@ -37,6 +37,9 @@ import java.util.stream.Collectors;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
+/**
+ * Handles parsing the v2 authorization response from the Elastic Inference Service.
+ */
 public class AuthorizationResponseEntity implements InferenceServiceResults {
 
     public static final String NAME = "elastic_inference_service_auth_results_v2";

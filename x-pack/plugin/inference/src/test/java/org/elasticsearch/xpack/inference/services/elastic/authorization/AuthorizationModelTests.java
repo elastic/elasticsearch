@@ -37,12 +37,24 @@ import static org.elasticsearch.xpack.inference.services.elastic.response.Author
 import static org.elasticsearch.xpack.inference.services.elastic.response.AuthorizationResponseEntityTests.createTaskTypeObject;
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.empty;
 
 public class AuthorizationModelTests extends ESTestCase {
 
     public void testIsAuthorized_ReturnsFalse_WithEmptyMap() {
         assertFalse(new AuthorizationModel(List.of()).isAuthorized());
-        assertFalse(AuthorizationModel.empty().isAuthorized());
+        {
+            var emptyAuthUsingMethod = AuthorizationModel.empty();
+            assertFalse(emptyAuthUsingMethod.isAuthorized());
+            assertThat(emptyAuthUsingMethod.getEndpointIds(), empty());
+            assertThat(emptyAuthUsingMethod, is(new AuthorizationModel(List.of())));
+        }
+        {
+            var emptyAuthUsingOf = AuthorizationModel.of(new AuthorizationResponseEntity(List.of()), "url");
+            assertFalse(emptyAuthUsingOf.isAuthorized());
+            assertThat(emptyAuthUsingOf.getEndpointIds(), empty());
+            assertThat(emptyAuthUsingOf, is(new AuthorizationModel(List.of())));
+        }
     }
 
     public void testExcludes_EndpointsWithoutValidTaskTypes() {
@@ -108,6 +120,54 @@ public class AuthorizationModelTests extends ESTestCase {
         assertThat(auth.getTaskTypes(), is(Set.of(TaskType.SPARSE_EMBEDDING, TaskType.CHAT_COMPLETION)));
         assertThat(auth.getEndpointIds(), is(Set.of(id1, id2)));
         assertTrue(auth.isAuthorized());
+    }
+
+    public void testIgnoresDuplicateId() {
+        var id1 = "id1";
+        var name1 = "name1";
+
+        var response = new AuthorizationResponseEntity(
+            List.of(
+                new AuthorizationResponseEntity.AuthorizedEndpoint(
+                    id1,
+                    name1,
+                    createTaskTypeObject(EIS_CHAT_PATH, TaskType.CHAT_COMPLETION.toString()),
+                    "ga",
+                    null,
+                    "",
+                    "",
+                    null
+                ),
+                new AuthorizationResponseEntity.AuthorizedEndpoint(
+                    id1,
+                    "name2",
+                    createTaskTypeObject(EIS_SPARSE_PATH, TaskType.SPARSE_EMBEDDING.toString()),
+                    "ga",
+                    null,
+                    "",
+                    "",
+                    null
+                )
+            )
+        );
+
+        var auth = AuthorizationModel.of(response, "url");
+        assertThat(auth.getTaskTypes(), is(Set.of(TaskType.CHAT_COMPLETION)));
+        assertThat(auth.getEndpointIds(), is(Set.of(id1)));
+        assertTrue(auth.isAuthorized());
+
+        var url = "url";
+        var chatCompletionEndpoint = new ElasticInferenceServiceCompletionModel(
+            id1,
+            TaskType.CHAT_COMPLETION,
+            ElasticInferenceService.NAME,
+            new ElasticInferenceServiceCompletionServiceSettings(name1),
+            EmptyTaskSettings.INSTANCE,
+            EmptySecretSettings.INSTANCE,
+            new ElasticInferenceServiceComponents(url)
+        );
+
+        assertThat(auth.getEndpoints(Set.of(id1)), is(List.of(chatCompletionEndpoint)));
     }
 
     public void testReturnsAuthorizedTaskTypes_UsesFirstInferenceId_IfDuplicates() {
@@ -289,18 +349,21 @@ public class AuthorizationModelTests extends ESTestCase {
 
     public void testReturnsAuthorizedEndpoints_FiltersInvalid() {
         var id1 = "id1";
-        var id2 = "invalid_text_embedding";
+        var invalidTextEmbedding1 = "invalid_text_embedding1";
+        var invalidTextEmbedding2 = "invalid_text_embedding2";
+        var invalidTextEmbedding3 = "invalid_text_embedding3";
+        var invalidTextEmbedding4 = "invalid_text_embedding4";
 
-        var name1 = "name1";
-        var name2 = "name2";
+        var name = "name1";
 
         var dimensions = 123;
 
         var response = new AuthorizationResponseEntity(
             List.of(
+                // Valid chat completion
                 new AuthorizationResponseEntity.AuthorizedEndpoint(
                     id1,
-                    name1,
+                    name,
                     createTaskTypeObject(EIS_CHAT_PATH, TaskType.CHAT_COMPLETION.toString()),
                     "ga",
                     null,
@@ -308,9 +371,10 @@ public class AuthorizationModelTests extends ESTestCase {
                     "",
                     null
                 ),
+                // Missing similarity measure
                 new AuthorizationResponseEntity.AuthorizedEndpoint(
-                    id2,
-                    name2,
+                    invalidTextEmbedding1,
+                    name,
                     createTaskTypeObject(EIS_EMBED_PATH, TaskType.TEXT_EMBEDDING.toString()),
                     "ga",
                     null,
@@ -323,9 +387,10 @@ public class AuthorizationModelTests extends ESTestCase {
                         null
                     )
                 ),
+                // Invalid chunking settings
                 new AuthorizationResponseEntity.AuthorizedEndpoint(
-                    id2,
-                    name2,
+                    invalidTextEmbedding2,
+                    name,
                     createTaskTypeObject(EIS_EMBED_PATH, TaskType.TEXT_EMBEDDING.toString()),
                     "ga",
                     null,
@@ -335,9 +400,51 @@ public class AuthorizationModelTests extends ESTestCase {
                         SimilarityMeasure.DOT_PRODUCT.toString(),
                         dimensions,
                         DenseVectorFieldMapper.ElementType.FLOAT.toString(),
-                        // Invalid chunking settings
                         Map.of("unexpected_field", "unexpected_value")
                     )
+                ),
+                // Invalid similarity measure
+                new AuthorizationResponseEntity.AuthorizedEndpoint(
+                    invalidTextEmbedding3,
+                    name,
+                    createTaskTypeObject(EIS_EMBED_PATH, TaskType.TEXT_EMBEDDING.toString()),
+                    "ga",
+                    null,
+                    "",
+                    "",
+                    new AuthorizationResponseEntity.Configuration(
+                        "invalid_similarity",
+                        dimensions,
+                        DenseVectorFieldMapper.ElementType.FLOAT.toString(),
+                        null
+                    )
+                ),
+                // Missing dimensions
+                new AuthorizationResponseEntity.AuthorizedEndpoint(
+                    invalidTextEmbedding4,
+                    name,
+                    createTaskTypeObject(EIS_EMBED_PATH, TaskType.TEXT_EMBEDDING.toString()),
+                    "ga",
+                    null,
+                    "",
+                    "",
+                    new AuthorizationResponseEntity.Configuration(
+                        SimilarityMeasure.COSINE.toString(),
+                        null,
+                        DenseVectorFieldMapper.ElementType.FLOAT.toString(),
+                        null
+                    )
+                ),
+                // Missing element type
+                new AuthorizationResponseEntity.AuthorizedEndpoint(
+                    invalidTextEmbedding4,
+                    name,
+                    createTaskTypeObject(EIS_EMBED_PATH, TaskType.TEXT_EMBEDDING.toString()),
+                    "ga",
+                    null,
+                    "",
+                    "",
+                    new AuthorizationResponseEntity.Configuration(SimilarityMeasure.COSINE.toString(), 123, null, null)
                 )
             )
         );
@@ -353,16 +460,16 @@ public class AuthorizationModelTests extends ESTestCase {
             id1,
             TaskType.CHAT_COMPLETION,
             ElasticInferenceService.NAME,
-            new ElasticInferenceServiceCompletionServiceSettings(name1),
+            new ElasticInferenceServiceCompletionServiceSettings(name),
             EmptyTaskSettings.INSTANCE,
             EmptySecretSettings.INSTANCE,
             new ElasticInferenceServiceComponents(url)
         );
 
-        assertThat(auth.getEndpoints(Set.of(id1, id2)), is(List.of(chatCompletionEndpoint)));
-
-        assertThat(auth.getEndpoints(Set.of(id2)), is(List.of()));
-        assertThat(auth.getEndpoints(Set.of()), is(List.of()));
+        assertThat(
+            auth.getEndpoints(Set.of(id1, invalidTextEmbedding1, invalidTextEmbedding2, invalidTextEmbedding3, invalidTextEmbedding4)),
+            is(List.of(chatCompletionEndpoint))
+        );
     }
 
     public void testCreatesAllSupportedTaskTypesAndReturnsCorrectModels() {

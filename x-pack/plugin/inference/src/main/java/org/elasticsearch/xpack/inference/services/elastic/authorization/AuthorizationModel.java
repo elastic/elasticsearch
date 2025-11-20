@@ -47,6 +47,7 @@ public class AuthorizationModel {
 
     private static final Logger logger = LogManager.getLogger(AuthorizationModel.class);
     private static final String UNKNOWN_TASK_TYPE_LOG_MESSAGE = "Authorized endpoint id [{}] has unknown task type [{}], skipping";
+    private static final String UNSUPPORTED_TASK_TYPE_LOG_MESSAGE = "Authorized endpoint id [{}] has unsupported task type [{}], skipping";
 
     public static AuthorizationModel of(AuthorizationResponseEntity responseEntity, String baseEisUrl) {
         var components = new ElasticInferenceServiceComponents(baseEisUrl);
@@ -85,7 +86,7 @@ public class AuthorizationModel {
                 case TEXT_EMBEDDING -> createDenseTextEmbeddingsModel(authorizedEndpoint, components);
                 case RERANK -> createRerankModel(authorizedEndpoint, components);
                 default -> {
-                    logger.warn(UNKNOWN_TASK_TYPE_LOG_MESSAGE, authorizedEndpoint.id(), taskType);
+                    logger.info(UNSUPPORTED_TASK_TYPE_LOG_MESSAGE, authorizedEndpoint.id(), taskType);
                     yield null;
                 }
             };
@@ -227,7 +228,12 @@ public class AuthorizationModel {
     AuthorizationModel(List<ElasticInferenceServiceModel> authorizedEndpoints) {
         Objects.requireNonNull(authorizedEndpoints);
         this.authorizedEndpoints = authorizedEndpoints.stream()
-            .collect(Collectors.toMap(ElasticInferenceServiceModel::getInferenceEntityId, Function.identity(), (a, b) -> a, HashMap::new));
+            .collect(
+                Collectors.toMap(ElasticInferenceServiceModel::getInferenceEntityId, Function.identity(), (firstModel, secondModel) -> {
+                    logger.warn("Found inference id collision for id [{}], ignoring second model", firstModel.inferenceEntityId());
+                    return firstModel;
+                }, HashMap::new)
+            );
 
         var taskTypesSet = EnumSet.noneOf(TaskType.class);
         taskTypesSet.addAll(this.authorizedEndpoints.values().stream().map(ElasticInferenceServiceModel::getTaskType).toList());

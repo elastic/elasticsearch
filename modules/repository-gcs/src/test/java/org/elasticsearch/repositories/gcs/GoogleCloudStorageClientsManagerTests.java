@@ -150,7 +150,7 @@ public class GoogleCloudStorageClientsManagerTests extends ESTestCase {
         final GoogleCloudStorageService.RetryBehaviour retryBehaviour = randomRetryBehaviour();
         final GoogleCloudStorageService.RetryBehaviour otherRetryBehaviour = randomValueOtherThan(
             retryBehaviour,
-            () -> randomFrom(GoogleCloudStorageService.RetryBehaviour.values())
+            GoogleCloudStorageClientsManagerTests::randomRetryBehaviour
         );
 
         // Configure project secrets for one client

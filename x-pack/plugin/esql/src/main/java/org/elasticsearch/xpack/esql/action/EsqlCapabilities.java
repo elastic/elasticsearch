@@ -1503,6 +1503,7 @@ public class EsqlCapabilities {
          */
         PERCENTILE_OVER_TIME,
         VARIANCE_STDDEV_OVER_TIME,
+        TS_LINREG_DERIVATIVE,
         /**
          * INLINE STATS fix incorrect prunning of null filtering
          * https://github.com/elastic/elasticsearch/pull/135011
@@ -1576,6 +1577,11 @@ public class EsqlCapabilities {
          * Support for exponential_histogram type in MIN/MAX aggregation.
          */
         EXPONENTIAL_HISTOGRAM_MINMAX_SUPPORT(EXPONENTIAL_HISTOGRAM_FEATURE_FLAG),
+
+        /**
+         * Support for exponential_histogram type in SUM and AVG aggregation.
+         */
+        EXPONENTIAL_HISTOGRAM_SUM_AVG_SUPPORT(EXPONENTIAL_HISTOGRAM_FEATURE_FLAG),
 
         /**
          * Create new block when filtering OrdinalBytesRefBlock
@@ -1690,6 +1696,11 @@ public class EsqlCapabilities {
          * Support grouping window in time-series for example: rate(counter, "1m") or avg_over_time(field, "5m")
          */
         TIME_SERIES_WINDOW_V0,
+
+        /**
+         * PromQL support in ESQL
+         */
+        PROMQL_V0(Build.current().isSnapshot()),
 
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.

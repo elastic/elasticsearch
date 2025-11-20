@@ -148,7 +148,7 @@ public class AuthorizationTaskExecutor extends PersistentTasksExecutor<Authoriza
         persistentTasksService.sendClusterStartRequest(
             TASK_NAME,
             TASK_NAME,
-            new AuthorizationTaskParams(),
+            AuthorizationTaskParams.INSTANCE,
             TimeValue.THIRTY_SECONDS,
             ActionListener.wrap(
                 persistentTask -> logger.info("Finished creating authorization poller task, id {}", persistentTask.getId()),

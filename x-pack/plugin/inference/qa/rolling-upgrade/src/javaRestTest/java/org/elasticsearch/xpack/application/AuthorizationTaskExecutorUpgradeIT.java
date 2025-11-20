@@ -21,6 +21,7 @@ import java.io.IOException;
 import java.util.Map;
 
 import static org.elasticsearch.xpack.inference.InferenceBaseRestTest.assertStatusOkOrCreated;
+import static org.elasticsearch.xpack.inference.InferenceFeatures.INFERENCE_AUTH_POLLER_PERSISTENT_TASK;
 import static org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceSettings.ELASTIC_INFERENCE_SERVICE_URL;
 import static org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceSettings.PERIODIC_AUTHORIZATION_ENABLED;
 import static org.hamcrest.Matchers.is;
@@ -58,7 +59,7 @@ public class AuthorizationTaskExecutorUpgradeIT extends ParameterizedRollingUpgr
 
         // If the old cluster already has the feature for the authorization polling task, the task should already exist
         // We only want to test when upgrading from a version that does not have the task
-        if (oldClusterHasFeature(BEFORE_AUTHORIZATION_TASK_FEATURE) == false) {
+        if (oldClusterHasFeature(INFERENCE_AUTH_POLLER_PERSISTENT_TASK) == false) {
             if (isOldCluster()) {
                 // if we're on a version prior to the authorization polling task, the task should not be created
                 assertFalse(doesAuthPollingTaskExist());

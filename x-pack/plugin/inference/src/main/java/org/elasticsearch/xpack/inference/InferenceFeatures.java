@@ -56,10 +56,11 @@ public class InferenceFeatures implements FeatureSpecification {
     public static final NodeFeature INFERENCE_ENDPOINT_CACHE = new NodeFeature("inference.endpoint.cache");
     public static final NodeFeature INFERENCE_CCM_CACHE = new NodeFeature("inference.ccm.cache");
     public static final NodeFeature SEARCH_USAGE_EXTENDED_DATA = new NodeFeature("search.usage.extended_data");
+    public static final NodeFeature EMBEDDING_TASK_TYPE = new NodeFeature("inference.embedding_task_type");
 
     @Override
     public Set<NodeFeature> getFeatures() {
-        return Set.of(INFERENCE_ENDPOINT_CACHE, INFERENCE_CCM_CACHE);
+        return Set.of(INFERENCE_ENDPOINT_CACHE, INFERENCE_CCM_CACHE, EMBEDDING_TASK_TYPE);
     }
 
     @Override

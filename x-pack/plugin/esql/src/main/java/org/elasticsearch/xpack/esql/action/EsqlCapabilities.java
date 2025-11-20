@@ -1676,6 +1676,8 @@ public class EsqlCapabilities {
          */
         ALL_FIRST(Build.current().isSnapshot()),
 
+        ALL_LAST(Build.current().isSnapshot()),
+
         /**
          * Allow ST_EXTENT_AGG to gracefully handle missing spatial shapes
          */

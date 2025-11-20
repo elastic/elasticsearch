@@ -81,4 +81,10 @@ public abstract class InferencePlan<PlanType extends InferencePlan<PlanType>> ex
     public List<String> validOptionNames() {
         return VALID_INFERENCE_OPTION_NAMES;
     }
+
+    /**
+     * Checks if this InferencePlan is foldable (all input expressions are foldable).
+     * A plan is foldable if all its input expressions can be evaluated statically.
+     */
+    public abstract boolean isFoldable();
 }

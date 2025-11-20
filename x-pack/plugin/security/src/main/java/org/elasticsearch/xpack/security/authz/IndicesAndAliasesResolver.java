@@ -399,7 +399,8 @@ class IndicesAndAliasesResolver {
                         final var rewritten = CrossProjectIndexExpressionsRewriter.rewriteIndexExpression(
                             indexExpression,
                             resolvedProjects.originProjectAlias(),
-                            resolvedProjects.allProjectAliases()
+                            resolvedProjects.allProjectAliases(),
+                            replaceable.getProjectRouting()
                         );
                         remoteIndices = rewritten.remoteExpressions();
                         if (resolvedProjects.originProject() == null || rewritten.localExpression() == null) {
@@ -448,7 +449,8 @@ class IndicesAndAliasesResolver {
                         authorizedIndices::all,
                         authorizedIndices::check,
                         resolvedProjects,
-                        indicesRequest.includeDataStreams()
+                        indicesRequest.includeDataStreams(),
+                        replaceable.getProjectRouting()
                     );
                     setResolvedIndexExpressionsIfUnset(replaceable, resolved);
                     resolvedIndicesBuilder.addLocal(resolved.getLocalIndicesList());

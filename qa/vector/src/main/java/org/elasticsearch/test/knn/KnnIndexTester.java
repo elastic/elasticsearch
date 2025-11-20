@@ -250,7 +250,7 @@ public class KnnIndexTester {
                 indexType,
                 cmdLineArgs.numDocs(),
                 cmdLineArgs.filterSelectivity(),
-                cmdLineArgs.dynamicPostFilterTransform()
+                cmdLineArgs.dynamicPostFilterThreshold()
             );
             Results[] results = new Results[visitPercentages.length];
             for (int i = 0; i < visitPercentages.length; i++) {
@@ -259,7 +259,7 @@ public class KnnIndexTester {
                     indexType,
                     cmdLineArgs.numDocs(),
                     cmdLineArgs.filterSelectivity(),
-                    cmdLineArgs.dynamicPostFilterTransform()
+                    cmdLineArgs.dynamicPostFilterThreshold()
                 );
             }
             logger.info("Running with Java: " + Runtime.version());
@@ -361,7 +361,7 @@ public class KnnIndexTester {
                 "recall",
                 "visited",
                 "filter_selectivity",
-                "dynamicPostFilterTransform"};
+                "dynamicPostFilterThreshold" };
 
             // Calculate appropriate column widths based on headers and data
 
@@ -394,7 +394,7 @@ public class KnnIndexTester {
                     String.format(Locale.ROOT, "%.2f", queryResult.avgRecall),
                     String.format(Locale.ROOT, "%.2f", queryResult.averageVisited),
                     String.format(Locale.ROOT, "%.2f", queryResult.filterSelectivity),
-                    String.format(Locale.ROOT, "%.2f", queryResult.dynamicPostFilterTransform)};
+                    String.format(Locale.ROOT, "%.2f", queryResult.dynamicPostFilterThreshold) };
             }
 
             printBlock(sb, searchHeaders, queryResultsArray);
@@ -471,14 +471,14 @@ public class KnnIndexTester {
         double averageVisited;
         double netCpuTimeMS;
         double avgCpuCount;
-        final float dynamicPostFilterTransform;
+        final float dynamicPostFilterThreshold;
 
-        Results(String indexName, String indexType, int numDocs, float filterSelectivity, float dynamicPostFilterTransform) {
+        Results(String indexName, String indexType, int numDocs, float filterSelectivity, float dynamicPostFilterThreshold) {
             this.indexName = indexName;
             this.indexType = indexType;
             this.numDocs = numDocs;
             this.filterSelectivity = filterSelectivity;
-            this.dynamicPostFilterTransform = dynamicPostFilterTransform;
+            this.dynamicPostFilterThreshold = dynamicPostFilterThreshold;
         }
     }
 

@@ -60,7 +60,7 @@ record CmdLineArgs(
     int writerMaxBufferedDocs,
     int forceMergeMaxNumSegments,
     boolean onDiskRescore,
-    float dynamicPostFilterTransform
+    float dynamicPostFilterThreshold
 ) implements ToXContentObject {
 
     static final ParseField DOC_VECTORS_FIELD = new ParseField("doc_vectors");
@@ -93,7 +93,7 @@ record CmdLineArgs(
     static final ParseField WRITER_BUFFER_MB_FIELD = new ParseField("writer_buffer_mb");
     static final ParseField WRITER_BUFFER_DOCS_FIELD = new ParseField("writer_buffer_docs");
     static final ParseField ON_DISK_RESCORE_FIELD = new ParseField("on_disk_rescore");
-    static final ParseField DYNAMIC_POST_FILTER_FIELD = new ParseField("dynamicPostFilterTransform");
+    static final ParseField DYNAMIC_POST_FILTER_FIELD = new ParseField("dynamicPostFilterThreshold");
 
     /** By default, in ES the default writer buffer size is 10% of the heap space
      * (see {@code IndexingMemoryController.INDEX_BUFFER_SIZE_SETTING}).
@@ -140,7 +140,7 @@ record CmdLineArgs(
         PARSER.declareInt(Builder::setWriterMaxBufferedDocs, WRITER_BUFFER_DOCS_FIELD);
         PARSER.declareInt(Builder::setForceMergeMaxNumSegments, FORCE_MERGE_MAX_NUM_SEGMENTS_FIELD);
         PARSER.declareBoolean(Builder::setOnDiskRescore, ON_DISK_RESCORE_FIELD);
-        PARSER.declareFloat(Builder::setDynamicPostFilterTransform, DYNAMIC_POST_FILTER_FIELD);
+        PARSER.declareFloat(Builder::setdynamicPostFilterThreshold, DYNAMIC_POST_FILTER_FIELD);
     }
 
     @Override
@@ -216,7 +216,7 @@ record CmdLineArgs(
         private KnnIndexTester.MergePolicyType mergePolicy = null;
         private double writerBufferSizeInMb = DEFAULT_WRITER_BUFFER_MB;
         private boolean onDiskRescore = false;
-        private float dynamicPostFilterTransform = 1f;
+        private float dynamicPostFilterThreshold = 1f;
 
         /**
          * Elasticsearch does not set this explicitly, and in Lucene this setting is
@@ -412,13 +412,13 @@ record CmdLineArgs(
                 writerMaxBufferedDocs,
                 forceMergeMaxNumSegments,
                 onDiskRescore,
-                dynamicPostFilterTransform
+                dynamicPostFilterThreshold
             );
         }
 
-        public void setDynamicPostFilterTransform(Float dynamicPostFilterTransform){
+        public void setdynamicPostFilterThreshold(Float dynamicPostFilterThreshold) {
             // This is a no-op for builder pattern compatibility
-            this.dynamicPostFilterTransform = dynamicPostFilterTransform;
+            this.dynamicPostFilterThreshold = dynamicPostFilterThreshold;
         }
     }
 }

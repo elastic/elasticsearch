@@ -104,7 +104,7 @@ class KnnSearcher {
     private final int topK;
     private final int efSearch;
     private final double visitPercentage;
-    private final float dynamicPostFilterTransform;
+    private final float dynamicPostFilterThreshold;
     private final KnnIndexTester.IndexType indexType;
     private int dim;
     private final VectorSimilarityFunction similarityFunction;
@@ -134,7 +134,7 @@ class KnnSearcher {
         this.numSearchers = cmdLineArgs.numSearchers();
         this.randomSeed = cmdLineArgs.seed();
         this.selectivity = cmdLineArgs.filterSelectivity();
-        this.dynamicPostFilterTransform = cmdLineArgs.dynamicPostFilterTransform();
+        this.dynamicPostFilterThreshold = cmdLineArgs.dynamicPostFilterThreshold();
     }
 
     void runSearch(KnnIndexTester.Results finalResults, boolean earlyTermination) throws IOException {
@@ -422,7 +422,15 @@ class KnnSearcher {
         int efSearch = Math.max(topK, this.efSearch);
         if (indexType == KnnIndexTester.IndexType.IVF) {
             float visitRatio = (float) (visitPercentage / 100);
-            knnQuery = new IVFKnnFloatVectorQuery(VECTOR_FIELD, vector, topK, efSearch, filterQuery, visitRatio, dynamicPostFilterTransform);
+            knnQuery = new IVFKnnFloatVectorQuery(
+                VECTOR_FIELD,
+                vector,
+                topK,
+                efSearch,
+                filterQuery,
+                visitRatio,
+                dynamicPostFilterThreshold
+            );
         } else {
             knnQuery = new ESKnnFloatVectorQuery(
                 VECTOR_FIELD,

@@ -55,9 +55,16 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
     protected final int numCands;
     protected final Query filter;
     protected int vectorOpsCount;
-    protected final float dynamicPostFilterTransform;
+    protected final float dynamicPostFilterThreshold;
 
-    protected AbstractIVFKnnVectorQuery(String field, float visitRatio, int k, int numCands, Query filter, float dynamicPostFilterTransform) {
+    protected AbstractIVFKnnVectorQuery(
+        String field,
+        float visitRatio,
+        int k,
+        int numCands,
+        Query filter,
+        float dynamicPostFilterThreshold
+    ) {
         if (k < 1) {
             throw new IllegalArgumentException("k must be at least 1, got: " + k);
         }
@@ -67,9 +74,9 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
         if (numCands < k) {
             throw new IllegalArgumentException("numCands must be at least k, got: " + numCands);
         }
-        if( dynamicPostFilterTransform < 0.0f || dynamicPostFilterTransform > 10.0f) {
+        if (dynamicPostFilterThreshold < 0.0f || dynamicPostFilterThreshold > 10.0f) {
             throw new IllegalArgumentException(
-                "dynamicPostFilterTransform must be between 0.0 and 1.0 (both inclusive), got: " + dynamicPostFilterTransform
+                "dynamicPostFilterThreshold must be between 0.0 and 1.0 (both inclusive), got: " + dynamicPostFilterThreshold
             );
         }
         this.field = field;
@@ -77,7 +84,7 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
         this.k = k;
         this.filter = filter;
         this.numCands = numCands;
-        this.dynamicPostFilterTransform = dynamicPostFilterTransform;
+        this.dynamicPostFilterThreshold = dynamicPostFilterThreshold;
     }
 
     @Override
@@ -148,7 +155,7 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
                     if (supplier != null) {
                         var acceptDocs = new ESAcceptDocs.ScorerSupplierAcceptDocs(supplier, liveDocs, leafReader.maxDoc());
                         var filterCost = acceptDocs.approximateCost();
-                        if (((float) filterCost / floatVectorValues.size()) >= dynamicPostFilterTransform) {
+                        if (((float) filterCost / floatVectorValues.size()) >= dynamicPostFilterThreshold) {
                             leafSearchMetas.add(
                                 new VectorLeafSearchFilterMeta(
                                     leafReaderContext,
@@ -173,7 +180,7 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
         int vectorsToCollect = Math.round(2f * k);
         if (leafSearchMetas.stream().anyMatch(leaf -> leaf.postFilter != null)) {
             // when there is a post filter we need to collect more vectors to account for filtering after collection
-            vectorsToCollect = Math.round((1f + (1f - dynamicPostFilterTransform)) * vectorsToCollect) + 1;
+            vectorsToCollect = Math.round((1f + (1f - dynamicPostFilterThreshold)) * vectorsToCollect) + 1;
         }
         IVFCollectorManager knnCollectorManager = getKnnCollectorManager(vectorsToCollect, indexSearcher);
 
@@ -217,7 +224,8 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
         for (ScoreDoc scoreDoc : results.scoreDocs) {
             if (dedup.add(scoreDoc.doc)) {
                 scoreDoc.doc += leafSearchFilterMeta.context.docBase;
-                if (leafSearchFilterMeta.postFilter == null || leafSearchFilterMeta.postFilter.iterator().advance(scoreDoc.doc) == scoreDoc.doc) {
+                if (leafSearchFilterMeta.postFilter == null
+                    || leafSearchFilterMeta.postFilter.iterator().advance(scoreDoc.doc) == scoreDoc.doc) {
                     deduplicatedScoreDocs.add(scoreDoc);
                 }
             }

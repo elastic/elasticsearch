@@ -40,7 +40,7 @@ dependencies {
 
   testImplementation(testArtifact(project(xpackModule('core'))))
   internalClusterTestImplementation(testArtifact(project(xpackModule('core'))))
-  api 'com.unboundid:unboundid-ldapsdk:6.0.3'
+  api "com.unboundid:unboundid-ldapsdk:${versions.ldapsdk}"
 
   // the following are all SAML dependencies - might as well download the whole internet
   api "org.opensaml:opensaml-core:${versions.opensaml}"

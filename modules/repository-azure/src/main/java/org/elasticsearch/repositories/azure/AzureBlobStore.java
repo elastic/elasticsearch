@@ -348,6 +348,10 @@ public class AzureBlobStore implements BlobStore {
         return service.getMaxReadRetries(projectId, clientName);
     }
 
+    /**
+     * Get an {@link InputStream} for reading the specified blob. The returned input stream will not retry on a read failure,
+     * to get an input stream that implements retries use {@link AzureBlobContainer#readBlob(OperationPurpose, String, long, long)}
+     */
     AzureInputStream getInputStream(
         OperationPurpose purpose,
         String blob,

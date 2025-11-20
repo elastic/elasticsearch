@@ -25,8 +25,11 @@ import org.elasticsearch.compute.operator.DriverContext;
 @GroupingAggregator
 class DerivIntAggregator {
 
-    public static SimpleLinearRegressionWithTimeseries initSingle(DriverContext driverContext) {
-        return new SimpleLinearRegressionWithTimeseries();
+    public static SimpleLinearRegressionWithTimeseries initSingle(
+        DriverContext driverContext,
+        SimpleLinearRegressionWithTimeseries.SimpleLinearModelFunction fn
+    ) {
+        return new SimpleLinearRegressionWithTimeseries(fn);
     }
 
     public static void combine(SimpleLinearRegressionWithTimeseries current, int value, long timestamp) {
@@ -48,8 +51,11 @@ class DerivIntAggregator {
         return DerivDoubleAggregator.evaluateFinal(state, driverContext);
     }
 
-    public static DerivDoubleAggregator.GroupingState initGrouping(DriverContext driverContext) {
-        return new DerivDoubleAggregator.GroupingState(driverContext.bigArrays());
+    public static DerivDoubleAggregator.GroupingState initGrouping(
+        DriverContext driverContext,
+        SimpleLinearRegressionWithTimeseries.SimpleLinearModelFunction fn
+    ) {
+        return new DerivDoubleAggregator.GroupingState(driverContext.bigArrays(), fn);
     }
 
     public static void combine(DerivDoubleAggregator.GroupingState state, int groupId, int value, long timestamp) {

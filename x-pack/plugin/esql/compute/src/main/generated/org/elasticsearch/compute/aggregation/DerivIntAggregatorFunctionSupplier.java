@@ -15,7 +15,11 @@ import org.elasticsearch.compute.operator.DriverContext;
  * This class is generated. Edit {@code AggregatorFunctionSupplierImplementer} instead.
  */
 public final class DerivIntAggregatorFunctionSupplier implements AggregatorFunctionSupplier {
-  public DerivIntAggregatorFunctionSupplier() {
+  private final SimpleLinearRegressionWithTimeseries.SimpleLinearModelFunction fn;
+
+  public DerivIntAggregatorFunctionSupplier(
+      SimpleLinearRegressionWithTimeseries.SimpleLinearModelFunction fn) {
+    this.fn = fn;
   }
 
   @Override
@@ -31,13 +35,13 @@ public final class DerivIntAggregatorFunctionSupplier implements AggregatorFunct
   @Override
   public DerivIntAggregatorFunction aggregator(DriverContext driverContext,
       List<Integer> channels) {
-    return DerivIntAggregatorFunction.create(driverContext, channels);
+    return DerivIntAggregatorFunction.create(driverContext, channels, fn);
   }
 
   @Override
   public DerivIntGroupingAggregatorFunction groupingAggregator(DriverContext driverContext,
       List<Integer> channels) {
-    return DerivIntGroupingAggregatorFunction.create(channels, driverContext);
+    return DerivIntGroupingAggregatorFunction.create(channels, driverContext, fn);
   }
 
   @Override

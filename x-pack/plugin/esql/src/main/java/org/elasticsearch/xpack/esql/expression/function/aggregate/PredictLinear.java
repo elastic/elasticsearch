@@ -18,12 +18,7 @@ import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.expression.function.Example;
-import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
-import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
-import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
-import org.elasticsearch.xpack.esql.expression.function.FunctionType;
-import org.elasticsearch.xpack.esql.expression.function.Param;
+import org.elasticsearch.xpack.esql.expression.function.*;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.planner.ToAggregator;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter;
@@ -35,7 +30,7 @@ import java.util.Objects;
 /**
  * Calculates the derivative over time of a numeric field using linear regression.
  */
-public class PredictLinear extends TimeSeriesAggregateFunction implements ToAggregator {
+public class PredictLinear extends TimeSeriesAggregateFunction implements ToAggregator, TimestampAware {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         Expression.class,
         "PredictLinear",
@@ -85,6 +80,11 @@ public class PredictLinear extends TimeSeriesAggregateFunction implements ToAggr
         );
         this.t = children().get(4);
         this.timestamp = children().get(3);
+    }
+
+    @Override
+    public Expression timestamp() {
+        return timestamp;
     }
 
     @Override

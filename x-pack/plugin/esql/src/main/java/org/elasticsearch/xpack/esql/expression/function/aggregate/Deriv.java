@@ -25,6 +25,7 @@ import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecyc
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionType;
 import org.elasticsearch.xpack.esql.expression.function.Param;
+import org.elasticsearch.xpack.esql.expression.function.TimestampAware;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.planner.ToAggregator;
 
@@ -36,7 +37,7 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.AGGREGATE_METRIC_D
 /**
  * Calculates the derivative over time of a numeric field using linear regression.
  */
-public class Deriv extends TimeSeriesAggregateFunction implements ToAggregator {
+public class Deriv extends TimeSeriesAggregateFunction implements ToAggregator, TimestampAware {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Deriv", Deriv::new);
     private final Expression timestamp;
 
@@ -65,6 +66,11 @@ public class Deriv extends TimeSeriesAggregateFunction implements ToAggregator {
             in.readNamedWriteable(Expression.class),
             in.readNamedWriteableCollectionAsList(Expression.class).getFirst()
         );
+    }
+
+    @Override
+    public Expression timestamp() {
+        return timestamp;
     }
 
     @Override
@@ -114,9 +120,9 @@ public class Deriv extends TimeSeriesAggregateFunction implements ToAggregator {
 
         SimpleLinearRegressionWithTimeseries.SimpleLinearModelFunction fn = (SimpleLinearRegressionWithTimeseries model) -> model.slope();
         return switch (type) {
-            case DOUBLE -> new DerivDoubleAggregatorFunctionSupplier();
-            case LONG -> new DerivLongAggregatorFunctionSupplier();
-            case INTEGER -> new DerivIntAggregatorFunctionSupplier();
+            case DOUBLE -> new DerivDoubleAggregatorFunctionSupplier(fn);
+            case LONG -> new DerivLongAggregatorFunctionSupplier(fn);
+            case INTEGER -> new DerivIntAggregatorFunctionSupplier(fn);
             default -> throw new IllegalArgumentException("Unsupported data type for deriv aggregation: " + type);
         };
     }

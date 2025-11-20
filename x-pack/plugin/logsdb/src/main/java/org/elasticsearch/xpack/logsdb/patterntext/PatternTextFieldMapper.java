@@ -168,7 +168,7 @@ public class PatternTextFieldMapper extends FieldMapper {
          * associated index setting, which is set from the current license status.
          */
         private static Parameter<Boolean> disableTemplatingParameter(IndexSettings indexSettings) {
-            boolean forceDisable = indexSettings.getValue(DISABLE_TEMPLATING_SETTING);
+            boolean forceDisable = DISABLE_TEMPLATING_SETTING.get(indexSettings.getSettings());
             return Parameter.boolParam(
                 "disable_templating",
                 false,

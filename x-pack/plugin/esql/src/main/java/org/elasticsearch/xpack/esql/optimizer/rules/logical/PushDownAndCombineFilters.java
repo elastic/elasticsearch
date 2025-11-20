@@ -104,10 +104,7 @@ public final class PushDownAndCombineFilters extends OptimizerRules.Parameterize
         } else if (child instanceof OrderBy orderBy) {
             // swap the filter with its child
             plan = orderBy.replaceChild(filter.with(orderBy.child(), condition));
-        } else if (child instanceof Join join && child instanceof InlineJoin == false) {
-            // TODO: could we do better here about pushing down filters for inline stats?
-            // See also https://github.com/elastic/elasticsearch/issues/127497
-            // Push down past INLINE STATS if the condition is on the groupings
+        } else if (child instanceof Join join) {
             return pushDownPastJoin(filter, join, ctx.foldCtx());
         }
         // cannot push past a Limit, this could change the tailing result set returned
@@ -135,6 +132,34 @@ public final class PushDownAndCombineFilters extends OptimizerRules.Parameterize
         return new ScopedFilter(rest, leftFilters, rightFilters);
     }
 
+    // split the filter condition in 3 parts:
+    // 1. filters that reference attributes from the right side only
+    // 2. filters that reference attributes from both sides
+    // 3. filters that reference attributes from the left side only
+    private static ScopedFilter scopeInlineStatsFilter(List<Expression> filters, InlineJoin ij) {
+        List<Expression> rightFilters = new ArrayList<>();
+        List<Expression> bothSides = new ArrayList<>();
+        List<Expression> leftFilters = new ArrayList<>(filters);
+
+        AttributeSet leftOutputSet = ij.left().outputSet();
+        AttributeSet rightOutputSet = ij.right().outputSet();
+        AttributeSet rightOutputSetWithoutKeys = rightOutputSet.subtract(AttributeSet.of(ij.config().rightFields()));
+
+        leftFilters.removeIf(f -> {
+            if (f.references().subsetOf(rightOutputSet)) {
+                if (f.references().subsetOf(leftOutputSet)) {
+                    bothSides.add(f);
+                    return true;
+                } else if (f.references().subsetOf(rightOutputSetWithoutKeys)) {
+                    rightFilters.add(f);
+                    return true;
+                }
+            }
+            return false;
+        });
+        return new ScopedFilter(leftFilters, bothSides, rightFilters);
+    }
+
     private static LogicalPlan pushDownPastJoin(Filter filter, Join join, FoldContext foldCtx) {
         LogicalPlan plan = filter;
         // pushdown only through LEFT joins
@@ -142,12 +167,16 @@ public final class PushDownAndCombineFilters extends OptimizerRules.Parameterize
         if (join.config().type() == JoinTypes.LEFT) {
             LogicalPlan left = join.left();
             LogicalPlan right = join.right();
+            var conjunctions = Predicates.splitAnd(filter.condition());
 
-            // split the filter condition in 3 parts:
-            // 1. filter scoped to the left
-            // 2. filter scoped to the right
-            // 3. filter that requires both sides to be evaluated
-            ScopedFilter scoped = scopeFilter(Predicates.splitAnd(filter.condition()), left, right);
+            // Split the filter condition in 3 parts.
+            // For InlineJoin we use a scoping that allows pushing down filters either to right side only or to both sides.
+            // For the rest of the joins we use the standard scoping:
+            // - filters scoped to the left
+            // - filters scoped to the right
+            // - filter that requires both sides to be evaluated
+            var scoped = join instanceof InlineJoin ij ? scopeInlineStatsFilter(conjunctions, ij) : scopeFilter(conjunctions, left, right);
+
             boolean optimizationApplied = false;
             // push the left scoped filter down to the left child
             if (scoped.leftFilters.size() > 0) {
@@ -156,15 +185,15 @@ public final class PushDownAndCombineFilters extends OptimizerRules.Parameterize
                 // update the join with the new left child
                 join = (Join) join.replaceLeft(left);
                 // we completely applied the left filters, so we can remove them from the scoped filters
-                scoped = new ScopedFilter(scoped.commonFilters(), List.of(), scoped.rightFilters);
+                scoped = new ScopedFilter(scoped.commonFilters, List.of(), scoped.rightFilters);
                 optimizationApplied = true;
             }
             // push the right scoped filter down to the right child
             // We check if each AND component of the filter is already part of the right side filter before we add it
             // In the future, this optimization can apply to other types of joins as well such as InlineJoin
             // but for now we limit it to LEFT joins only, till filters are supported for other join types
-            if (scoped.rightFilters().isEmpty() == false) {
-                List<Expression> rightPushableFilters = buildRightPushableFilters(scoped.rightFilters(), foldCtx);
+            if (scoped.rightFilters.isEmpty() == false && join instanceof InlineJoin == false) {
+                List<Expression> rightPushableFilters = buildRightPushableFilters(scoped.rightFilters, foldCtx);
                 if (rightPushableFilters.isEmpty() == false) {
                     if (join.right() instanceof Filter existingRightFilter) {
                         // merge the unique AND filter components from rightPushableFilters and existingRightFilter.condition()
@@ -210,7 +239,7 @@ public final class PushDownAndCombineFilters extends OptimizerRules.Parameterize
             }
             if (optimizationApplied) {
                 // if we pushed down some filters, we need to update the filters to reapply above the join
-                Expression remainingFilter = Predicates.combineAnd(CollectionUtils.combine(scoped.commonFilters, scoped.rightFilters));
+                Expression remainingFilter = Predicates.combineAnd(CollectionUtils.combine(scoped.commonFilters(), scoped.rightFilters));
                 plan = remainingFilter != null ? filter.with(join, remainingFilter) : join;
             }
         }

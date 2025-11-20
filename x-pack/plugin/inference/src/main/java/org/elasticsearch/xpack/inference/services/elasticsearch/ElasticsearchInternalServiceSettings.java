@@ -234,6 +234,10 @@ public class ElasticsearchInternalServiceSettings implements ServiceSettings {
         var validationException = new ValidationException();
         var mutableServiceSettings = new HashMap<>(serviceSettings);
 
+        if (serviceSettings.containsKey(NUM_THREADS)) {
+            validationException.addValidationError(Strings.format("[%s] cannot be updated", NUM_THREADS));
+        }
+
         var numAllocations = extractOptionalPositiveInteger(
             mutableServiceSettings,
             NUM_ALLOCATIONS,

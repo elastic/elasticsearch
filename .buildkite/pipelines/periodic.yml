@@ -511,6 +511,7 @@ steps:
           setup:
             ES_RUNTIME_JAVA:
               - openjdk21
+              - openjdk25
             BWC_VERSION: ["8.19.8", "9.1.8", "9.2.2"]
         agents:
           provider: gcp
@@ -530,8 +531,7 @@ steps:
           setup:
             ES_RUNTIME_JAVA:
               - openjdk21
-              - openjdk23
-              - openjdk24
+              - openjdk25
             GRADLE_TASK:
               - checkPart1
               - checkPart2
@@ -556,7 +556,7 @@ steps:
           setup:
             ES_RUNTIME_JAVA:
               - openjdk21
-              - openjdk23
+              - openjdk25
             BWC_VERSION: ["8.19.8", "9.1.8", "9.2.2"]
         agents:
           provider: gcp

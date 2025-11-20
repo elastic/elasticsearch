@@ -281,12 +281,10 @@ public final class JdkVectorLibrary implements VectorLibrary {
                 var lookup = MethodHandles.lookup();
                 var mt = MethodType.methodType(int.class, MemorySegment.class, MemorySegment.class, int.class);
                 DOT_HANDLE_7U = lookup.findStatic(JdkVectorSimilarityFunctions.class, "dotProduct7u", mt);
-                DOT_HANDLE_7U_BULK = lookup.findStatic(
-                    JdkVectorSimilarityFunctions.class,
-                    "dotProduct7uBulk",
-                    MethodType.methodType(void.class, MemorySegment.class, MemorySegment.class, int.class, int.class, MemorySegment.class)
-                );
                 SQR_HANDLE_7U = lookup.findStatic(JdkVectorSimilarityFunctions.class, "squareDistance7u", mt);
+
+                mt = MethodType.methodType(void.class, MemorySegment.class, MemorySegment.class, int.class, int.class, MemorySegment.class);
+                DOT_HANDLE_7U_BULK = lookup.findStatic(JdkVectorSimilarityFunctions.class, "dotProduct7uBulk", mt);
 
                 mt = MethodType.methodType(float.class, MemorySegment.class, MemorySegment.class, int.class);
                 COS_HANDLE_FLOAT32 = lookup.findStatic(JdkVectorSimilarityFunctions.class, "cosineF32", mt);

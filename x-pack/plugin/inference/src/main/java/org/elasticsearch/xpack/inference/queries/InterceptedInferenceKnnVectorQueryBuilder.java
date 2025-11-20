@@ -32,7 +32,9 @@ import org.elasticsearch.xpack.inference.mapper.SemanticTextField;
 import org.elasticsearch.xpack.inference.mapper.SemanticTextFieldMapper;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Collection;
+import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.transport.RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY;
@@ -92,6 +94,34 @@ public class InterceptedInferenceKnnVectorQueryBuilder extends InterceptedInfere
     }
 
     @Override
+    protected QueryBuilder customCoordinatorNodeRewrite(QueryRewriteContext queryRewriteContext) throws IOException {
+        // knn query may contain filters that are also intercepted.
+        // We need to rewrite those here so that we can get inference results for them too.
+        QueryBuilder rewritten = rewriteFilterQueries(queryRewriteContext);
+        if (rewritten != this) {
+            return rewritten;
+        }
+        return super.customCoordinatorNodeRewrite(queryRewriteContext);
+    }
+
+    private QueryBuilder rewriteFilterQueries(QueryRewriteContext queryRewriteContext) throws IOException {
+        boolean filtersChanged = false;
+        List<QueryBuilder> rewrittenFilters = new ArrayList<>(originalQuery.filterQueries().size());
+        for (QueryBuilder filter : originalQuery.filterQueries()) {
+            QueryBuilder rewrittenFilter = filter.rewrite(queryRewriteContext);
+            if (rewrittenFilter != filter) {
+                filtersChanged = true;
+            }
+            rewrittenFilters.add(rewrittenFilter);
+        }
+        if (filtersChanged) {
+            originalQuery.setFilterQueries(rewrittenFilters);
+            return copy(inferenceResultsMap, inferenceResultsMapSupplier, ccsRequest);
+        }
+        return this;
+    }
+
+    @Override
     protected void coordinatorNodeValidate(ResolvedIndices resolvedIndices) {
         if (originalQuery.queryVector() == null && originalQuery.queryVectorBuilder() instanceof TextEmbeddingQueryVectorBuilder == false) {
             // This should never happen because either query vector or query vector builder must be non-null, which is enforced by the
@@ -119,7 +149,7 @@ public class InterceptedInferenceKnnVectorQueryBuilder extends InterceptedInfere
     }
 
     @Override
-    protected QueryBuilder doRewriteBwC(QueryRewriteContext queryRewriteContext) {
+    protected QueryBuilder doRewriteBwC(QueryRewriteContext queryRewriteContext) throws IOException {
         QueryBuilder rewritten = this;
         if (queryRewriteContext.getMinTransportVersion().supports(NEW_SEMANTIC_QUERY_INTERCEPTORS) == false) {
             rewritten = BWC_INTERCEPTOR.interceptAndRewrite(queryRewriteContext, originalQuery);

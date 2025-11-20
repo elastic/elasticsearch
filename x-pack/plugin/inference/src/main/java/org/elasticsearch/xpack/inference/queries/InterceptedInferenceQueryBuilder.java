@@ -152,7 +152,7 @@ public abstract class InterceptedInferenceQueryBuilder<T extends AbstractQueryBu
      * @param queryRewriteContext The query rewrite context
      * @return The query builder rewritten to a backwards-compatible form
      */
-    protected abstract QueryBuilder doRewriteBwC(QueryRewriteContext queryRewriteContext);
+    protected abstract QueryBuilder doRewriteBwC(QueryRewriteContext queryRewriteContext) throws IOException;
 
     /**
      * Generate a copy of {@code this}.
@@ -208,6 +208,10 @@ public abstract class InterceptedInferenceQueryBuilder<T extends AbstractQueryBu
      * @param resolvedIndices The resolved indices
      */
     protected void coordinatorNodeValidate(ResolvedIndices resolvedIndices) {}
+
+    protected QueryBuilder customCoordinatorNodeRewrite(QueryRewriteContext queryRewriteContext) throws IOException {
+        return this;
+    }
 
     @Override
     protected void doWriteTo(StreamOutput out) throws IOException {
@@ -304,7 +308,7 @@ public abstract class InterceptedInferenceQueryBuilder<T extends AbstractQueryBu
         return queryFields(inferenceFieldsToQuery, nonInferenceFieldsToQuery, indexMetadataContext);
     }
 
-    private QueryBuilder doRewriteGetInferenceResults(QueryRewriteContext queryRewriteContext) {
+    private QueryBuilder doRewriteGetInferenceResults(QueryRewriteContext queryRewriteContext) throws IOException {
         QueryBuilder rewrittenBwC = doRewriteBwC(queryRewriteContext);
         if (rewrittenBwC != this) {
             return rewrittenBwC;
@@ -344,6 +348,18 @@ public abstract class InterceptedInferenceQueryBuilder<T extends AbstractQueryBu
             );
         }
 
+        QueryBuilder rewritten = customCoordinatorNodeRewrite(queryRewriteContext);
+        if (this != rewritten) {
+            return rewritten;
+        }
+        return coordinatorNodeRewrite(queryRewriteContext, inferenceIds, ccsRequest);
+    }
+
+    private QueryBuilder coordinatorNodeRewrite(
+        QueryRewriteContext queryRewriteContext,
+        Set<FullyQualifiedInferenceId> inferenceIds,
+        boolean ccsRequest
+    ) {
         if (inferenceResultsMapSupplier != null) {
             // Additional inference results have already been requested, and we are waiting for them to continue the rewrite process
             return getNewInferenceResultsFromSupplier(inferenceResultsMapSupplier, this, m -> copy(m, null, ccsRequest));
@@ -376,7 +392,6 @@ public abstract class InterceptedInferenceQueryBuilder<T extends AbstractQueryBu
         } else {
             rewritten = copy(inferenceResultsMap, newInferenceResultsMapSupplier, ccsRequest);
         }
-
         return rewritten;
     }
 

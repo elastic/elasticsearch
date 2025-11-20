@@ -20,7 +20,6 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.internal.ContextIndexSearcher;
-import org.elasticsearch.search.query.QueryPhaseExecutionException;
 import org.elasticsearch.search.query.SearchTimeoutException;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;

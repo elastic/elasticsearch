@@ -29,12 +29,15 @@ import org.apache.lucene.index.Term;
 import org.apache.lucene.index.VectorEncoding;
 import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.search.AcceptDocs;
+import org.apache.lucene.search.KnnCollector;
 import org.apache.lucene.search.TopDocs;
+import org.apache.lucene.search.TopKnnCollector;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.BaseKnnVectorsFormatTestCase;
 import org.apache.lucene.tests.util.TestUtil;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.logging.LogConfigurator;
+import org.elasticsearch.search.vectors.IVFKnnSearchStrategy;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -353,17 +356,27 @@ public class ESNextDiskBBQVectorsFormatTests extends BaseKnnVectorsFormatTestCas
                 LeafReader leafReader = getOnlyLeafReader(reader);
                 float[] vector = randomVector(dimensions);
                 // we might collect the same document twice because of soar assignments
-                TopDocs topDocs = leafReader.searchNearestVectors(
+                KnnCollector collector;
+                if (random().nextBoolean()) {
+                    collector = new TopKnnCollector(random().nextInt(2 * matchingDocs, 3 * matchingDocs), Integer.MAX_VALUE);
+                } else {
+                    collector = new TopKnnCollector(
+                        random().nextInt(2 * matchingDocs, 3 * matchingDocs),
+                        Integer.MAX_VALUE,
+                        new IVFKnnSearchStrategy(0.25f, null)
+                    );
+                }
+                leafReader.searchNearestVectors(
                     "f",
                     vector,
-                    random().nextInt(2 * matchingDocs, 3 * matchingDocs),
+                    collector,
                     AcceptDocs.fromIteratorSupplier(
                         () -> leafReader.postings(new Term("k", new BytesRef("A"))),
                         leafReader.getLiveDocs(),
                         leafReader.maxDoc()
-                    ),
-                    Integer.MAX_VALUE
+                    )
                 );
+                TopDocs topDocs = collector.topDocs();
                 Set<Integer> uniqueDocIds = new HashSet<>();
                 for (int i = 0; i < topDocs.scoreDocs.length; i++) {
                     uniqueDocIds.add(topDocs.scoreDocs[i].doc);

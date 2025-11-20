@@ -159,11 +159,14 @@ public class CsvTestsDataLoader {
     private static final TestDataset MULTIVALUE_POINTS = new TestDataset("multivalue_points");
     private static final TestDataset DISTANCES = new TestDataset("distances");
     private static final TestDataset K8S = new TestDataset("k8s", "k8s-mappings.json", "k8s.csv").withSetting("k8s-settings.json");
+    private static final TestDataset K8S_DATE_NANOS = K8S.withIndex("date-nanos-k8s").withTypeMapping(Map.of("@timestamp", "date_nanos"));
     private static final TestDataset K8S_DOWNSAMPLED = new TestDataset(
         "k8s-downsampled",
         "k8s-downsampled-mappings.json",
         "k8s-downsampled.csv"
     ).withSetting("k8s-downsampled-settings.json");
+    private static final TestDataset K8S_DATE_NANOS_DOWNSAMPLED = K8S_DOWNSAMPLED.withIndex("date-nanos-k8s-downsampled")
+        .withTypeMapping(Map.of("@timestamp", "date_nanos"));
     private static final TestDataset ADDRESSES = new TestDataset("addresses");
     private static final TestDataset BOOKS = new TestDataset("books").withSetting("books-settings.json");
     private static final TestDataset SEMANTIC_TEXT = new TestDataset("semantic_text").withInferenceEndpoint(true);
@@ -230,6 +233,8 @@ public class CsvTestsDataLoader {
         Map.entry(DATE_NANOS_UNION_TYPES.indexName, DATE_NANOS_UNION_TYPES),
         Map.entry(K8S.indexName, K8S),
         Map.entry(K8S_DOWNSAMPLED.indexName, K8S_DOWNSAMPLED),
+        Map.entry(K8S_DATE_NANOS.indexName, K8S_DATE_NANOS),
+        Map.entry(K8S_DATE_NANOS_DOWNSAMPLED.indexName, K8S_DATE_NANOS_DOWNSAMPLED),
         Map.entry(DISTANCES.indexName, DISTANCES),
         Map.entry(ADDRESSES.indexName, ADDRESSES),
         Map.entry(BOOKS.indexName, BOOKS),

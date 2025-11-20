@@ -720,4 +720,14 @@ mx:integer | tbucket:datetime
 1716       | 2024-05-10T00:00:00.000Z
 ;
 
+Rename timestamp when aggs don't require timestamp with date_nanos
+required_capability: ts_command_v0
 
+TS date-nanos-k8s
+| RENAME @timestamp AS newTs
+| STATS mx = max(max_over_time(network.eth0.tx))  BY tbucket = bucket(newTs, 1hour)
+;
+
+mx:integer | tbucket:date_nanos
+1716       | 2024-05-10T00:00:00.000Z
+;

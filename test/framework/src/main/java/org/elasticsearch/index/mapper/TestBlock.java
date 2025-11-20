@@ -114,6 +114,36 @@ public class TestBlock implements BlockLoader.Block {
             }
 
             @Override
+            public BlockLoader.SingletonBytesRefBuilder singletonBytesRefs(int expectedCount) {
+                class BytesRefsBuilder extends TestBlock.Builder implements BlockLoader.SingletonBytesRefBuilder {
+                    private final int count = expectedCount;
+
+                    private BytesRefsBuilder() {
+                        super(expectedCount);
+                    }
+
+                    @Override
+                    public BlockLoader.SingletonBytesRefBuilder appendBytesRefs(byte[] bytes, long[] offsets) throws IOException {
+                        for (int i = 0; i < offsets.length - 1; i++) {
+                            BytesRef ref = new BytesRef(bytes, (int) offsets[i], (int) (offsets[i + 1] - offsets[i]));
+                            add(BytesRef.deepCopyOf(ref));
+                        }
+                        return this;
+                    }
+
+                    @Override
+                    public BlockLoader.SingletonBytesRefBuilder appendBytesRefs(byte[] bytes, long bytesRefLengths) throws IOException {
+                        for (int i = 0; i < count; i++) {
+                            BytesRef ref = new BytesRef(bytes, (int) (i * bytesRefLengths), (int) bytesRefLengths);
+                            add(BytesRef.deepCopyOf(ref));
+                        }
+                        return this;
+                    }
+                }
+                return new BytesRefsBuilder();
+            }
+
+            @Override
             public BlockLoader.DoubleBuilder doublesFromDocValues(int expectedCount) {
                 return doubles(expectedCount);
             }
@@ -486,6 +516,42 @@ public class TestBlock implements BlockLoader.Block {
                     zeroThresholds,
                     encodedHistograms
                 );
+            }
+
+            @Override
+            public BlockLoader.Block buildTDigestBlockDirect(
+                BlockLoader.Block encodedDigests,
+                BlockLoader.Block minima,
+                BlockLoader.Block maxima,
+                BlockLoader.Block sums,
+                BlockLoader.Block valueCounts
+            ) {
+                TestBlock minBlock = (TestBlock) minima;
+                TestBlock maxBlock = (TestBlock) maxima;
+                TestBlock sumBlock = (TestBlock) sums;
+                TestBlock countBlock = (TestBlock) valueCounts;
+                TestBlock digestBlock = (TestBlock) encodedDigests;
+
+                assert minBlock.size() == digestBlock.size();
+                assert maxBlock.size() == digestBlock.size();
+                assert sumBlock.size() == digestBlock.size();
+                assert countBlock.size() == digestBlock.size();
+
+                var values = new ArrayList<>(minBlock.size());
+
+                for (int i = 0; i < minBlock.size(); i++) {
+                    // we need to represent this complex block somehow
+                    HashMap<String, Object> value = new HashMap<>();
+                    value.put("min", minBlock.values.get(i));
+                    value.put("max", maxBlock.values.get(i));
+                    value.put("sum", sumBlock.values.get(i));
+                    value.put("value_count", countBlock.values.get(i));
+                    value.put("encoded_digest", digestBlock.values.get(i));
+
+                    values.add(value);
+                }
+
+                return new TestBlock(values);
             }
         };
     }

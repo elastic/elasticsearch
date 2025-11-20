@@ -359,6 +359,10 @@ public class CsvTests extends ESTestCase {
                 "CSV tests cannot currently handle CHUNK function",
                 testCase.requiredCapabilities.contains(EsqlCapabilities.Cap.CHUNK_FUNCTION.capabilityName())
             );
+            assumeFalse(
+                "can't use PromQL in csv tests",
+                testCase.requiredCapabilities.contains(EsqlCapabilities.Cap.PROMQL_V0.capabilityName())
+            );
 
             if (Build.current().isSnapshot()) {
                 assertThat(

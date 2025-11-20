@@ -342,7 +342,6 @@ public class ReplaceRoundToWithQueryAndTags extends PhysicalOptimizerRules.Param
             queryExec.source(),
             queryExec.indexPattern(),
             queryExec.indexMode(),
-            queryExec.indexNameWithModes(),
             newAttributes,
             queryExec.limit(),
             queryExec.sorts(),

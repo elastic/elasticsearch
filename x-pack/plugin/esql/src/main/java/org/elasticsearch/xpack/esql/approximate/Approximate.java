@@ -120,17 +120,24 @@ import java.util.stream.Collectors;
  * To obtain an appropriate sample probability, first a target number of rows
  * is set. For now this is a fixed number ({@link Approximate#SAMPLE_ROW_COUNT}).
  * Next, the total number of rows in the source index is counted via the plan
- * {@link Approximate#sourceCountPlan}. This plan should execute fast. When
+ * {@link Approximate#sourceCountPlan}. This plan always executes fast. When
  * there are no commands that can change the number of rows, the sample
  * probability can be directly computed as a ratio of the target number of rows
  * and this total number.
  * <p>
  * In the presence of commands that can change to number of rows, another step
- * is needed. The initial sample probability is set to the ratio above and the
- * number of rows is sampled with the plan {@link Approximate#countPlan}. As
- * long as the sampled number of rows is smaller than intended, the probability
- * is scaled up until a good probability is reached. This final probability is
- * used for approximating the original plan.
+ * is needed. The first goal is to find a sample probability that leads to
+ * {@link Approximate#SAMPLE_ROW_COUNT_FOR_COUNT_ESTIMATION} rows, and when is
+ * probability is found, a sample probability leading to the target number of
+ * row is computed.
+ * <p>
+ * This is done by setting the initial sample probability to the ratio of
+ * {@link Approximate#SAMPLE_ROW_COUNT_FOR_COUNT_ESTIMATION} and the total number
+ * of rows in the source index, and a number of rows is sampled with the plan
+ * {@link Approximate#countPlan}. As long as the sampled number of rows is too
+ * small, the probability is scaled up until a good probability is reached. This
+ * final probability is used to compute the probability using for approximating
+ * the original query.
  */
 public class Approximate {
 

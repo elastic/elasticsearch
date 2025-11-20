@@ -65,11 +65,11 @@ public class AzureBlobContainerRetriesTests extends AbstractAzureServerTestCase 
         final BlobContainer blobContainer = createBlobContainer(between(1, 5));
         final Exception exception = expectThrows(NoSuchFileException.class, () -> {
             if (randomBoolean()) {
-                blobContainer.readBlob(randomRetryingPurpose(), "read_nonexistent_blob");
+                blobContainer.readBlob(randomPurpose(), "read_nonexistent_blob");
             } else {
                 final long position = randomLongBetween(0, MAX_RANGE_VAL - 1L);
                 final long length = randomLongBetween(1, MAX_RANGE_VAL - position);
-                blobContainer.readBlob(randomRetryingPurpose(), "read_nonexistent_blob", position, length);
+                blobContainer.readBlob(randomPurpose(), "read_nonexistent_blob", position, length);
             }
         });
         assertThat(exception.toString(), exception.getMessage().toLowerCase(Locale.ROOT), containsString("not found"));

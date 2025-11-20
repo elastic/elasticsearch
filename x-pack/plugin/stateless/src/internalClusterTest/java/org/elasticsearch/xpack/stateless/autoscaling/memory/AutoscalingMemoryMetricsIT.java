@@ -1567,6 +1567,18 @@ public class AutoscalingMemoryMetricsIT extends AbstractStatelessIntegTestCase {
         assertThat(memoryMetricsBefore.quality(), equalTo(MetricQuality.EXACT));
         assertThat(memoryMetricsBefore.nodeMemoryInBytes(), greaterThan(0L));
 
+        var plugin = findPlugin(internalCluster().getMasterName(), TestTelemetryPlugin.class);
+        // Initially, the INDEXING_MEMORY_MERGE_MEMORY_ESTIMATE_METRIC_NAME metric should be published
+        // and have a value of 0 since there are no in-progress force merges
+        assertBusy(() -> {
+            plugin.collect();
+            List<Measurement> measurements = plugin.getLongGaugeMeasurement(
+                MemoryMetricsService.INDEXING_MEMORY_MERGE_MEMORY_ESTIMATE_METRIC_NAME
+            );
+            assertThat(measurements.size(), equalTo(1));
+            assertThat(measurements.getFirst().getLong(), equalTo(0L));
+        });
+
         int numDims = randomIntBetween(MIN_DIMS_FOR_DYNAMIC_FLOAT_MAPPING, MIN_DIMS_FOR_DYNAMIC_FLOAT_MAPPING + 1024);
         int numDocs = randomIntBetween(10, 20);
         var idSupplier = new Supplier<String>() {
@@ -1577,6 +1589,7 @@ public class AutoscalingMemoryMetricsIT extends AbstractStatelessIntegTestCase {
                 return String.format(Locale.ROOT, "?id-%06d", id++);
             }
         };
+        // Index documents to create segments
         for (int i = 0; i < numDocs; i++) {
             indexDocs(
                 indexName,
@@ -1587,11 +1600,14 @@ public class AutoscalingMemoryMetricsIT extends AbstractStatelessIntegTestCase {
             );
             refresh(indexName);
         }
+
+        // Executes the force merge asynchronously
         var mergeFuture = client().admin().indices().prepareForceMerge(indexName).setMaxNumSegments(1).execute();
 
         // 1 shard, 11 bytes per _id (vectorField doesn't have postings), store min and max
         // x2 - see HeapToSystemMemory.dataNode()
         final long postingsInMemoryBytes = 22 * 2;
+
         assertBusy(() -> {
             var memoryMetricsDuring = getMemoryMetrics();
             assertThat(memoryMetricsDuring.quality(), equalTo(MetricQuality.EXACT));
@@ -1601,13 +1617,41 @@ public class AutoscalingMemoryMetricsIT extends AbstractStatelessIntegTestCase {
             );
         });
 
+        // Verify a new INDEXING_MEMORY_MERGE_MEMORY_ESTIMATE_METRIC_NAME metric is published,
+        // and its value is >0 since the force merge is underway
+        assertBusy(() -> {
+            // This mimics the autoscaler periodically polling for memory metrics, and ensures that the metrics account
+            // for the increased memory used by the force merge
+            getMemoryMetrics();
+            plugin.resetMeter();
+            plugin.collect();
+            List<Measurement> measurements = plugin.getLongGaugeMeasurement(
+                MemoryMetricsService.INDEXING_MEMORY_MERGE_MEMORY_ESTIMATE_METRIC_NAME
+            );
+            assertThat(measurements.size(), equalTo(1));
+            assertThat(measurements.getFirst().getLong(), greaterThan(0L));
+        });
+
         latch.countDown();
         assertNoFailures(mergeFuture.actionGet());
-        // once the merge is finished a new merge estimate should be published to bring down the node memory metric
+
+        // Once the merge is finished a new merge estimate should be published to bring down the node memory metric
         assertBusy(() -> {
             var memoryMetricsAfter = getMemoryMetrics();
             assertThat(memoryMetricsAfter.quality(), equalTo(MetricQuality.EXACT));
             assertThat(memoryMetricsAfter.nodeMemoryInBytes(), equalTo(memoryMetricsBefore.nodeMemoryInBytes() + postingsInMemoryBytes));
+        });
+
+        // Verify a new INDEXING_MEMORY_MERGE_MEMORY_ESTIMATE_METRIC_NAME metric is published,
+        // and that it's value is 0 since the force merge is complete
+        assertBusy(() -> {
+            plugin.resetMeter();
+            plugin.collect();
+            List<Measurement> measurements = plugin.getLongGaugeMeasurement(
+                MemoryMetricsService.INDEXING_MEMORY_MERGE_MEMORY_ESTIMATE_METRIC_NAME
+            );
+            assertThat(measurements.size(), equalTo(1));
+            assertThat(measurements.getFirst().getLong(), equalTo(0L));
         });
     }
 

@@ -141,6 +141,26 @@ public class JDKVectorLibraryInt7uTests extends VectorSimilarityFunctionsTests {
         assertThat(e6.getMessage(), containsString("out of bounds for length"));
     }
 
+    public void testBulkIllegalDims() {
+        assumeTrue(notSupportedMsg(), supported());
+        var segA = arena.allocate((long) size * 3);
+        var segB = arena.allocate((long) size * 3);
+        var segS = arena.allocate((long) size * Float.BYTES);
+
+        var e1 = expectThrows(IOOBE, () -> dotProduct7uBulk(segA, segB, size, 4, segS));
+        assertThat(e1.getMessage(), containsString("out of bounds for length"));
+
+        var e2 = expectThrows(IOOBE, () -> dotProduct7uBulk(segA, segB, size, -1, segS));
+        assertThat(e2.getMessage(), containsString("out of bounds for length"));
+
+        var e3 = expectThrows(IOOBE, () -> dotProduct7uBulk(segA, segB, -1, 3, segS));
+        assertThat(e3.getMessage(), containsString("out of bounds for length"));
+
+        var tooSmall = arena.allocate((long) 3 * Float.BYTES - 1);
+        var e4 = expectThrows(IOOBE, () -> dotProduct7uBulk(segA, segB, size, 3, tooSmall));
+        assertThat(e4.getMessage(), containsString("out of bounds for length"));
+    }
+
     int dotProduct7u(MemorySegment a, MemorySegment b, int length) {
         try {
             return (int) getVectorDistance().dotProductHandle7u().invokeExact(a, b, length);

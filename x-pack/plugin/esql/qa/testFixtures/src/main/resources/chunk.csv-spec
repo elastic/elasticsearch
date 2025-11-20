@@ -3,7 +3,7 @@
 #
 
 chunkDefaults
-required_capability: chunk_function
+required_capability: chunk_function_v2
 
 // tag::chunk-with-field[]
 FROM books
@@ -25,7 +25,7 @@ book_no:keyword | title:text                                            | chunks
 ;
 
 chunkWithChunkingSettings
-required_capability: chunk_function
+required_capability: chunk_function_v2
 
 // tag::chunk-with-chunking-settings[]
 FROM books
@@ -47,7 +47,7 @@ book_no:keyword | title:text                                            | chunks
 ;
 
 chunkTextWithMatch
-required_capability: chunk_function
+required_capability: chunk_function_v2
 
 FROM books 
 | WHERE MATCH(title, "Return")
@@ -61,7 +61,7 @@ book_no:keyword | title:text                                                    
 ;
 
 chunkTextWithMatchMultipleChunksMvExpand
-required_capability: chunk_function
+required_capability: chunk_function_v2
 
 FROM books 
 | WHERE MATCH(title, "Return")
@@ -108,7 +108,7 @@ book_no:keyword | title:text                                                    
 ;
 
 chunkTextWithMatchMultipleChunksMvSliceMvExpand
-required_capability: chunk_function
+required_capability: chunk_function_v2
 
 FROM books 
 | WHERE MATCH(title, "Return")
@@ -131,7 +131,7 @@ book_no:keyword | title:text                                                    
 
 
 chunkTextWithConcatenatedField
-required_capability: chunk_function
+required_capability: chunk_function_v2
 
 FROM books
 | EVAL title_description = CONCAT(title, " ", description)
@@ -150,7 +150,7 @@ book_no:keyword | title:text                                            | chunks
 ;
 
 chunkTextWithMultivaluedField
-required_capability: chunk_function
+required_capability: chunk_function_v2
 
 FROM employees
 | EVAL chunks = CHUNK(job_positions)

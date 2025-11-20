@@ -1658,7 +1658,7 @@ public class EsqlCapabilities {
         /**
          * Chunk function.
          */
-        CHUNK_FUNCTION(Build.current().isSnapshot()),
+        CHUNK_FUNCTION_V2(Build.current().isSnapshot()),
 
         /**
          * Support for vector similarity functtions pushdown

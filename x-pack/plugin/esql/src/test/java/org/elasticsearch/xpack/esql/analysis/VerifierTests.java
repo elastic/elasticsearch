@@ -3319,7 +3319,7 @@ public class VerifierTests extends ESTestCase {
     }
 
     public void testChunkFunctionInvalidInputs() {
-        if (EsqlCapabilities.Cap.CHUNK_FUNCTION.isEnabled()) {
+        if (EsqlCapabilities.Cap.CHUNK_FUNCTION_V2.isEnabled()) {
             assertThat(
                 error("from test | EVAL chunks = CHUNK(body, null)", fullTextAnalyzer, VerificationException.class),
                 equalTo("1:27: chunking_settings must be a map")

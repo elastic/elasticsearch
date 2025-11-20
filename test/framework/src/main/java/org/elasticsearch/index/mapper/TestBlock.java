@@ -517,6 +517,42 @@ public class TestBlock implements BlockLoader.Block {
                     encodedHistograms
                 );
             }
+
+            @Override
+            public BlockLoader.Block buildTDigestBlockDirect(
+                BlockLoader.Block encodedDigests,
+                BlockLoader.Block minima,
+                BlockLoader.Block maxima,
+                BlockLoader.Block sums,
+                BlockLoader.Block valueCounts
+            ) {
+                TestBlock minBlock = (TestBlock) minima;
+                TestBlock maxBlock = (TestBlock) maxima;
+                TestBlock sumBlock = (TestBlock) sums;
+                TestBlock countBlock = (TestBlock) valueCounts;
+                TestBlock digestBlock = (TestBlock) encodedDigests;
+
+                assert minBlock.size() == digestBlock.size();
+                assert maxBlock.size() == digestBlock.size();
+                assert sumBlock.size() == digestBlock.size();
+                assert countBlock.size() == digestBlock.size();
+
+                var values = new ArrayList<>(minBlock.size());
+
+                for (int i = 0; i < minBlock.size(); i++) {
+                    // we need to represent this complex block somehow
+                    HashMap<String, Object> value = new HashMap<>();
+                    value.put("min", minBlock.values.get(i));
+                    value.put("max", maxBlock.values.get(i));
+                    value.put("sum", sumBlock.values.get(i));
+                    value.put("value_count", countBlock.values.get(i));
+                    value.put("encoded_digest", digestBlock.values.get(i));
+
+                    values.add(value);
+                }
+
+                return new TestBlock(values);
+            }
         };
     }
 

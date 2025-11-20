@@ -12,16 +12,21 @@ import org.apache.lucene.geo.XYEncodingUtils;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.geometry.Point;
+import org.elasticsearch.geometry.Rectangle;
 import org.elasticsearch.geometry.utils.GeographyValidator;
 import org.elasticsearch.geometry.utils.GeometryValidator;
 import org.elasticsearch.geometry.utils.WellKnownBinary;
 import org.elasticsearch.geometry.utils.WellKnownText;
+import org.locationtech.jts.geom.Coordinate;
+import org.locationtech.jts.geom.GeometryFactory;
+import org.locationtech.jts.geom.LinearRing;
+import org.locationtech.jts.geom.Polygon;
+import org.locationtech.jts.geom.impl.CoordinateArraySequence;
 import org.locationtech.jts.io.ParseException;
 import org.locationtech.jts.io.WKTReader;
 import org.locationtech.jts.io.WKTWriter;
 
 import java.nio.ByteOrder;
-import java.util.Locale;
 
 import static org.apache.lucene.geo.GeoEncodingUtils.encodeLatitude;
 import static org.apache.lucene.geo.GeoEncodingUtils.encodeLongitude;
@@ -133,29 +138,18 @@ public enum SpatialCoordinateTypes {
     public org.locationtech.jts.geom.Geometry wkbToJtsGeometry(BytesRef wkb) throws ParseException, IllegalArgumentException {
         String wkt = wkbToWkt(wkb);
         if (wkt.startsWith("BBOX")) {
-            String[] bboxValues = wkt.substring(wkt.indexOf('(') + 1, wkt.indexOf(')')).split(",");
-            if (bboxValues.length != 4) {
-                throw new IllegalArgumentException("BBOX must have 4 coordinates");
-            }
-            double topX = Double.parseDouble(bboxValues[0].trim());
-            double bottomX = Double.parseDouble(bboxValues[1].trim());
-            double leftY = Double.parseDouble(bboxValues[2].trim());
-            double rightY = Double.parseDouble(bboxValues[3].trim());
+            Geometry geometry = WellKnownBinary.fromWKB(GeometryValidator.NOOP, true, wkb.bytes);
+            if (geometry instanceof Rectangle rect) {
+                var bottomLeft = new Coordinate(rect.getMinX(), rect.getMinY());
+                var bottomRight = new Coordinate(rect.getMaxX(), rect.getMinY());
+                var topRight = new Coordinate(rect.getMaxX(), rect.getMaxY());
+                var topLeft = new Coordinate(rect.getMinX(), rect.getMaxY());
 
-            wkt = String.format(
-                Locale.ROOT,
-                "POLYGON ((%f %f, %f %f, %f %f, %f %f, %f %f))",
-                topX,
-                leftY, // upper left
-                topX,
-                rightY, // upper right
-                bottomX,
-                rightY, // lower right
-                bottomX,
-                leftY, // lower left
-                topX,
-                leftY  // close the polygon
-            );
+                var coordinates = new Coordinate[] { bottomLeft, topLeft, topRight, bottomRight, bottomLeft };
+                var geomFactory = new GeometryFactory();
+                var linearRing = new LinearRing(new CoordinateArraySequence(coordinates), geomFactory);
+                return new Polygon(linearRing, null, geomFactory);
+            }
         }
         WKTReader reader = new WKTReader();
         return reader.read(wkt);

@@ -3109,11 +3109,11 @@ FROM airports
 ;
 
 name:text                | result:geo_shape
-Aba Tenna D. Yilma Int'l | POLYGON ((-10.0 -60.0, -10.0 60.0, 120.0 60.0, 120.0 -60.0, -10.0 -60.0))
-Abdul Rachman Saleh      | POLYGON ((-10.0 -60.0, -10.0 60.0, 120.0 60.0, 120.0 -60.0, -10.0 -60.0))
-Abidjan Port Bouet       | POLYGON ((-10.0 -60.0, -10.0 60.0, 120.0 60.0, 120.0 -60.0, -10.0 -60.0))
-Abu Dhabi Int'l          | POLYGON ((-10.0 -60.0, -10.0 60.0, 120.0 60.0, 120.0 -60.0, -10.0 -60.0))
-Abuja Int'l              | POLYGON ((-10.0 -60.0, -10.0 60.0, 120.0 60.0, 120.0 -60.0, -10.0 -60.0))
+Aba Tenna D. Yilma Int'l | POLYGON ((-10.0 -60.0, 120.0 -60.0, 120.0 60.0, -10.0 60.0, -10.0 -60.0))
+Abdul Rachman Saleh      | POLYGON ((-10.0 -60.0, 120.0 -60.0, 120.0 60.0, -10.0 60.0, -10.0 -60.0))
+Abidjan Port Bouet       | POLYGON ((-10.0 -60.0, 120.0 -60.0, 120.0 60.0, -10.0 60.0, -10.0 -60.0))
+Abu Dhabi Int'l          | POLYGON ((-10.0 -60.0, 120.0 -60.0, 120.0 60.0, -10.0 60.0, -10.0 -60.0))
+Abuja Int'l              | POLYGON ((-10.0 -60.0, 120.0 -60.0, 120.0 60.0, -10.0 60.0, -10.0 -60.0))
 ;
 
 stSimplifyMultiRowWithPoints
@@ -3147,7 +3147,7 @@ ROW geo_shape = TO_GEOSHAPE("POLYGON((0 0, 1 0.1, 2 0, 2 2, 1 1.9, 0 2, 0 0))")
 ;
 
 result:geo_shape
-POLYGON ((0.0 0.0, 0.0 2.0, 1.0 1.9, 2.0 2.0, 2.0 0.0, 1.0 0.1, 0.0 0.0))
+POLYGON ((0.0 0.0, 1.0 0.1, 2.0 0.0, 2.0 2.0, 1.0 1.9, 0.0 2.0, 0.0 0.0))
 ;
 
 stSimplifyWithSimplification
@@ -3159,7 +3159,17 @@ ROW geo_shape = TO_GEOSHAPE("POLYGON((0 0, 1 0.1, 2 0, 2 2, 1 1.9, 0 2, 0 0))")
 ;
 
 result:geo_shape
-POLYGON ((0.0 0.0, 0.0 2.0, 2.0 2.0, 2.0 0.0, 0.0 0.0))
+POLYGON ((0.0 0.0, 2.0 0.0, 2.0 2.0, 0.0 2.0, 0.0 0.0))
+;
+
+stSimplifyFoldableGeometry
+required_capability: st_simplify
+
+ROW result = ST_SIMPLIFY(TO_GEOSHAPE("POLYGON((0 0, 1 0.1, 2 0, 2 2, 1 1.9, 0 2, 0 0))") , 0.2)
+;
+
+result:geo_shape
+POLYGON ((0.0 0.0, 2.0 0.0, 2.0 2.0, 0.0 2.0, 0.0 0.0))
 ;
 
 stSimplifyEmptySimplification
@@ -3213,7 +3223,7 @@ ROW wkt = ["POINT(97.11 75.53)", "POLYGON((0 0, 1 0.1, 2 0, 2 2, 1 1.9, 0 2, 0 0
 
 result:cartesian_shape
 POINT (97.11 75.53)
-POLYGON ((0.0 0.0, 0.0 2.0, 2.0 2.0, 2.0 0.0, 0.0 0.0))
+POLYGON ((0.0 0.0, 2.0 0.0, 2.0 2.0, 0.0 2.0, 0.0 0.0))
 ;
 
 stSimplifyWithIntegerTolerance
@@ -3237,5 +3247,5 @@ ROW geo_shape = TO_GEOSHAPE("BBOX (0, 2, 2, 0)")
 ;
 
 result1:geo_shape | result2:geo_shape
-POLYGON EMPTY     | POLYGON ((0.0 2.0, 2.0 2.0, 2.0 0.0, 0.0 0.0, 0.0 2.0))
+POLYGON EMPTY     | POLYGON ((0.0 0.0, 0.0 2.0, 2.0 2.0, 2.0 0.0, 0.0 0.0))
 ;

@@ -146,9 +146,11 @@ public class QueryPhaseForcedTimeoutIT extends ESIntegTestCase {
         }
 
         @Override
-        protected AggregatorFactory doBuild(AggregationContext context,
-                                            AggregatorFactory parent,
-                                            AggregatorFactories.Builder subfactoriesBuilder) throws IOException {
+        protected AggregatorFactory doBuild(
+            AggregationContext context,
+            AggregatorFactory parent,
+            AggregatorFactories.Builder subfactoriesBuilder
+        ) throws IOException {
             return new ForceTimeoutAggregatorFactory(getName(), context, parent, factoriesBuilder, getMetadata());
         }
 

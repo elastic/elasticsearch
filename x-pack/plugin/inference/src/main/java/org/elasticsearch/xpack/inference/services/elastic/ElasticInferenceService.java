@@ -220,9 +220,7 @@ public class ElasticInferenceService extends SenderService {
         // For ElasticInferenceServiceCompletionModel, convert ChatCompletionInput to UnifiedChatInput
         // since the request manager expects UnifiedChatInput
         final InferenceInputs finalInputs = (elasticInferenceServiceModel instanceof ElasticInferenceServiceCompletionModel
-            && inputs instanceof ChatCompletionInput)
-                ? new UnifiedChatInput((ChatCompletionInput) inputs, USER_ROLE)
-                : inputs;
+            && inputs instanceof ChatCompletionInput) ? new UnifiedChatInput((ChatCompletionInput) inputs, USER_ROLE) : inputs;
 
         actionCreator.create(
             elasticInferenceServiceModel,

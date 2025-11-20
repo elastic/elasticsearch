@@ -158,7 +158,7 @@ public class NodesReloadSecureSettingsResponse extends BaseNodesResponse<NodesRe
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             out.writeOptionalException(reloadException);
-            if (out.getTransportVersion().onOrAfter(KEYSTORE_DETAILS)) {
+            if (out.getTransportVersion().supports(KEYSTORE_DETAILS)) {
                 out.writeOptionalStringArray(secureSettingNames);
                 out.writeOptionalString(keystorePath);
                 out.writeOptionalString(keystoreDigest);

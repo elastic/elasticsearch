@@ -37,7 +37,7 @@ public class AvgErrorTests extends ErrorsForCasesWithoutExamplesTestCase {
                 false,
                 validPerPosition,
                 signature,
-                (v, p) -> "aggregate_metric_double or numeric except unsigned_long or counter types"
+                (v, p) -> "aggregate_metric_double, exponential_histogram or numeric except unsigned_long or counter types"
             )
         );
     }

@@ -11,6 +11,7 @@ package org.elasticsearch.search.aggregations;
 
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -19,6 +20,8 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.internal.ContextIndexSearcher;
+import org.elasticsearch.search.query.QueryPhaseExecutionException;
+import org.elasticsearch.search.query.SearchTimeoutException;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
@@ -33,6 +36,7 @@ import java.util.Map;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 
@@ -107,6 +111,29 @@ public class QueryPhaseForcedTimeoutIT extends ESIntegTestCase {
                 resp.decRef();
             }
         }
+    }
+
+    /**
+     * In this test we explicitly set allow_partial_search_results=false. Under this
+     * setting, any shard-level failure in the query phase (including a timeout) is treated as
+     * a hard failure for the whole search. The coordinating node does not return a response
+     * with  timed_out=true, instead it fails the phase and throws a
+     * {@link SearchPhaseExecutionException} whose cause is the underlying
+     * {@link SearchTimeoutException}. This test asserts that behavior.
+     */
+    public void testTimeoutDuringCollectorPreparationDisallowPartialsThrowsException() {
+        SearchPhaseExecutionException ex = expectThrows(
+            SearchPhaseExecutionException.class,
+            () -> client().prepareSearch(INDEX)
+                .setQuery(QueryBuilders.matchAllQuery())
+                .setSize(10)
+                .setAllowPartialSearchResults(false)
+                .addAggregation(new ForceTimeoutAggregationBuilder("force_timeout"))
+                .get()
+        );
+
+        assertNotNull("expected a cause on SearchPhaseExecutionException", ex.getCause());
+        assertThat("expected inner cause to be SearchTimeoutException", ex.getCause(), instanceOf(SearchTimeoutException.class));
     }
 
     /**

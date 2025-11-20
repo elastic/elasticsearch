@@ -17,6 +17,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.inference.external.http.sender.UnifiedChatInput;
 import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceComponents;
+import org.elasticsearch.xpack.inference.services.elastic.ccm.CCMAuthenticationApplierFactory;
 import org.elasticsearch.xpack.inference.services.elastic.completion.ElasticInferenceServiceCompletionModel;
 import org.elasticsearch.xpack.inference.services.elastic.completion.ElasticInferenceServiceCompletionModelTests;
 import org.elasticsearch.xpack.inference.services.elastic.completion.ElasticInferenceServiceCompletionServiceSettings;
@@ -145,7 +146,8 @@ public class ElasticInferenceServiceUnifiedChatCompletionRequestTests extends ES
             unifiedChatInput,
             model,
             new TraceContext("trace-parent", "trace-state"),
-            randomElasticInferenceServiceRequestMetadata()
+            randomElasticInferenceServiceRequestMetadata(),
+            CCMAuthenticationApplierFactory.NOOP_APPLIER
         );
 
         assertThat(request.getInferenceEntityId(), is(inferenceEntityId));
@@ -212,7 +214,8 @@ public class ElasticInferenceServiceUnifiedChatCompletionRequestTests extends ES
             unifiedChatInput,
             model,
             new TraceContext(traceParent, traceState),
-            randomElasticInferenceServiceRequestMetadata()
+            randomElasticInferenceServiceRequestMetadata(),
+            CCMAuthenticationApplierFactory.NOOP_APPLIER
         );
 
         var httpRequest = request.createHttpRequest();
@@ -237,7 +240,8 @@ public class ElasticInferenceServiceUnifiedChatCompletionRequestTests extends ES
             unifiedChatInput,
             model,
             new TraceContext(randomAlphaOfLength(10), randomAlphaOfLength(10)),
-            randomElasticInferenceServiceRequestMetadata()
+            randomElasticInferenceServiceRequestMetadata(),
+            CCMAuthenticationApplierFactory.NOOP_APPLIER
         );
     }
 }

@@ -18,18 +18,16 @@ import org.elasticsearch.inference.TaskSettings;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.inference.UnifiedCompletionRequest;
 import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.xpack.inference.external.action.ExecutableAction;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceComponents;
-import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceExecutableActionModel;
-import org.elasticsearch.xpack.inference.services.elastic.action.ElasticInferenceServiceActionVisitor;
+import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceModel;
 
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.util.Map;
 import java.util.Objects;
 
-public class ElasticInferenceServiceCompletionModel extends ElasticInferenceServiceExecutableActionModel {
+public class ElasticInferenceServiceCompletionModel extends ElasticInferenceServiceModel {
 
     public static ElasticInferenceServiceCompletionModel of(
         ElasticInferenceServiceCompletionModel model,
@@ -51,7 +49,7 @@ public class ElasticInferenceServiceCompletionModel extends ElasticInferenceServ
         String service,
         Map<String, Object> serviceSettings,
         Map<String, Object> taskSettings,
-        @Nullable Map<String, Object> secrets,
+        Map<String, Object> secrets,
         ElasticInferenceServiceComponents elasticInferenceServiceComponents,
         ConfigurationParseContext context
     ) {
@@ -72,6 +70,7 @@ public class ElasticInferenceServiceCompletionModel extends ElasticInferenceServ
     ) {
         super(model, serviceSettings);
         this.uri = createUri();
+
     }
 
     public ElasticInferenceServiceCompletionModel(
@@ -89,7 +88,9 @@ public class ElasticInferenceServiceCompletionModel extends ElasticInferenceServ
             serviceSettings,
             elasticInferenceServiceComponents
         );
+
         this.uri = createUri();
+
     }
 
     @Override
@@ -119,8 +120,5 @@ public class ElasticInferenceServiceCompletionModel extends ElasticInferenceServ
         }
     }
 
-    @Override
-    public ExecutableAction accept(ElasticInferenceServiceActionVisitor visitor, Map<String, Object> taskSettings) {
-        return visitor.create(this, taskSettings);
-    }
+    // TODO create/refactor the Configuration class to be extensible for different task types (i.e completion, sparse embeddings).
 }

@@ -51,6 +51,7 @@ import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.NodeConfigurationSource;
 import org.elasticsearch.test.SecuritySettingsSource;
+import org.elasticsearch.test.SecuritySettingsSourceField;
 import org.elasticsearch.transport.NoSuchRemoteClusterException;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -59,6 +60,7 @@ import org.junit.After;
 import org.junit.Before;
 
 import java.io.IOException;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
@@ -119,7 +121,7 @@ public class QueryRewriteContextMultiClustersIT extends AbstractMultiClustersTes
 
     @Override
     protected NodeConfigurationSource nodeConfigurationSource() {
-        return securityEnabled ? new SecuritySettingsSource(false, createTempDir(), ESIntegTestCase.Scope.TEST) : null;
+        return securityEnabled ? new CustomSecuritySettingsSource(false, createTempDir(), ESIntegTestCase.Scope.TEST) : null;
     }
 
     @Override
@@ -498,6 +500,28 @@ public class QueryRewriteContextMultiClustersIT extends AbstractMultiClustersTes
         @Override
         public List<QuerySpec<?>> getQueries() {
             return List.of(new QuerySpec<QueryBuilder>(TestQueryBuilder.NAME, TestQueryBuilder::new, TestQueryBuilder::fromXContent));
+        }
+    }
+
+    private static class CustomSecuritySettingsSource extends SecuritySettingsSource {
+        private static final String TEST_ROLE_YML = """
+            user:
+              cluster: [ NONE ]
+              indices:
+                - names: 'index-*'
+                  allow_restricted_indices: false
+                  privileges: [ ALL ]
+            """;
+
+        private static final String CONFIG_STANDARD_ROLES_YML = TEST_ROLE_YML + "\n" + SecuritySettingsSourceField.ES_TEST_ROOT_ROLE_YML;
+
+        private CustomSecuritySettingsSource(boolean sslEnabled, Path parentFolder, ESIntegTestCase.Scope scope) {
+            super(sslEnabled, parentFolder, scope);
+        }
+
+        @Override
+        protected String configRoles() {
+            return CONFIG_STANDARD_ROLES_YML;
         }
     }
 }

@@ -1323,10 +1323,21 @@ public abstract class FieldMapper extends Mapper {
                 "index",
                 false,
                 initializer,
-                () -> isDimension.get() == false
-                    || indexSettings.useDocValuesSkipper() == false
-                    || indexSettings.getIndexVersionCreated().before(IndexVersions.TIME_SERIES_DIMENSIONS_USE_SKIPPERS)
+                () -> useTimeSeriesDocValuesSkippers(indexSettings, isDimension.get()) == false
             );
+        }
+
+        public static boolean useTimeSeriesDocValuesSkippers(IndexSettings indexSettings, boolean isDimension) {
+            if (indexSettings.useDocValuesSkipper() == false) {
+                return false;
+            }
+            if (indexSettings.getMode() == IndexMode.TIME_SERIES) {
+                if (isDimension) {
+                    return indexSettings.getIndexVersionCreated().onOrAfter(IndexVersions.TIME_SERIES_DIMENSIONS_USE_SKIPPERS);
+                }
+                return indexSettings.getIndexVersionCreated().onOrAfter(IndexVersions.TIME_SERIES_ALL_FIELDS_USE_SKIPPERS);
+            }
+            return false;
         }
 
         public static Parameter<Boolean> storeParam(Function<FieldMapper, Boolean> initializer, boolean defaultValue) {

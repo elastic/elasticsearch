@@ -41,6 +41,7 @@ import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.test.index.IndexVersionUtils;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.junit.Assert;
 
 import java.io.IOException;
 import java.math.BigDecimal;
@@ -934,7 +935,7 @@ public class DateFieldMapperTests extends MapperTestCase {
                 b -> b.field("type", "date").field("ignore_malformed", false),
                 b -> b.startObject("host.name").field("type", "keyword").endObject(),
                 b -> b.field("@timestamp", "2025-10-30T00:00:00").field("host.name", "foo"),
-                checkClass
+                Assert::assertNotNull
             ),
             new SortShortcutSupport(b -> b.field("type", "date"), b -> b.field("field", "2025-10-30T00:00:00"), true),
             new SortShortcutSupport(b -> b.field("type", "date_nanos"), b -> b.field("field", "2025-10-30T00:00:00"), true),

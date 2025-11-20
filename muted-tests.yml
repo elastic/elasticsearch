@@ -361,12 +361,6 @@ tests:
   method: test {yaml=ingest/100_sampling_with_reroute/Test get sample with multiple reroutes}
   issue: https://github.com/elastic/elasticsearch/issues/137457
 - class: org.elasticsearch.xpack.ilm.CCRIndexLifecycleIT
-  method: testBasicCCRAndILMIntegration {targetCluster=FOLLOWER}
-  issue: https://github.com/elastic/elasticsearch/issues/137494
-- class: org.elasticsearch.xpack.ilm.CCRIndexLifecycleIT
-  method: testCcrAndIlmWithRollover {targetCluster=FOLLOWER}
-  issue: https://github.com/elastic/elasticsearch/issues/137528
-- class: org.elasticsearch.xpack.ilm.CCRIndexLifecycleIT
   method: testTsdbLeaderIndexRolloverAndSyncAfterWaitUntilEndTime {targetCluster=FOLLOWER}
   issue: https://github.com/elastic/elasticsearch/issues/137565
 - class: org.elasticsearch.xpack.inference.action.filter.ShardBulkInferenceActionFilterBasicLicenseIT
@@ -420,6 +414,12 @@ tests:
 - class: org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapperTests
   method: testKnnQuantizedFlatVectorsFormat
   issue: https://github.com/elastic/elasticsearch/issues/138368
+- class: org.elasticsearch.smoketest.SmokeTestMultiNodeClientYamlTestSuiteIT
+  method: test {yaml=termvectors/30_realtime/Realtime Term Vectors}
+  issue: https://github.com/elastic/elasticsearch/issues/138370
+- class: org.elasticsearch.xpack.ml.integration.RevertModelSnapshotIT
+  method: testRevertModelSnapshot_DeleteInterveningResults
+  issue: https://github.com/elastic/elasticsearch/issues/132349
 
 # Examples:
 #

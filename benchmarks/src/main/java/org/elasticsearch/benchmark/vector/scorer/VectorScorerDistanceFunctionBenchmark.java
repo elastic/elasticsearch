@@ -7,7 +7,7 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.benchmark.vector;
+package org.elasticsearch.benchmark.vector.scorer;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.logging.LogConfigurator;
@@ -49,9 +49,9 @@ import java.util.function.DoubleSupplier;
 @Measurement(iterations = 2)
 @BenchmarkMode(Mode.AverageTime)
 @OutputTimeUnit(TimeUnit.NANOSECONDS)
-@OperationsPerInvocation(DistanceFunctionBenchmark.OPERATIONS)
+@OperationsPerInvocation(VectorScorerDistanceFunctionBenchmark.OPERATIONS)
 @State(Scope.Benchmark)
-public class DistanceFunctionBenchmark {
+public class VectorScorerDistanceFunctionBenchmark {
 
     public static final int OPERATIONS = 25000;
 
@@ -223,7 +223,7 @@ public class DistanceFunctionBenchmark {
     }
 
     @Fork(1)
-    @Benchmark
+    // @Benchmark
     public void benchmark(Blackhole blackhole) {
         for (int i = 0; i < OPERATIONS; ++i) {
             blackhole.consume(benchmarkImpl.getAsDouble());

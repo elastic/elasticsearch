@@ -17,7 +17,7 @@ import java.util.Map;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public class GroqChatCompletionTaskSettingsTests extends ESTestCase {
+public class GroqChatCompletionTaskSettingsTests extends AbstractWireSerializingTestCase<GroqChatCompletionTaskSettings> {
 
     public void testFromMapParsesValues() {
         var user = randomAlphaOfLength(8);

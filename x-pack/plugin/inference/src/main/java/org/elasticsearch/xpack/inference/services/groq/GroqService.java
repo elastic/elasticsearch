@@ -61,7 +61,7 @@ public class GroqService extends SenderService {
     private static final String SERVICE_NAME = "Groq";
 
     private static final EnumSet<TaskType> SUPPORTED_TASK_TYPES = EnumSet.of(TaskType.CHAT_COMPLETION);
-    private static final TransportVersion GROQ_SERVICE_VERSION = TransportVersions.V_8_18_0;
+    private static final TransportVersion GROQ_INFERENCE_SERVICE = TransportVersion.fromName("ml_groq_inference_service");
     static final ResponseHandler UNIFIED_CHAT_COMPLETION_HANDLER = new OpenAiUnifiedChatCompletionResponseHandler(
         GroqActionCreator.COMPLETION_REQUEST_TYPE,
         OpenAiChatCompletionResponseEntity::fromResponse
@@ -110,7 +110,6 @@ public class GroqService extends SenderService {
             Map<String, Object> serviceSettingsMap = ServiceUtils.removeFromMapOrThrowIfNull(config, ModelConfigurations.SERVICE_SETTINGS);
             Map<String, Object> taskSettingsMap = ServiceUtils.removeFromMapOrDefaultEmpty(config, ModelConfigurations.TASK_SETTINGS);
 
-            moveModelFromTaskToServiceSettings(taskSettingsMap, serviceSettingsMap);
 
             GroqChatCompletionModel model = createModel(
                 inferenceEntityId,
@@ -142,7 +141,6 @@ public class GroqService extends SenderService {
         Map<String, Object> taskSettingsMap = ServiceUtils.removeFromMapOrDefaultEmpty(config, ModelConfigurations.TASK_SETTINGS);
         Map<String, Object> secretSettingsMap = ServiceUtils.removeFromMapOrDefaultEmpty(secrets, ModelSecrets.SECRET_SETTINGS);
 
-        moveModelFromTaskToServiceSettings(taskSettingsMap, serviceSettingsMap);
 
         return createModel(
             inferenceEntityId,
@@ -159,7 +157,6 @@ public class GroqService extends SenderService {
         Map<String, Object> serviceSettingsMap = ServiceUtils.removeFromMapOrThrowIfNull(config, ModelConfigurations.SERVICE_SETTINGS);
         Map<String, Object> taskSettingsMap = ServiceUtils.removeFromMapOrDefaultEmpty(config, ModelConfigurations.TASK_SETTINGS);
 
-        moveModelFromTaskToServiceSettings(taskSettingsMap, serviceSettingsMap);
 
         return createModel(inferenceEntityId, taskType, serviceSettingsMap, taskSettingsMap, null, ConfigurationParseContext.PERSISTENT);
     }
@@ -247,19 +244,6 @@ public class GroqService extends SenderService {
         return Configuration.get();
     }
 
-    private static void moveModelFromTaskToServiceSettings(Map<String, Object> taskSettings, Map<String, Object> serviceSettings) {
-        if (serviceSettings.containsKey(ServiceFields.MODEL_ID)) {
-            return;
-        }
-
-        final String OLD_MODEL_ID_FIELD = "model";
-        var oldModelId = taskSettings.remove(OLD_MODEL_ID_FIELD);
-        if (oldModelId != null) {
-            serviceSettings.put(ServiceFields.MODEL_ID, oldModelId);
-        } else if (taskSettings.containsKey(ServiceFields.MODEL_ID)) {
-            serviceSettings.put(ServiceFields.MODEL_ID, taskSettings.remove(ServiceFields.MODEL_ID));
-        }
-    }
 
     public static class Configuration {
         public static InferenceServiceConfiguration get() {

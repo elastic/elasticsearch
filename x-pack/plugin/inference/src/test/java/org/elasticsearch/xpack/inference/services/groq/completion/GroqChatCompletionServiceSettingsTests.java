@@ -23,7 +23,7 @@ import java.util.Map;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
-public class GroqChatCompletionServiceSettingsTests extends ESTestCase {
+public class GroqChatCompletionServiceSettingsTests extends AbstractWireSerializingTestCase<GroqChatCompletionServiceSettings> {
 
     public void testFromMapRequiresModelId() {
         var map = new HashMap<String, Object>();

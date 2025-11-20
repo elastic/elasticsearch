@@ -394,7 +394,7 @@ public abstract class SearchContext implements Releasable {
      */
     public final boolean checkRealMemoryCB(int locallyAccumulatedBytes, String label) {
         if (locallyAccumulatedBytes >= memAccountingBufferSize()) {
-            circuitBreaker().addEstimateBytesAndMaybeBreak(locallyAccumulatedBytes, label);
+            circuitBreaker().addEstimateBytesAndMaybeBreak(0, label);
             return true;
         }
         return false;

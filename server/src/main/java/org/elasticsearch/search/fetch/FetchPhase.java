@@ -14,6 +14,7 @@ import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.fieldvisitor.LeafStoredFieldLoader;
 import org.elasticsearch.index.fieldvisitor.StoredFieldLoader;
 import org.elasticsearch.index.mapper.IdLoader;
@@ -67,7 +68,18 @@ public final class FetchPhase {
         this.fetchSubPhases[fetchSubPhases.size()] = new InnerHitsPhase(this);
     }
 
-    public void execute(SearchContext context, int[] docIdsToLoad, RankDocShardInfo rankDocs, IntConsumer memoryChecker) {
+    public void execute(SearchContext context, int[] docIdsToLoad, RankDocShardInfo rankDocs) {
+        execute(context, docIdsToLoad, rankDocs, null);
+    }
+
+    /**
+     *
+     * @param context
+     * @param docIdsToLoad
+     * @param rankDocs
+     * @param memoryChecker if not provided, the fetch phase will try to use the real memory breaker to check memory usage
+     */
+    public void execute(SearchContext context, int[] docIdsToLoad, RankDocShardInfo rankDocs, @Nullable IntConsumer memoryChecker) {
         if (LOGGER.isTraceEnabled()) {
             LOGGER.trace("{}", new SearchContextSourcePrinter(context));
         }
@@ -176,6 +188,7 @@ public final class FetchPhase {
         StoredFieldLoader storedFieldLoader = profiler.storedFields(StoredFieldLoader.fromSpec(storedFieldsSpec));
         IdLoader idLoader = context.newIdLoader();
         boolean requiresSource = storedFieldsSpec.requiresSource();
+        final int[] locallyAccumulatedBytes = new int[1];
         NestedDocuments nestedDocuments = context.getSearchExecutionContext().getNestedDocuments();
 
         FetchPhaseDocsIterator docsIterator = new FetchPhaseDocsIterator() {
@@ -212,6 +225,10 @@ public final class FetchPhase {
                 if (context.isCancelled()) {
                     throw new TaskCancelledException("cancelled");
                 }
+                if (memoryChecker == null && context.checkRealMemoryCB(locallyAccumulatedBytes[0], "fetch source")) {
+                    // if we checked the real memory breaker, we restart our local accounting
+                    locallyAccumulatedBytes[0] = 0;
+                }
 
                 HitContext hit = prepareHitContext(
                     context,
@@ -235,9 +252,13 @@ public final class FetchPhase {
 
                     BytesReference sourceRef = hit.hit().getSourceRef();
                     if (sourceRef != null) {
-                        // This is an empirical value that seems to work well.
-                        // Deserializing a large source would also mean serializing it to HTTP response later on, so x2 seems reasonable
-                        memoryChecker.accept(sourceRef.length() * 2);
+                        if (memoryChecker != null) {
+                            // This is an empirical value that seems to work well.
+                            // Deserializing a large source would also mean serializing it to HTTP response later on, so x2 seems reasonable
+                            memoryChecker.accept(sourceRef.length() * 2);
+                        } else {
+                            locallyAccumulatedBytes[0] += sourceRef.length();
+                        }
                     }
                     success = true;
                     return hit.hit();

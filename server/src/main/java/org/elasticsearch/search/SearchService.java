@@ -972,7 +972,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                     return searchContext.rankFeatureResult();
                 }
                 RankFeatureShardPhase.prepareForFetch(searchContext, request);
-                fetchPhase.execute(searchContext, docIds, null, i -> {});
+                fetchPhase.execute(searchContext, docIds, null);
                 RankFeatureShardPhase.processFetch(searchContext);
                 var rankFeatureResult = searchContext.rankFeatureResult();
                 rankFeatureResult.incRef();
@@ -989,7 +989,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         var opsListener = context.indexShard().getSearchOperationListener();
         try (Releasable scope = tracer.withScope(context.getTask());) {
             opsListener.onPreFetchPhase(context);
-            fetchPhase.execute(context, shortcutDocIdsToLoad(context), null, i -> {});
+            fetchPhase.execute(context, shortcutDocIdsToLoad(context), null);
             if (reader.singleSession()) {
                 freeReaderContext(reader.id());
             }
@@ -1205,7 +1205,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                     var opsListener = searchContext.indexShard().getSearchOperationListener();
                     opsListener.onPreFetchPhase(searchContext);
                     try {
-                        fetchPhase.execute(searchContext, request.docIds(), request.getRankDocks(), i -> {});
+                        fetchPhase.execute(searchContext, request.docIds(), request.getRankDocks());
                         if (readerContext.singleSession()) {
                             freeReaderContext(request.contextId());
                         }

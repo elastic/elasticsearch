@@ -5,30 +5,6 @@ tests:
 - class: org.elasticsearch.packaging.test.PackagesSecurityAutoConfigurationTests
   method: test20SecurityNotAutoConfiguredOnReInstallation
   issue: https://github.com/elastic/elasticsearch/issues/112635
-- class: org.elasticsearch.xpack.sql.qa.single_node.JdbcSqlSpecIT
-  method: test {case-functions.testSelectInsertWithLcaseAndLengthWithOrderBy}
-  issue: https://github.com/elastic/elasticsearch/issues/112642
-- class: org.elasticsearch.xpack.sql.qa.single_node.JdbcSqlSpecIT
-  method: test {case-functions.testUcaseInline1}
-  issue: https://github.com/elastic/elasticsearch/issues/112641
-- class: org.elasticsearch.xpack.sql.qa.single_node.JdbcSqlSpecIT
-  method: test {case-functions.testUpperCasingTheSecondLetterFromTheRightFromFirstName}
-  issue: https://github.com/elastic/elasticsearch/issues/112640
-- class: org.elasticsearch.xpack.sql.qa.single_node.JdbcSqlSpecIT
-  method: test {case-functions.testUcaseInline3}
-  issue: https://github.com/elastic/elasticsearch/issues/112643
-- class: org.elasticsearch.xpack.sql.qa.security.JdbcSqlSpecIT
-  method: test {case-functions.testUcaseInline1}
-  issue: https://github.com/elastic/elasticsearch/issues/112641
-- class: org.elasticsearch.xpack.sql.qa.security.JdbcSqlSpecIT
-  method: test {case-functions.testUcaseInline3}
-  issue: https://github.com/elastic/elasticsearch/issues/112643
-- class: org.elasticsearch.xpack.sql.qa.security.JdbcSqlSpecIT
-  method: test {case-functions.testUpperCasingTheSecondLetterFromTheRightFromFirstName}
-  issue: https://github.com/elastic/elasticsearch/issues/112640
-- class: org.elasticsearch.xpack.sql.qa.security.JdbcSqlSpecIT
-  method: test {case-functions.testSelectInsertWithLcaseAndLengthWithOrderBy}
-  issue: https://github.com/elastic/elasticsearch/issues/112642
 - class: org.elasticsearch.xpack.transform.integration.TransformIT
   method: testStopWaitForCheckpoint
   issue: https://github.com/elastic/elasticsearch/issues/106113

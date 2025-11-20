@@ -15,7 +15,7 @@ import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.NodeUtils;
 import org.elasticsearch.xpack.esql.core.tree.Source;
-import org.elasticsearch.xpack.esql.index.EsIndex;
+import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 
 import java.io.IOException;
@@ -52,16 +52,12 @@ public class EsRelation extends LeafPlan {
 
     private static EsRelation readFrom(StreamInput in) throws IOException {
         Source source = Source.readFrom((PlanStreamInput) in);
-        String indexPattern;
-        Map<String, IndexMode> indexNameWithModes;
-        if (in.getTransportVersion().supports(TransportVersions.V_8_18_0)) {
-            indexPattern = in.readString();
-            indexNameWithModes = in.readMap(IndexMode::readFrom);
-        } else {
-            var index = EsIndex.readFrom(in);
-            indexPattern = index.name();
-            indexNameWithModes = index.indexNameWithModes();
+        String indexPattern = in.readString();
+        if (in.getTransportVersion().supports(TransportVersions.V_8_18_0) == false) {
+            // this used to be part of EsIndex deserialization
+            in.readImmutableMap(StreamInput::readString, EsField::readFrom);
         }
+        Map<String, IndexMode> indexNameWithModes = in.readMap(IndexMode::readFrom);
         List<Attribute> attributes = in.readNamedWriteableCollectionAsList(Attribute.class);
         IndexMode indexMode = IndexMode.fromString(in.readString());
         if (in.getTransportVersion().supports(TransportVersions.V_8_18_0) == false) {
@@ -73,12 +69,12 @@ public class EsRelation extends LeafPlan {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         Source.EMPTY.writeTo(out);
-        if (out.getTransportVersion().supports(TransportVersions.V_8_18_0)) {
-            out.writeString(indexPattern);
-            out.writeMap(indexNameWithModes, (o, v) -> IndexMode.writeTo(v, out));
-        } else {
-            new EsIndex(indexPattern, Map.of(), indexNameWithModes).writeTo(out);
+        out.writeString(indexPattern);
+        if (out.getTransportVersion().supports(TransportVersions.V_8_18_0) == false) {
+            // this used to be part of EsIndex serialization
+            out.writeMap(Map.<String, EsField>of(), (o, x) -> x.writeTo(out));
         }
+        out.writeMap(indexNameWithModes, (o, v) -> IndexMode.writeTo(v, out));
         out.writeNamedWriteableCollection(attrs);
         out.writeString(indexMode.getName());
         if (out.getTransportVersion().supports(TransportVersions.V_8_18_0) == false) {

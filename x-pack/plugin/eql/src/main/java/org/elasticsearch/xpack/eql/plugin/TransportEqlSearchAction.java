@@ -193,7 +193,7 @@ public final class TransportEqlSearchAction extends HandledTransportAction<EqlSe
             request.indicesOptions()
         );
         Set<String> clusterAliases = remoteClusterRegistry.clusterAliases(request.indices(), false);
-        if (canMinimizeRountrips(request, clusterAliases)) {
+        if (canMinimizeRountrips(request, clusterAliases, transportService.getRemoteClusterService().crossProjectEnabled())) {
             String clusterAlias = clusterAliases.iterator().next();
             String[] remoteIndices = new String[request.indices().length];
             for (int i = 0; i < request.indices().length; i++) {
@@ -239,9 +239,12 @@ public final class TransportEqlSearchAction extends HandledTransportAction<EqlSe
                 request.allowPartialSequenceResults() == null
                     ? defaultAllowPartialSequenceResults(clusterService)
                     : request.allowPartialSequenceResults(),
+                request.getProjectRouting(),
                 clientId,
                 new TaskId(nodeId, task.getId()),
-                task
+                task,
+                transportService.getRemoteClusterService().crossProjectEnabled(),
+                request.getResolvedIndexExpressions()
             );
             planExecutor.eql(
                 cfg,
@@ -288,7 +291,10 @@ public final class TransportEqlSearchAction extends HandledTransportAction<EqlSe
     }
 
     // can the request be proxied to the remote cluster?
-    private static boolean canMinimizeRountrips(EqlSearchRequest request, Set<String> clusterAliases) {
+    private static boolean canMinimizeRountrips(EqlSearchRequest request, Set<String> clusterAliases, boolean crossProjectEnabled) {
+        if (crossProjectEnabled) {
+            return false;
+        }
         // Has minimizing the round trips been (explicitly) disabled?
         if (request.ccsMinimizeRoundtrips() == false) {
             return false;

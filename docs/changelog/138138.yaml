@@ -1,0 +1,5 @@
+pr: 138138
+summary: Fixing sorted indices for GPU built indices
+area: Vector Search
+type: bug
+issues: []

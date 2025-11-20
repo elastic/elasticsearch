@@ -37,6 +37,7 @@ import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.get.GetRequest;
+import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.InputStreamStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
@@ -63,6 +64,11 @@ import org.elasticsearch.index.query.Rewriteable;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
+import org.elasticsearch.search.lookup.Source;
+import org.elasticsearch.search.lookup.SourceFilter;
+import org.elasticsearch.search.lookup.SourceProvider;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ParseField;
@@ -86,6 +92,8 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg
 import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
 public class PercolateQueryBuilder extends AbstractQueryBuilder<PercolateQueryBuilder> {
+    private static final Logger LOGGER = LogManager.getLogger(PercolateQueryBuilder.class);
+
     public static final String NAME = "percolate";
 
     static final ParseField DOCUMENT_FIELD = new ParseField("document");
@@ -557,39 +565,79 @@ public class PercolateQueryBuilder extends AbstractQueryBuilder<PercolateQueryBu
             return docId -> {
                 if (binaryDocValues.advanceExact(docId)) {
                     BytesRef qbSource = binaryDocValues.binaryValue();
-                    try (
-                        InputStream in = new ByteArrayInputStream(qbSource.bytes, qbSource.offset, qbSource.length);
-                        StreamInput input = new NamedWriteableAwareStreamInput(new InputStreamStreamInput(in, qbSource.length), registry)
-                    ) {
-                        // Query builder's content is stored via BinaryFieldMapper, which has a custom encoding
-                        // to encode multiple binary values into a single binary doc values field.
-                        // This is the reason we need to first read the number of values and
-                        // then the length of the field value in bytes.
-                        int numValues = input.readVInt();
-                        assert numValues == 1;
-                        int valueLength = input.readVInt();
-                        assert valueLength > 0;
-
-                        TransportVersion transportVersion;
-                        if (indexVersion.before(IndexVersions.V_8_8_0)) {
-                            transportVersion = TransportVersion.fromId(indexVersion.id());
-                        } else {
-                            transportVersion = TransportVersion.readVersion(input);
+                    QueryBuilder queryBuilder = readQueryBuilder(qbSource, registry, indexVersion, () -> {
+                        // query builder is written in an incompatible format, fall-back to reading it from source
+                        if (context.isSourceEnabled() == false) {
+                            throw new ElasticsearchException(
+                                "Unable to read percolator query. Original transport version is incompatible and source is "
+                                    + "unavailable on index [{}].",
+                                context.index().getName()
+                            );
                         }
-                        // set the transportversion here - only read vints so far, so can change the version freely at this point
-                        input.setTransportVersion(transportVersion);
+                        LOGGER.warn(
+                            "Reading percolator query from source. For best performance, reindexing of index [{}] is required.",
+                            context.index().getName()
+                        );
+                        SourceProvider sourceProvider = context.createSourceProvider(new SourceFilter(null, null));
+                        Source source = sourceProvider.getSource(ctx, docId);
+                        SourceToParse sourceToParse = new SourceToParse(
+                            String.valueOf(docId),
+                            source.internalSourceRef(),
+                            source.sourceContentType()
+                        );
 
-                        QueryBuilder queryBuilder = input.readNamedWriteable(QueryBuilder.class);
-                        assert in.read() == -1;
-                        queryBuilder = Rewriteable.rewrite(queryBuilder, context);
-                        return queryBuilder.toQuery(context);
-                    }
+                        return context.parseDocument(sourceToParse).rootDoc().getBinaryValue(queryBuilderFieldType.name());
+                    });
 
+                    queryBuilder = Rewriteable.rewrite(queryBuilder, context);
+                    return queryBuilder.toQuery(context);
                 } else {
                     return null;
                 }
             };
         };
+    }
+
+    private static QueryBuilder readQueryBuilder(
+        BytesRef bytesRef,
+        NamedWriteableRegistry registry,
+        IndexVersion indexVersion,
+        CheckedSupplier<BytesRef, IOException> fallbackSource
+    ) throws IOException {
+        try (
+            InputStream in = new ByteArrayInputStream(bytesRef.bytes, bytesRef.offset, bytesRef.length);
+            StreamInput input = new NamedWriteableAwareStreamInput(new InputStreamStreamInput(in, bytesRef.length), registry)
+        ) {
+            // Query builder's content is stored via BinaryFieldMapper, which has a custom encoding
+            // to encode multiple binary values into a single binary doc values field.
+            // This is the reason we need to first read the number of values and
+            // then the length of the field value in bytes.
+            int numValues = input.readVInt();
+            assert numValues == 1;
+            int valueLength = input.readVInt();
+            assert valueLength > 0;
+
+            TransportVersion transportVersion;
+            if (indexVersion.before(IndexVersions.V_8_8_0)) {
+                transportVersion = TransportVersion.fromId(indexVersion.id());
+            } else {
+                transportVersion = TransportVersion.readVersion(input);
+            }
+
+            QueryBuilder queryBuilder;
+
+            if (TransportVersion.isCompatible(transportVersion) || fallbackSource == null) {
+                // set the transportversion here - only read vints so far, so can change the version freely at this point
+                input.setTransportVersion(transportVersion);
+                queryBuilder = input.readNamedWriteable(QueryBuilder.class);
+                assert in.read() == -1;
+            } else {
+                // incompatible transport version, try the fallback
+                queryBuilder = readQueryBuilder(fallbackSource.get(), registry, indexVersion, null);
+            }
+
+            return queryBuilder;
+        }
     }
 
     static SearchExecutionContext wrap(SearchExecutionContext delegate) {

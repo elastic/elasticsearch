@@ -4392,3 +4392,305 @@ row a = 1
 c:long
 1
 ;
+
+fixClassCastBugWithSeveralCounts
+required_capability: inline_stats
+required_capability: fix_stats_classcast_exception
+
+FROM sample_data, sample_data_str
+| EVAL one_ip = client_ip::ip
+| INLINE STATS count1=count(client_ip::ip), count2=count(one_ip)
+| KEEP count1, count2
+| LIMIT 3
+;
+
+count1:long    |count2:long
+14             |14 
+14             |14 
+14             |14
+;
+
+pushDown_OneGroupingFilter_PastInlineJoin
+required_capability: inline_stats
+
+FROM employees
+| INLINE STATS avg = ROUND(AVG(salary)) BY languages
+| WHERE languages > 2
+| KEEP avg, languages, salary, emp_no
+| SORT emp_no
+| LIMIT 10
+;
+
+      avg:d    |   languages:i |    salary:i   |    emp_no:i     
+41681.0        |5              |56371          |10002          
+47733.0        |4              |61805          |10003          
+41681.0        |5              |36174          |10004          
+52419.0        |3              |60335          |10006          
+47733.0        |4              |74572          |10007          
+47733.0        |4              |45797          |10010          
+41681.0        |5              |31120          |10011          
+41681.0        |5              |48942          |10012          
+41681.0        |5              |37137          |10014          
+41681.0        |5              |25324          |10015          
+;
+
+pushDown_SelectiveGroupingAndFilters_PastInlineJoin
+required_capability: inline_stats
+
+FROM employees
+| INLINE STATS avg = ROUND(AVG(salary), 1) BY languages, gender
+| WHERE languages > 2 AND gender IS NOT NULL AND emp_no > 10050
+| KEEP avg, languages, gender, emp_no
+| SORT emp_no
+| LIMIT 10
+;
+
+      avg:d    |   languages:i |    gender:s   |    emp_no:i
+51741.9        |3              |M              |10051          
+53660.0        |3              |F              |10053          
+47058.9        |4              |M              |10054          
+39052.9        |5              |M              |10055          
+49291.5        |4              |F              |10057          
+51741.9        |3              |M              |10058          
+51741.9        |3              |M              |10062          
+53660.0        |3              |F              |10063          
+39052.9        |5              |M              |10064          
+39052.9        |5              |M              |10066          
+;
+
+pushDown_SelectiveGroupingOrFilters_PastInlineJoin
+required_capability: inline_stats
+
+FROM employees
+| INLINE STATS avg = AVG(salary) BY languages, gender
+| WHERE languages > 2 AND (gender IS NOT NULL OR emp_no > 10050)
+| KEEP avg, languages, gender, emp_no
+| SORT emp_no
+| LIMIT 10
+;
+
+       avg:d      |   languages:i |    gender:s   |    emp_no:i     
+46705.555555555555|5              |F              |10002          
+47058.90909090909 |4              |M              |10003          
+39052.875         |5              |M              |10004          
+53660.0           |3              |F              |10006          
+49291.5           |4              |F              |10007          
+51741.90909090909 |3              |M              |10030          
+47058.90909090909 |4              |M              |10031          
+53660.0           |3              |F              |10032          
+39052.875         |5              |M              |10035          
+47058.90909090909 |4              |M              |10036          
+;
+
+pushDown_ComplexFiltering_CombinedWithLeftFiltering_PastInlineJoin
+required_capability: inline_stats
+
+FROM employees
+| WHERE emp_no < 10075 AND salary < 60000
+| INLINE STATS avg = AVG(salary) BY languages, gender
+| WHERE languages > 2 AND (gender IS NOT NULL OR emp_no > 10050) AND salary > 50000
+| KEEP avg, languages, gender, emp_no, salary
+| SORT emp_no
+;
+
+     avg:d        |  languages:i  |   gender:s    |   emp_no:i    |   salary:i
+45933.4           |5              |F              |10002          |56371          
+39657.2           |4              |M              |10046          |50064          
+41240.6           |3              |M              |10051          |58121          
+45662.333333333336|3              |F              |10053          |54462          
+45662.333333333336|3              |F              |10063          |52121          
+41240.6           |3              |M              |10070          |54329          
+45933.4           |5              |F              |10072          |54518          
+;
+
+pushDown_ImpossibleFilter_PastInlineJoin
+required_capability: inline_stats
+
+FROM employees
+| WHERE salary < 10000
+| INLINE STATS salary = AVG(salary) BY salary
+| WHERE salary > 10000
+| KEEP salary, emp_no
+;
+warning:Line 3:16: Field 'salary' shadowed by field at line 3:40
+
+    salary:i     |    emp_no:i
+;
+
+dontPushDown_A_SimpleFilter_PastInlineJoin
+required_capability: inline_stats
+
+FROM employees
+| INLINE STATS a = ROUND(AVG(salary), 2) BY gender
+| WHERE languages > 2
+| KEEP languages, a, gender, emp_no
+| SORT emp_no
+| LIMIT 10
+;
+
+  languages:i  |      a:d      |   gender:s    |   emp_no:i
+5              |50490.79       |F              |10002          
+4              |46860.6        |M              |10003          
+5              |46860.6        |M              |10004          
+3              |50490.79       |F              |10006          
+4              |50490.79       |F              |10007          
+4              |48760.5        |null           |10010          
+5              |48760.5        |null           |10011          
+5              |48760.5        |null           |10012          
+5              |48760.5        |null           |10014          
+5              |48760.5        |null           |10015          
+;
+
+partiallyPushDown_GroupingFilters_PastTwoInlineJoins1
+required_capability: inline_stats
+
+FROM employees
+| INLINE STATS avgByL = ROUND(AVG(salary)) BY languages
+| INLINE STATS avgByG = ROUND(AVG(salary)) BY gender
+| WHERE languages > 2 AND gender IS NOT NULL
+| KEEP avgB*, languages, gender, emp_no
+| SORT emp_no
+| LIMIT 10
+;
+
+  avgByL:d     |    avgByG:d   |   languages:i |   gender:s    |    emp_no:i     
+41681.0        |50491.0        |5              |F              |10002          
+47733.0        |46861.0        |4              |M              |10003          
+41681.0        |46861.0        |5              |M              |10004          
+52419.0        |50491.0        |3              |F              |10006          
+47733.0        |50491.0        |4              |F              |10007          
+52419.0        |46861.0        |3              |M              |10030          
+47733.0        |46861.0        |4              |M              |10031          
+52419.0        |50491.0        |3              |F              |10032          
+41681.0        |46861.0        |5              |M              |10035          
+47733.0        |46861.0        |4              |M              |10036          
+;
+
+partiallyPushDown_GroupingFilters_PastTwoInlineJoins2
+required_capability: inline_stats
+
+FROM employees
+| INLINE STATS avgByL = ROUND(AVG(salary)) BY languages
+| INLINE STATS avgByG = ROUND(AVG(salary)) BY gender, languages
+| WHERE languages > 3 AND gender IS NOT NULL AND emp_no > 10050
+| KEEP avgB*, languages, gender, emp_no
+| SORT emp_no
+;
+
+  avgByL:d     |    avgByG:d   |   languages:i |   gender:s    |    emp_no:i     
+47733.0        |47059.0        |4              |M              |10054          
+41681.0        |39053.0        |5              |M              |10055          
+47733.0        |49292.0        |4              |F              |10057          
+41681.0        |39053.0        |5              |M              |10064          
+41681.0        |39053.0        |5              |M              |10066          
+41681.0        |46706.0        |5              |F              |10069          
+41681.0        |46706.0        |5              |F              |10072          
+47733.0        |47059.0        |4              |M              |10073          
+41681.0        |46706.0        |5              |F              |10074          
+41681.0        |46706.0        |5              |F              |10075          
+41681.0        |39053.0        |5              |M              |10077          
+41681.0        |39053.0        |5              |M              |10080          
+47733.0        |47059.0        |4              |M              |10082          
+41681.0        |39053.0        |5              |M              |10085          
+41681.0        |46706.0        |5              |F              |10087          
+41681.0        |46706.0        |5              |F              |10088          
+47733.0        |49292.0        |4              |F              |10089          
+41681.0        |46706.0        |5              |F              |10094          
+47733.0        |47059.0        |4              |M              |10095          
+47733.0        |47059.0        |4              |M              |10096          
+47733.0        |49292.0        |4              |F              |10098          
+47733.0        |49292.0        |4              |F              |10100          
+;
+
+partiallyPushDown_GroupingFilters_PastTwoInlineJoins_ExcludeAggFilters
+required_capability: inline_stats
+
+FROM employees
+| INLINE STATS avgByL = ROUND(AVG(salary)) BY languages
+| INLINE STATS avgByG = ROUND(AVG(salary)) BY gender, languages
+| WHERE languages > 3 AND gender IS NOT NULL AND avgByL > 40000
+| KEEP avgB*, languages, gender, emp_no
+| SORT emp_no
+| LIMIT 10
+;
+
+    avgByL:d   |    avgByG:d   |   languages:i |    gender:s   |    emp_no:i
+41681.0        |46706.0        |5              |F              |10002          
+47733.0        |47059.0        |4              |M              |10003          
+41681.0        |39053.0        |5              |M              |10004          
+47733.0        |49292.0        |4              |F              |10007          
+47733.0        |47059.0        |4              |M              |10031          
+41681.0        |39053.0        |5              |M              |10035          
+47733.0        |47059.0        |4              |M              |10036          
+47733.0        |47059.0        |4              |M              |10038          
+47733.0        |49292.0        |4              |F              |10040          
+47733.0        |47059.0        |4              |M              |10046          
+;
+
+partiallyPushDown_RenamedGroupingFilters_PastTwoInlineJoins
+required_capability: inline_stats
+
+FROM employees
+| INLINE STATS avgByL = ROUND(AVG(salary)) BY languages
+| RENAME languages AS lang
+| INLINE STATS avgByG = ROUND(AVG(salary)) BY gender, lang
+| WHERE lang > 3 AND gender IS NOT NULL AND emp_no > 10050
+| KEEP avgB*, lang, gender, emp_no
+| SORT emp_no
+| LIMIT 10
+;
+
+    avgByL:d   |    avgByG:d   |     lang:i    |    gender:s   |    emp_no:i
+47733.0        |47059.0        |4              |M              |10054          
+41681.0        |39053.0        |5              |M              |10055          
+47733.0        |49292.0        |4              |F              |10057          
+41681.0        |39053.0        |5              |M              |10064          
+41681.0        |39053.0        |5              |M              |10066          
+41681.0        |46706.0        |5              |F              |10069          
+41681.0        |46706.0        |5              |F              |10072          
+47733.0        |47059.0        |4              |M              |10073          
+41681.0        |46706.0        |5              |F              |10074          
+41681.0        |46706.0        |5              |F              |10075          
+;
+
+pushDown_OneGroupingFilter_PastInlineJoinWithInnerFilter
+required_capability: inline_stats
+
+FROM employees
+| INLINE STATS avg = AVG(salary) WHERE salary > 50000  BY languages
+| WHERE languages > 2
+| KEEP avg, languages, salary
+| SORT salary
+| LIMIT 10
+;
+
+     avg:d        |   languages:i |    salary:i     
+56499.0           |5              |25324          
+56499.0           |5              |25945          
+62060.27272727273 |3              |26436          
+63503.333333333336|4              |27215          
+62060.27272727273 |3              |28941          
+62060.27272727273 |3              |30404          
+56499.0           |5              |31120          
+56499.0           |5              |31897          
+56499.0           |5              |32272          
+63503.333333333336|4              |32568          
+;
+
+pushDown_OneGroupingFilter_PastInlineJoinWithInnerFilterAndOuterFilter
+required_capability: inline_stats
+
+FROM employees
+| INLINE STATS avg = AVG(salary) WHERE salary > 50000  BY languages
+| WHERE languages > 2 AND salary < 30000
+| KEEP avg, languages, salary
+| SORT salary
+;
+
+       avg:d      |   languages:i |    salary:i
+56499.0           |5              |25324          
+56499.0           |5              |25945          
+62060.27272727273 |3              |26436          
+63503.333333333336|4              |27215          
+62060.27272727273 |3              |28941          
+;

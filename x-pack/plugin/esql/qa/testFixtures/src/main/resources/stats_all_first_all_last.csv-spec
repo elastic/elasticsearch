@@ -1,0 +1,85 @@
+first nullable value by timestamp
+required_capability: all_first
+required_capability: all_last
+
+ROW row = [
+  #       @timestamp        |  name   | number
+  "2023-01-23T00:00:00.000Z | alpha   | ",
+  "2023-01-23T00:00:01.000Z | alpha   | 2",
+  "2023-01-23T00:00:02.000Z | bravo   | ",
+  "2023-01-23T00:00:03.000Z | alpha   | 4",
+  "2023-01-23T00:00:04.000Z | bravo   | 5",
+  "2023-01-23T00:00:05.000Z | charlie | 6",
+  "2023-01-23T00:00:06.000Z | delta   | "
+]
+| MV_EXPAND row
+| DISSECT row """%{@timestamp} | %{name} | %{number}"""
+| KEEP @timestamp, name, number
+| EVAL @timestamp = TO_DATETIME(@timestamp), 
+       name = TRIM(name), 
+       v1 = TO_LONG(number),
+       v2 = v1::integer,
+       v3 = v1::double,
+       v4 = v1::keyword
+       
+| STATS first_l = ALL_FIRST(v1, @timestamp),
+        first_i = ALL_FIRST(v2, @timestamp),
+        first_d = ALL_FIRST(v3, @timestamp),
+        first_k = ALL_FIRST(v4, @timestamp),
+        last_l = ALL_LAST(v1, @timestamp),
+        last_i = ALL_LAST(v2, @timestamp),
+        last_d = ALL_LAST(v3, @timestamp),
+        last_k = ALL_LAST(v4, @timestamp)
+;
+
+warning:Line 15:6: evaluation of [TO_LONG(number)] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 15:6: org.elasticsearch.xpack.esql.core.InvalidArgumentException: Cannot parse number []
+
+first_l:long | first_i:integer | first_d:double | first_k:keyword | last_l:long | last_i:integer | last_d:double | last_k:keyword
+null         | null            | null           | null            | null        | null           | null          | null 
+;
+
+first nullable value by timestamp on group
+required_capability: all_first
+required_capability: all_last
+
+ROW row = [
+  #       @timestamp        |  name   | number
+  "2023-01-23T00:00:00.000Z | alpha   | ",
+  "2023-01-23T00:00:01.000Z | alpha   | 2",
+  "2023-01-23T00:00:02.000Z | bravo   | ",
+  "2023-01-23T00:00:03.000Z | alpha   | 4",
+  "2023-01-23T00:00:04.000Z | bravo   | 5",
+  "2023-01-23T00:00:05.000Z | charlie | 6",
+  "2023-01-23T00:00:06.000Z | delta   | "
+]
+| MV_EXPAND row
+| DISSECT row """%{@timestamp} | %{name} | %{number}"""
+| KEEP @timestamp, name, number
+| EVAL @timestamp = TO_DATETIME(@timestamp), 
+       name = TRIM(name), 
+       v1 = TO_LONG(number),
+       v2 = v1::integer,
+       v3 = v1::double,
+       v4 = v1::keyword
+| STATS 
+    first_l = ALL_FIRST(v1, @timestamp), 
+    first_i = ALL_FIRST(v2, @timestamp),
+    first_d = ALL_FIRST(v3, @timestamp),
+    first_k = ALL_FIRST(v4, @timestamp),
+    last_l = ALL_LAST(v1, @timestamp),
+    last_i = ALL_LAST(v2, @timestamp),
+    last_d = ALL_LAST(v3, @timestamp),
+    last_k = ALL_LAST(v4, @timestamp) BY name
+| SORT name ASC
+;
+
+warning:Line 15:6: evaluation of [TO_LONG(number)] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 15:6: org.elasticsearch.xpack.esql.core.InvalidArgumentException: Cannot parse number []
+
+first_l:long | first_i:integer | first_d:double | first_k:keyword | last_l:long | last_i:integer | last_d:double | last_k:keyword | name:keyword
+null         | null            | null           | null            | 4           | 4              | 4.0           | 4              | alpha
+null         | null            | null           | null            | 5           | 5              | 5.0           | 5              | bravo
+6            | 6               | 6.0            | 6               | 6           | 6              | 6.0           | 6              | charlie
+null         | null            | null           | null            | null        | null           | null          | null           | delta
+;

@@ -10,6 +10,10 @@ package org.elasticsearch.xpack.esql.expression.function.aggregate;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.compute.aggregation.AggregatorFunctionSupplier;
+import org.elasticsearch.compute.aggregation.AllFirstBytesRefByTimestampAggregatorFunctionSupplier;
+import org.elasticsearch.compute.aggregation.AllFirstDoubleByTimestampAggregatorFunctionSupplier;
+import org.elasticsearch.compute.aggregation.AllFirstFloatByTimestampAggregatorFunctionSupplier;
+import org.elasticsearch.compute.aggregation.AllFirstIntByTimestampAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.AllFirstLongByTimestampAggregatorFunctionSupplier;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
@@ -33,9 +37,6 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.Param
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.SECOND;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
 
-/**
- * This class only supports the long type for now, but that'll change after templating kicks in.
- */
 public class AllFirst extends AggregateFunction implements ToAggregator {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         Expression.class,
@@ -45,20 +46,19 @@ public class AllFirst extends AggregateFunction implements ToAggregator {
 
     private final Expression sort;
 
-    // TODO: support all types of values
     @FunctionInfo(
         type = FunctionType.AGGREGATE,
         preview = true,
-        returnType = { "long"/*, "integer", "double", "keyword" */ },
+        returnType = { "long", "integer", "double", "keyword" },
         description = "Calculates the earliest value of a field, and can operate on null values.",
         appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.DEVELOPMENT) },
-        examples = @Example(file = "all_first", tag = "all_first")
+        examples = @Example(file = "stats_all_first_all_last", tag = "all_first")
     )
     public AllFirst(
         Source source,
         @Param(
             name = "value",
-            type = { "long"/*, "integer", "double", "keyword", "text" */ },
+            type = { "long", "integer", "double", "keyword", "text" },
             description = "Values to return"
         ) Expression field,
         @Param(name = "sort", type = { "date", "date_nanos" }, description = "Sort key") Expression sort
@@ -145,10 +145,10 @@ public class AllFirst extends AggregateFunction implements ToAggregator {
         final DataType type = field().dataType();
         return switch (type) {
             case LONG -> new AllFirstLongByTimestampAggregatorFunctionSupplier();
-            // case INTEGER -> new AllFirstIntByTimestampAggregatorFunctionSupplier();
-            // case DOUBLE -> new AllFirstDoubleByTimestampAggregatorFunctionSupplier();
-            // case FLOAT -> new AllFirstFloatByTimestampAggregatorFunctionSupplier();
-            // case KEYWORD, TEXT -> new AllFirstBytesRefByTimestampAggregatorFunctionSupplier();
+            case INTEGER -> new AllFirstIntByTimestampAggregatorFunctionSupplier();
+            case DOUBLE -> new AllFirstDoubleByTimestampAggregatorFunctionSupplier();
+            case FLOAT -> new AllFirstFloatByTimestampAggregatorFunctionSupplier();
+            case KEYWORD, TEXT -> new AllFirstBytesRefByTimestampAggregatorFunctionSupplier();
             default -> throw EsqlIllegalArgumentException.illegalDataType(type);
         };
     }

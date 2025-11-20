@@ -29,6 +29,7 @@ import org.hamcrest.Matchers;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.Period;
+import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.function.LongSupplier;
@@ -105,7 +106,7 @@ public class TBucketTests extends AbstractConfigurationFunctionTestCase {
                 "DateTruncDatetimeEvaluator[fieldVal=Attribute[channel=0], rounding=Rounding" + spanStr + "]",
                 DataType.DATETIME,
                 resultsMatcher(args)
-            ).withStaticConfiguration();
+            ).withConfiguration(TEST_SOURCE, configurationForTimezone(ZoneOffset.UTC));
         }));
     }
 
@@ -125,7 +126,7 @@ public class TBucketTests extends AbstractConfigurationFunctionTestCase {
                 Matchers.startsWith("DateTruncDateNanosEvaluator[fieldVal=Attribute[channel=0], rounding=Rounding["),
                 DataType.DATE_NANOS,
                 resultsMatcher(args)
-            ).withStaticConfiguration();
+            ).withConfiguration(TEST_SOURCE, configurationForTimezone(ZoneOffset.UTC));
         }));
     }
 

@@ -81,16 +81,25 @@ public class EmbeddingRequestChunker<E extends EmbeddingResults.Embedding<E>> {
     private ActionListener<List<ChunkedInference>> finalListener;
 
     public EmbeddingRequestChunker(List<ChunkInferenceInput> inputs, int maxNumberOfInputsPerBatch) {
-        this(inputs, maxNumberOfInputsPerBatch, null);
+        this(inputs, maxNumberOfInputsPerBatch, true, null);
     }
 
     public EmbeddingRequestChunker(List<ChunkInferenceInput> inputs, int maxNumberOfInputsPerBatch, int wordsPerChunk, int chunkOverlap) {
-        this(inputs, maxNumberOfInputsPerBatch, new WordBoundaryChunkingSettings(wordsPerChunk, chunkOverlap));
+        this(inputs, maxNumberOfInputsPerBatch, true, new WordBoundaryChunkingSettings(wordsPerChunk, chunkOverlap));
     }
 
     public EmbeddingRequestChunker(
         List<ChunkInferenceInput> inputs,
         int maxNumberOfInputsPerBatch,
+        ChunkingSettings defaultChunkingSettings
+    ) {
+        this(inputs, maxNumberOfInputsPerBatch, true, defaultChunkingSettings);
+    }
+
+    public EmbeddingRequestChunker(
+        List<ChunkInferenceInput> inputs,
+        int maxNumberOfInputsPerBatch,
+        boolean batchChunksAcrossInputs,
         ChunkingSettings defaultChunkingSettings
     ) {
         this.resultEmbeddings = new ArrayList<>(inputs.size());
@@ -147,13 +156,23 @@ public class EmbeddingRequestChunker<E extends EmbeddingResults.Embedding<E>> {
             }
         }
 
-        AtomicInteger counter = new AtomicInteger();
-        this.batchRequests = allRequests.stream()
-            .collect(Collectors.groupingBy(it -> counter.getAndIncrement() / maxNumberOfInputsPerBatch))
-            .values()
-            .stream()
-            .map(BatchRequest::new)
-            .toList();
+        if (batchChunksAcrossInputs) {
+            AtomicInteger counter = new AtomicInteger();
+            this.batchRequests = allRequests.stream()
+                .collect(Collectors.groupingBy(it -> counter.getAndIncrement() / maxNumberOfInputsPerBatch))
+                .values()
+                .stream()
+                .map(BatchRequest::new)
+                .toList();
+        } else {
+            assert (maxNumberOfInputsPerBatch >= MAX_CHUNKS);
+            this.batchRequests = allRequests.stream()
+                .collect(Collectors.groupingBy(Request::inputIndex))
+                .values()
+                .stream()
+                .map(BatchRequest::new)
+                .toList();
+        }
     }
 
     /**

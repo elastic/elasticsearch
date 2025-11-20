@@ -80,6 +80,10 @@ public class ConfigurationTestUtils {
         );
     }
 
+    public static ConfigurationBuilder randomConfigurationBuilder() {
+        return new ConfigurationBuilder(randomConfiguration());
+    }
+
     private static QueryPragmas randomQueryPragmas() {
         return new QueryPragmas(
             Settings.builder().put(QueryPragmas.DATA_PARTITIONING.getKey(), randomFrom(DataPartitioning.values())).build()

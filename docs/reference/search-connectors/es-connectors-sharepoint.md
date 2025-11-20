@@ -9,7 +9,7 @@ mapped_pages:
 
 The *Elastic SharePoint Server connector* is a [connector](/reference/search-connectors/index.md) for [Microsoft SharePoint Server](https://www.microsoft.com/en-ww/microsoft-365/sharepoint/).
 
-This connector is written in Python using the open code [Elastic connector framework](https://github.com/elastic/connectors/tree/main). View the [source code for this connector](https://github.com/elastic/connectors/tree/main/connectors/sources/sharepoint_server.py).
+This connector is written in Python using the open code [Elastic connector framework](https://github.com/elastic/connectors/tree/main). View the [source code for this connector](https://github.com/elastic/connectors/tree/main/app/connectors_service/connectors/sources/sharepoint/sharepoint_server).
 
 ::::{tip}
 Looking for the SharePoint **Online** connector? See the [SharePoint Online reference](/reference/search-connectors/es-connectors-sharepoint-online.md).
@@ -344,4 +344,4 @@ See [Security](/reference/search-connectors/es-connectors-security.md).
 
 This connector is written in Python using the [Elastic connector framework](https://github.com/elastic/connectors/tree/main).
 
-View the [source code for this connector](https://github.com/elastic/connectors/tree/main/connectors/sources/sharepoint_server.py) (branch *main*, compatible with Elastic *9.0*).
+View the [source code for this connector](https://github.com/elastic/connectors/tree/main/app/connectors_service/connectors/sources/sharepoint/sharepoint_server) (branch *main*, compatible with Elastic *9.0*).

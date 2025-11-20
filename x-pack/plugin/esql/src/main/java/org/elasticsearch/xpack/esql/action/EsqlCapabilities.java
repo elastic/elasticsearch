@@ -1609,6 +1609,13 @@ public class EsqlCapabilities {
         PUSHING_DOWN_EVAL_WITH_SCORE,
 
         /**
+         * Fix for ClassCastException in STATS
+         * https://github.com/elastic/elasticsearch/issues/133992
+         * https://github.com/elastic/elasticsearch/issues/136598
+         */
+        FIX_STATS_CLASSCAST_EXCEPTION,
+
+        /**
          * Fix attribute equality to respect the name id of the attribute.
          */
         ATTRIBUTE_EQUALS_RESPECTS_NAME_ID,
@@ -1666,6 +1673,8 @@ public class EsqlCapabilities {
          * Support for the temporary work to eventually allow FIRST to work with null and multi-value fields, among other things.
          */
         ALL_FIRST(Build.current().isSnapshot()),
+
+        ALL_LAST(Build.current().isSnapshot()),
 
         /**
          * Allow ST_EXTENT_AGG to gracefully handle missing spatial shapes

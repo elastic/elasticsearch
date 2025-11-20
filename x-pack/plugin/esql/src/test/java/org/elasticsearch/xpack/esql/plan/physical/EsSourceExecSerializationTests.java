@@ -12,13 +12,13 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
-import org.elasticsearch.xpack.esql.index.EsIndexSerializationTests;
+import org.elasticsearch.xpack.esql.index.EsIndexGenerator;
 
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
-import static org.elasticsearch.xpack.esql.index.EsIndexSerializationTests.randomIndexNameWithModes;
+import static org.elasticsearch.xpack.esql.index.EsIndexGenerator.randomIndexNameWithModes;
 
 public class EsSourceExecSerializationTests extends AbstractPhysicalPlanSerializationTests<EsSourceExec> {
     public static EsSourceExec randomEsSourceExec() {
@@ -47,7 +47,7 @@ public class EsSourceExecSerializationTests extends AbstractPhysicalPlanSerializ
         switch (between(0, 4)) {
             case 0 -> indexPattern = randomValueOtherThan(indexPattern, ESTestCase::randomIdentifier);
             case 1 -> indexMode = randomValueOtherThan(indexMode, () -> randomFrom(IndexMode.values()));
-            case 2 -> indexNameWithModes = randomValueOtherThan(indexNameWithModes, EsIndexSerializationTests::randomIndexNameWithModes);
+            case 2 -> indexNameWithModes = randomValueOtherThan(indexNameWithModes, EsIndexGenerator::randomIndexNameWithModes);
             case 3 -> attributes = randomValueOtherThan(attributes, () -> randomFieldAttributes(1, 10, false));
             case 4 -> query = randomValueOtherThan(query, () -> new TermQueryBuilder(randomAlphaOfLength(5), randomAlphaOfLength(5)));
             default -> throw new IllegalStateException();

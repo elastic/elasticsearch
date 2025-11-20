@@ -371,28 +371,15 @@ public class EsqlSession {
                 subPlansResults.add(resultWrapper);
 
                 // replace the original logical plan with the backing result
-                LogicalPlan newLogicalPlan = optimizedPlan.transformUp(
-                    InlineJoin.class,
-                    // use object equality since the right-hand side shouldn't have changed in the optimizedPlan at this point
-                    // and equals would have ignored name IDs anyway
-                    ij -> ij.right() == subPlans.originalSubPlan() ? InlineJoin.inlineData(ij, resultWrapper) : ij
-                );
-                // TODO: INLINE STATS can we do better here and further optimize the plan AFTER one of the subplans executed?
-                newLogicalPlan.setOptimized();
-                if (LOGGER.isTraceEnabled()) {
-                    LOGGER.trace(
-                        "Main plan change after previous subplan execution:\n{}",
-                        NodeUtils.diffString(optimizedPlan, newLogicalPlan)
-                    );
-                }
+                LogicalPlan newMainPlan = newMainPlan(optimizedPlan, subPlans, resultWrapper);
 
                 // look for the next inlinejoin plan
-                var newSubPlan = firstSubPlan(newLogicalPlan, subPlansResults);
+                var newSubPlan = firstSubPlan(newMainPlan, subPlansResults);
 
                 if (newSubPlan == null) {// run the final "main" plan
                     executionInfo.finishSubPlans();
-                    LOGGER.debug("Executing final plan:\n{}", newLogicalPlan);
-                    var newPhysicalPlan = logicalPlanToPhysicalPlan(newLogicalPlan, request, physicalPlanOptimizer);
+                    LOGGER.debug("Executing final plan:\n{}", newMainPlan);
+                    var newPhysicalPlan = logicalPlanToPhysicalPlan(newMainPlan, request, physicalPlanOptimizer);
                     runner.run(
                         newPhysicalPlan,
                         configuration,
@@ -407,7 +394,7 @@ public class EsqlSession {
                 } else {// continue executing the subplans
                     executeSubPlan(
                         completionInfoAccumulator,
-                        newLogicalPlan,
+                        newMainPlan,
                         newSubPlan,
                         configuration,
                         foldContext,
@@ -428,6 +415,21 @@ public class EsqlSession {
                 Releasables.closeExpectNoException(Releasables.wrap(Iterators.map(result.pages().iterator(), p -> p::releaseBlocks)));
             }
         }));
+    }
+
+    public static LogicalPlan newMainPlan(LogicalPlan optimizedPlan, InlineJoin.LogicalPlanTuple subPlans, LocalRelation resultWrapper) {
+        LogicalPlan newLogicalPlan = optimizedPlan.transformUp(
+            InlineJoin.class,
+            // use object equality since the right-hand side shouldn't have changed in the optimizedPlan at this point
+            // and equals would have ignored name IDs anyway
+            ij -> ij.right() == subPlans.originalSubPlan() ? InlineJoin.inlineData(ij, resultWrapper) : ij
+        );
+        // TODO: INLINE STATS can we do better here and further optimize the plan AFTER one of the subplans executed?
+        newLogicalPlan.setOptimized();
+        if (LOGGER.isTraceEnabled()) {
+            LOGGER.trace("Main plan change after previous subplan execution:\n{}", NodeUtils.diffString(optimizedPlan, newLogicalPlan));
+        }
+        return newLogicalPlan;
     }
 
     private LocalRelation resultToPlan(Source planSource, Result result) {

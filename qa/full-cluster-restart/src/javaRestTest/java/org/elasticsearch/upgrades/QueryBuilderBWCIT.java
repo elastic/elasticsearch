@@ -11,18 +11,10 @@ package org.elasticsearch.upgrades;
 
 import com.carrotsearch.randomizedtesting.annotations.Name;
 
-import org.elasticsearch.TransportVersion;
-import org.elasticsearch.Version;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.io.stream.InputStreamStreamInput;
-import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
-import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.Fuzziness;
-import org.elasticsearch.core.UpdateForV10;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.ConstantScoreQueryBuilder;
 import org.elasticsearch.index.query.DisMaxQueryBuilder;
@@ -37,33 +29,23 @@ import org.elasticsearch.index.query.SpanNearQueryBuilder;
 import org.elasticsearch.index.query.SpanTermQueryBuilder;
 import org.elasticsearch.index.query.functionscore.FunctionScoreQueryBuilder;
 import org.elasticsearch.index.query.functionscore.RandomScoreFunctionBuilder;
-import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.local.LocalClusterConfigProvider;
 import org.elasticsearch.test.cluster.local.distribution.DistributionType;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.junit.ClassRule;
 
-import java.io.ByteArrayInputStream;
-import java.io.InputStream;
 import java.util.ArrayList;
-import java.util.Base64;
-import java.util.Collections;
 import java.util.List;
-import java.util.Map;
 
-import static org.elasticsearch.cluster.ClusterState.VERSION_INTRODUCING_TRANSPORT_VERSIONS;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 
 /**
  * An integration test that tests whether percolator queries stored in older supported ES version can still be read by the
  * current ES version. Percolator queries are stored in the binary format in a dedicated doc values field (see
- * PercolatorFieldMapper#createQueryBuilderField(...) method). Using the query builders writable contract. This test
- * does best effort verifying that we don't break bwc for query builders between the first previous major version and
- * the latest current major release.
- *
- * The queries to test are specified in json format, which turns out to work because we tend break here rarely. If the
- * json format of a query being tested here then feel free to change this.
+ * PercolatorFieldMapper#createQueryBuilderField(...) method). We don't attempt to assert anything on results here, simply executing
+ * a percolator query will force deserialization of the old query builder. This also verifies that our fallback compatibility
+ * functionality is working correctly, otherwise the search request will throw an exception.
  */
 public class QueryBuilderBWCIT extends ParameterizedFullClusterRestartTestCase {
     private static final List<Object[]> CANDIDATES = new ArrayList<>();
@@ -227,43 +209,20 @@ public class QueryBuilderBWCIT extends ParameterizedFullClusterRestartTestCase {
                 assertEquals(201, rsp.getStatusLine().getStatusCode());
             }
         } else {
-            NamedWriteableRegistry registry = new NamedWriteableRegistry(
-                new SearchModule(Settings.EMPTY, Collections.emptyList()).getNamedWriteables()
-            );
-
-            for (int i = 0; i < CANDIDATES.size(); i++) {
-                QueryBuilder expectedQueryBuilder = (QueryBuilder) CANDIDATES.get(i)[1];
-                Request request = new Request("GET", "/" + index + "/_search");
-                request.setJsonEntity(Strings.format("""
-                    {"query": {"ids": {"values": ["%s"]}}, "docvalue_fields": [{"field":"query.query_builder_field"}]}
-                    """, i));
-                Response rsp = client().performRequest(request);
-                assertEquals(200, rsp.getStatusLine().getStatusCode());
-                var hitRsp = (Map<?, ?>) ((List<?>) ((Map<?, ?>) responseAsMap(rsp).get("hits")).get("hits")).get(0);
-                String queryBuilderStr = (String) ((List<?>) ((Map<?, ?>) hitRsp.get("fields")).get("query.query_builder_field")).get(0);
-                byte[] qbSource = Base64.getDecoder().decode(queryBuilderStr);
-                try (
-                    InputStream in = new ByteArrayInputStream(qbSource, 0, qbSource.length);
-                    StreamInput input = new NamedWriteableAwareStreamInput(new InputStreamStreamInput(in), registry)
-                ) {
-                    @UpdateForV10(owner = UpdateForV10.Owner.SEARCH_FOUNDATIONS)    // won't need to read <8.8 data anymore
-                    boolean originalClusterHasTransportVersion = parseLegacyVersion(getOldClusterVersion()).map(
-                        v -> v.onOrAfter(VERSION_INTRODUCING_TRANSPORT_VERSIONS)
-                    ).orElse(true);
-                    TransportVersion transportVersion;
-                    if (originalClusterHasTransportVersion == false) {
-                        transportVersion = TransportVersion.fromId(
-                            parseLegacyVersion(getOldClusterVersion()).map(Version::id).orElse(TransportVersion.minimumCompatible().id())
-                        );
-                    } else {
-                        transportVersion = TransportVersion.readVersion(input);
+            Request request = new Request("GET", "/" + index + "/_search");
+            request.setJsonEntity("""
+                {
+                  "query": {
+                    "percolate": {
+                      "field": "query",
+                      "document": {
+                        "foo": "bar"
+                      }
                     }
-                    input.setTransportVersion(transportVersion);
-                    QueryBuilder queryBuilder = input.readNamedWriteable(QueryBuilder.class);
-                    assert in.read() == -1;
-                    assertEquals(expectedQueryBuilder, queryBuilder);
-                }
-            }
+                  }
+                }""");
+            Response rsp = client().performRequest(request);
+            assertEquals(200, rsp.getStatusLine().getStatusCode());
         }
     }
 }

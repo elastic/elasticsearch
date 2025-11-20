@@ -214,7 +214,7 @@ public class QueryPhase {
                     );
 
                 QueryPhaseResult queryPhaseResult = searcher.search(query, collectorManager);
-                
+
                 if (searchContext.getProfilers() != null) {
                     searchContext.getProfilers().getCurrentQueryProfiler().setCollectorResult(queryPhaseResult.collectorResult());
                 }

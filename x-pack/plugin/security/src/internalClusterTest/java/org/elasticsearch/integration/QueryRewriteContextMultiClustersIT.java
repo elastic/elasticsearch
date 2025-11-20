@@ -65,6 +65,7 @@ import java.util.stream.Collectors;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
+import static org.elasticsearch.xpack.core.ClientHelper.MONITORING_ORIGIN;
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.is;
@@ -109,6 +110,11 @@ public class QueryRewriteContextMultiClustersIT extends AbstractMultiClustersTes
     @Override
     protected NodeConfigurationSource nodeConfigurationSource() {
         return securityEnabled ? new SecuritySettingsSource(false, createTempDir(), ESIntegTestCase.Scope.TEST) : null;
+    }
+
+    @Override
+    protected String internalClientOrigin() {
+        return MONITORING_ORIGIN;
     }
 
     @Before

@@ -99,13 +99,18 @@ public abstract class AbstractMultiClustersTestCase extends ESTestCase {
         return null;
     }
 
+    protected String internalClientOrigin() {
+        return null;
+    }
+
     private Client internalClient() {
         return internalClient(LOCAL_CLUSTER);
     }
 
     private Client internalClient(String clusterAlias) {
+        String internalClientOrigin = internalClientOrigin();
         Client client = client(clusterAlias);
-        return new OriginSettingClient(client, "monitoring");  // TODO: Remove hardcoded reference to MONITORING_ORIGIN
+        return internalClientOrigin != null ? new OriginSettingClient(client, internalClientOrigin) : client;
     }
 
     @Before
@@ -143,7 +148,7 @@ public abstract class AbstractMultiClustersTestCase extends ESTestCase {
                 mockPlugins,
                 Function.identity(),
                 TEST_ENTITLEMENTS::addEntitledNodePaths
-            );
+            ).internalClientOrigin(internalClientOrigin());
             try {
                 cluster.beforeTest(random());
             } catch (Exception e) {

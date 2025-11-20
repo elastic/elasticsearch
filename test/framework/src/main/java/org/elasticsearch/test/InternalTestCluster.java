@@ -279,6 +279,8 @@ public final class InternalTestCluster extends TestCluster {
 
     private final int numDataPaths;
 
+    private String internalClientOrigin = null;
+
     /**
      * All nodes started by the cluster will have their name set to nodePrefix followed by a positive number
      */
@@ -755,6 +757,11 @@ public final class InternalTestCluster extends TestCluster {
         }
     }
 
+    public InternalTestCluster internalClientOrigin(String origin) {
+        this.internalClientOrigin = origin;
+        return this;
+    }
+
     private Settings getNodeSettings(final int nodeId, final long seed, final Settings extraSettings) {
         final Settings settings = getSettings(nodeId, seed, extraSettings);
 
@@ -886,7 +893,7 @@ public final class InternalTestCluster extends TestCluster {
     }
 
     private Client makeInternal(Client client) {
-        return new OriginSettingClient(client, "monitoring");  // TODO: Remove hardcoded reference to MONITORING_ORIGIN
+        return internalClientOrigin != null ? new OriginSettingClient(client, internalClientOrigin) : client;
     }
 
     /**

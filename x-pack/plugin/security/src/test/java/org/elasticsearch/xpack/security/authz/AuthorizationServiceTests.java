@@ -285,7 +285,7 @@ public class AuthorizationServiceTests extends ESTestCase {
     private LinkedProjectConfigService linkedProjectConfigService;
     private AuthorizedProjectsResolver authorizedProjectsResolver;
     private CrossProjectModeDecider crossProjectModeDecider;
-    private ProjectRoutingResolver routingResolver;
+    private ProjectRoutingResolver projectRoutingResolver;
 
     @SuppressWarnings("unchecked")
     @Before
@@ -349,7 +349,7 @@ public class AuthorizationServiceTests extends ESTestCase {
         crossProjectModeDecider = mock(CrossProjectModeDecider.class);
         when(crossProjectModeDecider.crossProjectEnabled()).thenReturn(false);
         when(crossProjectModeDecider.resolvesCrossProject(any())).thenReturn(false);
-        routingResolver = mock(ProjectRoutingResolver.class);
+        projectRoutingResolver = mock(ProjectRoutingResolver.class);
         authorizationService = new AuthorizationService(
             settings,
             rolesStore,
@@ -370,7 +370,7 @@ public class AuthorizationServiceTests extends ESTestCase {
             projectResolver,
             authorizedProjectsResolver,
             crossProjectModeDecider,
-            routingResolver
+                projectRoutingResolver
         );
     }
 
@@ -1317,7 +1317,7 @@ public class AuthorizationServiceTests extends ESTestCase {
         final Settings settings = Settings.builder().put("serverless.cross_project.enabled", "true").build();
 
         // return unchanged second argument for resolver
-        when(routingResolver.resolve(any(), any())).thenAnswer(invocation -> invocation.getArgument(1));
+        when(projectRoutingResolver.resolve(any(), any())).thenAnswer(invocation -> invocation.getArgument(1));
 
         authorizationService = new AuthorizationService(
             settings,
@@ -1339,7 +1339,7 @@ public class AuthorizationServiceTests extends ESTestCase {
             projectResolver,
             authorizedProjectsResolver,
             crossProjectModeDecider,
-            routingResolver
+                projectRoutingResolver
         );
 
         RoleDescriptor role = new RoleDescriptor(
@@ -1403,7 +1403,7 @@ public class AuthorizationServiceTests extends ESTestCase {
             projectResolver,
             authorizedProjectsResolver,
             crossProjectModeDecider,
-            routingResolver
+                projectRoutingResolver
         );
 
         RoleDescriptor role = new RoleDescriptor(
@@ -1951,7 +1951,7 @@ public class AuthorizationServiceTests extends ESTestCase {
             projectResolver,
             new AuthorizedProjectsResolver.Default(),
             new CrossProjectModeDecider(settings),
-            routingResolver
+                projectRoutingResolver
         );
 
         RoleDescriptor role = new RoleDescriptor(
@@ -2005,7 +2005,7 @@ public class AuthorizationServiceTests extends ESTestCase {
             projectResolver,
             new AuthorizedProjectsResolver.Default(),
             new CrossProjectModeDecider(settings),
-            routingResolver
+                projectRoutingResolver
         );
 
         RoleDescriptor role = new RoleDescriptor(
@@ -3547,7 +3547,7 @@ public class AuthorizationServiceTests extends ESTestCase {
             projectResolver,
             new AuthorizedProjectsResolver.Default(),
             new CrossProjectModeDecider(Settings.EMPTY),
-            routingResolver
+                projectRoutingResolver
         );
 
         Subject subject = new Subject(new User("test", "a role"), mock(RealmRef.class));
@@ -3707,7 +3707,7 @@ public class AuthorizationServiceTests extends ESTestCase {
             projectResolver,
             new AuthorizedProjectsResolver.Default(),
             new CrossProjectModeDecider(Settings.EMPTY),
-            routingResolver
+                projectRoutingResolver
         );
         Authentication authentication;
         try (StoredContext ignore = threadContext.stashContext()) {
@@ -3883,7 +3883,7 @@ public class AuthorizationServiceTests extends ESTestCase {
         when(crossProjectModeDecider.resolvesCrossProject(any())).thenReturn(true);
 
         // return unchanged second argument for resolver
-        when(routingResolver.resolve(any(), any())).thenAnswer(invocation -> invocation.getArgument(1));
+        when(projectRoutingResolver.resolve(any(), any())).thenAnswer(invocation -> invocation.getArgument(1));
 
         final var metadataBuilder = ProjectMetadata.builder(projectId).put(createIndexMetadata("accessible-index"), true);
         if (randomBoolean()) {

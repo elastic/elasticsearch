@@ -396,7 +396,7 @@ public class ES920DiskBBQVectorsReader extends IVFVectorsReader {
 
     @Override
     public Map<String, Long> getOffHeapByteSize(FieldInfo fieldInfo) {
-        return Map.of();
+        return super.getOffHeapByteSize(fieldInfo);
     }
 
     private static class MemorySegmentPostingsVisitor implements PostingVisitor {

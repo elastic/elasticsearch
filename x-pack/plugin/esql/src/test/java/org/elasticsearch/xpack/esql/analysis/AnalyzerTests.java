@@ -77,6 +77,7 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Add
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThan;
 import org.elasticsearch.xpack.esql.index.EsIndex;
+import org.elasticsearch.xpack.esql.index.EsIndexGenerator;
 import org.elasticsearch.xpack.esql.index.IndexResolution;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
 import org.elasticsearch.xpack.esql.parser.QueryParams;
@@ -189,7 +190,7 @@ public class AnalyzerTests extends ESTestCase {
     );
 
     public void testIndexResolution() {
-        EsIndex idx = new EsIndex("idx", Map.of());
+        EsIndex idx = EsIndexGenerator.esIndex("idx");
         Analyzer analyzer = analyzer(IndexResolution.valid(idx));
         var plan = analyzer.analyze(UNRESOLVED_RELATION);
         var limit = as(plan, Limit.class);
@@ -206,7 +207,7 @@ public class AnalyzerTests extends ESTestCase {
     }
 
     public void testIndexWithClusterResolution() {
-        EsIndex idx = new EsIndex("cluster:idx", Map.of());
+        EsIndex idx = EsIndexGenerator.esIndex("cluster:idx");
         Analyzer analyzer = analyzer(IndexResolution.valid(idx));
 
         var plan = analyzer.analyze(unresolvedRelation("cluster:idx"));
@@ -216,7 +217,7 @@ public class AnalyzerTests extends ESTestCase {
     }
 
     public void testAttributeResolution() {
-        EsIndex idx = new EsIndex("idx", LoadMapping.loadMapping("mapping-one-field.json"));
+        EsIndex idx = EsIndexGenerator.esIndex("idx", LoadMapping.loadMapping("mapping-one-field.json"));
         Analyzer analyzer = analyzer(IndexResolution.valid(idx));
 
         var plan = analyzer.analyze(
@@ -272,7 +273,7 @@ public class AnalyzerTests extends ESTestCase {
     }
 
     public void testRowAttributeResolution() {
-        EsIndex idx = new EsIndex("idx", Map.of());
+        EsIndex idx = EsIndexGenerator.esIndex("idx");
         Analyzer analyzer = analyzer(IndexResolution.valid(idx));
 
         var plan = analyzer.analyze(

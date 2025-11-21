@@ -833,12 +833,13 @@ public class TestBlock implements BlockLoader.Block {
                 }
                 CompressedExponentialHistogram result = new CompressedExponentialHistogram();
                 try {
+                    Double sum = (Double) sums.get(i);
                     Double min = (Double) minima.get(i);
                     Double max = (Double) maxima.get(i);
                     result.reset(
                         (Double) zeroThresholds.get(i),
                         (Long) valueCounts.get(i),
-                        (Double) sums.get(i),
+                        sum == null ? 0.0 : sum,
                         min == null ? Double.NaN : min,
                         max == null ? Double.NaN : max,
                         (BytesRef) encodedHistograms.get(i)

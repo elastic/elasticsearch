@@ -173,6 +173,7 @@ public class CsvTestsDataLoader {
     private static final TestDataset COLORS = new TestDataset("colors");
     private static final TestDataset COLORS_CMYK_LOOKUP = new TestDataset("colors_cmyk").withSetting("lookup-settings.json");
     private static final TestDataset EXP_HISTO_SAMPLE = new TestDataset("exp_histo_sample");
+    private static final TestDataset TDIGEST_STANDARD_INDEX = new TestDataset("tdigest_standard_index");
 
     public static final Map<String, TestDataset> CSV_DATASET_MAP = Map.ofEntries(
         Map.entry(EMPLOYEES.indexName, EMPLOYEES),
@@ -241,7 +242,8 @@ public class CsvTestsDataLoader {
         Map.entry(COLORS_CMYK_LOOKUP.indexName, COLORS_CMYK_LOOKUP),
         Map.entry(MULTI_COLUMN_JOINABLE.indexName, MULTI_COLUMN_JOINABLE),
         Map.entry(MULTI_COLUMN_JOINABLE_LOOKUP.indexName, MULTI_COLUMN_JOINABLE_LOOKUP),
-        Map.entry(EXP_HISTO_SAMPLE.indexName, EXP_HISTO_SAMPLE)
+        Map.entry(EXP_HISTO_SAMPLE.indexName, EXP_HISTO_SAMPLE),
+        Map.entry(TDIGEST_STANDARD_INDEX.indexName, TDIGEST_STANDARD_INDEX)
     );
 
     private static final EnrichConfig LANGUAGES_ENRICH = new EnrichConfig("languages_policy", "enrich-policy-languages.json");

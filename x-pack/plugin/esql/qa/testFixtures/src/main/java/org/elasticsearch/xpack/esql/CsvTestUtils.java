@@ -15,6 +15,7 @@ import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.time.DateFormatters;
 import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.xcontent.XContentParserUtils;
 import org.elasticsearch.compute.data.AggregateMetricDoubleBlockBuilder;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
@@ -32,8 +33,10 @@ import org.elasticsearch.exponentialhistogram.ExponentialHistogram;
 import org.elasticsearch.exponentialhistogram.ExponentialHistogramXContent;
 import org.elasticsearch.geometry.utils.Geohash;
 import org.elasticsearch.h3.H3;
+import org.elasticsearch.index.mapper.DocumentParsingException;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.search.aggregations.bucket.geogrid.GeoTileUtils;
+import org.elasticsearch.tdigest.parsing.TDigestParser;
 import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
@@ -505,6 +508,7 @@ public final class CsvTestUtils {
         ),
         DENSE_VECTOR(Float::parseFloat, Float.class, false),
         EXPONENTIAL_HISTOGRAM(CsvTestUtils::parseExponentialHistogram, ExponentialHistogram.class),
+        TDIGEST(CsvTestUtils::parseTDigest, TDigestParser.ParsedTDigest.class),
         UNSUPPORTED(Type::convertUnsupported, Void.class);
 
         private static Void convertUnsupported(String s) {
@@ -713,6 +717,22 @@ public final class CsvTestUtils {
         }
         try (XContentParser parser = JsonXContent.jsonXContent.createParser(XContentParserConfiguration.EMPTY, json)) {
             return ExponentialHistogramXContent.parseForTesting(parser);
+        } catch (IOException e) {
+            throw new IllegalArgumentException(e);
+        }
+    }
+
+    private static TDigestParser.ParsedTDigest parseTDigest(@Nullable String json) {
+        if (json == null) {
+            return null;
+        }
+        try (XContentParser parser = JsonXContent.jsonXContent.createParser(XContentParserConfiguration.EMPTY, json)) {
+            return TDigestParser.parse(
+                "field from test data",
+                parser,
+                DocumentParsingException::new,
+                XContentParserUtils::parsingException
+            );
         } catch (IOException e) {
             throw new IllegalArgumentException(e);
         }

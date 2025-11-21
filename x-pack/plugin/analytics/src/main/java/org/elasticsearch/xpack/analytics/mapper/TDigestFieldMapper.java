@@ -23,6 +23,7 @@ import org.elasticsearch.common.io.stream.ByteArrayStreamInput;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.FeatureFlag;
+import org.elasticsearch.common.xcontent.XContentParserUtils;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.FormattedDocValues;
@@ -54,6 +55,7 @@ import org.elasticsearch.search.MultiValueMode;
 import org.elasticsearch.search.aggregations.metrics.TDigestState;
 import org.elasticsearch.search.sort.BucketedSort;
 import org.elasticsearch.search.sort.SortOrder;
+import org.elasticsearch.tdigest.parsing.TDigestParser;
 import org.elasticsearch.xcontent.CopyingXContentParser;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
@@ -368,7 +370,12 @@ public class TDigestFieldMapper extends FieldMapper {
             }
             subParser.nextToken();
             // TODO: Here we should build a t-digest out of the input, based on the settings on the field
-            TDigestParser.ParsedTDigest parsedTDigest = TDigestParser.parse(fullPath(), subParser);
+            TDigestParser.ParsedTDigest parsedTDigest = TDigestParser.parse(
+                fullPath(),
+                subParser,
+                DocumentParsingException::new,
+                XContentParserUtils::parsingException
+            );
 
             BytesStreamOutput streamOutput = new BytesStreamOutput();
 

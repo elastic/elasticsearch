@@ -20,6 +20,7 @@ import java.util.Locale;
 import java.util.Set;
 
 import static org.elasticsearch.xpack.esql.core.plugin.EsqlCorePlugin.EXPONENTIAL_HISTOGRAM_FEATURE_FLAG;
+import static org.elasticsearch.xpack.esql.core.plugin.EsqlCorePlugin.T_DIGEST_ESQL_SUPPORT;
 
 /**
  * A {@link Set} of "capabilities" supported by the {@link RestEsqlQueryAction}
@@ -1573,6 +1574,7 @@ public class EsqlCapabilities {
          */
         EXPONENTIAL_HISTOGRAM_MINMAX_SUPPORT(EXPONENTIAL_HISTOGRAM_FEATURE_FLAG),
 
+        TDIGEST_FIELD_TYPE_BASIC_FUNCTIONALITY(T_DIGEST_ESQL_SUPPORT),
         /**
          * Support for exponential_histogram type in SUM and AVG aggregation.
          */

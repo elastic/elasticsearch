@@ -13,6 +13,7 @@ import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.settings.SettingsException;
 import org.elasticsearch.common.ssl.SslConfigException;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -230,7 +231,7 @@ public class PkiRealmTests extends ESTestCase {
     }
 
     public void testCustomUsernamePatternMatches() throws Exception {
-        final Settings settings = Settings.builder()
+        Settings settings = Settings.builder()
             .put(globalSettings)
             .put("xpack.security.authc.realms.pki.my_pki.username_pattern", "OU=(.*?),")
             .build();
@@ -247,6 +248,74 @@ public class PkiRealmTests extends ESTestCase {
         assertThat(user.principal(), is("elasticsearch"));
         assertThat(user.roles(), is(notNullValue()));
         assertThat(user.roles().length, is(0));
+    }
+
+    public void testRdnOidMatches() throws Exception {
+        Settings settings = Settings.builder()
+            .put(globalSettings)
+            .put("xpack.security.authc.realms.pki.my_pki.username_rdn_oid", "2.5.4.11")
+            .build();
+        ThreadContext threadContext = new ThreadContext(settings);
+        X509Certificate certificate = readCert(getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.crt"));
+        UserRoleMapper roleMapper = buildRoleMapper();
+        PkiRealm realm = buildRealm(roleMapper, settings);
+        threadContext.putTransient(PkiRealm.PKI_CERT_HEADER_NAME, new X509Certificate[] { certificate });
+
+        X509AuthenticationToken token = realm.token(threadContext);
+        User user = authenticate(token, realm).getValue();
+        assertThat(user, is(notNullValue()));
+        assertThat(user.principal(), is("elasticsearch"));
+    }
+
+    public void testRdnOidNameMatches() throws Exception {
+        Settings settings = Settings.builder()
+            .put(globalSettings)
+            .put("xpack.security.authc.realms.pki.my_pki.username_rdn_name", "OU")
+            .build();
+        ThreadContext threadContext = new ThreadContext(settings);
+        X509Certificate certificate = readCert(getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.crt"));
+        UserRoleMapper roleMapper = buildRoleMapper();
+        PkiRealm realm = buildRealm(roleMapper, settings);
+        threadContext.putTransient(PkiRealm.PKI_CERT_HEADER_NAME, new X509Certificate[] { certificate });
+
+        X509AuthenticationToken token = realm.token(threadContext);
+        User user = authenticate(token, realm).getValue();
+        assertThat(user, is(notNullValue()));
+        assertThat(user.principal(), is("elasticsearch"));
+    }
+
+    public void testRdnOidNameNotMatches() throws Exception {
+        Settings settings = Settings.builder()
+            .put(globalSettings)
+            .put("xpack.security.authc.realms.pki.my_pki.username_rdn_name", "UID")
+            .build();
+        ThreadContext threadContext = new ThreadContext(settings);
+        X509Certificate certificate = readCert(getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.crt"));
+        UserRoleMapper roleMapper = buildRoleMapper();
+        PkiRealm realm = buildRealm(roleMapper, settings);
+        threadContext.putTransient(PkiRealm.PKI_CERT_HEADER_NAME, new X509Certificate[] { certificate });
+
+        X509AuthenticationToken token = realm.token(threadContext);
+        assertThat(token, is(nullValue()));
+    }
+
+    public void testRdnOidNameUnknown() {
+        Settings settings = Settings.builder()
+            .put(globalSettings)
+            .put("xpack.security.authc.realms.pki.my_pki.username_rdn_name", "UNKNOWN_OID_NAME")
+            .build();
+        UserRoleMapper roleMapper = buildRoleMapper();
+        assertThrows(IllegalArgumentException.class, () -> buildRealm(roleMapper, settings));
+    }
+
+    public void testRedundantRdnOidSettings() {
+        Settings settings = Settings.builder()
+            .put(globalSettings)
+            .put("xpack.security.authc.realms.pki.my_pki.username_rdn_oid", "2.5.4.3")
+            .put("xpack.security.authc.realms.pki.my_pki.username_rdn_name", "UID")
+            .build();
+        UserRoleMapper roleMapper = buildRoleMapper();
+        assertThrows(SettingsException.class, () -> buildRealm(roleMapper, settings));
     }
 
     public void testCustomUsernamePatternMismatchesAndNullToken() throws Exception {

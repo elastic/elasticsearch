@@ -18,7 +18,7 @@ import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.function.Function;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
-import org.elasticsearch.xpack.esql.index.EsIndex;
+import org.elasticsearch.xpack.esql.index.EsIndexGenerator;
 import org.elasticsearch.xpack.esql.index.IndexResolution;
 import org.elasticsearch.xpack.esql.parser.EsqlParser;
 import org.elasticsearch.xpack.esql.parser.ParserUtils;
@@ -452,7 +452,7 @@ public class ParsingTests extends ESTestCase {
     }
 
     private static IndexResolution loadIndexResolution(String name) {
-        return IndexResolution.valid(new EsIndex(INDEX_NAME, LoadMapping.loadMapping(name)));
+        return IndexResolution.valid(EsIndexGenerator.esIndex(INDEX_NAME, LoadMapping.loadMapping(name)));
     }
 
 }

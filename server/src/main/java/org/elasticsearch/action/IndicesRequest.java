@@ -117,6 +117,9 @@ public interface IndicesRequest {
             return true;
         }
 
+        /**
+         * Determines whether the request is local. Local requests should be processed on the same cluster.
+         */
         void setLocal(boolean local);
     }
 

@@ -19,13 +19,13 @@ EXPORT int vec_caps();
 
 EXPORT int32_t dot7u(int8_t* a, int8_t* b, const int32_t dims);
 
-EXPORT void dot7u_bulk(int8_t* a, const int8_t* b, const int32_t dims, const int32_t count, float32_t* results);
+EXPORT void dot7u_bulk(int8_t* a, const int8_t* b, const int32_t dims, const int32_t count, float* results);
 
 EXPORT int32_t sqr7u(int8_t *a, int8_t *b, const int32_t length);
 
-EXPORT float32_t cosf32(const float32_t *a, const float32_t *b, const int32_t elementCount);
+EXPORT float cosf32(const float *a, const float *b, const int32_t elementCount);
 
-EXPORT float32_t dotf32(const float32_t *a, const float32_t *b, const int32_t elementCount);
+EXPORT float dotf32(const float *a, const float *b, const int32_t elementCount);
 
-EXPORT float32_t sqrf32(const float32_t *a, const float32_t *b, const int32_t elementCount);
+EXPORT float sqrf32(const float *a, const float *b, const int32_t elementCount);
 

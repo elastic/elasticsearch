@@ -224,11 +224,11 @@ EXPORT int32_t sqr7u_2(int8_t* a, int8_t* b, const int32_t dims) {
 
 // --- single precision floats
 
-// const float32_t *a  pointer to the first float vector
-// const float32_t *b  pointer to the second float vector
+// const float *a  pointer to the first float vector
+// const float *b  pointer to the second float vector
 // const int32_t elementCount  the number of floating point elements
 extern "C"
-EXPORT float32_t cosf32_2(const float32_t *a, const float32_t *b, const int32_t elementCount) {
+EXPORT float cosf32_2(const float *a, const float *b, const int32_t elementCount) {
     __m512 dot0 = _mm512_setzero_ps();
     __m512 dot1 = _mm512_setzero_ps();
     __m512 dot2 = _mm512_setzero_ps();
@@ -279,31 +279,31 @@ EXPORT float32_t cosf32_2(const float32_t *a, const float32_t *b, const int32_t 
     __m512 norm_a_total = _mm512_add_ps(_mm512_add_ps(norm_a0, norm_a1), _mm512_add_ps(norm_a2, norm_a3));
     __m512 norm_b_total = _mm512_add_ps(_mm512_add_ps(norm_b0, norm_b1), _mm512_add_ps(norm_b2, norm_b3));
 
-    float32_t dot_result = _mm512_reduce_add_ps(dot_total);
-    float32_t norm_a_result = _mm512_reduce_add_ps(norm_a_total);
-    float32_t norm_b_result = _mm512_reduce_add_ps(norm_b_total);
+    float dot_result = _mm512_reduce_add_ps(dot_total);
+    float norm_a_result = _mm512_reduce_add_ps(norm_a_total);
+    float norm_b_result = _mm512_reduce_add_ps(norm_b_total);
 
     // Handle remaining tail with scalar loop
     for (; i < elementCount; ++i) {
-        float32_t ai = a[i];
-        float32_t bi = b[i];
+        float ai = a[i];
+        float bi = b[i];
         dot_result += ai * bi;
         norm_a_result += ai * ai;
         norm_b_result += bi * bi;
     }
 
-    float32_t denom = sqrtf(norm_a_result) * sqrtf(norm_b_result);
+    float denom = sqrtf(norm_a_result) * sqrtf(norm_b_result);
     if (denom == 0.0f) {
         return 0.0f;
     }
     return dot_result / denom;
 }
 
-// const float32_t *a  pointer to the first float vector
-// const float32_t *b  pointer to the second float vector
+// const float *a  pointer to the first float vector
+// const float *b  pointer to the second float vector
 // const int32_t elementCount  the number of floating point elements
 extern "C"
-EXPORT float32_t dotf32_2(const float32_t *a, const float32_t *b, const int32_t elementCount) {
+EXPORT float dotf32_2(const float *a, const float *b, const int32_t elementCount) {
     __m512 sum0 = _mm512_setzero_ps();
     __m512 sum1 = _mm512_setzero_ps();
     __m512 sum2 = _mm512_setzero_ps();
@@ -321,7 +321,7 @@ EXPORT float32_t dotf32_2(const float32_t *a, const float32_t *b, const int32_t 
 
     // reduce all partial sums
     __m512 total_sum = _mm512_add_ps(_mm512_add_ps(sum0, sum1), _mm512_add_ps(sum2, sum3));
-    float32_t result = _mm512_reduce_add_ps(total_sum);
+    float result = _mm512_reduce_add_ps(total_sum);
 
     for (; i < elementCount; ++i) {
         result += a[i] * b[i];
@@ -330,11 +330,11 @@ EXPORT float32_t dotf32_2(const float32_t *a, const float32_t *b, const int32_t 
     return result;
 }
 
-// const float32_t *a  pointer to the first float vector
-// const float32_t *b  pointer to the second float vector
+// const float *a  pointer to the first float vector
+// const float *b  pointer to the second float vector
 // const int32_t elementCount  the number of floating point elements
 extern "C"
-EXPORT float32_t sqrf32_2(const float32_t *a, const float32_t *b, const int32_t elementCount) {
+EXPORT float sqrf32_2(const float *a, const float *b, const int32_t elementCount) {
     __m512 sum0 = _mm512_setzero_ps();
     __m512 sum1 = _mm512_setzero_ps();
     __m512 sum2 = _mm512_setzero_ps();
@@ -357,10 +357,10 @@ EXPORT float32_t sqrf32_2(const float32_t *a, const float32_t *b, const int32_t 
 
     // reduce all partial sums
     __m512 total_sum = _mm512_add_ps(_mm512_add_ps(sum0, sum1), _mm512_add_ps(sum2, sum3));
-    float32_t result = _mm512_reduce_add_ps(total_sum);
+    float result = _mm512_reduce_add_ps(total_sum);
 
     for (; i < elementCount; ++i) {
-        float32_t diff = a[i] - b[i];
+        float diff = a[i] - b[i];
         result += diff * diff;
     }
 

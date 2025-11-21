@@ -706,7 +706,7 @@ The remote hosts that you can use depend on whether you're using the versioned {
 
   The list of allowed hosts must be configured on any node that will coordinate the reindex.
 
-* In {{serverless-full}}, only remote hosts in Elastic Cloud Hosted or Elastic Cloud Serverless are allowed.
+* In {{serverless-full}}, only remote hosts in Elastic Cloud Hosted are allowed.
 
 ### Compatibility [reindex-remote-compatibility]
 

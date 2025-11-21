@@ -29,6 +29,7 @@ import org.apache.lucene.index.Term;
 import org.apache.lucene.index.VectorEncoding;
 import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.search.AcceptDocs;
+import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.KnnCollector;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.TopKnnCollector;
@@ -382,6 +383,13 @@ public class ESNextDiskBBQVectorsFormatTests extends BaseKnnVectorsFormatTestCas
                     uniqueDocIds.add(topDocs.scoreDocs[i].doc);
                 }
                 assertEquals(matchingDocs, uniqueDocIds.size());
+                // match no docs
+                leafReader.searchNearestVectors(
+                    "f",
+                    vector,
+                    new TopKnnCollector(2, Integer.MAX_VALUE),
+                    AcceptDocs.fromIteratorSupplier(DocIdSetIterator::empty, leafReader.getLiveDocs(), leafReader.maxDoc())
+                );
             }
         }
     }

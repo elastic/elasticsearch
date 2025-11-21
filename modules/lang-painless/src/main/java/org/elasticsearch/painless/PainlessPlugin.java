@@ -182,7 +182,7 @@ public final class PainlessPlugin extends Plugin implements ScriptPlugin, Extens
         Predicate<NodeFeature> clusterSupportsFeature
     ) {
         List<RestHandler> handlers = new ArrayList<>();
-        handlers.add(new PainlessExecuteAction.RestAction());
+        handlers.add(new PainlessExecuteAction.RestAction(settings));
         handlers.add(new PainlessContextAction.RestAction());
         return handlers;
     }

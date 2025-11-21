@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.esql.plan.logical;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -25,6 +26,9 @@ import java.util.Objects;
 import java.util.Set;
 
 public class EsRelation extends LeafPlan {
+
+    private static final TransportVersion SPLIT_INDICES = TransportVersion.fromName("esql_es_relation_add_split_indices");
+
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         LogicalPlan.class,
         "EsRelation",
@@ -33,9 +37,8 @@ public class EsRelation extends LeafPlan {
 
     private final String indexPattern;
     private final IndexMode indexMode;
-    // the below data structures are only needed on coordinator and are transient for now
-    private final transient Map<String, List<String>> originalIndices; // keyed by cluster alias
-    private final transient Map<String, List<String>> concreteIndices; // keyed by cluster alias
+    private final Map<String, List<String>> originalIndices; // keyed by cluster alias
+    private final Map<String, List<String>> concreteIndices; // keyed by cluster alias
     private final Map<String, IndexMode> indexNameWithModes;
     private final List<Attribute> attrs;
 
@@ -64,13 +67,22 @@ public class EsRelation extends LeafPlan {
             // this used to be part of EsIndex deserialization
             in.readImmutableMap(StreamInput::readString, EsField::readFrom);
         }
+        Map<String, List<String>> originalIndices;
+        Map<String, List<String>> concreteIndices;
+        if (in.getTransportVersion().supports(SPLIT_INDICES)) {
+            originalIndices = in.readMapOfLists(StreamInput::readString);
+            concreteIndices = in.readMapOfLists(StreamInput::readString);
+        } else {
+            originalIndices = Map.of();
+            concreteIndices = Map.of();
+        }
         Map<String, IndexMode> indexNameWithModes = in.readMap(IndexMode::readFrom);
         List<Attribute> attributes = in.readNamedWriteableCollectionAsList(Attribute.class);
         IndexMode indexMode = IndexMode.fromString(in.readString());
         if (in.getTransportVersion().supports(TransportVersions.V_8_18_0) == false) {
             in.readBoolean();
         }
-        return new EsRelation(source, indexPattern, indexMode, Map.of(), Map.of(), indexNameWithModes, attributes);
+        return new EsRelation(source, indexPattern, indexMode, originalIndices, concreteIndices, indexNameWithModes, attributes);
     }
 
     @Override
@@ -80,6 +92,10 @@ public class EsRelation extends LeafPlan {
         if (out.getTransportVersion().supports(TransportVersions.V_8_18_0) == false) {
             // this used to be part of EsIndex serialization
             out.writeMap(Map.<String, EsField>of(), (o, x) -> x.writeTo(out));
+        }
+        if (out.getTransportVersion().supports(SPLIT_INDICES)) {
+            out.writeMap(originalIndices, StreamOutput::writeStringCollection);
+            out.writeMap(concreteIndices, StreamOutput::writeStringCollection);
         }
         out.writeMap(indexNameWithModes, (o, v) -> IndexMode.writeTo(v, out));
         out.writeNamedWriteableCollection(attrs);

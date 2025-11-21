@@ -23,6 +23,7 @@ import org.elasticsearch.test.TransportVersionUtils;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Random;
 
 public class NodesReloadSecureSettingsResponseTests extends ESTestCase {
 
@@ -30,8 +31,11 @@ public class NodesReloadSecureSettingsResponseTests extends ESTestCase {
     public static List<Object[]> parameters() {
         List<Object[]> parameters = new ArrayList<>();
 
-        TransportVersion current = NodesReloadSecureSettingsResponse.NodeResponse.KEYSTORE_DETAILS;
-        TransportVersion[] versions = { current, TransportVersionUtils.getPreviousVersion(current) };
+        TransportVersion target = NodesReloadSecureSettingsResponse.NodeResponse.KEYSTORE_DETAILS;
+        TransportVersion previous = TransportVersionUtils.getPreviousVersion(target);
+        TransportVersion future = TransportVersionUtils.randomVersionBetween(new Random(), target, null);
+
+        TransportVersion[] versions = { target, previous, future };
         Exception[] exceptions = { null, new ElasticsearchException("test error") };
         String[][] settingNamesCases = { null, {}, { "setting1", "setting2" } };
         String[] paths = { null, "/keystore" };

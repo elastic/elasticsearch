@@ -89,7 +89,6 @@ public class EsPhysicalOperationProvidersTests extends ESTestCase {
                 Source.EMPTY,
                 "test",
                 IndexMode.STANDARD,
-                Map.of(),
                 List.of(),
                 null,
                 null,

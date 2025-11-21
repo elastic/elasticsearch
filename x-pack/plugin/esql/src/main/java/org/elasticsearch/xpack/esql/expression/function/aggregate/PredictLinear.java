@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.expression.function.aggregate;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.compute.aggregation.AggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.DerivDoubleAggregatorFunctionSupplier;
+import org.elasticsearch.compute.aggregation.DerivIntAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.DerivLongAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.SimpleLinearRegressionWithTimeseries;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
@@ -135,7 +136,7 @@ public class PredictLinear extends TimeSeriesAggregateFunction implements ToAggr
         if (t.foldable() == false) {
             throw new IllegalArgumentException("The 't' parameter of the 'predict_linear' function must be a constant value.");
         }
-        final Double timeDiffSeconds = switch (t.fold(FoldContext.small())) {
+        final double timeDiffSeconds = switch (t.fold(FoldContext.small())) {
             case Duration d -> d.toMillis() / 1000.0;
             case Long l -> l.doubleValue();
             case Integer i -> i.doubleValue();
@@ -150,15 +151,16 @@ public class PredictLinear extends TimeSeriesAggregateFunction implements ToAggr
         SimpleLinearRegressionWithTimeseries.SimpleLinearModelFunction fn = (SimpleLinearRegressionWithTimeseries model) -> {
             double slope = model.slope();
             double intercept = model.intercept();
-            double lastTs = model.lastTimestamp();
+            double lastTsSec = model.lastTimestamp() / 1000.0;
             if (Double.isNaN(slope)) {
                 return Double.NaN;
             }
-            return intercept + slope * (lastTs + timeDiffSeconds);
+            return intercept + slope * (lastTsSec + timeDiffSeconds);
         };
         final DataType type = field().dataType();
         return switch (type) {
-            case LONG, INTEGER -> new DerivLongAggregatorFunctionSupplier(fn);
+            case LONG -> new DerivLongAggregatorFunctionSupplier(fn);
+            case INTEGER -> new DerivIntAggregatorFunctionSupplier(fn);
             case DOUBLE -> new DerivDoubleAggregatorFunctionSupplier(fn);
             default -> throw new IllegalArgumentException("Unsupported data type for deriv aggregation: " + type);
         };

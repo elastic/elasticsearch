@@ -789,7 +789,7 @@ max_deriv:double | max_rate:double | time_bucket:datetime     | cluster:keyword
 
 predict_linear_with_long
 required_capability: ts_command_v0
-required_capability: TS_LINREG_PREDICT
+required_capability: ts_linreg_predict
 
 TS k8s
 | STATS predicted_cost = values(round(predict_linear(to_double(network.total_cost), 10), 5)) BY time_bucket = bucket(@timestamp,5minute), cluster
@@ -799,18 +799,17 @@ TS k8s
 ;
 
 predicted_cost:double                      | time_bucket:datetime     | cluster:keyword
-[-6.602588E17, -8.877497E18, 2.231194E18]  | 2024-05-10T00:00:00.000Z | prod
-[-8.155469E17, -9.518307E17, -1.145503E18] | 2024-05-10T00:05:00.000Z | prod
-[5.463778E17, -2.035996E17, -1.838888E18]  | 2024-05-10T00:10:00.000Z | prod
-[-1.399559E18, 1.082517E18, 4.052072E18]   | 2024-05-10T00:15:00.000Z | prod
-[-8.478472E17, -9.533696E17]               | 2024-05-10T00:20:00.000Z | prod
-
+[-6.603815E14, -8.879147E15, 2.231608E15]  | 2024-05-10T00:00:00.000Z | prod
+[-8.156984E14, -9.520076E14, -1.145716E15] | 2024-05-10T00:05:00.000Z | prod
+[5.464793E14, -2.036374E14, -1.83923E15]   | 2024-05-10T00:10:00.000Z | prod
+[-1.399819E15, 1.082718E15, 4.052825E15]   | 2024-05-10T00:15:00.000Z | prod
+[-8.480047E14, -9.535467E14]               | 2024-05-10T00:20:00.000Z | prod
 
 ;
 
 predict_linear_with_timedelta
 required_capability: ts_command_v0
-required_capability: TS_LINREG_PREDICT
+required_capability: ts_linreg_predict
 
 TS k8s
 | STATS predicted_cost = values(round(predict_linear(to_double(network.total_cost), 10 minutes), 5)) BY time_bucket = bucket(@timestamp,5minute), cluster
@@ -820,17 +819,17 @@ TS k8s
 ;
 
 predicted_cost:double                      | time_bucket:datetime     | cluster:keyword
-[-6.602588E17, -8.877497E18, 2.231194E18]  | 2024-05-10T00:00:00.000Z | prod
-[-8.155469E17, -9.518307E17, -1.145503E18] | 2024-05-10T00:05:00.000Z | prod
-[5.463778E17, -2.035996E17, -1.838888E18]  | 2024-05-10T00:10:00.000Z | prod
-[-1.399559E18, 1.082517E18, 4.052072E18]   | 2024-05-10T00:15:00.000Z | prod
-[-8.478472E17, -9.533696E17]               | 2024-05-10T00:20:00.000Z | prod
+[-6.603815E14, -8.879147E15, 2.231608E15]  | 2024-05-10T00:00:00.000Z | prod
+[-8.156984E14, -9.520076E14, -1.145716E15] | 2024-05-10T00:05:00.000Z | prod
+[5.464793E14, -2.036374E14, -1.83923E15]   | 2024-05-10T00:10:00.000Z | prod
+[-1.399819E15, 1.082718E15, 4.052825E15]   | 2024-05-10T00:15:00.000Z | prod
+[-8.480047E14, -9.535467E14]               | 2024-05-10T00:20:00.000Z | prod
 
 ;
 
 predict_linear_with_int_and_timedelta
 required_capability: ts_command_v0
-required_capability: TS_LINREG_PREDICT
+required_capability: ts_linreg_predict
 
 // tag::predict_linear[]
 TS k8s
@@ -843,11 +842,10 @@ TS k8s
 
 // tag::predict_linear-result[]
 predicted_cost_int:double                  | time_bucket:datetime     | cluster:keyword
-[-4.773637E19, -7.885985E20, -2.236197E20] | 2024-05-10T00:00:00.000Z | prod
-[-2.836894E19, -1.909024E19, -4.550045E19] | 2024-05-10T00:05:00.000Z | prod
-[-8.229547E19, -4.188544E19, -8.065657E19] | 2024-05-10T00:10:00.000Z | prod
+[-4.774524E16, -7.88745E17, -2.236612E17]  | 2024-05-10T00:00:00.000Z | prod
+[-2.837421E16, -1.909379E16, -4.55089E16]  | 2024-05-10T00:05:00.000Z | prod
+[-8.231076E16, -4.189322E16, -8.067155E16] | 2024-05-10T00:10:00.000Z | prod
 // end::predict_linear-result[]
-[-1.533217E20, -1.094692E20, -1.253449E20] | 2024-05-10T00:15:00.000Z | prod
-[8.510411E20, -8.325265E19]                | 2024-05-10T00:20:00.000Z | prod
-
+[-1.533501E17, -1.094895E17, -1.253682E17] | 2024-05-10T00:15:00.000Z | prod
+[8.511992E17, -8.326811E16]                | 2024-05-10T00:20:00.000Z | prod
 ;

@@ -98,7 +98,7 @@ public class NodesReloadSecureSettingsResponseTests extends ESTestCase {
             assertNotNull(readNr.reloadException());
             assertEquals(nr.reloadException().getMessage(), readNr.reloadException().getMessage());
         }
-        if (version.equals(TransportVersion.current())) {
+        if (version.supports(NodesReloadSecureSettingsResponse.NodeResponse.KEYSTORE_DETAILS)) {
             assertArrayEquals(nr.secureSettingNames(), readNr.secureSettingNames());
             assertEquals(nr.keystorePath(), readNr.keystorePath());
             assertEquals(nr.keystoreDigest(), readNr.keystoreDigest());

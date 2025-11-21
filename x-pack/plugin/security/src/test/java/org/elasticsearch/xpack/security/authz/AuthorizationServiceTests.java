@@ -130,7 +130,6 @@ import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.builder.PointInTimeBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
-import org.elasticsearch.search.crossproject.CrossProjectRoutingResolver;
 import org.elasticsearch.search.crossproject.ProjectRoutingInfo;
 import org.elasticsearch.search.crossproject.ProjectRoutingResolver;
 import org.elasticsearch.search.crossproject.ProjectTags;
@@ -1317,6 +1316,9 @@ public class AuthorizationServiceTests extends ESTestCase {
         when(crossProjectModeDecider.resolvesCrossProject(any())).thenReturn(true);
         final Settings settings = Settings.builder().put("serverless.cross_project.enabled", "true").build();
 
+        // return unchanged second argument for resolver
+        when(routingResolver.resolve(any(), any())).thenAnswer(invocation -> invocation.getArgument(1));
+
         authorizationService = new AuthorizationService(
             settings,
             rolesStore,
@@ -1337,7 +1339,7 @@ public class AuthorizationServiceTests extends ESTestCase {
             projectResolver,
             authorizedProjectsResolver,
             crossProjectModeDecider,
-            new CrossProjectRoutingResolver()
+            routingResolver
         );
 
         RoleDescriptor role = new RoleDescriptor(

@@ -893,7 +893,7 @@ public class PainlessExecuteAction {
         private final CrossProjectModeDecider crossProjectModeDecider;
 
         public RestAction(Settings settings) {
-            this.crossProjectModeDecider = new CrossProjectModeDecider(settings);;
+            this.crossProjectModeDecider = new CrossProjectModeDecider(settings);
         }
 
         @Override

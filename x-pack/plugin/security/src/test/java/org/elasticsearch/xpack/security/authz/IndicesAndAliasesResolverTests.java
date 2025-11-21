@@ -623,17 +623,27 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
     }
 
     public void testResolveIndicesAndAliasesWithoutWildcardsWithSingleIndexNoWildcardsRequestCPS() {
-        ProjectRoutingInfo originProject = new ProjectRoutingInfo(randomUniqueProjectId(),
-            "elasticsearch", "local", "org", new ProjectTags(Collections.emptyMap()));
-        ProjectRoutingInfo remoteProject = new ProjectRoutingInfo(randomUniqueProjectId(),
-            "elasticsearch", "remote", "org", new ProjectTags(Collections.emptyMap()));
+        ProjectRoutingInfo originProject = new ProjectRoutingInfo(
+            randomUniqueProjectId(),
+            "elasticsearch",
+            "local",
+            "org",
+            new ProjectTags(Collections.emptyMap())
+        );
+        ProjectRoutingInfo remoteProject = new ProjectRoutingInfo(
+            randomUniqueProjectId(),
+            "elasticsearch",
+            "remote",
+            "org",
+            new ProjectTags(Collections.emptyMap())
+        );
         TargetProjects targetProjects = new TargetProjects(originProject, List.of(remoteProject));
 
         when(crossProjectModeDecider.resolvesCrossProject(any(IndicesRequest.SingleIndexNoWildcards.class))).thenReturn(true);
 
         // test 1: matching local index
         {
-            IndicesRequest.SingleIndexNoWildcards request = createSingleIndexNoWildcardsRequestCrossProject(new String[]{"index10"});
+            IndicesRequest.SingleIndexNoWildcards request = createSingleIndexNoWildcardsRequestCrossProject(new String[] { "index10" });
             ResolvedIndices resolvedIndices = defaultIndicesResolver.resolveIndicesAndAliasesWithoutWildcards(
                 TransportSearchAction.TYPE.name() + "[s]",
                 request,
@@ -721,7 +731,9 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
 
         // test 8: matching _origin index
         {
-            IndicesRequest.SingleIndexNoWildcards request = createSingleIndexNoWildcardsRequestCrossProject(new String[]{"_origin:index10"});
+            IndicesRequest.SingleIndexNoWildcards request = createSingleIndexNoWildcardsRequestCrossProject(
+                new String[] { "_origin:index10" }
+            );
             ResolvedIndices resolvedIndices = defaultIndicesResolver.resolveIndicesAndAliasesWithoutWildcards(
                 TransportSearchAction.TYPE.name() + "[s]",
                 request,
@@ -735,7 +747,9 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
 
         // test 9: matching origin alias index
         {
-            IndicesRequest.SingleIndexNoWildcards request = createSingleIndexNoWildcardsRequestCrossProject(new String[]{"local:index10"});
+            IndicesRequest.SingleIndexNoWildcards request = createSingleIndexNoWildcardsRequestCrossProject(
+                new String[] { "local:index10" }
+            );
             ResolvedIndices resolvedIndices = defaultIndicesResolver.resolveIndicesAndAliasesWithoutWildcards(
                 TransportSearchAction.TYPE.name() + "[s]",
                 request,
@@ -759,9 +773,9 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
     private static IndicesRequest.SingleIndexNoWildcards createSingleIndexNoWildcardsRequestCrossProject(String[] indexExpression) {
         IndicesRequest.SingleIndexNoWildcards request = mock(IndicesRequest.SingleIndexNoWildcards.class);
         when(request.indices()).thenReturn(indexExpression);
-        when(request.indicesOptions()).thenReturn(IndicesOptions.builder()
-                .crossProjectModeOptions(new IndicesOptions.CrossProjectModeOptions(true))
-                .build());
+        when(request.indicesOptions()).thenReturn(
+            IndicesOptions.builder().crossProjectModeOptions(new IndicesOptions.CrossProjectModeOptions(true)).build()
+        );
         when(request.allowsCrossProject()).thenReturn(true);
         return request;
     }

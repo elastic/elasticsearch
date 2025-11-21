@@ -188,8 +188,11 @@ class IndicesAndAliasesResolver {
         return resolveIndicesAndAliasesWithoutWildcards(action, indicesRequest, TargetProjects.LOCAL_ONLY_FOR_CPS_DISABLED);
     }
 
-    ResolvedIndices resolveIndicesAndAliasesWithoutWildcards(String action, IndicesRequest indicesRequest,
-                                                             TargetProjects authorizedProjects) {
+    ResolvedIndices resolveIndicesAndAliasesWithoutWildcards(
+        String action,
+        IndicesRequest indicesRequest,
+        TargetProjects authorizedProjects
+    ) {
         assert false == requiresWildcardExpansion(indicesRequest) : "request must not require wildcard expansion";
         final String[] indices = indicesRequest.indices();
         if (indices == null || indices.length == 0) {
@@ -212,8 +215,8 @@ class IndicesAndAliasesResolver {
         }
 
         final ResolvedIndices split;
-        if (indicesRequest instanceof IndicesRequest.SingleIndexNoWildcards single &&
-            (single.allowsRemoteIndices() || single.allowsCrossProject())) {
+        if (indicesRequest instanceof IndicesRequest.SingleIndexNoWildcards single
+            && (single.allowsRemoteIndices() || single.allowsCrossProject())) {
             if (crossProjectModeDecider.resolvesCrossProject(single)) {
                 split = resolveSingleIndexNoWildcardsCrossProject(authorizedProjects, indices);
                 if (split.getLocal().isEmpty() == false) {

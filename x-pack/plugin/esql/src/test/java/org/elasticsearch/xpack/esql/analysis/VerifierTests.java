@@ -3357,9 +3357,7 @@ public class VerifierTests extends ESTestCase {
                     fullTextAnalyzer,
                     VerificationException.class
                 ),
-                equalTo(
-                    "1:27: Validation Failed: 1: Sentence based chunking settings can not have the following settings: [extra_value];"
-                )
+                equalTo("1:27: Validation Failed: 1: Sentence based chunking settings can not have the following settings: [extra_value];")
             );
         }
     }

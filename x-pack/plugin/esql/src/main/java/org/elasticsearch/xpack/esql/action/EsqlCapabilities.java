@@ -320,6 +320,11 @@ public class EsqlCapabilities {
         AGG_TOP_WITH_OUTPUT_FIELD,
 
         /**
+         * Fix for a bug when surrogating a {@code TOP}  with limit 1 and output field.
+         */
+        FIX_AGG_TOP_WITH_OUTPUT_FIELD_SURROGATE,
+
+        /**
          * {@code CASE} properly handling multivalue conditions.
          */
         CASE_MV,

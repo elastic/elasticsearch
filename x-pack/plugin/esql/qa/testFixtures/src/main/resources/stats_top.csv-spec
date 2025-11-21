@@ -420,7 +420,7 @@ min_height:double | max_height:double
 ;
 
 outputFieldAndShouldNotSurrogate
-required_capability: agg_top_with_output_field
+required_capability: fix_agg_top_with_output_field_surrogate
 
 FROM employees
 | STATS

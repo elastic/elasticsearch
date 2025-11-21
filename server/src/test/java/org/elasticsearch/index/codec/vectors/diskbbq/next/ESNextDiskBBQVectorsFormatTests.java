@@ -388,11 +388,7 @@ public class ESNextDiskBBQVectorsFormatTests extends BaseKnnVectorsFormatTestCas
                     "f",
                     vector,
                     new TopKnnCollector(2, Integer.MAX_VALUE),
-                    AcceptDocs.fromIteratorSupplier(
-                        DocIdSetIterator::empty,
-                        leafReader.getLiveDocs(),
-                        leafReader.maxDoc()
-                    )
+                    AcceptDocs.fromIteratorSupplier(DocIdSetIterator::empty, leafReader.getLiveDocs(), leafReader.maxDoc())
                 );
             }
         }

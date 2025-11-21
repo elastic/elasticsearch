@@ -10,7 +10,6 @@
 package org.elasticsearch.index.mapper.flattened;
 
 import org.apache.lucene.index.Term;
-import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.search.PrefixQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermInSetQuery;
@@ -180,7 +179,7 @@ public class KeyedFlattenedFieldTypeTests extends FieldTypeTestCase {
     public void testWildcardQueryOnLeaf() {
         KeyedFlattenedFieldType ft = createFieldType();
         Query expected = new WildcardQuery(new Term(ft.name(), "key\0val*"));
-        assertEquals(expected, ft.wildcardQuery("val*",  null, false,  true, MOCK_CONTEXT));
+        assertEquals(expected, ft.wildcardQuery("val*", null, false, true, MOCK_CONTEXT));
     }
 
     public void testFetchIsEmpty() throws IOException {

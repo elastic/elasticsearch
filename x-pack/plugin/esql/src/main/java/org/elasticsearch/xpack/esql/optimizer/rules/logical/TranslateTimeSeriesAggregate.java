@@ -24,11 +24,13 @@ import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.expression.function.TimestampAware;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.DimensionValues;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.HistogramMergeOverTime;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.LastOverTime;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.TimeSeriesAggregateFunction;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Values;
 import org.elasticsearch.xpack.esql.expression.function.grouping.Bucket;
 import org.elasticsearch.xpack.esql.expression.function.grouping.TBucket;
+import org.elasticsearch.xpack.esql.expression.function.scalar.histogram.ExtractHistogramComponent;
 import org.elasticsearch.xpack.esql.expression.function.scalar.internal.PackDimension;
 import org.elasticsearch.xpack.esql.expression.function.scalar.internal.UnpackDimension;
 import org.elasticsearch.xpack.esql.optimizer.LogicalOptimizerContext;
@@ -220,8 +222,18 @@ public final class TranslateTimeSeriesAggregate extends OptimizerRules.Parameter
                     secondPassAggs.add(new Alias(alias.source(), alias.name(), outerAgg, agg.id()));
                 } else {
                     // TODO: reject over_time_aggregation only
-                    final Expression aggField = af.field();
-                    var tsAgg = new LastOverTime(af.source(), aggField, af.window(), timestamp.get());
+                    Expression aggField1 = af.field();
+                    if (aggField1 instanceof ExtractHistogramComponent extractHistogramComponent) {
+                        aggField1 = extractHistogramComponent.field();
+                    }
+                    Expression aggField = aggField1;
+
+                    TimeSeriesAggregateFunction tsAgg;
+                    if (aggField.dataType() == DataType.EXPONENTIAL_HISTOGRAM) {
+                        tsAgg = new HistogramMergeOverTime(af.source(), aggField, Literal.TRUE, af.window());
+                    } else {
+                        tsAgg = new LastOverTime(af.source(), aggField, af.window(), timestamp.get());
+                    }
                     final AggregateFunction firstStageFn;
                     if (inlineFilter != null) {
                         firstStageFn = tsAgg.perTimeSeriesAggregation().withFilter(inlineFilter);

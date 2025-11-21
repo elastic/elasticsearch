@@ -35,6 +35,24 @@ instance-2       | 2.2E-4     | 2.744054   | 6.469E-4      | 0.0016068  | 27.706
 ;
 
 
+allAggsFiltered
+required_capability: exponential_histogram_pre_tech_preview_v1
+
+FROM exp_histo_sample 
+ | STATS min = MIN(responseTime) WHERE instance == "instance-0",
+         max = MAX(responseTime) WHERE instance == "instance-1",
+         median = MEDIAN(responseTime) WHERE instance == "instance-2",
+         p75 = PERCENTILE(responseTime,75) WHERE instance == "instance-0",
+         sum = SUM(responseTime) WHERE instance == "instance-1",
+         avg = AVG(responseTime) WHERE instance == "instance-2"
+ | EVAL median = ROUND(median, 7), p75 = ROUND(p75, 7) // rounding to avoid floating point precision issues
+ | KEEP min, max, median, p75, sum, avg
+;
+
+min:double | max:double | median:double | p75:double | sum:double | avg:double
+2.4E-4     | 3.190723   | 6.469E-4      | 0.2608237  | 36.198484  | 0.008197047633136096
+;
+
 
 allAggsInlineGrouped
 required_capability: exponential_histogram_pre_tech_preview_v1

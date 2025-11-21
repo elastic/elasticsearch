@@ -16,20 +16,24 @@ fi
 
 LIBCUVS_GCS_BUCKET="elasticsearch-cuvs-snapshots"
 
-LIBCUVS_DIR="$HOME/libcuvs"
+LIBCUVS_DIR="/opt/libcuvs"
 mkdir -p "$LIBCUVS_DIR"
+chmod 777 "$LIBCUVS_DIR"
 
 CUVS_VERSION=$(grep 'cuvs_java' build-tools-internal/version.properties | awk '{print $3}')
 
 LIBCUVS_VERSION_DIR="$LIBCUVS_DIR/$CUVS_VERSION"
 
 if [[ ! -d "$LIBCUVS_VERSION_DIR" ]]; then
-  cd "$LIBCUVS_DIR"
+  mkdir -p $LIBCUVS_VERSION_DIR
+  cd "$LIBCUVS_VERSION_DIR"
   CUVS_ARCHIVE="libcuvs-$CUVS_VERSION.tar.gz"
   curl -fO "https://storage.googleapis.com/$LIBCUVS_GCS_BUCKET/libcuvs/$CUVS_ARCHIVE"
   tar -xzf "$CUVS_ARCHIVE"
   rm -f "$CUVS_ARCHIVE"
-
+  if [[ -d "$CUVS_VERSION" ]]; then
+    mv "$CUVS_VERSION/*" ./
+  fi
   cd -
 fi
 

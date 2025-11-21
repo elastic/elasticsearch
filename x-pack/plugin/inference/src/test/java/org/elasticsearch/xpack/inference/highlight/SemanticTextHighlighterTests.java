@@ -216,8 +216,6 @@ public class SemanticTextHighlighterTests extends MapperServiceTestCase {
         float[] vector = readDenseVector(queryMap.get("embeddings"));
         var fieldType = (SemanticTextFieldMapper.SemanticTextFieldType) mapperService.mappingLookup().getFieldType(SEMANTIC_FIELD_E5);
 
-        // TODO: This ends up being a VectorSimilarityQuery with a RescoreKnnVectorQuery innerQuery (InlineRescoreQuery)
-        // with an ESDiversifyingChildrenFloatKnnVectorQuery innerQuery. Add more cases?
         KnnVectorQueryBuilder knnQuery = new KnnVectorQueryBuilder(
             fieldType.getEmbeddingsField().fullPath(),
             vector,

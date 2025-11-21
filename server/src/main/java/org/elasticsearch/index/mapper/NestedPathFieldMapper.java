@@ -52,7 +52,7 @@ public class NestedPathFieldMapper extends MetadataFieldMapper {
     public static final class NestedPathFieldType extends StringFieldType {
 
         private NestedPathFieldType(String name) {
-            super(name, true, false, false, TextSearchInfo.SIMPLE_MATCH_ONLY, Collections.emptyMap());
+            super(name, IndexType.terms(true, false), false, TextSearchInfo.SIMPLE_MATCH_ONLY, Collections.emptyMap());
         }
 
         @Override

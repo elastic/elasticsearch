@@ -17,6 +17,25 @@ cost:double       | time_bucket:datetime
 36.375            | 2024-05-10T00:11:00.000Z
 ;
 
+avg_over_time_of_double_no_grouping_single_bucket
+required_capability: ts_command_v0
+required_capability: tbucket
+TS k8s
+| STATS cost=sum(avg_over_time(network.cost)) BY time_bucket = tbucket(1h);
+
+cost:double       | time_bucket:datetime
+56.32254035241995 | 2024-05-10T00:00:00.000Z
+;
+
+avg_over_time_of_double_no_grouping_single_bucket_promql
+required_capability: promql_v0
+TS k8s
+| PROMQL step 1h (sum(avg_over_time(network.cost[1h])));
+
+sum(avg_over_time(network.cost[1h])):double | TBUCKET:date
+56.32254035241995                           | 2024-05-10T00:00:00.000Z
+;
+
 avg_over_time_of_integer
 required_capability: ts_command_v0
 TS k8s | STATS clients = avg(avg_over_time(network.eth0.currently_connected_clients)) BY time_bucket = bucket(@timestamp,1minute) | SORT time_bucket | LIMIT 10;
@@ -187,6 +206,31 @@ events:double      | pod:keyword | time_bucket:datetime
 15.045454545454547 | three       | 2024-05-10T00:10:00.000Z
 14.19994204578383  | two         | 2024-05-10T00:00:00.000Z
 11.5               | two         | 2024-05-10T00:20:00.000Z
+;
+
+avg_over_time_with_window
+required_capability: ts_command_v0
+required_capability: time_series_window_v0
+// tag::avg_over_time_with_window[]
+TS k8s 
+| STATS events = sum(avg_over_time(events_received, 10minute)) by pod, time_bucket = tbucket(5minute)
+// end::avg_over_time_with_window[]
+| SORT time_bucket, pod
+| LIMIT 10 ;
+
+// tag::avg_over_time_with_window-result[]
+events:double      | pod:keyword | time_bucket:datetime
+15.746543778801843 | one         | 2024-05-10T00:00:00.000Z
+15.396284829721363 | three       | 2024-05-10T00:00:00.000Z
+14.19994204578383  | two         | 2024-05-10T00:00:00.000Z
+17.711405529953918 | one         | 2024-05-10T00:05:00.000Z
+14.625735294117646 | three       | 2024-05-10T00:05:00.000Z
+15.605820105820106 | two         | 2024-05-10T00:05:00.000Z
+19.01010101010101  | one         | 2024-05-10T00:10:00.000Z
+15.045454545454547 | three       | 2024-05-10T00:10:00.000Z
+16.944444444444443 | two         | 2024-05-10T00:10:00.000Z
+16.485714285714288 | one         | 2024-05-10T00:15:00.000Z
+// end::avg_over_time_with_window-result[]
 ;
 
 avg_over_time_aggregate_metric_double_implicit_casting

@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.expression.function.vector;
 import org.apache.lucene.util.VectorUtil;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.index.mapper.blockloader.BlockLoaderFunctionConfig;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.function.scalar.BinaryScalarFunction;
@@ -40,6 +41,16 @@ public class DotProduct extends VectorSimilarityFunction {
         @Override
         public float calculateSimilarity(float[] leftVector, float[] rightVector) {
             return VectorUtil.dotProduct(leftVector, rightVector);
+        }
+
+        @Override
+        public BlockLoaderFunctionConfig.Function function() {
+            return BlockLoaderFunctionConfig.Function.V_DOT_PRODUCT;
+        }
+
+        @Override
+        public String toString() {
+            return "V_DOT_PRODUCT";
         }
     };
 

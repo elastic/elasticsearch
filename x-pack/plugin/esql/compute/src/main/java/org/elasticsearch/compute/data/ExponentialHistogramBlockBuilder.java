@@ -17,7 +17,7 @@ import org.elasticsearch.index.mapper.BlockLoader;
 
 import java.io.IOException;
 
-public class ExponentialHistogramBlockBuilder implements Block.Builder, BlockLoader.ExponentialHistogramBuilder {
+public final class ExponentialHistogramBlockBuilder implements ExponentialHistogramBlock.Builder {
 
     private final DoubleBlock.Builder minimaBuilder;
     private final DoubleBlock.Builder maximaBuilder;
@@ -103,8 +103,6 @@ public class ExponentialHistogramBlockBuilder implements Block.Builder, BlockLoa
         // We should add a dedicated encoding when building a block from computed histograms which do not originate from doc values
         // That encoding should be optimized for speed and support storing the zero threshold as (scale, index) pair
         ZeroBucket zeroBucket = histogram.zeroBucket();
-        assert zeroBucket.compareZeroThreshold(ZeroBucket.minimalEmpty()) == 0 || zeroBucket.isIndexBased() == false
-            : "Current encoding only supports double-based zero thresholds";
 
         BytesStreamOutput encodedBytes = new BytesStreamOutput();
         try {
@@ -127,7 +125,12 @@ public class ExponentialHistogramBlockBuilder implements Block.Builder, BlockLoa
         } else {
             maximaBuilder.appendDouble(histogram.max());
         }
-        sumsBuilder.appendDouble(histogram.sum());
+        if (histogram.valueCount() == 0) {
+            assert histogram.sum() == 0.0 : "Empty histogram should have sum 0.0 but was " + histogram.sum();
+            sumsBuilder.appendNull();
+        } else {
+            sumsBuilder.appendDouble(histogram.sum());
+        }
         valueCountsBuilder.appendLong(histogram.valueCount());
         zeroThresholdsBuilder.appendDouble(zeroBucket.zeroThreshold());
         encodedHistogramsBuilder.appendBytesRef(encodedBytes.bytes().toBytesRef());
@@ -143,12 +146,13 @@ public class ExponentialHistogramBlockBuilder implements Block.Builder, BlockLoa
     public void deserializeAndAppend(ExponentialHistogramBlock.SerializedInput input) {
         long valueCount = input.readLong();
         valueCountsBuilder.appendLong(valueCount);
-        sumsBuilder.appendDouble(input.readDouble());
         zeroThresholdsBuilder.appendDouble(input.readDouble());
         if (valueCount > 0) {
+            sumsBuilder.appendDouble(input.readDouble());
             minimaBuilder.appendDouble(input.readDouble());
             maximaBuilder.appendDouble(input.readDouble());
         } else {
+            sumsBuilder.appendNull();
             minimaBuilder.appendNull();
             maximaBuilder.appendNull();
         }
@@ -224,6 +228,12 @@ public class ExponentialHistogramBlockBuilder implements Block.Builder, BlockLoa
     }
 
     @Override
+    public ExponentialHistogramBlock.Builder copyFrom(ExponentialHistogramBlock block, int position) {
+        copyFrom(block, position, position + 1);
+        return this;
+    }
+
+    @Override
     public ExponentialHistogramBlockBuilder mvOrdering(Block.MvOrdering mvOrdering) {
         assert mvOrdering == Block.MvOrdering.UNORDERED
             : "Exponential histograms don't have a natural order, so it doesn't make sense to call this";
@@ -240,4 +250,5 @@ public class ExponentialHistogramBlockBuilder implements Block.Builder, BlockLoa
     public void close() {
         Releasables.close(minimaBuilder, maximaBuilder, sumsBuilder, valueCountsBuilder, zeroThresholdsBuilder, encodedHistogramsBuilder);
     }
+
 }

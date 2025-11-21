@@ -41,6 +41,8 @@ module org.elasticsearch.inference {
     exports org.elasticsearch.xpack.inference.registry;
     exports org.elasticsearch.xpack.inference.rest;
     exports org.elasticsearch.xpack.inference.services;
+    exports org.elasticsearch.xpack.inference.services.elastic.ccm;
+    exports org.elasticsearch.xpack.inference.services.elastic.authorization;
     exports org.elasticsearch.xpack.inference;
     exports org.elasticsearch.xpack.inference.action.task;
     exports org.elasticsearch.xpack.inference.telemetry;

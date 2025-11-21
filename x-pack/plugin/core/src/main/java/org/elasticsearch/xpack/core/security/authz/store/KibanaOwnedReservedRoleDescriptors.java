@@ -522,6 +522,7 @@ class KibanaOwnedReservedRoleDescriptors {
                         "logs-google_scc.finding-*",
                         "logs-aws.securityhub_findings-*",
                         "logs-aws.securityhub_findings_full_posture-*",
+                        "logs-aws_securityhub.finding-*",
                         "logs-aws.inspector-*",
                         "logs-aws.config-*",
                         "logs-amazon_security_lake.findings-*",
@@ -541,6 +542,8 @@ class KibanaOwnedReservedRoleDescriptors {
                         "logs-m365_defender.vulnerability-*",
                         "logs-microsoft_defender_endpoint.vulnerability-*",
                         "logs-microsoft_defender_cloud.assessment-*",
+                        "logs-prisma_cloud.misconfiguration-*",
+                        "logs-prisma_cloud.vulnerability-*",
                         "logs-sentinel_one.application_risk-*"
                     )
                     .privileges(

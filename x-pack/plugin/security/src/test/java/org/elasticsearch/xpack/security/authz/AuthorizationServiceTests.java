@@ -131,6 +131,7 @@ import org.elasticsearch.search.builder.PointInTimeBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
 import org.elasticsearch.search.crossproject.ProjectRoutingInfo;
+import org.elasticsearch.search.crossproject.ProjectRoutingResolver;
 import org.elasticsearch.search.crossproject.ProjectTags;
 import org.elasticsearch.search.crossproject.TargetProjects;
 import org.elasticsearch.search.internal.AliasFilter;
@@ -284,6 +285,7 @@ public class AuthorizationServiceTests extends ESTestCase {
     private LinkedProjectConfigService linkedProjectConfigService;
     private AuthorizedProjectsResolver authorizedProjectsResolver;
     private CrossProjectModeDecider crossProjectModeDecider;
+    private ProjectRoutingResolver projectRoutingResolver;
 
     @SuppressWarnings("unchecked")
     @Before
@@ -347,6 +349,7 @@ public class AuthorizationServiceTests extends ESTestCase {
         crossProjectModeDecider = mock(CrossProjectModeDecider.class);
         when(crossProjectModeDecider.crossProjectEnabled()).thenReturn(false);
         when(crossProjectModeDecider.resolvesCrossProject(any())).thenReturn(false);
+        projectRoutingResolver = mock(ProjectRoutingResolver.class);
         authorizationService = new AuthorizationService(
             settings,
             rolesStore,
@@ -366,7 +369,8 @@ public class AuthorizationServiceTests extends ESTestCase {
             linkedProjectConfigService,
             projectResolver,
             authorizedProjectsResolver,
-            crossProjectModeDecider
+            crossProjectModeDecider,
+            projectRoutingResolver
         );
     }
 
@@ -1312,6 +1316,9 @@ public class AuthorizationServiceTests extends ESTestCase {
         when(crossProjectModeDecider.resolvesCrossProject(any())).thenReturn(true);
         final Settings settings = Settings.builder().put("serverless.cross_project.enabled", "true").build();
 
+        // return unchanged second argument for resolver
+        when(projectRoutingResolver.resolve(any(), any())).thenAnswer(invocation -> invocation.getArgument(1));
+
         authorizationService = new AuthorizationService(
             settings,
             rolesStore,
@@ -1331,7 +1338,8 @@ public class AuthorizationServiceTests extends ESTestCase {
             linkedProjectConfigService,
             projectResolver,
             authorizedProjectsResolver,
-            crossProjectModeDecider
+            crossProjectModeDecider,
+            projectRoutingResolver
         );
 
         RoleDescriptor role = new RoleDescriptor(
@@ -1394,7 +1402,8 @@ public class AuthorizationServiceTests extends ESTestCase {
             linkedProjectConfigService,
             projectResolver,
             authorizedProjectsResolver,
-            crossProjectModeDecider
+            crossProjectModeDecider,
+            projectRoutingResolver
         );
 
         RoleDescriptor role = new RoleDescriptor(
@@ -1941,7 +1950,8 @@ public class AuthorizationServiceTests extends ESTestCase {
             linkedProjectConfigService,
             projectResolver,
             new AuthorizedProjectsResolver.Default(),
-            new CrossProjectModeDecider(settings)
+            new CrossProjectModeDecider(settings),
+            projectRoutingResolver
         );
 
         RoleDescriptor role = new RoleDescriptor(
@@ -1994,7 +2004,8 @@ public class AuthorizationServiceTests extends ESTestCase {
             linkedProjectConfigService,
             projectResolver,
             new AuthorizedProjectsResolver.Default(),
-            new CrossProjectModeDecider(settings)
+            new CrossProjectModeDecider(settings),
+            projectRoutingResolver
         );
 
         RoleDescriptor role = new RoleDescriptor(
@@ -3535,7 +3546,8 @@ public class AuthorizationServiceTests extends ESTestCase {
             linkedProjectConfigService,
             projectResolver,
             new AuthorizedProjectsResolver.Default(),
-            new CrossProjectModeDecider(Settings.EMPTY)
+            new CrossProjectModeDecider(Settings.EMPTY),
+            projectRoutingResolver
         );
 
         Subject subject = new Subject(new User("test", "a role"), mock(RealmRef.class));
@@ -3694,7 +3706,8 @@ public class AuthorizationServiceTests extends ESTestCase {
             linkedProjectConfigService,
             projectResolver,
             new AuthorizedProjectsResolver.Default(),
-            new CrossProjectModeDecider(Settings.EMPTY)
+            new CrossProjectModeDecider(Settings.EMPTY),
+            projectRoutingResolver
         );
         Authentication authentication;
         try (StoredContext ignore = threadContext.stashContext()) {
@@ -3868,6 +3881,9 @@ public class AuthorizationServiceTests extends ESTestCase {
 
         when(crossProjectModeDecider.crossProjectEnabled()).thenReturn(true);
         when(crossProjectModeDecider.resolvesCrossProject(any())).thenReturn(true);
+
+        // return unchanged second argument for resolver
+        when(projectRoutingResolver.resolve(any(), any())).thenAnswer(invocation -> invocation.getArgument(1));
 
         final var metadataBuilder = ProjectMetadata.builder(projectId).put(createIndexMetadata("accessible-index"), true);
         if (randomBoolean()) {

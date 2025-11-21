@@ -1332,7 +1332,7 @@ public class StatelessCommitServiceTests extends ESTestCase {
                 .filter(ptg -> mergePTG.equals(ptg) == false)
                 .map(p -> new StaleCompoundCommit(shardId, p, primaryTerm))
                 .collect(Collectors.toSet());
-            assertThat(deletedCommits, equalTo(expectedDeletedCommits));
+            assertBusy(() -> assertThat(deletedCommits, equalTo(expectedDeletedCommits)));
         }
     }
 

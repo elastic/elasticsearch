@@ -24,8 +24,14 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.gateway.GatewayService;
+import org.elasticsearch.telemetry.metric.DoubleHistogram;
+import org.elasticsearch.telemetry.metric.LongWithAttributes;
+import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.threadpool.ThreadPool;
 
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.function.LongSupplier;
 import java.util.function.Supplier;
@@ -42,18 +48,33 @@ public class WriteLoadConstraintMonitor {
     private final LongSupplier currentTimeMillisSupplier;
     private final RerouteService rerouteService;
     private volatile long lastRerouteTimeMillis = 0;
-    private volatile Set<String> lastSetOfHotSpottedNodes = Set.of();
+    private final Map<String, Long> hotspotNodeStartTimes = new HashMap<>();
+
+    public static final String HOTSPOT_NODES_COUNT_METRIC_NAME = "es.allocator.allocations.node.write_load_hotspot.current";
+    public static final String HOTSPOT_DURATION_METRIC_NAME = "es.allocator.allocations.node.write_load_hotspot.duration.histogram";
+
+    private volatile long hotspotNodesCount = 0; // metrics source of hotspotting node count
+    private final DoubleHistogram hotspotDurationHistogram;
 
     public WriteLoadConstraintMonitor(
         ClusterSettings clusterSettings,
         LongSupplier currentTimeMillisSupplier,
         Supplier<ClusterState> clusterStateSupplier,
-        RerouteService rerouteService
+        RerouteService rerouteService,
+        MeterRegistry meterRegistry
     ) {
         this.writeLoadConstraintSettings = new WriteLoadConstraintSettings(clusterSettings);
         this.clusterStateSupplier = clusterStateSupplier;
         this.currentTimeMillisSupplier = currentTimeMillisSupplier;
         this.rerouteService = rerouteService;
+
+        meterRegistry.registerLongsGauge(
+            HOTSPOT_NODES_COUNT_METRIC_NAME,
+            "Total number of nodes hotspotting with write loads",
+            "unit",
+            this::getHotspotNodesCount
+        );
+        hotspotDurationHistogram = meterRegistry.registerDoubleHistogram(HOTSPOT_DURATION_METRIC_NAME, "hotspot duration", "s");
     }
 
     /**
@@ -99,6 +120,19 @@ public class WriteLoadConstraintMonitor {
             }
         }
 
+        final long currentTimeMillis = currentTimeMillisSupplier.getAsLong();
+        Set<String> lastHotspotNodes = hotspotNodeStartTimes.keySet();
+        Set<String> staleHotspotNodes = Sets.difference(lastHotspotNodes, writeNodeIdsExceedingQueueLatencyThreshold);
+
+        for (String nodeId : staleHotspotNodes) {
+            assert hotspotNodeStartTimes.containsKey(nodeId) : "Map should contain key from its own subset";
+            long hotspotStartTime = hotspotNodeStartTimes.remove(nodeId);
+            long hotspotDuration = currentTimeMillis - hotspotStartTime;
+            assert hotspotDuration >= 0 : "hotspot duration should always be non-negative";
+            hotspotDurationHistogram.record(hotspotDuration / 1000.0);
+        }
+        hotspotNodesCount = hotspotNodeStartTimes.size();
+
         if (writeNodeIdsExceedingQueueLatencyThreshold.isEmpty()) {
             logger.trace("No hot-spotting write nodes detected");
             return;
@@ -110,15 +144,14 @@ public class WriteLoadConstraintMonitor {
             return;
         }
 
-        final long currentTimeMillis = currentTimeMillisSupplier.getAsLong();
         final long timeSinceLastRerouteMillis = currentTimeMillis - lastRerouteTimeMillis;
         final boolean haveCalledRerouteRecently = timeSinceLastRerouteMillis < writeLoadConstraintSettings.getMinimumRerouteInterval()
             .millis();
 
         // We know that there is at least one hot-spotting node if we've reached this code. Now check whether there are any new hot-spots
         // or hot-spots that are persisting and need further balancing work.
-        if (haveCalledRerouteRecently == false
-            || Sets.difference(writeNodeIdsExceedingQueueLatencyThreshold, lastSetOfHotSpottedNodes).isEmpty() == false) {
+        Set<String> newHotspotNodes = Sets.difference(writeNodeIdsExceedingQueueLatencyThreshold, lastHotspotNodes);
+        if (haveCalledRerouteRecently == false || newHotspotNodes.isEmpty() == false) {
             if (logger.isDebugEnabled()) {
                 logger.debug(
                     """
@@ -130,7 +163,7 @@ public class WriteLoadConstraintMonitor {
                     lastRerouteTimeMillis == 0
                         ? "has never previously been called"
                         : "was last called [" + TimeValue.timeValueMillis(timeSinceLastRerouteMillis) + "] ago",
-                    nodeSummary(lastSetOfHotSpottedNodes),
+                    nodeSummary(lastHotspotNodes),
                     writeLoadConstraintSettings.getQueueLatencyThreshold()
                 );
             }
@@ -144,13 +177,21 @@ public class WriteLoadConstraintMonitor {
                 )
             );
             lastRerouteTimeMillis = currentTimeMillisSupplier.getAsLong();
-            lastSetOfHotSpottedNodes = writeNodeIdsExceedingQueueLatencyThreshold;
+
+            for (String nodeId : newHotspotNodes) {
+                hotspotNodeStartTimes.put(nodeId, currentTimeMillis);
+            }
+            hotspotNodesCount = hotspotNodeStartTimes.size();
         } else {
             logger.debug(
                 "Not calling reroute because we called reroute [{}] ago and there are no new hot spots",
                 TimeValue.timeValueMillis(timeSinceLastRerouteMillis)
             );
         }
+    }
+
+    private List<LongWithAttributes> getHotspotNodesCount() {
+        return List.of(new LongWithAttributes(hotspotNodesCount));
     }
 
     private static String nodeSummary(Set<String> nodeIds) {

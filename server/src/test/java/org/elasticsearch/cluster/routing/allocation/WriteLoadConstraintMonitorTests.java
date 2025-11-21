@@ -22,22 +22,34 @@ import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.Maps;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.gateway.GatewayService;
+import org.elasticsearch.telemetry.InstrumentType;
+import org.elasticsearch.telemetry.Measurement;
+import org.elasticsearch.telemetry.MetricRecorder;
+import org.elasticsearch.telemetry.RecordingMeterRegistry;
+import org.elasticsearch.telemetry.metric.Instrument;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.MockLog;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.threadpool.ThreadPool;
 
+import java.util.ArrayList;
+import java.util.Collection;
 import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.LongSupplier;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.cluster.routing.allocation.WriteLoadConstraintMonitor.HOTSPOT_DURATION_METRIC_NAME;
+import static org.elasticsearch.cluster.routing.allocation.WriteLoadConstraintMonitor.HOTSPOT_NODES_COUNT_METRIC_NAME;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
@@ -50,15 +62,21 @@ import static org.mockito.Mockito.verifyNoInteractions;
 public class WriteLoadConstraintMonitorTests extends ESTestCase {
     public void testRerouteIsCalledWhenAHotSpotIsDetected() {
         final TestState testState = createRandomTestStateThatWillTriggerReroute();
+        final RecordingMeterRegistry recordingMeterRegistry = new RecordingMeterRegistry();
         final WriteLoadConstraintMonitor writeLoadConstraintMonitor = new WriteLoadConstraintMonitor(
             testState.clusterSettings,
             testState.currentTimeSupplier,
             () -> testState.clusterState,
-            testState.mockRerouteService
+            testState.mockRerouteService,
+            recordingMeterRegistry
         );
 
         writeLoadConstraintMonitor.onNewInfo(testState.clusterInfo);
         verify(testState.mockRerouteService).reroute(anyString(), eq(Priority.NORMAL), any());
+
+        // check the test state hotspots are recorded in the counter
+        recordingMeterRegistry.getRecorder().collect();
+        assertMetricsCollected(recordingMeterRegistry, List.of((long) testState.hotspotNodeIds().size()), List.of());
     }
 
     @TestLogging(
@@ -67,13 +85,15 @@ public class WriteLoadConstraintMonitorTests extends ESTestCase {
     )
     public void testRerouteIsNotCalledWhenStateIsNotRecovered() {
         final TestState testState = createRandomTestStateThatWillTriggerReroute();
+        final RecordingMeterRegistry recordingMeterRegistry = new RecordingMeterRegistry();
         final WriteLoadConstraintMonitor writeLoadConstraintMonitor = new WriteLoadConstraintMonitor(
             testState.clusterSettings,
             testState.currentTimeSupplier,
             () -> ClusterState.builder(testState.clusterState)
                 .blocks(ClusterBlocks.builder().addGlobalBlock(GatewayService.STATE_NOT_RECOVERED_BLOCK).build())
                 .build(),
-            testState.mockRerouteService
+            testState.mockRerouteService,
+            recordingMeterRegistry
         );
 
         try (MockLog mockLog = MockLog.capture(WriteLoadConstraintMonitor.class)) {
@@ -90,6 +110,9 @@ public class WriteLoadConstraintMonitorTests extends ESTestCase {
             mockLog.assertAllExpectationsMatched();
             verifyNoInteractions(testState.mockRerouteService);
         }
+
+        recordingMeterRegistry.getRecorder().collect();
+        assertMetricsCollected(recordingMeterRegistry, List.of(0L), List.of());
     }
 
     @TestLogging(
@@ -98,6 +121,7 @@ public class WriteLoadConstraintMonitorTests extends ESTestCase {
     )
     public void testRerouteIsNotCalledWhenDeciderIsNotEnabled() {
         final TestState testState = createRandomTestStateThatWillTriggerReroute();
+        final RecordingMeterRegistry recordingMeterRegistry = new RecordingMeterRegistry();
         final WriteLoadConstraintMonitor writeLoadConstraintMonitor = new WriteLoadConstraintMonitor(
             createClusterSettings(
                 randomValueOtherThan(
@@ -109,7 +133,8 @@ public class WriteLoadConstraintMonitorTests extends ESTestCase {
             ),
             testState.currentTimeSupplier,
             () -> testState.clusterState,
-            testState.mockRerouteService
+            testState.mockRerouteService,
+            recordingMeterRegistry
         );
 
         try (MockLog mockLog = MockLog.capture(WriteLoadConstraintMonitor.class)) {
@@ -126,6 +151,9 @@ public class WriteLoadConstraintMonitorTests extends ESTestCase {
             mockLog.assertAllExpectationsMatched();
             verifyNoInteractions(testState.mockRerouteService);
         }
+
+        recordingMeterRegistry.getRecorder().collect();
+        assertMetricsCollected(recordingMeterRegistry, List.of(0L), List.of());
     }
 
     @TestLogging(
@@ -134,11 +162,13 @@ public class WriteLoadConstraintMonitorTests extends ESTestCase {
     )
     public void testRerouteIsNotCalledWhenNoNodesAreHotSpotting() {
         final TestState testState = createRandomTestStateThatWillTriggerReroute();
+        final RecordingMeterRegistry recordingMeterRegistry = new RecordingMeterRegistry();
         final WriteLoadConstraintMonitor writeLoadConstraintMonitor = new WriteLoadConstraintMonitor(
             testState.clusterSettings,
             testState.currentTimeSupplier,
             () -> testState.clusterState,
-            testState.mockRerouteService
+            testState.mockRerouteService,
+            recordingMeterRegistry
         );
 
         try (MockLog mockLog = MockLog.capture(WriteLoadConstraintMonitor.class)) {
@@ -162,6 +192,9 @@ public class WriteLoadConstraintMonitorTests extends ESTestCase {
             mockLog.assertAllExpectationsMatched();
             verifyNoInteractions(testState.mockRerouteService);
         }
+
+        recordingMeterRegistry.getRecorder().collect();
+        assertMetricsCollected(recordingMeterRegistry, List.of(0L), List.of());
     }
 
     @TestLogging(
@@ -170,6 +203,7 @@ public class WriteLoadConstraintMonitorTests extends ESTestCase {
     )
     public void testRerouteIsNotCalledInAnAllNodesAreHotSpottingCluster() {
         final int numberOfIndexNodes = randomIntBetween(1, 5);
+        final RecordingMeterRegistry recordingMeterRegistry = new RecordingMeterRegistry();
         final TestState testState = createTestStateWithNumberOfNodesAndHotSpots(
             numberOfIndexNodes,
             randomIntBetween(1, 5), // Search nodes should not be considered to address write load hot-spots.
@@ -180,7 +214,8 @@ public class WriteLoadConstraintMonitorTests extends ESTestCase {
             testState.clusterSettings,
             testState.currentTimeSupplier,
             () -> testState.clusterState,
-            testState.mockRerouteService
+            testState.mockRerouteService,
+            recordingMeterRegistry
         );
         try (MockLog mockLog = MockLog.capture(WriteLoadConstraintMonitor.class)) {
             mockLog.addExpectation(
@@ -204,6 +239,9 @@ public class WriteLoadConstraintMonitorTests extends ESTestCase {
             mockLog.assertAllExpectationsMatched();
             verifyNoInteractions(testState.mockRerouteService);
         }
+
+        recordingMeterRegistry.getRecorder().collect();
+        assertMetricsCollected(recordingMeterRegistry, List.of(0L), List.of());
     }
 
     @TestLogging(
@@ -219,17 +257,22 @@ public class WriteLoadConstraintMonitorTests extends ESTestCase {
         final long nowMillis = System.currentTimeMillis();
         final AtomicLong currentTimeMillis = new AtomicLong(nowMillis);
 
+        final RecordingMeterRegistry recordingMeterRegistry = new RecordingMeterRegistry();
         final WriteLoadConstraintMonitor writeLoadConstraintMonitor = new WriteLoadConstraintMonitor(
             testState.clusterSettings,
             currentTimeMillis::get,
             () -> testState.clusterState,
-            testState.mockRerouteService
+            testState.mockRerouteService,
+            recordingMeterRegistry
         );
 
         // We should trigger a re-route @ nowMillis
         writeLoadConstraintMonitor.onNewInfo(testState.clusterInfo);
         verify(testState.mockRerouteService).reroute(anyString(), eq(Priority.NORMAL), any());
         reset(testState.mockRerouteService);
+
+        recordingMeterRegistry.getRecorder().collect();
+        assertMetricsCollected(recordingMeterRegistry, List.of((long) testState.hotspotNodeIds().size()), List.of());
 
         while (currentTimeMillis.get() < nowMillis + minimumInterval.millis()) {
             try (MockLog mockLog = MockLog.capture(WriteLoadConstraintMonitor.class)) {
@@ -252,6 +295,13 @@ public class WriteLoadConstraintMonitorTests extends ESTestCase {
         // We're now passed the minimum interval
         writeLoadConstraintMonitor.onNewInfo(testState.clusterInfo);
         verify(testState.mockRerouteService).reroute(anyString(), eq(Priority.NORMAL), any());
+
+        recordingMeterRegistry.getRecorder().collect();
+        assertMetricsCollected(
+            recordingMeterRegistry,
+            List.of((long) testState.hotspotNodeIds().size(), (long) testState.hotspotNodeIds().size()),
+            List.of()
+        );
     }
 
     @TestLogging(
@@ -266,17 +316,22 @@ public class WriteLoadConstraintMonitorTests extends ESTestCase {
         );
         assertThat(minimumInterval, greaterThan(TimeValue.ZERO));
 
+        final RecordingMeterRegistry recordingMeterRegistry = new RecordingMeterRegistry();
         final WriteLoadConstraintMonitor writeLoadConstraintMonitor = new WriteLoadConstraintMonitor(
             testState.clusterSettings,
             currentTimeMillis::get,
             () -> testState.clusterState,
-            testState.mockRerouteService
+            testState.mockRerouteService,
+            recordingMeterRegistry
         );
 
         // We should trigger a re-route @ currentTime
         writeLoadConstraintMonitor.onNewInfo(testState.clusterInfo);
         verify(testState.mockRerouteService).reroute(anyString(), eq(Priority.NORMAL), any());
         reset(testState.mockRerouteService);
+
+        recordingMeterRegistry.getRecorder().collect();
+        assertMetricsCollected(recordingMeterRegistry, List.of((long) testState.hotspotNodeIds().size()), List.of());
 
         // Now update cluster info to add another hot-spotted node
         final AtomicBoolean thresholdIncreased = new AtomicBoolean(false);
@@ -315,6 +370,93 @@ public class WriteLoadConstraintMonitorTests extends ESTestCase {
         // We should reroute again despite the minimum interval not having passed
         writeLoadConstraintMonitor.onNewInfo(ClusterInfo.builder().nodeUsageStatsForThreadPools(nodeUsageStatsWithExtraHotSpot).build());
         verify(testState.mockRerouteService).reroute(anyString(), eq(Priority.NORMAL), any());
+
+        recordingMeterRegistry.getRecorder().collect();
+        assertMetricsCollected(
+            recordingMeterRegistry,
+            List.of((long) testState.hotspotNodeIds().size(), (long) testState.hotspotNodeIds().size() + 1),
+            List.of()
+        );
+    }
+
+    public void testHotspotDurationsAreRecorded() {
+        TestState testState = createTestStateWithNumberOfNodesAndHotSpots(10, 1, 1, 5);
+
+        final long nowMillis = System.currentTimeMillis();
+        final AtomicLong currentTimeMillis = new AtomicLong(nowMillis);
+        final ClusterState clusterState = testState.clusterState();
+
+        final RecordingMeterRegistry recordingMeterRegistry = new RecordingMeterRegistry();
+        final WriteLoadConstraintMonitor writeLoadConstraintMonitor = new WriteLoadConstraintMonitor(
+            testState.clusterSettings,
+            currentTimeMillis::get,
+            () -> clusterState,
+            testState.mockRerouteService,
+            recordingMeterRegistry
+        );
+
+        final Set<String> firstWaveHotspotNodes = testState.hotspotNodeIds();
+        final String removeHotspotId = randomSubsetOf(1, testState.hotspotNodeIds()).get(0);
+        final List<Long> hotspotSizes = new ArrayList<>();
+        hotspotSizes.add((long) testState.hotspotNodeIds().size());
+
+        writeLoadConstraintMonitor.onNewInfo(testState.clusterInfo);
+        verify(testState.mockRerouteService).reroute(anyString(), eq(Priority.NORMAL), any());
+        reset(testState.mockRerouteService);
+
+        // check hotspot currently is set up in the counter
+        recordingMeterRegistry.getRecorder().collect();
+        assertMetricsCollected(recordingMeterRegistry, hotspotSizes, List.of());
+
+        // add a node, and see hotspot count go up
+        long millisAddedFirst = randomLongBetween(500, 1_000);
+        currentTimeMillis.addAndGet(millisAddedFirst);
+        testState = testState.addToClusterInfoHotspot(1);
+        hotspotSizes.add((long) testState.hotspotNodeIds().size());
+
+        writeLoadConstraintMonitor.onNewInfo(testState.clusterInfo());
+        verify(testState.mockRerouteService).reroute(anyString(), eq(Priority.NORMAL), any());
+        reset(testState.mockRerouteService);
+
+        recordingMeterRegistry.getRecorder().collect();
+        assertMetricsCollected(recordingMeterRegistry, hotspotSizes, List.of());
+
+        // remove a node, and see the count go down and a duration issued
+        long millisAddedSecond = randomLongBetween(500, 1_000);
+        currentTimeMillis.addAndGet(millisAddedSecond);
+        testState = testState.removeFromClusterInfoHotspot(List.of(removeHotspotId));
+        hotspotSizes.add((long) testState.hotspotNodeIds().size());
+
+        writeLoadConstraintMonitor.onNewInfo(testState.clusterInfo());
+        recordingMeterRegistry.getRecorder().collect();
+        assertMetricsCollected(recordingMeterRegistry, hotspotSizes, List.of((millisAddedFirst + millisAddedSecond) / 1000.0));
+
+        // remove all the nodes from the first series, and see all but one durations issued
+        long millisAddedThird = randomLongBetween(500, 1_000);
+        currentTimeMillis.addAndGet(millisAddedThird);
+        testState = testState.removeFromClusterInfoHotspot(firstWaveHotspotNodes);
+        hotspotSizes.add(1L);
+
+        writeLoadConstraintMonitor.onNewInfo(testState.clusterInfo());
+
+        List<Double> hotspotDurations = new ArrayList<>();
+        hotspotDurations.add((millisAddedFirst + millisAddedSecond) / 1000.0);
+        for (int i = 0; i < firstWaveHotspotNodes.size() - 1; i++) {
+            hotspotDurations.add((millisAddedFirst + millisAddedSecond + millisAddedThird) / 1000.0);
+        }
+        recordingMeterRegistry.getRecorder().collect();
+        assertMetricsCollected(recordingMeterRegistry, hotspotSizes, hotspotDurations);
+
+        // remove the last node from the series, and see the last duration issued
+        long millisAddedFourth = randomLongBetween(500, 1_000);
+        currentTimeMillis.addAndGet(millisAddedFourth);
+        testState = testState.removeFromClusterInfoHotspot(testState.hotspotNodeIds());
+        hotspotSizes.add(0L);
+
+        writeLoadConstraintMonitor.onNewInfo(testState.clusterInfo());
+        hotspotDurations.add((millisAddedSecond + millisAddedThird + millisAddedFourth) / 1000.0);
+        recordingMeterRegistry.getRecorder().collect();
+        assertMetricsCollected(recordingMeterRegistry, hotspotSizes, hotspotDurations);
     }
 
     private boolean indexingNodeBelowQueueLatencyThreshold(
@@ -365,9 +507,11 @@ public class WriteLoadConstraintMonitorTests extends ESTestCase {
         );
 
         final RerouteService rerouteService = mock(RerouteService.class);
+
+        final Set<String> hotspotNodes = new HashSet<>(randomSubsetOf(randomIntBetween(1, numberOfHotSpottingNodes), indexNodeIds(state)));
         final ClusterInfo clusterInfo = createClusterInfoWithHotSpots(
             state,
-            randomIntBetween(1, numberOfHotSpottingNodes),
+            hotspotNodes,
             queueLatencyThresholdMillis,
             highUtilizationThresholdPercent
         );
@@ -375,12 +519,21 @@ public class WriteLoadConstraintMonitorTests extends ESTestCase {
             queueLatencyThresholdMillis,
             highUtilizationThresholdPercent,
             numberOfIndexNodes,
+            hotspotNodes,
             clusterSettings,
             System::currentTimeMillis,
             state,
             rerouteService,
             clusterInfo
         );
+    }
+
+    private static Set<String> indexNodeIds(ClusterState clusterState) {
+        return clusterState.nodes()
+            .stream()
+            .filter(node -> node.getRoles().contains(DiscoveryNodeRole.INDEX_ROLE))
+            .map(node -> node.getId())
+            .collect(Collectors.toSet());
     }
 
     private static ClusterSettings createClusterSettings(
@@ -425,26 +578,33 @@ public class WriteLoadConstraintMonitorTests extends ESTestCase {
         long queueLatencyThresholdMillis,
         int highUtilizationThresholdPercent
     ) {
-        assert numberOfNodesHotSpotting <= state.getNodes()
-            .stream()
-            .filter(node -> node.getRoles().contains(DiscoveryNodeRole.INDEX_ROLE))
-            .toList()
-            .size()
+        Set<String> nodeIds = indexNodeIds(state);
+        assert numberOfNodesHotSpotting <= nodeIds.size()
             : "Requested "
                 + numberOfNodesHotSpotting
                 + " hot spotting nodes, but there are only "
-                + state.getRoutingNodes().size()
+                + nodeIds.size()
                 + " nodes in the cluster";
 
+        final Set<String> hotspotNodes = new HashSet<>(randomSubsetOf(numberOfNodesHotSpotting, nodeIds));
+        return createClusterInfoWithHotSpots(state, hotspotNodes, queueLatencyThresholdMillis, highUtilizationThresholdPercent);
+    }
+
+    private static ClusterInfo createClusterInfoWithHotSpots(
+        ClusterState state,
+        Set<String> hotspotNodes,
+        long queueLatencyThresholdMillis,
+        int highUtilizationThresholdPercent
+    ) {
+        final Set<String> hotspotNodesSet = new HashSet<>(hotspotNodes);
         final float maxRatioForUnderUtilised = (highUtilizationThresholdPercent - 1) / 100.0f;
-        final AtomicInteger hotSpottingNodes = new AtomicInteger(numberOfNodesHotSpotting);
-        return ClusterInfo.builder()
+        ClusterInfo clusterInfo = ClusterInfo.builder()
             .nodeUsageStatsForThreadPools(state.nodes().stream().collect(Collectors.toMap(DiscoveryNode::getId, node -> {
                 if (node.getRoles().contains(DiscoveryNodeRole.SEARCH_ROLE) || node.getRoles().contains(DiscoveryNodeRole.ML_ROLE)) {
                     // Search & ML nodes are skipped for write load hot-spots.
                     return new NodeUsageStatsForThreadPools(node.getId(), ZERO_USAGE_THREAD_POOL_USAGE_MAP);
                 }
-                if (hotSpottingNodes.getAndDecrement() > 0) {
+                if (hotspotNodesSet.remove(node.getId())) {
                     // hot-spotting node
                     return new NodeUsageStatsForThreadPools(
                         node.getId(),
@@ -473,21 +633,88 @@ public class WriteLoadConstraintMonitorTests extends ESTestCase {
                 }
             })))
             .build();
+
+        assert hotspotNodesSet.isEmpty() : "hotspot nodes set should be empty";
+        return clusterInfo;
     }
 
     private record TestState(
         long latencyThresholdMillis,
         int highUtilizationThresholdPercent,
         int numberOfNodes,
+        Set<String> hotspotNodeIds,
         ClusterSettings clusterSettings,
         LongSupplier currentTimeSupplier,
         ClusterState clusterState,
         RerouteService mockRerouteService,
         ClusterInfo clusterInfo
-    ) {}
+    ) {
+        private TestState addToClusterInfoHotspot(int addHotspotNodes) {
+            Set<String> nodeIds = indexNodeIds(clusterState);
+            Set<String> newHotspotNodeIds = new HashSet<>(randomSubsetOf(addHotspotNodes, Sets.difference(nodeIds, hotspotNodeIds)));
+            newHotspotNodeIds.addAll(hotspotNodeIds);
+
+            return new TestState(
+                latencyThresholdMillis,
+                highUtilizationThresholdPercent,
+                numberOfNodes,
+                newHotspotNodeIds,
+                clusterSettings,
+                currentTimeSupplier,
+                clusterState,
+                mockRerouteService,
+                createClusterInfoWithHotSpots(clusterState, newHotspotNodeIds, latencyThresholdMillis, highUtilizationThresholdPercent)
+            );
+        }
+
+        private TestState removeFromClusterInfoHotspot(Collection<String> removeHotspotNodes) {
+            Set<String> newHotspotNodeIds = new HashSet<>(hotspotNodeIds);
+            newHotspotNodeIds.removeAll(removeHotspotNodes);
+
+            return new TestState(
+                latencyThresholdMillis,
+                highUtilizationThresholdPercent,
+                numberOfNodes,
+                newHotspotNodeIds,
+                clusterSettings,
+                currentTimeSupplier,
+                clusterState,
+                mockRerouteService,
+                createClusterInfoWithHotSpots(clusterState, newHotspotNodeIds, latencyThresholdMillis, highUtilizationThresholdPercent)
+            );
+        }
+    }
 
     public static final Map<String, NodeUsageStatsForThreadPools.ThreadPoolUsageStats> ZERO_USAGE_THREAD_POOL_USAGE_MAP = Map.of(
         ThreadPool.Names.WRITE,
         new NodeUsageStatsForThreadPools.ThreadPoolUsageStats(5, 0, 0)
     );
+
+    private void assertMetricsCollected(
+        RecordingMeterRegistry recordingMeterRegistry,
+        List<Long> hotspotCounts,
+        List<Double> hotspotDurations
+    ) {
+        MetricRecorder<Instrument> metricRecorder = recordingMeterRegistry.getRecorder();
+
+        List<Measurement> measuredHotspotCounts = metricRecorder.getMeasurements(
+            InstrumentType.LONG_GAUGE,
+            HOTSPOT_NODES_COUNT_METRIC_NAME
+        );
+        List<Long> measuredHotspotCountValues = Measurement.getMeasurementValues(
+            measuredHotspotCounts,
+            (measurement -> measurement.getLong())
+        );
+        assertEquals(hotspotCounts, measuredHotspotCountValues);
+
+        List<Measurement> measuredHotspotDurations = metricRecorder.getMeasurements(
+            InstrumentType.DOUBLE_HISTOGRAM,
+            HOTSPOT_DURATION_METRIC_NAME
+        );
+        List<Double> measuredHotspotDurationValues = Measurement.getMeasurementValues(
+            measuredHotspotDurations,
+            (measurement -> measurement.getDouble())
+        );
+        assertEquals(hotspotDurations, measuredHotspotDurationValues);
+    }
 }

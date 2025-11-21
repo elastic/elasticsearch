@@ -21,9 +21,9 @@ import org.elasticsearch.xpack.core.inference.chunking.ChunkerBuilder;
 import org.elasticsearch.xpack.core.inference.chunking.ChunkingSettingsBuilder;
 import org.elasticsearch.xpack.core.inference.chunking.ChunkingSettingsOptions;
 import org.elasticsearch.xpack.core.inference.chunking.SentenceBoundaryChunkingSettings;
-import org.elasticsearch.xpack.esql.core.InvalidArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
+import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.MapExpression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -34,7 +34,6 @@ import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecyc
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.MapParam;
 import org.elasticsearch.xpack.esql.expression.function.OptionalArgument;
-import org.elasticsearch.xpack.esql.expression.function.Options;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlScalarFunction;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
@@ -47,7 +46,6 @@ import java.util.stream.Collectors;
 
 import static java.util.Map.entry;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.FIRST;
-import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.SECOND;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isString;
 
 public class Chunk extends EsqlScalarFunction implements OptionalArgument {
@@ -130,21 +128,35 @@ public class Chunk extends EsqlScalarFunction implements OptionalArgument {
             return new TypeResolution("Unresolved children");
         }
 
-        return isString(field(), sourceText(), FIRST).and(
-            Options.resolve(chunkingSettings, source(), SECOND, ALLOWED_CHUNKING_SETTING_OPTIONS, this::validateChunkingSettings)
-        );
+        return isString(field(), sourceText(), FIRST).and(this::validateChunkingSettings);
     }
 
-    private void validateChunkingSettings(Map<String, Object> chunkingSettingsMap) {
+    private TypeResolution validateChunkingSettings() {
         if (chunkingSettings == null) {
-            return;
+            return TypeResolution.TYPE_RESOLVED;
+        }
+        if (chunkingSettings instanceof MapExpression == false) {
+            return new TypeResolution("invalid chunking_settings, found [" + chunkingSettings.sourceText() + "]");
+        }
+        MapExpression chunkingSettingsMap = (MapExpression) chunkingSettings;
+        var errors = chunkingSettingsMap.keyFoldedMap()
+            .entrySet()
+            .stream()
+            .filter(e -> e.getValue() instanceof Literal == false)
+            .map(e -> "invalid option for [" + e.getKey() + "], expected a constant, found [" + e.getValue().dataType() + "]")
+            .toList();
+
+        if (errors.isEmpty() == false) {
+            return new TypeResolution(String.join("; ", errors));
         }
 
         try {
             toChunkingSettings(chunkingSettingsMap);
         } catch (IllegalArgumentException e) {
-            throw new InvalidArgumentException(e.getMessage(), e);
+            return new TypeResolution(e.getMessage());
         }
+
+        return TypeResolution.TYPE_RESOLVED;
     }
 
     @Override
@@ -221,11 +233,17 @@ public class Chunk extends EsqlScalarFunction implements OptionalArgument {
         return new ChunkBytesRefEvaluator.Factory(source(), toEvaluator.apply(field), chunkingSettings);
     }
 
-    // TODO remove?
     private static ChunkingSettings toChunkingSettings(MapExpression map) {
         Map<String, Object> chunkingSettingsMap = map.keyFoldedMap().entrySet().stream().collect(Collectors.toMap(Map.Entry::getKey, e -> {
             Object value = e.getValue().fold(FoldContext.small());
-            return value instanceof BytesRef ? ((BytesRef) value).utf8ToString() : value;
+            if (value instanceof BytesRef bytesRef) {
+                return bytesRef.utf8ToString();
+            } else if (value instanceof List<?> list) {
+                return list.stream()
+                    .map(item -> item instanceof BytesRef ? ((BytesRef) item).utf8ToString() : item)
+                    .toList();
+            }
+            return value;
         }));
         return ChunkingSettingsBuilder.fromMap(chunkingSettingsMap);
     }

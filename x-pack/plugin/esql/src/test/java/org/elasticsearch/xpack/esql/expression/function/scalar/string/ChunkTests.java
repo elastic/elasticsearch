@@ -11,6 +11,7 @@ import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.inference.ChunkingSettings;
@@ -104,9 +105,18 @@ public class ChunkTests extends AbstractScalarFunctionTestCase {
         List<Expression> chunkingSettingsMap = new ArrayList<>();
 
         if (Objects.nonNull(chunkingSettings)) {
-            chunkingSettings.asMap().forEach((key, value) -> {
-                chunkingSettingsMap.add(Literal.keyword(Source.EMPTY, key));
-                chunkingSettingsMap.add(new Literal(Source.EMPTY, value, ALLOWED_CHUNKING_SETTING_OPTIONS.get(key)));
+            chunkingSettings.asMap().forEach((k, v) -> {
+                chunkingSettingsMap.add(Literal.keyword(Source.EMPTY, k));
+                DataType dataType = ALLOWED_CHUNKING_SETTING_OPTIONS.get(k);
+                Object value = v;
+                if (dataType == DataType.KEYWORD) {
+                    if (v instanceof List<?> list) {
+                        value = list.stream().map(item -> BytesRefs.toBytesRef(item)).toList();
+                    } else if (v instanceof String str) {
+                        value = BytesRefs.toBytesRef(str);
+                    }
+                }
+                chunkingSettingsMap.add(new Literal(Source.EMPTY, value, dataType));
             });
         }
 

@@ -3322,7 +3322,7 @@ public class VerifierTests extends ESTestCase {
         if (EsqlCapabilities.Cap.CHUNK_FUNCTION_V2.isEnabled()) {
             assertThat(
                 error("from test | EVAL chunks = CHUNK(body, null)", fullTextAnalyzer, VerificationException.class),
-                equalTo("1:27: second argument of [CHUNK(body, null)] cannot be null, received [null]")
+                equalTo("1:27: invalid chunking_settings, found [null]")
             );
             assertThat(
                 error("from test | EVAL chunks = CHUNK(body, {\"strategy\": \"invalid\"})", fullTextAnalyzer, VerificationException.class),

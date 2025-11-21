@@ -1,0 +1,7 @@
+pr: 138437
+summary: Backported a small 3-line fix to 8.15 and 8.14 to fix mixed-cluster tests
+  for 8.19
+area: Geo
+type: bug
+issues:
+ - 137334

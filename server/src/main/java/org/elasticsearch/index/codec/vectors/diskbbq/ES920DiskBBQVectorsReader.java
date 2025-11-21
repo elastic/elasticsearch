@@ -27,7 +27,6 @@ import org.elasticsearch.simdvec.ES92Int7VectorsScorer;
 import org.elasticsearch.simdvec.ESVectorUtil;
 
 import java.io.IOException;
-import java.util.Map;
 
 import static org.apache.lucene.codecs.lucene102.Lucene102BinaryQuantizedVectorsFormat.QUERY_BITS;
 import static org.apache.lucene.index.VectorSimilarityFunction.COSINE;

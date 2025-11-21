@@ -420,6 +420,9 @@ tests:
 - class: org.elasticsearch.xpack.security.authc.jwt.JwtRealmAuthenticateTests
   method: testJwkUpdatesByReloadWithFile
   issue: https://github.com/elastic/elasticsearch/issues/138397
+- class: org.elasticsearch.compute.data.ExponentialHistogramBlockTests
+  method: testComponentAccess
+  issue: https://github.com/elastic/elasticsearch/issues/138399
 
 # Examples:
 #

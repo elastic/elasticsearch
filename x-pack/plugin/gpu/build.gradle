@@ -15,13 +15,12 @@ base {
 dependencies {
   compileOnly project(path: xpackModule('core'))
   compileOnly project(':server')
-  implementation("com.nvidia.cuvs:cuvs-java:${versions.cuvs_java}")
   implementation project(':libs:gpu-codec')
 
   testImplementation(testArtifact(project(xpackModule('core'))))
   testImplementation(testArtifact(project(':server')))
   yamlRestTestImplementation project(':libs:gpu-codec')
-  internalClusterTestImplementation('com.nvidia.cuvs:cuvs-java:25.10.0')
+  internalClusterTestImplementation("com.nvidia.cuvs:cuvs-java:${versions.cuvs_java}")
 
   clusterModules project(xpackModule('gpu'))
 }

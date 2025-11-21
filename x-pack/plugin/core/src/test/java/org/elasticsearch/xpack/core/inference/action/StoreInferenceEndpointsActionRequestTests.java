@@ -12,6 +12,7 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.inference.EmptySecretSettings;
 import org.elasticsearch.inference.EmptyTaskSettings;
+import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.SecretSettings;
 import org.elasticsearch.inference.TaskSettings;
 import org.elasticsearch.xpack.core.XPackClientPlugin;
@@ -43,7 +44,7 @@ public class StoreInferenceEndpointsActionRequestTests extends AbstractBWCWireSe
 
     @Override
     protected StoreInferenceEndpointsAction.Request mutateInstance(StoreInferenceEndpointsAction.Request instance) throws IOException {
-        var newModels = new ArrayList<>(instance.getModels());
+        var newModels = new ArrayList<Model>(instance.getModels());
         newModels.add(ModelTests.randomModel());
         return new StoreInferenceEndpointsAction.Request(newModels, instance.masterNodeTimeout());
     }

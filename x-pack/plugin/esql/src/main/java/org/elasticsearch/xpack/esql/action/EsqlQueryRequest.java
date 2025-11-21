@@ -218,24 +218,27 @@ public class EsqlQueryRequest extends org.elasticsearch.xpack.core.esql.action.E
         return waitForCompletionTimeout;
     }
 
-    public void waitForCompletionTimeout(TimeValue waitForCompletionTimeout) {
+    public EsqlQueryRequest waitForCompletionTimeout(TimeValue waitForCompletionTimeout) {
         this.waitForCompletionTimeout = waitForCompletionTimeout;
+        return this;
     }
 
     public TimeValue keepAlive() {
         return keepAlive;
     }
 
-    public void keepAlive(TimeValue keepAlive) {
+    public EsqlQueryRequest keepAlive(TimeValue keepAlive) {
         this.keepAlive = keepAlive;
+        return this;
     }
 
     public boolean keepOnCompletion() {
         return keepOnCompletion;
     }
 
-    public void keepOnCompletion(boolean keepOnCompletion) {
+    public EsqlQueryRequest keepOnCompletion(boolean keepOnCompletion) {
         this.keepOnCompletion = keepOnCompletion;
+        return this;
     }
 
     /**

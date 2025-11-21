@@ -33,7 +33,8 @@ import static org.elasticsearch.xpack.core.ClientHelper.DEPRECATION_ORIGIN;
 public class DeprecationIndexingTemplateRegistry extends IndexTemplateRegistry {
     // history (please add a comment why you increased the version here)
     // version 1: initial
-    public static final int INDEX_TEMPLATE_VERSION = 1;
+    // version 2: bump to fix https://github.com/elastic/sdh-elasticsearch/issues/9371
+    public static final int INDEX_TEMPLATE_VERSION = 2;
 
     public static final String DEPRECATION_INDEXING_TEMPLATE_VERSION_VARIABLE = "xpack.deprecation.indexing.template.version";
 

@@ -76,6 +76,7 @@ public class AsyncSearchErrorTraceIT extends AsyncSearchIntegTestCase {
             """);
         createAsyncRequest.addParameter("keep_on_completion", "true");
         createAsyncRequest.addParameter("wait_for_completion_timeout", "0ms");
+        ErrorTraceHelper.expectStackTraceCleared(internalCluster());
         Map<String, Object> createAsyncResponseEntity = performRequestAndGetResponseEntity(createAsyncRequest);
 
         try {
@@ -87,8 +88,6 @@ public class AsyncSearchErrorTraceIT extends AsyncSearchIntegTestCase {
         } finally {
             deleteAsyncSearchIfPresent(createAsyncResponseEntity);
         }
-        // check that the stack trace was not sent from the data node to the coordinating node
-        ErrorTraceHelper.assertStackTraceCleared(internalCluster());
     }
 
     public void testAsyncSearchFailingQueryErrorTraceTrue() throws Exception {
@@ -108,6 +107,7 @@ public class AsyncSearchErrorTraceIT extends AsyncSearchIntegTestCase {
         createAsyncRequest.addParameter("error_trace", "true");
         createAsyncRequest.addParameter("keep_on_completion", "true");
         createAsyncRequest.addParameter("wait_for_completion_timeout", "0ms");
+        ErrorTraceHelper.expectStackTraceObserved(internalCluster());
         Map<String, Object> createAsyncResponseEntity = performRequestAndGetResponseEntity(createAsyncRequest);
 
         try {
@@ -120,8 +120,6 @@ public class AsyncSearchErrorTraceIT extends AsyncSearchIntegTestCase {
         } finally {
             deleteAsyncSearchIfPresent(createAsyncResponseEntity);
         }
-        // check that the stack trace was sent from the data node to the coordinating node
-        ErrorTraceHelper.assertStackTraceObserved(internalCluster());
     }
 
     public void testAsyncSearchFailingQueryErrorTraceFalse() throws Exception {
@@ -141,6 +139,7 @@ public class AsyncSearchErrorTraceIT extends AsyncSearchIntegTestCase {
         createAsyncRequest.addParameter("error_trace", "false");
         createAsyncRequest.addParameter("keep_on_completion", "true");
         createAsyncRequest.addParameter("wait_for_completion_timeout", "0ms");
+        ErrorTraceHelper.expectStackTraceCleared(internalCluster());
         Map<String, Object> createAsyncResponseEntity = performRequestAndGetResponseEntity(createAsyncRequest);
 
         try {
@@ -153,8 +152,6 @@ public class AsyncSearchErrorTraceIT extends AsyncSearchIntegTestCase {
         } finally {
             deleteAsyncSearchIfPresent(createAsyncResponseEntity);
         }
-        // check that the stack trace was not sent from the data node to the coordinating node
-        ErrorTraceHelper.assertStackTraceCleared(internalCluster());
     }
 
     public void testDataNodeLogsStackTrace() throws Exception {
@@ -226,6 +223,7 @@ public class AsyncSearchErrorTraceIT extends AsyncSearchIntegTestCase {
         createAsyncSearchRequest.addParameter("error_trace", "false");
         createAsyncSearchRequest.addParameter("keep_on_completion", "true");
         createAsyncSearchRequest.addParameter("wait_for_completion_timeout", "0ms");
+        ErrorTraceHelper.expectStackTraceCleared(internalCluster());
         Map<String, Object> createAsyncResponseEntity = performRequestAndGetResponseEntity(createAsyncSearchRequest);
 
         try {
@@ -238,8 +236,6 @@ public class AsyncSearchErrorTraceIT extends AsyncSearchIntegTestCase {
         } finally {
             deleteAsyncSearchIfPresent(createAsyncResponseEntity);
         }
-        // check that the stack trace was not sent from the data node to the coordinating node
-        ErrorTraceHelper.assertStackTraceCleared(internalCluster());
     }
 
     public void testAsyncSearchFailingQueryErrorTraceTrueOnSubmitAndFalseOnGet() throws Exception {
@@ -259,6 +255,7 @@ public class AsyncSearchErrorTraceIT extends AsyncSearchIntegTestCase {
         createAsyncSearchRequest.addParameter("error_trace", "true");
         createAsyncSearchRequest.addParameter("keep_on_completion", "true");
         createAsyncSearchRequest.addParameter("wait_for_completion_timeout", "0ms");
+        ErrorTraceHelper.expectStackTraceObserved(internalCluster());
         Map<String, Object> createAsyncResponseEntity = performRequestAndGetResponseEntity(createAsyncSearchRequest);
         try {
             if (Boolean.TRUE.equals(createAsyncResponseEntity.get("is_running"))) {
@@ -270,8 +267,6 @@ public class AsyncSearchErrorTraceIT extends AsyncSearchIntegTestCase {
         } finally {
             deleteAsyncSearchIfPresent(createAsyncResponseEntity);
         }
-        // check that the stack trace was sent from the data node to the coordinating node
-        ErrorTraceHelper.assertStackTraceObserved(internalCluster());
     }
 
     private Map<String, Object> performRequestAndGetResponseEntity(Request r) throws IOException {

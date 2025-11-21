@@ -18,7 +18,7 @@ import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.io.IOException;
 
-import static org.elasticsearch.xpack.downsample.LabelFieldProducerTests.createValuesInstance;
+import static org.elasticsearch.xpack.downsample.LastValueFieldProducerTests.createValuesInstance;
 
 public class MetricFieldProducerTests extends AggregatorTestCase {
 
@@ -34,7 +34,7 @@ public class MetricFieldProducerTests extends AggregatorTestCase {
         assertEquals(Double.MAX_VALUE, aggregateMetricFieldProducer.min, 0);
 
         instance = MetricFieldProducer.createFieldProducerForGauge(randomAlphaOfLength(10), DownsampleConfig.SamplingMethod.LAST_VALUE);
-        var lastValueProducer = (LabelFieldProducer) instance;
+        var lastValueProducer = (LastValueFieldProducer) instance;
         assertNull(lastValueProducer.lastValue());
         docIdBuffer = IntArrayList.from(0, 1, 2, 3);
         var values = createValuesInstance(docIdBuffer, new Double[] { 40D, 5.5, 12.2, 55D });
@@ -56,7 +56,7 @@ public class MetricFieldProducerTests extends AggregatorTestCase {
         assertEquals(-Double.MAX_VALUE, aggregateMetricFieldProducer.max, 0);
 
         instance = MetricFieldProducer.createFieldProducerForGauge(randomAlphaOfLength(10), DownsampleConfig.SamplingMethod.LAST_VALUE);
-        var lastValueProducer = (LabelFieldProducer) instance;
+        var lastValueProducer = (LastValueFieldProducer) instance;
         assertNull(lastValueProducer.lastValue());
         docIdBuffer = IntArrayList.from(0, 1, 2);
         var values = createValuesInstance(docIdBuffer, new Double[] { 5.5, 12.2, 55D });
@@ -78,7 +78,7 @@ public class MetricFieldProducerTests extends AggregatorTestCase {
         assertEquals(0, aggregateMetricFieldProducer.sum.value(), 0);
 
         instance = MetricFieldProducer.createFieldProducerForGauge(randomAlphaOfLength(10), DownsampleConfig.SamplingMethod.LAST_VALUE);
-        var lastValueProducer = (LabelFieldProducer) instance;
+        var lastValueProducer = (LastValueFieldProducer) instance;
         assertNull(lastValueProducer.lastValue());
         docIdBuffer = IntArrayList.from(0, 1, 2);
         var values = createValuesInstance(docIdBuffer, new Double[] { 5.5, 12.2, 55D });
@@ -176,7 +176,7 @@ public class MetricFieldProducerTests extends AggregatorTestCase {
         assertEquals(0, aggregateMetricFieldProducer.count);
 
         instance = MetricFieldProducer.createFieldProducerForGauge(randomAlphaOfLength(10), DownsampleConfig.SamplingMethod.LAST_VALUE);
-        var lastValueProducer = (LabelFieldProducer) instance;
+        var lastValueProducer = (LastValueFieldProducer) instance;
         assertNull(lastValueProducer.lastValue());
         docIdBuffer = IntArrayList.from(0, 1, 2);
         var values = createValuesInstance(docIdBuffer, new Integer[] { 40, 30, 20 });
@@ -188,7 +188,7 @@ public class MetricFieldProducerTests extends AggregatorTestCase {
 
     public void testCounterMetricFieldProducer() throws IOException {
         final String field = "field";
-        var producer = LabelFieldProducer.createForMetric(field);
+        var producer = LastValueFieldProducer.createForMetric(field);
         assertTrue(producer.isEmpty());
         var docIdBuffer = IntArrayList.from(0, 1, 2);
         var valuesInstance = createValuesInstance(docIdBuffer, new Double[] { 55.0, 12.2, 5.5 });

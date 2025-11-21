@@ -58,7 +58,7 @@ final class AggregateMetricFieldSerializer implements DownsampleFieldSerializer 
                         case value_count -> builder.field("value_count", producer.count);
                     }
                 }
-                case LabelFieldProducer.AggregateSubMetricFieldProducer lastValueFieldProducer -> {
+                case LastValueFieldProducer.AggregateSubMetricFieldProducer lastValueFieldProducer -> {
                     Object lastValue = lastValueFieldProducer.lastValue();
                     if (lastValue != null) {
                         builder.field(lastValueFieldProducer.subMetric(), lastValue);

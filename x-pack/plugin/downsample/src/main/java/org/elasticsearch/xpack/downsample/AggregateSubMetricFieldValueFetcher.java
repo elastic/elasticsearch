@@ -81,11 +81,11 @@ public final class AggregateSubMetricFieldValueFetcher extends FieldValueFetcher
                 // for each aggregation. This is a downsample-of-downsample case
                 return new MetricFieldProducer.AggregateSubMetricFieldProducer(aggMetricFieldType.name(), metric);
             } else {
-                return LabelFieldProducer.createForAggregateSubMetricMetric(aggMetricFieldType.name(), metric);
+                return LastValueFieldProducer.createForAggregateSubMetricMetric(aggMetricFieldType.name(), metric);
             }
         } else {
             // If a field is not a metric, we downsample it as a label
-            return LabelFieldProducer.createForAggregateSubMetricLabel(aggMetricFieldType.name(), metric);
+            return LastValueFieldProducer.createForAggregateSubMetricLabel(aggMetricFieldType.name(), metric);
         }
     }
 }

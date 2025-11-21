@@ -20,7 +20,7 @@ import java.util.Objects;
  * - that all TSIDs that are being collected for a round have the same value.
  * Important note: This class assumes that field values are collected and sorted by descending order by time
  */
-public class DimensionFieldProducer extends LabelFieldProducer {
+public class DimensionFieldProducer extends LastValueFieldProducer {
 
     DimensionFieldProducer(final String name) {
         super(name, false);

@@ -23,13 +23,13 @@ import java.util.List;
  * Class that produces the last value of a field for downsampling.
  * Important note: This class assumes that field values are collected and sorted by descending order by time
  */
-class LabelFieldProducer extends AbstractDownsampleFieldProducer {
-    // When downsampling metrics, we only keep one value even if the field was a multi-vlaue field.
-    // For labels, we preserve all the values of the last occurence.
+class LastValueFieldProducer extends AbstractDownsampleFieldProducer {
+    // When downsampling metrics, we only keep one value even if the field was a multi-value field.
+    // For labels, we preserve all the values of the last occurrence.
     private final boolean supportsMultiValue;
     Object lastValue = null;
 
-    LabelFieldProducer(String name, boolean producesMultiValue) {
+    LastValueFieldProducer(String name, boolean producesMultiValue) {
         super(name);
         this.supportsMultiValue = producesMultiValue;
     }
@@ -37,31 +37,31 @@ class LabelFieldProducer extends AbstractDownsampleFieldProducer {
     /**
      * Creates a producer that can be used for downsampling labels. It works for all types apart from
      * `aggregate_metric_double`, if the field type is aggregate metric double, please use
-     * {@link LabelFieldProducer#createForAggregateSubMetricLabel(String, Metric)}.
+     * {@link LastValueFieldProducer#createForAggregateSubMetricLabel(String, Metric)}.
      */
-    static LabelFieldProducer createForLabel(String name, String fieldType) {
+    static LastValueFieldProducer createForLabel(String name, String fieldType) {
         assert "aggregate_metric_double".equals(fieldType) == false
             : "field type cannot be aggregate metric double: " + fieldType + " for field " + name;
         if ("histogram".equals(fieldType)) {
-            return new LabelFieldProducer.HistogramFieldProducer(name, true);
+            return new LastValueFieldProducer.HistogramFieldProducer(name, true);
         } else if ("flattened".equals(fieldType)) {
-            return new LabelFieldProducer.FlattenedFieldProducer(name, true);
+            return new LastValueFieldProducer.FlattenedFieldProducer(name, true);
         }
-        return new LabelFieldProducer(name, true);
+        return new LastValueFieldProducer(name, true);
     }
 
     /**
      * Creates a producer that can be used for downsampling labels. It works for all types apart from
      * `aggregate_metric_double`, if the field type is aggregate metric double, please use
-     * {@link LabelFieldProducer#createForAggregateSubMetricMetric(String, Metric)} (String, Metric).}
+     * {@link LastValueFieldProducer#createForAggregateSubMetricMetric(String, Metric)} (String, Metric).}
      */
-    static LabelFieldProducer createForMetric(String name) {
-        return new LabelFieldProducer(name, false);
+    static LastValueFieldProducer createForMetric(String name) {
+        return new LastValueFieldProducer(name, false);
     }
 
     /**
      * Creates a producer that can be used for downsampling ONLY a sub-metric of an aggregate metric double labels. For
-     * other types of labels please use {@link LabelFieldProducer#createForLabel(String, String)}.
+     * other types of labels please use {@link LastValueFieldProducer#createForLabel(String, String)}.
      */
     static AggregateSubMetricFieldProducer createForAggregateSubMetricLabel(String name, Metric metric) {
         return new AggregateSubMetricFieldProducer(name, metric, true);
@@ -69,7 +69,7 @@ class LabelFieldProducer extends AbstractDownsampleFieldProducer {
 
     /**
      * Creates a producer that can be used for downsampling ONLY a sub-metric of an aggregate metric double metrics. For
-     * other types of metrics please use {@link LabelFieldProducer#createForMetric(String)}.
+     * other types of metrics please use {@link LastValueFieldProducer#createForMetric(String)}.
      */
     static AggregateSubMetricFieldProducer createForAggregateSubMetricMetric(String name, Metric metric) {
         return new AggregateSubMetricFieldProducer(name, metric, false);
@@ -130,7 +130,7 @@ class LabelFieldProducer extends AbstractDownsampleFieldProducer {
     /**
      * This producer is used to downsample by keeping the last value the sub-metric of an aggregate metric double.
      */
-    static final class AggregateSubMetricFieldProducer extends LabelFieldProducer {
+    static final class AggregateSubMetricFieldProducer extends LastValueFieldProducer {
 
         private final Metric metric;
 
@@ -144,7 +144,7 @@ class LabelFieldProducer extends AbstractDownsampleFieldProducer {
         }
     }
 
-    static final class HistogramFieldProducer extends LabelFieldProducer {
+    static final class HistogramFieldProducer extends LastValueFieldProducer {
         private HistogramFieldProducer(String name, boolean producesMultiValue) {
             super(name, producesMultiValue);
         }
@@ -164,7 +164,7 @@ class LabelFieldProducer extends AbstractDownsampleFieldProducer {
         }
     }
 
-    static final class FlattenedFieldProducer extends LabelFieldProducer {
+    static final class FlattenedFieldProducer extends LastValueFieldProducer {
 
         private FlattenedFieldProducer(String name, boolean producesMultiValue) {
             super(name, producesMultiValue);

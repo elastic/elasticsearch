@@ -59,7 +59,7 @@ public class Median extends AggregateFunction implements SurrogateExpression {
         Source source,
         @Param(
             name = "number",
-            type = { "double", "integer", "long", "exponential_histogram"},
+            type = { "double", "integer", "long", "exponential_histogram" },
             description = "Expression that outputs values to calculate the median of."
         ) Expression field
     ) {
@@ -77,7 +77,8 @@ public class Median extends AggregateFunction implements SurrogateExpression {
             dt -> dt.isNumeric() && dt != DataType.UNSIGNED_LONG || dt == DataType.EXPONENTIAL_HISTOGRAM,
             sourceText(),
             DEFAULT,
-            "exponential_histogram", "numeric except unsigned_long or counter types"
+            "exponential_histogram",
+            "numeric except unsigned_long or counter types"
         );
     }
 

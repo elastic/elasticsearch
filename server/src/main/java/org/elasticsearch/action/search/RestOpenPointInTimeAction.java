@@ -32,11 +32,9 @@ import static org.elasticsearch.rest.RestRequest.Method.POST;
 @ServerlessScope(Scope.PUBLIC)
 public class RestOpenPointInTimeAction extends BaseRestHandler {
 
-    private final Settings settings;
     private final CrossProjectModeDecider crossProjectModeDecider;
 
     public RestOpenPointInTimeAction(Settings settings) {
-        this.settings = settings;
         this.crossProjectModeDecider = new CrossProjectModeDecider(settings);
     }
 

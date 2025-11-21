@@ -129,10 +129,6 @@ public class TransportOpenPointInTimeAction extends HandledTransportAction<OpenP
         );
     }
 
-    private static String[] validateResponseAndGetIndicesArray(ResolveIndexAction.Response r) {
-        return new String[] {};
-    }
-
     @Override
     protected void doExecute(Task task, OpenPointInTimeRequest request, ActionListener<OpenPointInTimeResponse> listener) {
         final ClusterState clusterState = clusterService.state();
@@ -194,9 +190,10 @@ public class TransportOpenPointInTimeAction extends HandledTransportAction<OpenP
                             }
                             Set<String> collectedIndices = new HashSet<>(indices.length);
 
-                            for (String remoteAlias : resolvedRemoteExpressions.keySet()) {
-                                ResolvedIndexExpressions remoteExpressions = resolvedRemoteExpressions.get(remoteAlias);
-                                for (ResolvedIndexExpression expression : remoteExpressions.expressions()) {
+                            for (Map.Entry<String, ResolvedIndexExpressions> resolvedRemoteExpressionEntry : resolvedRemoteExpressions
+                                .entrySet()) {
+                                String remoteAlias = resolvedRemoteExpressionEntry.getKey();
+                                for (ResolvedIndexExpression expression : resolvedRemoteExpressionEntry.getValue().expressions()) {
                                     ResolvedIndexExpression.LocalExpressions oneRemoteExpression = expression.localExpressions();
                                     if (false == oneRemoteExpression.indices().isEmpty()
                                         && oneRemoteExpression

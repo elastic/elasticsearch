@@ -19,9 +19,9 @@ import org.elasticsearch.xpack.core.security.action.saml.SamlSpMetadataAction;
 import org.elasticsearch.xpack.core.security.action.saml.SamlSpMetadataRequest;
 import org.elasticsearch.xpack.core.security.action.saml.SamlSpMetadataResponse;
 import org.elasticsearch.xpack.security.authc.Realms;
+import org.elasticsearch.xpack.security.authc.saml.SamlAuthenticationException;
 import org.elasticsearch.xpack.security.authc.saml.SamlRealm;
 import org.elasticsearch.xpack.security.authc.saml.SamlSpMetadataBuilder;
-import org.elasticsearch.xpack.security.authc.saml.SamlUtils;
 import org.elasticsearch.xpack.security.authc.saml.SpConfiguration;
 import org.opensaml.saml.saml2.core.AuthnRequest;
 import org.opensaml.saml.saml2.metadata.EntityDescriptor;
@@ -55,9 +55,13 @@ public class TransportSamlSpMetadataAction extends HandledTransportAction<SamlSp
     protected void doExecute(Task task, SamlSpMetadataRequest request, ActionListener<SamlSpMetadataResponse> listener) {
         List<SamlRealm> realms = findSamlRealms(this.realms, request.getRealmName(), null);
         if (realms.isEmpty()) {
-            listener.onFailure(SamlUtils.samlException("Cannot find any matching realm for [{}]", request.getRealmName()));
+            listener.onFailure(
+                new SamlAuthenticationException(true, null, "Cannot find any matching realm for [{}]", request.getRealmName())
+            );
         } else if (realms.size() > 1) {
-            listener.onFailure(SamlUtils.samlException("Found multiple matching realms [{}] for [{}]", realms, request.getRealmName()));
+            listener.onFailure(
+                new SamlAuthenticationException(true, null, "Found multiple matching realms [{}] for [{}]", realms, request.getRealmName())
+            );
         } else {
             prepareMetadata(realms.get(0), listener);
         }

@@ -20,9 +20,9 @@ import org.elasticsearch.xpack.core.security.action.saml.SamlPrepareAuthenticati
 import org.elasticsearch.xpack.core.security.action.saml.SamlPrepareAuthenticationRequest;
 import org.elasticsearch.xpack.core.security.action.saml.SamlPrepareAuthenticationResponse;
 import org.elasticsearch.xpack.security.authc.Realms;
+import org.elasticsearch.xpack.security.authc.saml.SamlAuthenticationException;
 import org.elasticsearch.xpack.security.authc.saml.SamlRealm;
 import org.elasticsearch.xpack.security.authc.saml.SamlRedirect;
-import org.elasticsearch.xpack.security.authc.saml.SamlUtils;
 import org.opensaml.saml.saml2.core.AuthnRequest;
 
 import java.util.List;
@@ -72,9 +72,11 @@ public final class TransportSamlPrepareAuthenticationAction extends HandledTrans
         assert ThreadPool.assertCurrentThreadPool(ThreadPool.Names.GENERIC);
         List<SamlRealm> realms = findSamlRealms(this.realms, request.getRealmName(), request.getAssertionConsumerServiceURL());
         if (realms.isEmpty()) {
-            listener.onFailure(SamlUtils.samlException("Cannot find any matching realm for [{}]", request));
+            listener.onFailure(new SamlAuthenticationException(true, null, "Cannot find any matching realm for [{}]", request));
         } else if (realms.size() > 1) {
-            listener.onFailure(SamlUtils.samlException("Found multiple matching realms [{}] for [{}]", realms, request));
+            listener.onFailure(
+                new SamlAuthenticationException(true, null, "Found multiple matching realms [{}] for [{}]", realms, request)
+            );
         } else {
             prepareAuthentication(realms.get(0), request.getRelayState(), listener);
         }

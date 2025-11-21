@@ -16,8 +16,6 @@ import org.opensaml.saml.saml2.metadata.SSODescriptor;
 
 import java.time.Clock;
 
-import static org.elasticsearch.xpack.security.authc.saml.SamlUtils.samlException;
-
 /**
  * Constructs {@code &lt;LogoutRespond&lt;} objects for use in a SAML Single-Sign-Out flow.
  */
@@ -40,7 +38,7 @@ class SamlLogoutResponseBuilder extends SamlMessageBuilder {
     LogoutResponse build() {
         final String destination = getLogoutUrl();
         if (Strings.isNullOrEmpty(destination)) {
-            throw samlException(
+            throw new SamlAuthenticationException(
                 "Cannot send LogoutResponse because the IDP {} does not provide a logout service",
                 identityProvider.getEntityID()
             );

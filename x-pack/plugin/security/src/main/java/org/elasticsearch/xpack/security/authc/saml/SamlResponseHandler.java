@@ -18,7 +18,6 @@ import org.opensaml.saml.saml2.core.StatusResponseType;
 import java.time.Clock;
 import java.util.Collection;
 
-import static org.elasticsearch.xpack.security.authc.saml.SamlUtils.samlException;
 import static org.elasticsearch.xpack.security.authc.saml.SamlUtils.samlUnsolicitedInResponseToException;
 
 public class SamlResponseHandler extends SamlObjectHandler {
@@ -66,7 +65,7 @@ public class SamlResponseHandler extends SamlObjectHandler {
     protected static void checkResponseDestination(StatusResponseType response, String spConfiguredUrl) {
         if (spConfiguredUrl.equals(response.getDestination()) == false) {
             if (response.isSigned() || Strings.hasText(response.getDestination())) {
-                throw samlException(
+                throw new SamlAuthenticationException(
                     "SAML response "
                         + response.getID()
                         + " is for destination "
@@ -80,10 +79,17 @@ public class SamlResponseHandler extends SamlObjectHandler {
 
     protected static void checkStatus(Status status) {
         if (status == null || status.getStatusCode() == null) {
-            throw samlException("SAML Response has no status code");
+            // throws a terminating exception, status is always required
+            throw new SamlAuthenticationException(true, null, "SAML Response has no status code");
         }
         if (isSuccess(status) == false) {
-            throw samlException("SAML Response is not a 'success' response: {}", getStatusCodeMessage(status));
+            // throws a terminating exception, as status must always be success
+            throw new SamlAuthenticationException(
+                true,
+                null,
+                "SAML Response is not a 'success' response: {}",
+                getStatusCodeMessage(status)
+            );
         }
     }
 

@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.security.authc.saml;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.SpecialPermission;
 import org.elasticsearch.common.hash.MessageDigests;
 import org.elasticsearch.core.IOUtils;
@@ -62,7 +61,6 @@ import javax.xml.validation.Validator;
 
 public class SamlUtils {
 
-    private static final String SAML_EXCEPTION_KEY = "es.security.saml";
     private static final String SAML_UNSOLICITED_RESPONSE_KEY = "es.security.saml.unsolicited_in_response_to";
     private static final String SAML_MARSHALLING_ERROR_STRING = "_unserializable_";
 
@@ -98,26 +96,6 @@ public class SamlUtils {
     }
 
     /**
-     * Constructs an exception that can be distinguished (via {@link #isSamlException} as a SAML specific exception
-     * Used to distinguish "expected" exceptions (such as SAML signature failures, or missing attributes) that should be treated as a
-     * simple authentication failure (with a clear cause)
-     */
-    public static ElasticsearchSecurityException samlException(String msg, Object... args) {
-        final ElasticsearchSecurityException exception = new ElasticsearchSecurityException(msg, args);
-        exception.addMetadata(SAML_EXCEPTION_KEY);
-        return exception;
-    }
-
-    /**
-     * @see #samlException(String, Object...)
-     */
-    public static ElasticsearchSecurityException samlException(String msg, Exception cause, Object... args) {
-        final ElasticsearchSecurityException exception = new ElasticsearchSecurityException(msg, cause, args);
-        exception.addMetadata(SAML_EXCEPTION_KEY);
-        return exception;
-    }
-
-    /**
      * Constructs exception for a specific case where the in-response-to value in the SAML content does not match any of the values
      * provided by the client. One example situation when this can happen is when user spent too much time on the IdP site, and meanwhile
      * the cookie storing the initial request id has expired (the default timeout is 2 minutes; this is the time in which browsers by
@@ -125,24 +103,19 @@ public class SamlUtils {
      * case the IdP would send a SAML response which content includes an in-response-to value matching the initial request id, however that
      * initial request id is now gone, so the client sends an empty in-response-to parameter causing a mismatch between the two.
      */
-    static ElasticsearchSecurityException samlUnsolicitedInResponseToException(
+    static SamlAuthenticationException samlUnsolicitedInResponseToException(
         String samlContentInResponseTo,
         Collection<String> expectedInResponseTos
     ) {
-        final ElasticsearchSecurityException exception = samlException(
-            "SAML content is in-response-to [{}] but expected one of {} ",
+        final SamlAuthenticationException exception = new SamlAuthenticationException(
+            true,
+            null,
+            "SAML content is in-response-to [{}] but expected one of {}",
             samlContentInResponseTo,
             expectedInResponseTos
         );
         exception.addMetadata(SAML_UNSOLICITED_RESPONSE_KEY, samlContentInResponseTo);
         return exception;
-    }
-
-    /**
-     * @see #samlException(String, Object...)
-     */
-    public static boolean isSamlException(ElasticsearchSecurityException exception) {
-        return exception != null && exception.getMetadata(SAML_EXCEPTION_KEY) != null;
     }
 
     public static <T extends XMLObject> T buildObject(Class<T> type, QName elementName) {

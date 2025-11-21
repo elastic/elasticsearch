@@ -91,7 +91,6 @@ import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasLength;
 import static org.hamcrest.Matchers.instanceOf;
-import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.iterableWithSize;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
@@ -172,10 +171,9 @@ public class SamlAuthenticatorTests extends SamlResponseHandlerTests {
         response.setStatus(status);
         final String xml = SamlUtils.getXmlContent(response, false);
         SamlToken token = token(xml);
-        final ElasticsearchSecurityException exception = expectSamlException(() -> authenticator.authenticate(token));
+        final SamlAuthenticationException exception = expectSamlException(() -> authenticator.authenticate(token));
         assertThat(exception.getMessage(), containsString("No assertions found in SAML response"));
         assertThat(exception.getCause(), nullValue());
-        assertThat(SamlUtils.isSamlException(exception), is(true));
     }
 
     public void testSuccessfullyParseContentWithASingleValidAssertion() throws Exception {
@@ -506,10 +504,9 @@ public class SamlAuthenticatorTests extends SamlResponseHandlerTests {
         response.setIssuer(wrongIssuer);
         final String xml = SamlUtils.getXmlContent(response, false);
         SamlToken token = token(signResponse(xml));
-        final ElasticsearchSecurityException exception = expectSamlException(() -> authenticator.authenticate(token));
+        final SamlAuthenticationException exception = expectSamlException(() -> authenticator.authenticate(token));
         assertThat(exception.getMessage(), containsString("Issuer"));
         assertThat(exception.getCause(), nullValue());
-        assertThat(SamlUtils.isSamlException(exception), is(true));
     }
 
     public void testIncorrectAssertionIssuerIsRejected() throws Exception {
@@ -520,10 +517,9 @@ public class SamlAuthenticatorTests extends SamlResponseHandlerTests {
         response.getAssertions().get(0).setIssuer(wrongIssuer);
         final String xml = SamlUtils.getXmlContent(response, false);
         SamlToken token = token(signResponse(xml));
-        final ElasticsearchSecurityException exception = expectSamlException(() -> authenticator.authenticate(token));
+        final SamlAuthenticationException exception = expectSamlException(() -> authenticator.authenticate(token));
         assertThat(exception.getMessage(), containsString("Issuer"));
         assertThat(exception.getCause(), nullValue());
-        assertThat(SamlUtils.isSamlException(exception), is(true));
     }
 
     public void testIncorrectDestinationIsRejected() throws Exception {
@@ -534,10 +530,9 @@ public class SamlAuthenticatorTests extends SamlResponseHandlerTests {
         final String xml = SamlUtils.getXmlContent(response, false);
         final String signed = signer.transform(xml, idpSigningCertificatePair);
         SamlToken token = token(signed);
-        final ElasticsearchSecurityException exception = expectSamlException(() -> authenticator.authenticate(token));
+        final SamlAuthenticationException exception = expectSamlException(() -> authenticator.authenticate(token));
         assertThat(exception.getMessage(), containsString("destination"));
         assertThat(exception.getCause(), nullValue());
-        assertThat(SamlUtils.isSamlException(exception), is(true));
     }
 
     public void testMissingDestinationIsNotRejectedForNotSignedResponse() throws Exception {
@@ -564,12 +559,11 @@ public class SamlAuthenticatorTests extends SamlResponseHandlerTests {
         final String xml = SamlUtils.getXmlContent(response, false);
 
         SamlToken token = token(signResponse(xml));
-        final ElasticsearchSecurityException exception = expectSamlException(() -> authenticator.authenticate(token));
+        final SamlAuthenticationException exception = expectSamlException(() -> authenticator.authenticate(token));
         assertThat(exception.getMessage(), containsString("in-response-to"));
         assertThat(exception.getMessage(), containsString(requestId));
         assertThat(exception.getMessage(), containsString("someotherID"));
         assertThat(exception.getCause(), nullValue());
-        assertThat(SamlUtils.isSamlException(exception), is(true));
     }
 
     public void testIncorrectRecipientIsRejected() throws Exception {
@@ -585,11 +579,10 @@ public class SamlAuthenticatorTests extends SamlResponseHandlerTests {
         final String xml = SamlUtils.getXmlContent(response, false);
 
         SamlToken token = token(signResponse(xml));
-        final ElasticsearchSecurityException exception = expectSamlException(() -> authenticator.authenticate(token));
+        final SamlAuthenticationException exception = expectSamlException(() -> authenticator.authenticate(token));
         assertThat(exception.getMessage(), containsString("SAML Assertion SubjectConfirmationData Recipient"));
         assertThat(exception.getMessage(), containsString(SP_ACS_URL + "/fake"));
         assertThat(exception.getCause(), nullValue());
-        assertThat(SamlUtils.isSamlException(exception), is(true));
     }
 
     public void testAssertionWithoutSubjectIsRejected() throws Exception {
@@ -598,10 +591,9 @@ public class SamlAuthenticatorTests extends SamlResponseHandlerTests {
         response.getAssertions().get(0).setSubject(null);
         final String xml = SamlUtils.getXmlContent(response, false);
         SamlToken token = token(signResponse(xml));
-        final ElasticsearchSecurityException exception = expectSamlException(() -> authenticator.authenticate(token));
+        final SamlAuthenticationException exception = expectSamlException(() -> authenticator.authenticate(token));
         assertThat(exception.getMessage(), containsString("has no Subject"));
         assertThat(exception.getCause(), nullValue());
-        assertThat(SamlUtils.isSamlException(exception), is(true));
     }
 
     public void testAssertionWithoutAuthnStatementIsRejected() throws Exception {
@@ -610,10 +602,9 @@ public class SamlAuthenticatorTests extends SamlResponseHandlerTests {
         response.getAssertions().get(0).getAuthnStatements().clear();
         final String xml = SamlUtils.getXmlContent(response, false);
         SamlToken token = token(signResponse(xml));
-        final ElasticsearchSecurityException exception = expectSamlException(() -> authenticator.authenticate(token));
+        final SamlAuthenticationException exception = expectSamlException(() -> authenticator.authenticate(token));
         assertThat(exception.getMessage(), containsString("Authn Statements while exactly one was expected."));
         assertThat(exception.getCause(), nullValue());
-        assertThat(SamlUtils.isSamlException(exception), is(true));
     }
 
     public void testExpiredAuthnStatementSessionIsRejected() throws Exception {
@@ -638,11 +629,10 @@ public class SamlAuthenticatorTests extends SamlResponseHandlerTests {
 
         // but fails once we get past the clock skew allowance
         clock.fastForwardSeconds((int) (1 + maxSkew.seconds() / 2));
-        final ElasticsearchSecurityException exception = expectSamlException(() -> authenticator.authenticate(token));
+        final SamlAuthenticationException exception = expectSamlException(() -> authenticator.authenticate(token));
         assertThat(exception.getMessage(), containsString("on/after"));
         assertThat(exception.getMessage(), containsString("Authentication Statement"));
         assertThat(exception.getCause(), nullValue());
-        assertThat(SamlUtils.isSamlException(exception), is(true));
     }
 
     public void testIncorrectAuthnContextClassRefIsRejected() throws Exception {
@@ -654,9 +644,8 @@ public class SamlAuthenticatorTests extends SamlResponseHandlerTests {
             Arrays.asList(X509_AUTHN_CTX, KERBEROS_AUTHN_CTX)
         );
         SamlToken token = token(signResponse(xml));
-        final ElasticsearchSecurityException exception = expectSamlException(() -> authenticatorWithReqAuthnCtx.authenticate(token));
+        final SamlAuthenticationException exception = expectSamlException(() -> authenticatorWithReqAuthnCtx.authenticate(token));
         assertThat(exception.getMessage(), containsString("Rejecting SAML assertion as the AuthnContextClassRef"));
-        assertThat(SamlUtils.isSamlException(exception), is(true));
     }
 
     public void testAssertionWithoutSubjectConfirmationIsRejected() throws Exception {
@@ -665,10 +654,9 @@ public class SamlAuthenticatorTests extends SamlResponseHandlerTests {
         response.getAssertions().get(0).getSubject().getSubjectConfirmations().clear();
         final String xml = SamlUtils.getXmlContent(response, false);
         SamlToken token = token(signResponse(xml));
-        final ElasticsearchSecurityException exception = expectSamlException(() -> authenticator.authenticate(token));
+        final SamlAuthenticationException exception = expectSamlException(() -> authenticator.authenticate(token));
         assertThat(exception.getMessage(), containsString("SAML Assertion subject contains [0] bearer SubjectConfirmation"));
         assertThat(exception.getCause(), nullValue());
-        assertThat(SamlUtils.isSamlException(exception), is(true));
     }
 
     public void testAssertionWithoutSubjectConfirmationDataIsRejected() throws Exception {
@@ -677,10 +665,9 @@ public class SamlAuthenticatorTests extends SamlResponseHandlerTests {
         response.getAssertions().get(0).getSubject().getSubjectConfirmations().get(0).setSubjectConfirmationData(null);
         final String xml = SamlUtils.getXmlContent(response, false);
         SamlToken token = token(signResponse(xml));
-        final ElasticsearchSecurityException exception = expectSamlException(() -> authenticator.authenticate(token));
+        final SamlAuthenticationException exception = expectSamlException(() -> authenticator.authenticate(token));
         assertThat(exception.getMessage(), containsString("bearer SubjectConfirmation, while exactly one was expected."));
         assertThat(exception.getCause(), nullValue());
-        assertThat(SamlUtils.isSamlException(exception), is(true));
     }
 
     public void testAssetionWithoutBearerSubjectConfirmationMethodIsRejected() throws Exception {
@@ -689,10 +676,9 @@ public class SamlAuthenticatorTests extends SamlResponseHandlerTests {
         response.getAssertions().get(0).getSubject().getSubjectConfirmations().get(0).setMethod(METHOD_HOLDER_OF_KEY);
         final String xml = SamlUtils.getXmlContent(response, false);
         SamlToken token = token(signResponse(xml));
-        final ElasticsearchSecurityException exception = expectSamlException(() -> authenticator.authenticate(token));
+        final SamlAuthenticationException exception = expectSamlException(() -> authenticator.authenticate(token));
         assertThat(exception.getMessage(), containsString("bearer SubjectConfirmation, while exactly one was expected."));
         assertThat(exception.getCause(), nullValue());
-        assertThat(SamlUtils.isSamlException(exception), is(true));
     }
 
     public void testIncorrectSubjectConfirmationDataInResponseToIsRejected() throws Exception {
@@ -707,12 +693,11 @@ public class SamlAuthenticatorTests extends SamlResponseHandlerTests {
             .setInResponseTo("incorrectId");
         final String xml = SamlUtils.getXmlContent(response, false);
         SamlToken token = token(signResponse(xml));
-        final ElasticsearchSecurityException exception = expectSamlException(() -> authenticator.authenticate(token));
+        final SamlAuthenticationException exception = expectSamlException(() -> authenticator.authenticate(token));
         assertThat(exception.getMessage(), containsString("SAML Assertion SubjectConfirmationData is in-response-to"));
         assertThat(exception.getMessage(), containsString(requestId));
         assertThat(exception.getMessage(), containsString("incorrectId"));
         assertThat(exception.getCause(), nullValue());
-        assertThat(SamlUtils.isSamlException(exception), is(true));
     }
 
     public void testExpiredSubjectConfirmationDataIsRejected() throws Exception {
@@ -735,10 +720,9 @@ public class SamlAuthenticatorTests extends SamlResponseHandlerTests {
 
         // but fails once we get past the clock skew allowance
         clock.fastForwardSeconds((int) (1 + maxSkew.seconds() / 2));
-        final ElasticsearchSecurityException exception = expectSamlException(() -> authenticator.authenticate(token));
+        final SamlAuthenticationException exception = expectSamlException(() -> authenticator.authenticate(token));
         assertThat(exception.getMessage(), containsString("on/after"));
         assertThat(exception.getCause(), nullValue());
-        assertThat(SamlUtils.isSamlException(exception), is(true));
     }
 
     public void testIdpInitiatedLoginIsAllowed() throws Exception {
@@ -778,14 +762,13 @@ public class SamlAuthenticatorTests extends SamlResponseHandlerTests {
 
             // check is rejected when signed by a different key-pair
             final Tuple<X509Certificate, PrivateKey> wrongKey = readKeyPair("RSA_4096_updated");
-            final ElasticsearchSecurityException exception = expectThrows(
-                ElasticsearchSecurityException.class,
+            final SamlAuthenticationException exception = expectThrows(
+                SamlAuthenticationException.class,
                 () -> authenticator.authenticate(token(signer.transform(xml, wrongKey)))
             );
             assertThat(exception.getMessage(), containsString("SAML Signature"));
             assertThat(exception.getMessage(), containsString("could not be validated"));
             assertThat(exception.getCause(), nullValue());
-            assertThat(SamlUtils.isSamlException(exception), is(true));
 
             mockLog.assertAllExpectationsMatched();
         }
@@ -816,11 +799,10 @@ public class SamlAuthenticatorTests extends SamlResponseHandlerTests {
 
         // but altered content is rejected
         final String altered = signed.replace("daredevil", "iron fist");
-        final ElasticsearchSecurityException exception = expectSamlException(() -> authenticator.authenticate(token(altered)));
+        final SamlAuthenticationException exception = expectSamlException(() -> authenticator.authenticate(token(altered)));
         assertThat(exception.getMessage(), containsString("SAML Signature"));
         assertThat(exception.getMessage(), containsString("could not be validated"));
         assertThat(exception.getCause(), nullValue());
-        assertThat(SamlUtils.isSamlException(exception), is(true));
     }
 
     public void testSigningWhenIdpHasMultipleKeys() throws Exception {
@@ -860,10 +842,9 @@ public class SamlAuthenticatorTests extends SamlResponseHandlerTests {
 
         // but fails once we get past the clock skew allowance
         clock.fastForwardSeconds((int) (1 + maxSkew.seconds() / 2));
-        final ElasticsearchSecurityException exception = expectSamlException(() -> authenticator.authenticate(token));
+        final SamlAuthenticationException exception = expectSamlException(() -> authenticator.authenticate(token));
         assertThat(exception.getMessage(), containsString("on/after"));
         assertThat(exception.getCause(), nullValue());
-        assertThat(SamlUtils.isSamlException(exception), is(true));
     }
 
     public void testContentIsRejectedIfRestrictedToADifferentAudience() throws Exception {
@@ -880,12 +861,11 @@ public class SamlAuthenticatorTests extends SamlResponseHandlerTests {
         response.getAssertions().get(0).getConditions().getAudienceRestrictions().add(audienceRestriction);
         String xml = SamlUtils.getXmlContent(response, false);
         final SamlToken token = token(signResponse(xml));
-        final ElasticsearchSecurityException exception = expectSamlException(() -> authenticator.authenticate(token));
+        final SamlAuthenticationException exception = expectSamlException(() -> authenticator.authenticate(token));
         assertThat(exception.getMessage(), containsString("required audience"));
         assertThat(exception.getMessage(), containsString(audience));
         assertThat(exception.getMessage(), containsString(SP_ENTITY_ID));
         assertThat(exception.getCause(), nullValue());
-        assertThat(SamlUtils.isSamlException(exception), is(true));
     }
 
     public void testLoggingWhenAudienceCheckFails() throws Exception {
@@ -939,11 +919,10 @@ public class SamlAuthenticatorTests extends SamlResponseHandlerTests {
     public void testContentIsRejectedIfNotMarkedAsSuccess() throws Exception {
         final String xml = getStatusFailedResponse();
         final SamlToken token = token(signResponse(xml));
-        final ElasticsearchSecurityException exception = expectSamlException(() -> authenticator.authenticate(token));
+        final SamlAuthenticationException exception = expectSamlException(() -> authenticator.authenticate(token));
         assertThat(exception.getMessage(), containsString("not a 'success' response"));
         assertThat(exception.getMessage(), containsString(StatusCode.REQUESTER));
         assertThat(exception.getCause(), nullValue());
-        assertThat(SamlUtils.isSamlException(exception), is(true));
     }
 
     /*
@@ -1052,11 +1031,9 @@ public class SamlAuthenticatorTests extends SamlResponseHandlerTests {
         forgedAssertion.removeChild(clonedSignature);
         response.insertBefore(forgedAssertion, assertion);
         final SamlToken forgedToken = token(SamlUtils.toString((legitimateDocument.getDocumentElement())));
-        final ElasticsearchSecurityException exception = expectSamlException(() -> authenticator.authenticate(forgedToken));
+        final SamlAuthenticationException exception = expectSamlException(() -> authenticator.authenticate(forgedToken));
         assertThat(exception.getMessage(), containsString("Expecting only 1 assertion, but response contains multiple"));
         assertThat(exception.getCause(), nullValue());
-        assertThat(SamlUtils.isSamlException(exception), is(true));
-
     }
 
     public void testSignatureWrappingAttackFour() throws Exception {

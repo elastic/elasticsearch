@@ -57,7 +57,10 @@ public class MediaTypeRegistry<T extends MediaType> {
         for (T mediaType : mediaTypes) {
             Set<MediaType.HeaderValue> tuples = mediaType.headerValues();
             for (MediaType.HeaderValue headerValue : tuples) {
-                queryParamToMediaType.put(mediaType.queryParameter(), mediaType);
+                String queryParameter = mediaType.queryParameter();
+                if (queryParameter != null) {
+                    queryParamToMediaType.put(queryParameter, mediaType);
+                }
                 typeWithSubtypeToMediaType.put(headerValue.v1(), mediaType);
                 parametersMap.put(headerValue.v1(), convertPatterns(headerValue.v2()));
             }

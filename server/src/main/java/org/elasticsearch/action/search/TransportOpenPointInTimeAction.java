@@ -143,106 +143,121 @@ public class TransportOpenPointInTimeAction extends HandledTransportAction<OpenP
             );
             return;
         }
+
+        final boolean resolveCrossProject = crossProjectModeDecider.resolvesCrossProject(request);
+        if (resolveCrossProject) {
+            executeOpenPitCrossProject((SearchTask) task, request, listener);
+        } else {
+            executeOpenPit((SearchTask) task, request, listener);
+        }
+    }
+
+    private void executeOpenPitCrossProject(
+        SearchTask task,
+        OpenPointInTimeRequest request,
+        ActionListener<OpenPointInTimeResponse> listener
+    ) {
+        String[] indices = request.indices();
+        IndicesOptions originalIndicesOptions = request.indicesOptions();
         // in CPS before executing the open pit request we need to get index resolution and possibly throw based on merged project view
         // rules. This should happen only if either ignore_unavailable or allow_no_indices is set to false (strict) if instead both are true
         // we can continue with the "normal" pit execution.
-        final boolean resolveCrossProject = crossProjectModeDecider.resolvesCrossProject(request);
-        String[] indices = request.indices();
-        if (resolveCrossProject) {
-            IndicesOptions originalIndicesOptions = request.indicesOptions();
-            if (false == originalIndicesOptions.ignoreUnavailable() || false == originalIndicesOptions.allowNoIndices()) {
-                final ResolvedIndexExpressions localResolvedIndexExpressions = request.getResolvedIndexExpressions();
-                RemoteClusterService remoteClusterService = searchTransportService.getRemoteClusterService();
-                final Map<String, OriginalIndices> indicesPerCluster = remoteClusterService.groupIndices(
-                    indicesOptionsForCrossProjectFanout(originalIndicesOptions),
-                    indices
+        if (originalIndicesOptions.ignoreUnavailable() && originalIndicesOptions.allowNoIndices()) {
+            // lenient indicesOptions thus execute standard pit
+            executeOpenPit(task, request, listener);
+            return;
+        }
+        final ResolvedIndexExpressions localResolvedIndexExpressions = request.getResolvedIndexExpressions();
+        RemoteClusterService remoteClusterService = searchTransportService.getRemoteClusterService();
+        final Map<String, OriginalIndices> indicesPerCluster = remoteClusterService.groupIndices(
+            indicesOptionsForCrossProjectFanout(originalIndicesOptions),
+            indices
+        );
+        // local indices resolution was already taken care of by the Security Action Filter
+        indicesPerCluster.remove(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY);
+
+        if (indicesPerCluster.isEmpty()) {
+            // for CPS requests that are targeting origin only, could be because of project_routing or other reasons, execute standard pit.
+            executeOpenPit(task, request, listener);
+            return;
+        }
+
+        // CPS
+        final int linkedProjectsToQuery = indicesPerCluster.size();
+        final Map<String, ResolveIndexAction.Response> remoteResponses = new ConcurrentHashMap<>(linkedProjectsToQuery);
+        final CountDown completionCounter = new CountDown(linkedProjectsToQuery);
+        final Runnable terminalHandler = () -> {
+            if (completionCounter.countDown()) {
+                Map<String, ResolvedIndexExpressions> resolvedRemoteExpressions = remoteResponses.entrySet()
+                    .stream()
+                    .filter(e -> e.getValue().getResolvedIndexExpressions() != null)
+                    .collect(
+                        Collectors.toMap(
+                            Map.Entry::getKey,
+                            e -> e.getValue().getResolvedIndexExpressions()
+
+                        )
+                    );
+
+                final Exception ex = CrossProjectIndexResolutionValidator.validate(
+                    originalIndicesOptions,
+                    request.getProjectRouting(),
+                    localResolvedIndexExpressions,
+                    resolvedRemoteExpressions
                 );
-                // local indices resolution was already taken care of by the Security Action Filter
-                indicesPerCluster.remove(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY);
-                if (false == indicesPerCluster.isEmpty()) {
-                    final int linkedProjectsToQuery = indicesPerCluster.size();
-                    final Map<String, ResolveIndexAction.Response> remoteResponses = new ConcurrentHashMap<>(linkedProjectsToQuery);
-                    final CountDown completionCounter = new CountDown(linkedProjectsToQuery);
-                    final Runnable terminalHandler = () -> {
-                        if (completionCounter.countDown()) {
-                            Map<String, ResolvedIndexExpressions> resolvedRemoteExpressions = remoteResponses.entrySet()
-                                .stream()
-                                .filter(e -> e.getValue().getResolvedIndexExpressions() != null)
-                                .collect(
-                                    Collectors.toMap(
-                                        Map.Entry::getKey,
-                                        e -> e.getValue().getResolvedIndexExpressions()
-
-                                    )
-                                );
-
-                            final Exception ex = CrossProjectIndexResolutionValidator.validate(
-                                originalIndicesOptions,
-                                request.getProjectRouting(),
-                                localResolvedIndexExpressions,
-                                resolvedRemoteExpressions
-                            );
-                            if (ex != null) {
-                                listener.onFailure(ex);
-                                return;
-                            }
-                            Set<String> collectedIndices = new HashSet<>(indices.length);
-
-                            for (Map.Entry<String, ResolvedIndexExpressions> resolvedRemoteExpressionEntry : resolvedRemoteExpressions
-                                .entrySet()) {
-                                String remoteAlias = resolvedRemoteExpressionEntry.getKey();
-                                for (ResolvedIndexExpression expression : resolvedRemoteExpressionEntry.getValue().expressions()) {
-                                    ResolvedIndexExpression.LocalExpressions oneRemoteExpression = expression.localExpressions();
-                                    if (false == oneRemoteExpression.indices().isEmpty()
-                                        && oneRemoteExpression
-                                            .localIndexResolutionResult() == ResolvedIndexExpression.LocalIndexResolutionResult.SUCCESS) {
-                                        collectedIndices.addAll(
-                                            oneRemoteExpression.indices()
-                                                .stream()
-                                                .map(i -> buildRemoteIndexName(remoteAlias, i))
-                                                .collect(Collectors.toSet())
-                                        );
-                                    }
-                                }
-                            }
-                            if (localResolvedIndexExpressions != null) { // this should never be null in CPS
-                                collectedIndices.addAll(localResolvedIndexExpressions.getLocalIndicesList());
-                            }
-                            request.indices(collectedIndices.stream().toArray(String[]::new));
-                            executeOpenPit((SearchTask) task, request, listener);
-                        }
-                    };
-
-                    // make CPS calls
-                    for (Map.Entry<String, OriginalIndices> remoteClusterIndices : indicesPerCluster.entrySet()) {
-                        String clusterAlias = remoteClusterIndices.getKey();
-                        OriginalIndices originalIndices = remoteClusterIndices.getValue();
-                        // form indicesOptionsForCrossProjectFanout
-                        IndicesOptions relaxedFanoutIndicesOptions = originalIndices.indicesOptions();
-                        var remoteClusterClient = remoteClusterService.getRemoteClusterClient(
-                            clusterAlias,
-                            EsExecutors.DIRECT_EXECUTOR_SERVICE,
-                            RemoteClusterService.DisconnectedStrategy.FAIL_IF_DISCONNECTED
-                        );
-                        ResolveIndexAction.Request remoteRequest = new ResolveIndexAction.Request(
-                            originalIndices.indices(),
-                            relaxedFanoutIndicesOptions
-                        );
-                        remoteClusterClient.execute(ResolveIndexAction.REMOTE_TYPE, remoteRequest, ActionListener.wrap(response -> {
-                            remoteResponses.put(clusterAlias, response);
-                            terminalHandler.run();
-                        }, failure -> {
-                            logger.info("failed to resolve indices on remote cluster [" + clusterAlias + "]", failure);
-                            terminalHandler.run();
-                        }));
-                    }
-                } else {
-                    // for CPS requests that are targeting origin only, could be because of project_routing or other reasons.
-                    executeOpenPit((SearchTask) task, request, listener);
+                if (ex != null) {
+                    listener.onFailure(ex);
+                    return;
                 }
+                Set<String> collectedIndices = new HashSet<>(indices.length);
+
+                for (Map.Entry<String, ResolvedIndexExpressions> resolvedRemoteExpressionEntry : resolvedRemoteExpressions.entrySet()) {
+                    String remoteAlias = resolvedRemoteExpressionEntry.getKey();
+                    for (ResolvedIndexExpression expression : resolvedRemoteExpressionEntry.getValue().expressions()) {
+                        ResolvedIndexExpression.LocalExpressions oneRemoteExpression = expression.localExpressions();
+                        if (false == oneRemoteExpression.indices().isEmpty()
+                            && oneRemoteExpression
+                                .localIndexResolutionResult() == ResolvedIndexExpression.LocalIndexResolutionResult.SUCCESS) {
+                            collectedIndices.addAll(
+                                oneRemoteExpression.indices()
+                                    .stream()
+                                    .map(i -> buildRemoteIndexName(remoteAlias, i))
+                                    .collect(Collectors.toSet())
+                            );
+                        }
+                    }
+                }
+                if (localResolvedIndexExpressions != null) { // this should never be null in CPS
+                    collectedIndices.addAll(localResolvedIndexExpressions.getLocalIndicesList());
+                }
+                request.indices(collectedIndices.toArray(String[]::new));
+                executeOpenPit(task, request, listener);
             }
-        } else {
-            executeOpenPit((SearchTask) task, request, listener);
+        };
+
+        // make CPS calls
+        for (Map.Entry<String, OriginalIndices> remoteClusterIndices : indicesPerCluster.entrySet()) {
+            String clusterAlias = remoteClusterIndices.getKey();
+            OriginalIndices originalIndices = remoteClusterIndices.getValue();
+            // form indicesOptionsForCrossProjectFanout
+            IndicesOptions relaxedFanoutIndicesOptions = originalIndices.indicesOptions();
+            var remoteClusterClient = remoteClusterService.getRemoteClusterClient(
+                clusterAlias,
+                EsExecutors.DIRECT_EXECUTOR_SERVICE,
+                RemoteClusterService.DisconnectedStrategy.FAIL_IF_DISCONNECTED
+            );
+            ResolveIndexAction.Request remoteRequest = new ResolveIndexAction.Request(
+                originalIndices.indices(),
+                relaxedFanoutIndicesOptions
+            );
+            remoteClusterClient.execute(ResolveIndexAction.REMOTE_TYPE, remoteRequest, ActionListener.wrap(response -> {
+                remoteResponses.put(clusterAlias, response);
+                terminalHandler.run();
+            }, failure -> {
+                logger.info("failed to resolve indices on remote cluster [" + clusterAlias + "]", failure);
+                terminalHandler.run();
+            }));
+
         }
     }
 

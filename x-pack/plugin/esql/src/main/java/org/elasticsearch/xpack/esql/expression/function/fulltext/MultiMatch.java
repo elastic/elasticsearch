@@ -10,14 +10,20 @@ package org.elasticsearch.xpack.esql.expression.function.fulltext;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.index.query.MatchQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.capabilities.PostAnalysisPlanVerificationAware;
 import org.elasticsearch.xpack.esql.common.Failure;
 import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.InvalidArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.Expressions;
+import org.elasticsearch.xpack.esql.core.expression.FoldContext;
+import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.MapExpression;
+import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.querydsl.query.Query;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -45,6 +51,7 @@ import java.util.function.BiConsumer;
 import java.util.stream.Stream;
 
 import static java.util.Map.entry;
+import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
 import static org.elasticsearch.index.query.MultiMatchQueryBuilder.ANALYZER_FIELD;
 import static org.elasticsearch.index.query.MultiMatchQueryBuilder.BOOST_FIELD;
 import static org.elasticsearch.index.query.MultiMatchQueryBuilder.FUZZINESS_FIELD;
@@ -75,6 +82,7 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
 import static org.elasticsearch.xpack.esql.core.type.DataType.IP;
 import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
 import static org.elasticsearch.xpack.esql.core.type.DataType.LONG;
+import static org.elasticsearch.xpack.esql.core.type.DataType.NULL;
 import static org.elasticsearch.xpack.esql.core.type.DataType.TEXT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.UNSIGNED_LONG;
 import static org.elasticsearch.xpack.esql.core.type.DataType.VERSION;
@@ -103,6 +111,7 @@ public class MultiMatch extends FullTextFunction implements OptionalArgument, Po
     );
 
     public static final Set<DataType> FIELD_DATA_TYPES = Set.of(
+        NULL,
         KEYWORD,
         TEXT,
         BOOLEAN,
@@ -338,12 +347,27 @@ public class MultiMatch extends FullTextFunction implements OptionalArgument, Po
     protected Query translate(TranslatorHandler handler) {
         Map<String, Float> fieldsWithBoost = new HashMap<>();
         for (Expression field : fields) {
-            var fieldAttribute = Match.fieldAsFieldAttribute(field);
+            if (Expressions.isGuaranteedNull(field)) {
+                // Skip fields that are guaranteed to be null, as they are not present in the mapping
+                continue;
+            }
+            var fieldAttribute = fieldAsFieldAttribute(field);
             Check.notNull(fieldAttribute, "MultiMatch must have field attributes as arguments #2 to #N-1.");
-            String fieldName = Match.getNameFromFieldAttribute(fieldAttribute);
+            String fieldName = getNameFromFieldAttribute(fieldAttribute);
             fieldsWithBoost.put(fieldName, 1.0f);
         }
-        return new MultiMatchQuery(source(), Objects.toString(queryAsObject()), fieldsWithBoost, getOptions());
+        assert fieldsWithBoost.isEmpty() == false
+            : "If no fields are present in the mapping, the MultiMatch function should have been folded to null";
+        return new MultiMatchQuery(source(), queryAsString(query(), sourceText()), fieldsWithBoost, getOptions());
+    }
+
+    private static String queryAsString(Expression queryField, String sourceText) {
+        if (queryField instanceof Literal literal) {
+            return BytesRefs.toString(literal.value());
+        }
+        throw new EsqlIllegalArgumentException(
+            format(null, "Query value must be a constant string in [{}], found [{}]", sourceText, queryField)
+        );
     }
 
     @Override
@@ -379,15 +403,14 @@ public class MultiMatch extends FullTextFunction implements OptionalArgument, Po
     private TypeResolution resolveFields() {
         return fields.stream()
             .map(
-                (Expression field) -> isNotNull(field, sourceText(), SECOND).and(
-                    isType(
-                        field,
-                        FIELD_DATA_TYPES::contains,
-                        sourceText(),
-                        SECOND,
-                        "keyword, text, boolean, date, date_nanos, double, integer, ip, long, unsigned_long, version"
-                    )
+                (Expression field) -> isType(
+                    field,
+                    FIELD_DATA_TYPES::contains,
+                    sourceText(),
+                    SECOND,
+                    "null, keyword, text, boolean, date, date_nanos, double, integer, ip, long, unsigned_long, version"
                 )
+
             )
             .reduce(TypeResolution::and)
             .orElse(null);
@@ -430,6 +453,23 @@ public class MultiMatch extends FullTextFunction implements OptionalArgument, Po
     }
 
     @Override
+    public boolean foldable() {
+        // The function is foldable if all fields are guaranteed to be null, due to the fields not being present in the mapping
+        return fields.stream().allMatch(Expressions::isGuaranteedNull);
+    }
+
+    @Override
+    public Object fold(FoldContext ctx) {
+        // We only fold when all fields are null (none is present in the mapping), so we return null
+        return Literal.NULL;
+    }
+
+    @Override
+    public Nullability nullable() {
+        return Expressions.nullable(fields);
+    }
+
+    @Override
     public boolean equals(Object o) {
         // MultiMatch does not serialize options, as they get included in the query builder. We need to override equals and hashcode to
         // ignore options when comparing two MultiMatch functions
@@ -451,7 +491,7 @@ public class MultiMatch extends FullTextFunction implements OptionalArgument, Po
             super.postAnalysisPlanVerification().accept(plan, failures);
             plan.forEachExpression(MultiMatch.class, mm -> {
                 for (Expression field : fields) {
-                    if (Match.fieldAsFieldAttribute(field) == null) {
+                    if ((Expressions.isGuaranteedNull(field) == false) && (fieldAsFieldAttribute(field) == null)) {
                         failures.add(
                             Failure.fail(
                                 field,

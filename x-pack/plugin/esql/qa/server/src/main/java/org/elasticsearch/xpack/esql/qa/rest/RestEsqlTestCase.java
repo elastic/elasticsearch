@@ -1529,6 +1529,73 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
         assertThat(answer.get("values"), equalTo(List.of(List.of("#"), List.of("foo#bar"))));
     }
 
+    public void testMatchFunctionAcrossMultipleIndicesWithMissingField() throws IOException {
+        int numberOfIndicesWithField = randomIntBetween(11, 20);
+        int numberOfIndicesWithoutField = randomIntBetween(1, 10);
+        int totalIndices = numberOfIndicesWithField + numberOfIndicesWithoutField;
+
+        int indexNum = 0;
+        for (int i = 0; i < numberOfIndicesWithField; i++) {
+            String indexName = testIndexName() + indexNum++;
+            // Create index with the text field
+            createIndex(indexName, Settings.EMPTY, """
+                {
+                    "properties": {
+                        "message": {
+                            "type": "text"
+                        }
+                    }
+                }
+                """);
+            Request doc = new Request("POST", indexName + "/_doc?refresh=true");
+            doc.setJsonEntity("""
+                {
+                    "message": "elasticsearch"
+                }
+                """);
+            client().performRequest(doc);
+        }
+        for (int i = 0; i < numberOfIndicesWithoutField; i++) {
+            String indexName = testIndexName() + indexNum++;
+            // Create index without the text field
+            createIndex(indexName, Settings.EMPTY, """
+                {
+                    "properties": {
+                        "other_field": {
+                            "type": "keyword"
+                        }
+                    }
+                }
+                """);
+
+            // Index a document in each index
+            Request doc = new Request("POST", indexName + "/_doc?refresh=true");
+            doc.setJsonEntity("""
+                {
+                    "other_field": "elasticsearch"
+                }
+                """);
+            client().performRequest(doc);
+        }
+
+        // Query using MATCH function across all indices
+        String query = "FROM " + testIndexName() + "* | WHERE MATCH(message, \"elasticsearch\")";
+        Map<String, Object> result = runEsql(requestObjectBuilder().query(query));
+
+        // Verify the number of results equals the number of indices that have the field
+        var values = as(result.get("values"), ArrayList.class);
+        assertEquals(
+            "Expected " + numberOfIndicesWithField + " results from indices with the 'message' field",
+            numberOfIndicesWithField,
+            values.size()
+        );
+
+        // Clean up - delete all created indices
+        for (int i = 0; i < totalIndices; i++) {
+            assertTrue(deleteIndex(testIndexName() + i).isAcknowledged());
+        }
+    }
+
     protected static Request prepareRequestWithOptions(RequestObjectBuilder requestObject, Mode mode) throws IOException {
         requestObject.build();
         Request request = prepareRequest(mode);

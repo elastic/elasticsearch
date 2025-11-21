@@ -9,8 +9,7 @@ template:
     dynamic: false
     properties:
       "@timestamp":
-#Ultimeately we aim to use date_nanos. Waiting for https://github.com/elastic/elasticsearch/issues/109352
-        type: date
+        type: date_nanos
       data_stream.type:
         type: constant_keyword
       data_stream.dataset:

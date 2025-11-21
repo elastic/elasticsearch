@@ -527,6 +527,7 @@ public class ESNextDiskBBQVectorsReader extends IVFVectorsReader {
 
     @Override
     public Map<String, Long> getOffHeapByteSize(FieldInfo fieldInfo) {
+        // TODO: override if adding new files
         return super.getOffHeapByteSize(fieldInfo);
     }
 

@@ -394,11 +394,6 @@ public class ES920DiskBBQVectorsReader extends IVFVectorsReader {
         return new MemorySegmentPostingsVisitor(target, indexInput, entry, fieldInfo, acceptDocs);
     }
 
-    @Override
-    public Map<String, Long> getOffHeapByteSize(FieldInfo fieldInfo) {
-        return super.getOffHeapByteSize(fieldInfo);
-    }
-
     private static class MemorySegmentPostingsVisitor implements PostingVisitor {
         final long quantizedByteLength;
         final IndexInput indexInput;

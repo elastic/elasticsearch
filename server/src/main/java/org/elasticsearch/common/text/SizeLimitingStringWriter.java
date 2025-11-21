@@ -11,12 +11,17 @@ package org.elasticsearch.common.text;
 
 import org.elasticsearch.common.Strings;
 
-import java.io.StringWriter;
+import java.io.IOException;
+import java.io.Writer;
+import java.util.Objects;
 
 /**
- * A {@link StringWriter} that throws an exception if the string exceeds a specified size.
+ * A {@link Writer} that throws an exception if the string exceeds a specified size. Rather than
+ * extending {@link java.io.StringWriter} which wraps a {@link java.lang.StringBuffer}, this class implements
+ * the required logic directly and wraps a {@link java.lang.StringBuilder}. This avoids synchronization overhead,
+ * but also means that this class is not thread safe.
  */
-public class SizeLimitingStringWriter extends StringWriter {
+public final class SizeLimitingStringWriter extends Writer {
 
     public static class SizeLimitExceededException extends IllegalStateException {
         public SizeLimitExceededException(String message) {
@@ -25,13 +30,14 @@ public class SizeLimitingStringWriter extends StringWriter {
     }
 
     private final int sizeLimit;
+    private final StringBuilder builder = new StringBuilder();
 
     public SizeLimitingStringWriter(int sizeLimit) {
         this.sizeLimit = sizeLimit;
     }
 
     private int limitSize(int additionalChars) {
-        int neededSize = getBuffer().length() + additionalChars;
+        int neededSize = builder.length() + additionalChars;
         if (neededSize > sizeLimit) {
             return additionalChars - (neededSize - sizeLimit);
         }
@@ -40,9 +46,9 @@ public class SizeLimitingStringWriter extends StringWriter {
 
     private void throwSizeLimitExceeded(int limitedChars, int requestedChars) {
         assert limitedChars < requestedChars;
-        int bufLen = getBuffer().length();
+        int bufLen = builder.length();
         int foundSize = bufLen - limitedChars + requestedChars; // reconstitute original
-        String selection = getBuffer().substring(0, Math.min(bufLen, 20));
+        String selection = builder.substring(0, Math.min(bufLen, 20));
         throw new SizeLimitExceededException(
             Strings.format("String [%s...] has size [%d] which exceeds the size limit [%d]", selection, foundSize, sizeLimit)
         );
@@ -53,16 +59,20 @@ public class SizeLimitingStringWriter extends StringWriter {
         if (limitSize(1) != 1) {
             throwSizeLimitExceeded(0, 1);
         }
-        super.write(c);
+        builder.append(c);
     }
 
     // write(char[]) delegates to write(char[], int, int)
 
     @Override
     public void write(char[] cbuf, int off, int len) {
+        Objects.checkFromIndexSize(off, len, cbuf.length);
         int limitedLen = limitSize(len);
         if (limitedLen > 0) {
-            super.write(cbuf, off, limitedLen);
+            if (len == 0) {
+                return;
+            }
+            builder.append(cbuf, off, limitedLen);
         }
         if (limitedLen != len) {
             throwSizeLimitExceeded(limitedLen, len);
@@ -78,12 +88,27 @@ public class SizeLimitingStringWriter extends StringWriter {
     public void write(String str, int off, int len) {
         int limitedLen = limitSize(len);
         if (limitedLen > 0) {
-            super.write(str, off, limitedLen);
+            builder.append(str, off, off + limitedLen);
         }
         if (limitedLen != len) {
             throwSizeLimitExceeded(limitedLen, len);
         }
     }
 
+    @Override
+    public void flush() throws IOException {
+        // noop
+    }
+
+    @Override
+    public void close() throws IOException {
+        // noop
+    }
+
     // append(...) delegates to write(...) methods
+
+    @Override
+    public String toString() {
+        return builder.toString();
+    }
 }

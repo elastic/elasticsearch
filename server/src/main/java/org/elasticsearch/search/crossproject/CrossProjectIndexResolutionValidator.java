@@ -21,6 +21,9 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.transport.RemoteClusterAware;
 
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
@@ -78,7 +81,9 @@ public class CrossProjectIndexResolutionValidator {
         ResolvedIndexExpressions localResolvedExpressions,
         Map<String, ResolvedIndexExpressions> remoteResolvedExpressions
     ) {
-        ElasticsearchException exception = null;
+        Map<String, ElasticsearchException> authorizationExceptions = new HashMap<>();
+        Map<String, List<String>> unauthorizedIndices = new HashMap<>();
+        ElasticsearchException notFoundException = null;
 
         if (indicesOptions.allowNoIndices() && indicesOptions.ignoreUnavailable()) {
             logger.debug("Skipping index existence check in lenient mode");
@@ -112,7 +117,16 @@ public class CrossProjectIndexResolutionValidator {
                     indicesOptions
                 );
                 if (localException != null) {
-                    exception = recordException(exception, localException);
+                    if (localException instanceof ElasticsearchSecurityException) {
+                        authorizationExceptions.putIfAbsent("_local", localException);
+                        unauthorizedIndices.compute("_local", (k, v) -> {
+                            if (v == null) {
+                                v = new ArrayList<>();
+                            }
+                            v.add(localResolvedIndices.original());
+                            return v;
+                        });
+                    }
                 }
                 // qualified linked project expression
                 for (String remoteExpression : remoteExpressions) {
@@ -192,19 +206,10 @@ public class CrossProjectIndexResolutionValidator {
             }
         }
 
-        return exception;
-    }
-
-    private static ElasticsearchException recordException(
-        @Nullable ElasticsearchException baseException,
-        ElasticsearchException nextException
-    ) {
-        if (baseException == null) {
-            return nextException;
-        } else {
-            baseException.addSuppressed(nextException);
-            return baseException;
+        if (authorizationException != null) {
+            return authorizationException;
         }
+        return notFoundException;
     }
 
     public static IndicesOptions indicesOptionsForCrossProjectFanout(IndicesOptions indicesOptions) {

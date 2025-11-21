@@ -74,6 +74,8 @@ public class TransportDeleteCCMConfigurationAction extends TransportMasterNodeAc
             return;
         }
 
+        // TODO check that all nodes in the cluster support the feature
+
         var disabledListener = listener.<Void>delegateFailureIgnoreResponseAndWrap(
             delegate -> delegate.onResponse(new CCMEnabledActionResponse(false))
         );

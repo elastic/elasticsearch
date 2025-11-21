@@ -75,6 +75,8 @@ public class TransportPutCCMConfigurationAction extends TransportMasterNodeActio
             return;
         }
 
+        // TODO check that all nodes in the cluster support the feature
+
         var enabledListener = listener.<Void>delegateFailureIgnoreResponseAndWrap(
             delegate -> delegate.onResponse(new CCMEnabledActionResponse(true))
         );

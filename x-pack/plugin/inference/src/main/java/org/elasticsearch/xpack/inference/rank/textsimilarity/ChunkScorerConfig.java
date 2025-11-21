@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.inference.rank.textsimilarity;
 
-import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -22,8 +21,6 @@ import java.util.Map;
 import java.util.Objects;
 
 public class ChunkScorerConfig implements Writeable, ToXContentObject {
-
-    private static final TransportVersion NULLABLE_CHUNK_SETTINGS_VERSION = TransportVersion.fromName("nullable_chunk_settings");
 
     public final Integer size;
     private final String inferenceText;
@@ -41,7 +38,7 @@ public class ChunkScorerConfig implements Writeable, ToXContentObject {
 
     public static ChunkingSettings chunkingSettingsFromMap(Map<String, Object> map) {
 
-        if (map == null || map.isEmpty()) {
+        if (map == null) {
             return null;
         }
 
@@ -49,18 +46,13 @@ public class ChunkScorerConfig implements Writeable, ToXContentObject {
             return defaultChunkingSettings((Integer) map.get("max_chunk_size"));
         }
 
-        return ChunkingSettingsBuilder.fromMap(map);
+        return ChunkingSettingsBuilder.fromMap(map, false);
     }
 
     public ChunkScorerConfig(StreamInput in) throws IOException {
         this.size = in.readOptionalVInt();
         this.inferenceText = in.readString();
-        if (in.getTransportVersion().supports(NULLABLE_CHUNK_SETTINGS_VERSION)) {
-            this.chunkingSettings = chunkingSettingsFromMap(in.readGenericMap());
-        } else {
-            Map<String, Object> chunkingSettingsMap = in.readGenericMap();
-            this.chunkingSettings = chunkingSettingsFromMap(chunkingSettingsMap);
-        }
+        this.chunkingSettings = chunkingSettingsFromMap(in.readGenericMap());
     }
 
     public ChunkScorerConfig(Integer size, ChunkingSettings chunkingSettings) {
@@ -77,11 +69,7 @@ public class ChunkScorerConfig implements Writeable, ToXContentObject {
     public void writeTo(StreamOutput out) throws IOException {
         out.writeOptionalVInt(size);
         out.writeString(inferenceText);
-        if (out.getTransportVersion().supports(NULLABLE_CHUNK_SETTINGS_VERSION)) {
-            out.writeGenericMap(chunkingSettings != null ? chunkingSettings.asMap() : Map.of());
-        } else {
-            out.writeGenericMap(chunkingSettings != null ? chunkingSettings.asMap() : defaultChunkingSettings(DEFAULT_CHUNK_SIZE).asMap());
-        }
+        out.writeGenericMap(chunkingSettings != null ? chunkingSettings.asMap() : Map.of());
     }
 
     public Integer size() {

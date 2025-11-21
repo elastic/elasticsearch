@@ -62,10 +62,7 @@ public class TextSimilarityRankFeaturePhaseRankCoordinatorContext extends RankFe
     @Override
     protected void computeScores(RankFeatureDoc[] featureDocs, ActionListener<float[]> scoreListener) {
 
-        ActionListener<GetRerankerWindowSizeAction.Response> windowSizeListener = scoreListener.delegateFailureAndWrap((l, r) -> {
-            // Resolve chunking settings if needed
-            final ChunkScorerConfig resolvedChunkScorerConfig = resolveChunkingSettings(r.getWindowSize());
-
+        ActionListener<ChunkScorerConfig> resolvedConfigListener = scoreListener.delegateFailureAndWrap((l, resolvedChunkScorerConfig) -> {
             // Wrap the provided rankListener to an ActionListener that would handle the response from the inference service
             // and then pass the results
             ActionListener<InferenceAction.Response> inferenceListener = scoreListener.delegateFailureAndWrap((l2, r2) -> {
@@ -123,10 +120,12 @@ public class TextSimilarityRankFeaturePhaseRankCoordinatorContext extends RankFe
         });
 
         if (chunkScorerConfig != null && chunkScorerConfig.chunkingSettings() == null) {
-            GetRerankerWindowSizeAction.Request getWindowSizeRequest = new GetRerankerWindowSizeAction.Request(inferenceId);
-            client.execute(GetRerankerWindowSizeAction.INSTANCE, getWindowSizeRequest, windowSizeListener);
+            GetRerankerWindowSizeAction.Request req = new GetRerankerWindowSizeAction.Request(inferenceId);
+            ActionListener<GetRerankerWindowSizeAction.Response> windowSizeListener =
+                resolvedConfigListener.map(r -> resolveChunkingSettings(r.getWindowSize()));
+            client.execute(GetRerankerWindowSizeAction.INSTANCE, req, windowSizeListener);
         } else {
-            windowSizeListener.onResponse(new GetRerankerWindowSizeAction.Response(-1));
+            resolvedConfigListener.onResponse(resolveChunkingSettings(-1));
         }
     }
 
@@ -212,7 +211,7 @@ public class TextSimilarityRankFeaturePhaseRankCoordinatorContext extends RankFe
         return Math.max(score, 0) + Math.min((float) Math.exp(score), 1);
     }
 
-    private ChunkScorerConfig resolveChunkingSettings(int windowSize) {
+    ChunkScorerConfig resolveChunkingSettings(int windowSize) {
         if (chunkScorerConfig == null) {
             return null;
         }
@@ -221,16 +220,16 @@ public class TextSimilarityRankFeaturePhaseRankCoordinatorContext extends RankFe
             return chunkScorerConfig;
         }
 
-        ChunkingSettings endpointSettings = windowSize > 0 ? ChunkScorerConfig.defaultChunkingSettings(windowSize) : null;
-
-        if (endpointSettings != null) {
-            return new ChunkScorerConfig(chunkScorerConfig.size(), chunkScorerConfig.inferenceText(), endpointSettings);
+        if (windowSize <= 0) {
+            throw new IllegalStateException(
+                "Unable to determine reranker window size for inference endpoint [" + inferenceId + "]"
+            );
         }
-
+        ChunkingSettings endpointSettings = ChunkScorerConfig.defaultChunkingSettings(windowSize);
         return new ChunkScorerConfig(
             chunkScorerConfig.size(),
             chunkScorerConfig.inferenceText(),
-            ChunkScorerConfig.defaultChunkingSettings(ChunkScorerConfig.DEFAULT_CHUNK_SIZE)
+            endpointSettings
         );
     }
 }

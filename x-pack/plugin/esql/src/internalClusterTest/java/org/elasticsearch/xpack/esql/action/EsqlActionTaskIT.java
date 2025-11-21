@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.esql.action;
 
+import org.apache.logging.log4j.Level;
+import org.apache.logging.log4j.core.LogEvent;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionFuture;
@@ -16,11 +18,13 @@ import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Iterators;
+import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.compute.lucene.LuceneSourceOperator;
 import org.elasticsearch.compute.lucene.read.ValuesSourceReaderOperatorStatus;
+import org.elasticsearch.compute.operator.Driver;
 import org.elasticsearch.compute.operator.DriverStatus;
 import org.elasticsearch.compute.operator.DriverTaskRunner;
 import org.elasticsearch.compute.operator.OperatorStatus;
@@ -39,9 +43,12 @@ import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
+import org.elasticsearch.xpack.esql.MockAppender;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.hamcrest.Matcher;
+import org.junit.AfterClass;
 import org.junit.Before;
+import org.junit.BeforeClass;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -66,6 +73,7 @@ import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.in;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.startsWith;
 
 /**
  * Tests that we expose a reasonable task status.
@@ -77,6 +85,25 @@ import static org.hamcrest.Matchers.not;
 public class EsqlActionTaskIT extends AbstractPausableIntegTestCase {
 
     private static final Logger LOGGER = LogManager.getLogger(EsqlActionTaskIT.class);
+
+    static MockAppender driverMockAppender;
+    static org.apache.logging.log4j.Logger driverLog = org.apache.logging.log4j.LogManager.getLogger(Driver.class);
+    static Level origDriverLogLevel = driverLog.getLevel();
+
+    @BeforeClass
+    public static void init() throws IllegalAccessException {
+        driverMockAppender = new MockAppender("mock_appender");
+        driverMockAppender.start();
+        Loggers.addAppender(driverLog, driverMockAppender);
+        Loggers.setLevel(driverLog, Level.DEBUG);
+    }
+
+    @AfterClass
+    public static void cleanup() {
+        Loggers.removeAppender(driverLog, driverMockAppender);
+        driverMockAppender.stop();
+        Loggers.setLevel(driverLog, origDriverLogLevel);
+    }
 
     private Boolean nodeLevelReduction;
 
@@ -214,6 +241,7 @@ public class EsqlActionTaskIT extends AbstractPausableIntegTestCase {
         } finally {
             scriptPermits.release(numberOfDocs());
         }
+        assertCancelledLog();
     }
 
     public void testCancelMerge() throws Exception {
@@ -226,6 +254,7 @@ public class EsqlActionTaskIT extends AbstractPausableIntegTestCase {
         } finally {
             scriptPermits.release(numberOfDocs());
         }
+        assertCancelledLog();
     }
 
     public void testCancelEsqlTask() throws Exception {
@@ -244,6 +273,14 @@ public class EsqlActionTaskIT extends AbstractPausableIntegTestCase {
         } finally {
             scriptPermits.release(numberOfDocs());
         }
+        assertCancelledLog();
+    }
+
+    private void assertCancelledLog() {
+        LogEvent event = driverMockAppender.getLastEventAndReset();
+        assertThat(event.getLevel(), equalTo(Level.DEBUG));
+        assertThat(event.getMessage().getFormattedMessage(), startsWith("Cancelling running driver ["));
+        assertThat(event.getThrown().getClass(), equalTo(TaskCancelledException.class));
     }
 
     private ActionFuture<EsqlQueryResponse> startEsql() {

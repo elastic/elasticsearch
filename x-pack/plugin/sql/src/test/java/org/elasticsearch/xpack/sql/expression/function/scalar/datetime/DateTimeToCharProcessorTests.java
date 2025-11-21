@@ -36,7 +36,7 @@ import static org.elasticsearch.xpack.sql.expression.function.scalar.datetime.To
  * <p>
  *     Note: Recreating the data set has some complexities,
  *     as modern Postgres versions (+12) don't have some of the configured timezones,
- *     and they also may generate different results.
+ *     and they also may generate different results for dates before 1900.
  * </p>
  * <p>
  *     Consider if it's worth changing the dataset for this test.

@@ -305,12 +305,4 @@ public class Chunk extends EsqlScalarFunction implements OptionalArgument {
         }));
         return ChunkingSettingsBuilder.fromMap(chunkingSettingsMap);
     }
-
-    private static ChunkingSettings toChunkingSettings(Map<String, Object> expressionMap) {
-        Map<String, Object> chunkingSettingsMap = expressionMap.entrySet().stream().collect(Collectors.toMap(Map.Entry::getKey, e -> {
-            Object value = e.getValue();
-            return value instanceof BytesRef ? ((BytesRef) value).utf8ToString() : value;
-        }));
-        return ChunkingSettingsBuilder.fromMap(chunkingSettingsMap);
-    }
 }

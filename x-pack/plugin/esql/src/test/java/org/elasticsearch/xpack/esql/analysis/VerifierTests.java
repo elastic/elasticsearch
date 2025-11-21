@@ -3357,9 +3357,8 @@ public class VerifierTests extends ESTestCase {
                     fullTextAnalyzer,
                     VerificationException.class
                 ),
-                containsString(
-                    "1:27: Invalid option [extra_value] in [CHUNK(body, {\"strategy\": \"sentence\", "
-                        + "\"max_chunk_size\": 20, \"sentence_overlap\": 1, \"extra_value\": \"foo\"})], expected one of ["
+                equalTo(
+                    "1:27: Validation Failed: 1: Sentence based chunking settings can not have the following settings: [extra_value];"
                 )
             );
         }

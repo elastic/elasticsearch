@@ -60,13 +60,11 @@ import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
-import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.SortedMap;
-import java.util.TreeMap;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executor;
 import java.util.function.BiFunction;
 import java.util.stream.Collectors;
@@ -153,18 +151,18 @@ public class TransportOpenPointInTimeAction extends HandledTransportAction<OpenP
         if (resolveCrossProject) {
             IndicesOptions originalIndicesOptions = request.indicesOptions();
             if (false == originalIndicesOptions.ignoreUnavailable() || false == originalIndicesOptions.allowNoIndices()) {
-                final SortedMap<String, ResolveIndexAction.Response> remoteResponses = Collections.synchronizedSortedMap(new TreeMap<>());
                 final ResolvedIndexExpressions localResolvedIndexExpressions = request.getResolvedIndexExpressions();
                 RemoteClusterService remoteClusterService = searchTransportService.getRemoteClusterService();
-                final Map<String, OriginalIndices> remoteClusterIndices = remoteClusterService.groupIndices(
+                final Map<String, OriginalIndices> indicesPerCluster = remoteClusterService.groupIndices(
                     indicesOptionsForCrossProjectFanout(originalIndicesOptions),
                     indices
                 );
                 // local indices resolution was already taken care of by the Security Action Filter
-                remoteClusterIndices.remove(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY);
-                if (false == remoteClusterIndices.isEmpty()) {
-                    final int remoteRequests = remoteClusterIndices.size();
-                    final CountDown completionCounter = new CountDown(remoteRequests);
+                indicesPerCluster.remove(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY);
+                if (false == indicesPerCluster.isEmpty()) {
+                    final int linkedProjectsToQuery = indicesPerCluster.size();
+                    final Map<String, ResolveIndexAction.Response> remoteResponses = new ConcurrentHashMap<>(linkedProjectsToQuery);
+                    final CountDown completionCounter = new CountDown(linkedProjectsToQuery);
                     final Runnable terminalHandler = () -> {
                         if (completionCounter.countDown()) {
                             Map<String, ResolvedIndexExpressions> resolvedRemoteExpressions = remoteResponses.entrySet()
@@ -216,17 +214,19 @@ public class TransportOpenPointInTimeAction extends HandledTransportAction<OpenP
                     };
 
                     // make CPS calls
-                    for (Map.Entry<String, OriginalIndices> remoteIndices : remoteClusterIndices.entrySet()) {
-                        String clusterAlias = remoteIndices.getKey();
-                        OriginalIndices originalIndices = remoteIndices.getValue();
+                    for (Map.Entry<String, OriginalIndices> remoteClusterIndices : indicesPerCluster.entrySet()) {
+                        String clusterAlias = remoteClusterIndices.getKey();
+                        OriginalIndices originalIndices = remoteClusterIndices.getValue();
+                        // form indicesOptionsForCrossProjectFanout
+                        IndicesOptions relaxedFanoutIndicesOptions = originalIndices.indicesOptions();
                         var remoteClusterClient = remoteClusterService.getRemoteClusterClient(
                             clusterAlias,
                             EsExecutors.DIRECT_EXECUTOR_SERVICE,
-                            RemoteClusterService.DisconnectedStrategy.RECONNECT_UNLESS_SKIP_UNAVAILABLE
+                            RemoteClusterService.DisconnectedStrategy.FAIL_IF_DISCONNECTED
                         );
                         ResolveIndexAction.Request remoteRequest = new ResolveIndexAction.Request(
                             originalIndices.indices(),
-                            originalIndices.indicesOptions()
+                            relaxedFanoutIndicesOptions
                         );
                         remoteClusterClient.execute(ResolveIndexAction.REMOTE_TYPE, remoteRequest, ActionListener.wrap(response -> {
                             remoteResponses.put(clusterAlias, response);

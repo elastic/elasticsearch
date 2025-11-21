@@ -32,7 +32,6 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.function.IntFunction;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
@@ -616,36 +615,6 @@ public class HeapAttackIT extends HeapAttackTestCase {
         return responseAsMap(query(query.toString(), "columns"));
     }
 
-    public void testEnrichExplosion() throws IOException {
-        int sensorDataCount = 1000;
-        int lookupEntries = 100;
-        Map<?, ?> map = enrichExplosion(sensorDataCount, lookupEntries);
-        assertMap(map, matchesMap().extraOk().entry("values", List.of(List.of(sensorDataCount))));
-    }
-
-    public void testEnrichExplosionManyMatches() throws IOException {
-        // 1000, 10000 is enough on most nodes
-        assertCircuitBreaks(attempt -> enrichExplosion(1000, attempt * 5000));
-    }
-
-    private Map<String, Object> enrichExplosion(int sensorDataCount, int lookupEntries) throws IOException {
-        try {
-            initSensorData(sensorDataCount, 1, 1, false);
-            initSensorEnrich(lookupEntries, 1, i -> "73.9857 40.7484");
-            try {
-                StringBuilder query = startQuery();
-                query.append("FROM sensor_data | ENRICH sensor ON id0 | STATS COUNT(*)\"}");
-                return responseAsMap(query(query.toString(), null));
-            } finally {
-                Request delete = new Request("DELETE", "/_enrich/policy/sensor");
-                assertMap(responseAsMap(client().performRequest(delete)), matchesMap().entry("acknowledged", true));
-            }
-        } finally {
-            deleteIndex("sensor_data");
-            deleteIndex("sensor_lookup");
-        }
-    }
-
     private void initManyLongs(int countPerLong) throws IOException {
         logger.info("loading many documents with longs");
         StringBuilder bulk = new StringBuilder();
@@ -802,25 +771,6 @@ public class HeapAttackIT extends HeapAttackTestCase {
             }
         }
         initIndex("mv_longs", bulk.toString());
-    }
-
-    private void initSensorEnrich(int lookupEntries, int sensorCount, IntFunction<String> location) throws IOException {
-        initSensorLookup(lookupEntries, sensorCount, location, 1, false);
-        logger.info("loading sensor enrich");
-
-        Request create = new Request("PUT", "/_enrich/policy/sensor");
-        create.setJsonEntity("""
-            {
-              "match": {
-                "indices": "sensor_lookup",
-                "match_field": "id0",
-                "enrich_fields": ["location"]
-              }
-            }
-            """);
-        assertMap(responseAsMap(client().performRequest(create)), matchesMap().entry("acknowledged", true));
-        Request execute = new Request("POST", "/_enrich/policy/sensor/_execute");
-        assertMap(responseAsMap(client().performRequest(execute)), matchesMap().entry("status", Map.of("phase", "COMPLETE")));
     }
 
 }

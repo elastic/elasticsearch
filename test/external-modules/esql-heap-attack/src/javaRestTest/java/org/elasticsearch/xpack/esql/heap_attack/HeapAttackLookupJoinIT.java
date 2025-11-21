@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.heap_attack;
 import com.carrotsearch.randomizedtesting.annotations.TimeoutSuite;
 
 import org.apache.lucene.tests.util.TimeUnits;
+import org.elasticsearch.client.Request;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.index.IndexMode;
@@ -25,10 +26,10 @@ import static org.elasticsearch.test.MapMatcher.assertMap;
 import static org.elasticsearch.test.MapMatcher.matchesMap;
 
 /**
- * Tests that run ESQL lookup join queries that use a ton of memory. We want to make
- * sure they don't consume the entire heap and crash Elasticsearch.
+ * Tests that run ESQL lookup join and enrich queries that use a ton of memory.
+ * We want to make sure they don't consume the entire heap and crash Elasticsearch.
  */
-@TimeoutSuite(millis = 20 * TimeUnits.MINUTE)
+@TimeoutSuite(millis = 40 * TimeUnits.MINUTE)
 public class HeapAttackLookupJoinIT extends HeapAttackTestCase {
 
     public void testLookupExplosion() throws IOException {
@@ -245,6 +246,55 @@ public class HeapAttackLookupJoinIT extends HeapAttackTestCase {
             }
         }
         initIndex("sensor_lookup", data.toString());
+    }
+
+    public void testEnrichExplosion() throws IOException {
+        int sensorDataCount = 1000;
+        int lookupEntries = 100;
+        Map<?, ?> map = enrichExplosion(sensorDataCount, lookupEntries);
+        assertMap(map, matchesMap().extraOk().entry("values", List.of(List.of(sensorDataCount))));
+    }
+
+    public void testEnrichExplosionManyMatches() throws IOException {
+        // 1000, 10000 is enough on most nodes
+        assertCircuitBreaks(attempt -> enrichExplosion(1000, attempt * 5000));
+    }
+
+    private Map<String, Object> enrichExplosion(int sensorDataCount, int lookupEntries) throws IOException {
+        try {
+            initSensorData(sensorDataCount, 1, 1, false);
+            initSensorEnrich(lookupEntries, 1, i -> "73.9857 40.7484");
+            try {
+                StringBuilder query = startQuery();
+                query.append("FROM sensor_data | ENRICH sensor ON id0 | STATS COUNT(*)\"}");
+                return responseAsMap(query(query.toString(), null));
+            } finally {
+                Request delete = new Request("DELETE", "/_enrich/policy/sensor");
+                assertMap(responseAsMap(client().performRequest(delete)), matchesMap().entry("acknowledged", true));
+            }
+        } finally {
+            deleteIndex("sensor_data");
+            deleteIndex("sensor_lookup");
+        }
+    }
+
+    private void initSensorEnrich(int lookupEntries, int sensorCount, IntFunction<String> location) throws IOException {
+        initSensorLookup(lookupEntries, sensorCount, location, 1, false);
+        logger.info("loading sensor enrich");
+
+        Request create = new Request("PUT", "/_enrich/policy/sensor");
+        create.setJsonEntity("""
+            {
+              "match": {
+                "indices": "sensor_lookup",
+                "match_field": "id0",
+                "enrich_fields": ["location"]
+              }
+            }
+            """);
+        assertMap(responseAsMap(client().performRequest(create)), matchesMap().entry("acknowledged", true));
+        Request execute = new Request("POST", "/_enrich/policy/sensor/_execute");
+        assertMap(responseAsMap(client().performRequest(execute)), matchesMap().entry("status", Map.of("phase", "COMPLETE")));
     }
 
 }

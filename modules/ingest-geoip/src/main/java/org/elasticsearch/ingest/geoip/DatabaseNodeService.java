@@ -371,7 +371,7 @@ public final class DatabaseNodeService implements IpDatabaseProvider {
             try {
                 retrieveAndUpdateDatabase(projectId, name, metadata);
             } catch (Exception ex) {
-                logger.error(() -> "failed to retrieve database [" + name + "]", ex);
+                logger.warn(() -> "failed to retrieve database [" + name + "]", ex);
             }
         });
 
@@ -468,13 +468,13 @@ public final class DatabaseNodeService implements IpDatabaseProvider {
                 Files.delete(retrievedFile);
             },
             failure -> {
-                logger.error(() -> "failed to retrieve database [" + databaseName + "]", failure);
+                logger.warn(() -> "failed to retrieve database [" + databaseName + "]", failure);
                 try {
                     Files.deleteIfExists(databaseTmpFile);
                     Files.deleteIfExists(retrievedFile);
                 } catch (IOException ioe) {
                     ioe.addSuppressed(failure);
-                    logger.error("unable to delete tmp database file after failure", ioe);
+                    logger.warn("unable to delete tmp database file after failure", ioe);
                 }
             }
         );
@@ -519,7 +519,7 @@ public final class DatabaseNodeService implements IpDatabaseProvider {
             }
             logger.info("successfully loaded database file [{}]", file.getFileName());
         } catch (Exception e) {
-            logger.error(() -> "failed to update database [" + databaseFileName + "]", e);
+            logger.warn(() -> "failed to update database [" + databaseFileName + "]", e);
         }
     }
 
@@ -533,7 +533,7 @@ public final class DatabaseNodeService implements IpDatabaseProvider {
                 assert existing != null;
                 existing.shutdown(true);
             } catch (Exception e) {
-                logger.error(() -> "failed to clean database [" + staleEntry + "] for project [" + projectId + "]", e);
+                logger.warn(() -> "failed to clean database [" + staleEntry + "] for project [" + projectId + "]", e);
             }
         }
     }

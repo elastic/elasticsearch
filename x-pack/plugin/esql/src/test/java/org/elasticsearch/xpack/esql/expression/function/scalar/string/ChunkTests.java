@@ -14,6 +14,7 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.inference.ChunkingSettings;
+import org.elasticsearch.xpack.core.inference.chunking.ChunkingSettingsOptions;
 import org.elasticsearch.xpack.core.inference.chunking.SentenceBoundaryChunkingSettings;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
@@ -24,14 +25,18 @@ import org.elasticsearch.xpack.esql.expression.function.AbstractScalarFunctionTe
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
+import java.util.Set;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 import static org.elasticsearch.compute.data.BlockUtils.toJavaObject;
 import static org.elasticsearch.xpack.core.inference.chunking.ChunkingSettingsTests.createRandomChunkingSettings;
+import static org.elasticsearch.xpack.esql.expression.function.scalar.string.Chunk.ALLOWED_CHUNKING_SETTING_OPTIONS;
+import static org.elasticsearch.xpack.esql.expression.function.scalar.string.Chunk.DEFAULT_CHUNKING_SETTINGS;
 import static org.hamcrest.Matchers.equalTo;
 
 public class ChunkTests extends AbstractScalarFunctionTestCase {
@@ -101,7 +106,7 @@ public class ChunkTests extends AbstractScalarFunctionTestCase {
         if (Objects.nonNull(chunkingSettings)) {
             chunkingSettings.asMap().forEach((key, value) -> {
                 chunkingSettingsMap.add(Literal.keyword(Source.EMPTY, key));
-                chunkingSettingsMap.add(new Literal(Source.EMPTY, value, DataType.INTEGER));
+                chunkingSettingsMap.add(new Literal(Source.EMPTY, value, ALLOWED_CHUNKING_SETTING_OPTIONS.get(key)));
             });
         }
 
@@ -140,8 +145,18 @@ public class ChunkTests extends AbstractScalarFunctionTestCase {
         // Actual results depend on chunking settings passed in
     }
 
+    // Paranoia check, this test will fail if we add new chunking settings options without updating the Chunk function
+    public void testChunkDefinesAllAllowedChunkingSettingsOptions() {
+        Set<String> allowedOptions = ALLOWED_CHUNKING_SETTING_OPTIONS.keySet();
+        Set<String> allOptions = Arrays.stream(ChunkingSettingsOptions.values())
+            .map(ChunkingSettingsOptions::toString)
+            .collect(Collectors.toSet());
+
+        assertEquals(allOptions, allowedOptions);
+    }
+
     private void verifyChunks(ChunkingSettings chunkingSettings, int expectedNumChunksReturned) {
-        ChunkingSettings chunkingSettingsOrDefault = chunkingSettings != null ? chunkingSettings : Chunk.DEFAULT_CHUNKING_SETTINGS;
+        ChunkingSettings chunkingSettingsOrDefault = chunkingSettings != null ? chunkingSettings : DEFAULT_CHUNKING_SETTINGS;
         List<String> expected = Chunk.chunkText(PARAGRAPH_INPUT, chunkingSettingsOrDefault).stream().map(String::trim).toList();
 
         List<String> result = process(PARAGRAPH_INPUT, chunkingSettingsOrDefault);

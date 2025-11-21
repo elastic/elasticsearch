@@ -3322,7 +3322,7 @@ public class VerifierTests extends ESTestCase {
         if (EsqlCapabilities.Cap.CHUNK_FUNCTION_V2.isEnabled()) {
             assertThat(
                 error("from test | EVAL chunks = CHUNK(body, null)", fullTextAnalyzer, VerificationException.class),
-                equalTo("1:27: chunking_settings must be a map")
+                equalTo("1:27: second argument of [CHUNK(body, null)] cannot be null, received [null]")
             );
             assertThat(
                 error("from test | EVAL chunks = CHUNK(body, {\"strategy\": \"invalid\"})", fullTextAnalyzer, VerificationException.class),
@@ -3357,7 +3357,8 @@ public class VerifierTests extends ESTestCase {
                     fullTextAnalyzer,
                     VerificationException.class
                 ),
-                equalTo("1:27: Validation Failed: 1: Sentence based chunking settings can not have the following settings: [extra_value];")
+                containsString("1:27: Invalid option [extra_value] in [CHUNK(body, {\"strategy\": \"sentence\", " +
+                    "\"max_chunk_size\": 20, \"sentence_overlap\": 1, \"extra_value\": \"foo\"})], expected one of [")
             );
         }
     }

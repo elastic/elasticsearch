@@ -19,10 +19,11 @@ import org.elasticsearch.inference.ChunkingSettings;
 import org.elasticsearch.xpack.core.inference.chunking.Chunker;
 import org.elasticsearch.xpack.core.inference.chunking.ChunkerBuilder;
 import org.elasticsearch.xpack.core.inference.chunking.ChunkingSettingsBuilder;
+import org.elasticsearch.xpack.core.inference.chunking.ChunkingSettingsOptions;
 import org.elasticsearch.xpack.core.inference.chunking.SentenceBoundaryChunkingSettings;
+import org.elasticsearch.xpack.esql.core.InvalidArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
-import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.MapExpression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -33,6 +34,7 @@ import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecyc
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.MapParam;
 import org.elasticsearch.xpack.esql.expression.function.OptionalArgument;
+import org.elasticsearch.xpack.esql.expression.function.Options;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlScalarFunction;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
@@ -43,7 +45,9 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.stream.Collectors;
 
+import static java.util.Map.entry;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.FIRST;
+import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.SECOND;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isString;
 
 public class Chunk extends EsqlScalarFunction implements OptionalArgument {
@@ -54,6 +58,15 @@ public class Chunk extends EsqlScalarFunction implements OptionalArgument {
     public static final ChunkingSettings DEFAULT_CHUNKING_SETTINGS = new SentenceBoundaryChunkingSettings(DEFAULT_CHUNK_SIZE, 0);
 
     private final Expression field, chunkingSettings;
+
+    public static final Map<String,DataType> ALLOWED_CHUNKING_SETTING_OPTIONS = Map.ofEntries(
+        entry(ChunkingSettingsOptions.STRATEGY.toString(), DataType.KEYWORD),
+        entry(ChunkingSettingsOptions.MAX_CHUNK_SIZE.toString(), DataType.INTEGER),
+        entry(ChunkingSettingsOptions.OVERLAP.toString(), DataType.INTEGER),
+        entry(ChunkingSettingsOptions.SENTENCE_OVERLAP.toString(), DataType.INTEGER),
+        entry(ChunkingSettingsOptions.SEPARATOR_GROUP.toString(), DataType.KEYWORD),
+        entry(ChunkingSettingsOptions.SEPARATORS.toString(), DataType.KEYWORD)
+    );
 
     @FunctionInfo(
         appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW, version = "9.3.0") },
@@ -117,35 +130,20 @@ public class Chunk extends EsqlScalarFunction implements OptionalArgument {
             return new TypeResolution("Unresolved children");
         }
 
-        return isString(field(), sourceText(), FIRST).and(this::validateChunkingSettings);
+        return isString(field(), sourceText(), FIRST).and(Options.resolve(chunkingSettings, source(), SECOND,
+            ALLOWED_CHUNKING_SETTING_OPTIONS, this::validateChunkingSettings));
     }
 
-    private TypeResolution validateChunkingSettings() {
+    private void validateChunkingSettings(Map<String,Object> chunkingSettingsMap) {
         if (chunkingSettings == null) {
-            return TypeResolution.TYPE_RESOLVED;
-        }
-        if (chunkingSettings instanceof MapExpression == false) {
-            return new TypeResolution("chunking_settings must be a map");
-        }
-        MapExpression chunkingSettingsMap = (MapExpression) chunkingSettings;
-        var errors = chunkingSettingsMap.keyFoldedMap()
-            .entrySet()
-            .stream()
-            .filter(e -> e.getValue() instanceof Literal == false)
-            .map(e -> "invalid option for [" + e.getKey() + "], expected a constant, found [" + e.getValue().dataType() + "]")
-            .toList();
-
-        if (errors.isEmpty() == false) {
-            return new TypeResolution(String.join("; ", errors));
+            return;
         }
 
         try {
             toChunkingSettings(chunkingSettingsMap);
         } catch (IllegalArgumentException e) {
-            return new TypeResolution(e.getMessage());
+            throw new InvalidArgumentException(e.getMessage(), e);
         }
-
-        return TypeResolution.TYPE_RESOLVED;
     }
 
     @Override
@@ -222,11 +220,22 @@ public class Chunk extends EsqlScalarFunction implements OptionalArgument {
         return new ChunkBytesRefEvaluator.Factory(source(), toEvaluator.apply(field), chunkingSettings);
     }
 
+    // TODO remove?
     private static ChunkingSettings toChunkingSettings(MapExpression map) {
         Map<String, Object> chunkingSettingsMap = map.keyFoldedMap().entrySet().stream().collect(Collectors.toMap(Map.Entry::getKey, e -> {
             Object value = e.getValue().fold(FoldContext.small());
             return value instanceof BytesRef ? ((BytesRef) value).utf8ToString() : value;
         }));
+        return ChunkingSettingsBuilder.fromMap(chunkingSettingsMap);
+    }
+
+    private static ChunkingSettings toChunkingSettings(Map<String,Object> expressionMap) {
+        Map<String,Object> chunkingSettingsMap = expressionMap.entrySet()
+            .stream()
+            .collect(Collectors.toMap(Map.Entry::getKey, e -> {
+                Object value = e.getValue();
+                return value instanceof BytesRef ? ((BytesRef) value).utf8ToString() : value;
+            }));
         return ChunkingSettingsBuilder.fromMap(chunkingSettingsMap);
     }
 }

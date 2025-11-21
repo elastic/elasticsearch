@@ -24,4 +24,8 @@ public class InvalidArgumentException extends QlClientException {
         super(cause, message, args);
     }
 
+    public InvalidArgumentException(String message, Throwable cause) {
+        super(message, cause);
+    }
+
 }

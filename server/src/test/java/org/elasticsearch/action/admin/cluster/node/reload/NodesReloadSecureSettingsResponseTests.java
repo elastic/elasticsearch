@@ -15,7 +15,6 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
-import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.test.ESTestCase;
@@ -33,9 +32,11 @@ public class NodesReloadSecureSettingsResponseTests extends ESTestCase {
 
         TransportVersion target = NodesReloadSecureSettingsResponse.NodeResponse.KEYSTORE_DETAILS;
         TransportVersion previous = TransportVersionUtils.getPreviousVersion(target);
-        TransportVersion future = TransportVersionUtils.randomVersionBetween(Randomness.get(), target, null);
+        TransportVersion higher = TransportVersionUtils.allReleasedVersions().higher(target);
 
-        TransportVersion[] versions = { target, previous, future };
+        TransportVersion[] versions = higher != null
+            ? new TransportVersion[] { target, previous, higher }
+            : new TransportVersion[] { target, previous };
         Exception[] exceptions = { null, new ElasticsearchException("test error") };
         String[][] settingNamesCases = { null, {}, { "setting1", "setting2" } };
         String[] paths = { null, "/keystore" };

@@ -339,9 +339,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.heap_attack.HeapAttackIT
   method: testManyConcat
   issue: https://github.com/elastic/elasticsearch/issues/136728
-- class: org.elasticsearch.xpack.ml.integration.BasicDistributedJobsIT
-  method: testFailOverBasics
-  issue: https://github.com/elastic/elasticsearch/issues/136778
 - class: org.elasticsearch.xpack.search.CrossClusterAsyncSearchIT
   method: testRemoteClusterOnlyCCSWithFailuresOnAllShards
   issue: https://github.com/elastic/elasticsearch/issues/136894

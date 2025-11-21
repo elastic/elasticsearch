@@ -86,10 +86,68 @@ public class Chunk extends EsqlScalarFunction implements OptionalArgument {
         @Param(name = "field", type = { "keyword", "text" }, description = "The input to chunk.") Expression field,
         @MapParam(
             name = "chunking_settings",
-            description = "Options to customize chunking behavior. Refer to the "
-                + "[Inference API documentation](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-inference-put"
-                + "#operation-inference-put-body-application-json-chunking_settings) for valid values for `chunking_settings`.",
-            optional = true
+            description = "Options to customize chunking behavior. Defaults to " +
+                "{\"strategy\":\"sentence\",\"max_chunk_size\":" + DEFAULT_CHUNK_SIZE + ",\"sentence_overlap\":0}.",
+            optional = true,
+            params = {
+                @MapParam.MapParamEntry(
+                    name = "strategy",
+                    type = { "keyword" },
+                    description = "The chunking strategy to use. Default value is `sentence`.",
+                    valueHint = { "sentence", "word", "none", "recursive" }
+                ),
+                @MapParam.MapParamEntry(
+                    name = "max_chunk_size",
+                    type = { "integer" },
+                    description = """
+                        The maximum size of a chunk in words. This value cannot be lower than `20` (for `sentence` strategy)
+                        or `10` (for `word` or `recursive` strategies). This model should not exceed the window size for any
+                        associated models using the output of this function.
+                        """,
+                    valueHint = { "300" }
+                ),
+                @MapParam.MapParamEntry(
+                    name = "overlap",
+                    type = { "integer" },
+                    description = """
+                    The number of overlapping words for chunks. It is applicable only to a `word` chunking strategy.
+                    This value cannot be higher than half the `max_chunk_size` value.
+                    """,
+                    valueHint = { "0" }
+                ),
+                @MapParam.MapParamEntry(
+                    name = "sentence_overlap",
+                    type = { "integer" },
+                    description = """
+                    The number of overlapping sentences for chunks. It is applicable only for a `sentence` chunking strategy.
+                    It can be either `1` or `0`.
+                    """,
+                    valueHint = { "1", "0" }
+                ),
+                @MapParam.MapParamEntry(
+                    name = "separator_group",
+                    type = { "keyword" },
+                    description = """
+                    Sets a predefined lists of separators based on the selected text type. Values may be `markdown` or `plaintext`.
+                    Only applicable to the `recursive` chunking strategy. When using the `recursive` chunking strategy one of
+                    `separators` or `separator_group` must be specified.
+                    """,
+                    valueHint = { "markdown", "plaintext" }
+                ),
+                @MapParam.MapParamEntry(
+                    name = "separators",
+                    type = { "keyword" },
+                    description = """
+                    A list of strings used as possible split points when chunking text. Each string can be a plain string or a
+                    regular expression (regex) pattern. The system tries each separator in order to split the text, starting from
+                    the first item in the list. After splitting, it attempts to recombine smaller pieces into larger chunks that stay
+                    within the `max_chunk_size` limit, to reduce the total number of chunks generated. Only applicable to the
+                    `recursive` chunking strategy. When using the `recursive` chunking strategy one of `separators` or `separator_group`
+                    must be specified.
+                    """,
+                    valueHint = { "(?<!\\n)\\n\\n(?!\\n)", "(?<!\\n)\\n(?!\\n)" }
+                )
+            }
         ) Expression chunkingSettings
     ) {
         super(source, chunkingSettings == null ? List.of(field) : List.of(field, chunkingSettings));

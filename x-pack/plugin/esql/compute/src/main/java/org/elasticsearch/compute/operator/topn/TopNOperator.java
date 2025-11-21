@@ -55,6 +55,8 @@ public class TopNOperator implements Operator, Accountable {
     static final class Row implements Accountable, Releasable {
         private static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(Row.class);
 
+        private final CircuitBreaker breaker;
+
         /**
          * The sort key.
          */
@@ -81,15 +83,9 @@ public class TopNOperator implements Operator, Accountable {
         @Nullable
         RefCounted shardRefCounter;
 
-        void setShardRefCountersAndShard(RefCounted shardRefCounter) {
-            if (this.shardRefCounter != null) {
-                this.shardRefCounter.decRef();
-            }
-            this.shardRefCounter = shardRefCounter;
-            this.shardRefCounter.mustIncRef();
-        }
-
         Row(CircuitBreaker breaker, List<SortOrder> sortOrders, int preAllocatedKeysSize, int preAllocatedValueSize) {
+            breaker.addEstimateBytesAndMaybeBreak(SHALLOW_SIZE, "topn");
+            this.breaker = breaker;
             boolean success = false;
             try {
                 keys = new BreakingBytesRefBuilder(breaker, "topn", preAllocatedKeysSize);
@@ -111,7 +107,7 @@ public class TopNOperator implements Operator, Accountable {
         @Override
         public void close() {
             clearRefCounters();
-            Releasables.closeExpectNoException(keys, values, bytesOrder);
+            Releasables.closeExpectNoException(() -> breaker.addWithoutBreaking(-SHALLOW_SIZE), keys, values, bytesOrder);
         }
 
         public void clearRefCounters() {
@@ -119,6 +115,14 @@ public class TopNOperator implements Operator, Accountable {
                 shardRefCounter.decRef();
             }
             shardRefCounter = null;
+        }
+
+        void setShardRefCounted(RefCounted shardRefCounted) {
+            if (this.shardRefCounter != null) {
+                this.shardRefCounter.decRef();
+            }
+            this.shardRefCounter = shardRefCounted;
+            this.shardRefCounter.mustIncRef();
         }
     }
 
@@ -195,15 +199,7 @@ public class TopNOperator implements Operator, Accountable {
             }
         }
 
-        /**
-         * Fill a {@link Row} for {@code position}.
-         */
-        void row(int position, Row destination) {
-            writeKey(position, destination);
-            writeValues(position, destination);
-        }
-
-        private void writeKey(int position, Row row) {
+        void writeKey(int position, Row row) {
             int orderByCompositeKeyCurrentPosition = 0;
             for (int i = 0; i < keyFactories.length; i++) {
                 int valueAsBytesSize = keyFactories[i].extractor.writeKey(row.keys, position);
@@ -213,11 +209,11 @@ public class TopNOperator implements Operator, Accountable {
             }
         }
 
-        private void writeValues(int position, Row destination) {
+        void writeValues(int position, Row destination) {
             for (ValueExtractor e : valueExtractors) {
                 var refCounted = e.getRefCountedForShard(position);
                 if (refCounted != null) {
-                    destination.setShardRefCountersAndShard(refCounted);
+                    destination.setShardRefCounted(refCounted);
                 }
                 e.writeValue(destination.values, position);
             }
@@ -294,7 +290,6 @@ public class TopNOperator implements Operator, Accountable {
 
     private final BlockFactory blockFactory;
     private final CircuitBreaker breaker;
-    private final Queue inputQueue;
 
     private final int maxPageSize;
 
@@ -302,6 +297,7 @@ public class TopNOperator implements Operator, Accountable {
     private final List<TopNEncoder> encoders;
     private final List<SortOrder> sortOrders;
 
+    private Queue inputQueue;
     private Row spare;
     private int spareValuesPreAllocSize = 0;
     private int spareKeysPreAllocSize = 0;
@@ -346,7 +342,7 @@ public class TopNOperator implements Operator, Accountable {
         this.elementTypes = elementTypes;
         this.encoders = encoders;
         this.sortOrders = sortOrders;
-        this.inputQueue = new Queue(topCount);
+        this.inputQueue = Queue.build(breaker, topCount);
     }
 
     static int compareRows(Row r1, Row r2) {
@@ -412,15 +408,28 @@ public class TopNOperator implements Operator, Accountable {
                     spare.values.clear();
                     spare.clearRefCounters();
                 }
-                rowFiller.row(i, spare);
+                rowFiller.writeKey(i, spare);
 
                 // When rows are very long, appending the values one by one can lead to lots of allocations.
                 // To avoid this, pre-allocate at least as much size as in the last seen row.
                 // Let the pre-allocation size decay in case we only have 1 huge row and smaller rows otherwise.
                 spareKeysPreAllocSize = Math.max(spare.keys.length(), spareKeysPreAllocSize / 2);
-                spareValuesPreAllocSize = Math.max(spare.values.length(), spareValuesPreAllocSize / 2);
 
-                spare = inputQueue.insertWithOverflow(spare);
+                // This is `inputQueue.insertWithOverflow` with followed by filling in the value only if we inserted.
+                if (inputQueue.size() < inputQueue.topCount) {
+                    // Heap not yet full, just add elements
+                    rowFiller.writeValues(i, spare);
+                    spareValuesPreAllocSize = Math.max(spare.values.length(), spareValuesPreAllocSize / 2);
+                    inputQueue.add(spare);
+                    spare = null;
+                } else if (inputQueue.lessThan(inputQueue.top(), spare)) {
+                    // Heap full AND this node fit in it.
+                    Row nextSpare = inputQueue.top();
+                    rowFiller.writeValues(i, spare);
+                    spareValuesPreAllocSize = Math.max(spare.values.length(), spareValuesPreAllocSize / 2);
+                    inputQueue.updateTop(spare);
+                    spare = nextSpare;
+                }
             }
         } finally {
             page.releaseBlocks();
@@ -457,6 +466,8 @@ public class TopNOperator implements Operator, Accountable {
                 list.add(inputQueue.pop());
             }
             Collections.reverse(list);
+            inputQueue.close();
+            inputQueue = null;
 
             int p = 0;
             int size = 0;
@@ -471,6 +482,7 @@ public class TopNOperator implements Operator, Accountable {
                             encoders.get(b).toUnsortable(),
                             channelInKey(sortOrders, b),
                             size
+
                         );
                     }
                     p = 0;
@@ -494,7 +506,6 @@ public class TopNOperator implements Operator, Accountable {
 
                     BytesRef values = row.values.bytesRefView();
                     for (ResultBuilder builder : builders) {
-                        builder.setNextRefCounted(row.shardRefCounter);
                         builder.decodeValue(values);
                     }
                     if (values.length != 0) {
@@ -563,19 +574,27 @@ public class TopNOperator implements Operator, Accountable {
 
     @Override
     public void close() {
-        /*
-         * If we close before calling finish then spare and inputQueue will be live rows
-         * that need closing. If we close after calling finish then the output iterator
-         * will contain pages of results that have yet to be returned.
-         */
         Releasables.closeExpectNoException(
+            /*
+             * The spare is used during most collections. It's cleared when this Operator
+             * is finish()ed. So it could be null here.
+             */
             spare,
-            inputQueue == null ? null : Releasables.wrap(inputQueue),
+            /*
+             * The inputQueue is a min heap of all live rows. Closing it will close all
+             * the rows it contains and all decrement the breaker for the size of
+             * the heap itself.
+             */
+            inputQueue,
+            /*
+             * If we're in the process of outputting pages then output will contain all
+             * allocated but un-emitted pages.
+             */
             output == null ? null : Releasables.wrap(() -> Iterators.map(output, p -> p::releaseBlocks))
         );
     }
 
-    private static long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(TopNOperator.class) + RamUsageEstimator
+    private static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(TopNOperator.class) + RamUsageEstimator
         .shallowSizeOfInstance(List.class) * 3;
 
     @Override
@@ -589,7 +608,9 @@ public class TopNOperator implements Operator, Accountable {
         size += RamUsageEstimator.alignObjectSize(arrHeader + ref * encoders.size());
         size += RamUsageEstimator.alignObjectSize(arrHeader + ref * sortOrders.size());
         size += sortOrders.size() * SortOrder.SHALLOW_SIZE;
-        size += inputQueue.ramBytesUsed();
+        if (inputQueue != null) {
+            size += inputQueue.ramBytesUsed();
+        }
         return size;
     }
 
@@ -598,7 +619,7 @@ public class TopNOperator implements Operator, Accountable {
         return new TopNOperatorStatus(
             receiveNanos,
             emitNanos,
-            inputQueue.size(),
+            inputQueue != null ? inputQueue.size() : 0,
             ramBytesUsed(),
             pagesReceived,
             pagesEmitted,
@@ -620,17 +641,23 @@ public class TopNOperator implements Operator, Accountable {
             + "]";
     }
 
-    CircuitBreaker breaker() {
-        return breaker;
-    }
-
-    private static class Queue extends PriorityQueue<Row> implements Accountable {
+    private static class Queue extends PriorityQueue<Row> implements Accountable, Releasable {
         private static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(Queue.class);
-        private final int maxSize;
+        private final CircuitBreaker breaker;
+        private final int topCount;
 
-        Queue(int maxSize) {
-            super(maxSize);
-            this.maxSize = maxSize;
+        /**
+         * Track memory usage in the breaker then build the {@link Queue}.
+         */
+        static Queue build(CircuitBreaker breaker, int topCount) {
+            breaker.addEstimateBytesAndMaybeBreak(Queue.sizeOf(topCount), "esql engine topn");
+            return new Queue(breaker, topCount);
+        }
+
+        private Queue(CircuitBreaker breaker, int topCount) {
+            super(topCount);
+            this.breaker = breaker;
+            this.topCount = topCount;
         }
 
         @Override
@@ -640,18 +667,36 @@ public class TopNOperator implements Operator, Accountable {
 
         @Override
         public String toString() {
-            return size() + "/" + maxSize;
+            return size() + "/" + topCount;
         }
 
         @Override
         public long ramBytesUsed() {
             long total = SHALLOW_SIZE;
             total += RamUsageEstimator.alignObjectSize(
-                RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + RamUsageEstimator.NUM_BYTES_OBJECT_REF * (maxSize + 1)
+                RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + RamUsageEstimator.NUM_BYTES_OBJECT_REF * ((long) topCount + 1)
             );
             for (Row r : this) {
                 total += r == null ? 0 : r.ramBytesUsed();
             }
+            return total;
+        }
+
+        @Override
+        public void close() {
+            Releasables.close(
+                // Release all entries in the topn
+                Releasables.wrap(this),
+                // Release the array itself
+                () -> breaker.addWithoutBreaking(-Queue.sizeOf(topCount))
+            );
+        }
+
+        public static long sizeOf(int topCount) {
+            long total = SHALLOW_SIZE;
+            total += RamUsageEstimator.alignObjectSize(
+                RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + RamUsageEstimator.NUM_BYTES_OBJECT_REF * ((long) topCount + 1)
+            );
             return total;
         }
     }

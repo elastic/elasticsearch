@@ -7,37 +7,13 @@
 
 package org.elasticsearch.xpack.esql.optimizer;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
+import org.elasticsearch.xpack.esql.inference.InferenceService;
 
-import java.util.Objects;
+/**
+ * Context passed to logical pre-optimizer rules.
+ */
+public record LogicalPreOptimizerContext(FoldContext foldCtx, InferenceService inferenceService, TransportVersion minimumVersion) {
 
-public class LogicalPreOptimizerContext {
-
-    private final FoldContext foldCtx;
-
-    public LogicalPreOptimizerContext(FoldContext foldCtx) {
-        this.foldCtx = foldCtx;
-    }
-
-    public FoldContext foldCtx() {
-        return foldCtx;
-    }
-
-    @Override
-    public boolean equals(Object obj) {
-        if (obj == this) return true;
-        if (obj == null || obj.getClass() != this.getClass()) return false;
-        var that = (LogicalPreOptimizerContext) obj;
-        return this.foldCtx.equals(that.foldCtx);
-    }
-
-    @Override
-    public int hashCode() {
-        return Objects.hash(foldCtx);
-    }
-
-    @Override
-    public String toString() {
-        return "LogicalPreOptimizerContext[foldCtx=" + foldCtx + ']';
-    }
 }

@@ -640,8 +640,8 @@ public class RestControllerTests extends ESTestCase {
             }
 
             @Override
-            public boolean supportsBulkContent() {
-                return true;
+            public boolean mediaTypesValid(RestRequest request) {
+                return RestHandler.super.mediaTypesValid(request) && XContentType.supportsDelimitedBulkRequests(request.getXContentType());
             }
         });
 
@@ -679,8 +679,8 @@ public class RestControllerTests extends ESTestCase {
             }
 
             @Override
-            public boolean supportsBulkContent() {
-                return true;
+            public boolean mediaTypesValid(RestRequest request) {
+                return RestHandler.super.mediaTypesValid(request) && XContentType.supportsDelimitedBulkRequests(request.getXContentType());
             }
         });
 
@@ -704,8 +704,8 @@ public class RestControllerTests extends ESTestCase {
             }
 
             @Override
-            public boolean supportsBulkContent() {
-                return true;
+            public boolean mediaTypesValid(RestRequest request) {
+                return RestHandler.super.mediaTypesValid(request) && XContentType.supportsDelimitedBulkRequests(request.getXContentType());
             }
         });
 
@@ -730,8 +730,8 @@ public class RestControllerTests extends ESTestCase {
             }
 
             @Override
-            public boolean supportsBulkContent() {
-                return true;
+            public boolean mediaTypesValid(RestRequest request) {
+                return RestHandler.super.mediaTypesValid(request) && XContentType.supportsDelimitedBulkRequests(request.getXContentType());
             }
         });
         assertFalse(channel.getSendResponseCalled());
@@ -755,8 +755,8 @@ public class RestControllerTests extends ESTestCase {
             }
 
             @Override
-            public boolean supportsBulkContent() {
-                return true;
+            public boolean mediaTypesValid(RestRequest request) {
+                return RestHandler.super.mediaTypesValid(request) && XContentType.supportsDelimitedBulkRequests(request.getXContentType());
             }
         });
         assertFalse(channel.getSendResponseCalled());

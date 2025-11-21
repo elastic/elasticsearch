@@ -332,7 +332,10 @@ public abstract class AbstractInternalTerms<A extends AbstractInternalTerms<A, B
             }
             long docCountError = -1;
             if (sumDocCountError != -1) {
-                docCountError = size == 1 ? 0 : sumDocCountError;
+                // If we are reducing only one aggregation (size == 1), the doc count error should be 0.
+                // However, the presence of a batched query result implies a partial reduction with size > 1
+                // has already occurred on a data node. The doc count error should not be 0 in this case.
+                docCountError = size == 1 && reduceContext.hasBatchedResult() == false ? 0 : sumDocCountError;
             }
             return create(name, result, reduceContext.isFinalReduce() ? getOrder() : thisReduceOrder, docCountError, otherDocCount);
         }

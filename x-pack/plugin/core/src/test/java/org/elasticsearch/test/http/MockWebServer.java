@@ -16,6 +16,8 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.Streams;
+import org.elasticsearch.common.ssl.SslClientAuthenticationMode;
+import org.elasticsearch.common.ssl.SslConfiguration;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
@@ -59,10 +61,28 @@ public class MockWebServer implements Closeable {
     private final Queue<MockRequest> requests = ConcurrentCollections.newQueue();
     private final Logger logger;
     private final SSLContext sslContext;
-    private final boolean needClientAuth;
+    private final TlsConfig tlsConfig;
     private final Set<CountDownLatch> latches = ConcurrentCollections.newConcurrentSet();
     private String hostname;
     private int port;
+
+    /**
+
+     * @param needClientAuth Should clientAuth be used, which requires a client side certificate
+     * @param protocols Which TLS protocols (versions) should be supported
+     *                           (may be {@code null}, in which case the JVM's default protocols are used)
+     * @param cipherSuites Which TLS cipher suites (algorithms) should be supported
+     *                     (may be {@code null}, in which case the JVM's default ciphers are used)
+     */
+    public record TlsConfig(boolean needClientAuth, List<String> protocols, List<String> cipherSuites) {
+        public TlsConfig(SslConfiguration sslConfig) {
+            this(
+                sslConfig.clientAuth() == SslClientAuthenticationMode.REQUIRED,
+                sslConfig.supportedProtocols(),
+                sslConfig.getCipherSuites()
+            );
+        }
+    }
 
     /**
      * Instantiates a webserver without https
@@ -77,9 +97,19 @@ public class MockWebServer implements Closeable {
      * @param needClientAuth Should clientAuth be used, which requires a client side certificate
      */
     public MockWebServer(SSLContext sslContext, boolean needClientAuth) {
-        this.needClientAuth = needClientAuth;
+        this(sslContext, new TlsConfig(needClientAuth, null, null));
+    }
+
+    /**
+     * Instantiates a webserver with https
+     *
+     * @param sslContext     The SSL context to be used for encryption
+     * @param tlsConfig      The SSL/TLS configuration to use
+     */
+    public MockWebServer(SSLContext sslContext, TlsConfig tlsConfig) {
         this.logger = LogManager.getLogger(this.getClass());
         this.sslContext = sslContext;
+        this.tlsConfig = tlsConfig;
     }
 
     /**
@@ -92,7 +122,7 @@ public class MockWebServer implements Closeable {
         InetSocketAddress address = new InetSocketAddress(InetAddress.getLoopbackAddress().getHostAddress(), 0);
         if (sslContext != null) {
             HttpsServer httpsServer = MockHttpServer.createHttps(address, 0);
-            httpsServer.setHttpsConfigurator(new CustomHttpsConfigurator(sslContext, needClientAuth));
+            httpsServer.setHttpsConfigurator(new CustomHttpsConfigurator(sslContext, tlsConfig));
             server = httpsServer;
         } else {
             server = MockHttpServer.createHttp(address, 0);
@@ -166,16 +196,22 @@ public class MockWebServer implements Closeable {
     @SuppressForbidden(reason = "use http server")
     private static final class CustomHttpsConfigurator extends HttpsConfigurator {
 
-        private final boolean needClientAuth;
+        private final TlsConfig tlsConfig;
 
-        CustomHttpsConfigurator(SSLContext sslContext, boolean needClientAuth) {
+        CustomHttpsConfigurator(SSLContext sslContext, TlsConfig tlsConfig) {
             super(sslContext);
-            this.needClientAuth = needClientAuth;
+            this.tlsConfig = tlsConfig;
         }
 
         @Override
         public void configure(HttpsParameters params) {
-            params.setNeedClientAuth(needClientAuth);
+            params.setNeedClientAuth(tlsConfig.needClientAuth);
+            if (tlsConfig.protocols != null) {
+                params.setProtocols(tlsConfig.protocols.toArray(String[]::new));
+            }
+            if (tlsConfig.cipherSuites != null) {
+                params.setCipherSuites(tlsConfig.cipherSuites.toArray(String[]::new));
+            }
         }
     }
 

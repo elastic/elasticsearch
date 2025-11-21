@@ -1198,6 +1198,64 @@ public class TrainedModelAssignmentRebalancerTests extends ESTestCase {
         assertThat(deployment2Assignments.get().get(node2), equalTo(1));
     }
 
+    public void testRebalance_GivenDeploymentWithMemoryRequirements_ExplainMissingAllocations() {
+        // Create a node with just enough memory to fit the model plus native executable overhead
+        long modelMemory = ByteSizeValue.ofMb(200).getBytes();
+        long memoryOverhead = ByteSizeValue.ofMb(240).getBytes();
+        long nodeMemory = memoryOverhead + modelMemory * 2 + MachineLearning.NATIVE_EXECUTABLE_CODE_OVERHEAD.getBytes();
+
+        DiscoveryNode node = buildNode("node-1", nodeMemory, 4);
+
+        String deploymentId = "model-with-overhead-test";
+        StartTrainedModelDeploymentAction.TaskParams taskParams = normalPriorityParams(deploymentId, deploymentId, modelMemory, 1, 1);
+
+        TrainedModelAssignmentMetadata currentMetadata = TrainedModelAssignmentMetadata.Builder.empty().build();
+        Map<DiscoveryNode, NodeLoad> nodeLoads = new HashMap<>();
+
+        // This node has no jobs or models yet, so the overhead should be accounted for
+        nodeLoads.put(node, NodeLoad.builder("node-1").setMaxMemory(nodeMemory).build());
+
+        TrainedModelAssignmentMetadata result = new TrainedModelAssignmentRebalancer(
+            currentMetadata,
+            nodeLoads,
+            Map.of(List.of(), List.of(node)),
+            Optional.of(new CreateTrainedModelAssignmentAction.Request(taskParams, null)),
+            1
+        ).rebalance().build();
+
+        // Verify the deployment was successful
+        TrainedModelAssignment assignment = result.getDeploymentAssignment(deploymentId);
+        assertThat(assignment, is(notNullValue()));
+        assertThat(assignment.getAssignmentState(), equalTo(AssignmentState.STARTING));
+        assertThat(assignment.getNodeRoutingTable(), is(aMapWithSize(1)));
+        assertThat(assignment.getNodeRoutingTable(), hasKey("node-1"));
+        assertThat(assignment.getReason().isPresent(), is(false));
+
+        // Now try with a node that has slightly less memory - this should fail
+        long insufficientNodeMemory = nodeMemory - ByteSizeValue.ofMb(21).getBytes();
+        DiscoveryNode insufficientNode = buildNode("node-2", insufficientNodeMemory, 4);
+
+        Map<DiscoveryNode, NodeLoad> insufficientNodeLoads = Map.of(
+            insufficientNode,
+            NodeLoad.builder("node-2").setMaxMemory(insufficientNodeMemory).build()
+        );
+
+        TrainedModelAssignmentMetadata insufficientResult = new TrainedModelAssignmentRebalancer(
+            TrainedModelAssignmentMetadata.Builder.empty().build(),
+            insufficientNodeLoads,
+            Map.of(List.of(), List.of(insufficientNode)),
+            Optional.of(new CreateTrainedModelAssignmentAction.Request(taskParams, null)),
+            1
+        ).rebalance().build();
+
+        TrainedModelAssignment insufficientAssignment = insufficientResult.getDeploymentAssignment(deploymentId);
+        assertThat(insufficientAssignment, is(notNullValue()));
+        assertThat(insufficientAssignment.getAssignmentState(), equalTo(AssignmentState.STARTING));
+        assertThat(insufficientAssignment.getNodeRoutingTable(), is(anEmptyMap()));
+        assertThat(insufficientAssignment.getReason().isPresent(), is(true));
+        assertThat(insufficientAssignment.getReason().get(), containsString("insufficient available memory"));
+    }
+
     private static StartTrainedModelDeploymentAction.TaskParams lowPriorityParams(String deploymentId, long modelSize) {
         return lowPriorityParams(deploymentId, deploymentId, modelSize);
     }

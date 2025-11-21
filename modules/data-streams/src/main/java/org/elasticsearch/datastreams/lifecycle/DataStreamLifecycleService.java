@@ -524,7 +524,10 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
                 // - has matching downsample rounds
                 // - is read-only
                 // So let's wait for an in-progress downsampling operation to succeed or trigger the last matching round
-                affectedIndices.addAll(waitForInProgressOrTriggerDownsampling(dataStream, backingIndexMeta, downsamplingRounds, project));
+                var downsamplingMethod = dataStream.getDataLifecycle().downsamplingMethod();
+                affectedIndices.addAll(
+                    waitForInProgressOrTriggerDownsampling(dataStream, backingIndexMeta, downsamplingRounds, downsamplingMethod, project)
+                );
             }
         }
 
@@ -541,6 +544,7 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
         DataStream dataStream,
         IndexMetadata backingIndex,
         List<DataStreamLifecycle.DownsamplingRound> downsamplingRounds,
+        DownsampleConfig.SamplingMethod downsamplingMethod,
         ProjectMetadata project
     ) {
         assert dataStream.getIndices().contains(backingIndex.getIndex())
@@ -556,7 +560,7 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
             String downsampleIndexName = DownsampleConfig.generateDownsampleIndexName(
                 DOWNSAMPLED_INDEX_PREFIX,
                 backingIndex,
-                round.config().getFixedInterval()
+                round.fixedInterval()
             );
             IndexMetadata targetDownsampleIndexMeta = project.index(downsampleIndexName);
             boolean targetDownsampleIndexExists = targetDownsampleIndexMeta != null;
@@ -568,7 +572,8 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
                     INDEX_DOWNSAMPLE_STATUS.get(targetDownsampleIndexMeta.getSettings()),
                     round,
                     lastRound,
-                    index,
+                    downsamplingMethod,
+                    backingIndex,
                     targetDownsampleIndexMeta.getIndex()
                 );
                 if (downsamplingNotComplete.isEmpty() == false) {
@@ -580,7 +585,7 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
                     // no maintenance needed for previously started downsampling actions and we are on the last matching round so it's time
                     // to kick off downsampling
                     affectedIndices.add(index);
-                    downsampleIndexOnce(round, project.id(), indexName, downsampleIndexName);
+                    downsampleIndexOnce(round, downsamplingMethod, project.id(), backingIndex, downsampleIndexName);
                 }
             }
         }
@@ -592,16 +597,30 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
      */
     private void downsampleIndexOnce(
         DataStreamLifecycle.DownsamplingRound round,
+        DownsampleConfig.SamplingMethod requestedDownsamplingMethod,
         ProjectId projectId,
-        String sourceIndex,
+        IndexMetadata sourceIndexMetadata,
         String downsampleIndexName
     ) {
+        // When an index is already downsampled with a method, we require all later downsampling rounds to use the same method.
+        // This is necessary to preserve the relation of the downsampled index to the raw data. For example, if an index is already
+        // downsampled and downsampled it again to 1 hour; we know that a document represents either the aggregated raw data of an hour
+        // or the last value of the raw data within this hour. If we mix the methods, we cannot derive any meaning from them.
+        // Furthermore, data stream lifecycle is configured on the data stream level and not on the individual index level, meaning that
+        // when a user changes downsampling method, some indices would not be able to be downsampled anymore.
+        // For this reason, when we encounter an already downsampled index, we use the source downsampling method which might be different
+        // from the requested one.
+        var sourceIndexSamplingMethod = DownsampleConfig.SamplingMethod.fromIndexMetadata(sourceIndexMetadata);
+        String sourceIndex = sourceIndexMetadata.getIndex().getName();
         DownsampleAction.Request request = new DownsampleAction.Request(
             TimeValue.THIRTY_SECONDS /* TODO should this be longer/configurable? */,
             sourceIndex,
             downsampleIndexName,
             null,
-            round.config()
+            new DownsampleConfig(
+                round.fixedInterval(),
+                sourceIndexSamplingMethod == null ? requestedDownsamplingMethod : sourceIndexSamplingMethod
+            )
         );
         transportActionsDeduplicator.executeOnce(
             Tuple.tuple(projectId, request),
@@ -632,11 +651,12 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
         IndexMetadata.DownsampleTaskStatus downsampleStatus,
         DataStreamLifecycle.DownsamplingRound currentRound,
         DataStreamLifecycle.DownsamplingRound lastRound,
-        Index backingIndex,
+        DownsampleConfig.SamplingMethod downsamplingMethod,
+        IndexMetadata backingIndex,
         Index downsampleIndex
     ) {
         Set<Index> affectedIndices = new HashSet<>();
-        String indexName = backingIndex.getName();
+        String indexName = backingIndex.getIndex().getName();
         String downsampleIndexName = downsampleIndex.getName();
         return switch (downsampleStatus) {
             case UNKNOWN -> {
@@ -683,15 +703,15 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
                 // NOTE that the downsample request is made through the deduplicator so it will only really be executed if
                 // there isn't one already in-flight. This can happen if a previous request timed-out, failed, or there was a
                 // master failover and data stream lifecycle needed to restart
-                downsampleIndexOnce(currentRound, projectId, indexName, downsampleIndexName);
-                affectedIndices.add(backingIndex);
+                downsampleIndexOnce(currentRound, downsamplingMethod, projectId, backingIndex, downsampleIndexName);
+                affectedIndices.add(backingIndex.getIndex());
                 yield affectedIndices;
             }
             case SUCCESS -> {
                 if (dataStream.getIndices().contains(downsampleIndex) == false) {
                     // at this point the source index is part of the data stream and the downsample index is complete but not
                     // part of the data stream. we need to replace the source index with the downsample index in the data stream
-                    affectedIndices.add(backingIndex);
+                    affectedIndices.add(backingIndex.getIndex());
                     replaceBackingIndexWithDownsampleIndexOnce(projectId, dataStream, indexName, downsampleIndexName);
                 }
                 yield affectedIndices;

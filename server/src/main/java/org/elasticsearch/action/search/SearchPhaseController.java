@@ -487,7 +487,8 @@ public final class SearchPhaseController {
                 numReducePhases,
                 0,
                 0,
-                true
+                true,
+                null
             );
         }
         final List<QuerySearchResult> nonNullResults = new ArrayList<>();
@@ -516,6 +517,7 @@ public final class SearchPhaseController {
             : Collections.emptyMap();
         int from = 0;
         int size = 0;
+        Long timeRangeFilterFromMillis = null;
         DocValueFormat[] sortValueFormats = null;
         for (QuerySearchResult result : nonNullResults) {
             from = result.from();
@@ -523,6 +525,16 @@ public final class SearchPhaseController {
             size = Math.max(result.size(), size);
             if (result.sortValueFormats() != null) {
                 sortValueFormats = result.sortValueFormats();
+            }
+
+            if (result.getTimeRangeFilterFromMillis() != null) {
+                if (timeRangeFilterFromMillis == null) {
+                    timeRangeFilterFromMillis = result.getTimeRangeFilterFromMillis();
+                } else {
+                    // all shards should hold the same value, besides edge cases like different mappings
+                    // for event.ingested and @timestamp across indices being searched
+                    timeRangeFilterFromMillis = Math.min(result.getTimeRangeFilterFromMillis(), timeRangeFilterFromMillis);
+                }
             }
 
             if (hasSuggest) {
@@ -579,7 +591,8 @@ public final class SearchPhaseController {
             numReducePhases,
             size,
             from,
-            false
+            false,
+            timeRangeFilterFromMillis
         );
     }
 
@@ -662,7 +675,8 @@ public final class SearchPhaseController {
         // the offset into the merged top hits
         int from,
         // <code>true</code> iff the query phase had no results. Otherwise <code>false</code>
-        boolean isEmptyResult
+        boolean isEmptyResult,
+        Long timeRangeFilterFromMillis
     ) {
 
         public ReducedQueryPhase {
@@ -683,7 +697,8 @@ public final class SearchPhaseController {
                 timedOut,
                 terminatedEarly,
                 buildSearchProfileResults(fetchResults),
-                numReducePhases
+                numReducePhases,
+                timeRangeFilterFromMillis
             );
         }
 

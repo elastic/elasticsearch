@@ -54,8 +54,7 @@ public class OptimizedScalarQuantizerTests extends ESTestCase {
             float eps = (1f / (float) (1 << (bit)));
             int[] destination = new int[dims];
             for (int i = 0; i < numVectors; ++i) {
-                System.arraycopy(vectors[i], 0, scratch, 0, dims);
-                OptimizedScalarQuantizer.QuantizationResult result = osq.scalarQuantize(scratch, destination, bit, centroid);
+                OptimizedScalarQuantizer.QuantizationResult result = osq.scalarQuantize(vectors[i], scratch, destination, bit, centroid);
 
                 assertValidResults(result);
                 assertValidQuantizedRange(destination, bit);
@@ -83,10 +82,17 @@ public class OptimizedScalarQuantizerTests extends ESTestCase {
                 continue;
             }
             float[] vector = new float[4096];
+            float[] scratch = new float[4096];
             float[] centroid = new float[4096];
             OptimizedScalarQuantizer osq = new OptimizedScalarQuantizer(vectorSimilarityFunction);
             int[][] destinations = new int[MINIMUM_MSE_GRID.length][4096];
-            OptimizedScalarQuantizer.QuantizationResult[] results = osq.multiScalarQuantize(vector, destinations, ALL_BITS, centroid);
+            OptimizedScalarQuantizer.QuantizationResult[] results = osq.multiScalarQuantize(
+                vector,
+                scratch,
+                destinations,
+                ALL_BITS,
+                centroid
+            );
             assertEquals(MINIMUM_MSE_GRID.length, results.length);
             assertValidResults(results);
             for (int[] destination : destinations) {
@@ -94,7 +100,7 @@ public class OptimizedScalarQuantizerTests extends ESTestCase {
             }
             int[] destination = new int[4096];
             for (byte bit : ALL_BITS) {
-                OptimizedScalarQuantizer.QuantizationResult result = osq.scalarQuantize(vector, destination, bit, centroid);
+                OptimizedScalarQuantizer.QuantizationResult result = osq.scalarQuantize(vector, scratch, destination, bit, centroid);
                 assertValidResults(result);
                 assertArrayEquals(new int[4096], destination);
             }
@@ -110,7 +116,13 @@ public class OptimizedScalarQuantizerTests extends ESTestCase {
             }
             OptimizedScalarQuantizer osq = new OptimizedScalarQuantizer(vectorSimilarityFunction);
             int[][] destinations = new int[MINIMUM_MSE_GRID.length][1];
-            OptimizedScalarQuantizer.QuantizationResult[] results = osq.multiScalarQuantize(vector, destinations, ALL_BITS, centroid);
+            OptimizedScalarQuantizer.QuantizationResult[] results = osq.multiScalarQuantize(
+                vector,
+                new float[1],
+                destinations,
+                ALL_BITS,
+                centroid
+            );
             assertEquals(MINIMUM_MSE_GRID.length, results.length);
             assertValidResults(results);
             for (int i = 0; i < ALL_BITS.length; i++) {
@@ -124,7 +136,7 @@ public class OptimizedScalarQuantizerTests extends ESTestCase {
                     VectorUtil.l2normalize(centroid);
                 }
                 int[] destination = new int[1];
-                OptimizedScalarQuantizer.QuantizationResult result = osq.scalarQuantize(vector, destination, bit, centroid);
+                OptimizedScalarQuantizer.QuantizationResult result = osq.scalarQuantize(vector, new float[1], destination, bit, centroid);
                 assertValidResults(result);
                 assertValidQuantizedRange(destination, bit);
             }
@@ -143,6 +155,7 @@ public class OptimizedScalarQuantizerTests extends ESTestCase {
             centroid[i] = randomFloat();
         }
         float[] copy = new float[dims];
+        float[] scratch = new float[dims];
         for (VectorSimilarityFunction vectorSimilarityFunction : VectorSimilarityFunction.values()) {
             // copy the vector to avoid modifying it
             System.arraycopy(vector, 0, copy, 0, dims);
@@ -152,7 +165,13 @@ public class OptimizedScalarQuantizerTests extends ESTestCase {
             }
             OptimizedScalarQuantizer osq = new OptimizedScalarQuantizer(vectorSimilarityFunction);
             int[][] destinations = new int[MINIMUM_MSE_GRID.length][dims];
-            OptimizedScalarQuantizer.QuantizationResult[] results = osq.multiScalarQuantize(copy, destinations, ALL_BITS, centroid);
+            OptimizedScalarQuantizer.QuantizationResult[] results = osq.multiScalarQuantize(
+                copy,
+                scratch,
+                destinations,
+                ALL_BITS,
+                centroid
+            );
             assertEquals(MINIMUM_MSE_GRID.length, results.length);
             assertValidResults(results);
             for (int i = 0; i < ALL_BITS.length; i++) {
@@ -165,7 +184,7 @@ public class OptimizedScalarQuantizerTests extends ESTestCase {
                     VectorUtil.l2normalize(copy);
                     VectorUtil.l2normalize(centroid);
                 }
-                OptimizedScalarQuantizer.QuantizationResult result = osq.scalarQuantize(copy, destination, bit, centroid);
+                OptimizedScalarQuantizer.QuantizationResult result = osq.scalarQuantize(copy, scratch, destination, bit, centroid);
                 assertValidResults(result);
                 assertValidQuantizedRange(destination, bit);
             }

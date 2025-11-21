@@ -1,4 +1,7 @@
 ---
+applies_to:
+  stack:
+  serverless:
 navigation_title: "Binary"
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/reference/current/binary.html
@@ -74,6 +77,7 @@ PUT idx/_doc/1
   "binary": ["IAA=", "EAA="]
 }
 ```
+% TEST[s/$/\nGET idx\/_doc\/1?filter_path=_source\n/]
 
 Will become:
 
@@ -82,5 +86,5 @@ Will become:
   "binary": ["EAA=", "IAA="]
 }
 ```
-
+% TEST[s/^/{"_source":/ s/\n$/}/]
 

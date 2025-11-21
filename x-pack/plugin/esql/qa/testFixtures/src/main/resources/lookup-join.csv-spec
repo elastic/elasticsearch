@@ -136,6 +136,22 @@ language_code:integer | language_name:keyword
 6                     |null
 ;
 
+selfShadowing
+required_capability: join_lookup_v12
+required_capability: fix_join_output_merging
+
+FROM languages_lookup_non_unique_key
+| EVAL language_code = null::integer
+| LOOKUP JOIN languages_lookup_non_unique_key ON language_code
+| LIMIT 3
+;
+
+language_code:integer |country:text |country.keyword:keyword |language_name:keyword
+null                  |null         |null                    |null
+null                  |null         |null                    |null
+null                  |null         |null                    |null
+;
+
 nonUniqueLeftKeyOnTheDataNode
 required_capability: join_lookup_v12
 
@@ -231,16 +247,17 @@ FROM employees
 | EVAL language_code = emp_no % 10
 | LOOKUP JOIN languages_lookup_non_unique_key ON language_code
 | WHERE emp_no > 10090 AND emp_no < 10096
+| EVAL country = MV_SORT(country)
 | SORT emp_no, country
 | KEEP emp_no, language_code, language_name, country
 ;
 
-emp_no:integer | language_code:integer | language_name:keyword | country:text
+emp_no:integer | language_code:integer | language_name:keyword | country:keyword
     10091      | 1                     | English               | Canada
     10091      | 1                     | null                  | United Kingdom
     10091      | 1                     | English               | United States of America
     10091      | 1                     | English               | null
-    10092      | 2                     | German                | [Germany, Austria]
+    10092      | 2                     | German                | [Austria, Germany]
     10092      | 2                     | German                | Switzerland
     10092      | 2                     | German                | null
     10093      | 3                     | null                  | null
@@ -256,16 +273,17 @@ FROM employees
 | LIMIT 5
 | EVAL language_code = emp_no % 10
 | LOOKUP JOIN languages_lookup_non_unique_key ON language_code
+| EVAL country = MV_SORT(country)
 | KEEP emp_no, language_code, language_name, country
 ;
 
 ignoreOrder:true
-emp_no:integer | language_code:integer | language_name:keyword | country:text
+emp_no:integer | language_code:integer | language_name:keyword | country:keyword
 10001          | 1                     | English               | Canada
 10001          | 1                     | English               | null
 10001          | 1                     | null                  | United Kingdom
 10001          | 1                     | English               | United States of America
-10002          | 2                     | German                | [Germany, Austria]
+10002          | 2                     | German                | [Austria, Germany]
 10002          | 2                     | German                | Switzerland
 10002          | 2                     | German                | null
 10003          | 3                     | null                  | null
@@ -1673,6 +1691,7 @@ null      |1952-02-27T00:00:00.000Z
 enrichLookupStatsBug
 required_capability: join_lookup_v12
 required_capability: fix_replace_missing_field_with_null_duplicate_name_id_in_layout
+required_capability: dense_vector_agg_metric_double_if_fns
 
 from *
 | enrich languages_policy on cluster
@@ -1875,6 +1894,23 @@ type:keyword | language_code:integer | language_name:keyword
 Production   | 3                     | Spanish
 ;
 
+lookupJoinOnSameFieldTwiceValues
+required_capability: join_lookup_v12
+required_capability: attribute_equals_respects_name_id
+
+ROW a = 1, b = 2
+| EVAL language_code = a
+| LOOKUP JOIN languages_lookup ON language_code
+| RENAME language_name AS language_name_a
+| EVAL language_code = b
+| LOOKUP JOIN languages_lookup ON language_code
+| RENAME language_name AS language_name_b
+| STATS values(language_name_a), values(language_name_b)
+;
+
+values(language_name_a):keyword | values(language_name_b):keyword
+English                         | French
+;
 
 ###############################################
 # LOOKUP JOIN on mixed numerical fields
@@ -4726,7 +4762,7 @@ FROM k8s
 | RENAME network.bytes_in AS language_code
 | WHERE language_code < 10
 | LOOKUP JOIN languages_lookup ON language_code
-| DROP network*, event*
+| DROP network*, event*, region
 | SORT language_code, @timestamp
 ;
 
@@ -4871,6 +4907,143 @@ Connected to 10.1.0.1 | English                      | English               | U
 Connected to 10.1.0.1 | English                      | English               | null
 Connected to 10.1.0.1 | English                      | null                  | United Kingdom
 ;
+
+enrichAfterLookupJoin
+required_capability: join_lookup_v12
+
+FROM sample_data
+| KEEP message
+| WHERE message == "Connected to 10.1.0.1"
+| EVAL language_code = "1"
+| LOOKUP JOIN message_types_lookup ON message
+| ENRICH languages_policy ON language_code
+;
+
+message:keyword       | language_code:keyword | type:keyword | language_name:keyword
+Connected to 10.1.0.1 | 1                     | Success      | English
+;
+
+###############################################
+# LOOKUP JOIN and remote ENRICH
+###############################################
+
+remoteEnrichAfterLookupJoin
+required_capability: join_lookup_v12
+required_capability: remote_enrich_after_lookup_join
+
+FROM sample_data
+| KEEP message
+| WHERE message == "Connected to 10.1.0.1"
+| EVAL language_code = "1"
+| LOOKUP JOIN message_types_lookup ON message
+| ENRICH _remote:languages_policy ON language_code
+;
+
+message:keyword       | language_code:keyword | type:keyword | language_name:keyword
+Connected to 10.1.0.1 | 1                     | Success      | English
+;
+
+remoteEnrichSortAfterLookupJoin
+required_capability: join_lookup_v12
+required_capability: remote_enrich_after_lookup_join
+
+FROM sample_data
+| KEEP message
+| WHERE message == "Connected to 10.1.0.1" OR message == "Connected to 10.1.0.2"
+| EVAL language_code = "1"
+| LOOKUP JOIN message_types_lookup ON message
+| ENRICH _remote:languages_policy ON language_code
+| SORT message ASC
+;
+
+message:keyword       | language_code:keyword | type:keyword | language_name:keyword
+Connected to 10.1.0.1 | 1                     | Success      | English
+Connected to 10.1.0.2 | 1                     | Success      | English
+;
+
+sortRemoteEnrichAfterLookupJoin
+required_capability: join_lookup_v12
+required_capability: remote_enrich_after_lookup_join
+
+FROM sample_data
+| KEEP message
+| WHERE message == "Connected to 10.1.0.1" OR message == "Connected to 10.1.0.2"
+| EVAL language_code = "1"
+| LOOKUP JOIN message_types_lookup ON message
+| SORT message ASC
+| ENRICH _remote:languages_policy ON language_code
+| LIMIT 2
+;
+
+message:keyword       | language_code:keyword | type:keyword | language_name:keyword
+Connected to 10.1.0.1 | 1                     | Success      | English
+Connected to 10.1.0.2 | 1                     | Success      | English
+;
+
+remoteEnrichSortAfterLookupJoinWithLimit
+required_capability: join_lookup_v12
+required_capability: remote_enrich_after_lookup_join
+
+FROM sample_data
+| KEEP message
+| WHERE message == "Connection error"
+| EVAL language_code = "1"
+| LOOKUP JOIN message_types_lookup ON message
+| LIMIT 2
+| ENRICH _remote:languages_policy ON language_code
+| SORT message ASC
+;
+
+message:keyword  | language_code:keyword | type:keyword | language_name:keyword
+Connection error | 1                     | Error        | English
+Connection error | 1                     | Error        | English
+;
+
+remoteEnrichBetweenLookupJoins
+required_capability: join_lookup_v12
+required_capability: remote_enrich_after_lookup_join
+
+FROM sample_data
+| KEEP message, client_ip
+| WHERE message == "Connected to 10.1.0.1" OR message == "Connected to 10.1.0.2"
+| EVAL language_code = "1", client_ip=to_string(client_ip)
+| LOOKUP JOIN message_types_lookup ON message
+| ENRICH _remote:languages_policy ON language_code
+| LOOKUP JOIN clientips_lookup ON client_ip
+| DROP language_code
+| SORT message ASC
+;
+
+message:keyword       | client_ip:keyword | type:keyword | language_name:keyword | env:keyword
+Connected to 10.1.0.1 | 172.21.3.15       | Success      | English               | Production
+Connected to 10.1.0.2 | 172.21.2.113      | Success      | English               | QA
+;
+
+remoteEnrichesAndLookupJoins
+required_capability: join_lookup_v12
+required_capability: remote_enrich_after_lookup_join
+
+FROM sample_data
+| EVAL language_code = "1", client_ip=to_string(client_ip)
+| ENRICH _remote:languages_policy ON language_code
+| LOOKUP JOIN clientips_lookup ON client_ip
+| EVAL env1 = env
+| ENRICH _remote:clientip_policy ON client_ip
+| WHERE message == "Connected to 10.1.0.1" OR message == "Connected to 10.1.0.2"
+| LOOKUP JOIN message_types_lookup ON message
+| KEEP message, client_ip, env, env1, type, language_name
+| SORT message ASC
+| LIMIT 10
+;
+
+message:keyword       | client_ip:keyword | env:keyword | env1: keyword | type:keyword | language_name:keyword
+Connected to 10.1.0.1 | 172.21.3.15       | Production  | Production    |  Success     | English
+Connected to 10.1.0.2 | 172.21.2.113      | QA          | QA            |  Success     | English
+;
+
+###############################################
+# Multi-field LOOKUP JOIN
+###############################################
 
 lookupJoinOnTwoFields
 required_capability: join_lookup_v12
@@ -5148,4 +5321,389 @@ id_int:integer | name_str:keyword | extra1:keyword | other1:keyword | other2:int
 null           | null             | bar2           | null           | null
 null           | null             | corge          | null           | null
 null           | null             | fred           | null           | null
+;
+
+lookupAfterDropAllColumns
+required_capability: fix_no_columns
+required_capability: join_lookup_v12
+FROM languages
+| DROP language_code
+| EVAL language_code = 3
+| LOOKUP JOIN languages_lookup ON language_code
+| LIMIT 3
+;
+
+ language_code:integer | language_name:keyword 
+3                      |Spanish
+3                      |Spanish
+3                      |Spanish
+;
+
+lookupJoinWithPushableFilterOnRight
+required_capability: join_lookup_v12
+required_capability: lookup_join_on_multiple_fields
+
+FROM multi_column_joinable
+| LOOKUP JOIN multi_column_joinable_lookup ON id_int, is_active_bool
+| WHERE other2 > 5000
+| KEEP id_int, name_str, extra1, other1, other2
+| SORT id_int, name_str, extra1, other1, other2
+| LIMIT 20
+;
+
+warning:Line 2:3: evaluation of [LOOKUP JOIN multi_column_joinable_lookup ON id_int, is_active_bool] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 2:3: java.lang.IllegalArgumentException: LOOKUP JOIN encountered multi-value
+
+id_int:integer | name_str:keyword | extra1:keyword | other1:keyword | other2:integer
+4              | David            | qux            | zeta           | 6000
+5              | Eve              | quux           | eta            | 7000
+5              | Eve              | quux           | theta          | 8000
+6              | null             | corge          | iota           | 9000
+7              | Grace            | grault         | kappa          | 10000
+8              | Hank             | garply         | lambda         | 11000
+12             | Liam             | xyzzy          | nu             | 13000
+13             | Mia              | thud           | xi             | 14000
+14             | Nina             | foo2           | omicron        | 15000
+;
+
+lookupJoinWithPushableFilterOnRightOneField
+required_capability: join_lookup_v12
+required_capability: lookup_join_on_multiple_fields
+
+FROM multi_column_joinable
+| LOOKUP JOIN multi_column_joinable_lookup ON id_int
+| WHERE other2 > 5000
+| KEEP id_int, name_str, extra1, other1, other2
+| SORT id_int, name_str, extra1, other1, other2
+| LIMIT 20
+;
+
+warning:Line 2:3: evaluation of [LOOKUP JOIN multi_column_joinable_lookup ON id_int] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 2:3: java.lang.IllegalArgumentException: LOOKUP JOIN encountered multi-value
+
+id_int:integer | name_str:keyword | extra1:keyword | other1:keyword | other2:integer
+4              | David            | qux            | zeta           | 6000
+5              | Eve              | quux           | eta            | 7000
+5              | Eve              | quux           | theta          | 8000
+6              | null             | corge          | iota           | 9000
+7              | Grace            | grault         | kappa          | 10000
+8              | Hank             | garply         | lambda         | 11000
+12             | Liam             | xyzzy          | nu             | 13000
+13             | Mia              | thud           | xi             | 14000
+14             | Nina             | foo2           | omicron        | 15000
+;
+
+lookupJoinWithTwoPushableFiltersOnRight
+required_capability: join_lookup_v12
+required_capability: lookup_join_on_multiple_fields
+
+FROM multi_column_joinable
+| LOOKUP JOIN multi_column_joinable_lookup ON id_int, is_active_bool
+| WHERE other2 > 5000
+| WHERE other1 like "*ta"
+| KEEP id_int, name_str, extra1, other1, other2
+| SORT id_int, name_str, extra1, other1, other2
+| LIMIT 20
+;
+
+warning:Line 2:3: evaluation of [LOOKUP JOIN multi_column_joinable_lookup ON id_int, is_active_bool] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 2:3: java.lang.IllegalArgumentException: LOOKUP JOIN encountered multi-value
+
+id_int:integer | name_str:keyword | extra1:keyword | other1:keyword | other2:integer
+4              | David            | qux            | zeta           | 6000
+5              | Eve              | quux           | eta            | 7000
+5              | Eve              | quux           | theta          | 8000
+6              | null             | corge          | iota           | 9000
+;
+
+lookupJoinWithCoalesceFilterOnRight
+required_capability: join_lookup_v12
+required_capability: lookup_join_on_multiple_fields
+
+FROM multi_column_joinable
+| LOOKUP JOIN multi_column_joinable_lookup ON id_int, is_active_bool
+| WHERE COALESCE(other1, "zeta") == "zeta"
+| KEEP id_int, name_str, extra1, other1, other2
+| SORT id_int, name_str, extra1, other1, other2
+| LIMIT 20
+;
+
+warning:Line 2:3: evaluation of [LOOKUP JOIN multi_column_joinable_lookup ON id_int, is_active_bool] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 2:3: java.lang.IllegalArgumentException: LOOKUP JOIN encountered multi-value
+
+id_int:integer | name_str:keyword | extra1:keyword | other1:keyword | other2:integer
+[1, 19, 21]    | null             | zyx            | null           | null
+4              | David            | qux            | zeta           | 6000
+9              | null             | waldo          | null           | null
+10             | null             | fred           | null           | null
+15             | null             | bar2           | null           | null
+[17, 18]       | null             | xyz            | null           | null
+null           | null             | plugh          | null           | null
+;
+
+lookupJoinWithIsNullFilterOnRight
+required_capability: join_lookup_v12
+required_capability: lookup_join_on_multiple_fields
+
+FROM multi_column_joinable
+| LOOKUP JOIN multi_column_joinable_lookup ON id_int, is_active_bool
+| WHERE other1 IS NULL
+| KEEP id_int, name_str, extra1, other1, other2
+| SORT id_int
+;
+
+warning:Line 2:3: evaluation of [LOOKUP JOIN multi_column_joinable_lookup ON id_int, is_active_bool] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 2:3: java.lang.IllegalArgumentException: LOOKUP JOIN encountered multi-value
+
+id_int:integer | name_str:keyword | extra1:keyword | other1:keyword | other2:integer
+[1, 19, 21]    | null             | zyx            | null           | null
+9              | null             | waldo          | null           | null
+10             | null             | fred           | null           | null
+15             | null             | bar2           | null           | null
+[17, 18]       | null             | xyz            | null           | null
+null           | null             | plugh          | null           | null
+;
+
+lookupJoinWithIsNullJoinKey
+required_capability: join_lookup_v12
+required_capability: lookup_join_on_multiple_fields
+
+FROM multi_column_joinable
+| LOOKUP JOIN multi_column_joinable_lookup ON name_str
+| WHERE name_str IS NULL
+| KEEP id_int, name_str, extra1, other1, other2
+| SORT id_int
+;
+
+id_int:integer | name_str:keyword | extra1:keyword | other1:keyword | other2:integer
+null           | null             | corge          | null           | null
+;
+
+lookupJoinWithMixLeftAndRightFilters
+required_capability: join_lookup_v12
+required_capability: lookup_join_on_multiple_fields
+
+FROM multi_column_joinable
+| LOOKUP JOIN multi_column_joinable_lookup ON id_int, is_active_bool
+| WHERE other2 > 5000 AND (extra1 == "qux" OR extra1 == "foo2") AND other1 like ("*ta", "*ron")
+| KEEP id_int, name_str, extra1, other1, other2
+| SORT id_int, name_str, extra1, other1, other2
+| LIMIT 20
+;
+
+id_int:integer | name_str:keyword | extra1:keyword | other1:keyword | other2:integer
+4              | David            | qux            | zeta           | 6000
+14             | Nina             | foo2           | omicron        | 15000
+;
+
+lookupJoinWithMixLeftAndRightFiltersNotPushableToLucene
+required_capability: join_lookup_v12
+required_capability: lookup_join_on_multiple_fields
+
+FROM multi_column_joinable
+| LOOKUP JOIN multi_column_joinable_lookup ON id_int, is_active_bool
+| WHERE ABS(other2) > 5000 AND (extra1 == "qux" OR extra1 == "foo2") AND other1 like ("*ta", "*ron")
+| KEEP id_int, name_str, extra1, other1, other2
+| SORT id_int, name_str, extra1, other1, other2
+| LIMIT 20
+;
+
+id_int:integer | name_str:keyword | extra1:keyword | other1:keyword | other2:integer
+4              | David            | qux            | zeta           | 6000
+14             | Nina             | foo2           | omicron        | 15000
+;
+
+
+lookupJoinWithMixJoinAndNonJoinColumnsNotPushable
+required_capability: join_lookup_v12
+required_capability: lookup_join_on_multiple_fields
+
+FROM multi_column_joinable
+| LOOKUP JOIN multi_column_joinable_lookup ON id_int, is_active_bool
+| WHERE ABS(other2) > id_int + 5000
+| KEEP id_int, name_str, extra1, other1, other2
+| SORT id_int, name_str, extra1, other1, other2
+| LIMIT 20
+;
+
+warning:Line 2:3: evaluation of [LOOKUP JOIN multi_column_joinable_lookup ON id_int, is_active_bool] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 2:3: java.lang.IllegalArgumentException: LOOKUP JOIN encountered multi-value
+warning:Line 3:23: evaluation of [id_int + 5000] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 3:23: java.lang.IllegalArgumentException: single-value function encountered multi-value
+
+id_int:integer | name_str:keyword | extra1:keyword | other1:keyword | other2:integer
+4              | David            | qux            | zeta           | 6000
+5              | Eve              | quux           | eta            | 7000
+5              | Eve              | quux           | theta          | 8000
+6              | null             | corge          | iota           | 9000
+7              | Grace            | grault         | kappa          | 10000
+8              | Hank             | garply         | lambda         | 11000
+12             | Liam             | xyzzy          | nu             | 13000
+13             | Mia              | thud           | xi             | 14000
+14             | Nina             | foo2           | omicron        | 15000
+;
+
+
+lookupJoinWithMixJoinAndNonJoinColumnsPushable
+ required_capability: join_lookup_v12
+ required_capability: lookup_join_on_multiple_fields
+ 
+ FROM multi_column_joinable
+ | LOOKUP JOIN multi_column_joinable_lookup ON id_int, is_active_bool
+ | WHERE other2 > id_int + 5000
+ | KEEP id_int, name_str, extra1, other1, other2
+ | SORT id_int, name_str, extra1, other1, other2
+ | LIMIT 20
+ ;
+ 
+warning:Line 2:3: evaluation of [LOOKUP JOIN multi_column_joinable_lookup ON id_int, is_active_bool] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 2:3: java.lang.IllegalArgumentException: LOOKUP JOIN encountered multi-value
+warning:Line 3:18: evaluation of [id_int + 5000] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 3:18: java.lang.IllegalArgumentException: single-value function encountered multi-value
+ 
+ id_int:integer | name_str:keyword | extra1:keyword | other1:keyword | other2:integer
+ 4              | David            | qux            | zeta           | 6000
+ 5              | Eve              | quux           | eta            | 7000
+ 5              | Eve              | quux           | theta          | 8000
+ 6              | null             | corge          | iota           | 9000
+ 7              | Grace            | grault         | kappa          | 10000
+ 8              | Hank             | garply         | lambda         | 11000
+ 12             | Liam             | xyzzy          | nu             | 13000
+ 13             | Mia              | thud           | xi             | 14000
+ 14             | Nina             | foo2           | omicron        | 15000
+ ;
+
+lookupJoinWithMixPushableAndUnpushableFilters
+ required_capability: join_lookup_v12
+ required_capability: lookup_join_on_multiple_fields
+ 
+ FROM multi_column_joinable
+ | LOOKUP JOIN multi_column_joinable_lookup ON id_int, is_active_bool
+ | WHERE other2 > id_int + 5000 AND (extra1 == "qux" OR extra1 == "zyx") AND other1 like "*ta" AND ABS(other2) > 5500
+ | KEEP id_int, name_str, extra1, other1, other2
+ | SORT id_int, name_str, extra1, other1, other2
+ | LIMIT 20
+ ;
+ 
+warning:Line 2:3: evaluation of [LOOKUP JOIN multi_column_joinable_lookup ON id_int, is_active_bool] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 2:3: java.lang.IllegalArgumentException: LOOKUP JOIN encountered multi-value
+warning:Line 3:18: evaluation of [id_int + 5000] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 3:18: java.lang.IllegalArgumentException: single-value function encountered multi-value
+
+ id_int:integer | name_str:keyword | extra1:keyword | other1:keyword | other2:integer
+ 4              | David            | qux            | zeta           | 6000
+ ;
+ 
+ lookupJoinWithJoinAttrFilter
+ required_capability: join_lookup_v12
+ required_capability: lookup_join_on_multiple_fields
+ 
+ FROM multi_column_joinable
+ | LOOKUP JOIN multi_column_joinable_lookup ON id_int, is_active_bool
+ | WHERE id_int > 7
+ | KEEP id_int, name_str, extra1, other1, other2
+ | SORT id_int, name_str, extra1, other1, other2
+ | LIMIT 20
+ ;
+ 
+warning:Line 3:9: evaluation of [id_int > 7] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 3:9: java.lang.IllegalArgumentException: single-value function encountered multi-value
+ 
+id_int:integer | name_str:keyword | extra1:keyword | other1:keyword | other2:integer
+8              | Hank             | garply         | lambda         | 11000
+9              | null             | waldo          | null           | null
+10             | null             | fred           | null           | null
+12             | Liam             | xyzzy          | nu             | 13000
+13             | Mia              | thud           | xi             | 14000
+14             | Nina             | foo2           | omicron        | 15000
+15             | null             | bar2           | null           | null
+;
+ 
+ 
+lookupJoinWithExpressionOfOtherFields
+  required_capability: join_lookup_v12
+  required_capability: lookup_join_on_multiple_fields
+  
+  FROM multi_column_joinable
+  | LOOKUP JOIN multi_column_joinable_lookup ON id_int, is_active_bool
+  | WHERE ABS(other2) > LENGTH(other1)*1000 + 2000
+  | KEEP id_int, name_str, extra1, other1, other2
+  | SORT id_int, name_str, extra1, other1, other2
+  | LIMIT 20
+  ;
+
+warning:Line 2:3: evaluation of [LOOKUP JOIN multi_column_joinable_lookup ON id_int, is_active_bool] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 2:3: java.lang.IllegalArgumentException: LOOKUP JOIN encountered multi-value
+  
+id_int:integer | name_str:keyword | extra1:keyword | other1:keyword | other2:integer
+5              | Eve              | quux           | eta            | 7000
+5              | Eve              | quux           | theta          | 8000
+6              | null             | corge          | iota           | 9000
+7              | Grace            | grault         | kappa          | 10000
+8              | Hank             | garply         | lambda         | 11000
+12             | Liam             | xyzzy          | nu             | 13000
+13             | Mia              | thud           | xi             | 14000
+14             | Nina             | foo2           | omicron        | 15000
+;
+
+// https://github.com/elastic/elasticsearch/issues/134407
+SortOnFieldNullifiedDueToJoinKeyMissingInSomeOfTheIndices
+required_capability: join_lookup_v12
+required_capability: fixed_pushdown_past_project_with_attributes_resolution
+
+from sample_data,languages_mixed_numerics,apps
+| rename language_code_byte as language_code
+| lookup join languages_lookup on language_code
+| rename id as language_code // `id` can be missing locally, so "joined" `language_code` is eval'd to null hereafter
+| lookup join languages_lookup on language_code
+| sort language_code_short DESC NULLS LAST, name ASC NULLS LAST, language_name
+| limit 2
+;
+
+@timestamp:datetime|client_ip:ip|event_duration:l| language_code:i | language_code_double:d | language_code_float:d  |language_code_half_float:d|language_code_integer:i| language_code_long:l |language_code_scaled_float:d|language_code_short:i|       message:keyword       |     name:keyword      |    version:version    | language_name:keyword
+null           |null           |null           |null           |32767.0               |32767.0               |32768.0                 |32767                |32767               |32767.0                   |32767              |null                 |null           |null           |null
+null           |null           |null           |null           |128.0                 |128.0                 |128.0                   |128                  |128                 |128.0                     |128                |null                 |null           |null           |null
+;
+
+
+lookupJoinWithSemanticFilterDeduplication
+required_capability: join_lookup_v12
+required_capability: lookup_join_semantic_filter_dedup
+
+from languages
+| lookup join languages_lookup on language_name 
+| where NOT language_code <= 50 OR language_name == "English"
+| where language_code > 50 
+| where language_name == "English"
+;
+
+language_name:keyword | language_code:integer 
+;
+
+
+// https://github.com/elastic/elasticsearch/issues/136599
+lookupJoinWithSemanticFilterDeduplicationComplex
+required_capability: join_lookup_v12
+required_capability: lookup_join_semantic_filter_dedup
+
+from languages_lookup_non_unique_ke* 
+| enrich languages_policy on language_name 
+| sort country DESC, language_code ASC NULLS LAST, language_name NULLS FIRST 
+| limit 14081 
+| keep `language_name`, `country`, *, `country.keyword` 
+| mv_expand country.keyword 
+| grok language_name "%{WORD:YEcxuCOHsGzb} %{WORD:country.keyword}"
+| rename country.keyword as other1
+| rename language_code as other2 
+| lookup join multi_column_joinable_lookup on other1, other2 
+| where  NOT id_int <= 50 OR  NOT false AND  NOT other2 == 50 
+| where false AND  NOT true OR id_int > 50 AND true 
+| where  NOT false AND other2 == 50
+;
+
+warning:Line 13:24: evaluation of [other2 == 50] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 13:24: java.lang.IllegalArgumentException: single-value function encountered multi-value
+
+language_name:keyword | country:text | other2:integer | YEcxuCOHsGzb:keyword | other1:keyword |id_int:integer | ip_addr:ip |is_active_bool:boolean | name_str:keyword
+
 ;

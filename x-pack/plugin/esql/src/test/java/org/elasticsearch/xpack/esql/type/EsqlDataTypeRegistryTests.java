@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.esql.type;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesIndexResponse;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
 import org.elasticsearch.action.fieldcaps.IndexFieldCapabilitiesBuilder;
@@ -28,7 +29,6 @@ public class EsqlDataTypeRegistryTests extends ESTestCase {
         resolve("long", TimeSeriesParams.MetricType.COUNTER, DataType.COUNTER_LONG);
         resolve("integer", TimeSeriesParams.MetricType.COUNTER, DataType.COUNTER_INTEGER);
         resolve("double", TimeSeriesParams.MetricType.COUNTER, DataType.COUNTER_DOUBLE);
-
     }
 
     public void testGauge() {
@@ -52,9 +52,12 @@ public class EsqlDataTypeRegistryTests extends ESTestCase {
             )
         );
 
-        FieldCapabilitiesResponse caps = new FieldCapabilitiesResponse(idxResponses, List.of());
+        FieldCapabilitiesResponse caps = FieldCapabilitiesResponse.builder().withIndexResponses(idxResponses).build();
         // IndexResolver uses EsqlDataTypeRegistry directly
-        IndexResolution resolution = IndexResolver.mergedMappings("idx-*", caps);
+        IndexResolution resolution = IndexResolver.mergedMappings(
+            "idx-*",
+            new IndexResolver.FieldsInfo(caps, TransportVersion.current(), false, false, false)
+        );
         EsField f = resolution.get().mapping().get(field);
         assertThat(f.getDataType(), equalTo(expected));
     }

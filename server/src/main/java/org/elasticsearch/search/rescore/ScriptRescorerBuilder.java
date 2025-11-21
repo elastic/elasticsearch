@@ -11,7 +11,6 @@ package org.elasticsearch.search.rescore;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
@@ -35,6 +34,8 @@ public class ScriptRescorerBuilder extends RescorerBuilder<ScriptRescorerBuilder
     private static final ParseField SCRIPT_FIELD = new ParseField("script");
 
     private static final ObjectParser<Builder, Void> PARSER = new ObjectParser<>(NAME, false, Builder::new);
+
+    private static final TransportVersion SCRIPT_RESCORER = TransportVersion.fromName("script_rescorer");
 
     static {
         PARSER.declareObject(Builder::setScript, (p, c) -> Script.parse(p), SCRIPT_FIELD);
@@ -89,7 +90,7 @@ public class ScriptRescorerBuilder extends RescorerBuilder<ScriptRescorerBuilder
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.SCRIPT_RESCORER;
+        return SCRIPT_RESCORER;
     }
 
     @Override

@@ -1,4 +1,7 @@
 ---
+applies_to:
+  stack:
+  serverless:
 navigation_title: "Functions and operators"
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/reference/current/esql-functions-operators.html
@@ -14,6 +17,12 @@ mapped_pages:
 ::::{dropdown} Aggregate functions
 :open:
 :::{include} _snippets/lists/aggregation-functions.md
+:::
+::::
+
+::::{dropdown} Time-series aggregate functions
+:open:
+:::{include} _snippets/lists/time-series-aggregation-functions.md
 :::
 ::::
 
@@ -68,6 +77,12 @@ mapped_pages:
 ::::{dropdown} Type conversion functions
 :open:
 :::{include} _snippets/lists/type-conversion-functions.md
+:::
+::::
+
+::::{dropdown} Dense vector functions
+:open:
+:::{include} _snippets/lists/dense-vector-functions.md
 :::
 ::::
 

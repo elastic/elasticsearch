@@ -18,7 +18,10 @@ import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
 import java.util.function.Supplier;
+
+import static org.elasticsearch.xpack.esql.core.type.DataType.GEO_POINT;
 
 @FunctionName("st_intersects")
 public class SpatialIntersectsTests extends SpatialRelatesFunctionTestCase {
@@ -29,7 +32,8 @@ public class SpatialIntersectsTests extends SpatialRelatesFunctionTestCase {
     @ParametersFactory
     public static Iterable<Object[]> parameters() {
         List<TestCaseSupplier> suppliers = new ArrayList<>();
-        DataType[] geoDataTypes = { DataType.GEO_POINT, DataType.GEO_SHAPE };
+        SpatialRelatesFunctionTestCase.addSpatialGridCombinations(suppliers, GEO_POINT);
+        DataType[] geoDataTypes = { GEO_POINT, DataType.GEO_SHAPE };
         SpatialRelatesFunctionTestCase.addSpatialCombinations(suppliers, geoDataTypes);
         DataType[] cartesianDataTypes = { DataType.CARTESIAN_POINT, DataType.CARTESIAN_SHAPE };
         SpatialRelatesFunctionTestCase.addSpatialCombinations(suppliers, cartesianDataTypes);
@@ -41,5 +45,9 @@ public class SpatialIntersectsTests extends SpatialRelatesFunctionTestCase {
     @Override
     protected Expression build(Source source, List<Expression> args) {
         return new SpatialIntersects(source, args.get(0), args.get(1));
+    }
+
+    protected static String typeErrorMessage(boolean includeOrdinal, List<Set<DataType>> validPerPosition, List<DataType> types) {
+        return typeErrorMessage(includeOrdinal, validPerPosition, types, false, true);
     }
 }

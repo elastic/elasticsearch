@@ -9,8 +9,6 @@
 
 package org.elasticsearch.action.admin.cluster.node.usage;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.support.ActionFilters;
@@ -18,18 +16,22 @@ import org.elasticsearch.action.support.nodes.TransportNodesAction;
 import org.elasticsearch.cluster.NodeUsageStatsForThreadPools;
 import org.elasticsearch.cluster.NodeUsageStatsForThreadPools.ThreadPoolUsageStats;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.routing.allocation.allocator.DesiredBalanceMetrics;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.util.concurrent.TaskExecutionTimeTrackingEsThreadPoolExecutor;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.Task;
+import org.elasticsearch.telemetry.metric.LongWithAttributes;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
-import java.util.HashMap;
+import java.util.Collection;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.atomic.AtomicLong;
 
 /**
  * Collects some thread pool stats from each data node for purposes of shard allocation balancing. The specific stats are defined in
@@ -42,20 +44,21 @@ public class TransportNodeUsageStatsForThreadPoolsAction extends TransportNodesA
     NodeUsageStatsForThreadPoolsAction.NodeResponse,
     Void> {
 
-    private static final Logger logger = LogManager.getLogger(TransportNodeUsageStatsForThreadPoolsAction.class);
-
     public static final String NAME = "internal:monitor/thread_pool/stats";
     public static final ActionType<NodeUsageStatsForThreadPoolsAction.Response> TYPE = new ActionType<>(NAME);
+    private static final int NO_VALUE = -1;
 
     private final ThreadPool threadPool;
     private final ClusterService clusterService;
+    private final AtomicLong lastMaxQueueLatencyMillis = new AtomicLong(NO_VALUE);
 
     @Inject
     public TransportNodeUsageStatsForThreadPoolsAction(
         ThreadPool threadPool,
         ClusterService clusterService,
         TransportService transportService,
-        ActionFilters actionFilters
+        ActionFilters actionFilters,
+        DesiredBalanceMetrics desiredBalanceMetrics
     ) {
         super(
             NAME,
@@ -67,6 +70,7 @@ public class TransportNodeUsageStatsForThreadPoolsAction extends TransportNodesA
         );
         this.threadPool = threadPool;
         this.clusterService = clusterService;
+        desiredBalanceMetrics.registerWriteLoadDeciderMaxLatencyGauge(this::getMaxQueueLatencyMetric);
     }
 
     @Override
@@ -99,22 +103,31 @@ public class TransportNodeUsageStatsForThreadPoolsAction extends TransportNodesA
         assert writeExecutor instanceof TaskExecutionTimeTrackingEsThreadPoolExecutor;
         var trackingForWriteExecutor = (TaskExecutionTimeTrackingEsThreadPoolExecutor) writeExecutor;
 
+        long maxQueueLatencyMillis = Math.max(
+            trackingForWriteExecutor.getMaxQueueLatencyMillisSinceLastPollAndReset(),
+            trackingForWriteExecutor.peekMaxQueueLatencyInQueueMillis()
+        );
+        lastMaxQueueLatencyMillis.set(maxQueueLatencyMillis);
         ThreadPoolUsageStats threadPoolUsageStats = new ThreadPoolUsageStats(
             trackingForWriteExecutor.getMaximumPoolSize(),
             (float) trackingForWriteExecutor.pollUtilization(
                 TaskExecutionTimeTrackingEsThreadPoolExecutor.UtilizationTrackingPurpose.ALLOCATION
             ),
-            Math.max(
-                trackingForWriteExecutor.getMaxQueueLatencyMillisSinceLastPollAndReset(),
-                trackingForWriteExecutor.peekMaxQueueLatencyInQueueMillis()
-            )
+            maxQueueLatencyMillis
         );
 
-        Map<String, ThreadPoolUsageStats> perThreadPool = new HashMap<>();
-        perThreadPool.put(ThreadPool.Names.WRITE, threadPoolUsageStats);
         return new NodeUsageStatsForThreadPoolsAction.NodeResponse(
             localNode,
-            new NodeUsageStatsForThreadPools(localNode.getId(), perThreadPool)
+            new NodeUsageStatsForThreadPools(localNode.getId(), Map.of(ThreadPool.Names.WRITE, threadPoolUsageStats))
         );
+    }
+
+    private Collection<LongWithAttributes> getMaxQueueLatencyMetric() {
+        long maxQueueLatencyValue = lastMaxQueueLatencyMillis.getAndSet(NO_VALUE);
+        if (maxQueueLatencyValue != NO_VALUE) {
+            return Set.of(new LongWithAttributes(maxQueueLatencyValue));
+        } else {
+            return Set.of();
+        }
     }
 }

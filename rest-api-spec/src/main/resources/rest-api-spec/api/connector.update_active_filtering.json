@@ -1,8 +1,8 @@
 {
   "connector.update_active_filtering": {
     "documentation": {
-      "url": "https://www.elastic.co/guide/en/elasticsearch/reference/master/update-connector-filtering-api.html",
-      "description": "Activates the draft filtering rules if they are in a validated state."
+      "url": "https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-connector-update-filtering",
+      "description": "Activate the connector draft filter"
     },
     "stability": "experimental",
     "visibility": "public",

@@ -21,8 +21,6 @@ public interface RequestExecutor {
 
     void shutdown();
 
-    void updateRateLimitDivisor(int newDivisor);
-
     boolean isShutdown();
 
     boolean isTerminated();

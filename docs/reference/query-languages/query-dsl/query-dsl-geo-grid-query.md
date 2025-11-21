@@ -49,6 +49,7 @@ PUT /my_locations/_doc/3?refresh
   "name": "Musée du Louvre"
 }
 ```
+% TESTSETUP
 
 ## geohash grid [query-dsl-geo-grid-query-geohash]
 
@@ -103,6 +104,7 @@ GET /my_locations/_search
   }
 }
 ```
+% TESTRESPONSE[s/"took" : 10/"took" : $body.took/]
 
 We can extract the documents on one of those buckets by executing a geo_grid query using the bucket key with the following syntax:
 
@@ -150,6 +152,7 @@ GET /my_locations/_search
   }
 }
 ```
+% TESTRESPONSE[s/"took" : 1/"took" : $body.took/]
 
 
 ## geotile grid [query-dsl-geo-grid-query-geotile]
@@ -205,6 +208,7 @@ GET /my_locations/_search
   }
 }
 ```
+% TESTRESPONSE[s/"took" : 1/"took" : $body.took/]
 
 We can extract the documents on one of those buckets by executing a geo_grid query using the bucket key with the following syntax:
 
@@ -252,6 +256,7 @@ GET /my_locations/_search
   }
 }
 ```
+% TESTRESPONSE[s/"took" : 1/"took" : $body.took/]
 
 
 ## geohex grid [query-dsl-geo-grid-query-geohex]
@@ -307,6 +312,7 @@ GET /my_locations/_search
   }
 }
 ```
+% TESTRESPONSE[s/"took" : 2/"took" : $body.took/]
 
 We can extract the documents on one of those buckets by executing a geo_grid query using the bucket key with the following syntax:
 
@@ -354,5 +360,6 @@ GET /my_locations/_search
   }
 }
 ```
+% TESTRESPONSE[s/"took" : 26/"took" : $body.took/]
 
 

@@ -13,8 +13,14 @@ import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
+import org.elasticsearch.common.io.stream.DelayableWriteable;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.lucene.search.TopDocsAndMaxScore;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.EsExecutors.TaskTrackingConfig;
@@ -25,9 +31,12 @@ import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregationReduceContext;
 import org.elasticsearch.search.aggregations.InternalAggregations;
+import org.elasticsearch.search.aggregations.metrics.SumAggregationBuilder;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
+import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.query.QuerySearchResult;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.TestEsExecutors;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.junit.After;
@@ -40,7 +49,10 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Supplier;
 
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.mockito.Mockito.mock;
 
 public class QueryPhaseResultConsumerTests extends ESTestCase {
@@ -79,7 +91,7 @@ public class QueryPhaseResultConsumerTests extends ESTestCase {
             "test",
             1,
             10,
-            EsExecutors.daemonThreadFactory("test"),
+            TestEsExecutors.testOnlyDaemonThreadFactory("test"),
             threadPool.getThreadContext(),
             randomFrom(TaskTrackingConfig.DEFAULT, TaskTrackingConfig.DO_NOT_TRACK)
         );
@@ -145,6 +157,142 @@ public class QueryPhaseResultConsumerTests extends ESTestCase {
 
             queryPhaseResultConsumer.reduce();
             assertEquals(1, searchProgressListener.onFinalReduce.get());
+        }
+    }
+
+    /**
+     * Adds batches with a high simulated size, expecting the CB to trip before deserialization.
+     */
+    public void testBatchedEstimateSizeTooBig() throws Exception {
+        SearchRequest searchRequest = new SearchRequest("index");
+        searchRequest.source(new SearchSourceBuilder().aggregation(new SumAggregationBuilder("sum")));
+
+        var aggCount = randomIntBetween(1, 10);
+        var circuitBreakerLimit = ByteSizeValue.ofMb(256);
+        var circuitBreaker = newLimitedBreaker(circuitBreakerLimit);
+        // More than what the CircuitBreaker should allow
+        long aggregationEstimatedSize = (long) (circuitBreakerLimit.getBytes() * 1.05 / aggCount);
+
+        try (
+            QueryPhaseResultConsumer queryPhaseResultConsumer = new QueryPhaseResultConsumer(
+                searchRequest,
+                executor,
+                circuitBreaker,
+                searchPhaseController,
+                () -> false,
+                new SearchProgressListener() {
+                },
+                10,
+                e -> {}
+            )
+        ) {
+            for (int i = 0; i < aggCount; i++) {
+                // Add a dummy merge result with a high estimated size
+                var mergeResult = new QueryPhaseResultConsumer.MergeResult(List.of(), null, new DelegatingDelayableWriteable<>(() -> {
+                    fail("This shouldn't be called");
+                    return null;
+                }), aggregationEstimatedSize);
+                queryPhaseResultConsumer.addBatchedPartialResult(new SearchPhaseController.TopDocsStats(0), mergeResult);
+            }
+
+            try {
+                queryPhaseResultConsumer.reduce();
+                fail("Expecting a circuit breaking exception to be thrown");
+            } catch (CircuitBreakingException e) {
+                // The last merge result estimate should break
+                assertThat(e.getBytesWanted(), equalTo(aggregationEstimatedSize));
+            }
+        }
+    }
+
+    /**
+     * Adds batches with a high simulated size, expecting the CB to trip before deserialization.
+     * <p>
+     *     Similar to {@link #testBatchedEstimateSizeTooBig()}, but this tests the extra size
+     * </p>
+     */
+    public void testBatchedEstimateSizeTooBigAfterDeserialization() throws Exception {
+        SearchRequest searchRequest = new SearchRequest("index");
+        searchRequest.source(new SearchSourceBuilder().aggregation(new SumAggregationBuilder("sum")));
+
+        var aggCount = randomIntBetween(1, 10);
+        var circuitBreakerLimit = ByteSizeValue.ofMb(256);
+        var circuitBreaker = newLimitedBreaker(circuitBreakerLimit);
+        // Less than the CB, but more after the 1.5x
+        long aggregationEstimatedSize = (long) (circuitBreakerLimit.getBytes() * 0.75 / aggCount);
+        long totalAggregationsEstimatedSize = aggregationEstimatedSize * aggCount;
+
+        try (
+            QueryPhaseResultConsumer queryPhaseResultConsumer = new QueryPhaseResultConsumer(
+                searchRequest,
+                executor,
+                circuitBreaker,
+                searchPhaseController,
+                () -> false,
+                new SearchProgressListener() {
+                },
+                10,
+                e -> {}
+            )
+        ) {
+            for (int i = 0; i < aggCount; i++) {
+                // Add a dummy merge result with a high estimated size
+                var mergeResult = new QueryPhaseResultConsumer.MergeResult(List.of(), null, new DelegatingDelayableWriteable<>(() -> {
+                    fail("This shouldn't be called");
+                    return null;
+                }), aggregationEstimatedSize);
+                queryPhaseResultConsumer.addBatchedPartialResult(new SearchPhaseController.TopDocsStats(0), mergeResult);
+            }
+
+            try {
+                queryPhaseResultConsumer.reduce();
+                fail("Expecting a circuit breaking exception to be thrown");
+            } catch (CircuitBreakingException e) {
+                assertThat(circuitBreaker.getUsed(), greaterThanOrEqualTo(aggregationEstimatedSize));
+                // A final +0.5x is added to account for the serialized->deserialized extra size
+                assertThat(e.getBytesWanted(), equalTo(Math.round(totalAggregationsEstimatedSize * 0.5)));
+            }
+        }
+    }
+
+    /**
+     * DelayableWriteable that delegates expansion to a supplier.
+     */
+    private static class DelegatingDelayableWriteable<T extends Writeable> extends DelayableWriteable<T> {
+        private final Supplier<T> supplier;
+
+        private DelegatingDelayableWriteable(Supplier<T> supplier) {
+            this.supplier = supplier;
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) {
+            throw new UnsupportedOperationException("Not to be called");
+        }
+
+        @Override
+        public T expand() {
+            return supplier.get();
+        }
+
+        @Override
+        public Serialized<T> asSerialized(Reader<T> reader, NamedWriteableRegistry registry) {
+            throw new UnsupportedOperationException("Not to be called");
+        }
+
+        @Override
+        public boolean isSerialized() {
+            return true;
+        }
+
+        @Override
+        public long getSerializedSize() {
+            return 0;
+        }
+
+        @Override
+        public void close() {
+            // noop
         }
     }
 

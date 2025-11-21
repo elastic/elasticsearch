@@ -212,16 +212,16 @@ public final class TransportPutFollowAction extends TransportMasterNodeAction<Pu
             description = "CCR may not be in scope for multi-project though we haven't made the decision explicitly yet. See also ES-12139"
         )
         final ProjectId projectId = ProjectId.DEFAULT;
-        final BiConsumer<ClusterState, Metadata.Builder> updater;
+        final BiConsumer<ClusterState, ProjectMetadata.Builder> updater;
         if (remoteDataStream == null) {
             // If the index we're following is not part of a data stream, start the
             // restoration of the index normally.
-            updater = (clusterState, mdBuilder) -> {};
+            updater = (clusterState, projectBuilder) -> {};
         } else {
             String followerIndexName = request.getFollowerIndex();
             // This method is used to update the metadata in the same cluster state
             // update as the snapshot is restored.
-            updater = (currentState, mdBuilder) -> {
+            updater = (currentState, projectBuilder) -> {
                 final String localDataStreamName;
 
                 // If we have been given a data stream name, use that name for the local
@@ -234,7 +234,6 @@ public final class TransportPutFollowAction extends TransportMasterNodeAction<Pu
                     // There was no specified name, use the original data stream name.
                     localDataStreamName = remoteDataStream.getName();
                 }
-                final ProjectMetadata.Builder projectBuilder = mdBuilder.getProject(projectId);
                 final DataStream localDataStream = projectBuilder.dataStream(localDataStreamName);
                 final Index followerIndex = projectBuilder.get(followerIndexName).getIndex();
                 assert followerIndex != null : "expected followerIndex " + followerIndexName + " to exist in the state, but it did not";

@@ -47,6 +47,11 @@ public class XContentRowEncoderTests extends ComputeTestCase {
             }
 
             @Override
+            public long baseRamBytesUsed() {
+                return 0;
+            }
+
+            @Override
             public void close() {}
         });
         fields.put(new ColumnInfoImpl("field2", DataType.INTEGER, Collections.emptyList()), c -> new EvalOperator.ExpressionEvaluator() {
@@ -61,6 +66,11 @@ public class XContentRowEncoderTests extends ComputeTestCase {
             }
 
             @Override
+            public long baseRamBytesUsed() {
+                return 0;
+            }
+
+            @Override
             public void close() {}
         });
         fields.put(new ColumnInfoImpl("field3", DataType.BOOLEAN, Collections.emptyList()), c -> new EvalOperator.ExpressionEvaluator() {
@@ -72,6 +82,11 @@ public class XContentRowEncoderTests extends ComputeTestCase {
                 builder.appendBoolean(false);
                 builder.appendNull();
                 return builder.build();
+            }
+
+            @Override
+            public long baseRamBytesUsed() {
+                return 0;
             }
 
             @Override

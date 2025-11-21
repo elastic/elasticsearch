@@ -56,12 +56,49 @@ public class QuantileAccuracyTests extends ExponentialHistogramTestCase {
     }
 
     public void testNoNegativeZeroReturned() {
-        FixedCapacityExponentialHistogram histogram = createAutoReleasedHistogram(2);
-        histogram.resetBuckets(MAX_SCALE);
-        // add a single, negative bucket close to zero
-        histogram.tryAddBucket(MIN_INDEX, 3, false);
+        ExponentialHistogram histogram = createAutoReleasedHistogram(
+            b -> b.scale(MAX_SCALE).setNegativeBucket(MIN_INDEX, 3) // add a single, negative bucket close to zero
+        );
         double median = ExponentialHistogramQuantile.getQuantile(histogram, 0.5);
         assertThat(median, equalTo(0.0));
+    }
+
+    public void testPercentilesClampedToMinMax() {
+        ExponentialHistogram histogram = createAutoReleasedHistogram(
+            b -> b.scale(0).setNegativeBucket(1, 1).setPositiveBucket(1, 1).max(0.00001).min(-0.00002)
+        );
+        double p0 = ExponentialHistogramQuantile.getQuantile(histogram, 0.0);
+        double p100 = ExponentialHistogramQuantile.getQuantile(histogram, 1.0);
+        assertThat(p0, equalTo(-0.00002));
+        assertThat(p100, equalTo(0.00001));
+    }
+
+    public void testMinMaxClampedPercentileAccuracy() {
+        ExponentialHistogram histogram = createAutoReleasedHistogram(
+            b -> b.scale(0)
+                .setPositiveBucket(0, 1) // bucket 0 covers (1, 2]
+                .setPositiveBucket(1, 1) // bucket 1 covers (2, 4]
+                .min(1.1)
+                .max(2.1)
+        );
+
+        // The 0.5 percentile linearly interpolates between the two buckets.
+        // For the (1, 2] bucket, the point of least relative error will be used (1.33333)
+        // For the (2, 4] bucket, the max of the histogram should be used instead (2.1)
+        double expectedResult = (4.0 / 3 + 2.1) / 2;
+        double p50 = ExponentialHistogramQuantile.getQuantile(histogram, 0.5);
+        assertThat(p50, equalTo(expectedResult));
+
+        // Test the same for min instead of max
+        histogram = createAutoReleasedHistogram(
+            b -> b.scale(0)
+                .setNegativeBucket(0, 1) // bucket 0 covers (1, 2]
+                .setNegativeBucket(1, 1) // bucket 1 covers (2, 4]
+                .min(-2.1)
+                .max(-1.1)
+        );
+        p50 = ExponentialHistogramQuantile.getQuantile(histogram, 0.5);
+        assertThat(p50, equalTo(-expectedResult));
     }
 
     public void testUniformDistribution() {
@@ -160,7 +197,7 @@ public class QuantileAccuracyTests extends ExponentialHistogramTestCase {
     }
 
     public void testSingleValueHistogram() {
-        ExponentialHistogram histo = createAutoReleasedHistogram(1, 42.0);
+        ExponentialHistogram histo = createAutoReleasedHistogram(4, 42.0);
         for (double q : QUANTILES_TO_TEST) {
             assertThat(ExponentialHistogramQuantile.getQuantile(histo, q), closeTo(42, 0.0000001));
         }
@@ -222,7 +259,7 @@ public class QuantileAccuracyTests extends ExponentialHistogramTestCase {
         testQuantileAccuracy(values, bucketCount);
     }
 
-    private static double[] generateSamples(RealDistribution distribution, int sampleSize) {
+    public static double[] generateSamples(RealDistribution distribution, int sampleSize) {
         double[] values = new double[sampleSize];
         for (int i = 0; i < sampleSize; i++) {
             values[i] = distribution.sample();
@@ -277,7 +314,7 @@ public class QuantileAccuracyTests extends ExponentialHistogramTestCase {
      * The error depends on the raw values put into the histogram and the number of buckets allowed.
      * This is an implementation of the error bound computation proven by Theorem 3 in the <a href="https://arxiv.org/pdf/2004.08604">UDDSketch paper</a>
      */
-    private static double getMaximumRelativeError(double[] values, int bucketCount) {
+    public static double getMaximumRelativeError(double[] values, int bucketCount) {
         HashSet<Long> usedPositiveIndices = new HashSet<>();
         HashSet<Long> usedNegativeIndices = new HashSet<>();
         int bestPossibleScale = MAX_SCALE;

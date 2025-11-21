@@ -22,6 +22,7 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 public class CompositeSyntheticFieldLoaderTests extends ESTestCase {
+
     public void testComposingMultipleStoredFields() throws IOException {
         var sut = new CompositeSyntheticFieldLoader(
             "foo",
@@ -233,5 +234,52 @@ public class CompositeSyntheticFieldLoaderTests extends ESTestCase {
     public void testFieldName() {
         var sut = new CompositeSyntheticFieldLoader("foo", "bar.baz.foo");
         assertEquals("bar.baz.foo", sut.fieldName());
+    }
+
+    public void testMergeTwoFieldLoaders() throws IOException {
+        // given
+        var fieldLoader1 = new CompositeSyntheticFieldLoader(
+            "foo",
+            "bar.baz.foo",
+            List.of(new CompositeSyntheticFieldLoader.StoredFieldLayer("foo.one") {
+                @Override
+                protected void writeValue(Object value, XContentBuilder b) throws IOException {
+                    b.value((long) value);
+                }
+            }, new CompositeSyntheticFieldLoader.StoredFieldLayer("foo.two") {
+                @Override
+                protected void writeValue(Object value, XContentBuilder b) throws IOException {
+                    b.value((long) value);
+                }
+            })
+        );
+
+        var fieldLoader2 = new CompositeSyntheticFieldLoader(
+            "foo",
+            "bar.baz.foo",
+            List.of(new CompositeSyntheticFieldLoader.StoredFieldLayer("foo.three") {
+                @Override
+                protected void writeValue(Object value, XContentBuilder b) throws IOException {
+                    b.value((long) value);
+                }
+            })
+        );
+
+        var mergedFieldLoader = fieldLoader1.mergedWith(fieldLoader2);
+
+        var storedFieldLoaders = mergedFieldLoader.storedFieldLoaders().collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
+        storedFieldLoaders.get("foo.one").load(List.of(45L, 46L));
+        storedFieldLoaders.get("foo.two").load(List.of(1L));
+        storedFieldLoaders.get("foo.three").load(List.of(98L, 99L));
+
+        // when
+        var result = XContentBuilder.builder(XContentType.JSON.xContent());
+        result.startObject();
+        mergedFieldLoader.write(result);
+        result.endObject();
+
+        // then
+        assertEquals("""
+            {"foo":[45,46,1,98,99]}""", Strings.toString(result));
     }
 }

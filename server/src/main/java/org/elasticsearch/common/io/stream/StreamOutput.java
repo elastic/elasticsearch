@@ -254,7 +254,7 @@ public abstract class StreamOutput extends OutputStream {
         return putMultiByteVInt(buffer, i, off);
     }
 
-    private static int putMultiByteVInt(byte[] buffer, int i, int off) {
+    protected static int putMultiByteVInt(byte[] buffer, int i, int off) {
         int index = off;
         do {
             buffer[index++] = ((byte) ((i & 0x7f) | 0x80));
@@ -641,6 +641,26 @@ public abstract class StreamOutput extends OutputStream {
      */
     public final <K extends Writeable, V extends Writeable> void writeMap(final Map<K, V> map) throws IOException {
         writeMap(map, StreamOutput::writeWriteable, StreamOutput::writeWriteable);
+    }
+
+    /**
+     * Write an optional {@link Map} of {@code K}-type keys to {@code V}-type.
+     * <pre><code>
+     * Map&lt;String, String&gt; map = ...;
+     * out.writeMap(map, StreamOutput::writeString, StreamOutput::writeString);
+     * </code></pre>
+     *
+     * @param keyWriter The key writer
+     * @param valueWriter The value writer
+     */
+    public final <K, V> void writeOptionalMap(final Map<K, V> map, final Writer<K> keyWriter, final Writer<V> valueWriter)
+        throws IOException {
+        if (map == null) {
+            writeBoolean(false);
+        } else {
+            writeBoolean(true);
+            writeMap(map, keyWriter, valueWriter);
+        }
     }
 
     /**
@@ -1069,6 +1089,18 @@ public abstract class StreamOutput extends OutputStream {
 
     public void writeException(Throwable throwable) throws IOException {
         ElasticsearchException.writeException(throwable, this);
+    }
+
+    /**
+     * Write an optional {@link Throwable} to the stream.
+     */
+    public void writeOptionalException(@Nullable Throwable throwable) throws IOException {
+        if (throwable == null) {
+            writeBoolean(false);
+        } else {
+            writeBoolean(true);
+            writeException(throwable);
+        }
     }
 
     /**

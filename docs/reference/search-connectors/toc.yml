@@ -26,6 +26,7 @@ toc:
     - file: es-connectors-redis.md
     - file: es-connectors-s3.md
     - file: es-connectors-salesforce.md
+    - file: es-connectors-sandfly.md
     - file: es-connectors-servicenow.md
     - file: es-connectors-sharepoint-online.md
     - file: es-connectors-sharepoint.md

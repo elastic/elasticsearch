@@ -10,7 +10,7 @@
 package org.elasticsearch.cluster.routing;
 
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.hash.Murmur3Hasher;
+import org.elasticsearch.common.hash.BufferedMurmur3Hasher;
 import org.elasticsearch.common.hash.MurmurHash3;
 import org.elasticsearch.common.util.ByteUtils;
 import org.elasticsearch.index.mapper.RoutingPathFields;
@@ -31,10 +31,23 @@ import java.util.List;
  */
 public class TsidBuilder {
 
-    private static final int MAX_TSID_VALUE_FIELDS = 16;
-    private final Murmur3Hasher murmur3Hasher = new Murmur3Hasher(0L);
+    /**
+     * The maximum number of fields to use for the value similarity part of the TSID.
+     * This is a trade-off between clustering similar time series together and the size of the TSID.
+     * More fields improve clustering but also increase the size of the TSID.
+     */
+    private static final int MAX_TSID_VALUE_SIMILARITY_FIELDS = 4;
+    private final BufferedMurmur3Hasher murmur3Hasher = new BufferedMurmur3Hasher(0L);
 
-    private final List<Dimension> dimensions = new ArrayList<>();
+    private final List<Dimension> dimensions;
+
+    public TsidBuilder() {
+        this.dimensions = new ArrayList<>();
+    }
+
+    public TsidBuilder(int size) {
+        this.dimensions = new ArrayList<>(size);
+    }
 
     public static TsidBuilder newBuilder() {
         return new TsidBuilder();
@@ -166,7 +179,7 @@ public class TsidBuilder {
 
     private void addDimension(String path, MurmurHash3.Hash128 valueHash) {
         murmur3Hasher.reset();
-        addString(murmur3Hasher, path);
+        murmur3Hasher.addString(path);
         MurmurHash3.Hash128 pathHash = murmur3Hasher.digestHash();
         dimensions.add(new Dimension(path, pathHash, valueHash, dimensions.size()));
     }
@@ -194,11 +207,10 @@ public class TsidBuilder {
      * @throws IllegalArgumentException if no dimensions have been added
      */
     public MurmurHash3.Hash128 hash() {
-        throwIfEmpty();
         Collections.sort(dimensions);
         murmur3Hasher.reset();
         for (Dimension dim : dimensions) {
-            addLongs(murmur3Hasher, dim.pathHash.h1, dim.pathHash.h2, dim.valueHash.h1, dim.valueHash.h2);
+            murmur3Hasher.addLongs(dim.pathHash.h1, dim.pathHash.h2, dim.valueHash.h1, dim.valueHash.h2);
         }
         return murmur3Hasher.digestHash();
     }
@@ -209,11 +221,11 @@ public class TsidBuilder {
      * The TSID is a hash that includes:
      * <ul>
      *     <li>
-     *         A hash of the dimension field names (4 bytes).
+     *         A hash of the dimension field names (1 byte).
      *         This is to cluster time series that are using the same dimensions together, which makes the encodings more effective.
      *     </li>
      *     <li>
-     *         A hash of the dimension field values (1 byte each, up to a maximum of 16 fields).
+     *         A hash of the dimension field values (1 byte each, up to a maximum of 4 fields).
      *         This is to cluster time series with similar values together, also helping with making encodings more effective.
      *     </li>
      *     <li>
@@ -227,24 +239,24 @@ public class TsidBuilder {
      */
     public BytesRef buildTsid() {
         throwIfEmpty();
-        int numberOfValues = Math.min(MAX_TSID_VALUE_FIELDS, dimensions.size());
-        byte[] hash = new byte[4 + numberOfValues + 16];
+        int numberOfValues = Math.min(MAX_TSID_VALUE_SIMILARITY_FIELDS, dimensions.size());
+        byte[] hash = new byte[1 + numberOfValues + 16];
         int index = 0;
 
         Collections.sort(dimensions);
 
         MurmurHash3.Hash128 hashBuffer = new MurmurHash3.Hash128();
         murmur3Hasher.reset();
+        // similarity hash for dimension names
         for (int i = 0; i < dimensions.size(); i++) {
             Dimension dim = dimensions.get(i);
-            addLong(murmur3Hasher, dim.pathHash.h1 ^ dim.pathHash.h2);
+            murmur3Hasher.addLong(dim.pathHash.h1 ^ dim.pathHash.h2);
         }
-        ByteUtils.writeIntLE((int) murmur3Hasher.digestHash(hashBuffer).h1, hash, index);
-        index += 4;
+        hash[index++] = (byte) murmur3Hasher.digestHash(hashBuffer).h1;
 
-        // similarity hash for values
+        // similarity hash for dimension values
         String previousPath = null;
-        for (int i = 0; i < numberOfValues; i++) {
+        for (int i = 0; index < numberOfValues + 1 && i < dimensions.size(); i++) {
             Dimension dim = dimensions.get(i);
             String path = dim.path();
             if (path.equals(previousPath)) {
@@ -253,15 +265,16 @@ public class TsidBuilder {
             }
             MurmurHash3.Hash128 valueHash = dim.valueHash();
             murmur3Hasher.reset();
-            addLong(murmur3Hasher, valueHash.h1 ^ valueHash.h2);
+            murmur3Hasher.addLong(valueHash.h1 ^ valueHash.h2);
             hash[index++] = (byte) murmur3Hasher.digestHash(hashBuffer).h1;
             previousPath = path;
         }
 
         murmur3Hasher.reset();
+        // full hash for all dimension names and values for uniqueness
         for (int i = 0; i < dimensions.size(); i++) {
             Dimension dim = dimensions.get(i);
-            addLongs(murmur3Hasher, dim.pathHash.h1, dim.pathHash.h2, dim.valueHash.h1, dim.valueHash.h2);
+            murmur3Hasher.addLongs(dim.pathHash.h1, dim.pathHash.h2, dim.valueHash.h1, dim.valueHash.h2);
         }
         index = writeHash128(murmur3Hasher.digestHash(hashBuffer), hash, index);
         return new BytesRef(hash, 0, index);
@@ -279,6 +292,10 @@ public class TsidBuilder {
         ByteUtils.writeLongLE(hash128.h1, buffer, index);
         index += 8;
         return index;
+    }
+
+    public int size() {
+        return dimensions.size();
     }
 
     /**
@@ -313,34 +330,5 @@ public class TsidBuilder {
             // ensures array values are in the order as they appear in the source
             return Integer.compare(insertionOrder, o.insertionOrder);
         }
-    }
-
-    // these methods will be replaced with a more optimized version when https://github.com/elastic/elasticsearch/pull/133226 is merged
-
-    private static void addString(Murmur3Hasher murmur3Hasher, String path) {
-        BytesRef bytesRef = new BytesRef(path);
-        murmur3Hasher.update(bytesRef.bytes, bytesRef.offset, bytesRef.length);
-    }
-
-    private static void addLong(Murmur3Hasher murmur3Hasher, long value) {
-        byte[] bytes = new byte[8];
-        ByteUtils.writeLongLE(value, bytes, 0);
-        murmur3Hasher.update(bytes);
-    }
-
-    private static void addLongs(Murmur3Hasher murmur3Hasher, long v1, long v2) {
-        byte[] bytes = new byte[16];
-        ByteUtils.writeLongLE(v1, bytes, 0);
-        ByteUtils.writeLongLE(v2, bytes, 8);
-        murmur3Hasher.update(bytes);
-    }
-
-    private static void addLongs(Murmur3Hasher murmur3Hasher, long v1, long v2, long v3, long v4) {
-        byte[] bytes = new byte[32];
-        ByteUtils.writeLongLE(v1, bytes, 0);
-        ByteUtils.writeLongLE(v2, bytes, 8);
-        ByteUtils.writeLongLE(v3, bytes, 16);
-        ByteUtils.writeLongLE(v4, bytes, 24);
-        murmur3Hasher.update(bytes);
     }
 }

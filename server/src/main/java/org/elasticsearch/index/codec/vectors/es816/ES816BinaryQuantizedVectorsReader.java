@@ -20,6 +20,7 @@
 package org.elasticsearch.index.codec.vectors.es816;
 
 import org.apache.lucene.codecs.CodecUtil;
+import org.apache.lucene.codecs.KnnVectorsReader;
 import org.apache.lucene.codecs.hnsw.FlatVectorsReader;
 import org.apache.lucene.codecs.lucene95.OrdToDocDISIReaderConfiguration;
 import org.apache.lucene.index.ByteVectorValues;
@@ -31,12 +32,15 @@ import org.apache.lucene.index.IndexFileNames;
 import org.apache.lucene.index.SegmentReadState;
 import org.apache.lucene.index.VectorEncoding;
 import org.apache.lucene.index.VectorSimilarityFunction;
+import org.apache.lucene.search.AcceptDocs;
 import org.apache.lucene.search.KnnCollector;
 import org.apache.lucene.search.VectorScorer;
 import org.apache.lucene.store.ChecksumIndexInput;
+import org.apache.lucene.store.DataAccessHint;
+import org.apache.lucene.store.FileDataHint;
+import org.apache.lucene.store.FileTypeHint;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
-import org.apache.lucene.store.ReadAdvice;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.IOUtils;
 import org.apache.lucene.util.RamUsageEstimator;
@@ -44,13 +48,10 @@ import org.apache.lucene.util.SuppressForbidden;
 import org.apache.lucene.util.hnsw.OrdinalTranslatedKnnCollector;
 import org.apache.lucene.util.hnsw.RandomVectorScorer;
 import org.elasticsearch.index.codec.vectors.BQVectorUtils;
-import org.elasticsearch.index.codec.vectors.reflect.OffHeapByteSizeUtils;
-import org.elasticsearch.index.codec.vectors.reflect.OffHeapStats;
 
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.Objects;
 
 import static org.apache.lucene.codecs.lucene99.Lucene99HnswVectorsReader.readSimilarityFunction;
 import static org.apache.lucene.codecs.lucene99.Lucene99HnswVectorsReader.readVectorEncoding;
@@ -60,7 +61,7 @@ import static org.elasticsearch.index.codec.vectors.es816.ES816BinaryQuantizedVe
  * Copied from Lucene, replace with Lucene's implementation sometime after Lucene 10
  */
 @SuppressForbidden(reason = "Lucene classes")
-public class ES816BinaryQuantizedVectorsReader extends FlatVectorsReader implements OffHeapStats {
+public class ES816BinaryQuantizedVectorsReader extends FlatVectorsReader {
 
     private static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(ES816BinaryQuantizedVectorsReader.class);
 
@@ -109,7 +110,7 @@ public class ES816BinaryQuantizedVectorsReader extends FlatVectorsReader impleme
                 ES816BinaryQuantizedVectorsFormat.VECTOR_DATA_CODEC_NAME,
                 // Quantized vectors are accessed randomly from their node ID stored in the HNSW
                 // graph.
-                state.context.withReadAdvice(ReadAdvice.RANDOM)
+                state.context.withHints(FileTypeHint.DATA, FileDataHint.KNN_VECTORS, DataAccessHint.RANDOM)
             );
             success = true;
         } finally {
@@ -226,17 +227,17 @@ public class ES816BinaryQuantizedVectorsReader extends FlatVectorsReader impleme
     }
 
     @Override
-    public void search(String field, byte[] target, KnnCollector knnCollector, Bits acceptDocs) throws IOException {
+    public void search(String field, byte[] target, KnnCollector knnCollector, AcceptDocs acceptDocs) throws IOException {
         rawVectorsReader.search(field, target, knnCollector, acceptDocs);
     }
 
     @Override
-    public void search(String field, float[] target, KnnCollector knnCollector, Bits acceptDocs) throws IOException {
+    public void search(String field, float[] target, KnnCollector knnCollector, AcceptDocs acceptDocs) throws IOException {
         if (knnCollector.k() == 0) return;
         final RandomVectorScorer scorer = getRandomVectorScorer(field, target);
         if (scorer == null) return;
         OrdinalTranslatedKnnCollector collector = new OrdinalTranslatedKnnCollector(knnCollector, scorer::ordToDoc);
-        Bits acceptedOrds = scorer.getAcceptOrds(acceptDocs);
+        Bits acceptedOrds = scorer.getAcceptOrds(acceptDocs.bits());
         for (int i = 0; i < scorer.maxOrd(); i++) {
             if (acceptedOrds == null || acceptedOrds.get(i)) {
                 collector.collect(i, scorer.score(i));
@@ -260,15 +261,14 @@ public class ES816BinaryQuantizedVectorsReader extends FlatVectorsReader impleme
 
     @Override
     public Map<String, Long> getOffHeapByteSize(FieldInfo fieldInfo) {
-        Objects.requireNonNull(fieldInfo);
-        var raw = OffHeapByteSizeUtils.getOffHeapByteSize(rawVectorsReader, fieldInfo);
-        var fieldEntry = fields.get(fieldInfo.name);
-        if (fieldEntry == null) {
+        var raw = rawVectorsReader.getOffHeapByteSize(fieldInfo);
+        FieldEntry fe = fields.get(fieldInfo.name);
+        if (fe == null) {
             assert fieldInfo.getVectorEncoding() == VectorEncoding.BYTE;
             return raw;
         }
-        var quant = Map.of(VECTOR_DATA_EXTENSION, fieldEntry.vectorDataLength());
-        return OffHeapByteSizeUtils.mergeOffHeapByteSizeMaps(raw, quant);
+        var quant = Map.of(VECTOR_DATA_EXTENSION, fe.vectorDataLength());
+        return KnnVectorsReader.mergeOffHeapByteSizeMaps(raw, quant);
     }
 
     public float[] getCentroid(String field) {

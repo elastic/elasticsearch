@@ -14,6 +14,7 @@ import org.elasticsearch.compute.aggregation.AbstractArrayState;
 import org.elasticsearch.compute.aggregation.GroupingAggregatorState;
 import org.elasticsearch.compute.aggregation.SeenGroupIds;
 import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.geometry.Geometry;
@@ -122,17 +123,18 @@ final class SpatialExtentGroupingStateWrappedLongitudeState extends AbstractArra
      * This method is used when extents are extracted from the doc-values field by the {@link GeometryDocValueReader}.
      * This optimization is enabled when the field has doc-values and is only used in the ST_EXTENT aggregation.
      */
-    public void add(int groupId, int[] values) {
-        if (values.length != 6) {
-            throw new IllegalArgumentException("Expected 6 values, got " + values.length);
+    public void add(int groupId, int p, IntBlock values) {
+        if (values.getValueCount(p) != 6) {
+            throw new IllegalArgumentException("Expected 6 values, got " + values.getValueCount(p));
         }
         // Values are stored according to the order defined in the Extent class
-        int top = values[0];
-        int bottom = values[1];
-        int negLeft = values[2];
-        int negRight = values[3];
-        int posLeft = values[4];
-        int posRight = values[5];
+        int i = values.getFirstValueIndex(p);
+        int top = values.getInt(i++);
+        int bottom = values.getInt(i++);
+        int negLeft = values.getInt(i++);
+        int negRight = values.getInt(i++);
+        int posLeft = values.getInt(i++);
+        int posRight = values.getInt(i);
         add(groupId, top, bottom, negLeft, negRight, posLeft, posRight);
     }
 

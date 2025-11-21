@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.expression.function.scalar.nulls;
 
 // begin generated imports
+import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.Page;
@@ -25,11 +26,13 @@ import java.util.stream.IntStream;
 
 /**
  * {@link EvalOperator.ExpressionEvaluator} implementation for {@link Coalesce}.
- * This class is generated. Edit {@code X-InEvaluator.java.st} instead.
+ * This class is generated. Edit {@code X-CoalesceEvaluator.java.st} instead.
  */
 abstract sealed class CoalesceIntEvaluator implements EvalOperator.ExpressionEvaluator permits
     CoalesceIntEvaluator.CoalesceIntEagerEvaluator, //
     CoalesceIntEvaluator.CoalesceIntLazyEvaluator {
+
+    private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(CoalesceIntEvaluator.class);
 
     static ExpressionEvaluator.Factory toEvaluator(EvaluatorMapper.ToEvaluator toEvaluator, List<Expression> children) {
         List<ExpressionEvaluator.Factory> childEvaluators = children.stream().map(toEvaluator::apply).toList();
@@ -37,7 +40,11 @@ abstract sealed class CoalesceIntEvaluator implements EvalOperator.ExpressionEva
             return new ExpressionEvaluator.Factory() {
                 @Override
                 public ExpressionEvaluator get(DriverContext context) {
-                    return new CoalesceIntEagerEvaluator(context, childEvaluators.stream().map(x -> x.get(context)).toList());
+                    return new CoalesceIntEagerEvaluator(
+                        // comment to make spotless happy about line breaks
+                        context,
+                        childEvaluators.stream().map(x -> x.get(context)).toList()
+                    );
                 }
 
                 @Override
@@ -49,7 +56,11 @@ abstract sealed class CoalesceIntEvaluator implements EvalOperator.ExpressionEva
         return new ExpressionEvaluator.Factory() {
             @Override
             public ExpressionEvaluator get(DriverContext context) {
-                return new CoalesceIntLazyEvaluator(context, childEvaluators.stream().map(x -> x.get(context)).toList());
+                return new CoalesceIntLazyEvaluator(
+                    // comment to make spotless happy about line breaks
+                    context,
+                    childEvaluators.stream().map(x -> x.get(context)).toList()
+                );
             }
 
             @Override
@@ -131,6 +142,15 @@ abstract sealed class CoalesceIntEvaluator implements EvalOperator.ExpressionEva
     }
 
     @Override
+    public long baseRamBytesUsed() {
+        long baseRamBytesUsed = BASE_RAM_BYTES_USED;
+        for (ExpressionEvaluator e : evaluators) {
+            baseRamBytesUsed += e.baseRamBytesUsed();
+        }
+        return baseRamBytesUsed;
+    }
+
+    @Override
     public final void close() {
         Releasables.closeExpectNoException(() -> Releasables.close(evaluators));
     }
@@ -158,7 +178,10 @@ abstract sealed class CoalesceIntEvaluator implements EvalOperator.ExpressionEva
                 for (int f = 1; f < flatten.length; f++) {
                     flatten[f] = (IntBlock) evaluators.get(firstToEvaluate + f - 1).eval(page);
                 }
-                try (IntBlock.Builder result = driverContext.blockFactory().newIntBlockBuilder(positionCount)) {
+                try (
+                    IntBlock.Builder result = driverContext.blockFactory() //
+                        .newIntBlockBuilder(positionCount)
+                ) {
                     position: for (int p = 0; p < positionCount; p++) {
                         for (IntBlock f : flatten) {
                             if (false == f.isNull(p)) {
@@ -195,7 +218,10 @@ abstract sealed class CoalesceIntEvaluator implements EvalOperator.ExpressionEva
         @Override
         protected IntBlock perPosition(Page page, IntBlock lastFullBlock, int firstToEvaluate) {
             int positionCount = page.getPositionCount();
-            try (IntBlock.Builder result = driverContext.blockFactory().newIntBlockBuilder(positionCount)) {
+            try (
+                IntBlock.Builder result = driverContext.blockFactory() //
+                    .newIntBlockBuilder(positionCount)
+            ) {
                 position: for (int p = 0; p < positionCount; p++) {
                     if (lastFullBlock.isNull(p) == false) {
                         result.copyFrom(lastFullBlock, p, p + 1);

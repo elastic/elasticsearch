@@ -5,6 +5,8 @@
  * 2.0.
  */
 
+import org.elasticsearch.gradle.internal.AbstractDependenciesTask
+
 apply plugin: 'elasticsearch.internal-es-plugin'
 apply plugin: 'elasticsearch.internal-cluster-test'
 esplugin {
@@ -45,9 +47,8 @@ dependencies {
       exclude group: 'org.bouncycastle'
   }
 
-  api "org.slf4j:slf4j-api:${versions.slf4j}"
-  runtimeOnly "org.slf4j:slf4j-nop:${versions.slf4j}"
-  //  runtimeOnly("org.apache.logging.log4j:log4j-slf4j-impl:${versions.log4j}") https://github.com/elastic/elasticsearch/issues/93714
+  implementation "org.slf4j:slf4j-api:${versions.slf4j}"
+  runtimeOnly("org.apache.logging.log4j:log4j-slf4j-impl:${versions.log4j}")
   api "org.apache.httpcomponents:httpclient:${versions.httpclient}"
   api "org.apache.httpcomponents:httpcore:${versions.httpcore}"
   api "org.apache.httpcomponents:httpasyncclient:${versions.httpasyncclient}"
@@ -66,7 +67,7 @@ dependencies {
 
 }
 
-tasks.named("dependencyLicenses").configure {
+tasks.withType(AbstractDependenciesTask).configureEach {
   mapping from: /java-support|opensaml-.*/, to: 'shibboleth'
   mapping from: /http.*/, to: 'httpclient'
   mapping from: /bc.*/, to: 'bouncycastle'
@@ -78,10 +79,6 @@ tasks.named("forbiddenPatterns").configure {
   exclude '**/*.p12'
   exclude '**/*.der'
   exclude '**/*.zip'
-}
-
-tasks.named('forbiddenApisMain').configure {
-  signaturesFiles += files('forbidden/xml-signatures.txt')
 }
 
 // classes are missing, e.g. com.ibm.icu.lang.UCharacter
@@ -253,7 +250,9 @@ tasks.named("thirdPartyAudit").configure {
         'org.bouncycastle.openssl.jcajce.JcaPEMWriter',
         'org.bouncycastle.operator.jcajce.JcaContentSignerBuilder',
         'org.bouncycastle.util.Arrays',
-        'org.bouncycastle.util.io.Streams'
+        'org.bouncycastle.util.io.Streams',
+        // SLF4j
+        'org.slf4j.ext.EventData'
     )
 
   ignoreViolations(

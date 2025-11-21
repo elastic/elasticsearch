@@ -100,13 +100,6 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
     private volatile TimeValue updateFrequency;
     private volatile TimeValue fetchTimeout;
 
-    private volatile Map<String, DiskUsage> leastAvailableSpaceUsages;
-    private volatile Map<String, DiskUsage> mostAvailableSpaceUsages;
-    private volatile Map<String, ByteSizeValue> maxHeapPerNode;
-    private volatile Map<String, Long> estimatedHeapUsagePerNode;
-    private volatile Map<String, NodeUsageStatsForThreadPools> nodeThreadPoolUsageStatsPerNode;
-    private volatile IndicesStatsSummary indicesStatsSummary;
-
     private final ThreadPool threadPool;
     private final Client client;
     private final Supplier<ClusterState> clusterStateSupplier;
@@ -120,6 +113,8 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
     private AsyncRefresh currentRefresh;
     private RefreshScheduler refreshScheduler;
 
+    private volatile ClusterInfo currentClusterInfo = ClusterInfo.EMPTY;
+
     @SuppressWarnings("this-escape")
     public InternalClusterInfoService(
         Settings settings,
@@ -129,12 +124,6 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
         EstimatedHeapUsageCollector estimatedHeapUsageCollector,
         NodeUsageStatsForThreadPoolsCollector nodeUsageStatsForThreadPoolsCollector
     ) {
-        this.leastAvailableSpaceUsages = Map.of();
-        this.mostAvailableSpaceUsages = Map.of();
-        this.maxHeapPerNode = Map.of();
-        this.estimatedHeapUsagePerNode = Map.of();
-        this.nodeThreadPoolUsageStatsPerNode = Map.of();
-        this.indicesStatsSummary = IndicesStatsSummary.EMPTY;
         this.threadPool = threadPool;
         this.client = client;
         this.estimatedHeapUsageCollector = estimatedHeapUsageCollector;
@@ -208,6 +197,13 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
 
     private class AsyncRefresh {
 
+        private volatile Map<String, DiskUsage> leastAvailableSpaceUsages;
+        private volatile Map<String, DiskUsage> mostAvailableSpaceUsages;
+        private volatile Map<String, ByteSizeValue> maxHeapPerNode;
+        private volatile Map<String, Long> estimatedHeapUsagePerNode;
+        private volatile Map<String, NodeUsageStatsForThreadPools> nodeThreadPoolUsageStatsPerNode;
+        private volatile IndicesStatsSummary indicesStatsSummary;
+
         private final List<ActionListener<ClusterInfo>> thisRefreshListeners;
         private final RefCountingRunnable fetchRefs = new RefCountingRunnable(this::callListeners);
 
@@ -222,7 +218,7 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
                 maybeFetchIndicesStats(diskThresholdEnabled || writeLoadConstraintEnabled.atLeastLowThresholdEnabled());
                 maybeFetchNodeStats(diskThresholdEnabled || estimatedHeapThresholdEnabled);
                 maybeFetchNodesEstimatedHeapUsage(estimatedHeapThresholdEnabled);
-                maybeFetchNodesUsageStatsForThreadPools(writeLoadConstraintEnabled);
+                fetchNodesUsageStatsForThreadPools();
             }
         }
 
@@ -261,34 +257,25 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
             }
         }
 
-        private void maybeFetchNodesUsageStatsForThreadPools(WriteLoadDeciderStatus writeLoadConstraintEnabled) {
-            if (writeLoadConstraintEnabled.atLeastLowThresholdEnabled()) {
-                try (var ignored = threadPool.getThreadContext().clearTraceContext()) {
-                    fetchNodesUsageStatsForThreadPools();
-                }
-            } else {
-                logger.trace("skipping collecting shard/node write load estimates from cluster, feature currently disabled");
-                nodeThreadPoolUsageStatsPerNode = Map.of();
-            }
-        }
-
         private void fetchNodesUsageStatsForThreadPools() {
-            nodeUsageStatsForThreadPoolsCollector.collectUsageStats(
-                client,
-                clusterStateSupplier.get(),
-                ActionListener.releaseAfter(new ActionListener<>() {
-                    @Override
-                    public void onResponse(Map<String, NodeUsageStatsForThreadPools> threadPoolStats) {
-                        nodeThreadPoolUsageStatsPerNode = threadPoolStats;
-                    }
+            try (var ignored = threadPool.getThreadContext().clearTraceContext()) {
+                nodeUsageStatsForThreadPoolsCollector.collectUsageStats(
+                    client,
+                    clusterStateSupplier.get(),
+                    ActionListener.releaseAfter(new ActionListener<>() {
+                        @Override
+                        public void onResponse(Map<String, NodeUsageStatsForThreadPools> threadPoolStats) {
+                            nodeThreadPoolUsageStatsPerNode = threadPoolStats;
+                        }
 
-                    @Override
-                    public void onFailure(Exception e) {
-                        logger.warn("failed to fetch thread pool usage estimates for nodes", e);
-                        nodeThreadPoolUsageStatsPerNode = Map.of();
-                    }
-                }, fetchRefs.acquire())
-            );
+                        @Override
+                        public void onFailure(Exception e) {
+                            logger.warn("failed to fetch thread pool usage estimates for nodes", e);
+                            nodeThreadPoolUsageStatsPerNode = Map.of();
+                        }
+                    }, fetchRefs.acquire())
+                );
+            }
         }
 
         private void fetchNodesEstimatedHeapUsage() {
@@ -453,7 +440,7 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
         private void callListeners() {
             try {
                 logger.trace("stats all received, computing cluster info and notifying listeners");
-                final ClusterInfo clusterInfo = getClusterInfo();
+                final ClusterInfo clusterInfo = updateAndGetCurrentClusterInfo();
                 boolean anyListeners = false;
                 for (final Consumer<ClusterInfo> listener : listeners) {
                     anyListeners = true;
@@ -472,6 +459,30 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
             } finally {
                 onRefreshComplete(this);
             }
+        }
+
+        private ClusterInfo updateAndGetCurrentClusterInfo() {
+            final Map<String, EstimatedHeapUsage> estimatedHeapUsages = new HashMap<>();
+            maxHeapPerNode.forEach((nodeId, maxHeapSize) -> {
+                final Long estimatedHeapUsage = estimatedHeapUsagePerNode.get(nodeId);
+                if (estimatedHeapUsage != null) {
+                    estimatedHeapUsages.put(nodeId, new EstimatedHeapUsage(nodeId, maxHeapSize.getBytes(), estimatedHeapUsage));
+                }
+            });
+            final var newClusterInfo = new ClusterInfo(
+                leastAvailableSpaceUsages,
+                mostAvailableSpaceUsages,
+                indicesStatsSummary.shardSizes,
+                indicesStatsSummary.shardDataSetSizes,
+                indicesStatsSummary.dataPath,
+                indicesStatsSummary.reservedSpace,
+                estimatedHeapUsages,
+                nodeThreadPoolUsageStatsPerNode,
+                indicesStatsSummary.shardWriteLoads(),
+                maxHeapPerNode
+            );
+            currentClusterInfo = newClusterInfo;
+            return newClusterInfo;
         }
     }
 
@@ -537,25 +548,7 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
 
     @Override
     public ClusterInfo getClusterInfo() {
-        final IndicesStatsSummary indicesStatsSummary = this.indicesStatsSummary; // single volatile read
-        final Map<String, EstimatedHeapUsage> estimatedHeapUsages = new HashMap<>();
-        maxHeapPerNode.forEach((nodeId, maxHeapSize) -> {
-            final Long estimatedHeapUsage = estimatedHeapUsagePerNode.get(nodeId);
-            if (estimatedHeapUsage != null) {
-                estimatedHeapUsages.put(nodeId, new EstimatedHeapUsage(nodeId, maxHeapSize.getBytes(), estimatedHeapUsage));
-            }
-        });
-        return new ClusterInfo(
-            leastAvailableSpaceUsages,
-            mostAvailableSpaceUsages,
-            indicesStatsSummary.shardSizes,
-            indicesStatsSummary.shardDataSetSizes,
-            indicesStatsSummary.dataPath,
-            indicesStatsSummary.reservedSpace,
-            estimatedHeapUsages,
-            nodeThreadPoolUsageStatsPerNode,
-            indicesStatsSummary.shardWriteLoads()
-        );
+        return currentClusterInfo;
     }
 
     // allow tests to adjust the node stats on receipt

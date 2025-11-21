@@ -1,5 +1,0 @@
-pr: 133119
-summary: Update bundled JDK to Java 24.0.2+12
-area: Packaging
-type: upgrade
-issues: []

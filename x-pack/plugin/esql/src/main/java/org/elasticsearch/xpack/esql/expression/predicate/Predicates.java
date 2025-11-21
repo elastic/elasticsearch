@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.expression.predicate;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
+import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.And;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.Or;
 
@@ -47,6 +48,10 @@ public abstract class Predicates {
 
     public static Expression combineAnd(List<Expression> exps) {
         return combine(exps, (l, r) -> new And(l.source(), l, r));
+    }
+
+    public static Expression combineAndWithSource(List<Expression> exps, Source source) {
+        return combine(exps, (l, r) -> new And(source, l, r));
     }
 
     /**
@@ -144,6 +149,9 @@ public abstract class Predicates {
                 return Tuple.tuple(null, expressions);
             }
             splitAnds.add(split);
+        }
+        if (common == null) {
+            common = List.of();
         }
 
         List<Expression> trimmed = new ArrayList<>(expressions.size());

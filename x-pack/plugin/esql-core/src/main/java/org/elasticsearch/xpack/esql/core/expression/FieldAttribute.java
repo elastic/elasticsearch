@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.esql.core.expression;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -20,10 +21,6 @@ import org.elasticsearch.xpack.esql.core.util.PlanStreamOutput;
 
 import java.io.IOException;
 import java.util.Objects;
-
-import static org.elasticsearch.TransportVersions.ESQL_FIELD_ATTRIBUTE_DROP_TYPE;
-import static org.elasticsearch.xpack.esql.core.util.PlanStreamInput.readCachedStringWithVersionCheck;
-import static org.elasticsearch.xpack.esql.core.util.PlanStreamOutput.writeCachedStringWithVersionCheck;
 
 /**
  * Attribute for an ES field.
@@ -51,32 +48,47 @@ public class FieldAttribute extends TypedAttribute {
         FieldAttribute::readFrom
     );
 
+    // Only public for testing
+    public static final TransportVersion ESQL_FIELD_ATTRIBUTE_DROP_TYPE = TransportVersion.fromName("esql_field_attribute_drop_type");
+
     private final String parentName;
     private final EsField field;
     protected FieldName lazyFieldName;
 
+    @Deprecated
+    /**
+     * For testing only
+     */
     public FieldAttribute(Source source, String name, EsField field) {
-        this(source, null, name, field);
-    }
-
-    public FieldAttribute(Source source, @Nullable String parentName, String name, EsField field) {
-        this(source, parentName, name, field, Nullability.TRUE, null, false);
-    }
-
-    public FieldAttribute(Source source, @Nullable String parentName, String name, EsField field, boolean synthetic) {
-        this(source, parentName, name, field, Nullability.TRUE, null, synthetic);
+        this(source, null, null, name, field, Nullability.TRUE, null, false);
     }
 
     public FieldAttribute(
         Source source,
         @Nullable String parentName,
+        @Nullable String qualifier,
+        String name,
+        EsField field,
+        boolean synthetic
+    ) {
+        this(source, parentName, qualifier, name, field, Nullability.TRUE, null, synthetic);
+    }
+
+    public FieldAttribute(Source source, @Nullable String parentName, @Nullable String qualifier, String name, EsField field) {
+        this(source, parentName, qualifier, name, field, Nullability.TRUE, null, false);
+    }
+
+    public FieldAttribute(
+        Source source,
+        @Nullable String parentName,
+        @Nullable String qualifier,
         String name,
         EsField field,
         Nullability nullability,
         @Nullable NameId id,
         boolean synthetic
     ) {
-        super(source, name, field.getDataType(), nullability, id, synthetic);
+        super(source, qualifier, name, field.getDataType(), nullability, id, synthetic);
         this.parentName = parentName;
         this.field = field;
     }
@@ -92,18 +104,19 @@ public class FieldAttribute extends TypedAttribute {
          */
         Source source = Source.readFrom((StreamInput & PlanStreamInput) in);
         String parentName = ((PlanStreamInput) in).readOptionalCachedString();
-        String name = readCachedStringWithVersionCheck(in);
-        if (in.getTransportVersion().before(ESQL_FIELD_ATTRIBUTE_DROP_TYPE)) {
+        String qualifier = readQualifier((PlanStreamInput) in, in.getTransportVersion());
+        String name = ((PlanStreamInput) in).readCachedString();
+        if (in.getTransportVersion().supports(ESQL_FIELD_ATTRIBUTE_DROP_TYPE) == false) {
             DataType.readFrom(in);
         }
         EsField field = EsField.readFrom(in);
-        if (in.getTransportVersion().before(ESQL_FIELD_ATTRIBUTE_DROP_TYPE)) {
+        if (in.getTransportVersion().supports(ESQL_FIELD_ATTRIBUTE_DROP_TYPE) == false) {
             in.readOptionalString();
         }
         Nullability nullability = in.readEnum(Nullability.class);
         NameId nameId = NameId.readFrom((StreamInput & PlanStreamInput) in);
         boolean synthetic = in.readBoolean();
-        return new FieldAttribute(source, parentName, name, field, nullability, nameId, synthetic);
+        return new FieldAttribute(source, parentName, qualifier, name, field, nullability, nameId, synthetic);
     }
 
     @Override
@@ -111,13 +124,14 @@ public class FieldAttribute extends TypedAttribute {
         if (((PlanStreamOutput) out).writeAttributeCacheHeader(this)) {
             Source.EMPTY.writeTo(out);
             ((PlanStreamOutput) out).writeOptionalCachedString(parentName);
-            writeCachedStringWithVersionCheck(out, name());
-            if (out.getTransportVersion().before(ESQL_FIELD_ATTRIBUTE_DROP_TYPE)) {
+            checkAndSerializeQualifier((PlanStreamOutput) out, out.getTransportVersion());
+            ((PlanStreamOutput) out).writeCachedString(name());
+            if (out.getTransportVersion().supports(ESQL_FIELD_ATTRIBUTE_DROP_TYPE) == false) {
                 dataType().writeTo(out);
             }
             field.writeTo(out);
-            if (out.getTransportVersion().before(ESQL_FIELD_ATTRIBUTE_DROP_TYPE)) {
-                // We used to write the qualifier here. We can still do if needed in the future.
+            if (out.getTransportVersion().supports(ESQL_FIELD_ATTRIBUTE_DROP_TYPE) == false) {
+                // We used to write the qualifier here, even though it was always null.
                 out.writeOptionalString(null);
             }
             out.writeEnum(nullable());
@@ -137,7 +151,7 @@ public class FieldAttribute extends TypedAttribute {
 
     @Override
     protected NodeInfo<FieldAttribute> info() {
-        return NodeInfo.create(this, FieldAttribute::new, parentName, name(), field, nullable(), id(), synthetic());
+        return NodeInfo.create(this, FieldAttribute::new, parentName, qualifier(), name(), field, nullable(), id(), synthetic());
     }
 
     public String parentName() {
@@ -185,13 +199,30 @@ public class FieldAttribute extends TypedAttribute {
     }
 
     private FieldAttribute innerField(EsField type) {
-        return new FieldAttribute(source(), fieldName().string, name() + "." + type.getName(), type, nullable(), id(), synthetic());
+        return new FieldAttribute(
+            source(),
+            fieldName().string,
+            qualifier(),
+            name() + "." + type.getName(),
+            type,
+            nullable(),
+            id(),
+            synthetic()
+        );
     }
 
     @Override
-    protected Attribute clone(Source source, String name, DataType type, Nullability nullability, NameId id, boolean synthetic) {
+    protected Attribute clone(
+        Source source,
+        String qualifier,
+        String name,
+        DataType type,
+        Nullability nullability,
+        NameId id,
+        boolean synthetic
+    ) {
         // Ignore `type`, this must be the same as the field's type.
-        return new FieldAttribute(source, parentName, name, field, nullability, id, synthetic);
+        return new FieldAttribute(source, parentName, qualifier, name, field, nullability, id, synthetic);
     }
 
     @Override
@@ -200,15 +231,14 @@ public class FieldAttribute extends TypedAttribute {
     }
 
     @Override
-    @SuppressWarnings("checkstyle:EqualsHashCode")// equals is implemented in parent. See innerEquals instead
-    public int hashCode() {
-        return Objects.hash(super.hashCode(), parentName, field);
+    protected int innerHashCode(boolean ignoreIds) {
+        return Objects.hash(super.innerHashCode(ignoreIds), parentName, field);
     }
 
     @Override
-    protected boolean innerEquals(Object o) {
+    protected boolean innerEquals(Object o, boolean ignoreIds) {
         var other = (FieldAttribute) o;
-        return super.innerEquals(other) && Objects.equals(parentName, other.parentName) && Objects.equals(field, other.field);
+        return super.innerEquals(other, ignoreIds) && Objects.equals(parentName, other.parentName) && Objects.equals(field, other.field);
     }
 
     @Override
@@ -219,6 +249,11 @@ public class FieldAttribute extends TypedAttribute {
     @Override
     public boolean isDimension() {
         return field.getTimeSeriesFieldType() == EsField.TimeSeriesFieldType.DIMENSION;
+    }
+
+    @Override
+    public boolean isMetric() {
+        return field.getTimeSeriesFieldType() == EsField.TimeSeriesFieldType.METRIC;
     }
 
     public EsField field() {

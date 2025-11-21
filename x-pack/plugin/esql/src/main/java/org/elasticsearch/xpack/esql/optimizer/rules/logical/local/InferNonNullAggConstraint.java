@@ -12,6 +12,7 @@ import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.AllFirst;
 import org.elasticsearch.xpack.esql.expression.predicate.Predicates;
 import org.elasticsearch.xpack.esql.expression.predicate.nulls.IsNotNull;
 import org.elasticsearch.xpack.esql.optimizer.LocalLogicalOptimizerContext;
@@ -19,6 +20,7 @@ import org.elasticsearch.xpack.esql.optimizer.rules.logical.OptimizerRules;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
 import org.elasticsearch.xpack.esql.stats.SearchStats;
 
 import java.util.Set;
@@ -42,7 +44,7 @@ public class InferNonNullAggConstraint extends OptimizerRules.ParameterizedOptim
     @Override
     protected LogicalPlan rule(Aggregate aggregate, LocalLogicalOptimizerContext context) {
         // only look at aggregates with default grouping
-        if (aggregate.groupings().size() > 0) {
+        if (aggregate.groupings().size() > 0 || aggregate instanceof TimeSeriesAggregate) {
             return aggregate;
         }
 
@@ -55,6 +57,12 @@ public class InferNonNullAggConstraint extends OptimizerRules.ParameterizedOptim
                 Expression field = af.field();
                 // ignore literals (e.g. COUNT(1))
                 // make sure the field exists at the source and is indexed (not runtime)
+
+                if (af instanceof AllFirst) {
+                    // Exceptionally allow this agg function to be passed down null values
+                    return plan;
+                }
+
                 if (field.foldable() == false && field instanceof FieldAttribute fa && stats.isIndexed(fa.fieldName())) {
                     nonNullAggFields.add(field);
                 } else {

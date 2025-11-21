@@ -149,6 +149,10 @@ public final class JsonProcessor extends AbstractProcessor {
         boolean strictJsonParsing
     ) {
         Object value = apply(ctx.get(fieldName), allowDuplicateKeys, strictJsonParsing);
+        mergeParsedJson(ctx, value, conflictStrategy);
+    }
+
+    private static void mergeParsedJson(Map<String, Object> ctx, Object value, ConflictStrategy conflictStrategy) {
         if (value instanceof Map) {
             @SuppressWarnings("unchecked")
             Map<String, Object> map = (Map<String, Object>) value;
@@ -184,10 +188,11 @@ public final class JsonProcessor extends AbstractProcessor {
 
     @Override
     public IngestDocument execute(IngestDocument document) throws Exception {
+        Object value = apply(document.getFieldValue(field, Object.class), allowDuplicateKeys, strictJsonParsing);
         if (addToRoot) {
-            apply(document.getSourceAndMetadata(), field, allowDuplicateKeys, addToRootConflictStrategy, strictJsonParsing);
+            mergeParsedJson(document.getSourceAndMetadata(), value, addToRootConflictStrategy);
         } else {
-            document.setFieldValue(targetField, apply(document.getFieldValue(field, Object.class), allowDuplicateKeys, strictJsonParsing));
+            document.setFieldValue(targetField, value);
         }
         return document;
     }

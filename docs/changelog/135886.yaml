@@ -1,0 +1,6 @@
+pr: 135886
+summary: Provide defaults for index sort settings
+area: Mapping
+type: bug
+issues:
+ - 129062

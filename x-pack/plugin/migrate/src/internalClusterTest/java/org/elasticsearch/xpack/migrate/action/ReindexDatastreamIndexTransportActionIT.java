@@ -504,10 +504,7 @@ public class ReindexDatastreamIndexTransportActionIT extends ESIntegTestCase {
         """;
 
     public void testTsdbStartEndSet() throws Exception {
-        var templateSettings = Settings.builder().put("index.mode", "time_series");
-        if (randomBoolean()) {
-            templateSettings.put("index.routing_path", "metricset");
-        }
+        var templateSettings = Settings.builder().put("index.mode", "time_series").put("index.routing_path", "metricset");
         var mapping = new CompressedXContent(TSDB_MAPPING);
 
         // create template

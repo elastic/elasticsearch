@@ -1,0 +1,381 @@
+// TBUCKET-specific tests
+
+tbucketByTenSecondsDuration
+required_capability: tbucket
+
+FROM sample_data
+| STATS min = MIN(@timestamp), max = MAX(@timestamp) BY bucket = TBUCKET(10 seconds)
+| SORT min
+;
+ignoreOrder:true
+
+min:datetime             | max:datetime             | bucket:datetime
+2023-10-23T12:15:03.360Z | 2023-10-23T12:15:03.360Z | 2023-10-23T12:15:00.000Z
+2023-10-23T12:27:28.948Z | 2023-10-23T12:27:28.948Z | 2023-10-23T12:27:20.000Z
+2023-10-23T13:33:34.937Z | 2023-10-23T13:33:34.937Z | 2023-10-23T13:33:30.000Z
+2023-10-23T13:51:54.732Z | 2023-10-23T13:51:54.732Z | 2023-10-23T13:51:50.000Z
+2023-10-23T13:52:55.015Z | 2023-10-23T13:52:55.015Z | 2023-10-23T13:52:50.000Z
+2023-10-23T13:53:55.832Z | 2023-10-23T13:53:55.832Z | 2023-10-23T13:53:50.000Z
+2023-10-23T13:55:01.543Z | 2023-10-23T13:55:01.543Z | 2023-10-23T13:55:00.000Z
+;
+
+tbucketByTenSecondsDurationAsString
+required_capability: implicit_casting_string_literal_to_temporal_amount
+required_capability: tbucket
+
+FROM sample_data
+| STATS min = MIN(@timestamp), max = MAX(@timestamp) BY bucket = TBUCKET("10 seconds")
+| SORT min
+;
+ignoreOrder:true
+
+min:datetime             | max:datetime             | bucket:datetime
+2023-10-23T12:15:03.360Z | 2023-10-23T12:15:03.360Z | 2023-10-23T12:15:00.000Z
+2023-10-23T12:27:28.948Z | 2023-10-23T12:27:28.948Z | 2023-10-23T12:27:20.000Z
+2023-10-23T13:33:34.937Z | 2023-10-23T13:33:34.937Z | 2023-10-23T13:33:30.000Z
+2023-10-23T13:51:54.732Z | 2023-10-23T13:51:54.732Z | 2023-10-23T13:51:50.000Z
+2023-10-23T13:52:55.015Z | 2023-10-23T13:52:55.015Z | 2023-10-23T13:52:50.000Z
+2023-10-23T13:53:55.832Z | 2023-10-23T13:53:55.832Z | 2023-10-23T13:53:50.000Z
+2023-10-23T13:55:01.543Z | 2023-10-23T13:55:01.543Z | 2023-10-23T13:55:00.000Z
+;
+
+tbucketByTenMinutesDuration
+required_capability: tbucket
+
+FROM sample_data
+| STATS min = MIN(@timestamp), max = MAX(@timestamp) BY bucket = TBUCKET(10 minutes)
+| SORT min
+;
+ignoreOrder:true
+
+min:datetime             | max:datetime             | bucket:datetime
+2023-10-23T12:15:03.360Z | 2023-10-23T12:15:03.360Z | 2023-10-23T12:10:00.000Z
+2023-10-23T12:27:28.948Z | 2023-10-23T12:27:28.948Z | 2023-10-23T12:20:00.000Z
+2023-10-23T13:33:34.937Z | 2023-10-23T13:33:34.937Z | 2023-10-23T13:30:00.000Z
+2023-10-23T13:51:54.732Z | 2023-10-23T13:55:01.543Z | 2023-10-23T13:50:00.000Z
+;
+
+tbucketByTenMinutesDurationAsString
+required_capability: implicit_casting_string_literal_to_temporal_amount
+required_capability: tbucket
+
+FROM sample_data
+| STATS min = MIN(@timestamp), max = MAX(@timestamp) BY bucket = TBUCKET("10 minutes")
+| SORT min
+;
+ignoreOrder:true
+
+min:datetime             | max:datetime             | bucket:datetime
+2023-10-23T12:15:03.360Z | 2023-10-23T12:15:03.360Z | 2023-10-23T12:10:00.000Z
+2023-10-23T12:27:28.948Z | 2023-10-23T12:27:28.948Z | 2023-10-23T12:20:00.000Z
+2023-10-23T13:33:34.937Z | 2023-10-23T13:33:34.937Z | 2023-10-23T13:30:00.000Z
+2023-10-23T13:51:54.732Z | 2023-10-23T13:55:01.543Z | 2023-10-23T13:50:00.000Z
+;
+
+docsTBucketByOneHourDuration
+required_capability: tbucket
+
+// tag::docsTBucketByOneHourDuration[]
+FROM sample_data
+| STATS min = MIN(@timestamp), max = MAX(@timestamp) BY bucket = TBUCKET(1 hour)
+| SORT min
+// end::docsTBucketByOneHourDuration[]
+;
+
+// tag::docsTBucketByOneHourDuration-result[]
+min:datetime             | max:datetime             | bucket:datetime
+2023-10-23T12:15:03.360Z | 2023-10-23T12:27:28.948Z | 2023-10-23T12:00:00.000Z
+2023-10-23T13:33:34.937Z | 2023-10-23T13:55:01.543Z | 2023-10-23T13:00:00.000Z
+// end::docsTBucketByOneHourDuration-result[]
+;
+
+docsTBucketByOneHourDurationAsString
+required_capability: implicit_casting_string_literal_to_temporal_amount
+required_capability: tbucket
+
+// tag::docsTBucketByOneHourDurationAsString[]
+FROM sample_data
+| STATS min = MIN(@timestamp), max = MAX(@timestamp) BY bucket = TBUCKET("1 hour")
+| SORT min
+// end::docsTBucketByOneHourDurationAsString[]
+;
+
+// tag::docsTBucketByOneHourDurationAsString-result[]
+min:datetime             | max:datetime             | bucket:datetime
+2023-10-23T12:15:03.360Z | 2023-10-23T12:27:28.948Z | 2023-10-23T12:00:00.000Z
+2023-10-23T13:33:34.937Z | 2023-10-23T13:55:01.543Z | 2023-10-23T13:00:00.000Z
+// end::docsTBucketByOneHourDurationAsString-result[]
+;
+
+tbucketByOneDayDuration
+required_capability: tbucket
+
+FROM sample_data
+| STATS min = MIN(@timestamp), max = MAX(@timestamp) BY bucket = TBUCKET(1 day)
+| SORT min
+;
+
+min:datetime             | max:datetime             | bucket:datetime
+2023-10-23T12:15:03.360Z | 2023-10-23T13:55:01.543Z | 2023-10-23T00:00:00.000Z
+;
+
+tbucketByOneDayDurationAsString
+required_capability: implicit_casting_string_literal_to_temporal_amount
+required_capability: tbucket
+
+FROM sample_data
+| STATS min = MIN(@timestamp), max = MAX(@timestamp) BY bucket = TBUCKET("1 day")
+| SORT min
+;
+
+min:datetime             | max:datetime             | bucket:datetime
+2023-10-23T12:15:03.360Z | 2023-10-23T13:55:01.543Z | 2023-10-23T00:00:00.000Z
+;
+
+tbucketByOneWeekDuration
+required_capability: tbucket
+
+FROM sample_data
+| STATS min = MIN(@timestamp), max = MAX(@timestamp) BY bucket = TBUCKET(1 week)
+| SORT min
+;
+
+min:datetime             | max:datetime             | bucket:datetime
+2023-10-23T12:15:03.360Z | 2023-10-23T13:55:01.543Z | 2023-10-23T00:00:00.000Z
+;
+
+tbucketByOneWeekDurationAsString
+required_capability: implicit_casting_string_literal_to_temporal_amount
+required_capability: tbucket
+
+FROM sample_data
+| STATS min = MIN(@timestamp), max = MAX(@timestamp) BY bucket = TBUCKET("1 week")
+| SORT min
+;
+
+min:datetime             | max:datetime             | bucket:datetime
+2023-10-23T12:15:03.360Z | 2023-10-23T13:55:01.543Z | 2023-10-23T00:00:00.000Z
+;
+
+tbucketByOneMonthDuration
+required_capability: tbucket
+
+FROM sample_data
+| STATS min = MIN(@timestamp), max = MAX(@timestamp) BY bucket = TBUCKET(1 month)
+| SORT min
+;
+
+min:datetime             | max:datetime             | bucket:datetime
+2023-10-23T12:15:03.360Z | 2023-10-23T13:55:01.543Z | 2023-10-01T00:00:00.000Z
+;
+
+tbucketByOneMonthDurationAsString
+required_capability: implicit_casting_string_literal_to_temporal_amount
+required_capability: tbucket
+
+FROM sample_data
+| STATS min = MIN(@timestamp), max = MAX(@timestamp) BY bucket = TBUCKET("1 month")
+| SORT min
+;
+
+min:datetime             | max:datetime             | bucket:datetime
+2023-10-23T12:15:03.360Z | 2023-10-23T13:55:01.543Z | 2023-10-01T00:00:00.000Z
+;
+
+tbucketByOneYearDuration
+required_capability: tbucket
+
+FROM sample_data
+| STATS min = MIN(@timestamp), max = MAX(@timestamp) BY bucket = TBUCKET(1 year)
+| SORT min
+;
+
+min:datetime             | max:datetime             | bucket:datetime
+2023-10-23T12:15:03.360Z | 2023-10-23T13:55:01.543Z | 2023-01-01T00:00:00.000Z
+;
+
+tbucketByOneYearDurationAsString
+required_capability: implicit_casting_string_literal_to_temporal_amount
+required_capability: tbucket
+
+FROM sample_data
+| STATS min = MIN(@timestamp), max = MAX(@timestamp) BY bucket = TBUCKET("1 year")
+| SORT min
+;
+
+min:datetime             | max:datetime             | bucket:datetime
+2023-10-23T12:15:03.360Z | 2023-10-23T13:55:01.543Z | 2023-01-01T00:00:00.000Z
+;
+
+reuseGroupingFunction
+required_capability: implicit_casting_string_literal_to_temporal_amount
+required_capability: tbucket
+
+from sample_data
+| stats x = 1 year + tbucket(1 day) by b1d = tbucket(1 day)
+;
+
+x:datetime               | b1d:datetime
+2024-10-23T00:00:00.000Z | 2023-10-23T00:00:00.000Z
+;
+
+keepTimestampBeforeStats
+required_capability: implicit_casting_string_literal_to_temporal_amount
+required_capability: tbucket
+
+FROM sample_data
+| WHERE event_duration > 0
+| KEEP @timestamp, client_ip, event_duration
+| STATS count = COUNT(*), avg_dur = AVG(event_duration) BY hour = TBUCKET(1h), client_ip
+;
+ignoreOrder:true
+
+count:long | avg_dur:double | hour:datetime            | client_ip:ip
+4          | 3945955.75     | 2023-10-23T13:00:00.000Z | 172.21.3.15
+1          | 3450233.0      | 2023-10-23T12:00:00.000Z | 172.21.2.162
+1          | 2764889.0      | 2023-10-23T12:00:00.000Z | 172.21.2.113
+1          | 1232382.0      | 2023-10-23T13:00:00.000Z | 172.21.0.5
+;
+
+keepAtWildcardBeforeStats
+required_capability: implicit_casting_string_literal_to_temporal_amount
+required_capability: tbucket
+
+FROM sample_data
+| WHERE message == "Connection error"
+| KEEP @*, message
+| STATS errors = COUNT() BY day = TBUCKET(1d), message
+;
+ignoreOrder:true
+
+errors:long | day:datetime             | message:keyword
+3           | 2023-10-23T00:00:00.000Z | Connection error
+;
+
+keepWildcardBeforeStats
+required_capability: implicit_casting_string_literal_to_temporal_amount
+required_capability: tbucket
+required_capability: temporal_amount_m
+
+FROM sample_data
+| WHERE client_ip IS NOT NULL
+| KEEP *stamp*, client_ip, event_duration
+| STATS p95 = PERCENTILE(event_duration, 95) BY ten_min = TBUCKET(10m), client_ip
+;
+ignoreOrder:true
+
+p95:double        | ten_min:datetime         | client_ip:ip
+3450233.0         | 2023-10-23T12:10:00.000Z | 172.21.2.162
+2764889.0         | 2023-10-23T12:20:00.000Z | 172.21.2.113
+1232382.0         | 2023-10-23T13:30:00.000Z | 172.21.0.5
+7782993.299999999 | 2023-10-23T13:50:00.000Z | 172.21.3.15
+;
+
+statsChainingWithTimestampCarriedForward
+required_capability: implicit_casting_string_literal_to_temporal_amount
+required_capability: tbucket
+
+FROM sample_data
+| KEEP @timestamp, event_duration
+| STATS day_count = COUNT(), day_p95 = PERCENTILE(event_duration, 95) BY day = TBUCKET(1d), @timestamp
+| WHERE day_count > 0
+| STATS hour_count = COUNT(), hour_p95 = PERCENTILE(day_p95, 95)  BY hour = TBUCKET(1h), day
+;
+ignoreOrder:true
+
+hour_count:long | hour_p95:double   | hour:datetime            | day:datetime
+2               | 3415965.8         | 2023-10-23T12:00:00.000Z | 2023-10-23T00:00:00.000Z
+5               | 7621273.399999999 | 2023-10-23T13:00:00.000Z | 2023-10-23T00:00:00.000Z
+;
+
+statsChainingWithTimestampCarriedForwardAsByKey
+required_capability: implicit_casting_string_literal_to_temporal_amount
+required_capability: tbucket
+
+FROM sample_data
+| KEEP @timestamp, client_ip, event_duration
+| STATS reqs = COUNT(), max_dur = MAX(event_duration) BY day = TBUCKET(1d), client_ip, @timestamp
+| WHERE max_dur > 1000
+| STATS spikes = COUNT() BY hour = TBUCKET(1h), client_ip, day
+;
+ignoreOrder:true
+
+spikes:long | hour:datetime            | client_ip:ip | day:datetime
+4           | 2023-10-23T13:00:00.000Z | 172.21.3.15  | 2023-10-23T00:00:00.000Z
+1           | 2023-10-23T12:00:00.000Z | 172.21.2.113 | 2023-10-23T00:00:00.000Z
+1           | 2023-10-23T12:00:00.000Z | 172.21.2.162 | 2023-10-23T00:00:00.000Z
+1           | 2023-10-23T13:00:00.000Z | 172.21.0.5   | 2023-10-23T00:00:00.000Z
+;
+
+statsWithTimestampEval
+required_capability: implicit_casting_string_literal_to_temporal_amount
+required_capability: tbucket
+
+FROM sample_data
+| KEEP @timestamp, event_duration, message
+| EVAL t = @timestamp
+| STATS total = COUNT(*), med = MEDIAN(event_duration) BY d = TBUCKET(1d), message
+;
+ignoreOrder:true
+
+total:long | med:double | d:datetime               | message:keyword
+1          | 1232382.0  | 2023-10-23T00:00:00.000Z | Disconnected
+1          | 1756467.0  | 2023-10-23T00:00:00.000Z | Connected to 10.1.0.1
+1          | 2764889.0  | 2023-10-23T00:00:00.000Z | Connected to 10.1.0.2
+1          | 3450233.0  | 2023-10-23T00:00:00.000Z | Connected to 10.1.0.3
+3          | 5033755.0  | 2023-10-23T00:00:00.000Z | Connection error
+;
+
+statsChainingWithTimestampEval
+required_capability: implicit_casting_string_literal_to_temporal_amount
+required_capability: tbucket
+
+FROM sample_data
+| KEEP @timestamp, event_duration, message
+| EVAL t = @timestamp
+| STATS total = COUNT(*), med = MEDIAN(event_duration) BY d = TBUCKET(1d), message, @timestamp
+| WHERE total > 0
+| STATS day_total = SUM(total), hour_med = MEDIAN(med) BY h = TBUCKET(1h), message
+;
+ignoreOrder:true
+
+day_total:long | hour_med:double | h:datetime               | message:keyword
+3              | 5033755.0       | 2023-10-23T13:00:00.000Z | Connection error
+1              | 3450233.0       | 2023-10-23T12:00:00.000Z | Connected to 10.1.0.3
+1              | 2764889.0       | 2023-10-23T12:00:00.000Z | Connected to 10.1.0.2
+1              | 1756467.0       | 2023-10-23T13:00:00.000Z | Connected to 10.1.0.1
+1              | 1232382.0       | 2023-10-23T13:00:00.000Z | Disconnected
+;
+
+
+tbucketWithTimezoneAndDuration
+required_capability: ts_command_v0
+required_capability: date_trunc_timezone_support
+
+SET time_zone = "+05:00"\;
+TS k8s
+| WHERE @timestamp == "2024-05-10T00:04:49.000Z"
+| STATS by @timestamp, bucket = TBUCKET(3 hours)
+| SORT @timestamp
+| LIMIT 2
+;
+
+@timestamp:datetime      | bucket:datetime
+2024-05-10T00:04:49.000Z | 2024-05-09T22:00:00.000Z
+;
+
+tbucketWithTimezoneAndPeriod
+required_capability: ts_command_v0
+required_capability: date_trunc_timezone_support
+
+SET time_zone = "+05:00"\;
+TS k8s
+| WHERE @timestamp == "2024-05-10T00:04:49.000Z"
+| STATS by @timestamp, bucket = TBUCKET(1 day)
+| SORT @timestamp
+| LIMIT 2
+;
+
+@timestamp:datetime      | bucket:datetime
+2024-05-10T00:04:49.000Z | 2024-05-09T19:00:00.000Z
+;

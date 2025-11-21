@@ -2,10 +2,5 @@
 
 **Description**
 
-The rate of a counter field.
-
-::::{note}
-Available with the [TS](/reference/query-languages/esql/commands/source-commands.md#esql-ts) command in snapshot builds
-::::
-
+Calculates the per-second average rate of increase of a [counter](docs-content://manage-data/data-store/data-streams/time-series-data-stream-tsds.md#time-series-metric). Rate calculations account for breaks in monotonicity, such as counter resets when a service restarts, and extrapolate values within each bucketed time interval. Rate is the most appropriate aggregate function for counters. It is only allowed in a [STATS](/reference/query-languages/esql/commands/stats-by.md) command under a [`TS`](/reference/query-languages/esql/commands/ts.md) source command, to be properly applied per time series.
 

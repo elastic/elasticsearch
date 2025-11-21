@@ -30,8 +30,8 @@ import org.elasticsearch.xpack.core.ilm.MockStep;
 import org.elasticsearch.xpack.core.ilm.OperationMode;
 import org.elasticsearch.xpack.core.ilm.Phase;
 import org.elasticsearch.xpack.core.ilm.PhaseExecutionInfo;
+import org.elasticsearch.xpack.core.ilm.ResizeIndexStep;
 import org.elasticsearch.xpack.core.ilm.ShrinkAction;
-import org.elasticsearch.xpack.core.ilm.ShrinkStep;
 import org.elasticsearch.xpack.core.ilm.Step;
 import org.mockito.Mockito;
 
@@ -301,7 +301,6 @@ public class PolicyStepsRegistryTests extends ESTestCase {
         LifecyclePolicy updatedPolicy = new LifecyclePolicy(policyName, phases);
         logger.info("--> policy: {}", newPolicy);
         logger.info("--> updated policy: {}", updatedPolicy);
-        List<Step> policySteps = newPolicy.toSteps(client, null);
         Map<String, String> headers = new HashMap<>();
         if (randomBoolean()) {
             headers.put(randomAlphaOfLength(10), randomAlphaOfLength(10));
@@ -315,17 +314,17 @@ public class PolicyStepsRegistryTests extends ESTestCase {
         LifecycleExecutionState.Builder lifecycleState = LifecycleExecutionState.builder();
         lifecycleState.setPhase("warm");
         lifecycleState.setPhaseDefinition(phaseJson);
+        IndexMetadata indexMetadata = IndexMetadata.builder("test")
+            .settings(
+                indexSettings(1, 0).put("index.uuid", "uuid")
+                    .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
+                    .put(LifecycleSettings.LIFECYCLE_NAME, policyName)
+            )
+            .putCustom(ILM_CUSTOM_METADATA_KEY, lifecycleState.build().asMap())
+            .build();
         ProjectMetadata currentProject = ProjectMetadata.builder(randomProjectIdOrDefault())
             .putCustom(IndexLifecycleMetadata.TYPE, lifecycleMetadata)
-            .put(
-                IndexMetadata.builder("test")
-                    .settings(
-                        indexSettings(1, 0).put("index.uuid", "uuid")
-                            .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
-                            .put(LifecycleSettings.LIFECYCLE_NAME, policyName)
-                    )
-                    .putCustom(ILM_CUSTOM_METADATA_KEY, lifecycleState.build().asMap())
-            )
+            .put(indexMetadata, false)
             .build();
 
         // start with empty registry
@@ -342,8 +341,18 @@ public class PolicyStepsRegistryTests extends ESTestCase {
             .get()
             .getValue();
         Step gotStep = registry.getStep(currentProject.index(index), shrinkStep.getKey());
-        assertThat(((ShrinkStep) shrinkStep).getNumberOfShards(), equalTo(1));
-        assertThat(((ShrinkStep) gotStep).getNumberOfShards(), equalTo(1));
+        assertThat(
+            ((ResizeIndexStep) shrinkStep).getTargetIndexSettingsSupplier()
+                .apply(indexMetadata)
+                .getAsInt(IndexMetadata.SETTING_NUMBER_OF_SHARDS, -1),
+            equalTo(1)
+        );
+        assertThat(
+            ((ResizeIndexStep) gotStep).getTargetIndexSettingsSupplier()
+                .apply(indexMetadata)
+                .getAsInt(IndexMetadata.SETTING_NUMBER_OF_SHARDS, -1),
+            equalTo(1)
+        );
 
         // Update the policy with the new policy, but keep the phase the same
         policyMap = Map.of(
@@ -364,8 +373,18 @@ public class PolicyStepsRegistryTests extends ESTestCase {
             .get()
             .getValue();
         gotStep = registry.getStep(currentProject.index(index), shrinkStep.getKey());
-        assertThat(((ShrinkStep) shrinkStep).getNumberOfShards(), equalTo(2));
-        assertThat(((ShrinkStep) gotStep).getNumberOfShards(), equalTo(1));
+        assertThat(
+            ((ResizeIndexStep) shrinkStep).getTargetIndexSettingsSupplier()
+                .apply(indexMetadata)
+                .getAsInt(IndexMetadata.SETTING_NUMBER_OF_SHARDS, -1),
+            equalTo(2)
+        );
+        assertThat(
+            ((ResizeIndexStep) gotStep).getTargetIndexSettingsSupplier()
+                .apply(indexMetadata)
+                .getAsInt(IndexMetadata.SETTING_NUMBER_OF_SHARDS, -1),
+            equalTo(1)
+        );
     }
 
     public void testGetStepMultithreaded() throws Exception {

@@ -48,7 +48,7 @@ public class Dissect extends RegexExtract implements TelemetryAware {
             List<Attribute> keys = new ArrayList<>();
             for (var x : parser.outputKeys()) {
                 if (x.isEmpty() == false) {
-                    keys.add(new ReferenceAttribute(src, x, DataType.KEYWORD));
+                    keys.add(new ReferenceAttribute(src, null, x, DataType.KEYWORD));
                 }
             }
 

@@ -15,12 +15,13 @@ import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.store.MMapDirectory;
+import org.apache.lucene.store.NIOFSDirectory;
 import org.apache.lucene.util.VectorUtil;
-import org.elasticsearch.index.codec.vectors.BQSpaceUtils;
 import org.elasticsearch.index.codec.vectors.BQVectorUtils;
 import org.elasticsearch.index.codec.vectors.OptimizedScalarQuantizer;
 import org.elasticsearch.simdvec.ES91Int4VectorsScorer;
 import org.elasticsearch.simdvec.ES91OSQVectorsScorer;
+import org.elasticsearch.simdvec.ESVectorUtil;
 
 import java.io.IOException;
 
@@ -31,7 +32,7 @@ public class ES91OSQVectorScorerTests extends BaseVectorizationTests {
         final int length = BQVectorUtils.discretize(dimensions, 64) / 8;
         final int numVectors = random().nextInt(1, 100);
         final byte[] vector = new byte[length];
-        try (Directory dir = new MMapDirectory(createTempDir())) {
+        try (Directory dir = newRandomDirectory()) {
             try (IndexOutput out = dir.createOutput("tests.bin", IOContext.DEFAULT)) {
                 for (int i = 0; i < numVectors; i++) {
                     random().nextBytes(vector);
@@ -63,6 +64,7 @@ public class ES91OSQVectorScorerTests extends BaseVectorizationTests {
         final int numVectors = random().nextInt(10, 50);
         float[][] vectors = new float[numVectors][dimensions];
         final int[] scratch = new int[dimensions];
+        final float[] residualScratch = new float[dimensions];
         final byte[] qVector = new byte[length];
         final float[] centroid = new float[dimensions];
         VectorSimilarityFunction similarityFunction = randomFrom(VectorSimilarityFunction.values());
@@ -70,19 +72,20 @@ public class ES91OSQVectorScorerTests extends BaseVectorizationTests {
         OptimizedScalarQuantizer quantizer = new OptimizedScalarQuantizer(similarityFunction);
         int padding = random().nextInt(100);
         byte[] paddingBytes = new byte[padding];
-        try (Directory dir = new MMapDirectory(createTempDir())) {
+        try (Directory dir = newRandomDirectory()) {
             try (IndexOutput out = dir.createOutput("testScore.bin", IOContext.DEFAULT)) {
                 random().nextBytes(paddingBytes);
                 out.writeBytes(paddingBytes, 0, padding);
                 for (float[] vector : vectors) {
                     randomVector(vector, similarityFunction);
                     OptimizedScalarQuantizer.QuantizationResult result = quantizer.scalarQuantize(
-                        vector.clone(),
+                        vector,
+                        residualScratch,
                         scratch,
                         (byte) 1,
                         centroid
                     );
-                    BQVectorUtils.packAsBinary(scratch, qVector);
+                    ESVectorUtil.packAsBinary(scratch, qVector);
                     out.writeBytes(qVector, 0, qVector.length);
                     out.writeInt(Float.floatToIntBits(result.lowerInterval()));
                     out.writeInt(Float.floatToIntBits(result.upperInterval()));
@@ -93,13 +96,14 @@ public class ES91OSQVectorScorerTests extends BaseVectorizationTests {
             final float[] query = new float[dimensions];
             randomVector(query, similarityFunction);
             OptimizedScalarQuantizer.QuantizationResult queryCorrections = quantizer.scalarQuantize(
-                query.clone(),
+                query,
+                residualScratch,
                 scratch,
                 (byte) 4,
                 centroid
             );
             final byte[] quantizeQuery = new byte[4 * length];
-            BQSpaceUtils.transposeHalfByte(scratch, quantizeQuery);
+            ESVectorUtil.transposeHalfByte(scratch, quantizeQuery);
             final float centroidDp = VectorUtil.dotProduct(centroid, centroid);
             final float[] floatScratch = new float[3];
             try (IndexInput in = dir.openInput("testScore.bin", IOContext.DEFAULT)) {
@@ -159,6 +163,7 @@ public class ES91OSQVectorScorerTests extends BaseVectorizationTests {
         final int numVectors = ES91OSQVectorsScorer.BULK_SIZE * random().nextInt(1, 10);
         float[][] vectors = new float[numVectors][dimensions];
         final int[] scratch = new int[dimensions];
+        final float[] residualScratch = new float[dimensions];
         final byte[] qVector = new byte[length];
         final float[] centroid = new float[dimensions];
         VectorSimilarityFunction similarityFunction = randomFrom(VectorSimilarityFunction.values());
@@ -166,7 +171,7 @@ public class ES91OSQVectorScorerTests extends BaseVectorizationTests {
         OptimizedScalarQuantizer quantizer = new OptimizedScalarQuantizer(similarityFunction);
         int padding = random().nextInt(100);
         byte[] paddingBytes = new byte[padding];
-        try (Directory dir = new MMapDirectory(createTempDir())) {
+        try (Directory dir = newRandomDirectory()) {
             try (IndexOutput out = dir.createOutput("testScore.bin", IOContext.DEFAULT)) {
                 random().nextBytes(paddingBytes);
                 out.writeBytes(paddingBytes, 0, padding);
@@ -176,8 +181,8 @@ public class ES91OSQVectorScorerTests extends BaseVectorizationTests {
                 for (int i = 0; i < limit; i += ES91OSQVectorsScorer.BULK_SIZE) {
                     for (int j = 0; j < ES91Int4VectorsScorer.BULK_SIZE; j++) {
                         randomVector(vectors[i + j], similarityFunction);
-                        results[j] = quantizer.scalarQuantize(vectors[i + j].clone(), scratch, (byte) 1, centroid);
-                        BQVectorUtils.packAsBinary(scratch, qVector);
+                        results[j] = quantizer.scalarQuantize(vectors[i + j], residualScratch, scratch, (byte) 1, centroid);
+                        ESVectorUtil.packAsBinary(scratch, qVector);
                         out.writeBytes(qVector, 0, qVector.length);
                     }
                     writeCorrections(results, out);
@@ -186,13 +191,14 @@ public class ES91OSQVectorScorerTests extends BaseVectorizationTests {
             final float[] query = new float[dimensions];
             randomVector(query, similarityFunction);
             OptimizedScalarQuantizer.QuantizationResult queryCorrections = quantizer.scalarQuantize(
-                query.clone(),
+                query,
+                residualScratch,
                 scratch,
                 (byte) 4,
                 centroid
             );
             final byte[] quantizeQuery = new byte[4 * length];
-            BQSpaceUtils.transposeHalfByte(scratch, quantizeQuery);
+            ESVectorUtil.transposeHalfByte(scratch, quantizeQuery);
             final float centroidDp = VectorUtil.dotProduct(centroid, centroid);
             final float[] scoresDefault = new float[ES91OSQVectorsScorer.BULK_SIZE];
             final float[] scoresPanama = new float[ES91OSQVectorsScorer.BULK_SIZE];
@@ -260,5 +266,9 @@ public class ES91OSQVectorScorerTests extends BaseVectorizationTests {
         if (vectorSimilarityFunction != VectorSimilarityFunction.EUCLIDEAN) {
             VectorUtil.l2normalize(vector);
         }
+    }
+
+    private Directory newRandomDirectory() throws IOException {
+        return randomBoolean() ? new MMapDirectory(createTempDir()) : new NIOFSDirectory(createTempDir());
     }
 }

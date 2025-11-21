@@ -1,13 +1,9 @@
-# TODO Most tests explicitly set k. Until knn function uses LIMIT as k, we need to explicitly set it to all values
-# in the dataset to avoid test failures due to docs allocation in different shards, which can impact results for a 
-# top-n query at the shard level 
-
 knnSearch
-required_capability: knn_function_v3
+required_capability: knn_function_v5
 
 // tag::knn-function[]
 from colors metadata _score 
-| where knn(rgb_vector, [0, 120, 0], 10) 
+| where knn(rgb_vector, [0, 120, 0]) 
 | sort _score desc, color asc
 // end::knn-function[]
 | keep color, rgb_vector
@@ -30,10 +26,10 @@ chartreuse | [127.0, 255.0, 0.0]
 ;
 
 knnSearchWithSimilarityOption
-required_capability: knn_function_v3
+required_capability: knn_function_v5
 
 from colors metadata _score 
-| where knn(rgb_vector, [255,192,203], 140, {"similarity": 40})
+| where knn(rgb_vector, [255,192,203], {"similarity": 40})
 | sort _score desc, color asc
 | keep color, rgb_vector
 ;
@@ -46,13 +42,14 @@ wheat      | [245.0, 222.0, 179.0]
 ;
 
 knnHybridSearch
-required_capability: knn_function_v3
+required_capability: knn_function_v5
 
 from colors metadata _score 
-| where match(color, "blue") or knn(rgb_vector, [65,105,225], 10)
+| where match(color, "blue") or knn(rgb_vector, [65,105,225])
 | where primary == true
 | sort _score desc, color asc
 | keep color, rgb_vector
+| limit 10
 ;
 
 color:text | rgb_vector:dense_vector
@@ -68,10 +65,10 @@ yellow     | [255.0, 255.0, 0.0]
 ;
 
 knnWithPrefilter
-required_capability: knn_function_v3
+required_capability: knn_function_v5
 
 from colors
-| where knn(rgb_vector, [120,180,0], 10) and (match(color, "olive") or match(color, "green")) 
+| where knn(rgb_vector, [120,180,0]) and (match(color, "olive") or match(color, "green")) 
 | sort color asc
 | keep color
 ;
@@ -82,10 +79,10 @@ olive
 ;
 
 knnWithNegatedPrefilter
-required_capability: knn_function_v3
+required_capability: knn_function_v5
 
 from colors metadata _score
-| where knn(rgb_vector, [128,128,0], 10) and not (match(color, "olive") or match(color, "chocolate")) 
+| where knn(rgb_vector, [128,128,0]) and not (match(color, "olive") or match(color, "chocolate")) 
 | sort _score desc, color asc
 | keep color, rgb_vector
 | LIMIT 10
@@ -105,30 +102,30 @@ orange     | [255.0, 165.0, 0.0]
 ;
 
 knnAfterKeep
-required_capability: knn_function_v3
+required_capability: knn_function_v5
 
 from colors metadata _score
 | keep rgb_vector, color, _score 
-| where knn(rgb_vector, [128,255,0], 140)
+| where knn(rgb_vector, [128,250,0])
 | sort _score desc, color asc
-| keep rgb_vector
+| keep color, rgb_vector
 | limit 5
 ;
 
-rgb_vector:dense_vector
-[127.0, 255.0, 0.0]
-[128.0, 128.0, 0.0]
-[255.0, 255.0, 0.0]
-[0.0, 255.0, 0.0]
-[218.0, 165.0, 32.0]
+color:text     | rgb_vector: dense_vector       
+chartreuse     | [127.0, 255.0, 0.0]  
+olive          | [128.0, 128.0, 0.0] 
+yellow         | [255.0, 255.0, 0.0] 
+golden rod     | [218.0, 165.0, 32.0]
+lime           | [0.0, 255.0, 0.0] 
 ;
 
 knnAfterDrop
-required_capability: knn_function_v3
+required_capability: knn_function_v5
 
 from colors metadata _score
 | drop primary
-| where knn(rgb_vector, [128,250,0], 140)
+| where knn(rgb_vector, [128,250,0])
 | sort _score desc, color asc
 | keep color, rgb_vector
 | limit 5
@@ -143,11 +140,11 @@ lime           | [0.0, 255.0, 0.0]
 ;
 
 knnAfterEval
-required_capability: knn_function_v3
+required_capability: knn_function_v5
 
 from colors metadata _score
 | eval composed_name = locate(color, " ") > 0 
-| where knn(rgb_vector, [128,128,0], 140)
+| where knn(rgb_vector, [128,128,0])
 | sort _score desc, color asc
 | keep color, composed_name 
 | limit 5
@@ -162,12 +159,13 @@ golden rod | true
 ;
 
 knnWithConjunction
-required_capability: knn_function_v3
+required_capability: knn_function_v5
 
 from colors metadata _score 
-| where knn(rgb_vector, [255,255,238], 10) and hex_code like "#FFF*" 
+| where knn(rgb_vector, [255,255,238]) and hex_code like "#FFF*" 
 | sort _score desc, color asc
 | keep color, hex_code, rgb_vector
+| limit 10
 ;
 
 color:text    | hex_code:keyword | rgb_vector:dense_vector
@@ -181,10 +179,10 @@ yellow        | #FFFF00          | [255.0, 255.0, 0.0]
 ;
 
 knnWithDisjunctionAndFiltersConjunction
-required_capability: knn_function_v3
+required_capability: knn_function_v5
 
 from colors metadata _score 
-| where (knn(rgb_vector, [0,255,255], 140) or knn(rgb_vector, [128, 0, 255], 10)) and primary == true 
+| where (knn(rgb_vector, [0,255,255]) or knn(rgb_vector, [128, 0, 255])) and primary == true 
 | keep color, rgb_vector, _score
 | sort _score desc, color asc
 | drop _score
@@ -204,10 +202,10 @@ yellow     | [255.0, 255.0, 0.0]
 ;
 
 knnWithNegationsAndFiltersConjunction
-required_capability: knn_function_v3
+required_capability: knn_function_v5
 
 from colors metadata _score 
-| where (knn(rgb_vector, [0,255,255], 140) and not(primary == true and match(color, "blue"))) 
+| where (knn(rgb_vector, [0,255,255]) and not(primary == true and match(color, "blue"))) 
 | sort _score desc, color asc
 | keep color, rgb_vector
 | limit 10
@@ -227,11 +225,12 @@ azure       | [240.0, 255.0, 255.0]
 ;
 
 knnWithNonPushableConjunction
-required_capability: knn_function_v3
+required_capability: knn_function_v5
+required_capability: knn_function_options_k_visit_percentage
 
 from colors metadata _score
 | eval composed_name = locate(color, " ") > 0 
-| where knn(rgb_vector, [128,128,0], 140) and composed_name == false
+| where knn(rgb_vector, [128,128,0], {"k": 100}) and composed_name == false
 | sort _score desc, color asc
 | keep color, composed_name
 | limit 10
@@ -251,58 +250,234 @@ maroon     | false
 ;
 
 testKnnWithNonPushableDisjunctions
-required_capability: knn_function_v3
+required_capability: knn_function_v5
 
 from colors metadata _score 
-| where knn(rgb_vector, [128,128,0], 140, {"similarity": 30}) or length(color) > 10 
+| where knn(rgb_vector, [128,128,0]) or length(color) > 10 
 | sort _score desc, color asc
-| keep color 
+| keep color
+| limit 10
 ;
 
 color:text
-olive
-aqua marine
-lemon chiffon
-papaya whip
+olive          
+sienna         
+chocolate      
+peru           
+golden rod     
+brown          
+firebrick      
+chartreuse     
+gray           
+green   
 ;
 
-testKnnWithNonPushableDisjunctionsOnComplexExpressions
-required_capability: knn_function_v3
+testKnnWithNonPushableDisjunctionsAndMinCandidates
+required_capability: knn_function_v5
 
 from colors metadata _score 
-| where (knn(rgb_vector, [128,128,0], 140, {"similarity": 70}) and length(color) < 10) or (knn(rgb_vector, [128,0,128], 140, {"similarity": 60}) and primary == false) 
+| where (knn(rgb_vector, [128,128,0], {"min_candidates": 2}) and length(color) > 10) or (knn(rgb_vector, [128,0,128], {"min_candidates": 2}) and primary == true) 
 | sort _score desc, color asc
 | keep color, primary
 ;
 
 color:text   | primary:boolean
-olive        | false
-purple       | false
-indigo       | false
+gray          | true
+green         | true
+red           | true
+black         | true
+magenta       | true
+yellow        | true
+blue          | true
+aqua marine   | false
+papaya whip   | false
+lemon chiffon | false
+white         | true
+cyan          | true
 ;
 
-testKnnInStatsNonPushable
-required_capability: knn_function_v3
+testKnnWithStats
+required_capability: knn_function_v5
 
-from colors 
-| where length(color) < 10 
-| stats c = count(*) where knn(rgb_vector, [128,128,255], 140)
+from colors metadata _score 
+| where knn(rgb_vector, [128,128,0])
+| sort _score desc, color asc
+| limit 15
+| stats c = count(*)
 ;
 
-c: long 
-50      
+c:long
+15
 ;
 
-testKnnInStatsWithGrouping
-required_capability: knn_function_v3
-required_capability: full_text_functions_in_stats_where
+testKnnWithRerank
+required_capability: knn_function_v5
+required_capability: rerank
 
-from colors 
-| where length(color) < 10 
-| stats c = count(*) where knn(rgb_vector, [128,128,255], 140) by primary
+from colors metadata _score 
+| where knn(rgb_vector, [100,120,0])
+| sort _score desc, color asc
+| limit 10
+| rerank rerank_score = "deepest blue" ON color WITH { "inference_id" : "test_reranker" }
+| sort rerank_score desc, color asc
+| keep color
 ;
 
-c: long       | primary: boolean    
-41            | false          
-9             | true           
+color:text
+gray
+peru
+brown
+green
+olive
+maroon
+sienna
+chocolate
+firebrick
+golden rod
 ;
+
+testKnnWithSemanticText
+required_capability: knn_function_v5
+
+from semantic_text
+| where knn(semantic_text_dense_field, [0, 1, 2])
+| keep semantic_text_dense_field
+| sort semantic_text_dense_field asc
+;
+
+semantic_text_dense_field:text
+all we have to decide is what to do with the time that is given to us
+be excellent to each other
+live long and prosper
+;
+
+testKnnWithSemanticTextAndKeyword
+required_capability: knn_function_v5
+
+from semantic_text
+| where knn(semantic_text_dense_field, [0, 1, 2])
+| keep semantic_text_dense_field, host
+| sort host asc
+;
+
+semantic_text_dense_field:text | host:keyword
+live long and prosper                                                 | host1
+all we have to decide is what to do with the time that is given to us | host2
+be excellent to each other                                            | host3
+
+;
+
+testKnnWithSemanticTextMultiValueField
+required_capability: knn_function_v5
+
+from semantic_text metadata _id
+| where match(st_multi_value, "something") AND match(host, "host1")
+| keep _id, st_multi_value
+;
+
+_id: keyword | st_multi_value:text
+1            | ["Hello there!", "This is a random value", "for testing purposes"]
+;
+
+testKnnWithSemanticTextWithEvalsAndOtherFunctionsAndStats
+required_capability: knn_function_v5
+
+from semantic_text
+| where qstr("description:some*")
+| eval size = mv_count(st_multi_value)
+| where knn(semantic_text_dense_field, [0, 1, 2])
+| limit 100
+| stats result = count(*)
+;
+
+result:long
+3
+;
+
+testKnnWithSemanticTextAndKql
+required_capability: knn_function_v5
+required_capability: kql_function
+
+from semantic_text
+| where kql("host:host1") AND knn(semantic_text_dense_field, [0, 1, 2])
+| KEEP host, semantic_text_dense_field
+;
+
+host:keyword | semantic_text_dense_field:text
+"host1"      | live long and prosper
+;
+
+
+knnWithCasting
+required_capability: knn_function_v5
+required_capability: to_dense_vector_function
+
+from colors metadata _score
+| eval query = to_dense_vector([0, 120, 0])
+| where knn(rgb_vector, query) 
+| sort _score desc, color asc
+| keep color, rgb_vector
+| limit 10
+;
+
+color:text | rgb_vector:dense_vector
+green      | [0.0, 128.0, 0.0]
+black      | [0.0, 0.0, 0.0]
+olive      | [128.0, 128.0, 0.0]
+teal       | [0.0, 128.0, 128.0]
+lime       | [0.0, 255.0, 0.0]
+sienna     | [160.0, 82.0, 45.0]
+maroon     | [128.0, 0.0, 0.0]
+navy       | [0.0, 0.0, 128.0]
+gray       | [128.0, 128.0, 128.0]
+chartreuse | [127.0, 255.0, 0.0]
+;
+
+knnWithHexStringCasting
+required_capability: knn_function_v5
+required_capability: to_dense_vector_function
+
+from colors metadata _score
+| where knn(rgb_vector, "007800") 
+| sort _score desc, color asc
+| keep color, rgb_vector
+| limit 10
+;
+
+color:text | rgb_vector:dense_vector
+green      | [0.0, 128.0, 0.0]
+black      | [0.0, 0.0, 0.0]
+olive      | [128.0, 128.0, 0.0]
+teal       | [0.0, 128.0, 128.0]
+lime       | [0.0, 255.0, 0.0]
+sienna     | [160.0, 82.0, 45.0]
+maroon     | [128.0, 0.0, 0.0]
+navy       | [0.0, 0.0, 128.0]
+gray       | [128.0, 128.0, 128.0]
+chartreuse | [127.0, 255.0, 0.0]
+;
+
+knnWithUnionAll
+required_capability: knn_function_v5
+required_capability: subquery_in_from_command
+required_capability: full_text_functions_accept_null_field
+
+from colors, (from hosts) metadata _score
+| where knn(rgb_vector, "007800") 
+| sort _score desc, color asc
+| keep color, rgb_vector, host
+| limit 10
+;
+
+color:text | rgb_vector:dense_vector  | host:keyword  
+green      | [0.0, 128.0, 0.0]        | null          
+black      | [0.0, 0.0, 0.0]          | null          
+olive      | [128.0, 128.0, 0.0]      | null          
+teal       | [0.0, 128.0, 128.0]      | null  
+lime       | [0.0, 255.0, 0.0]        | null          
+sienna     | [160.0, 82.0, 45.0]      | null          
+maroon     | [128.0, 0.0, 0.0]        | null          
+navy       | [0.0, 0.0, 128.0]        | null
+gray       | [128.0, 128.0, 128.0]    | null          
+chartreuse | [127.0, 255.0, 0.0]      | null          
+;          

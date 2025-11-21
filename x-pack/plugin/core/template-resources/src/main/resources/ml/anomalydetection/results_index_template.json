@@ -2,7 +2,7 @@
   "priority": 2147483647,
   "version" : ${xpack.ml.version.id},
   "index_patterns" : [
-    ".ml-anomalies-*"
+    ".ml-anomalies-*", ".reindexed-v7-ml-anomalies-*"
   ],
   "template" : {
     "settings" : {

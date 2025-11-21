@@ -18,6 +18,7 @@ import org.elasticsearch.action.bulk.BulkItemRequest;
 import org.elasticsearch.action.bulk.BulkShardRequest;
 import org.elasticsearch.action.bulk.TransportShardBulkAction;
 import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.action.index.IndexSource;
 import org.elasticsearch.action.support.ActionFilterChain;
 import org.elasticsearch.action.support.MappedActionFilter;
 import org.elasticsearch.action.support.RefCountingRunnable;
@@ -42,12 +43,12 @@ import org.elasticsearch.inference.ChunkedInference;
 import org.elasticsearch.inference.ChunkingSettings;
 import org.elasticsearch.inference.InferenceService;
 import org.elasticsearch.inference.InferenceServiceRegistry;
+import org.elasticsearch.inference.InferenceString;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.MinimalServiceSettings;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.UnparsedModel;
 import org.elasticsearch.inference.telemetry.InferenceStats;
-import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.Task;
@@ -56,10 +57,10 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
-import org.elasticsearch.xpack.core.XPackField;
+import org.elasticsearch.xpack.core.inference.chunking.ChunkingSettingsBuilder;
 import org.elasticsearch.xpack.core.inference.results.ChunkedInferenceError;
 import org.elasticsearch.xpack.inference.InferenceException;
-import org.elasticsearch.xpack.inference.chunking.ChunkingSettingsBuilder;
+import org.elasticsearch.xpack.inference.InferenceLicenceCheck;
 import org.elasticsearch.xpack.inference.mapper.SemanticTextField;
 import org.elasticsearch.xpack.inference.mapper.SemanticTextFieldMapper;
 import org.elasticsearch.xpack.inference.mapper.SemanticTextUtils;
@@ -76,8 +77,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.inference.telemetry.InferenceStats.modelAndResponseAttributes;
-import static org.elasticsearch.xpack.inference.InferencePlugin.INFERENCE_API_FEATURE;
+import static org.elasticsearch.inference.InferenceString.DataType.TEXT;
+import static org.elasticsearch.inference.telemetry.InferenceStats.serviceAndResponseAttributes;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.toSemanticTextFieldChunks;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.toSemanticTextFieldChunksLegacy;
 
@@ -382,11 +383,23 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
                 modelRegistry.getModelWithSecrets(inferenceId, modelLoadingListener);
                 return;
             }
+
+            if (InferenceLicenceCheck.isServiceLicenced(inferenceProvider.service.name(), licenseState) == false) {
+                try (onFinish) {
+                    var complianceException = InferenceLicenceCheck.complianceException(inferenceProvider.service.name());
+                    for (FieldInferenceRequest request : requests) {
+                        addInferenceResponseFailure(request.bulkItemIndex, complianceException);
+                    }
+                    return;
+                }
+            }
+
             final List<ChunkInferenceInput> inputs = requests.stream()
-                .map(r -> new ChunkInferenceInput(r.input, r.chunkingSettings))
+                .map(r -> new ChunkInferenceInput(new InferenceString(r.input, TEXT), r.chunkingSettings))
                 .collect(Collectors.toList());
 
             ActionListener<List<ChunkedInference>> completionListener = new ActionListener<>() {
+
                 @Override
                 public void onResponse(List<ChunkedInference> results) {
                     try (onFinish) {
@@ -454,11 +467,12 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
                     TimeValue.MAX_VALUE,
                     completionListener
                 );
+
         }
 
         private void recordRequestCountMetrics(Model model, int incrementBy, Throwable throwable) {
             Map<String, Object> requestCountAttributes = new HashMap<>();
-            requestCountAttributes.putAll(modelAndResponseAttributes(model, throwable));
+            requestCountAttributes.putAll(serviceAndResponseAttributes(model, throwable));
             requestCountAttributes.put("inference_source", "semantic_text_bulk");
             inferenceStats.requestCount().incrementBy(incrementBy, requestCountAttributes);
         }
@@ -568,11 +582,6 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
                         break;
                     }
 
-                    if (INFERENCE_API_FEATURE.check(licenseState) == false) {
-                        addInferenceResponseFailure(itemIndex, LicenseUtils.newComplianceException(XPackField.INFERENCE));
-                        break;
-                    }
-
                     List<FieldInferenceRequest> requests = requestsMap.computeIfAbsent(inferenceId, k -> new ArrayList<>());
                     int offsetAdjustment = 0;
                     for (String v : values) {
@@ -629,7 +638,7 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
             if (indexRequest.isIndexingPressureIncremented() == false) {
                 try {
                     // Track operation count as one operation per document source update
-                    coordinatingIndexingPressure.increment(1, indexRequest.getIndexRequest().source().length());
+                    coordinatingIndexingPressure.increment(1, indexRequest.getIndexRequest().indexSource().byteLength());
                     indexRequest.setIndexingPressureIncremented();
                 } catch (EsRejectedExecutionException e) {
                     addInferenceResponseFailure(
@@ -724,28 +733,30 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
                 inferenceFieldsMap.put(fieldName, result);
             }
 
-            BytesReference originalSource = indexRequest.source();
+            IndexSource indexSource = indexRequest.indexSource();
+            int originalSourceSize = indexSource.byteLength();
+            BytesReference originalSource = indexSource.bytes();
             if (useLegacyFormat) {
-                var newDocMap = indexRequest.sourceAsMap();
+                var newDocMap = indexSource.sourceAsMap();
                 for (var entry : inferenceFieldsMap.entrySet()) {
                     XContentMapValues.insertValue(entry.getKey(), newDocMap, entry.getValue());
                 }
-                indexRequest.source(newDocMap, indexRequest.getContentType());
+                indexSource.source(newDocMap, indexSource.contentType());
             } else {
-                try (XContentBuilder builder = XContentBuilder.builder(indexRequest.getContentType().xContent())) {
-                    appendSourceAndInferenceMetadata(builder, indexRequest.source(), indexRequest.getContentType(), inferenceFieldsMap);
-                    indexRequest.source(builder);
+                try (XContentBuilder builder = XContentBuilder.builder(indexSource.contentType().xContent())) {
+                    appendSourceAndInferenceMetadata(builder, indexSource.bytes(), indexSource.contentType(), inferenceFieldsMap);
+                    indexSource.source(builder);
                 }
             }
-            long modifiedSourceSize = indexRequest.source().length();
+            long modifiedSourceSize = indexSource.byteLength();
 
             // Add the indexing pressure from the source modifications.
             // Don't increment operation count because we count one source update as one operation, and we already accounted for those
             // in addFieldInferenceRequests.
             try {
-                coordinatingIndexingPressure.increment(0, modifiedSourceSize - originalSource.length());
+                coordinatingIndexingPressure.increment(0, modifiedSourceSize - originalSourceSize);
             } catch (EsRejectedExecutionException e) {
-                indexRequest.source(originalSource, indexRequest.getContentType());
+                indexSource.source(originalSource, indexSource.contentType());
                 item.abort(
                     item.index(),
                     new InferenceException(

@@ -40,11 +40,15 @@ $endif$
 
     @Override
 $if(BytesRef)$
-    public BytesRef getBytesRef(int position, BytesRef ignore) {
+    public BytesRef getBytesRef(int position, BytesRef scratch) {
+        scratch.bytes = value.bytes;
+        scratch.offset = value.offset;
+        scratch.length = value.length;
+        return scratch;
 $else$
     public $type$ get$Type$(int position) {
-$endif$
         return value;
+$endif$
     }
 
     @Override
@@ -172,6 +176,11 @@ $endif$
     @Override
     public boolean isConstant() {
         return true;
+    }
+
+    @Override
+    public $Type$Vector deepCopy(BlockFactory blockFactory) {
+        return blockFactory.newConstant$Type$Vector(value, getPositionCount());
     }
 
 $if(BytesRef)$

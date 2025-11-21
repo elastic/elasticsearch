@@ -13,8 +13,10 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SortedDocValues;
 import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
+import org.elasticsearch.index.mapper.blockloader.docvalues.BlockDocValuesReader;
 import org.elasticsearch.search.fetch.StoredFieldsSpec;
 import org.elasticsearch.search.lookup.Source;
 
@@ -65,9 +67,21 @@ public interface BlockLoader {
         /**
          * Attempts to read the values of all documents in {@code docs}
          * Returns {@code null} if unable to load the values.
+         *
+         * @param nullsFiltered if {@code true}, then target docs are guaranteed to have a value for the field.
+         *                      see {@link ColumnAtATimeReader#read(BlockFactory, Docs, int, boolean)}
+         * @param toDouble      a function to convert long values to double, or null if no conversion is needed/supported
+         * @param toInt         whether to convert to int in case int block / vector is needed
          */
         @Nullable
-        BlockLoader.Block tryRead(BlockFactory factory, Docs docs, int offset) throws IOException;
+        BlockLoader.Block tryRead(
+            BlockFactory factory,
+            Docs docs,
+            int offset,
+            boolean nullsFiltered,
+            BlockDocValuesReader.ToDouble toDouble,
+            boolean toInt
+        ) throws IOException;
     }
 
     interface RowStrideReader extends Reader {
@@ -365,6 +379,13 @@ public interface BlockLoader {
      */
     interface BlockFactory {
         /**
+         * Adjust the circuit breaker with the given delta, if the delta is negative, the breaker will
+         * be adjusted without tripping.
+         * @throws CircuitBreakingException if the breaker was put above its limit
+         */
+        void adjustBreaker(long delta) throws CircuitBreakingException;
+
+        /**
          * Build a builder to load booleans as loaded from doc values. Doc values
          * load booleans in sorted order.
          */
@@ -385,6 +406,17 @@ public interface BlockLoader {
          * Build a builder to load {@link BytesRef}s without any loading constraints.
          */
         BytesRefBuilder bytesRefs(int expectedCount);
+
+        /**
+         * Build a specialized builder for singleton dense {@link BytesRef} fields with the following constraints:
+         * <ul>
+         *     <li>Only one value per document can be collected</li>
+         *     <li>No more than expectedCount values can be collected</li>
+         * </ul>
+         *
+         * @param expectedCount The maximum number of values to be collected.
+         */
+        SingletonBytesRefBuilder singletonBytesRefs(int expectedCount);
 
         /**
          * Build a builder to load doubles as loaded from doc values.
@@ -436,6 +468,28 @@ public interface BlockLoader {
         SingletonLongBuilder singletonLongs(int expectedCount);
 
         /**
+         * Build a specialized builder for singleton dense int based fields with the following constraints:
+         * <ul>
+         *     <li>Only one value per document can be collected</li>
+         *     <li>No more than expectedCount values can be collected</li>
+         * </ul>
+         *
+         * @param expectedCount The maximum number of values to be collected.
+         */
+        SingletonIntBuilder singletonInts(int expectedCount);
+
+        /**
+         * Build a specialized builder for singleton dense double based fields with the following constraints:
+         * <ul>
+         *     <li>Only one value per document can be collected</li>
+         *     <li>No more than expectedCount values can be collected</li>
+         * </ul>
+         *
+         * @param expectedCount The maximum number of values to be collected.
+         */
+        SingletonDoubleBuilder singletonDoubles(int expectedCount);
+
+        /**
          * Build a builder to load only {@code null}s.
          */
         Builder nulls(int expectedCount);
@@ -452,6 +506,12 @@ public interface BlockLoader {
         Block constantBytes(BytesRef value, int count);
 
         /**
+         * Build a block that contains {@code value} repeated
+         * {@code count} times.
+         */
+        Block constantInt(int value, int count);
+
+        /**
          * Build a reader for reading {@link SortedDocValues}
          */
         SingletonOrdinalsBuilder singletonOrdinalsBuilder(SortedDocValues ordinals, int count, boolean isDense);
@@ -462,6 +522,21 @@ public interface BlockLoader {
         SortedSetOrdinalsBuilder sortedSetOrdinalsBuilder(SortedSetDocValues ordinals, int count);
 
         AggregateMetricDoubleBuilder aggregateMetricDoubleBuilder(int count);
+
+        Block buildAggregateMetricDoubleDirect(Block minBlock, Block maxBlock, Block sumBlock, Block countBlock);
+
+        ExponentialHistogramBuilder exponentialHistogramBlockBuilder(int count);
+
+        Block buildExponentialHistogramBlockDirect(
+            Block minima,
+            Block maxima,
+            Block sums,
+            Block valueCounts,
+            Block zeroThresholds,
+            Block encodedHistograms
+        );
+
+        Block buildTDigestBlockDirect(Block encodedDigests, Block minima, Block maxima, Block sums, Block valueCounts);
     }
 
     /**
@@ -512,6 +587,22 @@ public interface BlockLoader {
         BytesRefBuilder appendBytesRef(BytesRef value);
     }
 
+    /**
+     * Specialized builder for collecting dense arrays of BytesRef values.
+     */
+    interface SingletonBytesRefBuilder extends Builder {
+        /**
+         * Append multiple BytesRef. Offsets contains offsets of each BytesRef in the byte array.
+         * The length of the offsets array is one more than the number of BytesRefs.
+         */
+        SingletonBytesRefBuilder appendBytesRefs(byte[] bytes, long[] offsets) throws IOException;
+
+        /**
+         * Append multiple BytesRefs, all with the same length.
+         */
+        SingletonBytesRefBuilder appendBytesRefs(byte[] bytes, long bytesRefLengths) throws IOException;
+    }
+
     interface FloatBuilder extends Builder {
         /**
          * Appends a float to the current entry.
@@ -537,10 +628,23 @@ public interface BlockLoader {
      * Specialized builder for collecting dense arrays of long values.
      */
     interface SingletonLongBuilder extends Builder {
-
         SingletonLongBuilder appendLong(long value);
 
         SingletonLongBuilder appendLongs(long[] values, int from, int length);
+    }
+
+    /**
+     * Specialized builder for collecting dense arrays of double values.
+     */
+    interface SingletonDoubleBuilder extends Builder {
+        SingletonDoubleBuilder appendLongs(BlockDocValuesReader.ToDouble toDouble, long[] values, int from, int length);
+    }
+
+    /**
+     * Specialized builder for collecting dense arrays of double values.
+     */
+    interface SingletonIntBuilder extends Builder {
+        SingletonIntBuilder appendLongs(long[] values, int from, int length);
     }
 
     interface LongBuilder extends Builder {
@@ -555,6 +659,11 @@ public interface BlockLoader {
          * Appends an ordinal to the builder.
          */
         SingletonOrdinalsBuilder appendOrd(int value);
+
+        /**
+         * Appends a single ord for the next N positions
+         */
+        SingletonOrdinalsBuilder appendOrds(int ord, int length);
 
         SingletonOrdinalsBuilder appendOrds(int[] values, int from, int length, int minOrd, int maxOrd);
     }
@@ -575,5 +684,31 @@ public interface BlockLoader {
         DoubleBuilder sum();
 
         IntBuilder count();
+    }
+
+    interface ExponentialHistogramBuilder extends Builder {
+        DoubleBuilder minima();
+
+        DoubleBuilder maxima();
+
+        DoubleBuilder sums();
+
+        LongBuilder valueCounts();
+
+        DoubleBuilder zeroThresholds();
+
+        BytesRefBuilder encodedHistograms();
+    }
+
+    interface TDigestBuilder extends Builder {
+        DoubleBuilder minima();
+
+        DoubleBuilder maxima();
+
+        DoubleBuilder sums();
+
+        LongBuilder valueCounts();
+
+        BytesRefBuilder encodedDigests();
     }
 }

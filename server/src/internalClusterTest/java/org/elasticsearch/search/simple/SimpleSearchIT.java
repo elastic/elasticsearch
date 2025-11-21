@@ -261,10 +261,12 @@ public class SimpleSearchIT extends ESIntegTestCase {
         ensureGreen();
         refresh();
 
-        for (int i = 1; i < max; i++) {
+        // query all but one doc to avoid optimizations that may rewrite to a MatchAllDocs, which simplifies assertions
+        final int queryMax = max - 1;
+        for (int i = 1; i < queryMax; i++) {
             final int finalI = i;
             assertResponse(
-                prepareSearch("test").setQuery(QueryBuilders.rangeQuery("field").gte(1).lte(max)).setTerminateAfter(i),
+                prepareSearch("test").setQuery(QueryBuilders.rangeQuery("field").gte(1).lte(queryMax)).setTerminateAfter(i),
                 response -> {
                     assertHitCount(response, finalI);
                     assertTrue(response.isTerminatedEarly());
@@ -272,9 +274,9 @@ public class SimpleSearchIT extends ESIntegTestCase {
             );
         }
         assertResponse(
-            prepareSearch("test").setQuery(QueryBuilders.rangeQuery("field").gte(1).lte(max)).setTerminateAfter(2 * max),
+            prepareSearch("test").setQuery(QueryBuilders.rangeQuery("field").gte(1).lte(queryMax)).setTerminateAfter(2 * max),
             response -> {
-                assertHitCount(response, max);
+                assertHitCount(response, queryMax);
                 assertFalse(response.isTerminatedEarly());
             }
         );

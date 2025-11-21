@@ -129,4 +129,8 @@ public final class PemTrustConfig implements SslTrustConfig {
         return Objects.hash(certificateAuthorities);
     }
 
+    @Override
+    public boolean hasExplicitConfig() {
+        return true;
+    }
 }

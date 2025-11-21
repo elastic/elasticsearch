@@ -15,7 +15,6 @@ import org.apache.logging.log4j.message.Message;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.ResourceNotFoundException;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.LatchedActionListener;
 import org.elasticsearch.client.internal.Client;
@@ -439,7 +438,6 @@ public class TrainedModelAssignmentClusterServiceTests extends ESTestCase {
             .add(buildNode("ml-node-without-room", true, 1000L, 2))
             .add(buildNode("not-ml-node", false, ByteSizeValue.ofGb(4).getBytes(), 2))
             .add(buildNode("ml-node-shutting-down", true, ByteSizeValue.ofGb(4).getBytes(), 2))
-            .add(buildOldNode("old-ml-node-with-room", true, ByteSizeValue.ofGb(4).getBytes(), 2))
             .build();
         nodeAvailabilityZoneMapper = randomFrom(
             new NodeRealAvailabilityZoneMapper(settings, clusterSettings, discoveryNodes),
@@ -489,7 +487,6 @@ public class TrainedModelAssignmentClusterServiceTests extends ESTestCase {
             .add(buildNode("ml-node-without-room", true, 1000L, 2))
             .add(buildNode("not-ml-node", false, ByteSizeValue.ofGb(4).getBytes(), 2))
             .add(buildNode("ml-node-shutting-down", true, ByteSizeValue.ofGb(4).getBytes(), 2))
-            .add(buildOldNode("old-ml-node-with-room", true, ByteSizeValue.ofGb(4).getBytes(), 2))
             .build();
         nodeAvailabilityZoneMapper = randomFrom(
             new NodeRealAvailabilityZoneMapper(settings, clusterSettings, discoveryNodes),
@@ -2137,17 +2134,6 @@ public class TrainedModelAssignmentClusterServiceTests extends ESTestCase {
 
     private static RoutingInfoUpdate started() {
         return RoutingInfoUpdate.updateStateAndReason(new RoutingStateAndReason(RoutingState.STARTED, ""));
-    }
-
-    private static DiscoveryNode buildOldNode(String name, boolean isML, long nativeMemory, int allocatedProcessors) {
-        return buildNode(
-            name,
-            isML,
-            nativeMemory,
-            allocatedProcessors,
-            VersionInformation.inferVersions(Version.V_7_15_0),
-            MlConfigVersion.V_7_15_0
-        );
     }
 
     private static StartTrainedModelDeploymentAction.TaskParams newParams(String modelId, long modelSize) {

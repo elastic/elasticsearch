@@ -51,6 +51,10 @@ The following [aggregation functions](/reference/query-languages/esql/functions-
 :::{include} ../../lists/aggregation-functions.md
 :::
 
+When `STATS` is used under the [`TS`](/reference/query-languages/esql/commands/ts.md) source command,
+[time series aggregation functions](/reference/query-languages/esql/functions-operators/time-series-aggregation-functions.md)
+are also supported.
+
 The following [grouping functions](/reference/query-languages/esql/functions-operators/grouping-functions.md) are supported:
 
 :::{include} ../../lists/grouping-functions.md
@@ -71,7 +75,7 @@ and then grouping - that is not going to be faster.
 ::::
 
 
-**Examples**
+### Examples
 
 Calculating a statistic and grouping by the values of another column:
 
@@ -100,20 +104,40 @@ optional as well:
 :::{include} ../examples/stats.csv-spec/aggFilteringNoGroup.md
 :::
 
+It’s also possible to group by multiple values:
+
+:::{include} ../examples/stats.csv-spec/statsGroupByMultipleValues.md
+:::
+
 $$$esql-stats-mv-group$$$
+#### Multivalued inputs
+
 If the grouping key is multivalued then the input row is in all groups:
 
 :::{include} ../examples/stats.csv-spec/mv-group.md
 :::
 
-It’s also possible to group by multiple values:
-
-:::{include} ../examples/stats.csv-spec/statsGroupByMultipleValues.md
-:::
 If all the grouping keys are multivalued then the input row is in all groups:
 
 :::{include} ../examples/stats.csv-spec/multi-mv-group.md
 :::
+
+The input **ROW** is in all groups. The entire row. All the values. Even group
+keys. That means that:
+
+:::{include} ../examples/stats.csv-spec/mv-group-values.md
+:::
+
+The `VALUES` function above sees the whole row - all of the values of the group
+key. If you want to send the group key to the function then `MV_EXPAND` first:
+
+:::{include} ../examples/stats.csv-spec/mv-group-values-expand.md
+:::
+
+Refer to [elasticsearch/issues/134792](https://github.com/elastic/elasticsearch/issues/134792#issuecomment-3361168090)
+for an even more in depth explanation.
+
+#### Multivalue functions
 
 Both the aggregating functions and the grouping expressions accept other
 functions. This is useful for using `STATS` on multivalue columns.
@@ -129,6 +153,8 @@ letter of their last name:
 
 :::{include} ../examples/stats.csv-spec/docsStatsByExpression.md
 :::
+
+#### Naming
 
 Specifying the output column name is optional. If not specified, the new column
 name is equal to the expression. The following query returns a column named

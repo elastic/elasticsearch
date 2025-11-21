@@ -8,6 +8,10 @@
 | double | date_nanos | double |
 | integer | date | integer |
 | integer | date_nanos | integer |
+| keyword | date | keyword |
+| keyword | date_nanos | keyword |
 | long | date | long |
 | long | date_nanos | long |
+| text | date | keyword |
+| text | date_nanos | keyword |
 

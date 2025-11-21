@@ -120,6 +120,10 @@ public class CoordinatorRewriteContext extends QueryRewriteContext {
             null,
             null,
             null,
+            null,
+            null,
+            null,
+            false,
             false
         );
         this.dateFieldRangeInfo = dateFieldRangeInfo;

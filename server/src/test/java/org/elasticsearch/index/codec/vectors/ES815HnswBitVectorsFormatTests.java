@@ -22,10 +22,14 @@ import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.util.TestUtil;
-import org.elasticsearch.index.codec.vectors.reflect.OffHeapByteSizeUtils;
 import org.junit.Before;
 
 import java.io.IOException;
+
+import static org.hamcrest.Matchers.aMapWithSize;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.hasEntry;
 
 public class ES815HnswBitVectorsFormatTests extends BaseKnnBitVectorsFormatTestCase {
 
@@ -56,10 +60,11 @@ public class ES815HnswBitVectorsFormatTests extends BaseKnnBitVectorsFormatTestC
                         knnVectorsReader = fieldsReader.getFieldReader("f");
                     }
                     var fieldInfo = r.getFieldInfos().fieldInfo("f");
-                    var offHeap = OffHeapByteSizeUtils.getOffHeapByteSize(knnVectorsReader, fieldInfo);
-                    assertEquals(2, offHeap.size());
-                    assertTrue(offHeap.get("vec") > 0L);
-                    assertEquals(1L, (long) offHeap.get("vex"));
+                    var offHeap = knnVectorsReader.getOffHeapByteSize(fieldInfo);
+
+                    assertThat(offHeap, aMapWithSize(2));
+                    assertThat(offHeap, hasEntry("vex", 1L));
+                    assertThat(offHeap, hasEntry(equalTo("vec"), greaterThan(0L)));
                 }
             }
         }

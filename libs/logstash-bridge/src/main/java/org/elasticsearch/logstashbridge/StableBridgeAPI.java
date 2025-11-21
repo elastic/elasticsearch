@@ -50,6 +50,11 @@ public interface StableBridgeAPI<INTERNAL> {
      * An {@code ProxyInternal<INTERNAL>} is an implementation of {@code StableBridgeAPI<INTERNAL>} that
      * proxies calls to a delegate that is an actual {@code INTERNAL}.
      *
+     * <p>
+     *     implementations are intended to be <em>opaque</em> to consumers of this library,
+     *     and should <em>NOT</em> have public constructors.
+     * </p>
+     *
      * @param <INTERNAL>
      */
     abstract class ProxyInternal<INTERNAL> implements StableBridgeAPI<INTERNAL> {

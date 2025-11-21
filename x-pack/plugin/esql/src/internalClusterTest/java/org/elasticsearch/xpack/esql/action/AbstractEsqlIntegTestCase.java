@@ -166,7 +166,12 @@ public abstract class AbstractEsqlIntegTestCase extends ESIntegTestCase {
     }
 
     protected final EsqlQueryResponse run(String esqlCommands) {
-        return run(syncEsqlQueryRequest().query(esqlCommands).pragmas(randomPragmas()));
+        return run(syncEsqlQueryRequest().query(esqlCommands).pragmas(getPragmas()));
+    }
+
+    /** A hook for overriding. */
+    protected QueryPragmas getPragmas() {
+        return randomPragmas();
     }
 
     public EsqlQueryResponse run(EsqlQueryRequest request) {

@@ -19,9 +19,12 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
+import org.elasticsearch.cluster.metadata.ReservedStateHandlerMetadata;
+import org.elasticsearch.cluster.metadata.ReservedStateMetadata;
 import org.elasticsearch.cluster.node.VersionInformation;
 import org.elasticsearch.cluster.project.DefaultProjectResolver;
 import org.elasticsearch.cluster.project.ProjectResolver;
+import org.elasticsearch.cluster.project.ProjectStateRegistry;
 import org.elasticsearch.cluster.project.TestProjectResolvers;
 import org.elasticsearch.cluster.routing.GlobalRoutingTableTestHelper;
 import org.elasticsearch.cluster.routing.RoutingTable;
@@ -93,7 +96,7 @@ public class TransportClusterStateActionTests extends ESTestCase {
         final ProjectResolver projectResolver = DefaultProjectResolver.INSTANCE;
 
         final Set<String> indexNames = randomSet(1, 8, () -> randomAlphaOfLengthBetween(4, 12));
-        final ClusterStateRequest request = buildRandomRequest(indexNames);
+        final ClusterStateRequest request = buildRandomRequest(indexNames, false);
         final String[] expectedIndices = getExpectedIndices(request, indexNames);
 
         final ProjectId projectId = Metadata.DEFAULT_PROJECT_ID;
@@ -111,7 +114,7 @@ public class TransportClusterStateActionTests extends ESTestCase {
         final ProjectId projectId = randomUniqueProjectId();
 
         final ProjectResolver projectResolver = TestProjectResolvers.singleProject(projectId);
-        final ClusterStateRequest request = buildRandomRequest(indexNames);
+        final ClusterStateRequest request = buildRandomRequest(indexNames, false);
         final String[] expectedIndices = getExpectedIndices(request, indexNames);
 
         final int numberOfProjects = randomIntBetween(2, 5);
@@ -140,7 +143,7 @@ public class TransportClusterStateActionTests extends ESTestCase {
         final ClusterState state = buildClusterState(projects);
 
         final ProjectResolver projectResolver = TestProjectResolvers.allProjects();
-        final ClusterStateRequest request = buildRandomRequest(indexNames);
+        final ClusterStateRequest request = buildRandomRequest(indexNames, true);
         final Set<String> requestedIndices = Set.of(getExpectedIndices(request, indexNames));
 
         final ClusterStateResponse response = executeAction(projectResolver, request, state);
@@ -169,6 +172,13 @@ public class TransportClusterStateActionTests extends ESTestCase {
                 assertThat(routingTable, notNullValue());
                 assertThat(routingTable.indicesRouting().keySet(), containsInAnyOrder(expectedIndices));
             }
+            if (request.customs()) {
+                ProjectStateRegistry projectStateRegistry = ProjectStateRegistry.get(response.getState());
+                assertThat(projectStateRegistry.size(), equalTo(numberOfProjects));
+                Settings projectSettings = projectStateRegistry.getProjectSettings(projectId);
+                assertThat(projectSettings, notNullValue());
+                assertThat(projectSettings.keySet(), contains("setting_1"));
+            }
         }
     }
 
@@ -182,6 +192,22 @@ public class TransportClusterStateActionTests extends ESTestCase {
         assertThat(metadata.projects().keySet(), contains(projectId));
         if (request.metadata()) {
             assertThat(metadata.getProject(projectId).indices().keySet(), containsInAnyOrder(expectedIndices));
+
+            if (request.indices().length == 0) {
+                Map<String, ReservedStateMetadata> reservedStateMetadataMap = metadata.reservedStateMetadata();
+                assertThat(reservedStateMetadataMap, aMapWithSize(1));
+                ReservedStateMetadata fileSettings = reservedStateMetadataMap.get("file_settings");
+                assertNotNull(fileSettings);
+                assertThat(fileSettings.version(), equalTo(43L));
+                Map<String, ReservedStateHandlerMetadata> handlers = fileSettings.handlers();
+                assertThat(handlers, aMapWithSize(2));
+                ReservedStateHandlerMetadata clusterSettingsHandler = handlers.get("cluster_settings");
+                assertNotNull(clusterSettingsHandler);
+                assertThat(clusterSettingsHandler.keys(), containsInAnyOrder("setting_1", "setting_2"));
+                ReservedStateHandlerMetadata projectSettingsHandler = handlers.get("project_settings");
+                assertNotNull(projectSettingsHandler);
+                assertThat(projectSettingsHandler.keys(), containsInAnyOrder("setting_1"));
+            }
         } else {
             assertThat(metadata.getProject(projectId).indices(), anEmptyMap());
         }
@@ -193,6 +219,13 @@ public class TransportClusterStateActionTests extends ESTestCase {
             assertThat(routingTables.get(projectId).indicesRouting().keySet(), containsInAnyOrder(expectedIndices));
         } else {
             assertThat(routingTables.get(projectId).indicesRouting(), anEmptyMap());
+        }
+        if (request.customs()) {
+            ProjectStateRegistry projectStateRegistry = ProjectStateRegistry.get(response.getState());
+            assertThat(projectStateRegistry.size(), equalTo(1));
+            Settings projectSettings = projectStateRegistry.getProjectSettings(projectId);
+            assertThat(projectSettings, notNullValue());
+            assertThat(projectSettings.keySet(), contains("setting_1"));
         }
     }
 
@@ -220,7 +253,7 @@ public class TransportClusterStateActionTests extends ESTestCase {
         }
     }
 
-    private static ClusterStateRequest buildRandomRequest(Set<String> indexNames) {
+    private static ClusterStateRequest buildRandomRequest(Set<String> indexNames, boolean multipleProjects) {
         final ClusterStateRequest request = new ClusterStateRequest(TEST_REQUEST_TIMEOUT);
         if (randomBoolean()) {
             final int numberSelectedIndices = randomIntBetween(1, indexNames.size());
@@ -232,18 +265,36 @@ public class TransportClusterStateActionTests extends ESTestCase {
         request.nodes(randomBoolean());
         request.routingTable(randomBoolean());
         request.blocks(randomBoolean());
-        request.customs(randomBoolean());
+        request.customs(true);
+        request.multiproject(multipleProjects);
         return request;
     }
 
     private static ClusterState buildClusterState(ProjectMetadata.Builder... projects) {
         final Metadata.Builder metadataBuilder = Metadata.builder();
+        metadataBuilder.put(
+            ReservedStateMetadata.builder("file_settings")
+                .version(43L)
+                .putHandler(new ReservedStateHandlerMetadata("cluster_settings", Set.of("setting_1", "setting_2")))
+                .build()
+        );
         Arrays.stream(projects).forEach(metadataBuilder::put);
         final var metadata = metadataBuilder.build();
 
-        return ClusterState.builder(new ClusterName(randomAlphaOfLengthBetween(4, 12)))
-            .metadata(metadata)
+        ClusterState.Builder csBuilder = ClusterState.builder(new ClusterName(randomAlphaOfLengthBetween(4, 12)));
+        ProjectStateRegistry.Builder psBuilder = ProjectStateRegistry.builder();
+        for (ProjectMetadata.Builder project : projects) {
+            psBuilder.putReservedStateMetadata(
+                project.getId(),
+                ReservedStateMetadata.builder("file_settings")
+                    .version(43L)
+                    .putHandler(new ReservedStateHandlerMetadata("project_settings", Set.of("setting_1")))
+                    .build()
+            ).putProjectSettings(project.getId(), Settings.builder().put("setting_1", randomIdentifier()).build());
+        }
+        return csBuilder.metadata(metadata)
             .routingTable(GlobalRoutingTableTestHelper.buildRoutingTable(metadata, RoutingTable.Builder::addAsNew))
+            .putCustom(ProjectStateRegistry.TYPE, psBuilder.build())
             .build();
     }
 

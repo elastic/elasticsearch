@@ -1,7 +1,7 @@
 {
   "inference.delete": {
     "documentation": {
-      "url": "https://www.elastic.co/guide/en/elasticsearch/reference/master/delete-inference-api.html",
+      "url": "https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-inference-delete",
       "description": "Delete an inference endpoint"
     },
     "stability": "stable",
@@ -32,8 +32,15 @@
           ],
           "parts": {
             "task_type": {
-              "type": "string",
-              "description": "The task type"
+              "type": "enum",
+              "description": "The task type",
+              "options": [
+                "sparse_embedding",
+                "text_embedding",
+                "rerank",
+                "completion",
+                "chat_completion"
+              ]
             },
             "inference_id": {
               "type": "string",
@@ -46,13 +53,13 @@
     "params": {
       "dry_run": {
         "type": "boolean",
-        "description": "If true the endpoint will not be deleted and a list of ingest processors which reference this endpoint will be returned.",
-        "required": false
+        "default": false,
+        "description": "If true the endpoint will not be deleted and a list of ingest processors which reference this endpoint will be returned."
       },
       "force": {
         "type": "boolean",
-        "description": "If true the endpoint will be forcefully stopped (regardless of whether or not it is referenced by any ingest processors or semantic text fields).",
-        "required": false
+        "default": false,
+        "description": "If true the endpoint will be forcefully stopped (regardless of whether or not it is referenced by any ingest processors or semantic text fields)."
       }
     }
   }

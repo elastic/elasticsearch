@@ -1,0 +1,152 @@
+// PRESENT-specific tests
+
+PRESENT with no filter
+required_capability: fn_present
+
+// tag::present[]
+FROM employees
+| STATS is_present = PRESENT(languages)
+// end::present[]
+;
+
+// tag::present-result[]
+is_present:boolean
+true
+// end::present-result[]
+;
+
+PRESENT with grouping
+required_capability: fn_present
+
+// tag::present-by[]
+FROM employees
+| STATS is_present = PRESENT(salary) BY languages
+// end::present-by[]
+;
+ignoreOrder:true
+
+// tag::present-by-result[]
+is_present:boolean    | languages:integer
+true                  | 1
+true                  | 2
+true                  | 3
+true                  | 4
+true                  | 5
+true                  | null
+// end::present-by-result[]
+;
+
+PRESENT with filter
+required_capability: fn_present
+
+FROM employees
+| WHERE emp_no IN (10019, 10020)
+| STATS is_present = PRESENT(languages)
+;
+
+is_present:boolean
+true
+;
+
+Not PRESENT with filter
+required_capability: fn_present
+
+FROM employees
+| WHERE emp_no == 10020
+| STATS is_present = PRESENT(languages)
+;
+
+is_present:boolean
+false
+;
+
+Not PRESENT with null evaluated field
+required_capability: fn_present
+
+FROM employees
+| EVAL null_field = null
+| STATS is_present = PRESENT(null_field)
+;
+
+is_present:boolean
+false
+;
+
+PRESENT with an expression
+required_capability: fn_present
+
+FROM employees
+| STATS is_present = PRESENT(salary + 10)
+;
+
+is_present:boolean
+true
+;
+
+Some fields are not PRESENT with grouping
+required_capability: fn_present
+
+FROM employees
+| WHERE gender IS NULL
+| STATS is_present = PRESENT(gender) BY languages
+;
+ignoreOrder:true
+
+is_present:boolean     | languages:integer
+false                  | 4
+false                  | 5
+false                  | 1
+false                  | 2
+;
+
+PRESENT with per-agg filter
+required_capability: fn_present
+
+FROM employees
+| STATS p_true = PRESENT(salary) WHERE gender == "M",
+        p_false = PRESENT(salary) WHERE gender == "X"
+;
+
+p_true:boolean    | p_false:boolean
+true              | false
+;
+
+PRESENT with per-agg filter with toInteger
+required_capability: fn_present
+
+FROM employees
+| STATS p_true = TO_INTEGER(PRESENT(salary)) WHERE gender == "M",
+        p_false = TO_INTEGER(PRESENT(salary)) WHERE gender == "X"
+;
+
+p_true:integer    | p_false:integer
+1                 | 0
+;
+
+TO_INTEGER(PRESENT) with filter returns 1
+required_capability: fn_present
+
+FROM employees
+| WHERE emp_no IN (10019, 10020)
+| STATS is_present = TO_INTEGER(PRESENT(languages))
+;
+
+is_present:integer
+1
+;
+
+TO_INTEGER(PRESENT) with filter returns 0
+required_capability: fn_present
+
+// tag::present-as-integer[]
+FROM employees
+| WHERE emp_no == 10020
+| STATS is_present = TO_INTEGER(PRESENT(languages))
+// end::present-as-integer[]
+;
+
+// tag::present-as-integer-result[]
+is_present:integer
+0
+// end::present-as-integer-result[]
+;

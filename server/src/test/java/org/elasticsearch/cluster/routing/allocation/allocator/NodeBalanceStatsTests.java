@@ -27,6 +27,9 @@ import java.util.Map;
 public class NodeBalanceStatsTests extends AbstractWireSerializingTestCase<ClusterBalanceStats.NodeBalanceStats> {
     private static final String UNKNOWN = "UNKNOWN";
     private static final int UNDESIRED_SHARD_ALLOCATION_DEFAULT_VALUE = -1;
+    private static final TransportVersion NODE_WEIGHTS_ADDED_TO_NODE_BALANCE_STATS = TransportVersion.fromName(
+        "node_weights_added_to_node_balance_stats"
+    );
 
     @Override
     protected Writeable.Reader<ClusterBalanceStats.NodeBalanceStats> instanceReader() {
@@ -62,7 +65,7 @@ public class NodeBalanceStatsTests extends AbstractWireSerializingTestCase<Clust
         final var oldVersion = TransportVersionUtils.randomVersionBetween(
             random(),
             TransportVersions.V_8_12_0,
-            TransportVersionUtils.getPreviousVersion(TransportVersions.NODE_WEIGHTS_ADDED_TO_NODE_BALANCE_STATS)
+            TransportVersionUtils.getPreviousVersion(NODE_WEIGHTS_ADDED_TO_NODE_BALANCE_STATS)
         );
         ClusterBalanceStats.NodeBalanceStats deserialized = copyInstance(instance, oldVersion);
 
@@ -80,7 +83,7 @@ public class NodeBalanceStatsTests extends AbstractWireSerializingTestCase<Clust
         // Serialization changes based on this version
         final var oldVersion = TransportVersionUtils.randomVersionBetween(
             random(),
-            TransportVersions.NODE_WEIGHTS_ADDED_TO_NODE_BALANCE_STATS,
+            NODE_WEIGHTS_ADDED_TO_NODE_BALANCE_STATS,
             TransportVersion.current()
         );
         ClusterBalanceStats.NodeBalanceStats deserialized = copyInstance(instance, oldVersion);

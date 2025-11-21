@@ -1,57 +1,66 @@
 {
-  "cluster.get_component_template":{
-    "documentation":{
-      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/master/indices-component-template.html",
-      "description":"Returns one or more component templates"
+  "cluster.get_component_template": {
+    "documentation": {
+      "url": "https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-cluster-put-component-template",
+      "description": "Get component templates"
     },
-    "stability":"stable",
-    "visibility":"public",
-    "headers":{
-      "accept": [ "application/json"]
+    "stability": "stable",
+    "visibility": "public",
+    "headers": {
+      "accept": [
+        "application/json"
+      ]
     },
-    "url":{
-      "paths":[
+    "url": {
+      "paths": [
         {
-          "path":"/_component_template",
-          "methods":[
+          "path": "/_component_template",
+          "methods": [
             "GET"
           ]
         },
         {
-          "path":"/_component_template/{name}",
-          "methods":[
+          "path": "/_component_template/{name}",
+          "methods": [
             "GET"
           ],
-          "parts":{
-            "name":{
-              "type":"list",
-              "description":"The comma separated names of the component templates"
+          "parts": {
+            "name": {
+              "type": "string",
+              "description": "The name of the component template. Wildcard (`*`) expressions are supported."
             }
           }
         }
       ]
     },
-    "params":{
-      "master_timeout":{
-        "type":"time",
-        "description":"Timeout for waiting for new cluster state in case it is blocked"
+    "params": {
+      "master_timeout": {
+        "type": "time",
+        "default": "30s",
+        "description": "Timeout for waiting for new cluster state in case it is blocked"
       },
-      "local":{
-        "deprecated":true,
-        "type":"boolean",
-        "description":"Return local information, do not retrieve the state from master node (default: false)"
+      "local": {
+        "deprecated": {
+          "version": "9.0.0",
+          "description": "This parameter has no effect, is now deprecated, and will be removed in a future version."
+        },
+        "type": "boolean",
+        "default": false,
+        "description": "Return local information, do not retrieve the state from master node (default: false)"
       },
-      "include_defaults":{
-        "type":"boolean",
-        "description":"Return all default configurations for the component template (default: false)"
+      "include_defaults": {
+        "type": "boolean",
+        "default": false,
+        "description": "Return all default configurations for the component template (default: false)"
       },
-      "flat_settings":{
-        "type":"boolean",
-        "description":"Return settings in flat format (default: false)"
+      "flat_settings": {
+        "type": "boolean",
+        "default": false,
+        "description": "Return settings in flat format (default: false)"
       },
-      "settings_filter":{
-        "type":"string",
-        "description":"Filter out results, for example to filter out sensitive information. Supports wildcards or full settings keys"
+      "settings_filter": {
+        "type": "string",
+        "description": "Filter out results, for example to filter out sensitive information. Supports wildcards or full settings keys"
       }
     }
   }

@@ -111,6 +111,7 @@ GET /my-index-000001/_analyze
   "text": "I'm delighted about it :("
 }
 ```
+% TEST[continued]
 
 The filter produces the following text:
 

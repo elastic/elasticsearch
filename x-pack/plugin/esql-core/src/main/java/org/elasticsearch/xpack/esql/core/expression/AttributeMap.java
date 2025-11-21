@@ -244,7 +244,6 @@ public final class AttributeMap<E> implements Map<Attribute, E> {
 
     public Set<String> attributeNames() {
         Set<String> s = Sets.newLinkedHashSetWithExpectedSize(size());
-
         for (AttributeWrapper aw : delegate.keySet()) {
             s.add(aw.attr.name());
         }
@@ -391,6 +390,12 @@ public final class AttributeMap<E> implements Map<Attribute, E> {
     public static <E> AttributeMap<E> of(Attribute key, E value) {
         final AttributeMap<E> map = new AttributeMap<>();
         map.add(key, value);
+        return map;
+    }
+
+    public static <E> AttributeMap<E> mapAll(Collection<? extends E> collection, Function<E, Attribute> keyMapper) {
+        final AttributeMap<E> map = new AttributeMap<>();
+        collection.forEach(e -> map.add(keyMapper.apply(e), e));
         return map;
     }
 

@@ -1,0 +1,145 @@
+setup:
+  - requires:
+      cluster_features: "inference.semantic_text_usage"
+      reason: semantic text stats added to inference usage
+
+---
+"Test usage given default endpoints":
+
+  - do:
+      xpack.usage: {}
+
+  - match: { inference.available: true }
+  - match: { inference.enabled: true }
+  - length: { inference.models: 10 }
+
+  - match: { inference.models.0.service: "_all" }
+  - match: { inference.models.0.task_type: "CHAT_COMPLETION" }
+  - match: { inference.models.0.count: 0 }
+  - not_exists: inference.models.0.semantic_text
+
+  - match: { inference.models.1.service: "_all" }
+  - match: { inference.models.1.task_type: "COMPLETION" }
+  - match: { inference.models.1.count: 0 }
+  - not_exists: inference.models.1.semantic_text
+
+  - match: { inference.models.2.service: "_all" }
+  - match: { inference.models.2.task_type: "RERANK" }
+  - match: { inference.models.2.count: 1 }
+  - not_exists: inference.models.2.semantic_text
+
+  - match: { inference.models.3.service: "_all" }
+  - match: { inference.models.3.task_type: "SPARSE_EMBEDDING" }
+  - match: { inference.models.3.count: 1 }
+  - match: { inference.models.3.semantic_text: { field_count: 0, indices_count: 0, inference_id_count: 0} }
+
+  - match: { inference.models.4.service: "_all" }
+  - match: { inference.models.4.task_type: "TEXT_EMBEDDING" }
+  - match: { inference.models.4.count: 1 }
+  - match: { inference.models.4.semantic_text: { field_count: 0, indices_count: 0, inference_id_count: 0} }
+
+  - match: { inference.models.5.service: "_elasticsearch__elser_model_2" }
+  - match: { inference.models.5.task_type: "SPARSE_EMBEDDING" }
+  - match: { inference.models.5.count: 1 }
+  - match: { inference.models.5.semantic_text: { field_count: 0, indices_count: 0, inference_id_count: 0} }
+
+  - match: { inference.models.6.service: "_elasticsearch__multilingual-e5-small" }
+  - match: { inference.models.6.task_type: "TEXT_EMBEDDING" }
+  - match: { inference.models.6.count: 1 }
+  - match: { inference.models.6.semantic_text: { field_count: 0, indices_count: 0, inference_id_count: 0} }
+
+  - match: { inference.models.7.service: "elasticsearch" }
+  - match: { inference.models.7.task_type: "RERANK" }
+  - match: { inference.models.7.count: 1 }
+  - not_exists: inference.models.7.semantic_text
+
+  - match: { inference.models.8.service: "elasticsearch" }
+  - match: { inference.models.8.task_type: "SPARSE_EMBEDDING" }
+  - match: { inference.models.8.count: 1 }
+  - match: { inference.models.8.semantic_text: { field_count: 0, indices_count: 0, inference_id_count: 0} }
+
+  - match: { inference.models.9.service: "elasticsearch" }
+  - match: { inference.models.9.task_type: "TEXT_EMBEDDING" }
+  - match: { inference.models.9.count: 1 }
+  - match: { inference.models.9.semantic_text: { field_count: 0, indices_count: 0, inference_id_count: 0} }
+
+---
+"Test usage given default endpoints and semantic_text fields":
+
+  - do:
+      indices.create:
+        index: test-index-1
+        body:
+          mappings:
+            properties:
+              field_1:
+                type: semantic_text
+              field_2:
+                type: semantic_text
+                inference_id: .multilingual-e5-small-elasticsearch
+
+  - do:
+      indices.create:
+        index: test-index-2
+        body:
+          mappings:
+            properties:
+              field_1:
+                type: semantic_text
+
+  - do:
+      xpack.usage: {}
+
+  - match: { inference.available: true }
+  - match: { inference.enabled: true }
+  - length: { inference.models: 10 }
+
+  - match: { inference.models.0.service: "_all" }
+  - match: { inference.models.0.task_type: "CHAT_COMPLETION" }
+  - match: { inference.models.0.count: 0 }
+  - not_exists: inference.models.0.semantic_text
+
+  - match: { inference.models.1.service: "_all" }
+  - match: { inference.models.1.task_type: "COMPLETION" }
+  - match: { inference.models.1.count: 0 }
+  - not_exists: inference.models.1.semantic_text
+
+  - match: { inference.models.2.service: "_all" }
+  - match: { inference.models.2.task_type: "RERANK" }
+  - match: { inference.models.2.count: 1 }
+  - not_exists: inference.models.2.semantic_text
+
+  - match: { inference.models.3.service: "_all" }
+  - match: { inference.models.3.task_type: "SPARSE_EMBEDDING" }
+  - match: { inference.models.3.count: 1 }
+  - match: { inference.models.3.semantic_text: { field_count: 2, indices_count: 2, inference_id_count: 1} }
+
+  - match: { inference.models.4.service: "_all" }
+  - match: { inference.models.4.task_type: "TEXT_EMBEDDING" }
+  - match: { inference.models.4.count: 1 }
+  - match: { inference.models.4.semantic_text: { field_count: 1, indices_count: 1, inference_id_count: 1} }
+
+  - match: { inference.models.5.service: "_elasticsearch__elser_model_2" }
+  - match: { inference.models.5.task_type: "SPARSE_EMBEDDING" }
+  - match: { inference.models.5.count: 1 }
+  - match: { inference.models.5.semantic_text: { field_count: 2, indices_count: 2, inference_id_count: 1} }
+
+  - match: { inference.models.6.service: "_elasticsearch__multilingual-e5-small" }
+  - match: { inference.models.6.task_type: "TEXT_EMBEDDING" }
+  - match: { inference.models.6.count: 1 }
+  - match: { inference.models.6.semantic_text: { field_count: 1, indices_count: 1, inference_id_count: 1} }
+
+  - match: { inference.models.7.service: "elasticsearch" }
+  - match: { inference.models.7.task_type: "RERANK" }
+  - match: { inference.models.7.count: 1 }
+  - not_exists: inference.models.7.semantic_text
+
+  - match: { inference.models.8.service: "elasticsearch" }
+  - match: { inference.models.8.task_type: "SPARSE_EMBEDDING" }
+  - match: { inference.models.8.count: 1 }
+  - match: { inference.models.8.semantic_text: { field_count: 2, indices_count: 2, inference_id_count: 1} }
+
+  - match: { inference.models.9.service: "elasticsearch" }
+  - match: { inference.models.9.task_type: "TEXT_EMBEDDING" }
+  - match: { inference.models.9.count: 1 }
+  - match: { inference.models.9.semantic_text: { field_count: 1, indices_count: 1, inference_id_count: 1} }

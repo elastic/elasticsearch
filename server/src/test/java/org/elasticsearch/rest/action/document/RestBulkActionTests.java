@@ -10,6 +10,7 @@
 package org.elasticsearch.rest.action.document;
 
 import org.apache.lucene.util.SetOnce;
+import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.bulk.BulkRequest;
@@ -18,12 +19,12 @@ import org.elasticsearch.action.bulk.IncrementalBulkService;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Releasable;
-import org.elasticsearch.http.HttpBody;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexingPressure;
 import org.elasticsearch.rest.RestChannel;
@@ -31,6 +32,7 @@ import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.client.NoOpNodeClient;
+import org.elasticsearch.test.rest.FakeHttpBodyStream;
 import org.elasticsearch.test.rest.FakeRestChannel;
 import org.elasticsearch.test.rest.FakeRestRequest;
 import org.elasticsearch.xcontent.XContentType;
@@ -42,9 +44,11 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
 
+import static java.util.Collections.emptySet;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
+import static org.junit.Assert.assertThrows;
 import static org.mockito.Mockito.mock;
 
 /**
@@ -201,6 +205,27 @@ public class RestBulkActionTests extends ESTestCase {
         }
     }
 
+    public void testIncrementalBulkMissingContent() {
+        assertEquals(
+            "request body is required",
+            assertThrows(
+                ElasticsearchParseException.class,
+                () -> new RestBulkAction(
+                    Settings.EMPTY,
+                    ClusterSettings.createBuiltInClusterSettings(),
+                    new IncrementalBulkService(mock(Client.class), mock(IndexingPressure.class), MeterRegistry.NOOP)
+                ).handleRequest(
+                    new FakeRestRequest.Builder(xContentRegistry()).withPath("my_index/_bulk")
+                        .withContentLength(0)
+                        .withBody(new FakeHttpBodyStream())
+                        .build(),
+                    mock(RestChannel.class),
+                    mock(NodeClient.class)
+                )
+            ).getMessage()
+        );
+    }
+
     public void testIncrementalParsing() {
         ArrayList<DocWriteRequest<?>> docs = new ArrayList<>();
         AtomicBoolean isLast = new AtomicBoolean(false);
@@ -208,21 +233,7 @@ public class RestBulkActionTests extends ESTestCase {
 
         FakeRestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withPath("my_index/_bulk")
             .withMethod(RestRequest.Method.POST)
-            .withBody(new HttpBody.Stream() {
-                @Override
-                public void close() {}
-
-                @Override
-                public ChunkHandler handler() {
-                    return null;
-                }
-
-                @Override
-                public void addTracingHandler(ChunkHandler chunkHandler) {}
-
-                @Override
-                public void setHandler(ChunkHandler chunkHandler) {}
-
+            .withBody(new FakeHttpBodyStream() {
                 @Override
                 public void next() {
                     next.set(true);
@@ -240,7 +251,8 @@ public class RestBulkActionTests extends ESTestCase {
                 null,
                 null,
                 null,
-                MeterRegistry.NOOP.getLongHistogram(IncrementalBulkService.CHUNK_WAIT_TIME_HISTOGRAM_NAME)
+                MeterRegistry.NOOP.getLongHistogram(IncrementalBulkService.CHUNK_WAIT_TIME_HISTOGRAM_NAME),
+                emptySet()
             ) {
 
                 @Override

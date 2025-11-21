@@ -19,7 +19,6 @@ package org.elasticsearch.xpack.esql.enrich;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
-import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamOutput;
@@ -53,8 +52,8 @@ public class MatchConfigSerializationTests extends AbstractWireSerializingTestCa
         // Implement logic to create a random MatchConfig instance
         String name = randomAlphaOfLengthBetween(1, 100);
         int channel = randomInt();
-        DataType type = randomFrom(DataType.types());
-        return new MatchConfig(new FieldAttribute.FieldName(name), channel, type);
+        DataType type = randomValueOtherThanMany(t -> false == t.supportedVersion().supportedLocally(), () -> randomFrom(DataType.types()));
+        return new MatchConfig(name, channel, type);
     }
 
     @Override
@@ -66,8 +65,8 @@ public class MatchConfigSerializationTests extends AbstractWireSerializingTestCa
         int i = randomIntBetween(1, 3);
         return switch (i) {
             case 1 -> {
-                String name = randomValueOtherThan(instance.fieldName().string(), () -> randomAlphaOfLengthBetween(1, 100));
-                yield new MatchConfig(new FieldAttribute.FieldName(name), instance.channel(), instance.type());
+                String name = randomValueOtherThan(instance.fieldName(), () -> randomAlphaOfLengthBetween(1, 100));
+                yield new MatchConfig(name, instance.channel(), instance.type());
             }
             case 2 -> {
                 int channel = randomValueOtherThan(instance.channel(), () -> randomInt());

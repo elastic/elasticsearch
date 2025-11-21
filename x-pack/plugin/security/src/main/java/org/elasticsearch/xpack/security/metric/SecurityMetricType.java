@@ -19,6 +19,25 @@ public enum SecurityMetricType {
         new SecurityMetricInfo("es.security.authc.api_key.time", "Time it took (in nanoseconds) to execute API key authentication.", "ns")
     ),
 
+    CLOUD_AUTHC_API_KEY(
+        SecurityMetricGroup.AUTHC,
+        new SecurityMetricInfo(
+            "es.security.authc.cloud_api_key.success.total",
+            "Number of successful cloud API key authentications.",
+            "count"
+        ),
+        new SecurityMetricInfo(
+            "es.security.authc.cloud_api_key.failures.total",
+            "Number of failed cloud API key authentications.",
+            "count"
+        ),
+        new SecurityMetricInfo(
+            "es.security.authc.cloud_api_key.time",
+            "Time it took (in nanoseconds) to execute cloud API key authentication.",
+            "ns"
+        )
+    ),
+
     AUTHC_SERVICE_ACCOUNT(
         SecurityMetricGroup.AUTHC,
         new SecurityMetricInfo(

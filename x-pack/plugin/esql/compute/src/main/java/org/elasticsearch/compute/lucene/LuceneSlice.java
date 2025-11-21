@@ -16,6 +16,7 @@ import java.util.List;
  */
 public record LuceneSlice(
     int slicePosition,
+    boolean queryHead,
     ShardContext shardContext,
     List<PartialLeafReaderContext> leaves,
     Weight weight,

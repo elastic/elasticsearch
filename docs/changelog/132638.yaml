@@ -1,5 +1,0 @@
-pr: 132638
-summary: Better error message for sequences with only one clause plus UNTIL
-area: EQL
-type: bug
-issues: []

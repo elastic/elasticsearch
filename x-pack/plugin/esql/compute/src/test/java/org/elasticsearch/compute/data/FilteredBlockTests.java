@@ -273,6 +273,24 @@ public class FilteredBlockTests extends ESTestCase {
             Releasables.close(obj);
         }
         Releasables.close(bytesRefVector, bytesRefBlock);
+
+        var aggregateMetricDoubleBlock = blockFactory.newAggregateMetricDoubleBlock(
+            new double[] { 1.1, 2.2, 3.3, 4.4 },
+            new double[] { 5.5, 6.6, 7.7, 8.8 },
+            new double[] { 9.9, 10.1, 11.11, 12.12 },
+            new int[] { 10, 20, 30, 40 },
+            4
+        );
+        for (Releasable obj : List.of(aggregateMetricDoubleBlock.filter(0, 2))) {
+            String s = obj.toString();
+            assertThat(s, containsString("[1.1, 3.3]"));
+            assertThat(s, containsString("[5.5, 7.7]"));
+            assertThat(s, containsString("[9.9, 11.11]"));
+            assertThat(s, containsString("[10, 30]"));
+            assertThat(s, containsString("positions=2"));
+            Releasables.close(obj);
+        }
+        Releasables.close(aggregateMetricDoubleBlock);
     }
 
     public void testFilterToStringMultiValue() {

@@ -5,6 +5,8 @@
  * 2.0.
  */
 
+import org.elasticsearch.gradle.internal.AbstractDependenciesTask
+
 apply plugin: 'elasticsearch.internal-es-plugin'
 apply plugin: 'elasticsearch.internal-cluster-test'
 apply plugin: 'elasticsearch.internal-yaml-rest-test'
@@ -36,9 +38,8 @@ dependencies {
   testImplementation(project(':x-pack:plugin:inference:qa:test-service-plugin'))
   testImplementation project(':modules:reindex')
   testImplementation project(':modules:mapper-extras')
+  testImplementation project(':x-pack:plugin:ml')
   clusterPlugins project(':x-pack:plugin:inference:qa:test-service-plugin')
-
-  api "com.ibm.icu:icu4j:${versions.icu4j}"
 
   runtimeOnly 'com.google.guava:guava:32.0.1-jre'
   implementation 'com.google.code.gson:gson:2.10'
@@ -111,7 +112,7 @@ dependencies {
   runtimeOnly "org.slf4j:slf4j-nop:${versions.slf4j}"
 }
 
-tasks.named("dependencyLicenses").configure {
+tasks.withType(AbstractDependenciesTask).configureEach {
   mapping from: /google-auth-.*/, to: 'google-auth'
   mapping from: /google-http-.*/, to: 'google-http'
   mapping from: /opencensus.*/, to: 'opencensus'

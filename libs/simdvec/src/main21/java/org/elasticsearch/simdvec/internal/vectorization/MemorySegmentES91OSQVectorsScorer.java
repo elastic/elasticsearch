@@ -29,7 +29,7 @@ import java.nio.ByteOrder;
 import static org.apache.lucene.index.VectorSimilarityFunction.EUCLIDEAN;
 import static org.apache.lucene.index.VectorSimilarityFunction.MAXIMUM_INNER_PRODUCT;
 
-/** Panamized scorer for quantized vectors stored as an {@link IndexInput}. */
+/** Panamized scorer for quantized vectors stored as a {@link MemorySegment}. */
 public final class MemorySegmentES91OSQVectorsScorer extends ES91OSQVectorsScorer {
 
     private static final VectorSpecies<Integer> INT_SPECIES_128 = IntVector.SPECIES_128;

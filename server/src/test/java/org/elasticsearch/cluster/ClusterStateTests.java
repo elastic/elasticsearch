@@ -9,7 +9,6 @@
 package org.elasticsearch.cluster;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.rollover.RolloverInfo;
 import org.elasticsearch.cluster.block.ClusterBlock;
@@ -26,6 +25,8 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.MetadataTests;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
+import org.elasticsearch.cluster.metadata.ReservedStateHandlerMetadata;
+import org.elasticsearch.cluster.metadata.ReservedStateMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
@@ -44,6 +45,9 @@ import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Iterators;
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
@@ -85,8 +89,10 @@ import static java.util.Collections.emptySet;
 import static java.util.Collections.singletonMap;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_VERSION_CREATED;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertToXContentEquivalent;
+import static org.hamcrest.Matchers.aMapWithSize;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
@@ -491,6 +497,7 @@ public class ClusterStateTests extends ESTestCase {
                         "indices": {
                           "common-index": {
                             "version": 2,
+                            "transport_version" : "0",
                             "mapping_version": 1,
                             "settings_version": 1,
                             "aliases_version": 1,
@@ -515,8 +522,7 @@ public class ClusterStateTests extends ESTestCase {
                             "event_ingested_range": { "shards": [] }
                           }
                         },
-                        "index-graveyard": { "tombstones": [] },
-                        "reserved_state": {}
+                        "index-graveyard": { "tombstones": [] }
                       },
                       {
                         "id": "3LftaL7hgfXAsF60Gm6jcD",
@@ -524,6 +530,7 @@ public class ClusterStateTests extends ESTestCase {
                         "indices": {
                           "another-index": {
                             "version": 2,
+                            "transport_version" : "0",
                             "mapping_version": 1,
                             "settings_version": 1,
                             "aliases_version": 1,
@@ -549,6 +556,7 @@ public class ClusterStateTests extends ESTestCase {
                           },
                           "common-index": {
                             "version": 2,
+                            "transport_version" : "0",
                             "mapping_version": 1,
                             "settings_version": 1,
                             "aliases_version": 1,
@@ -573,15 +581,13 @@ public class ClusterStateTests extends ESTestCase {
                             "event_ingested_range": { "shards": [] }
                           }
                         },
-                        "index-graveyard": { "tombstones": [] },
-                        "reserved_state": {}
+                        "index-graveyard": { "tombstones": [] }
                       },
                       {
                         "id": "WHyuJ0uqBYOPgHX9kYUXlZ",
                         "templates": {},
                         "indices": {},
-                        "index-graveyard": { "tombstones": [] },
-                        "reserved_state": {}
+                        "index-graveyard": { "tombstones": [] }
                       }
                     ],
                     "reserved_state": {}
@@ -810,6 +816,17 @@ public class ClusterStateTests extends ESTestCase {
                           "project.setting": "42",
                           "project.setting2": "43"
                         },
+                        "reserved_state": {
+                          "file_settings": {
+                            "handlers": {
+                              "settings": {
+                                "keys": ["project.setting", "project.setting2"]
+                              }
+                            },
+                            "version": 42,
+                            "errors": null
+                          }
+                        },
                         "marked_for_deletion": true
                       }
                     ],
@@ -928,6 +945,15 @@ public class ClusterStateTests extends ESTestCase {
                     .putProjectSettings(
                         projectId1,
                         Settings.builder().put(PROJECT_SETTING.getKey(), 42).put(PROJECT_SETTING2.getKey(), 43).build()
+                    )
+                    .putReservedStateMetadata(
+                        projectId1,
+                        ReservedStateMetadata.builder("file_settings")
+                            .putHandler(
+                                new ReservedStateHandlerMetadata("settings", Set.of(PROJECT_SETTING.getKey(), PROJECT_SETTING2.getKey()))
+                            )
+                            .version(42L)
+                            .build()
                     )
                     .markProjectForDeletion(projectId1)
                     .build()
@@ -1082,6 +1108,7 @@ public class ClusterStateTests extends ESTestCase {
                             "indices": {
                               "index": {
                                 "version": 1,
+                                "transport_version" : "0",
                                 "mapping_version": 1,
                                 "settings_version": 1,
                                 "aliases_version": 1,
@@ -1358,6 +1385,7 @@ public class ClusterStateTests extends ESTestCase {
                         "indices" : {
                           "index" : {
                             "version" : 1,
+                            "transport_version" : "0",
                             "mapping_version" : 1,
                             "settings_version" : 1,
                             "aliases_version" : 1,
@@ -1640,6 +1668,7 @@ public class ClusterStateTests extends ESTestCase {
                         "indices" : {
                           "index" : {
                             "version" : 1,
+                            "transport_version" : "0",
                             "mapping_version" : 1,
                             "settings_version" : 1,
                             "aliases_version" : 1,
@@ -1831,6 +1860,7 @@ public class ClusterStateTests extends ESTestCase {
                 "indices" : {
                   "index" : {
                     "version" : 2,
+                    "transport_version" : "0",
                     "mapping_version" : 1,
                     "settings_version" : 1,
                     "aliases_version" : 1,
@@ -2056,7 +2086,7 @@ public class ClusterStateTests extends ESTestCase {
     }
 
     public void testGetMinTransportVersion() throws IOException {
-        assertEquals(TransportVersions.MINIMUM_COMPATIBLE, ClusterState.EMPTY_STATE.getMinTransportVersion());
+        assertEquals(TransportVersion.minimumCompatible(), ClusterState.EMPTY_STATE.getMinTransportVersion());
 
         var builder = ClusterState.builder(buildClusterState());
         int numNodes = randomIntBetween(2, 20);
@@ -2072,7 +2102,7 @@ public class ClusterStateTests extends ESTestCase {
         assertThat(newState.getMinTransportVersion(), equalTo(minVersion));
 
         assertEquals(
-            TransportVersions.MINIMUM_COMPATIBLE,
+            TransportVersion.minimumCompatible(),
             ClusterState.builder(newState)
                 .blocks(ClusterBlocks.builder().addGlobalBlock(GatewayService.STATE_NOT_RECOVERED_BLOCK))
                 .build()
@@ -2240,5 +2270,26 @@ public class ClusterStateTests extends ESTestCase {
         }
 
         return Math.toIntExact(chunkCount);
+    }
+
+    public void testSerialization() throws IOException {
+        ClusterState clusterState = buildClusterState();
+        BytesStreamOutput out = new BytesStreamOutput();
+        clusterState.writeTo(out);
+
+        // check it deserializes ok
+        NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry(ClusterModule.getNamedWriteables());
+        ClusterState deserialisedClusterState = ClusterState.readFrom(
+            new NamedWriteableAwareStreamInput(out.bytes().streamInput(), namedWriteableRegistry),
+            null
+        );
+
+        // check it matches the original object
+        Metadata deserializedMetadata = deserialisedClusterState.metadata();
+        assertThat(deserializedMetadata.projects(), aMapWithSize(1));
+        assertThat(deserializedMetadata.projects(), hasKey(ProjectId.DEFAULT));
+
+        assertThat(deserializedMetadata.getProject(ProjectId.DEFAULT).templates(), hasKey("template"));
+        assertThat(deserializedMetadata.getProject(ProjectId.DEFAULT).indices(), hasKey("index"));
     }
 }

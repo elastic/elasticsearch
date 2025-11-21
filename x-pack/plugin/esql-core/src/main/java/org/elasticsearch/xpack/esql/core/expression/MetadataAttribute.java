@@ -45,7 +45,8 @@ public class MetadataAttribute extends TypedAttribute {
         Map.entry(IgnoredFieldMapper.NAME, new MetadataAttributeConfiguration(DataType.KEYWORD, true)),
         Map.entry(SourceFieldMapper.NAME, new MetadataAttributeConfiguration(DataType.SOURCE, false)),
         Map.entry(IndexModeFieldMapper.NAME, new MetadataAttributeConfiguration(DataType.KEYWORD, true)),
-        Map.entry(SCORE, new MetadataAttributeConfiguration(DataType.DOUBLE, false))
+        Map.entry(SCORE, new MetadataAttributeConfiguration(DataType.DOUBLE, false)),
+        Map.entry(TSID_FIELD, new MetadataAttributeConfiguration(DataType.TSID_DATA_TYPE, false))
     );
 
     private record MetadataAttributeConfiguration(DataType dataType, boolean searchable) {}
@@ -111,7 +112,16 @@ public class MetadataAttribute extends TypedAttribute {
     }
 
     @Override
-    protected MetadataAttribute clone(Source source, String name, DataType type, Nullability nullability, NameId id, boolean synthetic) {
+    protected MetadataAttribute clone(
+        Source source,
+        String qualifier,
+        String name,
+        DataType type,
+        Nullability nullability,
+        NameId id,
+        boolean synthetic
+    ) {
+        // Ignores qualifier, as metadata attributes do not have qualifiers.
         return new MetadataAttribute(source, name, type, nullability, id, synthetic, searchable);
     }
 
@@ -122,6 +132,13 @@ public class MetadataAttribute extends TypedAttribute {
 
     @Override
     public boolean isDimension() {
+        // Metadata attributes cannot be dimensions. I think?
+        return false;
+    }
+
+    @Override
+    public boolean isMetric() {
+        // Metadata attributes definitely cannot be metrics.
         return false;
     }
 
@@ -153,14 +170,13 @@ public class MetadataAttribute extends TypedAttribute {
     }
 
     @Override
-    @SuppressWarnings("checkstyle:EqualsHashCode")// equals is implemented in parent. See innerEquals instead
-    public int hashCode() {
-        return Objects.hash(super.hashCode(), searchable);
+    protected int innerHashCode(boolean ignoreIds) {
+        return Objects.hash(super.innerHashCode(ignoreIds), searchable);
     }
 
     @Override
-    protected boolean innerEquals(Object o) {
+    protected boolean innerEquals(Object o, boolean ignoreIds) {
         var other = (MetadataAttribute) o;
-        return super.innerEquals(other) && searchable == other.searchable;
+        return super.innerEquals(other, ignoreIds) && searchable == other.searchable;
     }
 }

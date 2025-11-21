@@ -22,13 +22,13 @@ package org.elasticsearch.index.codec.vectors.es818;
 import org.apache.lucene.codecs.hnsw.FlatVectorsScorer;
 import org.apache.lucene.index.KnnVectorValues;
 import org.apache.lucene.index.VectorSimilarityFunction;
-import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.VectorUtil;
 import org.apache.lucene.util.hnsw.RandomVectorScorer;
 import org.apache.lucene.util.hnsw.RandomVectorScorerSupplier;
 import org.apache.lucene.util.hnsw.UpdateableRandomVectorScorer;
-import org.elasticsearch.index.codec.vectors.BQSpaceUtils;
+import org.elasticsearch.index.codec.vectors.BQVectorUtils;
 import org.elasticsearch.index.codec.vectors.OptimizedScalarQuantizer;
+import org.elasticsearch.index.codec.vectors.es816.BinaryQuantizer;
 import org.elasticsearch.simdvec.ESVectorUtil;
 
 import java.io.IOException;
@@ -71,16 +71,18 @@ public class ES818BinaryFlatVectorsScorer implements FlatVectorsScorer {
             assert binarizedVectors.size() > 0 : "BinarizedByteVectorValues must have at least one vector for ES816BinaryFlatVectorsScorer";
             OptimizedScalarQuantizer quantizer = binarizedVectors.getQuantizer();
             float[] centroid = binarizedVectors.getCentroid();
-            // We make a copy as the quantization process mutates the input
-            float[] copy = ArrayUtil.copyOfSubArray(target, 0, target.length);
-            if (similarityFunction == COSINE) {
-                VectorUtil.l2normalize(copy);
-            }
-            target = copy;
+            assert similarityFunction != COSINE || BQVectorUtils.isUnitVector(target);
+            float[] scratch = new float[vectorValues.dimension()];
             int[] initial = new int[target.length];
-            byte[] quantized = new byte[BQSpaceUtils.B_QUERY * binarizedVectors.discretizedDimensions() / 8];
-            OptimizedScalarQuantizer.QuantizationResult queryCorrections = quantizer.scalarQuantize(target, initial, (byte) 4, centroid);
-            BQSpaceUtils.transposeHalfByte(initial, quantized);
+            byte[] quantized = new byte[BinaryQuantizer.B_QUERY * binarizedVectors.discretizedDimensions() / 8];
+            OptimizedScalarQuantizer.QuantizationResult queryCorrections = quantizer.scalarQuantize(
+                target,
+                scratch,
+                initial,
+                (byte) 4,
+                centroid
+            );
+            ESVectorUtil.transposeHalfByte(initial, quantized);
             return new RandomVectorScorer.AbstractRandomVectorScorer(vectorValues) {
                 @Override
                 public float score(int i) throws IOException {

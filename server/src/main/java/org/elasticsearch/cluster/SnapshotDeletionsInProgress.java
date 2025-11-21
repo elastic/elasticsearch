@@ -10,7 +10,6 @@
 package org.elasticsearch.cluster;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.cluster.ClusterState.Custom;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.common.UUIDs;
@@ -34,8 +33,6 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Set;
 
-import static org.elasticsearch.TransportVersions.PROJECT_ID_IN_SNAPSHOTS_DELETIONS_AND_REPO_CLEANUP;
-
 /**
  * Represents the in-progress snapshot deletions in the cluster state.
  */
@@ -44,6 +41,10 @@ public class SnapshotDeletionsInProgress extends AbstractNamedDiffable<Custom> i
     public static final SnapshotDeletionsInProgress EMPTY = new SnapshotDeletionsInProgress(List.of());
 
     public static final String TYPE = "snapshot_deletions";
+
+    private static final TransportVersion PROJECT_ID_IN_SNAPSHOTS_DELETIONS_AND_REPO_CLEANUP = TransportVersion.fromName(
+        "project_id_in_snapshots_deletions_and_repo_cleanup"
+    );
 
     // the list of snapshot deletion request entries
     private final List<Entry> entries;
@@ -176,7 +177,7 @@ public class SnapshotDeletionsInProgress extends AbstractNamedDiffable<Custom> i
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.MINIMUM_COMPATIBLE;
+        return TransportVersion.minimumCompatible();
     }
 
     @Override
@@ -247,7 +248,7 @@ public class SnapshotDeletionsInProgress extends AbstractNamedDiffable<Custom> i
 
         @SuppressForbidden(reason = "using a private constructor within the same file")
         public static Entry readFrom(StreamInput in) throws IOException {
-            final ProjectId projectId = in.getTransportVersion().onOrAfter(PROJECT_ID_IN_SNAPSHOTS_DELETIONS_AND_REPO_CLEANUP)
+            final ProjectId projectId = in.getTransportVersion().supports(PROJECT_ID_IN_SNAPSHOTS_DELETIONS_AND_REPO_CLEANUP)
                 ? ProjectId.readFrom(in)
                 : ProjectId.DEFAULT;
             return new Entry(
@@ -289,7 +290,7 @@ public class SnapshotDeletionsInProgress extends AbstractNamedDiffable<Custom> i
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            if (out.getTransportVersion().onOrAfter(PROJECT_ID_IN_SNAPSHOTS_DELETIONS_AND_REPO_CLEANUP)) {
+            if (out.getTransportVersion().supports(PROJECT_ID_IN_SNAPSHOTS_DELETIONS_AND_REPO_CLEANUP)) {
                 projectId.writeTo(out);
             } else {
                 if (ProjectId.DEFAULT.equals(projectId) == false) {

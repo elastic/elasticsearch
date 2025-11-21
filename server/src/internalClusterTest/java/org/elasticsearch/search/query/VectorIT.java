@@ -14,6 +14,7 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
 import org.elasticsearch.search.vectors.KnnSearchBuilder;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -22,6 +23,7 @@ import org.junit.Before;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Map;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
 
@@ -75,7 +77,7 @@ public class VectorIT extends ESIntegTestCase {
         float[] vector = new float[16];
         randomVector(vector, 25);
         int upperLimit = 35;
-        var query = new KnnSearchBuilder(VECTOR_FIELD, vector, 1, 1, null, null).addFilterQuery(
+        var query = new KnnSearchBuilder(VECTOR_FIELD, vector, 1, 1, 10f, null, null).addFilterQuery(
             QueryBuilders.rangeQuery(NUM_ID_FIELD).lte(35)
         );
         assertResponse(client().prepareSearch(INDEX_NAME).setKnnSearch(List.of(query)).setSize(1).setProfile(true), acornResponse -> {
@@ -131,7 +133,7 @@ public class VectorIT extends ESIntegTestCase {
         float[] vector = new float[16];
         randomVector(vector, 25);
         int upperLimit = 35;
-        var query = new KnnSearchBuilder(VECTOR_FIELD, vector, 1, 1, null, null);
+        var query = new KnnSearchBuilder(VECTOR_FIELD, vector, 1, 1, 10f, null, null);
         assertResponse(client().prepareSearch(INDEX_NAME).setKnnSearch(List.of(query)).setSize(1).setProfile(true), response -> {
             assertNotEquals(0, response.getHits().getHits().length);
             var profileResults = response.getProfileResults();
@@ -168,14 +170,55 @@ public class VectorIT extends ESIntegTestCase {
                         )
                         .sum();
                     assertTrue(
-                        "earlyTerminationVectorOps [" + earlyTerminationVectorOpsSum + "] is not lt vectorOps [" + vectorOpsSum + "]",
-                        earlyTerminationVectorOpsSum < vectorOpsSum
-                            // if both switch to brute-force due to excessive exploration, they will both equal to upperLimit
-                            || (earlyTerminationVectorOpsSum == vectorOpsSum && vectorOpsSum == upperLimit + 1)
+                        "earlyTerminationVectorOps [" + earlyTerminationVectorOpsSum + "] is not lte vectorOps [" + vectorOpsSum + "]",
+                        earlyTerminationVectorOpsSum <= vectorOpsSum
                     );
                 }
             );
         });
     }
 
+    public void testSparseVectorExists() throws IOException {
+        String indexName = "sparse_vector_index";
+        XContentBuilder mapping = XContentFactory.jsonBuilder()
+            .startObject()
+            .startObject("properties")
+            .startObject("id")
+            .field("type", "long")
+            .endObject()
+            .startObject(VECTOR_FIELD)
+            .field("type", "sparse_vector")
+            .endObject()
+            .startObject("embeddings")
+            .field("type", "sparse_vector")
+            .endObject()
+            .endObject()
+            .endObject();
+        Settings settings = Settings.builder()
+            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 10)
+            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+            .build();
+        prepareCreate("sparse_vector_index").setMapping(mapping).setSettings(settings).get();
+        int loops = 10;
+        for (int i = 0; i < loops; i++) {
+            prepareIndex(indexName).setSource(VECTOR_FIELD, List.of(Map.of("dim", 1.0f), Map.of("dim", 12.0f)), "id", 1).get();
+            prepareIndex(indexName).setSource(VECTOR_FIELD, Map.of("dim", 2.0f), "id", 2).get();
+            prepareIndex(indexName).setSource(VECTOR_FIELD, List.of(), "id", 3).get();
+            prepareIndex(indexName).setSource(VECTOR_FIELD, Map.of(), "id", 4).get();
+            refresh(indexName);
+        }
+        TermsAggregationBuilder builder = new TermsAggregationBuilder("agg").field("id").size(1000);
+        for (int i = 0; i < 10; i++) {
+            assertResponse(
+                client().prepareSearch(indexName)
+                    .setQuery(QueryBuilders.existsQuery(VECTOR_FIELD))
+                    .setTrackTotalHits(true)
+                    .setSize(30)
+                    .addAggregation(builder),
+                resp -> {
+                    assertEquals(3 * loops, resp.getHits().getTotalHits().value());
+                }
+            );
+        }
+    }
 }

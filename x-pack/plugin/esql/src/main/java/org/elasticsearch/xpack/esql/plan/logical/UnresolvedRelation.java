@@ -166,4 +166,12 @@ public class UnresolvedRelation extends LeafPlan implements Unresolvable, Teleme
     public String toString() {
         return UNRESOLVED_PREFIX + indexPattern.indexPattern();
     }
+
+    /**
+     * @return true if and only if this relation is being loaded in "time series mode",
+     *         which changes a number of behaviors in the planner.
+     */
+    public boolean isTimeSeriesMode() {
+        return indexMode == IndexMode.TIME_SERIES;
+    }
 }

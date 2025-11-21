@@ -41,6 +41,19 @@ public sealed interface BytesRefVector extends Vector permits ConstantBytesRefVe
     @Override
     BytesRefBlock keepMask(BooleanVector mask);
 
+    /**
+     * Make a deep copy of this {@link Vector} using the provided {@link BlockFactory},
+     * likely copying all data.
+     */
+    @Override
+    default BytesRefVector deepCopy(BlockFactory blockFactory) {
+        try (BytesRefBlock.Builder builder = blockFactory.newBytesRefBlockBuilder(getPositionCount())) {
+            builder.copyFrom(asBlock(), 0, getPositionCount());
+            builder.mvOrdering(Block.MvOrdering.DEDUPLICATED_AND_SORTED_ASCENDING);
+            return builder.build().asVector();
+        }
+    }
+
     @Override
     ReleasableIterator<? extends BytesRefBlock> lookup(IntBlock positions, ByteSizeValue targetBlockSize);
 
@@ -113,10 +126,10 @@ public sealed interface BytesRefVector extends Vector permits ConstantBytesRefVe
         if (isConstant() && positions > 0) {
             out.writeByte(SERIALIZE_VECTOR_CONSTANT);
             out.writeBytesRef(getBytesRef(0, new BytesRef()));
-        } else if (version.onOrAfter(TransportVersions.V_8_14_0) && this instanceof BytesRefArrayVector v) {
+        } else if (this instanceof BytesRefArrayVector v) {
             out.writeByte(SERIALIZE_VECTOR_ARRAY);
             v.writeArrayVector(positions, out);
-        } else if (version.onOrAfter(TransportVersions.V_8_14_0) && this instanceof OrdinalBytesRefVector v && v.isDense()) {
+        } else if (this instanceof OrdinalBytesRefVector v && v.isDense()) {
             out.writeByte(SERIALIZE_VECTOR_ORDINAL);
             v.writeOrdinalVector(out);
         } else {

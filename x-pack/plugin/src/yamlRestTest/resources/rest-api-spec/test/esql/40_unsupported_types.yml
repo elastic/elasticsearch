@@ -145,8 +145,8 @@ unsupported:
         - method: POST
           path: /_query
           parameters: []
-          capabilities: [dense_vector_field_type]
-      reason: "uses original_type"
+          capabilities: [dense_vector_agg_metric_double_if_version]
+      reason: "fetches dense_vector"
 
   - do:
       allowed_warnings_regex:
@@ -342,7 +342,7 @@ unsupported with sort:
         - method: POST
           path: /_query
           parameters: [ ]
-          capabilities: [ dense_vector_field_type ]
+          capabilities: [ dense_vector_agg_metric_double_if_version ]
       reason: "support for sorting when dense_vector_field_type present"
 
   - do:
@@ -444,6 +444,7 @@ unsupported with sort:
   - match: { values.0.26: xy }
   - match: { values.0.27: "foo bar" }
   - match: { values.0.28: 3 }
+
 ---
 nested declared inline:
   - do:

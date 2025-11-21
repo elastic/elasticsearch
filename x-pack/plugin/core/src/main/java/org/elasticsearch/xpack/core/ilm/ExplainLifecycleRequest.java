@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.core.ilm;
 
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.support.IndicesOptions;
@@ -51,9 +50,6 @@ public class ExplainLifecycleRequest extends LocalClusterStateRequest implements
     public ExplainLifecycleRequest(StreamInput in) throws IOException {
         super(in);
         indices = in.readStringArray();
-        if (in.getTransportVersion().before(TransportVersions.V_8_0_0)) {
-            in.readStringArray();
-        }
         indicesOptions = IndicesOptions.readIndicesOptions(in);
         onlyErrors = in.readBoolean();
         onlyManaged = in.readBoolean();

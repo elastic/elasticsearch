@@ -56,11 +56,23 @@ public class AllocationDecidersTests extends ESAllocationTestCase {
     }
 
     public void testCheckAllDecidersBeforeReturningThrottle() {
-        var allDecisions = generateDecisions(Decision.THROTTLE, () -> Decision.YES);
+        var allDecisions = generateDecisions(Decision.THROTTLE, () -> randomFrom(Decision.YES, Decision.NOT_PREFERRED));
         var debugMode = randomFrom(RoutingAllocation.DebugMode.values());
         var expectedDecision = switch (debugMode) {
             case OFF -> Decision.THROTTLE;
-            case EXCLUDE_YES_DECISIONS -> new Decision.Multi().add(Decision.THROTTLE);
+            case EXCLUDE_YES_DECISIONS -> collectToMultiDecision(allDecisions, d -> d.type() != Decision.Type.YES);
+            case ON -> collectToMultiDecision(allDecisions);
+        };
+
+        verifyDecidersCall(debugMode, allDecisions, allDecisions.size(), expectedDecision);
+    }
+
+    public void testCheckAllDecidersBeforeReturningNotPreferred() {
+        var allDecisions = generateDecisions(Decision.NOT_PREFERRED, () -> Decision.YES);
+        var debugMode = randomFrom(RoutingAllocation.DebugMode.values());
+        var expectedDecision = switch (debugMode) {
+            case OFF -> Decision.NOT_PREFERRED;
+            case EXCLUDE_YES_DECISIONS -> new Decision.Multi().add(Decision.NOT_PREFERRED);
             case ON -> collectToMultiDecision(allDecisions);
         };
 
@@ -69,7 +81,7 @@ public class AllocationDecidersTests extends ESAllocationTestCase {
 
     public void testExitsAfterFirstNoDecision() {
         var expectedDecision = randomFrom(Decision.NO, Decision.single(Decision.Type.NO, "no with label", "explanation"));
-        var allDecisions = generateDecisions(expectedDecision, () -> randomFrom(Decision.YES, Decision.THROTTLE));
+        var allDecisions = generateDecisions(expectedDecision, () -> randomFrom(Decision.YES, Decision.NOT_PREFERRED, Decision.THROTTLE));
         var expectedCalls = allDecisions.indexOf(expectedDecision) + 1;
 
         verifyDecidersCall(RoutingAllocation.DebugMode.OFF, allDecisions, expectedCalls, expectedDecision);
@@ -79,6 +91,7 @@ public class AllocationDecidersTests extends ESAllocationTestCase {
         var allDecisions = generateDecisions(
             () -> randomFrom(
                 Decision.YES,
+                Decision.NOT_PREFERRED,
                 Decision.THROTTLE,
                 Decision.single(Decision.Type.THROTTLE, "throttle with label", "explanation"),
                 Decision.NO,
@@ -94,6 +107,7 @@ public class AllocationDecidersTests extends ESAllocationTestCase {
         var allDecisions = generateDecisions(
             () -> randomFrom(
                 Decision.YES,
+                Decision.NOT_PREFERRED,
                 Decision.THROTTLE,
                 Decision.single(Decision.Type.THROTTLE, "throttle with label", "explanation"),
                 Decision.NO,

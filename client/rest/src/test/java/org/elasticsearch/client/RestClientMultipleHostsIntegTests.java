@@ -49,6 +49,7 @@ import static org.elasticsearch.client.RestClientTestUtil.getAllStatusCodes;
 import static org.elasticsearch.client.RestClientTestUtil.randomErrorNoRetryStatusCode;
 import static org.elasticsearch.client.RestClientTestUtil.randomOkStatusCode;
 import static org.hamcrest.CoreMatchers.instanceOf;
+import static org.hamcrest.Matchers.startsWith;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertThat;
 import static org.junit.Assert.assertTrue;
@@ -314,7 +315,7 @@ public class RestClientMultipleHostsIntegTests extends RestClientTestCase {
                     } catch (ConnectException e) {
                         // Windows isn't consistent here. Sometimes the message is even null!
                         if (false == System.getProperty("os.name").startsWith("Windows")) {
-                            assertEquals("Connection refused", e.getMessage());
+                            assertThat(e.getMessage(), startsWith("Connection refused"));
                         }
                     }
                 } else {

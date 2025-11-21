@@ -59,7 +59,7 @@ public class Chunk extends EsqlScalarFunction implements OptionalArgument {
 
     private final Expression field, chunkingSettings;
 
-    public static final Map<String,DataType> ALLOWED_CHUNKING_SETTING_OPTIONS = Map.ofEntries(
+    public static final Map<String, DataType> ALLOWED_CHUNKING_SETTING_OPTIONS = Map.ofEntries(
         entry(ChunkingSettingsOptions.STRATEGY.toString(), DataType.KEYWORD),
         entry(ChunkingSettingsOptions.MAX_CHUNK_SIZE.toString(), DataType.INTEGER),
         entry(ChunkingSettingsOptions.OVERLAP.toString(), DataType.INTEGER),
@@ -130,11 +130,12 @@ public class Chunk extends EsqlScalarFunction implements OptionalArgument {
             return new TypeResolution("Unresolved children");
         }
 
-        return isString(field(), sourceText(), FIRST).and(Options.resolve(chunkingSettings, source(), SECOND,
-            ALLOWED_CHUNKING_SETTING_OPTIONS, this::validateChunkingSettings));
+        return isString(field(), sourceText(), FIRST).and(
+            Options.resolve(chunkingSettings, source(), SECOND, ALLOWED_CHUNKING_SETTING_OPTIONS, this::validateChunkingSettings)
+        );
     }
 
-    private void validateChunkingSettings(Map<String,Object> chunkingSettingsMap) {
+    private void validateChunkingSettings(Map<String, Object> chunkingSettingsMap) {
         if (chunkingSettings == null) {
             return;
         }
@@ -229,13 +230,11 @@ public class Chunk extends EsqlScalarFunction implements OptionalArgument {
         return ChunkingSettingsBuilder.fromMap(chunkingSettingsMap);
     }
 
-    private static ChunkingSettings toChunkingSettings(Map<String,Object> expressionMap) {
-        Map<String,Object> chunkingSettingsMap = expressionMap.entrySet()
-            .stream()
-            .collect(Collectors.toMap(Map.Entry::getKey, e -> {
-                Object value = e.getValue();
-                return value instanceof BytesRef ? ((BytesRef) value).utf8ToString() : value;
-            }));
+    private static ChunkingSettings toChunkingSettings(Map<String, Object> expressionMap) {
+        Map<String, Object> chunkingSettingsMap = expressionMap.entrySet().stream().collect(Collectors.toMap(Map.Entry::getKey, e -> {
+            Object value = e.getValue();
+            return value instanceof BytesRef ? ((BytesRef) value).utf8ToString() : value;
+        }));
         return ChunkingSettingsBuilder.fromMap(chunkingSettingsMap);
     }
 }

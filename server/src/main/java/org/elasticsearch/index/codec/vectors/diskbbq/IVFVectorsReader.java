@@ -379,7 +379,6 @@ public abstract class IVFVectorsReader extends KnnVectorsReader {
             return raw;
         }
 
-        // TODO: report on desired off-heap requirements instead or in addition to max?
         var centroidsClusters = Map.of(CENTROID_EXTENSION, fe.centroidLength, CLUSTER_EXTENSION, fe.postingListLength);
         return KnnVectorsReader.mergeOffHeapByteSizeMaps(raw, centroidsClusters);
     }

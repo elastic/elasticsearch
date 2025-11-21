@@ -1090,7 +1090,6 @@ public class CCSDuelIT extends ESRestTestCase {
             Map<String, Object> minimizeRoundtripsResponseMap = responseToMap(minimizeRoundtripsSearchResponse);
             if (minimizeRoundtripsSearchResponse.evaluate("_clusters") != null && fanOutSearchResponse.evaluate("_clusters") != null) {
                 Map<String, Object> fanOutResponseMap = responseToMap(fanOutSearchResponse);
-                // TODO: Don't compare doc_count_error_upper_bound, as it's an approximate
                 compareResponseMaps(
                     minimizeRoundtripsResponseMap,
                     fanOutResponseMap,

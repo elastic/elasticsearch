@@ -12,12 +12,14 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterChangedEvent;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.core.FixForMultiProject;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.persistent.AllocatedPersistentTask;
 import org.elasticsearch.persistent.ClusterPersistentTasksCustomMetadata;
 import org.elasticsearch.persistent.PersistentTaskParams;
@@ -29,6 +31,7 @@ import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.transport.RemoteTransportException;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xpack.inference.InferenceFeatures;
 
 import java.util.List;
 import java.util.Map;
@@ -46,14 +49,20 @@ public class AuthorizationTaskExecutor extends PersistentTasksExecutor<Authoriza
     private final PersistentTasksService persistentTasksService;
     private final AuthorizationPoller.Parameters pollerParameters;
     private final AtomicReference<AuthorizationPoller> currentTask = new AtomicReference<>();
+    private final FeatureService featureService;
 
-    public static AuthorizationTaskExecutor create(ClusterService clusterService, AuthorizationPoller.Parameters parameters) {
+    public static AuthorizationTaskExecutor create(
+        ClusterService clusterService,
+        FeatureService featureService,
+        AuthorizationPoller.Parameters parameters
+    ) {
         Objects.requireNonNull(clusterService);
         Objects.requireNonNull(parameters);
 
         var executor = new AuthorizationTaskExecutor(
             clusterService,
             new PersistentTasksService(clusterService, parameters.serviceComponents().threadPool(), parameters.client()),
+            featureService,
             parameters
         );
         executor.init();
@@ -64,10 +73,12 @@ public class AuthorizationTaskExecutor extends PersistentTasksExecutor<Authoriza
     AuthorizationTaskExecutor(
         ClusterService clusterService,
         PersistentTasksService persistentTasksService,
+        FeatureService featureService,
         AuthorizationPoller.Parameters pollerParameters
     ) {
         super(TASK_NAME, pollerParameters.serviceComponents().threadPool().executor(UTILITY_THREAD_POOL_NAME));
         this.clusterService = Objects.requireNonNull(clusterService);
+        this.featureService = Objects.requireNonNull(featureService);
         this.persistentTasksService = Objects.requireNonNull(persistentTasksService);
         this.pollerParameters = Objects.requireNonNull(pollerParameters);
     }
@@ -120,14 +131,14 @@ public class AuthorizationTaskExecutor extends PersistentTasksExecutor<Authoriza
 
     @Override
     public void clusterChanged(ClusterChangedEvent event) {
-        if (authorizationTaskExists(event)) {
+        if (clusterCanSupportFeature(event.state()) == false || authorizationTaskExists(event)) {
             return;
         }
 
         persistentTasksService.sendClusterStartRequest(
             TASK_NAME,
             TASK_NAME,
-            new AuthorizationTaskParams(),
+            AuthorizationTaskParams.INSTANCE,
             TimeValue.THIRTY_SECONDS,
             ActionListener.wrap(persistentTask -> logger.debug("Created authorization poller task"), exception -> {
                 var thrownException = exception instanceof RemoteTransportException ? exception.getCause() : exception;
@@ -136,6 +147,10 @@ public class AuthorizationTaskExecutor extends PersistentTasksExecutor<Authoriza
                 }
             })
         );
+    }
+
+    private boolean clusterCanSupportFeature(ClusterState state) {
+        return state.clusterRecovered() && featureService.clusterHasFeature(state, InferenceFeatures.INFERENCE_AUTH_POLLER_PERSISTENT_TASK);
     }
 
     private static boolean authorizationTaskExists(ClusterChangedEvent event) {

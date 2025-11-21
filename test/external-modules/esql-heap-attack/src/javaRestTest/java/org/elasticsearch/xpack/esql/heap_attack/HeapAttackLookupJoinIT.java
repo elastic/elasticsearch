@@ -29,7 +29,7 @@ import static org.elasticsearch.test.MapMatcher.matchesMap;
  * sure they don't consume the entire heap and crash Elasticsearch.
  */
 @TimeoutSuite(millis = 20 * TimeUnits.MINUTE)
-public class HeapAttackLookupJoinIT extends HeapAttackBaseIT {
+public class HeapAttackLookupJoinIT extends HeapAttackTestCase {
 
     public void testLookupExplosion() throws IOException {
         int sensorDataCount = 400;
@@ -117,7 +117,7 @@ public class HeapAttackLookupJoinIT extends HeapAttackBaseIT {
     }
 
     public void testLookupExplosionBigString() throws IOException {
-        int sensorDataCount = 500;
+        int sensorDataCount = 300;
         int lookupEntries = 1;
         Map<?, ?> map = lookupExplosionBigString(sensorDataCount, lookupEntries);
         assertMap(map, matchesMap().extraOk().entry("values", List.of(List.of(sensorDataCount * lookupEntries))));

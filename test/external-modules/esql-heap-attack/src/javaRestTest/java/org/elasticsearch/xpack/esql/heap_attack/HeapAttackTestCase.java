@@ -49,7 +49,7 @@ import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 /**
  * Base class for heap attack tests. Contains common infrastructure and helper methods.
  */
-public abstract class HeapAttackBaseIT extends ESRestTestCase {
+public abstract class HeapAttackTestCase extends ESRestTestCase {
     @ClassRule
     public static ElasticsearchCluster cluster = Clusters.buildCluster();
 

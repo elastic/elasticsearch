@@ -50,7 +50,7 @@ import static org.hamcrest.Matchers.matchesRegex;
  * sure they don't consume the entire heap and crash Elasticsearch.
  */
 @TimeoutSuite(millis = 40 * TimeUnits.MINUTE)
-public class HeapAttackIT extends HeapAttackBaseIT {
+public class HeapAttackIT extends HeapAttackTestCase {
 
     /**
      * This used to fail, but we've since compacted top n so it actually succeeds now.

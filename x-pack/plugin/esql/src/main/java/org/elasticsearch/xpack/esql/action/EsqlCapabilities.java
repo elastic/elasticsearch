@@ -1679,6 +1679,10 @@ public class EsqlCapabilities {
          */
         PROMQL_V0(Build.current().isSnapshot()),
 
+        /**
+         * KNN function adds support for k and visit_percentage options
+         */
+        KNN_FUNCTION_OPTIONS_K_VISIT_PERCENTAGE,
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.
         ;

@@ -444,16 +444,13 @@ public class EsqlActionTaskIT extends AbstractPausableIntegTestCase {
         try {
             scriptPermits.release(numberOfDocs()); // do not block Lucene operators
             Client client = client(coordinator);
-            EsqlQueryRequest request = EsqlQueryRequest.syncEsqlQueryRequest();
             client().admin()
                 .indices()
                 .prepareUpdateSettings("test")
                 .setSettings(Settings.builder().put("index.routing.allocation.include._name", dataNode).build())
                 .get();
             ensureYellowAndNoInitializingShards("test");
-            request.query("FROM test | LIMIT 10");
-            QueryPragmas pragmas = randomPragmas();
-            request.pragmas(pragmas);
+            EsqlQueryRequest request = EsqlQueryRequest.syncEsqlQueryRequest("FROM test | LIMIT 10").pragmas(randomPragmas());
             PlainActionFuture<EsqlQueryResponse> future = new PlainActionFuture<>();
             client.execute(EsqlQueryAction.INSTANCE, request, future);
             ExchangeService exchangeService = internalCluster().getInstance(ExchangeService.class, dataNode);

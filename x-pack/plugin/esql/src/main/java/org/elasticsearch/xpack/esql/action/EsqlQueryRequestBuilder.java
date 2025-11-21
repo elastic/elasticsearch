@@ -18,11 +18,11 @@ public class EsqlQueryRequestBuilder extends org.elasticsearch.xpack.core.esql.a
     EsqlQueryResponse> {
 
     public static EsqlQueryRequestBuilder newAsyncEsqlQueryRequestBuilder(ElasticsearchClient client) {
-        return new EsqlQueryRequestBuilder(client, EsqlQueryRequest.asyncEsqlQueryRequest());
+        return new EsqlQueryRequestBuilder(client, EsqlQueryRequest.asyncEsqlQueryRequest(null));// TODO replace with regular request
     }
 
     public static EsqlQueryRequestBuilder newSyncEsqlQueryRequestBuilder(ElasticsearchClient client) {
-        return new EsqlQueryRequestBuilder(client, EsqlQueryRequest.syncEsqlQueryRequest());
+        return new EsqlQueryRequestBuilder(client, EsqlQueryRequest.syncEsqlQueryRequest(null));// TODO replace with regular request
     }
 
     private EsqlQueryRequestBuilder(ElasticsearchClient client, EsqlQueryRequest request) {

@@ -12,7 +12,9 @@ buildscript {
     maven { url = "https://jitpack.io" }
   }
   dependencies {
-    classpath 'com.github.google:protobuf-gradle-plugin:PR786-SNAPSHOT'
+    classpath('com.github.google:protobuf-gradle-plugin:PR786-SNAPSHOT') {
+      changing = false
+    }
   }
 }
 

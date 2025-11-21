@@ -536,7 +536,7 @@ public class ThreadPoolTests extends ESTestCase {
             // Wait for TaskExecutionTimeTrackingEsThreadPoolExecutor#afterExecute to run
             assertBusy(() -> assertThat(executor.getTotalTaskExecutionTime(), greaterThan(0L)));
             // When you call submit, the TimedRunnable wraps the FutureTask, so safeGet can return before the duration of
-            // the task is calculated. Waiting for totalTaskExecution to be non-zero ensures maxDurationNanos is greater
+            // the task is calculated. Waiting for totalTaskExecutionTime to be updated ensures maxDurationNanos is greater
             // than the actual duration.
             final long maxDurationNanos = System.nanoTime() - beforeStartNanos;
 

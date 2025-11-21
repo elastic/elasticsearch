@@ -750,6 +750,23 @@ max_deriv:double | time_bucket:datetime     | pod:keyword
 derivative_compared_to_rate
 required_capability: ts_command_v0
 required_capability: TS_LINREG_DERIVATIVE
+
+TS k8s
+| STATS max_deriv = max(deriv(to_long(network.total_bytes_in))), max_rate = max(rate(network.total_bytes_in)) BY time_bucket = bucket(@timestamp,5minute), cluster
+| EVAL max_deriv = ROUND(max_deriv,6), max_rate = ROUND(max_rate,6)
+| KEEP max_deriv, max_rate, time_bucket, cluster
+| SORT cluster, time_bucket
+| LIMIT 5
+;
+
+max_deriv:double | max_rate:double | time_bucket:datetime     | cluster:keyword
+85.5             | 8.120833        | 2024-05-10T00:00:00.000Z | prod
+4.933168         | 6.451737        | 2024-05-10T00:05:00.000Z | prod
+8.922491         | 11.56274        | 2024-05-10T00:10:00.000Z | prod
+16.62316         | 11.86081        | 2024-05-10T00:15:00.000Z | prod
+9.026268         | 6.980661        | 2024-05-10T00:20:00.000Z | prod
+;
+
 bare_count_over_time_outputs_dimensions
 required_capability: ts_command_v0
 required_capability: metrics_group_by_all
@@ -757,7 +774,7 @@ required_capability: metrics_group_by_all
 TS k8s
 | STATS count = count_over_time(network.cost)
 ;
-  
+
 count:long | _timeseries:keyword
 29         | KBGrBhmEnziumfgfOq1dn9NyLSzHbdLj0kfy/m+tXh+yxVR6b3E17ss=
 29         | KBGrBhmEnziumfgfOq1dn9NyLSzHck3A2MQiFrxrlvTQFP7YxbJ0rYg=
@@ -920,20 +937,4 @@ TS k8s
 
 max_rate:double 
 13.17372515125324
-;
-TS k8s
-| STATS max_deriv = max(deriv(to_long(network.total_bytes_in))), max_rate = max(rate(network.total_bytes_in)) BY time_bucket = bucket(@timestamp,5minute), cluster
-| EVAL max_deriv = ROUND(max_deriv,6), max_rate = ROUND(max_rate,6)
-| KEEP max_deriv, max_rate, time_bucket, cluster
-| SORT cluster, time_bucket
-| LIMIT 5
-;
-
-max_deriv:double | max_rate:double | time_bucket:datetime     | cluster:keyword
-85.5             | 8.120833        | 2024-05-10T00:00:00.000Z | prod
-4.933168         | 6.451737        | 2024-05-10T00:05:00.000Z | prod
-8.922491         | 11.56274        | 2024-05-10T00:10:00.000Z | prod
-16.62316         | 11.86081        | 2024-05-10T00:15:00.000Z | prod
-9.026268         | 6.980661        | 2024-05-10T00:20:00.000Z | prod
-
 ;

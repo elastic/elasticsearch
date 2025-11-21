@@ -65,6 +65,8 @@ import org.elasticsearch.snapshots.SnapshotShardSizeInfo;
 
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -195,27 +197,19 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
         boolean verbose,
         TimeValue replicaUnassignedBufferTime
     ) {
-        // Sort projects by ID
-        state.globalRoutingTable().routingTables().entrySet().stream()
-            .sorted(Map.Entry.comparingByKey((p1, p2) -> p1.toString().compareTo(p2.toString())))
-            .forEach(projectEntry -> {
-                ProjectId projectId = projectEntry.getKey();
-                RoutingTable projectRoutingTable = projectEntry.getValue();
-
-                // Sort indices by name
-                projectRoutingTable.indicesRouting().entrySet().stream()
-                    .sorted(Map.Entry.comparingByKey())
-                    .forEach(indexEntry -> {
-                        IndexRoutingTable indexShardRouting = indexEntry.getValue();
-                        for (int i = 0; i < indexShardRouting.size(); i++) {
-                            IndexShardRoutingTable shardRouting = indexShardRouting.shard(i);
-                            status.addPrimary(projectId, shardRouting.primaryShard(), state, shutdown, verbose);
-                            for (ShardRouting replicaShard : shardRouting.replicaShards()) {
-                                status.addReplica(projectId, replicaShard, state, shutdown, verbose, replicaUnassignedBufferTime);
-                            }
-                        }
-                    });
-            });
+        for (var projectEntry : state.globalRoutingTable().routingTables().entrySet()) {
+            ProjectId projectId = projectEntry.getKey();
+            RoutingTable projectRoutingTable = projectEntry.getValue();
+            for (IndexRoutingTable indexShardRouting : projectRoutingTable.indicesRouting().values()) {
+                for (int i = 0; i < indexShardRouting.size(); i++) {
+                    IndexShardRoutingTable shardRouting = indexShardRouting.shard(i);
+                    status.addPrimary(projectId, shardRouting.primaryShard(), state, shutdown, verbose);
+                    for (ShardRouting replicaShard : shardRouting.replicaShards()) {
+                        status.addReplica(projectId, replicaShard, state, shutdown, verbose, replicaUnassignedBufferTime);
+                    }
+                }
+            }
+        }
 
         status.updateSearchableSnapshotsOfAvailableIndices();
     }
@@ -497,7 +491,7 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
             indicesWithUnavailableShards = new HashSet<>();
             indicesWithAllShardsUnavailable = new HashSet<>();
             searchableSnapshotsState = new SearchableSnapshotsState();
-            diagnosisDefinitions = new LinkedHashMap<>();
+            diagnosisDefinitions = new HashMap<>();
         }
 
         public void increment(
@@ -1085,30 +1079,18 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
             if (verbose == false) {
                 return HealthIndicatorDetails.EMPTY;
             }
-            return new SimpleHealthIndicatorDetails(
-                Map.of(
-                    "unassigned_primaries",
-                    primaries.unassigned,
-                    "initializing_primaries",
-                    primaries.initializing,
-                    "creating_primaries",
-                    primaries.unassigned_new,
-                    "restarting_primaries",
-                    primaries.unassigned_restarting,
-                    "started_primaries",
-                    primaries.started + primaries.relocating,
-                    "unassigned_replicas",
-                    replicas.unassigned,
-                    "initializing_replicas",
-                    replicas.initializing,
-                    "creating_replicas",
-                    replicas.unassigned_new,
-                    "restarting_replicas",
-                    replicas.unassigned_restarting,
-                    "started_replicas",
-                    replicas.started + replicas.relocating
-                )
-            );
+            final Map<String, Integer> details = new LinkedHashMap<>();
+            details.put("unassigned_primaries", primaries.unassigned);
+            details.put("initializing_primaries", primaries.initializing);
+            details.put("creating_primaries", primaries.unassigned_new);
+            details.put("restarting_primaries", primaries.unassigned_restarting);
+            details.put("started_primaries", primaries.started + primaries.relocating);
+            details.put("unassigned_replicas", replicas.unassigned);
+            details.put("initializing_replicas", replicas.initializing);
+            details.put("creating_replicas", replicas.unassigned_new);
+            details.put("restarting_replicas", replicas.unassigned_restarting);
+            details.put("started_replicas", replicas.started + replicas.relocating);
+            return new SimpleHealthIndicatorDetails(Collections.unmodifiableMap(details));
         }
 
         public List<HealthIndicatorImpact> getImpacts() {

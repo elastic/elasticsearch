@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.optimizer.rules.logical;
 
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.analysis.Analyzer;
@@ -31,11 +32,13 @@ import org.junit.BeforeClass;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_VERIFIER;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.emptyInferenceResolution;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.loadMapping;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.defaultLookupResolution;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 
@@ -47,7 +50,7 @@ public class TimeSeriesBareAggregationsTests extends AbstractLogicalPlanOptimize
     @BeforeClass
     public static void initK8s() {
         mappingK8s = loadMapping("k8s-mappings.json");
-        EsIndex k8sIndex = new EsIndex("k8s", mappingK8s, Map.of("k8s", IndexMode.TIME_SERIES));
+        EsIndex k8sIndex = new EsIndex("k8s", mappingK8s, Map.of("k8s", IndexMode.TIME_SERIES), Set.of());
 
         IndexResolution indexResolution = IndexResolution.valid(k8sIndex);
 
@@ -256,6 +259,41 @@ public class TimeSeriesBareAggregationsTests extends AbstractLogicalPlanOptimize
         assertNotNull(timeseriesAttr);
         assertThat("_timeseries attribute should exist", timeseriesAttr, is(instanceOf(Attribute.class)));
         assertThat("_timeseries should be KEYWORD type", timeseriesAttr.dataType(), is(DataType.KEYWORD));
+    }
+
+    public void testMixedBareOverTimeAndRegularAggregates() {
+        assumeTrue("requires metrics command", EsqlCapabilities.Cap.METRICS_GROUP_BY_ALL.isEnabled());
+
+        var error = expectThrows(EsqlIllegalArgumentException.class, () -> { planK8s("""
+            TS k8s
+            | STATS avg_over_time(network.cost), sum(network.total_bytes_in)
+            """); });
+
+        assertThat(error.getMessage(), equalTo("""
+            Cannot mix time-series aggregate [avg_over_time(network.cost)] and \
+            regular aggregate [sum(network.total_bytes_in)] in the same TimeSeriesAggregate"""));
+    }
+
+    public void testGroupingKeyInAggregatesListPreserved() {
+        assumeTrue("requires metrics command", EsqlCapabilities.Cap.METRICS_GROUP_BY_ALL.isEnabled());
+
+        LogicalPlan plan = planK8s("""
+            TS k8s
+            | STATS rate(network.total_bytes_out) BY region
+            """);
+
+        TimeSeriesAggregate tsa = findTimeSeriesAggregate(plan);
+        assertThat("Should have TimeSeriesAggregate", tsa, is(instanceOf(TimeSeriesAggregate.class)));
+
+        assertNotNull("Plan should be valid", plan);
+
+        List<Attribute> groupings = tsa.groupings().stream().filter(g -> g instanceof Attribute).map(g -> (Attribute) g).toList();
+        boolean hasTsid = groupings.stream().anyMatch(g -> g.name().equals(MetadataAttribute.TSID_FIELD));
+        assertThat("Should group by _tsid", hasTsid, is(true));
+
+        List<Attribute> output = plan.output();
+        boolean hasTimeseries = output.stream().anyMatch(attr -> attr.name().equals(MetadataAttribute.TIMESERIES));
+        assertThat("Should have _timeseries in output", hasTimeseries, is(true));
     }
 
     private TimeSeriesAggregate findTimeSeriesAggregate(LogicalPlan plan) {

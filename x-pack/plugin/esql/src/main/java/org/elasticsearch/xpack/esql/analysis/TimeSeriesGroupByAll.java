@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.analysis;
 
+import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
@@ -43,25 +44,35 @@ public class TimeSeriesGroupByAll extends Rule<LogicalPlan, LogicalPlan> {
     }
 
     public LogicalPlan rule(TimeSeriesAggregate aggregate) {
-        boolean hasTopLevelOverTimeAggs = false;
+        AggregateFunction lastTSAggFunction = null;
+        AggregateFunction lastNonTSAggFunction = null;
+
         List<NamedExpression> newAggregateFunctions = new ArrayList<>(aggregate.aggregates().size());
         for (NamedExpression agg : aggregate.aggregates()) {
             if (agg instanceof Alias alias && alias.child() instanceof AggregateFunction af) {
                 if (af instanceof TimeSeriesAggregateFunction tsAgg) {
-                    hasTopLevelOverTimeAggs = true;
                     newAggregateFunctions.add(new Alias(alias.source(), alias.name(), new Values(tsAgg.source(), tsAgg)));
+                    lastTSAggFunction = tsAgg;
                 } else {
-                    // Preserve non-time-series aggregates
                     newAggregateFunctions.add(agg);
+                    lastNonTSAggFunction = af;
                 }
             } else {
-                // Preserve non-aggregate expressions (like grouping keys that are already in aggregates)
                 newAggregateFunctions.add(agg);
             }
         }
-        if (hasTopLevelOverTimeAggs == false) {
+        if (lastTSAggFunction == null) {
             return aggregate;
         }
+
+        if (lastNonTSAggFunction != null) {
+            throw new EsqlIllegalArgumentException(
+                "Cannot mix time-series aggregate [{}] and regular aggregate [{}] in the same TimeSeriesAggregate",
+                lastTSAggFunction.sourceText(),
+                lastNonTSAggFunction.sourceText()
+            );
+        }
+
         var timeSeries = new FieldAttribute(
             aggregate.source(),
             null,

@@ -30,6 +30,7 @@ import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.TestShardRouting;
+import org.elasticsearch.cluster.routing.allocation.IndexBalanceConstraintSettings;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexVersion;
@@ -50,6 +51,9 @@ import static org.elasticsearch.cluster.routing.allocation.decider.FilterAllocat
 import static org.elasticsearch.common.settings.ClusterSettings.createBuiltInClusterSettings;
 
 public class IndexBalanceAllocationDeciderTests extends ESAllocationTestCase {
+
+    public static final String INCLUDE_DISCOVERY_NODE_FILTERS = "include.discovery.node.filters";
+    public static final String ALLOW_EXCESS_SHARDS = "allow.excess.shards";
 
     private DiscoveryNode indexNodeOne;
     private DiscoveryNode indexNodeTwo;
@@ -77,7 +81,10 @@ public class IndexBalanceAllocationDeciderTests extends ESAllocationTestCase {
     private List<RoutingNode> indexTier;
     private List<RoutingNode> searchIier;
 
-    private void setup(boolean hasDiscoveryNodeFilters, boolean allowExcessShards) {
+    private void setup(Settings settings) {
+        boolean hasDiscoveryNodeFilters = settings.getAsBoolean(INCLUDE_DISCOVERY_NODE_FILTERS, true);
+        boolean allowExcessShards = settings.getAsBoolean(ALLOW_EXCESS_SHARDS, true);
+
         final String indexName = "IndexBalanceAllocationDeciderIndex";
         final Map<DiscoveryNode, List<ShardRouting>> nodeToShardRoutings = new HashMap<>();
 
@@ -85,8 +92,8 @@ public class IndexBalanceAllocationDeciderTests extends ESAllocationTestCase {
 
         Settings.Builder builder = Settings.builder()
             .put("stateless.enabled", "true")
-            .put("cluster.routing.allocation.index_balance_decider.enabled", "true")
-            .put("cluster.routing.allocation.index_balance_decider.excess_shards", excessShards);
+            .put(IndexBalanceConstraintSettings.INDEX_BALANCE_DECIDER_ENABLED_SETTING.getKey(), "true")
+            .put(IndexBalanceConstraintSettings.INDEX_BALANCE_DECIDER_EXCESS_SHARDS.getKey(), excessShards);
 
         numberOfPrimaryShards = randomIntBetween(2, 10) * 2;
         replicationFactor = 2;
@@ -225,7 +232,8 @@ public class IndexBalanceAllocationDeciderTests extends ESAllocationTestCase {
     }
 
     public void testCanAllocateUnderThresholdWithExcessShards() {
-        setup(false, true);
+        Settings testSettings = Settings.builder().put(INCLUDE_DISCOVERY_NODE_FILTERS, false).put(ALLOW_EXCESS_SHARDS, true).build();
+        setup(testSettings);
         ShardRouting newIndexShardRouting = TestShardRouting.newShardRouting(
             new ShardId("newIndex", "uuid", 1),
             indexNodeTwo.getId(),
@@ -291,7 +299,8 @@ public class IndexBalanceAllocationDeciderTests extends ESAllocationTestCase {
     }
 
     public void testCanAllocateExceedThreshold() {
-        setup(false, false);
+        Settings testSettings = Settings.builder().put(INCLUDE_DISCOVERY_NODE_FILTERS, false).put(ALLOW_EXCESS_SHARDS, false).build();
+        setup(testSettings);
 
         int ideal = numberOfPrimaryShards / 2;
         int current = numberOfPrimaryShards / 2;
@@ -328,7 +337,11 @@ public class IndexBalanceAllocationDeciderTests extends ESAllocationTestCase {
     }
 
     public void testCanAllocateHasDiscoveryNodeFilters() {
-        setup(true, randomBoolean());
+        Settings testSettings = Settings.builder()
+            .put(INCLUDE_DISCOVERY_NODE_FILTERS, true)
+            .put(ALLOW_EXCESS_SHARDS, randomBoolean())
+            .build();
+        setup(testSettings);
 
         for (RoutingNode routingNode : indexTier) {
             assertDecisionMatches(

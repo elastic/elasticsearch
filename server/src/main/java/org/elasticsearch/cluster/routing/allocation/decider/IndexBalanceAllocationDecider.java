@@ -71,7 +71,7 @@ public class IndexBalanceAllocationDecider extends AllocationDecider {
 
     @Override
     public Decision canAllocate(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
-        if (indexBalanceConstraintSettings.isDeciderEnabled() == false || isStateless == false || hasNoFilters() == false) {
+        if (indexBalanceConstraintSettings.isDeciderEnabled() == false || isStateless == false || hasFilters()) {
             return Decision.single(Decision.Type.YES, NAME, "Decider is disabled.");
         }
 
@@ -159,9 +159,9 @@ public class IndexBalanceAllocationDecider extends AllocationDecider {
         clusterExcludeFilters = DiscoveryNodeFilters.trimTier(DiscoveryNodeFilters.buildFromKeyValues(OR, filters));
     }
 
-    private boolean hasNoFilters() {
-        return (clusterExcludeFilters == null || clusterExcludeFilters.hasNoFilters())
-            && (clusterIncludeFilters == null || clusterIncludeFilters.hasNoFilters())
-            && (clusterRequireFilters == null || clusterRequireFilters.hasNoFilters());
+    private boolean hasFilters() {
+        return (clusterExcludeFilters != null && clusterExcludeFilters.hasFilters())
+            || (clusterIncludeFilters != null && clusterIncludeFilters.hasFilters())
+            || (clusterRequireFilters != null && clusterRequireFilters.hasFilters());
     }
 }

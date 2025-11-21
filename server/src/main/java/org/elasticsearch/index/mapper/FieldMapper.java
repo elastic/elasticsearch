@@ -617,7 +617,7 @@ public abstract class FieldMapper extends Mapper {
 
                 if (builder instanceof KeywordFieldMapper.Builder kwd) {
                     if ((kwd.hasNormalizer() == false || kwd.isNormalizerSkipStoreOriginalValue())
-                        && (kwd.hasDocValues() || kwd.isStored())) {
+                        && (kwd.docValuesParameters().enabled || kwd.isStored())) {
                         hasSyntheticSourceCompatibleKeywordField = true;
                     }
                 }
@@ -778,7 +778,7 @@ public abstract class FieldMapper extends Mapper {
      * A configurable parameter for a field mapper
      * @param <T> the type of the value the parameter holds
      */
-    public static final class Parameter<T> implements Supplier<T> {
+    public static class Parameter<T> implements Supplier<T> {
 
         public final String name;
         private List<String> deprecatedNames = List.of();
@@ -1405,6 +1405,76 @@ public abstract class FieldMapper extends Mapper {
         }
     }
 
+    public static final class DocValuesParameter extends Parameter<DocValuesParameter.Values> {
+        public static final String PARAMETER_NAME = "doc_values";
+
+        public record Values(boolean enabled, Cardinality cardinality) {
+            public enum Cardinality {
+                LOW,
+                HIGH;
+
+                @Override
+                public String toString() {
+                    return name().toLowerCase(Locale.ROOT);
+                }
+            }
+
+            public static Values DISABLED = new Values(false, Cardinality.LOW);
+        }
+
+        public final Parameter<Values.Cardinality> cardinalityParameter;
+
+        public DocValuesParameter(Values defaultValue, Function<FieldMapper, Values> initializer) {
+            super(PARAMETER_NAME, false, () -> defaultValue, null, initializer, null, Values::toString);
+
+            cardinalityParameter = Parameter.enumParam(
+                "cardinality",
+                false,
+                m -> initializer.apply(m).cardinality,
+                defaultValue.cardinality,
+                Values.Cardinality.class
+            );
+        }
+
+        @Override
+        public void parse(String field, MappingParserContext context, Object value) {
+            if (value instanceof Boolean valueBool) {
+                if (valueBool) {
+                    setValue(getDefaultValue());
+                } else {
+                    setValue(Values.DISABLED);
+                }
+            } else if (value instanceof Map) {
+                @SuppressWarnings("unchecked")
+                Map<String, Object> valueMap = (Map<String, Object>) value;
+                cardinalityParameter.parse(field, context, valueMap.get(cardinalityParameter.name));
+
+                setValue(new Values(true, cardinalityParameter.getValue()));
+            } else {
+                throw new IllegalArgumentException("Illegal value [" + value + "] for parameter [" + name + "]");
+            }
+        }
+
+        @Override
+        public void setValue(Values value) {
+            super.setValue(value);
+            cardinalityParameter.setValue(value.cardinality);
+        }
+
+        protected void toXContent(XContentBuilder builder, boolean includeDefaults) throws IOException {
+            Values value = getValue();
+            if (includeDefaults || isConfigured()) {
+                if (value.enabled == false) {
+                    builder.field(name, false);
+                } else {
+                    builder.startObject(name);
+                    builder.field(cardinalityParameter.name, value.cardinality);
+                    builder.endObject();
+                }
+            }
+        }
+    }
+
     public static final class Conflicts {
 
         private final String mapperName;
@@ -1499,11 +1569,7 @@ public abstract class FieldMapper extends Mapper {
         @Override
         public abstract FieldMapper build(MapperBuilderContext context);
 
-        protected void addScriptValidation(
-            Parameter<Script> scriptParam,
-            Parameter<Boolean> indexParam,
-            Parameter<Boolean> docValuesParam
-        ) {
+        protected void addScriptValidation(Parameter<Script> scriptParam, Parameter<Boolean> indexParam, Supplier<Boolean> docValuesParam) {
             scriptParam.addValidator(s -> {
                 if (s != null && indexParam.get() == false && docValuesParam.get() == false) {
                     throw new MapperParsingException("Cannot define script on field with index:false and doc_values:false");

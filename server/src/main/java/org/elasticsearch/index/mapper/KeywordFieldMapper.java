@@ -110,6 +110,11 @@ public final class KeywordFieldMapper extends FieldMapper {
     public static final String CONTENT_TYPE = "keyword";
     private static final String HOST_NAME = "host.name";
 
+    private static final DocValuesParameter.Values DEFAULT_DOC_VALUES_PARAMS = new DocValuesParameter.Values(
+        true,
+        DocValuesParameter.Values.Cardinality.LOW
+    );
+
     public static class Defaults {
         public static final FieldType FIELD_TYPE;
         public static final FieldType FIELD_TYPE_WITH_SKIP_DOC_VALUES;
@@ -173,7 +178,10 @@ public final class KeywordFieldMapper extends FieldMapper {
     public static final class Builder extends FieldMapper.DimensionBuilder {
 
         private final Parameter<Boolean> indexed;
-        private final Parameter<Boolean> hasDocValues = Parameter.docValuesParam(m -> toType(m).hasDocValues, true);
+        private final DocValuesParameter docValuesParameters = new DocValuesParameter(
+            DEFAULT_DOC_VALUES_PARAMS,
+            m -> toType(m).docValuesParameters()
+        );
         private final Parameter<Boolean> stored = Parameter.storeParam(m -> toType(m).fieldType.stored(), false);
 
         private final Parameter<String> nullValue = Parameter.stringParam("null_value", false, m -> toType(m).fieldType().nullValue, null)
@@ -257,10 +265,12 @@ public final class KeywordFieldMapper extends FieldMapper {
 
             this.script.precludesParameters(nullValue);
 
-            this.dimension = TimeSeriesParams.dimensionParam(m -> toType(m).fieldType().isDimension(), hasDocValues::get)
-                .precludesParameters(normalizer);
+            this.dimension = TimeSeriesParams.dimensionParam(
+                m -> toType(m).fieldType().isDimension(),
+                () -> docValuesParameters.getValue().enabled()
+            ).precludesParameters(normalizer);
             this.indexed = Parameter.indexParam(m -> toType(m).indexed, indexSettings, dimension);
-            addScriptValidation(script, indexed, hasDocValues);
+            addScriptValidation(script, indexed, () -> docValuesParameters.getValue().enabled());
 
             this.ignoreAbove = Parameter.ignoreAboveParam(
                 m -> toType(m).fieldType().ignoreAbove().get(),
@@ -306,13 +316,14 @@ public final class KeywordFieldMapper extends FieldMapper {
             return this;
         }
 
+        @Deprecated()
         public Builder docValues(boolean hasDocValues) {
-            this.hasDocValues.setValue(hasDocValues);
+            this.docValuesParameters.setValue(hasDocValues ? DEFAULT_DOC_VALUES_PARAMS : DocValuesParameter.Values.DISABLED);
             return this;
         }
 
-        public boolean hasDocValues() {
-            return this.hasDocValues.get();
+        public DocValuesParameter.Values docValuesParameters() {
+            return docValuesParameters.getValue();
         }
 
         public SimilarityProvider similarity() {
@@ -354,7 +365,7 @@ public final class KeywordFieldMapper extends FieldMapper {
         protected Parameter<?>[] getParameters() {
             return new Parameter<?>[] {
                 indexed,
-                hasDocValues,
+                docValuesParameters,
                 stored,
                 nullValue,
                 eagerGlobalOrdinals,
@@ -418,7 +429,7 @@ public final class KeywordFieldMapper extends FieldMapper {
             String offsetsFieldName = getOffsetsFieldName(
                 context,
                 indexSettings.sourceKeepMode(),
-                hasDocValues.getValue(),
+                docValuesParameters.get().enabled(),
                 stored.getValue(),
                 this,
                 indexCreatedVersion,
@@ -441,7 +452,17 @@ public final class KeywordFieldMapper extends FieldMapper {
             }
             fieldtype.setOmitNorms(this.hasNorms.getValue() == false);
             fieldtype.setStored(this.stored.getValue());
-            fieldtype.setDocValuesType(this.hasDocValues.getValue() ? DocValuesType.SORTED_SET : DocValuesType.NONE);
+
+            DocValuesParameter.Values docValuesParameters = this.docValuesParameters.get();
+            if (docValuesParameters.enabled() == false) {
+                fieldtype.setDocValuesType(DocValuesType.NONE);
+            } else if (docValuesParameters.cardinality() == DocValuesParameter.Values.Cardinality.HIGH) {
+                fieldtype.setDocValuesType(DocValuesType.BINARY);
+            } else {
+                assert docValuesParameters.cardinality() == DocValuesParameter.Values.Cardinality.LOW;
+                fieldtype.setDocValuesType(DocValuesType.SORTED_SET);
+            }
+
             if (fieldtype.equals(Defaults.FIELD_TYPE_WITH_SKIP_DOC_VALUES) == false) {
                 // NOTE: override index options only if we are not using a sparse doc values index (and we use an inverted index)
                 fieldtype.setIndexOptions(TextParams.toIndexOptions(this.indexed.getValue(), this.indexOptions.getValue()));
@@ -457,11 +478,13 @@ public final class KeywordFieldMapper extends FieldMapper {
         }
 
         private boolean shouldUseTimeSeriesSkipper() {
-            return hasDocValues.get() && indexed.get() == false && useTimeSeriesDocValuesSkippers(indexSettings, dimension.get());
+            return docValuesParameters.getValue().enabled()
+                && indexed.get() == false
+                && useTimeSeriesDocValuesSkippers(indexSettings, dimension.get());
         }
 
         private boolean shouldUseHostnameSkipper(final String fullFieldName) {
-            return hasDocValues.get()
+            return docValuesParameters.getValue().enabled()
                 && IndexSettings.USE_DOC_VALUES_SKIPPER.get(indexSettings.getSettings())
                 && indexSettings.getIndexVersionCreated().onOrAfter(IndexVersions.SKIPPERS_ENABLED_BY_DEFAULT)
                 && IndexMode.LOGSDB.equals(indexSettings.getMode())
@@ -1041,7 +1064,7 @@ public final class KeywordFieldMapper extends FieldMapper {
     }
 
     private final boolean indexed;
-    private final boolean hasDocValues;
+    private final DocValuesParameter.Values docValuesParameters;
     private final String indexOptions;
     private final FieldType fieldType;
     private final String normalizerName;
@@ -1066,7 +1089,7 @@ public final class KeywordFieldMapper extends FieldMapper {
         super(simpleName, mappedFieldType, builderParams);
         assert fieldType.indexOptions().compareTo(IndexOptions.DOCS_AND_FREQS) <= 0;
         this.indexed = builder.indexed.getValue();
-        this.hasDocValues = builder.hasDocValues.getValue();
+        this.docValuesParameters = builder.docValuesParameters.getValue();
         this.indexOptions = builder.indexOptions.getValue();
         this.fieldType = freezeAndDeduplicateFieldType(fieldType);
         this.normalizerName = builder.normalizer.getValue();
@@ -1092,6 +1115,10 @@ public final class KeywordFieldMapper extends FieldMapper {
 
     public boolean isNormalizerSkipStoreOriginalValue() {
         return normalizerSkipStoreOriginalValue;
+    }
+
+    public DocValuesParameter.Values docValuesParameters() {
+        return docValuesParameters;
     }
 
     protected void parseCreateField(DocumentParserContext context) throws IOException {
@@ -1273,7 +1300,7 @@ public final class KeywordFieldMapper extends FieldMapper {
             return SyntheticSourceSupport.FALLBACK;
         }
 
-        if (fieldType.stored() || hasDocValues) {
+        if (fieldType.stored() || docValuesParameters.enabled()) {
             return new SyntheticSourceSupport.Native(() -> syntheticFieldLoader(fullPath(), leafName()));
         }
 
@@ -1281,7 +1308,7 @@ public final class KeywordFieldMapper extends FieldMapper {
     }
 
     public CompositeSyntheticFieldLoader syntheticFieldLoader(String fullFieldName, String leafFieldName) {
-        assert fieldType.stored() || hasDocValues;
+        assert fieldType.stored() || docValuesParameters.enabled();
 
         var layers = new ArrayList<CompositeSyntheticFieldLoader.Layer>(2);
         if (fieldType.stored()) {
@@ -1292,7 +1319,7 @@ public final class KeywordFieldMapper extends FieldMapper {
                     b.utf8Value(ref.bytes, ref.offset, ref.length);
                 }
             });
-        } else if (hasDocValues) {
+        } else if (docValuesParameters.enabled()) {
             if (offsetsFieldName != null) {
                 layers.add(new SortedSetWithOffsetsDocValuesSyntheticFieldLoaderLayer(fullPath(), offsetsFieldName));
             } else {

@@ -22,6 +22,7 @@ import org.elasticsearch.xpack.versionfield.Version;
 
 import java.io.IOException;
 import java.time.Duration;
+import java.time.Instant;
 import java.util.Collection;
 import java.util.Objects;
 
@@ -217,6 +218,10 @@ public class Literal extends LeafExpression implements Accountable {
         return new Literal(source, literal, DataType.TIME_DURATION);
     }
 
+    public static Literal dateTime(Source source, Instant literal) {
+        return new Literal(source, literal, DataType.DATETIME);
+    }
+
     public static Literal integer(Source source, Integer literal) {
         return new Literal(source, literal, INTEGER);
     }
@@ -227,6 +232,10 @@ public class Literal extends LeafExpression implements Accountable {
 
     public static Literal fromLong(Source source, Long literal) {
         return new Literal(source, literal, LONG);
+    }
+
+    public static Expression fromBoolean(Source source, Boolean literal) {
+        return new Literal(source, literal, DataType.BOOLEAN);
     }
 
     private static BytesRef longAsWKB(DataType dataType, long encoded) {

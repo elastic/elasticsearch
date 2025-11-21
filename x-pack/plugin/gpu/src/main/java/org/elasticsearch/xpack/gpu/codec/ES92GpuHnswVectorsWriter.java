@@ -18,6 +18,7 @@ import org.apache.lucene.codecs.hnsw.FlatFieldVectorsWriter;
 import org.apache.lucene.codecs.hnsw.FlatVectorsWriter;
 import org.apache.lucene.codecs.lucene99.Lucene99FlatVectorsWriter;
 import org.apache.lucene.index.ByteVectorValues;
+import org.apache.lucene.index.DocsWithFieldSet;
 import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.FloatVectorValues;
 import org.apache.lucene.index.IndexFileNames;
@@ -163,7 +164,6 @@ final class ES92GpuHnswVectorsWriter extends KnnVectorsWriter {
      * </p>
      */
     @Override
-    // TODO: fix sorted index case
     public void flush(int maxDoc, Sorter.DocMap sortMap) throws IOException {
         var started = System.nanoTime();
         flatVectorWriter.flush(maxDoc, sortMap);
@@ -182,7 +182,11 @@ final class ES92GpuHnswVectorsWriter extends KnnVectorsWriter {
             var started = System.nanoTime();
             var fieldInfo = field.fieldInfo;
 
-            var numVectors = field.flatFieldVectorsWriter.getVectors().size();
+            var originalVectors = field.flatFieldVectorsWriter.getVectors();
+            final List<float[]> vectorsInSortedOrder = sortMap == null
+                ? originalVectors
+                : getVectorsInSortedOrder(field, sortMap, originalVectors);
+            int numVectors = vectorsInSortedOrder.size();
             CagraIndexParams cagraIndexParams = createCagraIndexParams(
                 fieldInfo.getVectorSimilarityFunction(),
                 numVectors,
@@ -192,7 +196,7 @@ final class ES92GpuHnswVectorsWriter extends KnnVectorsWriter {
             if (numVectors < MIN_NUM_VECTORS_FOR_GPU_BUILD) {
                 logger.debug("Skip building carga index; vectors length {} < {} (min for GPU)", numVectors, MIN_NUM_VECTORS_FOR_GPU_BUILD);
                 // Will not be indexed on the GPU
-                flushFieldWithMockGraph(fieldInfo, numVectors, sortMap);
+                generateMockGraphAndWriteMeta(fieldInfo, numVectors);
             } else {
                 try (
                     var resourcesHolder = new ResourcesHolder(
@@ -206,11 +210,11 @@ final class ES92GpuHnswVectorsWriter extends KnnVectorsWriter {
                         fieldInfo.getVectorDimension(),
                         CuVSMatrix.DataType.FLOAT
                     );
-                    for (var vector : field.flatFieldVectorsWriter.getVectors()) {
+                    for (var vector : vectorsInSortedOrder) {
                         builder.addVector(vector);
                     }
                     try (var dataset = builder.build()) {
-                        flushFieldWithGpuGraph(resourcesHolder, fieldInfo, dataset, sortMap, cagraIndexParams);
+                        generateGpuGraphAndWriteMeta(resourcesHolder, fieldInfo, dataset, cagraIndexParams);
                     }
                 }
             }
@@ -219,28 +223,17 @@ final class ES92GpuHnswVectorsWriter extends KnnVectorsWriter {
         }
     }
 
-    private void flushFieldWithMockGraph(FieldInfo fieldInfo, int numVectors, Sorter.DocMap sortMap) throws IOException {
-        if (sortMap == null) {
-            generateMockGraphAndWriteMeta(fieldInfo, numVectors);
-        } else {
-            // TODO: use sortMap
-            generateMockGraphAndWriteMeta(fieldInfo, numVectors);
+    private List<float[]> getVectorsInSortedOrder(FieldWriter field, Sorter.DocMap sortMap, List<float[]> originalVectors)
+        throws IOException {
+        DocsWithFieldSet docsWithField = field.getDocsWithFieldSet();
+        int[] ordMap = new int[docsWithField.cardinality()];
+        DocsWithFieldSet newDocsWithField = new DocsWithFieldSet();
+        KnnVectorsWriter.mapOldOrdToNewOrd(docsWithField, sortMap, null, ordMap, newDocsWithField);
+        List<float[]> vectorsInSortedOrder = new ArrayList<>(ordMap.length);
+        for (int oldOrd : ordMap) {
+            vectorsInSortedOrder.add(originalVectors.get(oldOrd));
         }
-    }
-
-    private void flushFieldWithGpuGraph(
-        ResourcesHolder resourcesHolder,
-        FieldInfo fieldInfo,
-        CuVSMatrix dataset,
-        Sorter.DocMap sortMap,
-        CagraIndexParams cagraIndexParams
-    ) throws IOException {
-        if (sortMap == null) {
-            generateGpuGraphAndWriteMeta(resourcesHolder, fieldInfo, dataset, cagraIndexParams);
-        } else {
-            // TODO: use sortMap
-            generateGpuGraphAndWriteMeta(resourcesHolder, fieldInfo, dataset, cagraIndexParams);
-        }
+        return vectorsInSortedOrder;
     }
 
     @Override
@@ -512,8 +505,10 @@ final class ES92GpuHnswVectorsWriter extends KnnVectorsWriter {
 
     // TODO check with deleted documents
     @Override
-    // fix sorted index case
     public void mergeOneField(FieldInfo fieldInfo, MergeState mergeState) throws IOException {
+        // Note: Merged raw vectors are already in sorted order. The flatVectorWriter and MergedVectorValues utilities
+        // apply mergeState.docMaps internally, so vectors are returned in the final sorted document order.
+        // Unlike flush(), we don't need to explicitly handle sorting here.
         try (var scorerSupplier = flatVectorWriter.mergeOneFieldToIndex(fieldInfo, mergeState)) {
             var started = System.nanoTime();
             int numVectors = scorerSupplier.totalVectorCount();
@@ -843,6 +838,10 @@ final class ES92GpuHnswVectorsWriter extends KnnVectorsWriter {
         @Override
         public long ramBytesUsed() {
             return SHALLOW_SIZE + flatFieldVectorsWriter.ramBytesUsed();
+        }
+
+        public DocsWithFieldSet getDocsWithFieldSet() {
+            return flatFieldVectorsWriter.getDocsWithFieldSet();
         }
     }
 }

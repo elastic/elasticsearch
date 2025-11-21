@@ -3349,7 +3349,7 @@ public class VerifierTests extends ESTestCase {
         return error(query, defaultAnalyzer, VerificationException.class, params);
     }
 
-    private String error(String query, Analyzer analyzer, Object... params) {
+    public static String error(String query, Analyzer analyzer, Object... params) {
         return error(query, analyzer, VerificationException.class, params);
     }
 
@@ -3357,7 +3357,7 @@ public class VerifierTests extends ESTestCase {
         return error(query, transportVersion, VerificationException.class, params);
     }
 
-    private String error(String query, Analyzer analyzer, Class<? extends Exception> exception, Object... params) {
+    public static String error(String query, Analyzer analyzer, Class<? extends Exception> exception, Object... params) {
         List<QueryParam> parameters = new ArrayList<>();
         for (Object param : params) {
             if (param == null) {

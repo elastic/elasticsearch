@@ -9,8 +9,6 @@
 
 package org.elasticsearch.rest.action.cat;
 
-import java.util.Optional;
-
 import org.elasticsearch.action.admin.cluster.state.ClusterStateRequest;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.action.admin.indices.stats.CommonStats;
@@ -55,6 +53,7 @@ import org.elasticsearch.search.suggest.completion.CompletionStats;
 import java.time.Instant;
 import java.util.List;
 import java.util.Locale;
+import java.util.Optional;
 import java.util.function.Function;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
@@ -440,18 +439,18 @@ public class RestShardsAction extends AbstractCatAction {
             table.addCell(getOrNull(commonStats, CommonStats::getSparseVectorStats, SparseVectorStats::getValueCount));
 
             table.addCell(
-                Optional.ofNullable(getOrNull(
-                    state.getState().metadata().findIndex(shard.index()).orElse(null),
-                    IndexMetadata::getSettings,
-                    s -> s.get("index.routing.allocation.include._tier_preference")
-                )).orElse("")
+                Optional.ofNullable(
+                    getOrNull(
+                        state.getState().metadata().findIndex(shard.index()).orElse(null),
+                        IndexMetadata::getSettings,
+                        s -> s.get("index.routing.allocation.include._tier_preference")
+                    )
+                ).orElse("")
             );
             table.addCell(
-                Optional.ofNullable(getOrNull(
-                    state.getState().nodes().get(shard.currentNodeId()),
-                    DiscoveryNode::getRoleAbbreviationString,
-                    s -> s
-                )).orElse("-")
+                Optional.ofNullable(
+                    getOrNull(state.getState().nodes().get(shard.currentNodeId()), DiscoveryNode::getRoleAbbreviationString, s -> s)
+                ).orElse("-")
             );
             table.endRow();
         }

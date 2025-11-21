@@ -49,6 +49,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.BiFunction;
 import java.util.function.BinaryOperator;
+import java.util.function.Consumer;
 import java.util.function.DoubleFunction;
 import java.util.function.Function;
 import java.util.function.IntFunction;
@@ -1159,9 +1160,16 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
      */
     public static List<TypedDataSupplier> dateCases(long min, long max) {
         List<TypedDataSupplier> cases = new ArrayList<>();
-        if (min <= 0 && max >= 0) {
-            cases.add(new TypedDataSupplier("<1970-01-01T00:00:00Z>", () -> 0L, DataType.DATETIME));
-        }
+        Consumer<String> addExactCase = (value) -> {
+            long date = Instant.parse(value).toEpochMilli();
+            if (date >= min && date <= max) {
+                cases.add(new TypedDataSupplier("<" + value + ">", () -> date, DataType.DATETIME));
+            }
+        };
+
+        addExactCase.accept("1970-01-01T00:00:00Z");
+        addExactCase.accept("2025-03-30T01:00:00+01:00"); // Before Europe/Paris DST change
+        addExactCase.accept("2025-03-30T03:00:00+02:00"); // After Europe/Paris DST change
 
         // 1970-01-01T00:00:00Z - 2286-11-20T17:46:40Z
         long lower1 = Math.max(min, 0);
@@ -1218,11 +1226,17 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
         Instant twentyTwoFifty = Instant.parse("2250-01-01T00:00:00Z");
 
         List<TypedDataSupplier> cases = new ArrayList<>();
-        if (minValue.isAfter(Instant.EPOCH) == false) {
-            cases.add(
-                new TypedDataSupplier("<1970-01-01T00:00:00.000000000Z>", () -> DateUtils.toLong(Instant.EPOCH), DataType.DATE_NANOS)
-            );
-        }
+        Consumer<String> addExactCase = (value) -> {
+            Instant instant = Instant.parse(value);
+            long date = DateUtils.toLong(Instant.parse(value));
+            if (minValue.isAfter(instant) == false && maxValue.isBefore(instant) == false) {
+                cases.add(new TypedDataSupplier("<" + value + ">", () -> date, DataType.DATE_NANOS));
+            }
+        };
+
+        addExactCase.accept("1970-01-01T00:00:00.000000000Z");
+        addExactCase.accept("2025-03-30T01:00:00.000000001+01:00"); // Before Europe/Paris DST change
+        addExactCase.accept("2025-03-30T03:00:00.000000002+02:00"); // After Europe/Paris DST change
 
         Instant lower = Instant.EPOCH.isBefore(minValue) ? minValue : Instant.EPOCH;
         Instant upper = twentyOneHundred.isAfter(maxValue) ? maxValue : twentyOneHundred;
@@ -1592,7 +1606,7 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
     ) {
         return suppliers.stream()
             .map(supplier -> new TestCaseSupplier(supplier.name(), supplier.types(), () -> mapper.apply(supplier.get())))
-            .toList();
+            .collect(Collectors.toCollection(ArrayList::new));
     }
 
     public static final class TestCase {
@@ -1806,19 +1820,6 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
          */
         public Object extra() {
             return extra;
-        }
-
-        /**
-         * Build a new {@link TestCase} with the {@link #TEST_CONFIGURATION}.
-         * <p>
-         *     The source is also set to match the configuration
-         * </p>
-         *
-         * @deprecated Use a custom configuration instead, and test the results.
-         */
-        @Deprecated
-        public TestCase withStaticConfiguration() {
-            return withConfiguration(TEST_SOURCE, TEST_CONFIGURATION);
         }
 
         /**

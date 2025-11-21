@@ -1041,7 +1041,7 @@ public class ModelRegistryIT extends ESSingleNodeTestCase {
         }
     }
 
-    private Model buildElserModelConfig(String inferenceEntityId, TaskType taskType) {
+    static Model buildElserModelConfig(String inferenceEntityId, TaskType taskType) {
         return switch (taskType) {
             case SPARSE_EMBEDDING -> new org.elasticsearch.xpack.inference.services.elasticsearch.ElserInternalModel(
                 inferenceEntityId,

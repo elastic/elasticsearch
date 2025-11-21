@@ -660,7 +660,7 @@ setup:
         index: test-dense-index-bbq_disk
         body:
           settings:
-            index.mapping.semantic_text.use_legacy_format: false
+            index.mapping.semantic_text.use_legacy_format: true
           mappings:
             properties:
               bbq_disk_body:

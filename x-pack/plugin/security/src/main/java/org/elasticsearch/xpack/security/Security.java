@@ -104,7 +104,6 @@ import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
-import org.elasticsearch.search.crossproject.CrossProjectRoutingResolver;
 import org.elasticsearch.search.crossproject.ProjectRoutingResolver;
 import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.telemetry.TelemetryProvider;
@@ -647,7 +646,6 @@ public class Security extends Plugin
     private final SetOnce<RemoteClusterSecurityExtension.Provider> remoteClusterSecurityExtensionProvider = new SetOnce<>();
     private final SetOnce<RemoteClusterSecurityExtension> remoteClusterSecurityExtension = new SetOnce<>();
     private final SetOnce<RemoteClusterAuthenticationService> remoteClusterAuthenticationService = new SetOnce<>();
-    private final SetOnce<ProjectRoutingResolver> projectRoutingResolver = new SetOnce<>();
 
     private final SetOnce<SecurityMigrations.Manager> migrationManager = new SetOnce<>();
     private final SetOnce<List<Closeable>> closableComponents = new SetOnce<>();
@@ -765,7 +763,8 @@ public class Security extends Plugin
                 services.telemetryProvider(),
                 new PersistentTasksService(services.clusterService(), services.threadPool(), services.client()),
                 services.linkedProjectConfigService(),
-                services.projectResolver()
+                services.projectResolver(),
+                services.projectRoutingResolver()
             );
         } catch (final Exception e) {
             throw new IllegalStateException("security initialization failed", e);
@@ -786,7 +785,8 @@ public class Security extends Plugin
         TelemetryProvider telemetryProvider,
         PersistentTasksService persistentTasksService,
         LinkedProjectConfigService linkedProjectConfigService,
-        ProjectResolver projectResolver
+        ProjectResolver projectResolver,
+        ProjectRoutingResolver projectRoutingResolver
     ) throws Exception {
         logger.info("Security is {}", enabled ? "enabled" : "disabled");
         if (enabled == false) {
@@ -1170,10 +1170,8 @@ public class Security extends Plugin
             projectResolver,
             authorizedProjectsResolver,
             new CrossProjectModeDecider(settings),
-            projectRoutingResolver.get()
+            projectRoutingResolver
         );
-
-        components.add(new PluginComponentBinding<>(ProjectRoutingResolver.class, projectRoutingResolver.get()));
 
         components.add(nativeRolesStore); // used by roles actions
         components.add(reservedRolesStore); // used by roles actions
@@ -2563,7 +2561,6 @@ public class Security extends Plugin
             RemoteClusterSecurityExtension.Provider.class,
             CrossClusterAccessSecurityExtension.Provider::new
         );
-        loadSingletonExtensionAndSetOnce(loader, projectRoutingResolver, ProjectRoutingResolver.class, CrossProjectRoutingResolver::new);
     }
 
     private <T> void loadSingletonExtensionAndSetOnce(ExtensionLoader loader, SetOnce<T> setOnce, Class<T> clazz) {

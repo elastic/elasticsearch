@@ -561,6 +561,14 @@ public class PainlessExecuteApiTests extends ESSingleNodeTestCase {
         }
     }
 
+    public void testSetLocal() {
+        PainlessExecuteAction.Request request = createRequest("p1:blogs");
+        request.setLocal(true);
+        assertThat(request.index(), equalTo("blogs"));
+        request.setLocal(false);
+        assertThat(request.index(), equalTo("p1:blogs"));
+    }
+
     private PainlessExecuteAction.Request createRequest(String indexExpression) {
         return new PainlessExecuteAction.Request(
             new Script("100.0 / 1000.0"),

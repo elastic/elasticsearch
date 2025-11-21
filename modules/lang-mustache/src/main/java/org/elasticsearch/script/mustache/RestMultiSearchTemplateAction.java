@@ -18,10 +18,12 @@ import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.rest.action.search.RestMultiSearchAction;
 import org.elasticsearch.rest.action.search.RestSearchAction;
+import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Optional;
 import java.util.Set;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
@@ -35,11 +37,11 @@ public class RestMultiSearchTemplateAction extends BaseRestHandler {
     private static final Set<String> RESPONSE_PARAMS = Set.of(RestSearchAction.TYPED_KEYS_PARAM, RestSearchAction.TOTAL_HITS_AS_INT_PARAM);
 
     private final boolean allowExplicitIndex;
-    private final Settings settings;
+    private final CrossProjectModeDecider crossProjectModeDecider;
 
     public RestMultiSearchTemplateAction(Settings settings) {
         this.allowExplicitIndex = MULTI_ALLOW_EXPLICIT_INDEX.get(settings);
-        this.settings = settings;
+        this.crossProjectModeDecider = new CrossProjectModeDecider(settings);
     }
 
     @Override
@@ -67,7 +69,8 @@ public class RestMultiSearchTemplateAction extends BaseRestHandler {
      * Parses a {@link RestRequest} body and returns a {@link MultiSearchTemplateRequest}
      */
     public MultiSearchTemplateRequest parseRequest(RestRequest restRequest, boolean allowExplicitIndex) throws IOException {
-        if (settings != null && settings.getAsBoolean("serverless.cross_project.enabled", false)) {
+        boolean crossProjectEnabled = crossProjectModeDecider.crossProjectEnabled();
+        if (crossProjectEnabled) {
             // accept but drop project_routing param until fully supported
             restRequest.param("project_routing");
         }
@@ -90,7 +93,8 @@ public class RestMultiSearchTemplateAction extends BaseRestHandler {
                     throw new IllegalArgumentException("Malformed search template");
                 }
                 RestSearchAction.validateSearchRequest(restRequest, searchRequest);
-            }
+            },
+            Optional.of(crossProjectEnabled)
         );
         return multiRequest;
     }

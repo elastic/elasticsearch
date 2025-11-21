@@ -439,6 +439,7 @@ public class RankVectorsFieldMapperTests extends SyntheticVectorsMapperTestCase 
                 }
                 yield vectors;
             }
+            case BFLOAT16 -> throw new AssertionError();
         };
     }
 
@@ -477,10 +478,9 @@ public class RankVectorsFieldMapperTests extends SyntheticVectorsMapperTestCase 
         @Override
         public SyntheticSourceExample example(int maxValues) {
             Object value = switch (elementType) {
-                case BYTE, BIT:
-                    yield randomList(numVecs, numVecs, () -> randomList(dims, dims, ESTestCase::randomByte));
-                case FLOAT:
-                    yield randomList(numVecs, numVecs, () -> randomList(dims, dims, ESTestCase::randomFloat));
+                case BYTE, BIT -> randomList(numVecs, numVecs, () -> randomList(dims, dims, ESTestCase::randomByte));
+                case FLOAT -> randomList(numVecs, numVecs, () -> randomList(dims, dims, ESTestCase::randomFloat));
+                case BFLOAT16 -> throw new AssertionError();
             };
             return new SyntheticSourceExample(value, value, this::mapping);
         }

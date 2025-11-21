@@ -47,7 +47,7 @@ inline __m512i fma8(__m512i acc, const int8_t* p1, const int8_t* p2) {
     return _mm512_add_epi32(_mm512_madd_epi16(ones, dot), acc);
 }
 
-static inline int32_t dot7u_inner_avx512(int8_t* a, int8_t* b, size_t dims) {
+static inline int32_t dot7u_inner_avx512(int8_t* a, const int8_t* b, size_t dims) {
     constexpr int stride8 = 8 * STRIDE_BYTES_LEN;
     constexpr int stride4 = 4 * STRIDE_BYTES_LEN;
     const int8_t* p1 = a;
@@ -112,6 +112,32 @@ EXPORT int32_t dot7u_2(int8_t* a, int8_t* b, size_t dims) {
         res += a[i] * b[i];
     }
     return res;
+}
+
+extern "C"
+EXPORT void dot7u_bulk_2(int8_t* a, const int8_t* b, const int32_t dims, const int32_t count, float_t* results) {
+    int32_t res = 0;
+    if (dims > STRIDE_BYTES_LEN) {
+        const int limit = dims & ~(STRIDE_BYTES_LEN - 1);
+        for (size_t c = 0; c < count; c++) {
+            int i = limit;
+            res = dot7u_inner_avx512(a, b, i);
+            for (; i < dims; i++) {
+                res += a[i] * b[i];
+            }
+            results[c] = (float_t)res;
+            a += dims;
+        }
+    } else {
+        for (size_t c = 0; c < count; c++) {
+            res = 0;
+            for (size_t i = 0; i < dims; i++) {
+                res += a[i] * b[i];
+            }
+            results[c] = (float_t)res;
+            a += dims;
+        }
+    }
 }
 
 template<int offsetRegs>

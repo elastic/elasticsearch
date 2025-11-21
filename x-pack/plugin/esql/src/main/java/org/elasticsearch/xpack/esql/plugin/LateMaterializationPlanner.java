@@ -106,7 +106,7 @@ class LateMaterializationPlanner {
                 return r;
             }
             List<Attribute> attributes = CollectionUtils.prependToCopy(doc, r.output());
-            return new EsRelation(r.source(), r.indexPattern(), r.indexMode(), r.indexNameWithModes(), attributes);
+            return r.withAttributes(attributes);
         });
         if (withAddedDocToRelation.output().stream().noneMatch(EsQueryExec::isDocAttribute)) {
             // Defensive check: if any intermediate projects (or possibly another operator) removed the doc field, just abort this

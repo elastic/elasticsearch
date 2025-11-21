@@ -51,6 +51,7 @@ import org.elasticsearch.indices.InvalidIndexNameException;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
 import org.elasticsearch.search.crossproject.NoMatchingProjectException;
+import org.elasticsearch.search.crossproject.ProjectRoutingResolver;
 import org.elasticsearch.search.crossproject.TargetProjects;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.LinkedProjectConfigService;
@@ -175,7 +176,8 @@ public class AuthorizationService {
         LinkedProjectConfigService linkedProjectConfigService,
         ProjectResolver projectResolver,
         AuthorizedProjectsResolver authorizedProjectsResolver,
-        CrossProjectModeDecider crossProjectModeDecider
+        CrossProjectModeDecider crossProjectModeDecider,
+        ProjectRoutingResolver projectRoutingResolver
     ) {
         this.clusterService = clusterService;
         this.auditTrailService = auditTrailService;
@@ -184,7 +186,8 @@ public class AuthorizationService {
             settings,
             linkedProjectConfigService,
             resolver,
-            crossProjectModeDecider
+            crossProjectModeDecider,
+            projectRoutingResolver
         );
         this.authcFailureHandler = authcFailureHandler;
         this.threadContext = threadPool.getThreadContext();

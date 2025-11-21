@@ -113,16 +113,16 @@ public class KnnFunctionIT extends AbstractEsqlIntegTestCase {
         }
     }
 
-    public void testKnnOptions() {
+    public void testKnnKOverridesLimit() {
         float[] queryVector = new float[numDims];
         Arrays.fill(queryVector, 0.0f);
 
         var query = String.format(Locale.ROOT, """
             FROM test METADATA _score
-            | WHERE knn(vector, %s)
+            | WHERE knn(vector, %s, {"k": 5, "min_candidates": 20})
             | KEEP id, _score, vector
             | SORT _score DESC
-            | LIMIT 5
+            | LIMIT 10
             """, Arrays.toString(queryVector));
 
         try (var resp = run(query)) {

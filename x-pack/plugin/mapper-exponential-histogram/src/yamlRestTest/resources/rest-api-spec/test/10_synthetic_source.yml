@@ -169,6 +169,24 @@ setup:
         body:
           my_histo:
             scale: -7
+  - do:
+      get:
+        index: test_exponential_histogram
+        id: "1"
+  - match:
+      _source.my_histo:
+        scale: -7
+
+---
+"Empty histogram with sum":
+  - do:
+      index:
+        index: test_exponential_histogram
+        id: "1"
+        refresh: true
+        body:
+          my_histo:
+            scale: -7
             sum: 0.0
   - do:
       get:
@@ -176,7 +194,6 @@ setup:
         id: "1"
   - match:
       _source.my_histo:
-        sum: 0.0
         scale: -7
 
 ---
@@ -198,7 +215,6 @@ setup:
   - match:
       _source.my_histo:
         scale: 0
-        sum: 0.0
         zero:
           threshold: 42.7
 

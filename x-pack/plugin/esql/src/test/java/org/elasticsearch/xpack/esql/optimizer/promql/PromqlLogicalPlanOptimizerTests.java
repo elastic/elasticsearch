@@ -375,7 +375,7 @@ public class PromqlLogicalPlanOptimizerTests extends AbstractLogicalPlanOptimize
         var filters = plan.collect(Filter.class::isInstance);
         assertThat(filters, hasSize(1));
         var filter = (Filter) filters.getFirst();
-        assertThat(filter.condition().anyMatch(e -> e instanceof FieldAttribute a && a.name().equals("@timestamp")), equalTo(true));
+        assertThat(filter.condition().collect(e -> e instanceof FieldAttribute a && a.name().equals("@timestamp")), hasSize(2));
     }
 
     /**

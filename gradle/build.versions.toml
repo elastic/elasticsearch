@@ -4,6 +4,7 @@ jackson = "2.15.0"
 junit5 = "5.12.1"
 spock = "2.3-groovy-4.0"
 nmcp = "0.1.5"
+testcontainers = "2.0.2"
 
 [libraries]
 ant = "org.apache.ant:ant:1.10.12"

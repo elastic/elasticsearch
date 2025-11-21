@@ -1,0 +1,5 @@
+pr: 137677
+summary: "[Inference] Implementing the completion task type on EIS"
+area: "Inference"
+type: enhancement
+issues: []

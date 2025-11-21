@@ -242,7 +242,7 @@ public class SemanticTextHighlighterTests extends MapperServiceTestCase {
     }
 
     @SuppressWarnings("unchecked")
-    public void testDenseVectorWithDiscBBQandSimilarityThreshold() throws Exception {
+    public void testDenseVectorWithDiskBBQandSimilarityThreshold() throws Exception {
         var mapperService = createDefaultMapperService(useLegacyFormat);
         Map<String, Object> queryMap = (Map<String, Object>) queries.get("dense_vector_1");
         float[] vector = readDenseVector(queryMap.get("embeddings"));

@@ -9,6 +9,8 @@
 
 package org.elasticsearch.rest.action.cat;
 
+import java.util.Optional;
+
 import org.elasticsearch.action.admin.cluster.state.ClusterStateRequest;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.action.admin.indices.stats.CommonStats;
@@ -438,14 +440,19 @@ public class RestShardsAction extends AbstractCatAction {
             table.addCell(getOrNull(commonStats, CommonStats::getSparseVectorStats, SparseVectorStats::getValueCount));
 
             table.addCell(
-                getOrNull(
+                Optional.ofNullable(getOrNull(
                     state.getState().metadata().findIndex(shard.index()).orElse(null),
                     IndexMetadata::getSettings,
                     s -> s.get("index.routing.allocation.include._tier_preference")
-                )
+                )).orElse("")
             );
-            table.addCell(getOrNull(state.getState().nodes().get(shard.currentNodeId()), DiscoveryNode::getRoleAbbreviationString, s -> s));
-
+            table.addCell(
+                Optional.ofNullable(getOrNull(
+                    state.getState().nodes().get(shard.currentNodeId()),
+                    DiscoveryNode::getRoleAbbreviationString,
+                    s -> s
+                )).orElse("-")
+            );
             table.endRow();
         }
 

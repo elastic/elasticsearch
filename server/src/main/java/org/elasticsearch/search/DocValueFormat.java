@@ -35,7 +35,12 @@ import java.text.DecimalFormatSymbols;
 import java.text.NumberFormat;
 import java.text.ParseException;
 import java.time.DateTimeException;
+import java.time.Instant;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.LocalTime;
 import java.time.ZoneId;
+import java.time.ZoneOffset;
 import java.util.Arrays;
 import java.util.Base64;
 import java.util.Locale;
@@ -305,6 +310,14 @@ public interface DocValueFormat extends NamedWriteable {
 
         @Override
         public String format(long value) {
+            // Handle missing values, represented as Long.MIN_VALUE or Long.MAX_VALUE depending on the sort order
+            if (value == Long.MIN_VALUE) {
+                return formatter.withZone(ZoneOffset.ofHours(0)).format(Instant.EPOCH);
+            } else if (value == Long.MAX_VALUE) {
+                // On descending values, use the maximum possible value for strict_date_time format as the safest option
+                return formatter.withZone(ZoneOffset.ofHours(0)).format(LocalDateTime.of(LocalDate.of(9999, 12, 31), LocalTime.MAX));
+            }
+
             try {
                 return formatter.format(resolution.toInstant(value).atZone(timeZone));
             } catch (DateTimeException dte) {

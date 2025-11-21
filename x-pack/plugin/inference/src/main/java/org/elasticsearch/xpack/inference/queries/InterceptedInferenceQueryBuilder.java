@@ -16,13 +16,11 @@ import org.elasticsearch.cluster.metadata.InferenceFieldMetadata;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.regex.Regex;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.SearchExecutionContext;
-import org.elasticsearch.index.search.QueryParserHelper;
 import org.elasticsearch.inference.InferenceResults;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.ml.inference.results.ErrorInferenceResults;
@@ -34,15 +32,14 @@ import java.io.IOException;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
-import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.cluster.metadata.IndexMetadata.getMatchingInferenceFields;
-import static org.elasticsearch.index.IndexSettings.DEFAULT_FIELD_SETTING;
 import static org.elasticsearch.transport.RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY;
+import static org.elasticsearch.xpack.inference.queries.InferenceAsyncActionUtils.getDefaultFields;
 import static org.elasticsearch.xpack.inference.queries.InferenceAsyncActionUtils.getInferenceResults;
 import static org.elasticsearch.xpack.inference.queries.SemanticQueryBuilder.SEMANTIC_SEARCH_CCS_SUPPORT;
 import static org.elasticsearch.xpack.inference.queries.SemanticQueryBuilder.convertFromBwcInferenceResultsMap;
@@ -441,11 +438,6 @@ public abstract class InterceptedInferenceQueryBuilder<T extends AbstractQueryBu
         );
 
         return matchingInferenceFields.entrySet().stream().collect(Collectors.toMap(e -> e.getKey().getName(), Map.Entry::getValue));
-    }
-
-    private static Map<String, Float> getDefaultFields(Settings settings) {
-        List<String> defaultFieldsList = settings.getAsList(DEFAULT_FIELD_SETTING.getKey(), DEFAULT_FIELD_SETTING.getDefault(settings));
-        return QueryParserHelper.parseFieldsAndWeights(defaultFieldsList);
     }
 
     private static void inferenceResultsErrorCheck(Map<FullyQualifiedInferenceId, InferenceResults> inferenceResultsMap) {

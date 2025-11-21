@@ -9,10 +9,16 @@ package org.elasticsearch.xpack.inference.queries;
 
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ResolvedIndices;
 import org.elasticsearch.action.support.GroupedActionListener;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.InferenceFieldMetadata;
+import org.elasticsearch.common.regex.Regex;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.query.QueryRewriteContext;
+import org.elasticsearch.index.search.QueryParserHelper;
 import org.elasticsearch.inference.InferenceResults;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.InputType;
@@ -24,16 +30,64 @@ import org.elasticsearch.xpack.core.ml.inference.results.TextExpansionResults;
 import org.elasticsearch.xpack.core.ml.inference.results.WarningInferenceResults;
 
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+import static org.elasticsearch.index.IndexSettings.DEFAULT_FIELD_SETTING;
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
 
 public class InferenceAsyncActionUtils {
     private InferenceAsyncActionUtils() {}
+
+    public static InferenceResultGatheringInfo gatherInferenceResults(
+        QueryRewriteContext queryRewriteContext,
+        Map<String, Float> fields,
+        boolean resolveWildcards,
+        boolean useDefaultFields,
+        @Nullable Map<FullyQualifiedInferenceId, InferenceResults> inferenceResultsMap,
+        @Nullable SetOnce<Map<FullyQualifiedInferenceId, InferenceResults>> inferenceResultsMapSupplier,
+        @Nullable FullyQualifiedInferenceId inferenceIdOverride,
+        @Nullable String query
+    ) {
+        ResolvedIndices resolvedIndices = queryRewriteContext.getResolvedIndices();
+        Set<FullyQualifiedInferenceId> inferenceIds = getInferenceIdsForFields(
+            resolvedIndices.getConcreteLocalIndicesMetadata().values(),
+            queryRewriteContext.getLocalClusterAlias(),
+            fields,
+            resolveWildcards,
+            useDefaultFields
+        );
+
+        if (inferenceIds.isEmpty()) {
+            return new InferenceResultGatheringInfo(InferenceResultGatheringState.NO_INFERENCE_FIELDS, null);
+        } else if (inferenceResultsMapSupplier != null) {
+            InferenceResultGatheringState state = inferenceResultsMapSupplier.get() != null
+                ? InferenceResultGatheringState.COMPLETE
+                : InferenceResultGatheringState.PENDING;
+            return new InferenceResultGatheringInfo(state, inferenceResultsMapSupplier);
+        }
+
+        if (inferenceIdOverride != null) {
+            inferenceIds = Set.of(inferenceIdOverride);
+        }
+
+        SetOnce<Map<FullyQualifiedInferenceId, InferenceResults>> newInferenceResultsMapSupplier = getInferenceResults(
+            queryRewriteContext,
+            inferenceIds,
+            inferenceResultsMap,
+            query
+        );
+
+        InferenceResultGatheringState state = newInferenceResultsMapSupplier != null
+            ? InferenceResultGatheringState.PENDING
+            : InferenceResultGatheringState.COMPLETE;
+        return new InferenceResultGatheringInfo(state, inferenceResultsMapSupplier);
+    }
 
     /**
      * <p>
@@ -136,6 +190,59 @@ public class InferenceAsyncActionUtils {
         });
     }
 
+    public static Map<String, Float> getDefaultFields(Settings settings) {
+        List<String> defaultFieldsList = settings.getAsList(DEFAULT_FIELD_SETTING.getKey(), DEFAULT_FIELD_SETTING.getDefault(settings));
+        return QueryParserHelper.parseFieldsAndWeights(defaultFieldsList);
+    }
+
+    private static Set<FullyQualifiedInferenceId> getInferenceIdsForFields(
+        Collection<IndexMetadata> indexMetadataCollection,
+        String clusterAlias,
+        Map<String, Float> fields,
+        boolean resolveWildcards,
+        boolean useDefaultFields
+    ) {
+        Set<FullyQualifiedInferenceId> fullyQualifiedInferenceIds = new HashSet<>();
+        for (IndexMetadata indexMetadata : indexMetadataCollection) {
+            final Map<String, Float> indexQueryFields = (useDefaultFields && fields.isEmpty())
+                ? getDefaultFields(indexMetadata.getSettings())
+                : fields;
+
+            Map<String, InferenceFieldMetadata> indexInferenceFields = indexMetadata.getInferenceFields();
+            for (String indexQueryField : indexQueryFields.keySet()) {
+                if (indexInferenceFields.containsKey(indexQueryField)) {
+                    // No wildcards in field name
+                    InferenceFieldMetadata inferenceFieldMetadata = indexInferenceFields.get(indexQueryField);
+                    fullyQualifiedInferenceIds.add(
+                        new FullyQualifiedInferenceId(clusterAlias, inferenceFieldMetadata.getSearchInferenceId())
+                    );
+                    continue;
+                }
+                if (resolveWildcards) {
+                    if (Regex.isMatchAllPattern(indexQueryField)) {
+                        indexInferenceFields.values()
+                            .forEach(
+                                ifm -> fullyQualifiedInferenceIds.add(
+                                    new FullyQualifiedInferenceId(clusterAlias, ifm.getSearchInferenceId())
+                                )
+                            );
+                    } else if (Regex.isSimpleMatchPattern(indexQueryField)) {
+                        indexInferenceFields.values()
+                            .stream()
+                            .filter(ifm -> Regex.simpleMatch(indexQueryField, ifm.getName()))
+                            .forEach(
+                                ifm -> fullyQualifiedInferenceIds.add(
+                                    new FullyQualifiedInferenceId(clusterAlias, ifm.getSearchInferenceId())
+                                )
+                            );
+                    }
+                }
+            }
+        }
+
+        return fullyQualifiedInferenceIds;
+    }
+
     private static GroupedActionListener<Tuple<FullyQualifiedInferenceId, InferenceResults>> createGroupedActionListener(
         SetOnce<Map<FullyQualifiedInferenceId, InferenceResults>> inferenceResultsMapSupplier,
         int inferenceRequestCount,
@@ -190,4 +297,15 @@ public class InferenceAsyncActionUtils {
 
         return inferenceResults;
     }
+
+    public enum InferenceResultGatheringState {
+        NO_INFERENCE_FIELDS,
+        PENDING,
+        COMPLETE
+    }
+
+    public record InferenceResultGatheringInfo(
+        InferenceResultGatheringState state,
+        SetOnce<Map<FullyQualifiedInferenceId, InferenceResults>> inferenceResultsMapSupplier
+    ) {}
 }

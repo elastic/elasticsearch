@@ -25,7 +25,7 @@ import static org.elasticsearch.test.MapMatcher.assertMap;
 import static org.elasticsearch.test.MapMatcher.matchesMap;
 
 /**
- * Tests that run ESQL queries that use a ton of memory. We want to make
+ * Tests that run ESQL lookup join queries that use a ton of memory. We want to make
  * sure they don't consume the entire heap and crash Elasticsearch.
  */
 @TimeoutSuite(millis = 20 * TimeUnits.MINUTE)

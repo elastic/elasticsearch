@@ -332,8 +332,11 @@ public class FeatureFactory {
 
         @Override
         public void filter(CoordinateSequence seq, int i) {
-            seq.setOrdinate(i, 0, lon(seq.getOrdinate(i, 0)));
-            seq.setOrdinate(i, 1, lat(seq.getOrdinate(i, 1)));
+            if (i != 0 && i == seq.size() - 1 && seq.getCoordinate(0) == seq.getCoordinate(i)) {
+                return;
+            }
+            seq.setOrdinate(i, CoordinateSequence.X, lon(seq.getOrdinate(i, CoordinateSequence.X)));
+            seq.setOrdinate(i, CoordinateSequence.Y, lat(seq.getOrdinate(i, CoordinateSequence.Y)));
         }
 
         @Override

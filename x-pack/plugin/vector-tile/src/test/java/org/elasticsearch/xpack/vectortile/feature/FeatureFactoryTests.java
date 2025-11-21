@@ -292,6 +292,19 @@ public class FeatureFactoryTests extends ESTestCase {
         assertThat(builder.getFeatures(geometry), iterableWithSize(1));
     }
 
+    public void testVectorTilesAreCorrect() throws IOException, ParseException {
+        // make sure we can parse big polygons
+        var is = new GZIPInputStream(getClass().getResourceAsStream("Antarctica.wkt.gz"));
+        final BufferedReader reader = new BufferedReader(new InputStreamReader(is, StandardCharsets.UTF_8));
+        final Geometry geometry = WellKnownText.fromWKT(StandardValidator.instance(true), true, reader.readLine());
+        final FeatureFactory builder = new FeatureFactory(0, 0, 0, 4096, 5);
+        List<byte[]> bytes = builder.getFeatures(geometry);
+        assertThat(bytes.size(), equalTo(1));
+        final VectorTile.Tile.Feature feature = VectorTile.Tile.Feature.parseFrom(bytes.get(0));
+        assertThat(feature.getType(), Matchers.equalTo(VectorTile.Tile.GeomType.POLYGON));
+        assertThat(feature.getGeometryCount(), equalTo(9071));
+    }
+
     public void testPolygonOrientation() throws IOException {
         Polygon polygon = new Polygon(
             new LinearRing(new double[] { -10, 10, 10, -10, -10 }, new double[] { -10, -10, 10, 10, -10 }),

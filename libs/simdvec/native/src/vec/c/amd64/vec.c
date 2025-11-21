@@ -153,10 +153,10 @@ EXPORT int32_t dot7u(int8_t* a, int8_t* b, size_t dims) {
     return res;
 }
 
-EXPORT void dot7u_bulk(int8_t* a, int8_t* b, size_t dims, size_t count, float_t* results) {
+EXPORT void dot7u_bulk(int8_t* a, const int8_t* b, const int32_t dims, const int32_t count, float_t* results) {
     int32_t res = 0;
     if (dims > STRIDE_BYTES_LEN) {
-        int limit = dims & ~(STRIDE_BYTES_LEN - 1);
+        const int limit = dims & ~(STRIDE_BYTES_LEN - 1);
         for (size_t c = 0; c < count; c++) {
             int i = limit;
             res = dot7u_inner(a, b, i);

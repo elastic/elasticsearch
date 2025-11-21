@@ -57,7 +57,8 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.TEXT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.UNSUPPORTED;
 
 public class IndexResolver {
-    private static Logger LOGGER = LogManager.getLogger(IndexResolver.class);
+
+    private static final Logger LOGGER = LogManager.getLogger(IndexResolver.class);
 
     public static final Set<String> ALL_FIELDS = Set.of("*");
     public static final Set<String> INDEX_METADATA_FIELD = Set.of(MetadataAttribute.INDEX);

@@ -20,9 +20,9 @@ var os = org.gradle.internal.os.OperatingSystem.current()
 //   docker run 9c9f36564c148b275aeecc42749e7b4580ded79dcf51ff6ccc008c8861e7a979 > build/libs/vec/shared/$arch/libvec.so
 //
 // To run tests and benchmarks on a locally built libvec,
-//  1. Temporarily comment out the download in libs/native/library/build.gradle
-//       libs "org.elasticsearch:vec:${vecVersion}@zip"
-//  2. Copy your locally built libvec binary, e.g.
+//  1. Set the LOCAL_VEC_BINARY_OS environment variable to any value to skip downloading the binary, e.g.
+//       export LOCAL_VEC_BINARY_OS=darwin
+//  2. Copy your locally built libvec binary (assumes from the repo root), e.g.
 //       cp libs/simdvec/native/build/libs/vec/shared/aarch64/libvec.dylib libs/native/libraries/build/platform/darwin-aarch64/libvec.dylib
 //
 // Look at the disassemble:
@@ -127,5 +127,26 @@ tasks.register('buildSharedLibrary') {
     }
   } else {
     throw new GradleException("Unsupported platform: " + platformName)
+  }
+}
+
+tasks.register('buildSharedLibraryAndCopy') {
+  description = 'Assembles native shared library for the host architecture and copies to libs/native/libraries/build/platform/'
+  // check if `LOCAL_VEC_BINARY_OS` is set, if not throw an error to prevent accidental overwrites
+  if (System.getenv("LOCAL_VEC_BINARY_OS") == null){
+    throw new GradleException("LOCAL_VEC_BINARY_OS is set, skipping copy to prevent overwriting local binary.")
+  }
+  dependsOn "buildSharedLibrary"
+  doLast {
+    // output dir is lowercased System.getenv("LOCAL_VEC_BINARY_OS") and arch
+    // we must translate platformName to match expected arch naming
+    def copyArch = platformName.equals("amd64") ? "x64" : platformName
+    def outputDir = file("../../native/libraries/build/platform/" + System.getenv("LOCAL_VEC_BINARY_OS").toLowerCase() + "-" + copyArch)
+    copy {
+      from layout.buildDirectory.dir('output')
+      into outputDir
+      duplicatesStrategy = 'INCLUDE'
+    }
+    println "Copied built libvec to " + outputDir.toString()
   }
 }

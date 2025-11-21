@@ -16,13 +16,16 @@ import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.esql.CsvSpecReader.CsvTestCase;
+import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.planner.PlannerSettings;
 import org.elasticsearch.xpack.esql.plugin.ComputeService;
 import org.elasticsearch.xpack.esql.qa.rest.EsqlSpecTestCase;
+import org.elasticsearch.xpack.esql.qa.rest.RestEsqlTestCase;
 import org.junit.Before;
 import org.junit.ClassRule;
 
 import java.io.IOException;
+import java.util.List;
 
 @ThreadLeakFilters(filters = TestClustersThreadFilter.class)
 public class EsqlSpecIT extends EsqlSpecTestCase {
@@ -49,6 +52,14 @@ public class EsqlSpecIT extends EsqlSpecTestCase {
     @Override
     protected boolean supportsSourceFieldMapping() {
         return cluster.getNumNodes() == 1;
+    }
+
+    @Override
+    protected boolean supportsExponentialHistograms() {
+        return RestEsqlTestCase.hasCapabilities(
+            client(),
+            List.of(EsqlCapabilities.Cap.EXPONENTIAL_HISTOGRAM_PRE_TECH_PREVIEW_V1.capabilityName())
+        );
     }
 
     @Before

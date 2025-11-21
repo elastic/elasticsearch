@@ -7,7 +7,7 @@ mapped_pages:
 # Redis connector reference [es-connectors-redis]
 
 
-The Redis connector is built with the Elastic connectors Python framework and is available as a self-managed [self-managed connector](/reference/search-connectors/self-managed-connectors.md). View the [**source code** for this connector](https://github.com/elastic/connectors/tree/main/connectors/sources/redis.py) (branch *main*, compatible with Elastic *9.0*).
+The Redis connector is built with the Elastic connectors Python framework and is available as a self-managed [self-managed connector](/reference/search-connectors/self-managed-connectors.md). View the [**source code** for this connector](https://github.com/elastic/connectors/tree/main/app/connectors_service/connectors/sources/redis) (branch *main*, compatible with Elastic *9.0*).
 
 
 ## Availability and prerequisites [es-connectors-redis-connector-availability-and-prerequisites]

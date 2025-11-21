@@ -77,7 +77,7 @@ public final class FetchPhase {
      * @param context
      * @param docIdsToLoad
      * @param rankDocs
-     * @param memoryChecker if not provided, the fetch phase will try to use the real memory breaker to check memory usage
+     * @param memoryChecker if not provided, the fetch phase will use the circuit breaker to check memory usage
      */
     public void execute(SearchContext context, int[] docIdsToLoad, RankDocShardInfo rankDocs, @Nullable IntConsumer memoryChecker) {
         if (LOGGER.isTraceEnabled()) {

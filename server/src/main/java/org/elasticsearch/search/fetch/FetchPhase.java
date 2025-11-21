@@ -225,10 +225,6 @@ public final class FetchPhase {
                 if (context.isCancelled()) {
                     throw new TaskCancelledException("cancelled");
                 }
-                if (memoryChecker == null && context.checkRealMemoryCB(locallyAccumulatedBytes[0], "fetch source")) {
-                    // if we checked the real memory breaker, we restart our local accounting
-                    locallyAccumulatedBytes[0] = 0;
-                }
 
                 HitContext hit = prepareHitContext(
                     context,
@@ -252,12 +248,17 @@ public final class FetchPhase {
 
                     BytesReference sourceRef = hit.hit().getSourceRef();
                     if (sourceRef != null) {
+                        // This is an empirical value that seems to work well.
+                        // Deserializing a large source would also mean serializing it to HTTP response later on, so x2 seems reasonable
+                        int newMemAllocated = sourceRef.length() * 2;
                         if (memoryChecker != null) {
-                            // This is an empirical value that seems to work well.
-                            // Deserializing a large source would also mean serializing it to HTTP response later on, so x2 seems reasonable
-                            memoryChecker.accept(sourceRef.length() * 2);
+                            memoryChecker.accept(newMemAllocated);
                         } else {
-                            locallyAccumulatedBytes[0] += sourceRef.length();
+                            locallyAccumulatedBytes[0] += newMemAllocated;
+                            if (context.checkCircuitBreaker(locallyAccumulatedBytes[0], "fetch source")) {
+                                addRequestBreakerBytes(locallyAccumulatedBytes[0]);
+                                locallyAccumulatedBytes[0] = 0;
+                            }
                         }
                     }
                     success = true;
@@ -270,24 +271,31 @@ public final class FetchPhase {
             }
         };
 
-        SearchHit[] hits = docsIterator.iterate(
-            context.shardTarget(),
-            context.searcher().getIndexReader(),
-            docIdsToLoad,
-            context.request().allowPartialSearchResults(),
-            context.queryResult()
-        );
+        try {
+            SearchHit[] hits = docsIterator.iterate(
+                context.shardTarget(),
+                context.searcher().getIndexReader(),
+                docIdsToLoad,
+                context.request().allowPartialSearchResults(),
+                context.queryResult()
+            );
 
-        if (context.isCancelled()) {
-            for (SearchHit hit : hits) {
-                // release all hits that would otherwise become owned and eventually released by SearchHits below
-                hit.decRef();
+            if (context.isCancelled()) {
+                for (SearchHit hit : hits) {
+                    // release all hits that would otherwise become owned and eventually released by SearchHits below
+                    hit.decRef();
+                }
+                throw new TaskCancelledException("cancelled");
             }
-            throw new TaskCancelledException("cancelled");
-        }
 
-        TotalHits totalHits = context.getTotalHits();
-        return new SearchHits(hits, totalHits, context.getMaxScore());
+            TotalHits totalHits = context.getTotalHits();
+            return new SearchHits(hits, totalHits, context.getMaxScore());
+        } finally {
+            long bytes = docsIterator.getRequestBreakerBytes();
+            if (bytes > 0L) {
+                context.circuitBreaker().addWithoutBreaking(-bytes);
+            }
+        }
     }
 
     List<FetchSubPhaseProcessor> getProcessors(SearchShardTarget target, FetchContext context, Profiler profiler) {

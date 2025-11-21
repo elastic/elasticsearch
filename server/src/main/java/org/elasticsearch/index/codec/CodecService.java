@@ -10,8 +10,6 @@
 package org.elasticsearch.index.codec;
 
 import org.apache.lucene.codecs.Codec;
-import org.apache.lucene.codecs.FieldInfosFormat;
-import org.apache.lucene.codecs.FilterCodec;
 import org.apache.lucene.codecs.lucene103.Lucene103Codec;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.FeatureFlag;
@@ -71,16 +69,9 @@ public class CodecService implements CodecProvider {
         assert useTsdbSyntheticId == false || mapperService.getIndexSettings().getMode() == IndexMode.TIME_SERIES;
 
         this.codecs = codecs.entrySet().stream().collect(Collectors.toUnmodifiableMap(Map.Entry::getKey, e -> {
-            Codec codec;
-            if (e.getValue() instanceof DeduplicateFieldInfosCodec dedupCodec) {
-                codec = dedupCodec;
-            } else {
-                codec = new DeduplicateFieldInfosCodec(e.getValue().getName(), e.getValue());
-            }
-            if (useTsdbSyntheticId && codec instanceof TSDBSyntheticIdCodec == false) {
-                codec = new TSDBSyntheticIdCodec(codec.getName(), codec);
-            }
-            return codec;
+            String name = e.getValue().getName();
+            Codec codec = e.getValue();
+            return useTsdbSyntheticId ? new TSDBSyntheticIdCodec(codec) : new DeduplicateFieldInfosCodec(codec);
         }));
     }
 
@@ -100,24 +91,4 @@ public class CodecService implements CodecProvider {
         return codecs.keySet().toArray(new String[0]);
     }
 
-    public static class DeduplicateFieldInfosCodec extends FilterCodec {
-
-        private final DeduplicatingFieldInfosFormat deduplicatingFieldInfosFormat;
-
-        @SuppressWarnings("this-escape")
-        protected DeduplicateFieldInfosCodec(String name, Codec delegate) {
-            super(name, delegate);
-            this.deduplicatingFieldInfosFormat = new DeduplicatingFieldInfosFormat(super.fieldInfosFormat());
-        }
-
-        @Override
-        public final FieldInfosFormat fieldInfosFormat() {
-            return deduplicatingFieldInfosFormat;
-        }
-
-        public final Codec delegate() {
-            return delegate;
-        }
-
-    }
 }

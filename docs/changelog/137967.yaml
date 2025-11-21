@@ -1,0 +1,5 @@
+pr: 137967
+summary: Single loop for `FielfInfo` processing
+area: TSDB
+type: enhancement
+issues: []

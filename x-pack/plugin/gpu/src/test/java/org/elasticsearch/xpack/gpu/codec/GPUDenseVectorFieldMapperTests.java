@@ -11,6 +11,7 @@ import org.apache.lucene.codecs.Codec;
 import org.apache.lucene.codecs.KnnVectorsFormat;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.index.codec.CodecService;
+import org.elasticsearch.index.codec.DeduplicateFieldInfosCodec;
 import org.elasticsearch.index.codec.LegacyPerFieldMapperCodec;
 import org.elasticsearch.index.codec.PerFieldMapperCodec;
 import org.elasticsearch.index.mapper.MapperService;
@@ -70,13 +71,13 @@ public class GPUDenseVectorFieldMapperTests extends DenseVectorFieldMapperTests 
         }));
         CodecService codecService = new CodecService(mapperService, BigArrays.NON_RECYCLING_INSTANCE);
         Codec codec = codecService.codec("default");
+        if (codec instanceof DeduplicateFieldInfosCodec deduplicateFieldInfosCodec) {
+            codec = deduplicateFieldInfosCodec.delegate();
+        }
         if (CodecService.ZSTD_STORED_FIELDS_FEATURE_FLAG) {
             assertThat(codec, instanceOf(PerFieldMapperCodec.class));
             return ((PerFieldMapperCodec) codec).getKnnVectorsFormatForField("field");
         } else {
-            if (codec instanceof CodecService.DeduplicateFieldInfosCodec deduplicateFieldInfosCodec) {
-                codec = deduplicateFieldInfosCodec.delegate();
-            }
             assertThat(codec, instanceOf(LegacyPerFieldMapperCodec.class));
             return ((LegacyPerFieldMapperCodec) codec).getKnnVectorsFormatForField("field");
         }

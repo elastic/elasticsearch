@@ -41,10 +41,10 @@ import static org.elasticsearch.index.IndexSettings.DEFAULT_FIELD_SETTING;
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
 
-public class InferenceAsyncActionUtils {
-    private InferenceAsyncActionUtils() {}
+class InferenceQueryUtils {
+    private InferenceQueryUtils() {}
 
-    public static InferenceResultGatheringInfo gatherInferenceResults(
+    static InferenceResultGatheringInfo gatherInferenceResults(
         QueryRewriteContext queryRewriteContext,
         Map<String, Float> fields,
         boolean resolveWildcards,
@@ -104,7 +104,7 @@ public class InferenceAsyncActionUtils {
      * @param query The query to generate inference results for
      * @return An inference results map supplier
      */
-    public static SetOnce<Map<FullyQualifiedInferenceId, InferenceResults>> getInferenceResults(
+    static SetOnce<Map<FullyQualifiedInferenceId, InferenceResults>> getInferenceResults(
         QueryRewriteContext queryRewriteContext,
         Set<FullyQualifiedInferenceId> fullyQualifiedInferenceIds,
         @Nullable Map<FullyQualifiedInferenceId, InferenceResults> inferenceResultsMap,
@@ -139,7 +139,7 @@ public class InferenceAsyncActionUtils {
         return inferenceResultsMapSupplier;
     }
 
-    public static void registerInferenceAsyncActions(
+    static void registerInferenceAsyncActions(
         QueryRewriteContext queryRewriteContext,
         SetOnce<Map<FullyQualifiedInferenceId, InferenceResults>> inferenceResultsMapSupplier,
         String query,
@@ -190,7 +190,7 @@ public class InferenceAsyncActionUtils {
         });
     }
 
-    public static Map<String, Float> getDefaultFields(Settings settings) {
+    static Map<String, Float> getDefaultFields(Settings settings) {
         List<String> defaultFieldsList = settings.getAsList(DEFAULT_FIELD_SETTING.getKey(), DEFAULT_FIELD_SETTING.getDefault(settings));
         return QueryParserHelper.parseFieldsAndWeights(defaultFieldsList);
     }
@@ -298,13 +298,13 @@ public class InferenceAsyncActionUtils {
         return inferenceResults;
     }
 
-    public enum InferenceResultGatheringState {
+    enum InferenceResultGatheringState {
         NO_INFERENCE_FIELDS,
         PENDING,
         COMPLETE
     }
 
-    public record InferenceResultGatheringInfo(
+    record InferenceResultGatheringInfo(
         InferenceResultGatheringState state,
         SetOnce<Map<FullyQualifiedInferenceId, InferenceResults>> inferenceResultsMapSupplier
     ) {}

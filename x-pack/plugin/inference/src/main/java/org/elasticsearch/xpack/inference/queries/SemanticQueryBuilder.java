@@ -46,7 +46,7 @@ import java.util.stream.Collectors;
 import static org.elasticsearch.transport.RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
-import static org.elasticsearch.xpack.inference.queries.InferenceAsyncActionUtils.getInferenceResults;
+import static org.elasticsearch.xpack.inference.queries.InferenceQueryUtils.getInferenceResults;
 
 public class SemanticQueryBuilder extends AbstractQueryBuilder<SemanticQueryBuilder> {
     public static final String NAME = "semantic";

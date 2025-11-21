@@ -39,8 +39,8 @@ import java.util.stream.Collectors;
 
 import static org.elasticsearch.cluster.metadata.IndexMetadata.getMatchingInferenceFields;
 import static org.elasticsearch.transport.RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY;
-import static org.elasticsearch.xpack.inference.queries.InferenceAsyncActionUtils.getDefaultFields;
-import static org.elasticsearch.xpack.inference.queries.InferenceAsyncActionUtils.getInferenceResults;
+import static org.elasticsearch.xpack.inference.queries.InferenceQueryUtils.getDefaultFields;
+import static org.elasticsearch.xpack.inference.queries.InferenceQueryUtils.getInferenceResults;
 import static org.elasticsearch.xpack.inference.queries.SemanticQueryBuilder.SEMANTIC_SEARCH_CCS_SUPPORT;
 import static org.elasticsearch.xpack.inference.queries.SemanticQueryBuilder.convertFromBwcInferenceResultsMap;
 import static org.elasticsearch.xpack.inference.queries.SemanticQueryBuilder.getNewInferenceResultsFromSupplier;

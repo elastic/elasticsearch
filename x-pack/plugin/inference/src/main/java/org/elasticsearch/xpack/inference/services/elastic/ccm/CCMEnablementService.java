@@ -174,7 +174,8 @@ public class CCMEnablementService {
 
         private final boolean enabled;
 
-        private EnablementMetadata(boolean enabled) {
+        // Default for testing
+        EnablementMetadata(boolean enabled) {
             this.enabled = enabled;
         }
 
@@ -230,15 +231,11 @@ public class CCMEnablementService {
             this.enabled = enabled;
         }
 
-        public boolean isEnabled() {
-            return enabled;
-        }
-
         public ProjectId getProjectId() {
             return projectId;
         }
 
-        public EnablementMetadata executeTask(EnablementMetadata currentMetadata) {
+        public EnablementMetadata executeTask() {
             return enabled ? EnablementMetadata.ENABLED : EnablementMetadata.DISABLED;
         }
     }
@@ -247,8 +244,7 @@ public class CCMEnablementService {
         @Override
         public Tuple<ClusterState, ClusterStateAckListener> executeTask(MetadataTask task, ClusterState clusterState) {
             var projectMetadata = clusterState.metadata().getProject(task.getProjectId());
-            var currentMetadata = EnablementMetadata.fromMetadata(projectMetadata);
-            var updatedMetadata = task.executeTask(currentMetadata);
+            var updatedMetadata = task.executeTask();
             var newProjectMetadata = ProjectMetadata.builder(projectMetadata).putCustom(EnablementMetadata.NAME, updatedMetadata);
             return new Tuple<>(ClusterState.builder(clusterState).putProjectMetadata(newProjectMetadata).build(), task);
         }

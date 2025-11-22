@@ -462,7 +462,21 @@ public class InferencePlugin extends Plugin
     ) {
         var ccmEnablementService = new CCMEnablementService(services.clusterService(), services.featureService(), ccmFeature);
         var ccmPersistentStorageService = new CCMPersistentStorageService(services.client());
-        var ccmService = new CCMService(ccmPersistentStorageService, ccmEnablementService, services.projectResolver(), services.client());
+        var ccmCache = new CCMCache(
+            ccmPersistentStorageService,
+            services.clusterService(),
+            settings,
+            services.featureService(),
+            services.projectResolver(),
+            services.client()
+        );
+        var ccmService = new CCMService(
+            ccmPersistentStorageService,
+            ccmEnablementService,
+            ccmCache,
+            services.projectResolver(),
+            services.client()
+        );
         var ccmAuthApplierFactory = new CCMAuthenticationApplierFactory(ccmFeature, ccmService);
 
         var authorizationHandler = new ElasticInferenceServiceAuthorizationRequestHandler(
@@ -491,20 +505,7 @@ public class InferencePlugin extends Plugin
         authTaskExecutor.startAndLazyCreateTask();
 
         return new CCMRelatedComponents(
-            List.of(
-                authorizationHandler,
-                authTaskExecutor,
-                ccmService,
-                ccmPersistentStorageService,
-                new CCMCache(
-                    ccmPersistentStorageService,
-                    services.clusterService(),
-                    settings,
-                    services.featureService(),
-                    services.projectResolver(),
-                    services.client()
-                )
-            ),
+            List.of(authorizationHandler, authTaskExecutor, ccmService, ccmPersistentStorageService, ccmCache, ccmEnablementService),
             ccmAuthApplierFactory
         );
     }

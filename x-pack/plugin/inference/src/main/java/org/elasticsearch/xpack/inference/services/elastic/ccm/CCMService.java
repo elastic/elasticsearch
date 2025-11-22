@@ -25,20 +25,22 @@ public class CCMService {
 
     private final CCMPersistentStorageService ccmPersistentStorageService;
     private final CCMEnablementService ccmEnablementService;
+    private final CCMCache ccmCache;
     private final ProjectResolver projectResolver;
     private final Client client;
 
     public CCMService(
         CCMPersistentStorageService ccmPersistentStorageService,
         CCMEnablementService enablementService,
+        CCMCache ccmCache,
         ProjectResolver projectResolver,
         Client client
     ) {
         this.ccmPersistentStorageService = Objects.requireNonNull(ccmPersistentStorageService);
         this.ccmEnablementService = Objects.requireNonNull(enablementService);
+        this.ccmCache = Objects.requireNonNull(ccmCache);
         this.projectResolver = Objects.requireNonNull(projectResolver);
         this.client = new OriginSettingClient(Objects.requireNonNull(client), ClientHelper.INFERENCE_ORIGIN);
-        // TODO initialize the cache for the CCM configuration
     }
 
     public void isEnabled(ActionListener<Boolean> listener) {
@@ -57,6 +59,12 @@ public class CCMService {
                 }))
             )
             .<Void>andThen(
+                // if we fail to invalidate the cache, it's not a big deal since the cache will eventually expire
+                invalidateCacheListener -> ccmCache.invalidate(
+                    invalidateCacheListener.delegateResponse((delegate, e) -> delegate.onResponse(null))
+                )
+            )
+            .<Void>andThen(
                 enableAuthExecutorListener -> client.execute(
                     AuthorizationTaskExecutor.Action.INSTANCE,
                     AuthorizationTaskExecutor.Action.request(AuthorizationTaskExecutor.Message.ENABLE_MESSAGE, null),
@@ -72,13 +80,10 @@ public class CCMService {
                 )
             )
             .addListener(listener);
-
-        // TODO invalidate the cache
     }
 
     public void getConfiguration(ActionListener<CCMModel> listener) {
-        // TODO get this from the cache instead
-        ccmPersistentStorageService.get(listener);
+        ccmCache.get(listener);
     }
 
     public void disableCCM(ActionListener<Void> listener) {
@@ -96,6 +101,12 @@ public class CCMService {
             )
         )
             .andThen(ccmPersistentStorageService::delete)
+            // if we fail to invalidate the cache, it's not a big deal since the cache will eventually expire
+            .<Void>andThen(
+                invalidateCacheListener -> ccmCache.invalidate(
+                    invalidateCacheListener.delegateResponse((delegate, e) -> delegate.onResponse(null))
+                )
+            )
             .<Void>andThen(
                 disableAuthExecutorListener -> client.execute(
                     AuthorizationTaskExecutor.Action.INSTANCE,
@@ -112,7 +123,5 @@ public class CCMService {
                 )
             )
             .addListener(listener);
-
-        // TODO implement invalidating the cache
     }
 }

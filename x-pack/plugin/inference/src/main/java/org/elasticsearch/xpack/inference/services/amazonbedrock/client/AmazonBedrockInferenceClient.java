@@ -31,6 +31,7 @@ import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.core.inference.results.StreamingUnifiedChatCompletionResults;
 import org.elasticsearch.xpack.inference.services.amazonbedrock.AmazonBedrockModel;
 import org.reactivestreams.FlowAdapters;
 import org.slf4j.LoggerFactory;
@@ -90,13 +91,27 @@ public class AmazonBedrockInferenceClient extends AmazonBedrockBaseClient {
     @Override
     public Flow.Publisher<? extends InferenceServiceResults.Result> converseStream(ConverseStreamRequest request)
         throws ElasticsearchException {
-        var awsResponseProcessor = new AmazonBedrockStreamingChatProcessor(threadPool);
+        var awsResponseProcessor = new AmazonBedrockCompletionProcessor(threadPool);
         internalClient.converseStream(
             request,
             ConverseStreamResponseHandler.builder().subscriber(() -> FlowAdapters.toSubscriber(awsResponseProcessor)).build()
         ).exceptionally(e -> {
             awsResponseProcessor.onError(e);
-            return null; // Void
+            return null; // return value ignored
+        });
+        return awsResponseProcessor;
+    }
+
+    @Override
+    public Flow.Publisher<StreamingUnifiedChatCompletionResults.Results> converseUnifiedStream(ConverseStreamRequest request)
+        throws ElasticsearchException {
+        var awsResponseProcessor = new AmazonBedrockChatCompletionProcessor(threadPool);
+        internalClient.converseStream(
+            request,
+            ConverseStreamResponseHandler.builder().subscriber(() -> FlowAdapters.toSubscriber(awsResponseProcessor)).build()
+        ).exceptionally(e -> {
+            awsResponseProcessor.onError(e);
+            return null; // return value ignored
         });
         return awsResponseProcessor;
     }

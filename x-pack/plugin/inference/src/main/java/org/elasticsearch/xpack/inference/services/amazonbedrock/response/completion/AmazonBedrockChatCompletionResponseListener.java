@@ -13,14 +13,14 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.xpack.inference.external.http.HttpResult;
-import org.elasticsearch.xpack.inference.services.amazonbedrock.request.completion.AmazonBedrockChatCompletionRequest;
+import org.elasticsearch.xpack.inference.services.amazonbedrock.request.completion.AmazonBedrockCompletionRequest;
 import org.elasticsearch.xpack.inference.services.amazonbedrock.response.AmazonBedrockResponseHandler;
 import org.elasticsearch.xpack.inference.services.amazonbedrock.response.AmazonBedrockResponseListener;
 
 public class AmazonBedrockChatCompletionResponseListener extends AmazonBedrockResponseListener implements ActionListener<ConverseResponse> {
 
     public AmazonBedrockChatCompletionResponseListener(
-        AmazonBedrockChatCompletionRequest request,
+        AmazonBedrockCompletionRequest request,
         AmazonBedrockResponseHandler responseHandler,
         ActionListener<InferenceServiceResults> inferenceResultsListener
     ) {

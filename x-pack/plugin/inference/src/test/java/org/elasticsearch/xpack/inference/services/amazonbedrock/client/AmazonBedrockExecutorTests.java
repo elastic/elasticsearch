@@ -22,8 +22,8 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.inference.services.amazonbedrock.AmazonBedrockProvider;
 import org.elasticsearch.xpack.inference.services.amazonbedrock.completion.AmazonBedrockChatCompletionModelTests;
 import org.elasticsearch.xpack.inference.services.amazonbedrock.embeddings.AmazonBedrockEmbeddingsModelTests;
-import org.elasticsearch.xpack.inference.services.amazonbedrock.request.completion.AmazonBedrockChatCompletionRequest;
-import org.elasticsearch.xpack.inference.services.amazonbedrock.request.completion.AmazonBedrockConverseRequestEntity;
+import org.elasticsearch.xpack.inference.services.amazonbedrock.request.completion.AmazonBedrockCompletionRequest;
+import org.elasticsearch.xpack.inference.services.amazonbedrock.request.completion.AmazonBedrockCompletionRequestEntity;
 import org.elasticsearch.xpack.inference.services.amazonbedrock.request.embeddings.AmazonBedrockEmbeddingsRequest;
 import org.elasticsearch.xpack.inference.services.amazonbedrock.request.embeddings.AmazonBedrockTitanEmbeddingsRequestEntity;
 import org.elasticsearch.xpack.inference.services.amazonbedrock.response.completion.AmazonBedrockChatCompletionResponseHandler;
@@ -100,14 +100,14 @@ public class AmazonBedrockExecutorTests extends ESTestCase {
             "secretkey"
         );
 
-        var requestEntity = new AmazonBedrockConverseRequestEntity(List.of("abc"), null, null, 512);
-        var request = new AmazonBedrockChatCompletionRequest(model, requestEntity, null, false);
+        var requestEntity = new AmazonBedrockCompletionRequestEntity(List.of("abc"), null, null, 512);
+        var request = new AmazonBedrockCompletionRequest(model, requestEntity, null, false);
         var responseHandler = new AmazonBedrockChatCompletionResponseHandler();
 
         var clientCache = new AmazonBedrockMockClientCache(getTestConverseResult("converse result"), null, null);
         var listener = new PlainActionFuture<InferenceServiceResults>();
 
-        var executor = new AmazonBedrockChatCompletionExecutor(request, responseHandler, logger, () -> false, listener, clientCache);
+        var executor = new AmazonBedrockCompletionExecutor(request, responseHandler, logger, () -> false, listener, clientCache);
         executor.run();
         var result = listener.actionGet(new TimeValue(30000));
         assertNotNull(result);
@@ -124,14 +124,14 @@ public class AmazonBedrockExecutorTests extends ESTestCase {
             "secretkey"
         );
 
-        var requestEntity = new AmazonBedrockConverseRequestEntity(List.of("abc"), null, null, 512);
-        var request = new AmazonBedrockChatCompletionRequest(model, requestEntity, null, false);
+        var requestEntity = new AmazonBedrockCompletionRequestEntity(List.of("abc"), null, null, 512);
+        var request = new AmazonBedrockCompletionRequest(model, requestEntity, null, false);
         var responseHandler = new AmazonBedrockChatCompletionResponseHandler();
 
         var clientCache = new AmazonBedrockMockClientCache(null, null, new ElasticsearchException("test exception"));
         var listener = new PlainActionFuture<InferenceServiceResults>();
 
-        var executor = new AmazonBedrockChatCompletionExecutor(request, responseHandler, logger, () -> false, listener, clientCache);
+        var executor = new AmazonBedrockCompletionExecutor(request, responseHandler, logger, () -> false, listener, clientCache);
         executor.run();
 
         var exceptionThrown = assertThrows(ElasticsearchException.class, () -> listener.actionGet(new TimeValue(30000)));

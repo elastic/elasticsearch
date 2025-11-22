@@ -161,6 +161,7 @@ import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.function.LongSupplier;
 import java.util.function.Supplier;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.common.Strings.format;
 import static org.elasticsearch.core.TimeValue.timeValueHours;
@@ -1339,7 +1340,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         }
     }
 
-    final ReaderContext createAndPutRelocatedPitContext(
+    public final ReaderContext createAndPutRelocatedPitContext(
         ShardSearchContextId contextId,
         IndexService indexService,
         IndexShard shard,
@@ -1358,14 +1359,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                 final SearchOperationListener searchOperationListener = shard.getSearchOperationListener();
                 searchOperationListener.onNewReaderContext(finalReaderContext);
                 readerContext.addOnClose(() -> searchOperationListener.onFreeReaderContext(finalReaderContext));
-                activeReaders.putRelocatedReader(newKey, readerContext);
-                // ensure that if we race against afterIndexRemoved, we remove the context from the active list.
-                // this is important to ensure store can be cleaned up, in particular if the search is a scroll with a long timeout.
-                final Index index = readerContext.indexShard().shardId().getIndex();
-                if (indicesService.hasIndex(index) == false) {
-                    removeReaderContext(readerContext.id());
-                    throw new IndexNotFoundException(index);
-                }
+                putRelocatedReaderContext(newKey, readerContext);
                 readerContext = null;
                 return finalReaderContext;
             } else {
@@ -1374,6 +1368,15 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             }
         } finally {
             Releasables.close(reader, readerContext);
+        }
+    }
+
+    protected void putRelocatedReaderContext(Long mappingKey, ReaderContext context) {
+        activeReaders.putRelocatedReader(mappingKey, context);
+        final Index index = context.indexShard().shardId().getIndex();
+        if (indicesService.hasIndex(index) == false) {
+            removeReaderContext(context.id());
+            throw new IndexNotFoundException(index);
         }
     }
 
@@ -1401,6 +1404,11 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                 searcherSupplier = null; // transfer ownership to reader context
                 searchOperationListener.onNewReaderContext(readerContext);
                 readerContext.addOnClose(() -> searchOperationListener.onFreeReaderContext(finalReaderContext));
+                logger.debug(
+                    "Opening new reader context [{}] on node [{}]",
+                    readerContext.id(),
+                    clusterService.state().nodes().getLocalNode()
+                );
                 putReaderContext(readerContext);
                 readerContext = null;
                 listener.onResponse(finalReaderContext.id());
@@ -1889,6 +1897,19 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         return this.activeReaders.size();
     }
 
+    public long getActivePITContexts() {
+        return this.activeReaders.values().stream().filter(c -> c.singleSession() == false).filter(c -> c.scrollContext() == null).count();
+    }
+
+    public List<ReaderContext> getActivePITContexts(ShardId shardId) {
+        return this.activeReaders.values()
+            .stream()
+            .filter(c -> c.singleSession() == false)
+            .filter(c -> c.scrollContext() == null)
+            .filter(c -> c.indexShard().shardId().equals(shardId))
+            .collect(Collectors.toList());
+    }
+
     /**
      * Returns the number of scroll contexts opened on the node
      */
@@ -1952,7 +1973,6 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                     freeReaderContext(context.id());
                 }
             }
-
         }
 
         @Override

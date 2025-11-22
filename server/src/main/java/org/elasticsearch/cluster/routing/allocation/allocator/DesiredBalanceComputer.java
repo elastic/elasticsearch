@@ -90,6 +90,8 @@ public class DesiredBalanceComputer {
     private long numIterationsSinceLastConverged;
     private long lastConvergedTimeMillis;
     private long lastNotConvergedLogMessageTimeMillis;
+    private long firstComputeSinceConvergedTimeMillis;
+    private boolean lastComputeRunConverged;
     private Level convergenceLogMsgLevel;
     private ShardRouting lastTrackedUnassignedShard;
 
@@ -106,6 +108,9 @@ public class DesiredBalanceComputer {
         this.numIterationsSinceLastConverged = 0;
         this.lastConvergedTimeMillis = timeProvider.relativeTimeInMillis();
         this.lastNotConvergedLogMessageTimeMillis = lastConvergedTimeMillis;
+        this.firstComputeSinceConvergedTimeMillis = lastConvergedTimeMillis;
+        // starts counting timing on the first run
+        this.lastComputeRunConverged = true;
         this.convergenceLogMsgLevel = Level.DEBUG;
         clusterSettings.initializeAndWatch(PROGRESS_LOG_INTERVAL_SETTING, value -> this.progressLogInterval = value);
         clusterSettings.initializeAndWatch(
@@ -330,7 +335,13 @@ public class DesiredBalanceComputer {
         final int iterationCountReportInterval = computeIterationCountReportInterval(routingAllocation);
         final long timeWarningInterval = progressLogInterval.millis();
         final long computationStartedTime = timeProvider.relativeTimeInMillis();
-        long nextReportTime = Math.max(lastNotConvergedLogMessageTimeMillis, lastConvergedTimeMillis) + timeWarningInterval;
+        if (lastComputeRunConverged) {
+            // mark our first effort at compute since a convergence,
+            // so that a logging period for non-convergence warning are based from this time
+            firstComputeSinceConvergedTimeMillis = computationStartedTime;
+            lastComputeRunConverged = false;
+        }
+        long nextReportTime = Math.max(lastNotConvergedLogMessageTimeMillis, firstComputeSinceConvergedTimeMillis) + timeWarningInterval;
 
         int i = 0;
         boolean hasChanges = false;
@@ -394,7 +405,7 @@ public class DesiredBalanceComputer {
                                 Desired balance computation for [%d] converged after [%s] and [%d] iterations, \
                                 resumed computation [%d] times with [%d] iterations since the last resumption [%s] ago""",
                             desiredBalanceInput.index(),
-                            TimeValue.timeValueMillis(currentTime - lastConvergedTimeMillis).toString(),
+                            TimeValue.timeValueMillis(currentTime - firstComputeSinceConvergedTimeMillis).toString(),
                             numIterationsSinceLastConverged,
                             numComputeCallsSinceLastConverged,
                             iterations,
@@ -407,7 +418,7 @@ public class DesiredBalanceComputer {
                         () -> Strings.format(
                             "Desired balance computation for [%d] converged after [%s] and [%d] iterations",
                             desiredBalanceInput.index(),
-                            TimeValue.timeValueMillis(currentTime - lastConvergedTimeMillis).toString(),
+                            TimeValue.timeValueMillis(currentTime - firstComputeSinceConvergedTimeMillis).toString(),
                             numIterationsSinceLastConverged
                         )
                     );
@@ -415,6 +426,7 @@ public class DesiredBalanceComputer {
                 numComputeCallsSinceLastConverged = 0;
                 numIterationsSinceLastConverged = 0;
                 lastConvergedTimeMillis = currentTime;
+                lastComputeRunConverged = true;
                 break;
             }
             if (isFresh.test(desiredBalanceInput) == false) {
@@ -455,7 +467,7 @@ public class DesiredBalanceComputer {
                             Desired balance computation for [%d] is still not converged after [%s] and [%d] iterations, \
                             resumed computation [%d] times with [%d] iterations since the last resumption [%s] ago""",
                         desiredBalanceInput.index(),
-                        TimeValue.timeValueMillis(currentTime - lastConvergedTimeMillis).toString(),
+                        TimeValue.timeValueMillis(currentTime - firstComputeSinceConvergedTimeMillis).toString(),
                         numIterationsSinceLastConverged,
                         numComputeCallsSinceLastConverged,
                         iterations,
@@ -468,7 +480,7 @@ public class DesiredBalanceComputer {
                     () -> Strings.format(
                         "Desired balance computation for [%d] is still not converged after [%s] and [%d] iterations",
                         desiredBalanceInput.index(),
-                        TimeValue.timeValueMillis(currentTime - lastConvergedTimeMillis).toString(),
+                        TimeValue.timeValueMillis(currentTime - firstComputeSinceConvergedTimeMillis).toString(),
                         numIterationsSinceLastConverged
                     )
                 );

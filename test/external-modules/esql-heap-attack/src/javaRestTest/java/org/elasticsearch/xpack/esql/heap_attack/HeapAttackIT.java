@@ -220,6 +220,8 @@ public class HeapAttackIT extends ESRestTestCase {
 
     private static final int MAX_ATTEMPTS = 5;
 
+    private long estimatedSourceInTranslogWriter = 0;
+
     interface TryCircuitBreaking {
         Map<String, Object> attempt(int attempt) throws IOException;
     }
@@ -1263,14 +1265,23 @@ public class HeapAttackIT extends ESRestTestCase {
         Response response = client().performRequest(request);
         assertThat(entityAsMap(response), matchesMap().entry("errors", false).extraOk());
 
-        /*
-         * Flush after each bulk to clear the test-time seenSequenceNumbers Map in
-         * TranslogWriter. Without this the server will OOM from time to time keeping
-         * stuff around to run assertions on.
-         */
-        request = new Request("POST", "/" + name + "/_flush");
-        response = client().performRequest(request);
-        assertThat(entityAsMap(response), matchesMap().entry("_shards", matchesMap().extraOk().entry("failed", 0)).extraOk());
+        estimatedSourceInTranslogWriter += bulk.length();
+        if (estimatedSourceInTranslogWriter >= ByteSizeValue.ofMb(10).getBytes()) {
+            /*
+             * Flush after several bulks to clear the test-time seenSequenceNumbers Map in
+             * TranslogWriter. Without this the server will OOM from time to time keeping
+             * stuff around to run assertions on.
+             */
+            request = new Request("POST", "/" + name + "/_flush");
+            response = client().performRequest(request);
+            assertThat(entityAsMap(response), matchesMap().entry("_shards", matchesMap().extraOk().entry("failed", 0)).extraOk());
+            estimatedSourceInTranslogWriter = 0L;
+        }
+    }
+
+    @Before
+    public void resetEstimatedSourceInTranslogWriter() {
+        estimatedSourceInTranslogWriter = 0L;
     }
 
     private void initIndex(String name, String bulk) throws IOException {

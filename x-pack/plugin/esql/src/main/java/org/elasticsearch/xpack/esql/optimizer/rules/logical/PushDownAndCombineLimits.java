@@ -162,6 +162,7 @@ public final class PushDownAndCombineLimits extends OptimizerRules.Parameterized
         // Use the local limit under the original node, so it won't break the pipeline
         LogicalPlan newFirstGrandChild = (withLocal ? limit.withLocal(withLocal) : limit).replaceChild(firstGrandChild);
 
+        // TODO: this assumes we always want to push on the 1st child only, but might eventually require rework for n-ary plans.
         List<LogicalPlan> newGrandChildren = new ArrayList<>();
         newGrandChildren.add(newFirstGrandChild);
         for (int i = 1; i < grandChildren.size(); i++) {

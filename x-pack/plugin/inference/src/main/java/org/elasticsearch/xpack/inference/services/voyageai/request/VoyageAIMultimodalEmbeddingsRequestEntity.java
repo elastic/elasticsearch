@@ -10,8 +10,8 @@ package org.elasticsearch.xpack.inference.services.voyageai.request;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xpack.inference.services.voyageai.embeddings.text.VoyageAIEmbeddingsServiceSettings;
-import org.elasticsearch.xpack.inference.services.voyageai.embeddings.text.VoyageAIEmbeddingsTaskSettings;
+import org.elasticsearch.xpack.inference.services.voyageai.embeddings.multimodal.VoyageAIMultimodalEmbeddingsServiceSettings;
+import org.elasticsearch.xpack.inference.services.voyageai.embeddings.multimodal.VoyageAIMultimodalEmbeddingsTaskSettings;
 
 import java.io.IOException;
 import java.util.List;
@@ -19,25 +19,26 @@ import java.util.Objects;
 
 import static org.elasticsearch.inference.InputType.invalidInputTypeMessage;
 
-public record VoyageAIEmbeddingsRequestEntity(
-    List<String> input,
+public record VoyageAIMultimodalEmbeddingsRequestEntity(
+    List<String> inputs,
     InputType inputType,
-    VoyageAIEmbeddingsServiceSettings serviceSettings,
-    VoyageAIEmbeddingsTaskSettings taskSettings,
+    VoyageAIMultimodalEmbeddingsServiceSettings serviceSettings,
+    VoyageAIMultimodalEmbeddingsTaskSettings taskSettings,
     String model
 ) implements ToXContentObject {
 
     private static final String DOCUMENT = "document";
     private static final String QUERY = "query";
-    private static final String INPUT_FIELD = "input";
+    private static final String INPUTS_FIELD = "inputs";  // Multimodal API uses "inputs" (plural)
+    private static final String CONTENT_FIELD = "content";
+    private static final String TYPE_FIELD = "type";
+    private static final String TEXT_FIELD = "text";
     private static final String MODEL_FIELD = "model";
     public static final String INPUT_TYPE_FIELD = "input_type";
     public static final String TRUNCATION_FIELD = "truncation";
-    public static final String OUTPUT_DIMENSION = "output_dimension";
-    static final String OUTPUT_DTYPE_FIELD = "output_dtype";
 
-    public VoyageAIEmbeddingsRequestEntity {
-        Objects.requireNonNull(input);
+    public VoyageAIMultimodalEmbeddingsRequestEntity {
+        Objects.requireNonNull(inputs);
         Objects.requireNonNull(model);
         Objects.requireNonNull(taskSettings);
         Objects.requireNonNull(serviceSettings);
@@ -46,7 +47,21 @@ public record VoyageAIEmbeddingsRequestEntity(
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        builder.field(INPUT_FIELD, input);
+
+        // Build multimodal inputs structure: inputs[{content: [{type: "text", text: "..."}]}]
+        builder.startArray(INPUTS_FIELD);
+        for (String input : inputs) {
+            builder.startObject();
+            builder.startArray(CONTENT_FIELD);
+            builder.startObject();
+            builder.field(TYPE_FIELD, "text");
+            builder.field(TEXT_FIELD, input);
+            builder.endObject();
+            builder.endArray();
+            builder.endObject();
+        }
+        builder.endArray();
+
         builder.field(MODEL_FIELD, model);
 
         // prefer the root level inputType over task settings input type
@@ -60,13 +75,7 @@ public record VoyageAIEmbeddingsRequestEntity(
             builder.field(TRUNCATION_FIELD, taskSettings.getTruncation());
         }
 
-        if (serviceSettings.dimensions() != null) {
-            builder.field(OUTPUT_DIMENSION, serviceSettings.dimensions());
-        }
-
-        if (serviceSettings.getEmbeddingType() != null) {
-            builder.field(OUTPUT_DTYPE_FIELD, serviceSettings.getEmbeddingType().toRequestString());
-        }
+        // Note: multimodal embeddings API does NOT support output_dimension or output_dtype
 
         builder.endObject();
         return builder;

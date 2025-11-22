@@ -43,11 +43,11 @@ import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSender;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSenderTests;
 import org.elasticsearch.xpack.inference.logging.ThrottlerManager;
 import org.elasticsearch.xpack.inference.services.InferenceServiceTestCase;
-import org.elasticsearch.xpack.inference.services.voyageai.embeddings.VoyageAIEmbeddingsModel;
-import org.elasticsearch.xpack.inference.services.voyageai.embeddings.VoyageAIEmbeddingsModelTests;
-import org.elasticsearch.xpack.inference.services.voyageai.embeddings.VoyageAIEmbeddingsServiceSettingsTests;
-import org.elasticsearch.xpack.inference.services.voyageai.embeddings.VoyageAIEmbeddingsTaskSettings;
-import org.elasticsearch.xpack.inference.services.voyageai.embeddings.VoyageAIEmbeddingsTaskSettingsTests;
+import org.elasticsearch.xpack.inference.services.voyageai.embeddings.text.VoyageAIEmbeddingsModel;
+import org.elasticsearch.xpack.inference.services.voyageai.embeddings.text.VoyageAIEmbeddingsModelTests;
+import org.elasticsearch.xpack.inference.services.voyageai.embeddings.text.VoyageAIEmbeddingsServiceSettingsTests;
+import org.elasticsearch.xpack.inference.services.voyageai.embeddings.text.VoyageAIEmbeddingsTaskSettings;
+import org.elasticsearch.xpack.inference.services.voyageai.embeddings.text.VoyageAIEmbeddingsTaskSettingsTests;
 import org.elasticsearch.xpack.inference.services.voyageai.rerank.VoyageAIRerankModelTests;
 import org.hamcrest.CoreMatchers;
 import org.hamcrest.MatcherAssert;
@@ -816,6 +816,39 @@ public class VoyageAIServiceTests extends InferenceServiceTestCase {
                 randomAlphaOfLength(10),
                 randomAlphaOfLength(10),
                 VoyageAIEmbeddingsTaskSettings.EMPTY_SETTINGS,
+                randomNonNegativeInt(),
+                randomNonNegativeInt(),
+                randomAlphaOfLength(10),
+                similarityMeasure
+            );
+
+            Model updatedModel = service.updateModelWithEmbeddingDetails(model, embeddingSize);
+
+            SimilarityMeasure expectedSimilarityMeasure = similarityMeasure == null
+                ? VoyageAIService.defaultSimilarity()
+                : similarityMeasure;
+            assertEquals(expectedSimilarityMeasure, updatedModel.getServiceSettings().similarity());
+            assertEquals(embeddingSize, updatedModel.getServiceSettings().dimensions().intValue());
+        }
+    }
+
+    public void testUpdateModelWithEmbeddingDetails_MultimodalModel_NullSimilarity() throws IOException {
+        testUpdateModelWithEmbeddingDetails_MultimodalModel_Successful(null);
+    }
+
+    public void testUpdateModelWithEmbeddingDetails_MultimodalModel_NonNullSimilarity() throws IOException {
+        testUpdateModelWithEmbeddingDetails_MultimodalModel_Successful(randomFrom(SimilarityMeasure.values()));
+    }
+
+    private void testUpdateModelWithEmbeddingDetails_MultimodalModel_Successful(SimilarityMeasure similarityMeasure) throws IOException {
+        var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
+
+        try (var service = new VoyageAIService(senderFactory, createWithEmptySettings(threadPool), mockClusterServiceEmpty())) {
+            var embeddingSize = randomNonNegativeInt();
+            var model = org.elasticsearch.xpack.inference.services.voyageai.embeddings.multimodal.VoyageAIMultimodalEmbeddingsModelTests.createModel(
+                randomAlphaOfLength(10),
+                randomAlphaOfLength(10),
+                org.elasticsearch.xpack.inference.services.voyageai.embeddings.multimodal.VoyageAIMultimodalEmbeddingsTaskSettings.EMPTY_SETTINGS,
                 randomNonNegativeInt(),
                 randomNonNegativeInt(),
                 randomAlphaOfLength(10),

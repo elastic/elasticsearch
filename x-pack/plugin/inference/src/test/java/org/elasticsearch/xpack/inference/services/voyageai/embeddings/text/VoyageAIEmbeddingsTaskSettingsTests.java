@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.inference.services.voyageai.embeddings;
+package org.elasticsearch.xpack.inference.services.voyageai.embeddings.text;
 
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.ValidationException;
@@ -14,6 +14,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.xpack.inference.services.voyageai.VoyageAIServiceFields;
+import org.elasticsearch.xpack.inference.services.voyageai.embeddings.text.VoyageAIEmbeddingsTaskSettings;
 import org.hamcrest.MatcherAssert;
 
 import java.io.IOException;
@@ -32,7 +33,7 @@ public class VoyageAIEmbeddingsTaskSettingsTests extends AbstractWireSerializing
 
     public static VoyageAIEmbeddingsTaskSettings createRandom() {
         var inputType = randomBoolean() ? randomWithIngestAndSearch() : null;
-        var truncation = randomOptionalBoolean();
+        var truncation = randomBoolean();
 
         return new VoyageAIEmbeddingsTaskSettings(inputType, truncation);
     }
@@ -183,13 +184,7 @@ public class VoyageAIEmbeddingsTaskSettingsTests extends AbstractWireSerializing
 
     @Override
     protected VoyageAIEmbeddingsTaskSettings mutateInstance(VoyageAIEmbeddingsTaskSettings instance) throws IOException {
-        if (randomBoolean()) {
-            var inputType = randomValueOtherThan(instance.getInputType(), () -> randomFrom(randomWithIngestAndSearch(), null));
-            return new VoyageAIEmbeddingsTaskSettings(inputType, instance.getTruncation());
-        } else {
-            var truncation = instance.getTruncation() == null ? randomBoolean() : instance.getTruncation() == false;
-            return new VoyageAIEmbeddingsTaskSettings(instance.getInputType(), truncation);
-        }
+        return randomValueOtherThan(instance, VoyageAIEmbeddingsTaskSettingsTests::createRandom);
     }
 
     public static Map<String, Object> getTaskSettingsMapEmpty() {

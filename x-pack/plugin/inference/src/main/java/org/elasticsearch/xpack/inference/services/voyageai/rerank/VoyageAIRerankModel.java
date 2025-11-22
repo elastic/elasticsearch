@@ -12,13 +12,11 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
 import org.elasticsearch.inference.TaskType;
-import org.elasticsearch.xpack.inference.external.action.ExecutableAction;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.ServiceUtils;
 import org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettings;
 import org.elasticsearch.xpack.inference.services.voyageai.VoyageAIModel;
 import org.elasticsearch.xpack.inference.services.voyageai.VoyageAIService;
-import org.elasticsearch.xpack.inference.services.voyageai.action.VoyageAIActionVisitor;
 import org.elasticsearch.xpack.inference.services.voyageai.request.VoyageAIUtils;
 
 import java.net.URI;
@@ -107,15 +105,5 @@ public class VoyageAIRerankModel extends VoyageAIModel {
         return (DefaultSecretSettings) super.getSecretSettings();
     }
 
-    /**
-     * Accepts a visitor to create an executable action. The returned action will not return documents in the response.
-     * @param visitor          Interface for creating {@link ExecutableAction} instances for Voyage AI models.
-     * @param taskSettings     Settings in the request to override the model's defaults
-     * @return the rerank action
-     */
-    @Override
-    public ExecutableAction accept(VoyageAIActionVisitor visitor, Map<String, Object> taskSettings) {
-        return visitor.create(this, taskSettings);
-    }
 
 }

@@ -52,7 +52,7 @@ public class CCMService {
                     logger.debug("Successfully set CCM enabled in enablement service");
                     enablementListener.onResponse(null);
                 }, e -> {
-                    logger.atDebug().withThrowable(e).log("Failed to enable CCM in enablement service");
+                    logger.atWarn().withThrowable(e).log("Failed to enable CCM in enablement service");
                     enablementListener.onFailure(e);
                 }))
             )
@@ -64,8 +64,10 @@ public class CCMService {
                         logger.debug("Successfully enabled authorization task executor");
                         enableAuthExecutorListener.onResponse(null);
                     }, e -> {
-                        logger.atDebug().withThrowable(e).log("Failed to enable authorization task executor");
-                        enableAuthExecutorListener.onFailure(e);
+                        logger.atWarn().withThrowable(e).log("Failed to request start of authorization task");
+                        // even if requesting start of the authorization task fails, we still consider CCM enabled because
+                        // the cluster state listener will eventually start the task if it is missing
+                        enableAuthExecutorListener.onResponse(null);
                     })
                 )
             )
@@ -88,7 +90,7 @@ public class CCMService {
                     logger.debug("Successfully set CCM disabled in enablement service");
                     disableAuthExecutorListener.onResponse(null);
                 }, e -> {
-                    logger.atDebug().withThrowable(e).log("Failed to disable CCM in enablement service");
+                    logger.atWarn().withThrowable(e).log("Failed to disable CCM in enablement service");
                     disableAuthExecutorListener.onFailure(e);
                 })
             )
@@ -102,8 +104,10 @@ public class CCMService {
                         logger.debug("Successfully disabled authorization task executor");
                         disableAuthExecutorListener.onResponse(null);
                     }, e -> {
-                        logger.atDebug().withThrowable(e).log("Failed to disable authorization task executor");
-                        disableAuthExecutorListener.onFailure(e);
+                        logger.atWarn().withThrowable(e).log("Failed to request stop of authorization task");
+                        // even if stopping the authorization task fails, we still consider CCM disabled because the tasks themselves
+                        // should eventually stop after they check if ccm is enabled
+                        disableAuthExecutorListener.onResponse(null);
                     })
                 )
             )

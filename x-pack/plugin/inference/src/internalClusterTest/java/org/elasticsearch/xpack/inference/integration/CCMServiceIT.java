@@ -169,8 +169,8 @@ public class CCMServiceIT extends CCMSingleNodeIT {
 
     public void testDisableCCM_RemovesAuthorizationTask() throws Exception {
         disableCCM();
-        waitForNoTask(AUTH_TASK_ACTION, admin());
         assertCCMDisabled();
+        waitForNoTask(AUTH_TASK_ACTION, admin());
 
         var listener = new TestPlainActionFuture<Void>();
         ccmService.get().storeConfiguration(new CCMModel(new SecureString("secret".toCharArray())), listener);
@@ -183,8 +183,8 @@ public class CCMServiceIT extends CCMSingleNodeIT {
         waitForAuthorizationToComplete(authorizationTaskExecutor);
 
         disableCCM();
-        waitForNoTask(AUTH_TASK_ACTION, admin());
         assertCCMDisabled();
+        waitForNoTask(AUTH_TASK_ACTION, admin());
     }
 
     private void assertCCMDisabled() {

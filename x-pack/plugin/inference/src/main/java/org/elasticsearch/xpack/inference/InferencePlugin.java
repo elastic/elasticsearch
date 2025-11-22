@@ -462,7 +462,7 @@ public class InferencePlugin extends Plugin
     ) {
         var ccmEnablementService = new CCMEnablementService(services.clusterService(), services.featureService(), ccmFeature);
         var ccmPersistentStorageService = new CCMPersistentStorageService(services.client());
-        var ccmService = new CCMService(ccmPersistentStorageService, ccmEnablementService, services.projectResolver());
+        var ccmService = new CCMService(ccmPersistentStorageService, ccmEnablementService, services.projectResolver(), services.client());
         var ccmAuthApplierFactory = new CCMAuthenticationApplierFactory(ccmFeature, ccmService);
 
         var authorizationHandler = new ElasticInferenceServiceAuthorizationRequestHandler(

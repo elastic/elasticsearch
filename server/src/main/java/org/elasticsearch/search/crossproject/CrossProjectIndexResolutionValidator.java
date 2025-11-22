@@ -188,7 +188,16 @@ public class CrossProjectIndexResolutionValidator {
         IndicesOptions indicesOptions
     ) {
         ResolvedIndexExpressions resolvedExpressionsInProject = remoteResolvedExpressions.get(projectAlias);
-        assert resolvedExpressionsInProject != null : "We should always have resolved expressions from linked project";
+        /*
+         * We look for an index in the linked projects only after we've ascertained that it does not exist
+         * on the origin. However, if we couldn't find a valid entry for the same index in the resolved
+         * expressions `Map<K,V>` from the linked projects, it could mean that we did not hear back from
+         * the linked project due to some error that occurred on it. In such case, the scenario effectively
+         * is identical to the one where we could not find an index anywhere.
+         */
+        if (resolvedExpressionsInProject == null) {
+            return new IndexNotFoundException(remoteExpression);
+        }
 
         ResolvedIndexExpression.LocalExpressions matchingExpression = findMatchingExpression(resolvedExpressionsInProject, resource);
         if (matchingExpression == null) {

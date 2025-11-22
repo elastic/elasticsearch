@@ -39,6 +39,7 @@ import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.LuceneFilesExtensions;
 import org.elasticsearch.monitor.fs.FsProbe;
 import org.elasticsearch.node.NodeRoleSettings;
@@ -78,7 +79,11 @@ import static org.elasticsearch.blobcache.BlobCacheMetrics.NON_LUCENE_EXTENSION_
 /**
  * A caching layer on a local node to minimize network roundtrips to the remote blob store.
  */
-public class SharedBlobCacheService<KeyType> implements Releasable {
+public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBase> implements Releasable {
+
+    public interface KeyBase {
+        ShardId shardId();
+    }
 
     private static final String SHARED_CACHE_SETTINGS_PREFIX = "xpack.searchable.snapshot.shared_cache.";
 
@@ -301,6 +306,8 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
         int forceEvict(Predicate<K> cacheKeyPredicate);
 
         void forceEvictAsync(Predicate<K> cacheKey);
+
+        int forceEvict(ShardId shard, Predicate<K> cacheKeyPredicate);
     }
 
     private abstract static class CacheEntry<T> {
@@ -759,7 +766,7 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
     }
 
     public void removeFromCache(KeyType cacheKey) {
-        forceEvict(cacheKey::equals);
+        forceEvict(cacheKey.shardId(), cacheKey::equals);
     }
 
     /**
@@ -770,7 +777,10 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
      */
     public int forceEvict(Predicate<KeyType> cacheKeyPredicate) {
         return cache.forceEvict(cacheKeyPredicate);
+    }
 
+    public int forceEvict(ShardId shard, Predicate<KeyType> cacheKeyPredicate) {
+        return cache.forceEvict(shard, cacheKeyPredicate);
     }
 
     /**
@@ -867,7 +877,7 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
      * always be used, ensuring the right ordering between incRef/tryIncRef and ensureOpen
      * (see {@link SharedBlobCacheService.LFUCache#maybeEvictAndTakeForFrequency(Runnable, int)})
      */
-    static class CacheFileRegion<KeyType> extends EvictableRefCounted {
+    static class CacheFileRegion<KeyType extends KeyBase> extends EvictableRefCounted {
 
         private static final VarHandle VH_IO = findIOVarHandle();
 
@@ -1634,7 +1644,9 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
             }
         }
 
-        private final ConcurrentHashMap<RegionKey<KeyType>, LFUCacheEntry> keyMapping = new ConcurrentHashMap<>();
+        // only put/remove through computeXXX to ensure we do not lose the data.
+        private final ConcurrentHashMap<ShardId, ConcurrentHashMap<RegionKey<KeyType>, LFUCacheEntry>> keyMapping =
+            new ConcurrentHashMap<>();
         private final LFUCacheEntry[] freqs;
         private final int maxFreq;
         private final DecayAndNewEpochTask decayAndNewEpochTask;
@@ -1654,7 +1666,7 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
         }
 
         int getFreq(CacheFileRegion<KeyType> cacheFileRegion) {
-            return keyMapping.get(cacheFileRegion.regionKey).freq;
+            return keyMapping.get(cacheFileRegion.regionKey.file().shardId()).get(cacheFileRegion.regionKey).freq;
         }
 
         @Override
@@ -1663,10 +1675,11 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
             final long now = epoch.get();
             // try to just get from the map on the fast-path to save instantiating the capturing lambda needed on the slow path
             // if we did not find an entry
-            var entry = keyMapping.get(regionKey);
+            var perShardMapping = keyMapping.computeIfAbsent(cacheKey.shardId(), key -> new ConcurrentHashMap<>());
+            var entry = perShardMapping.get(regionKey);
             if (entry == null) {
                 final int effectiveRegionSize = computeCacheFileRegionSize(fileLength, region);
-                entry = keyMapping.computeIfAbsent(
+                entry = perShardMapping.computeIfAbsent(
                     regionKey,
                     key -> new LFUCacheEntry(new CacheFileRegion<KeyType>(SharedBlobCacheService.this, key, effectiveRegionSize), now)
                 );
@@ -1692,10 +1705,12 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
         @Override
         public int forceEvict(Predicate<KeyType> cacheKeyPredicate) {
             final List<LFUCacheEntry> matchingEntries = new ArrayList<>();
-            keyMapping.forEach((key, value) -> {
-                if (cacheKeyPredicate.test(key.file)) {
-                    matchingEntries.add(value);
-                }
+            keyMapping.forEach((shard, value) -> {
+                value.forEach((key, entry) -> {
+                    if (cacheKeyPredicate.test(key.file)) {
+                        matchingEntries.add(entry);
+                    }
+                });
             });
             var evictedCount = 0;
             var nonZeroFrequencyEvictedCount = 0;
@@ -1706,7 +1721,9 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
                         boolean evicted = entry.chunk.forceEvict();
                         if (evicted && entry.chunk.volatileIO() != null) {
                             unlink(entry);
-                            keyMapping.remove(entry.chunk.regionKey, entry);
+                            // todo: can this be null? Should not, need to assert.
+                            ShardId shard = entry.chunk.regionKey.file.shardId();
+                            removeKeyMappingForEntry(entry, shard);
                             evictedCount++;
                             if (frequency > 0) {
                                 nonZeroFrequencyEvictedCount++;
@@ -1717,6 +1734,29 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
             }
             blobCacheMetrics.getEvictedCountNonZeroFrequency().incrementBy(nonZeroFrequencyEvictedCount);
             return evictedCount;
+        }
+
+        private boolean removeKeyMappingForEntry(LFUCacheEntry entry) {
+            return removeKeyMappingForEntry(entry, entry.chunk.regionKey.file().shardId());
+        }
+
+        private boolean removeKeyMappingForEntry(LFUCacheEntry entry, ShardId shard) {
+            ConcurrentHashMap<RegionKey<KeyType>, LFUCacheEntry> map = keyMapping.get(shard);
+            if (map != null) {
+                boolean removed = map.remove(entry.chunk.regionKey, entry);
+                if (map.isEmpty()) {
+                    keyMapping.computeIfPresent(shard, (shard1, entries) -> {
+                        if (entries.isEmpty()) {
+                            return null;
+                        } else {
+                            return entries;
+                        }
+                    });
+                }
+                return removed;
+            } else {
+                return false;
+            }
         }
 
         @Override
@@ -1739,10 +1779,58 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
             });
         }
 
+        @Override
+        public int forceEvict(ShardId shard, Predicate<KeyType> cacheKeyPredicate) {
+            final List<LFUCacheEntry> matchingEntries = new ArrayList<>();
+            ConcurrentHashMap<RegionKey<KeyType>, LFUCacheEntry> entries = keyMapping.get(shard);
+            if (entries != null) {
+                entries.forEach((key, entry) -> {
+                    if (cacheKeyPredicate.test(key.file)) {
+                        matchingEntries.add(entry);
+                    }
+                });
+            }
+
+            var evictedCount = 0;
+            var nonZeroFrequencyEvictedCount = 0;
+            if (matchingEntries.isEmpty() == false) {
+                // todo: can this be null? Should not, need to assert.
+                ConcurrentHashMap<RegionKey<KeyType>, LFUCacheEntry> map = keyMapping.get(shard);
+                synchronized (SharedBlobCacheService.this) {
+                    for (LFUCacheEntry entry : matchingEntries) {
+                        int frequency = entry.freq;
+                        boolean evicted = entry.chunk.forceEvict();
+                        if (evicted && entry.chunk.volatileIO() != null) {
+                            unlink(entry);
+                            if (map != null) {
+                                map.remove(entry.chunk.regionKey, entry);
+                            }
+                            evictedCount++;
+                            if (frequency > 0) {
+                                nonZeroFrequencyEvictedCount++;
+                            }
+                        }
+                    }
+                }
+                if (map != null && map.isEmpty()) {
+                    keyMapping.computeIfPresent(shard, (shard1, entries1) -> {
+                        if (entries1.isEmpty()) {
+                            return null;
+                        } else {
+                            return entries1;
+                        }
+                    });
+                }
+            }
+            blobCacheMetrics.getEvictedCountNonZeroFrequency().incrementBy(nonZeroFrequencyEvictedCount);
+            return evictedCount;
+        }
+
         private LFUCacheEntry initChunk(LFUCacheEntry entry) {
             assert Thread.holdsLock(entry.chunk);
             RegionKey<KeyType> regionKey = entry.chunk.regionKey;
-            if (keyMapping.get(regionKey) != entry) {
+            ConcurrentHashMap<RegionKey<KeyType>, LFUCacheEntry> perShardMapping = keyMapping.get(regionKey.file().shardId());
+            if (perShardMapping == null || perShardMapping.get(regionKey) != entry) {
                 throwAlreadyClosed("no free region found (contender)");
             }
             // new item
@@ -1765,7 +1853,7 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
                 if (io != null) {
                     assignToSlot(entry, io);
                 } else {
-                    boolean removed = keyMapping.remove(regionKey, entry);
+                    boolean removed = removeKeyMappingForEntry(entry);
                     assert removed;
                     throwAlreadyClosed("no free region found");
                 }
@@ -1780,7 +1868,7 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
                 if (entry.chunk.isEvicted()) {
                     assert regionOwners.remove(freeSlot) == entry.chunk;
                     freeRegions.add(freeSlot);
-                    keyMapping.remove(entry.chunk.regionKey, entry);
+                    removeKeyMappingForEntry(entry);
                     throwAlreadyClosed("evicted during free region allocation");
                 }
                 pushEntryToBack(entry);
@@ -1985,7 +2073,7 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
                                 }
                             } finally {
                                 unlink(entry);
-                                keyMapping.remove(entry.chunk.regionKey, entry);
+                                removeKeyMappingForEntry(entry);
                             }
                         }
                     } finally {
@@ -2020,7 +2108,7 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
                     boolean evicted = entry.chunk.tryEvict();
                     if (evicted && entry.chunk.volatileIO() != null) {
                         unlink(entry);
-                        keyMapping.remove(entry.chunk.regionKey, entry);
+                        removeKeyMappingForEntry(entry);
                         return true;
                     }
                 }

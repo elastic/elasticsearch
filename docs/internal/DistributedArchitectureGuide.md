@@ -19,7 +19,7 @@ facing settings and some internal aspects - [Network Settings](https://www.elast
 ## HTTP Server
 
 The HTTP Server is a single entry point for all external clients (excluding
-cross-cluster communication). Management,ingestion, search, and all other
+cross-cluster communication). Management, ingestion, search, and all other
 external operations pass through the HTTP server.
 
 Elasticsearch works over HTTP 1.1 and supports features such as TLS, chunked
@@ -55,11 +55,11 @@ When memory grows too high (`HIGH_WATERMARK`) bulk items are rejected with 429.
 This mechanism protects against unbounded memory usage and `OutOfMemory`
 errors (OOMs).
 
-ES supports multiple `Content-Types` for the payload. These are
-implementations of `MediaType` interface. A common ones internally called
-`XContentType`: CBOR, JSON, SMILE, YAML, and their versioned types. X-pack
-extensions includes PLAIN_TEXT, CSV, etc. Classes that implement
-`ToXContent...` can be serialized and sent over HTTP.
+ES supports multiple `Content-Type`s for the payload. These are
+implementations of `MediaType` interface. A common implementation is called
+`XContentType`, including CBOR, JSON, SMILE, YAML, and their versioned types.
+X-pack extensions includes PLAIN_TEXT, CSV, etc. Classes that implement
+`ToXContent` and friends can be serialized and sent over HTTP.
 
 HTTP routing is based on a combination of Method and URI. For example,
 `RestCreateIndexAction` handler uses `("PUT", "/{index}")`, where curly braces
@@ -100,7 +100,7 @@ Request handling flow from Java classes view goes as:
 
 `Netty4HttpServerTransport` is a single implementation of
 `AbstractHttpServerTransport` from the `transport-netty4`
-module. Security module injects TLS and headers validator.
+module. The `x-pack/security` module injects TLS and headers validator.
 
 ## Transport
 
@@ -113,13 +113,13 @@ reindex-from-remote).
 both the Transport client and server. The `x-pack/security` plugin provides
 a secure version: `SecurityNetty4Transport` (with TLS and authentication).
 
-A `Connection` between nodes is a pool of `Channels`, where each channel is a
+A `Connection` between nodes is a pool of `Channel`s, where each channel is a
 non-blocking TCP connection (Java NIO terminology). Once a cluster is
-discovered, a `Connection` (pool of `Channels`) is opened to every other node,
+discovered, a `Connection` (pool of `Channel`s) is opened to every other node,
 and every other node opens a `Connection` back. This results in two
-`Connections` between any two nodes `(A→B and B→A)`. A node sends requests only
+`Connection`s between any two nodes `(A→B and B→A)`. A node sends requests only
 on the `Connection` it opens (acting as a client). The default pool is around 13
-`Channels`, divided into sub-pools for different purposes (e.g., ping,
+`Channel`s, divided into sub-pools for different purposes (e.g., ping,
 node-state, bulks). The pool structure is defined in the `ConnectionProfile`
 class.
 
@@ -215,7 +215,8 @@ Reference counting introduces two primary problems:
 2. Never release (leak): Failing to release a buffer, leading to memory leaks.
 
 The compiler does not help detect these issues. They require careful testing
-using Netty's LeakDetector with a Paranoid level.
+using Netty's LeakDetector with a Paranoid level. It's enabled by default in
+all tests.
 
 ### Async methods return futures
 

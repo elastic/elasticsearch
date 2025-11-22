@@ -1,0 +1,6 @@
+pr: 137351
+summary: Fix nested aggregation `top_hits` with query `inner_hits`
+area: Search
+type: bug
+issues:
+ - 136893

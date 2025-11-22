@@ -23,6 +23,7 @@ import org.elasticsearch.xpack.core.security.authc.Subject;
 import org.elasticsearch.xpack.core.security.user.User;
 
 import java.io.IOException;
+import java.lang.invoke.MethodHandles;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.time.Instant;
@@ -125,31 +126,18 @@ public record ProfileDocument(
         return PARSER.apply(parser, null);
     }
 
-    @SuppressWarnings("unchecked")
-    static final ConstructingObjectParser<ProfileDocumentUser, Void> PROFILE_DOC_USER_PARSER = new ConstructingObjectParser<>(
+    static final ConstructingObjectParser<ProfileDocumentUser, Void> PROFILE_DOC_USER_PARSER = ConstructingObjectParser.forRecord(
         "user_profile_document_user",
         false,
-        (args, v) -> new ProfileDocumentUser(
-            (String) args[0],
-            (List<String>) args[1],
-            (Authentication.RealmRef) args[2],
-            (String) args[3],
-            (String) args[4]
-        )
+        ProfileDocumentUser.class,
+        MethodHandles.lookup()
     );
 
-    @SuppressWarnings("unchecked")
-    static final ConstructingObjectParser<ProfileDocument, Void> PROFILE_DOC_PARSER = new ConstructingObjectParser<>(
+    static final ConstructingObjectParser<ProfileDocument, Void> PROFILE_DOC_PARSER = ConstructingObjectParser.forRecord(
         "user_profile_document",
         false,
-        (args, v) -> new ProfileDocument(
-            (String) args[0],
-            (boolean) args[1],
-            (long) args[2],
-            (ProfileDocumentUser) args[3],
-            (Map<String, Object>) args[4],
-            (BytesReference) args[5]
-        )
+        ProfileDocument.class,
+        MethodHandles.lookup()
     );
 
     static final ConstructingObjectParser<ProfileDocument, Void> PARSER = new ConstructingObjectParser<>(

@@ -388,7 +388,8 @@ public class Top extends AggregateFunction
         if (outputField() != null && field().semanticEquals(outputField())) {
             return new Top(s, field(), limitField(), orderField(), null);
         }
-        if (orderField() instanceof Literal && limitField() instanceof Literal && limitValue() == 1) {
+        // To replace Top by Min or Max, we cannot have an `outputField`
+        if (orderField() instanceof Literal && limitField() instanceof Literal && limitValue() == 1 && outputField() == null) {
             if (orderValue()) {
                 return new Min(s, field(), filter(), window());
             } else {

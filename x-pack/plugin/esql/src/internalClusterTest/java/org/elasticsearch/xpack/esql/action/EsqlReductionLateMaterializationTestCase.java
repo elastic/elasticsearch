@@ -30,6 +30,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.stream.IntStream;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.singleValue;
+import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.syncEsqlQueryRequest;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasSize;
@@ -145,10 +146,10 @@ public abstract class EsqlReductionLateMaterializationTestCase extends AbstractE
     }
 
     private EsqlQueryResponse sendQuery(String query) {
-        return EsqlQueryRequestBuilder.newSyncEsqlQueryRequestBuilder(client())
-            // Ensures there is no TopN pushdown to lucene, and that the pause happens after the TopN operator has been applied.
-            .query(query)
-            .pragmas(
+        // Ensures there is no TopN pushdown to lucene, and that the pause happens after the TopN operator has been applied.
+        return client().execute(
+            EsqlQueryAction.INSTANCE,
+            syncEsqlQueryRequest(query).pragmas(
                 new QueryPragmas(
                     Settings.builder()
                         // Configured to ensure that there is only one worker handling all the shards, so that we can assert the correct
@@ -159,9 +160,7 @@ public abstract class EsqlReductionLateMaterializationTestCase extends AbstractE
                         .put(QueryPragmas.NODE_LEVEL_REDUCTION.getKey(), true)
                         .build()
                 )
-            )
-            .profile(true)
-            .execute()
-            .actionGet(1, TimeUnit.MINUTES);
+            ).profile(true)
+        ).actionGet(1, TimeUnit.MINUTES);
     }
 }

@@ -45,6 +45,7 @@ import java.util.stream.Collectors;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.getValuesList;
 import static org.elasticsearch.xpack.esql.action.AbstractEsqlIntegTestCase.randomIncludeCCSMetadata;
+import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.syncEsqlQueryRequest;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
@@ -655,11 +656,7 @@ public class CrossClusterQueryIT extends AbstractCrossClusterTestCase {
         waitForNoInitializingShards(client(REMOTE_CLUSTER_1), TimeValue.timeValueSeconds(30), "logs-2");
         final int localOnlyProfiles;
         {
-            EsqlQueryRequest request = EsqlQueryRequest.syncEsqlQueryRequest();
-            request.query("FROM logs* | stats sum(v)");
-            request.pragmas(pragmas);
-            request.profile(true);
-            try (EsqlQueryResponse resp = runQuery(request)) {
+            try (EsqlQueryResponse resp = runQuery(syncEsqlQueryRequest("FROM logs* | stats sum(v)").pragmas(pragmas).profile(true))) {
                 List<List<Object>> values = getValuesList(resp);
                 assertThat(values.get(0), equalTo(List.of(45L)));
                 assertNotNull(resp.profile());
@@ -679,11 +676,7 @@ public class CrossClusterQueryIT extends AbstractCrossClusterTestCase {
         }
         final int remoteOnlyProfiles;
         {
-            EsqlQueryRequest request = EsqlQueryRequest.syncEsqlQueryRequest();
-            request.query("FROM c*:logs-* | stats sum(v)");
-            request.pragmas(pragmas);
-            request.profile(true);
-            try (EsqlQueryResponse resp = runQuery(request)) {
+            try (EsqlQueryResponse resp = runQuery(syncEsqlQueryRequest("FROM c*:logs-* | stats sum(v)").pragmas(pragmas).profile(true))) {
                 List<List<Object>> values = getValuesList(resp);
                 assertThat(values.get(0), equalTo(List.of(285L)));
                 assertNotNull(resp.profile());
@@ -706,10 +699,7 @@ public class CrossClusterQueryIT extends AbstractCrossClusterTestCase {
         }
         final int allProfiles;
         {
-            EsqlQueryRequest request = EsqlQueryRequest.syncEsqlQueryRequest();
-            request.query("FROM logs-*,c*:logs-* | stats total = sum(v)");
-            request.pragmas(pragmas);
-            request.profile(true);
+            EsqlQueryRequest request = syncEsqlQueryRequest("FROM logs-*,c*:logs-* | stats total = sum(v)").pragmas(pragmas).profile(true);
             try (EsqlQueryResponse resp = runQuery(request)) {
                 List<List<Object>> values = getValuesList(resp);
                 assertThat(values.get(0), equalTo(List.of(330L)));
@@ -740,8 +730,9 @@ public class CrossClusterQueryIT extends AbstractCrossClusterTestCase {
         int localNumShards = (Integer) testClusterInfo.get("local.num_shards");
         int remoteNumShards = (Integer) testClusterInfo.get("remote1.num_shards");
 
-        EsqlQueryRequest request = EsqlQueryRequest.syncEsqlQueryRequest();
-        request.query("FROM logs-*,c*:logs-* | EVAL ip = to_ip(id) | STATS total = sum(v) by ip | LIMIT 10");
+        EsqlQueryRequest request = syncEsqlQueryRequest(
+            "FROM logs-*,c*:logs-* | EVAL ip = to_ip(id) | STATS total = sum(v) by ip | LIMIT 10"
+        );
         InternalTestCluster cluster = cluster(LOCAL_CLUSTER);
         String node = randomFrom(cluster.getNodeNames());
         CountDownLatch latch = new CountDownLatch(1);
@@ -1029,13 +1020,11 @@ public class CrossClusterQueryIT extends AbstractCrossClusterTestCase {
     public void testNoBothIncludeCcsMetadataAndIncludeExecutionMetadata() throws Exception {
         setupTwoClusters();
         var query = "from logs-*,c*:logs-* | stats sum (v)";
-        EsqlQueryRequest request = EsqlQueryRequest.syncEsqlQueryRequest();
-        request.query(query);
-        request.pragmas(AbstractEsqlIntegTestCase.randomPragmas());
-        request.profile(randomInt(5) == 2);
-        request.columnar(randomBoolean());
-        request.includeCCSMetadata(randomBoolean());
-        request.includeExecutionMetadata(randomBoolean());
+        EsqlQueryRequest request = syncEsqlQueryRequest(query).pragmas(AbstractEsqlIntegTestCase.randomPragmas())
+            .profile(randomInt(5) == 2)
+            .columnar(randomBoolean())
+            .includeCCSMetadata(randomBoolean())
+            .includeExecutionMetadata(randomBoolean());
 
         assertThat(
             expectThrows(VerificationException.class, () -> runQuery(request)).getMessage(),

@@ -1966,7 +1966,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
          * and thereby get used in FieldExtractExec
          */
         private static LogicalPlan addGeneratedFieldsToEsRelations(LogicalPlan plan, List<FieldAttribute> unionFieldAttributes) {
-            return plan.transformDown(EsRelation.class, esr -> {
+            var res = plan.transformDown(EsRelation.class, esr -> {
                 List<Attribute> missing = new ArrayList<>();
                 for (FieldAttribute fa : unionFieldAttributes) {
                     // Using outputSet().contains looks by NameId, resp. uses semanticEquals.
@@ -1980,6 +1980,23 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 }
                 return esr;
             });
+            res = res.transformUp(Project.class, p -> {
+                List<Attribute> syntheticAttributesToCarryOver = new ArrayList<>();
+                for (Attribute attr : p.inputSet()) {
+                    if (attr.synthetic() && p.outputSet().contains(attr) == false) {
+                        syntheticAttributesToCarryOver.add(attr);
+                    }
+                }
+
+                if (syntheticAttributesToCarryOver.isEmpty()) {
+                    return p;
+                }
+
+                List<NamedExpression> newProjections = new ArrayList<>(p.projections());
+                newProjections.addAll(syntheticAttributesToCarryOver);
+                return new Project(p.source(), p.child(), newProjections);
+            });
+            return res;
         }
 
         private Expression resolveConvertFunction(ConvertFunction convert, List<Attribute.IdIgnoringWrapper> unionFieldAttributes) {

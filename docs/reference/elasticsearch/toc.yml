@@ -85,6 +85,7 @@ toc:
           children:
             - file: rest-apis/collapse-search-results.md
             - file: rest-apis/create-index-from-source.md
+            - file: rest-apis/explain-lifecycle.md
             - file: rest-apis/filter-search-results.md
             - file: rest-apis/rescore-search-results.md
             - file: rest-apis/find-text-structure-examples.md

@@ -51,7 +51,6 @@ import org.elasticsearch.index.mapper.ValueFetcher;
 import org.elasticsearch.index.mapper.blockloader.docvalues.BlockDocValuesReader;
 import org.elasticsearch.index.mapper.blockloader.docvalues.BytesRefsFromBinaryBlockLoader;
 import org.elasticsearch.index.mapper.blockloader.docvalues.DoublesBlockLoader;
-import org.elasticsearch.index.mapper.blockloader.docvalues.LongsBlockLoader;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.script.field.DocValuesScriptFieldFactory;
 import org.elasticsearch.search.DocValueFormat;
@@ -355,7 +354,8 @@ public class ExponentialHistogramFieldMapper extends FieldMapper {
             DoublesBlockLoader minimaLoader = new DoublesBlockLoader(valuesMinSubFieldName(name()), NumericUtils::sortableLongToDouble);
             DoublesBlockLoader maximaLoader = new DoublesBlockLoader(valuesMaxSubFieldName(name()), NumericUtils::sortableLongToDouble);
             DoublesBlockLoader sumsLoader = new DoublesBlockLoader(valuesSumSubFieldName(name()), NumericUtils::sortableLongToDouble);
-            LongsBlockLoader valueCountsLoader = new LongsBlockLoader(valuesCountSubFieldName(name()));
+            // we store the counts as integers for better compression, but the block requires doubles. So we simply cast the value
+            DoublesBlockLoader valueCountsLoader = new DoublesBlockLoader(valuesCountSubFieldName(name()), longVal -> (double) longVal);
             DoublesBlockLoader zeroThresholdsLoader = new DoublesBlockLoader(
                 zeroThresholdSubFieldName(name()),
                 NumericUtils::sortableLongToDouble

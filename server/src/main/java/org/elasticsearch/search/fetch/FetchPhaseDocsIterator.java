@@ -32,6 +32,16 @@ import java.util.Arrays;
  */
 abstract class FetchPhaseDocsIterator {
 
+    private long requestBreakerBytes;
+
+    public void addRequestBreakerBytes(long delta) {
+        requestBreakerBytes += delta;
+    }
+
+    public long getRequestBreakerBytes() {
+        return requestBreakerBytes;
+    }
+
     /**
      * Called when a new leaf reader is reached
      * @param ctx           the leaf reader for this set of doc ids

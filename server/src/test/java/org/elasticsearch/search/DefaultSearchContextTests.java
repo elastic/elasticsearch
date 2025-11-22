@@ -976,14 +976,14 @@ public class DefaultSearchContextTests extends MapperServiceTestCase {
         assertEquals(-1, DefaultSearchContext.getFieldCardinality("field", indexService, null));
     }
 
-    public void testCheckRealMemoryCB() throws Exception {
+    public void testCheckCircuitBreaker() throws Exception {
         IndexShard indexShard = null;
         try (DefaultSearchContext context = createDefaultSearchContext(Settings.EMPTY)) {
             indexShard = context.indexShard();
             // allocated more than the 1MiB buffer
-            assertThat(context.checkRealMemoryCB(1024 * 1800, "test"), is(true));
+            assertThat(context.checkCircuitBreaker(1024 * 1800, "test"), is(true));
             // allocated less than the 1MiB buffer
-            assertThat(context.checkRealMemoryCB(1024 * 5, "test"), is(false));
+            assertThat(context.checkCircuitBreaker(1024 * 5, "test"), is(false));
         } finally {
             if (indexShard != null) {
                 indexShard.getThreadPool().shutdown();

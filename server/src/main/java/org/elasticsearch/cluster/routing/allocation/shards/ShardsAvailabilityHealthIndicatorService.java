@@ -65,8 +65,10 @@ import org.elasticsearch.snapshots.SnapshotShardSizeInfo;
 
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -195,10 +197,9 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
         boolean verbose,
         TimeValue replicaUnassignedBufferTime
     ) {
-        for (Map.Entry<ProjectId, RoutingTable> entries : state.globalRoutingTable().routingTables().entrySet()) {
-            ProjectId projectId = entries.getKey();
-            RoutingTable projectRoutingTable = entries.getValue();
-
+        for (var projectEntry : state.globalRoutingTable().routingTables().entrySet()) {
+            ProjectId projectId = projectEntry.getKey();
+            RoutingTable projectRoutingTable = projectEntry.getValue();
             for (IndexRoutingTable indexShardRouting : projectRoutingTable.indicesRouting().values()) {
                 for (int i = 0; i < indexShardRouting.size(); i++) {
                     IndexShardRoutingTable shardRouting = indexShardRouting.shard(i);
@@ -1078,30 +1079,18 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
             if (verbose == false) {
                 return HealthIndicatorDetails.EMPTY;
             }
-            return new SimpleHealthIndicatorDetails(
-                Map.of(
-                    "unassigned_primaries",
-                    primaries.unassigned,
-                    "initializing_primaries",
-                    primaries.initializing,
-                    "creating_primaries",
-                    primaries.unassigned_new,
-                    "restarting_primaries",
-                    primaries.unassigned_restarting,
-                    "started_primaries",
-                    primaries.started + primaries.relocating,
-                    "unassigned_replicas",
-                    replicas.unassigned,
-                    "initializing_replicas",
-                    replicas.initializing,
-                    "creating_replicas",
-                    replicas.unassigned_new,
-                    "restarting_replicas",
-                    replicas.unassigned_restarting,
-                    "started_replicas",
-                    replicas.started + replicas.relocating
-                )
-            );
+            final Map<String, Integer> details = new LinkedHashMap<>();
+            details.put("unassigned_primaries", primaries.unassigned);
+            details.put("initializing_primaries", primaries.initializing);
+            details.put("creating_primaries", primaries.unassigned_new);
+            details.put("restarting_primaries", primaries.unassigned_restarting);
+            details.put("started_primaries", primaries.started + primaries.relocating);
+            details.put("unassigned_replicas", replicas.unassigned);
+            details.put("initializing_replicas", replicas.initializing);
+            details.put("creating_replicas", replicas.unassigned_new);
+            details.put("restarting_replicas", replicas.unassigned_restarting);
+            details.put("started_replicas", replicas.started + replicas.relocating);
+            return new SimpleHealthIndicatorDetails(Collections.unmodifiableMap(details));
         }
 
         public List<HealthIndicatorImpact> getImpacts() {
@@ -1186,7 +1175,9 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
          */
         public List<Diagnosis> getDiagnosis(boolean verbose, int maxAffectedResourcesCount) {
             if (verbose) {
-                Map<Diagnosis.Definition, Set<ProjectIndexName>> diagnosisToAffectedIndices = new HashMap<>(primaries.diagnosisDefinitions);
+                Map<Diagnosis.Definition, Set<ProjectIndexName>> diagnosisToAffectedIndices = new LinkedHashMap<>(
+                    primaries.diagnosisDefinitions
+                );
                 replicas.diagnosisDefinitions.forEach((diagnosisDef, indicesWithReplicasUnassigned) -> {
                     Set<ProjectIndexName> indicesWithPrimariesUnassigned = diagnosisToAffectedIndices.get(diagnosisDef);
                     if (indicesWithPrimariesUnassigned == null) {
@@ -1198,40 +1189,39 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
                 if (diagnosisToAffectedIndices.isEmpty()) {
                     return List.of();
                 } else {
-
                     return diagnosisToAffectedIndices.entrySet().stream().map(e -> {
-                        List<Diagnosis.Resource> affectedResources = new ArrayList<>(1);
-                        if (e.getKey().equals(ACTION_RESTORE_FROM_SNAPSHOT)) {
-                            Set<ProjectIndexName> restoreFromSnapshotIndices = e.getValue();
-                            if (restoreFromSnapshotIndices != null && restoreFromSnapshotIndices.isEmpty() == false) {
-                                affectedResources = getRestoreFromSnapshotAffectedResources(
-                                    clusterMetadata,
-                                    systemIndices,
-                                    restoreFromSnapshotIndices,
-                                    maxAffectedResourcesCount,
-                                    projectResolver.supportsMultipleProjects()
+                            List<Diagnosis.Resource> affectedResources = new ArrayList<>(1);
+                            if (e.getKey().equals(ACTION_RESTORE_FROM_SNAPSHOT)) {
+                                Set<ProjectIndexName> restoreFromSnapshotIndices = e.getValue();
+                                if (restoreFromSnapshotIndices != null && restoreFromSnapshotIndices.isEmpty() == false) {
+                                    affectedResources = getRestoreFromSnapshotAffectedResources(
+                                        clusterMetadata,
+                                        systemIndices,
+                                        restoreFromSnapshotIndices,
+                                        maxAffectedResourcesCount,
+                                        projectResolver.supportsMultipleProjects()
+                                    );
+                                }
+                            } else {
+                                affectedResources.add(
+                                    new Diagnosis.Resource(
+                                        INDEX,
+                                        e.getValue()
+                                            .stream()
+                                            .sorted(
+                                                indicesComparatorByPriorityAndProjectIndex(
+                                                    clusterMetadata,
+                                                    projectResolver.supportsMultipleProjects()
+                                                )
+                                            )
+                                            .map(projectIndex -> projectIndex.toString(projectResolver.supportsMultipleProjects()))
+                                            .limit(Math.min(e.getValue().size(), maxAffectedResourcesCount))
+                                            .collect(Collectors.toList())
+                                    )
                                 );
                             }
-                        } else {
-                            affectedResources.add(
-                                new Diagnosis.Resource(
-                                    INDEX,
-                                    e.getValue()
-                                        .stream()
-                                        .sorted(
-                                            indicesComparatorByPriorityAndProjectIndex(
-                                                clusterMetadata,
-                                                projectResolver.supportsMultipleProjects()
-                                            )
-                                        )
-                                        .map(projectIndex -> projectIndex.toString(projectResolver.supportsMultipleProjects()))
-                                        .limit(Math.min(e.getValue().size(), maxAffectedResourcesCount))
-                                        .collect(Collectors.toList())
-                                )
-                            );
-                        }
-                        return new Diagnosis(e.getKey(), affectedResources);
-                    }).collect(Collectors.toList());
+                            return new Diagnosis(e.getKey(), affectedResources);
+                        }).collect(Collectors.toList());
                 }
             } else {
                 return List.of();

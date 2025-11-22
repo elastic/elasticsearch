@@ -19,7 +19,6 @@ import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexNotFoundException;
-import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.transport.RemoteClusterAware;
 
 import java.util.Map;
@@ -79,6 +78,8 @@ public class CrossProjectIndexResolutionValidator {
         ResolvedIndexExpressions localResolvedExpressions,
         Map<String, ResolvedIndexExpressions> remoteResolvedExpressions
     ) {
+        ElasticsearchException exception = null;
+
         if (indicesOptions.allowNoIndices() && indicesOptions.ignoreUnavailable()) {
             logger.debug("Skipping index existence check in lenient mode");
             return null;
@@ -104,22 +105,38 @@ public class CrossProjectIndexResolutionValidator {
             ResolvedIndexExpression.LocalExpressions localExpressions = localResolvedIndices.localExpressions();
             ResolvedIndexExpression.LocalIndexResolutionResult result = localExpressions.localIndexResolutionResult();
             if (isQualifiedExpression) {
-                ElasticsearchException e = checkResolutionFailure(localExpressions, result, originalExpression, indicesOptions);
-                if (e != null) {
-                    return e;
+                ElasticsearchException localException = checkResolutionFailure(
+                    localExpressions,
+                    result,
+                    originalExpression,
+                    indicesOptions
+                );
+                if (localException != null) {
+                    exception = recordException(exception, localException);
                 }
                 // qualified linked project expression
                 for (String remoteExpression : remoteExpressions) {
                     String[] splitResource = splitQualifiedResource(remoteExpression);
-                    ElasticsearchException exception = checkSingleRemoteExpression(
+                    var projectAlias = splitResource[0];
+                    var resource = splitResource[1];
+
+                    ElasticsearchException remoteException = checkSingleRemoteExpression(
                         remoteResolvedExpressions,
-                        splitResource[0], // projectAlias
-                        splitResource[1], // resource
+                        projectAlias,
+                        resource,
                         remoteExpression,
                         indicesOptions
                     );
-                    if (exception != null) {
-                        return exception;
+                    if (remoteException != null) {
+                        var wrapped = remoteException instanceof ElasticsearchSecurityException
+                            ? new ElasticsearchSecurityException(
+                                "indices [{}] are unauthorized for project [{}]",
+                                remoteException,
+                                resource,
+                                projectAlias
+                            )
+                            : remoteException;
+                        exception = recordException(exception, wrapped);
                     }
                 }
             } else {
@@ -138,33 +155,56 @@ public class CrossProjectIndexResolutionValidator {
                 // checking if flat expression matched remotely
                 for (String remoteExpression : remoteExpressions) {
                     String[] splitResource = splitQualifiedResource(remoteExpression);
-                    ElasticsearchException exception = checkSingleRemoteExpression(
+                    var projectAlias = splitResource[0];
+                    var resource = splitResource[1];
+
+                    ElasticsearchException remoteException = checkSingleRemoteExpression(
                         remoteResolvedExpressions,
-                        splitResource[0], // projectAlias
-                        splitResource[1], // resource
+                        projectAlias,
+                        resource,
                         remoteExpression,
                         indicesOptions
                     );
-                    if (exception == null) {
+                    if (remoteException == null) {
                         // found flat expression somewhere
                         foundFlat = true;
                         break;
                     }
-                    if (false == isUnauthorized && exception instanceof ElasticsearchSecurityException) {
+                    if (false == isUnauthorized && remoteException instanceof ElasticsearchSecurityException) {
                         isUnauthorized = true;
+                        var wrapped = new ElasticsearchSecurityException(
+                            "indices [{}] are unauthorized for project [{}]",
+                            remoteException,
+                            resource,
+                            projectAlias
+                        );
+                        exception = recordException(exception, wrapped);
                     }
                 }
                 if (foundFlat) {
                     continue;
                 }
                 if (isUnauthorized) {
-                    return localException;
+                    exception = recordException(exception, localException);
+                    continue;
                 }
-                return new IndexNotFoundException(originalExpression);
+                exception = recordException(exception, new IndexNotFoundException(originalExpression));
             }
         }
-        // if we didn't throw before it means that we can proceed with the request
-        return null;
+
+        return exception;
+    }
+
+    private static ElasticsearchException recordException(
+        @Nullable ElasticsearchException baseException,
+        ElasticsearchException nextException
+    ) {
+        if (baseException == null) {
+            return nextException;
+        } else {
+            baseException.addSuppressed(nextException);
+            return baseException;
+        }
     }
 
     public static IndicesOptions indicesOptionsForCrossProjectFanout(IndicesOptions indicesOptions) {
@@ -173,11 +213,6 @@ public class CrossProjectIndexResolutionValidator {
             .wildcardOptions(IndicesOptions.WildcardOptions.builder(indicesOptions.wildcardOptions()).allowEmptyExpressions(true).build())
             .crossProjectModeOptions(IndicesOptions.CrossProjectModeOptions.DEFAULT)
             .build();
-    }
-
-    private static ElasticsearchSecurityException securityException(String originalExpression) {
-        // TODO plug in proper recorded authorization exceptions instead, once available
-        return new ElasticsearchSecurityException("user cannot access [" + originalExpression + "]", RestStatus.FORBIDDEN);
     }
 
     private static ElasticsearchException checkSingleRemoteExpression(

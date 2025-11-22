@@ -22,7 +22,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+import static org.hamcrest.Matchers.arrayWithSize;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 
@@ -269,11 +271,7 @@ public class CrossProjectIndexResolutionValidatorTests extends ESTestCase {
             List.of(
                 new ResolvedIndexExpression(
                     original,
-                    new ResolvedIndexExpression.LocalExpressions(
-                        Set.of(),
-                        ResolvedIndexExpression.LocalIndexResolutionResult.CONCRETE_RESOURCE_NOT_VISIBLE,
-                        null
-                    ),
+                    new ResolvedIndexExpression.LocalExpressions(Set.of(), ResolvedIndexExpression.LocalIndexResolutionResult.NONE, null),
                     Set.of("P1:logs")
                 )
             )
@@ -304,7 +302,7 @@ public class CrossProjectIndexResolutionValidatorTests extends ESTestCase {
         );
         assertNotNull(e);
         assertThat(e, instanceOf(IndexNotFoundException.class));
-        assertThat(e.getMessage(), containsString("no such index [" + original + "]"));
+        assertThat(e.getMessage(), containsString("no such index [P1:logs]"));
     }
 
     public void testUnauthorizedQualifiedExpressionWithStrictIgnoreUnavailable() {
@@ -318,7 +316,7 @@ public class CrossProjectIndexResolutionValidatorTests extends ESTestCase {
             )
         );
 
-        final var exception = new ElasticsearchException("action is unauthorized for indices [logs]");
+        final var exception = new ElasticsearchSecurityException("action is unauthorized for indices [logs]");
         var remote = Map.of(
             "P1",
             new ResolvedIndexExpressions(
@@ -343,7 +341,8 @@ public class CrossProjectIndexResolutionValidatorTests extends ESTestCase {
             remote
         );
         assertNotNull(e);
-        assertThat(e, is(exception));
+        assertThat(e.getMessage(), equalTo("indices [logs] are unauthorized for project [P1]"));
+        assertThat(e.getCause(), is(exception));
     }
 
     public void testFlatExpressionWithStrictAllowNoIndicesMatchingInOriginProject() {
@@ -365,7 +364,7 @@ public class CrossProjectIndexResolutionValidatorTests extends ESTestCase {
         assertNull(CrossProjectIndexResolutionValidator.validate(getStrictAllowNoIndices(), null, local, null));
     }
 
-    public void testAllowNoIndicesFoundEmptyResultsOnOriginAndLinked() {
+    public void testStrictAllowNoIndicesFoundEmptyResultsOnOriginAndLinked() {
         ResolvedIndexExpressions local = new ResolvedIndexExpressions(
             List.of(
                 new ResolvedIndexExpression(
@@ -668,6 +667,8 @@ public class CrossProjectIndexResolutionValidatorTests extends ESTestCase {
         assertNotNull(e);
         assertThat(e, instanceOf(IndexNotFoundException.class));
         assertThat(e.getMessage(), containsString("no such index [" + original + "]"));
+        assertThat(e.getSuppressed(), arrayWithSize(1));
+        assertThat(e.getSuppressed()[0].getMessage(), equalTo("no such index [P1:logs*]"));
     }
 
     public void testUnauthorizedQualifiedExpressionWithStrictAllowNoIndices() {
@@ -676,11 +677,7 @@ public class CrossProjectIndexResolutionValidatorTests extends ESTestCase {
             List.of(
                 new ResolvedIndexExpression(
                     original,
-                    new ResolvedIndexExpression.LocalExpressions(
-                        Set.of(),
-                        ResolvedIndexExpression.LocalIndexResolutionResult.SUCCESS,
-                        null
-                    ),
+                    new ResolvedIndexExpression.LocalExpressions(Set.of(), ResolvedIndexExpression.LocalIndexResolutionResult.NONE, null),
                     Set.of("P1:logs*")
                 )
             )
@@ -710,7 +707,7 @@ public class CrossProjectIndexResolutionValidatorTests extends ESTestCase {
         );
         assertNotNull(e);
         assertThat(e, instanceOf(IndexNotFoundException.class));
-        assertThat(e.getMessage(), containsString("no such index [" + original + "]"));
+        assertThat(e.getMessage(), containsString("no such index [P1:logs*]"));
     }
 
     private IndicesOptions getStrictAllowNoIndices() {

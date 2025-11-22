@@ -98,7 +98,6 @@ setup:
           title: "Elasticsearch"
           body: [ "ElasticSearch is an open source, distributed, RESTful, search engine which is built on top of Lucene internally and enjoys all the features it provides.", "You Know, for Search!" ]
         refresh: true
-
 ---
 "Highlighting empty field":
   - do:
@@ -744,3 +743,158 @@ setup:
   - length: { hits.hits.0.highlight.body: 2 }
   - match: { hits.hits.0.highlight.body.0: "ElasticSearch is an open source, distributed, RESTful, search engine which is built on top of Lucene internally and enjoys all the features it provides." }
   - match: { hits.hits.0.highlight.body.1: "You Know, for Search!" }
+
+---
+"Highlighting with type:bbq_disk index options as well as knn with similarity":
+  - requires:
+      cluster_features: "semantic_text.highlighter.bbq_and_similarity_support"
+      reason: semantic highlighter fix for disk_bbq index options and knn with similarity
+
+  - do:
+      indices.create:
+        index: test-dense-index-bbq_disk
+        body:
+          settings:
+            index.mapping.semantic_text.use_legacy_format: false
+          mappings:
+            properties:
+              bbq_disk_body:
+                type: semantic_text
+                inference_id: dense-inference-id
+                index_options:
+                  dense_vector:
+                    type: bbq_disk
+              body:
+                type: semantic_text
+                inference_id: dense-inference-id
+
+  - do:
+      index:
+        index: test-dense-index-bbq_disk
+        id: doc_1
+        body:
+          bbq_disk_body: [ "ElasticSearch is an open source, distributed, RESTful, search engine which is built on top of Lucene internally and enjoys all the features it provides.", "You Know, for Search!", "For a moment, nothing happened. Then, after a second or so, nothing continued to happen." ]
+          body: [ "ElasticSearch is an open source, distributed, RESTful, search engine which is built on top of Lucene internally and enjoys all the features it provides.", "You Know, for Search!", "For a moment, nothing happened. Then, after a second or so, nothing continued to happen." ]
+  - do:
+      index:
+        index: test-dense-index-bbq_disk
+        id: doc_2
+        body:
+          bbq_disk_body: [ "Nothing travels faster than the speed of light with the possible exception of bad news, which obeys its own special laws."]
+          body: [ "Nothing travels faster than the speed of light with the possible exception of bad news, which obeys its own special laws."]
+        refresh: true
+
+  - do:
+      search:
+        index: test-dense-index-bbq_disk
+        body:
+          query:
+            match_all: { }
+          highlight:
+            fields:
+              bbq_disk_body:
+                type: "semantic"
+                number_of_fragments: 1
+              body:
+                type: "semantic"
+                number_of_fragments: 1
+
+  - match: { hits.total.value: 2 }
+
+  - match: { hits.hits.0._id: "doc_1" }
+  - length: { hits.hits.0.highlight: 2 }
+  - length: { hits.hits.0.highlight.bbq_disk_body: 1 }
+  - match: { hits.hits.0.highlight.bbq_disk_body.0: "ElasticSearch is an open source, distributed, RESTful, search engine which is built on top of Lucene internally and enjoys all the features it provides." }
+  - length: { hits.hits.0.highlight.body: 1 }
+  - match: { hits.hits.0.highlight.body.0: "ElasticSearch is an open source, distributed, RESTful, search engine which is built on top of Lucene internally and enjoys all the features it provides." }
+
+  - match: { hits.hits.1._id: "doc_2" }
+  - length: { hits.hits.1.highlight: 2 }
+  - length: { hits.hits.1.highlight.bbq_disk_body: 1 }
+  - match: { hits.hits.1.highlight.bbq_disk_body.0: "Nothing travels faster than the speed of light with the possible exception of bad news, which obeys its own special laws." }
+  - length: { hits.hits.1.highlight.body: 1 }
+  - match: { hits.hits.1.highlight.body.0: "Nothing travels faster than the speed of light with the possible exception of bad news, which obeys its own special laws." }
+
+
+
+  - do:
+      search:
+        index: test-dense-index-bbq_disk
+        body:
+          query:
+            knn:
+              field: "body"
+              query_vector_builder:
+                text_embedding:
+                  model_text: "What is Elasticsearch?"
+              k: 10
+              num_candidates: 10
+              similarity: 0.9977
+          highlight:
+            fields:
+              body:
+                type: "semantic"
+                number_of_fragments: 3
+
+  - match: { hits.total.value: 1 }
+  - match: { hits.hits.0._id: "doc_1" }
+  - length: { hits.hits.0.highlight.body: 3 }
+  - match: { hits.hits.0.highlight.body.0: "ElasticSearch is an open source, distributed, RESTful, search engine which is built on top of Lucene internally and enjoys all the features it provides." }
+  - match: { hits.hits.0.highlight.body.1: "You Know, for Search!" }
+  - match: { hits.hits.0.highlight.body.2: "For a moment, nothing happened. Then, after a second or so, nothing continued to happen."}
+
+  - do:
+      search:
+        index: test-dense-index-bbq_disk
+        body:
+          query:
+            knn:
+              field: "bbq_disk_body"
+              query_vector_builder:
+                text_embedding:
+                  model_text: "What is Elasticsearch?"
+              k: 10
+              num_candidates: 10
+              similarity: 0.9977
+          highlight:
+            fields:
+              body:
+                type: "semantic"
+                number_of_fragments: 2
+
+  - match: { hits.total.value: 1 }
+  - match: { hits.hits.0._id: "doc_1" }
+  - length: { hits.hits.0.highlight.body: 2 }
+  - match: { hits.hits.0.highlight.body.0: "ElasticSearch is an open source, distributed, RESTful, search engine which is built on top of Lucene internally and enjoys all the features it provides." }
+  - match: { hits.hits.0.highlight.body.1: "For a moment, nothing happened. Then, after a second or so, nothing continued to happen."}
+
+  - do:
+      search:
+        index: test-dense-index-bbq_disk
+        body:
+          query:
+            knn:
+              field: "bbq_disk_body"
+              query_vector_builder:
+                text_embedding:
+                  model_text: "What is Elasticsearch?"
+              k: 10
+              num_candidates: 10
+          highlight:
+            fields:
+              bbq_disk_body:
+                type: "semantic"
+                number_of_fragments: 3
+
+  - match: { hits.total.value: 2 }
+  - match: { hits.hits.0._id: "doc_1" }
+  - length: { hits.hits.0.highlight.bbq_disk_body: 3 }
+  - match: { hits.hits.0.highlight.bbq_disk_body.0: "ElasticSearch is an open source, distributed, RESTful, search engine which is built on top of Lucene internally and enjoys all the features it provides." }
+  - match: { hits.hits.0.highlight.bbq_disk_body.1: "You Know, for Search!" }
+  - match: { hits.hits.0.highlight.bbq_disk_body.2: "For a moment, nothing happened. Then, after a second or so, nothing continued to happen." }
+
+  - match: { hits.hits.1._id: "doc_2" }
+  - length: { hits.hits.1.highlight: 1 }
+  - length: { hits.hits.1.highlight.bbq_disk_body: 1 }
+  - match: { hits.hits.1.highlight.bbq_disk_body.0: "Nothing travels faster than the speed of light with the possible exception of bad news, which obeys its own special laws." }
+

@@ -29,6 +29,7 @@ import org.gradle.api.JavaVersion;
 import org.gradle.api.NamedDomainObjectContainer;
 import org.gradle.api.Plugin;
 import org.gradle.api.Project;
+import org.gradle.api.artifacts.ExternalModuleDependency;
 import org.gradle.api.configuration.BuildFeatures;
 import org.gradle.api.logging.Logger;
 import org.gradle.api.logging.Logging;
@@ -53,14 +54,13 @@ import java.io.BufferedReader;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
-import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.UncheckedIOException;
-import java.net.URI;
 import java.nio.file.Files;
 import java.util.List;
 import java.util.Locale;
 import java.util.Properties;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -90,6 +90,9 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
     private final BuildFeatures buildFeatures;
     private JavaToolchainService toolChainService;
     private Project project;
+
+    // we store and resolve this eagerly to ensure we resolve it in the context of the root project.
+    private List<DevelopmentBranch> developmentBranches;
 
     @Inject
     public GlobalBuildInfoPlugin(
@@ -133,7 +136,7 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
         Provider<BwcVersions> bwcVersionsProvider = providers.provider(
             () -> cache.updateAndGet(val -> val == null ? resolveBwcVersions(elasticsearchVersionProperty) : val)
         );
-
+        developmentBranches = getDevelopmentBranches();
         BuildParameterExtension buildParams = project.getExtensions()
             .create(
                 BuildParameterExtension.class,
@@ -198,7 +201,7 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
         );
         try (var is = new FileInputStream(versionsFilePath)) {
             List<String> versionLines = IOUtils.readLines(is, "UTF-8");
-            return new BwcVersions(currentElasticsearchVersion, parseVersionLines(versionLines), getDevelopmentBranches());
+            return new BwcVersions(currentElasticsearchVersion, parseVersionLines(versionLines), developmentBranches);
         } catch (IOException e) {
             throw new IllegalStateException("Unable to resolve to resolve bwc versions from versionsFile.", e);
         }
@@ -218,23 +221,35 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
             .gradleProperty(BRANCHES_FILE_LOCATION_PROPERTY)
             .getOrElse(DEFAULT_BRANCHES_FILE_URL);
         LOGGER.info("Reading branches.json from {}", branchesFileLocation);
-        byte[] branchesBytes;
+        File branchesFile;
         if (branchesFileLocation.startsWith("http")) {
-            try (InputStream in = URI.create(branchesFileLocation).toURL().openStream()) {
-                branchesBytes = in.readAllBytes();
-            } catch (IOException e) {
-                throw new UncheckedIOException("Failed to download branches.json from: " + branchesFileLocation, e);
+            try {
+                project.getRepositories().ivy(ivyArtifactRepository -> {
+                    ivyArtifactRepository.getMetadataSources().artifact();
+                    ivyArtifactRepository.artifactPattern(
+                        "https://raw.githubusercontent.com/elastic/elasticsearch/[organisation]/[module].[ext]"
+                    );
+                });
+
+                // Resolve the remote file via Gradle dependency resolution so it is downloaded and cached by Gradle
+                var dependency = (ExternalModuleDependency) project.getDependencies().create("main:branches@json");
+                dependency.setChanging(true);
+                var branchesConfig = project.getConfigurations().detachedConfiguration(dependency);
+                branchesConfig.getResolutionStrategy().cacheChangingModulesFor(0, TimeUnit.SECONDS);
+                branchesFile = branchesConfig.getSingleFile();
+            } catch (Exception e) {
+                throw new UncheckedIOException(new IOException("Failed to download branches.json from: " + branchesFileLocation, e));
             }
         } else {
-            try {
-                branchesBytes = Files.readAllBytes(new File(branchesFileLocation).toPath());
-            } catch (IOException e) {
-                throw new UncheckedIOException("Failed to read branches.json from: " + branchesFileLocation, e);
-            }
+            branchesFile = new File(branchesFileLocation);
         }
 
         var branchesFileParser = new BranchesFileParser(new ObjectMapper());
-        return branchesFileParser.parse(branchesBytes);
+        try {
+            return branchesFileParser.parse(Files.readAllBytes(branchesFile.toPath()));
+        } catch (IOException e) {
+            throw new UncheckedIOException("Failed to read branches.json from: " + branchesFileLocation, e);
+        }
     }
 
     private void logGlobalBuildInfo(BuildParameterExtension buildParams) {

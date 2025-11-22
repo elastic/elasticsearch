@@ -287,15 +287,27 @@ public record LifecycleExecutionState(
         return Collections.unmodifiableMap(result);
     }
 
-    public static String truncateWithExplanation(String input) {
-        if (input != null && input.length() > MAXIMUM_STEP_INFO_STRING_LENGTH) {
-            return Strings.cleanTruncate(input, MAXIMUM_STEP_INFO_STRING_LENGTH)
-                + "... ("
-                + (input.length() - MAXIMUM_STEP_INFO_STRING_LENGTH)
-                + " chars truncated)";
-        } else {
-            return input;
+    public static String potentiallyTruncateLongJsonWithExplanation(String json) {
+        if (json == null) {
+            return null;
         }
+        final boolean jsonWithinLimit = json.length() <= MAXIMUM_STEP_INFO_STRING_LENGTH;
+        final boolean jsonAlreadyTruncated = json.endsWith("chars truncated)\"}");
+        // already-truncated JSON will always be over the limit, since we add the extra `chars truncated` explanation at the end.
+        // hence another check to not 1) double-truncate needlessly 2) lose information (we'll truncate current number of truncated chars)
+        if (jsonWithinLimit || jsonAlreadyTruncated) {
+            return json;
+        }
+        assert json.startsWith("{\"") && json.endsWith("\"}") : "expected more specific JSON format";
+        // we'll now do our best to truncate the JSON and have the result be valid JSON.
+        // a long input JSON should generally only be possible with an exception turned into JSON that's well-formatted.
+        // if we fail to produce valid JSON, we might return invalid JSON in REST API in niche cases, so this isn't catastrophic.
+        final int removedChars = json.length() - MAXIMUM_STEP_INFO_STRING_LENGTH;
+        // -2 to truncate characters within the JSON (before `"}`, which we add back in, so wouldn't actually be truncating anything),
+        // and to avoid invalid JSON if we truncate one character (result would be `"... (1 chars truncated)"}`,
+        // this adds a dangling double-quote).
+        // we don't aim to arrive at a string of exactly MAXIMUM_STEP_INFO_STRING_LENGTH, that's just the condition to apply truncation.
+        return Strings.cleanTruncate(json, MAXIMUM_STEP_INFO_STRING_LENGTH - 2) + "... (" + removedChars + " chars truncated)\"}";
     }
 
     public static class Builder {
@@ -340,7 +352,7 @@ public record LifecycleExecutionState(
         }
 
         public Builder setStepInfo(String stepInfo) {
-            this.stepInfo = truncateWithExplanation(stepInfo);
+            this.stepInfo = potentiallyTruncateLongJsonWithExplanation(stepInfo);
             return this;
         }
 

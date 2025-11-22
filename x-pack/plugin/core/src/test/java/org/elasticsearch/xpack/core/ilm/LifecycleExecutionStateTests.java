@@ -8,10 +8,12 @@
 package org.elasticsearch.xpack.core.ilm;
 
 import org.elasticsearch.cluster.metadata.LifecycleExecutionState;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.EqualsHashCodeTestUtils;
 
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -28,13 +30,15 @@ public class LifecycleExecutionStateTests extends ESTestCase {
         Map<String, String> custom = createCustomMetadata();
         LifecycleExecutionState state = LifecycleExecutionState.fromCustomMetadata(custom);
         assertThat(custom.get("step_info"), equalTo(state.stepInfo()));
-        String longStepInfo = randomAlphanumericOfLength(LifecycleExecutionState.MAXIMUM_STEP_INFO_STRING_LENGTH + 100);
+        String longStepInfo = "{\"key\": \""
+            + randomAlphanumericOfLength(LifecycleExecutionState.MAXIMUM_STEP_INFO_STRING_LENGTH + 100)
+            + "\"}";
         LifecycleExecutionState newState = LifecycleExecutionState.builder(state).setStepInfo(longStepInfo).build();
-        // Length includes the post suffix
+        // Length includes the post suffix (`... (X chars truncated)`)
         assertThat(newState.stepInfo().length(), equalTo(LifecycleExecutionState.MAXIMUM_STEP_INFO_STRING_LENGTH + 25));
         assertThat(
-            newState.stepInfo().substring(LifecycleExecutionState.MAXIMUM_STEP_INFO_STRING_LENGTH, 1049),
-            equalTo("... (100 chars truncated)")
+            newState.stepInfo().substring(LifecycleExecutionState.MAXIMUM_STEP_INFO_STRING_LENGTH - 2, 1049),
+            equalTo("... (111 chars truncated)\"}")
         );
     }
 
@@ -143,6 +147,39 @@ public class LifecycleExecutionStateTests extends ESTestCase {
         lifecycleState6.setStep(step);
         AssertionError error6 = expectThrows(AssertionError.class, () -> Step.getCurrentStepKey(lifecycleState6.build()));
         assertNull(error6.getMessage());
+    }
+
+    public void testPotentiallyTruncateLongJsonWithExplanationNotTruncated() {
+        final String input = randomAlphaOfLengthBetween(0, LifecycleExecutionState.MAXIMUM_STEP_INFO_STRING_LENGTH);
+        assertSame(input, LifecycleExecutionState.potentiallyTruncateLongJsonWithExplanation(input));
+    }
+
+    public void testPotentiallyTruncateLongJsonWithExplanationOneCharTruncated() {
+        final String jsonBaseFormat = "{\"key\": \"%s\"}";
+        final int baseLength = Strings.format(jsonBaseFormat, "").length();
+        final String value = randomAlphanumericOfLength(LifecycleExecutionState.MAXIMUM_STEP_INFO_STRING_LENGTH - baseLength + 1);
+        final String input = Strings.format(jsonBaseFormat, value);
+        final String expectedOutput = Strings.format(jsonBaseFormat, value.substring(0, value.length() - 1) + "... (1 chars truncated)");
+        assertEquals(expectedOutput, LifecycleExecutionState.potentiallyTruncateLongJsonWithExplanation(input));
+    }
+
+    public void testPotentiallyTruncateLongJsonWithExplanationTwoCharsTruncated() {
+        final String jsonBaseFormat = "{\"key\": \"%s\"}";
+        final int baseLength = Strings.format(jsonBaseFormat, "").length();
+        final String value = randomAlphanumericOfLength(LifecycleExecutionState.MAXIMUM_STEP_INFO_STRING_LENGTH - baseLength + 2);
+        final String input = Strings.format(jsonBaseFormat, value);
+        final String expectedOutput = Strings.format(jsonBaseFormat, value.substring(0, value.length() - 2) + "... (2 chars truncated)");
+        assertEquals(expectedOutput, LifecycleExecutionState.potentiallyTruncateLongJsonWithExplanation(input));
+    }
+
+    public void testPotentiallyTruncateLongJsonWithExplanationEarlyReturn() {
+        List.of(
+            "",
+            "chars truncated)\"}",
+            randomAlphanumericOfLength(LifecycleExecutionState.MAXIMUM_STEP_INFO_STRING_LENGTH) + "chars truncated)\"}"
+        ).forEach(value -> {
+            assertSame(value, LifecycleExecutionState.potentiallyTruncateLongJsonWithExplanation(value));
+        });
     }
 
     private LifecycleExecutionState mutate(LifecycleExecutionState toMutate) {

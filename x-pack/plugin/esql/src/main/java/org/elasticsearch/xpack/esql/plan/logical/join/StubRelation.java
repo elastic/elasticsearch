@@ -16,6 +16,7 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.plan.logical.LeafPlan;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -25,6 +26,7 @@ import java.util.Objects;
 import java.util.Set;
 
 import static java.util.Collections.emptyList;
+import static org.elasticsearch.xpack.esql.expression.NamedExpressions.mergeOutputAttributes;
 
 /**
  * Synthetic {@link LogicalPlan} used by the planner that the child plan is referred elsewhere.
@@ -46,13 +48,28 @@ public class StubRelation extends LeafPlan {
         this.output = output;
     }
 
+    /**
+     * Produces a StubRelation whose output is the merger of the {@code sourcePlan}'s output and {@code destinationPlan}'s referenced
+     * attributes.
+     */
+    public static StubRelation of(UnaryPlan destinationPlan, LogicalPlan sourcePlan) {
+        return new StubRelation(destinationPlan.source(), computeOutput(destinationPlan, sourcePlan));
+    }
+
+    /**
+     * Produces a new StubRelation whose output is the merger of this StubRelation's output and the {@code sourcePlan}'s output.
+     */
+    public StubRelation extendWith(LogicalPlan sourcePlan) {
+        return new StubRelation(source(), mergeOutputAttributes(sourcePlan.output(), output));
+    }
+
     /*
      * The output of a StubRelation must also include any synthetic attributes referenced by the source plan (union types is a great
      * example of those attributes that has some special treatment throughout the planning phases, especially in the EsRelation).
      */
-    public static List<Attribute> computeOutput(LogicalPlan source, LogicalPlan target) {
-        Set<Attribute> stubRelationOutput = new LinkedHashSet<>(target.output());
-        stubRelationOutput.addAll(source.references().stream().filter(Attribute::synthetic).toList());
+    private static List<Attribute> computeOutput(LogicalPlan destinationPlan, LogicalPlan sourcePlan) {
+        Set<Attribute> stubRelationOutput = new LinkedHashSet<>(sourcePlan.output());
+        stubRelationOutput.addAll(destinationPlan.references().stream().toList());
         return new ArrayList<>(stubRelationOutput);
     }
 

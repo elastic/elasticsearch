@@ -465,7 +465,7 @@ synthetic_source match_only_text as multi-field with ignored keyword as parent:
         id: "1"
         refresh: true
         body:
-          foo: [ "Apache Lucene powers Elasticsearch", "Apache" ]
+          foo: [ "Apache Lucene powers Elasticsearch", "Apache", "Apache Lucene" ]
 
   - do:
       search:
@@ -477,7 +477,7 @@ synthetic_source match_only_text as multi-field with ignored keyword as parent:
 
   - match: { "hits.total.value": 1 }
   - match:
-      hits.hits.0._source.foo: [ "Apache", "Apache Lucene powers Elasticsearch" ]
+      hits.hits.0._source.foo: [ "Apache", "Apache Lucene powers Elasticsearch", "Apache Lucene" ]
 
 ---
 synthetic_source match_only_text as multi-field with stored keyword as parent:

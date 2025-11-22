@@ -24,6 +24,7 @@ import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.RoutingNodesHelper;
 import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.cluster.routing.ShardRoutingRoleStrategy;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.routing.allocation.FailedShard;
@@ -178,7 +179,7 @@ public abstract class ESAllocationTestCase extends ESTestCase {
         return new AllocationDeciders(deciders);
     }
 
-    protected static ShardsAllocator createShardsAllocator(Settings settings) {
+    public static ShardsAllocator createShardsAllocator(Settings settings) {
         return switch (pickShardsAllocator(settings)) {
             case BALANCED_ALLOCATOR -> new BalancedShardsAllocator(
                 Settings.builder().put(settings).put(SHARDS_ALLOCATOR_TYPE_SETTING.getKey(), BALANCED_ALLOCATOR).build()
@@ -423,7 +424,7 @@ public abstract class ESAllocationTestCase extends ESTestCase {
     }
 
     /** A lock {@link AllocationService} allowing tests to override time */
-    protected static class MockAllocationService extends AllocationService {
+    public static class MockAllocationService extends AllocationService {
 
         private volatile long nanoTimeOverride = -1L;
 
@@ -437,13 +438,31 @@ public abstract class ESAllocationTestCase extends ESTestCase {
             ClusterInfoService clusterInfoService,
             SnapshotsInfoService snapshotsInfoService
         ) {
-            super(
+            this(
                 allocationDeciders,
                 gatewayAllocator,
                 shardsAllocator,
                 clusterInfoService,
                 snapshotsInfoService,
                 TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY
+            );
+        }
+
+        public MockAllocationService(
+            AllocationDeciders allocationDeciders,
+            GatewayAllocator gatewayAllocator,
+            ShardsAllocator shardsAllocator,
+            ClusterInfoService clusterInfoService,
+            SnapshotsInfoService snapshotsInfoService,
+            ShardRoutingRoleStrategy shardRoutingRoleStrategy
+        ) {
+            super(
+                allocationDeciders,
+                gatewayAllocator,
+                shardsAllocator,
+                clusterInfoService,
+                snapshotsInfoService,
+                shardRoutingRoleStrategy
             );
             this.gatewayAllocator = gatewayAllocator;
             this.shardsAllocator = shardsAllocator;

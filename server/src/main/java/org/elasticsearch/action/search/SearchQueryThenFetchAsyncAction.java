@@ -498,7 +498,7 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
                             shardIndex,
                             routing.getShardId(),
                             shardRoutings.getSearchContextId(),
-                            shardRoutings.getReshardSplitShardCountSummary()
+                            shardRoutings.getSplitShardCountSummary()
                         )
                     );
                     var filterForAlias = aliasFilter.getOrDefault(indexUUID, AliasFilter.EMPTY);

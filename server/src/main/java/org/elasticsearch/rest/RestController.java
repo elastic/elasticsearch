@@ -87,6 +87,7 @@ public class RestController implements HttpServerTransport.Dispatcher {
      * https://fetch.spec.whatwg.org/#cors-safelisted-request-header
      */
     static final Set<String> SAFELISTED_MEDIA_TYPES = Set.of("application/x-www-form-urlencoded", "multipart/form-data", "text/plain");
+    static final String ARROW_STREAM = "application/vnd.apache.arrow.stream";
 
     static final String ELASTIC_PRODUCT_HTTP_HEADER = "X-elastic-product";
     static final String ELASTIC_PRODUCT_HTTP_HEADER_VALUE = "Elasticsearch";

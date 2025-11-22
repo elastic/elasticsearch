@@ -43,6 +43,9 @@ import org.elasticsearch.index.mapper.TextSearchInfo;
 import org.elasticsearch.index.mapper.TimeSeriesParams;
 import org.elasticsearch.index.mapper.TimeSeriesParams.MetricType;
 import org.elasticsearch.index.mapper.ValueFetcher;
+import org.elasticsearch.index.mapper.blockloader.BlockLoaderFunctionConfig;
+import org.elasticsearch.index.mapper.blockloader.docvalues.DoublesBlockLoader;
+import org.elasticsearch.index.mapper.blockloader.docvalues.IntsBlockLoader;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.script.ScriptCompiler;
@@ -508,7 +511,30 @@ public class AggregateMetricDoubleFieldMapper extends FieldMapper {
 
         @Override
         public BlockLoader blockLoader(BlockLoaderContext blContext) {
+            BlockLoaderFunctionConfig cfg = blContext.blockLoaderFunctionConfig();
+            if (cfg != null) {
+                if (cfg.function() == BlockLoaderFunctionConfig.Function.AMD_MIN) {
+                    return new DoublesBlockLoader(metricFields.get(Metric.min).name(), NumericUtils::sortableLongToDouble);
+                }
+                if (cfg.function() == BlockLoaderFunctionConfig.Function.AMD_MAX) {
+                    return new DoublesBlockLoader(metricFields.get(Metric.max).name(), NumericUtils::sortableLongToDouble);
+                }
+                if (cfg.function() == BlockLoaderFunctionConfig.Function.AMD_SUM) {
+                    return new DoublesBlockLoader(metricFields.get(Metric.sum).name(), NumericUtils::sortableLongToDouble);
+                }
+                if (cfg.function() == BlockLoaderFunctionConfig.Function.AMD_COUNT) {
+                    return new IntsBlockLoader(metricFields.get(Metric.value_count).name());
+                }
+            }
             return new AggregateMetricDoubleBlockLoader(metricFields);
+        }
+
+        @Override
+        public boolean supportsBlockLoaderConfig(BlockLoaderFunctionConfig config, FieldExtractPreference preference) {
+            return switch (config.function()) {
+                case AMD_MIN, AMD_MAX, AMD_SUM, AMD_COUNT -> true;
+                default -> false;
+            };
         }
 
         /**

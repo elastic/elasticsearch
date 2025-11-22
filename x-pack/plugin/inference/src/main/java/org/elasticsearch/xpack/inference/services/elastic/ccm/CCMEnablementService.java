@@ -13,10 +13,8 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.AbstractNamedDiffable;
 import org.elasticsearch.cluster.AckedBatchedClusterStateUpdateTask;
-import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateAckListener;
-import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.NamedDiff;
 import org.elasticsearch.cluster.SimpleBatchedAckListenerTaskExecutor;
 import org.elasticsearch.cluster.metadata.Metadata;
@@ -45,7 +43,6 @@ import java.util.EnumSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Objects;
-import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.xpack.inference.InferenceFeatures.INFERENCE_CCM_ENABLEMENT_SERVICE;
 import static org.elasticsearch.xpack.inference.services.elastic.ccm.CCMFeature.CCM_UNSUPPORTED_UNTIL_UPGRADED_EXCEPTION;
@@ -58,7 +55,7 @@ import static org.elasticsearch.xpack.inference.services.elastic.ccm.CCMFeature.
  *
  * This does not handle storing the actual CCM configuration, that is handled by {@link CCMPersistentStorageService}.
  */
-public class CCMEnablementService implements ClusterStateListener {
+public class CCMEnablementService {
 
     private static final String TASK_QUEUE_NAME = "inference-ccm-enabled-management";
     private static final TransportVersion ML_INFERENCE_CCM_ENABLEMENT_SERVICE = TransportVersion.fromName(
@@ -66,7 +63,6 @@ public class CCMEnablementService implements ClusterStateListener {
     );
 
     private final MasterServiceTaskQueue<MetadataTask> taskQueue;
-    private final AtomicReference<Metadata> lastMetadata = new AtomicReference<>();
     private final FeatureService featureService;
     private final ClusterService clusterService;
     private final CCMFeature ccmFeature;
@@ -76,26 +72,22 @@ public class CCMEnablementService implements ClusterStateListener {
         this.featureService = Objects.requireNonNull(featureService);
         this.taskQueue = clusterService.createTaskQueue(TASK_QUEUE_NAME, Priority.NORMAL, new UpdateTaskExecutor());
         this.ccmFeature = Objects.requireNonNull(ccmFeature);
-        if (this.ccmFeature.isCcmSupportedEnvironment()) {
-            clusterService.addListener(this);
-        }
-    }
-
-    @Override
-    public void clusterChanged(ClusterChangedEvent event) {
-        if (lastMetadata.get() == null || event.metadataChanged()) {
-            lastMetadata.set(event.state().metadata());
-        }
     }
 
     public boolean isEnabled(ProjectId projectId) {
-        if (ccmFeature.isCcmSupportedEnvironment() == false || lastMetadata.get() == null) {
+        if (ccmFeature.isCcmSupportedEnvironment() == false || isClusterStateReady() == false) {
             return false;
         }
 
-        var projectMetadata = lastMetadata.get().getProject(projectId);
+        var projectMetadata = clusterService.state().metadata().getProject(projectId);
         var metadata = EnablementMetadata.fromMetadata(projectMetadata);
         return metadata.enabled;
+    }
+
+    private boolean isClusterStateReady() {
+        return clusterService.state() != null
+            && clusterService.state().clusterRecovered()
+            && featureService.clusterHasFeature(clusterService.state(), INFERENCE_CCM_ENABLEMENT_SERVICE);
     }
 
     /**
@@ -108,8 +100,7 @@ public class CCMEnablementService implements ClusterStateListener {
             return;
         }
 
-        if (clusterService.state().clusterRecovered() == false
-            || featureService.clusterHasFeature(clusterService.state(), INFERENCE_CCM_ENABLEMENT_SERVICE) == false) {
+        if (isClusterStateReady() == false) {
             listener.onFailure(CCM_UNSUPPORTED_UNTIL_UPGRADED_EXCEPTION);
             return;
         }
@@ -159,7 +150,7 @@ public class CCMEnablementService implements ClusterStateListener {
     public static class EnablementMetadata extends AbstractNamedDiffable<Metadata.ProjectCustom> implements Metadata.ProjectCustom {
         public static final String NAME = "inference-ccm-enablement-management-metadata";
         private static final EnablementMetadata DISABLED = new EnablementMetadata(false);
-        private static final EnablementMetadata ENABLED = new EnablementMetadata(false);
+        private static final EnablementMetadata ENABLED = new EnablementMetadata(true);
         private static final ParseField ENABLED_FIELD = new ParseField("enabled");
 
         private static final ConstructingObjectParser<EnablementMetadata, Void> PARSER = new ConstructingObjectParser<>(

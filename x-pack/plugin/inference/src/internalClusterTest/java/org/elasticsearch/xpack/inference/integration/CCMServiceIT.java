@@ -121,6 +121,16 @@ public class CCMServiceIT extends CCMSingleNodeIT {
         assertFalse(listener.actionGet(TimeValue.THIRTY_SECONDS));
     }
 
+    public void testIsEnabled_ReturnsFalse_WhenCCMConfigurationRemoved() {
+        assertStoreCCMConfiguration();
+        disableCCM();
+
+        var listener = new PlainActionFuture<Boolean>();
+        ccmService.get().isEnabled(listener);
+
+        assertFalse(listener.actionGet(TimeValue.THIRTY_SECONDS));
+    }
+
     public void testIsEnabled_ReturnsTrue_WhenCCMConfigurationIsPresent() {
         assertStoreCCMConfiguration();
 
@@ -133,6 +143,7 @@ public class CCMServiceIT extends CCMSingleNodeIT {
     public void testCreatesEisChatCompletionEndpoint() throws Exception {
         disableCCM();
         waitForNoTask(AUTH_TASK_ACTION, admin());
+        assertCCMDisabled();
 
         var eisEndpoints = getEisEndpoints(modelRegistry);
         assertThat(eisEndpoints, empty());
@@ -159,6 +170,7 @@ public class CCMServiceIT extends CCMSingleNodeIT {
     public void testDisableCCM_RemovesAuthorizationTask() throws Exception {
         disableCCM();
         waitForNoTask(AUTH_TASK_ACTION, admin());
+        assertCCMDisabled();
 
         var listener = new TestPlainActionFuture<Void>();
         ccmService.get().storeConfiguration(new CCMModel(new SecureString("secret".toCharArray())), listener);
@@ -172,5 +184,13 @@ public class CCMServiceIT extends CCMSingleNodeIT {
 
         disableCCM();
         waitForNoTask(AUTH_TASK_ACTION, admin());
+        assertCCMDisabled();
+    }
+
+    private void assertCCMDisabled() {
+        var listener = new PlainActionFuture<Boolean>();
+        ccmService.get().isEnabled(listener);
+
+        assertFalse(listener.actionGet(TimeValue.THIRTY_SECONDS));
     }
 }

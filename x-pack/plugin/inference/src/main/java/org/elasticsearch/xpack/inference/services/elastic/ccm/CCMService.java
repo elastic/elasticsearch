@@ -15,6 +15,7 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.xpack.core.ClientHelper;
+import org.elasticsearch.xpack.inference.services.elastic.authorization.AuthorizationTaskExecutor;
 
 import java.util.Objects;
 
@@ -23,20 +24,20 @@ public class CCMService {
     private static final Logger logger = LogManager.getLogger(CCMService.class);
 
     private final CCMPersistentStorageService ccmPersistentStorageService;
-    private final Client client;
     private final CCMEnablementService ccmEnablementService;
     private final ProjectResolver projectResolver;
+    private final Client client;
 
     public CCMService(
         CCMPersistentStorageService ccmPersistentStorageService,
         CCMEnablementService enablementService,
-        Client client,
-        ProjectResolver projectResolver
+        ProjectResolver projectResolver,
+        Client client
     ) {
         this.ccmPersistentStorageService = Objects.requireNonNull(ccmPersistentStorageService);
-        this.client = new OriginSettingClient(Objects.requireNonNull(client), ClientHelper.INFERENCE_ORIGIN);
         this.ccmEnablementService = Objects.requireNonNull(enablementService);
         this.projectResolver = Objects.requireNonNull(projectResolver);
+        this.client = new OriginSettingClient(Objects.requireNonNull(client), ClientHelper.INFERENCE_ORIGIN);
         // TODO initialize the cache for the CCM configuration
     }
 
@@ -47,14 +48,23 @@ public class CCMService {
     public void storeConfiguration(CCMModel model, ActionListener<Void> listener) {
         SubscribableListener.<Void>newForked(storeListener -> ccmPersistentStorageService.store(model, storeListener))
             .<Void>andThen(
-                enableAuthExecutorListener -> ccmEnablementService.setEnabled(
-                    projectResolver.getProjectId(),
-                    true,
+                enablementListener -> ccmEnablementService.setEnabled(projectResolver.getProjectId(), true, ActionListener.wrap(ack -> {
+                    logger.debug("Successfully set CCM enabled in enablement service");
+                    enablementListener.onResponse(null);
+                }, e -> {
+                    logger.atDebug().withThrowable(e).log("Failed to enable CCM in enablement service");
+                    enablementListener.onFailure(e);
+                }))
+            )
+            .<Void>andThen(
+                enableAuthExecutorListener -> client.execute(
+                    AuthorizationTaskExecutor.Action.INSTANCE,
+                    AuthorizationTaskExecutor.Action.request(AuthorizationTaskExecutor.Message.ENABLE_MESSAGE, null),
                     ActionListener.wrap(ack -> {
-                        logger.debug("Successfully set CCM enabled in enablement service");
+                        logger.debug("Successfully enabled authorization task executor");
                         enableAuthExecutorListener.onResponse(null);
                     }, e -> {
-                        logger.atDebug().withThrowable(e).log("Failed to enable CCM in enablement service");
+                        logger.atDebug().withThrowable(e).log("Failed to enable authorization task executor");
                         enableAuthExecutorListener.onFailure(e);
                     })
                 )
@@ -82,7 +92,22 @@ public class CCMService {
                     disableAuthExecutorListener.onFailure(e);
                 })
             )
-        ).andThen(ccmPersistentStorageService::delete).addListener(listener);
+        )
+            .andThen(ccmPersistentStorageService::delete)
+            .<Void>andThen(
+                disableAuthExecutorListener -> client.execute(
+                    AuthorizationTaskExecutor.Action.INSTANCE,
+                    AuthorizationTaskExecutor.Action.request(AuthorizationTaskExecutor.Message.DISABLE_MESSAGE, null),
+                    ActionListener.wrap(ack -> {
+                        logger.debug("Successfully disabled authorization task executor");
+                        disableAuthExecutorListener.onResponse(null);
+                    }, e -> {
+                        logger.atDebug().withThrowable(e).log("Failed to disable authorization task executor");
+                        disableAuthExecutorListener.onFailure(e);
+                    })
+                )
+            )
+            .addListener(listener);
 
         // TODO implement invalidating the cache
     }

@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.inference.services.elastic.authorization;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ResourceAlreadyExistsException;
+import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.ActionFilters;
@@ -162,9 +163,7 @@ public class AuthorizationTaskExecutor extends PersistentTasksExecutor<Authoriza
         );
     }
 
-    // Default for testing
-    // TODO test this
-    boolean shouldSkipCreatingTask(@Nullable ClusterState state) {
+    private boolean shouldSkipCreatingTask(@Nullable ClusterState state) {
         if (state == null) {
             return true;
         }
@@ -193,6 +192,22 @@ public class AuthorizationTaskExecutor extends PersistentTasksExecutor<Authoriza
         }
 
         return ClusterPersistentTasksCustomMetadata.getTaskWithId(state, TASK_NAME) != null;
+    }
+
+    private void sendStopRequest() {
+        persistentTasksService.sendClusterRemoveRequest(
+            TASK_NAME,
+            TimeValue.THIRTY_SECONDS,
+            ActionListener.wrap(
+                persistentTask -> logger.info("Stopped authorization poller task, id {}", persistentTask.getId()),
+                exception -> {
+                    var thrownException = exception instanceof RemoteTransportException ? exception.getCause() : exception;
+                    if (thrownException instanceof ResourceNotFoundException == false) {
+                        logger.error("Failed to stop authorization poller task", exception);
+                    }
+                }
+            )
+        );
     }
 
     /**
@@ -276,6 +291,8 @@ public class AuthorizationTaskExecutor extends PersistentTasksExecutor<Authoriza
         protected void receiveMessage(Message message) {
             if (message.enable()) {
                 authorizationTaskExecutor.sendStartRequestWithCurrentClusterState();
+            } else {
+                authorizationTaskExecutor.sendStopRequest();
             }
         }
     }

@@ -175,11 +175,11 @@ public class LuceneCountOperator extends LuceneOperator {
         Block[] blocks = new Block[2 + tagTypes.size()];
         int b = 0;
         try {
-            blocks[b++] = blockFactory.newConstantLongBlockWith(state.totalHits, 1);
-            blocks[b++] = blockFactory.newConstantBooleanBlockWith(true, 1);
-            for (Object e : tags) {
+            for (Object e : tags) { // by
                 blocks[b++] = BlockUtils.constantBlock(blockFactory, e, 1);
             }
+            blocks[b++] = blockFactory.newConstantLongBlockWith(state.totalHits, 1); // count
+            blocks[b] = blockFactory.newConstantBooleanBlockWith(true, 1); // seen
             Page page = new Page(1, blocks);
             blocks = null;
             return page;
@@ -207,12 +207,12 @@ public class LuceneCountOperator extends LuceneOperator {
                 }
             }
 
-            blocks[0] = countBuilder.build().asBlock();
-            blocks[1] = blockFactory.newConstantBooleanBlockWith(true, tagsToState.size());
-            for (b = 0; b < builders.length; b++) {
-                blocks[2 + b] = builders[b].builder().build();
-                builders[b++] = null;
+            for (b = 0; b < builders.length; b++) { // by
+                blocks[b] = builders[b].builder().build();
+                builders[b] = null;
             }
+            blocks[b++] = countBuilder.build().asBlock(); // count
+            blocks[b] = blockFactory.newConstantBooleanBlockWith(true, tagsToState.size()); // seen
             Page page = new Page(tagsToState.size(), blocks);
             blocks = null;
             return page;

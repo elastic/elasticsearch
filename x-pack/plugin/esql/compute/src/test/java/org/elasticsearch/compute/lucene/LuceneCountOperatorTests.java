@@ -325,7 +325,7 @@ public class LuceneCountOperatorTests extends SourceOperatorTestCase {
     }
 
     private static void checkSeen(Page p, Matcher<Integer> positionCount) {
-        BooleanBlock b = p.getBlock(1);
+        BooleanBlock b = p.getBlock(p.getBlockCount() - 1);
         BooleanVector v = b.asVector();
         assertThat(v.getPositionCount(), positionCount);
         assertThat(v.isConstant(), equalTo(true));
@@ -337,9 +337,9 @@ public class LuceneCountOperatorTests extends SourceOperatorTestCase {
         for (Page page : results) {
             assertThat(page.getBlockCount(), equalTo(3));
             checkSeen(page, greaterThanOrEqualTo(0));
-            LongBlock countsBlock = page.getBlock(0);
+            LongBlock countsBlock = page.getBlock(page.getBlockCount() - 2);
             LongVector counts = countsBlock.asVector();
-            IntBlock groupsBlock = page.getBlock(2);
+            IntBlock groupsBlock = page.getBlock(0);
             IntVector groups = groupsBlock.asVector();
             for (int p = 0; p < page.getPositionCount(); p++) {
                 long count = counts.getLong(p);

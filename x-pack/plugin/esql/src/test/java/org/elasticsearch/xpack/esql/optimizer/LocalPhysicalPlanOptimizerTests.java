@@ -187,7 +187,7 @@ public class LocalPhysicalPlanOptimizerTests extends AbstractLocalPhysicalPlanOp
               from test | eval s = salary | rename s as sr | eval hidden_s = sr | rename emp_no as e | where e < 10050
             | stats c = count(*)
             """);
-        var stat = queryStatsFor(plan);
+        var stat = (EsStatsQueryExec.BasicStat) queryStatsFor(plan);
         assertThat(stat.type(), is(StatsType.COUNT));
         assertThat(stat.query(), is(nullValue()));
     }
@@ -203,7 +203,7 @@ public class LocalPhysicalPlanOptimizerTests extends AbstractLocalPhysicalPlanOp
      */
     public void testCountAllWithFilter() {
         var plan = plannerOptimizer.plan("from test | where emp_no > 10040 | stats c = count(*)");
-        var stat = queryStatsFor(plan);
+        var stat = (EsStatsQueryExec.BasicStat) queryStatsFor(plan);
         assertThat(stat.type(), is(StatsType.COUNT));
         assertThat(stat.query(), is(nullValue()));
     }
@@ -223,7 +223,7 @@ public class LocalPhysicalPlanOptimizerTests extends AbstractLocalPhysicalPlanOp
      */
     public void testCountFieldWithFilter() {
         var plan = plannerOptimizer.plan("from test | where emp_no > 10040 | stats c = count(emp_no)", IS_SV_STATS);
-        var stat = queryStatsFor(plan);
+        var stat = (EsStatsQueryExec.BasicStat) queryStatsFor(plan);
         assertThat(stat.type(), is(StatsType.COUNT));
         assertThat(stat.query(), is(existsQuery("emp_no")));
     }
@@ -252,7 +252,7 @@ public class LocalPhysicalPlanOptimizerTests extends AbstractLocalPhysicalPlanOp
 
         assertThat(esStatsQuery.limit(), is(nullValue()));
         assertThat(Expressions.names(esStatsQuery.output()), contains("$$c$count", "$$c$seen"));
-        var stat = as(esStatsQuery.stats().get(0), Stat.class);
+        var stat = as(esStatsQuery.stat(), EsStatsQueryExec.BasicStat.class);
         assertThat(stat.query(), is(existsQuery("salary")));
     }
 
@@ -273,7 +273,7 @@ public class LocalPhysicalPlanOptimizerTests extends AbstractLocalPhysicalPlanOp
         var esStatsQuery = as(exchange.child(), EsStatsQueryExec.class);
         assertThat(esStatsQuery.limit(), is(nullValue()));
         assertThat(Expressions.names(esStatsQuery.output()), contains("$$c$count", "$$c$seen"));
-        var stat = as(esStatsQuery.stats().get(0), Stat.class);
+        var stat = as(esStatsQuery.stat(), EsStatsQueryExec.BasicStat.class);
         Source source = new Source(2, 8, "salary > 1000");
         var exists = existsQuery("salary");
         assertThat(stat.query(), is(exists));
@@ -328,14 +328,14 @@ public class LocalPhysicalPlanOptimizerTests extends AbstractLocalPhysicalPlanOp
             });
 
             String expectedStats = """
-                [Stat[name=salary, type=COUNT, query={
+                BasicStat[name=salary, type=COUNT, query={
                   "exists" : {
                     "field" : "salary",
                     "boost" : 1.0
                   }
-                }]]""";
+                }]""";
             assertNotNull(leaf.get());
-            assertThat(leaf.get().stats().toString(), equalTo(expectedStats));
+            assertThat(leaf.get().stat().toString(), equalTo(expectedStats));
         }
     }
 
@@ -653,7 +653,7 @@ public class LocalPhysicalPlanOptimizerTests extends AbstractLocalPhysicalPlanOp
         var esStatsQuery = as(exg.child(), EsStatsQueryExec.class);
         assertThat(esStatsQuery.limit(), is(nullValue()));
         assertThat(Expressions.names(esStatsQuery.output()), contains("$$c$count", "$$c$seen"));
-        var stat = as(esStatsQuery.stats().get(0), Stat.class);
+        var stat = as(esStatsQuery.stat(), EsStatsQueryExec.BasicStat.class);
         assertThat(stat.query(), is(existsQuery("job")));
     }
 
@@ -2475,14 +2475,7 @@ public class LocalPhysicalPlanOptimizerTests extends AbstractLocalPhysicalPlanOp
         var agg = as(limit.child(), AggregateExec.class);
         var exg = as(agg.child(), ExchangeExec.class);
         var statSource = as(exg.child(), EsStatsQueryExec.class);
-        var stats = statSource.stats();
-        assertThat(stats, hasSize(1));
-        var stat = stats.get(0);
-        return stat;
-    }
-
-    private static KqlQueryBuilder kqlQueryBuilder(String query) {
-        return new KqlQueryBuilder(query);
+        return statSource.stat();
     }
 
     /**

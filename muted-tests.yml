@@ -429,6 +429,9 @@ tests:
 - class: org.elasticsearch.xpack.inference.services.jinaai.JinaAIServiceTests
   method: test_Embedding_ChunkedInfer_LateChunkingEnabled
   issue: https://github.com/elastic/elasticsearch/issues/138451
+- class: org.elasticsearch.test.rest.yaml.CcsCommonYamlTestSuiteIT
+  method: test {p0=search/160_exists_query/Test exists query on mapped byte field with no doc values}
+  issue: https://github.com/elastic/elasticsearch/issues/138452
 
 # Examples:
 #

@@ -380,6 +380,28 @@ ROW end_23 = TO_DATETIME("2023-12-31T23:59:59.999Z"),
 // end::evalDateDiffYearForDocs-result[]
 ;
 
+dateDiffOffsetTimezone
+required_capability: date_diff_timezone_support
+
+set time_zone="+03:00"\;
+ROW diff = DATE_DIFF("months", "2010-10-07T00:00:00-03:00"::date, "2010-11-06T23:01:00-04:00"::date)
+;
+
+diff:integer
+1
+;
+
+dateDiffDstTimezone
+required_capability: date_diff_timezone_support
+
+set time_zone="America/Goose_Bay"\;
+ROW diff = DATE_DIFF("months", "2010-10-07T00:00:00-03:00"::date, "2010-11-06T23:01:00-04:00"::date)
+;
+
+diff:integer
+0
+;
+
 evalDateParseWithSimpleDate
 row a = "2023-02-01" | eval b = date_parse("yyyy-MM-dd", a) | keep b;
 

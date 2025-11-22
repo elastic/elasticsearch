@@ -1,0 +1,5 @@
+pr: 138316
+summary: '`DateDiff` timezone support'
+area: ES|QL
+type: feature
+issues: []

@@ -29,7 +29,7 @@ public class ChunkScorerConfig implements Writeable, ToXContentObject {
     public static final int DEFAULT_CHUNK_SIZE = 300;
     public static final int DEFAULT_SIZE = 1;
 
-    public static ChunkingSettings createChunkingSettings(Integer chunkSize) {
+    public static ChunkingSettings defaultChunkingSettings(Integer chunkSize) {
         int chunkSizeOrDefault = chunkSize != null ? chunkSize : DEFAULT_CHUNK_SIZE;
         ChunkingSettings chunkingSettings = new SentenceBoundaryChunkingSettings(chunkSizeOrDefault, 0);
         chunkingSettings.validate();
@@ -38,22 +38,21 @@ public class ChunkScorerConfig implements Writeable, ToXContentObject {
 
     public static ChunkingSettings chunkingSettingsFromMap(Map<String, Object> map) {
 
-        if (map == null || map.isEmpty()) {
-            return createChunkingSettings(DEFAULT_CHUNK_SIZE);
+        if (map == null) {
+            return null;
         }
 
         if (map.size() == 1 && map.containsKey("max_chunk_size")) {
-            return createChunkingSettings((Integer) map.get("max_chunk_size"));
+            return defaultChunkingSettings((Integer) map.get("max_chunk_size"));
         }
 
-        return ChunkingSettingsBuilder.fromMap(map);
+        return ChunkingSettingsBuilder.fromMap(map, false);
     }
 
     public ChunkScorerConfig(StreamInput in) throws IOException {
         this.size = in.readOptionalVInt();
         this.inferenceText = in.readString();
-        Map<String, Object> chunkingSettingsMap = in.readGenericMap();
-        this.chunkingSettings = ChunkingSettingsBuilder.fromMap(chunkingSettingsMap);
+        this.chunkingSettings = chunkingSettingsFromMap(in.readGenericMap());
     }
 
     public ChunkScorerConfig(Integer size, ChunkingSettings chunkingSettings) {
@@ -70,7 +69,7 @@ public class ChunkScorerConfig implements Writeable, ToXContentObject {
     public void writeTo(StreamOutput out) throws IOException {
         out.writeOptionalVInt(size);
         out.writeString(inferenceText);
-        out.writeGenericMap(chunkingSettings.asMap());
+        out.writeGenericMap(chunkingSettings != null ? chunkingSettings.asMap() : Map.of());
     }
 
     public Integer size() {
@@ -122,8 +121,10 @@ public class ChunkScorerConfig implements Writeable, ToXContentObject {
         builder.startObject();
         builder.field("size", size);
         builder.field("inference_text", inferenceText);
-        builder.field("chunking_settings");
-        chunkingSettings.toXContent(builder, params);
+        if (chunkingSettings != null) {
+            builder.field("chunking_settings");
+            chunkingSettings.toXContent(builder, params);
+        }
         builder.endObject();
         return builder;
     }

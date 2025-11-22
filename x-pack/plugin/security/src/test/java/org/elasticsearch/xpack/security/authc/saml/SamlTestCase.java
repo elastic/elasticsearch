@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.security.authc.saml;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.ssl.KeyStoreUtil;
 import org.elasticsearch.common.ssl.PemUtils;
@@ -34,8 +33,6 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
 import java.util.stream.Collectors;
-
-import static org.hamcrest.Matchers.is;
 
 public abstract class SamlTestCase extends ESTestCase {
 
@@ -151,10 +148,8 @@ public abstract class SamlTestCase extends ESTestCase {
         return credentials;
     }
 
-    protected ElasticsearchSecurityException expectSamlException(ThrowingRunnable runnable) {
-        final ElasticsearchSecurityException exception = expectThrows(ElasticsearchSecurityException.class, runnable);
-        assertThat("Exception " + exception + " should be a SAML exception", SamlUtils.isSamlException(exception), is(true));
-        return exception;
+    protected SamlAuthenticationException expectSamlException(ThrowingRunnable runnable) {
+        return expectThrows(SamlAuthenticationException.class, runnable);
     }
 
     protected EntityDescriptor buildIdPDescriptor(String idpUrl, String idpEntityId) {

@@ -1,0 +1,5 @@
+pr: 137853
+summary: Use the new merge executor for intra-merge parallelism
+area: Vector Search
+type: enhancement
+issues: []

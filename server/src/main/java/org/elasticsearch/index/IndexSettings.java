@@ -928,6 +928,14 @@ public final class IndexSettings {
         Property.ServerlessPublic
     );
 
+    public static final Setting<Boolean> INTRA_MERGE_PARALLELISM_ENABLED_SETTING = Setting.boolSetting(
+        "index.merge.intra_merge_parallelism_enabled",
+        false,
+        Property.IndexScope,
+        Property.Dynamic,
+        Property.ServerlessPublic
+    );
+
     private final Index index;
     private final IndexVersion version;
     private final Logger logger;
@@ -1034,6 +1042,11 @@ public final class IndexSettings {
      * The maximum length of regex string allowed in a regexp query.
      */
     private volatile int maxRegexLength;
+
+    /**
+     * Is intra merge parallelism enabled
+     */
+    private volatile boolean intraMergeParallelismEnabled;
 
     private final IndexRouting indexRouting;
     private final SeqNoFieldMapper.SeqNoIndexOptions seqNoIndexOptions;
@@ -1343,6 +1356,7 @@ public final class IndexSettings {
         scopedSettings.addSettingsUpdateConsumer(IgnoredSourceFieldMapper.SKIP_IGNORED_SOURCE_READ_SETTING, this::setSkipIgnoredSourceRead);
         scopedSettings.addSettingsUpdateConsumer(DenseVectorFieldMapper.HNSW_FILTER_HEURISTIC, this::setHnswFilterHeuristic);
         scopedSettings.addSettingsUpdateConsumer(DenseVectorFieldMapper.HNSW_EARLY_TERMINATION, this::setHnswEarlyTermination);
+        scopedSettings.addSettingsUpdateConsumer(INTRA_MERGE_PARALLELISM_ENABLED_SETTING, this::setIntraMergeParallelismEnabled);
     }
 
     private void setSearchIdleAfter(TimeValue searchIdleAfter) {
@@ -2021,5 +2035,16 @@ public final class IndexSettings {
 
     public SeqNoFieldMapper.SeqNoIndexOptions seqNoIndexOptions() {
         return seqNoIndexOptions;
+    }
+
+    /**
+     * @return is intra-merge parallelism enabled for this index
+     */
+    public boolean isIntraMergeParallelismEnabled() {
+        return this.intraMergeParallelismEnabled;
+    }
+
+    private void setIntraMergeParallelismEnabled(boolean enabled) {
+        this.intraMergeParallelismEnabled = enabled;
     }
 }

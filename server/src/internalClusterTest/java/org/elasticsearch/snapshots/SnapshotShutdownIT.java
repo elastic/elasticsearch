@@ -26,6 +26,7 @@ import org.elasticsearch.cluster.SnapshotDeletionsInProgress;
 import org.elasticsearch.cluster.SnapshotsInProgress;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata;
+import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
@@ -42,7 +43,9 @@ import org.elasticsearch.test.MockLog;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.transport.MockTransportService;
 
+import java.util.ArrayList;
 import java.util.Collection;
+import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.ExecutionException;
@@ -653,6 +656,153 @@ public class SnapshotShutdownIT extends AbstractSnapshotIntegTestCase {
         clearShutdownMetadata(clusterService);
 
         // Check that the SnapshotShutdownProgressTracker logging was cancelled by the removal of the shutdown metadata.
+        mockLog.awaitAllExpectationsMatched();
+        resetMockLog();
+    }
+
+    /**
+     * Tests that only nodes that snapshot data should log snapshot shutdown progress.
+     */
+    public void testStatefulNodesThatContainDataLogsSnapshotShuttingDownProgress() {
+        // A node can have multiple roles. This list stores each combination of roles to test
+        List<List<String>> nodeRoleCombinationsToTest = new ArrayList<>();
+
+        List<String> nodeRolesThatContainData = DiscoveryNodeRole.roles()
+            .stream()
+            .filter(DiscoveryNodeRole::canContainData)
+            .map(DiscoveryNodeRole::roleName)
+            .toList();
+
+        // Check that any node with an exclusive role that contains data logs snapshot shutting down progress
+        for (String nodeRoleThatContainsData : nodeRolesThatContainData) {
+            nodeRoleCombinationsToTest.add(List.of(nodeRoleThatContainsData));
+        }
+
+        // Compute random combinations of all roles, with a minimum of one role that contains data, and expect the SnapshotShardsService to
+        // be activated.
+        // NB The VOTING_ONLY_NODE_ROLE also requires MASTER_ROLE to be set which we can't guarantee so we remove it
+        List<String> nodeRolesThatDoNotContainData = DiscoveryNodeRole.roles()
+            .stream()
+            .filter(
+                discoveryNodeRole -> discoveryNodeRole.canContainData() == false
+                    && discoveryNodeRole != DiscoveryNodeRole.VOTING_ONLY_NODE_ROLE
+            )
+            .map(DiscoveryNodeRole::roleName)
+            .toList();
+        List<String> nodeRoles = randomNonEmptySubsetOf(nodeRolesThatContainData);
+        nodeRoles.addAll(randomSubsetOf(nodeRolesThatDoNotContainData));
+        nodeRoleCombinationsToTest.add(nodeRoles);
+
+        // Now test each combination of node roles
+        for (List<String> roles : nodeRoleCombinationsToTest) {
+            String nodeRolesString = String.join(",", roles);
+
+            final var nodeName = internalCluster().startNode(
+                // Speed up the logging frequency, so that the test doesn't have to wait too long to check for log messages.
+                Settings.builder()
+                    .put(SNAPSHOT_PROGRESS_DURING_SHUTDOWN_LOG_INTERVAL_SETTING.getKey(), TimeValue.timeValueMillis(200))
+                    .put("node.roles", nodeRolesString)
+                    .build()
+            );
+
+            mockLog.addExpectation(
+                new MockLog.SeenEventExpectation(
+                    "Expect SnapshotShutdownProgressTracker to run for node roles " + nodeRolesString,
+                    SnapshotShutdownProgressTracker.class.getCanonicalName(),
+                    Level.INFO,
+                    "*Shard snapshot completion stats since shutdown began*"
+                )
+            );
+
+            // Put shutdown metadata to trigger shutdown progress tracker
+            final ClusterService clusterService = internalCluster().getCurrentMasterNodeInstance(ClusterService.class);
+            putShutdownForRemovalMetadata(nodeName, clusterService);
+
+            // Wait for log expectation to be matched
+            mockLog.awaitAllExpectationsMatched();
+            resetMockLog();
+        }
+    }
+
+    /**
+     * Tests that nodes that do not snapshot data do not log snapshot shutdown progress.
+     */
+    public void testStatefulNodesThatDoNotContainDataDoesNotLogSnapshotShuttingDownProgress() {
+        // A node can have multiple roles. This list stores each combination of roles to test
+        List<List<String>> nodeRoleCombinationsToTest = new ArrayList<>();
+
+        // Specifically test the DiscoveryNodeRole.VOTING_ONLY_NODE_ROLE role, since it can only be used alongside master
+        nodeRoleCombinationsToTest.add(List.of("voting_only", "master"));
+
+        // NB The VOTING_ONLY_NODE_ROLE also requires MASTER_ROLE to be set which we can't guarantee so we remove it
+        List<String> nodeRolesThatDoNotContainData = DiscoveryNodeRole.roles()
+            .stream()
+            .filter(
+                discoveryNodeRole -> discoveryNodeRole.canContainData() == false
+                    && discoveryNodeRole != DiscoveryNodeRole.VOTING_ONLY_NODE_ROLE
+            )
+            .map(DiscoveryNodeRole::roleName)
+            .toList();
+        // Check that any node with an exclusive role that does not contain data does not logs snapshot shutting down progress
+        for (String nodeRoleThatDoesNotContainData : nodeRolesThatDoNotContainData) {
+            nodeRoleCombinationsToTest.add(List.of(nodeRoleThatDoesNotContainData));
+        }
+
+        // Now test each combination of node roles
+        for (List<String> roles : nodeRoleCombinationsToTest) {
+            String nodeRolesString = String.join(",", roles);
+
+            final var nodeName = internalCluster().startNode(
+                // Speed up the logging frequency, so that the test doesn't have to wait too long to check for log messages.
+                Settings.builder()
+                    .put(SNAPSHOT_PROGRESS_DURING_SHUTDOWN_LOG_INTERVAL_SETTING.getKey(), TimeValue.timeValueMillis(200))
+                    .put("node.roles", nodeRolesString)
+                    .build()
+            );
+
+            mockLog.addExpectation(
+                new MockLog.UnseenEventExpectation(
+                    "Expect SnapshotShutdownProgressTracker to not run for node roles " + nodeRolesString,
+                    SnapshotShutdownProgressTracker.class.getCanonicalName(),
+                    Level.INFO,
+                    "*Shard snapshot completion stats since shutdown began*"
+                )
+            );
+
+            // Put shutdown metadata to trigger shutdown progress tracker
+            final ClusterService clusterService = internalCluster().getCurrentMasterNodeInstance(ClusterService.class);
+            putShutdownForRemovalMetadata(nodeName, clusterService);
+
+            // Wait for log expectation to be matched
+            mockLog.awaitAllExpectationsMatched();
+            resetMockLog();
+        }
+    }
+
+    /**
+     * We only expect nodes that contain data to log snapshot shutdown progress.
+     * A coordinating only node has no role, does not contain any data, hence has no snapshotting, and so we do not expect any logging
+     */
+    public void testStatefulCoordinatingOnlyNodeDoesNotLogSnapshotShuttingDownProgress() {
+        final var nodeName = internalCluster().startCoordinatingOnlyNode(
+            // Speed up the logging frequency, so that the test doesn't have to wait too long to check for log messages.
+            Settings.builder().put(SNAPSHOT_PROGRESS_DURING_SHUTDOWN_LOG_INTERVAL_SETTING.getKey(), TimeValue.timeValueMillis(200)).build()
+        );
+
+        mockLog.addExpectation(
+            new MockLog.UnseenEventExpectation(
+                "Expect SnapshotShutdownProgressTracker to not run",
+                SnapshotShutdownProgressTracker.class.getCanonicalName(),
+                Level.INFO,
+                "*Shard snapshot completion stats since shutdown began*"
+            )
+        );
+
+        // Put shutdown metadata to trigger shutdown progress tracker
+        final ClusterService clusterService = internalCluster().getCurrentMasterNodeInstance(ClusterService.class);
+        putShutdownForRemovalMetadata(nodeName, clusterService);
+
+        // Wait for log expectation to be matched
         mockLog.awaitAllExpectationsMatched();
         resetMockLog();
     }

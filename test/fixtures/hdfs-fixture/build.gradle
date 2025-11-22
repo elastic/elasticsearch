@@ -182,6 +182,11 @@ dependencies {
     hdfs3("org.eclipse.jetty:jetty-http:9.4.40.v20210413")
     hdfs3("org.eclipse.jetty:jetty-security:9.4.40.v20210413")
     hdfs3("org.eclipse.jetty:jetty-io:9.4.40.v20210413")
+    hdfs3("org.eclipse.jetty:jetty-xml:9.4.40.v20210413")
+    hdfs3("commons-daemon:commons-daemon:1.4.0")
+    hdfs3("com.google.protobuf:protobuf-java:4.32.0")
+    hdfs3("com.google.re2j:re2j:1.0")
+    hdfs3("org.apache.commons:commons-math3:3.6.1")
     hdfs3("javax.servlet:javax.servlet-api:3.1.0")
     hdfs3("com.sun.jersey:jersey-servlet:1.19")
 }

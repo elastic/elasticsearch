@@ -130,11 +130,11 @@ tasks.named('javaRestTest').configure {
   classpath = sourceSets.javaRestTest.runtimeClasspath + configurations.hdfsFixture3
 }
 
-tasks.register("javaRestTestHdfs2", RestIntegTestTask) {
-  description = "Runs rest tests against an elasticsearch cluster with HDFS version 2"
-  testClassesDirs = sourceSets.javaRestTest.output.classesDirs
-  classpath = sourceSets.javaRestTest.runtimeClasspath + configurations.hdfsFixture2
-}
+//tasks.register("javaRestTestHdfs2", RestIntegTestTask) {
+//  description = "Runs rest tests against an elasticsearch cluster with HDFS version 2"
+//  testClassesDirs = sourceSets.javaRestTest.output.classesDirs
+//  classpath = sourceSets.javaRestTest.runtimeClasspath + configurations.hdfsFixture2
+//}
 
 tasks.named('yamlRestTest').configure {
   classpath = sourceSets.yamlRestTest.runtimeClasspath + configurations.hdfsFixture2

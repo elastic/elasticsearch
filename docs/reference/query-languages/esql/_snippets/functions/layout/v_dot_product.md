@@ -2,7 +2,7 @@
 
 ## `V_DOT_PRODUCT` [esql-v_dot_product]
 ```{applies_to}
-stack: development
+stack: preview 9.3.0
 serverless: preview
 ```
 

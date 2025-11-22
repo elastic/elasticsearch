@@ -22,11 +22,9 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.esql.AssertWarnings;
-import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.qa.rest.ProfileLogger;
 import org.elasticsearch.xpack.esql.qa.rest.RestEsqlTestCase;
 import org.hamcrest.Matcher;
-import org.junit.Before;
 import org.junit.ClassRule;
 import org.junit.Rule;
 
@@ -58,19 +56,6 @@ public class PushExpressionToLoadIT extends ESRestTestCase {
 
     @Rule(order = Integer.MIN_VALUE)
     public ProfileLogger profileLogger = new ProfileLogger();
-
-    @Before
-    public void checkPushCapability() throws IOException {
-        assumeTrue(
-            "requires " + EsqlCapabilities.Cap.VECTOR_SIMILARITY_FUNCTIONS_PUSHDOWN.capabilityName(),
-            clusterHasCapability(
-                "POST",
-                "_query",
-                List.of(),
-                List.of(EsqlCapabilities.Cap.VECTOR_SIMILARITY_FUNCTIONS_PUSHDOWN.capabilityName())
-            ).orElseGet(() -> false)
-        );
-    }
 
     public void testLengthToKeyword() throws IOException {
         String value = "v".repeat(between(0, 256));

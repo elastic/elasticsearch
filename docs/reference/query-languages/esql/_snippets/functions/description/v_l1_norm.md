@@ -2,5 +2,5 @@
 
 **Description**
 
-Calculates the l1 norm between two dense_vectors.
+Calculates the L1 distance (Manhattan distance) between two dense_vectors.
 

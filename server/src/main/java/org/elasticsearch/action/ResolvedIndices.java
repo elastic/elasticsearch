@@ -28,6 +28,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Function;
 
 /**
  * Container for information about results of the resolution of index expression.
@@ -250,6 +251,45 @@ public class ResolvedIndices {
             localIndices,
             resolveLocalIndexMetadata(concreteLocalIndices, projectMetadata, false),
             searchContextId
+        );
+    }
+
+    public static ResolvedIndices resolveWithIndexExpressions(
+        ResolvedIndexExpressions localExpressions,
+        Map<String, ResolvedIndexExpressions> remoteExpressions,
+        IndicesOptions indicesOptions,
+        ProjectMetadata projectMetadata,
+        IndexNameExpressionResolver indexNameExpressionResolver,
+        long startTimeInMillis
+    ) {
+        Function<ResolvedIndexExpressions, OriginalIndices> toIndices = resolvedIndexExpressions -> {
+            var indices = resolvedIndexExpressions.expressions().stream().filter(expression -> {
+                var resolvedExpressions = expression.localExpressions();
+                var successfulResolution = resolvedExpressions
+                    .localIndexResolutionResult() == ResolvedIndexExpression.LocalIndexResolutionResult.SUCCESS;
+                // if the expression is a wildcard, it will be successful even if there are no indices, so filter for no indices
+                var hasResolvedIndices = resolvedExpressions.indices().isEmpty() == false;
+                return successfulResolution && hasResolvedIndices;
+            }).map(ResolvedIndexExpression::original).toArray(String[]::new);
+            return indices.length > 0 ? new OriginalIndices(indices, indicesOptions) : null;
+        };
+        Map<String, OriginalIndices> remoteClusterIndices = remoteExpressions.entrySet().stream().collect(HashMap::new, (map, entry) -> {
+            var indices = toIndices.apply(entry.getValue());
+            if (indices != null) {
+                map.put(entry.getKey(), indices);
+            }
+        }, Map::putAll);
+
+        var localIndices = localExpressions == null ? null : toIndices.apply(localExpressions);
+
+        var concreteLocalIndices = localIndices == null
+            ? Index.EMPTY_ARRAY
+            : indexNameExpressionResolver.concreteIndices(projectMetadata, localIndices, startTimeInMillis);
+
+        return new ResolvedIndices(
+            remoteClusterIndices,
+            localIndices,
+            resolveLocalIndexMetadata(concreteLocalIndices, projectMetadata, true)
         );
     }
 

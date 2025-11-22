@@ -64,6 +64,7 @@ public class SearchRequestTests extends AbstractSearchTestCase {
             new TaskId("node", 1),
             request,
             request.indices(),
+            request.indicesOptions(),
             randomAlphaOfLengthBetween(5, 10),
             randomNonNegativeLong(),
             randomBoolean()
@@ -74,23 +75,42 @@ public class SearchRequestTests extends AbstractSearchTestCase {
         final TaskId taskId = new TaskId("n", 1);
         expectThrows(
             NullPointerException.class,
-            () -> SearchRequest.subSearchRequest(taskId, null, Strings.EMPTY_ARRAY, "", 0, randomBoolean())
+            () -> SearchRequest.subSearchRequest(
+                taskId,
+                null,
+                Strings.EMPTY_ARRAY,
+                SearchRequest.DEFAULT_INDICES_OPTIONS,
+                "",
+                0,
+                randomBoolean()
+            )
         );
         SearchRequest request = new SearchRequest();
-        expectThrows(NullPointerException.class, () -> SearchRequest.subSearchRequest(taskId, request, null, "", 0, randomBoolean()));
         expectThrows(
             NullPointerException.class,
-            () -> SearchRequest.subSearchRequest(taskId, request, new String[] { null }, "", 0, randomBoolean())
+            () -> SearchRequest.subSearchRequest(taskId, request, null, request.indicesOptions(), "", 0, randomBoolean())
         );
         expectThrows(
             NullPointerException.class,
-            () -> SearchRequest.subSearchRequest(taskId, request, Strings.EMPTY_ARRAY, null, 0, randomBoolean())
+            () -> SearchRequest.subSearchRequest(taskId, request, new String[] { null }, request.indicesOptions(), "", 0, randomBoolean())
+        );
+        expectThrows(
+            NullPointerException.class,
+            () -> SearchRequest.subSearchRequest(taskId, request, Strings.EMPTY_ARRAY, request.indicesOptions(), null, 0, randomBoolean())
         );
         expectThrows(
             IllegalArgumentException.class,
-            () -> SearchRequest.subSearchRequest(taskId, request, Strings.EMPTY_ARRAY, "", -1, randomBoolean())
+            () -> SearchRequest.subSearchRequest(taskId, request, Strings.EMPTY_ARRAY, request.indicesOptions(), "", -1, randomBoolean())
         );
-        SearchRequest searchRequest = SearchRequest.subSearchRequest(taskId, request, Strings.EMPTY_ARRAY, "", 0, randomBoolean());
+        SearchRequest searchRequest = SearchRequest.subSearchRequest(
+            taskId,
+            request,
+            Strings.EMPTY_ARRAY,
+            request.indicesOptions(),
+            "",
+            0,
+            randomBoolean()
+        );
         assertNull(searchRequest.validate());
     }
 

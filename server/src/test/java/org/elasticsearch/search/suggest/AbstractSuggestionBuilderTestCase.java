@@ -22,7 +22,6 @@ import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.mapper.MapperMetrics;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.Mapping;
 import org.elasticsearch.index.mapper.MappingLookup;
@@ -51,7 +50,6 @@ import java.util.Collections;
 import java.util.List;
 
 import static java.util.Collections.emptyList;
-import static java.util.Collections.emptyMap;
 import static org.elasticsearch.common.lucene.BytesRefs.toBytesRef;
 import static org.elasticsearch.test.EqualsHashCodeTestUtils.checkEqualsAndHashCode;
 import static org.mockito.ArgumentMatchers.any;
@@ -184,13 +182,7 @@ public abstract class AbstractSuggestionBuilderTestCase<SB extends SuggestionBui
                 namedWriteableRegistry,
                 null,
                 null,
-                System::currentTimeMillis,
-                null,
-                null,
-                () -> true,
-                null,
-                emptyMap(),
-                MapperMetrics.NOOP
+                System::currentTimeMillis
             );
 
             SuggestionContext suggestionContext = suggestionBuilder.build(mockContext);
@@ -241,13 +233,7 @@ public abstract class AbstractSuggestionBuilderTestCase<SB extends SuggestionBui
             namedWriteableRegistry,
             null,
             null,
-            System::currentTimeMillis,
-            null,
-            null,
-            () -> true,
-            null,
-            emptyMap(),
-            MapperMetrics.NOOP
+            System::currentTimeMillis
         );
         if (randomBoolean()) {
             mockContext.setAllowUnmappedFields(randomBoolean());

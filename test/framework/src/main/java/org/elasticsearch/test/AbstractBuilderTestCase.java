@@ -613,7 +613,8 @@ public abstract class AbstractBuilderTestCase extends ESTestCase {
                 () -> true,
                 null,
                 emptyMap(),
-                MapperMetrics.NOOP
+                MapperMetrics.NOOP,
+                null
             );
         }
 

@@ -492,7 +492,8 @@ public class SearchServiceTests extends IndexShardTestCase {
             () -> true,
             null,
             Collections.emptyMap(),
-            MapperMetrics.NOOP
+            MapperMetrics.NOOP,
+            null
         );
     }
 

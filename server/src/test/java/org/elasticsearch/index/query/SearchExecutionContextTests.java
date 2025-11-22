@@ -628,7 +628,8 @@ public class SearchExecutionContextTests extends ESTestCase {
             () -> true,
             null,
             runtimeMappings,
-            MapperMetrics.NOOP
+            MapperMetrics.NOOP,
+            null
         );
     }
 

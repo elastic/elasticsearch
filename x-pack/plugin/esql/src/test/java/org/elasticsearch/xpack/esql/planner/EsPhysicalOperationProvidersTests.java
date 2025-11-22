@@ -20,7 +20,6 @@ import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.mapper.MapperMetrics;
 import org.elasticsearch.index.mapper.Mapping;
 import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.mapper.NestedLookup;
@@ -48,7 +47,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.BiFunction;
 
-import static java.util.Collections.emptyMap;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_PLANNER_SETTINGS;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -161,13 +159,7 @@ public class EsPhysicalOperationProvidersTests extends ESTestCase {
             null,
             null,
             null,
-            () -> 0,
-            null,
-            null,
-            () -> true,
-            null,
-            emptyMap(),
-            MapperMetrics.NOOP
+            () -> 0
         ) {
             @Override
             public MappedFieldType getFieldType(String name) {

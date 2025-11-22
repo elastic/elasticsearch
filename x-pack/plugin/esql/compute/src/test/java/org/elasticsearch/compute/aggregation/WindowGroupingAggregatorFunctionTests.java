@@ -173,4 +173,8 @@ public class WindowGroupingAggregatorFunctionTests extends ForkingOperatorTestCa
             return agg.intermediateBlockCount();
         }
     }
+
+    public void testMissingGroup() {
+
+    }
 }

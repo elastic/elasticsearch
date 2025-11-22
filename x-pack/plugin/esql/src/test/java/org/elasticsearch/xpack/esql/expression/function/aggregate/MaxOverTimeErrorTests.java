@@ -27,7 +27,7 @@ public class MaxOverTimeErrorTests extends ErrorsForCasesWithoutExamplesTestCase
 
     @Override
     protected Expression build(Source source, List<Expression> args) {
-        return new MaxOverTime(source, args.get(0));
+        return new MaxOverTime(source, args.get(0), AggregateFunction.NO_WINDOW);
     }
 
     @Override

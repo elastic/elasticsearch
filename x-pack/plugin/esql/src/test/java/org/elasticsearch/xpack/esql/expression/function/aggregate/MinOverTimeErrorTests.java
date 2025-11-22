@@ -27,7 +27,7 @@ public class MinOverTimeErrorTests extends ErrorsForCasesWithoutExamplesTestCase
 
     @Override
     protected Expression build(Source source, List<Expression> args) {
-        return new MinOverTime(source, args.get(0));
+        return new MinOverTime(source, args.get(0), AggregateFunction.NO_WINDOW);
     }
 
     @Override

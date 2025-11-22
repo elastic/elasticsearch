@@ -93,8 +93,9 @@ public final class MoveDecision extends AbstractAllocationDecision {
      * be forced to move to another node.
      */
     public static MoveDecision createRemainYesDecision(Decision canRemainDecision) {
-        assert canRemainDecision.type() != Type.NO;
-        assert canRemainDecision.type() != Type.NOT_PREFERRED;
+        assert canRemainDecision != null;
+        assert canRemainDecision.type() == Type.YES
+            : "Create decision with MoveDecision#move instead. canRemain Decision: " + canRemainDecision;
         if (canRemainDecision == Decision.YES) {
             return CACHED_STAY_DECISION;
         }
@@ -117,7 +118,8 @@ public final class MoveDecision extends AbstractAllocationDecision {
         @Nullable List<NodeAllocationResult> nodeDecisions
     ) {
         assert canRemainDecision != null;
-        assert canRemainDecision.type() != Type.YES : "create decision with MoveDecision#stay instead";
+        assert canRemainDecision.type() != Type.YES
+            : "Create decision with MoveDecision#createRemainYesDecision instead. canRemain Decision: " + canRemainDecision;
         if (nodeDecisions == null && moveDecision == AllocationDecision.NO) {
             // the final decision is NO (no node to move the shard to) and we are not in explain mode, return a cached version
             return CACHED_CANNOT_MOVE_DECISION;

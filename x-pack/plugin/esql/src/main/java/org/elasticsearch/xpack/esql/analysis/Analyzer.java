@@ -303,6 +303,8 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 plan.source(),
                 esIndex.name(),
                 plan.indexMode(),
+                esIndex.originalIndices(),
+                esIndex.concreteIndices(),
                 esIndex.indexNameWithModes(),
                 attributes.isEmpty() ? NO_FIELDS : attributes
             );

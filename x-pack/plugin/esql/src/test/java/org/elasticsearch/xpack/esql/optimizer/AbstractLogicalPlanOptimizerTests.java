@@ -191,6 +191,8 @@ public abstract class AbstractLogicalPlanOptimizerTests extends ESTestCase {
             "multi_index",
             multiIndexMapping,
             Map.of("test1", IndexMode.STANDARD, "test2", IndexMode.STANDARD),
+            Map.of(),
+            Map.of(),
             Set.of("partial_type_keyword")
         );
         multiIndexAnalyzer = new Analyzer(
@@ -205,7 +207,14 @@ public abstract class AbstractLogicalPlanOptimizerTests extends ESTestCase {
         );
 
         var sampleDataMapping = loadMapping("mapping-sample_data.json");
-        var sampleDataIndex = new EsIndex("sample_data", sampleDataMapping, Map.of("sample_data", IndexMode.STANDARD), Set.of());
+        var sampleDataIndex = new EsIndex(
+            "sample_data",
+            sampleDataMapping,
+            Map.of("sample_data", IndexMode.STANDARD),
+            Map.of(),
+            Map.of(),
+            Set.of()
+        );
         sampleDataIndexAnalyzer = new Analyzer(
             testAnalyzerContext(
                 EsqlTestUtils.TEST_CFG,

@@ -85,7 +85,7 @@ public final class QueryBuilderResolver {
 
     private static Set<String> indexNames(LogicalPlan plan) {
         Set<String> indexNames = new HashSet<>();
-        plan.forEachDown(EsRelation.class, esRelation -> indexNames.addAll(esRelation.concreteIndices()));
+        plan.forEachDown(EsRelation.class, esRelation -> indexNames.addAll(esRelation.concreteQualifiedIndices()));
         return indexNames;
     }
 

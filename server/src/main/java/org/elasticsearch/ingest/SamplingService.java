@@ -71,6 +71,7 @@ import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -345,6 +346,156 @@ public class SamplingService extends AbstractLifecycleComponent implements Clust
         }
         SampleInfo sampleInfo = sampleInfoReference.get();
         return sampleInfo == null ? new SampleStats() : sampleInfo.stats;
+    }
+
+    /**
+     * Manually add documents to the sample for the given index.
+     * Does NOT check sampling rate or conditions, only checks capacity constraints.
+     * If no sampling configuration exists, creates one with default settings (rate=1.0, maxSamples=100, no condition).
+     *
+     * @param projectId The project ID
+     * @param indexName The index name
+     * @param documents List of document sources as maps
+     * @return Result with counts of added, rejected, and any failures
+     */
+    public AddSampleDocsResult addSampleDocuments(ProjectId projectId, String indexName, List<Map<String, Object>> documents) {
+        if (RANDOM_SAMPLING_FEATURE_FLAG == false) {
+            return new AddSampleDocsResult(0, 0, List.of("Random sampling feature is disabled"));
+        }
+
+        // Get sampling configuration or create a default one
+        SamplingConfiguration samplingConfig = getSamplingConfiguration(
+            clusterService.state().metadata().projects().get(projectId),
+            indexName
+        );
+
+        // If no configuration exists, create one with defaults
+        if (samplingConfig == null) {
+            // Create default configuration: rate=1.0, maxSamples=100, condition="false"
+            SamplingConfiguration defaultConfig = new SamplingConfiguration(
+                1.0,    // rate - 100% (not used for POST docs, but required)
+                100,    // maxSamples
+                null,   // maxSize - will use default (1GB)
+                null,   // timeToLive - will use default (10 days)
+                "false" // condition - literal "false" to prevent automatic sampling
+            );
+
+            // Submit task to create the configuration
+            try {
+                updateSamplingConfigurationTaskQueue.submitTask(
+                    "Creating default sampling configuration for POST docs",
+                    new UpdateSamplingConfigurationTask(
+                        projectId,
+                        indexName,
+                        defaultConfig,
+                        TimeValue.THIRTY_SECONDS,
+                        ActionListener.noop()
+                    ),
+                    TimeValue.THIRTY_SECONDS
+                );
+
+                // Wait a bit for the config to be created (this is synchronous operation)
+                // After the task is submitted, the config should be available
+                samplingConfig = defaultConfig;
+            } catch (Exception e) {
+                return new AddSampleDocsResult(0, 0, List.of("Failed to create sampling configuration: " + e.getMessage()));
+            }
+        }
+
+        // Use the config values (either existing or newly created default)
+        final int maxSamples = samplingConfig.maxSamples();
+        final long maxSizeBytes = samplingConfig.maxSize().getBytes();
+
+        int added = 0;
+        int rejected = 0;
+        List<String> failures = new ArrayList<>();
+
+        // Get or create SampleInfo for this index
+        ProjectIndex projectIndex = new ProjectIndex(projectId, indexName);
+        SoftReference<SampleInfo> sampleInfoReference = samples.compute(projectIndex, (k, v) -> {
+            if (v == null || v.get() == null) {
+                return new SoftReference<>(new SampleInfo(maxSamples));
+            }
+            return v;
+        });
+
+        SampleInfo sampleInfo = sampleInfoReference.get();
+        if (sampleInfo == null || sampleInfo == SampleInfo.NONE) {
+            // This shouldn't happen after the compute above, but handle it just in case
+            sampleInfo = new SampleInfo(maxSamples);
+            samples.put(projectIndex, new SoftReference<>(sampleInfo));
+        }
+
+        // Process each document
+        for (Map<String, Object> document : documents) {
+            try {
+                // Convert document to RawDocument
+                RawDocument rawDocument = getRawDocumentFromMap(indexName, document);
+
+                // Check size constraint
+                if (sampleInfo.getSizeInBytes() + rawDocument.getSizeInBytes() > maxSizeBytes) {
+                    rejected++;
+                    sampleInfo.stats.samplesRejectedForSize.increment();
+                    continue;
+                }
+
+                // Try to add to sample
+                if (sampleInfo.offer(rawDocument)) {
+                    added++;
+                    sampleInfo.stats.samples.increment();
+                } else {
+                    rejected++;
+                    sampleInfo.stats.samplesRejectedForMaxSamplesExceeded.increment();
+                }
+            } catch (Exception e) {
+                rejected++;
+                failures.add("Failed to process document: " + e.getMessage());
+                sampleInfo.stats.samplesRejectedForException.increment();
+                logger.debug("Error adding document to sample for " + indexName, e);
+            }
+        }
+
+        return new AddSampleDocsResult(added, rejected, failures);
+    }
+
+    /**
+     * Create a RawDocument from a source map.
+     */
+    private RawDocument getRawDocumentFromMap(String indexName, Map<String, Object> source) throws IOException {
+        try (XContentBuilder builder = XContentBuilder.builder(JsonXContent.jsonXContent)) {
+            builder.map(source);
+            BytesReference bytes = BytesReference.bytes(builder);
+            byte[] sourceCopy = new byte[bytes.length()];
+            System.arraycopy(bytes.array(), bytes.arrayOffset(), sourceCopy, 0, bytes.length());
+            return new RawDocument(indexName, sourceCopy, XContentType.JSON);
+        }
+    }
+
+    /**
+     * Result of adding documents to a sample.
+     */
+    public static class AddSampleDocsResult {
+        private final int added;
+        private final int rejected;
+        private final List<String> failures;
+
+        public AddSampleDocsResult(int added, int rejected, List<String> failures) {
+            this.added = added;
+            this.rejected = rejected;
+            this.failures = failures;
+        }
+
+        public int getAdded() {
+            return added;
+        }
+
+        public int getRejected() {
+            return rejected;
+        }
+
+        public List<String> getFailures() {
+            return failures;
+        }
     }
 
     /*

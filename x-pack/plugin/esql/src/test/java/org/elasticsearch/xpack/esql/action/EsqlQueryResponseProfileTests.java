@@ -14,6 +14,7 @@ import org.elasticsearch.compute.operator.DriverProfile;
 import org.elasticsearch.compute.operator.DriverSleeps;
 import org.elasticsearch.compute.operator.OperatorStatus;
 import org.elasticsearch.compute.operator.PlanProfile;
+import org.elasticsearch.compute.operator.PlanTimeProfile;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 
 import java.util.List;
@@ -62,8 +63,18 @@ public class EsqlQueryResponseProfileTests extends AbstractWireSerializingTestCa
     private List<PlanProfile> randomPlanProfiles() {
         return randomList(
             10,
-            () -> new PlanProfile(randomIdentifier(), randomIdentifier(), randomIdentifier(), randomAlphanumericOfLength(1024))
+            () -> new PlanProfile(
+                randomIdentifier(),
+                randomIdentifier(),
+                randomIdentifier(),
+                randomAlphanumericOfLength(1024),
+                randomPlanTimeProfile()
+            )
         );
+    }
+
+    private PlanTimeProfile randomPlanTimeProfile() {
+        return randomBoolean() ? null : new PlanTimeProfile(randomNonNegativeLong(), randomNonNegativeLong(), randomNonNegativeLong());
     }
 
     private OperatorStatus randomOperatorStatus() {

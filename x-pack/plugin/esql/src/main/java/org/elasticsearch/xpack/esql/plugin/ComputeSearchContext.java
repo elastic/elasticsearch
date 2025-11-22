@@ -14,6 +14,7 @@ import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.lookup.SourceFilter;
 import org.elasticsearch.search.lookup.SourceProvider;
+import org.elasticsearch.search.profile.query.QueryProfiler;
 import org.elasticsearch.xpack.esql.planner.EsPhysicalOperationProviders.DefaultShardContext;
 import org.elasticsearch.xpack.esql.planner.EsPhysicalOperationProviders.ShardContext;
 
@@ -26,14 +27,21 @@ import org.elasticsearch.xpack.esql.planner.EsPhysicalOperationProviders.ShardCo
  * happy-path execution, this class will be closed when the reference count in the {@link ShardContext} returned by {@link #shardContext()}
  * reaches 0.
  */
-class ComputeSearchContext implements Releasable {
+public class ComputeSearchContext implements Releasable {
     private final int index;
     private final SearchContext searchContext;
     private final SetOnce<ShardContext> shardContext = new SetOnce<>();
+    private final QueryProfiler profiler;
 
-    ComputeSearchContext(int index, SearchContext searchContext) {
+    public ComputeSearchContext(int index, SearchContext searchContext, boolean profile) {
         this.index = index;
         this.searchContext = searchContext;
+        if (profile) {
+            this.profiler = new QueryProfiler();
+            searchContext.searcher().setProfiler(profiler);
+        } else {
+            this.profiler = null;
+        }
     }
 
     public int index() {
@@ -51,6 +59,10 @@ class ComputeSearchContext implements Releasable {
         return searchContext;
     }
 
+    public QueryProfiler profiler() {
+        return profiler;
+    }
+
     private ShardContext createShardContext() {
         SearchExecutionContext searchExecutionContext = new SearchExecutionContext(searchContext.getSearchExecutionContext()) {
             @Override
@@ -58,7 +70,7 @@ class ComputeSearchContext implements Releasable {
                 return new ReinitializingSourceProvider(super::createSourceProvider);
             }
         };
-        return new DefaultShardContext(index, this, searchExecutionContext, searchContext.request().getAliasFilter());
+        return new DefaultShardContext(index, this, searchExecutionContext, searchContext.request().getAliasFilter(), profiler);
     }
 
     @Override

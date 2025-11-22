@@ -24,6 +24,7 @@ import org.elasticsearch.compute.operator.Driver;
 import org.elasticsearch.compute.operator.DriverCompletionInfo;
 import org.elasticsearch.compute.operator.DriverTaskRunner;
 import org.elasticsearch.compute.operator.FailureCollector;
+import org.elasticsearch.compute.operator.PlanTimeProfile;
 import org.elasticsearch.compute.operator.exchange.ExchangeService;
 import org.elasticsearch.compute.operator.exchange.ExchangeSink;
 import org.elasticsearch.compute.operator.exchange.ExchangeSinkHandler;
@@ -196,6 +197,7 @@ public class ComputeService {
         Configuration configuration,
         FoldContext foldContext,
         EsqlExecutionInfo execInfo,
+        PlanTimeProfile planTimeProfile,
         ActionListener<Result> listener
     ) {
         assert ThreadPool.assertCurrentThreadPool(
@@ -207,10 +209,26 @@ public class ComputeService {
         Tuple<List<PhysicalPlan>, PhysicalPlan> subplansAndMainPlan = PlannerUtils.breakPlanIntoSubPlansAndMainPlan(physicalPlan);
 
         List<PhysicalPlan> subplans = subplansAndMainPlan.v1();
+        // PlanTimeProfile is now passed from EsqlSession which already tracks logical/physical optimization time
+        if (planTimeProfile == null && configuration.profile()) {
+            planTimeProfile = new PlanTimeProfile();
+        }
 
         // we have no sub plans, so we can just execute the given plan
         if (subplans == null || subplans.isEmpty()) {
-            executePlan(sessionId, rootTask, flags, physicalPlan, configuration, foldContext, execInfo, null, listener, null);
+            executePlan(
+                sessionId,
+                rootTask,
+                flags,
+                physicalPlan,
+                configuration,
+                foldContext,
+                execInfo,
+                null,
+                listener,
+                null,
+                planTimeProfile
+            );
             return;
         }
 
@@ -257,7 +275,7 @@ public class ComputeService {
                     })
                 )
             ) {
-                runCompute(rootTask, computeContext, mainPlan, localListener.acquireCompute());
+                runCompute(rootTask, computeContext, mainPlan, planTimeProfile, localListener.acquireCompute());
 
                 for (int i = 0; i < subplans.size(); i++) {
                     var subplan = subplans.get(i);
@@ -285,7 +303,8 @@ public class ComputeService {
                             exchangeService.finishSinkHandler(childSessionId, e);
                             subPlanListener.onFailure(e);
                         }),
-                        () -> exchangeSink.createExchangeSink(() -> {})
+                        () -> exchangeSink.createExchangeSink(() -> {}),
+                        configuration.profile() ? new PlanTimeProfile() : null
                     );
                 }
             }
@@ -302,12 +321,20 @@ public class ComputeService {
         EsqlExecutionInfo execInfo,
         String profileQualifier,
         ActionListener<Result> listener,
-        Supplier<ExchangeSink> exchangeSinkSupplier
+        Supplier<ExchangeSink> exchangeSinkSupplier,
+        PlanTimeProfile planTimeProfile
     ) {
+        long startTime = 0L;
+        if (configuration.profile()) {
+            startTime = System.nanoTime();
+        }
         Tuple<PhysicalPlan, PhysicalPlan> coordinatorAndDataNodePlan = PlannerUtils.breakPlanBetweenCoordinatorAndDataNode(
             physicalPlan,
             configuration
         );
+        if (configuration.profile()) {
+            planTimeProfile.addPlanTime(System.nanoTime() - startTime);
+        }
         final List<Page> collectedPages = Collections.synchronizedList(new ArrayList<>());
         listener = listener.delegateResponse((l, e) -> {
             collectedPages.forEach(p -> Releasables.closeExpectNoException(p::releaseBlocks));
@@ -358,7 +385,7 @@ public class ComputeService {
                     })
                 )
             ) {
-                runCompute(rootTask, computeContext, coordinatorPlan, computeListener.acquireCompute());
+                runCompute(rootTask, computeContext, coordinatorPlan, planTimeProfile, computeListener.acquireCompute());
                 return;
             }
         } else {
@@ -440,6 +467,7 @@ public class ComputeService {
                             exchangeSinkSupplier
                         ),
                         coordinatorPlan,
+                        planTimeProfile,
                         localListener.acquireCompute()
                     );
                     // starts computes on data nodes on the main cluster
@@ -596,7 +624,13 @@ public class ComputeService {
         ExceptionsHelper.reThrowIfNotNull(failureCollector.getFailure());
     }
 
-    void runCompute(CancellableTask task, ComputeContext context, PhysicalPlan plan, ActionListener<DriverCompletionInfo> listener) {
+    void runCompute(
+        CancellableTask task,
+        ComputeContext context,
+        PhysicalPlan plan,
+        PlanTimeProfile planTimeProfile,
+        ActionListener<DriverCompletionInfo> listener
+    ) {
         var shardContexts = context.searchContexts().map(ComputeSearchContext::shardContext);
         EsPhysicalOperationProviders physicalOperationProviders = new EsPhysicalOperationProviders(
             context.foldCtx(),
@@ -630,7 +664,8 @@ public class ComputeService {
                 new ArrayList<>(context.searchExecutionContexts().collection()),
                 context.configuration(),
                 context.foldCtx(),
-                plan
+                plan,
+                planTimeProfile
             );
             if (LOGGER.isDebugEnabled()) {
                 LOGGER.debug("Local plan for {}:\n{}", context.description(), localPlan);
@@ -655,7 +690,7 @@ public class ComputeService {
                 throw new IllegalStateException("no drivers created");
             }
             LOGGER.debug("using {} drivers", drivers.size());
-            ActionListener<Void> driverListener = addCompletionInfo(listener, drivers, context, localPlan);
+            ActionListener<Void> driverListener = addCompletionInfo(listener, drivers, context, localPlan, planTimeProfile);
             driverRunner.executeDrivers(
                 task,
                 drivers,
@@ -673,7 +708,8 @@ public class ComputeService {
         ActionListener<DriverCompletionInfo> listener,
         List<Driver> drivers,
         ComputeContext context,
-        PhysicalPlan localPlan
+        PhysicalPlan localPlan,
+        PlanTimeProfile planTimeProfile
     ) {
         /*
          * We *really* don't want to close over the localPlan because it can
@@ -682,34 +718,27 @@ public class ComputeService {
         boolean needPlanString = LOGGER.isDebugEnabled() || context.configuration().profile();
         String planString = needPlanString ? localPlan.toString() : null;
         return listener.map(ignored -> {
-            if (LOGGER.isDebugEnabled()) {
-                LOGGER.debug(
-                    "finished {}",
-                    DriverCompletionInfo.includingProfiles(
-                        drivers,
-                        context.description(),
-                        clusterService.getClusterName().value(),
-                        transportService.getLocalNode().getName(),
-                        planString
-                    )
-                );
-                /*
-                 * planString *might* be null if we *just* set DEBUG to *after*
-                 * we built the listener but before we got here. That's something
-                 * we can live with.
-                 */
-            }
-            if (context.configuration().profile()) {
-                return DriverCompletionInfo.includingProfiles(
+            if (LOGGER.isDebugEnabled() || context.configuration().profile()) {
+                DriverCompletionInfo driverCompletionInfo = DriverCompletionInfo.includingProfiles(
                     drivers,
                     context.description(),
                     clusterService.getClusterName().value(),
                     transportService.getLocalNode().getName(),
-                    planString
+                    planString,
+                    planTimeProfile
                 );
-            } else {
-                return DriverCompletionInfo.excludingProfiles(drivers);
+                LOGGER.debug("finished {}", driverCompletionInfo);
+                if (context.configuration().profile()) {
+                    /*
+                     * planString *might* be null if we *just* set DEBUG to *after*
+                     * we built the listener but before we got here. That's something
+                     * we can live with.
+                     */
+                    return driverCompletionInfo;
+                }
             }
+
+            return DriverCompletionInfo.excludingProfiles(drivers);
         });
     }
 

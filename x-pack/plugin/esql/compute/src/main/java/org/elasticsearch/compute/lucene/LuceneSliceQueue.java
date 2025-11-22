@@ -18,6 +18,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.search.profile.query.QueryProfiler;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -189,6 +190,7 @@ public final class LuceneSliceQueue {
         Map<String, PartitioningStrategy> partitioningStrategies = new HashMap<>();
 
         int nextSliceId = 0;
+        Map<String, QueryProfiler> queryProfilerMap = new HashMap<>();
         for (ShardContext ctx : contexts.collection()) {
             for (QueryAndTags queryAndExtra : queryFunction.apply(ctx)) {
                 var scoreMode = scoreModeFunction.apply(ctx);

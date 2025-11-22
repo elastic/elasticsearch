@@ -134,7 +134,7 @@ tasks.register('buildSharedLibraryAndCopy') {
   description = 'Assembles native shared library for the host architecture and copies to libs/native/libraries/build/platform/'
   // check if `LOCAL_VEC_BINARY_OS` is set, if not throw an error to prevent accidental overwrites
   if (System.getenv("LOCAL_VEC_BINARY_OS") == null){
-    throw new GradleException("LOCAL_VEC_BINARY_OS is set, skipping copy to prevent overwriting local binary.")
+    throw new GradleException("LOCAL_VEC_BINARY_OS is not set, skipping copy to prevent overwriting local binary.")
   }
   dependsOn "buildSharedLibrary"
   doLast {

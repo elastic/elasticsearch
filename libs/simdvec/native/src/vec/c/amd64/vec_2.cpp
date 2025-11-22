@@ -47,7 +47,7 @@ inline __m512i fma8(__m512i acc, const int8_t* p1, const int8_t* p2) {
     return _mm512_add_epi32(_mm512_madd_epi16(ones, dot), acc);
 }
 
-static inline int32_t dot7u_inner_avx512(int8_t* a, const int8_t* b, size_t dims) {
+static inline int32_t dot7u_inner_avx512(int8_t* a, const int8_t* b, const int32_t dims) {
     constexpr int stride8 = 8 * STRIDE_BYTES_LEN;
     constexpr int stride4 = 4 * STRIDE_BYTES_LEN;
     const int8_t* p1 = a;
@@ -101,7 +101,7 @@ static inline int32_t dot7u_inner_avx512(int8_t* a, const int8_t* b, size_t dims
 }
 
 extern "C"
-EXPORT int32_t dot7u_2(int8_t* a, int8_t* b, size_t dims) {
+EXPORT int32_t dot7u_2(int8_t* a, int8_t* b, const int32_t dims) {
     int32_t res = 0;
     int i = 0;
     if (dims > STRIDE_BYTES_LEN) {
@@ -119,7 +119,7 @@ EXPORT void dot7u_bulk_2(int8_t* a, const int8_t* b, const int32_t dims, const i
     int32_t res = 0;
     if (dims > STRIDE_BYTES_LEN) {
         const int limit = dims & ~(STRIDE_BYTES_LEN - 1);
-        for (size_t c = 0; c < count; c++) {
+        for (int32_t c = 0; c < count; c++) {
             int i = limit;
             res = dot7u_inner_avx512(a, b, i);
             for (; i < dims; i++) {
@@ -129,9 +129,9 @@ EXPORT void dot7u_bulk_2(int8_t* a, const int8_t* b, const int32_t dims, const i
             a += dims;
         }
     } else {
-        for (size_t c = 0; c < count; c++) {
+        for (int32_t c = 0; c < count; c++) {
             res = 0;
-            for (size_t i = 0; i < dims; i++) {
+            for (int32_t i = 0; i < dims; i++) {
                 res += a[i] * b[i];
             }
             results[c] = (float_t)res;
@@ -154,7 +154,7 @@ inline __m512i sqr8(__m512i acc, const int8_t* p1, const int8_t* p2) {
     return _mm512_add_epi32(_mm512_madd_epi16(ones, sqr_add), acc);
 }
 
-static inline int32_t sqr7u_inner_avx512(int8_t *a, int8_t *b, size_t dims) {
+static inline int32_t sqr7u_inner_avx512(int8_t *a, int8_t *b, const int32_t dims) {
     constexpr int stride8 = 8 * STRIDE_BYTES_LEN;
     constexpr int stride4 = 4 * STRIDE_BYTES_LEN;
     const int8_t* p1 = a;
@@ -208,7 +208,7 @@ static inline int32_t sqr7u_inner_avx512(int8_t *a, int8_t *b, size_t dims) {
 }
 
 extern "C"
-EXPORT int32_t sqr7u_2(int8_t* a, int8_t* b, size_t dims) {
+EXPORT int32_t sqr7u_2(int8_t* a, int8_t* b, const int32_t dims) {
     int32_t res = 0;
     int i = 0;
     if (dims > STRIDE_BYTES_LEN) {
@@ -226,9 +226,9 @@ EXPORT int32_t sqr7u_2(int8_t* a, int8_t* b, size_t dims) {
 
 // const float *a  pointer to the first float vector
 // const float *b  pointer to the second float vector
-// size_t elementCount  the number of floating point elements
+// const int32_t elementCount  the number of floating point elements
 extern "C"
-EXPORT float cosf32_2(const float *a, const float *b, size_t elementCount) {
+EXPORT float cosf32_2(const float *a, const float *b, const int32_t elementCount) {
     __m512 dot0 = _mm512_setzero_ps();
     __m512 dot1 = _mm512_setzero_ps();
     __m512 dot2 = _mm512_setzero_ps();
@@ -244,9 +244,9 @@ EXPORT float cosf32_2(const float *a, const float *b, size_t elementCount) {
     __m512 norm_b2 = _mm512_setzero_ps();
     __m512 norm_b3 = _mm512_setzero_ps();
 
-    size_t i = 0;
+    int32_t i = 0;
     // Each __m512 holds 16 floats, so unroll 4x = 64 floats per loop
-    size_t unrolled_limit = elementCount & ~63UL;
+    int32_t unrolled_limit = elementCount & ~63UL;
     for (; i < unrolled_limit; i += 64) {
         // Load and compute 4 blocks of 16 elements
         __m512 a0 = _mm512_loadu_ps(a + i);
@@ -301,16 +301,16 @@ EXPORT float cosf32_2(const float *a, const float *b, size_t elementCount) {
 
 // const float *a  pointer to the first float vector
 // const float *b  pointer to the second float vector
-// size_t elementCount  the number of floating point elements
+// const int32_t elementCount  the number of floating point elements
 extern "C"
-EXPORT float dotf32_2(const float *a, const float *b, size_t elementCount) {
+EXPORT float dotf32_2(const float *a, const float *b, const int32_t elementCount) {
     __m512 sum0 = _mm512_setzero_ps();
     __m512 sum1 = _mm512_setzero_ps();
     __m512 sum2 = _mm512_setzero_ps();
     __m512 sum3 = _mm512_setzero_ps();
 
-    size_t i = 0;
-    size_t unrolled_limit = elementCount & ~63UL;
+    int32_t i = 0;
+    int32_t unrolled_limit = elementCount & ~63UL;
     // Each __m512 holds 16 floats, so unroll 4x = 64 floats per loop
     for (; i < unrolled_limit; i += 64) {
         sum0 = _mm512_fmadd_ps(_mm512_loadu_ps(a + i),      _mm512_loadu_ps(b + i),      sum0);
@@ -332,16 +332,16 @@ EXPORT float dotf32_2(const float *a, const float *b, size_t elementCount) {
 
 // const float *a  pointer to the first float vector
 // const float *b  pointer to the second float vector
-// size_t elementCount  the number of floating point elements
+// const int32_t elementCount  the number of floating point elements
 extern "C"
-EXPORT float sqrf32_2(const float *a, const float *b, size_t elementCount) {
+EXPORT float sqrf32_2(const float *a, const float *b, const int32_t elementCount) {
     __m512 sum0 = _mm512_setzero_ps();
     __m512 sum1 = _mm512_setzero_ps();
     __m512 sum2 = _mm512_setzero_ps();
     __m512 sum3 = _mm512_setzero_ps();
 
-    size_t i = 0;
-    size_t unrolled_limit = elementCount & ~63UL;
+    int32_t i = 0;
+    int32_t unrolled_limit = elementCount & ~63UL;
     // Each __m512 holds 16 floats, so unroll 4x = 64 floats per loop
     for (; i < unrolled_limit; i += 64) {
         __m512 d0 = _mm512_sub_ps(_mm512_loadu_ps(a + i),      _mm512_loadu_ps(b + i));

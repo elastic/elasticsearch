@@ -349,7 +349,7 @@ public class AuthorizationServiceTests extends ESTestCase {
         crossProjectModeDecider = mock(CrossProjectModeDecider.class);
         when(crossProjectModeDecider.crossProjectEnabled()).thenReturn(false);
         when(crossProjectModeDecider.resolvesCrossProject(any())).thenReturn(false);
-        projectRoutingResolver = mock(ProjectRoutingResolver.class);
+        projectRoutingResolver = ProjectRoutingResolver.NOOP;
         authorizationService = new AuthorizationService(
             settings,
             rolesStore,
@@ -1315,9 +1315,6 @@ public class AuthorizationServiceTests extends ESTestCase {
         when(crossProjectModeDecider.crossProjectEnabled()).thenReturn(true);
         when(crossProjectModeDecider.resolvesCrossProject(any())).thenReturn(true);
         final Settings settings = Settings.builder().put("serverless.cross_project.enabled", "true").build();
-
-        // return unchanged second argument for resolver
-        when(projectRoutingResolver.resolve(any(), any())).thenAnswer(invocation -> invocation.getArgument(1));
 
         authorizationService = new AuthorizationService(
             settings,
@@ -3881,9 +3878,6 @@ public class AuthorizationServiceTests extends ESTestCase {
 
         when(crossProjectModeDecider.crossProjectEnabled()).thenReturn(true);
         when(crossProjectModeDecider.resolvesCrossProject(any())).thenReturn(true);
-
-        // return unchanged second argument for resolver
-        when(projectRoutingResolver.resolve(any(), any())).thenAnswer(invocation -> invocation.getArgument(1));
 
         final var metadataBuilder = ProjectMetadata.builder(projectId).put(createIndexMetadata("accessible-index"), true);
         if (randomBoolean()) {

@@ -212,11 +212,15 @@ public class AttributeSet implements Set<Attribute> {
         return new Builder(AttributeMap.builder(expectedSize));
     }
 
+    public static Builder forkBuilder() {
+        return new ForkBuilder(AttributeMap.builder());
+    }
+
     public static class Builder {
 
-        private final AttributeMap.Builder<Object> mapBuilder;
+        protected final AttributeMap.Builder<Object> mapBuilder;
 
-        private Builder(AttributeMap.Builder<Object> mapBuilder) {
+        protected Builder(AttributeMap.Builder<Object> mapBuilder) {
             this.mapBuilder = mapBuilder;
         }
 
@@ -264,6 +268,20 @@ public class AttributeSet implements Set<Attribute> {
 
         public void clear() {
             mapBuilder.keySet().clear();
+        }
+    }
+
+    public static class ForkBuilder extends Builder {
+
+        private ForkBuilder(AttributeMap.Builder<Object> mapBuilder) {
+            super(mapBuilder);
+        }
+
+        @Override
+        public boolean contains(Object o) {
+            return o instanceof NamedExpression
+                && (mapBuilder.keySet().stream().anyMatch(x -> x.name().equals(((NamedExpression) o).name()))
+                    || mapBuilder.keySet().stream().anyMatch(x -> x.id().equals(((Attribute) o).id())));
         }
     }
 }

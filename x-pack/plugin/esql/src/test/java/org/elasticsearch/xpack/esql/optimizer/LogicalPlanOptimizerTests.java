@@ -220,6 +220,21 @@ import static org.hamcrest.Matchers.startsWith;
 public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests {
     private static final LiteralsOnTheRight LITERALS_ON_THE_RIGHT = new LiteralsOnTheRight();
 
+    public void testPruneColumnsWhenFork() {
+        var query = """
+                FROM employees
+                | WHERE emp_no == 10048 OR emp_no == 10081
+                | FORK (EVAL a = CONCAT(first_name, " ", emp_no::keyword, " ", last_name)
+                        | GROK a "%{WORD:x} %{WORD:y} %{WORD:z}" )
+                       (EVAL b = CONCAT(last_name, " ", emp_no::keyword, " ", first_name)
+                        | GROK b "%{WORD:x} %{WORD:y} %{WORD:z}" )
+                | KEEP _fork, emp_no, x, y, z
+                | SORT _fork, emp_no
+            """;
+        var plan = plan(query);
+        assertNotNull(plan);
+    }
+
     public void testEvalWithScoreImplicitLimit() {
         var plan = plan("""
             FROM test

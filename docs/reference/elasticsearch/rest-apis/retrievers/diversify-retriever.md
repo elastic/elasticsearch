@@ -11,7 +11,7 @@ This is useful when you want to maximize diversity by preventing similar documen
 Practical use cases include:
 - **eCommerce applications**: Show users a wider variety of products rather than multiple similar items
 - **Retrieval augmented generation (RAG) workflows**: Provide more diverse context to the LLM, reducing redundancy in the prompt
--
+
 The retriever uses [MMR (Maximum Marginal Relevance)](https://www.cs.cmu.edu/~jgc/publication/The_Use_MMR_Diversity_Based_LTMIR_1998.pdf) diversification to discard results that are too similar to each other.
 Similarity is determined based on the `field` parameter and the optionally provided `query_vector`.
 :::{note}

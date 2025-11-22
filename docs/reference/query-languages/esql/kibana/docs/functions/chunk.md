@@ -5,5 +5,5 @@ Use `CHUNK` to split a text field into smaller chunks.
 
 ```esql
 FROM books
-| EVAL chunks = CHUNK(description, {"num_chunks":1, "chunk_size":20})
+| EVAL chunks = CHUNK(description)
 ```

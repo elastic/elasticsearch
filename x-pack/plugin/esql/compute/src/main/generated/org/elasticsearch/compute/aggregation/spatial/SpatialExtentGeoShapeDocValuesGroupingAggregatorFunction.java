@@ -66,44 +66,21 @@ public final class SpatialExtentGeoShapeDocValuesGroupingAggregatorFunction impl
   public GroupingAggregatorFunction.AddInput prepareProcessRawInputPage(SeenGroupIds seenGroupIds,
       Page page) {
     IntBlock valuesBlock = page.getBlock(channels.get(0));
-    IntVector valuesVector = valuesBlock.asVector();
-    if (valuesVector == null) {
-      maybeEnableGroupIdTracking(seenGroupIds, valuesBlock);
-      return new GroupingAggregatorFunction.AddInput() {
-        @Override
-        public void add(int positionOffset, IntArrayBlock groupIds) {
-          addRawInput(positionOffset, groupIds, valuesBlock);
-        }
-
-        @Override
-        public void add(int positionOffset, IntBigArrayBlock groupIds) {
-          addRawInput(positionOffset, groupIds, valuesBlock);
-        }
-
-        @Override
-        public void add(int positionOffset, IntVector groupIds) {
-          addRawInput(positionOffset, groupIds, valuesBlock);
-        }
-
-        @Override
-        public void close() {
-        }
-      };
-    }
+    maybeEnableGroupIdTracking(seenGroupIds, valuesBlock);
     return new GroupingAggregatorFunction.AddInput() {
       @Override
       public void add(int positionOffset, IntArrayBlock groupIds) {
-        // This type does not support vectors because all values are multi-valued
+        addRawInput(positionOffset, groupIds, valuesBlock);
       }
 
       @Override
       public void add(int positionOffset, IntBigArrayBlock groupIds) {
-        // This type does not support vectors because all values are multi-valued
+        addRawInput(positionOffset, groupIds, valuesBlock);
       }
 
       @Override
       public void add(int positionOffset, IntVector groupIds) {
-        // This type does not support vectors because all values are multi-valued
+        addRawInput(positionOffset, groupIds, valuesBlock);
       }
 
       @Override

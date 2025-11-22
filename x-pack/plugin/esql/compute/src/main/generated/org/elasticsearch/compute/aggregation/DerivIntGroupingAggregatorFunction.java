@@ -40,16 +40,21 @@ public final class DerivIntGroupingAggregatorFunction implements GroupingAggrega
 
   private final DriverContext driverContext;
 
+  private final SimpleLinearRegressionWithTimeseries.SimpleLinearModelFunction fn;
+
   public DerivIntGroupingAggregatorFunction(List<Integer> channels,
-      DerivDoubleAggregator.GroupingState state, DriverContext driverContext) {
+      DerivDoubleAggregator.GroupingState state, DriverContext driverContext,
+      SimpleLinearRegressionWithTimeseries.SimpleLinearModelFunction fn) {
     this.channels = channels;
     this.state = state;
     this.driverContext = driverContext;
+    this.fn = fn;
   }
 
   public static DerivIntGroupingAggregatorFunction create(List<Integer> channels,
-      DriverContext driverContext) {
-    return new DerivIntGroupingAggregatorFunction(channels, DerivIntAggregator.initGrouping(driverContext), driverContext);
+      DriverContext driverContext,
+      SimpleLinearRegressionWithTimeseries.SimpleLinearModelFunction fn) {
+    return new DerivIntGroupingAggregatorFunction(channels, DerivIntAggregator.initGrouping(driverContext, fn), driverContext, fn);
   }
 
   public static List<IntermediateStateDesc> intermediateStateDesc() {

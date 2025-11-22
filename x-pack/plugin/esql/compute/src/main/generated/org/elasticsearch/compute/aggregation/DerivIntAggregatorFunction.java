@@ -39,16 +39,20 @@ public final class DerivIntAggregatorFunction implements AggregatorFunction {
 
   private final List<Integer> channels;
 
+  private final SimpleLinearRegressionWithTimeseries.SimpleLinearModelFunction fn;
+
   public DerivIntAggregatorFunction(DriverContext driverContext, List<Integer> channels,
-      SimpleLinearRegressionWithTimeseries state) {
+      SimpleLinearRegressionWithTimeseries state,
+      SimpleLinearRegressionWithTimeseries.SimpleLinearModelFunction fn) {
     this.driverContext = driverContext;
     this.channels = channels;
     this.state = state;
+    this.fn = fn;
   }
 
   public static DerivIntAggregatorFunction create(DriverContext driverContext,
-      List<Integer> channels) {
-    return new DerivIntAggregatorFunction(driverContext, channels, DerivIntAggregator.initSingle(driverContext));
+      List<Integer> channels, SimpleLinearRegressionWithTimeseries.SimpleLinearModelFunction fn) {
+    return new DerivIntAggregatorFunction(driverContext, channels, DerivIntAggregator.initSingle(driverContext, fn), fn);
   }
 
   public static List<IntermediateStateDesc> intermediateStateDesc() {

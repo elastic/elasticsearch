@@ -13,6 +13,7 @@ import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.Table;
@@ -25,6 +26,7 @@ import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestActions;
 import org.elasticsearch.rest.action.RestResponseListener;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
 
 import java.io.IOException;
 import java.util.List;
@@ -34,10 +36,10 @@ import static org.elasticsearch.rest.RestRequest.Method.GET;
 @ServerlessScope(Scope.PUBLIC)
 public class RestCountAction extends AbstractCatAction {
 
-    private final Settings settings;
+    private final CrossProjectModeDecider crossProjectModeDecider;
 
     public RestCountAction(Settings settings) {
-        this.settings = settings;
+        this.crossProjectModeDecider = new CrossProjectModeDecider(settings);
     }
 
     @Override
@@ -58,15 +60,20 @@ public class RestCountAction extends AbstractCatAction {
 
     @Override
     public RestChannelConsumer doCatRequest(final RestRequest request, final NodeClient client) {
-        if (settings != null && settings.getAsBoolean("serverless.cross_project.enabled", false)) {
-            // accept but drop project_routing param until fully supported
-            request.param("project_routing");
-        }
-
         String[] indices = Strings.splitStringByCommaToArray(request.param("index"));
         SearchRequest countRequest = new SearchRequest(indices);
         SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder().size(0).trackTotalHits(true);
         countRequest.source(searchSourceBuilder);
+        if (crossProjectModeDecider.crossProjectEnabled()) {
+            countRequest.setProjectRouting(request.param("project_routing"));
+            // MP TODO: check with Pawan about these additional if checks - needed here?
+            if (countRequest.allowsCrossProject() && countRequest.pointInTimeBuilder() == null) {
+                IndicesOptions indicesOptions = IndicesOptions.builder()
+                    .crossProjectModeOptions(new IndicesOptions.CrossProjectModeOptions(true))
+                    .build();
+                countRequest.indicesOptions(indicesOptions);
+            }
+        }
         try {
             request.withContentOrSourceParamParserOrNull(parser -> {
                 if (parser == null) {
@@ -75,7 +82,7 @@ public class RestCountAction extends AbstractCatAction {
                         searchSourceBuilder.query(queryBuilder);
                     }
                 } else {
-                    searchSourceBuilder.query(RestActions.getQueryContent(parser));
+                    searchSourceBuilder.query(RestActions.getQueryContent(parser, countRequest));
                 }
             });
         } catch (IOException e) {

@@ -13,7 +13,6 @@ import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
-import org.elasticsearch.xpack.esql.core.expression.AttributeMap;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
@@ -23,9 +22,8 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
 
-import java.util.HashSet;
+import java.util.ArrayList;
 import java.util.List;
-import java.util.Set;
 import java.util.stream.Stream;
 
 /**
@@ -42,17 +40,12 @@ public final class AggregateMapper {
     }
 
     private static List<NamedExpression> doMapping(List<? extends NamedExpression> aggregates, boolean grouping) {
-        Set<Expression> seen = new HashSet<>();
-        AttributeMap.Builder<NamedExpression> attrToExpressionsBuilder = AttributeMap.builder();
+        List<NamedExpression> namedExpressions = new ArrayList<>();
         for (NamedExpression agg : aggregates) {
             Expression inner = Alias.unwrap(agg);
-            if (seen.add(inner)) {
-                for (var ne : computeEntryForAgg(agg.name(), inner, grouping)) {
-                    attrToExpressionsBuilder.put(ne.toAttribute(), ne);
-                }
-            }
+            namedExpressions.addAll(computeEntryForAgg(agg.name(), inner, grouping));
         }
-        return attrToExpressionsBuilder.build().values().stream().toList();
+        return namedExpressions;
     }
 
     public static List<IntermediateStateDesc> intermediateStateDesc(AggregateFunction fn, boolean grouping) {

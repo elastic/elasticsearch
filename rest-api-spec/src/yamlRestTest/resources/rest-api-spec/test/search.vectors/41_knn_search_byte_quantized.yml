@@ -194,6 +194,9 @@ setup:
 
 ---
 "KNN Vector similarity search only":
+  - requires:
+      cluster_features: [ "mapper.vectors.generic_vector_format" ]
+      reason: "the quantized values, and so the effective similarity scores, changed with the new lucene quantizer"
   - do:
       search:
         index: hnsw_byte_quantized
@@ -203,7 +206,7 @@ setup:
             num_candidates: 3
             k: 3
             field: vector
-            similarity: 10.3
+            similarity: 10.7
             query_vector: [-0.5, 90.0, -10, 14.8, -156.0]
 
   - length: {hits.hits: 1}

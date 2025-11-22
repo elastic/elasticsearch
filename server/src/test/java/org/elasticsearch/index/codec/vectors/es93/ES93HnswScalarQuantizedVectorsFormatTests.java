@@ -14,7 +14,6 @@ import org.apache.lucene.codecs.lucene104.Lucene104ScalarQuantizedVectorsFormat;
 import org.apache.lucene.store.Directory;
 import org.elasticsearch.index.codec.vectors.BaseHnswVectorsFormatTestCase;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
-import org.junit.AssumptionViolatedException;
 
 import java.io.IOException;
 import java.util.concurrent.ExecutorService;
@@ -62,11 +61,6 @@ public class ES93HnswScalarQuantizedVectorsFormatTests extends BaseHnswVectorsFo
             numMergeWorkers,
             service
         );
-    }
-
-    @Override
-    public void testSingleVectorCase() throws Exception {
-        throw new AssumptionViolatedException("The new quantizer caps scores at 1.0");
     }
 
     public void testSimpleOffHeapSize() throws IOException {

@@ -154,7 +154,7 @@ public class WriteLoadConstraintDecider extends AllocationDecider {
                 final String explain = Strings.format(
                     """
                         Node [%s] has a queue latency of [%d] millis that exceeds the queue latency threshold of [%s]. This node is \
-                        hot-spotting. Current thread pool utilization [%f]. Shard write load [%s]. Moving shard(s) away.""",
+                        hot-spotting. Current thread pool utilization [%f]. Shard write load [%s]. Should move shard(s) away""",
                     node.nodeId(),
                     nodeWriteThreadPoolStats.maxThreadPoolQueueLatencyMillis(),
                     nodeWriteThreadPoolQueueLatencyThreshold.toHumanReadableString(2),

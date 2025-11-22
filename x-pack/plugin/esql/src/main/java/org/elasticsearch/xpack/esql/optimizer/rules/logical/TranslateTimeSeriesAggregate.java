@@ -176,10 +176,10 @@ public final class TranslateTimeSeriesAggregate extends OptimizerRules.Parameter
             }
         });
         if (tsid.get() == null) {
-            tsid.set(new MetadataAttribute(aggregate.source(), MetadataAttribute.TSID_FIELD, DataType.KEYWORD, false));
+            tsid.set(new MetadataAttribute(aggregate.source(), MetadataAttribute.TSID_FIELD, DataType.TSID_DATA_TYPE, false));
         }
         if (timestamp.get() == null) {
-            throw new IllegalArgumentException("_tsid or @timestamp field are missing from the time-series source");
+            throw new IllegalArgumentException("@timestamp field is missing from the time-series source");
         }
         Map<AggregateFunction, Alias> timeSeriesAggs = new HashMap<>();
         List<NamedExpression> firstPassAggs = new ArrayList<>();

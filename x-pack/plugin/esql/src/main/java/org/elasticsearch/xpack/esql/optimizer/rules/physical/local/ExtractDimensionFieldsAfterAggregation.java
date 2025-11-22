@@ -11,12 +11,13 @@ import org.elasticsearch.compute.aggregation.AggregatorMode;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
-import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
+import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.DimensionValues;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.FirstDocId;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToBase64;
 import org.elasticsearch.xpack.esql.optimizer.LocalPhysicalOptimizerContext;
 import org.elasticsearch.xpack.esql.optimizer.PhysicalOptimizerRules;
 import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
@@ -76,7 +77,7 @@ public final class ExtractDimensionFieldsAfterAggregation extends PhysicalOptimi
         List<Attribute> newIntermediates = new ArrayList<>(oldIntermediates.subList(0, oldAgg.groupings().size()));
         int intermediateOffset = oldAgg.groupings().size();
         for (var agg : oldAgg.aggregates()) {
-            FieldAttribute dimensionField = null;
+            Attribute dimensionField = null;
             if (Alias.unwrap(agg) instanceof AggregateFunction af) {
                 dimensionField = valuesOfDimensionField(af, inputAttributes);
                 if (seen.add(af)) {
@@ -86,8 +87,14 @@ public final class ExtractDimensionFieldsAfterAggregation extends PhysicalOptimi
                             throw new IllegalStateException("expected one intermediate attribute for [" + af + "] but got [" + size + "]");
                         }
                         Attribute oldAttr = oldIntermediates.get(intermediateOffset);
-                        aliases.add(new Alias(agg.source(), agg.name(), dimensionField, oldAttr.id()));
-                        dimensionFields.add(dimensionField);
+                        // _timeseries = to_string(_tsid)
+                        if (dimensionField.name().equals(MetadataAttribute.TIMESERIES)) {
+                            var timeSeries = new ToBase64(dimensionField.source(), tsidField(oldAgg));
+                            aliases.add(new Alias(agg.source(), agg.name(), timeSeries, oldAttr.id()));
+                        } else {
+                            aliases.add(new Alias(agg.source(), agg.name(), dimensionField, oldAttr.id()));
+                            dimensionFields.add(dimensionField);
+                        }
                     } else {
                         for (int i = 0; i < size; i++) {
                             newIntermediates.add(oldIntermediates.get(intermediateOffset + i));
@@ -100,40 +107,52 @@ public final class ExtractDimensionFieldsAfterAggregation extends PhysicalOptimi
                 newAggregates.add(agg);
             }
         }
-        if (dimensionFields.isEmpty()) {
+        if (aliases.isEmpty()) {
             return oldAgg;
         }
         newIntermediates.add(new ReferenceAttribute(oldAgg.source(), sourceAttr.qualifier(), sourceAttr.name(), sourceAttr.dataType()));
         newAggregates.add(new Alias(oldAgg.source(), sourceAttr.name(), new FirstDocId(oldAgg.source(), sourceAttr)));
-        var fieldExtractExec = new FieldExtractExec(
+        TimeSeriesAggregateExec newStats = new TimeSeriesAggregateExec(
             oldAgg.source(),
-            new TimeSeriesAggregateExec(
-                oldAgg.source(),
-                oldAgg.child(),
-                oldAgg.groupings(),
-                newAggregates,
-                oldAgg.getMode(),
-                newIntermediates,
-                oldAgg.estimatedRowSize(),
-                oldAgg.timeBucket()
-            ),
-            dimensionFields,
-            context.configuration().pragmas().fieldExtractPreference()
+            oldAgg.child(),
+            oldAgg.groupings(),
+            newAggregates,
+            oldAgg.getMode(),
+            newIntermediates,
+            oldAgg.estimatedRowSize(),
+            oldAgg.timeBucket()
         );
-        var evalExec = new EvalExec(oldAgg.source(), fieldExtractExec, aliases);
+        final EvalExec evalExec;
+        if (dimensionFields.isEmpty()) {
+            evalExec = new EvalExec(oldAgg.source(), newStats, aliases);
+        } else {
+            PhysicalPlan fieldExtractExec = new FieldExtractExec(
+                oldAgg.source(),
+                newStats,
+                dimensionFields,
+                context.configuration().pragmas().fieldExtractPreference()
+            );
+            evalExec = new EvalExec(oldAgg.source(), fieldExtractExec, aliases);
+        }
         return new ProjectExec(oldAgg.source(), evalExec, oldIntermediates);
     }
 
-    private static FieldAttribute valuesOfDimensionField(AggregateFunction af, AttributeSet inputAttributes) {
-        if (af instanceof DimensionValues values
-            && values.hasFilter() == false
-            && values.field() instanceof FieldAttribute fa
-            && fa.isDimension()
-            && inputAttributes.contains(fa) == false) {
-            return fa;
-        } else {
-            return null;
+    private static Attribute valuesOfDimensionField(AggregateFunction af, AttributeSet inputAttributes) {
+        if (af instanceof DimensionValues values && values.hasFilter() == false && values.field() instanceof Attribute attr) {
+            if (inputAttributes.contains(attr) == false || attr.name().equals(MetadataAttribute.TIMESERIES)) {
+                return attr;
+            }
         }
+        return null;
+    }
+
+    private static Attribute tsidField(TimeSeriesAggregateExec stats) {
+        for (Attribute attribute : stats.output()) {
+            if (attribute.name().equals(MetadataAttribute.TSID_FIELD)) {
+                return attribute;
+            }
+        }
+        throw new IllegalStateException("_tsid field is not found in the time-series aggregation");
     }
 
     private static int intermediateStateSize(AggregateFunction af) {

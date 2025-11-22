@@ -1675,6 +1675,11 @@ public class EsqlCapabilities {
         TIME_SERIES_WINDOW_V0,
 
         /**
+         * Support like/rlike parameters https://github.com/elastic/elasticsearch/issues/131356
+         */
+        LIKE_PARAMETER_SUPPORT,
+
+        /**
          * PromQL support in ESQL
          */
         PROMQL_V0(Build.current().isSnapshot()),

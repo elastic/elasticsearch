@@ -14,6 +14,7 @@ import org.elasticsearch.xpack.esql.action.PromqlFeatures;
 import org.elasticsearch.xpack.esql.analysis.Analyzer;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerContext;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
+import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.predicate.regex.RegexMatch;
@@ -42,6 +43,7 @@ import org.junit.BeforeClass;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
@@ -102,6 +104,7 @@ public class PromqlLogicalPlanOptimizerTests extends AbstractLogicalPlanOptimize
             | WHERE TRANGE($now-1h, $now)
             | STATS AVG(AVG_OVER_TIME(network.bytes_in)) BY TBUCKET(1h)
             """);
+        List<Attribute> output = plan.output();
 
     }
 
@@ -233,6 +236,7 @@ public class PromqlLogicalPlanOptimizerTests extends AbstractLogicalPlanOptimize
             | STATS AVG(AVG_OVER_TIME(network.bytes_in)) BY pod, TBUCKET(1h)
             | LIMIT 1000
             """);
+        List<Attribute> output = plan.output();
 
     }
 

@@ -67,6 +67,7 @@ import org.elasticsearch.xpack.esql.session.Result;
 
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -208,9 +209,27 @@ public class ComputeService {
 
         List<PhysicalPlan> subplans = subplansAndMainPlan.v1();
 
+        // take a snapshot of the initial cluster statuses, this will be checked when executing data node plan on remote clusters
+        Map<String, EsqlExecutionInfo.Cluster.Status> initialClusterStatuses = new HashMap<>(execInfo.clusterInfo.size());
+        for (Map.Entry<String, EsqlExecutionInfo.Cluster> entry : execInfo.clusterInfo.entrySet()) {
+            initialClusterStatuses.put(entry.getKey(), entry.getValue().getStatus());
+        }
+
         // we have no sub plans, so we can just execute the given plan
         if (subplans == null || subplans.isEmpty()) {
-            executePlan(sessionId, rootTask, flags, physicalPlan, configuration, foldContext, execInfo, null, listener, null);
+            executePlan(
+                sessionId,
+                rootTask,
+                flags,
+                physicalPlan,
+                configuration,
+                foldContext,
+                execInfo,
+                null,
+                listener,
+                null,
+                initialClusterStatuses
+            );
             return;
         }
 
@@ -285,7 +304,8 @@ public class ComputeService {
                             exchangeService.finishSinkHandler(childSessionId, e);
                             subPlanListener.onFailure(e);
                         }),
-                        () -> exchangeSink.createExchangeSink(() -> {})
+                        () -> exchangeSink.createExchangeSink(() -> {}),
+                        initialClusterStatuses
                     );
                 }
             }
@@ -302,7 +322,8 @@ public class ComputeService {
         EsqlExecutionInfo execInfo,
         String profileQualifier,
         ActionListener<Result> listener,
-        Supplier<ExchangeSink> exchangeSinkSupplier
+        Supplier<ExchangeSink> exchangeSinkSupplier,
+        Map<String, EsqlExecutionInfo.Cluster.Status> initialClusterStatuses
     ) {
         Tuple<PhysicalPlan, PhysicalPlan> coordinatorAndDataNodePlan = PlannerUtils.breakPlanBetweenCoordinatorAndDataNode(
             physicalPlan,
@@ -487,8 +508,16 @@ public class ComputeService {
                 // starts computes on remote clusters
                 final var remoteClusters = clusterComputeHandler.getRemoteClusters(clusterToConcreteIndices, clusterToOriginalIndices);
                 for (ClusterComputeHandler.RemoteCluster cluster : remoteClusters) {
-                    if (execInfo.getCluster(cluster.clusterAlias()).getStatus() != EsqlExecutionInfo.Cluster.Status.RUNNING) {
+                    EsqlExecutionInfo.Cluster.Status clusterStatus = initialClusterStatuses.get(cluster.clusterAlias());
+                    if (clusterStatus != EsqlExecutionInfo.Cluster.Status.RUNNING) {
                         // if the cluster is already in the terminal state from the planning stage, no need to call it
+                        // the initial cluster status is collected before the query is executed,
+                        // the execution time status does not affect whether a cluster is skipped or not.
+                        LOGGER.trace(
+                            "skipping execution on remote cluster [{}] since its initial status is [{}]",
+                            cluster.clusterAlias(),
+                            clusterStatus
+                        );
                         continue;
                     }
                     clusterComputeHandler.startComputeOnRemoteCluster(

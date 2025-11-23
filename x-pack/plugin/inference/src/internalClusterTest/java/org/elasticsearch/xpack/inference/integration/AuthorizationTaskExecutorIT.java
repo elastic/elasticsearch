@@ -106,7 +106,7 @@ public class AuthorizationTaskExecutorIT extends ESSingleNodeTestCase {
     @Override
     protected Settings nodeSettings() {
         return Settings.builder()
-            // Disable CCM to ensure that only the authorization task executor is initialized in the inference plugin when it is created
+            // Disable CCM to ensure that we don't rely on a CCM configuration existing
             .put(CCMSettings.CCM_SUPPORTED_ENVIRONMENT.getKey(), false)
             .put(ElasticInferenceServiceSettings.ELASTIC_INFERENCE_SERVICE_URL.getKey(), gatewayUrl)
             // Ensure that the polling logic only occurs once so we can deterministically control when an authorization response is

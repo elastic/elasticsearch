@@ -11,8 +11,8 @@ import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.support.TestPlainActionFuture;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.features.FeatureService;
@@ -81,9 +81,10 @@ public class CCMEnablementServiceTests extends ESTestCase {
 
     public void testIsEnabled_ReturnsFalse_WhenConfigurationNotEnabledYet() {
         var state = ClusterState.builder(ClusterState.EMPTY_STATE)
-            .metadata(
-                Metadata.builder(ClusterState.EMPTY_STATE.metadata())
+            .putProjectMetadata(
+                ProjectMetadata.builder(ProjectId.DEFAULT)
                     .putCustom(CCMEnablementService.EnablementMetadata.NAME, new CCMEnablementService.EnablementMetadata(false))
+                    .build()
             )
             .build();
 
@@ -102,9 +103,10 @@ public class CCMEnablementServiceTests extends ESTestCase {
 
     public void testIsEnabled_ReturnsTrue_WhenConfigurationExists() {
         var state = ClusterState.builder(ClusterState.EMPTY_STATE)
-            .metadata(
-                Metadata.builder(ClusterState.EMPTY_STATE.metadata())
+            .putProjectMetadata(
+                ProjectMetadata.builder(ProjectId.DEFAULT)
                     .putCustom(CCMEnablementService.EnablementMetadata.NAME, new CCMEnablementService.EnablementMetadata(true))
+                    .build()
             )
             .build();
 

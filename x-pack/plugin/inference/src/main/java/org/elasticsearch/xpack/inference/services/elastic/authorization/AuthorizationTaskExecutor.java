@@ -121,7 +121,9 @@ public class AuthorizationTaskExecutor extends PersistentTasksExecutor<Authoriza
      * get an error indicating that it isn't aware of whether the task is a cluster scoped task.
      */
     public synchronized void startAndLazyCreateTask() {
-        startInternal();
+        if (pollerParameters.elasticInferenceServiceSettings().isAuthorizationEnabled()) {
+            startInternal();
+        }
     }
 
     private void startInternal() {
@@ -168,9 +170,8 @@ public class AuthorizationTaskExecutor extends PersistentTasksExecutor<Authoriza
             return true;
         }
 
-        return clusterCanSupportFeature(state) == false
-            || running.get() == false
-            || authorizationTaskExists(state)
+        return clusterCanSupportFeature(state) == false || running.get() == false || authorizationTaskExists(state)
+        // TODO write some integration tests for this
             || ccmSupportedButNotYetConfigured();
     }
 

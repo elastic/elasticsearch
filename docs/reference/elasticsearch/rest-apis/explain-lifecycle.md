@@ -208,7 +208,7 @@ If {{ilm-init}} is waiting for a step to complete, the response includes status 
 ```
 % TESTRESPONSE[skip:not possible to get the cluster into this state in a docs test]
 
-1. Status of the step that's in progress.
+1. The status of the step that's in progress.
 
 ## Diagnose lifecycle errors
 

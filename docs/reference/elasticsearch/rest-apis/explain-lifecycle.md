@@ -87,15 +87,15 @@ When management of the index is first taken over by {{ilm-init}}, `explain` show
 ```
 % TESTRESPONSE[skip:no way to know if we will get this response immediately]
 
-1. When the index was created, this timestamp is used to determine when to rollover
-2. The time since the index creation (used for calculating when to rollover the index via the `max_age`)
-3. Shows if the index is being managed by {{ilm-init}}. If the index is not managed by {{ilm-init}} the other fields will not be shown
-4. The name of the policy which {{ilm-init}} is using for this index
-5. The timestamp used for the `min_age`
-6. The age of the index (used for calculating when to enter the next phase)
-7. When the index entered the current phase
-8. When the index entered the current action
-9. When the index entered the current step
+1. When the index was created. This timestamp is used to determine when to roll over the index.
+2. The time since the index creation (used for calculating when to rollover the index via the `max_age`).
+3. Shows if the index is being managed by {{ilm-init}}. If the index is not managed by {{ilm-init}} the other fields will not be shown.
+4. The name of the policy which {{ilm-init}} is using for this index.
+5. The timestamp used for the `min_age`.
+6. The age of the index (used for calculating when to enter the next phase).
+7. When the index entered the current phase.
+8. When the index entered the current action.
+9. When the index entered the current step.
 
 ## View the phase definition applied to an index
 

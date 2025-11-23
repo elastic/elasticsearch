@@ -271,8 +271,8 @@ to the next step. Some steps are safe to automatically be retried in certain cir
 ```
 % TESTRESPONSE[skip:not possible to get the cluster into this state in a docs test]
 
-1. The step that caused the error
+1. The step that caused the error.
 2. Indicates if retrying the failed step can overcome the error. If this is true, {{ilm-init}} will retry the failed step automatically.
 3. Shows the number of attempted automatic retries to execute the failed step.
-4. What went wrong
+4. What went wrong.
 5. Contains a copy of the `step_info` field (when it exists) of the last attempted or executed step for diagnostic purposes, since the `step_info` is overwritten during each new attempt.

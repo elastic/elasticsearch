@@ -144,7 +144,7 @@ Once the policy is running on the index, the response includes a `phase_executio
 % TESTRESPONSE[skip:not possible to get the cluster into this state in a docs test]
 
 1. The JSON phase definition loaded from the specified policy when the index entered this phase
-2. The rollover action includes the default `max_primary_shard_docs` and `min_docs` conditions. See [ILM Rollover Options](../index-lifecycle-actions/ilm-rollover.md#ilm-rollover-options) for more information.
+2. The rollover action includes the default `max_primary_shard_docs` and `min_docs` conditions. See [ILM rollover options](../index-lifecycle-actions/ilm-rollover.md#ilm-rollover-options) for more information.
 3. The version of the policy that was loaded
 4. The date the loaded policy was last modified
 5. The epoch time when the loaded policy was last modified

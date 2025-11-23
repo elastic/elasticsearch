@@ -52,7 +52,7 @@ GET /_cluster/health?wait_for_status=green&timeout=10s
 
 -->
 
-```
+```console
 GET my-index-000001/_ilm/explain?human
 ```
 

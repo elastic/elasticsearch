@@ -128,11 +128,6 @@ public class ArrowResponse implements ChunkedRestResponseBodyPart, Releasable {
      * the schema header, the data buffers, and the trailer.
      */
     protected abstract static class ResponseSegment {
-        static {
-            // Init the Arrow memory manager shim
-            AllocationManagerShim.init();
-        }
-
         protected final ArrowResponse response;
 
         ResponseSegment(ArrowResponse response) {

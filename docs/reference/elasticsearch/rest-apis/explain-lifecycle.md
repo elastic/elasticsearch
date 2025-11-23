@@ -6,7 +6,7 @@ applies_to:
 navigation_title: Understand the lifecycle status
 ---
 
-# Explain lifecycle API examples [explain-lifecycle-api]
+# Use the explain lifecycle API to understand the index lifecycle status [explain-lifecycle-api]
 
 The [explain lifecycle API](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-ilm-explain-lifecycle) retrieves the current lifecycle status for one or more indices. For data streams, the API retrieves the lifecycle status for the stream’s backing indices, including the current phase, action, step, and any failures.
 

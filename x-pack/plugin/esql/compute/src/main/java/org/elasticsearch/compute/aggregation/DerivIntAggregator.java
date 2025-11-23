@@ -27,9 +27,10 @@ class DerivIntAggregator {
 
     public static SimpleLinearRegressionWithTimeseries initSingle(
         DriverContext driverContext,
-        SimpleLinearRegressionWithTimeseries.SimpleLinearModelFunction fn
+        SimpleLinearRegressionWithTimeseries.SimpleLinearModelFunction fn,
+        boolean dateNanos
     ) {
-        return new SimpleLinearRegressionWithTimeseries(fn);
+        return new SimpleLinearRegressionWithTimeseries(fn, dateNanos);
     }
 
     public static void combine(SimpleLinearRegressionWithTimeseries current, int value, long timestamp) {
@@ -53,9 +54,10 @@ class DerivIntAggregator {
 
     public static DerivDoubleAggregator.GroupingState initGrouping(
         DriverContext driverContext,
-        SimpleLinearRegressionWithTimeseries.SimpleLinearModelFunction fn
+        SimpleLinearRegressionWithTimeseries.SimpleLinearModelFunction fn,
+        boolean dateNanos
     ) {
-        return new DerivDoubleAggregator.GroupingState(driverContext.bigArrays(), fn);
+        return new DerivDoubleAggregator.GroupingState(driverContext.bigArrays(), fn, dateNanos);
     }
 
     public static void combine(DerivDoubleAggregator.GroupingState state, int groupId, int value, long timestamp) {

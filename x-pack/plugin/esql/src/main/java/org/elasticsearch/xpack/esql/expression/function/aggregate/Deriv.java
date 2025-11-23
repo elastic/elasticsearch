@@ -118,10 +118,11 @@ public class Deriv extends TimeSeriesAggregateFunction implements ToAggregator, 
     public AggregatorFunctionSupplier supplier() {
         final DataType type = field().dataType();
         SimpleLinearRegressionWithTimeseries.SimpleLinearModelFunction fn = (SimpleLinearRegressionWithTimeseries model) -> model.slope();
+        final boolean isDateNanos = timestamp.dataType() == DataType.DATE_NANOS;
         return switch (type) {
-            case DOUBLE -> new DerivDoubleAggregatorFunctionSupplier(fn);
-            case LONG -> new DerivLongAggregatorFunctionSupplier(fn);
-            case INTEGER -> new DerivIntAggregatorFunctionSupplier(fn);
+            case DOUBLE -> new DerivDoubleAggregatorFunctionSupplier(fn, isDateNanos);
+            case LONG -> new DerivLongAggregatorFunctionSupplier(fn, isDateNanos);
+            case INTEGER -> new DerivIntAggregatorFunctionSupplier(fn, isDateNanos);
             default -> throw new IllegalArgumentException("Unsupported data type for deriv aggregation: " + type);
         };
     }

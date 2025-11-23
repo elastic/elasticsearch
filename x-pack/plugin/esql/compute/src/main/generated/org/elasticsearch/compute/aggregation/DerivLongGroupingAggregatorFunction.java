@@ -41,19 +41,22 @@ public final class DerivLongGroupingAggregatorFunction implements GroupingAggreg
 
   private final SimpleLinearRegressionWithTimeseries.SimpleLinearModelFunction fn;
 
+  private final boolean dateNanos;
+
   public DerivLongGroupingAggregatorFunction(List<Integer> channels,
       DerivDoubleAggregator.GroupingState state, DriverContext driverContext,
-      SimpleLinearRegressionWithTimeseries.SimpleLinearModelFunction fn) {
+      SimpleLinearRegressionWithTimeseries.SimpleLinearModelFunction fn, boolean dateNanos) {
     this.channels = channels;
     this.state = state;
     this.driverContext = driverContext;
     this.fn = fn;
+    this.dateNanos = dateNanos;
   }
 
   public static DerivLongGroupingAggregatorFunction create(List<Integer> channels,
       DriverContext driverContext,
-      SimpleLinearRegressionWithTimeseries.SimpleLinearModelFunction fn) {
-    return new DerivLongGroupingAggregatorFunction(channels, DerivLongAggregator.initGrouping(driverContext, fn), driverContext, fn);
+      SimpleLinearRegressionWithTimeseries.SimpleLinearModelFunction fn, boolean dateNanos) {
+    return new DerivLongGroupingAggregatorFunction(channels, DerivLongAggregator.initGrouping(driverContext, fn, dateNanos), driverContext, fn, dateNanos);
   }
 
   public static List<IntermediateStateDesc> intermediateStateDesc() {

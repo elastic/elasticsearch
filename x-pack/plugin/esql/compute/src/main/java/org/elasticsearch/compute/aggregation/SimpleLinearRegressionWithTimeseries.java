@@ -30,19 +30,21 @@ public class SimpleLinearRegressionWithTimeseries implements AggregatorState {
     double sumTsVal;
     long sumTsSq;
     long maxTs;
+    double dateFactor;
     final SimpleLinearModelFunction fn;
 
     public interface SimpleLinearModelFunction {
         double predict(SimpleLinearRegressionWithTimeseries model);
     }
 
-    SimpleLinearRegressionWithTimeseries(SimpleLinearModelFunction fn) {
+    SimpleLinearRegressionWithTimeseries(SimpleLinearModelFunction fn, boolean dateNanos) {
         this.count = 0;
         this.sumVal = 0.0;
         this.sumTs = 0;
         this.sumTsVal = 0.0;
         this.sumTsSq = 0;
         this.maxTs = Long.MIN_VALUE;
+        this.dateFactor = dateNanos ? 1_000_000.0 : 1_000.0;
         this.fn = fn;
     }
 
@@ -70,7 +72,7 @@ public class SimpleLinearRegressionWithTimeseries implements AggregatorState {
         if (denominator == 0) {
             return Double.NaN;
         }
-        return numerator / denominator * 1000.0; // per second
+        return numerator / denominator * dateFactor; // per second
     }
 
     public double intercept() {

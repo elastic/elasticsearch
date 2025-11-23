@@ -39,18 +39,22 @@ public final class DerivDoubleAggregatorFunction implements AggregatorFunction {
 
   private final SimpleLinearRegressionWithTimeseries.SimpleLinearModelFunction fn;
 
+  private final boolean dateNanos;
+
   public DerivDoubleAggregatorFunction(DriverContext driverContext, List<Integer> channels,
       SimpleLinearRegressionWithTimeseries state,
-      SimpleLinearRegressionWithTimeseries.SimpleLinearModelFunction fn) {
+      SimpleLinearRegressionWithTimeseries.SimpleLinearModelFunction fn, boolean dateNanos) {
     this.driverContext = driverContext;
     this.channels = channels;
     this.state = state;
     this.fn = fn;
+    this.dateNanos = dateNanos;
   }
 
   public static DerivDoubleAggregatorFunction create(DriverContext driverContext,
-      List<Integer> channels, SimpleLinearRegressionWithTimeseries.SimpleLinearModelFunction fn) {
-    return new DerivDoubleAggregatorFunction(driverContext, channels, DerivDoubleAggregator.initSingle(driverContext, fn), fn);
+      List<Integer> channels, SimpleLinearRegressionWithTimeseries.SimpleLinearModelFunction fn,
+      boolean dateNanos) {
+    return new DerivDoubleAggregatorFunction(driverContext, channels, DerivDoubleAggregator.initSingle(driverContext, fn, dateNanos), fn, dateNanos);
   }
 
   public static List<IntermediateStateDesc> intermediateStateDesc() {

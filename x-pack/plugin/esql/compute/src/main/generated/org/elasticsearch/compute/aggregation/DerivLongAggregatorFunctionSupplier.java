@@ -17,9 +17,12 @@ import org.elasticsearch.compute.operator.DriverContext;
 public final class DerivLongAggregatorFunctionSupplier implements AggregatorFunctionSupplier {
   private final SimpleLinearRegressionWithTimeseries.SimpleLinearModelFunction fn;
 
+  private final boolean dateNanos;
+
   public DerivLongAggregatorFunctionSupplier(
-      SimpleLinearRegressionWithTimeseries.SimpleLinearModelFunction fn) {
+      SimpleLinearRegressionWithTimeseries.SimpleLinearModelFunction fn, boolean dateNanos) {
     this.fn = fn;
+    this.dateNanos = dateNanos;
   }
 
   @Override
@@ -35,13 +38,13 @@ public final class DerivLongAggregatorFunctionSupplier implements AggregatorFunc
   @Override
   public DerivLongAggregatorFunction aggregator(DriverContext driverContext,
       List<Integer> channels) {
-    return DerivLongAggregatorFunction.create(driverContext, channels, fn);
+    return DerivLongAggregatorFunction.create(driverContext, channels, fn, dateNanos);
   }
 
   @Override
   public DerivLongGroupingAggregatorFunction groupingAggregator(DriverContext driverContext,
       List<Integer> channels) {
-    return DerivLongGroupingAggregatorFunction.create(channels, driverContext, fn);
+    return DerivLongGroupingAggregatorFunction.create(channels, driverContext, fn, dateNanos);
   }
 
   @Override

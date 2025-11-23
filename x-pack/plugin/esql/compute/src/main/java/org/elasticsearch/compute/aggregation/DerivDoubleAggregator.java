@@ -33,9 +33,10 @@ class DerivDoubleAggregator {
 
     public static SimpleLinearRegressionWithTimeseries initSingle(
         DriverContext driverContext,
-        SimpleLinearRegressionWithTimeseries.SimpleLinearModelFunction fn
+        SimpleLinearRegressionWithTimeseries.SimpleLinearModelFunction fn,
+        boolean dateNanos
     ) {
-        return new SimpleLinearRegressionWithTimeseries(fn);
+        return new SimpleLinearRegressionWithTimeseries(fn, dateNanos);
     }
 
     public static void combine(SimpleLinearRegressionWithTimeseries current, double value, long timestamp) {
@@ -68,9 +69,10 @@ class DerivDoubleAggregator {
 
     public static GroupingState initGrouping(
         DriverContext driverContext,
-        SimpleLinearRegressionWithTimeseries.SimpleLinearModelFunction fn
+        SimpleLinearRegressionWithTimeseries.SimpleLinearModelFunction fn,
+        boolean dateNanos
     ) {
-        return new GroupingState(driverContext.bigArrays(), fn);
+        return new GroupingState(driverContext.bigArrays(), fn, dateNanos);
     }
 
     public static void combine(GroupingState state, int groupId, double value, long timestamp) {
@@ -112,11 +114,13 @@ class DerivDoubleAggregator {
     public static final class GroupingState extends AbstractArrayState {
         private ObjectArray<SimpleLinearRegressionWithTimeseries> states;
         final SimpleLinearRegressionWithTimeseries.SimpleLinearModelFunction fn;
+        final boolean dateNanos;
 
-        GroupingState(BigArrays bigArrays, SimpleLinearRegressionWithTimeseries.SimpleLinearModelFunction fn) {
+        GroupingState(BigArrays bigArrays, SimpleLinearRegressionWithTimeseries.SimpleLinearModelFunction fn, boolean dateNanos) {
             super(bigArrays);
             states = bigArrays.newObjectArray(1);
             this.fn = fn;
+            this.dateNanos = dateNanos;
         }
 
         SimpleLinearRegressionWithTimeseries get(int groupId) {
@@ -132,7 +136,7 @@ class DerivDoubleAggregator {
             }
             SimpleLinearRegressionWithTimeseries slr = states.get(groupId);
             if (slr == null) {
-                slr = new SimpleLinearRegressionWithTimeseries(fn);
+                slr = new SimpleLinearRegressionWithTimeseries(fn, dateNanos);
                 states.set(groupId, slr);
             }
             return slr;

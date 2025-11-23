@@ -158,10 +158,11 @@ public class PredictLinear extends TimeSeriesAggregateFunction implements ToAggr
             return intercept + slope * (lastTsSec + timeDiffSeconds);
         };
         final DataType type = field().dataType();
+        final boolean isDateNanos = timestamp.dataType() == DataType.DATE_NANOS;
         return switch (type) {
-            case LONG -> new DerivLongAggregatorFunctionSupplier(fn);
-            case INTEGER -> new DerivIntAggregatorFunctionSupplier(fn);
-            case DOUBLE -> new DerivDoubleAggregatorFunctionSupplier(fn);
+            case LONG -> new DerivLongAggregatorFunctionSupplier(fn, isDateNanos);
+            case INTEGER -> new DerivIntAggregatorFunctionSupplier(fn, isDateNanos);
+            case DOUBLE -> new DerivDoubleAggregatorFunctionSupplier(fn, isDateNanos);
             default -> throw new IllegalArgumentException("Unsupported data type for deriv aggregation: " + type);
         };
     }

@@ -438,6 +438,9 @@ tests:
 - class: org.elasticsearch.test.rest.yaml.RcsCcsCommonYamlTestSuiteIT
   method: test {p0=search/160_exists_query/Test exists query on geo_point field in empty index}
   issue: https://github.com/elastic/elasticsearch/issues/138461
+- class: org.elasticsearch.test.rest.yaml.CcsCommonYamlTestSuiteIT
+  method: test {p0=search.vectors/171_knn_index_base64_encoded_vectors/Retrieve Base64 encoded vectors when exclude vectors from source is false}
+  issue: https://github.com/elastic/elasticsearch/issues/138462
 
 # Examples:
 #

@@ -236,8 +236,6 @@ public class CleanupRoleMappingDuplicatesMigrationIT extends SecurityIntegTestCa
         waitForMigrationCompletion(SecurityMigrations.CLEANUP_ROLE_MAPPING_DUPLICATES_MIGRATION_VERSION);
         // First migration is on a new index, so should skip all migrations. If we reset, it should re-trigger and run all migrations
         resetMigration();
-        // Wait for the first migration to finish
-        waitForMigrationCompletion(SecurityMigrations.CLEANUP_ROLE_MAPPING_DUPLICATES_MIGRATION_VERSION - 1);
 
         // Make sure migration didn't run yet (blocked by the fallback name)
         assertMigrationLessThan(SecurityMigrations.CLEANUP_ROLE_MAPPING_DUPLICATES_MIGRATION_VERSION);
@@ -307,10 +305,7 @@ public class CleanupRoleMappingDuplicatesMigrationIT extends SecurityIntegTestCa
         ensureGreen();
         deleteSecurityIndex(); // hack to force a new security index to be created
         ensureGreen();
-        CountDownLatch awaitMigrations = awaitMigrationVersionUpdates(
-            masterNode,
-            SecurityMigrations.CLEANUP_ROLE_MAPPING_DUPLICATES_MIGRATION_VERSION
-        );
+        CountDownLatch awaitMigrations = awaitMigrationVersionUpdates(masterNode, SecurityMigrations.MIGRATIONS_BY_VERSION.lastKey());
         // Create a native role mapping to create security index and trigger migration
         createNativeRoleMapping("everyone_kibana_alone");
         // Make sure no migration ran (set to current version without applying prior migrations)

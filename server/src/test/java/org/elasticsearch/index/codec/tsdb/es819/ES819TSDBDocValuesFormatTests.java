@@ -982,13 +982,9 @@ public class ES819TSDBDocValuesFormatTests extends ES87TSDBDocValuesFormatTests 
                                 assertEquals(expectedGauge, actualGauge);
                             }
                         }
-
-                        // TODO add bulk loading to compressed values so this is not necessary
-                        var block = (TestBlock) binaryFixedDV.tryRead(factory, docs, 0, random().nextBoolean(), null, false);
-                        if (isCompressed(config, binaryFixedField)) {
-                            assertNull(block);
-                        } else {
+                        {
                             // bulk loading binary fixed length field:
+                            var block = (TestBlock) binaryFixedDV.tryRead(factory, docs, 0, random().nextBoolean(), null, false);
                             assertNotNull(block);
                             assertEquals(size, block.size());
                             for (int j = 0; j < block.size(); j++) {
@@ -997,13 +993,9 @@ public class ES819TSDBDocValuesFormatTests extends ES87TSDBDocValuesFormatTests 
                                 assertEquals(expected, actual);
                             }
                         }
-
-                        // TODO add bulk loading to compressed values so this is not necessary
-                        block = (TestBlock) binaryVariableDV.tryRead(factory, docs, 0, random().nextBoolean(), null, false);
-                        if (isCompressed(config, binaryVariableField)) {
-                            assertNull(block);
-                        } else {
+                        {
                             // bulk loading binary variable length field:
+                            var block = (TestBlock) binaryVariableDV.tryRead(factory, docs, 0, random().nextBoolean(), null, false);
                             assertNotNull(block);
                             assertEquals(size, block.size());
                             for (int j = 0; j < block.size(); j++) {
@@ -1376,27 +1368,17 @@ public class ES819TSDBDocValuesFormatTests extends ES87TSDBDocValuesFormatTests 
                         {
                             var dv = getDenseBinaryValues(leafReader, binaryFixedField);
                             var block = (TestBlock) dv.tryRead(factory, docs, 0, random().nextBoolean(), null, false);
-                            // TODO add bulk loading to compressed values so this is not necessary
-                            if (isCompressed(config, binaryFixedField)) {
-                                assertNull(block);
-                            } else {
-                                assertNotNull(block);
-                                for (int i = 0; i < testDocs.size(); i++) {
-                                    assertThat(block.get(i), equalTo(binaryFixed[testDocs.get(i)]));
-                                }
+                            assertNotNull(block);
+                            for (int i = 0; i < testDocs.size(); i++) {
+                                assertThat(block.get(i), equalTo(binaryFixed[testDocs.get(i)]));
                             }
                         }
                         {
                             var dv = getDenseBinaryValues(leafReader, binaryVariableField);
                             var block = (TestBlock) dv.tryRead(factory, docs, 0, random().nextBoolean(), null, false);
-                            // TODO add bulk loading to compressed values so this is not necessary
-                            if (isCompressed(config, binaryVariableField)) {
-                                assertNull(block);
-                            } else {
-                                assertNotNull(block);
-                                for (int i = 0; i < testDocs.size(); i++) {
-                                    assertThat(block.get(i), equalTo(binaryVariable[testDocs.get(i)]));
-                                }
+                            assertNotNull(block);
+                            for (int i = 0; i < testDocs.size(); i++) {
+                                assertThat(block.get(i), equalTo(binaryVariable[testDocs.get(i)]));
                             }
                         }
                     }
@@ -1797,14 +1779,4 @@ public class ES819TSDBDocValuesFormatTests extends ES87TSDBDocValuesFormatTests 
         BinaryDVCompressionMode[] modes = BinaryDVCompressionMode.values();
         return modes[random().nextInt(modes.length)];
     }
-
-    private boolean isCompressed(IndexWriterConfig config, String field) {
-        if (config.getCodec() instanceof Elasticsearch92Lucene103Codec codec) {
-            if (codec.getDocValuesFormatForField(field) instanceof ES819TSDBDocValuesFormat format) {
-                return format.binaryDVCompressionMode != BinaryDVCompressionMode.NO_COMPRESS;
-            }
-        }
-        return false;
-    }
-
 }

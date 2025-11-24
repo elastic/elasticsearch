@@ -121,7 +121,15 @@ public class PushExpressionToLoadIT extends ESRestTestCase {
                 """,
             matchesList().item(1),
             matchesMap().entry("main_matching:column_at_a_time:BytesRefsFromOrds.Singleton", 1), //
-            sig -> {}
+            sig -> assertMap(
+                sig,
+                matchesList().item("LuceneSourceOperator")
+                    .item("ValuesSourceReaderOperator") // the real work is here, checkOperatorProfile checks the status
+                    .item("LookupOperator")
+                    .item("EvalOperator") // this one just renames the field
+                    .item("AggregationOperator")
+                    .item("ExchangeSinkOperator")
+            )
         );
     }
 
@@ -131,7 +139,6 @@ public class PushExpressionToLoadIT extends ESRestTestCase {
      * querying it.
      */
     public void testLengthNotPushedToLookupJoinKeywordSameName() throws IOException {
-        assumeFalse("fix in 137679 - we push to the index but that's just wrong!", true);
         String value = "v".repeat(between(0, 256));
         initLookupIndex();
         test(b -> {
@@ -144,10 +151,58 @@ public class PushExpressionToLoadIT extends ESRestTestCase {
                 | LOOKUP JOIN lookup ON matching == main_matching
                 | EVAL test = LENGTH(test)
                 """,
-            matchesList().item(1), // <--- This is incorrectly returning value.length()
+            matchesList().item(1),
             matchesMap().entry("main_matching:column_at_a_time:BytesRefsFromOrds.Singleton", 1),
-            // ^^^^ This is incorrectly returning test:column_at_a_time:Utf8CodePointsFromOrds.Singleton
-            sig -> {}
+            sig -> assertMap(
+                sig,
+                matchesList().item("LuceneSourceOperator")
+                    .item("ValuesSourceReaderOperator") // the real work is here, checkOperatorProfile checks the status
+                    .item("LookupOperator")
+                    .item("EvalOperator") // this one just renames the field
+                    .item("AggregationOperator")
+                    .item("ExchangeSinkOperator")
+            )
+        );
+    }
+
+    /**
+     * Tests {@code LENGTH} on a field that comes from a {@code LOOKUP JOIN}.
+     */
+    public void testLengthPushedToInlineStats() throws IOException {
+        String value = "v".repeat(between(0, 256));
+        test(
+            justType("keyword"),
+            b -> b.field("test", value),
+            """
+                | INLINE STATS max_length = MAX(LENGTH(test))
+                | EVAL test = LENGTH(test)
+                | WHERE test == max_length
+                """,
+            matchesList().item(value.length()),
+            matchesMap().entry("test:column_at_a_time:Utf8CodePointsFromOrds.Singleton", 1), //
+            sig -> {
+                // There are two data node plans, one for each phase.
+                if (sig.contains("FilterOperator")) {
+                    assertMap(
+                        sig,
+                        matchesList().item("LuceneSourceOperator")
+                            .item("ValuesSourceReaderOperator") // the real work is here, checkOperatorProfile checks the status
+                            .item("FilterOperator")
+                            .item("EvalOperator") // this one just renames the field
+                            .item("AggregationOperator")
+                            .item("ExchangeSinkOperator")
+                    );
+                } else {
+                    assertMap(
+                        sig,
+                        matchesList().item("LuceneSourceOperator")
+                            .item("ValuesSourceReaderOperator") // the real work is here, checkOperatorProfile checks the status
+                            .item("EvalOperator") // this one just renames the field
+                            .item("AggregationOperator")
+                            .item("ExchangeSinkOperator")
+                    );
+                }
+            }
         );
     }
 

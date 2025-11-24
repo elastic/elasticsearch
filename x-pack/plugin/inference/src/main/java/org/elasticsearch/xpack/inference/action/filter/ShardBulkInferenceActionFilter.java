@@ -50,6 +50,8 @@ import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.UnparsedModel;
 import org.elasticsearch.inference.telemetry.InferenceStats;
 import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.xcontent.XContent;
@@ -92,6 +94,8 @@ import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.toSeman
  *
  */
 public class ShardBulkInferenceActionFilter implements MappedActionFilter {
+    private static final Logger logger = LogManager.getLogger(ShardBulkInferenceActionFilter.class);
+
     private static final ByteSizeValue DEFAULT_BATCH_SIZE = ByteSizeValue.ofMb(1);
 
     /**
@@ -372,6 +376,11 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
                             }
                             inferenceResults.get(request.bulkItemIndex).failures.add(failure);
                         }
+
+                        if (ExceptionsHelper.status(exc).getStatus() >= 500) {
+                            List<String> fields = requests.stream().map(FieldInferenceRequest::field).distinct().toList();
+                            logger.warn("Error loading inference for inference id [" + inferenceId + "] on fields " + fields, exc);
+                        }
                     }
                 });
                 modelRegistry.getModelWithSecrets(inferenceId, modelLoadingListener);
@@ -440,6 +449,17 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
                                 inferenceProvider.model.getInferenceEntityId(),
                                 request.field
                             )
+                        );
+                    }
+
+                    if (ExceptionsHelper.status(exc).getStatus() >= 500) {
+                        List<String> fields = requests.stream().map(FieldInferenceRequest::field).distinct().toList();
+                        logger.warn(
+                            "Exception when running inference id ["
+                                + inferenceProvider.model.getInferenceEntityId()
+                                + "] on fields "
+                                + fields,
+                            exc
                         );
                     }
                 }

@@ -37,6 +37,7 @@ import org.apache.lucene.search.ReferenceManager;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.SubscribableListener;
+import org.elasticsearch.cluster.routing.SplitShardCountSummary;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
 import org.elasticsearch.common.settings.ClusterSettings;
@@ -679,10 +680,11 @@ public class SearchEngine extends Engine {
     }
 
     @Override
-    protected DirectoryReader wrapDirectoryReader(DirectoryReader reader) throws IOException {
+    protected DirectoryReader wrapExternalDirectoryReader(DirectoryReader reader, SplitShardCountSummary summary) throws IOException {
         return ReshardSearchFilters.maybeWrapDirectoryReader(
             reader,
             shardId,
+            summary,
             engineConfig.getIndexSettings().getIndexMetadata(),
             engineConfig.getMapperService()
         );
@@ -691,11 +693,6 @@ public class SearchEngine extends Engine {
     // visible for testing
     long getLastSearcherAcquiredTime() {
         return lastSearcherAcquiredTime;
-    }
-
-    @Override
-    public SearcherSupplier acquireSearcherSupplier(Function<Searcher, Searcher> wrapper, SearcherScope scope) throws EngineException {
-        return super.acquireSearcherSupplier(wrapper, scope);
     }
 
     @Override

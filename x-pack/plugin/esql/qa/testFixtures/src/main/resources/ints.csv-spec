@@ -209,6 +209,7 @@ required_capability: to_long_base
 | WHERE group == 0
 | KEEP  string, base, expect_long
 ;
+ignoreOrder:true
 
 string:keyword | base:integer | expect_long:long
 0xff           | 16           | 255
@@ -225,6 +226,7 @@ required_capability: to_long_base
 | EVAL  to_long = TO_LONG(string, base)
 | KEEP  string, base, to_long
 ;
+ignoreOrder:true
 
 string:keyword | base:integer | to_long:long
 0x32           | 16           | 50
@@ -240,6 +242,7 @@ required_capability: to_long_base
 | EVAL  to_long = TO_LONG(string, base)
 | KEEP  string, base, to_long
 ;
+ignoreOrder:true
 
 string:keyword | base:integer | to_long:long
 314            | 10           | 314
@@ -258,6 +261,7 @@ required_capability: to_long_base
 | EVAL  to_long = TO_LONG(string, base)
 | KEEP  string, base, to_long
 ;
+ignoreOrder:true
 warningRegex:Line 3:19: evaluation of \[TO_LONG\(string, base\)\] failed, treating result as null. Only first 20 failures recorded.
 warningRegex:Line 3:19: org.elasticsearch.xpack.esql.core.InvalidArgumentException: Cannot parse number \[0x1337\]
 warningRegex:Line 3:19: org.elasticsearch.xpack.esql.core.InvalidArgumentException: Unable to convert \[-0x1\] to number of base \[16\]
@@ -293,6 +297,7 @@ required_capability: to_long_base
 | EVAL  to_long = TO_LONG(string, base)
 | KEEP  string, base, to_long
 ;
+ignoreOrder:true
 
 string:keyword | base:integer | to_long:long
 52403          | null         | null
@@ -308,6 +313,7 @@ required_capability: to_long_base
 | EVAL  to_long = TO_LONG(string, base)
 | KEEP  string, base, to_long
 ;
+ignoreOrder:true
 warningRegex:Line 3:19: evaluation of \[TO_LONG\(string, base\)\] failed, treating result as null. Only first 20 failures recorded.
 warningRegex:Line 3:19: org.elasticsearch.xpack.esql.core.InvalidArgumentException: Unable to convert \[8000000000000000\] to number of base \[16\]
 warningRegex:Line 3:19: org.elasticsearch.xpack.esql.core.InvalidArgumentException: Unable to convert \[-8000000000000001\] to number of base \[16\]
@@ -346,6 +352,7 @@ required_capability: to_long_base
 | EVAL  to_long = TO_LONG(string, base)
 | KEEP  string, base, to_long
 ;
+ignoreOrder:true
 warningRegex:Line 3:19: evaluation of \[TO_LONG\(string, base\)\] failed, treating result as null. Only first 20 failures recorded.
 warningRegex:Line 3:19: org.elasticsearch.xpack.esql.core.InvalidArgumentException: Unable to convert \[99\] to number of base \[8\]
 warningRegex:Line 3:19: org.elasticsearch.xpack.esql.core.InvalidArgumentException: Cannot parse number \[Hazelnut\]

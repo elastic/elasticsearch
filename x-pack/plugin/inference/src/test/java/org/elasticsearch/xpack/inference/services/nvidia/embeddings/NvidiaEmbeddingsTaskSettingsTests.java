@@ -13,7 +13,7 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
-import org.elasticsearch.xpack.inference.services.cohere.CohereTruncation;
+import org.elasticsearch.xpack.inference.common.model.Truncation;
 import org.hamcrest.MatcherAssert;
 
 import java.io.IOException;
@@ -31,15 +31,15 @@ import static org.hamcrest.Matchers.sameInstance;
 
 public class NvidiaEmbeddingsTaskSettingsTests extends AbstractWireSerializingTestCase<NvidiaEmbeddingsTaskSettings> {
     private static final InputType INPUT_TYPE_INITIAL_VALUE = InputType.INGEST;
-    private static final CohereTruncation TRUNCATE_INITIAL_VALUE = CohereTruncation.START;
+    private static final Truncation TRUNCATE_INITIAL_VALUE = Truncation.START;
     private static final InputType INPUT_TYPE_OVERRIDDEN_VALUE = InputType.SEARCH;
-    private static final CohereTruncation TRUNCATE_OVERRIDDEN_VALUE = CohereTruncation.END;
+    private static final Truncation TRUNCATE_OVERRIDDEN_VALUE = Truncation.END;
     private static final InputType INPUT_TYPE_INVALID_VALUE = InputType.UNSPECIFIED;
     private static final String TRUNCATE_INVALID_VALUE = "invalid_truncation_value";
 
     public static NvidiaEmbeddingsTaskSettings createRandom() {
         var inputType = randomBoolean() ? randomFrom(VALID_INPUT_TYPE_VALUES) : null;
-        CohereTruncation truncation = randomBoolean() ? randomFrom(CohereTruncation.values()) : null;
+        Truncation truncation = randomBoolean() ? randomFrom(Truncation.values()) : null;
 
         return new NvidiaEmbeddingsTaskSettings(inputType, truncation);
     }
@@ -155,7 +155,7 @@ public class NvidiaEmbeddingsTaskSettingsTests extends AbstractWireSerializingTe
                 Strings.format(
                     "Validation Failed: 1: [task_settings] Invalid value [%s] received. [truncate] must be one of [%s];",
                     TRUNCATE_INVALID_VALUE,
-                    getValidValuesSortedAndCombined(CohereTruncation.ALL)
+                    getValidValuesSortedAndCombined(Truncation.ALL)
                 )
             )
         );
@@ -174,7 +174,7 @@ public class NvidiaEmbeddingsTaskSettingsTests extends AbstractWireSerializingTe
     }
 
     public void testOf_KeepsOriginalValuesWhenRequestSettingsAreNull() {
-        var taskSettings = new NvidiaEmbeddingsTaskSettings(InputType.INGEST, CohereTruncation.START);
+        var taskSettings = new NvidiaEmbeddingsTaskSettings(InputType.INGEST, Truncation.START);
         var overriddenTaskSettings = NvidiaEmbeddingsTaskSettings.of(taskSettings, NvidiaEmbeddingsTaskSettings.EMPTY_SETTINGS);
         MatcherAssert.assertThat(overriddenTaskSettings, is(taskSettings));
     }
@@ -183,10 +183,10 @@ public class NvidiaEmbeddingsTaskSettingsTests extends AbstractWireSerializingTe
         var taskSettings = NvidiaEmbeddingsTaskSettings.EMPTY_SETTINGS;
         var overriddenTaskSettings = NvidiaEmbeddingsTaskSettings.of(
             taskSettings,
-            new NvidiaEmbeddingsTaskSettings(InputType.INGEST, CohereTruncation.START)
+            new NvidiaEmbeddingsTaskSettings(InputType.INGEST, Truncation.START)
         );
 
-        MatcherAssert.assertThat(overriddenTaskSettings, is(new NvidiaEmbeddingsTaskSettings(InputType.INGEST, CohereTruncation.START)));
+        MatcherAssert.assertThat(overriddenTaskSettings, is(new NvidiaEmbeddingsTaskSettings(InputType.INGEST, Truncation.START)));
     }
 
     @Override
@@ -202,10 +202,10 @@ public class NvidiaEmbeddingsTaskSettingsTests extends AbstractWireSerializingTe
     @Override
     protected NvidiaEmbeddingsTaskSettings mutateInstance(NvidiaEmbeddingsTaskSettings instance) throws IOException {
         InputType inputType = instance.getInputType();
-        CohereTruncation truncation = instance.getTruncation();
+        Truncation truncation = instance.getTruncation();
         switch (between(0, 1)) {
             case 0 -> inputType = randomValueOtherThan(inputType, () -> randomBoolean() ? randomFrom(VALID_INPUT_TYPE_VALUES) : null);
-            case 1 -> truncation = randomValueOtherThan(truncation, () -> randomBoolean() ? randomFrom(CohereTruncation.values()) : null);
+            case 1 -> truncation = randomValueOtherThan(truncation, () -> randomBoolean() ? randomFrom(Truncation.values()) : null);
             default -> throw new AssertionError("Illegal randomisation branch");
         }
         return new NvidiaEmbeddingsTaskSettings(inputType, truncation);
@@ -217,7 +217,7 @@ public class NvidiaEmbeddingsTaskSettingsTests extends AbstractWireSerializingTe
      * @param truncation the truncation to include in the map
      * @return a map representing the task settings
      */
-    public static Map<String, Object> buildTaskSettingsMap(@Nullable InputType inputType, @Nullable CohereTruncation truncation) {
+    public static Map<String, Object> buildTaskSettingsMap(@Nullable InputType inputType, @Nullable Truncation truncation) {
         var map = new HashMap<String, Object>();
 
         if (inputType != null) {

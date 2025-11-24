@@ -14,7 +14,7 @@ import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.inference.services.cohere.CohereTruncation;
+import org.elasticsearch.xpack.inference.common.model.Truncation;
 import org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettings;
 
 import java.util.Map;
@@ -29,9 +29,9 @@ public class NvidiaEmbeddingsModelTests extends ESTestCase {
     private static final String API_KEY_VALUE = "test_api_key";
     private static final String MODEL_VALUE = "some_model";
     private static final InputType INPUT_TYPE_INITIAL_ELASTIC_VALUE = InputType.INGEST;
-    private static final CohereTruncation TRUNCATE_INITIAL_ELASTIC_VALUE = CohereTruncation.START;
+    private static final Truncation TRUNCATE_INITIAL_ELASTIC_VALUE = Truncation.START;
     private static final InputType INPUT_TYPE_OVERRIDDEN_ELASTIC_VALUE = InputType.SEARCH;
-    private static final CohereTruncation TRUNCATE_OVERRIDDEN_ELASTIC_VALUE = CohereTruncation.END;
+    private static final Truncation TRUNCATE_OVERRIDDEN_ELASTIC_VALUE = Truncation.END;
 
     public static NvidiaEmbeddingsModel createEmbeddingsModel(
         @Nullable String url,
@@ -40,7 +40,7 @@ public class NvidiaEmbeddingsModelTests extends ESTestCase {
         @Nullable Integer maxInputTokens,
         @Nullable Integer dimensions,
         @Nullable InputType inputType,
-        @Nullable CohereTruncation truncation,
+        @Nullable Truncation truncation,
         @Nullable ChunkingSettings chunkingSettings
     ) {
         return new NvidiaEmbeddingsModel(
@@ -112,11 +112,7 @@ public class NvidiaEmbeddingsModelTests extends ESTestCase {
         assertThat(overriddenModel.getTaskSettings().getTruncation(), is(TRUNCATE_OVERRIDDEN_ELASTIC_VALUE));
     }
 
-    private static void test_OverriddenParams(
-        Map<String, Object> taskSettings,
-        InputType expectedInputType,
-        CohereTruncation expectedTruncate
-    ) {
+    private static void test_OverriddenParams(Map<String, Object> taskSettings, InputType expectedInputType, Truncation expectedTruncate) {
         var model = createEmbeddingsModel(
             URL_VALUE,
             API_KEY_VALUE,

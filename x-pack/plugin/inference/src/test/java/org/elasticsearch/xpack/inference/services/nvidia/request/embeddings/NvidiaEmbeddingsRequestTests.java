@@ -16,8 +16,8 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.inference.common.Truncator;
 import org.elasticsearch.xpack.inference.common.TruncatorTests;
+import org.elasticsearch.xpack.inference.common.model.Truncation;
 import org.elasticsearch.xpack.inference.external.request.HttpRequest;
-import org.elasticsearch.xpack.inference.services.cohere.CohereTruncation;
 import org.elasticsearch.xpack.inference.services.nvidia.embeddings.NvidiaEmbeddingsModelTests;
 import org.hamcrest.Matchers;
 
@@ -43,7 +43,7 @@ public class NvidiaEmbeddingsRequestTests extends ESTestCase {
     private static final String API_KEY_VALUE = "test_api_key";
     private static final InputType INPUT_TYPE_EXPEDIA_INITIAL_VALUE = InputType.INGEST;
     private static final InputType INPUT_TYPE_EXPEDIA_IGNORED_VALUE = InputType.SEARCH;
-    private static final CohereTruncation TRUNCATE_EXPEDIA_VALUE = CohereTruncation.START;
+    private static final Truncation TRUNCATE_EXPEDIA_VALUE = Truncation.START;
     private static final String INPUT_TYPE_NVIDIA_VALUE = "passage";
     private static final String TRUNCATE_NVIDIA_VALUE = "start";
 
@@ -140,7 +140,7 @@ public class NvidiaEmbeddingsRequestTests extends ESTestCase {
         @Nullable String url,
         @Nullable String modelId,
         @Nullable InputType inputType,
-        @Nullable CohereTruncation truncation,
+        @Nullable Truncation truncation,
         @Nullable InputType requestInputType
     ) {
         var embeddingsModel = NvidiaEmbeddingsModelTests.createEmbeddingsModel(

@@ -14,7 +14,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
-import org.elasticsearch.xpack.inference.services.cohere.CohereTruncation;
+import org.elasticsearch.xpack.inference.common.model.Truncation;
 
 import java.io.IOException;
 import java.util.List;
@@ -26,7 +26,7 @@ public class NvidiaEmbeddingsRequestEntityTests extends ESTestCase {
     private static final String MODEL_VALUE = "some_model";
     private static final List<String> INPUT_VALUE = List.of("some input");
     private static final InputType INPUT_TYPE_VALUE = InputType.INGEST;
-    private static final CohereTruncation TRUNCATE_VALUE = CohereTruncation.START;
+    private static final Truncation TRUNCATE_VALUE = Truncation.START;
 
     public void testXContent_AllFields() throws IOException {
         var entity = new NvidiaEmbeddingsRequestEntity(INPUT_VALUE, MODEL_VALUE, INPUT_TYPE_VALUE, TRUNCATE_VALUE);

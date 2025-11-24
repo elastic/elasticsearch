@@ -16,7 +16,7 @@ import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.TaskSettings;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xpack.inference.services.cohere.CohereTruncation;
+import org.elasticsearch.xpack.inference.common.model.Truncation;
 import org.elasticsearch.xpack.inference.services.nvidia.NvidiaUtils;
 
 import java.io.IOException;
@@ -39,7 +39,7 @@ public class NvidiaEmbeddingsTaskSettings implements TaskSettings {
     public static final NvidiaEmbeddingsTaskSettings EMPTY_SETTINGS = new NvidiaEmbeddingsTaskSettings(null, null);
 
     private final InputType inputType;
-    private final CohereTruncation truncation;
+    private final Truncation truncation;
 
     /**
      * Creates a new instance of {@link NvidiaEmbeddingsTaskSettings} from a map of settings.
@@ -62,12 +62,12 @@ public class NvidiaEmbeddingsTaskSettings implements TaskSettings {
             VALID_INPUT_TYPE_VALUES,
             validationException
         );
-        CohereTruncation truncation = extractOptionalEnum(
+        Truncation truncation = extractOptionalEnum(
             map,
             TRUNCATE_FIELD_NAME,
             ModelConfigurations.TASK_SETTINGS,
-            CohereTruncation::fromString,
-            CohereTruncation.ALL,
+            Truncation::fromString,
+            Truncation.ALL,
             validationException
         );
 
@@ -109,7 +109,7 @@ public class NvidiaEmbeddingsTaskSettings implements TaskSettings {
         return requestTaskSettings.getInputType();
     }
 
-    private static CohereTruncation extractTruncationToUse(
+    private static Truncation extractTruncationToUse(
         NvidiaEmbeddingsTaskSettings originalSettings,
         NvidiaEmbeddingsTaskSettings requestTaskSettings
     ) {
@@ -120,10 +120,10 @@ public class NvidiaEmbeddingsTaskSettings implements TaskSettings {
     }
 
     public NvidiaEmbeddingsTaskSettings(StreamInput in) throws IOException {
-        this(in.readOptionalEnum(InputType.class), in.readOptionalEnum(CohereTruncation.class));
+        this(in.readOptionalEnum(InputType.class), in.readOptionalEnum(Truncation.class));
     }
 
-    public NvidiaEmbeddingsTaskSettings(@Nullable InputType inputType, @Nullable CohereTruncation truncation) {
+    public NvidiaEmbeddingsTaskSettings(@Nullable InputType inputType, @Nullable Truncation truncation) {
         validateInputType(inputType);
         this.inputType = inputType;
         this.truncation = truncation;
@@ -158,7 +158,7 @@ public class NvidiaEmbeddingsTaskSettings implements TaskSettings {
         return inputType;
     }
 
-    public CohereTruncation getTruncation() {
+    public Truncation getTruncation() {
         return truncation;
     }
 

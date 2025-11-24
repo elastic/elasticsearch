@@ -11,7 +11,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xpack.inference.services.cohere.CohereTruncation;
+import org.elasticsearch.xpack.inference.common.model.Truncation;
 import org.elasticsearch.xpack.inference.services.nvidia.NvidiaUtils;
 
 import java.io.IOException;
@@ -31,7 +31,7 @@ public record NvidiaEmbeddingsRequestEntity(
     List<String> input,
     String modelId,
     @Nullable InputType inputType,
-    @Nullable CohereTruncation truncation
+    @Nullable Truncation truncation
 ) implements ToXContentObject {
 
     public NvidiaEmbeddingsRequestEntity {

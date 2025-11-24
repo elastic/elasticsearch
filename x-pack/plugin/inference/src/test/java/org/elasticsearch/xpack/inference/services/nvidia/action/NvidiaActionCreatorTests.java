@@ -25,6 +25,7 @@ import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.core.inference.results.RankedDocsResultsTests;
 import org.elasticsearch.xpack.inference.common.TruncatorTests;
+import org.elasticsearch.xpack.inference.common.model.Truncation;
 import org.elasticsearch.xpack.inference.external.http.HttpClientManager;
 import org.elasticsearch.xpack.inference.external.http.sender.ChatCompletionInput;
 import org.elasticsearch.xpack.inference.external.http.sender.EmbeddingsInput;
@@ -32,7 +33,6 @@ import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSenderT
 import org.elasticsearch.xpack.inference.external.http.sender.QueryAndDocsInputs;
 import org.elasticsearch.xpack.inference.logging.ThrottlerManager;
 import org.elasticsearch.xpack.inference.services.ServiceComponents;
-import org.elasticsearch.xpack.inference.services.cohere.CohereTruncation;
 import org.elasticsearch.xpack.inference.services.nvidia.completion.NvidiaChatCompletionModelTests;
 import org.elasticsearch.xpack.inference.services.nvidia.embeddings.NvidiaEmbeddingsModelTests;
 import org.elasticsearch.xpack.inference.services.nvidia.rerank.NvidiaRerankModelTests;
@@ -100,9 +100,9 @@ public class NvidiaActionCreatorTests extends ESTestCase {
     private static final String INPUT_TYPE_OVERRIDDEN_NVIDIA_VALUE = "query";
     private static final String TRUNCATE_OVERRIDDEN_NVIDIA_VALUE = "end";
     private static final InputType INPUT_TYPE_INITIAL_ELASTIC_VALUE = InputType.INGEST;
-    private static final CohereTruncation TRUNCATE_INITIAL_ELASTIC_VALUE = CohereTruncation.START;
+    private static final Truncation TRUNCATE_INITIAL_ELASTIC_VALUE = Truncation.START;
     private static final InputType INPUT_TYPE_OVERRIDDEN_ELASTIC_VALUE = InputType.SEARCH;
-    private static final CohereTruncation TRUNCATE_OVERRIDDEN_ELASTIC_VALUE = CohereTruncation.END;
+    private static final Truncation TRUNCATE_OVERRIDDEN_ELASTIC_VALUE = Truncation.END;
 
     // Settings with no retries
     private static final Settings NO_RETRY_SETTINGS = buildSettingsWithRetryFields(

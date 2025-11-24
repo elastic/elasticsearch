@@ -1,0 +1,5 @@
+pr: 138467
+summary: Always treat dash-prefixed expression as index exclusion
+area: Security
+type: bug
+issues: []

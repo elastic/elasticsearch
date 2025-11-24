@@ -54,28 +54,27 @@ public abstract class AbstractStringTypeRollingUpgradeIT extends AbstractRolling
     private static final int NUM_REQUESTS = 4;
     private static final int NUM_DOCS_PER_REQUEST = 1024;
 
-//    static class ClusterWrapper implements Closeable {
-//
-//        private final TemporaryFolder repoDirectory;
-//        private final ElasticsearchCluster cluster;
-//
-//        ClusterWrapper() {
-//            repoDirectory = new TemporaryFolder();
-//            cluster = Clusters.buildCluster(repoDirectory);
-//        }
-//
-//
-//        @Override
-//        public void close() {
-//            cluster.close();
-//            repoDirectory.delete();
-//        }
-//
-//        public ElasticsearchCluster getCluster() {
-//            return cluster;
-//        }
-//    }
-
+    // static class ClusterWrapper implements Closeable {
+    //
+    // private final TemporaryFolder repoDirectory;
+    // private final ElasticsearchCluster cluster;
+    //
+    // ClusterWrapper() {
+    // repoDirectory = new TemporaryFolder();
+    // cluster = Clusters.buildCluster(repoDirectory);
+    // }
+    //
+    //
+    // @Override
+    // public void close() {
+    // cluster.close();
+    // repoDirectory.delete();
+    // }
+    //
+    // public ElasticsearchCluster getCluster() {
+    // return cluster;
+    // }
+    // }
 
     private static TemporaryFolder repoDirectory = new TemporaryFolder();
     private static ElasticsearchCluster cluster = Clusters.buildCluster(repoDirectory);

@@ -28,9 +28,9 @@ public class DefaultClusters {
     }
 
     public static ElasticsearchCluster buildCluster(TemporaryFolder repoDirectory) {
-//        String oldVersionString = System.getProperty("tests.old_cluster_version");
-//        oldVersionString = System.getProperty("tests.bwc.main.version", oldVersionString);
-//        Version oldVersion = Version.fromString(oldVersionString);
+        // String oldVersionString = System.getProperty("tests.old_cluster_version");
+        // oldVersionString = System.getProperty("tests.bwc.main.version", oldVersionString);
+        // Version oldVersion = Version.fromString(oldVersionString);
         System.out.println("hey from Stateless");
 
         boolean isDetachedVersion = System.getProperty("tests.bwc.refspec.main") != null;

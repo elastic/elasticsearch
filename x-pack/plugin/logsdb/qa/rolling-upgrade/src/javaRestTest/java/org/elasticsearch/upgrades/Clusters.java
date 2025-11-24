@@ -20,7 +20,6 @@ import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.local.distribution.DistributionType;
 import org.elasticsearch.test.cluster.util.Version;
-import org.elasticsearch.xpack.core.security.authc.support.mapper.TemplateRoleNameTests;
 import org.junit.rules.TemporaryFolder;
 
 import java.util.function.Supplier;
@@ -43,11 +42,10 @@ public class Clusters {
         return PASS;
     }
 
-
     public static ElasticsearchCluster buildCluster(TemporaryFolder repoDirectory) {
-//        String oldVersionString = System.getProperty("tests.old_cluster_version");
-//        oldVersionString = System.getProperty("tests.bwc.main.version", oldVersionString);
-//        Version oldVersion = Version.fromString(oldVersionString);
+        // String oldVersionString = System.getProperty("tests.old_cluster_version");
+        // oldVersionString = System.getProperty("tests.bwc.main.version", oldVersionString);
+        // Version oldVersion = Version.fromString(oldVersionString);
         System.out.println("hey from Stateless");
 
         boolean isDetachedVersion = System.getProperty("tests.bwc.refspec.main") != null;

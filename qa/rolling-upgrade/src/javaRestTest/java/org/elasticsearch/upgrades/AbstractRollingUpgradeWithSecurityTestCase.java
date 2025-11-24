@@ -14,16 +14,6 @@ import com.carrotsearch.randomizedtesting.annotations.Name;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.core.SuppressForbidden;
-import org.elasticsearch.test.cluster.ElasticsearchCluster;
-import org.elasticsearch.test.cluster.local.distribution.DistributionType;
-import org.elasticsearch.test.cluster.util.Version;
-import org.junit.ClassRule;
-import org.junit.rules.RuleChain;
-import org.junit.rules.TemporaryFolder;
-import org.junit.rules.TestRule;
-
-import java.util.function.Supplier;
 
 public abstract class AbstractRollingUpgradeWithSecurityTestCase extends ParameterizedRollingUpgradeTestCase {
 

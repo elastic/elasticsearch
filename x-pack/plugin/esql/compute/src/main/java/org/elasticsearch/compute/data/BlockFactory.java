@@ -509,7 +509,7 @@ public class BlockFactory {
         DoubleBlock minima,
         DoubleBlock maxima,
         DoubleBlock sums,
-        LongBlock valueCounts,
+        DoubleBlock valueCounts,
         DoubleBlock zeroThresholds,
         BytesRefBlock encodedHistograms
     ) {
